@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Client (`client/`)
 
 ## Purpose
@@ -11,7 +13,7 @@ React frontend application built with Vite, TypeScript, TailwindCSS, and React R
 | `src/` | Source code (see `src/README.md`) |
 | `src/routes.tsx` | React Router configuration |
 | `src/layouts/` | Layout components (CoPilotLayout) |
-| `src/pages/co-pilot/` | 7 route-based page components |
+| `src/pages/co-pilot/` | 8 route-based page components |
 | `src/contexts/` | React contexts (location, co-pilot) |
 | `public/` | Static assets |
 | `dist/` | Build output |

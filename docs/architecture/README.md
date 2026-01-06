@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Architecture Documentation
 
 This folder contains focused, readable technical documentation for Vecto Pilot's architecture. Each document is designed to be read in a single pass (<300 lines).
@@ -18,6 +20,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | Document | Lines | Purpose | Read When... |
 |----------|-------|---------|--------------|
 | [ai-pipeline.md](ai-pipeline.md) | ~200 | TRIAD pipeline, model configuration | Modifying AI flow |
+| [ai-coach.md](ai-coach.md) | ~300 | AI Coach system, schema access, write capabilities | Working with AI Coach |
 | [strategy-framework.md](strategy-framework.md) | ~400 | 13-component recommendation pipeline | Understanding how recommendations work |
 | [driver-intelligence-system.md](driver-intelligence-system.md) | ~800 | Full driver intelligence architecture & vision | Understanding staging recommendations |
 | [event-discovery.md](event-discovery.md) | ~300 | Multi-model AI event search | Modifying event detection |
@@ -129,10 +132,12 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the complete folder README inde
 | Category | Count | Total Lines |
 |----------|-------|-------------|
 | Core System | 4 | ~760 |
-| AI System | 6 | ~2230 |
+| AI System | 7 | ~2530 |
 | System Rules | 3 | ~450 |
 | Infrastructure | 3 | ~850 |
 | Domain-Specific | 5 | ~800 |
-| **Total** | **21** | **~5090** |
+| **Total** | **22** | **~5390** |
 
 Most documents are under 400 lines, making them readable in a single pass. The driver-intelligence-system.md (~800 lines) and authentication.md (~650 lines) are comprehensive architecture documents.
+
+**Note:** `driver-intelligence-system.html` is an HTML export of the markdown file for external sharing.

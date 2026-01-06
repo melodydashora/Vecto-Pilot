@@ -37,9 +37,34 @@ const OWNERSHIP_ERROR_COOLDOWN_MS = 60000; // 60 seconds between dispatches (was
 // Track if we're in "cooling off" state after an ownership error
 // During this time, ALL queries should be disabled to prevent loops
 let isInCoolingOff = false;
+// Track which snapshot caused the cooling off (so we can exit early when NEW snapshot arrives)
+let coolingOffSnapshotId: string | null = null;
+// Timeout handle for auto-exit (so we can clear it if we exit early)
+let coolingOffTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+// Dispatch event to force logout when server returns 401 no_token
+// This happens when:
+// 1. Token not in localStorage (user not logged in)
+// 2. Session expired server-side (2hr hard limit or 60min inactivity)
+// 3. Token was cleared/corrupted
+// 2026-01-06: Added to handle auth failures gracefully by redirecting to login
+let lastAuthErrorTime = 0;
+const AUTH_ERROR_COOLDOWN_MS = 5000; // Only dispatch once per 5 seconds
+
+function dispatchAuthError(errorType: string) {
+  const now = Date.now();
+  if (now - lastAuthErrorTime < AUTH_ERROR_COOLDOWN_MS) {
+    console.warn(`[BriefingQuery] 🔐 Auth error: ${errorType} - SKIPPED (cooldown active)`);
+    return;
+  }
+  lastAuthErrorTime = now;
+  console.error(`[BriefingQuery] 🔐 Auth error: ${errorType} - dispatching logout`);
+  // Dispatch event that auth-context can listen to for forced logout
+  window.dispatchEvent(new CustomEvent('vecto-auth-error', { detail: { error: errorType } }));
+}
 
 // Dispatch event to clear stale snapshot and request fresh GPS
-function dispatchSnapshotOwnershipError() {
+function dispatchSnapshotOwnershipError(failedSnapshotId?: string) {
   // If already cooling off, skip entirely
   if (isInCoolingOff) {
     console.warn('[BriefingQuery] 🚨 Snapshot ownership error - SKIPPED (cooling off)');
@@ -54,17 +79,45 @@ function dispatchSnapshotOwnershipError() {
 
   // Enter cooling off state
   isInCoolingOff = true;
+  coolingOffSnapshotId = failedSnapshotId || null;
   lastOwnershipErrorTime = now;
-  console.warn('[BriefingQuery] 🚨 Snapshot ownership error - entering cooling off state');
+  console.warn(`[BriefingQuery] 🚨 Snapshot ownership error for ${failedSnapshotId?.slice(0, 8) || 'unknown'} - entering cooling off state`);
 
-  // Exit cooling off after the cooldown period
-  setTimeout(() => {
+  // Exit cooling off after the cooldown period (unless exited early)
+  coolingOffTimeoutId = setTimeout(() => {
     isInCoolingOff = false;
-    console.log('[BriefingQuery] ✅ Cooling off period ended');
+    coolingOffSnapshotId = null;
+    coolingOffTimeoutId = null;
+    console.log('[BriefingQuery] ✅ Cooling off period ended (timeout)');
   }, OWNERSHIP_ERROR_COOLDOWN_MS);
 
   // Dispatch the event
   window.dispatchEvent(new CustomEvent('snapshot-ownership-error'));
+}
+
+// Exit cooling off early when a new (different) snapshot is received
+// This allows queries to resume immediately after GPS refresh creates new snapshot
+// 2026-01-06: Critical fix for briefing data appearing blank after ownership errors
+function exitCoolingOffForNewSnapshot(newSnapshotId: string): void {
+  if (!isInCoolingOff) return; // Not in cooling off, nothing to do
+
+  // Only exit if this is a DIFFERENT snapshot than the one that caused the error
+  if (newSnapshotId === coolingOffSnapshotId) {
+    console.log(`[BriefingQuery] 🚫 Not exiting cooling off - same snapshot ${newSnapshotId.slice(0, 8)}`);
+    return;
+  }
+
+  console.log(`[BriefingQuery] ✅ Exiting cooling off early - new snapshot ${newSnapshotId.slice(0, 8)} (was ${coolingOffSnapshotId?.slice(0, 8) || 'unknown'})`);
+
+  // Clear the timeout
+  if (coolingOffTimeoutId) {
+    clearTimeout(coolingOffTimeoutId);
+    coolingOffTimeoutId = null;
+  }
+
+  // Reset state
+  isInCoolingOff = false;
+  coolingOffSnapshotId = null;
 }
 
 // Check if queries should be disabled (cooling off from ownership error)
@@ -165,6 +218,22 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     queryClient.invalidateQueries({ queryKey: ['/api/briefing/airport', snapshotId] });
   }, [snapshotId, queryClient]);
 
+  // 2026-01-06: Listen for new snapshots to exit cooling off early
+  // When GPS refresh creates a new snapshot, we should immediately resume queries
+  // rather than waiting for the full 60-second cooling off period
+  useEffect(() => {
+    const handleNewSnapshot = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const newSnapshotId = customEvent.detail?.snapshotId;
+      if (newSnapshotId && typeof newSnapshotId === 'string') {
+        exitCoolingOffForNewSnapshot(newSnapshotId);
+      }
+    };
+
+    window.addEventListener('vecto-snapshot-saved', handleNewSnapshot);
+    return () => window.removeEventListener('vecto-snapshot-saved', handleNewSnapshot);
+  }, []);
+
   // Base config - conservative settings to prevent infinite loops
   // Issue: staleTime: 0 was causing refetch storms when queries returned errors
   const baseConfig = {
@@ -184,6 +253,16 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 2026-01-06: Handle 401 auth errors - force logout and redirect to login
+        if (response.status === 401) {
+          try {
+            const errorBody = await response.json();
+            dispatchAuthError(errorBody?.error || 'unauthorized');
+          } catch (_e) {
+            dispatchAuthError('unauthorized');
+          }
+          return { weather: null, _authError: true };
+        }
         // Only treat 404 with specific error message as ownership error
         // Other 404s (or errors during briefing generation) should just retry
         if (response.status === 404) {
@@ -193,7 +272,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
             // (which could mean doesn't exist OR user mismatch)
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] Weather 404 - snapshot ownership error');
-              dispatchSnapshotOwnershipError();
+              dispatchSnapshotOwnershipError(snapshotId ?? undefined);
               return { weather: null, _ownershipError: true };
             }
           } catch (_e) {
@@ -202,8 +281,8 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
           }
         }
         console.error('[BriefingQuery] Weather failed:', response.status);
-        // Return undefined to indicate "still loading" - UI will show spinner
-        return undefined;
+        // 2026-01-06: Return null instead of undefined - React Query throws on undefined
+        return { weather: null, _error: response.status };
       }
       const data = await response.json();
       console.log('[BriefingQuery] ✅ Weather received');
@@ -223,12 +302,22 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 2026-01-06: Handle 401 auth errors
+        if (response.status === 401) {
+          try {
+            const errorBody = await response.json();
+            dispatchAuthError(errorBody?.error || 'unauthorized');
+          } catch (_e) {
+            dispatchAuthError('unauthorized');
+          }
+          return { traffic: null, _authError: true };
+        }
         if (response.status === 404) {
           try {
             const errorBody = await response.json();
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] Traffic 404 - snapshot ownership error');
-              dispatchSnapshotOwnershipError();
+              dispatchSnapshotOwnershipError(snapshotId ?? undefined);
               return { traffic: null, _ownershipError: true };
             }
           } catch (_e) {
@@ -236,7 +325,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
           }
         }
         console.error('[BriefingQuery] Traffic failed:', response.status);
-        return undefined;
+        return { traffic: null, _error: response.status };
       }
       const data = await response.json();
       const isLoading = isTrafficLoading(data);
@@ -273,19 +362,30 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 2026-01-06: Handle 401 auth errors
+        if (response.status === 401) {
+          try {
+            const errorBody = await response.json();
+            dispatchAuthError(errorBody?.error || 'unauthorized');
+          } catch (_e) {
+            dispatchAuthError('unauthorized');
+          }
+          return { news: null, _authError: true };
+        }
         if (response.status === 404) {
           try {
             const errorBody = await response.json();
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] News 404 - snapshot ownership error');
-              dispatchSnapshotOwnershipError();
+              dispatchSnapshotOwnershipError(snapshotId ?? undefined);
               return { news: null, _ownershipError: true };
             }
           } catch (_e) {
             console.warn('[BriefingQuery] News 404 - could not parse error body');
           }
         }
-        return undefined;
+        console.error('[BriefingQuery] News failed:', response.status);
+        return { news: null, _error: response.status };
       }
       const data = await response.json();
       const isLoading = isNewsLoading(data);
@@ -320,12 +420,22 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 2026-01-06: Handle 401 auth errors
+        if (response.status === 401) {
+          try {
+            const errorBody = await response.json();
+            dispatchAuthError(errorBody?.error || 'unauthorized');
+          } catch (_e) {
+            dispatchAuthError('unauthorized');
+          }
+          return { events: [], _authError: true };
+        }
         if (response.status === 404) {
           try {
             const errorBody = await response.json();
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] Events 404 - snapshot ownership error');
-              dispatchSnapshotOwnershipError();
+              dispatchSnapshotOwnershipError(snapshotId ?? undefined);
               return { events: [], _ownershipError: true };
             }
           } catch (_e) {
@@ -333,9 +443,8 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
           }
         }
         console.error('[BriefingQuery] Events failed:', response.status);
-        // Return undefined to indicate "still loading" - UI will show spinner
-        // Empty array would mean "fetched successfully but no events found"
-        return undefined;
+        // 2026-01-06: Return empty events with error flag - React Query throws on undefined
+        return { events: [], _error: response.status };
       }
       const data = await response.json();
       console.log('[BriefingQuery] ✅ Events received:', data.events?.length || 0);
@@ -355,20 +464,30 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 2026-01-06: Handle 401 auth errors
+        if (response.status === 401) {
+          try {
+            const errorBody = await response.json();
+            dispatchAuthError(errorBody?.error || 'unauthorized');
+          } catch (_e) {
+            dispatchAuthError('unauthorized');
+          }
+          return { school_closures: [], _authError: true };
+        }
         if (response.status === 404) {
           try {
             const errorBody = await response.json();
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] School closures 404 - snapshot ownership error');
-              dispatchSnapshotOwnershipError();
+              dispatchSnapshotOwnershipError(snapshotId ?? undefined);
               return { school_closures: [], _ownershipError: true };
             }
           } catch (_e) {
             console.warn('[BriefingQuery] School closures 404 - could not parse error body');
           }
         }
-        // Return undefined to indicate "still loading" - UI will show spinner
-        return undefined;
+        console.error('[BriefingQuery] School closures failed:', response.status);
+        return { school_closures: [], _error: response.status };
       }
       const data = await response.json();
       console.log('[BriefingQuery] ✅ School closures received');
@@ -388,12 +507,22 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         headers: getAuthHeader()
       });
       if (!response.ok) {
+        // 2026-01-06: Handle 401 auth errors
+        if (response.status === 401) {
+          try {
+            const errorBody = await response.json();
+            dispatchAuthError(errorBody?.error || 'unauthorized');
+          } catch (_e) {
+            dispatchAuthError('unauthorized');
+          }
+          return { airport_conditions: null, _authError: true };
+        }
         if (response.status === 404) {
           try {
             const errorBody = await response.json();
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] Airport 404 - snapshot ownership error');
-              dispatchSnapshotOwnershipError();
+              dispatchSnapshotOwnershipError(snapshotId ?? undefined);
               return { airport_conditions: null, _ownershipError: true };
             }
           } catch (_e) {
@@ -401,7 +530,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
           }
         }
         console.error('[BriefingQuery] Airport failed:', response.status);
-        return undefined;
+        return { airport_conditions: null, _error: response.status };
       }
       const data = await response.json();
       const isLoading = isAirportLoading(data);
@@ -464,12 +593,22 @@ export function useActiveEventsQuery(snapshotId: string | null) {
       });
 
       if (!response.ok) {
+        // 2026-01-06: Handle 401 auth errors
+        if (response.status === 401) {
+          try {
+            const errorBody = await response.json();
+            dispatchAuthError(errorBody?.error || 'unauthorized');
+          } catch (_e) {
+            dispatchAuthError('unauthorized');
+          }
+          return { events: [], _authError: true };
+        }
         if (response.status === 404) {
           try {
             const errorBody = await response.json();
             if (errorBody?.error === 'snapshot_not_found') {
               console.error('[BriefingQuery] Active events 404 - snapshot ownership error');
-              dispatchSnapshotOwnershipError();
+              dispatchSnapshotOwnershipError(snapshotId ?? undefined);
               return { events: [], _ownershipError: true };
             }
           } catch (_e) {

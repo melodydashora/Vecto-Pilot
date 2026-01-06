@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # UI Components (`client/src/components/ui/`)
 
 ## Purpose
@@ -75,7 +77,6 @@ import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 | `alert.tsx` | Alert message |
 | `toast.tsx` | Toast notification |
 | `toaster.tsx` | Toast container |
-| `sonner.tsx` | Sonner toast integration |
 
 ### Disclosure
 | Component | Purpose |
@@ -95,7 +96,9 @@ import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 |-----------|---------|
 | `calendar.tsx` | Date picker calendar |
 | `carousel.tsx` | Image/content carousel |
+| `chart-wrapper.tsx` | Chart component wrapper |
 | `input-otp.tsx` | OTP input |
+| `sidebar.tsx` | Sidebar navigation |
 | `toggle.tsx` | Toggle button |
 | `toggle-group.tsx` | Group of toggle buttons |
 

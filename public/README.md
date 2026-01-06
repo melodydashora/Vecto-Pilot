@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Public
 
 Static files served directly by the web server.

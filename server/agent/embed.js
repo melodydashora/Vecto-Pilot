@@ -1,8 +1,14 @@
 import express from 'express';
 import { WebSocketServer } from 'ws';
+import agentRoutes from './routes.js';
 
 export function mountAgent({ app, basePath, wsPath, server }) {
   console.log(`[agent embed] Mounting Agent at ${basePath}, WS at ${wsPath}`);
+
+  // 2026-01-06: Mount agent API routes (context, memory, thread management)
+  // These were previously orphaned - useMemory hook calls /agent/context
+  app.use(basePath, agentRoutes);
+  console.log(`[agent embed] ✅ Agent routes mounted at ${basePath}`);
 
   // Agent health endpoint
   app.get(`${basePath}/health`, (_req, res) => {

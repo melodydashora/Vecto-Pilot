@@ -80,20 +80,42 @@ export async function requireAuth(req, res, next) {
         return res.status(401).json({ error: 'session_expired', message: 'Session not found. Please log in again.' });
       }
 
+      // 2026-01-06: Check for logged out state (session_id cleared by logout endpoint)
+      if (!session.session_id) {
+        authLog.warn(1, `Session invalid for user ${userId.substring(0, 8)} - session_id is null (logged out)`);
+        return res.status(401).json({ error: 'session_expired', message: 'Session ended. Please log in again.' });
+      }
+
       const lastActiveAt = session.last_active_at ? new Date(session.last_active_at).getTime() : 0;
       const sessionStartAt = session.session_start_at ? new Date(session.session_start_at).getTime() : 0;
 
       // Check 1: Hard limit (2 hours from session start - force re-login)
       if (now - sessionStartAt > SESSION_HARD_LIMIT_MS) {
-        authLog.warn(1, `Session exceeded 2-hour limit for user ${userId.substring(0, 8)} - deleting`);
-        await db.delete(users).where(eq(users.user_id, userId));
+        authLog.warn(1, `Session exceeded 2-hour limit for user ${userId.substring(0, 8)} - clearing session`);
+        // 2026-01-06: CRITICAL FIX - Use UPDATE to clear session instead of DELETE!
+        // DELETE was blocked by RESTRICT foreign keys on driver_profiles, auth_credentials, etc.
+        // This caused users to NOT be signed out even though session expired.
+        await db.update(users)
+          .set({
+            session_id: null,
+            current_snapshot_id: null,
+            updated_at: new Date()
+          })
+          .where(eq(users.user_id, userId));
         return res.status(401).json({ error: 'session_expired', message: 'Session expired (2-hour limit). Please log in again.' });
       }
 
       // Check 2: Sliding window (60 min from last activity)
       if (now - lastActiveAt > SESSION_SLIDING_WINDOW_MS) {
-        authLog.warn(1, `Session timed out for user ${userId.substring(0, 8)} (inactive ${Math.round((now - lastActiveAt) / 60000)} min) - deleting`);
-        await db.delete(users).where(eq(users.user_id, userId));
+        authLog.warn(1, `Session timed out for user ${userId.substring(0, 8)} (inactive ${Math.round((now - lastActiveAt) / 60000)} min) - clearing session`);
+        // 2026-01-06: CRITICAL FIX - Use UPDATE to clear session instead of DELETE!
+        await db.update(users)
+          .set({
+            session_id: null,
+            current_snapshot_id: null,
+            updated_at: new Date()
+          })
+          .where(eq(users.user_id, userId));
         return res.status(401).json({ error: 'session_expired', message: 'Session expired due to inactivity. Please log in again.' });
       }
 

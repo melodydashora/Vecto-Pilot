@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Future Components
 
 Staged components for future activation.

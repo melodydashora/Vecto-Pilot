@@ -870,17 +870,22 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       {/* Input Area */}
       <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 flex gap-2">
         <Input
+          id="coach-chat-message"
+          name="coach-chat-message"
           className="flex-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           placeholder="Ask anything - rideshare tips, life advice, or just chat..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !isStreaming && send()}
           disabled={isStreaming}
+          autoComplete="off"
           data-testid="input-chat-message"
         />
-        
+
         {/* File Input (Hidden) */}
         <input
+          id="coach-file-upload"
+          name="coach-file-upload"
           ref={fileInputRef}
           type="file"
           multiple

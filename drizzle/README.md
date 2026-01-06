@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Drizzle Migrations
 
 Auto-generated database migrations from Drizzle Kit.
@@ -46,4 +48,4 @@ npx drizzle-kit status
 
 - [shared/schema.js](../shared/schema.js) - Source schema
 - [migrations/](../migrations/) - Manual migrations
-- [drizzle.config.ts](../drizzle.config.ts) - Drizzle configuration
+- [drizzle.config.js](../drizzle.config.js) - Drizzle configuration

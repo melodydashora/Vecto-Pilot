@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Pre-flight Checks
 
 Quick-reference cards for Claude to read **before** making changes. Each card is <50 lines.

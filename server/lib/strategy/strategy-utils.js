@@ -280,29 +280,110 @@ export async function getPhaseTimingInfo(snapshotId) {
 
 /**
  * Extract end time from event object (handles multiple field naming conventions)
+ *
+ * 2026-01-06: Fixed timezone handling for discovered_events format.
+ * Events store event_end_date ("2026-01-06") + event_end_time ("10:00 PM") separately.
+ * Must combine and parse with timezone, otherwise "2026-01-06" becomes midnight UTC
+ * which is 6PM previous day in Central Time - marking events as stale incorrectly.
+ *
  * @param {Object} event - Event object
+ * @param {string} timezone - IANA timezone like "America/Chicago" (optional)
  * @returns {Date|null} - Parsed end time or null if not available
  */
-function getEventEndTime(event) {
+function getEventEndTime(event, timezone = null) {
   if (!event) return null;
 
-  // Try various field names used across the codebase
-  const endTimeFields = [
-    'end_time',
-    'endTime',
+  // PRIORITY 1: Try ISO datetime fields first (already include time)
+  const isoFields = [
     'end_time_iso',
     'endsAt',
     'ends_at',
-    'event_end_date',
-    'endDate',
-    'end_date'
+    'end_time',
+    'endTime'
   ];
 
-  for (const field of endTimeFields) {
+  for (const field of isoFields) {
     if (event[field]) {
       const parsed = new Date(event[field]);
       if (!isNaN(parsed.getTime())) {
+        // Verify it's a full datetime, not just a date (has time component)
+        const str = String(event[field]);
+        if (str.includes('T') || str.includes(':')) {
+          return parsed;
+        }
+      }
+    }
+  }
+
+  // PRIORITY 2: Combine event_end_date + event_end_time (discovered_events pattern)
+  // event_end_date: "2026-01-06", event_end_time: "10:00 PM"
+  if (event.event_end_date && event.event_end_time) {
+    const timeParts = parseTimeString(event.event_end_time);
+    if (timeParts) {
+      const dateStr = event.event_end_date; // "2026-01-06"
+      const [year, month, day] = dateStr.split('-').map(Number);
+
+      // If timezone provided, use it for proper UTC conversion
+      if (timezone) {
+        try {
+          return createDateInTimezone(year, month, day, timeParts.hours, timeParts.minutes, timezone);
+        } catch (e) {
+          // Fall back to server local time if timezone conversion fails
+        }
+      }
+
+      // No timezone - use server local time
+      const combined = new Date(year, month - 1, day, timeParts.hours, timeParts.minutes);
+      if (!isNaN(combined.getTime())) {
+        return combined;
+      }
+    }
+  }
+
+  // PRIORITY 3: event_end_date only (multi-day events) - use end of day in timezone
+  // For multi-day events like "Holiday Lights Dec 1 - Jan 4", the end date means the event
+  // ends at the END of that day, not at midnight (which would be start of day)
+  if (event.event_end_date) {
+    const dateStr = String(event.event_end_date);
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateStr.split('-').map(Number);
+
+      // Use 11:59 PM in the specified timezone (end of day)
+      if (timezone) {
+        try {
+          return createDateInTimezone(year, month, day, 23, 59, timezone);
+        } catch (e) {
+          // Fall back to server local time
+        }
+      }
+
+      // No timezone - use server local time end of day
+      const parsed = new Date(year, month - 1, day, 23, 59, 59);
+      if (!isNaN(parsed.getTime())) {
         return parsed;
+      }
+    }
+  }
+
+  // PRIORITY 4: Single-day event with event_time only - use event_date + event_end_time
+  // Some events have event_date + event_time (start) + event_end_time (end) but no event_end_date
+  if (event.event_date && event.event_end_time && !event.event_end_date) {
+    const timeParts = parseTimeString(event.event_end_time);
+    if (timeParts) {
+      const dateStr = event.event_date;
+      const [year, month, day] = dateStr.split('-').map(Number);
+
+      if (timezone) {
+        try {
+          return createDateInTimezone(year, month, day, timeParts.hours, timeParts.minutes, timezone);
+        } catch (e) {
+          // Fall back
+        }
+      }
+
+      const combined = new Date(year, month - 1, day, timeParts.hours, timeParts.minutes);
+      if (!isNaN(combined.getTime())) {
+        return combined;
       }
     }
   }
@@ -530,7 +611,8 @@ function hasValidDateInfo(event, timezone = null) {
 export function isEventFresh(event, now = new Date(), timezone = null) {
   if (!event) return false;
 
-  const endTime = getEventEndTime(event);
+  // 2026-01-06: Pass timezone to getEventEndTime for proper parsing of discovered_events format
+  const endTime = getEventEndTime(event, timezone);
 
   // If we have an end time, check if event has ended
   if (endTime) {

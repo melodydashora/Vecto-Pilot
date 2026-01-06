@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Scripts (`server/scripts/`)
 
 ## Purpose
@@ -10,7 +12,9 @@ Server-side utility scripts for maintenance, operations, and event discovery.
 |--------|---------|
 | `sync-events.mjs` | **Event Discovery** - Multi-model AI event search |
 | `seed-markets.js` | **Global Markets** - Seed 140 markets with timezones (69 US + 71 international) |
+| `seed-market-cities.js` | Seed market cities table with US city-market mappings |
 | `seed-uber-airports.js` | **Uber Airports** - Sync 71 US airports with market data |
+| `seed-uber-cities.js` | Seed Uber cities from platform data |
 | `seed-countries.js` | Seed countries table with ISO 3166-1 codes |
 | `holiday-override.js` | Manage holiday override configuration |
 | `db-doctor.js` | Database health checks and repairs |
@@ -19,7 +23,9 @@ Server-side utility scripts for maintenance, operations, and event discovery.
 | `continuous-monitor.js` | Continuous system monitoring |
 | `self-healing-monitor.js` | Self-healing system monitor |
 | `test-gemini-search.js` | Test Gemini search functionality |
+| `parse-market-research.js` | Parse market research documents for intelligence |
 | `workspace-startup.sh` | Workspace initialization script |
+| `migrate-venues-to-catalog.ARCHIVED.js` | (Archived) Venue migration script |
 
 ## Event Discovery (`sync-events.mjs`)
 

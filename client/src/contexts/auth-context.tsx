@@ -1,7 +1,7 @@
 // client/src/contexts/auth-context.tsx
 // Authentication context for user login, registration, and session management
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type {
   DriverProfile,
   AuthState,
@@ -50,6 +50,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       setState(prev => ({ ...prev, isLoading: false }));
     }
+  }, []);
+
+  // 2026-01-06: Listen for auth errors from API calls and force logout
+  // This handles cases where server returns 401 (no_token, session_expired, etc.)
+  // Dispatched by useBriefingQueries and other hooks when API returns 401
+  useEffect(() => {
+    const handleAuthError = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const error = customEvent.detail?.error || 'unknown';
+      console.warn(`[auth] 🔐 Auth error received: ${error} - forcing logout`);
+
+      // Clear local auth state
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem('vecto_persistent_strategy');
+      localStorage.removeItem('vecto_strategy_snapshot_id');
+      sessionStorage.removeItem('vecto_snapshot');
+
+      setState({
+        user: null,
+        profile: null,
+        vehicle: null,
+        token: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+    };
+
+    window.addEventListener('vecto-auth-error', handleAuthError);
+    return () => window.removeEventListener('vecto-auth-error', handleAuthError);
   }, []);
 
   const fetchProfile = async (token: string) => {
@@ -210,14 +239,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.token]);
 
-  const value: AuthContextValue = {
+  // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
+  // Without useMemo, every render creates a new object → all consumers re-render → cascade
+  // This was causing "Maximum update depth exceeded" errors in LocationContext
+  const value: AuthContextValue = useMemo(() => ({
     ...state,
     login,
     register,
     logout,
     refreshProfile,
     updateProfile,
-  };
+  }), [state, login, register, logout, refreshProfile, updateProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

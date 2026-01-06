@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Hooks (`client/src/hooks/`)
 
 ## Purpose
@@ -20,7 +22,7 @@ Custom React hooks for data fetching and UI state.
 | `useStrategyLoadingMessages.ts` | Rotating loading messages during strategy generation |
 | `useVenueLoadingMessages.ts` | Rotating loading messages during venue enrichment |
 | `useTTS.ts` | Text-to-speech with OpenAI |
-| `useToast.ts` | Toast notifications |
+| `useToast.ts` | Toast notifications (shadcn/ui toast integration) |
 
 ## Active Hooks
 
@@ -29,6 +31,12 @@ Custom React hooks for data fetching and UI state.
 const { weatherData, trafficData, newsData, eventsData, isLoading } = useBriefingQueries({ snapshotId });
 ```
 Fetches all briefing data from `/api/briefing/*` endpoints.
+
+**Ownership Error Handling (2026-01-06):**
+- If a 404 ownership error occurs (snapshot belongs to different user), enters 60-second cooling off
+- During cooling off, all queries are disabled to prevent infinite refresh loops
+- Listens for `vecto-snapshot-saved` events to exit cooling off early when new snapshot arrives
+- This prevents blank briefing data for 60 seconds after session changes
 
 ### useEnrichmentProgress
 ```typescript

@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Session Logs (`docs/memory/sessions/`)
 
 ## Purpose

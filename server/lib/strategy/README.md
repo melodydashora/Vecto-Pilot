@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Strategy Module (`server/lib/strategy/`)
 
 ## Purpose
@@ -16,7 +18,9 @@ strategy/
 ├── planner-gpt5.js                # Venue planner (GPT-5.2)
 ├── tactical-planner.js            # Tactical guidance generation
 ├── providers.js                   # Strategy provider registry
-└── assert-safe.js                 # Async validation, cache warming
+├── assert-safe.js                 # Async validation, cache warming
+├── dump-last-strategy.js          # Debug utility: dump last strategy
+└── index.js                       # Module barrel exports
 ```
 
 ## Files
@@ -32,6 +36,8 @@ strategy/
 | `tactical-planner.js` | Tactical guidance | `generateTacticalPlan()` |
 | `providers.js` | Registry | `providers`, `getStrategyProvider()` |
 | `assert-safe.js` | Async validation | `safeAssertStrategies()`, `maybeWarmCaches()` |
+| `dump-last-strategy.js` | Debug utility | CLI script for debugging |
+| `index.js` | Barrel exports | Module re-exports |
 
 ## CRITICAL: Pass Full Snapshot Row
 

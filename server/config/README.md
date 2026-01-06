@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Config Module (`server/config/`)
 
 ## Purpose
@@ -11,6 +13,7 @@ Server configuration: environment loading, validation, and runtime settings.
 | `load-env.js` | Environment loading (mode-specific .env files) |
 | `validate-env.js` | Environment validation (required API keys) |
 | `validate-strategy-env.js` | Strategy model configuration validation |
+| `env-registry.js` | Environment variable registry with defaults and types |
 | `holiday-override.json` | Manual holiday override configuration |
 | `agent-policy.json` | Agent system policy |
 | `assistant-policy.json` | Assistant system policy |

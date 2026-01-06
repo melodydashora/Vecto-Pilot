@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # API Routes (`server/api/`)
 
 ## Purpose
@@ -11,6 +13,7 @@ api/
 ├── auth/           # Authentication (JWT, login, register)
 ├── briefing/       # Events, traffic, news
 ├── chat/           # AI Coach, voice
+├── coach/          # AI Coach schema, validation, notes CRUD
 ├── feedback/       # User feedback, actions
 ├── health/         # Health checks, diagnostics
 ├── intelligence/   # Market intelligence (zones, strategies)
@@ -29,12 +32,14 @@ api/
 | File | Route | Purpose |
 |------|-------|---------|
 | `auth.js` | `/api/auth/*` | JWT token generation |
+| `index.js` | - | Router barrel export |
 
 ### briefing/
 | File | Route | Purpose |
 |------|-------|---------|
 | `briefing.js` | `/api/briefing/*` | Events, traffic, news |
 | `events.js` | `/events` | SSE stream for real-time updates |
+| `index.js` | - | Router barrel export |
 
 ### chat/
 | File | Route | Purpose |
@@ -43,12 +48,22 @@ api/
 | `chat-context.js` | `/coach/context/*` | Read-only chat context |
 | `realtime.js` | `/api/realtime` | OpenAI Realtime voice API |
 | `tts.js` | `/api/tts` | Text-to-speech |
+| `index.js` | - | Router barrel export |
+
+### coach/
+| File | Route | Purpose |
+|------|-------|---------|
+| `index.js` | `/api/coach/*` | AI Coach router (mounts sub-routers) |
+| `schema.js` | `/api/coach/schema/*` | Database schema awareness for Coach |
+| `validate.js` | `/api/coach/validate/*` | Coach validation endpoints |
+| `notes.js` | `/api/coach/notes/*` | User notes CRUD operations |
 
 ### feedback/
 | File | Route | Purpose |
 |------|-------|---------|
 | `feedback.js` | `/api/feedback/*` | User feedback capture |
 | `actions.js` | `/api/actions/*` | User interaction tracking |
+| `index.js` | - | Router barrel export |
 
 ### health/
 | File | Route | Purpose |
@@ -60,12 +75,14 @@ api/
 | `job-metrics.js` | `/api/job-metrics` | Background job stats |
 | `ml-health.js` | `/api/ml/*` | ML model health |
 | `unified-capabilities.js` | `/capabilities` | AI capabilities |
+| `index.js` | - | Router barrel export |
 
 ### location/
 | File | Route | Purpose |
 |------|-------|---------|
 | `location.js` | `/api/location/*` | GPS, geocoding, weather, AQ |
 | `snapshot.js` | `/api/snapshot/*` | Location snapshot CRUD |
+| `index.js` | - | Router barrel export |
 
 Key location endpoints:
 ```
@@ -81,6 +98,7 @@ GET  /api/users/me               - Current user's location
 |------|-------|---------|
 | `research.js` | `/api/research/*` | Research queries |
 | `vector-search.js` | `/api/vector-search/*` | Vector similarity search |
+| `index.js` | - | Router barrel export |
 
 ### strategy/
 | File | Route | Purpose |
@@ -88,6 +106,9 @@ GET  /api/users/me               - Current user's location
 | `blocks-fast.js` | `/api/blocks-fast` | Strategy + venue generation (main endpoint) |
 | `strategy.js` | `/api/strategy/*` | Strategy fetching, retry |
 | `content-blocks.js` | `/api/blocks/*` | Block status polling |
+| `strategy-events.js` | `/events/*` | SSE real-time strategy updates |
+| `tactical-plan.js` | `/api/strategy/tactical-plan` | AI tactical analysis for missions |
+| `index.js` | - | Router barrel export |
 
 Key strategy endpoints:
 ```
@@ -102,6 +123,7 @@ GET  /api/strategy/:snapshotId   - Get strategy for snapshot
 | `venue-intelligence.js` | `/api/venues/*` | Venue recommendations |
 | `venue-events.js` | `/api/venue/events/*` | Venue-specific events |
 | `closed-venue-reasoning.js` | `/api/closed-venue-reasoning` | GPT-5 venue reasoning |
+| `index.js` | - | Router barrel export |
 
 ### intelligence/
 | File | Route | Purpose |
@@ -151,6 +173,7 @@ GET  /api/platform/city/:city     - Details for a specific city
 |------|---------|
 | `http-helpers.js` | Response helpers, JSON parsing |
 | `safeElapsedMs.js` | Safe timing utilities |
+| `index.js` | Barrel export |
 
 ## Connections
 

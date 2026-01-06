@@ -4,7 +4,7 @@
 import express from "express";
 import { getEnhancedProjectContext, performInternetSearch, analyzeWorkspaceDeep } from "./enhanced-context.js";
 import { getThreadManager, getThreadAwareContext } from "./thread-context.js";
-import { listConfigFiles, readConfigFile, updateEnvFile, createBackup } from "./config-manager.js";
+import { listConfigFiles, readConfigFile, updateEnvFile, backupConfigFile } from "./config-manager.js";
 import { memoryPut, memoryGet, memoryQuery } from "../eidolon/memory/pg.js";
 import { storeCrossThreadMemory, getCrossThreadMemory, storeAgentMemory, getAgentMemory } from "./enhanced-context.js";
 
@@ -260,7 +260,7 @@ router.post("/config/env/update", async (req, res) => {
 router.post("/config/backup/:filename", async (req, res) => {
   try {
     const { filename } = req.params;
-    const result = await createBackup(filename);
+    const result = await backupConfigFile(filename);
     res.json(result);
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });

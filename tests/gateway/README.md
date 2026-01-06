@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Gateway Tests (`tests/gateway/`)
 
 ## Purpose

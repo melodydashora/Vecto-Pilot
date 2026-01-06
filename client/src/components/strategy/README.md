@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Strategy Components (`client/src/components/strategy/`)
 
 ## Purpose

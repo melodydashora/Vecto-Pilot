@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Memory Layer
 
 Persistent memory system for AI assistants to maintain context across sessions.
@@ -257,8 +259,18 @@ CREATE INDEX idx_{table}_expires ON {table} (expires_at);
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Folder Contents
+
+| File | Purpose |
+|------|---------|
+| `README.md` | This file - memory layer overview |
+| `session-start.md` | Session start ritual |
+| `session-end.md` | Session end ritual |
+| `sessions/` | Daily session logs |
+
 ## See Also
 
+- [sessions/README.md](sessions/README.md) - Session logs documentation
 - [server/agent/README.md](../../server/agent/README.md) - Agent server
 - [server/eidolon/README.md](../../server/eidolon/README.md) - Eidolon framework
 - [CLAUDE.md](../../CLAUDE.md) - Project guidelines

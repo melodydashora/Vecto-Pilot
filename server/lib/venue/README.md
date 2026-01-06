@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Venue Module (`server/lib/venue/`)
 
 ## Purpose

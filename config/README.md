@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Config
 
 Application configuration files.
@@ -9,8 +11,6 @@ Application configuration files.
 | `agent-policy.json` | AI agent behavior policies and guardrails |
 | `assistant-policy.json` | Assistant mode configuration |
 | `eidolon-policy.json` | Eidolon SDK configuration |
-| `agent-ai-config.js` | AI model configuration (if present) |
-| `models-dictionary.json` | Model name mappings (if present) |
 
 ## Usage
 

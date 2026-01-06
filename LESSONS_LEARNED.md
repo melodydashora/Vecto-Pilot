@@ -247,6 +247,88 @@ All data MUST link to `snapshot_id`:
 
 ## Frontend Pitfalls
 
+### Context Provider Value Not Memoized (2026-01-06) - CRITICAL
+
+**Problem:** "Maximum update depth exceeded" errors causing infinite render loops and app freeze
+
+**Root Cause:**
+```jsx
+// WRONG - Creates new object on every render
+<LocationContext.Provider
+  value={{
+    currentCoords,
+    city,
+    state,
+    ...
+  }}
+>
+```
+
+Every render creates a new object reference for `value`. All context consumers detect "change" (different object reference) and re-render. If any consumer triggers state that causes the provider to re-render, you get an infinite loop.
+
+**Fix:**
+```jsx
+// CORRECT - Memoize the value object
+const contextValue = useMemo(() => ({
+  currentCoords,
+  city,
+  state,
+  ...
+}), [currentCoords, city, state, ...]);
+
+<LocationContext.Provider value={contextValue}>
+```
+
+**Files Changed:**
+- `client/src/contexts/location-context-clean.tsx` - Added useMemo for context value
+
+**Why this didn't affect CoPilotContext:**
+CoPilotContext already had `useMemo` (line 460). LocationContext was missing it.
+
+### Excessive Console Logs in Components (2026-01-06)
+
+**Problem:** BriefingPage had hundreds of console.log entries in browser, making debugging difficult and slowing performance
+
+**Root Cause:**
+- Debug `console.log()` statements inside the component body run on EVERY render
+- React Query causes re-renders when data updates (even if unchanged)
+- Each re-render triggered logs like `[BriefingPage] 📊 Data status: {...}`
+
+**Why it happened:**
+- Debug logs added during development were never removed
+- Inline object creation in logs (e.g., `{ traffic: ... }`) creates new objects every render
+- Using `useCoPilot()` for only one value still subscribes to entire context
+
+**Fix:**
+1. Move debug logs to `useEffect` with proper dependencies
+2. Use refs to track previous values and only log when they actually change
+3. Wrap page component in `React.memo()` to prevent parent re-renders from cascading
+
+**Pattern to follow:**
+```typescript
+// WRONG - logs on every render
+function Page() {
+  console.log('[Page] rendering', data);  // ❌ Fires hundreds of times
+  return <div>...</div>;
+}
+
+// CORRECT - logs only when value changes
+function Page() {
+  const prevDataRef = useRef(null);
+  useEffect(() => {
+    if (data !== prevDataRef.current) {
+      prevDataRef.current = data;
+      console.log('[Page] data changed:', data);  // ✅ Fires once per change
+    }
+  }, [data]);
+  return <div>...</div>;
+}
+export default memo(Page);  // ✅ Prevent parent re-renders
+```
+
+**Files Changed:**
+- `client/src/pages/co-pilot/BriefingPage.tsx`: Removed inline logs, added effect-based logging, wrapped in memo
+
 ### Duplicate GPS Enrichment (Issue #6)
 
 **Problem:** App calls location API twice on load
@@ -296,6 +378,46 @@ All data MUST link to `snapshot_id`:
 - Clears only on manual refresh or location change
 
 **Previous Bug:** Strategy cleared on every mount (caused unnecessary regeneration)
+
+### Snapshot Ownership Error Cooling Off (2026-01-06)
+
+**Problem:** Briefing tab shows blank data for 60 seconds after an ownership error, even after a new valid snapshot is created
+
+**Root Cause:**
+1. When a 404 ownership error occurs, `useBriefingQueries` enters a 60-second "cooling off" state
+2. The cooling off was designed to prevent infinite refresh loops
+3. BUT when LocationContext triggers a GPS refresh and creates a NEW snapshot, the cooling off doesn't exit early
+4. Result: Queries remain disabled for the full 60 seconds, showing blank briefing data
+
+**Why the ownership error happens:**
+- Snapshot belongs to a different user (e.g., after re-login with different account)
+- Session expired and user re-authenticated with a fresh session
+- Client has stale snapshot ID cached from before the session change
+
+**Solution:**
+1. Track which snapshot ID caused the cooling off error (`coolingOffSnapshotId`)
+2. Listen for `vecto-snapshot-saved` events (fired when new snapshot is created)
+3. When a NEW (different) snapshot arrives, exit cooling off immediately
+4. Continue normal 60-second timeout if same snapshot or no new snapshot
+
+**Code Pattern:**
+```typescript
+// Track which snapshot caused cooling off
+let coolingOffSnapshotId: string | null = null;
+
+// Exit early when new snapshot arrives
+function exitCoolingOffForNewSnapshot(newSnapshotId: string) {
+  if (!isInCoolingOff) return;
+  if (newSnapshotId === coolingOffSnapshotId) return; // Same snapshot, don't exit
+
+  // Different snapshot = problem is resolved
+  isInCoolingOff = false;
+  coolingOffSnapshotId = null;
+}
+```
+
+**Files Changed:**
+- `client/src/hooks/useBriefingQueries.ts`: Added early exit from cooling off when new snapshot arrives
 
 ### React Query Patterns
 
@@ -565,26 +687,33 @@ await db.update(strategies).set({
 });
 ```
 
-### Bug: Login/Logout destroys all user data (CASCADE DELETE)
+### Bug: Login/Logout/Session Expiry destroys all user data (CASCADE DELETE → RESTRICT blocks)
 
-**Added: 2026-01-05**
+**Added: 2026-01-05, Updated: 2026-01-06**
 
-**Symptom:** User signs up successfully, logs in, but subsequent requests fail with "No session found". Database shows 0 profiles, 0 credentials.
+**Symptom (original):** User signs up successfully, logs in, but subsequent requests fail with "No session found". Database shows 0 profiles, 0 credentials.
 
-**Root Cause:** The schema has CASCADE delete rules on foreign keys:
+**Symptom (2026-01-06):** Session expiry (2-hour limit or 60-min inactivity) logs error but user is NOT signed out:
+```
+🔑 [AUTH 1/1] ⚠️ Session exceeded 2-hour limit for user 9216b521 - deleting
+[auth] Session check failed: Failed query: delete from "users" where "users"."user_id" = $1
+```
+
+**Root Cause (original - CASCADE):** The schema had CASCADE delete rules on foreign keys, so DELETE from users destroyed all related data.
+
+**Root Cause (2026-01-06 - RESTRICT):** Schema was changed from CASCADE to RESTRICT to prevent data loss:
 ```sql
-auth_credentials.user_id → users.user_id → CASCADE
-driver_profiles.user_id → users.user_id → CASCADE
-driver_vehicles.driver_profile_id → driver_profiles.id → CASCADE
+driver_profiles.user_id → users.user_id → RESTRICT
+auth_credentials.user_id → users.user_id → RESTRICT
+coach_conversations.user_id → users.user_id → RESTRICT
+news_deactivations.user_id → users.user_id → RESTRICT
 ```
 
-The login code was doing:
-```javascript
-await db.delete(users).where(eq(users.user_id, profile.user_id));  // CASCADE deletes profiles & credentials!
-await db.insert(users).values({...});  // Creates orphan session with no profile
-```
+The auth middleware session expiry code STILL tried to DELETE, but PostgreSQL blocked it due to RESTRICT. The error was caught silently and the request continued as authenticated!
 
-**Fix:** Use UPDATE instead of DELETE+INSERT:
+**Location:** `server/middleware/auth.js` lines 89, 96 (before fix)
+
+**Fix:** Use UPDATE to clear session fields instead of DELETE:
 ```javascript
 // Login: Check if users row exists, UPDATE if yes, INSERT if no
 const existingUser = await db.query.users.findFirst({...});
@@ -594,11 +723,47 @@ if (existingUser) {
   await db.insert(users).values({...});
 }
 
-// Logout: Clear session instead of DELETE
-await db.update(users).set({ session_id: null, current_snapshot_id: null });
+// Logout AND Session Expiry: Clear session instead of DELETE
+await db.update(users).set({
+  session_id: null,
+  current_snapshot_id: null,
+  updated_at: new Date()
+});
 ```
 
-**Key Lesson:** Always check CASCADE rules in schema before DELETE operations. The `users` table is a foreign key parent for many tables.
+**Also check:** If session_id is null (logged out), return 401 to require re-login.
+
+**Key Lesson:**
+1. Always check FK constraints (CASCADE/RESTRICT) in schema before DELETE operations
+2. When FK rules change, audit ALL code paths that might delete from that table
+3. Catch blocks that "allow request to proceed" on DB errors can mask critical bugs
+
+---
+
+### Bug: Events not showing on Briefing tab (timezone parsing)
+
+**Added: 2026-01-06**
+
+**Symptom:** Events exist in `discovered_events` table and show in AI Coach/Strategy, but the `/api/briefing/events/:snapshotId` endpoint returns 0 events (or fewer than expected).
+
+**Root Cause:** The `getEventEndTime()` function had two issues:
+1. Didn't look for `event_end_time` field (the actual field name in `discovered_events`)
+2. When parsing `event_end_date: "2026-01-06"`, JavaScript's `new Date("2026-01-06")` returns **midnight UTC**
+3. In Central Time, midnight UTC = 6:00 PM **previous day**
+4. Events appeared "stale" (ended in the past) even though they hadn't happened yet!
+
+**Location:** `server/lib/strategy/strategy-utils.js` - `getEventEndTime()` function
+
+**Fix:** Updated `getEventEndTime()` to:
+1. Accept a `timezone` parameter like `getEventStartTime()` does
+2. Properly combine `event_end_date` + `event_end_time` with timezone conversion
+3. For date-only fields, use 11:59 PM in the event timezone (end of day) not midnight UTC
+4. Handle single-day events with `event_date` + `event_end_time` (no `event_end_date`)
+
+**Key Lesson:**
+1. **NEVER use `new Date("YYYY-MM-DD")`** for date-only strings - it returns midnight UTC
+2. When filtering events by time, always use the event's timezone, not server time
+3. When adding time filtering, test with events in different timezones than the server
 
 ---
 

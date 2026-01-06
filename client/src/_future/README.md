@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Future Functionality
 
 This folder contains code that is **not yet active** but is planned for future features. Files here are excluded from the active import tree to keep the codebase clean.

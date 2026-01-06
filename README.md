@@ -329,9 +329,9 @@ npm run db:push    # Push schema to database
 | [docs/architecture/constraints.md](docs/architecture/constraints.md) | Critical rules |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Detailed system architecture |
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Pitfalls and best practices |
-| [REORGANIZATION_PLAN.md](REORGANIZATION_PLAN.md) | Codebase organization status |
+| [SECURITY.md](SECURITY.md) | Security guidelines and fixes |
 
 ---
 
-**Last Updated**: January 4, 2026
+**Last Verified**: 2026-01-06
 **Status**: Production Ready

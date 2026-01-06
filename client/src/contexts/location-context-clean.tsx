@@ -1,5 +1,5 @@
 
-import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from './auth-context';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -523,7 +523,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
       console.error('[LocationContext] Enrichment failed:', error);
     }
-  }, [token, user]);
+  // 2026-01-06: Depend on user?.userId (primitive) instead of user object
+  // This prevents callback recreation when user object reference changes but userId stays the same
+  }, [token, user?.userId]);
 
   // refreshGPS: Fetch GPS and resolve location
   // forceNewSnapshot: true = user clicked refresh button, always create new snapshot
@@ -632,26 +634,44 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [currentCoords?.latitude, currentCoords?.longitude, enrichLocation]);
 
+  // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
+  // Without useMemo, every render creates a new object → all consumers re-render → cascade
+  // This was causing "Maximum update depth exceeded" errors
+  const contextValue = useMemo(() => ({
+    currentCoords,
+    currentLocationString,
+    city,
+    state,
+    timeZone,
+    isUpdating,
+    lastUpdated,
+    refreshGPS,
+    overrideCoords,
+    weather,
+    airQuality,
+    isLocationResolved,
+    lastSnapshotId,
+    isLoading: isUpdating,
+    setOverrideCoords
+  }), [
+    currentCoords,
+    currentLocationString,
+    city,
+    state,
+    timeZone,
+    isUpdating,
+    lastUpdated,
+    refreshGPS,
+    overrideCoords,
+    weather,
+    airQuality,
+    isLocationResolved,
+    lastSnapshotId,
+    setOverrideCoords
+  ]);
+
   return (
-    <LocationContext.Provider
-      value={{
-        currentCoords,
-        currentLocationString,
-        city,
-        state,
-        timeZone,
-        isUpdating,
-        lastUpdated,
-        refreshGPS,
-        overrideCoords,
-        weather,
-        airQuality,
-        isLocationResolved,
-        lastSnapshotId,
-        isLoading: isUpdating,
-        setOverrideCoords
-      }}
-    >
+    <LocationContext.Provider value={contextValue}>
       {children}
     </LocationContext.Provider>
   );

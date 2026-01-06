@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Mel's Work
 
 Documentation maintained by Mel (project owner).
@@ -7,7 +9,6 @@ Documentation maintained by Mel (project owner).
 | Folder | Purpose |
 |--------|---------|
 | `needs-updating/` | Documents that need review and updates |
-| `repo/` | Repository documentation (if present) |
 
 ## Purpose
 
