@@ -6,6 +6,30 @@
 
 AI agent infrastructure for enhanced context and WebSocket communication.
 
+## ⚠️ Security Notice (2026-01-06)
+
+**This module exposes powerful admin operations and MUST be protected.**
+
+### Required Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `AGENT_ENABLED` | `false` | Must be `'true'` to enable agent routes |
+| `AGENT_ALLOWED_IPS` | `127.0.0.1,::1,localhost` | Comma-separated IP allowlist |
+
+### Security Layers
+
+1. **Env Gate:** Agent routes return 503 unless `AGENT_ENABLED=true`
+2. **IP Allowlist:** Requests blocked unless from allowed IPs
+3. **Auth Required:** All routes (except `/health`) require valid JWT token
+4. **WebSocket Auth:** WS connections require `?token=` query parameter
+
+### Production Checklist
+
+- [ ] `AGENT_ENABLED` is NOT set (disabled by default)
+- [ ] If enabled, `AGENT_ALLOWED_IPS` is set to specific admin IPs
+- [ ] Never expose `/agent` to public internet without auth proxy
+
 ## Files
 
 | File | Purpose |

@@ -352,9 +352,19 @@ router.post('/', requireAuth, async (req, res) => {
   // Generate or use existing conversation_id for thread tracking
   const conversationId = clientConversationId || randomUUID();
 
-  // CRITICAL: Get user's local date/time from their timezone
-  // The client sends snapshot.timezone which is the user's ACTUAL timezone from GPS resolution
-  const userTimezone = clientSnapshot?.timezone || 'America/Chicago'; // Fallback only if no snapshot
+  // 2026-01-06: CRITICAL - NO FALLBACKS (per global app rule)
+  // Timezone MUST come from snapshot. If missing, we cannot provide accurate time-based advice.
+  const userTimezone = clientSnapshot?.timezone;
+  if (!userTimezone) {
+    console.warn('[chat] Missing timezone in snapshot - cannot provide accurate time context');
+    return res.status(400).json({
+      error: 'TIMEZONE_REQUIRED',
+      message: 'Location snapshot with timezone required for coach. Please enable GPS and refresh.',
+      code: 'missing_timezone',
+      hint: 'Ensure GPS is enabled and location permission granted'
+    });
+  }
+
   const userLocalDate = new Date().toLocaleDateString('en-US', {
     timeZone: userTimezone,
     weekday: 'long',
@@ -370,9 +380,10 @@ router.post('/', requireAuth, async (req, res) => {
   });
   const userLocalDateTime = `${userLocalDate} at ${userLocalTime}`;
 
-  console.log('[chat] User:', authUserId, isAuthenticated ? '(authenticated)' : '(anonymous)', '| Conversation:', conversationId.slice(0, 8));
-  console.log('[chat] Thread:', threadHistory.length, 'messages | Attachments:', attachments.length, '| Strategy:', strategyId || 'none', '| Snapshot:', snapshotId || 'none', '| Message:', message.substring(0, 100));
-  console.log('[chat] User local time:', userLocalDateTime, '(timezone:', userTimezone + ')');
+  // 2026-01-06: SECURITY - Redact sensitive data from logs
+  // Log only metadata, never message content or PII
+  console.log(`[chat] Request: user=${authUserId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} thread=${threadHistory.length}msgs attachments=${attachments.length}`);
+  console.log(`[chat] Context: strategy=${strategyId?.slice(0, 8) || 'none'} snapshot=${snapshotId?.slice(0, 8) || 'none'} tz=${userTimezone}`);
 
   try {
     // Use CoachDAL for full schema read access with ALL tables
@@ -771,7 +782,8 @@ You're a powerful AI companion with research-backed market intelligence and pers
       }
 
       if (totalText) {
-        console.log(`[chat] ✅ Gemini streamed response: ${totalText.substring(0, 100)}...`);
+        // 2026-01-06: SECURITY - Don't log response content, only metadata
+        console.log(`[chat] ✅ Gemini streamed response: ${totalText.length} chars`);
 
         // Parse actions and execute them (non-blocking)
         const { actions, cleanedText } = parseActions(totalText);
