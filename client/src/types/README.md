@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Types (`client/src/types/`)
 
 ## Purpose
@@ -9,6 +11,7 @@ TypeScript type definitions for the frontend application.
 | File | Purpose |
 |------|---------|
 | `app.d.ts` | Global app type declarations |
+| `auth.ts` | Authentication types (User, Profile, Vehicle, login/register request/response) |
 | `co-pilot.ts` | Co-Pilot feature types (SmartBlock, Strategy, Briefing) |
 | `demand-patterns.ts` | Demand rhythm chart types (DemandPatterns, MarketArchetype, zone logic) |
 | `shims.d.ts` | Module shims for non-TS imports |

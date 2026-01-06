@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # User Settings Types (`client/src/_future/user-settings/`)
 
 ## Purpose

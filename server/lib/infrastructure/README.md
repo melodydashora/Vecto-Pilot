@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Infrastructure Module (`server/lib/infrastructure/`)
 
 ## Purpose
@@ -9,6 +11,7 @@ Background job queue infrastructure for fire-and-forget tasks.
 | File | Purpose | Key Export |
 |------|---------|------------|
 | `job-queue.js` | Background job queue with retry | `jobQueue.enqueue()` |
+| `index.js` | Barrel exports | Module re-exports |
 
 ## Usage
 

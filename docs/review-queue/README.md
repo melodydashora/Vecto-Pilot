@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Review Queue
 
 Automated change analysis for documentation maintenance. This folder contains findings from the Change Analyzer that runs on server startup.
@@ -13,8 +15,10 @@ Automated change analysis for documentation maintenance. This folder contains fi
 
 | File | Purpose |
 |------|---------|
-| `YYYY-MM-DD.md` | Daily analysis logs (historical record) |
 | `pending.md` | Current items needing review |
+| `YYYY-MM-DD.md` | Daily analysis logs (historical record) |
+| `ai-coach-enhancements.md` | AI Coach enhancement tasks |
+| `IN_PROGRESS_WORKSTREAM.md` | Current in-progress work items |
 | `../reviewed-queue/` | **Completed work** - rules extracted, summaries archived |
 
 ## Validation Workflow

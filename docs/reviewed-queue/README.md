@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Reviewed Queue (`docs/reviewed-queue/`)
 
 ## Purpose
@@ -11,6 +13,8 @@ Archive of completed review items and consolidated learnings from the review pro
 | File | Purpose |
 |------|---------|
 | `RULES_FROM_COMPLETED_WORK.md` | **Primary Output** - Actionable patterns extracted from completed implementations |
+| `CHANGES.md` | Tracked changes log |
+| `YYYY-MM-DD.md` | Daily review logs (historical record) |
 | `YYYY-MM-DD-summary.md` | Daily summaries of completed work (for historical reference) |
 
 ## Workflow

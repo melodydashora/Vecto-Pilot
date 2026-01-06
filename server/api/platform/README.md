@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Platform Data API
 
 API endpoints for querying rideshare platform coverage data.

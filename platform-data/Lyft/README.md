@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Lyft Platform Data (`platform-data/Lyft/`)
 
 ## Purpose

@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Pages (`client/src/pages/`)
 
 ## Purpose
@@ -21,10 +23,10 @@ pages/
 │   ├── BriefingPage.tsx   # Weather, traffic, news
 │   ├── MapPage.tsx        # Interactive map
 │   ├── IntelPage.tsx      # Rideshare intelligence
+│   ├── SettingsPage.tsx   # User profile settings (42KB)
 │   ├── AboutPage.tsx      # About/donation
 │   ├── PolicyPage.tsx     # Privacy policy
 │   └── index.tsx          # Barrel export
-├── co-pilot.tsx           # Legacy main dashboard (to be deprecated)
 └── SafeScaffold.tsx       # Safe scaffold wrapper
 ```
 
@@ -55,6 +57,7 @@ Main application pages (router-based architecture):
 | `BriefingPage.tsx` | `/co-pilot/briefing` | Weather, traffic, events |
 | `MapPage.tsx` | `/co-pilot/map` | Interactive venue/event map |
 | `IntelPage.tsx` | `/co-pilot/intel` | Rideshare platform intel |
+| `SettingsPage.tsx` | `/co-pilot/settings` | User profile settings |
 | `AboutPage.tsx` | `/co-pilot/about` | About & donations |
 | `PolicyPage.tsx` | `/co-pilot/policy` | Privacy policy |
 

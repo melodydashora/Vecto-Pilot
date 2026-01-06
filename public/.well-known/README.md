@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # .well-known
 
 Standard well-known URI directory (RFC 8615).
@@ -6,14 +8,13 @@ Standard well-known URI directory (RFC 8615).
 
 Contains standardized files that services expect at `/.well-known/` paths.
 
-## Common Files
+## Files
 
 | File | Purpose |
 |------|---------|
-| `apple-app-site-association` | iOS app deep linking |
-| `assetlinks.json` | Android app linking |
-| `security.txt` | Security contact info |
+| `jwks.json` | JSON Web Key Set for JWT verification |
 
 ## Notes
 
-Files here are served without the `.well-known` prefix in URL.
+Files here are served at `/.well-known/` paths. For example:
+- `jwks.json` is served at `/.well-known/jwks.json`

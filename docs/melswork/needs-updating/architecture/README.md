@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Legacy Architecture Docs
 
 Outdated architecture documentation pending review.

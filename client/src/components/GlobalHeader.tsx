@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from "react";
+import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   MapPin,
@@ -137,24 +137,20 @@ const GlobalHeaderComponent: React.FC = () => {
     loc?.location?.currentLocationString ??
     "";
 
-  // Debug: Log what we're reading - PRIORITY database location
+  // Debug: Log location resolution only when it changes to a resolved value
+  // 2026-01-06: Reduced excessive logging by tracking previous resolved location
+  const prevResolvedLocationRef = useRef<string | null>(null);
   useEffect(() => {
-    console.log(
-      "[GlobalHeader] CRITICAL FIX Issue #5 - Location source hierarchy:",
-      {
-        dbLocation: dbUserLocation?.ok
-          ? {
-              city: dbUserLocation.city,
-              state: dbUserLocation.state,
-              updated_at: dbUserLocation.updated_at,
-            }
-          : null,
-        overrideCoords: overrideCoords?.city,
-        contextLocationString: loc?.currentLocationString,
-        finalDisplayValue: currentLocationString,
-      },
-    );
-  }, [currentLocationString, dbUserLocation, loc]);
+    // Only log when location resolves (not during "Getting location..." state)
+    const isResolved = currentLocationString &&
+      currentLocationString !== "Getting location..." &&
+      currentLocationString !== "Detecting...";
+
+    if (isResolved && currentLocationString !== prevResolvedLocationRef.current) {
+      prevResolvedLocationRef.current = currentLocationString;
+      console.log("[GlobalHeader] Location resolved:", currentLocationString);
+    }
+  }, [currentLocationString]);
 
   // Header is "resolved" as soon as we have coords + city (don't wait for weather/AQ/events)
   const isLocationResolved = Boolean(

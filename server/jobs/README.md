@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Jobs Module (`server/jobs/`)
 
 ## Purpose
@@ -10,6 +12,8 @@ Background workers for async processing.
 |------|---------|
 | `triad-worker.js` | LISTEN-only SmartBlocks worker |
 | `event-sync-job.js` | Daily event discovery sync |
+| `event-cleanup.js` | Past event cleanup job |
+| `change-analyzer-job.js` | Documentation change analyzer job |
 
 ## triad-worker.js
 

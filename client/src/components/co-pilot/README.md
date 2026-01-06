@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Co-Pilot Sub-Components (`client/src/components/co-pilot/`)
 
 ## Purpose

@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Research API (`server/api/research/`)
 
 ## Purpose

@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Subagents
 
 Specialized AI subagents for specific tasks.

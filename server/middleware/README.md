@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Middleware Module (`server/middleware/`)
 
 ## Purpose
@@ -40,19 +42,22 @@ router.get('/data/:snapshotId', requireAuth, requireSnapshotOwnership, handler);
 // → req.snapshot from ownership check
 ```
 
-#### Session Architecture (2026-01-05)
+#### Session Architecture (2026-01-05, updated 2026-01-06)
 
 `requireAuth` now validates both JWT AND active session:
 
 1. **JWT Verification** - Token signature must be valid
 2. **Session Lookup** - User must have a row in `users` table
-3. **TTL Check (Sliding Window)** - `last_active_at` must be < 60 min ago
-4. **TTL Check (Hard Limit)** - `session_start_at` must be < 2 hours ago
-5. **Extend Session** - Update `last_active_at = NOW()` (non-blocking)
+3. **Session Active** - `session_id` must be non-null (null = logged out)
+4. **TTL Check (Sliding Window)** - `last_active_at` must be < 60 min ago
+5. **TTL Check (Hard Limit)** - `session_start_at` must be < 2 hours ago
+6. **Extend Session** - Update `last_active_at = NOW()` (non-blocking)
 
-If session is expired, `requireAuth`:
-- Deletes the `users` row (lazy cleanup)
+If session is expired or invalid, `requireAuth`:
+- Clears session by setting `session_id = null` (2026-01-06 fix: UPDATE, not DELETE)
 - Returns 401 with `{ error: 'session_expired' }`
+
+**Why UPDATE instead of DELETE?** Multiple tables have `onDelete: 'restrict'` foreign keys referencing `users.user_id` (driver_profiles, auth_credentials, coach_conversations, news_deactivations). DELETE is blocked by PostgreSQL. See LESSONS_LEARNED.md for full details.
 
 ```javascript
 // Request object after requireAuth

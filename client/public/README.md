@@ -1,4 +1,6 @@
-# Client Public
+> **Last Verified:** 2026-01-06
+
+# Client Public (`client/public/`)
 
 Static assets for the React client application.
 
@@ -9,19 +11,17 @@ Files here are:
 - Served at the root URL path
 - Not processed by Vite bundler
 
-## Common Files
+## Files
 
 | File | Purpose |
 |------|---------|
-| `favicon.ico` | Browser tab icon |
-| `manifest.json` | PWA manifest |
-| `icons/` | App icons for various sizes |
+| `robots.txt` | Search engine directives |
 
 ## Usage
 
 Reference files using absolute paths from root:
 ```html
-<link rel="icon" href="/favicon.ico" />
+<link rel="stylesheet" href="/some-file.css" />
 ```
 
 ## Notes

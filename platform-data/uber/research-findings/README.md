@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Uber Research Findings (`platform-data/uber/research-findings/`)
 
 ## Purpose

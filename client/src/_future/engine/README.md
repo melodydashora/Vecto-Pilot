@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Future Engine (`client/src/_future/engine/`)
 
 ## Purpose

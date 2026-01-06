@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Scripts (`scripts/`)
 
 ## Purpose
@@ -19,6 +21,12 @@ Build, development, and operational utility scripts.
 | `load-market-research.js` | Load market research data from files |
 | `memory-cli.mjs` | CLI for memory system operations |
 | `seed-market-intelligence.js` | Seed market intelligence data |
+| `analyze-data-flow.js` | Analyze application data flow |
+| `generate-schema-docs.js` | Generate schema documentation |
+| `generate-schema-docs.sh` | Schema docs generation shell script |
+| `resolve-venue-addresses.js` | Resolve venue addresses via geocoding |
+| `test-event-dedup.js` | Test event deduplication logic |
+| `test-news-fetch.js` | Test news fetching functionality |
 
 ## Usage
 

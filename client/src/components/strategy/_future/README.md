@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Future Strategy Components
 
 Staged strategy-related components for future activation.

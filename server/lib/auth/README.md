@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Auth Utilities
 
 Authentication and verification utilities for the VectoPilot driver authentication system.

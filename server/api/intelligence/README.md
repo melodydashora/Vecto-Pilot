@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Market Intelligence API
 
 Provides access to market-specific intelligence data for rideshare drivers.

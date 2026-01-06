@@ -1,24 +1,25 @@
+> **Last Verified:** 2026-01-06
+
 # Research Tools (`tools/research/`)
 
 ## Purpose
 
 AI model discovery, comparison, and documentation generation tools.
 
-## Files
+## Script Files
 
 | File | Purpose |
 |------|---------|
 | `event-model-comparison.mjs` | **Event Discovery** - Compare AI models for event search |
-| `model-discovery.mjs` | Discover available models from AI providers |
-| `claude-model-search.mjs` | Search Anthropic's model catalog |
-| `generate-model-md.mjs` | Generate MODEL.md from research data |
-| `update-model-md.mjs` | Update MODEL.md with latest model info |
+| `parse-flagship-json.mjs` | Parse flagship model JSON data |
+| `perplexity-flagship-search.mjs` | Search for flagship models via Perplexity |
 
 ## Output Files
 
 | File | Purpose |
 |------|---------|
 | `model-research-*.json` | Raw model discovery results |
+| `flagship-models-*.json` | Flagship model data snapshots |
 | `claude-models-*.txt` | Claude model catalog snapshots |
 
 ## Event Model Comparison
@@ -45,27 +46,25 @@ See [Event Discovery Architecture](../../docs/architecture/event-discovery.md) f
 
 ## Usage
 
-### Discover All Models
+### Event Model Comparison
 
 ```bash
-node tools/research/model-discovery.mjs
+node tools/research/event-model-comparison.mjs
 ```
 
-Queries OpenAI, Anthropic, and Google for available models.
+Compares multiple AI providers for event discovery.
 
-### Search Claude Models
+### Parse Flagship Models
 
 ```bash
-node tools/research/claude-model-search.mjs
+node tools/research/parse-flagship-json.mjs
 ```
 
-### Generate MODEL.md
+### Search Flagship Models
 
 ```bash
-node tools/research/generate-model-md.mjs
+node tools/research/perplexity-flagship-search.mjs
 ```
-
-Creates `MODEL.md` from the latest research JSON.
 
 ## When to Run
 

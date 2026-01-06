@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Notifications
 
 Alert and notification system for operational events.

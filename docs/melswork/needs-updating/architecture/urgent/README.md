@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Urgent Architecture Updates
 
 High-priority architecture documents requiring immediate attention.
@@ -8,6 +10,12 @@ Documents here are:
 - Critical for understanding but outdated
 - Blocking other work
 - Referenced by external parties
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `MISMATCHED.md` | Documentation vs code mismatches requiring resolution |
 
 ## Priority
 

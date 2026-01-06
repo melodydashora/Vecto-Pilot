@@ -1,6 +1,15 @@
+> **Last Verified:** 2026-01-06
+
 # Uber Platform Data
 
 Uber market and city reference data.
+
+## Structure
+
+| Path | Purpose |
+|------|---------|
+| `Airports/` | Airport-specific data |
+| `research-findings/` | AI-generated market research |
 
 ## Files
 
@@ -11,7 +20,8 @@ Uber market and city reference data.
 | `unitedstates-city.txt` | US cities list |
 | `country-uber.txt` | Countries with Uber |
 | `areabycountry-uber.txt` | Regions by country |
-| `uber_additional_countries_*.txt` | Extended coverage data |
+| `uber_additional_countries_cities.txt` | Extended city coverage data |
+| `uber_additional_countries_with_regions.txt` | Extended region coverage data |
 
 ## Data Fields
 
@@ -41,4 +51,5 @@ Data sourced from Uber's public market listings. Update periodically to capture 
 
 ## See Also
 
+- [research-findings/](./research-findings/README.md) - Market research findings
 - [scripts/import-platform-data.js](../../scripts/import-platform-data.js) - Import script

@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Change Analyzer
 
 Automated documentation maintenance system.

@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Client Source (`client/src/`)
 
 ## Purpose
@@ -20,7 +22,8 @@ src/
 │   ├── MapPage.tsx          # Venue + event map
 │   ├── IntelPage.tsx        # Rideshare intel
 │   ├── AboutPage.tsx        # Donation/about (no GlobalHeader)
-│   └── PolicyPage.tsx       # Privacy policy (linked from About)
+│   ├── PolicyPage.tsx       # Privacy policy (linked from About)
+│   └── SettingsPage.tsx     # User settings and preferences
 ├── contexts/            # React contexts
 │   ├── location-context-clean.tsx   # GPS, weather, snapshots
 │   └── co-pilot-context.tsx         # Shared strategy/blocks state
@@ -44,6 +47,7 @@ src/
 | `/co-pilot/intel` | IntelPage | Rideshare intel |
 | `/co-pilot/about` | AboutPage | Donation/about (no header) |
 | `/co-pilot/policy` | PolicyPage | Privacy policy |
+| `/co-pilot/settings` | SettingsPage | User settings and preferences |
 
 ## Key Components
 

@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Location Module (`server/lib/location/`)
 
 ## Purpose
@@ -8,6 +10,7 @@ Location services including geocoding utilities, holiday detection, snapshot con
 
 ```
 location/
+├── address-validation.js       # Address validation utilities
 ├── geo.js                      # Geocoding utilities (Haversine distance)
 ├── geocode.js                  # Google Geocoding API wrapper
 ├── get-snapshot-context.js     # Snapshot context builder (minimal + full)
@@ -21,6 +24,7 @@ location/
 
 | File | Purpose | Key Export |
 |------|---------|------------|
+| `address-validation.js` | Address validation | `validateAddress()`, `normalizeAddress()` |
 | `geo.js` | Distance calculation | `haversineKm()`, `haversineDistanceMeters()`, `haversineDistanceMiles()` |
 | `geocode.js` | Google Geocoding API | `geocodeAddress()`, `reverseGeocode()` |
 | `get-snapshot-context.js` | Context builder | `getSnapshotContext()`, `getFullSnapshot()` |

@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Auth Pages
 
 Authentication pages for the VectoPilot driver portal.

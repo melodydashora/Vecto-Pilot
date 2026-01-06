@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # Data
 
 Runtime data storage for application state and caching.

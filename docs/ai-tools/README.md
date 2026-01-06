@@ -1,3 +1,5 @@
+> **Last Verified:** 2026-01-06
+
 # AI Tools Documentation
 
 Index of all AI-powered tools and capabilities available in Vecto Pilot.
