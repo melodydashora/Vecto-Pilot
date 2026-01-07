@@ -31,15 +31,48 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
   const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null);
   const [strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null);
 
-  // Clear persistent strategy on mount for fresh generation
+  // 2026-01-06: REMOVED mount-clearing per P3-A audit fix
+  // Previous behavior cleared strategy on every mount, causing regeneration when:
+  // - User switches apps (Uber/Lyft) and returns
+  // - OS kills tab and user reopens
+  // - Any component remount
+  //
+  // Strategy should ONLY be cleared on:
+  // - Manual refresh (vecto-strategy-cleared event from location-context)
+  // - Snapshot ID change (handled in next useEffect)
+  // - Explicit logout (handled in auth-context.tsx)
+  //
+  // On mount, try to restore from localStorage if snapshot matches
   useEffect(() => {
-    console.log('[strategy-polling] Clearing persistent strategy on mount');
-    localStorage.removeItem('vecto_persistent_strategy');
-    localStorage.removeItem('vecto_strategy_snapshot_id');
-    setPersistentStrategy(null);
-    setImmediateStrategy(null);
-    setStrategySnapshotId(null);
-  }, []);
+    const storedStrategy = localStorage.getItem('vecto_persistent_strategy');
+    const storedSnapshotId = localStorage.getItem('vecto_strategy_snapshot_id');
+
+    // Only restore if we have stored data AND snapshot matches current
+    if (storedStrategy && storedSnapshotId && storedSnapshotId === snapshotId) {
+      console.log('[strategy-polling] Restoring strategy from localStorage for snapshot:', snapshotId?.slice(0, 8));
+      setPersistentStrategy(storedStrategy);
+      setStrategySnapshotId(storedSnapshotId);
+    } else if (storedStrategy && storedSnapshotId && storedSnapshotId !== snapshotId) {
+      // Stored strategy is for different snapshot - will be cleared by snapshot change effect
+      console.log('[strategy-polling] Stored strategy is for different snapshot, will clear');
+    }
+  }, [snapshotId]);
+
+  // 2026-01-07: Listen for manual refresh event to clear strategy state
+  // Location context dispatches 'vecto-strategy-cleared' when user clicks refresh button
+  // This resets React state (localStorage is already cleared by location context)
+  useEffect(() => {
+    const handleStrategyClear = () => {
+      console.log('[strategy-polling] Manual refresh detected - clearing strategy state');
+      setPersistentStrategy(null);
+      setImmediateStrategy(null);
+      setStrategySnapshotId(null);
+      queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
+    };
+
+    window.addEventListener('vecto-strategy-cleared', handleStrategyClear);
+    return () => window.removeEventListener('vecto-strategy-cleared', handleStrategyClear);
+  }, [queryClient]);
 
   // Clear strategy if snapshot ID changes
   useEffect(() => {
