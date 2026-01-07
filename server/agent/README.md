@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-07
 
 # Agent (`server/agent/`)
 
@@ -6,7 +6,7 @@
 
 AI agent infrastructure for enhanced context and WebSocket communication.
 
-## ⚠️ Security Notice (2026-01-06)
+## ⚠️ Security Notice (Updated 2026-01-07)
 
 **This module exposes powerful admin operations and MUST be protected.**
 
@@ -15,19 +15,32 @@ AI agent infrastructure for enhanced context and WebSocket communication.
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `AGENT_ENABLED` | `false` | Must be `'true'` to enable agent routes |
-| `AGENT_ALLOWED_IPS` | `127.0.0.1,::1,localhost` | Comma-separated IP allowlist |
+| `AGENT_ALLOWED_IPS` | `127.0.0.1,::1,localhost` | Comma-separated IP allowlist (⚠️ `*` blocked in prod) |
+| `AGENT_ADMIN_USERS` | _(none)_ | Comma-separated user IDs for admin operations |
 
 ### Security Layers
 
 1. **Env Gate:** Agent routes return 503 unless `AGENT_ENABLED=true`
 2. **IP Allowlist:** Requests blocked unless from allowed IPs
+   - ⚠️ **2026-01-07:** Wildcard `*` is now blocked in production
 3. **Auth Required:** All routes (except `/health`) require valid JWT token
-4. **WebSocket Auth:** WS connections require `?token=` query parameter
+4. **Admin Required:** Dangerous operations (`/config/env/update`, `/config/backup`) require admin user
+5. **WebSocket Auth:** WS connections require `?token=` query parameter
+
+### Admin-Only Routes (2026-01-07)
+
+These routes require the authenticated user to be in `AGENT_ADMIN_USERS`:
+
+| Route | Reason |
+|-------|--------|
+| `POST /config/env/update` | Can modify API keys, DB credentials, secrets |
+| `POST /config/backup/:filename` | Backups could leak sensitive config files |
 
 ### Production Checklist
 
 - [ ] `AGENT_ENABLED` is NOT set (disabled by default)
-- [ ] If enabled, `AGENT_ALLOWED_IPS` is set to specific admin IPs
+- [ ] If enabled, `AGENT_ALLOWED_IPS` is set to specific admin IPs (NOT `*`)
+- [ ] `AGENT_ADMIN_USERS` contains only trusted user IDs
 - [ ] Never expose `/agent` to public internet without auth proxy
 
 ## Files

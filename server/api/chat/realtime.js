@@ -32,7 +32,8 @@ router.post('/token', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'snapshotId or userId required' });
     }
 
-    console.log('[realtime] Generating token for snapshot:', snapshotId, '| user:', userId, '| model:', VOICE_MODEL);
+    // 2026-01-07: Truncate user ID to avoid PII in logs (first 8 chars only)
+    console.log('[realtime] Generating token for snapshot:', snapshotId?.substring(0, 8) || 'none', '| user:', userId?.substring(0, 8) || 'none', '| model:', VOICE_MODEL);
 
     // Generate ephemeral token using OpenAI REST API
     const tokenResponse = await fetch('https://api.openai.com/v1/realtime/sessions', {

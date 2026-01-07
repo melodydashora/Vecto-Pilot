@@ -1,6 +1,11 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-07
 
 # Health API (`server/api/health/`)
+
+## ⚠️ Model Parameter Notes
+
+**GPT-5.2 model ping (2026-01-07):** Uses `max_completion_tokens` not `max_tokens`.
+The deprecated `max_tokens` param was causing 400 errors in diagnostics.
 
 ## Purpose
 

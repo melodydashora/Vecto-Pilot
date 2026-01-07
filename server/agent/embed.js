@@ -4,22 +4,36 @@ import agentRoutes from './routes.js';
 import { requireAuth } from '../middleware/auth.js';
 
 // 2026-01-06: Security - IP allowlist check for agent routes
+// 2026-01-07: SECURITY FIX - Block '*' wildcard in production (was defeating IP protection)
 function checkAgentAllowlist(req, res, next) {
-  const allowedIPs = (process.env.AGENT_ALLOWED_IPS || '127.0.0.1,::1,localhost').split(',').map(ip => ip.trim());
+  const rawAllowedIPs = process.env.AGENT_ALLOWED_IPS || '127.0.0.1,::1,localhost';
   const clientIP = req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress;
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
 
   // Normalize IPv6 localhost
   const normalizedIP = clientIP === '::ffff:127.0.0.1' ? '127.0.0.1' : clientIP;
 
   // In development, allow all local connections
-  const isDev = process.env.NODE_ENV !== 'production';
+  const isDev = !isProduction;
   const isLocalhost = normalizedIP === '127.0.0.1' || normalizedIP === '::1' || normalizedIP === 'localhost';
 
   if (isDev && isLocalhost) {
     return next();
   }
 
-  if (!allowedIPs.includes(normalizedIP) && !allowedIPs.includes('*')) {
+  // 2026-01-07: SECURITY - Block '*' wildcard in production
+  // The '*' wildcard defeats the entire purpose of IP allowlist protection.
+  // If you need to allow all IPs in production, disable agent instead.
+  const allowedIPs = rawAllowedIPs.split(',').map(ip => ip.trim());
+  if (isProduction && allowedIPs.includes('*')) {
+    console.error('[agent embed] ⛔ SECURITY ERROR: AGENT_ALLOWED_IPS contains "*" in production - refusing to allow wildcard');
+    return res.status(403).json({
+      error: 'AGENT_CONFIG_ERROR',
+      message: 'Wildcard IP allowlist not permitted in production'
+    });
+  }
+
+  if (!allowedIPs.includes(normalizedIP)) {
     console.warn(`[agent embed] ⛔ Blocked request from unauthorized IP: ${clientIP}`);
     return res.status(403).json({
       error: 'AGENT_ACCESS_DENIED',
@@ -29,6 +43,46 @@ function checkAgentAllowlist(req, res, next) {
 
   next();
 }
+
+// 2026-01-07: Admin-only middleware for dangerous operations
+// Only users in AGENT_ADMIN_USERS can access protected routes
+function requireAgentAdmin(req, res, next) {
+  // req.auth is set by requireAuth middleware
+  if (!req.auth?.userId) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authentication required' });
+  }
+
+  const adminUsers = (process.env.AGENT_ADMIN_USERS || '').split(',').map(u => u.trim()).filter(Boolean);
+
+  // If no admins configured, block access in production (fail-secure)
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
+  if (adminUsers.length === 0 && isProduction) {
+    console.error(`[agent embed] ⛔ Admin route blocked - no AGENT_ADMIN_USERS configured in production`);
+    return res.status(403).json({
+      error: 'AGENT_ADMIN_NOT_CONFIGURED',
+      message: 'Admin users not configured for this operation'
+    });
+  }
+
+  // In development without config, allow all authenticated users (for testing)
+  if (adminUsers.length === 0 && !isProduction) {
+    console.warn(`[agent embed] ⚠️ Dev mode: allowing ${req.auth.userId.substring(0, 8)} as admin (no AGENT_ADMIN_USERS set)`);
+    return next();
+  }
+
+  // Check if current user is in admin list
+  if (!adminUsers.includes(req.auth.userId)) {
+    console.warn(`[agent embed] ⛔ Admin access denied for user ${req.auth.userId.substring(0, 8)}`);
+    return res.status(403).json({
+      error: 'AGENT_ADMIN_REQUIRED',
+      message: 'This operation requires admin privileges'
+    });
+  }
+
+  next();
+}
+
+export { requireAgentAdmin };
 
 export function mountAgent({ app, basePath, wsPath, server }) {
   // 2026-01-06: SECURITY - Agent must be explicitly enabled

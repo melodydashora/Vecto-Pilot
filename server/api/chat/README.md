@@ -1,6 +1,11 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-07
 
 # Chat API (`server/api/chat/`)
+
+## ⚠️ Logging: No PII in Logs (2026-01-07)
+
+**User IDs are truncated** in all console.log statements (first 8 chars only).
+Full UUIDs are PII and should not appear in server logs.
 
 ## Purpose
 

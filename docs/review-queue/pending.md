@@ -32,6 +32,63 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ## Currently Pending
 
+### ✅ COMPLETED - Agent Config Security Fix (2026-01-07)
+
+| File | Change | Status |
+|------|--------|--------|
+| `server/agent/embed.js` | Block `*` wildcard in production, add `requireAgentAdmin` middleware | **FIXED** |
+| `server/agent/routes.js` | Apply admin-only to `/config/env/update` and `/config/backup` routes | **FIXED** |
+| `server/agent/README.md` | Document new `AGENT_ADMIN_USERS` env var, updated security layers | **UPDATED** |
+| `LESSONS_LEARNED.md` | Added "Security: Admin-Only Routes" pattern to Backend Patterns | **UPDATED** |
+
+**Issues Fixed:**
+1. `/agent/config/env/update` was accessible to any authenticated user (should be admin-only)
+2. IP allowlist accepted `*` wildcard in production (defeats purpose of allowlist)
+
+**Security Layers Now:**
+1. `AGENT_ENABLED=true` required
+2. IP allowlist (no `*` in production - returns 403)
+3. JWT auth required
+4. Admin required for dangerous routes (`AGENT_ADMIN_USERS` env var)
+
+---
+
+### ✅ COMPLETED - Timezone Fallback Removal (2026-01-07)
+
+| File | Change | Status |
+|------|--------|--------|
+| `server/lib/venue/venue-enrichment.js` | Removed `|| "UTC"` fallback from all functions | **FIXED** |
+| `server/lib/venue/README.md` | Added "No Timezone Fallbacks" warning | **UPDATED** |
+
+**Per CLAUDE.md "NO FALLBACKS" rule:** UTC would show wrong open/closed status for non-UTC users (e.g., Tokyo user at 8pm would see venue "Closed" because it's 11am UTC).
+
+**New behavior:** `isOpen` returns `null` (unknown) if timezone missing - surfaces the bug upstream.
+
+---
+
+### ✅ COMPLETED - Diagnostics GPT Parameter Fix (2026-01-07)
+
+| File | Change | Status |
+|------|--------|--------|
+| `server/api/health/diagnostics.js` | Changed `max_tokens` to `max_completion_tokens` for GPT-5.2 | **FIXED** |
+| `server/api/health/README.md` | Added model parameter note | **UPDATED** |
+
+**Issue:** GPT-5.2 model ping was using deprecated `max_tokens` → 400 errors.
+
+---
+
+### ✅ COMPLETED - PII Logging Removal (2026-01-07)
+
+| File | Change | Status |
+|------|--------|--------|
+| `server/api/chat/realtime.js` | Truncate userId/snapshotId to 8 chars in logs | **FIXED** |
+| `server/api/chat/chat.js` | Truncate userId/noteId to 8 chars in logs | **FIXED** |
+| `server/api/chat/README.md` | Added "No PII in Logs" warning | **UPDATED** |
+
+**Security:** Full UUIDs are PII and should not appear in server logs.
+
+---
+
 ### ✅ COMPLETED - Auth Loop Bug Fix (2026-01-07) - CRITICAL
 
 | File | Change | Status |

@@ -18,8 +18,12 @@ const router = Router();
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Parse all special action tags from AI response
- * Returns actions to execute and cleaned response text
+ * Parse AI actions from response text
+ * 2026-01-06: P1-B fix - Improved to handle nested JSON properly
+ *
+ * Supports two formats:
+ * 1. Legacy inline: [SAVE_NOTE: {...}] (kept for backward compat)
+ * 2. JSON envelope: ```json\n{"actions": [...], "response": "..."}\n``` (preferred)
  */
 function parseActions(responseText) {
   const actions = {
@@ -31,33 +35,125 @@ function parseActions(responseText) {
     eventReactivations: []
   };
 
-  // Pattern: [ACTION_TYPE: {...json...}]
-  const patterns = [
-    { type: 'note', regex: /\[SAVE_NOTE:\s*(\{[^}]+\})\]/g, key: 'notes' },
-    { type: 'event', regex: /\[DEACTIVATE_EVENT:\s*(\{[^}]+\})\]/g, key: 'events' },
-    { type: 'eventReactivation', regex: /\[REACTIVATE_EVENT:\s*(\{[^}]+\})\]/g, key: 'eventReactivations' },
-    { type: 'news', regex: /\[DEACTIVATE_NEWS:\s*(\{[^}]+\})\]/g, key: 'news' },
-    { type: 'system', regex: /\[SYSTEM_NOTE:\s*(\{[^}]+\})\]/g, key: 'systemNotes' },
-    { type: 'zone', regex: /\[ZONE_INTEL:\s*(\{[^}]+\})\]/g, key: 'zoneIntel' }
-  ];
-
   let cleanedText = responseText;
 
-  for (const { regex, key } of patterns) {
+  // 2026-01-06: Try JSON envelope format first (preferred)
+  const jsonEnvelopeMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonEnvelopeMatch) {
+    try {
+      const envelope = JSON.parse(jsonEnvelopeMatch[1]);
+      if (envelope.actions && Array.isArray(envelope.actions)) {
+        for (const action of envelope.actions) {
+          const actionType = action.type?.toUpperCase();
+          const actionData = action.data || action;
+
+          if (actionType === 'SAVE_NOTE') actions.notes.push(actionData);
+          else if (actionType === 'DEACTIVATE_EVENT') actions.events.push(actionData);
+          else if (actionType === 'REACTIVATE_EVENT') actions.eventReactivations.push(actionData);
+          else if (actionType === 'DEACTIVATE_NEWS') actions.news.push(actionData);
+          else if (actionType === 'SYSTEM_NOTE') actions.systemNotes.push(actionData);
+          else if (actionType === 'ZONE_INTEL') actions.zoneIntel.push(actionData);
+        }
+        // Use the response field if present, otherwise remove the JSON block
+        cleanedText = envelope.response || responseText.replace(jsonEnvelopeMatch[0], '').trim();
+        console.log(`[chat] Parsed JSON envelope: ${envelope.actions.length} actions`);
+        return { actions, cleanedText };
+      }
+    } catch (e) {
+      console.warn(`[chat] JSON envelope parse failed, falling back to regex:`, e.message);
+    }
+  }
+
+  // 2026-01-06: Improved regex-based parsing with proper JSON extraction
+  // Uses balanced brace matching instead of [^}]+ which breaks on nested JSON
+  const actionTypes = [
+    { prefix: 'SAVE_NOTE', key: 'notes' },
+    { prefix: 'DEACTIVATE_EVENT', key: 'events' },
+    { prefix: 'REACTIVATE_EVENT', key: 'eventReactivations' },
+    { prefix: 'DEACTIVATE_NEWS', key: 'news' },
+    { prefix: 'SYSTEM_NOTE', key: 'systemNotes' },
+    { prefix: 'ZONE_INTEL', key: 'zoneIntel' }
+  ];
+
+  for (const { prefix, key } of actionTypes) {
+    // Find all instances of [PREFIX: {...]
+    const pattern = new RegExp(`\\[${prefix}:\\s*`, 'g');
     let match;
-    while ((match = regex.exec(responseText)) !== null) {
-      try {
-        const parsed = JSON.parse(match[1]);
-        actions[key].push(parsed);
-        // Remove the action tag from visible response
-        cleanedText = cleanedText.replace(match[0], '');
-      } catch (e) {
-        console.warn(`[chat] Failed to parse ${key} action:`, match[1]);
+
+    while ((match = pattern.exec(responseText)) !== null) {
+      const startIndex = match.index + match[0].length;
+      const jsonResult = extractBalancedJson(responseText, startIndex);
+
+      if (jsonResult.json) {
+        try {
+          const parsed = JSON.parse(jsonResult.json);
+          actions[key].push(parsed);
+          // Build the full match to remove (include closing bracket)
+          const fullMatch = responseText.slice(match.index, jsonResult.endIndex + 1);
+          cleanedText = cleanedText.replace(fullMatch, '');
+        } catch (e) {
+          console.warn(`[chat] Failed to parse ${key} JSON:`, e.message);
+        }
       }
     }
   }
 
   return { actions, cleanedText: cleanedText.trim() };
+}
+
+/**
+ * Extract balanced JSON from string starting at given index
+ * Handles nested braces correctly
+ */
+function extractBalancedJson(str, startIndex) {
+  if (str[startIndex] !== '{') {
+    return { json: null, endIndex: startIndex };
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = startIndex; i < str.length; i++) {
+    const char = str[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\' && inString) {
+      escape = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (char === '{') depth++;
+      else if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          // Check for closing bracket ]
+          let endIndex = i;
+          const remaining = str.slice(i + 1);
+          const closeBracket = remaining.match(/^\s*\]/);
+          if (closeBracket) {
+            endIndex = i + closeBracket[0].length;
+          }
+          return {
+            json: str.slice(startIndex, i + 1),
+            endIndex
+          };
+        }
+      }
+    }
+  }
+
+  return { json: null, endIndex: str.length };
 }
 
 /**
@@ -248,7 +344,8 @@ router.post('/notes', requireAuth, async (req, res) => {
     });
 
     if (note) {
-      console.log(`[chat/notes] Saved note ${note.id} for user ${userId}`);
+      // 2026-01-07: Truncate user ID to avoid PII in logs
+      console.log(`[chat/notes] Saved note ${note.id?.substring(0, 8)} for user ${userId?.substring(0, 8)}`);
       res.json({ success: true, note_id: note.id });
     } else {
       res.status(500).json({ error: 'Failed to save note' });
@@ -683,52 +780,18 @@ You're a powerful AI companion with research-backed market intelligence and pers
 
     console.log(`[chat] Sending ${messageHistory.length} messages to Gemini...`);
 
-    // Call COACH_CHAT role with web search via HTTP
-    if (!process.env.GEMINI_API_KEY) {
-      res.write(`data: ${JSON.stringify({ error: 'GEMINI_API_KEY not configured' })}\n\n`);
-      return res.end();
-    }
-
+    // 2026-01-06: Use adapter pattern for COACH_CHAT role (P1-A fix)
+    // Model config (gemini-3-pro-preview, temp=0.7, google_search) is now in model-registry.js
     try {
-      console.log(`[chat] Calling COACH_CHAT role with streaming...`);
+      console.log(`[chat] Calling COACH_CHAT role via adapter with streaming...`);
 
-      // Create abort controller with 90 second timeout (web search needs more time)
-      const abortController = new AbortController();
-      const timeoutId = setTimeout(() => abortController.abort(), 90000);
+      // Import adapter at runtime to avoid circular dependencies
+      const { callModelStream } = await import('../../lib/ai/adapters/index.js');
 
-      // Use streamGenerateContent for real-time streaming
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse&key=${process.env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          signal: abortController.signal,
-          body: JSON.stringify({
-            systemInstruction: {
-              parts: [{ text: systemPrompt }]
-            },
-            contents: messageHistory,
-            tools: [{ google_search: {} }],
-            generationConfig: {
-              temperature: 0.7,
-              topP: 0.95,
-              topK: 40,
-              maxOutputTokens: 8192,
-            },
-            safetySettings: [
-              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
-            ]
-          })
-        }
-      );
-
-      clearTimeout(timeoutId);
+      const response = await callModelStream('COACH_CHAT', {
+        system: systemPrompt,
+        messageHistory
+      });
 
       if (!response.ok) {
         const errText = await response.text();

@@ -1,6 +1,14 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-07
 
 # Venue Module (`server/lib/venue/`)
+
+## ⚠️ Important: No Timezone Fallbacks (2026-01-07)
+
+**`isOpen` returns `null` if timezone is missing** - NOT a UTC fallback.
+
+Per CLAUDE.md "NO FALLBACKS" rule: UTC would be wrong for non-UTC users (e.g., Tokyo user would see wrong open/closed status). If snapshot.timezone is null:
+- `enrichVenues()` logs warning: "No timezone in snapshot - isOpen will be null"
+- `calculateIsOpen()` returns `null` (unknown) instead of guessing
 
 ## Purpose
 
