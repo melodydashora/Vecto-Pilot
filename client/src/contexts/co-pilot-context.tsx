@@ -163,17 +163,31 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // This ensures UI shows loading state immediately, not stale strategy
   useEffect(() => {
     const handleStrategyClear = () => {
-      console.log('[CoPilotContext] 🔄 Manual refresh detected - clearing strategy state');
+      console.log('[CoPilotContext] 🔄 Manual refresh detected - clearing ALL state for fresh regeneration');
+
+      // Clear localStorage
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
+
+      // Clear React state - MUST clear lastSnapshotId so new snapshot triggers waterfall
       setPersistentStrategy(null);
       setImmediateStrategy(null);
       setStrategySnapshotId(null);
+      setLastSnapshotId(null);  // CRITICAL: Clear snapshot ID so new one triggers waterfall
+
       // Clear deduplication set so new snapshot can trigger waterfall
+      // Log for debugging - this should show empty set
+      console.log('[CoPilotContext] 🔄 Clearing waterfallTriggeredRef, had:', Array.from(waterfallTriggeredRef.current));
       waterfallTriggeredRef.current.clear();
+
+      // Reset previous snapshot ref so change detection works
+      prevSnapshotIdRef.current = null;
+
       // Reset react-query cache
       queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
       queryClient.resetQueries({ queryKey: ['/api/blocks-fast'] });
+
+      console.log('[CoPilotContext] ✅ State cleared - ready for new snapshot');
     };
 
     window.addEventListener('vecto-strategy-cleared', handleStrategyClear);
