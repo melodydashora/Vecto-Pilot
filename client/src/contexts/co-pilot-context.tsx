@@ -97,6 +97,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Prevents duplicate pipeline runs when both useEffect AND event handler fire
   const waterfallTriggeredRef = useRef<Set<string>>(new Set());
 
+  // 2026-01-07: Flag to prevent race condition during manual refresh
+  // When refresh clicked, we clear lastSnapshotId, but locationContext still has old value
+  // Without this flag, useEffect would immediately restore the old snapshotId
+  const manualRefreshInProgressRef = useRef<boolean>(false);
+
   // Get coords from location context
   const gpsCoords = locationContext?.currentCoords;
   const overrideCoords = locationContext?.overrideCoords;
@@ -116,6 +121,14 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Fallback: If location context has a snapshot ID and we don't, use it
   useEffect(() => {
     const contextSnapshotId = locationContext?.lastSnapshotId;
+
+    // 2026-01-07: Skip if manual refresh in progress - we just cleared lastSnapshotId
+    // and we're waiting for location-context to create a NEW snapshot
+    if (manualRefreshInProgressRef.current) {
+      console.log("⏳ CoPilotContext: Manual refresh in progress - ignoring old snapshotId from context");
+      return;
+    }
+
     if (contextSnapshotId && !lastSnapshotId) {
       console.log("🔄 CoPilotContext: Using snapshot from context:", contextSnapshotId);
       setLastSnapshotId(contextSnapshotId);
@@ -165,6 +178,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     const handleStrategyClear = () => {
       console.log('[CoPilotContext] 🔄 Manual refresh detected - clearing ALL state for fresh regeneration');
 
+      // 2026-01-07: CRITICAL - Set flag BEFORE clearing state to prevent race condition
+      // This flag tells the useEffect at line 122 to NOT restore the old snapshotId
+      manualRefreshInProgressRef.current = true;
+
       // Clear localStorage
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
@@ -187,7 +204,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
       queryClient.resetQueries({ queryKey: ['/api/blocks-fast'] });
 
-      console.log('[CoPilotContext] ✅ State cleared - ready for new snapshot');
+      console.log('[CoPilotContext] ✅ State cleared, manualRefreshInProgressRef=true - waiting for new snapshot');
     };
 
     window.addEventListener('vecto-strategy-cleared', handleStrategyClear);
@@ -203,6 +220,14 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
       if (snapshotId) {
         console.log("🎯 CoPilotContext: Snapshot ready (via event):", snapshotId.slice(0, 8), "reason:", reason);
+
+        // 2026-01-07: Clear the manual refresh flag - new snapshot has arrived
+        // This allows the system to accept this snapshot and trigger waterfall
+        if (manualRefreshInProgressRef.current) {
+          console.log("✅ CoPilotContext: Manual refresh complete - new snapshot received");
+          manualRefreshInProgressRef.current = false;
+        }
+
         setLastSnapshotId(snapshotId);
 
         // 2026-01-06: P3-D - Skip blocks-fast for resume events
