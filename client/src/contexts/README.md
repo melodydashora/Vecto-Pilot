@@ -7,9 +7,19 @@
 When user clicks the refresh button (GlobalHeader spindle):
 1. `location-context-clean.tsx` dispatches `vecto-strategy-cleared` event
 2. `co-pilot-context.tsx` listens and clears strategy state + react-query cache
-3. New snapshot is created → `vecto-snapshot-saved` triggers strategy regeneration
+3. **Sets `manualRefreshInProgressRef = true`** to prevent race condition
+4. `location-context-clean.tsx` fetches new GPS, creates new snapshot
+5. `vecto-snapshot-saved` fires → clears flag, triggers strategy regeneration
 
-This ensures the UI shows loading state immediately, not stale strategy.
+### Race Condition Prevention (2026-01-07)
+
+Without `manualRefreshInProgressRef`, there was a race condition:
+- `handleStrategyClear` sets `lastSnapshotId = null`
+- BUT `locationContext?.lastSnapshotId` still has OLD value
+- useEffect at line 122 immediately restores the OLD snapshotId
+- New snapshot never triggers waterfall because old one is already set
+
+The flag prevents the useEffect from restoring the old value until the new snapshot arrives.
 
 ## Purpose
 
