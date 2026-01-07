@@ -1499,6 +1499,61 @@ const freshEvents = filterFreshEvents(allEvents, new Date(), snapshot.timezone);
 
 **Key Insight:** When storing local times as strings (e.g., "3:30 PM"), you MUST also store/pass the timezone to correctly convert back to UTC for comparisons. Never assume the server's timezone matches the user's.
 
+### Bug: Manual refresh spindle not triggering workflow regeneration (2026-01-07)
+
+**Cause:** Race condition between event handler and useEffect
+
+**Symptoms:**
+- User clicks refresh button (spindle in GlobalHeader)
+- Old strategy remains displayed instead of showing loading state
+- No new `/api/blocks-fast` request is made
+- Console shows "Using snapshot from context" immediately after clearing
+
+**Root Cause:**
+The manual refresh flow has two key events:
+1. `vecto-strategy-cleared` - clears state, prepares for new data
+2. `vecto-snapshot-saved` - signals new snapshot is ready
+
+The problem was a race condition:
+```
+1. handleStrategyClear runs → sets lastSnapshotId = null
+2. useEffect (line 122) checks: if (contextSnapshotId && !lastSnapshotId)
+3. locationContext.lastSnapshotId still has OLD value
+4. useEffect immediately restores: setLastSnapshotId(OLD_VALUE)
+5. New snapshot comes → already has snapshot → skips waterfall
+```
+
+**Fix:** Use a ref flag to prevent the useEffect from restoring the old value:
+```javascript
+// 2026-01-07: Flag to prevent race condition during manual refresh
+const manualRefreshInProgressRef = useRef<boolean>(false);
+
+const handleStrategyClear = () => {
+  manualRefreshInProgressRef.current = true;  // Set BEFORE clearing
+  setLastSnapshotId(null);
+  // ... other cleanup
+};
+
+useEffect(() => {
+  if (manualRefreshInProgressRef.current) {
+    return;  // Skip restoration during manual refresh
+  }
+  // ... normal logic
+}, [locationContext?.lastSnapshotId, lastSnapshotId]);
+
+const handleSnapshotSaved = (e) => {
+  if (manualRefreshInProgressRef.current) {
+    manualRefreshInProgressRef.current = false;  // Clear when NEW snapshot arrives
+  }
+  setLastSnapshotId(e.detail.snapshotId);
+};
+```
+
+**Files Changed:**
+- `client/src/contexts/co-pilot-context.tsx` - Added flag and checks
+
+**Key Lesson:** When clearing React state in event handlers, watch out for useEffects that might immediately restore the old value from external sources (like other contexts). Use a ref flag to coordinate the "clearing → waiting → new value" sequence.
+
 ---
 
 ## Testing Checklist
