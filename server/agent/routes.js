@@ -1,5 +1,6 @@
 // server/agent/routes.js
 // Agent server API routes with enhanced thread awareness
+// 2026-01-07: Added admin-only protection for dangerous config operations
 
 import express from "express";
 import { getEnhancedProjectContext, performInternetSearch, analyzeWorkspaceDeep } from "./enhanced-context.js";
@@ -7,6 +8,7 @@ import { getThreadManager, getThreadAwareContext } from "./thread-context.js";
 import { listConfigFiles, readConfigFile, updateEnvFile, backupConfigFile } from "./config-manager.js";
 import { memoryPut, memoryGet, memoryQuery } from "../eidolon/memory/pg.js";
 import { storeCrossThreadMemory, getCrossThreadMemory, storeAgentMemory, getAgentMemory } from "./enhanced-context.js";
+import { requireAgentAdmin } from "./embed.js";
 
 const router = express.Router();
 
@@ -228,6 +230,7 @@ router.post("/search", async (req, res) => {
 });
 
 // Config management
+// NOTE: All routes already require auth via embed.js (requireAuth middleware on router mount)
 router.get("/config/list", async (req, res) => {
   try {
     const files = await listConfigFiles();
@@ -247,9 +250,16 @@ router.get("/config/read/:filename", async (req, res) => {
   }
 });
 
-router.post("/config/env/update", async (req, res) => {
+// 2026-01-07: SECURITY - Admin-only for env file updates
+// This endpoint can modify API keys, database credentials, and other sensitive config.
+// Requires: 1) AGENT_ENABLED=true 2) IP allowlist 3) valid auth token 4) admin user
+router.post("/config/env/update", requireAgentAdmin, async (req, res) => {
   try {
     const { updates } = req.body;
+
+    // Log admin action for audit trail
+    console.log(`[agent config] ⚙️ Admin ${req.auth?.userId?.substring(0, 8)} updating env: ${Object.keys(updates).join(', ')}`);
+
     const result = await updateEnvFile(updates);
     res.json(result);
   } catch (err) {
@@ -257,9 +267,15 @@ router.post("/config/env/update", async (req, res) => {
   }
 });
 
-router.post("/config/backup/:filename", async (req, res) => {
+// 2026-01-07: SECURITY - Admin-only for config backups
+// Backups could leak sensitive data if not protected
+router.post("/config/backup/:filename", requireAgentAdmin, async (req, res) => {
   try {
     const { filename } = req.params;
+
+    // Log admin action for audit trail
+    console.log(`[agent config] 💾 Admin ${req.auth?.userId?.substring(0, 8)} backing up: ${filename}`);
+
     const result = await backupConfigFile(filename);
     res.json(result);
   } catch (err) {

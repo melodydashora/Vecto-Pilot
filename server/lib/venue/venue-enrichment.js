@@ -45,8 +45,14 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
     return [];
   }
 
-  const timezone = snapshot?.timezone || "UTC"; // Fallback to UTC for global app
-  venuesLog.start(`${venues.length} venues (tz: ${timezone})`);
+  // 2026-01-07: NO FALLBACK - if timezone is missing, isOpen will be null (unknown)
+  // Per CLAUDE.md: "If data is missing, return an error - don't mask the bug with defaults"
+  // UTC fallback was wrong for global app (Tokyo user would see wrong open/closed status)
+  const timezone = snapshot?.timezone || null;
+  if (!timezone) {
+    venuesLog.warn(1, `[venue-enrichment] ⚠️ No timezone in snapshot - isOpen will be null`);
+  }
+  venuesLog.start(`${venues.length} venues (tz: ${timezone || 'UNKNOWN'})`);
 
   // OPTIMIZATION: Batch all route calculations in ONE API call using Route Matrix
   // Before: N venues = N API calls (sequential or parallel but still N calls)
@@ -281,12 +287,18 @@ function condenseWeeklyHours(weekdayTexts) {
 /**
  * Calculate if venue is currently open based on Google hours and snapshot timezone
  * @param {Array<string>} weekdayTexts - e.g., ["Monday: 6:00 AM – 11:00 PM", ...]
- * @param {string} timezone - IANA timezone (e.g., "America/Chicago")
- * @returns {boolean|null} - true if open, false if closed, null if hours unavailable
+ * @param {string|null} timezone - IANA timezone (e.g., "America/Chicago")
+ * @returns {boolean|null} - true if open, false if closed, null if hours unavailable or no timezone
  */
-function calculateIsOpen(weekdayTexts, timezone = "UTC") {
+function calculateIsOpen(weekdayTexts, timezone = null) {
   if (!weekdayTexts || weekdayTexts.length === 0) {
     return null; // No hours data available
+  }
+
+  // 2026-01-07: NO FALLBACK - if timezone missing, return null (unknown)
+  // Per CLAUDE.md: Don't mask bugs with defaults. UTC would be wrong for non-UTC users.
+  if (!timezone) {
+    return null; // Cannot determine open/closed without timezone
   }
 
   try {
@@ -295,12 +307,12 @@ function calculateIsOpen(weekdayTexts, timezone = "UTC") {
     // Validate timezone to avoid Intl errors on invalid timezones
     try {
       // Test if timezone is valid by creating formatter
-      const testFormatter = new Intl.DateTimeFormat("en-US", {
+      const _testFormatter = new Intl.DateTimeFormat("en-US", {
         timeZone: timezone,
       });
     } catch {
-      console.warn(`[calculateIsOpen] Invalid timezone "${timezone}", falling back to UTC`);
-      timezone = "UTC";
+      console.warn(`[calculateIsOpen] Invalid timezone "${timezone}" - cannot determine open/closed`);
+      return null; // Invalid timezone - don't guess
     }
 
     const formatter = new Intl.DateTimeFormat("en-US", {
@@ -428,10 +440,10 @@ function getCoordsKey(lat, lng) {
  * @param {number} lat
  * @param {number} lng
  * @param {string} name - Venue name for verification
- * @param {string} timezone - IANA timezone for accurate hours calculation
+ * @param {string|null} timezone - IANA timezone for accurate hours calculation (null = isOpen unknown)
  * @returns {Promise<Object>} {place_id, business_status, ...}
  */
-async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
+async function getPlaceDetails(lat, lng, name, timezone = null) {
   const coordsKey = getCoordsKey(lat, lng);
 
   // 1. Check in-memory cache first (fastest)
@@ -665,10 +677,10 @@ function calculateNameSimilarity(name1, name2) {
  * @param {string} district - District/neighborhood name
  * @param {string} city - City name
  * @param {string} state - State abbreviation
- * @param {string} timezone - IANA timezone for hours calculation
+ * @param {string|null} timezone - IANA timezone for hours calculation (null = isOpen unknown)
  * @returns {Promise<Object|null>} Place details or null if not found
  */
-export async function searchPlaceByText(venueName, district, city, state, timezone = "UTC") {
+export async function searchPlaceByText(venueName, district, city, state, timezone = null) {
   // Build text query: "Legacy Hall Legacy West Plano TX"
   const queryParts = [venueName];
   if (district) queryParts.push(district);
@@ -764,10 +776,10 @@ export async function searchPlaceByText(venueName, district, city, state, timezo
  * @param {string} district - District/neighborhood name (optional)
  * @param {string} city - City name
  * @param {string} state - State abbreviation
- * @param {string} timezone - IANA timezone
+ * @param {string|null} timezone - IANA timezone (null = isOpen unknown)
  * @returns {Promise<Object>} Place details with placeVerified flag
  */
-export async function getPlaceDetailsWithFallback(lat, lng, name, district, city, state, timezone = "UTC") {
+export async function getPlaceDetailsWithFallback(lat, lng, name, district, city, state, timezone = null) {
   // 1. Try coordinate-based search first
   const coordResult = await getPlaceDetails(lat, lng, name, timezone);
 

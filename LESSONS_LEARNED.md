@@ -806,6 +806,38 @@ try {
 }
 ```
 
+### Security: Admin-Only Routes (Added 2026-01-07)
+
+For dangerous operations that modify config/env/secrets, use **4-layer security**:
+
+1. **Feature Gate:** `AGENT_ENABLED=true` required
+2. **IP Allowlist:** `AGENT_ALLOWED_IPS` (no `*` in prod)
+3. **Auth Required:** Valid JWT token via `requireAuth`
+4. **Admin Required:** User in `AGENT_ADMIN_USERS` list
+
+```javascript
+// Pattern: admin-only middleware
+function requireAgentAdmin(req, res, next) {
+  const adminUsers = (process.env.AGENT_ADMIN_USERS || '').split(',').filter(Boolean);
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Fail-secure: block in prod if no admins configured
+  if (adminUsers.length === 0 && isProduction) {
+    return res.status(403).json({ error: 'AGENT_ADMIN_NOT_CONFIGURED' });
+  }
+
+  if (!adminUsers.includes(req.auth.userId)) {
+    return res.status(403).json({ error: 'AGENT_ADMIN_REQUIRED' });
+  }
+  next();
+}
+
+// Apply to dangerous routes
+router.post("/config/env/update", requireAgentAdmin, async (req, res) => {...});
+```
+
+**Bug History:** Agent `/config/env/update` was accessible to any authenticated user and IP allowlist accepted `*` wildcard, defeating security.
+
 ---
 
 ## File Organization
