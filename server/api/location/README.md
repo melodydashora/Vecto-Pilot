@@ -1,10 +1,21 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-07
 
 # Location API (`server/api/location/`)
 
 ## Purpose
 
 GPS processing, geocoding, weather, air quality, and snapshot management.
+
+## ⚠️ CRITICAL RULE: session_id
+
+**DO NOT update `users.session_id` from this API!**
+
+`session_id` is the auth session identifier managed by:
+- Login endpoint (sets new UUID)
+- Logout endpoint (sets null)
+- Auth middleware TTL checks (sets null on expiry)
+
+**Bug History (2026-01-07):** Location API was setting `session_id = req.query.session_id || null`, which overwrote the auth session with null immediately after login, causing instant logouts. See `LESSONS_LEARNED.md` → "Auth Loop on Login".
 
 ## Files
 

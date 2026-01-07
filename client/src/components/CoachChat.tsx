@@ -63,9 +63,9 @@ export default function CoachChat({
   userId,
   snapshotId,
   strategyId,
-  strategy,
+  strategy: _strategy,
   snapshot,
-  blocks = [],
+  blocks: _blocks = [],
   strategyReady = false
 }: CoachChatProps) {
   const [msgs, setMsgs] = useState<Message[]>([]);
@@ -88,10 +88,11 @@ export default function CoachChat({
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
 
-  // Memory integration for persistent context
-  const { logConversation, summarizeConversation, context: _context } = useMemory({
+  // Memory integration for conversation logging (context not used, so no loadOnMount)
+  // 2026-01-06: Removed loadOnMount=true - was fetching /agent/context but result was unused (_context)
+  const { logConversation, summarizeConversation } = useMemory({
     userId,
-    loadOnMount: true
+    loadOnMount: false  // Only load when explicitly needed
   });
 
   // 2026-01-05: Notes CRUD functions with optimistic UI
@@ -190,7 +191,6 @@ export default function CoachChat({
   }, [notes, editContent]);
 
   // Handle validation errors from chat API (ready for future use)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _handleValidationErrors = useCallback((errors: ValidationError[]) => {
     setValidationErrors(errors);
     // Clear after 5 seconds
@@ -513,31 +513,25 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       const res = await fetch("/api/chat", {
         method: "POST",
         headers,
-        body: JSON.stringify({ 
-          userId, 
+        // 2026-01-06: P1-C - Reduced payload size
+        // Server uses CoachDAL to rebuild full context from IDs
+        // Only send: IDs + message + history + attachments + minimal snapshot for timezone
+        body: JSON.stringify({
+          userId,
           message: my || "(analyzing files)",
-          threadHistory: msgs,  // Send full conversation history for context awareness
-          snapshotId,
-          strategyId,  // Entry point: Strategy ID from UI → Full schema access
-          strategy,
-          blocks,  // Send full blocks array with all fields (events, earnings, tips, etc.)
-          attachments: filesToSend,  // Include uploaded files for analysis
-          // Snapshot context: weather, AQI, city, daypart, etc. (enables early engagement)
+          threadHistory: msgs,  // Conversation context
+          snapshotId,           // Server fetches full snapshot via CoachDAL
+          strategyId,           // Server fetches strategy + blocks via CoachDAL
+          attachments: filesToSend,
+          // Minimal snapshot - only timezone (required) and city/state for early engagement
           snapshot: snapshot ? {
             city: snapshot.city,
             state: snapshot.state,
-            formatted_address: snapshot.formatted_address,
             timezone: snapshot.timezone,
             hour: snapshot.hour,
-            day_part_key: snapshot.day_part_key,
-            dow: snapshot.dow,
-            weather: snapshot.weather,
-            air: snapshot.air,
-            holiday: snapshot.holiday,
-            is_holiday: snapshot.is_holiday,
-            coordinates: snapshot.lat && snapshot.lng ? { lat: snapshot.lat, lng: snapshot.lng } : undefined
+            day_part_key: snapshot.day_part_key
           } : undefined,
-          strategyReady // Helps Coach know if strategy is still generating
+          strategyReady
         }),
         signal: controllerRef.current.signal,
       });

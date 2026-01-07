@@ -30,8 +30,8 @@ import {
   Target,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
-  RefreshCw,
+  // ExternalLink, - unused, removing
+  // RefreshCw, - unused, removing
 } from 'lucide-react';
 import type {
   TacticalStagingMapProps,
@@ -43,7 +43,8 @@ import type {
   TacticalPlanResponse,
   StagingAreasResponse,
 } from '@/types/tactical-map';
-import { MARKER_CONFIGS } from '@/types/tactical-map';
+// MARKER_CONFIGS import removed - currently unused
+// import { MARKER_CONFIGS } from '@/types/tactical-map';
 
 // Google Maps type declarations (loaded dynamically via script)
 declare global {
@@ -124,7 +125,7 @@ export default function TacticalStagingMap({
   snapshotId,
   driverLat,
   driverLng,
-  timezone,
+  timezone: _timezone,
   events = [],
   airports = [],
   trafficContext,

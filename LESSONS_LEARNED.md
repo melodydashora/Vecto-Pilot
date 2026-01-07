@@ -31,6 +31,9 @@ This document captures historical issues, pitfalls, and best practices discovere
 6. **DO NOT skip enrichment steps** - Smart Blocks require Google Places/Routes/Geocoding enrichment
 7. **DO NOT store secrets in code** - Use environment variables only
 8. **DO NOT add location fallbacks** - This is a GLOBAL app. No `|| 'Frisco'`, no `|| 'America/Chicago'`, no hardcoded airports. If data is missing, return an error - don't mask the bug with defaults. See CLAUDE.md "NO FALLBACKS" rule.
+9. **DO NOT use graceful error handling or silent failures** - Errors should surface with clear messages. Never use `console.debug` to hide errors. Never return `null` to silently succeed. If something fails, throw an error or log with `console.error`. Fix the ROOT CAUSE instead of masking symptoms. (Added 2026-01-06)
+10. **DO NOT omit callback functions from useEffect deps without using the ref pattern** - If an effect calls a callback (like `refreshGPS`), you have two options: (A) include it in deps, OR (B) use a ref pattern if adding to deps causes infinite loops. The ref pattern: `const fnRef = useRef(fn)`, then `useEffect(() => { fnRef.current = fn }, [fn])`, then call `fnRef.current?.()` in your effect. This avoids stale closures while preventing "Maximum update depth exceeded" errors. See "Auth Loop on Login" section for full pattern. (Added 2026-01-07)
+11. **DO NOT create new objects inline when passing to hooks/components** - Example: `useHook({ coords: { lat: x, lng: y } })` creates a new object reference every render → infinite re-renders. Instead, pass existing refs: `useHook({ coords })` or memoize: `useMemo(() => ({ lat: x, lng: y }), [x, y])`. (Added 2026-01-07)
 
 ### ALWAYS DO
 
@@ -420,13 +423,27 @@ export default memo(Page);  // ✅ Prevent parent re-renders
 - Export `TOKEN_KEY` constant from auth-context and import it everywhere
 - Never hardcode localStorage keys - use a central constant
 
-### localStorage Behavior
+### localStorage Behavior & Strategy Persistence (2026-01-06 P3-A Fix)
 
 **Current Behavior:**
 - Strategy data persists across sessions
-- Clears only on manual refresh or location change
+- Clears only on manual refresh or snapshot ID change
 
-**Previous Bug:** Strategy cleared on every mount (caused unnecessary regeneration)
+**Previous Bug (Fixed 2026-01-06):** Strategy cleared on every mount in TWO places:
+1. `useStrategyPolling.ts` - `useEffect(() => { localStorage.removeItem(...) }, [])`
+2. `co-pilot-context.tsx` - `if (prevSnapshotIdRef.current === null) { localStorage.removeItem(...) }`
+
+**Why This Was Bad:**
+- User switches to Uber/Lyft app → returns → component remounts → strategy clears → 35-50s regeneration
+- OS kills tab for memory → user reopens → full reload → strategy clears → regeneration
+- The original "fix" for 49-min-old strategies was too aggressive (blanket clear instead of TTL check)
+
+**The Correct Approach:**
+- Only clear on: manual refresh, snapshot ID change, or logout
+- On mount: restore from localStorage IF stored snapshotId matches current snapshotId
+- If snapshotId differs, the snapshot-change effect handles the clear
+
+**Key Insight:** A 10-minute-old strategy is FINE if the snapshot hasn't changed. Same snapshot = same driver position + time context.
 
 ### Snapshot Ownership Error Cooling Off (2026-01-06)
 
@@ -467,6 +484,149 @@ function exitCoolingOffForNewSnapshot(newSnapshotId: string) {
 
 **Files Changed:**
 - `client/src/hooks/useBriefingQueries.ts`: Added early exit from cooling off when new snapshot arrives
+
+### Auth Loop on Login (2026-01-07) - CRITICAL
+
+**Problem:** User signs in successfully, app loads briefly, then immediately redirects back to sign-in page
+
+**Actual Root Cause (FOUND 2026-01-07):** The Location API (`server/api/location/location.js`) was **overwriting session_id with null** in the users table!
+
+```javascript
+// THE BUG (lines 547-550, 847):
+const sessionId = req.query.session_id || null;  // ← Defaults to NULL
+// ...
+await db.update(users).set({
+  session_id: sessionId,  // ← OVERWRITES auth session with NULL!
+  // ...
+});
+```
+
+**Why this killed the session:**
+1. Login creates new session → `session_id = 4e9f3e34`
+2. Location API runs → takes session_id from query params → **null** (not provided)
+3. Location API updates users table → `session_id = null` (overwrites login's value!)
+4. All subsequent requests → requireAuth checks session_id → finds null → returns 401
+5. Client receives 401 → dispatches auth error → logout → redirect to sign-in
+
+**The Fix:** Remove `session_id` from Location API's users table updates. `session_id` must only be managed by:
+- Login endpoint (sets new UUID)
+- Logout endpoint (sets null)
+- Auth middleware TTL checks (sets null on expiry)
+
+**Contributing Factor (client-side):** Session restore in LocationContext ran BEFORE auth finished loading and set `isLocationResolved = true`, which gates downstream queries. The queries fired while auth was still loading → got 401 → dispatched auth error → logout → redirect to sign-in.
+
+**The Race Condition:**
+```
+1. Login succeeds → token stored in localStorage
+2. Navigate to main app → providers mount fresh
+3. AuthProvider: isLoading: true, calls fetchProfile(token) [async]
+4. LocationProvider: restore effect runs IMMEDIATELY ([] deps, not gated on auth)
+5. Restore sets isLocationResolved = true  ← BUG
+6. Briefing queries see valid snapshotId → fire request
+7. Auth hasn't finished loading → isAuthenticated still false
+8. getAuthHeader() reads token from localStorage → MIGHT work
+9. If anything returns 401 → dispatchAuthError() → logout → back to sign-in
+```
+
+**Why This is Wrong:**
+- Session restore effect has empty deps `[]` so it runs before ANY other effect
+- `isLocationResolved` gates downstream API queries (bars, briefing, etc.)
+- Setting it during restore enabled queries before auth context was ready
+- Even if token exists in localStorage, auth state (`isLoading`, `isAuthenticated`, `user`) wasn't populated
+
+**Fix (Three parts):**
+
+1. **Don't set `isLocationResolved` during restore** - only restore display data (city, weather, etc.)
+   ```typescript
+   // WRONG - runs before auth loads
+   useEffect(() => {
+     // restore from sessionStorage...
+     if (data.snapshotId && data.city) {
+       setIsLocationResolved(true);  // ← Triggers queries too early!
+     }
+   }, []);  // Empty deps = runs immediately
+   ```
+
+2. **Set `isLocationResolved` in the auth-gated GPS effect** - this only runs after auth is verified
+   ```typescript
+   // CORRECT - waits for auth to complete
+   useEffect(() => {
+     if (authLoading) return;  // Wait for auth
+     if (!user?.userId || !token) return;  // Require authenticated user
+
+     if (lastSnapshotId && currentCoords && city) {
+       // Auth is verified, now safe to enable queries
+       setIsLocationResolved(true);
+       // Dispatch event with reason: 'resume'
+       window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+         detail: { snapshotId: lastSnapshotId, ..., reason: 'resume' }
+       }));
+     }
+   }, [authLoading, user?.userId, token, lastSnapshotId, ...]);
+   ```
+
+3. **CRITICAL: Use ref pattern for callbacks in effects** - avoid stale closures WITHOUT infinite loops
+   ```typescript
+   // WRONG v1 - refreshGPS is captured once, never updated → stale closure
+   useEffect(() => {
+     refreshGPS(false);  // Uses stale enrichLocation with null token!
+   }, [authLoading, user?.userId, token]);  // ← Missing refreshGPS
+
+   // WRONG v2 - Adding refreshGPS to deps causes INFINITE LOOP!
+   // refreshGPS → enrichLocation → token changes → refreshGPS recreated → effect re-runs → loop
+   useEffect(() => {
+     refreshGPS(false);
+   }, [authLoading, user?.userId, token, refreshGPS]);  // ← Causes Maximum update depth exceeded!
+
+   // CORRECT - Use ref pattern: ref is kept in sync separately
+   const refreshGPSRef = useRef<(force?: boolean) => Promise<void>>();
+
+   // Keep ref always pointing to latest refreshGPS
+   useEffect(() => {
+     refreshGPSRef.current = refreshGPS;
+   }, [refreshGPS]);
+
+   // Use ref to call latest version without adding to deps
+   useEffect(() => {
+     if (authLoading) return;
+     if (!user?.userId || !token) return;
+     refreshGPSRef.current?.(false);  // Always calls latest version
+   }, [authLoading, user?.userId, token]);  // ← No refreshGPS = no infinite loop
+   ```
+
+   **Why the ref pattern works:**
+   - The sync effect (`refreshGPSRef.current = refreshGPS`) runs whenever refreshGPS changes
+   - The GPS effect uses `refreshGPSRef.current` which is always the latest
+   - But `refreshGPSRef` itself never changes (refs are stable) so no infinite loop
+
+   **Why adding refreshGPS to deps causes infinite loop:**
+   - `token` loads → `enrichLocation` recreates (token in deps)
+   - `enrichLocation` changes → `refreshGPS` recreates (enrichLocation in deps)
+   - `refreshGPS` changes → GPS effect re-runs
+   - Effect calls `refreshGPS()` → state updates → renders
+   - Rinse and repeat = Maximum update depth exceeded
+
+**Key Insight:** Context restore effects with empty deps run BEFORE auth loads. Any flags that gate API queries must only be set in effects that are gated on auth state (`!authLoading && user && token`).
+
+**Pattern to Follow:**
+- Restore: Only restore DISPLAY state (city, weather, coords) for immediate UI rendering
+- API Queries: Gate on both data (`snapshotId`) AND auth (`!authLoading && user`)
+- If you need to gate queries on a flag, only set that flag after auth is verified
+
+**Files Changed:**
+- `server/api/location/location.js` (THE ACTUAL FIX):
+  - **Removed `session_id: sessionId` from users table UPDATE** (line 847)
+  - **Removed `session_id: sessionId` from users table INSERT** (line 896)
+  - Session_id must only be managed by login/logout/auth middleware, NOT location API
+- `client/src/contexts/co-pilot-context.tsx` (infinite loop fix):
+  - **Fixed inline object creation causing infinite loop** (line 466)
+  - Changed `coords: coords ? { latitude: ..., longitude: ... } : null` to `coords: coords`
+  - Creating new objects inline in hook calls breaks React's reference comparison
+- `client/src/contexts/location-context-clean.tsx` (contributing fix):
+  - Removed `setIsLocationResolved(true)` from restore effect
+  - Added proper resume handling in auth-gated GPS effect
+  - Added `refreshGPSRef` ref pattern to avoid both stale closures AND infinite loops
+  - Added safeguard in `enrichLocation` to abort if called without auth
 
 ### React Query Patterns
 

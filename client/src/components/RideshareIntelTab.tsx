@@ -445,6 +445,7 @@ export default function RideshareIntelTab() {
 
       {/* Tactical Staging Map - DISABLED - Google Maps DOM conflicts with React */}
       {/* TODO: Fix Google Maps integration to prevent removeChild errors */}
+      {/* eslint-disable-next-line no-constant-condition -- intentionally disabled */}
       {null && latitude && longitude ? (
         snapshotId ? (
           <TacticalStagingMap

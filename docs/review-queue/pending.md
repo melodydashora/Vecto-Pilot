@@ -32,18 +32,49 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ## Currently Pending
 
-### 🚨 CRITICAL - Security Audit Remediation
+### ✅ COMPLETED - Auth Loop Bug Fix (2026-01-07) - CRITICAL
+
+| File | Change | Status |
+|------|--------|--------|
+| `server/api/location/location.js` | Removed `session_id: sessionId` from users table UPDATE and INSERT | **FIXED** |
+| `LESSONS_LEARNED.md` | Documented root cause and fix for Auth Loop | **UPDATED** |
+
+**Root Cause:**
+Location API was overwriting `users.session_id` with `null` (from query param default). This killed the auth session immediately after login.
+
+**Flow:**
+1. Login creates session → `session_id = 4e9f3e34`
+2. Location API updates users table with `session_id: req.query.session_id || null` → **null**
+3. All subsequent requests fail with 401 (session_id is null)
+
+**Fix:** `session_id` must only be managed by login/logout/auth middleware. Removed from Location API's users table operations.
+
+---
+
+### ✅ COMPLETED - Security Audit Remediation (2026-01-06)
 
 | Doc | Reason | Status |
 |-----|--------|--------|
-| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | **P0 Security fixes** - Agent auth, NO FALLBACKS violations | AWAITING APPROVAL |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | P0/P1/P2 - 15 tasks completed | **IMPLEMENTED** |
+
+**Changes Made:**
+- P0-A: Agent security (env-gate + auth + IP allowlist)
+- P0-B/C/D: NO FALLBACKS enforcement (timezone, state, market)
+- P0-E: Sensitive logging redacted
+- P1-A: Coach chat uses adapter pattern
+- P1-B: JSON parsing replaces fragile regex
+- P1-C: Client payload reduced (IDs only)
+- P1-D: Coords cache docs fixed (6 decimals)
+- P2-A/B/C: Dispatch primitives (driver_goals, driver_tasks, safe_zones)
+- P2-D: Saturation tracking table (staging_saturation)
+- P2-E: AI change protocol doc created
 
 ### High Priority
 
 | Doc | Reason | Status |
 |-----|--------|--------|
-| `docs/architecture/database-schema.md` | New tables: `us_market_cities`, `market_intel` | PENDING |
-| `docs/preflight/database.md` | New tables need documentation | PENDING |
+| `docs/architecture/database-schema.md` | New tables: `driver_goals`, `driver_tasks`, `safe_zones`, `staging_saturation` | PENDING |
+| `docs/preflight/database.md` | Dispatch primitives need documentation | PENDING |
 | `docs/architecture/auth-system.md` | Auth changes (CASCADE fix, JWT consistency) | PENDING |
 
 ### Medium Priority
@@ -289,6 +320,619 @@ Items flagged by the Change Analyzer for human-AI validation.
 - [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
 - [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
 - [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-07 Analysis
+
+**Generated:** 2026-01-07T00:46:17.080Z
+**Branch:** main
+**Last Commit:** 8859041 Update documents and AI settings
+
+### Uncommitted Changes (19)
+| File | Status |
+|------|--------|
+| `LAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/decisions.md` | Modified |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/chat/chat.js` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/ai/adapters/index.js` | Modified |
+| `shared/schema.js` | Modified |
+| `client/src/constants/` | Untracked |
+| `docs/preflight/ai-change-protocol.md` | Untracked |
+
+### Recent Commit Changes (151)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/components/strategy/README.md` | Modified |
+| `client/src/components/strategy/_future/README.md` | Modified |
+| ... and 131 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-07 Analysis
+
+**Generated:** 2026-01-07T00:52:04.480Z
+**Branch:** main
+**Last Commit:** 8859041 Update documents and AI settings
+
+### Uncommitted Changes (20)
+| File | Status |
+|------|--------|
+| `LAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/decisions.md` | Modified |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/chat/chat.js` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/ai/adapters/index.js` | Modified |
+| `shared/schema.js` | Modified |
+| `client/src/constants/` | Untracked |
+| `docs/preflight/ai-change-protocol.md` | Untracked |
+| `docs/review-queue/2026-01-07.md` | Untracked |
+
+### Recent Commit Changes (151)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/components/strategy/README.md` | Modified |
+| `client/src/components/strategy/_future/README.md` | Modified |
+| ... and 131 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-07 Analysis
+
+**Generated:** 2026-01-07T04:16:05.414Z
+**Branch:** main
+**Last Commit:** 8859041 Update documents and AI settings
+
+### Uncommitted Changes (21)
+| File | Status |
+|------|--------|
+| `LAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/decisions.md` | Modified |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/chat/chat.js` | Modified |
+| `server/api/location/location.js` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/ai/adapters/index.js` | Modified |
+| `shared/schema.js` | Modified |
+| `client/src/constants/` | Untracked |
+| `docs/preflight/ai-change-protocol.md` | Untracked |
+| ... and 1 more | |
+
+### Recent Commit Changes (151)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/components/strategy/README.md` | Modified |
+| `client/src/components/strategy/_future/README.md` | Modified |
+| ... and 131 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-07 Analysis
+
+**Generated:** 2026-01-07T06:31:21.786Z
+**Branch:** main
+**Last Commit:** 8859041 Update documents and AI settings
+
+### Uncommitted Changes (21)
+| File | Status |
+|------|--------|
+| `LAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/decisions.md` | Modified |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/chat/chat.js` | Modified |
+| `server/api/location/location.js` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/ai/adapters/index.js` | Modified |
+| `shared/schema.js` | Modified |
+| `client/src/constants/` | Untracked |
+| `docs/preflight/ai-change-protocol.md` | Untracked |
+| ... and 1 more | |
+
+### Recent Commit Changes (151)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/components/strategy/README.md` | Modified |
+| `client/src/components/strategy/_future/README.md` | Modified |
+| ... and 131 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-07 Analysis
+
+**Generated:** 2026-01-07T06:35:38.824Z
+**Branch:** main
+**Last Commit:** 8859041 Update documents and AI settings
+
+### Uncommitted Changes (21)
+| File | Status |
+|------|--------|
+| `LAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/decisions.md` | Modified |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/chat/chat.js` | Modified |
+| `server/api/location/location.js` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/ai/adapters/index.js` | Modified |
+| `shared/schema.js` | Modified |
+| `client/src/constants/` | Untracked |
+| `docs/preflight/ai-change-protocol.md` | Untracked |
+| ... and 1 more | |
+
+### Recent Commit Changes (151)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/components/strategy/README.md` | Modified |
+| `client/src/components/strategy/_future/README.md` | Modified |
+| ... and 131 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-07 Analysis
+
+**Generated:** 2026-01-07T06:38:15.099Z
+**Branch:** main
+**Last Commit:** 8859041 Update documents and AI settings
+
+### Uncommitted Changes (26)
+| File | Status |
+|------|--------|
+| `LAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Modified |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMarketIntelligence.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/decisions.md` | Modified |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/chat/chat.js` | Modified |
+| `server/api/location/location.js` | Modified |
+| ... and 6 more | |
+
+### Recent Commit Changes (151)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/components/strategy/README.md` | Modified |
+| `client/src/components/strategy/_future/README.md` | Modified |
+| ... and 131 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-07 Analysis
+
+**Generated:** 2026-01-07T06:54:10.781Z
+**Branch:** main
+**Last Commit:** 8859041 Update documents and AI settings
+
+### Uncommitted Changes (27)
+| File | Status |
+|------|--------|
+| `LAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Modified |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMarketIntelligence.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/decisions.md` | Modified |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/chat/chat.js` | Modified |
+| `server/api/location/README.md` | Modified |
+| ... and 7 more | |
+
+### Recent Commit Changes (151)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/components/strategy/README.md` | Modified |
+| `client/src/components/strategy/_future/README.md` | Modified |
+| ... and 131 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/embed.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/embed.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-07 Analysis
+
+**Generated:** 2026-01-07T07:06:16.270Z
+**Branch:** main
+**Last Commit:** 8859041 Update documents and AI settings
+
+### Uncommitted Changes (28)
+| File | Status |
+|------|--------|
+| `LAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/components/intel/DemandRhythmChart.tsx` | Modified |
+| `client/src/components/intel/MarketDeadheadCalculator.tsx` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMarketIntelligence.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/decisions.md` | Modified |
+| `docs/plans/AUDIT_REMEDIATION_PLAN.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/chat/chat.js` | Modified |
+| ... and 8 more | |
+
+### Recent Commit Changes (151)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `README.md` | Modified |
+| `client/README.md` | Modified |
+| `client/public/README.md` | Modified |
+| `client/src/README.md` | Modified |
+| `client/src/_future/README.md` | Modified |
+| `client/src/_future/engine/README.md` | Modified |
+| `client/src/_future/user-settings/README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/_future/README.md` | Modified |
+| `client/src/components/auth/AuthRedirect.tsx` | Modified |
+| `client/src/components/auth/ProtectedRoute.tsx` | Modified |
+| `client/src/components/auth/README.md` | Modified |
+| `client/src/components/co-pilot/README.md` | Modified |
+| `client/src/components/intel/README.md` | Modified |
+| `client/src/components/strategy/README.md` | Modified |
+| `client/src/components/strategy/_future/README.md` | Modified |
+| ... and 131 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/strategy-utils.js)
 
 #### Medium Priority
 - [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)

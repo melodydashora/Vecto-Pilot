@@ -193,7 +193,7 @@ function getTimeEstimate(fromRegion: RegionType, toRegion: RegionType): string {
 
 export function MarketDeadheadCalculator({
   currentCity,
-  currentRegionType,
+  currentRegionType: _currentRegionType,
   marketCities,
   marketAnchor,
 }: MarketDeadheadCalculatorProps) {

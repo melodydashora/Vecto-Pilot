@@ -29,7 +29,12 @@ const SNAPSHOT_STORAGE_KEY = 'vecto_snapshot';
 // TTL for session storage - KEEP SHORT for real-time intelligence
 // 2 minutes allows quick app switches (Uber ↔ Vecto) but ensures fresh data otherwise
 // LESSON LEARNED: 1-hour TTL caused 49-minute-old stale strategies to appear
-const SNAPSHOT_TTL_MS = 2 * 60 * 1000; // 2 minutes TTL (was 1 hour - too long!)
+// 2026-01-06: P3-B - Extended TTL for resume support
+// Previous: 2 min (too short - driver switches to Uber for 5 min, loses everything)
+// Previous: 1 hour (too long - stale traffic/events data)
+// New: 15 min - reasonable for app switching during active shift
+// The server has its own 60-min TTL for snapshot reuse, this is for CLIENT-side resume
+const SNAPSHOT_TTL_MS = 15 * 60 * 1000; // 15 minutes TTL for resume
 
 // Clear sessionStorage - called when driver clicks GPS refresh button
 // Driver does this when returning to staging area to get fresh data
@@ -194,11 +199,21 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // AbortController for request cancellation - prevents stale responses from overwriting fresh data
   // Updated 2026-01-05: Fixes network waste when users tap refresh rapidly
   const abortControllerRef = useRef<AbortController | null>(null);
+  // 2026-01-07: Ref to always access latest refreshGPS without adding to effect deps
+  // Adding refreshGPS to deps caused infinite loop (Maximum update depth exceeded)
+  // The ref is updated after refreshGPS is defined (see useEffect below refreshGPS definition)
+  const refreshGPSRef = useRef<(force?: boolean) => Promise<void>>();
 
-  // Restore DISPLAY data from sessionStorage on mount (for immediate UX)
-  // IMPORTANT: Do NOT restore snapshot_id - always create fresh snapshot!
-  // LESSON LEARNED: Restoring old snapshot_id triggers waterfall for stale data,
-  // causing duplicate pipeline runs and showing old strategies
+  // 2026-01-06: P3-B - Restore FULL session including snapshotId for resume
+  // Previous: Only restored display data, always created new snapshot
+  // Problem: User switches apps for 5 min → returns → 35-50s regeneration
+  // Solution: Restore snapshotId if within TTL, mark as "resume" to skip regeneration
+  //
+  // LESSON LEARNED (updated 2026-01-06):
+  // The "duplicate waterfalls" issue was caused by MOUNT-CLEARING strategy (P3-A fix)
+  // With P3-A fixed, we can now safely restore snapshotId because:
+  // - Strategy is also restored from localStorage if snapshotId matches
+  // - CoPilotContext will see existing strategy and not regenerate
   useEffect(() => {
     if (sessionRestoreAttemptedRef.current) return;
     sessionRestoreAttemptedRef.current = true;
@@ -211,16 +226,20 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       // Check TTL - don't restore stale data (real-time app needs fresh intel)
       if (Date.now() - data.timestamp > SNAPSHOT_TTL_MS) {
-        console.log('📦 [LocationContext] Stored snapshot expired (>2min), starting fresh');
+        console.log('📦 [LocationContext] Stored snapshot expired (>15min), starting fresh');
         sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
         return;
       }
 
-      console.log('📦 [LocationContext] Restoring DISPLAY data only (not snapshot_id):', data.city);
+      console.log('📦 [LocationContext] RESUME MODE - restoring full session:', data.snapshotId?.slice(0, 8));
 
-      // Restore DISPLAY data only for immediate UX
-      // DO NOT restore snapshot_id - we always want fresh snapshots!
-      // if (data.snapshotId) setLastSnapshotId(data.snapshotId); // REMOVED - causes duplicate waterfalls!
+      // 2026-01-06: P3-B - Now restore snapshotId for resume
+      // This works because P3-A fixed the mount-clearing issue
+      if (data.snapshotId) {
+        setLastSnapshotId(data.snapshotId);
+        // Mark as resume for P3-D - CoPilotContext should not trigger blocks-fast
+        sessionStorage.setItem('vecto_resume_reason', 'resume');
+      }
       if (data.coords) setCurrentCoords(data.coords);
       if (data.city) setCity(data.city);
       if (data.state) setState(data.state);
@@ -228,12 +247,28 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (data.locationString) setCurrentLocationString(data.locationString);
       if (data.weather) setWeather(data.weather);
       if (data.airQuality) setAirQuality(data.airQuality);
-      // Note: Don't set isLocationResolved - GPS fetch will set it properly
 
-      // IMPORTANT: Do NOT skip GPS fetch!
-      // We restored display data for immediate UX, but still need fresh snapshot
-      // isInitialMountRef.current = false; // REMOVED - always fetch GPS!
-      // lastEnrichmentCoordsRef.current = ...; // REMOVED - always create new snapshot!
+      // 2026-01-07: DO NOT set isLocationResolved during restore
+      // LESSON LEARNED: Setting isLocationResolved = true here caused auth loop bug.
+      // The restore runs BEFORE auth finishes loading (empty deps []).
+      // If we gate queries here, they fire before auth is ready → 401 → logout loop.
+      //
+      // Instead, let the normal flow handle this:
+      // 1. Auth loads → isLoading becomes false
+      // 2. GPS effect runs (line 604) → sees we have cached coords
+      // 3. enrichLocation is called → server validates snapshot
+      // 4. On success, isLocationResolved is set to true (line 428)
+      //
+      // The restored display data (city, weather, etc.) shows immediately in UI,
+      // but API queries wait until auth + snapshot validation complete.
+
+      // Skip GPS fetch on resume - we have valid cached data
+      // The coord tracking prevents duplicate enrichment
+      if (data.coords) {
+        const coordKey = `${data.coords.latitude.toFixed(6)},${data.coords.longitude.toFixed(6)}`;
+        lastEnrichmentCoordsRef.current = coordKey;
+        console.log('📦 [LocationContext] Resume complete - skipping GPS fetch for coords:', coordKey);
+      }
     } catch (e) {
       console.warn('[LocationContext] Failed to restore from sessionStorage:', e);
     }
@@ -288,6 +323,14 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     console.log(`🔢 Generation #${currentGeneration} starting for GPS update`);
     console.log(`🔐 [LocationContext] Auth state: token=${token ? 'yes' : 'no'}, userId=${user?.userId || 'anonymous'}`);
 
+    // 2026-01-07: SAFEGUARD - Never make location requests without auth
+    // This catches stale closure bugs where enrichLocation was captured with null token
+    if (!token || !user?.userId) {
+      console.error('[LocationContext] ❌ BUG: enrichLocation called without auth! Aborting to prevent 401 loop.');
+      console.error('[LocationContext] This is likely a stale closure - refreshGPS captured old enrichLocation');
+      return;
+    }
+
     try {
       // Build location resolve URL with authenticated userId if logged in
       // This userId is the forever UUID from driver_profiles - NO auto-assignment
@@ -306,6 +349,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
+
+      // 2026-01-07: DEBUG - Log exactly what we're sending
+      console.log('[LocationContext] 🔍 DEBUG: Making location resolve request');
+      console.log('[LocationContext] 🔍 URL:', resolveUrl);
+      console.log('[LocationContext] 🔍 Token present:', !!token);
+      console.log('[LocationContext] 🔍 Token prefix:', token ? token.substring(0, 20) + '...' : 'none');
+      console.log('[LocationContext] 🔍 User ID:', user?.userId);
 
       // ═══════════════════════════════════════════════════════════════════════════
       // TWO-PHASE UI UPDATE: Weather/AQI appear ~200-300ms before city/state
@@ -366,9 +416,19 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       // Handle authentication errors - clear stale token and redirect to login
       if (locationRes.status === 401) {
-        console.warn('🔐 [LocationContext] Authentication failed - clearing stale token');
-        // Clear stale token from localStorage
-        localStorage.removeItem('auth_token');
+        // 2026-01-07: DEBUG - Log detailed info about the 401
+        let errorBody = null;
+        try {
+          errorBody = await locationRes.clone().json();
+        } catch (_e) { /* ignore */ }
+        console.error('🔐 [LocationContext] ❌ 401 ERROR - Authentication failed!');
+        console.error('🔐 [LocationContext] Response body:', errorBody);
+        console.error('🔐 [LocationContext] Token was present:', !!token);
+        console.error('🔐 [LocationContext] Token from localStorage:', localStorage.getItem('vectopilot_auth_token')?.substring(0, 20) + '...');
+        console.error('🔐 [LocationContext] User ID sent:', user?.userId);
+
+        // Clear stale token from localStorage (use correct key!)
+        localStorage.removeItem('vectopilot_auth_token');
         // Dispatch event so auth context can update
         window.dispatchEvent(new CustomEvent('auth-token-expired'));
         // Redirect to sign-in
@@ -452,9 +512,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Set snapshot ID in state (fallback for co-pilot if event is missed)
         setLastSnapshotId(snapshotId);
 
-        // Dispatch event - snapshot is ready
+        // 2026-01-06: P3-D - Include reason for smart resume support
+        // CoPilotContext uses this to decide whether to trigger blocks-fast
+        const reason = forceRefresh ? 'manual_refresh' : 'init';
         window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-          detail: { snapshotId, holiday: null, is_holiday: false }
+          detail: { snapshotId, holiday: null, is_holiday: false, reason }
         }));
       } else {
         // Fallback: Server didn't return snapshot_id, create one client-side (legacy path)
@@ -509,8 +571,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           // Set snapshot ID in state (fallback for co-pilot if event is missed)
           setLastSnapshotId(fallbackSnapshotId);
 
+          // 2026-01-06: P3-D - Include reason (legacy path uses same logic)
+          const fallbackReason = forceRefresh ? 'manual_refresh' : 'init';
           window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-            detail: { snapshotId: fallbackSnapshotId, holiday: null, is_holiday: false }
+            detail: { snapshotId: fallbackSnapshotId, holiday: null, is_holiday: false, reason: fallbackReason }
           }));
         }
       }
@@ -569,6 +633,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [enrichLocation, profile?.homeLat, profile?.homeLng]);
 
+  // 2026-01-07: Keep ref in sync with latest refreshGPS
+  // This allows the GPS effect to always call the latest version
+  // without adding refreshGPS to its deps (which causes infinite loop)
+  useEffect(() => {
+    refreshGPSRef.current = refreshGPS;
+  }, [refreshGPS]);
+
   // Initial GPS fetch - ONLY start when user is AUTHENTICATED
   // This ensures snapshots are ALWAYS linked to the authenticated user
   // Anonymous users on sign-up/sign-in pages should NOT create snapshots
@@ -589,16 +660,36 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     const timer = setTimeout(() => {
-      if (lastSnapshotId && currentCoords) {
-        console.log('📦 [LocationContext] Using cached location from sessionStorage');
+      // 2026-01-07: Handle resume with cached data
+      // Auth is now verified (we're past the auth checks above), so we can safely enable queries
+      if (lastSnapshotId && currentCoords && city) {
+        console.log('📦 [LocationContext] RESUME: Auth verified, enabling cached data');
+        console.log(`📦 [LocationContext] Cached snapshot: ${lastSnapshotId.slice(0, 8)}, city: ${city}`);
+
+        // Mark location as resolved - auth is verified, cached data is valid
+        // This gates downstream queries (bars, briefing)
+        setIsLocationResolved(true);
+
+        // Dispatch event so CoPilotContext can use the cached snapshotId
+        // reason: 'resume' tells it not to regenerate strategy
+        window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+          detail: { snapshotId: lastSnapshotId, holiday: null, is_holiday: false, reason: 'resume' }
+        }));
+
         return;
       }
       console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
       // Initial mount: allow server to reuse existing snapshot if < 60 min old
-      refreshGPS(false);
+      // 2026-01-07: Use ref to call latest refreshGPS without adding to deps
+      // Adding refreshGPS to deps caused infinite loop (Maximum update depth exceeded)
+      // The ref is kept in sync via the effect above (line 636-641)
+      refreshGPSRef.current?.(false);
     }, 50);
     return () => clearTimeout(timer);
-  }, [authLoading, user?.userId, token]);
+  // 2026-01-07: DO NOT add refreshGPS to deps - causes infinite loop
+  // Instead, we use refreshGPSRef which is kept in sync via a separate effect
+  // The ref pattern allows us to always call the latest version without triggering re-runs
+  }, [authLoading, user?.userId, token, lastSnapshotId, currentCoords, city]);
 
   // Listen for snapshot ownership errors (when user changes but stale snapshot ID is used)
   // This triggers a fresh GPS fetch to create a new snapshot for the current user
@@ -612,12 +703,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Clear the coord tracking so enrichment can run again
       lastEnrichmentCoordsRef.current = null;
       // Trigger fresh GPS fetch → force new snapshot for current user
-      refreshGPS(true);
+      // 2026-01-07: Use ref to access latest refreshGPS
+      refreshGPSRef.current?.(true);
     };
 
     window.addEventListener('snapshot-ownership-error', handleOwnershipError);
     return () => window.removeEventListener('snapshot-ownership-error', handleOwnershipError);
-  }, [refreshGPS]);
+  }, []); // Empty deps - event listener only needs to be set up once
 
   // Auto-enrich when coords change (but skip initial mount to avoid duplicate)
   useEffect(() => {

@@ -367,7 +367,7 @@ export function detectMarketArchetype(city: string | null): MarketArchetype {
 /**
  * Fetches all intelligence for a specific market
  */
-async function fetchMarketIntelligence(marketSlug: string): Promise<MarketIntelligenceResponse> {
+async function _fetchMarketIntelligence(marketSlug: string): Promise<MarketIntelligenceResponse> {
   const response = await fetch(`/api/intelligence/market/${encodeURIComponent(marketSlug)}`);
 
   if (!response.ok) {
@@ -403,7 +403,7 @@ async function fetchIntelligenceMarkets(): Promise<IntelligenceMarketsResponse> 
 /**
  * Fetches market lookup data for a city/state (legacy endpoint)
  */
-async function fetchMarketLookup(city: string, state: string): Promise<MarketLookupResponse> {
+async function _fetchMarketLookup(city: string, state: string): Promise<MarketLookupResponse> {
   const params = new URLSearchParams({ city, state });
   const response = await fetch(`/api/intelligence/lookup?${params}`);
 
