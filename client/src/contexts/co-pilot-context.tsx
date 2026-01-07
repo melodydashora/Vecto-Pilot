@@ -158,6 +158,28 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     }
   }, [locationContext?.lastSnapshotId, lastSnapshotId]);
 
+  // 2026-01-07: Listen for manual refresh to immediately clear strategy state
+  // Location context dispatches 'vecto-strategy-cleared' when user clicks refresh button
+  // This ensures UI shows loading state immediately, not stale strategy
+  useEffect(() => {
+    const handleStrategyClear = () => {
+      console.log('[CoPilotContext] 🔄 Manual refresh detected - clearing strategy state');
+      localStorage.removeItem('vecto_persistent_strategy');
+      localStorage.removeItem('vecto_strategy_snapshot_id');
+      setPersistentStrategy(null);
+      setImmediateStrategy(null);
+      setStrategySnapshotId(null);
+      // Clear deduplication set so new snapshot can trigger waterfall
+      waterfallTriggeredRef.current.clear();
+      // Reset react-query cache
+      queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
+      queryClient.resetQueries({ queryKey: ['/api/blocks-fast'] });
+    };
+
+    window.addEventListener('vecto-strategy-cleared', handleStrategyClear);
+    return () => window.removeEventListener('vecto-strategy-cleared', handleStrategyClear);
+  }, [queryClient]);
+
   // Listen for snapshot-saved event (PRIMARY trigger - fires when new snapshot is created)
   // 2026-01-06: P3-D - Event now includes reason: 'init' | 'manual_refresh' | 'resume'
   useEffect(() => {
