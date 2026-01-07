@@ -474,6 +474,12 @@ router.get('/resolve', async (req, res) => {
         const token = authHeader.slice(7);
         const [userId, signature] = token.split('.');
 
+        // 2026-01-07: DEBUG - Log token validation details
+        console.log('[Location API] 🔍 DEBUG: Token validation starting');
+        console.log('[Location API] 🔍 Token prefix:', token.substring(0, 30) + '...');
+        console.log('[Location API] 🔍 UserId from token:', userId?.substring(0, 20));
+        console.log('[Location API] 🔍 Signature present:', !!signature);
+
         if (!userId || !signature) {
           throw new Error('Invalid token format - expected userId.signature');
         }
@@ -483,7 +489,14 @@ router.get('/resolve', async (req, res) => {
         const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
         const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
 
+        // 2026-01-07: DEBUG - Log signature comparison
+        console.log('[Location API] 🔍 Secret source:', process.env.JWT_SECRET ? 'JWT_SECRET' : (process.env.REPLIT_DEVSERVER_INTERNAL_ID ? 'REPLIT_ID' : 'fallback'));
+        console.log('[Location API] 🔍 Sig match:', signature === expectedSig);
+
         if (signature !== expectedSig) {
+          console.error('[Location API] ❌ Signature mismatch!');
+          console.error('[Location API] Expected sig prefix:', expectedSig.substring(0, 20));
+          console.error('[Location API] Received sig prefix:', signature.substring(0, 20));
           throw new Error('Invalid signature');
         }
 
@@ -825,13 +838,18 @@ router.get('/resolve', async (req, res) => {
             // CRITICAL FIX Finding #4: Verify database write committed before returning
             // Use raw query with RETURNING to get confirmation row was updated
             // Update by user_id (more reliable than device_id when user was found by user_id)
+            // 2026-01-07: CRITICAL FIX - Do NOT update session_id here!
+            // session_id must only be managed by login/logout/auth middleware.
+            // Location API was overwriting session_id with null (from query param default),
+            // causing immediate session invalidation after login.
+            // See LESSONS_LEARNED.md: "Auth Loop on Login" bug.
             const updateResult = await db.update(users)
               .set({
                 device_id: deviceId, // Update device_id to current device (links this device to user)
                 new_lat: lat,
                 new_lng: lng,
                 accuracy_m: accuracy,
-                session_id: sessionId,
+                // session_id: REMOVED - was overwriting auth session with null!
                 coord_key: coordKey, // FK to coords_cache for location identity
                 formatted_address: formattedAddress,
                 city,
@@ -869,13 +887,18 @@ router.get('/resolve', async (req, res) => {
           // Use authenticated user_id if logged in, otherwise generate new UUID
           userId = authenticatedUserId || crypto.randomUUID();
           console.log(`🔐 [Location API] Creating user record with ${authenticatedUserId ? 'authenticated' : 'anonymous'} user_id: ${userId.slice(0, 8)}`);
+          // 2026-01-07: CRITICAL FIX - Do NOT set session_id here!
+          // session_id must only be managed by login/logout/auth middleware.
+          // For authenticated users, login should have already created the users row.
+          // If we're here, it's either a race condition or edge case - leave session_id null
+          // and let login handle it properly.
           const newUser = {
             user_id: userId,
             device_id: deviceId,
             lat,
             lng,
             accuracy_m: accuracy,
-            session_id: sessionId,
+            // session_id: REMOVED - must be set by login, not location API
             coord_source: coordSource,
             coord_key: coordKey, // FK to coords_cache for location identity
             formatted_address: formattedAddress,

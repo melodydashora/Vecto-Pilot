@@ -1,7 +1,7 @@
 // client/src/contexts/co-pilot-context.tsx
 // Shared state and queries for all co-pilot pages
 
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
@@ -102,12 +102,30 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const overrideCoords = locationContext?.overrideCoords;
   const coords = overrideCoords || gpsCoords;
 
+  // 2026-01-06: P3-D - Check if this is a resume (skip blocks-fast regeneration)
+  // Resume mode is set by LocationContext when restoring from sessionStorage
+  const checkAndClearResumeMode = (): boolean => {
+    const reason = sessionStorage.getItem('vecto_resume_reason');
+    if (reason === 'resume') {
+      sessionStorage.removeItem('vecto_resume_reason');
+      return true;
+    }
+    return false;
+  };
+
   // Fallback: If location context has a snapshot ID and we don't, use it
   useEffect(() => {
     const contextSnapshotId = locationContext?.lastSnapshotId;
     if (contextSnapshotId && !lastSnapshotId) {
       console.log("🔄 CoPilotContext: Using snapshot from context:", contextSnapshotId);
       setLastSnapshotId(contextSnapshotId);
+
+      // 2026-01-06: P3-D - Skip blocks-fast if this is a resume
+      if (checkAndClearResumeMode()) {
+        console.log("📦 CoPilotContext: RESUME MODE - skipping blocks-fast waterfall, using cached strategy");
+        waterfallTriggeredRef.current.add(contextSnapshotId);
+        return;
+      }
 
       // DEDUPLICATION: Skip if already triggered for this snapshot
       if (waterfallTriggeredRef.current.has(contextSnapshotId)) {
@@ -141,12 +159,22 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   }, [locationContext?.lastSnapshotId, lastSnapshotId]);
 
   // Listen for snapshot-saved event (PRIMARY trigger - fires when new snapshot is created)
+  // 2026-01-06: P3-D - Event now includes reason: 'init' | 'manual_refresh' | 'resume'
   useEffect(() => {
     const handleSnapshotSaved = async (e: any) => {
       const snapshotId = e.detail?.snapshotId;
+      const reason = e.detail?.reason;
+
       if (snapshotId) {
-        console.log("🎯 CoPilotContext: Snapshot ready (via event):", snapshotId.slice(0, 8));
+        console.log("🎯 CoPilotContext: Snapshot ready (via event):", snapshotId.slice(0, 8), "reason:", reason);
         setLastSnapshotId(snapshotId);
+
+        // 2026-01-06: P3-D - Skip blocks-fast for resume events
+        if (reason === 'resume') {
+          console.log("📦 CoPilotContext: RESUME event - skipping blocks-fast waterfall");
+          waterfallTriggeredRef.current.add(snapshotId);
+          return;
+        }
 
         // DEDUPLICATION: Skip if already triggered for this snapshot
         if (waterfallTriggeredRef.current.has(snapshotId)) {
@@ -179,23 +207,30 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const prevSnapshotIdRef = useRef<string | null>(null);
 
   // Clear strategy when snapshot ID changes
-  // LESSON LEARNED: Never restore cached strategies - this is a real-time app!
-  // A 10-minute-old strategy could cost the driver money (wrong traffic, ended events, missed surge)
+  // 2026-01-06: REVISED per P3-A audit fix
+  // REMOVED first-mount clearing - this was causing regeneration on app resume
+  //
+  // The "49-min-old strategy" problem is now solved differently:
+  // - useStrategyPolling.ts restores strategy ONLY if stored snapshotId matches current
+  // - If snapshot changes, strategy is cleared (below)
+  // - Manual refresh clears via location-context-clean.tsx (forceNewSnapshot)
+  // - Logout clears via auth-context.tsx
+  //
+  // LESSON LEARNED: A 10-minute-old strategy is FINE if the snapshot hasn't changed.
+  // The snapshot represents the driver's position+time context. Same snapshot = same context.
   useEffect(() => {
     // Skip if no snapshot yet
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
-    // On first mount, always clear any stale localStorage data
-    // (We used to restore here, but that caused 49-min-old strategies to show)
+    // On first mount, just track the snapshot - don't clear
+    // 2026-01-06: REMOVED clearing here per P3-A audit
     if (prevSnapshotIdRef.current === null) {
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
-      console.log('🔄 [CoPilotContext] First mount - cleared stale localStorage, starting fresh');
+      console.log('🔄 [CoPilotContext] First mount - tracking snapshot:', lastSnapshotId.slice(0, 8));
       prevSnapshotIdRef.current = lastSnapshotId;
       return;
     }
 
-    // Clear if snapshot changed
+    // Clear if snapshot changed (different location/time context)
     if (prevSnapshotIdRef.current !== lastSnapshotId) {
       console.log(`🔄 [CoPilotContext] Snapshot changed from ${prevSnapshotIdRef.current?.slice(0, 8)} to ${lastSnapshotId.slice(0, 8)}, clearing old strategy`);
       localStorage.removeItem('vecto_persistent_strategy');
@@ -336,9 +371,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json();
         const isGenerating = data.status === 'pending_blocks' || data.reason === 'blocks_generating';
 
+        // 2026-01-06: P4-C fix - use real timezone from server or LocationContext
+        // NEVER use hardcoded timezone (was 'America/Chicago' - violates NO FALLBACKS rule)
         return {
           now: data.generatedAt || new Date().toISOString(),
-          timezone: 'America/Chicago',
+          timezone: data.timezone || locationContext?.timeZone || null,
           strategy: data.strategy_for_now || data.briefing?.strategy_for_now,
           path_taken: data.path_taken,
           refined: data.refined,
@@ -425,8 +462,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
   // Enrichment progress
   const hasBlocks = blocks.length > 0;
+  // 2026-01-07: FIX - Pass coords directly instead of creating new object
+  // Creating { latitude: coords.latitude, longitude: coords.longitude } inline
+  // causes new object reference on every render → infinite loop in useEnrichmentProgress
   const { progress: enrichmentProgress, strategyProgress, phase: enrichmentPhase, pipelinePhase, timeRemainingText } = useEnrichmentProgress({
-    coords: coords ? { latitude: coords.latitude, longitude: coords.longitude } : null,
+    coords,
     strategyData: strategyData as StrategyData | null,
     lastSnapshotId,
     hasBlocks

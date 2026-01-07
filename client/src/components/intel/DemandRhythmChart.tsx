@@ -135,7 +135,7 @@ export function DemandRhythmChart({
   const peakHour = HOUR_LABELS[peakHourIndex];
 
   // Check if it's a weekend
-  const isWeekend = selectedDay === 'Sat' || selectedDay === 'Sun';
+  const _isWeekend = selectedDay === 'Sat' || selectedDay === 'Sun';
 
   // Check if this day is a peak day for the archetype
   const isPeakDay = archetypeInfo.peakDays.includes(selectedDay);
@@ -232,7 +232,7 @@ export function DemandRhythmChart({
                   content={
                     <ChartTooltipContent
                       labelFormatter={(value) => `${value}`}
-                      formatter={(value, name) => (
+                      formatter={(value, _name) => (
                         <div className="flex items-center gap-2">
                           <span
                             className="w-2 h-2 rounded-full"
