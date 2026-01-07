@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-07
 
 # Hooks (`client/src/hooks/`)
 
@@ -65,6 +65,11 @@ The hook uses expected phase durations from the backend to calculate progress:
 const { strategyData, persistentStrategy, immediateStrategy } = useStrategyPolling({ snapshotId });
 ```
 Fetches strategy data with SSE subscriptions and localStorage persistence.
+
+**Manual Refresh Support (2026-01-07):**
+- Listens for `vecto-strategy-cleared` event (dispatched by location-context on refresh button click)
+- Clears React state AND resets react-query cache
+- This ensures strategy regenerates when user manually refreshes location
 
 ### useTTS
 ```typescript
