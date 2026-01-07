@@ -1,6 +1,15 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-07
 
 # Contexts (`client/src/contexts/`)
+
+## ⚠️ Manual Refresh Event (2026-01-07)
+
+When user clicks the refresh button (GlobalHeader spindle):
+1. `location-context-clean.tsx` dispatches `vecto-strategy-cleared` event
+2. `co-pilot-context.tsx` listens and clears strategy state + react-query cache
+3. New snapshot is created → `vecto-snapshot-saved` triggers strategy regeneration
+
+This ensures the UI shows loading state immediately, not stale strategy.
 
 ## Purpose
 
