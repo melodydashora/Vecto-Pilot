@@ -99,9 +99,10 @@ export async function updatePhase(snapshotId, phase, options = {}) {
 ### SSE Endpoint
 
 ```javascript
-// server/api/briefing/events.js
+// server/api/strategy/strategy-events.js (consolidated 2026-01-09)
 // GET /events/phase - Real-time phase updates
-router.get('/phase', (req, res) => {
+// phaseEmitter imported from server/events/phase-emitter.js
+router.get('/events/phase', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
 
   phaseEmitter.on('change', (data) => {

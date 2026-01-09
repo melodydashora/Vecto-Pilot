@@ -672,7 +672,7 @@ const { data } = useQuery({
 **Files Changed:**
 - `server/lib/strategy/strategy-utils.js`: Added `PHASE_EXPECTED_DURATIONS`, `phase_started_at` tracking
 - `server/api/strategy/content-blocks.js`: Returns `timing` metadata in response
-- `server/api/briefing/events.js`: Added `phaseEmitter` for SSE phase_change events
+- `server/events/phase-emitter.js`: Dedicated phaseEmitter module (extracted 2026-01-09)
 - `client/src/hooks/useEnrichmentProgress.ts`: Dynamic progress calculation
 - `client/src/hooks/useStrategyLoadingMessages.ts`: Added `timeRemaining` output
 - `client/src/pages/co-pilot.tsx`: Displays time remaining in UI
@@ -799,6 +799,47 @@ strategy-events.js (SINGLE SSE file)
 - `server/bootstrap/routes.js`: Removed `/events` EventEmitter mount
 - `server/api/strategy/blocks-fast.js`: Removed strategyEmitter/blocksEmitter imports and emits
 - `server/api/strategy/strategy-events.js`: Added `/events/phase` endpoint
+
+### Defensive Catch Anti-Pattern (Issue Jan 2026)
+
+**Problem:** `storeEvents()` silently caught error 23505 (unique violation) despite having `ON CONFLICT DO UPDATE` - masking potential bugs.
+
+**Root Cause:** AI "defensive coding" bias - catching exceptions that should be architecturally impossible. With `ON CONFLICT (event_hash) DO UPDATE`:
+- New row → INSERT succeeds
+- Duplicate hash → UPDATE fires (not error)
+- Error 23505 should **never** occur
+
+**The Anti-Pattern:**
+```javascript
+// BAD - masks real bugs
+} catch (err) {
+  if (err.code === '23505') {
+    skipped++;  // Silent skip - if this fires, something is WRONG
+  }
+}
+```
+
+**Correct Pattern:**
+```javascript
+// GOOD - surfaces real bugs
+} catch (err) {
+  console.error(`Error: ${err.message}, Code: ${err.code}`);
+  if (err.code === '23505') {
+    // This should be IMPOSSIBLE with correct ON CONFLICT - surface it!
+    throw new Error(`Unexpected 23505 despite ON CONFLICT: constraint/SQL mismatch`);
+  }
+}
+```
+
+**When 23505 CAN occur despite ON CONFLICT:**
+1. **Wrong target**: `ON CONFLICT (id)` but duplicate on different unique column
+2. **No constraint**: Column in ON CONFLICT doesn't have unique constraint
+3. **Constraint name mismatch**: Named constraint doesn't match
+
+**Key Insight:** If your SQL is correct, the catch is unnecessary. If the catch fires, your SQL is wrong - fix the SQL, don't catch the symptom.
+
+**Files Changed:**
+- `server/scripts/sync-events.mjs`: Removed defensive 23505 catch, now throws on unexpected duplicates
 
 ---
 

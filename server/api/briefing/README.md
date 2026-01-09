@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-09
 
 # Briefing API (`server/api/briefing/`)
 
@@ -11,7 +11,8 @@ Real-time intelligence: events, traffic, news, weather summaries. Includes event
 | File | Route | Purpose |
 |------|-------|---------|
 | `briefing.js` | `/api/briefing/*` | Briefing data endpoints + event discovery |
-| `events.js` | `/events` | SSE stream for real-time updates |
+
+> **Note (2026-01-09):** `events.js` was deleted. SSE endpoints consolidated to `server/api/strategy/strategy-events.js`.
 
 ## Endpoints
 
@@ -51,8 +52,13 @@ PATCH /api/briefing/event/:eventId/reactivate   - Reactivate an event
 ```
 GET  /api/briefing/traffic/realtime   - Fresh traffic (requires lat, lng)
 GET  /api/briefing/weather/realtime   - Fresh weather (requires lat, lng)
-GET  /events                          - SSE stream
 ```
+
+> **SSE (2026-01-09):** All SSE endpoints moved to `/events/*` via `strategy-events.js`:
+> - `/events/strategy` - Strategy ready (DB NOTIFY)
+> - `/events/briefing` - Briefing ready (DB NOTIFY)
+> - `/events/blocks` - Blocks ready (DB NOTIFY)
+> - `/events/phase` - Phase updates (EventEmitter)
 
 ## Daily Data Refresh System
 
@@ -215,12 +221,14 @@ The chat API parses these formats and calls the corresponding DAL functions auto
 3. Returns events for city/state, next 7 days
 4. UI displays in EventsComponent + MapTab markers
 
-### Venue Cache Integration (Jan 2026)
+### Venue Catalog Integration (Jan 2026)
 During event discovery, venues are automatically cached for:
-1. **Precise Coordinates**: Full 15+ decimal precision stored in `venue_cache`
-2. **Deduplication**: Same venue from different LLMs → single cache entry
-3. **Event Linking**: `discovered_events.venue_id` → `venue_cache.id`
+1. **Precise Coordinates**: Full 15+ decimal precision stored in `venue_catalog`
+2. **Deduplication**: Same venue from different LLMs → single catalog entry
+3. **Event Linking**: `discovered_events.venue_id` → `venue_catalog.venue_id`
 4. **SmartBlocks**: "Event tonight" flag via venue join
+
+> **Note (2026-01-09):** Renamed from `venue_cache` to `venue_catalog`. PK is `venue_id`, not `id`.
 
 ```
 Event Discovery Flow (with Venue Cache):
