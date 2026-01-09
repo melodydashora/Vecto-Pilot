@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle } from "lucide-react";
 import { useMemory } from "@/hooks/useMemory";
+// 2026-01-09: P1-6 FIX - Use centralized storage keys
+import { STORAGE_KEYS } from "@/constants/storageKeys";
 
 // 2026-01-05: Added for AI Coach notes panel feature
 interface UserNote {
@@ -99,7 +101,7 @@ export default function CoachChat({
   const fetchNotes = useCallback(async () => {
     setNotesLoading(true);
     try {
-      const token = localStorage.getItem('vectopilot_auth_token');
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const res = await fetch('/api/coach/notes?sort=pinned&limit=50', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -127,7 +129,7 @@ export default function CoachChat({
     setNotes(prev => prev.filter(n => n.id !== noteId));
 
     try {
-      const token = localStorage.getItem('vectopilot_auth_token');
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const res = await fetch(`/api/coach/notes/${noteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
@@ -148,7 +150,7 @@ export default function CoachChat({
     ));
 
     try {
-      const token = localStorage.getItem('vectopilot_auth_token');
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const res = await fetch(`/api/coach/notes/${noteId}/pin`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
@@ -172,7 +174,7 @@ export default function CoachChat({
     setEditingNote(null);
 
     try {
-      const token = localStorage.getItem('vectopilot_auth_token');
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const res = await fetch(`/api/coach/notes/${noteId}`, {
         method: 'PUT',
         headers: {
@@ -215,7 +217,7 @@ export default function CoachChat({
         console.log('[CoachChat] Processing event deactivation:', event_title, reason);
 
         // First, find the event by title (search in discovered events)
-        const token = localStorage.getItem('vectopilot_auth_token');
+        const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
         const searchRes = await fetch(`/api/briefing/discovered-events/${snapshotId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -505,7 +507,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
     controllerRef.current = new AbortController();
 
     try {
-      const token = localStorage.getItem('vectopilot_auth_token');
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const headers: Record<string, string> = { "content-type": "application/json" };
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;

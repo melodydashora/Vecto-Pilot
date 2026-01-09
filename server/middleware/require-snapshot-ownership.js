@@ -1,3 +1,6 @@
+// server/middleware/require-snapshot-ownership.js
+// 2026-01-09: P0-4 FIX - Strict ownership enforcement
+// Previous version allowed NULL-owned snapshots through (security vulnerability)
 
 import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
@@ -8,8 +11,11 @@ import { eq } from 'drizzle-orm';
  * Attaches snapshot to req.snapshot if valid
  *
  * PREREQUISITE: Must be used AFTER requireAuth middleware
- * - Checks snapshot.user_id === req.auth.userId
- * - Rejects if no auth or user mismatch
+ *
+ * SECURITY MODEL (auth-only product):
+ * - snapshot.user_id MUST be non-null AND equal to req.auth.userId
+ * - NULL-owned snapshots are rejected (orphan data from bugs)
+ * - User mismatch returns 404 (not 403) to avoid enumeration
  */
 export async function requireSnapshotOwnership(req, res, next) {
   try {
@@ -18,6 +24,12 @@ export async function requireSnapshotOwnership(req, res, next) {
     if (!snapshotId) {
       console.log(`[snapshotOwnership] ❌ No snapshotId provided`);
       return res.status(400).json({ error: 'snapshotId is required' });
+    }
+
+    // Verify user is authenticated (requireAuth should have run first)
+    if (!req.auth?.userId) {
+      console.log(`[snapshotOwnership] ❌ No auth for snapshot ${snapshotId.slice(0, 8)}`);
+      return res.status(401).json({ error: 'unauthorized' });
     }
 
     const snapshotCheck = await db.select().from(snapshots)
@@ -30,20 +42,20 @@ export async function requireSnapshotOwnership(req, res, next) {
 
     const snapshot = snapshotCheck[0];
 
-    // Check ownership: authenticated user must match snapshot.user_id
-    if (req.auth?.userId) {
-      // If snapshot has a user_id, verify it matches
-      if (snapshot.user_id && snapshot.user_id !== req.auth.userId) {
-        console.log(`[snapshotOwnership] ❌ User mismatch: auth=${req.auth.userId.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
-        return res.status(404).json({ error: 'snapshot_not_found' });
-      }
-      // Success - no logging on happy path (reduces noise)
-    } else {
-      // No auth - with requireAuth this shouldn't happen, but reject if it does
-      console.log(`[snapshotOwnership] ❌ No auth for snapshot ${snapshotId.slice(0, 8)}`);
-      return res.status(401).json({ error: 'unauthorized' });
+    // 2026-01-09: P0-4 FIX - Strict ownership check
+    // Auth-only product: snapshot MUST have user_id AND it must match
+    // NULL-owned snapshots are orphan data from bugs - reject them
+    if (!snapshot.user_id) {
+      console.log(`[snapshotOwnership] ❌ Snapshot ${snapshotId.slice(0, 8)} has NULL user_id (orphan data)`);
+      return res.status(404).json({ error: 'snapshot_not_found' });
     }
 
+    if (snapshot.user_id !== req.auth.userId) {
+      console.log(`[snapshotOwnership] ❌ User mismatch: auth=${req.auth.userId.slice(0, 8)} vs snapshot=${snapshot.user_id.slice(0, 8)}`);
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+
+    // Success - attach snapshot to request for downstream handlers
     req.snapshot = snapshot;
     next();
   } catch (error) {
