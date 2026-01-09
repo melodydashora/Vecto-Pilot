@@ -1,10 +1,14 @@
+// client/src/components/BarsDataGrid.tsx
+// 2026-01-09: Renamed from BarsTable.tsx for disambiguation (was confused with BarTab.tsx)
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Navigation, MapPin, DollarSign } from "lucide-react";
 import { openNavigation } from "@/utils/co-pilot-helpers";
 
 interface BusinessHours {
-  isOpen?: boolean;
+  // 2026-01-09: Allow null when hours unavailable from Google Places
+  isOpen?: boolean | null;
   todayHours?: string;
   closingTime?: string;
   weekdayTexts?: string[];
@@ -30,7 +34,8 @@ interface VenueCandidate {
   driveTimeMinutes?: number;
   value_per_min?: number;
   value_grade?: string;
-  isOpen?: boolean;
+  // 2026-01-09: Aligned with BarTab.tsx - server can return null when hours unavailable
+  isOpen?: boolean | null;
   businessHours?: BusinessHours | string;
 }
 

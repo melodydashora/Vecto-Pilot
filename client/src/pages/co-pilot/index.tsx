@@ -2,7 +2,8 @@
 // Barrel export for all co-pilot pages
 
 export { default as StrategyPage } from "./StrategyPage";
-export { default as BarsPage } from "./BarsPage";
+// 2026-01-09: Renamed from BarsPage for disambiguation
+export { default as VenueManagerPage } from "./VenueManagerPage";
 export { default as BriefingPage } from "./BriefingPage";
 export { default as MapPage } from "./MapPage";
 export { default as IntelPage } from "./IntelPage";

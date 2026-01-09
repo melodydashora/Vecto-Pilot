@@ -58,7 +58,7 @@ src/
 | `components/GlobalHeader.tsx` | Weather, location, time |
 | `components/CoachChat.tsx` | AI chat + voice |
 | `components/BriefingTab.tsx` | Events, traffic, news |
-| `components/BarTab.tsx` | Premium bars sidebar |
+| `components/BarsMainTab.tsx` | Premium bars sidebar (renamed from BarTab.tsx) |
 | `contexts/location-context-clean.tsx` | GPS, weather, snapshots |
 
 ## Data Flow

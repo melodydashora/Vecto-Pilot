@@ -1,13 +1,15 @@
-// client/src/pages/co-pilot/BarsPage.tsx
+// client/src/pages/co-pilot/VenueManagerPage.tsx
+// 2026-01-09: Renamed from BarsPage.tsx for disambiguation
 // Wrapper page for the Bars tab with premium venue listings
 
 import React from 'react';
 import { Wine } from 'lucide-react';
-import BarTab from '@/components/BarTab';
+// 2026-01-09: Renamed from BarTab for disambiguation
+import BarsMainTab from '@/components/BarsMainTab';
 import { useCoPilot } from '@/contexts/co-pilot-context';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 
-export default function BarsPage() {
+export default function VenueManagerPage() {
   const { coords, city, state, timezone, isLocationResolved } = useCoPilot();
 
   // Show placeholder if no location yet
@@ -23,7 +25,7 @@ export default function BarsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6" data-testid="bars-page">
-      <BarTab
+      <BarsMainTab
         latitude={coords.latitude}
         longitude={coords.longitude}
         city={city}
