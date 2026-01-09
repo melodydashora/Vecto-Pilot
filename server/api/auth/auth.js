@@ -222,9 +222,10 @@ router.post('/register', async (req, res) => {
     }
 
     // Hash password
-    authLog.phase(1, `Hashing password for: ${email} (input length: ${password?.length}, first char: ${password?.[0]}, last char: ${password?.[password.length-1]})`);
+    // 2026-01-09: Removed password character logging (security)
+    authLog.phase(1, `Hashing password for: ${email}`);
     const passwordHash = await hashPassword(password);
-    authLog.phase(1, `Password hashed for: ${email} (hash length: ${passwordHash.length})`);
+    authLog.phase(1, `Password hashed for: ${email}`);
 
     // 2026-01-05: Validate address using Google Address Validation API
     // This provides better accuracy than geocoding alone:
@@ -564,9 +565,10 @@ router.post('/login', async (req, res) => {
     }
 
     // Verify password
-    authLog.phase(1, `Verifying password for: ${email} (input length: ${password?.length}, first char: ${password?.[0]}, last char: ${password?.[password.length-1]})`);
+    // 2026-01-09: Removed password character logging (security)
+    authLog.phase(1, `Verifying password for: ${email}`);
     const isValid = await verifyPassword(password, creds.password_hash);
-    authLog.phase(1, `Password verification result: ${isValid}`);
+    authLog.phase(1, `Password verification: ${isValid ? 'success' : 'failed'}`);
 
     if (!isValid) {
       // Increment failed attempts

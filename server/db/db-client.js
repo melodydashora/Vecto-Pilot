@@ -5,6 +5,10 @@ let pgClient = null;
 let reconnectTimer = null;
 let isReconnecting = false;
 let keepaliveInterval = null;
+// 2026-01-09: Add connection promise to prevent race condition on initial connect
+// Multiple concurrent getListenClient() calls could each see pgClient=null
+// and create multiple clients. This promise ensures only one connection attempt.
+let connectPromise = null;
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -94,10 +98,12 @@ function setupErrorHandlers(connectionString) {
 }
 
 export async function getListenClient() {
+  // Return existing connected client
   if (pgClient && pgClient._connected) {
     return pgClient;
   }
 
+  // Wait for ongoing reconnection
   if (isReconnecting) {
     dbLog.info(`Waiting for ongoing reconnection...`, OP.DB);
     let waitCount = 0;
@@ -110,45 +116,61 @@ export async function getListenClient() {
     }
   }
 
+  // 2026-01-09: Use connection promise to prevent race condition
+  // Multiple concurrent calls see pgClient=null and try to connect simultaneously
+  // This ensures only one connection attempt occurs
+  if (connectPromise) {
+    dbLog.info(`Waiting for ongoing connection...`, OP.DB);
+    return connectPromise;
+  }
+
   // PostgreSQL via Replit MANAGED DATABASE ONLY
   // Replit automatically injects DATABASE_URL for all environments (dev + production)
   // No external databases (Neon, Vercel, Railway) are used
   const connectionString = process.env.DATABASE_URL;
-  
+
   dbLog.phase(1, `LISTEN client connecting to Replit PostgreSQL`, OP.DB);
-  
+
   if (!connectionString) {
     throw new Error('[db-client] No DATABASE_URL found');
   }
 
-  pgClient = new pg.Client({
-    connectionString,
-    application_name: 'triad-listener',
-    keepAlive: true,
-    keepAliveInitialDelayMillis: 10000
-  });
+  // Create and store the connection promise
+  connectPromise = (async () => {
+    pgClient = new pg.Client({
+      connectionString,
+      application_name: 'triad-listener',
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000
+    });
 
-  setupErrorHandlers(connectionString);
+    setupErrorHandlers(connectionString);
 
-  try {
-    await pgClient.connect();
-    
-    // Send keepalive queries every 4 minutes
-    keepaliveInterval = setInterval(() => {
-      if (pgClient && !isReconnecting) {
-        pgClient.query('SELECT 1').catch(() => {});
+    try {
+      await pgClient.connect();
+
+      // Send keepalive queries every 4 minutes
+      keepaliveInterval = setInterval(() => {
+        if (pgClient && !isReconnecting) {
+          pgClient.query('SELECT 1').catch(() => {});
+        }
+      }, 240000);
+
+      dbLog.done(1, `LISTEN client connected`, OP.DB);
+      return pgClient;
+    } catch (err) {
+      if (pgClient) {
+        pgClient.removeAllListeners();
+        pgClient = null;
       }
-    }, 240000);
-    
-    dbLog.done(1, `LISTEN client connected`, OP.DB);
-    return pgClient;
-  } catch (err) {
-    if (pgClient) {
-      pgClient.removeAllListeners();
-      pgClient = null;
+      throw err;
+    } finally {
+      // Clear promise after attempt completes (success or failure)
+      connectPromise = null;
     }
-    throw err;
-  }
+  })();
+
+  return connectPromise;
 }
 
 export async function closeListenClient() {

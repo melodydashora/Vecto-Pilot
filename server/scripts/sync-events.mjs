@@ -129,8 +129,9 @@ async function processEventsWithVenueCache(events) {
           event.lat = venue.lat;
           event.lng = venue.lng;
         }
-        // Store venue_id for linking after insert
-        event._venue_id = venue.id;
+        // 2026-01-09: FIX - venue_catalog PK is venue_id, not id
+        // Using .id returned undefined, breaking venue linking
+        event._venue_id = venue.venue_id;
 
         // Track if this was a reuse or new cache
         if (venue.access_count > 1) {
