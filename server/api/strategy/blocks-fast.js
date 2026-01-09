@@ -44,7 +44,10 @@ import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 import { generateEnhancedSmartBlocks } from '../../lib/venue/enhanced-smart-blocks.js';
 import { resolveVenueAddressesBatch } from '../../lib/venue/venue-address-resolver.js';
 import { isPlusCode } from '../utils/http-helpers.js';
-import { strategyEmitter, blocksEmitter, phaseEmitter } from '../briefing/events.js';
+// 2026-01-09: Only import phaseEmitter (for phase progress updates)
+// strategyEmitter/blocksEmitter removed - DB NOTIFY is canonical for readiness events
+// See LESSONS_LEARNED.md: "duplicate SSE broadcast" incident
+import { phaseEmitter } from '../briefing/events.js';
 import { sseLog, venuesLog, triadLog, dbLog, briefingLog } from '../../logger/workflow.js';
 
 const router = Router();
@@ -555,9 +558,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           // Uses snapshot data + briefing (traffic, events) directly
           await runImmediateStrategy(snapshotId, { snapshot });
 
-          // Emit SSE event for strategy ready
-          strategyEmitter.emit('ready', { snapshot_id: snapshotId, status: 'strategy_ready' });
-          sseLog.info(`[blocks-fast] strategy_ready emitted for ${snapshotId.slice(0, 8)}`);
+          // 2026-01-09: Removed strategyEmitter.emit - DB NOTIFY 'strategy_ready' is canonical
+          // SSE clients receive via subscribeToChannel('strategy_ready') in strategy-events.js
+          sseLog.info(`[blocks-fast] strategy_ready (DB NOTIFY) for ${snapshotId.slice(0, 8)}`);
         } catch (immediateErr) {
           triadLog.error(3, `runImmediateStrategy failed`, immediateErr);
           throw immediateErr;
@@ -612,9 +615,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           // Ensure phase is marked complete (Fix #15 - prevents 98% stuck issue)
           await updatePhase(snapshotId, 'complete', { phaseEmitter });
 
-          // Emit SSE event for blocks ready
-          blocksEmitter.emit('ready', { snapshot_id: snapshotId, status: 'blocks_ready', count: blocks.length });
-          sseLog.info(`blocks_ready emitted for ${snapshotId.slice(0, 8)} (${blocks.length} blocks)`);
+          // 2026-01-09: Removed blocksEmitter.emit - DB NOTIFY 'blocks_ready' is canonical
+          // SSE clients receive via subscribeToChannel('blocks_ready') in strategy-events.js
+          sseLog.info(`blocks_ready (DB NOTIFY) for ${snapshotId.slice(0, 8)} (${blocks.length} blocks)`);
 
           return sendOnce(200, {
             status: 'ok',

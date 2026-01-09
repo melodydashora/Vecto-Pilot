@@ -757,6 +757,49 @@ export async function subscribeToChannel(channel, callback) {
 - `server/db/db-client.js`: Server notification dispatcher (`subscribeToChannel`)
 - `server/api/strategy/strategy-events.js`: Use dispatcher instead of direct handlers
 
+### SSE Dual System Consolidation (Issue Jan 2026)
+
+**Problem:** Data not appearing in UI ("not pushed/fetched properly"), duplicate SSE notifications
+
+**Root Cause:** TWO SEPARATE SSE systems were mounted at overlapping paths:
+
+1. **EventEmitter SSE** (`server/api/briefing/events.js`) mounted at `/events`:
+   - `/events/strategy` - fired via `strategyEmitter.emit('ready')`
+   - `/events/blocks` - fired via `blocksEmitter.emit('ready')`
+   - `/events/phase` - fired via `phaseEmitter.emit('change')`
+
+2. **DB NOTIFY SSE** (`server/api/strategy/strategy-events.js`) mounted at `/`:
+   - `/events/strategy` - fired via PostgreSQL NOTIFY
+   - `/events/briefing` - fired via PostgreSQL NOTIFY
+   - `/events/blocks` - fired via PostgreSQL NOTIFY
+
+**Result:** `/events/strategy` and `/events/blocks` were mounted TWICE. Additionally, `blocks-fast.js` was emitting on BOTH systems (EventEmitter AND DB NOTIFY), causing duplicate events.
+
+**Fix (2026-01-09):**
+1. Removed EventEmitter SSE mount from `routes.js` (line 99)
+2. Removed `strategyEmitter.emit` and `blocksEmitter.emit` from `blocks-fast.js`
+3. Migrated `/events/phase` to `strategy-events.js` (keeps EventEmitter for high-frequency ephemeral updates)
+4. DB NOTIFY is now the SINGLE source of truth for readiness events
+
+**Architecture After Fix:**
+```
+strategy-events.js (SINGLE SSE file)
+├── /events/strategy  (DB NOTIFY) - durability + multi-instance
+├── /events/briefing  (DB NOTIFY) - durability + multi-instance
+├── /events/blocks    (DB NOTIFY) - durability + multi-instance
+└── /events/phase     (EventEmitter) - high-frequency ephemeral
+```
+
+**Key Rule:** Choose ONE source for each event type:
+- **DB NOTIFY** for events that need durability or multi-instance scaling
+- **EventEmitter** for high-frequency ephemeral updates (no persistence needed)
+- **NEVER emit the same event via both systems**
+
+**Files Changed:**
+- `server/bootstrap/routes.js`: Removed `/events` EventEmitter mount
+- `server/api/strategy/blocks-fast.js`: Removed strategyEmitter/blocksEmitter imports and emits
+- `server/api/strategy/strategy-events.js`: Added `/events/phase` endpoint
+
 ---
 
 ## Backend Patterns
