@@ -94,7 +94,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       lng: snapshot.lng
     };
 
-    venuesLog.phase(2, `Driver at ${driverLocation.lat.toFixed(4)},${driverLocation.lng.toFixed(4)} - calling Google Routes API`);
+    venuesLog.phase(2, `Driver at ${driverLocation.lat.toFixed(6)},${driverLocation.lng.toFixed(6)} - calling Google Routes API`);
 
     const enrichedVenues = await enrichVenues(
       venuesPlan.recommended_venues,

@@ -250,7 +250,7 @@ router.get('/geocode/reverse', async (req, res) => {
         state: undefined,
         country: undefined,
         place_id: undefined,
-        formattedAddress: `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+        formattedAddress: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
       });
     }
 
@@ -283,7 +283,7 @@ router.get('/geocode/reverse', async (req, res) => {
       state,
       country,
       place_id: best?.place_id || undefined,
-      formattedAddress: best?.formatted_address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      formattedAddress: best?.formatted_address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
       // Include coordinates from Google (may be slightly adjusted for accuracy)
       lat: best?.geometry?.location?.lat || lat,
       lng: best?.geometry?.location?.lng || lng,
@@ -562,7 +562,7 @@ router.get('/resolve', async (req, res) => {
       return res.status(400).json({ error: 'lat/lng required for precise location resolution', ok: false });
     }
 
-    locationLog.phase(1, `Resolving ${lat.toFixed(4)}, ${lng.toFixed(4)}`, OP.API);
+    locationLog.phase(1, `Resolving ${lat.toFixed(6)}, ${lng.toFixed(6)}`, OP.API);
 
     if (!GOOGLE_MAPS_API_KEY) {
       console.warn('[location] No Google Maps API key configured');
@@ -571,7 +571,7 @@ router.get('/resolve', async (req, res) => {
         state: undefined,
         country: undefined,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        formattedAddress: `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+        formattedAddress: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
       });
     }
 
@@ -612,7 +612,7 @@ router.get('/resolve', async (req, res) => {
           if (city && state) {
             formattedAddress = `${city}, ${state}`;
           } else {
-            formattedAddress = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            formattedAddress = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
           }
         }
 
@@ -742,7 +742,7 @@ router.get('/resolve', async (req, res) => {
       state,
       country,
       timeZone,
-      formattedAddress: formattedAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+      formattedAddress: formattedAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
       user_id: userId,
     };
 
@@ -774,7 +774,7 @@ router.get('/resolve', async (req, res) => {
       resolvedData.state = state;
       resolvedData.country = country;
       resolvedData.timeZone = timeZone;
-      resolvedData.formattedAddress = formattedAddress || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      resolvedData.formattedAddress = formattedAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     }
 
     // Save to users table if device_id provided
