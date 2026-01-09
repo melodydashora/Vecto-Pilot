@@ -9,6 +9,8 @@ import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady, subscribeP
 import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
 import { useBriefingQueries } from '@/hooks/useBriefingQueries';
 import { useBarsQuery, type BarsData } from '@/hooks/useBarsQuery';
+// 2026-01-09: P1-6 - Centralized storage keys (prevents magic string bugs)
+import { STORAGE_KEYS, SESSION_KEYS } from '@/constants';
 
 interface CoPilotContextValue {
   // Location (from LocationContext)
@@ -110,9 +112,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // 2026-01-06: P3-D - Check if this is a resume (skip blocks-fast regeneration)
   // Resume mode is set by LocationContext when restoring from sessionStorage
   const checkAndClearResumeMode = (): boolean => {
-    const reason = sessionStorage.getItem('vecto_resume_reason');
+    const reason = sessionStorage.getItem(SESSION_KEYS.RESUME_REASON);
     if (reason === 'resume') {
-      sessionStorage.removeItem('vecto_resume_reason');
+      sessionStorage.removeItem(SESSION_KEYS.RESUME_REASON);
       return true;
     }
     return false;
@@ -183,8 +185,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       manualRefreshInProgressRef.current = true;
 
       // Clear localStorage
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
 
       // Clear React state - MUST clear lastSnapshotId so new snapshot triggers waterfall
       setPersistentStrategy(null);
@@ -294,8 +296,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     // Clear if snapshot changed (different location/time context)
     if (prevSnapshotIdRef.current !== lastSnapshotId) {
       console.log(`🔄 [CoPilotContext] Snapshot changed from ${prevSnapshotIdRef.current?.slice(0, 8)} to ${lastSnapshotId.slice(0, 8)}, clearing old strategy`);
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
       setPersistentStrategy(null);
       setImmediateStrategy(null);
       setStrategySnapshotId(null);
@@ -396,8 +398,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     const strategyForNow = strategyData?.strategy?.strategy_for_now;
 
     if (consolidatedStrategy && consolidatedStrategy !== persistentStrategy) {
-      localStorage.setItem('vecto_persistent_strategy', consolidatedStrategy);
-      localStorage.setItem('vecto_strategy_snapshot_id', lastSnapshotId || '');
+      localStorage.setItem(STORAGE_KEYS.PERSISTENT_STRATEGY, consolidatedStrategy);
+      localStorage.setItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID, lastSnapshotId || '');
       setPersistentStrategy(consolidatedStrategy);
       setStrategySnapshotId(lastSnapshotId);
     }
