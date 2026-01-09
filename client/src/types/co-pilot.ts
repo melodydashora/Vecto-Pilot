@@ -1,6 +1,11 @@
 // client/src/types/co-pilot.ts
 // Shared types for Co-Pilot page and related components
+// 2026-01-09: Standardized to camelCase to match API response format
 
+/**
+ * SmartBlock - AI-recommended venue with enrichment data
+ * Matches server/validation/response-schemas.js SmartBlockSchema
+ */
 export interface SmartBlock {
   name: string;
   description?: string;
@@ -11,17 +16,17 @@ export interface SmartBlock {
   };
   estimatedWaitTime?: number;
   estimatedEarningsPerRide?: number;
-  estimated_earnings?: number;
+  estimatedEarnings?: number;
   potential?: number;
-  estimated_distance_miles?: number;
+  estimatedDistanceMiles?: number;
   distanceSource?: string;
   driveTimeMinutes?: number;
   surge?: number;
   type?: string;
   // Value per minute fields
-  value_per_min?: number;
-  value_grade?: string;
-  not_worth?: boolean;
+  valuePerMin?: number;
+  valueGrade?: string;
+  notWorth?: boolean;
   demandLevel?: string;
   category?: string;
   businessHours?: string;
@@ -29,7 +34,7 @@ export interface SmartBlock {
   businessStatus?: string;
   placeId?: string;
   closedButStillGood?: string;
-  closed_venue_reasoning?: string;
+  closedVenueReasoning?: string;
   hasEvent?: boolean;
   eventBadge?: string;
   eventSummary?: string;
@@ -45,29 +50,34 @@ export interface SmartBlock {
   };
   proTips?: string[];
   streetViewUrl?: string;
-  up_count?: number;
-  down_count?: number;
+  upCount?: number;
+  downCount?: number;
+  rankingId?: string;
 }
 
+/**
+ * BlocksResponse - Response from /api/blocks-fast endpoints
+ * Uses camelCase to match API response format
+ */
 export interface BlocksResponse {
   now: string;
   // 2026-01-09: timezone can be null if not available from server or location context
   timezone: string | null;
   strategy?: string;
   blocks: SmartBlock[];
-  ranking_id?: string;
-  path_taken?: string;
+  rankingId?: string;
+  pathTaken?: string;
   refined?: boolean;
   error?: string;
-  tactical_summary?: string;
-  best_staging_location?: string;
+  tacticalSummary?: string;
+  bestStagingLocation?: string;
   isBlocksGenerating?: boolean;
   timing?: {
-    scoring_ms?: number;
-    planner_ms?: number;
-    total_ms?: number;
-    timed_out?: boolean;
-    budget_ms?: number;
+    scoringMs?: number;
+    plannerMs?: number;
+    totalMs?: number;
+    timedOut?: boolean;
+    budgetMs?: number;
   };
   metadata?: {
     totalBlocks: number;
@@ -97,22 +107,26 @@ export type PipelinePhase = 'starting' | 'resolving' | 'analyzing' | 'immediate'
 // Legacy frontend phases (kept for backwards compatibility)
 export type EnrichmentPhase = 'idle' | 'strategy' | 'blocks';
 
+/**
+ * StrategyData - Strategy polling response data
+ * Uses camelCase to match API response format
+ */
 export interface StrategyData {
   status?: string;
   phase?: PipelinePhase;
   strategy?: {
     consolidated?: string;
-    strategy_for_now?: string;
+    strategyForNow?: string;
     holiday?: string;
   };
-  strategy_id?: string;
+  strategyId?: string;
   timeElapsedMs?: number;
   _snapshotId?: string;
   timing?: {
-    phase_started_at?: string;
-    phase_elapsed_ms?: number;
-    expected_duration_ms?: number;
-    expected_durations?: Record<string, number>;
+    phaseStartedAt?: string;
+    phaseElapsedMs?: number;
+    expectedDurationMs?: number;
+    expectedDurations?: Record<string, number>;
   };
 }
 

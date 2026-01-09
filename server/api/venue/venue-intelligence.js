@@ -1,8 +1,10 @@
 // server/api/venue/venue-intelligence.js
 // API routes for venue intelligence (bars/restaurants sorted by expense, traffic data)
+// 2026-01-09: Added response transformation for consistent camelCase API responses
 
 import { Router } from 'express';
 import { discoverNearbyVenues, getTrafficIntelligence, getSmartBlocksIntelligence } from '../../lib/venue/venue-intelligence.js';
+import { toApiVenueData } from '../../validation/transformers.js';
 
 const router = Router();
 
@@ -32,15 +34,16 @@ router.get('/nearby', async (req, res) => {
       timezone: timezone || null  // Pass to use correct local time
     });
 
+    // 2026-01-09: Transform to camelCase for consistent API response
     res.json({
       success: true,
-      data: venueData
+      data: toApiVenueData(venueData)
     });
   } catch (error) {
     console.error('[VenueRoutes] Error fetching nearby venues:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch venue intelligence',
-      message: error.message 
+      message: error.message
     });
   }
 });
