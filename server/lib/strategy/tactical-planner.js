@@ -234,7 +234,7 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ ${validated.recommended_venues.length} venues in ${duration}ms:`);
     validated.recommended_venues.forEach((v, i) => {
       const districtInfo = v.district ? ` @ ${v.district}` : '';
-      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category}) at ${v.lat.toFixed(4)},${v.lng.toFixed(4)}`);
+      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category}) at ${v.lat.toFixed(6)},${v.lng.toFixed(6)}`);
     });
 
     // Add rank to each venue and prepare final response

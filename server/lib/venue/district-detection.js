@@ -128,7 +128,7 @@ export function detectDistrictClusters(venues, radiusMeters = 500, minVenuesForC
         venueCount: group.venues.length
       });
 
-      console.log(`[district-detection] Found cluster: "${group.name}" (${group.venues.length} venues, centroid: ${centroid.lat.toFixed(4)}, ${centroid.lng.toFixed(4)})`);
+      console.log(`[district-detection] Found cluster: "${group.name}" (${group.venues.length} venues, centroid: ${centroid.lat.toFixed(6)}, ${centroid.lng.toFixed(6)})`);
     }
   }
 

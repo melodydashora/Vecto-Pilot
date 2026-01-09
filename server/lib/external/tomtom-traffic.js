@@ -253,7 +253,7 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
     };
   }
 
-  const location = city && state ? `${city}, ${state}` : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  const location = city && state ? `${city}, ${state}` : `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
   briefingLog.ai(1, 'TomTom', `traffic for ${location}`);
   const startTime = Date.now();
 
