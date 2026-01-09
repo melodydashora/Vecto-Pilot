@@ -110,6 +110,8 @@ export function getAuthHeader(): Record<string, string> {
 
 /**
  * Log user action to backend with idempotency key
+ * 2026-01-09: Updated to use Authorization header for proper user attribution
+ * User_id is now derived from JWT on the server (security fix)
  */
 export async function logAction(
   rankingId: string | undefined,
@@ -123,11 +125,14 @@ export async function logAction(
     const timestamp = new Date().toISOString();
     const idempotencyKey = `${ranking_id}:${action}:${blockId || 'na'}:${timestamp}`;
 
+    // 2026-01-09: SECURITY FIX - Use Authorization header for user attribution
+    // Server now derives user_id from JWT (not request body) to prevent spoofing
     await fetch('/api/actions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Idempotency-Key': idempotencyKey,
+        ...getAuthHeader(), // Include Authorization: Bearer token
       },
       body: JSON.stringify({
         ranking_id: ranking_id !== 'unknown' ? ranking_id : null,
@@ -135,7 +140,7 @@ export async function logAction(
         block_id: blockId || null,
         dwell_ms: dwellMs || null,
         from_rank: fromRank || null,
-        user_id: localStorage.getItem('vecto_user_id') || 'default',
+        // 2026-01-09: user_id removed - server derives from JWT for security
       }),
     });
   } catch (err) {

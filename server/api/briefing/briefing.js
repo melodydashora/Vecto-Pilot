@@ -184,7 +184,12 @@ router.get('/current', requireAuth, async (req, res) => {
 
     // Filter stale events from briefing data (2026-01-05)
     // 2026-01-05: Pass snapshot timezone for proper local time parsing
-    const tz = snapshot.timezone || 'America/Chicago';
+    // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
+    if (!snapshot.timezone) {
+      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
+      return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+    }
+    const tz = snapshot.timezone;
     const freshEvents = filterFreshEvents(
       Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || [],
       new Date(),
@@ -246,8 +251,13 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
 
     // Filter stale events from briefing data (2026-01-05)
     // 2026-01-05: Pass snapshot timezone for proper local time parsing
+    // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
     const snapshot = snapshotCheck[0];
-    const tz2 = snapshot.timezone || 'America/Chicago';
+    if (!snapshot.timezone) {
+      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
+      return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+    }
+    const tz2 = snapshot.timezone;
     const freshEvents = filterFreshEvents(
       Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || [],
       new Date(),
@@ -288,7 +298,12 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
 
     // Filter stale events from briefing data (2026-01-05)
     // 2026-01-05: Pass snapshot timezone for proper local time parsing
-    const tz3 = req.snapshot.timezone || 'America/Chicago';
+    // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
+    if (!req.snapshot.timezone) {
+      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: req.snapshot.snapshot_id });
+      return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+    }
+    const tz3 = req.snapshot.timezone;
     const freshEvents = filterFreshEvents(
       Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || [],
       new Date(),
@@ -342,7 +357,12 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
     if (result.success) {
       // Filter stale events from refreshed briefing data (2026-01-05)
       // 2026-01-05: Pass snapshot timezone for proper local time parsing
-      const tz4 = snapshot.timezone || 'America/Chicago';
+      // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
+      if (!snapshot.timezone) {
+        console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
+        return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+      }
+      const tz4 = snapshot.timezone;
       const freshEvents = filterFreshEvents(
         Array.isArray(result.briefing.events) ? result.briefing.events : result.briefing.events?.items || [],
         new Date(),
@@ -628,7 +648,12 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     // This catches events with incorrect dates (e.g., Christmas events with January dates)
     // and events that lack proper start/end times
     // 2026-01-05: Pass snapshot timezone for proper local time parsing
-    const snapshotTz = snapshot.timezone || 'America/Chicago';
+    // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
+    if (!snapshot.timezone) {
+      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for events filter', { snapshot_id: snapshot.snapshot_id });
+      return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+    }
+    const snapshotTz = snapshot.timezone;
     const beforeFreshFilter = allEvents.length;
     allEvents = filterFreshEvents(allEvents, new Date(), snapshotTz);
     if (beforeFreshFilter > allEvents.length) {
@@ -637,12 +662,12 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
 
     // Apply "active" filter: show only events happening RIGHT NOW (during their duration)
     // Used by MapPage for real-time event display
+    // 2026-01-09: NO FALLBACKS - snapshotTz already validated above
     if (filter === 'active') {
       const now = new Date();
-      const snapshotTimezone = snapshot.timezone || 'America/Chicago';
       const beforeCount = allEvents.length;
-      allEvents = allEvents.filter(e => isEventActiveNow(e, now, snapshotTimezone));
-      console.log(`[BriefingRoute] Events filter=active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTimezone}`);
+      allEvents = allEvents.filter(e => isEventActiveNow(e, now, snapshotTz));
+      console.log(`[BriefingRoute] Events filter=active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTz}`);
     }
 
     // 2026-01-08: Fetch high-value events from the user's market (beyond local city)
@@ -879,7 +904,12 @@ router.post('/refresh-daily/:snapshotId', expensiveEndpointLimiter, requireAuth,
     const isDaily = req.query.daily !== 'false'; // Default to daily (all models)
 
     // Get user's local date from snapshot timezone
-    const userTimezone = snapshot.timezone || 'America/Chicago';
+    // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
+    if (!snapshot.timezone) {
+      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for refresh-daily', { snapshot_id: snapshot.snapshot_id });
+      return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+    }
+    const userTimezone = snapshot.timezone;
     const userLocalDate = snapshot.local_iso
       ? new Date(snapshot.local_iso).toISOString().split('T')[0]
       : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format

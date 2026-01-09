@@ -4,6 +4,8 @@ import { db } from '../../db/drizzle.js';
 import { actions, snapshots, rankings, venue_catalog, venue_metrics } from '../../../shared/schema.js';
 import { desc, eq, sql } from 'drizzle-orm';
 import crypto from 'crypto'; // Ensure crypto is imported
+// 2026-01-09: Added optionalAuth to properly derive user_id from JWT
+import { optionalAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
 
@@ -25,7 +27,8 @@ setInterval(cleanExpiredKeys, 60000);
 
 // POST /api/actions
 // Log user actions (clicks, dwells, views) for ML training
-router.post('/', validate(schemas.action), async (req, res) => {
+// 2026-01-09: Added optionalAuth middleware to derive user_id from JWT (not request body)
+router.post('/', optionalAuth, validate(schemas.action), async (req, res) => {
   try {
     const {
       ranking_id,
@@ -33,9 +36,14 @@ router.post('/', validate(schemas.action), async (req, res) => {
       block_id,
       dwell_ms,
       from_rank,
-      user_id = 'default',
+      // 2026-01-09: SECURITY FIX - user_id now derived from JWT, not request body
+      // Body user_id is ignored for security (prevents spoofing)
       raw,
     } = req.validatedBody; // Use validatedBody
+
+    // 2026-01-09: SECURITY FIX - Always use authenticated user_id from JWT
+    // Never trust user_id from request body (auth contract violation)
+    const authUserId = req.auth?.userId || null;
 
     // Check idempotency key to prevent duplicate actions
     const idempotencyKey = req.header('X-Idempotency-Key');
@@ -46,11 +54,6 @@ router.post('/', validate(schemas.action), async (req, res) => {
         return res.json(cached.response);
       }
     }
-
-    // Validate required fields - this is now handled by the validation middleware
-    // if (!action) {
-    //   return res.status(400).json({ error: 'action is required' });
-    // }
 
     // Anchor to exact snapshot via ranking lookup (ensures action ↔ ranking ↔ snapshot integrity)
     let snapshot_id = null;
@@ -70,20 +73,15 @@ router.post('/', validate(schemas.action), async (req, res) => {
       }
     }
 
-    // Fallback to latest snapshot if no ranking_id provided (backward compatibility)
+    // 2026-01-09: DATA INTEGRITY FIX - Removed global fallback to latest snapshot
+    // Global fallback was cross-contaminating action attribution across users
+    // Actions without ranking_id cannot be properly attributed and should fail
     if (!snapshot_id) {
-      const latestSnapshot = await db
-        .select({ snapshot_id: snapshots.snapshot_id })
-        .from(snapshots)
-        .orderBy(desc(snapshots.created_at))
-        .limit(1);
-
-      snapshot_id = latestSnapshot[0]?.snapshot_id || null;
-    }
-
-    if (!snapshot_id) {
-      console.warn('[actions] No snapshot found, action not logged');
-      return res.status(400).json({ error: 'No snapshot available' });
+      console.warn('[actions] No ranking_id provided or ranking not found, action not logged');
+      return res.status(400).json({
+        error: 'ranking_id is required',
+        message: 'Actions must be anchored to a ranking for proper attribution'
+      });
     }
 
     // Create action record with retry logic for replication lag
@@ -93,7 +91,8 @@ router.post('/', validate(schemas.action), async (req, res) => {
       created_at: new Date(),
       ranking_id: ranking_id || null,
       snapshot_id,
-      user_id: user_id !== 'default' ? user_id : null,
+      // 2026-01-09: Use authenticated user_id (null for anonymous)
+      user_id: authUserId,
       action,
       block_id: block_id || null,
       dwell_ms: dwell_ms || null,

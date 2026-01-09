@@ -31,7 +31,8 @@ const router = Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 2026-01-09: Fixed auth shape - use req.auth.userId not req.user.id
+    const userId = req.auth.userId;
     const {
       limit = 50,
       offset = 0,
@@ -105,7 +106,8 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 2026-01-09: Fixed auth shape - use req.auth.userId not req.user.id
+    const userId = req.auth.userId;
     const { id } = req.params;
 
     const [note] = await db
@@ -140,7 +142,8 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 2026-01-09: Fixed auth shape - use req.auth.userId not req.user.id
+    const userId = req.auth.userId;
 
     // Validate input
     const validation = noteSchema.safeParse(req.body);
@@ -199,7 +202,8 @@ router.post('/', async (req, res) => {
  */
 router.put('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 2026-01-09: Fixed auth shape - use req.auth.userId not req.user.id
+    const userId = req.auth.userId;
     const { id } = req.params;
 
     // Check note exists and belongs to user
@@ -259,7 +263,8 @@ router.put('/:id', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 2026-01-09: Fixed auth shape - use req.auth.userId not req.user.id
+    const userId = req.auth.userId;
     const { id } = req.params;
 
     // Check note exists and belongs to user
@@ -300,7 +305,8 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/:id/pin', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 2026-01-09: Fixed auth shape - use req.auth.userId not req.user.id
+    const userId = req.auth.userId;
     const { id } = req.params;
 
     // Get current pin status
@@ -344,7 +350,8 @@ router.post('/:id/pin', async (req, res) => {
 
 router.post('/:id/restore', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 2026-01-09: Fixed auth shape - use req.auth.userId not req.user.id
+    const userId = req.auth.userId;
     const { id } = req.params;
 
     // Check note exists (including inactive)
@@ -390,7 +397,8 @@ router.post('/:id/restore', async (req, res) => {
 
 router.get('/stats/summary', async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 2026-01-09: Fixed auth shape - use req.auth.userId not req.user.id
+    const userId = req.auth.userId;
 
     // Get counts by type
     const typeStats = await db

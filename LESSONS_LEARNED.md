@@ -2861,5 +2861,70 @@ With venue_id linking events to venues, SmartBlocks can now:
 
 ---
 
-**Last Updated**: January 2, 2026
+## UI ↔ API ↔ DB Wiring Audit (2026-01-09)
+
+Deep repo audit uncovered several auth/data integrity bugs that could cause "works sometimes" behavior.
+
+### P0 Fixes (Critical - Runtime Errors)
+
+**1. Coach Notes Auth Shape Mismatch**
+- **File**: `server/api/coach/notes.js`
+- **Bug**: Used `req.user.id` but auth middleware sets `req.auth.userId`
+- **Fix**: Changed all 8 occurrences from `req.user.id` → `req.auth.userId`
+- **Root Cause**: Code assumed Passport.js patterns but project uses custom JWT middleware
+
+**2. Feedback Rate Limiting User Bucket Bug**
+- **File**: `server/api/feedback/feedback.js`
+- **Bug**: `checkRateLimit(userId)` used body's `userId` instead of `authUserId`
+- **Fix**: Changed to `checkRateLimit(authUserId)`
+- **Impact**: Anonymous users collapsed into one bucket, causing mass rate-limiting
+
+### P1 Fixes (High - Data Integrity)
+
+**3. Actions Logging Security & Attribution**
+- **File**: `server/api/feedback/actions.js`
+- **Bugs**:
+  - No auth middleware → `user_id` from request body (spoofable)
+  - Global fallback to "latest snapshot" cross-contaminated users
+- **Fixes**:
+  - Added `optionalAuth` middleware
+  - Derive `user_id` from JWT, ignore body's `user_id`
+  - Removed global snapshot fallback - require `ranking_id` for proper attribution
+- **Client Fix**: Updated `logAction()` in `co-pilot-helpers.ts` to include Authorization header
+
+### P2 Fixes (Medium - Correctness)
+
+**4. Timezone Fallback Violations**
+- **File**: `server/api/briefing/briefing.js`
+- **Bug**: 7 instances of `snapshot.timezone || 'America/Chicago'`
+- **Fix**: Explicit checks that return 500 error if timezone missing
+- **Rule Violated**: "NO FALLBACKS" - global app rule
+
+### Key Learnings
+
+| Pattern | Anti-Pattern | Why It Breaks |
+|---------|--------------|---------------|
+| `req.auth.userId` | `req.user.id` | Wrong auth middleware shape |
+| JWT → user_id | Body → user_id | Security - spoofable |
+| Require ranking_id | Fall back to latest | Cross-user contamination |
+| Fail if missing | `|| 'default'` | Masks bugs, breaks global app |
+
+### Files Modified
+- `server/api/coach/notes.js` - 8 auth fixes
+- `server/api/feedback/feedback.js` - Rate limit fix
+- `server/api/feedback/actions.js` - Auth + snapshot fix
+- `server/api/briefing/briefing.js` - 7 timezone fixes
+- `client/src/utils/co-pilot-helpers.ts` - logAction auth header
+
+### Test Results
+```
+✅ TypeScript: PASS
+✅ ESLint: PASS
+✅ Build: PASS
+✅ Server syntax check: PASS (4/4 files)
+```
+
+---
+
+**Last Updated**: January 9, 2026
 **Maintained By**: Development Team
