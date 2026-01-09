@@ -10,7 +10,7 @@ import type {
   AuthApiResponse
 } from '@/types/auth';
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
-import { STORAGE_KEYS } from '@/constants/storageKeys';
+import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 
 interface AuthContextValue extends AuthState {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
@@ -63,9 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Clear local auth state
       localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
-      sessionStorage.removeItem('vecto_snapshot');
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+      sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
 
       setState({
         user: null,
@@ -188,9 +188,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       // Clear all session data on logout
       localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
-      sessionStorage.removeItem('vecto_snapshot');
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+      sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
 
       setState({
         user: null,

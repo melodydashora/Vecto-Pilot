@@ -1,7 +1,7 @@
 // 2026-01-09: P1-6 FIX - Using centralized constants
 import React, { createContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from './auth-context';
-import { STORAGE_KEYS } from '@/constants/storageKeys';
+import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
@@ -26,7 +26,8 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 // SessionStorage persistence for snapshot data
 // Prevents data loss when switching between apps (Uber ↔ Vecto)
-const SNAPSHOT_STORAGE_KEY = 'vecto_snapshot';
+// 2026-01-09: P1-6 - Use centralized constant
+const SNAPSHOT_STORAGE_KEY = SESSION_KEYS.SNAPSHOT;
 // TTL for session storage - KEEP SHORT for real-time intelligence
 // 2 minutes allows quick app switches (Uber ↔ Vecto) but ensures fresh data otherwise
 // LESSON LEARNED: 1-hour TTL caused 49-minute-old stale strategies to appear
@@ -239,7 +240,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (data.snapshotId) {
         setLastSnapshotId(data.snapshotId);
         // Mark as resume for P3-D - CoPilotContext should not trigger blocks-fast
-        sessionStorage.setItem('vecto_resume_reason', 'resume');
+        sessionStorage.setItem(SESSION_KEYS.RESUME_REASON, 'resume');
       }
       if (data.coords) setCurrentCoords(data.coords);
       if (data.city) setCity(data.city);
@@ -600,8 +601,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       clearSnapshotStorage();
 
       // Clear old strategy
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
       window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
     }
 

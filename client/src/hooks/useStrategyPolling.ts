@@ -5,6 +5,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { getAuthHeader, subscribeStrategyReady } from '@/utils/co-pilot-helpers';
 import type { StrategyData } from '@/types/co-pilot';
+// 2026-01-09: P1-6 - Centralized storage keys
+import { STORAGE_KEYS } from '@/constants';
 
 interface UseStrategyPollingOptions {
   snapshotId: string | null;
@@ -44,8 +46,8 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
   //
   // On mount, try to restore from localStorage if snapshot matches
   useEffect(() => {
-    const storedStrategy = localStorage.getItem('vecto_persistent_strategy');
-    const storedSnapshotId = localStorage.getItem('vecto_strategy_snapshot_id');
+    const storedStrategy = localStorage.getItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+    const storedSnapshotId = localStorage.getItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
 
     // Only restore if we have stored data AND snapshot matches current
     if (storedStrategy && storedSnapshotId && storedSnapshotId === snapshotId) {
@@ -78,8 +80,8 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
   useEffect(() => {
     if (snapshotId && snapshotId !== 'live-snapshot' && strategySnapshotId && snapshotId !== strategySnapshotId) {
       console.log(`[strategy-polling] New snapshot (${snapshotId}), clearing old strategy from ${strategySnapshotId}`);
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
       setPersistentStrategy(null);
       setImmediateStrategy(null);
       setStrategySnapshotId(null);
@@ -141,8 +143,8 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
 
     if (consolidatedStrategy && consolidatedStrategy !== persistentStrategy) {
       console.log('[strategy-polling] New consolidated strategy received');
-      localStorage.setItem('vecto_persistent_strategy', consolidatedStrategy);
-      localStorage.setItem('vecto_strategy_snapshot_id', snapshotId || '');
+      localStorage.setItem(STORAGE_KEYS.PERSISTENT_STRATEGY, consolidatedStrategy);
+      localStorage.setItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID, snapshotId || '');
       setPersistentStrategy(consolidatedStrategy);
       setStrategySnapshotId(snapshotId);
     }
@@ -154,8 +156,8 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
   }, [strategyData, snapshotId, persistentStrategy, immediateStrategy]);
 
   const clearStrategy = () => {
-    localStorage.removeItem('vecto_persistent_strategy');
-    localStorage.removeItem('vecto_strategy_snapshot_id');
+    localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+    localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
     setPersistentStrategy(null);
     setImmediateStrategy(null);
     setStrategySnapshotId(null);
