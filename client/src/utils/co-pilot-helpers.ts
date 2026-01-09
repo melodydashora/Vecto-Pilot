@@ -470,14 +470,15 @@ export function formatEventTimeRange(startTime?: string, endTime?: string): stri
 // SmartBlock Filtering Utilities
 // ============================================================================
 
+// 2026-01-09: Updated to camelCase to match SmartBlock type
 export interface FilterableBlock {
   name: string;
   coordinates: {
     lat: number;
     lng: number;
   };
-  value_grade?: string;
-  not_worth?: boolean;
+  valueGrade?: string;
+  notWorth?: boolean;
   [key: string]: unknown;
 }
 
@@ -507,30 +508,30 @@ export function haversineDistance(
 }
 
 /**
- * Check if a SmartBlock is Grade A value (top tier, not flagged as not_worth)
+ * Check if a SmartBlock is Grade A value (top tier, not flagged as notWorth)
  */
 export function isGradeABlock(block: FilterableBlock): boolean {
   // Reject blocks flagged as not worth it
-  if (block.not_worth === true) {
+  if (block.notWorth === true) {
     return false;
   }
 
   // Only accept Grade A (highest value)
-  const grade = block.value_grade?.toUpperCase();
+  const grade = block.valueGrade?.toUpperCase();
   return grade === 'A';
 }
 
 /**
- * Check if a SmartBlock is high-value (Grade A or B, not flagged as not_worth)
+ * Check if a SmartBlock is high-value (Grade A or B, not flagged as notWorth)
  */
 export function isHighValueBlock(block: FilterableBlock): boolean {
   // Reject blocks flagged as not worth it
-  if (block.not_worth === true) {
+  if (block.notWorth === true) {
     return false;
   }
 
   // Accept Grade A and B (reject Grade C and undefined)
-  const grade = block.value_grade?.toUpperCase();
+  const grade = block.valueGrade?.toUpperCase();
   return grade === 'A' || grade === 'B';
 }
 
@@ -582,8 +583,8 @@ export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
   // Step 1: Get all high-value blocks (Grade A first, then Grade B)
   const gradeABlocks = blocks.filter(b => isGradeABlock(b) && hasValidCoords(b));
   const gradeBBlocks = blocks.filter(b => {
-    if (b.not_worth === true) return false;
-    const grade = b.value_grade?.toUpperCase();
+    if (b.notWorth === true) return false;
+    const grade = b.valueGrade?.toUpperCase();
     return grade === 'B' && hasValidCoords(b);
   });
 
@@ -608,7 +609,7 @@ export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
     if (isWellSpaced(block, result)) {
       result.push(block);
       used.add(key);
-      const grade = block.value_grade?.toUpperCase();
+      const grade = block.valueGrade?.toUpperCase();
       console.log(`[BlockFilter] ✅ Kept "${block.name}" (Grade ${grade}, spaced, ${result.length}/${maxVenues})`);
     }
   }
@@ -625,13 +626,13 @@ export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
 
       result.push(block);
       used.add(key);
-      const grade = block.value_grade?.toUpperCase();
+      const grade = block.valueGrade?.toUpperCase();
       console.log(`[BlockFilter] ✅ Kept "${block.name}" (Grade ${grade}, close but high-value, ${result.length}/${maxVenues})`);
     }
   }
 
-  const gradeACnt = result.filter(b => b.value_grade?.toUpperCase() === 'A').length;
-  const gradeBCnt = result.filter(b => b.value_grade?.toUpperCase() === 'B').length;
+  const gradeACnt = result.filter(b => b.valueGrade?.toUpperCase() === 'A').length;
+  const gradeBCnt = result.filter(b => b.valueGrade?.toUpperCase() === 'B').length;
   console.log(`[BlockFilter] Final: ${result.length} venues (${gradeACnt} Grade A, ${gradeBCnt} Grade B)`);
 
   return result;

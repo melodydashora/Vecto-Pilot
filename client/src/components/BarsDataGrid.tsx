@@ -30,10 +30,10 @@ interface VenueCandidate {
   category?: string;
   coordinates?: { lat: number; lng: number };
   placeId?: string;
-  estimated_distance_miles?: number;
+  estimatedDistanceMiles?: number;
   driveTimeMinutes?: number;
-  value_per_min?: number;
-  value_grade?: string;
+  valuePerMin?: number;
+  valueGrade?: string;
   // 2026-01-09: Aligned with BarTab.tsx - server can return null when hours unavailable
   isOpen?: boolean | null;
   businessHours?: BusinessHours | string;
@@ -47,8 +47,8 @@ interface BarsTableProps {
 
 // Convert value metrics to price tier display
 function getPriceTier(venue: VenueCandidate): { tier: string; color: string; priority: number } {
-  const grade = venue.value_grade;
-  const valuePerMin = venue.value_per_min || 0;
+  const grade = venue.valueGrade;
+  const valuePerMin = venue.valuePerMin || 0;
 
   if (grade === "A" && valuePerMin > 0.8) {
     return { tier: "$$$$$", color: "text-amber-600", priority: 5 };
@@ -231,8 +231,8 @@ export default function BarsTable({ blocks }: BarsTableProps) {
     }
 
     // Secondary sort: distance ascending
-    const distA = a.estimated_distance_miles || 999;
-    const distB = b.estimated_distance_miles || 999;
+    const distA = a.estimatedDistanceMiles || 999;
+    const distB = b.estimatedDistanceMiles || 999;
     return distA - distB;
   });
 
@@ -255,7 +255,7 @@ export default function BarsTable({ blocks }: BarsTableProps) {
           const closingTime = getClosingInfo(bar.businessHours);
           const todayHours = getTodayHours(bar.businessHours);
           const categoryColor = getCategoryColor(bar.name, bar.category);
-          const distance = bar.estimated_distance_miles;
+          const distance = bar.estimatedDistanceMiles;
           const driveTime = bar.driveTimeMinutes;
           // Trust server's isOpen - calculated with correct venue timezone
           const isOpen = bar.isOpen;
