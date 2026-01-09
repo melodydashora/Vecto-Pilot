@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
 import { LocationContext } from "@/contexts/location-context-clean";
 import { useQuery } from "@tanstack/react-query";
+// 2026-01-09: P1-6 FIX - Use centralized storage keys
+import { STORAGE_KEYS } from "@/constants/storageKeys";
 
 // helpers (add these files from sections 2 and 3 below)
 import { classifyDayPart } from "@/lib/daypart";
@@ -88,14 +90,15 @@ const GlobalHeaderComponent: React.FC = () => {
   const [isHoliday, setIsHoliday] = useState(false);
 
   // CRITICAL FIX Issue #5: Get device_id from localStorage for database query
+  // 2026-01-09: P1-6 FIX - Use centralized STORAGE_KEYS constants
   const deviceId =
     typeof window !== "undefined"
-      ? localStorage.getItem("vecto_device_id")
+      ? localStorage.getItem(STORAGE_KEYS.DEVICE_ID)
       : null;
 
   // Query /api/auth/me for registered users only (anonymous users use snapshot ownership)
   // This is disabled for anonymous users who don't have auth tokens
-  const authToken = typeof window !== "undefined" ? localStorage.getItem("vectopilot_auth_token") : null;
+  const authToken = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
   const { data: dbUserLocation } = useQuery({
     queryKey: ["/api/auth/me", deviceId],
     queryFn: async () => {

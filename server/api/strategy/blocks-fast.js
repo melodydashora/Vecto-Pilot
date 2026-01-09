@@ -106,6 +106,7 @@ async function releaseGenerationLock(snapshotId) {
  * @param {Object} options.strategyRow - Pre-fetched strategy row (avoids extra DB call)
  * @param {Object} options.briefingRow - Pre-fetched briefing row (avoids extra DB call)
  * @param {Object} options.snapshot - Pre-fetched snapshot row (avoids extra DB call)
+ * @param {string} options.userId - Authenticated user ID (required for ownership)
  * @returns {Promise<{ranking: Object|null, generated: boolean, error: string|null}>}
  */
 async function ensureSmartBlocksExist(snapshotId, options = {}) {
@@ -171,12 +172,14 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     // Phase updates now happen INSIDE generateEnhancedSmartBlocks for granular tracking
     // Phases: venues → routing → verifying → complete
 
+    // 2026-01-09: P0-3 FIX - Pass authenticated userId instead of null
+    // This ensures rankings/candidates are owned by the authenticated user
     await generateEnhancedSmartBlocks({
       snapshotId,
       immediateStrategy: strategyRow.strategy_for_now,
       briefing: briefingRow,
       snapshot: snapshot,
-      user_id: null,
+      user_id: options.userId || snapshot.user_id,
       phaseEmitter: options.phaseEmitter
     });
 
@@ -251,18 +254,19 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
       resolvedAddress = null;
     }
 
+    // 2026-01-09: P1-5 FIX - Standardized to camelCase for API consistency
     const block = {
       name: c.name,
       address: resolvedAddress || null,
       coordinates: { lat: c.lat, lng: c.lng },
       placeId: c.place_id,
-      estimated_distance_miles: c.distance_miles,
+      estimatedDistanceMiles: c.distance_miles,
       driveTimeMinutes: c.drive_minutes,
-      value_per_min: c.value_per_min,
-      value_grade: c.value_grade,
-      not_worth: c.not_worth,
+      valuePerMin: c.value_per_min,
+      valueGrade: c.value_grade,
+      notWorth: c.not_worth,
       proTips: c.pro_tips,
-      closed_venue_reasoning: c.closed_reasoning,
+      closedVenueReasoning: c.closed_reasoning,
       stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
       isOpen: c.features?.isOpen,
       streetViewUrl: c.features?.streetViewUrl,
@@ -318,6 +322,8 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
 // ISSUE #24 FIX: Rate limited to prevent quota exhaustion
 router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   const snapshotId = req.query.snapshotId || req.query.snapshot_id;
+  // 2026-01-09: P0-3 FIX - Get authenticated userId for ownership check
+  const authUserId = req.auth?.userId;
   venuesLog.info(`[blocks-fast] GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
 
   if (!snapshotId) {
@@ -355,11 +361,20 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
 
+    // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
+    // User can only access blocks for their own snapshots
+    if (snapshot.user_id && snapshot.user_id !== authUserId) {
+      venuesLog.warn(`[blocks-fast] Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
+      return res.status(404).json({ error: 'snapshot_not_found' });
+    }
+
     // GATE 2: Ensure blocks exist (generate if missing)
+    // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
     const { ranking, error } = await ensureSmartBlocksExist(snapshotId, {
       strategyRow,
       snapshot,
-      phaseEmitter
+      phaseEmitter,
+      userId: authUserId
     });
 
     if (error === 'missing_briefing') {
@@ -399,7 +414,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       { step: 'sorting', method: 'value_desc_distance_asc' }
     ];
 
-    return res.json({ blocks, ranking_id: ranking.ranking_id, briefing, audit });
+    return res.json({ blocks, rankingId: ranking.ranking_id, briefing, audit });
   } catch (error) {
     triadLog.error(4, 'GET request failed', error);
     return res.status(500).json({ error: 'internal_error', blocks: [] });
@@ -430,8 +445,10 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
   };
 
   try {
-    // Manual validation to avoid HTML error pages from validateBody middleware
-    const { userId = 'demo', snapshotId } = req.body;
+    // 2026-01-09: P0-3 FIX - Removed userId from body (was accepting arbitrary userId='demo')
+    // Authentication ONLY comes from req.auth.userId (set by requireAuth middleware)
+    const { snapshotId } = req.body;
+    const authUserId = req.auth?.userId;
 
     if (!snapshotId) {
       triadLog.warn(1, 'Missing snapshotId in request');
@@ -448,6 +465,13 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // LLMs cannot reverse geocode - we must provide formatted_address
     const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
+      return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
+    }
+
+    // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
+    // User can only generate blocks for their own snapshots
+    if (snapshot.user_id && snapshot.user_id !== authUserId) {
+      triadLog.warn(1, `Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
 
@@ -471,7 +495,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         reason: 'strategy_already_running',
         status: existingStrategy.status,
         message: `Strategy is ${existingStrategy.status} - polling/waiting...`,
-        snapshot_id: snapshotId
+        snapshotId: snapshotId
       });
     }
 
@@ -489,9 +513,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           ok: true,
           status: 'ok',
           reason: 'blocks_ready',
-          snapshot_id: snapshotId,
+          snapshotId: snapshotId,
           blocks,
-          ranking_id: ranking.ranking_id,
+          rankingId: ranking.ranking_id,
           strategy: {
             strategy_for_now: existingStrategy.strategy_for_now || '',
             consolidated: existingStrategy.consolidated_strategy || ''
@@ -505,7 +529,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
     try {
       const [job] = await db.insert(triad_jobs).values({
-        snapshot_id: snapshotId,
+        snapshotId: snapshotId,
         formatted_address: snapshot.formatted_address,
         city: snapshot.city,
         state: snapshot.state,
@@ -545,7 +569,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           return sendOnce(500, {
             error: 'briefing_failed',
             message: `Briefing generation failed: ${briefingErr.message}`,
-            snapshot_id: snapshotId
+            snapshotId: snapshotId
           });
         }
 
@@ -579,11 +603,13 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         triadLog.phase(4, `[blocks-fast] Strategy ready (${consolidatedRow?.strategy_for_now?.length || 0} chars), generating venues`);
 
         // Use shared helper for block generation
+        // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
         const { ranking, error: blocksError } = await ensureSmartBlocksExist(snapshotId, {
           strategyRow: consolidatedRow,
           briefingRow: briefingRowForBlocks,
           snapshot,
-          phaseEmitter
+          phaseEmitter,
+          userId: authUserId
         });
 
         if (blocksError) {
@@ -622,9 +648,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
           return sendOnce(200, {
             status: 'ok',
-            snapshot_id: snapshotId,
+            snapshotId: snapshotId,
             blocks: blocks,
-            ranking_id: ranking.ranking_id,
+            rankingId: ranking.ranking_id,
             strategy: {
               strategy_for_now: strategyRow?.strategy_for_now || '',
               consolidated: strategyRow?.consolidated_strategy || ''
@@ -644,7 +670,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
           return sendOnce(200, {
             status: 'ok',
-            snapshot_id: snapshotId,
+            snapshotId: snapshotId,
             blocks: [],
             strategy: {
               strategy_for_now: strategyRow?.strategy_for_now || '',
@@ -661,10 +687,12 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
         // If strategy is complete but ranking missing, generate SmartBlocks now
         if (strategy && ['complete', 'ok'].includes(strategy.status)) {
+          // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
           const { ranking, error } = await ensureSmartBlocksExist(snapshotId, {
             strategyRow: strategy,
             snapshot,
-            phaseEmitter
+            phaseEmitter,
+            userId: authUserId
           });
 
           if (error) {
@@ -682,7 +710,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
         return sendOnce(202, {
           status: 'pending',
-          snapshot_id: snapshotId,
+          snapshotId: snapshotId,
           blocks: [],
           message: 'Smart Blocks generating - they will appear automatically when ready'
         });

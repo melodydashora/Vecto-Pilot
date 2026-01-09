@@ -415,9 +415,15 @@ router.get('/timezone', async (req, res) => {
       timeZoneName: data.timeZoneName,
     });
   } catch (err) {
+    // 2026-01-09: P0-1 FIX - NO FALLBACKS - Return error instead of server timezone
+    // Server timezone would silently poison all downstream strategy/briefing logic
+    // Client must retry or surface a "GPS/timezone required" state
     console.error('[location] timezone error', err);
-    res.json({ 
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    return res.status(502).json({
+      error: 'TIMEZONE_LOOKUP_FAILED',
+      message: 'Failed to resolve timezone from coordinates',
+      code: 'lookup_error',
+      details: err.message
     });
   }
 });
@@ -456,15 +462,14 @@ router.get('/resolve', async (req, res) => {
     const lng = Number(req.query.lng);
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // AUTH: Extract authenticated user_id from Authorization header or query param
-    // If user is logged in, link the snapshot to their authenticated identity
+    // AUTH: Extract authenticated user_id from Authorization header ONLY
+    // 2026-01-09: P0-2 FIX - Removed query param bypass (was security vulnerability)
     // IMPORTANT: If a token was provided but invalid, reject the request entirely
     // to prevent stale tokens from creating orphan snapshots
     // ═══════════════════════════════════════════════════════════════════════════
     let authenticatedUserId = null;
     let tokenWasAttempted = false; // Track if auth was attempted (reject if it fails)
     const authHeader = req.get('Authorization');
-    const queryUserId = req.query.user_id;
 
     if (authHeader?.startsWith('Bearer ')) {
       tokenWasAttempted = true;
@@ -474,11 +479,8 @@ router.get('/resolve', async (req, res) => {
         const token = authHeader.slice(7);
         const [userId, signature] = token.split('.');
 
-        // 2026-01-07: DEBUG - Log token validation details
-        console.log('[Location API] 🔍 DEBUG: Token validation starting');
-        console.log('[Location API] 🔍 Token prefix:', token.substring(0, 30) + '...');
-        console.log('[Location API] 🔍 UserId from token:', userId?.substring(0, 20));
-        console.log('[Location API] 🔍 Signature present:', !!signature);
+        // 2026-01-09: P0-2 FIX - Removed sensitive token logging
+        // Token prefixes and userIds were being logged, exposing auth details
 
         if (!userId || !signature) {
           throw new Error('Invalid token format - expected userId.signature');
@@ -516,11 +518,10 @@ router.get('/resolve', async (req, res) => {
           ok: false
         });
       }
-    } else if (queryUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(queryUserId)) {
-      // Accept user_id from query param (for logged-in users without re-validating token)
-      authenticatedUserId = queryUserId;
-      console.log(`🔐 [Location API] Using query param user_id: ${authenticatedUserId}`);
     }
+    // 2026-01-09: P0-2 FIX - REMOVED user_id query param bypass
+    // Previous code allowed impersonation: ?user_id=X would authenticate as user X
+    // Authentication MUST come from validated Authorization header only
 
     // ═══════════════════════════════════════════════════════════════════════════
     // REQUIRE AUTHENTICATION: No anonymous snapshots allowed
@@ -564,14 +565,15 @@ router.get('/resolve', async (req, res) => {
 
     locationLog.phase(1, `Resolving ${lat.toFixed(6)}, ${lng.toFixed(6)}`, OP.API);
 
+    // 2026-01-09: P0-2 FIX - NO FALLBACKS - Require Google Maps API key
+    // Previous code returned fabricated data with server timezone - this poisons downstream
     if (!GOOGLE_MAPS_API_KEY) {
-      console.warn('[location] No Google Maps API key configured');
-      return res.json({
-        city: undefined,
-        state: undefined,
-        country: undefined,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        formattedAddress: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+      console.error('[location] CRITICAL: No Google Maps API key configured');
+      return res.status(503).json({
+        error: 'LOCATION_SERVICE_UNAVAILABLE',
+        message: 'Location resolution service is not configured',
+        code: 'missing_api_key',
+        ok: false
       });
     }
 

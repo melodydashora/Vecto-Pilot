@@ -1,5 +1,8 @@
 // client/src/utils/co-pilot-helpers.ts
 // Utility functions for Co-Pilot page
+// 2026-01-09: P1-6 FIX - Using centralized constants
+
+import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 // ============================================================================
 // Singleton SSE Connection Manager
@@ -101,7 +104,8 @@ function subscribeSSE(
  * Get auth headers with JWT token from localStorage
  */
 export function getAuthHeader(): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('vectopilot_auth_token') : null;
+  // 2026-01-09: P1-6 FIX - Using STORAGE_KEYS constant instead of hardcoded string
+  const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
   if (!token) {
     console.warn('[co-pilot] No auth token found in localStorage');
   }

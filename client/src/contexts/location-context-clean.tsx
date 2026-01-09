@@ -1,6 +1,7 @@
-
+// 2026-01-09: P1-6 FIX - Using centralized constants
 import React, { createContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from './auth-context';
+import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
@@ -316,8 +317,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const deviceId = localStorage.getItem('vecto_device_id') || crypto.randomUUID();
-    localStorage.setItem('vecto_device_id', deviceId);
+    const deviceId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID) || crypto.randomUUID();
+    localStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
 
     const currentGeneration = ++generationCounterRef.current;
     console.log(`🔢 Generation #${currentGeneration} starting for GPS update`);
@@ -332,30 +333,24 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     try {
-      // Build location resolve URL with authenticated userId if logged in
-      // This userId is the forever UUID from driver_profiles - NO auto-assignment
+      // 2026-01-09: P0-2 FIX - Removed user_id query param (was security bypass)
+      // Authentication ONLY comes from Authorization header now
       let resolveUrl = `/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`;
-      if (user?.userId) {
-        resolveUrl += `&user_id=${encodeURIComponent(user.userId)}`;
-      }
       // Force refresh bypasses server-side snapshot reuse (60 min TTL)
       // This is used when user explicitly clicks the refresh button
       if (forceRefresh) {
         resolveUrl += '&force=true';
       }
 
-      // Prepare headers - include auth token if logged in
+      // Prepare headers - include auth token if logged in (ONLY source of auth)
       const headers: Record<string, string> = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      // 2026-01-07: DEBUG - Log exactly what we're sending
-      console.log('[LocationContext] 🔍 DEBUG: Making location resolve request');
-      console.log('[LocationContext] 🔍 URL:', resolveUrl);
-      console.log('[LocationContext] 🔍 Token present:', !!token);
-      console.log('[LocationContext] 🔍 Token prefix:', token ? token.substring(0, 20) + '...' : 'none');
-      console.log('[LocationContext] 🔍 User ID:', user?.userId);
+      // 2026-01-09: P0-2 FIX - Removed sensitive DEBUG logging
+      // Token prefixes and userIds were being logged, exposing auth details
+      console.log('[LocationContext] Making location resolve request');
 
       // ═══════════════════════════════════════════════════════════════════════════
       // TWO-PHASE UI UPDATE: Weather/AQI appear ~200-300ms before city/state
@@ -424,11 +419,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         console.error('🔐 [LocationContext] ❌ 401 ERROR - Authentication failed!');
         console.error('🔐 [LocationContext] Response body:', errorBody);
         console.error('🔐 [LocationContext] Token was present:', !!token);
-        console.error('🔐 [LocationContext] Token from localStorage:', localStorage.getItem('vectopilot_auth_token')?.substring(0, 20) + '...');
+        console.error('🔐 [LocationContext] Token from localStorage:', localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)?.substring(0, 20) + '...');
         console.error('🔐 [LocationContext] User ID sent:', user?.userId);
 
-        // Clear stale token from localStorage (use correct key!)
-        localStorage.removeItem('vectopilot_auth_token');
+        // Clear stale token from localStorage (using centralized STORAGE_KEYS)
+        localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
         // Dispatch event so auth context can update
         window.dispatchEvent(new CustomEvent('auth-token-expired'));
         // Redirect to sign-in

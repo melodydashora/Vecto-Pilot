@@ -9,6 +9,8 @@ import type {
   RegisterData,
   AuthApiResponse
 } from '@/types/auth';
+// 2026-01-09: P1-6 FIX - Use centralized storage keys
+import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 interface AuthContextValue extends AuthState {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
@@ -19,8 +21,6 @@ interface AuthContextValue extends AuthState {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const TOKEN_KEY = 'vectopilot_auth_token';
 
 export function useAuth() {
   const context = useContext(AuthContext);
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Load token from localStorage on mount
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     if (token) {
       setState(prev => ({ ...prev, token }));
       // Fetch user profile
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn(`[auth] 🔐 Auth error received: ${error} - forcing logout`);
 
       // Clear local auth state
-      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
       sessionStorage.removeItem('vecto_snapshot');
@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       } else {
         // Token invalid, clear it
-        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
         setState({
           user: null,
           profile: null,
@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.token) {
-        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
         setState({
           user: data.user || null,
           profile: data.profile || null,
@@ -187,7 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('[auth] Logout error:', error);
     } finally {
       // Clear all session data on logout
-      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
       localStorage.removeItem('vecto_persistent_strategy');
       localStorage.removeItem('vecto_strategy_snapshot_id');
       sessionStorage.removeItem('vecto_snapshot');
@@ -256,6 +256,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 // Helper function to get auth header for API calls
 export function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
