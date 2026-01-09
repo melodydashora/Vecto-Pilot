@@ -43,6 +43,31 @@ Root cause of "data not pushed/fetched properly" - two SSE systems at overlappin
 - `server/api/strategy/strategy-events.js` - Added `/events/phase` endpoint
 - `LESSONS_LEARNED.md` - Added SSE Dual System Consolidation section
 
+### SSE Cleanup + storeEvents Fix (commits 4c8c037, a7d5589)
+
+**PhaseEmitter Extraction:**
+- Created `server/events/phase-emitter.js` (dedicated module)
+- Deleted `server/api/briefing/events.js` (legacy SSE router)
+- Updated imports in strategy-events.js, blocks-fast.js
+
+**briefing_ready Trigger:**
+- Created `migrations/20260109_briefing_ready_notify.sql`
+- Fires when `traffic_conditions` populated
+- `/events/briefing` SSE now has a producer
+
+**storeEvents() Fixes:**
+- Fixed insert counting with `xmax = 0` check (RETURNING-based)
+- Changed `ON CONFLICT DO NOTHING` → `DO UPDATE` for venue_id refresh
+- Removed defensive 23505 catch (anti-pattern - see LESSONS_LEARNED)
+- Now throws on unexpected duplicate key to surface root cause
+
+**Documentation Updates:**
+- Updated `server/api/briefing/README.md` - removed events.js reference
+- Updated `docs/architecture/progress-bar-and-snapshot-flow.md` - fixed SSE endpoint
+- Updated `docs/architecture/database-schema.md` - venue_cache → venue_catalog
+- Updated `SYSTEM_MAP.md` - consolidated SSE endpoint listing
+- Added "Defensive Catch Anti-Pattern" to LESSONS_LEARNED.md
+
 ---
 
 ## 2026-01-08
