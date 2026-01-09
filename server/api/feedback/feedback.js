@@ -80,10 +80,12 @@ router.post('/venue', requireAuth, async (req, res) => {
       : null;
     
     // Check rate limit
-    if (!checkRateLimit(userId)) {
-      console.warn('[feedback] Rate limit exceeded', { 
-        correlation_id: correlationId, 
-        user_id: userId 
+    // 2026-01-09: Fixed rate limit bug - use authUserId not body userId
+    // Using body userId collapsed all anonymous users into one bucket
+    if (!checkRateLimit(authUserId)) {
+      console.warn('[feedback] Rate limit exceeded', {
+        correlation_id: correlationId,
+        user_id: authUserId
       });
       return res.status(429).json({ 
         ok: false, 
