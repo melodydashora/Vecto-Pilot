@@ -10,6 +10,8 @@ import { db } from '../../db/drizzle.js';
 import { venue_catalog } from '../../../shared/schema.js';
 import { eq, and, or } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
+// 2026-01-09: Added callGemini import - was undefined causing /api/venues/traffic to crash
+import { callGemini } from '../ai/adapters/gemini-adapter.js';
 import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
 import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
@@ -31,13 +33,14 @@ function getPriceDisplay(priceLevel) {
 }
 
 /**
- * Calculate if venue is open and time until close using currentOpeningHours
+ * Calculate if venue is open, time until close, and time until open
+ * 2026-01-09: Added opens_in_minutes for "opening soon" UI feature
  */
 function calculateOpenStatus(place, timezone) {
   const hours = place.currentOpeningHours || place.regularOpeningHours;
   if (!hours) {
     barsLog.info(`No hours data for "${place.displayName?.text}" - Google didn't return opening hours`);
-    return { is_open: null, hours_today: null, closing_soon: false, minutes_until_close: null };
+    return { is_open: null, hours_today: null, closing_soon: false, minutes_until_close: null, opens_in_minutes: null };
   }
 
   // Google provides openNow directly
@@ -51,6 +54,7 @@ function calculateOpenStatus(place, timezone) {
       hours_today: null,
       closing_soon: false,
       minutes_until_close: null,
+      opens_in_minutes: null,
       weekday_descriptions: hours.weekdayDescriptions || []
     };
   }
@@ -82,39 +86,57 @@ function calculateOpenStatus(place, timezone) {
   // Calculate minutes until close (simplified - would need nextCloseTime for accuracy)
   let closing_soon = false;
   let minutes_until_close = null;
+  let opens_in_minutes = null;
 
-  // If we have periods, calculate closing time (only if timezone available)
-  if (hours.periods && is_open && timezone) {
-    // Find current period
-    const localFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-    const parts = localFormatter.formatToParts(now);
-    const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-    const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
-    const currentMinutes = currentHour * 60 + currentMinute;
+  // Get current time in venue's timezone
+  const localFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const parts = localFormatter.formatToParts(now);
+  const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+  const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+  const currentMinutes = currentHour * 60 + currentMinute;
 
-    // Find active period's close time
-    for (const period of hours.periods) {
-      if (period.close?.hour !== undefined) {
-        let closeMinutes = period.close.hour * 60 + (period.close.minute || 0);
-        // Handle overnight (close time is next day)
-        if (closeMinutes < currentMinutes) {
-          closeMinutes += 24 * 60;
+  // If we have periods, calculate closing/opening time
+  if (hours.periods && timezone) {
+    // 2026-01-09: Calculate opens_in_minutes for closed venues
+    if (is_open === false) {
+      // Find next opening time
+      for (const period of hours.periods) {
+        if (period.open?.hour !== undefined) {
+          let openMinutes = period.open.hour * 60 + (period.open.minute || 0);
+          // Handle venue opening later today
+          if (openMinutes > currentMinutes) {
+            opens_in_minutes = openMinutes - currentMinutes;
+            break;
+          }
         }
-        minutes_until_close = closeMinutes - currentMinutes;
-        if (minutes_until_close <= 60) {
-          closing_soon = true;
+      }
+    }
+
+    // Calculate minutes until close for open venues
+    if (is_open) {
+      for (const period of hours.periods) {
+        if (period.close?.hour !== undefined) {
+          let closeMinutes = period.close.hour * 60 + (period.close.minute || 0);
+          // Handle overnight (close time is next day)
+          if (closeMinutes < currentMinutes) {
+            closeMinutes += 24 * 60;
+          }
+          minutes_until_close = closeMinutes - currentMinutes;
+          if (minutes_until_close <= 60) {
+            closing_soon = true;
+          }
+          break;
         }
-        break;
       }
     }
   }
 
-  return { is_open, hours_today, closing_soon, minutes_until_close };
+  return { is_open, hours_today, closing_soon, minutes_until_close, opens_in_minutes };
 }
 
 /**
@@ -285,6 +307,8 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         hours_today: openStatus.hours_today,
         closing_soon: openStatus.closing_soon,
         minutes_until_close: openStatus.minutes_until_close,
+        // 2026-01-09: Added opens_in_minutes for "opening soon" badges
+        opens_in_minutes: openStatus.opens_in_minutes,
         rating: place.rating || null,
         crowd_level: place.rating >= 4.5 ? 'high' : place.rating >= 4 ? 'medium' : 'low',
         rideshare_potential: price.rank >= 3 ? 'high' : price.rank >= 2 ? 'medium' : 'low',

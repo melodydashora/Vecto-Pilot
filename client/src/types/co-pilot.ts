@@ -51,7 +51,8 @@ export interface SmartBlock {
 
 export interface BlocksResponse {
   now: string;
-  timezone: string;
+  // 2026-01-09: timezone can be null if not available from server or location context
+  timezone: string | null;
   strategy?: string;
   blocks: SmartBlock[];
   ranking_id?: string;

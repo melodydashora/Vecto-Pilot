@@ -2926,5 +2926,67 @@ Deep repo audit uncovered several auth/data integrity bugs that could cause "wor
 
 ---
 
+## UI ↔ API ↔ Schema Cleanliness Audit (2026-01-09)
+
+Deep audit of UI/API/DB schema wiring, naming consistency, and type mismatches.
+
+### Critical Fixes
+
+**1. Missing Import - `/api/venues/traffic` Crash**
+- **File**: `server/lib/venue/venue-intelligence.js`
+- **Bug**: `callGemini` was used at line 427 but never imported
+- **Fix**: Added `import { callGemini } from '../ai/adapters/gemini-adapter.js'`
+- **Impact**: `/api/venues/traffic` endpoint would crash with undefined function
+
+**2. Missing Field - `opens_in_minutes`**
+- **File**: `server/lib/venue/venue-intelligence.js`
+- **Bug**: UI expected `opens_in_minutes` for "opening soon" badges, server never sent it
+- **Fix**: Added calculation to `calculateOpenStatus()` - computes minutes until next opening time
+- **Impact**: "Opens in 15min" badges now work
+
+**3. Type Mismatch - `is_open: boolean` vs `boolean | null`**
+- **Files**: `useBarsQuery.ts`, `BarTab.tsx`
+- **Bug**: Server returns `is_open: null` when hours unavailable, but UI typed as `boolean`
+- **Fix**: Updated types to `is_open: boolean | null`, added "Hours Unknown" UI state
+- **Impact**: No more type errors when Google doesn't return hours
+
+**4. NO FALLBACKS Violation - BarTab**
+- **File**: `client/src/components/BarTab.tsx`
+- **Bug**: Had `city || 'Unknown'` and `timezone || Intl...` fallbacks
+- **Fix**: Removed fallbacks, added explicit error throws, gated query on `city && timezone`
+- **Impact**: Consistent with `useBarsQuery.ts` rules
+
+**5. Type Mismatch - `BlocksResponse.timezone`**
+- **File**: `client/src/types/co-pilot.ts`
+- **Bug**: Type said `timezone: string` but context could set `null`
+- **Fix**: Updated to `timezone: string | null`
+
+### Verified but NOT Fixed (Lower Priority)
+
+| Issue | Status | Reason |
+|-------|--------|--------|
+| places_cache naming (`place_id` stores `coord_key`) | Documented | Semantic confusion only, works correctly |
+| SmartBlock mixed naming (snake/camel) | Documented | Would break existing data |
+| API envelope inconsistency (`ok` vs `success`) | Documented | Would require client updates |
+
+### Key Learnings
+
+| Pattern | Anti-Pattern | Why It Breaks |
+|---------|--------------|---------------|
+| Import before use | Use without import | Runtime crash |
+| Return all UI-expected fields | Partial response | Broken UI features |
+| `type \| null` for optional | `type` only | Type errors on null |
+| Explicit error throws | `\|\| 'fallback'` | Masks bugs |
+
+### Test Results
+```
+✅ TypeScript: PASS
+✅ ESLint: PASS
+✅ Build: PASS (9.63s)
+✅ Server syntax: PASS (2/2 files)
+```
+
+---
+
 **Last Updated**: January 9, 2026
 **Maintained By**: Development Team
