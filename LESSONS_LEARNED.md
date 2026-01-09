@@ -34,6 +34,8 @@ This document captures historical issues, pitfalls, and best practices discovere
 9. **DO NOT use graceful error handling or silent failures** - Errors should surface with clear messages. Never use `console.debug` to hide errors. Never return `null` to silently succeed. If something fails, throw an error or log with `console.error`. Fix the ROOT CAUSE instead of masking symptoms. (Added 2026-01-06)
 10. **DO NOT omit callback functions from useEffect deps without using the ref pattern** - If an effect calls a callback (like `refreshGPS`), you have two options: (A) include it in deps, OR (B) use a ref pattern if adding to deps causes infinite loops. The ref pattern: `const fnRef = useRef(fn)`, then `useEffect(() => { fnRef.current = fn }, [fn])`, then call `fnRef.current?.()` in your effect. This avoids stale closures while preventing "Maximum update depth exceeded" errors. See "Auth Loop on Login" section for full pattern. (Added 2026-01-07)
 11. **DO NOT create new objects inline when passing to hooks/components** - Example: `useHook({ coords: { lat: x, lng: y } })` creates a new object reference every render → infinite re-renders. Instead, pass existing refs: `useHook({ coords })` or memoize: `useMemo(() => ({ lat: x, lng: y }), [x, y])`. (Added 2026-01-07)
+12. **DO NOT catch errors that are architecturally impossible** - If you have `ON CONFLICT DO UPDATE` and catch error 23505, you're masking a SQL bug. If the error shouldn't be possible, throw instead of catching - this surfaces the root cause. Example: catching 23505 with ON CONFLICT means your conflict column is wrong. Fix the SQL, don't catch the symptom. See CLAUDE.md "ROOT CAUSE FIRST" rule. (Added 2026-01-09)
+13. **DO NOT use 4-decimal precision for coordinates** - Always use 6 decimals (~11cm). 4 decimals (~11m) causes cache collisions between nearby drivers. All coordinate formatting, cache keys, and logs must use `toFixed(6)`. See CLAUDE.md "ABSOLUTE PRECISION" rule. (Added 2026-01-09)
 
 ### ALWAYS DO
 
@@ -42,6 +44,9 @@ This document captures historical issues, pitfalls, and best practices discovere
 3. **ALWAYS link data to snapshot_id** - Snapshots are the central ML connector
 4. **ALWAYS test after changes** - Run `npm run lint && npm run typecheck && npm run build`
 5. **ALWAYS update documentation** - Keep MODEL.md, ARCHITECTURE.md current
+6. **ALWAYS find the root cause** - Before catching an error, ask "Should this error be possible?" If no, investigate why it's happening instead of handling it. Errors are symptoms; fix the disease, not the symptom. (Added 2026-01-09)
+7. **ALWAYS use 6-decimal precision for GPS** - Coordinates must use `toFixed(6)` for ~11cm accuracy. Get coordinates from Google APIs (authoritative), not AI models (hallucinated). Cache keys via `makeCoordsKey(lat, lng)`. (Added 2026-01-09)
+8. **ALWAYS update docs after changes** - Every code change requires: (1) folder README.md update, (2) inline comment with date/reason for major changes, (3) LESSONS_LEARNED.md for non-obvious discoveries. If unsure, flag in docs/review-queue/pending.md. (Added 2026-01-09)
 
 ---
 
