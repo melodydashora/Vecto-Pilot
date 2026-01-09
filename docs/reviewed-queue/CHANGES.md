@@ -6,6 +6,41 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ## 2026-01-09
 
+### P0/P1 Security Audit + Schema Cleanup (commits 5ec01bf, 815c81a, 178a5d5)
+
+**Security Fixes (P0):**
+
+| Issue | Fix | Files |
+|-------|-----|-------|
+| P0-1: Timezone fallback | `/api/location/timezone` returns 502 on error instead of server TZ | `location.js` |
+| P0-2: Auth bypass | Removed `user_id` query param impersonation vulnerability | `location.js`, `location-context-clean.tsx` |
+| P0-3: Ownership leak | `blocks-fast` now enforces snapshot ownership, writes `user_id` | `blocks-fast.js` |
+| P0-4: NULL bypass | Ownership middleware rejects NULL-owned snapshots | `require-snapshot-ownership.js` |
+
+**Contract Fixes (P1):**
+
+| Issue | Fix | Files |
+|-------|-----|-------|
+| P1-5: Response fallbacks | Removed client-side fallbacks tolerating broken contract | `co-pilot-context.tsx` |
+| P1-6: Storage keys | Replaced all hardcoded `'vectopilot_auth_token'` with `STORAGE_KEYS.AUTH_TOKEN` | 5 client files |
+
+**Schema Cleanup Phase 1 & 2:**
+
+| Phase | Change | Files |
+|-------|--------|-------|
+| Phase 1 | Consolidated reads to canonical columns (`drive_minutes`, `distance_miles`) | `intelligence/index.js`, `blocks-fast.js` |
+| Phase 2 | Stopped writing legacy columns (`drive_time_min`, `straight_line_km`, etc.) | `enhanced-smart-blocks.js` |
+| Bug Fix | **25-mile filter was completely broken** - property name mismatch (snake_case vs camelCase) | `blocks-fast.js` |
+
+**Phase 3 (Deferred 48-72h):** Drop 4 redundant columns from `ranking_candidates` table after data cycles out.
+
+**Documentation:**
+- Added 25-mile filter bug to `LESSONS_LEARNED.md`
+- Created `docs/plans/SCHEMA_CLEANUP_PLAN.md`
+- Created `docs/memory/RESUME_PROTOCOL_2026-01-09.md`
+
+---
+
 ### Database Detox + Root Cause Fixes
 
 **Database Cleanup (`scripts/db-detox.js`):**
