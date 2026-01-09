@@ -298,16 +298,18 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
     return distanceMiles <= maxMiles;
   };
 
-  const filtered = blocks.filter(b => within25Miles(b.estimated_distance_miles));
-  const rejected = blocks.filter(b => !within25Miles(b.estimated_distance_miles)).length;
+  // 2026-01-09: Phase 1 schema cleanup - use camelCase property names matching mapCandidatesToBlocks output
+  // BUG FIX: Was using snake_case which didn't match the transformed blocks (25mi filter was broken!)
+  const filtered = blocks.filter(b => within25Miles(b.estimatedDistanceMiles));
+  const rejected = blocks.filter(b => !within25Miles(b.estimatedDistanceMiles)).length;
 
   // Sort: closest high-value first → furthest high-value last
-  // Primary sort: value_per_min DESC (highest value first)
-  // Secondary sort: estimated_distance_miles ASC (closest first within same value tier)
+  // Primary sort: valuePerMin DESC (highest value first)
+  // Secondary sort: estimatedDistanceMiles ASC (closest first within same value tier)
   const sorted = filtered.sort((a, b) => {
-    const valueDiff = (b.value_per_min || 0) - (a.value_per_min || 0);
+    const valueDiff = (b.valuePerMin || 0) - (a.valuePerMin || 0);
     if (Math.abs(valueDiff) > 0.01) return valueDiff; // Different value tiers
-    return (a.estimated_distance_miles || 999) - (b.estimated_distance_miles || 999); // Same tier: closest first
+    return (a.estimatedDistanceMiles || 999) - (b.estimatedDistanceMiles || 999); // Same tier: closest first
   });
 
   return { blocks: sorted, rejected };

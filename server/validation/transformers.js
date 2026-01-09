@@ -148,6 +148,8 @@ export function toApiBlock(dbBlock) {
     address: dbBlock.address,
     coordinates: dbBlock.coordinates || { lat: dbBlock.lat, lng: dbBlock.lng },
     placeId: dbBlock.place_id || dbBlock.placeId,
+    // 2026-01-09: Fallbacks kept for backward compatibility with old data
+    // Phase 2 stopped writing legacy columns; Phase 3 will drop them + remove fallbacks
     estimatedDistanceMiles: dbBlock.distance_miles ?? dbBlock.estimated_distance_miles,
     driveTimeMinutes: dbBlock.drive_minutes ?? dbBlock.driveTimeMinutes,
     valuePerMin: dbBlock.value_per_min,
