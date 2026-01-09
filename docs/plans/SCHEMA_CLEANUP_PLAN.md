@@ -1,7 +1,8 @@
 # Schema Cleanup Plan: ranking_candidates Table
 
 **Created:** 2026-01-09
-**Status:** PROPOSED
+**Updated:** 2026-01-09
+**Status:** PHASE 1 & 2 COMPLETE - Phase 3 pending
 **Priority:** P2 (Schema Hygiene)
 
 ---
@@ -125,9 +126,15 @@ Update `shared/schema.js` to remove column definitions.
 
 ## Recommended Approach
 
-1. **Immediate (P1-6 followup):** Complete Phase 1 to consolidate reads
-2. **Next Sprint:** Phase 2 to stop writing legacy columns
-3. **Future:** Phase 3 schema migration when confident no code reads legacy columns
+1. ~~**Immediate (P1-6 followup):** Complete Phase 1 to consolidate reads~~ ✅ DONE 2026-01-09
+2. ~~**Next Sprint:** Phase 2 to stop writing legacy columns~~ ✅ DONE 2026-01-09
+3. **Future:** Phase 3 schema migration when confident:
+   - Old data has cycled out (ranking_candidates are ephemeral, ~24h lifespan)
+   - No code reads legacy columns (verified via Phase 1)
+   - Remove fallbacks from transformers.js THEN drop columns
+
+**Phase 3 Prerequisite:** Wait 48-72 hours after Phase 2 deployment to ensure
+old data with legacy columns has been replaced by new data with canonical columns only.
 
 ---
 

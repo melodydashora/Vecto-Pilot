@@ -208,9 +208,12 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         business_hours: enriched.businessHours,
         closed_reasoning: enriched.strategic_timing || null,
         
-        // Legacy fields for compatibility
-        drive_time_min: driveMinutes,
-        straight_line_km: distanceMiles * 1.60934,
+        // 2026-01-09: Phase 2 schema cleanup - removed redundant legacy column writes:
+        // - drive_time_min (duplicate of drive_minutes)
+        // - straight_line_km (write-only, never read)
+        // - estimated_distance_miles (duplicate of distance_miles)
+        // - drive_time_minutes (duplicate of drive_minutes)
+        // Remaining fields are still needed for other functionality:
         est_earnings_per_ride: estimatedEarnings,
         model_score: 1.0 - (index * 0.1),
         exploration_policy: 'greedy',
@@ -228,8 +231,6 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
           eventBadge: hasEvent ? matchedEvents[0].title : null
         },
         h3_r8: null,
-        estimated_distance_miles: distanceMiles,
-        drive_time_minutes: driveMinutes,
         distance_source: enriched.distanceSource || 'google_routes_api',
         rate_per_min_used: 1.50,
         trip_minutes_used: driveMinutes,

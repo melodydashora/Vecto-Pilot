@@ -1059,7 +1059,8 @@ router.get('/staging-areas', async (req, res) => {
         district: ranking_candidates.district,
         proTips: ranking_candidates.pro_tips,
         valueGrade: ranking_candidates.value_grade,
-        driveTimeMin: ranking_candidates.drive_time_min,
+        // 2026-01-09: Phase 1 schema cleanup - use canonical drive_minutes column
+        driveTimeMin: ranking_candidates.drive_minutes,
         distanceMiles: ranking_candidates.distance_miles,
       })
       .from(ranking_candidates)
