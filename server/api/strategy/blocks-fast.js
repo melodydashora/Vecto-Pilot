@@ -530,8 +530,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
     try {
+      // 2026-01-09: FIX - Use snake_case property name to match Drizzle schema
       const [job] = await db.insert(triad_jobs).values({
-        snapshotId: snapshotId,
+        snapshot_id: snapshotId,
         formatted_address: snapshot.formatted_address,
         city: snapshot.city,
         state: snapshot.state,
