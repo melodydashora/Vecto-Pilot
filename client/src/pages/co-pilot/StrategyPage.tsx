@@ -473,7 +473,7 @@ export default function StrategyPage() {
                 cardGradient = 'bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 border-orange-300';
               } else if (index <= 3) {
                 cardGradient = 'bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 border-yellow-300';
-              } else if (Number(block.estimated_distance_miles ?? 0) <= 5) {
+              } else if (Number(block.estimatedDistanceMiles ?? 0) <= 5) {
                 cardGradient = 'bg-gradient-to-br from-blue-50 via-cyan-50 to-sky-50 border-blue-300';
               } else {
                 cardGradient = 'bg-gradient-to-br from-purple-50 via-violet-50 to-fuchsia-50 border-purple-300';
@@ -520,7 +520,7 @@ export default function StrategyPage() {
                     <div className="grid grid-cols-3 gap-4 mb-3">
                       <div className="text-center">
                         {(() => {
-                          const distance = Number(block.estimated_distance_miles ?? 0);
+                          const distance = Number(block.estimatedDistanceMiles ?? 0);
                           const isNearby = distance <= 5;
 
                           if (index <= 1) {
@@ -560,7 +560,7 @@ export default function StrategyPage() {
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-gray-700">
-                          {Number(block.estimated_distance_miles ?? 0).toFixed(1)} mi
+                          {Number(block.estimatedDistanceMiles ?? 0).toFixed(1)} mi
                           {block.distanceSource === "haversine_fallback" && (
                             <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">est.</span>
                           )}
@@ -578,12 +578,12 @@ export default function StrategyPage() {
                     </div>
 
                     {/* Not Worth It Ribbon */}
-                    {block.not_worth && (
+                    {block.notWorth && (
                       <div className="bg-red-50 border border-red-300 rounded-lg px-3 py-2 mb-3" data-testid="not-worth-ribbon">
                         <div className="flex items-center gap-2">
                           <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
                           <p className="text-sm font-semibold text-red-900">
-                            Not worth it ({block.value_per_min?.toFixed(2)}/min)
+                            Not worth it ({block.valuePerMin?.toFixed(2)}/min)
                           </p>
                         </div>
                       </div>

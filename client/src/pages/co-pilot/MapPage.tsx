@@ -141,16 +141,17 @@ export default function MapPage() {
   }
 
   // Transform blocks to map venues format
+  // 2026-01-09: Use camelCase property names to match SmartBlock type
   const venues = blocks.map((block, idx) => ({
     id: `${idx}`,
     name: block.name,
     lat: block.coordinates.lat,
     lng: block.coordinates.lng,
-    distance_miles: block.estimated_distance_miles,
+    distance_miles: block.estimatedDistanceMiles,
     drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
-    est_earnings_per_ride: block.estimated_earnings,
+    est_earnings_per_ride: block.estimatedEarnings,
     rank: idx + 1,
-    value_grade: block.value_grade,
+    value_grade: block.valueGrade,
   }));
 
   // Transform ACTIVE events to map format (only events happening NOW)

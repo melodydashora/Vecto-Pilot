@@ -2,14 +2,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, TrendingUp, Zap, DollarSign } from "lucide-react";
 
+// 2026-01-09: Updated to camelCase to match SmartBlock type
 interface MarketIntelligenceBlocksProps {
   blocks?: Array<{
     name: string;
     address?: string;
-    estimated_distance_miles?: number;
+    estimatedDistanceMiles?: number;
     driveTimeMinutes?: number;
-    value_per_min?: number;
-    value_grade?: string;
+    valuePerMin?: number;
+    valueGrade?: string;
     proTips?: string[];
   }>;
 }
@@ -43,15 +44,15 @@ export default function MarketIntelligenceBlocks({ blocks }: MarketIntelligenceB
                   </p>
                 )}
               </div>
-              {block.value_grade && (
+              {block.valueGrade && (
                 <div className={`text-xs font-bold px-2 py-1 rounded whitespace-nowrap ${
-                  block.value_grade === 'A' 
+                  block.valueGrade === 'A'
                     ? 'bg-green-100 text-green-700'
-                    : block.value_grade === 'B'
+                    : block.valueGrade === 'B'
                     ? 'bg-blue-100 text-blue-700'
                     : 'bg-yellow-100 text-yellow-700'
                 }`}>
-                  Grade {block.value_grade}
+                  Grade {block.valueGrade}
                 </div>
               )}
             </div>
@@ -59,10 +60,10 @@ export default function MarketIntelligenceBlocks({ blocks }: MarketIntelligenceB
 
           <CardContent className="pt-0 space-y-3">
             <div className="flex gap-4 text-sm">
-              {block.estimated_distance_miles !== undefined && (
+              {block.estimatedDistanceMiles !== undefined && (
                 <div className="flex items-center gap-1">
                   <MapPin className="h-4 w-4 text-gray-500" />
-                  <span className="text-gray-700">{block.estimated_distance_miles.toFixed(1)} mi</span>
+                  <span className="text-gray-700">{block.estimatedDistanceMiles.toFixed(1)} mi</span>
                 </div>
               )}
               {block.driveTimeMinutes !== undefined && (
@@ -70,10 +71,10 @@ export default function MarketIntelligenceBlocks({ blocks }: MarketIntelligenceB
                   {block.driveTimeMinutes} min drive
                 </div>
               )}
-              {block.value_per_min !== undefined && (
+              {block.valuePerMin !== undefined && (
                 <div className="flex items-center gap-1">
                   <DollarSign className="h-4 w-4 text-green-600" />
-                  <span className="text-gray-700">${block.value_per_min.toFixed(2)}/min</span>
+                  <span className="text-gray-700">${block.valuePerMin.toFixed(2)}/min</span>
                 </div>
               )}
             </div>
