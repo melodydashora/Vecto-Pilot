@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, confirmTBDEventDetails, fetchWeatherConditions, fetchRideshareNews, deduplicateEvents } from '../../lib/briefing/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, filterInvalidEvents, fetchWeatherConditions, fetchRideshareNews, deduplicateEvents } from '../../lib/briefing/briefing-service.js';
 import { db } from '../../db/drizzle.js';
-import { snapshots, discovered_events, news_deactivations, briefings } from '../../../shared/schema.js';
-import { eq, desc, and, gte, lte } from 'drizzle-orm';
+import { snapshots, discovered_events, news_deactivations, briefings, us_market_cities } from '../../../shared/schema.js';
+import { eq, desc, and, gte, lte, ilike, not, or } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
@@ -645,9 +645,100 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       console.log(`[BriefingRoute] Events filter=active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTimezone}`);
     }
 
+    // 2026-01-08: Fetch high-value events from the user's market (beyond local city)
+    // This shows major events (stadiums, arenas, conventions) from across the market
+    let marketEvents = [];
+    let marketName = null;
+
+    try {
+      // 1. Look up user's market from us_market_cities
+      // Handle both "TX" and "Texas" state formats
+      const stateCondition = snapshot.state.length === 2
+        ? eq(us_market_cities.state_abbr, snapshot.state.toUpperCase())
+        : ilike(us_market_cities.state, snapshot.state);
+
+      const [marketMapping] = await db
+        .select()
+        .from(us_market_cities)
+        .where(and(
+          ilike(us_market_cities.city, snapshot.city),
+          stateCondition
+        ))
+        .limit(1);
+
+      if (marketMapping) {
+        marketName = marketMapping.market_name;
+
+        // 2. Get all cities in the market (excluding user's current city)
+        const otherMarketCities = await db
+          .select({ city: us_market_cities.city, state: us_market_cities.state })
+          .from(us_market_cities)
+          .where(and(
+            eq(us_market_cities.market_name, marketMapping.market_name),
+            not(ilike(us_market_cities.city, snapshot.city))
+          ));
+
+        if (otherMarketCities.length > 0) {
+          // 3. Query high-value events from market cities
+          // Build OR conditions for each city in the market
+          const cityConditions = otherMarketCities.map(c =>
+            and(
+              ilike(discovered_events.city, c.city),
+              ilike(discovered_events.state, c.state)
+            )
+          );
+
+          const rawMarketEvents = await db.select()
+            .from(discovered_events)
+            .where(and(
+              or(...cityConditions),
+              eq(discovered_events.expected_attendance, 'high'), // Only high-value events
+              gte(discovered_events.event_date, today),
+              lte(discovered_events.event_date, endDate),
+              eq(discovered_events.is_active, true)
+            ))
+            .orderBy(discovered_events.event_date)
+            .limit(20);
+
+          // Map to same format as local events
+          marketEvents = rawMarketEvents.map(e => ({
+            title: e.title,
+            summary: [e.title, e.venue_name, e.event_date, e.event_time].filter(Boolean).join(' • '),
+            impact: 'high', // All market events are high-value by definition
+            source: e.source_model,
+            event_type: e.category,
+            subtype: e.category,
+            event_date: e.event_date,
+            event_end_date: e.event_end_date,
+            event_time: e.event_time,
+            event_end_time: e.event_end_time,
+            address: e.address,
+            venue: e.venue_name,
+            location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
+            latitude: e.lat,
+            longitude: e.lng,
+            city: e.city // Include city for UI display
+          }));
+
+          // Apply same deduplication and freshness filters
+          marketEvents = deduplicateEvents(marketEvents);
+          marketEvents = filterFreshEvents(marketEvents, new Date(), snapshotTz);
+
+          if (marketEvents.length > 0) {
+            console.log(`[BriefingRoute] Market events: ${marketEvents.length} high-value events from ${marketName} market (${otherMarketCities.length} cities)`);
+          }
+        }
+      }
+    } catch (marketError) {
+      // Graceful degradation: if market lookup fails, just return local events
+      console.error('[BriefingRoute] Market events lookup failed (non-blocking):', marketError.message);
+    }
+
     res.json({
       success: true,
       events: allEvents,
+      marketEvents: marketEvents,
+      market_name: marketName,
       reason: allEvents.length === 0 ? (filter === 'active' ? 'No events happening right now' : 'No events found for this location') : null,
       timestamp: new Date().toISOString()
     });
@@ -656,6 +747,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     res.json({
       success: true,
       events: [],
+      marketEvents: [],
+      market_name: null,
       reason: error.message,
       timestamp: new Date().toISOString()
     });
@@ -737,7 +830,9 @@ router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async 
   }
 });
 
-router.post('/confirm-event-details', requireAuth, async (req, res) => {
+// 2026-01-08: Changed from "confirm" (AI repair) to "filter" (strict removal)
+// Events with TBD/Unknown in critical fields are now REMOVED, not repaired
+router.post('/filter-invalid-events', requireAuth, async (req, res) => {
   try {
     const { events } = req.body;
 
@@ -745,15 +840,18 @@ router.post('/confirm-event-details', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'events array is required' });
     }
 
-    console.log(`[BriefingRoute] Confirming TBD details for ${events.length} events`);
-    const confirmed = await confirmTBDEventDetails(events);
+    console.log(`[BriefingRoute] Filtering ${events.length} events (removing TBD/Unknown)`);
+    const filtered = filterInvalidEvents(events);
 
     res.json({
       success: true,
-      confirmed_events: confirmed
+      original_count: events.length,
+      filtered_count: filtered.length,
+      removed_count: events.length - filtered.length,
+      events: filtered
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error confirming event details:', error);
+    console.error('[BriefingRoute] Error filtering events:', error);
     res.status(500).json({ error: error.message });
   }
 });

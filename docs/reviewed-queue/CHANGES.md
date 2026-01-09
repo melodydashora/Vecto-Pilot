@@ -4,6 +4,102 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
+## 2026-01-08
+
+**Commits:** `a18cd3d`, `b7fe00b`, `7e6130d`, `a625be9`, `2534c07`
+
+### Level 4 Architecture: Omni-Presence & Siri Interceptor (Documentation)
+- Added `intercepted_signals` table schema to `docs/architecture/database-schema.md`
+- Added `/co-pilot/omni` route and `SignalTerminal.tsx` component to `UI_FILE_MAP.md`
+- Added "External Input Sources" section with Siri Shortcut data flow to `SYSTEM_MAP.md`
+- Added "Headless Client Integration" section to `ARCHITECTURE.md`
+- Updated Table Dependency Graph to include `intercepted_signals`
+
+**New Components (Planned):**
+- `OmniPage.tsx` - Omni-Presence signal terminal page
+- `SignalTerminal.tsx` - Real-time offer analysis display
+- `OfferCard.tsx` - Individual offer display card
+- `DecisionBadge.tsx` - ACCEPT/REJECT badge component
+
+**New API Endpoints (Planned):**
+- `POST /api/hooks/analyze-offer` - Analyze ride offer from OCR text
+- `GET /api/hooks/signals` - Fetch recent intercepted signals
+- `SSE /api/hooks/signals/stream` - Real-time signal updates
+- `PUT /api/hooks/signal/:id/override` - Override AI decision
+
+### Manual Refresh Race Condition Fix
+- **CRITICAL:** Fixed race condition where manual refresh would restore `lastSnapshotId` before completing the refresh
+- Added `isManualRefresh` flag to prevent snapshotId restoration during refresh
+- Fixed strategy clearing and workflow regeneration on manual refresh
+- Updated `client/src/contexts/co-pilot-context.tsx` with manual refresh flag logic
+- Updated `client/src/hooks/useStrategyPolling.ts` to check manual refresh flag
+
+### Documentation Updates
+- Added race condition fix to `LESSONS_LEARNED.md`
+- Updated `client/src/contexts/README.md` and `client/src/hooks/README.md`
+
+### Files Modified
+- `client/src/contexts/co-pilot-context.tsx` - Manual refresh flag
+- `client/src/hooks/useStrategyPolling.ts` - Respect manual refresh flag
+- `client/src/components/BriefingTab.tsx` - Briefing UI changes
+- `client/src/pages/co-pilot/BriefingPage.tsx` - Page-level updates
+- `server/api/briefing/briefing.js` - Briefing API updates
+
+---
+
+## 2026-01-07
+
+**Commits:** `8859041`, `3e1d893` (Audit remediation: security + no-fallbacks + PII logging)
+
+### Security Audit Remediation (P0/P1/P2 Complete)
+
+**P0 - Critical Security Fixes:**
+| Issue | Resolution |
+|-------|------------|
+| Agent env-update accessible to any user | Added `requireAgentAdmin` middleware |
+| IP allowlist accepts `*` wildcard | Block wildcard in production (returns 403) |
+| Timezone fallback to UTC | Removed - returns `null` if missing |
+| State/market fallbacks | Removed - throws error on missing data |
+| PII in logs (full UUIDs) | Truncated to 8 chars |
+
+**P1 - Technical Debt:**
+| Issue | Resolution |
+|-------|------------|
+| Coach chat calls API directly | Now uses adapter pattern (`callModel`) |
+| Fragile JSON parsing in adapters | Replaced regex with proper extraction |
+| Client sends full strategy text | Reduced to IDs only |
+| Coords cache precision docs wrong | Fixed to 6 decimals (~11cm) |
+
+**P2 - Dispatch Primitives (Schema Only):**
+| Table | Purpose |
+|-------|---------|
+| `driver_goals` | Earning/trip targets with deadlines |
+| `driver_tasks` | Hard stops and time constraints |
+| `safe_zones` | Geofence safety boundaries |
+| `staging_saturation` | Anti-crowding tracker using H3 cells |
+
+**P2-E - AI Change Protocol:**
+- Created `docs/preflight/ai-change-protocol.md`
+
+### AI Adapter Updates
+- Updated Gemini adapter to use @google/genai SDK
+- Added streaming support via `callGeminiStream()`
+- Added Vertex AI adapter for Google Cloud deployment
+- Updated adapter README with new {TABLE}_{FUNCTION} role naming
+
+### Files Modified
+- `server/agent/embed.js` - IP allowlist, admin middleware
+- `server/agent/routes.js` - Admin-only route protection
+- `server/api/chat/chat.js` - PII truncation, adapter pattern
+- `server/api/chat/realtime.js` - PII truncation
+- `server/api/health/diagnostics.js` - GPT-5.2 parameter fix
+- `server/lib/venue/venue-enrichment.js` - Timezone fallback removal
+- `server/lib/ai/adapters/gemini-adapter.js` - SDK migration, streaming
+- `server/lib/ai/adapters/index.js` - Role mapping updates
+- `shared/schema.js` - Dispatch primitives tables
+
+---
+
 ## 2026-01-06
 
 **Commits:** `e7ff4af`, `8706d13`, `a8ad8ea`, `1ca8c6e`, `95bd2b6`

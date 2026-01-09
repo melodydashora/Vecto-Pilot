@@ -165,6 +165,87 @@ export function deduplicateEvents(events) {
   return deduplicated;
 }
 
+/**
+ * 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
+ *
+ * Replaces the old "smart" confirmTBDEventDetails which tried to repair events.
+ * Now we simply REMOVE any event with incomplete data.
+ *
+ * Rule: If title, location, venue, or time includes "TBD", "Venue TBD", "Unknown",
+ *       or is missing entirely, the event is REMOVED (not repaired).
+ *
+ * @param {Array} events - Array of events to filter
+ * @returns {Array} Clean events with no TBD/Unknown values
+ */
+export function filterInvalidEvents(events) {
+  if (!events || events.length === 0) return events;
+
+  // Patterns that indicate incomplete/invalid data
+  const invalidPatterns = [
+    /\btbd\b/i,           // "TBD" as word
+    /\bunknown\b/i,       // "Unknown" as word
+    /venue\s*tbd/i,       // "Venue TBD"
+    /location\s*tbd/i,    // "Location TBD"
+    /time\s*tbd/i,        // "Time TBD"
+    /\(tbd\)/i,           // "(TBD)"
+    /to\s*be\s*determined/i, // "To Be Determined"
+    /not\s*yet\s*announced/i, // "Not Yet Announced"
+  ];
+
+  function hasInvalidValue(value) {
+    if (!value || typeof value !== 'string') return false;
+    return invalidPatterns.some(pattern => pattern.test(value));
+  }
+
+  function isMissingCriticalData(event) {
+    // Must have title
+    if (!event.title || event.title.trim() === '') return true;
+    // Must have venue/location (either field)
+    const hasLocation = event.location || event.venue || event.address;
+    if (!hasLocation) return true;
+    // Must have time
+    if (!event.event_time && !event.time) return true;
+    return false;
+  }
+
+  const originalCount = events.length;
+  const filtered = events.filter(event => {
+    // Check for missing critical data
+    if (isMissingCriticalData(event)) {
+      briefingLog.info(`[FilterInvalid] Removed (missing data): "${event.title?.slice(0, 40) || '(no title)'}"`);
+      return false;
+    }
+
+    // Check for TBD/Unknown patterns in critical fields
+    // Support both briefing format (venue) and discovered_events format (venue_name)
+    const fieldsToCheck = [
+      event.title,
+      event.location,
+      event.venue,
+      event.venue_name,  // 2026-01-08: Also check venue_name (discovered_events format)
+      event.address,
+      event.event_time,
+      event.time
+    ];
+
+    for (const field of fieldsToCheck) {
+      if (hasInvalidValue(field)) {
+        briefingLog.info(`[FilterInvalid] Removed (TBD/Unknown): "${event.title?.slice(0, 40)}" - field="${field?.slice(0, 30)}"`);
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const removed = originalCount - filtered.length;
+  if (removed > 0) {
+    briefingLog.done(2, `Events filtered: ${originalCount} → ${filtered.length} (${removed} invalid/TBD removed)`, OP.DB);
+  }
+
+  return filtered;
+}
+
 // Initialize OpenAI client for GPT-5.2 fallback
 const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
@@ -532,7 +613,7 @@ async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress,
     // Build a strategic prompt focused on driver impact
     const prompt = `You are a traffic strategist for rideshare drivers. Analyze this traffic data and provide a STRATEGIC briefing.
 
-DRIVER POSITION: ${formattedAddress} (${driverLat?.toFixed(4) || 'N/A'}, ${driverLon?.toFixed(4) || 'N/A'})
+DRIVER POSITION: ${city}, ${state} (${driverLat ? parseFloat(driverLat).toFixed(6) : 'N/A'},${driverLon ? parseFloat(driverLon).toFixed(6) : 'N/A'})
 AREA: ${city}, ${state}
 
 TRAFFIC OVERVIEW:
@@ -1116,8 +1197,12 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // Fixes issue where LLMs discover same event multiple times with slight name variations
       const deduplicatedEvents = deduplicateEvents(normalizedEvents);
 
-      briefingLog.done(2, `Events: ${deduplicatedEvents.length} from discovered_events table`, OP.DB);
-      return { items: deduplicatedEvents, reason: null, provider: 'discovered_events' };
+      // 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
+      // Replaces old "smart" confirmTBDEventDetails - we no longer try to repair, just remove
+      const cleanEvents = filterInvalidEvents(deduplicatedEvents);
+
+      briefingLog.done(2, `Events: ${cleanEvents.length} from discovered_events table`, OP.DB);
+      return { items: cleanEvents, reason: null, provider: 'discovered_events' };
     }
 
     briefingLog.info(`No events found for ${city}, ${state}`);
@@ -1128,56 +1213,8 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   }
 }
 
-export async function confirmTBDEventDetails(events) {
-  if (!process.env.GEMINI_API_KEY) return events;
-
-  const tbdEvents = events.filter(e => e.location?.includes('TBD') || e.event_time?.includes('TBD') || e.location === 'TBD');
-  if (tbdEvents.length === 0) return events;
-
-  briefingLog.phase(2, `Confirming ${tbdEvents.length} TBD events`, OP.AI);
-
-  const eventDetails = tbdEvents.map(e => `- Title: "${e.title}"\n  Location: "${e.location || 'TBD'}"\n  Time: "${e.event_time || 'TBD'}"`).join('\n\n');
-  const system = `You are an event verification assistant. Search to confirm event details and return structured JSON data.`;
-  const user = `Review these events with incomplete data and provide confirmed details. For each event, return JSON:
-{
-  "title": "exact event name",
-  "confirmed_venue": "full venue name and address or 'Unable to confirm'",
-  "confirmed_time": "start time like '7:00 PM' or 'Unable to confirm'",
-  "confidence": "high/medium/low"
-}
-
-Events:
-${eventDetails}
-
-Return JSON array with one object per event.`;
-
-  // Uses BRIEFING_EVENTS_DISCOVERY role for TBD confirmation
-  const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
-
-  if (!result.ok) {
-    briefingLog.warn(2, `TBD confirmation failed: ${result.error}`, OP.AI);
-    return events;
-  }
-
-  try {
-    const confirmed = safeJsonParse(result.output);
-    return events.map(event => {
-      const match = confirmed.find(c => c.title === event.title);
-      if (match && match.confidence !== 'low') {
-        return {
-          ...event,
-          location: match.confirmed_venue !== 'Unable to confirm' ? match.confirmed_venue : event.location,
-          event_time: match.confirmed_time !== 'Unable to confirm' ? match.confirmed_time : event.event_time,
-          gemini_confirmed: true
-        };
-      }
-      return event;
-    });
-  } catch (e) {
-    briefingLog.warn(2, `TBD parse failed: ${e.message}`, OP.AI);
-    return events;
-  }
-}
+// 2026-01-08: REMOVED confirmTBDEventDetails - replaced by filterInvalidEvents (hard filter)
+// Old function tried to "repair" TBD events via AI calls. New approach: just remove them.
 
 export async function fetchWeatherForecast({ snapshot }) {
   if (!snapshot?.city || !snapshot?.state || !snapshot?.date) {

@@ -961,7 +961,7 @@ export class CoachDAL {
     if (snapshot) {
       prompt += `\n\n=== CURRENT LOCATION & TIME CONTEXT ===`;
       prompt += `\n📍 Location: ${snapshot.location_display || `${snapshot.city}, ${snapshot.state}`}`;
-      prompt += `\n   Coordinates: ${snapshot.lat?.toFixed(4)}, ${snapshot.lng?.toFixed(4)}`;
+      prompt += `\n   Coordinates: ${parseFloat(snapshot.lat).toFixed(6)},${parseFloat(snapshot.lng).toFixed(6)}`;
       prompt += `\n🕐 Time: ${snapshot.day_of_week}, ${snapshot.day_part}`;
       if (snapshot.hour != null) prompt += ` (${snapshot.hour}:00)`;
       if (snapshot.is_weekend) prompt += ` [WEEKEND]`;

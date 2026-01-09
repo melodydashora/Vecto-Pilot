@@ -7,7 +7,7 @@ import {
   Newspaper, Cloud, CloudRain, Sun,
   AlertTriangle, Car, Loader, Clock, ExternalLink,
   ChevronDown, ChevronUp, BookOpen, Sparkles, FileText, Zap,
-  Plane, PlaneLanding, PlaneTakeoff, CalendarSearch
+  Plane, PlaneLanding, PlaneTakeoff, CalendarSearch, MapPin
 } from "lucide-react";
 import { getAuthHeader } from "@/utils/co-pilot-helpers";
 import EventsComponent from "./EventsComponent";
@@ -26,6 +26,7 @@ interface BriefingEvent {
   venue?: string;
   location?: string;
   address?: string;
+  city?: string;  // For market events - shows which city the event is in
   event_date?: string;
   event_end_date?: string;  // For multi-day events
   event_time?: string;
@@ -145,7 +146,13 @@ interface BriefingTabProps {
   weatherData?: WeatherData;
   trafficData?: TrafficData;
   newsData?: NewsData;
-  eventsData?: { events?: BriefingEvent[]; reason?: string };
+  eventsData?: {
+    events?: BriefingEvent[];
+    marketEvents?: BriefingEvent[];  // High-value events from across the market
+    market_name?: string;            // Market name (e.g., "Dallas")
+    reason?: string
+  };
+  isEventsLoading?: boolean;  // Explicit loading state for events
   schoolClosuresData?: { school_closures?: SchoolClosure[]; reason?: string };
   airportData?: { airport_conditions?: AirportConditions };
   consolidatedStrategy?: string;
@@ -157,6 +164,7 @@ export default function BriefingTab({
   trafficData,
   newsData,
   eventsData,
+  isEventsLoading,
   schoolClosuresData,
   airportData,
   consolidatedStrategy
@@ -170,6 +178,7 @@ export default function BriefingTab({
   const [expandedNews, setExpandedNews] = useState(true);
   const [expandedClosures, setExpandedClosures] = useState(true);
   const [expandedAirport, setExpandedAirport] = useState(true);
+  const [expandedMarketEvents, setExpandedMarketEvents] = useState(false); // Collapsed by default
 
   // Daily strategy - on-demand generation
   // Initialize with prop value if available (for returning users with cached strategy)
@@ -453,12 +462,25 @@ export default function BriefingTab({
   // Map tab shows full 7-day window; Briefing tab shows today only
   const eventsToday = allEvents.filter(isEventForToday);
 
+  // 2026-01-08: Market events - high-value events from across the market
+  const marketName = eventsData?.market_name || null;
+  const allMarketEvents = (eventsData?.marketEvents || []).map((event: BriefingEvent) => ({
+    ...event,
+    title: event.title || 'Untitled Event',
+    subtype: event.event_type || event.subtype,
+    venue: event.venue || event.location,
+  }));
+  const marketEventsToday = allMarketEvents.filter(isEventForToday);
+
   // Debug: Log event filtering
-  if (allEvents.length > 0) {
+  if (allEvents.length > 0 || allMarketEvents.length > 0) {
     console.log('[BriefingTab] Events filter:', {
       total: allEvents.length,
       todayOnly: eventsToday.length,
       filtered: allEvents.length - eventsToday.length,
+      marketTotal: allMarketEvents.length,
+      marketTodayOnly: marketEventsToday.length,
+      marketName,
       today: new Date().toISOString().split('T')[0]
     });
   }
@@ -1141,7 +1163,7 @@ export default function BriefingTab({
       </Card>
 
       {/* All Events - Consolidated Component */}
-      {!eventsData ? (
+      {isEventsLoading ? (
         <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
           <CardContent className="p-6">
             <div className="flex items-center justify-center py-8">
@@ -1154,6 +1176,41 @@ export default function BriefingTab({
         <EventsComponent events={eventsToday} isLoading={false} />
       )}
 
+      {/* Major Events in Your Market - Collapsible, Collapsed by Default */}
+      {/* 2026-01-08: Shows high-value events from across the market (stadiums, arenas, conventions) */}
+      {marketEventsToday.length > 0 && (
+        <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+          <CardHeader
+            className="pb-2 cursor-pointer hover:bg-amber-100/50 transition-colors"
+            onClick={() => setExpandedMarketEvents(!expandedMarketEvents)}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-amber-600" />
+                <span>Major Events in Your Market</span>
+                {marketName && (
+                  <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300 ml-1">
+                    {marketName}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
+                  {marketEventsToday.length} high-impact
+                </Badge>
+              </CardTitle>
+              {expandedMarketEvents ? (
+                <ChevronUp className="w-5 h-5 text-amber-600" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-amber-600" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedMarketEvents && (
+            <CardContent className="pt-0">
+              <EventsComponent events={marketEventsToday} isLoading={false} />
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* School Closures Section - LAST */}
       <Card data-testid="school-closures-card">

@@ -337,7 +337,7 @@ See [Event Discovery Architecture](event-discovery.md) for full documentation.
 | `normalized_name` | TEXT | Normalized for matching ("The Rustic" → "rustic") |
 | `city`, `state`, `country` | TEXT | Location (country defaults to 'USA') |
 | `lat`, `lng` | DOUBLE PRECISION | **Full precision coordinates** (15+ decimals) |
-| `coord_key` | TEXT | 4-decimal key for proximity lookup |
+| `coord_key` | TEXT | 6-decimal key for proximity lookup (~0.11m accuracy) |
 | `address` | TEXT | Street address |
 | `formatted_address` | TEXT | Full formatted address |
 | `zip` | TEXT | ZIP code |
@@ -378,7 +378,7 @@ function normalizeVenueName(name) {
 ```
 
 **Benefits:**
-1. **Precise Coordinates**: Full 15+ decimal precision vs coord_cache's 4 decimals
+1. **Precise Coordinates**: Full 15+ decimal precision vs coord_cache's 6 decimals (~0.11m)
 2. **Event Linking**: SmartBlocks can check "event tonight at this venue?" via FK join
 3. **Deduplication**: Same venue from different LLMs resolves to single cache entry
 4. **Reduced API Calls**: Reuse cached venue data instead of repeated geocoding
@@ -617,6 +617,219 @@ function normalizeVenueName(name) {
 - AI Coach parses `[ZONE_INTEL: {...}]` tags from responses
 - Zone intel summary included in AI context for all drivers in that market
 - Only zones with `confidence_score >= 40` shown in summaries
+
+---
+
+## Omni-Presence Tables (Level 4 Architecture)
+
+### `intercepted_signals` - External Offer Analysis (Headless Ingestion)
+
+**Purpose:** Store and analyze ride offers intercepted from external sources (iOS Siri Shortcut, etc.). Part of the "Siri Interceptor" feature for hands-free offer evaluation.
+
+**⚠️ CRITICAL: Headless Ingestion Pattern**
+
+This table supports **headless clients** (iOS Shortcuts, Android automations) that cannot authenticate via JWT. The `user_id` column is **intentionally NOT a Foreign Key** to allow "fire and forget" inserts.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  WHY NO FK CONSTRAINT ON user_id?                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  Problem: Siri Shortcuts run WITHOUT an authenticated user session.      │
+│  They can't carry JWT tokens or create valid user sessions.              │
+│                                                                          │
+│  Solution: Use device_id as PRIMARY identifier, user_id as OPTIONAL.     │
+│                                                                          │
+│  ❌ WITH FK: INSERT fails → "foreign key violation" → rejection loop     │
+│  ✅ NO FK:   INSERT succeeds → signals stored → user linked later        │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert: `server/api/hooks/analyze-offer.js` (planned)
+- Query: `client/src/components/omni/SignalTerminal.tsx` via SSE/Polling
+
+**Data Flow:**
+```
+iOS Shortcut → OCR extracts text → POST /api/hooks/analyze-offer
+    → Parse price/miles/time → AI decision → INSERT intercepted_signals
+    → SSE push to SignalTerminal UI
+```
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `device_id` | VARCHAR (NOT NULL) | **PRIMARY identifier for headless clients** |
+| `user_id` | UUID (nullable, **NO FK**) | Optional - linked later when driver logs in |
+| `raw_text` | TEXT | Raw OCR text from screenshot |
+| `parsed_data` | JSONB | `{price, miles, time, pickup, dropoff, platform}` |
+| `decision` | TEXT | 'ACCEPT' / 'REJECT' |
+| `decision_reasoning` | TEXT | AI explanation for decision |
+| `confidence_score` | DECIMAL | 0.0-1.0 confidence in decision |
+| `user_override` | TEXT | null / 'ACCEPT' / 'REJECT' (if driver overrode AI) |
+| `source` | VARCHAR | 'siri_shortcut' / 'android_automation' / 'manual' |
+| `created_at` | TIMESTAMP | When signal was received |
+
+**Parsed Data JSONB Schema:**
+```json
+{
+  "price": 12.50,          // Dollar amount
+  "miles": 4.2,            // Trip distance
+  "time": 8,               // Estimated minutes
+  "pickup": "Main St",     // Pickup location (if parsed)
+  "dropoff": "Airport",    // Dropoff location (if parsed)
+  "platform": "uber",      // Detected platform
+  "surge": 1.5,            // Surge multiplier (if detected)
+  "per_mile": 2.98         // Calculated $/mile
+}
+```
+
+**Decision Logic:**
+| Metric | ACCEPT Threshold | REJECT Threshold |
+|--------|------------------|------------------|
+| $/mile | ≥ $2.00 | < $1.50 |
+| $/minute | ≥ $1.50 | < $1.00 |
+| Distance | ≤ 15 miles | > 25 miles |
+
+**Indexes:**
+- `idx_intercepted_signals_user_id` on `user_id`
+- `idx_intercepted_signals_created` on `(user_id, created_at DESC)`
+
+---
+
+## Dispatch Primitives Tables
+
+### `driver_goals` - Earning & Trip Targets
+
+**Purpose:** Track driver earning goals, trip targets, and time constraints. Enables goal-aware recommendations like "I want to make $500 by 6pm".
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/dispatch/goals-dal.js` (planned)
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users |
+| `goal_type` | TEXT | 'earnings' / 'trips' / 'hours' / 'custom' |
+| `target_amount` | DOUBLE | Target value (e.g., 500 for $500) |
+| `target_unit` | TEXT | 'dollars' / 'trips' / 'hours' |
+| `deadline` | TIMESTAMP | When goal must be achieved by |
+| `min_hourly_rate` | DOUBLE | Minimum acceptable $/hr |
+| `urgency` | TEXT | 'low' / 'normal' / 'high' / 'critical' |
+| `is_active` | BOOLEAN | Active goal flag |
+| `progress_amount` | DOUBLE | Current progress toward goal |
+| `completed_at` | TIMESTAMP | When goal was achieved |
+
+**Indexes:**
+- `idx_driver_goals_user_id` on `user_id`
+- `idx_driver_goals_active` on `(user_id, is_active)` where active
+
+---
+
+### `driver_tasks` - Hard Stops & Obligations
+
+**Purpose:** Track non-driving obligations and hard stops (car wash, pickup kids, appointments). Enables "return-home plan" that respects time constraints.
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/dispatch/tasks-dal.js` (planned)
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users |
+| `title` | TEXT | Task description (e.g., "Car wash") |
+| `description` | TEXT | Optional details |
+| `due_at` | TIMESTAMP | When task must be done by |
+| `duration_minutes` | INTEGER | How long task takes |
+| `location` | TEXT | Address or place description |
+| `place_id` | TEXT | Google Place ID if available |
+| `lat`, `lng` | DOUBLE | Coordinates if location-bound |
+| `is_hard_stop` | BOOLEAN | Must stop driving for this |
+| `priority` | INTEGER | 1-100 priority |
+| `is_complete` | BOOLEAN | Task completed flag |
+| `recurrence` | TEXT | 'daily' / 'weekly' / 'weekdays' / null |
+
+**Indexes:**
+- `idx_driver_tasks_user_id` on `user_id`
+- `idx_driver_tasks_due_at` on `(user_id, due_at)` where incomplete
+- `idx_driver_tasks_hard_stop` on `(user_id, due_at)` where hard stop and incomplete
+
+---
+
+### `safe_zones` - Geofence Boundaries
+
+**Purpose:** Define safety boundaries for dispatch recommendations. Enables "stay inside safe boundary unless goal demands otherwise".
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/dispatch/zones-dal.js` (planned)
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users |
+| `zone_name` | TEXT | Zone name (e.g., "Home area") |
+| `zone_type` | TEXT | 'safe' / 'avoid' / 'prefer' |
+| `geometry` | TEXT | GeoJSON polygon |
+| `center_lat`, `center_lng` | DOUBLE | Circle center coordinates |
+| `radius_miles` | DOUBLE | Circular zone radius |
+| `neighborhoods` | TEXT | Comma-separated names (alternative) |
+| `risk_level` | INTEGER | 1-5 (1=safest, 5=riskiest) |
+| `risk_notes` | TEXT | Why zone has certain risk level |
+| `is_active` | BOOLEAN | Active zone flag |
+| `applies_at_night` | BOOLEAN | Apply after 9pm |
+| `applies_at_day` | BOOLEAN | Apply during day |
+
+**Zone Types:**
+- `safe`: Driver prefers to stay in this area
+- `avoid`: Driver wants to avoid this area
+- `prefer`: Bonus preference for this area
+
+**Indexes:**
+- `idx_safe_zones_user_id` on `user_id`
+- `idx_safe_zones_active` on `(user_id, is_active)` where active
+- `idx_safe_zones_type` on `(user_id, zone_type)`
+
+---
+
+### `staging_saturation` - Anti-Crowding Tracker
+
+**Purpose:** Track staging location suggestions to prevent overcrowding. Diversifies suggestions when many drivers ask for recommendations.
+
+**Files:**
+- Schema: `shared/schema.js`
+- Insert/Query: `server/lib/dispatch/saturation-dal.js` (planned)
+
+**Key Columns:**
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `h3_cell` | TEXT | H3 index at resolution 8 (~0.5km cells) |
+| `venue_name` | TEXT | Optional specific venue name |
+| `window_start` | TIMESTAMP | Hour window start |
+| `window_end` | TIMESTAMP | Hour window end |
+| `suggestion_count` | INTEGER | How many times suggested |
+| `active_drivers` | INTEGER | Estimated drivers heading there |
+| `market_slug` | TEXT | Market identifier |
+
+**Algorithm:**
+When suggesting staging locations:
+1. Check `staging_saturation` for recent suggestions in same H3 cell
+2. If `suggestion_count > threshold`, pick alternative location
+3. Increment `suggestion_count` for chosen location
+
+**Indexes:**
+- `idx_staging_saturation_h3_window` UNIQUE on `(h3_cell, window_start)`
+- `idx_staging_saturation_market` on `(market_slug, window_start)`
+- `idx_staging_saturation_count` on `suggestion_count DESC`
 
 ---
 

@@ -1369,6 +1369,232 @@ export const coach_system_notes = pgTable("coach_system_notes", {
   idxCreatedAt: sql`create index if not exists idx_coach_system_notes_created_at on ${table} (created_at desc)`,
 }));
 
+// ═══════════════════════════════════════════════════════════════════════════
+// OMNI-PRESENCE / SIRI INTERCEPTOR (2026-01-08)
+// Level 4 Architecture: Headless client integration for external data ingestion.
+// Allows iOS Shortcuts, Android automations, etc. to push data without auth.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Intercepted Signals Table (Level 4: Omni-Presence)
+ *
+ * Stores ride offers intercepted from external sources (iOS Siri Shortcut, etc.)
+ * for AI-powered ACCEPT/REJECT decisions.
+ *
+ * CRITICAL: user_id is intentionally NOT a Foreign Key reference!
+ * This is a "headless" ingestion table - Siri Shortcuts run without authenticated
+ * user sessions. We rely on device_id for tracking instead.
+ *
+ * Data Flow:
+ *   iOS Shortcut → OCR extracts text → POST /api/hooks/analyze-offer
+ *   → Parse price/miles/time → AI decision → INSERT intercepted_signals
+ *   → SSE push to SignalTerminal UI (if app is open)
+ *
+ * Security: Endpoint uses API key or device registration, not JWT auth.
+ */
+export const intercepted_signals = pgTable("intercepted_signals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Device identification (PRIMARY identifier for headless clients)
+  device_id: varchar("device_id", { length: 255 }).notNull(),
+
+  // User association (OPTIONAL - NO FK constraint!)
+  // Nullable because Siri Shortcuts run without authenticated sessions.
+  // Can be linked later if user logs in on same device.
+  user_id: uuid("user_id"), // Intentionally NO .references() - headless ingestion
+
+  // Raw input from OCR
+  raw_text: text("raw_text").notNull(),
+
+  // Parsed offer data
+  // Schema: { price, miles, time, pickup, dropoff, platform, surge, per_mile }
+  parsed_data: jsonb("parsed_data"),
+
+  // AI decision
+  decision: text("decision").notNull(), // 'ACCEPT' | 'REJECT'
+  decision_reasoning: text("decision_reasoning"), // AI explanation
+  confidence_score: doublePrecision("confidence_score"), // 0.0 - 1.0
+
+  // User override (if driver disagreed with AI)
+  user_override: text("user_override"), // null | 'ACCEPT' | 'REJECT'
+
+  // Source tracking
+  source: varchar("source", { length: 50 }).notNull().default('siri_shortcut'), // 'siri_shortcut' | 'android_automation' | 'manual'
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxDeviceId: sql`create index if not exists idx_intercepted_signals_device_id on ${table} (device_id)`,
+  idxUserId: sql`create index if not exists idx_intercepted_signals_user_id on ${table} (user_id) where user_id is not null`,
+  idxCreatedAt: sql`create index if not exists idx_intercepted_signals_created on ${table} (device_id, created_at desc)`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DISPATCH PRIMITIVES (2026-01-06)
+// Schema additions for "Where do I go to make $500 today and still get home?"
+// These tables enable goal-aware, safety-bounded dispatch recommendations.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Driver Goals Table (P2-A)
+ *
+ * Tracks earning goals, trip targets, and time constraints.
+ * Enables queries like "I want to make $500 by 6pm".
+ */
+export const driver_goals = pgTable("driver_goals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Owner
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+
+  // Goal definition
+  goal_type: text("goal_type").notNull(), // 'earnings' | 'trips' | 'hours' | 'custom'
+  target_amount: doublePrecision("target_amount"), // e.g., 500 for $500, or 10 for 10 trips
+  target_unit: text("target_unit").default('dollars'), // 'dollars' | 'trips' | 'hours'
+
+  // Time constraints
+  deadline: timestamp("deadline", { withTimezone: true }), // When goal must be achieved by
+  min_hourly_rate: doublePrecision("min_hourly_rate"), // e.g., 35.00 for $35/hr minimum
+
+  // Priority
+  urgency: text("urgency").default('normal'), // 'low' | 'normal' | 'high' | 'critical'
+
+  // Status
+  is_active: boolean("is_active").default(true),
+  progress_amount: doublePrecision("progress_amount").default(0), // Current progress
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxUserId: sql`create index if not exists idx_driver_goals_user_id on ${table} (user_id)`,
+  idxActive: sql`create index if not exists idx_driver_goals_active on ${table} (user_id, is_active) where is_active = true`,
+}));
+
+/**
+ * Driver Tasks Table (P2-B)
+ *
+ * Hard stops and time constraints (car wash, pickup kids, appointments).
+ * Enables "return-home plan" that respects non-driving obligations.
+ */
+export const driver_tasks = pgTable("driver_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Owner
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+
+  // Task definition
+  title: text("title").notNull(), // e.g., "Car wash appointment"
+  description: text("description"),
+
+  // Time constraints
+  due_at: timestamp("due_at", { withTimezone: true }), // When task must be done by
+  duration_minutes: integer("duration_minutes"), // How long task takes
+
+  // Location (optional - some tasks are location-bound)
+  location: text("location"), // Address or place description
+  place_id: text("place_id"), // Google Place ID if available
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+
+  // Priority
+  is_hard_stop: boolean("is_hard_stop").default(false), // Must stop driving for this
+  priority: integer("priority").default(50), // 1-100
+
+  // Status
+  is_complete: boolean("is_complete").default(false),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+
+  // Recurrence (optional)
+  recurrence: text("recurrence"), // 'daily' | 'weekly' | 'weekdays' | null
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxUserId: sql`create index if not exists idx_driver_tasks_user_id on ${table} (user_id)`,
+  idxDueAt: sql`create index if not exists idx_driver_tasks_due_at on ${table} (user_id, due_at) where is_complete = false`,
+  idxHardStop: sql`create index if not exists idx_driver_tasks_hard_stop on ${table} (user_id, due_at) where is_hard_stop = true and is_complete = false`,
+}));
+
+/**
+ * Safe Zones Table (P2-C)
+ *
+ * Geofence definitions for safety boundaries.
+ * Enables "stay inside safe boundary unless goal demands otherwise".
+ */
+export const safe_zones = pgTable("safe_zones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Owner
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+
+  // Zone identity
+  zone_name: text("zone_name").notNull(), // e.g., "Home area", "Downtown avoid"
+  zone_type: text("zone_type").notNull(), // 'safe' | 'avoid' | 'prefer'
+
+  // Geometry (one of these should be set)
+  geometry: text("geometry"), // GeoJSON polygon
+  center_lat: doublePrecision("center_lat"),
+  center_lng: doublePrecision("center_lng"),
+  radius_miles: doublePrecision("radius_miles"), // Circular zone radius
+  neighborhoods: text("neighborhoods"), // Comma-separated neighborhood names (alternative to geometry)
+
+  // Risk assessment
+  risk_level: integer("risk_level"), // 1-5 (1=safest, 5=most risky)
+  risk_notes: text("risk_notes"), // Why this zone has certain risk level
+
+  // Usage flags
+  is_active: boolean("is_active").default(true),
+  applies_at_night: boolean("applies_at_night").default(true), // Apply after 9pm
+  applies_at_day: boolean("applies_at_day").default(true),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxUserId: sql`create index if not exists idx_safe_zones_user_id on ${table} (user_id)`,
+  idxActive: sql`create index if not exists idx_safe_zones_active on ${table} (user_id, is_active) where is_active = true`,
+  idxType: sql`create index if not exists idx_safe_zones_type on ${table} (user_id, zone_type)`,
+}));
+
+/**
+ * Staging Saturation Tracker (P2-D)
+ *
+ * Tracks staging location suggestions to prevent overcrowding.
+ * When many drivers ask for recommendations, we diversify suggestions
+ * to avoid sending everyone to the same hotspot.
+ *
+ * Uses H3 cells (resolution 8 = ~0.5km) for location grouping.
+ */
+export const staging_saturation = pgTable("staging_saturation", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Location identification
+  h3_cell: text("h3_cell").notNull(), // H3 index at resolution 8
+  venue_name: text("venue_name"), // Optional: specific venue name
+
+  // Time window (suggestions aggregated per hour)
+  window_start: timestamp("window_start", { withTimezone: true }).notNull(),
+  window_end: timestamp("window_end", { withTimezone: true }).notNull(),
+
+  // Saturation metrics
+  suggestion_count: integer("suggestion_count").notNull().default(0), // How many times suggested
+  active_drivers: integer("active_drivers").default(0), // Estimated drivers currently heading there
+
+  // Market context
+  market_slug: text("market_slug"),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxH3Window: sql`create unique index if not exists idx_staging_saturation_h3_window on ${table} (h3_cell, window_start)`,
+  idxMarketWindow: sql`create index if not exists idx_staging_saturation_market on ${table} (market_slug, window_start)`,
+  idxSuggestionCount: sql`create index if not exists idx_staging_saturation_count on ${table} (suggestion_count desc)`,
+}));
+
 /**
  * News Deactivations Table
  *

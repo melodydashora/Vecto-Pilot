@@ -1,11 +1,25 @@
 
 # Vecto Pilot - Architecture Reference
 
-**Last Updated:** 2026-01-02 UTC
+**Last Updated:** 2026-01-08 UTC
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
-## Recent Changes (2026-01-02)
+## Recent Changes (2026-01-08)
+
+- **Level 4 Architecture: Omni-Presence & Siri Interceptor**
+  - New `/co-pilot/omni` route with `SignalTerminal.tsx` for real-time offer analysis
+  - iOS Siri Shortcut integration via `POST /api/hooks/analyze-offer`
+  - New `intercepted_signals` database table for offer tracking
+  - AI-powered ACCEPT/REJECT decisions with reasoning
+  - Driver override capability with feedback loop
+- **Dispatch Primitives** (schema only - not yet implemented):
+  - `driver_goals` - earning targets and deadlines
+  - `driver_tasks` - hard stops and obligations
+  - `safe_zones` - geofence boundaries
+  - `staging_saturation` - anti-crowding tracking
+
+## Changes (2026-01-02)
 
 - **Global Markets Table**: 140 markets (69 US + 71 international) with pre-stored timezones
   - 67 US markets with airport codes (71 airports total)
@@ -133,6 +147,71 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 ```
 
 See [ai-pipeline.md](docs/architecture/ai-pipeline.md) for details.
+
+## Headless Client Integration (Level 4 Architecture)
+
+The Omni-Presence feature enables **headless clients** (iOS Shortcuts, Android Automations) to interact with Vecto Pilot without opening the app.
+
+### iOS Siri Shortcut Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       SIRI INTERCEPTOR FLOW                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  1. Driver receives ride offer on Uber/Lyft app                         │
+│  2. Driver shares screenshot to Siri Shortcut                            │
+│  3. iOS OCR extracts text: "$12.50 • 4.2 mi • 8 min"                    │
+│  4. Shortcut calls: POST /api/hooks/analyze-offer                        │
+│     ┌─────────────────────────────────────────────────────────────┐     │
+│     │ Request Body:                                                │     │
+│     │ {                                                            │     │
+│     │   "raw_text": "UberX $12.50 4.2 mi 8 min Main St → Airport",│     │
+│     │   "user_id": "uuid-from-stored-auth",                       │     │
+│     │   "device_id": "iPhone-14-Pro"                              │     │
+│     │ }                                                            │     │
+│     └─────────────────────────────────────────────────────────────┘     │
+│  5. Server parses text, calculates $/mile, applies driver preferences  │
+│  6. AI returns decision with reasoning                                   │
+│     ┌─────────────────────────────────────────────────────────────┐     │
+│     │ Response:                                                    │     │
+│     │ {                                                            │     │
+│     │   "decision": "ACCEPT",                                      │     │
+│     │   "reasoning": "Good $/mi ($2.98), short trip, airport run", │     │
+│     │   "parsed": { "price": 12.50, "miles": 4.2, "per_mile": 2.98}│     │
+│     │ }                                                            │     │
+│     └─────────────────────────────────────────────────────────────┘     │
+│  7. Siri speaks: "Accept. Good rate at $2.98 per mile."                 │
+│  8. Signal stored in `intercepted_signals` table                        │
+│  9. SignalTerminal UI updates via SSE (if app is open)                  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Purpose |
+|-----------|---------|
+| `POST /api/hooks/analyze-offer` | Receives OCR text, returns AI decision |
+| `intercepted_signals` table | Stores all offers with decisions |
+| `SignalTerminal.tsx` | Real-time UI for viewing offers |
+| iOS Siri Shortcut | Client-side automation (not in repo) |
+
+### Decision Criteria
+
+The AI considers:
+- **$/mile threshold** (configurable per user)
+- **Distance limits** (avoid long deadheads)
+- **Current location context** (from last snapshot)
+- **Driver goals** (if set in `driver_goals` table)
+- **Safe zones** (if defined in `safe_zones` table)
+
+### Security
+
+- Endpoint requires valid JWT (stored in iOS Shortcut)
+- Rate limited to prevent abuse
+- PII (exact addresses) not logged
+- User can revoke shortcut access via settings
 
 ## Complete Folder README Index
 
@@ -270,6 +349,7 @@ Every folder has a README.md. Total: **95 README files**.
 | `/co-pilot/briefing` | BriefingPage.tsx | Weather, traffic, news, events |
 | `/co-pilot/map` | MapPage.tsx | Venue + event map |
 | `/co-pilot/intel` | IntelPage.tsx | Rideshare intelligence |
+| `/co-pilot/omni` | OmniPage.tsx | Omni-Presence signal terminal [Level 4] |
 | `/co-pilot/about` | AboutPage.tsx | About + donation |
 | `/co-pilot/settings` | SettingsPage.tsx | User settings |
 | `/privacy-policy` | PolicyPage.tsx | Privacy policy |

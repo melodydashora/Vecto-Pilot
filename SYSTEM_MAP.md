@@ -1,8 +1,93 @@
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
-**Last Updated:** 2026-01-02 UTC
+**Last Updated:** 2026-01-08 UTC
 
 This document provides a complete visual mapping of the Vecto Pilot system, showing how every component connects from UI to database and back.
+
+---
+
+## 📲 EXTERNAL INPUT SOURCES (Level 4 Architecture)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      HEADLESS CLIENT INTEGRATION                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ⚠️  AUTH BYPASS: This flow does NOT use JWT authentication!            │
+│  Security is via device_id registration + optional API key.              │
+│  user_id in intercepted_signals has NO FK constraint (nullable).        │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  iOS Siri Shortcut (OCR Text)                                     │  │
+│  │  • User shares screenshot of ride offer                           │  │
+│  │  • iOS OCR extracts text (price, miles, time)                     │  │
+│  │  • Shortcut calls POST /api/hooks/analyze-offer                   │  │
+│  │  • NO JWT token - uses device_id for identification               │  │
+│  └────────────────────┬─────────────────────────────────────────────┘  │
+│                       ↓                                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  POST /api/hooks/analyze-offer (server/api/hooks/analyze-offer.js)│  │
+│  │  • Auth: BYPASSES requireAuth middleware (headless endpoint)      │  │
+│  │  • Receives: { raw_text, device_id } (user_id optional)           │  │
+│  │  • Parses: price ($12.50), miles (4.2mi), time (8 min)            │  │
+│  │  • AI Decision: ACCEPT/REJECT with reasoning                      │  │
+│  │  • Stores result in: intercepted_signals table                    │  │
+│  │  • NOTE: user_id column has NO FK - allows headless inserts       │  │
+│  └────────────────────┬─────────────────────────────────────────────┘  │
+│                       ↓                                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  SignalTerminal.tsx (/co-pilot/omni)                              │  │
+│  │  • Real-time display via SSE/Polling                              │  │
+│  │  • Shows: incoming offers + AI decision + reasoning               │  │
+│  │  • Driver confirms/overrides AI decision                          │  │
+│  │  • Feedback loop improves future decisions                        │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why No FK Constraint on user_id?
+
+| Constraint Type | Problem with Headless Clients |
+|-----------------|-------------------------------|
+| `user_id UUID NOT NULL REFERENCES users(user_id)` | ❌ INSERT fails - Siri has no user session |
+| `user_id UUID REFERENCES users(user_id)` | ❌ INSERT fails if device_id not in users table |
+| `user_id UUID` (no FK, nullable) | ✅ INSERT succeeds - "fire and forget" pattern |
+
+The `device_id` is the PRIMARY identifier for headless clients. The `user_id` can be linked later when the driver opens the app and logs in from that device.
+
+### Siri Interceptor Data Flow
+
+```
+iOS Device                      Vecto Server                    Database
+    │                               │                              │
+    │  1. Screenshot shared         │                              │
+    │  ──────────────────────►      │                              │
+    │  (Siri Shortcut triggers)     │                              │
+    │                               │                              │
+    │  2. OCR extracts text         │                              │
+    │  ──────────────────────►      │                              │
+    │  POST /api/hooks/analyze-offer│                              │
+    │  { raw_text, device_id }      │  ← NO user_id required!      │
+    │                               │                              │
+    │                               │  3. Parse & AI decision      │
+    │                               │  ─────────────────────────►  │
+    │                               │  INSERT intercepted_signals  │
+    │                               │  (user_id = NULL is OK)      │
+    │                               │                              │
+    │  4. Immediate response        │                              │
+    │  ◄──────────────────────      │                              │
+    │  { decision: "ACCEPT",        │                              │
+    │    reasoning: "Good $/mi" }   │                              │
+    │                               │                              │
+    │  5. Siri speaks decision      │                              │
+    │  ◄── (TTS in Shortcut)        │                              │
+    │                               │                              │
+    │                               │  6. SSE push to app          │
+    │                               │  ─────────────────────────►  │
+    │                               │  SignalTerminal updates      │
+    │                               │                              │
+```
 
 ---
 
@@ -304,6 +389,8 @@ The UI uses **React Router** with:
 users (GPS coordinates, location, auth)
   ├─→ auth_sessions (JWT tokens)
   ├─→ auth_verification_codes (email/SMS codes)
+  ├─→ intercepted_signals (Siri/external offer analysis) [NEW - Level 4]
+  │     └─→ Real-time offer decisions from headless clients
   └─→ snapshots (point-in-time context)
         ├─→ strategies (AI strategic outputs)
         │     └─→ triad_jobs (job tracking)

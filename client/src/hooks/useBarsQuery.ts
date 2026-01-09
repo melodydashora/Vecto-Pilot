@@ -61,19 +61,25 @@ export function useBarsQuery({
     // CRITICAL: Must match BarTab.tsx queryKey exactly for cache sharing
     queryKey: ['bar-tab', latitude, longitude, city, state, timezone],
     queryFn: async () => {
-      if (!latitude || !longitude) throw new Error('No coordinates');
-
-      // NO FALLBACK - timezone required for accurate venue hours
-      // If timezone is missing, use browser's timezone as last resort
-      const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+      // 2026-01-06: P3-C - NO FALLBACKS - fail explicitly if required data missing
+      // If this errors, it's a bug in LocationContext (isLocationResolved was true but data missing)
+      if (!latitude || !longitude) {
+        throw new Error('[useBarsQuery] BUG: Query enabled without coordinates');
+      }
+      if (!timezone) {
+        throw new Error('[useBarsQuery] BUG: Query enabled without timezone - isLocationResolved should gate this');
+      }
+      if (!city) {
+        throw new Error('[useBarsQuery] BUG: Query enabled without city - isLocationResolved should gate this');
+      }
 
       const params = new URLSearchParams({
         lat: latitude.toString(),
         lng: longitude.toString(),
-        city: city || 'Unknown',
-        state: state || '',
+        city: city,  // No fallback - required
+        state: state || '',  // State is optional (some countries don't have states)
         radius: '25',  // 25 mile radius for upscale bars
-        timezone: tz
+        timezone: timezone  // No fallback - required for accurate venue hours
       });
 
       console.log('[useBarsQuery] Prefetching bars data for:', { city, state, lat: latitude?.toFixed(4) });
@@ -90,8 +96,9 @@ export function useBarsQuery({
       console.log('[useBarsQuery] Prefetch complete:', result.data?.total_venues, 'venues');
       return result.data;
     },
-    // Only fetch when location is fully resolved
-    enabled: !!(latitude && longitude && isLocationResolved),
+    // Only fetch when location is fully resolved with all required data
+    // 2026-01-06: P3-C - explicitly require city and timezone (not just isLocationResolved)
+    enabled: !!(latitude && longitude && city && timezone && isLocationResolved),
     // Cache for 5 minutes (bars don't change frequently)
     staleTime: 5 * 60 * 1000,
     // Keep in cache for 10 minutes
