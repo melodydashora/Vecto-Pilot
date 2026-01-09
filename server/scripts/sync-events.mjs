@@ -953,12 +953,17 @@ async function storeEvents(db, events) {
         }
       }
     } catch (err) {
+      // 2026-01-09: Removed defensive 23505 catch
+      // With ON CONFLICT (event_hash) DO UPDATE, error 23505 should NEVER occur:
+      // - New row → INSERT succeeds
+      // - Duplicate hash → UPDATE fires (not error)
+      // If we see 23505 here, it's a real bug (constraint mismatch, etc.) that should surface
+      console.error(`  [DB] Error storing event "${event.title?.slice(0, 30)}": ${err.message}`);
+      console.error(`  [DB] Event hash: ${hash}, Code: ${err.code}`);
+      skipped++;
+      // Re-throw 23505 to surface the root cause instead of masking it
       if (err.code === '23505') {
-        // Duplicate hash - shouldn't happen with ON CONFLICT, but handle gracefully
-        skipped++;
-      } else {
-        console.log(`  [DB] Error inserting event: ${err.message}`);
-        skipped++;
+        throw new Error(`Unexpected duplicate key error despite ON CONFLICT: ${err.message}. This indicates a constraint/SQL mismatch.`);
       }
     }
   }
