@@ -63,9 +63,8 @@
       "interleaved-thinking-2025-05-14",
       "code-execution-2025-08-25",
       "web-search-20250305",
-      "web-fetch-2025-09-10"5",
-      "fine-grained-tool-streaming-2025-05-14",
-      "web-fetch-2025-09-10"
+      "web-fetch-2025-09-10",
+      "fine-grained-tool-streaming-2025-05-14"
     ]
   },
   "allow_ops": [
