@@ -202,6 +202,125 @@ if (res.status === 503) {
 3. Re-throw errors so callers can handle or know something failed
 4. If you're catching an error just to return null - you're masking a bug
 
+### ROOT CAUSE FIRST - INVESTIGATION RULE
+
+**Never catch or handle errors that should be architecturally impossible.**
+
+```javascript
+// WRONG - Defensive catch that masks SQL bugs
+ON CONFLICT (event_hash) DO UPDATE SET ...
+} catch (err) {
+  if (err.code === '23505') {
+    skipped++;  // SILENT! If ON CONFLICT works, 23505 is IMPOSSIBLE
+  }
+}
+
+// CORRECT - Surface unexpected errors to fix root cause
+ON CONFLICT (event_hash) DO UPDATE SET ...
+} catch (err) {
+  if (err.code === '23505') {
+    // 23505 with ON CONFLICT = SQL is WRONG, not a recoverable error
+    throw new Error(`Unexpected duplicate despite ON CONFLICT: ${err.constraint}`);
+  }
+}
+```
+
+**Why this matters:**
+- If your SQL is correct, the catch is unnecessary
+- If the catch fires, your SQL is wrong - **fix the SQL, don't catch the symptom**
+- Defensive catches mask real bugs and make debugging impossible
+- Every error has a root cause - **find and fix it**
+
+**The pattern to follow:**
+1. Before catching an error, ask: "Should this error be possible?"
+2. If architecturally impossible → **throw**, don't catch
+3. Investigate WHY something failed, don't just handle the failure
+4. Add inline comments explaining root cause when fixed (with date)
+
+**Common anti-patterns:**
+| Anti-Pattern | Root Cause to Fix |
+|--------------|-------------------|
+| Catch 23505 with ON CONFLICT | Wrong column in ON CONFLICT clause |
+| Return `null` on 404 | Missing data upstream, fix the source |
+| Silent retry on timeout | Connection pool exhausted, increase pool |
+| Default value on missing data | Bug in data flow, trace the pipeline |
+
+### ABSOLUTE PRECISION - GPS & DATA ACCURACY RULE
+
+**This app requires pinpoint accuracy. No fuzzy matching, no approximations.**
+
+```javascript
+// COORDINATE PRECISION
+// WRONG - 4 decimals (~11 meters, allows "close enough" matching)
+const key = `${lat.toFixed(4)}_${lng.toFixed(4)}`;
+
+// CORRECT - 6 decimals (~11 centimeters, exact location)
+const key = `${lat.toFixed(6)}_${lng.toFixed(6)}`;
+
+// COORDINATE SOURCES
+// WRONG - AI-generated coordinates (hallucinated, imprecise)
+const { lat, lng } = await gpt.getVenueLocation(venueName);
+
+// CORRECT - Google APIs (authoritative, verified)
+const { lat, lng } = await googlePlaces.getPlaceDetails(placeId);
+```
+
+**Why this matters:**
+- Drivers depend on exact locations - "close enough" wastes their time
+- Fuzzy matching serves stale data to nearby drivers
+- AI models hallucinate coordinates; Google APIs verify them
+- Cache keys must be exact to prevent cross-contamination
+
+**Precision requirements:**
+| Data Type | Precision | Why |
+|-----------|-----------|-----|
+| GPS coordinates | 6 decimals | ~11cm accuracy, prevents cache collisions |
+| Cache keys | Exact match | No fuzzy/proximity matching |
+| Venue matching | Google place_id | Authoritative, not name matching |
+| Event deduplication | Hash of normalized fields | Exact, not similarity |
+
+**The pattern to follow:**
+1. Coordinates always from Google APIs or DB, never from AI
+2. Cache keys use 6-decimal `makeCoordsKey(lat, lng)`
+3. Venue identification via `place_id`, not name similarity
+4. No "close enough" - if data doesn't match exactly, it's different data
+
+### DOCUMENTATION CURRENCY - MANDATORY UPDATES
+
+**Documentation is not optional. Every code change requires doc updates.**
+
+```
+BEFORE making changes:
+├── Read the folder README.md
+├── Check LESSONS_LEARNED.md for known issues
+├── Review docs/preflight/*.md for area-specific rules
+└── Check docs/review-queue/pending.md for outstanding items
+
+AFTER making changes:
+├── Update affected README.md files
+├── Add inline comment with date and reason (major changes)
+├── Update LESSONS_LEARNED.md if you discovered something non-obvious
+├── Update CLAUDE.md if it affects global rules
+└── Flag docs/review-queue/pending.md if unsure what to update
+```
+
+**Why this matters:**
+- Outdated docs cause repeated mistakes
+- Future sessions waste time rediscovering known issues
+- If it's not documented, it didn't happen (for AI assistants)
+- This repo has complex interdependencies - docs are the map
+
+**Mandatory documentation triggers:**
+| Change Type | Must Update |
+|-------------|-------------|
+| New file created | Folder README.md |
+| File deleted | Folder README.md, grep for stale references |
+| Bug fix with lesson | LESSONS_LEARNED.md |
+| API endpoint changed | docs/architecture/api-reference.md |
+| Schema changed | docs/architecture/database-schema.md |
+| AI model changed | docs/preflight/ai-models.md |
+| Global rule discovered | CLAUDE.md Critical Rules section |
+
 ### Model Parameters
 
 **GPT-5.2** - Avoid 400 errors:
