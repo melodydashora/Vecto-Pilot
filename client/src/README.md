@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-09
 
 # Client Source (`client/src/`)
 
@@ -17,7 +17,7 @@ src/
 │   └── CoPilotLayout.tsx    # Shared layout with conditional GlobalHeader
 ├── pages/co-pilot/      # Route-based page components
 │   ├── StrategyPage.tsx     # AI strategy + Smart Blocks (~600 LOC)
-│   ├── BarsPage.tsx         # Premium venue listings
+│   ├── VenueManagerPage.tsx # Premium venue listings (renamed 2026-01-09)
 │   ├── BriefingPage.tsx     # Weather, traffic, news, events
 │   ├── MapPage.tsx          # Venue + event map
 │   ├── IntelPage.tsx        # Rideshare intel
@@ -41,7 +41,7 @@ src/
 | Route | Page | Purpose |
 |-------|------|---------|
 | `/co-pilot/strategy` | StrategyPage | AI strategy + Smart Blocks + Coach |
-| `/co-pilot/bars` | BarsPage | Premium venue listings |
+| `/co-pilot/bars` | VenueManagerPage | Premium venue listings |
 | `/co-pilot/briefing` | BriefingPage | Weather, traffic, news, events |
 | `/co-pilot/map` | MapPage | Interactive venue map |
 | `/co-pilot/intel` | IntelPage | Rideshare intel |
@@ -59,6 +59,7 @@ src/
 | `components/CoachChat.tsx` | AI chat + voice |
 | `components/BriefingTab.tsx` | Events, traffic, news |
 | `components/BarsMainTab.tsx` | Premium bars sidebar (renamed from BarTab.tsx) |
+| `components/BarsDataGrid.tsx` | Venue data table (renamed from BarsTable.tsx) |
 | `contexts/location-context-clean.tsx` | GPS, weather, snapshots |
 
 ## Data Flow
