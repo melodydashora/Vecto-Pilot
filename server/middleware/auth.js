@@ -10,6 +10,67 @@ import { eq } from 'drizzle-orm';
 const SESSION_SLIDING_WINDOW_MS = 60 * 60 * 1000;   // 60 min sliding window
 const SESSION_HARD_LIMIT_MS = 2 * 60 * 60 * 1000;   // 2 hour absolute max
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 2026-01-09: SERVICE ACCOUNT PATTERN - Agent Authentication
+// ═══════════════════════════════════════════════════════════════════════════
+// AI Agents (Coach, internal services) authenticate via x-vecto-agent-secret header.
+// This bypasses user session checks but assigns a FIXED system user ID.
+//
+// Benefits:
+// - Satisfies "No Nulls" rule (agent has a user_id)
+// - Satisfies "No Anonymous" rule (random traffic is blocked)
+// - Keeps agent access restricted to secret holders only
+// - No session management needed for machine-to-machine auth
+//
+// IMPORTANT: Set VECTO_AGENT_SECRET in production (min 32 chars)
+// ═══════════════════════════════════════════════════════════════════════════
+const SYSTEM_AGENT_USER_ID = '00000000-0000-0000-0000-000000000001'; // Fixed UUID for agent operations
+const AGENT_SECRET_HEADER = 'x-vecto-agent-secret';
+
+/**
+ * Validates agent secret and returns system user ID if valid.
+ * Returns null if no agent auth attempted or invalid secret.
+ */
+function validateAgentAuth(req) {
+  const agentSecret = req.headers[AGENT_SECRET_HEADER];
+
+  // No agent auth attempted
+  if (!agentSecret) return null;
+
+  const expectedSecret = process.env.VECTO_AGENT_SECRET;
+
+  // Agent secret not configured - reject in production, warn in dev
+  if (!expectedSecret) {
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
+    if (isProduction) {
+      authLog.error(1, 'Agent auth attempted but VECTO_AGENT_SECRET not configured');
+      return null;
+    }
+    // Dev mode: allow any secret for testing (log warning)
+    console.warn('[auth] ⚠️ DEV MODE: VECTO_AGENT_SECRET not set, accepting any agent secret');
+    return SYSTEM_AGENT_USER_ID;
+  }
+
+  // Constant-time comparison to prevent timing attacks
+  if (agentSecret.length !== expectedSecret.length) {
+    authLog.warn(1, 'Agent auth failed: secret length mismatch');
+    return null;
+  }
+
+  const isValid = crypto.timingSafeEqual(
+    Buffer.from(agentSecret),
+    Buffer.from(expectedSecret)
+  );
+
+  if (!isValid) {
+    authLog.warn(1, 'Agent auth failed: invalid secret');
+    return null;
+  }
+
+  authLog.info(1, `Agent authenticated as system user ${SYSTEM_AGENT_USER_ID.slice(0, 8)}`);
+  return SYSTEM_AGENT_USER_ID;
+}
+
 // JWT functions - basic implementation
 function verifyAppToken(token) {
   // Security: Require JWT_SECRET in production
@@ -55,8 +116,28 @@ function isPhantom(userId, tetherSig) {
 }
 
 // Required auth - must have valid token AND active session
+// 2026-01-09: Also supports Service Account auth via x-vecto-agent-secret header
 export async function requireAuth(req, res, next) {
   try {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 1: Check for Agent/Service Account auth (takes priority)
+    // ═══════════════════════════════════════════════════════════════════════════
+    const agentUserId = validateAgentAuth(req);
+    if (agentUserId) {
+      // Agent authenticated - bypass session checks, use system user ID
+      req.auth = {
+        userId: agentUserId,
+        isAgent: true,           // Flag for downstream handlers
+        sessionId: null,         // Agents don't have sessions
+        currentSnapshotId: null, // Agents don't have current snapshot
+        phantom: false
+      };
+      return next();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // STEP 2: Standard user token authentication
+    // ═══════════════════════════════════════════════════════════════════════════
     const hdr = req.headers.authorization || '';
     const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
     if (!token) return res.status(401).json({ error: 'no_token' });
@@ -148,8 +229,23 @@ export async function requireAuth(req, res, next) {
 // Optional auth - allows requests with or without auth token
 // If token is provided, it validates it. If not, request continues anyway.
 // This supports both unauthenticated and authenticated flows.
+// 2026-01-09: Also supports Service Account auth via x-vecto-agent-secret header
 export function optionalAuth(req, res, next) {
   try {
+    // Check for Agent/Service Account auth first
+    const agentUserId = validateAgentAuth(req);
+    if (agentUserId) {
+      req.auth = {
+        userId: agentUserId,
+        isAgent: true,
+        sessionId: null,
+        currentSnapshotId: null,
+        phantom: false
+      };
+      console.log(`[optionalAuth] ✅ Agent authenticated as ${agentUserId.slice(0, 8)}`);
+      return next();
+    }
+
     const hdr = req.headers.authorization || '';
     const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
 
@@ -178,3 +274,6 @@ export function optionalAuth(req, res, next) {
     res.status(500).json({ error: 'server_error', detail: e?.message });
   }
 }
+
+// Export constants for use in other modules
+export { SYSTEM_AGENT_USER_ID, AGENT_SECRET_HEADER };
