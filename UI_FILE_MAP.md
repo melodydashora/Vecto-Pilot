@@ -1,7 +1,7 @@
 
 # UI_FILE_MAP.md - Component, API, and Event Mapping
 
-**Last Updated:** 2026-01-02 UTC
+**Last Updated:** 2026-01-08 UTC
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
 
@@ -54,6 +54,7 @@ This document provides a complete mapping of UI components to their source files
 | `client/src/pages/co-pilot/AboutPage.tsx` | Donation/about (no GlobalHeader) | `/co-pilot/about` | ✅ Active |
 | `client/src/pages/co-pilot/PolicyPage.tsx` | Privacy policy | `/co-pilot/policy` | ✅ Active |
 | `client/src/pages/co-pilot/SettingsPage.tsx` | User profile + vehicle settings | `/co-pilot/settings` | ✅ Active |
+| `client/src/pages/co-pilot/OmniPage.tsx` | Omni-Presence signal terminal | `/co-pilot/omni` | ✅ Active (Level 4) |
 | `client/src/pages/co-pilot/index.tsx` | Barrel export | N/A | ✅ Active |
 
 ### Auth Pages (Public Routes)
@@ -91,6 +92,14 @@ This document provides a complete mapping of UI components to their source files
 | `ErrorBoundary.tsx` | React error boundary | App.tsx | ✅ Active |
 | `BarTab.tsx` | Bar listings with filters | BarsPage.tsx | ✅ Active |
 | `RideshareIntelTab.tsx` | Market intelligence display | IntelPage.tsx | ✅ Active |
+
+### Omni-Presence Components (Level 4)
+
+| File | Purpose | Used By | Status |
+|------|---------|---------|--------|
+| `client/src/components/omni/SignalTerminal.tsx` | Real-time offer analysis display | OmniPage.tsx | ✅ Active (Level 4) |
+| `client/src/components/omni/OfferCard.tsx` | Individual offer display card | SignalTerminal.tsx | ✅ Active (Level 4) |
+| `client/src/components/omni/DecisionBadge.tsx` | ACCEPT/REJECT badge with reasoning | OfferCard.tsx | ✅ Active (Level 4) |
 
 ### Co-Pilot Sub-Components
 
@@ -260,6 +269,15 @@ This document provides a complete mapping of UI components to their source files
 | `/api/intelligence/coach/:market` | GET | IntelPage.tsx | Market intelligence for coach |
 | `/api/intelligence/lookup` | GET | IntelPage.tsx | City → market mapping |
 
+### Omni-Presence / Hooks APIs (Level 4)
+
+| Endpoint | Method | Called By | Purpose |
+|----------|--------|-----------|---------|
+| `/api/hooks/analyze-offer` | POST | iOS Siri Shortcut | Analyze ride offer from OCR text |
+| `/api/hooks/signals` | GET | SignalTerminal.tsx | Fetch recent intercepted signals |
+| `/api/hooks/signals/stream` | SSE | SignalTerminal.tsx | Real-time signal updates |
+| `/api/hooks/signal/:id/override` | PUT | OfferCard.tsx | Override AI decision |
+
 ---
 
 ## CUSTOM EVENTS FLOW
@@ -368,8 +386,12 @@ main.tsx
             │   ├── AboutPage.tsx (/co-pilot/about)
             │   │   └── DonationTab.tsx → InstructionsTab.tsx
             │   ├── PolicyPage.tsx (/co-pilot/policy)
-            │   └── SettingsPage.tsx (/co-pilot/settings)
-            │       └── usePlatformData.ts
+            │   ├── SettingsPage.tsx (/co-pilot/settings)
+            │   │   └── usePlatformData.ts
+            │   └── OmniPage.tsx (/co-pilot/omni) [Level 4]
+            │       └── SignalTerminal.tsx
+            │           ├── OfferCard.tsx
+            │           └── DecisionBadge.tsx
             └── BottomTabNavigation.tsx (React Router navigation)
 ```
 
@@ -440,6 +462,7 @@ main.tsx
 | **Map View** | `MapPage.tsx`, `MapTab.tsx` |
 | **Intelligence** | `IntelPage.tsx`, `RideshareIntelTab.tsx`, intel components |
 | **Settings** | `SettingsPage.tsx`, `usePlatformData.ts` |
+| **Omni-Presence** | `OmniPage.tsx`, `SignalTerminal.tsx`, `OfferCard.tsx` [Level 4] |
 | **Feedback** | `FeedbackModal.tsx` |
 | **Holiday Banner** | `GreetingBanner.tsx`, `GlobalHeader.tsx` |
 | **Tab Navigation** | `BottomTabNavigation.tsx` (React Router) |
@@ -464,6 +487,7 @@ main.tsx
 | `/api/platform/*` | `server/api/platform/index.js` |
 | `/api/vehicle/*` | `server/api/vehicle/vehicle.js` |
 | `/api/intelligence/*` | `server/api/intelligence/index.js` |
+| `/api/hooks/*` | `server/api/hooks/analyze-offer.js` [Level 4] |
 
 ---
 
@@ -473,9 +497,9 @@ main.tsx
 - **Entry Points**: 3 (main.tsx, App.tsx, routes.tsx)
 - **Providers**: 3 (AuthProvider, CoPilotProvider, LocationProvider)
 - **Layouts**: 1 (CoPilotLayout.tsx)
-- **Pages**: 13 (8 co-pilot + 5 auth)
+- **Pages**: 14 (9 co-pilot + 5 auth)
 - **Core Components**: 13+
-- **Sub-Components**: 8+ (co-pilot, intel, auth)
+- **Sub-Components**: 11+ (co-pilot, intel, auth, omni)
 - **Hooks**: 13 active
 - **Libraries**: 3 active
 - **Types**: 4 active
@@ -491,14 +515,16 @@ main.tsx
 - ✅ Protected routes with JWT authentication
 - ✅ Settings page with profile editing
 - ✅ Platform data integration for dropdowns
+- ✅ Level 4 Architecture: Omni-Presence / Siri Interceptor
 
 **Active Features:**
-- ✅ 8 co-pilot pages (strategy, bars, briefing, map, intel, about, policy, settings)
+- ✅ 9 co-pilot pages (strategy, bars, briefing, map, intel, about, policy, settings, omni)
 - ✅ 5 auth pages (sign-in, sign-up, forgot, reset, terms)
 - ✅ Real-time updates via SSE
 - ✅ Smart Blocks with NOW strategy (top 3 Grade A, ≥1mi apart)
 - ✅ AI Coach with text + voice
 - ✅ Market intelligence system
+- ✅ Siri Interceptor (headless client integration via iOS Shortcuts)
 
 ---
 

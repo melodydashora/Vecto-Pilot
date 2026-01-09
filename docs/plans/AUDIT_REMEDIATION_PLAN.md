@@ -373,6 +373,340 @@ export const safe_zones = pgTable('safe_zones', {
 
 ---
 
+---
+
+## Phase 4: P3 - Redundancy & "Why Does It Rerun When I Switch Apps?"
+
+> **Root Cause Analysis by Melody (2026-01-06)**
+> This section documents the findings from investigating why the app regenerates strategy when users switch between apps (Uber/Lyft) and return.
+
+### P3-A: Strategy Being Cleared on Mount (TWO PLACES)
+
+**Problem:** Strategy is still being cleared on mount in two places, which directly forces regeneration.
+
+**Violation Found:**
+- `useStrategyPolling.ts` - clears strategy localStorage on first mount (`localStorage.removeItem(...)`)
+- `co-pilot-context.tsx` - also clears strategy localStorage on first mount
+
+This contradicts the intended behavior in LESSONS_LEARNED.md ("Previous Bug: Strategy cleared on every mount…") and **absolutely causes** "switch to Uber → come back → app refreshes → strategy regenerates" if the browser tab was discarded and reloaded.
+
+**Files Affected:**
+- `client/src/hooks/useStrategyPolling.ts`
+- `client/src/contexts/co-pilot-context.tsx`
+
+**Fix Direction:**
+1. Remove "clear on mount" entirely from both files
+2. Only clear strategy artifacts on:
+   - **manual refresh** (`vecto-manual-refresh` event)
+   - **meaningful location change** (new snapshot id)
+   - **explicit logout**
+
+**Test Cases:**
+- [ ] Strategy persists across app switches (tab not killed)
+- [ ] Strategy persists across tab restore (OS killed tab but user returns)
+- [ ] Strategy clears on manual refresh button
+- [ ] Strategy clears on logout
+
+---
+
+### P3-B: Reload Nukes In-Memory State (OS Tab Kill)
+
+**Problem:** QueryClient defaults are already set to "stick around" (no auto refetch + infinite freshness), so normal tab navigation inside the SPA shouldn't rerun work. But when you "switch apps" on mobile:
+1. **OS kills the webview/tab** → full reload
+2. In-memory React Query cache is gone
+3. Contexts re-mount
+4. Snapshot + strategy triggers fire again
+5. P3-A mount-clears make this worse
+
+**Fix Direction - Add "Resume Session" Path:**
+
+1. Persist *only the minimum* to resume:
+   - `lastSnapshotId`
+   - `lastUpdatedAt`
+   - `resumeAllowedUntil` timestamp (TTL)
+
+2. On boot, if within TTL and user is still authenticated:
+   - Reuse `lastSnapshotId`
+   - **Do NOT create a new snapshot**
+   - Skip strategy generation
+
+3. Only create a new snapshot on:
+   - Manual refresh spinner
+   - Logout
+   - TTL expired
+
+**DB-Authoritative Alternative:**
+Use the user record as source-of-truth instead of client "cache":
+- `/api/users/me` or `/api/auth/me` patterns already exist
+- Add/extend endpoint to return `{ current_snapshot_id, snapshot_created_at, coords_hash }`
+- Reuse that when app reloads
+
+**Files Affected:**
+- `client/src/contexts/location-context-clean.tsx` (snapshot creation logic)
+- `client/src/contexts/co-pilot-context.tsx` (strategy trigger logic)
+- `server/api/auth/auth.js` (add current_snapshot_id to /me response)
+
+**Test Cases:**
+- [ ] App resumes with existing snapshot within TTL
+- [ ] App creates new snapshot after TTL expires
+- [ ] App creates new snapshot on manual refresh
+- [ ] Coach is usable immediately on resume (no waiting for strategy)
+
+---
+
+### P3-C: Bars + BarTab Still Contain "Unknown/Timezone Fallback" Patterns
+
+**Problem:** Both `useBarsQuery` and `BarTab` fall back to `"Unknown"` city and browser timezone.
+
+**Violation Found:**
+- Contexts README says downstream queries must be gated by `isLocationResolved`
+- "No fallbacks", "must wait for this flag" rule exists
+- LESSONS_LEARNED explicitly calls out the "Unknown city" race condition
+
+**Files Affected:**
+- `client/src/hooks/useBarsQuery.ts`
+- `client/src/components/BarTab.tsx` (or similar)
+
+**Fix Direction:**
+1. Delete the `"Unknown"` / browser-timezone fallback behavior
+2. Hard gate bars on `isLocationResolved === true`
+3. Require `city/state/timeZone` from LocationContext
+4. If missing, that's a bug → surface error, don't patch
+
+**Test Cases:**
+- [ ] Bars tab shows loading state until isLocationResolved
+- [ ] Bars tab never shows "Unknown" city
+- [ ] Browser timezone is never used as fallback
+
+---
+
+### P3-D: CoPilot Pipeline Needs "Reason" for Resume Support
+
+**Problem:** When `vecto-snapshot-saved` fires, CoPilotContext triggers POST `/api/blocks-fast`. That's great for first run, but bad on "resume" (returning user shouldn't wait for full strategy regeneration).
+
+**Fix Direction:**
+1. When dispatching `vecto-snapshot-saved`, include a reason in event detail:
+   ```javascript
+   // client/src/contexts/location-context-clean.tsx
+   window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+     detail: { snapshotId, reason: 'init' | 'manual_refresh' | 'resume' }
+   }));
+   ```
+
+2. CoPilotContext triggers `/api/blocks-fast` only for `init` or `manual_refresh`, NOT `resume`
+
+3. Coach remains usable with last-known strategy + snapshot context on resume
+
+**Files Affected:**
+- `client/src/contexts/location-context-clean.tsx` (event dispatch)
+- `client/src/contexts/co-pilot-context.tsx` (event listener)
+
+**Test Cases:**
+- [ ] Resume doesn't trigger /api/blocks-fast
+- [ ] Manual refresh triggers /api/blocks-fast
+- [ ] Init triggers /api/blocks-fast
+- [ ] Coach works immediately on resume with cached strategy
+
+---
+
+## Phase 5: P4 - Optimizations & Redundancy Cleanup
+
+### P4-A: Stop Writing Strategy to localStorage If Not Restoring
+
+**Problem:** Strategy is set to localStorage in multiple places, but "clear-on-mount" prevents persistence anyway. This is inconsistent.
+
+**Fix Direction - Pick One:**
+- **Option A (Preferred):** No localStorage strategy at all. Use React Query + server as truth.
+- **Option B:** sessionStorage with TTL + explicit clear on manual refresh only.
+
+**Files Affected:**
+- `client/src/hooks/useStrategyPolling.ts`
+- `client/src/contexts/co-pilot-context.tsx`
+
+---
+
+### P4-B: Quarantine Old/Duplicate Hooks
+
+**Problem:** UI_FILE_MAP explicitly calls out `_future/` staging files and legacy components. If a hook isn't in the import tree, it may be accidentally reused.
+
+**Fix Direction:**
+- Audit all hooks in `client/src/hooks/`
+- Move unused hooks to `client/src/hooks/_deprecated/`
+- Add README in deprecated folder explaining why
+
+---
+
+### P4-C: Fix Hardcoded Timezone Bug in CoPilotContext
+
+**Problem:** `co-pilot-context.tsx` sets `timezone: 'America/Chicago'` in blocks state, poisoning downstream logic outside that zone.
+
+**File:** `client/src/contexts/co-pilot-context.tsx`
+
+**Fix:** Remove hardcoded timezone, use snapshot.timezone only.
+
+---
+
+### P4-D: Single Query Key + Strict Gating for Bars
+
+**Problem:** Shared query key pattern is good, but placeholder city/tz should be removed.
+
+**Fix:** Rely on `isLocationResolved` entirely, no placeholders.
+
+---
+
+### P4-E: Prevent Cross-Snapshot Cooldown Bugs in Briefing
+
+**Problem:** Snapshot-ownership cooling-off edge case exists. Fix pattern documented but not applied consistently to all 6 briefing endpoints.
+
+**Fix:** Apply "exit on new snapshot" logic consistently to ALL briefing queries, not just one.
+
+---
+
+### P4-F: Centralize Identifiers (Prevent Token Key Mismatch)
+
+**Problem:** Near-identical keys have broken prod before. Need single source of truth for:
+- Storage keys (token, device id, snapshot id)
+- Custom event names
+- Query keys
+- API route strings
+
+**Fix:** Create constants files:
+- `client/src/constants/storageKeys.ts`
+- `client/src/constants/events.ts`
+- `client/src/constants/queryKeys.ts`
+- `client/src/constants/apiRoutes.ts`
+
+---
+
+## Phase 6: Naming Conventions Ruleset (Drop-In Spec)
+
+### 6.1 Files & Folders
+
+| Type | Convention | Examples |
+|------|------------|----------|
+| React components/pages | `PascalCase.tsx` | `StrategyPage.tsx`, `GlobalHeader.tsx` |
+| Hooks | `usePascalThing.ts` | `useBriefingQueries.ts`, `useStrategyPolling.ts` |
+| Contexts | `kebab-case-context.tsx` | `auth-context.tsx`, `co-pilot-context.tsx` |
+| Utilities | `kebab-case.ts` with domain prefix | `co-pilot-helpers.ts`, `briefing-helpers.ts` |
+| Server routes | Mirror URL shape, `kebab-case.js` | `/api/blocks-fast` → `blocks-fast.js` |
+
+### 6.2 Storage Keys
+
+**Rule:** One prefix, one constant file, no raw strings.
+
+**Prefix:** `vectopilot_`
+
+**File:** `client/src/constants/storageKeys.ts`
+```typescript
+export const STORAGE_KEYS = {
+  AUTH_TOKEN: 'vectopilot_auth_token',
+  DEVICE_ID: 'vectopilot_device_id',  // rename from 'vecto_device_id'
+  LAST_SNAPSHOT_ID: 'vectopilot_last_snapshot_id',
+  SESSION_RESUME_UNTIL: 'vectopilot_session_resume_until',
+} as const;
+```
+
+### 6.3 Custom Events
+
+**Rule:** `vecto-<domain>-<action>` lowercase kebab-case.
+
+**File:** `client/src/constants/events.ts`
+```typescript
+export const EVENTS = {
+  SNAPSHOT_SAVED: 'vecto-snapshot-saved',
+  MANUAL_REFRESH: 'vecto-manual-refresh',
+  LOCATION_CHANGED: 'vecto-location-changed',
+} as const;
+```
+
+### 6.4 React Query Keys
+
+**Rule:** Factory functions, never ad-hoc arrays.
+
+**File:** `client/src/constants/queryKeys.ts`
+```typescript
+export const queryKeys = {
+  strategy: (snapshotId: string) => ['strategy', snapshotId] as const,
+  blocksFast: (snapshotId: string) => ['blocks-fast', snapshotId] as const,
+  barsNearby: (params: { lat: number; lng: number; city: string }) =>
+    ['bars-nearby', params] as const,
+};
+```
+
+### 6.5 API Route Strings
+
+**Rule:** No inline `"/api/..."` outside a single file.
+
+**File:** `client/src/constants/apiRoutes.ts`
+```typescript
+export const API_ROUTES = {
+  BLOCKS_FAST: '/api/blocks-fast',
+  STRATEGY: (id: string) => `/api/strategy/${id}`,
+  BRIEFING: {
+    WEATHER: (snapshotId: string) => `/api/briefing/weather/${snapshotId}`,
+    TRAFFIC: (snapshotId: string) => `/api/briefing/traffic/${snapshotId}`,
+  },
+};
+```
+
+### 6.6 Types, Variables, and Database
+
+| Type | Convention | Examples |
+|------|------------|----------|
+| Types/interfaces | `PascalCase` | `StrategyResponse`, `BriefingData` |
+| Functions/vars | `camelCase` | `loadContext`, `snapshotId` |
+| Constants | `SCREAMING_SNAKE_CASE` | `MAX_RETRIES`, `DEFAULT_TIMEOUT` |
+| DB tables/columns | `snake_case` | `driver_goals`, `created_at` |
+| Zod schemas | `PascalCaseSchema` | `SnapshotRequestSchema` |
+
+---
+
+## Phase 7: Documentation Workflow
+
+### Create `docs/CHANGE_WORKFLOW.md`
+
+Required pre-read list before any code changes:
+
+1. `CLAUDE.md` - NO FALLBACKS / GPS-first rules / NO SILENT FAILURES
+2. `UI_FILE_MAP.md` - Import tree + API mapping
+3. `LESSONS_LEARNED.md` - Known footguns (token keys, SSE duplication)
+4. `docs/architecture/constraints.md` - Polling/caching constraints
+
+---
+
+## The Most Direct Path to UX Goal
+
+**Goal:** "Don't rerun unless refresh/logout"
+
+### Immediate Fixes (In Order):
+1. **Remove strategy-clearing on mount** (both useStrategyPolling + co-pilot-context)
+2. **Add resume mode** (don't create new snapshot if resuming) + pass `reason` in `vecto-snapshot-saved`
+3. **Only trigger `/api/blocks-fast` on init/manual_refresh**, not resume
+4. **Enforce "no fallbacks" in bars** by deleting `"Unknown"`/tz fallbacks and relying on `isLocationResolved`
+
+---
+
+## Implementation Order (Updated)
+
+### Already Completed (2026-01-06):
+- ✅ P0-A: Agent Security
+- ✅ P0-B, P0-C, P0-D: Remove Fallbacks/Hardcodes
+- ✅ P0-E: Logging
+- ✅ P1-A: Adapter Refactor
+- ✅ P1-B: JSON Parsing
+- ✅ P1-C, P1-D: Cleanup
+- ✅ P2-*: Schema + Features (dispatch primitives)
+
+### Next Up:
+1. **P3-A: Remove mount-clearing** (CRITICAL - causes redundant regeneration)
+2. **P3-B: Add resume mode** (requires P3-A first)
+3. **P3-C: Fix bars fallbacks** (quick win)
+4. **P3-D: Add reason to snapshot event** (enables smart resume)
+5. **P4-*: Optimizations** (after P3 stable)
+6. **P5-*: Naming conventions** (after P4 stable)
+
+---
+
 ## Approval Request
 
 **Melody:** Please review this plan and confirm:

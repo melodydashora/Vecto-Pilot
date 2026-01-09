@@ -13,10 +13,12 @@
 
 import crypto from 'crypto';
 import { db } from '../../../db/drizzle.js';
-import { strategies, briefings, news_deactivations } from '../../../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { strategies, briefings, news_deactivations, venue_catalog } from '../../../../shared/schema.js';
+import { eq, inArray, or, ilike, sql } from 'drizzle-orm';
 import { callAnthropic } from '../adapters/anthropic-adapter.js';
 import { triadLog, aiLog, dbLog, OP } from '../../../logger/workflow.js';
+import { isOpenNow } from '../../venue/venue-hours.js';
+import { filterInvalidEvents } from '../../briefing/briefing-service.js';
 
 /**
  * Normalize a news title for hash matching
@@ -141,28 +143,32 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
+    // 2026-01-08: Pre-format events (now async to lookup venue hours from venue_catalog)
+    const formattedEvents = await formatEventsForLLM(briefing.events, snapshot.timezone);
+
     const prompt = `You are a rideshare strategist. Analyze the briefing data and tell the driver what to do RIGHT NOW.
 
 === DRIVER CONTEXT ===
-Location: ${snapshot.formatted_address}
-City: ${snapshot.city}, ${snapshot.state}
+Location: ${snapshot.city}, ${snapshot.state}
+Coords: ${parseFloat(snapshot.lat).toFixed(6)},${parseFloat(snapshot.lng).toFixed(6)}
 Time: ${localTime} (${snapshot.day_part_key})
 ${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
 === BRIEFING DATA ===
 TRAFFIC IMPACT: ${briefing.traffic?.driverImpact || briefing.traffic?.headline || 'Normal traffic conditions'}
 
-EVENTS:
-${JSON.stringify(briefing.events, null, 2)}
+EVENTS (next 6 hours):
+${formattedEvents}
 
 WEATHER: ${JSON.stringify(snapshot.weather)}
 
-NEWS: ${JSON.stringify(briefing.news)}
+NEWS (today):
+${JSON.stringify(optimizeNewsForLLM(briefing.news), null, 1)}
 
 SCHOOL CLOSURES (within 10mi):
-${formatSchoolClosuresSummary(briefing.school_closures)}
+${formatSchoolClosuresSummary(briefing.school_closures, snapshot.timezone)}
 
-AIRPORT CONDITIONS: ${JSON.stringify(briefing.airport)}
+AIRPORT: ${JSON.stringify(optimizeAirportForLLM(briefing.airport))}
 
 === OUTPUT (500 chars max) ===
 Based on ALL the data above, provide a strategic brief:
@@ -342,43 +348,60 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
  * Shows count, type breakdown, distance from driver, and reopening dates
  * Limits to 8 entries to save tokens in the prompt
  */
-function formatSchoolClosuresSummary(closures) {
-  if (!closures || !Array.isArray(closures) || closures.length === 0) {
-    return 'No school/university closures within 15mi';
+/**
+ * 2026-01-08: FIX - Filter school closures where TODAY falls between start_date and end_date
+ * Uses snapshot.timezone directly - no re-fetching
+ * @param {Array} closures - Array of closure objects with start_date/end_date
+ * @param {string} timezone - IANA timezone from snapshot (required)
+ * @returns {Array} Closures active TODAY only
+ */
+function filterClosuresActiveToday(closures, timezone) {
+  if (!closures || !Array.isArray(closures) || !timezone) return [];
+
+  // Get today's date in snapshot's timezone (YYYY-MM-DD format)
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
+
+  return closures.filter(c => {
+    // Get start and end dates (support multiple field names)
+    const startDate = c.start_date || c.startDate || c.closure_date || c.date;
+    const endDate = c.end_date || c.endDate || c.reopening_date || startDate; // Default end = start if single day
+
+    // If no dates at all, exclude (we need date info to validate)
+    if (!startDate) return false;
+
+    // Check: TODAY >= start_date AND TODAY <= end_date (inclusive)
+    return today >= startDate && today <= endDate;
+  });
+}
+
+/**
+ * 2026-01-08: Format school closures as simple string list (NO JSON)
+ * Output: "- Frisco ISD: Closed (Teacher In-Service)"
+ * Uses snapshot.timezone directly
+ * @param {Array} closures - Array of closure objects
+ * @param {string} timezone - IANA timezone from snapshot
+ * @returns {string} Simple formatted list
+ */
+function formatSchoolClosuresSummary(closures, timezone) {
+  // Filter to closures active TODAY (start_date <= today <= end_date)
+  const activeClosures = filterClosuresActiveToday(closures, timezone);
+
+  if (!activeClosures || activeClosures.length === 0) {
+    return 'None today';
   }
 
-  // Count by type
-  const byType = {
-    public: closures.filter(c => c.type === 'public').length,
-    private: closures.filter(c => c.type === 'private').length,
-    charter: closures.filter(c => c.type === 'charter').length,
-    college: closures.filter(c => c.type === 'college').length
-  };
-
-  const summary = [`${closures.length} institutions closed within 15mi:`];
-
-  // Add each closure with distance and reopening date (limit to 8 to save tokens)
-  closures.slice(0, 8).forEach(c => {
-    const name = c.schoolName || c.name;
-    const distStr = c.distanceFromDriver !== undefined && c.distanceFromDriver !== null
-      ? ` [${c.distanceFromDriver}mi]`
-      : '';
-    const reopenStr = c.reopeningDate ? ` → reopens ${c.reopeningDate}` : '';
-    summary.push(`- ${name} (${c.type}): ${c.reason}${reopenStr}${distStr}`);
+  // Simple string list format - NO JSON, minimal tokens
+  const lines = activeClosures.slice(0, 10).map(c => {
+    const name = c.schoolName || c.name || c.district || 'Unknown';
+    const reason = c.reason || c.closure_reason || 'Closed';
+    return `- ${name}: ${reason}`;
   });
 
-  if (closures.length > 8) {
-    summary.push(`... and ${closures.length - 8} more`);
+  if (activeClosures.length > 10) {
+    lines.push(`... and ${activeClosures.length - 10} more`);
   }
 
-  // Add type breakdown if multiple types
-  const activeTypes = Object.entries(byType).filter(([_, count]) => count > 0);
-  if (activeTypes.length > 1) {
-    const breakdown = activeTypes.map(([type, count]) => `${count} ${type}`).join(', ');
-    summary.push(`Types: ${breakdown}`);
-  }
-
-  return summary.join('\n');
+  return lines.join('\n');
 }
 
 /**
@@ -394,6 +417,218 @@ function parseJsonField(field) {
     }
   }
   return field;
+}
+
+/**
+ * 2026-01-08: FIX - Filter events to relevant time window
+ * Only include events happening now or soon (not events that are over or too far out)
+ * Window: now - 1h to now + 6h
+ * @param {Array} events - Array of event objects
+ * @param {string} timezone - IANA timezone
+ * @returns {Array} Filtered events within time window
+ */
+function filterEventsToTimeWindow(events, timezone) {
+  if (!events || !Array.isArray(events)) return [];
+
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - 60 * 60 * 1000);  // now - 1h
+  const windowEnd = new Date(now.getTime() + 6 * 60 * 60 * 1000);  // now + 6h
+
+  return events.filter(event => {
+    // Try to parse event start time
+    const eventStart = event.event_start || event.start_time || event.time;
+    if (!eventStart) return true; // Include if no time (assume relevant)
+
+    // Parse event date/time
+    const eventDate = new Date(eventStart);
+    if (isNaN(eventDate.getTime())) return true; // Include if can't parse
+
+    // Check if within window
+    return eventDate >= windowStart && eventDate <= windowEnd;
+  });
+}
+
+/**
+ * 2026-01-08: FIX - Optimize event data for LLM payload
+ * Strip redundant fields, standardize coordinates to 6 decimals
+ * Remove: source, provider (redundant), full address (have coords)
+ * Keep: name, venue, time, category, coords (6 decimal), venue_status
+ * @param {Array} events - Array of event objects
+ * @param {Map} venueStatusMap - Optional map of venueName -> { isOpen, reason }
+ * @returns {Array} Optimized events for LLM
+ */
+function optimizeEventsForLLM(events, venueStatusMap = null) {
+  if (!events || !Array.isArray(events)) return [];
+
+  return events.map(event => {
+    // Standardize coordinates to 6 decimals
+    const lat = event.lat ? parseFloat(event.lat).toFixed(6) : null;
+    const lng = event.lng ? parseFloat(event.lng).toFixed(6) : null;
+
+    // Look up venue open/closed status if we have a map
+    const venueName = event.venue_name || event.venue;
+    let venueStatus = null;
+    if (venueStatusMap && venueName) {
+      venueStatus = venueStatusMap.get(venueName.toLowerCase());
+    }
+
+    return {
+      name: event.event_name || event.name,
+      venue: venueName,
+      time: event.event_start || event.start_time || event.time,
+      end: event.event_end || event.end_time,
+      category: event.category || event.event_type,
+      // Only include coords if we have them (6 decimal precision)
+      ...(lat && lng ? { coords: `${lat},${lng}` } : {}),
+      // Include distance if available
+      ...(event.distance_mi ? { distance: `${event.distance_mi}mi` } : {}),
+      // 2026-01-08: Include venue open/closed status from venue_catalog.hours_full_week
+      // Guard against undefined venueStatus (use ?. for safe navigation)
+      ...(venueStatus?.isOpen != null ? {
+        venue_open: venueStatus.isOpen,
+        hours_note: venueStatus.reason || ''
+      } : {})
+      // Deliberately NOT including: source, provider, address (redundant with coords)
+    };
+  });
+}
+
+/**
+ * 2026-01-08: Format events summary for LLM (minimal tokens)
+ * Now async to support venue hours lookup from venue_catalog
+ * @param {Array} events - Array of event objects
+ * @param {string} timezone - IANA timezone
+ * @returns {Promise<string>} Formatted event summary with venue open/closed status
+ */
+async function formatEventsForLLM(events, timezone) {
+  // Filter to time window first
+  const relevantEvents = filterEventsToTimeWindow(events, timezone);
+
+  if (!relevantEvents || relevantEvents.length === 0) {
+    return 'No relevant events in the next 6 hours';
+  }
+
+  // Extract venue names for batch lookup
+  const venueNames = relevantEvents
+    .map(e => e.venue_name || e.venue)
+    .filter(Boolean);
+
+  // 2026-01-08: Batch lookup venue hours from venue_catalog
+  const venueStatusMap = await batchLookupVenueHours(venueNames, timezone);
+
+  // Optimize and format (now includes venue open/closed status)
+  const optimized = optimizeEventsForLLM(relevantEvents, venueStatusMap);
+
+  // Limit to 15 most relevant events to save tokens
+  const limited = optimized.slice(0, 15);
+
+  return JSON.stringify(limited, null, 1); // Minimal indentation
+}
+
+/**
+ * 2026-01-08: Optimize news data for LLM payload
+ * Strip redundant fields like source, provider info
+ * @param {Array|Object} news - News data (array or {items: []})
+ * @returns {Array} Optimized news for LLM
+ */
+function optimizeNewsForLLM(news) {
+  // Handle both array and {items: []} format
+  const items = Array.isArray(news) ? news : (news?.items || []);
+  if (!items || items.length === 0) return [];
+
+  return items.slice(0, 8).map(item => ({
+    headline: item.headline || item.title,
+    impact: item.impact || 'medium',
+    date: item.published_date || item.date,
+    // Only include summary if short
+    ...(item.summary && item.summary.length < 200 ? { summary: item.summary } : {})
+    // Deliberately NOT including: source, provider, url (save tokens)
+  }));
+}
+
+/**
+ * 2026-01-08: Optimize airport data for LLM payload
+ * Only include actionable info (delays, closures, peak times)
+ * @param {Object} airport - Airport conditions data
+ * @returns {Object} Optimized airport data
+ */
+function optimizeAirportForLLM(airport) {
+  if (!airport) return null;
+
+  return {
+    code: airport.code || airport.airport_code,
+    delays: airport.delays || airport.delay_status,
+    peak_arrivals: airport.peak_arrivals || airport.arrivals?.peak,
+    peak_departures: airport.peak_departures || airport.departures?.peak,
+    // Only include if there are issues
+    ...(airport.advisories ? { advisories: airport.advisories } : {})
+  };
+}
+
+/**
+ * 2026-01-08: Batch lookup venue hours from venue_catalog
+ * Uses hours_full_week structured JSON for programmatic isOpen() checks
+ * Falls back to business_hours if hours_full_week not populated
+ *
+ * @param {Array} venueNames - Array of venue names to lookup
+ * @param {string} timezone - IANA timezone for isOpen calculation
+ * @returns {Promise<Map>} Map of venueName -> { isOpen, nextChange, reason }
+ */
+async function batchLookupVenueHours(venueNames, timezone) {
+  const venueStatusMap = new Map();
+
+  if (!venueNames || venueNames.length === 0 || !timezone) {
+    return venueStatusMap;
+  }
+
+  // Dedupe venue names (case-insensitive)
+  const uniqueNames = [...new Set(venueNames.map(n => n?.toLowerCase()).filter(Boolean))];
+
+  if (uniqueNames.length === 0) {
+    return venueStatusMap;
+  }
+
+  try {
+    // Query venue_catalog for matching venues (case-insensitive match)
+    const venues = await db
+      .select({
+        venue_name: venue_catalog.venue_name,
+        hours_full_week: venue_catalog.hours_full_week,
+        business_hours: venue_catalog.business_hours,
+        last_known_status: venue_catalog.last_known_status
+      })
+      .from(venue_catalog)
+      .where(
+        sql`LOWER(${venue_catalog.venue_name}) IN (${sql.join(uniqueNames.map(n => sql`${n}`), sql`, `)})`
+      )
+      .limit(100);
+
+    // Process each venue's hours
+    for (const venue of venues) {
+      const hoursData = venue.hours_full_week || venue.business_hours;
+
+      // Skip if permanently closed
+      if (venue.last_known_status === 'permanently_closed') {
+        venueStatusMap.set(venue.venue_name.toLowerCase(), {
+          isOpen: false,
+          reason: 'Permanently closed'
+        });
+        continue;
+      }
+
+      // Use isOpenNow() if we have structured hours
+      if (hoursData && typeof hoursData === 'object') {
+        const status = isOpenNow(hoursData, timezone);
+        venueStatusMap.set(venue.venue_name.toLowerCase(), status);
+      }
+    }
+
+    triadLog.phase(3, `[venue-hours] Looked up ${venues.length}/${uniqueNames.length} venues`);
+  } catch (error) {
+    triadLog.warn(`[venue-hours] Batch lookup failed: ${error.message}`);
+  }
+
+  return venueStatusMap;
 }
 
 /**
@@ -444,14 +679,24 @@ export async function runConsolidator(snapshotId, options = {}) {
 
     // Parse briefing JSON fields
     const trafficData = parseJsonField(briefingRow.traffic_conditions);
-    const eventsData = parseJsonField(briefingRow.events);
+    const rawEventsData = parseJsonField(briefingRow.events);
     const rawNewsData = parseJsonField(briefingRow.news);
     const weatherData = parseJsonField(briefingRow.weather_current);
     const closuresData = parseJsonField(briefingRow.school_closures);
     const airportData = parseJsonField(briefingRow.airport_conditions);
 
+    // 2026-01-08: Apply hard filter to remove TBD/Unknown events at READ time
+    // This ensures clean data even from old briefings stored before the filter was added
+    const eventsData = filterInvalidEvents(rawEventsData);
+
     // Filter out deactivated news for this user
     const newsData = await filterDeactivatedNews(rawNewsData, snapshot.user_id);
+
+    // 2026-01-08: Lookup venue hours from venue_catalog for open/closed status
+    const eventVenueNames = (eventsData || [])
+      .map(e => e.venue_name || e.venue)
+      .filter(Boolean);
+    const venueStatusMap = await batchLookupVenueHours(eventVenueNames, snapshot.timezone);
 
     triadLog.phase(3, `Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, airport=${!!airportData}`);
 
@@ -507,20 +752,20 @@ ${isHoliday ? `HOLIDAY: ${holiday}` : ''}
 === CURRENT_TRAFFIC_DATA ===
 ${JSON.stringify(trafficData, null, 2)}
 
-=== CURRENT_EVENTS_DATA ===
-${JSON.stringify(eventsData, null, 2)}
+=== CURRENT_EVENTS_DATA (optimized - today's events with venue status) ===
+${JSON.stringify(optimizeEventsForLLM(eventsData, venueStatusMap).slice(0, 20), null, 1)}
 
-=== CURRENT_NEWS_DATA ===
-${JSON.stringify(newsData, null, 2)}
+=== CURRENT_NEWS_DATA (optimized) ===
+${JSON.stringify(optimizeNewsForLLM(newsData), null, 1)}
 
 === CURRENT_WEATHER_DATA ===
 ${JSON.stringify(weatherData, null, 2)}
 
-=== SCHOOL_CLOSURES_DATA (within 10mi of driver) ===
-${formatSchoolClosuresSummary(closuresData)}
+=== SCHOOL_CLOSURES_DATA (within 10mi of driver - TODAY ONLY) ===
+${formatSchoolClosuresSummary(closuresData, snapshot.timezone)}
 
-=== AIRPORT_CONDITIONS_DATA ===
-${JSON.stringify(airportData, null, 2)}
+=== AIRPORT_CONDITIONS_DATA (optimized) ===
+${JSON.stringify(optimizeAirportForLLM(airportData))}
 
 === YOUR TASK ===
 Create a DAILY STRATEGY for this driver covering the next 8-12 hours. Think like a shift planner, not just immediate tactics.
@@ -648,6 +893,15 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       throw new Error(`Briefing not found for snapshot ${snapshotId}`);
     }
 
+    // 2026-01-08: FIX - Validate briefing data is POPULATED, not just placeholder row
+    // Placeholder rows have NULL fields - generation is in progress or failed
+    // Strategy REQUIRES actual briefing data (traffic, events) to be useful
+    const hasTraffic = briefingRow.traffic_conditions !== null;
+    const hasEvents = briefingRow.events !== null;
+    if (!hasTraffic && !hasEvents) {
+      throw new Error(`Briefing data not ready for snapshot ${snapshotId} (placeholder only - traffic=${hasTraffic}, events=${hasEvents})`);
+    }
+
     // Check if immediate strategy already exists
     const [strategyRow] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
     if (strategyRow?.strategy_for_now && strategyRow?.status === 'ok') {
@@ -659,9 +913,13 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     const rawNews = parseJsonField(briefingRow.news);
     const filteredNews = await filterDeactivatedNews(rawNews, snapshot.user_id);
 
+    // 2026-01-08: Apply hard filter to remove TBD/Unknown events at READ time
+    const rawEvents = parseJsonField(briefingRow.events);
+    const cleanEvents = filterInvalidEvents(rawEvents);
+
     const briefing = {
       traffic: parseJsonField(briefingRow.traffic_conditions),
-      events: parseJsonField(briefingRow.events),
+      events: cleanEvents,
       weather: parseJsonField(briefingRow.weather_current),
       news: filteredNews,
       school_closures: parseJsonField(briefingRow.school_closures),

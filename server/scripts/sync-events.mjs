@@ -20,6 +20,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { sql } from 'drizzle-orm';
 import { findOrCreateVenue, linkEventToVenue } from '../lib/venue/venue-cache.js';
+import { filterInvalidEvents } from '../lib/briefing/briefing-service.js';
 
 const { Pool } = pg;
 
@@ -1015,6 +1016,15 @@ async function syncEventsForLocation(location, isDaily = false, options = {}) {
   let skipped = 0;
 
   if (allEvents.length > 0) {
+    // 2026-01-08: Filter out TBD/Unknown events BEFORE storing
+    // This prevents accumulation of invalid events in discovered_events table
+    const beforeFilter = allEvents.length;
+    allEvents = filterInvalidEvents(allEvents);
+    const afterFilter = allEvents.length;
+    if (beforeFilter !== afterFilter) {
+      console.log(`[TBD Filter] Removed ${beforeFilter - afterFilter} events with TBD/Unknown values`);
+    }
+
     // Geocode events missing lat/lng coordinates
     allEvents = await geocodeMissingCoordinates(allEvents);
 

@@ -29,17 +29,29 @@ router.get('/events/strategy', async (req, res) => {
   // Send initial comment to establish connection
   res.write(': connected\n\n');
 
+  // 2026-01-08: FIX - Register cleanup BEFORE subscription to prevent orphaned subscribers
+  // Race condition: If bot detector or network kills connection after subscribeToChannel()
+  // but before req.on('close') is registered, the subscription becomes orphaned.
+  // Solution: Register cleanup first, store unsubscribe function for later use.
+  let unsubscribe = null;
+  let cleanedUp = false;
+
+  req.on('close', async () => {
+    if (cleanedUp) return; // Prevent double cleanup
+    cleanedUp = true;
+    strategyConnections--;
+    sseLog.info(`SSE /events/strategy closed (${strategyConnections} remaining)`, OP.SSE);
+    if (unsubscribe) {
+      await unsubscribe();
+    }
+  });
+
   try {
     // Use shared notification dispatcher - ONE handler, many subscribers
-    const unsubscribe = await subscribeToChannel('strategy_ready', (payload) => {
+    unsubscribe = await subscribeToChannel('strategy_ready', (payload) => {
+      if (cleanedUp) return; // Don't write to closed connection
       res.write(`event: strategy_ready\n`);
       res.write(`data: ${payload}\n\n`);
-    });
-
-    req.on('close', async () => {
-      strategyConnections--;
-      sseLog.info(`SSE /events/strategy closed (${strategyConnections} remaining)`, OP.SSE);
-      await unsubscribe();
     });
   } catch (err) {
     sseLog.error(1, `Strategy listener failed`, err, OP.SSE);
@@ -60,17 +72,26 @@ router.get('/events/briefing', async (req, res) => {
   // Send initial comment to establish connection
   res.write(': connected\n\n');
 
+  // 2026-01-08: FIX - Register cleanup BEFORE subscription to prevent orphaned subscribers
+  let unsubscribe = null;
+  let cleanedUp = false;
+
+  req.on('close', async () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    briefingConnections--;
+    sseLog.info(`SSE /events/briefing closed (${briefingConnections} remaining)`, OP.SSE);
+    if (unsubscribe) {
+      await unsubscribe();
+    }
+  });
+
   try {
     // Use shared notification dispatcher - ONE handler, many subscribers
-    const unsubscribe = await subscribeToChannel('briefing_ready', (payload) => {
+    unsubscribe = await subscribeToChannel('briefing_ready', (payload) => {
+      if (cleanedUp) return;
       res.write(`event: briefing_ready\n`);
       res.write(`data: ${payload}\n\n`);
-    });
-
-    req.on('close', async () => {
-      briefingConnections--;
-      sseLog.info(`SSE /events/briefing closed (${briefingConnections} remaining)`, OP.SSE);
-      await unsubscribe();
     });
   } catch (err) {
     sseLog.error(1, `Briefing listener failed`, err, OP.SSE);
@@ -91,17 +112,26 @@ router.get('/events/blocks', async (req, res) => {
   // Send initial comment to establish connection
   res.write(': connected\n\n');
 
+  // 2026-01-08: FIX - Register cleanup BEFORE subscription to prevent orphaned subscribers
+  let unsubscribe = null;
+  let cleanedUp = false;
+
+  req.on('close', async () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    blocksConnections--;
+    sseLog.info(`SSE /events/blocks closed (${blocksConnections} remaining)`, OP.SSE);
+    if (unsubscribe) {
+      await unsubscribe();
+    }
+  });
+
   try {
     // Use shared notification dispatcher - ONE handler, many subscribers
-    const unsubscribe = await subscribeToChannel('blocks_ready', (payload) => {
+    unsubscribe = await subscribeToChannel('blocks_ready', (payload) => {
+      if (cleanedUp) return;
       res.write(`event: blocks_ready\n`);
       res.write(`data: ${payload}\n\n`);
-    });
-
-    req.on('close', async () => {
-      blocksConnections--;
-      sseLog.info(`SSE /events/blocks closed (${blocksConnections} remaining)`, OP.SSE);
-      await unsubscribe();
     });
   } catch (err) {
     sseLog.error(1, `Blocks listener failed`, err, OP.SSE);

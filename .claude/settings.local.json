@@ -157,7 +157,17 @@
       "Bash(timeout 10 node:*)",
       "Bash(for f in docs/review-queue/2025-12-*.md docs/review-queue/2026-01-*.md)",
       "Bash(do git mv \"$f\" docs/reviewed-queue/)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(gemini --version:*)",
+      "Bash(npx @google/gemini-cli --version)",
+      "Bash(export GOOGLE_API_KEY=\"$GEMINI_API_KEY\")",
+      "Bash(gemini --help:*)",
+      "Bash(~/.bashrc)",
+      "Bash(~/.profile)",
+      "Bash(source ~/.profile)",
+      "Bash(gemini \"Say hello in one word\")",
+      "Bash(gemini:*)",
+      "Bash(gcloud --version:*)"
     ],
     "deny": [],
     "ask": []

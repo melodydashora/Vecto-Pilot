@@ -522,12 +522,27 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Note: Holiday is already in snapshot table from holiday-detector.js
         await updatePhase(snapshotId, 'analyzing', { phaseEmitter });
 
+        // 2026-01-08: FIX - Briefing is now BLOCKING (was non-blocking)
+        // The immediate strategy REQUIRES briefing data (traffic, events, news) to be useful.
+        // Without briefing, GPT consolidator runs with empty context = poor quality strategy.
+        // If briefing fails, we should fail the whole pipeline rather than continue with bad data.
         try {
           await runBriefing(snapshotId, { snapshot });
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
-          briefingLog.warn(2, `Briefing failed (non-blocking): ${briefingErr.message}`);
-          // Continue - immediate strategy can still work with snapshot weather data
+          briefingLog.error(2, `Briefing failed (BLOCKING): ${briefingErr.message}`);
+          // Mark strategy as error so client knows to retry
+          await db.update(strategies).set({
+            status: 'error',
+            error_message: `briefing_failed: ${briefingErr.message}`.slice(0, 500),
+            updated_at: new Date()
+          }).where(eq(strategies.snapshot_id, snapshotId));
+
+          return sendOnce(500, {
+            error: 'briefing_failed',
+            message: `Briefing generation failed: ${briefingErr.message}`,
+            snapshot_id: snapshotId
+          });
         }
 
         // Phase 3: Immediate Strategy (STRATEGY_TACTICAL role)

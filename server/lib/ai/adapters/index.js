@@ -8,7 +8,8 @@
 
 import { callOpenAI, callOpenAIWithWebSearch } from "./openai-adapter.js";
 import { callAnthropic, callAnthropicWithWebSearch } from "./anthropic-adapter.js";
-import { callGemini } from "./gemini-adapter.js";
+import { callGemini, callGeminiStream } from "./gemini-adapter.js";
+import { callVertexAI, callVertexAIStream, isVertexAIAvailable, getVertexAIStatus } from "./vertex-adapter.js";
 import {
   getRoleConfig,
   roleUsesGoogleSearch,
@@ -123,14 +124,43 @@ export async function callModel(role, { system, user }) {
       // Check registry for google search feature flag
       const useSearch = roleUsesGoogleSearch(role);
 
-      result = await callGemini({
-        model,
+      // 2026-01-08: Check if Vertex AI should be used instead of Gemini Developer API
+      // Vertex AI provides enterprise features and Google Cloud integration
+      if (isVertexAIAvailable() && config.useVertexAI) {
+        result = await callVertexAI({
+          model,
+          system,
+          user,
+          maxTokens,
+          temperature,
+          useSearch,
+          thinkingLevel: config.thinkingLevel || null,
+        });
+      } else {
+        result = await callGemini({
+          model,
+          system,
+          user,
+          maxTokens,
+          temperature,
+          useSearch,
+          // Pass thinkingLevel if defined in registry (null = disabled by default)
+          thinkingLevel: config.thinkingLevel || null,
+        });
+      }
+
+    } else if (model.startsWith("vertex-")) {
+      // 2026-01-08: Direct Vertex AI model call (model name prefix indicates Vertex)
+      const useSearch = roleUsesGoogleSearch(role);
+      // Strip "vertex-" prefix to get actual model name
+      const vertexModel = model.replace("vertex-", "");
+      result = await callVertexAI({
+        model: vertexModel,
         system,
         user,
         maxTokens,
         temperature,
         useSearch,
-        // Pass thinkingLevel if defined in registry (null = disabled by default)
         thinkingLevel: config.thinkingLevel || null,
       });
 
@@ -192,3 +222,52 @@ export async function callModel(role, { system, user }) {
 
   return result;
 }
+
+/**
+ * Streaming version of callModel for SSE/chat use cases.
+ * 2026-01-06: Added to support adapter pattern for coach chat
+ *
+ * Currently only supports Gemini models (COACH_CHAT role uses gemini-3-pro-preview).
+ *
+ * @param {string} role - Role key from model-registry (e.g., 'COACH_CHAT')
+ * @param {Object} params - { system, messageHistory }
+ * @param {string} params.system - System prompt
+ * @param {Array} params.messageHistory - Array of { role: 'user'|'model', parts: [{ text }] }
+ * @returns {Promise<Response>} - Fetch Response with readable stream body
+ */
+export async function callModelStream(role, { system, messageHistory }) {
+  // 1. Get configuration from registry
+  let config;
+  try {
+    config = getRoleConfig(role);
+  } catch (err) {
+    throw new Error(`Model Role '${role}' not found in registry: ${err.message}`);
+  }
+
+  const { model, provider, maxTokens, temperature, role: canonicalRole } = config;
+  const useSearch = roleUsesGoogleSearch(role);
+
+  // 2026-01-06: SECURITY - Log only metadata, not message content
+  console.log(`🤖 [AI STREAM] Role=${canonicalRole} Model=${model} Provider=${provider} MsgCount=${messageHistory?.length || 0}`);
+
+  // 2. Currently only Gemini supports streaming via this adapter
+  if (!model.startsWith('gemini-')) {
+    throw new Error(`Streaming not supported for provider: ${provider}. Only Gemini models support streaming via callModelStream()`);
+  }
+
+  // 3. Call the streaming adapter
+  const response = await callGeminiStream({
+    model,
+    system,
+    messageHistory,
+    maxTokens,
+    temperature,
+    useSearch,
+    timeoutMs: 90000 // 90 seconds for streaming responses
+  });
+
+  return response;
+}
+
+// Re-export Vertex AI helpers for external use
+export { isVertexAIAvailable, getVertexAIStatus };

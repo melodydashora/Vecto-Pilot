@@ -23,6 +23,7 @@ function BriefingPage() {
     eventsData,
     schoolClosuresData,
     airportData,
+    isLoading,
   } = useBriefingQueries({ snapshotId: lastSnapshotId });
 
   // Still need persistentStrategy from CoPilot context for display
@@ -46,6 +47,7 @@ function BriefingPage() {
         trafficData={trafficData}
         newsData={newsData}
         eventsData={eventsData}
+        isEventsLoading={isLoading.events}
         schoolClosuresData={schoolClosuresData}
         airportData={airportData}
         consolidatedStrategy={persistentStrategy || undefined}

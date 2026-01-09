@@ -22,7 +22,7 @@ export async function verifyVenueEvent(venueName, venueBadge, eventSummary, lat,
     const prompt = `Verify this venue event and assess its impact on rideshare demand:
     
 Venue: ${venueName}
-Location: ${city} (${lat.toFixed(4)}, ${lng.toFixed(4)})
+Location: ${city} (${parseFloat(lat).toFixed(6)},${parseFloat(lng).toFixed(6)})
 Event Badge: ${venueBadge}
 Event Summary: ${eventSummary}
 

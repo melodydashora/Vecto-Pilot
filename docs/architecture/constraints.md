@@ -62,8 +62,8 @@ Coordinates and business hours come from Google APIs or DB, **never from AI mode
 | Distance/drive time | Google Routes API |
 
 ### Coordinate Caching
-- `coords_cache` table uses 4-decimal precision (~11m accuracy)
-- Key format: `${lat.toFixed(4)}_${lng.toFixed(4)}`
+- `coords_cache` table uses 6-decimal precision (~0.11m accuracy)
+- Key format: `${lat.toFixed(6)}_${lng.toFixed(6)}`
 - Always check cache before calling external APIs
 
 ## Database Constraints

@@ -23,23 +23,30 @@ router.get('/strategy', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    
+
     console.log('[SSE-Notifications] Client connected to /events/strategy SSE');
-    
+
+    // 2026-01-08: FIX - Register cleanup BEFORE adding listener to prevent orphaned listeners
+    let cleanedUp = false;
+
     const onReady = (data) => {
+      if (cleanedUp) return; // Don't write to closed connection
       const eventData = typeof data === 'string' ? { snapshot_id: data } : data;
       res.write(`data: ${JSON.stringify(eventData)}\n\n`);
     };
-    
-    strategyEmitter.on('ready', onReady);
-    
-    // Clean up on disconnect
+
+    // Register cleanup first
     req.on('close', () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
       console.log('[SSE-Notifications] Client disconnected from /events/strategy SSE');
       strategyEmitter.removeListener('ready', onReady);
       res.end();
     });
-    
+
+    // Then add listener
+    strategyEmitter.on('ready', onReady);
+
   } catch (error) {
     console.error('[SSE-Notifications] Error setting up strategy SSE:', error);
     res.status(500).json({ error: 'Failed to connect to strategy events' });
@@ -57,19 +64,26 @@ router.get('/blocks', (req, res) => {
 
     console.log('[SSE-Notifications] Client connected to /events/blocks SSE');
 
+    // 2026-01-08: FIX - Register cleanup BEFORE adding listener to prevent orphaned listeners
+    let cleanedUp = false;
+
     const onReady = (data) => {
+      if (cleanedUp) return;
       const eventData = typeof data === 'string' ? { snapshot_id: data } : data;
       res.write(`data: ${JSON.stringify(eventData)}\n\n`);
     };
 
-    blocksEmitter.on('ready', onReady);
-
-    // Clean up on disconnect
+    // Register cleanup first
     req.on('close', () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
       console.log('[SSE-Notifications] Client disconnected from /events/blocks SSE');
       blocksEmitter.removeListener('ready', onReady);
       res.end();
     });
+
+    // Then add listener
+    blocksEmitter.on('ready', onReady);
 
   } catch (error) {
     console.error('[SSE-Notifications] Error setting up blocks SSE:', error);
@@ -90,19 +104,26 @@ router.get('/phase', (req, res) => {
 
     console.log('[SSE-Notifications] Client connected to /events/phase SSE');
 
+    // 2026-01-08: FIX - Register cleanup BEFORE adding listener to prevent orphaned listeners
+    let cleanedUp = false;
+
     const onChange = (data) => {
+      if (cleanedUp) return;
       // data: { snapshot_id, phase, phase_started_at, expected_duration_ms }
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    phaseEmitter.on('change', onChange);
-
-    // Clean up on disconnect
+    // Register cleanup first
     req.on('close', () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
       console.log('[SSE-Notifications] Client disconnected from /events/phase SSE');
       phaseEmitter.removeListener('change', onChange);
       res.end();
     });
+
+    // Then add listener
+    phaseEmitter.on('change', onChange);
 
   } catch (error) {
     console.error('[SSE-Notifications] Error setting up phase SSE:', error);

@@ -1,6 +1,7 @@
 // server/lib/adapters/gemini-adapter.js
 // Generic Gemini adapter - returns { ok, output } shape
 // Updated 2026-01-05: Migrated to @google/genai SDK for Gemini 3 thinkingLevel support
+// Updated 2026-01-06: Added streaming support via callGeminiStream()
 
 import { GoogleGenAI } from "@google/genai";
 
@@ -125,5 +126,90 @@ export async function callGemini({
   } catch (err) {
     console.error("[model/gemini] error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };
+  }
+}
+
+/**
+ * Streaming version of callGemini for chat/SSE use cases
+ * 2026-01-06: Added to support adapter pattern for coach chat
+ *
+ * @param {Object} params - Same as callGemini plus messageHistory
+ * @returns {Promise<Response>} - Fetch Response object with readable stream body
+ */
+export async function callGeminiStream({
+  model,
+  system,
+  messageHistory = [], // Array of { role: 'user'|'model', parts: [{ text }] }
+  maxTokens,
+  temperature,
+  useSearch = false,
+  timeoutMs = 90000
+}) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY not configured');
+  }
+
+  console.log(`[model/gemini-stream] Calling ${model} with ${messageHistory.length} messages, maxTokens=${maxTokens}`);
+
+  // Build the request body
+  const requestBody = {
+    contents: messageHistory,
+    generationConfig: {
+      temperature: temperature || 0.7,
+      topP: 0.95,
+      topK: 40,
+      maxOutputTokens: maxTokens || 8192,
+    },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
+    ]
+  };
+
+  // Add system instruction if provided
+  if (system) {
+    requestBody.systemInstruction = {
+      parts: [{ text: system }]
+    };
+  }
+
+  // Add Google Search tool if requested
+  if (useSearch) {
+    requestBody.tools = [{ google_search: {} }];
+  }
+
+  // Create abort controller with timeout
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: abortController.signal,
+        body: JSON.stringify(requestBody)
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[model/gemini-stream] API error ${response.status}: ${errText.substring(0, 200)}`);
+      throw new Error(`Gemini API error ${response.status}: ${errText.substring(0, 100)}`);
+    }
+
+    console.log(`[model/gemini-stream] ✅ Stream started for ${model}`);
+    return response;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.error(`[model/gemini-stream] Error: ${err.message}`);
+    throw err;
   }
 }

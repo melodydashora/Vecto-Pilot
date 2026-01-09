@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-08
 
 # AI Adapters (`server/lib/ai/adapters/`)
 
@@ -13,7 +13,8 @@ Model-agnostic API adapters that normalize calls to different AI providers. **Al
 | `index.js` | Main dispatcher - routes by role | All |
 | `anthropic-adapter.js` | Claude API calls + web search | Anthropic |
 | `openai-adapter.js` | GPT-5.2 / o1 calls | OpenAI |
-| `gemini-adapter.js` | Gemini 3.0 Pro calls + Google Search | Google |
+| `gemini-adapter.js` | Gemini 3.0 Pro calls + Google Search | Google (Developer API) |
+| `vertex-adapter.js` | Vertex AI Gemini calls (Google Cloud) | Google Cloud |
 | `anthropic-sonnet45.js` | Claude Sonnet 4.5 raw calls | Anthropic |
 
 ## Usage
@@ -93,6 +94,29 @@ if (result.ok) {
 ### Claude Opus
 - Supports web search via `web_search_20250305` tool
 - Web search enabled for roles with `features: ['web_search']`
+
+### Vertex AI (Google Cloud)
+- Enterprise Gemini access via Google Cloud
+- Requires Google Cloud project and authentication
+- Supports Google Search grounding
+- Use model prefix `vertex-` for explicit Vertex AI routing
+
+```javascript
+// Using Vertex AI adapter
+import { isVertexAIAvailable, getVertexAIStatus } from './index.js';
+
+if (isVertexAIAvailable()) {
+  console.log('Vertex AI is configured:', getVertexAIStatus());
+}
+```
+
+**Environment Variables:**
+```bash
+VERTEX_AI_ENABLED=true
+GOOGLE_CLOUD_PROJECT=my-project-id
+GOOGLE_CLOUD_LOCATION=us-central1  # optional, default us-central1
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # optional, uses ADC if not set
+```
 
 ## Fallback Chain
 

@@ -34,6 +34,7 @@ export function useMemory(options: UseMemoryOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   // Load full context from memory
+  // 2026-01-06: Removed graceful error handling - errors should surface, not be silenced
   const loadContext = useCallback(async (threadId?: string) => {
     setIsLoading(true);
     setError(null);
@@ -43,7 +44,17 @@ export function useMemory(options: UseMemoryOptions = {}) {
       if (threadId) params.set('threadId', threadId);
 
       const res = await fetch(`/agent/context?${params}`);
-      if (!res.ok) throw new Error('Failed to load context');
+
+      // Let errors surface with clear messages - don't silently fail
+      if (res.status === 503) {
+        throw new Error('Agent is disabled on server (AGENT_ENABLED !== true)');
+      }
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`Agent auth required (${res.status})`);
+      }
+      if (!res.ok) {
+        throw new Error(`Agent context fetch failed: ${res.status} ${res.statusText}`);
+      }
 
       const data = await res.json();
       if (data.ok) {
@@ -54,7 +65,7 @@ export function useMemory(options: UseMemoryOptions = {}) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
       console.error('[useMemory] loadContext failed:', message);
-      return null;
+      throw err;  // Re-throw so callers know something went wrong
     } finally {
       setIsLoading(false);
     }

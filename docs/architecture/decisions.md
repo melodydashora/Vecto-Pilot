@@ -215,7 +215,7 @@ const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 
 **Flow:**
 1. Users table (device_id + within 100m) → REUSE
-2. Coords cache (4-decimal precision) → REUSE
+2. Coords cache (6-decimal precision, ~0.11m) → REUSE
 3. Google Geocoding API → store result
 
 ---

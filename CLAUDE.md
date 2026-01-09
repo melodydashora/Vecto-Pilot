@@ -173,6 +173,35 @@ const city = snapshot.city;
 2. Optional data missing? **Omit the feature, don't fake it**
 3. Never hardcode: cities, states, countries, airports, coordinates, or timezones
 
+### NO SILENT FAILURES - ERROR HANDLING RULE
+
+**Never use graceful error handling that masks problems.**
+
+```javascript
+// WRONG - silently fails, masks bugs
+if (res.status === 503) {
+  console.debug('Service unavailable');  // NO! debug logs are invisible
+  return null;  // NO! caller doesn't know something failed
+}
+
+// CORRECT - let errors surface with clear messages
+if (res.status === 503) {
+  throw new Error('Agent is disabled on server (AGENT_ENABLED !== true)');
+}
+```
+
+**Why this matters:**
+- Silent failures hide bugs until they become critical
+- `console.debug` is often invisible in production logs
+- Returning `null` on error makes callers assume success
+- Fix the **ROOT CAUSE**, don't mask symptoms
+
+**The pattern to follow:**
+1. Error occurred? **Throw with a descriptive message**
+2. Log errors with `console.error`, never `console.debug`
+3. Re-throw errors so callers can handle or know something failed
+4. If you're catching an error just to return null - you're masking a bug
+
 ### Model Parameters
 
 **GPT-5.2** - Avoid 400 errors:
