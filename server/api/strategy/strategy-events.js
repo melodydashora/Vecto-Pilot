@@ -4,10 +4,15 @@
 // ARCHITECTURE: Uses shared notification dispatcher (subscribeToChannel) to ensure
 // ONE notification handler on the database client, regardless of how many SSE
 // connections exist. This prevents duplicate log spam and duplicate processing.
+//
+// 2026-01-09: Consolidated all SSE endpoints here. /events/phase uses EventEmitter
+// (high-frequency ephemeral updates), while strategy/briefing/blocks use DB NOTIFY.
 
 import express from 'express';
 import { subscribeToChannel } from '../../db/db-client.js';
 import { sseLog, OP } from '../../logger/workflow.js';
+// Phase events use EventEmitter (high-frequency, ephemeral - no DB needed)
+import { phaseEmitter } from '../briefing/events.js';
 
 const router = express.Router();
 
@@ -15,6 +20,7 @@ const router = express.Router();
 let strategyConnections = 0;
 let briefingConnections = 0;
 let blocksConnections = 0;
+let phaseConnections = 0;
 
 router.get('/events/strategy', async (req, res) => {
   strategyConnections++;
@@ -137,6 +143,44 @@ router.get('/events/blocks', async (req, res) => {
     sseLog.error(1, `Blocks listener failed`, err, OP.SSE);
     res.write(`event: error\ndata: ${JSON.stringify({ error: 'Failed to connect to database' })}\n\n`);
   }
+});
+
+// 2026-01-09: /events/phase migrated from briefing/events.js (EventEmitter SSE)
+// Phase updates are high-frequency ephemeral events - no DB NOTIFY needed
+router.get('/events/phase', (req, res) => {
+  phaseConnections++;
+  sseLog.phase(1, `SSE /events/phase connected (${phaseConnections} active)`, OP.SSE);
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  });
+
+  // Send initial comment to establish connection
+  res.write(': connected\n\n');
+
+  let cleanedUp = false;
+
+  const onChange = (data) => {
+    if (cleanedUp) return;
+    // data: { snapshot_id, phase, phase_started_at, expected_duration_ms }
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Register cleanup BEFORE adding listener
+  req.on('close', () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    phaseConnections--;
+    sseLog.info(`SSE /events/phase closed (${phaseConnections} remaining)`, OP.SSE);
+    phaseEmitter.removeListener('change', onChange);
+    res.end();
+  });
+
+  // Subscribe to phase changes
+  phaseEmitter.on('change', onChange);
 });
 
 export default router;

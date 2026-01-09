@@ -4,6 +4,47 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
+## 2026-01-09
+
+### Database Detox + Root Cause Fixes
+
+**Database Cleanup (`scripts/db-detox.js`):**
+- Created comprehensive database cleanup script with 8 phases
+- Cleaned 582 duplicate venue rows (Comerica Center: 68→1, Stonebriar Centre: 67→1)
+- Added FK-aware deduplication (cleans `venue_metrics` before `venue_catalog`)
+- Script supports `--analyze` (dry run) and `--execute` modes
+
+**Critical Bug Fixes:**
+
+| Issue | File | Fix |
+|-------|------|-----|
+| Venue linking broken | `server/scripts/sync-events.mjs:134` | Changed `venue.id` → `venue.venue_id` (PK mismatch) |
+| Password chars logged | `server/api/auth/auth.js:225,567` | Removed first/last char logging (security) |
+| LISTEN client race | `server/db/db-client.js` | Added `connectPromise` for initial connection lock |
+
+**SSE Dual System Consolidation:**
+
+Root cause of "data not pushed/fetched properly" - two SSE systems at overlapping paths:
+
+| Before (Duplicate) | After (Single Source) |
+|-------------------|----------------------|
+| `/events` → EventEmitter SSE | Removed from routes.js |
+| `/events/*` → DB NOTIFY SSE | Kept as canonical |
+| `strategyEmitter.emit()` in blocks-fast.js | Removed (DB NOTIFY canonical) |
+| `blocksEmitter.emit()` in blocks-fast.js | Removed (DB NOTIFY canonical) |
+
+**Files Modified:**
+- `scripts/db-detox.js` - NEW: Database cleanup script
+- `server/scripts/sync-events.mjs` - Fixed venue_id field access
+- `server/api/auth/auth.js` - Removed password character logging
+- `server/db/db-client.js` - Added connection promise pattern
+- `server/bootstrap/routes.js` - Removed duplicate `/events` mount
+- `server/api/strategy/blocks-fast.js` - Removed EventEmitter emits
+- `server/api/strategy/strategy-events.js` - Added `/events/phase` endpoint
+- `LESSONS_LEARNED.md` - Added SSE Dual System Consolidation section
+
+---
+
 ## 2026-01-08
 
 **Commits:** `a18cd3d`, `b7fe00b`, `7e6130d`, `a625be9`, `2534c07`
