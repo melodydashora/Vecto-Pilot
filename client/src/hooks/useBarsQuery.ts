@@ -1,40 +1,49 @@
 // client/src/hooks/useBarsQuery.ts
 // Pre-fetch bars/venues data when location resolves
 // Data is cached so BarTab component displays instantly without loading state
+// 2026-01-09: Updated types to camelCase to match API response transformation
 
 import { useQuery } from '@tanstack/react-query';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 
+/**
+ * Venue type - matches server/validation/response-schemas.js VenueSchema
+ * Uses camelCase to match API response format
+ */
 export interface Venue {
   name: string;
   type: 'bar' | 'nightclub' | 'wine_bar' | 'lounge';
   address: string;
   phone: string | null;
-  expense_level: string;
-  expense_rank: number;
-  // 2026-01-09: is_open can be null when hours unavailable (per server calculateOpenStatus)
-  is_open: boolean | null;
-  opens_in_minutes: number | null;
-  // 2026-01-09: hours_today can be null when hours unavailable
-  hours_today: string | null;
-  hours_full_week?: Record<string, string>;
-  closing_soon: boolean;
-  minutes_until_close: number | null;
-  crowd_level: 'low' | 'medium' | 'high';
-  rideshare_potential: 'low' | 'medium' | 'high';
+  expenseLevel: string;
+  expenseRank: number;
+  // 2026-01-09: isOpen can be null when hours unavailable (per server calculateOpenStatus)
+  isOpen: boolean | null;
+  opensInMinutes: number | null;
+  // 2026-01-09: hoursToday can be null when hours unavailable
+  hoursToday: string | null;
+  hoursFullWeek?: Record<string, string>;
+  closingSoon: boolean;
+  minutesUntilClose: number | null;
+  crowdLevel: 'low' | 'medium' | 'high';
+  ridesharePotential: 'low' | 'medium' | 'high';
   rating: number | null;
   lat: number;
   lng: number;
-  place_id?: string;
+  placeId?: string;
 }
 
+/**
+ * BarsData - matches server/validation/response-schemas.js VenueDataSchema
+ * Uses camelCase to match API response format
+ */
 export interface BarsData {
-  query_time: string;
+  queryTime: string;
   location: string;
-  total_venues: number;
+  totalVenues: number;
   venues: Venue[];
-  last_call_venues: Venue[];
-  search_sources?: string[];
+  lastCallVenues: Venue[];
+  searchSources?: string[];
 }
 
 interface UseBarsQueryParams {
@@ -95,7 +104,7 @@ export function useBarsQuery({
       }
 
       const result = await response.json();
-      console.log('[useBarsQuery] Prefetch complete:', result.data?.total_venues, 'venues');
+      console.log('[useBarsQuery] Prefetch complete:', result.data?.totalVenues, 'venues');
       return result.data;
     },
     // Only fetch when location is fully resolved with all required data

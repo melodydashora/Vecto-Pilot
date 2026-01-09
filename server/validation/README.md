@@ -1,18 +1,31 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-09
 
 # Validation (`server/validation/`)
 
 ## Purpose
 
-Zod validation schemas for API request validation. Provides type-safe input validation with detailed error messages.
+Zod validation schemas for API requests and responses. Provides type-safe validation with detailed error messages, and transformers for consistent data casing between layers.
 
 ## Files
 
 | File | Purpose | Key Exports |
 |------|---------|-------------|
 | `schemas.js` | Zod schemas for API requests | `snapshotMinimalSchema`, `locationResolveSchema`, `strategyRequestSchema`, etc. |
+| `response-schemas.js` | Zod schemas for API responses | `VenueSchema`, `SmartBlockSchema`, `StrategyPollingResponseSchema`, etc. |
+| `transformers.js` | DB→API data transformation | `toApiVenue`, `toApiVenueData`, `toApiBlock`, etc. |
+
+## Casing Convention
+
+| Layer | Convention | Example |
+|-------|------------|---------|
+| Database (PostgreSQL) | snake_case | `snapshot_id`, `is_open`, `hours_today` |
+| Server internal | snake_case | Matches DB for simplicity |
+| API responses | camelCase | `snapshotId`, `isOpen`, `hoursToday` |
+| Client (TypeScript) | camelCase | Matches API responses |
 
 ## Available Schemas
+
+### Request Schemas (`schemas.js`)
 
 | Schema | Purpose |
 |--------|---------|
@@ -21,7 +34,48 @@ Zod validation schemas for API request validation. Provides type-safe input vali
 | `strategyRequestSchema` | Strategy generation request |
 | `newsBriefingSchema` | News briefing request |
 
-## Usage
+### Response Schemas (`response-schemas.js`)
+
+| Schema | Purpose |
+|--------|---------|
+| `VenueSchema` | Single venue in venues/nearby response |
+| `VenueDataSchema` | Full venue discovery data |
+| `VenuesNearbyResponseSchema` | Complete /api/venues/nearby response |
+| `SmartBlockSchema` | Single SmartBlock recommendation |
+| `BlocksFastGetSuccessSchema` | /api/blocks-fast GET success response |
+| `BlocksFastPostSuccessSchema` | /api/blocks-fast POST success response |
+| `StrategyPollingResponseSchema` | /api/blocks/strategy/:id responses |
+
+## Transformers (`transformers.js`)
+
+Convert database records to API responses with consistent camelCase:
+
+```javascript
+import { toApiVenueData, toApiBlock } from '../../validation/transformers.js';
+
+// In API route
+const venueData = await discoverNearbyVenues(params);
+res.json({
+  success: true,
+  data: toApiVenueData(venueData)  // Converts snake_case → camelCase
+});
+```
+
+### Available Transformers
+
+| Function | Input | Output |
+|----------|-------|--------|
+| `toApiVenue(dbVenue)` | DB venue record | API venue (camelCase) |
+| `toApiVenueData(venueData)` | discoverNearbyVenues result | API venue data |
+| `toApiBlock(dbBlock)` | ranking_candidates row | API SmartBlock |
+| `toApiBlocksResponse(data)` | blocks-fast internal | API blocks response |
+| `toApiStrategyPolling(data)` | content-blocks internal | API polling response |
+| `transformKeysToCamel(obj)` | Any object | Recursively camelCase keys |
+| `transformKeysToSnake(obj)` | Any object | Recursively snake_case keys |
+
+## Usage Examples
+
+### Request Validation
 
 ```javascript
 import { validateBody } from '../../middleware/validate.js';
@@ -30,6 +84,26 @@ import { snapshotMinimalSchema, strategyRequestSchema } from '../../validation/s
 // Validate POST body
 router.post('/snapshot', validateBody(snapshotMinimalSchema), handler);
 router.post('/strategy', validateBody(strategyRequestSchema), handler);
+```
+
+### Response Transformation
+
+```javascript
+import { toApiVenueData } from '../../validation/transformers.js';
+import { VenuesNearbyResponseSchema, validateResponse } from '../../validation/response-schemas.js';
+
+router.get('/nearby', async (req, res) => {
+  const venueData = await discoverNearbyVenues(params);
+  const apiData = toApiVenueData(venueData);
+
+  // Optional: validate response matches schema (useful in development)
+  const validation = validateResponse(VenuesNearbyResponseSchema, { success: true, data: apiData });
+  if (!validation.ok) {
+    console.warn('Response validation failed:', validation.error);
+  }
+
+  res.json({ success: true, data: apiData });
+});
 ```
 
 ## Snapshot Schema
@@ -50,7 +124,9 @@ Both are normalized to include top-level `lat`/`lng` for backward compatibility.
 
 ```javascript
 // From server/api/*/
-import { snapshotMinimalSchema, strategyRequestSchema } from '../../validation/schemas.js';
+import { snapshotMinimalSchema } from '../../validation/schemas.js';
+import { toApiVenueData } from '../../validation/transformers.js';
+import { VenueSchema, validateResponse } from '../../validation/response-schemas.js';
 
 // From server/lib/*/
 import { snapshotMinimalSchema } from '../validation/schemas.js';
@@ -58,6 +134,7 @@ import { snapshotMinimalSchema } from '../validation/schemas.js';
 
 ## Connections
 
-- **Used by:** `server/api/location/`, `server/api/strategy/`
+- **Used by:** `server/api/venue/`, `server/api/strategy/`, `server/api/location/`
 - **Depends on:** Zod library (`z`)
 - **Related:** `../middleware/validate.js` (validateBody middleware)
+- **Client types:** `client/src/types/co-pilot.ts` (should match response schemas)

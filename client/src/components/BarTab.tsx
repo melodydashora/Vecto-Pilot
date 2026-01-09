@@ -1,6 +1,7 @@
 // client/src/components/BarTab.tsx
 // Independent Bar Tab - Driver utility for finding premium venues with phone numbers
 // Does NOT depend on strategy pipeline - only needs location + timezone
+// 2026-01-09: Updated to use camelCase API response format
 //
 // Use case: Driver helping passengers find open venues, especially on holidays
 // Key features: Phone numbers, special hours, expense sorting, real-time open status
@@ -21,36 +22,44 @@ interface BarTabProps {
   getAuthHeader: () => Record<string, string>;
 }
 
+/**
+ * Venue interface - uses camelCase to match API response
+ * Mirrors server/validation/response-schemas.js VenueSchema
+ */
 interface Venue {
   name: string;
   type: 'bar' | 'nightclub' | 'wine_bar' | 'lounge';
   address: string;
   phone: string | null;
-  expense_level: string;
-  expense_rank: number;
-  // 2026-01-09: is_open can be null when hours unavailable
-  is_open: boolean | null;
-  opens_in_minutes: number | null;
-  // 2026-01-09: hours_today can be null when hours unavailable
-  hours_today: string | null;
-  hours_full_week?: Record<string, string>;
-  closing_soon: boolean;
-  minutes_until_close: number | null;
-  crowd_level: 'low' | 'medium' | 'high';
-  rideshare_potential: 'low' | 'medium' | 'high';
+  expenseLevel: string;
+  expenseRank: number;
+  // 2026-01-09: isOpen can be null when hours unavailable
+  isOpen: boolean | null;
+  opensInMinutes: number | null;
+  // 2026-01-09: hoursToday can be null when hours unavailable
+  hoursToday: string | null;
+  hoursFullWeek?: Record<string, string>;
+  closingSoon: boolean;
+  minutesUntilClose: number | null;
+  crowdLevel: 'low' | 'medium' | 'high';
+  ridesharePotential: 'low' | 'medium' | 'high';
   rating: number | null;
   lat: number;
   lng: number;
-  place_id?: string;
+  placeId?: string;
 }
 
+/**
+ * VenueData interface - uses camelCase to match API response
+ * Mirrors server/validation/response-schemas.js VenueDataSchema
+ */
 interface VenueData {
-  query_time: string;
+  queryTime: string;
   location: string;
-  total_venues: number;
+  totalVenues: number;
   venues: Venue[];
-  last_call_venues: Venue[];
-  search_sources?: string[];
+  lastCallVenues: Venue[];
+  searchSources?: string[];
 }
 
 // Get category color based on venue type
@@ -90,7 +99,7 @@ function handleNavigation(venue: Venue) {
   openNavigation({
     lat: venue.lat,
     lng: venue.lng,
-    placeId: venue.place_id,
+    placeId: venue.placeId,
     name: venue.name,
     address: venue.address
   });
@@ -211,11 +220,12 @@ export default function BarTab({
   }
 
   // Filter out venues without business hours - they're not useful to drivers
+  // 2026-01-09: Using camelCase hoursToday field
   const venuesWithHours = venueData.venues.filter(v => {
-    // Must have hours_today to be displayed
-    if (!v.hours_today || v.hours_today.trim().length === 0) return false;
+    // Must have hoursToday to be displayed
+    if (!v.hoursToday || v.hoursToday.trim().length === 0) return false;
     // Filter out "Hours not available" or similar
-    if (v.hours_today.toLowerCase().includes('not available')) return false;
+    if (v.hoursToday.toLowerCase().includes('not available')) return false;
     return true;
   });
 
@@ -227,13 +237,13 @@ export default function BarTab({
   // 5. Then closed venues
   // Within each group, sort by expense level (highest first = better tips)
   //
-  // 2026-01-09: Updated to handle is_open: null (unknown) explicitly
+  // 2026-01-09: Updated to handle isOpen: null (unknown) explicitly
   // null means Google didn't return hours - venue might still be open
   const sortedVenues = [...venuesWithHours].sort((a, b) => {
     // Helper to get sort priority: open=0, unknown=1, closed=2
     const getPriority = (v: Venue) => {
-      if (v.is_open === true) return 0;
-      if (v.is_open === null) return 1;  // Unknown - might be open
+      if (v.isOpen === true) return 0;
+      if (v.isOpen === null) return 1;  // Unknown - might be open
       return 2;  // Closed
     };
 
@@ -246,38 +256,38 @@ export default function BarTab({
     }
 
     // Both open - sort by closing time strategy
-    if (a.is_open === true && b.is_open === true) {
+    if (a.isOpen === true && b.isOpen === true) {
       // Neither closing soon - sort by expense (highest first)
-      if (!a.closing_soon && !b.closing_soon) {
-        return (b.expense_rank || 0) - (a.expense_rank || 0);
+      if (!a.closingSoon && !b.closingSoon) {
+        return (b.expenseRank || 0) - (a.expenseRank || 0);
       }
       // Put non-closing-soon venues before closing-soon (more time to work them)
-      if (a.closing_soon !== b.closing_soon) {
-        return a.closing_soon ? 1 : -1;
+      if (a.closingSoon !== b.closingSoon) {
+        return a.closingSoon ? 1 : -1;
       }
       // Both closing soon - sort by minutes until close (more time first)
-      if (a.closing_soon && b.closing_soon) {
-        return (b.minutes_until_close || 0) - (a.minutes_until_close || 0);
+      if (a.closingSoon && b.closingSoon) {
+        return (b.minutesUntilClose || 0) - (a.minutesUntilClose || 0);
       }
     }
 
     // Both unknown or both closed - check opening soon
-    const aOpeningSoon = a.opens_in_minutes && a.opens_in_minutes <= 15;
-    const bOpeningSoon = b.opens_in_minutes && b.opens_in_minutes <= 15;
+    const aOpeningSoon = a.opensInMinutes && a.opensInMinutes <= 15;
+    const bOpeningSoon = b.opensInMinutes && b.opensInMinutes <= 15;
     if (aOpeningSoon !== bOpeningSoon) {
       return aOpeningSoon ? -1 : 1;
     }
 
     // Finally, sort by expense
-    return (b.expense_rank || 0) - (a.expense_rank || 0);
+    return (b.expenseRank || 0) - (a.expenseRank || 0);
   });
 
   const venues = sortedVenues;
-  // Filter last_call_venues the same way
-  const lastCallVenues = (venueData.last_call_venues || []).filter(v =>
-    v.hours_today && v.hours_today.trim().length > 0 && !v.hours_today.toLowerCase().includes('not available')
+  // Filter lastCallVenues the same way (using camelCase)
+  const lastCallVenues = (venueData.lastCallVenues || []).filter(v =>
+    v.hoursToday && v.hoursToday.trim().length > 0 && !v.hoursToday.toLowerCase().includes('not available')
   );
-  const lateNightVenues = venues.filter(v => v.is_open && !v.closing_soon);
+  const lateNightVenues = venues.filter(v => v.isOpen && !v.closingSoon);
 
   // No venues after filtering
   if (venues.length === 0) {
@@ -307,7 +317,7 @@ export default function BarTab({
           <h2 className="text-lg font-semibold text-gray-800">Upscale Bars</h2>
           <Badge variant="outline" className="border-green-500 text-green-600">
             <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-            {venues.filter(v => v.is_open).length} open
+            {venues.filter(v => v.isOpen).length} open
           </Badge>
         </div>
         <button
@@ -354,16 +364,16 @@ export default function BarTab({
       {/* Venue Cards */}
       <div className="space-y-3">
         {venues.map((venue, idx) => {
-          const expenseTier = getExpenseTier(venue.expense_level);
+          const expenseTier = getExpenseTier(venue.expenseLevel);
           const categoryColor = getCategoryColor(venue.type);
 
           return (
             <Card
               key={idx}
               className={`border transition-all hover:shadow-md ${
-                venue.is_open
+                venue.isOpen
                   ? "border-green-200 bg-green-50/30"
-                  : venue.opens_in_minutes && venue.opens_in_minutes <= 15
+                  : venue.opensInMinutes && venue.opensInMinutes <= 15
                   ? "border-yellow-200 bg-yellow-50/30"
                   : "border-gray-200 bg-gray-50/50 opacity-70"
               }`}
@@ -408,41 +418,41 @@ export default function BarTab({
                       {/* Today's Hours */}
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                        <span className="text-xs text-gray-700 font-mono">{venue.hours_today}</span>
+                        <span className="text-xs text-gray-700 font-mono">{venue.hoursToday}</span>
                       </div>
 
                       {/* Status Badges */}
-                      {venue.closing_soon && venue.minutes_until_close && (
+                      {venue.closingSoon && venue.minutesUntilClose && (
                         <Badge className="bg-orange-100 text-orange-700 border-0 text-xs">
-                          Closes in {venue.minutes_until_close}min
+                          Closes in {venue.minutesUntilClose}min
                         </Badge>
                       )}
 
-                      {venue.opens_in_minutes && venue.opens_in_minutes <= 15 && (
+                      {venue.opensInMinutes && venue.opensInMinutes <= 15 && (
                         <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs">
-                          Opens in {venue.opens_in_minutes}min
+                          Opens in {venue.opensInMinutes}min
                         </Badge>
                       )}
 
                       <Badge
                         className={`text-xs ${
-                          venue.is_open === true
+                          venue.isOpen === true
                             ? "bg-green-100 text-green-700 border-0"
-                            : venue.is_open === false
+                            : venue.isOpen === false
                             ? "bg-red-100 text-red-700 border-0"
                             : "bg-gray-100 text-gray-600 border-0"
                         }`}
                       >
-                        {venue.is_open === true ? "Open Now" : venue.is_open === false ? "Closed" : "Hours Unknown"}
+                        {venue.isOpen === true ? "Open Now" : venue.isOpen === false ? "Closed" : "Hours Unknown"}
                       </Badge>
 
                       {/* Crowd Level */}
                       <Badge className={`text-xs border-0 ${
-                        venue.crowd_level === 'high' ? 'bg-purple-100 text-purple-700' :
-                        venue.crowd_level === 'medium' ? 'bg-blue-100 text-blue-700' :
+                        venue.crowdLevel === 'high' ? 'bg-purple-100 text-purple-700' :
+                        venue.crowdLevel === 'medium' ? 'bg-blue-100 text-blue-700' :
                         'bg-gray-100 text-gray-600'
                       }`}>
-                        {venue.crowd_level} crowd
+                        {venue.crowdLevel} crowd
                       </Badge>
                     </div>
 
@@ -474,9 +484,9 @@ export default function BarTab({
         })}
       </div>
 
-      {/* Data Source Footer */}
+      {/* Data Source Footer - using camelCase fields */}
       <div className="text-xs text-gray-400 text-center pt-2">
-        Updated {venueData.query_time} | {venueData.location}
+        Updated {venueData.queryTime} | {venueData.location}
       </div>
     </div>
   );
