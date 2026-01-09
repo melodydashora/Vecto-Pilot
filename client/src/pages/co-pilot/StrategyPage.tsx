@@ -23,7 +23,8 @@ import { useToast } from '@/hooks/useToast';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import CoachChat from '@/components/CoachChat';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
-import BarsTable from '@/components/BarsTable';
+// 2026-01-09: Renamed from BarsTable for disambiguation
+import BarsDataGrid from '@/components/BarsDataGrid';
 import { GreetingBanner } from '@/components/co-pilot/GreetingBanner';
 import { useCoPilot } from '@/contexts/co-pilot-context';
 import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
@@ -461,8 +462,8 @@ export default function StrategyPage() {
             </div>
           )}
 
-          {/* Bars Table */}
-          <BarsTable blocks={filteredBlocks} />
+          {/* Bars Data Grid */}
+          <BarsDataGrid blocks={filteredBlocks} />
 
           {/* Blocks List */}
           <div className="space-y-4 mt-4" data-testid="blocks-list">

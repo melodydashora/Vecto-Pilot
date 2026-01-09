@@ -1,4 +1,5 @@
-// client/src/components/BarTab.tsx
+// client/src/components/BarsMainTab.tsx
+// 2026-01-09: Renamed from BarTab.tsx for disambiguation (was confused with BarsTable.tsx)
 // Independent Bar Tab - Driver utility for finding premium venues with phone numbers
 // Does NOT depend on strategy pipeline - only needs location + timezone
 // 2026-01-09: Updated to use camelCase API response format
