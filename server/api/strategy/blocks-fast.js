@@ -47,7 +47,8 @@ import { isPlusCode } from '../utils/http-helpers.js';
 // 2026-01-09: Only import phaseEmitter (for phase progress updates)
 // strategyEmitter/blocksEmitter removed - DB NOTIFY is canonical for readiness events
 // See LESSONS_LEARNED.md: "duplicate SSE broadcast" incident
-import { phaseEmitter } from '../briefing/events.js';
+// Extracted to dedicated module (eliminates legacy SSE router dependency)
+import { phaseEmitter } from '../../events/phase-emitter.js';
 import { sseLog, venuesLog, triadLog, dbLog, briefingLog } from '../../logger/workflow.js';
 
 const router = Router();

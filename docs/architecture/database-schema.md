@@ -312,7 +312,7 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 | `source_model` | TEXT | SerpAPI, GPT-5.2, Gemini, etc. |
 | `event_hash` | TEXT (UNIQUE) | Deduplication key |
 | `is_active` | BOOLEAN | False if cancelled |
-| `venue_id` | UUID (FK) | Reference to venue_cache (for precise coords & SmartBlocks) |
+| `venue_id` | UUID (FK) | Reference to venue_catalog.venue_id (for precise coords & SmartBlocks) |
 
 **Deduplication:** Uses MD5 hash of `normalize(title + venue + date + city)` to prevent duplicates across sources.
 
@@ -320,7 +320,10 @@ See [Event Discovery Architecture](event-discovery.md) for full documentation.
 
 ---
 
-### `venue_cache` - Venue Deduplication & Precision Coordinates
+### `venue_catalog` - Venue Deduplication & Precision Coordinates
+
+> **Note (2026-01-09):** Formerly `venue_cache`, renamed to `venue_catalog` for clarity.
+> PK is `venue_id`, not `id`. Always access via `venue.venue_id`.
 
 **Purpose:** Central venue registry with precise coordinates, normalized names for fuzzy matching, and event linking. Eliminates repeated geocoding and enables SmartBlocks "event tonight" flagging.
 
@@ -332,7 +335,7 @@ See [Event Discovery Architecture](event-discovery.md) for full documentation.
 **Key Columns:**
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | UUID (PK) | Primary identifier |
+| `venue_id` | UUID (PK) | Primary identifier |
 | `venue_name` | TEXT | Original venue name |
 | `normalized_name` | TEXT | Normalized for matching ("The Rustic" → "rustic") |
 | `city`, `state`, `country` | TEXT | Location (country defaults to 'USA') |
@@ -356,11 +359,11 @@ See [Event Discovery Architecture](event-discovery.md) for full documentation.
 |-------|---------|
 | `UNIQUE (normalized_name, city, state)` | Prevent venue duplicates |
 | `UNIQUE (place_id)` | Google Place ID lookup |
-| `idx_venue_cache_coord_key` | Coordinate proximity lookup |
-| `idx_venue_cache_city_state` | Regional venue queries |
-| `idx_venue_cache_normalized_name` | Fuzzy name search |
+| `idx_venue_catalog_coord_key` | Coordinate proximity lookup |
+| `idx_venue_catalog_city_state` | Regional venue queries |
+| `idx_venue_catalog_normalized_name` | Fuzzy name search |
 
-**Relationship:** `discovered_events.venue_id` → `venue_cache.id` (FK, ON DELETE SET NULL)
+**Relationship:** `discovered_events.venue_id` → `venue_catalog.venue_id` (FK, ON DELETE SET NULL)
 
 **Normalization Algorithm:**
 ```javascript

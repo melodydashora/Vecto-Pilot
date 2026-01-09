@@ -894,23 +894,28 @@ function parseEventsJson(output) {
 
 // ============================================================================
 // Store events in database with deduplication
+// 2026-01-09: Fixed insert counting (use RETURNING) and added upsert for safe fields
 // ============================================================================
 async function storeEvents(db, events) {
   let inserted = 0;
+  let updated = 0;
   let skipped = 0;
 
   for (const event of events) {
     const hash = generateEventHash(event);
 
     try {
-      // Attempt insert - will fail silently on duplicate hash
-      await db.execute(sql`
+      // 2026-01-09: Use UPSERT with RETURNING to accurately count inserts vs updates
+      // - New rows: INSERT and return id → count as inserted
+      // - Existing rows: UPDATE safe fields (venue_id, updated_at) → count as updated
+      // This fixes the previous bug where DO NOTHING + SELECT counted existing rows as inserts
+      const result = await db.execute(sql`
         INSERT INTO discovered_events (
           title, venue_name, address, city, state, zip,
           event_date, event_time, event_end_time, event_end_date,
           lat, lng, category, expected_attendance,
           source_model, source_url, raw_source_data,
-          event_hash, venue_id
+          event_hash, venue_id, updated_at
         ) VALUES (
           ${event.title},
           ${event.venue_name},
@@ -930,21 +935,26 @@ async function storeEvents(db, events) {
           ${event.source_url},
           ${JSON.stringify(event.raw_source_data)}::jsonb,
           ${hash},
-          ${event._venue_id || null}
+          ${event._venue_id || null},
+          NOW()
         )
-        ON CONFLICT (event_hash) DO NOTHING
+        ON CONFLICT (event_hash) DO UPDATE SET
+          venue_id = COALESCE(EXCLUDED.venue_id, discovered_events.venue_id),
+          updated_at = NOW()
+        RETURNING id, (xmax = 0) AS was_inserted
       `);
 
-      // Check if row was inserted
-      const result = await db.execute(sql`
-        SELECT id FROM discovered_events WHERE event_hash = ${hash}
-      `);
+      // xmax = 0 means INSERT, xmax > 0 means UPDATE
       if (result.rows.length > 0) {
-        inserted++;
+        if (result.rows[0].was_inserted) {
+          inserted++;
+        } else {
+          updated++;
+        }
       }
     } catch (err) {
       if (err.code === '23505') {
-        // Duplicate hash - expected for deduplication
+        // Duplicate hash - shouldn't happen with ON CONFLICT, but handle gracefully
         skipped++;
       } else {
         console.log(`  [DB] Error inserting event: ${err.message}`);
@@ -953,7 +963,7 @@ async function storeEvents(db, events) {
     }
   }
 
-  return { inserted, skipped };
+  return { inserted, updated, skipped };
 }
 
 // ============================================================================
@@ -1014,6 +1024,7 @@ async function syncEventsForLocation(location, isDaily = false, options = {}) {
   }
 
   let inserted = 0;
+  let updated = 0;
   let skipped = 0;
 
   if (allEvents.length > 0) {
@@ -1035,8 +1046,9 @@ async function syncEventsForLocation(location, isDaily = false, options = {}) {
     console.log(`\n[Storing] ${allEvents.length} events...`);
     const result = await storeEvents(db, allEvents);
     inserted = result.inserted;
+    updated = result.updated || 0;
     skipped = result.skipped;
-    console.log(`[Result] Inserted: ${inserted}, Duplicates skipped: ${skipped}`);
+    console.log(`[Result] Inserted: ${inserted}, Updated: ${updated}, Skipped: ${skipped}`);
   } else {
     console.log(`\n[Result] No events found`);
   }
@@ -1047,10 +1059,11 @@ async function syncEventsForLocation(location, isDaily = false, options = {}) {
   console.log(`Mode: ${mode}`);
   console.log(`Total events discovered: ${allEvents.length}`);
   console.log(`New events inserted: ${inserted}`);
-  console.log(`Duplicates skipped: ${skipped}`);
+  console.log(`Existing events updated: ${updated}`);
+  console.log(`Errors skipped: ${skipped}`);
   console.log(`Completed: ${new Date().toISOString()}`);
 
-  return { events: allEvents, inserted, skipped };
+  return { events: allEvents, inserted, updated, skipped };
 }
 
 // ============================================================================

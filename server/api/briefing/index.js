@@ -2,7 +2,11 @@
 // Briefing endpoints: weather, traffic, news, events, school closures
 
 export { default as briefingRouter } from './briefing.js';
-export { default as eventsRouter, phaseEmitter } from './events.js';
+
+// 2026-01-09: phaseEmitter moved to server/events/phase-emitter.js
+// 2026-01-09: eventsRouter removed (SSE consolidated to server/api/strategy/strategy-events.js)
+// Import phaseEmitter from dedicated module if needed elsewhere:
+//   import { phaseEmitter } from '../../events/phase-emitter.js';
 
 // Route summary:
 // GET /api/briefing/weather/:snapshotId - Weather data
@@ -10,4 +14,4 @@ export { default as eventsRouter, phaseEmitter } from './events.js';
 // GET /api/briefing/rideshare-news/:snapshotId - Rideshare news
 // GET /api/briefing/events/:snapshotId - Local events
 // GET /api/briefing/school-closures/:snapshotId - School closures
-// GET /events - SSE stream for real-time updates
+// SSE: All SSE endpoints now at /events/* via strategy-events.js
