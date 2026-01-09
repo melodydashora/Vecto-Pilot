@@ -1017,6 +1017,42 @@ await db.update(strategies).set({
 });
 ```
 
+### Bug: Property name mismatch (snake_case vs camelCase) silently breaks filters (Added 2026-01-09)
+
+**Cause:** Accessing a property that doesn't exist returns `undefined`, and JavaScript quirks can make `undefined` pass filters.
+
+**Example - Broken 25-mile venue filter:**
+```javascript
+// mapCandidatesToBlocks creates camelCase properties:
+const block = {
+  estimatedDistanceMiles: c.distance_miles,  // camelCase
+  // ...
+};
+
+// filterAndSortBlocks accidentally used snake_case:
+const filtered = blocks.filter(b => within25Miles(b.estimated_distance_miles));
+// b.estimated_distance_miles is undefined because the property is estimatedDistanceMiles!
+
+// The filter helper:
+const within25Miles = (distanceMiles) => {
+  if (!Number.isFinite(distanceMiles)) return true;  // undefined → true!
+  return distanceMiles <= 25;
+};
+// Result: ALL venues pass the filter regardless of distance
+```
+
+**Symptoms:**
+- Filter appears to work (no errors)
+- But ALL items pass when they shouldn't
+- Only discovered via code review or user reports of distant venues
+
+**Fix:**
+1. Use consistent property naming (camelCase for API, snake_case for DB)
+2. Add TypeScript strict mode to catch `undefined` property access
+3. Be suspicious of filters that check `!Number.isFinite()` as a "not yet calculated" fallback - it also catches typos
+
+**Root cause:** JavaScript returns `undefined` for missing properties instead of throwing, making typos invisible.
+
 ### Bug: Login/Logout/Session Expiry destroys all user data (CASCADE DELETE → RESTRICT blocks)
 
 **Added: 2026-01-05, Updated: 2026-01-06**
