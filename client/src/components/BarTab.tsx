@@ -28,9 +28,11 @@ interface Venue {
   phone: string | null;
   expense_level: string;
   expense_rank: number;
-  is_open: boolean;
+  // 2026-01-09: is_open can be null when hours unavailable
+  is_open: boolean | null;
   opens_in_minutes: number | null;
-  hours_today: string;
+  // 2026-01-09: hours_today can be null when hours unavailable
+  hours_today: string | null;
   hours_full_week?: Record<string, string>;
   closing_soon: boolean;
   minutes_until_close: number | null;
@@ -112,18 +114,28 @@ export default function BarTab({
 }: BarTabProps) {
 
   // Independent query - only needs location, no strategy dependency
+  // 2026-01-09: P3-C - NO FALLBACKS - match useBarsQuery.ts rules
   const { data: venueData, isLoading, error, refetch } = useQuery<VenueData>({
     queryKey: ['bar-tab', latitude, longitude, city, state, timezone],
     queryFn: async () => {
-      if (!latitude || !longitude) throw new Error('No coordinates');
+      // 2026-01-09: NO FALLBACKS - fail explicitly if required data missing
+      if (!latitude || !longitude) {
+        throw new Error('[BarTab] BUG: Query enabled without coordinates');
+      }
+      if (!timezone) {
+        throw new Error('[BarTab] BUG: Query enabled without timezone - isLocationResolved should gate this');
+      }
+      if (!city) {
+        throw new Error('[BarTab] BUG: Query enabled without city - isLocationResolved should gate this');
+      }
 
       const params = new URLSearchParams({
         lat: latitude.toString(),
         lng: longitude.toString(),
-        city: city || 'Unknown',
-        state: state || '',
+        city: city,  // No fallback - required
+        state: state || '',  // State is optional (some countries don't have states)
         radius: '25',  // 25 mile radius for upscale bars
-        timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+        timezone: timezone  // No fallback - required for accurate venue hours
       });
 
       const response = await fetch(`/api/venues/nearby?${params}`, {
@@ -137,7 +149,8 @@ export default function BarTab({
       const result = await response.json();
       return result.data;
     },
-    enabled: !!(latitude && longitude && isLocationResolved),
+    // 2026-01-09: Explicitly require city and timezone (not just isLocationResolved)
+    enabled: !!(latitude && longitude && city && timezone && isLocationResolved),
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: false,
   });
@@ -209,11 +222,31 @@ export default function BarTab({
   // Sort venues by strategic value for drivers:
   // 1. Open venues with latest closing times first (more time to work them)
   // 2. Then open venues closing soon (last call opportunities)
-  // 3. Then opening soon venues
+  // 3. Then "unknown" status venues (might be open - worth checking)
+  // 4. Then opening soon venues
+  // 5. Then closed venues
   // Within each group, sort by expense level (highest first = better tips)
+  //
+  // 2026-01-09: Updated to handle is_open: null (unknown) explicitly
+  // null means Google didn't return hours - venue might still be open
   const sortedVenues = [...venuesWithHours].sort((a, b) => {
-    // Both open
-    if (a.is_open && b.is_open) {
+    // Helper to get sort priority: open=0, unknown=1, closed=2
+    const getPriority = (v: Venue) => {
+      if (v.is_open === true) return 0;
+      if (v.is_open === null) return 1;  // Unknown - might be open
+      return 2;  // Closed
+    };
+
+    const aPriority = getPriority(a);
+    const bPriority = getPriority(b);
+
+    // Different status groups - sort by priority
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority;
+    }
+
+    // Both open - sort by closing time strategy
+    if (a.is_open === true && b.is_open === true) {
       // Neither closing soon - sort by expense (highest first)
       if (!a.closing_soon && !b.closing_soon) {
         return (b.expense_rank || 0) - (a.expense_rank || 0);
@@ -227,16 +260,14 @@ export default function BarTab({
         return (b.minutes_until_close || 0) - (a.minutes_until_close || 0);
       }
     }
-    // Open venues before closed/opening-soon
-    if (a.is_open !== b.is_open) {
-      return a.is_open ? -1 : 1;
-    }
-    // Opening soon venues before fully closed
+
+    // Both unknown or both closed - check opening soon
     const aOpeningSoon = a.opens_in_minutes && a.opens_in_minutes <= 15;
     const bOpeningSoon = b.opens_in_minutes && b.opens_in_minutes <= 15;
     if (aOpeningSoon !== bOpeningSoon) {
       return aOpeningSoon ? -1 : 1;
     }
+
     // Finally, sort by expense
     return (b.expense_rank || 0) - (a.expense_rank || 0);
   });
@@ -395,12 +426,14 @@ export default function BarTab({
 
                       <Badge
                         className={`text-xs ${
-                          venue.is_open
+                          venue.is_open === true
                             ? "bg-green-100 text-green-700 border-0"
-                            : "bg-red-100 text-red-700 border-0"
+                            : venue.is_open === false
+                            ? "bg-red-100 text-red-700 border-0"
+                            : "bg-gray-100 text-gray-600 border-0"
                         }`}
                       >
-                        {venue.is_open ? "Open Now" : "Closed"}
+                        {venue.is_open === true ? "Open Now" : venue.is_open === false ? "Closed" : "Hours Unknown"}
                       </Badge>
 
                       {/* Crowd Level */}

@@ -12,9 +12,11 @@ export interface Venue {
   phone: string | null;
   expense_level: string;
   expense_rank: number;
-  is_open: boolean;
+  // 2026-01-09: is_open can be null when hours unavailable (per server calculateOpenStatus)
+  is_open: boolean | null;
   opens_in_minutes: number | null;
-  hours_today: string;
+  // 2026-01-09: hours_today can be null when hours unavailable
+  hours_today: string | null;
   hours_full_week?: Record<string, string>;
   closing_soon: boolean;
   minutes_until_close: number | null;
