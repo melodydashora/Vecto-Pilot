@@ -418,4 +418,65 @@ The following items have been addressed and consolidated into `../reviewed-queue
 
 ---
 
+## 2026-01-09 Analysis
+
+**Generated:** 2026-01-09T02:01:51.608Z
+**Branch:** main
+**Last Commit:** e00c031 Fix: Consolidate dual SSE systems to single source
+
+### Recent Commit Changes (55)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `SYSTEM_MAP.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `briefing-last-row.txt` | Modified |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/constants/README.md` | Added |
+| `client/src/constants/apiRoutes.ts` | Added |
+| `client/src/constants/events.ts` | Added |
+| `client/src/constants/index.ts` | Added |
+| `client/src/constants/queryKeys.ts` | Added |
+| `client/src/constants/storageKeys.ts` | Added |
+| `client/src/contexts/README.md` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useMemory.ts` | Modified |
+| `client/src/pages/co-pilot/BriefingPage.tsx` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| ... and 35 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/auth.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/db-client.js)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/db-client.js)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/venue-event-verifier.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (client/src/constants/apiRoutes.ts)
+- [ ] Consider adding documentation - New file added (client/src/constants/events.ts)
+- [ ] Consider adding documentation - New file added (client/src/constants/index.ts)
+- [ ] Consider adding documentation - New file added (client/src/constants/queryKeys.ts)
+- [ ] Consider adding documentation - New file added (client/src/constants/storageKeys.ts)
+- [ ] Consider adding documentation - New file added (scripts/db-detox.js)
+- [ ] Consider adding documentation - New file added (sent-to-strategist.txt)
+- [ ] Consider adding documentation - New file added (server/scripts/migrate-venue-hours.js)
+
+### Status: PENDING
+
+---
+
 ---

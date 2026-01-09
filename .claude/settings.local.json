@@ -167,7 +167,8 @@
       "Bash(source ~/.profile)",
       "Bash(gemini \"Say hello in one word\")",
       "Bash(gemini:*)",
-      "Bash(gcloud --version:*)"
+      "Bash(gcloud --version:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

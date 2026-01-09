@@ -212,7 +212,7 @@ iOS Device                      Vecto Server                    Database
 │  │  │ • GET /api/briefing/rideshare-news/:snapshotId → briefing.js ││  │
 │  │  │ • GET /api/briefing/events/:snapshotId → briefing.js         ││  │
 │  │  │ • GET /api/briefing/school-closures/:snapshotId → briefing   ││  │
-│  │  │ • GET /events → events.js (SSE stream)                       ││  │
+│  │  │ (SSE: consolidated to /events/* via strategy-events.js)      ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
 │  │  │ Auth (server/api/auth/)                                      ││  │
@@ -239,7 +239,10 @@ iOS Device                      Vecto Server                    Database
 │  │  │ • GET /api/blocks-fast → blocks-fast.js (fetch blocks)       ││  │
 │  │  │ • GET /api/blocks/strategy/:id → content-blocks.js           ││  │
 │  │  │ • GET /api/strategy/:snapshotId → strategy.js                ││  │
-│  │  │ • GET /api/strategy/events → strategy-events.js (SSE)        ││  │
+│  │  │ • GET /events/strategy → strategy-events.js (SSE-DB NOTIFY)  ││  │
+│  │  │ • GET /events/briefing → strategy-events.js (SSE-DB NOTIFY)  ││  │
+│  │  │ • GET /events/blocks → strategy-events.js (SSE-DB NOTIFY)    ││  │
+│  │  │ • GET /events/phase → strategy-events.js (SSE-EventEmitter)  ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
 │  │  ┌──────────────────────────────────────────────────────────────┐│  │
 │  │  │ Feedback (server/api/feedback/)                              ││  │

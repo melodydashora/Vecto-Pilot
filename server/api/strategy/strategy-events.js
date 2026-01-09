@@ -12,7 +12,8 @@ import express from 'express';
 import { subscribeToChannel } from '../../db/db-client.js';
 import { sseLog, OP } from '../../logger/workflow.js';
 // Phase events use EventEmitter (high-frequency, ephemeral - no DB needed)
-import { phaseEmitter } from '../briefing/events.js';
+// 2026-01-09: Extracted to dedicated module (eliminates legacy SSE router dependency)
+import { phaseEmitter } from '../../events/phase-emitter.js';
 
 const router = express.Router();
 
