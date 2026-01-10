@@ -41,6 +41,13 @@
  *    [BRIEFING 1/3] Traffic analysis
  *    [BRIEFING 2/3] Events discovery
  *    [BRIEFING 3/3] Event validation
+ *
+ * 6. EVENTS ETL (Event Discovery Pipeline)
+ *    [EVENTS 1/5 - Extract|Providers] Provider calls (SerpAPI, Gemini, Claude)
+ *    [EVENTS 2/5 - Transform|Normalize] normalizeEvent + validateEvent
+ *    [EVENTS 3/5 - Transform|Geocode] Geocode + venue linking
+ *    [EVENTS 4/5 - Load|Store] Upsert to discovered_events (event_hash dedup)
+ *    [EVENTS 5/5 - Assemble|Briefing] Query from DB + shape for briefings
  */
 
 /**
@@ -55,6 +62,9 @@ export const OP = {
   CACHE: '⚡',   // Cache hit/operation
   RETRY: '🔄',   // Retry operation
   FALLBACK: '🔀', // Fallback to alternate
+  VALIDATE: '✓', // Validation operation
+  NORMALIZE: '⚙️', // Normalization/transform operation
+  HASH: '#️⃣',    // Hashing operation
 };
 
 /**
@@ -92,6 +102,14 @@ const WORKFLOWS = {
 
   // Briefing service
   BRIEFING: { phases: 3, emoji: '📰' },
+
+  // Events ETL pipeline (sync-events.mjs)
+  // Phase 1: EXTRACT - Provider calls (SerpAPI, Gemini, Claude)
+  // Phase 2: TRANSFORM_A - Normalization + Validation
+  // Phase 3: TRANSFORM_B - Geocode + Venue Linking
+  // Phase 4: LOAD - Upsert to discovered_events
+  // Phase 5: ASSEMBLE - Query + Join + Shape for briefings
+  EVENTS: { phases: 5, emoji: '📅' },
 
   // Weather fetching
   WEATHER: { phases: 1, emoji: '🌤️' },
@@ -161,6 +179,14 @@ const PHASE_LABELS = {
   'BRIEFING:1': 'Briefing|Traffic',
   'BRIEFING:2': 'Briefing|Events',
   'BRIEFING:3': 'Briefing|Validation',
+
+  // EVENTS ETL phases (sync-events.mjs)
+  // Canonical ETL pipeline: Extract → Transform → Load → Assemble
+  'EVENTS:1': 'Extract|Providers',       // SerpAPI, Gemini, Claude discovery calls
+  'EVENTS:2': 'Transform|Normalize',     // normalizeEvent + validateEvent
+  'EVENTS:3': 'Transform|Geocode',       // Geocode + venue linking (optional)
+  'EVENTS:4': 'Load|Store',              // Upsert to discovered_events with event_hash
+  'EVENTS:5': 'Assemble|Briefing',       // Query from DB + shape for briefings
 };
 
 /**
@@ -346,6 +372,7 @@ export const triadLog = createWorkflowLogger('TRIAD');
 export const venuesLog = createWorkflowLogger('VENUES');
 export const barsLog = createWorkflowLogger('BARS');
 export const briefingLog = createWorkflowLogger('BRIEFING');
+export const eventsLog = createWorkflowLogger('EVENTS');  // ETL pipeline for event discovery
 export const weatherLog = createWorkflowLogger('WEATHER');
 export const aiLog = createWorkflowLogger('AI');
 export const dbLog = createWorkflowLogger('DB');

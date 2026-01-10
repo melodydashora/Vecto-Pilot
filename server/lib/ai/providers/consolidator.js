@@ -18,7 +18,41 @@ import { eq, inArray, or, ilike, sql } from 'drizzle-orm';
 import { callAnthropic } from '../adapters/anthropic-adapter.js';
 import { triadLog, aiLog, dbLog, OP } from '../../../logger/workflow.js';
 import { isOpenNow } from '../../venue/venue-hours.js';
-import { filterInvalidEvents } from '../../briefing/briefing-service.js';
+// 2026-01-09: Use canonical validation module
+// 2026-01-10: READ-time validation runs on ALL events (no schema_version tracking in DB)
+// This is safe but redundant for new briefings that were validated at STORE time
+// Future optimization: add schema_version to discovered_events to skip re-validation
+import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../../events/pipeline/validateEvent.js';
+
+/**
+ * 2026-01-09: Read-time event validation
+ * 2026-01-10: Updated - validates ALL events (no schema_version tracking in DB)
+ *
+ * Uses canonical validateEventsHard module.
+ *
+ * NOTE: This is safe but potentially redundant for new briefings that were
+ * already validated at STORE time in sync-events.mjs. Without schema_version
+ * tracking in discovered_events table, we cannot skip re-validation.
+ *
+ * Future optimization: Add schema_version column to discovered_events
+ * and only validate if needsReadTimeValidation(schema_version) returns true.
+ *
+ * @param {Array} events - Events from briefing row
+ * @returns {Array} Validated events (TBD/Unknown removed)
+ */
+function filterEventsReadTime(events) {
+  if (!events || !Array.isArray(events) || events.length === 0) {
+    return events || [];
+  }
+
+  // Use canonical validation module
+  const result = validateEventsHard(events, {
+    logRemovals: false,  // Don't spam logs for read-time validation
+    phase: 'CONSOLIDATOR_READ'
+  });
+
+  return result.valid;
+}
 
 /**
  * Normalize a news title for hash matching
@@ -54,7 +88,7 @@ async function getDeactivatedNewsHashes(userId) {
 
     return new Set(deactivations.map(d => d.news_hash));
   } catch (error) {
-    console.error('[consolidator] getDeactivatedNewsHashes error:', error);
+    console.error('Consolidator: getDeactivatedNewsHashes error:', error);
     return new Set();
   }
 }
@@ -87,7 +121,7 @@ async function filterDeactivatedNews(newsData, userId) {
   });
 
   if (filteredItems.length < originalCount) {
-    triadLog.phase(3, `[consolidator] News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
+    triadLog.phase(3, `Consolidator: News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
   }
 
   // Return in the same format as received
@@ -685,9 +719,9 @@ export async function runConsolidator(snapshotId, options = {}) {
     const closuresData = parseJsonField(briefingRow.school_closures);
     const airportData = parseJsonField(briefingRow.airport_conditions);
 
-    // 2026-01-08: Apply hard filter to remove TBD/Unknown events at READ time
-    // This ensures clean data even from old briefings stored before the filter was added
-    const eventsData = filterInvalidEvents(rawEventsData);
+    // 2026-01-09: Apply canonical validation at READ time for legacy briefings
+    // New briefings are validated at STORE time in sync-events.mjs
+    const eventsData = filterEventsReadTime(rawEventsData);
 
     // Filter out deactivated news for this user
     const newsData = await filterDeactivatedNews(rawNewsData, snapshot.user_id);
@@ -871,7 +905,7 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
  */
 export async function runImmediateStrategy(snapshotId, options = {}) {
   const startTime = Date.now();
-  triadLog.phase(3, `[consolidator] Starting immediate strategy for ${snapshotId.slice(0, 8)}`);
+  triadLog.phase(3, `Consolidator: Starting immediate strategy for ${snapshotId.slice(0, 8)}`);
 
   try {
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
@@ -913,9 +947,9 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     const rawNews = parseJsonField(briefingRow.news);
     const filteredNews = await filterDeactivatedNews(rawNews, snapshot.user_id);
 
-    // 2026-01-08: Apply hard filter to remove TBD/Unknown events at READ time
+    // 2026-01-09: Apply canonical validation at READ time for legacy briefings
     const rawEvents = parseJsonField(briefingRow.events);
-    const cleanEvents = filterInvalidEvents(rawEvents);
+    const cleanEvents = filterEventsReadTime(rawEvents);
 
     const briefing = {
       traffic: parseJsonField(briefingRow.traffic_conditions),
@@ -926,8 +960,9 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       airport: parseJsonField(briefingRow.airport_conditions)
     };
 
-    triadLog.phase(3, `[consolidator] ${snapshot.formatted_address}`);
-    triadLog.phase(3, `[consolidator] Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);
+    // 2026-01-09: Fixed double prefix - triadLog already adds [TRIAD 3/4]
+    triadLog.phase(3, `${snapshot.formatted_address}`);
+    triadLog.phase(3, `Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);
 
     // Call STRATEGY_TACTICAL role with snapshot + briefing (NO minstrategy)
     const result = await callGPT5ForImmediateStrategy({ snapshot, briefing });
@@ -945,7 +980,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    triadLog.done(3, `[consolidator] Immediate strategy saved (${result.strategy.length} chars)`, totalDuration);
+    triadLog.done(3, `Consolidator: Immediate strategy saved (${result.strategy.length} chars)`, totalDuration);
 
     return {
       ok: true,

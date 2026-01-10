@@ -199,4 +199,142 @@ The following items have been addressed and consolidated into `../reviewed-queue
 
 ---
 
+## 2026-01-09 Analysis
+
+**Generated:** 2026-01-09T17:42:40.628Z
+**Branch:** main
+**Last Commit:** be2f761d Fix: Schema consistency - standardize to camelCase property names
+
+### Recent Commit Changes (14)
+| File | Status |
+|------|--------|
+| `client/src/README.md` | Modified |
+| `client/src/components/BarsDataGrid.tsx` | Modified |
+| `client/src/components/_future/MarketIntelligenceBlocks.tsx` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `client/src/pages/co-pilot/MapPage.tsx` | Modified |
+| `client/src/pages/co-pilot/StrategyPage.tsx` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/review-queue/2026-01-09.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/strategy/blocks-fast.js` | Modified |
+| `server/middleware/auth.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BarsDataGrid.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-01-09 Analysis
+
+**Generated:** 2026-01-09T17:46:39.945Z
+**Branch:** main
+**Last Commit:** be2f761d Fix: Schema consistency - standardize to camelCase property names
+
+### Uncommitted Changes (2)
+| File | Status |
+|------|--------|
+| `ocs/review-queue/2026-01-09.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+
+### Recent Commit Changes (14)
+| File | Status |
+|------|--------|
+| `client/src/README.md` | Modified |
+| `client/src/components/BarsDataGrid.tsx` | Modified |
+| `client/src/components/_future/MarketIntelligenceBlocks.tsx` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `client/src/pages/co-pilot/MapPage.tsx` | Modified |
+| `client/src/pages/co-pilot/StrategyPage.tsx` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/review-queue/2026-01-09.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `server/api/strategy/blocks-fast.js` | Modified |
+| `server/middleware/auth.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BarsDataGrid.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-01-10 Analysis
+
+**Generated:** 2026-01-10T00:39:28.089Z
+**Branch:** main
+**Last Commit:** b13da7df Docs: Regenerate DATA_FLOW_MAP.json with latest codebase state
+
+### Uncommitted Changes (15)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+| `docs/review-queue/2026-01-09.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `scripts/db-detox.js` | Modified |
+| `server/lib/ai/providers/consolidator.js` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| `server/logger/workflow.js` | Modified |
+| `server/scripts/sync-events.mjs` | Modified |
+| `tests/README.md` | Modified |
+| `.serena/memories/decision_model_agnostic_naming_2026_01_10.md` | Untracked |
+| `.serena/memories/etl_deep_analysis_2026_01_10.md` | Untracked |
+| `docs/architecture/etl-pipeline-refactoring-2026-01-09.md` | Untracked |
+| `server/lib/events/` | Untracked |
+| `server/lib/location/getSnapshotTimeContext.js` | Untracked |
+| `tests/events/` | Untracked |
+
+### Recent Commit Changes (14)
+| File | Status |
+|------|--------|
+| `client/src/README.md` | Modified |
+| `client/src/components/BarsDataGrid.tsx` | Modified |
+| `client/src/components/_future/MarketIntelligenceBlocks.tsx` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `client/src/pages/co-pilot/MapPage.tsx` | Modified |
+| `client/src/pages/co-pilot/StrategyPage.tsx` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/DATA_FLOW_MAP.json` | Modified |
+| `docs/review-queue/2026-01-09.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `server/middleware/auth.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/getSnapshotTimeContext.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/getSnapshotTimeContext.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BarsDataGrid.tsx)
+
+### Status: PENDING
+
+---
+
 ---

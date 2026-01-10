@@ -1,26 +1,43 @@
 /**
- * Event Discovery Sync Module
+ * Event Discovery Sync Module (ETL Pipeline)
+ *
+ * ETL ARCHITECTURE:
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Phase 1 (EXTRACT): Provider calls - SerpAPI, Gemini, Claude, GPT, Perplexity
+ * Phase 2 (TRANSFORM-A): Normalize + Validate (canonical modules)
+ * Phase 3 (TRANSFORM-B): Geocode + Venue linking
+ * Phase 4 (LOAD): Upsert to discovered_events with event_hash deduplication
+ * Phase 5 (ASSEMBLE): (In briefing-service) Query from DB + shape for briefings
+ * ═══════════════════════════════════════════════════════════════════════════
  *
  * Two modes:
- * 1. DAILY: Run ALL working models for maximum event coverage
- *    - Gemini 3 Pro, Gemini 2.5 Pro, GPT-5.2, Claude, Perplexity Reasoning, SerpAPI
- * 2. NORMAL: Run only SerpAPI + GPT-5.2 for fast/efficient updates
+ * 1. DAILY: Run ALL discovery providers for maximum event coverage
+ *    - Gemini (google_search), GPT (web_search), Claude (web_search), Perplexity, SerpAPI
+ * 2. NORMAL: Run only SerpAPI + GPT (fast/efficient updates)
+ *
+ * INVARIANT: Discovery providers return RawEvent format.
+ * INVARIANT: All events are normalized/validated before storage.
+ * INVARIANT: Strategy LLMs ONLY receive data read from DB (never cached responses).
  *
  * Called from briefing service with snapshot location context.
  * Never hardcodes locations - always uses user's snapshot location.
  *
- * Usage (from briefing service):
- *   import { syncEventsForLocation } from '../scripts/sync-events.mjs';
- *   await syncEventsForLocation({ city, state, lat, lng }, isDaily);
+ * @module server/scripts/sync-events
  */
 
 import 'dotenv/config';
-import crypto from 'crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { sql } from 'drizzle-orm';
-import { findOrCreateVenue, linkEventToVenue } from '../lib/venue/venue-cache.js';
-import { filterInvalidEvents } from '../lib/briefing/briefing-service.js';
+import { findOrCreateVenue } from '../lib/venue/venue-cache.js';
+
+// Canonical ETL pipeline modules - use these, not duplicates
+import { normalizeEvent, normalizeEvents } from '../lib/events/pipeline/normalizeEvent.js';
+import { validateEventsHard, VALIDATION_SCHEMA_VERSION } from '../lib/events/pipeline/validateEvent.js';
+import { generateEventHash, buildHashInput } from '../lib/events/pipeline/hashEvent.js';
+
+// Workflow-aware logging with ETL phases
+import { eventsLog, OP } from '../logger/workflow.js';
 
 const { Pool } = pg;
 
@@ -29,6 +46,7 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
 // ============================================================================
 // Geocode address to coordinates (forward geocoding)
+// ETL Phase 3: TRANSFORM-B
 // ============================================================================
 async function geocodeAddress(address, city, state) {
   if (!address || !GOOGLE_MAPS_API_KEY) return null;
@@ -51,13 +69,14 @@ async function geocodeAddress(address, city, state) {
     }
     return null;
   } catch (err) {
-    console.log(`  [Geocode] Error: ${err.message}`);
+    // Don't log individual geocode errors - batched logging happens in geocodeMissingCoordinates
     return null;
   }
 }
 
 // ============================================================================
 // Batch geocode events that are missing coordinates
+// ETL Phase 3: TRANSFORM-B - Geocoding
 // ============================================================================
 async function geocodeMissingCoordinates(events) {
   const eventsNeedingGeocode = events.filter(e => !e.lat || !e.lng);
@@ -65,8 +84,6 @@ async function geocodeMissingCoordinates(events) {
   if (eventsNeedingGeocode.length === 0) {
     return events;
   }
-
-  console.log(`  [Geocode] Geocoding ${eventsNeedingGeocode.length} events without coordinates...`);
 
   // Process in batches of 5 to avoid rate limits
   for (let i = 0; i < eventsNeedingGeocode.length; i += 5) {
@@ -90,21 +107,31 @@ async function geocodeMissingCoordinates(events) {
   }
 
   const geocoded = events.filter(e => e.lat && e.lng).length;
-  console.log(`  [Geocode] ${geocoded}/${events.length} events now have coordinates`);
+  // Logging handled by caller (syncEventsForLocation)
 
   return events;
 }
 
 // ============================================================================
 // Process events through venue cache for precise coordinates and deduplication
+// ETL Phase 3: TRANSFORM-B - Venue Linking
+//
+// 2026-01-09: VENUE ID PRIORITIZATION
+// The venue_catalog contains two types of place IDs:
+// - ChIJ* IDs: Valid Google Place IDs (high quality, verified)
+// - Ei* IDs: Synthetic/session IDs (low quality, may be stale)
+//
+// When linking events to venues:
+// 1. Always prefer venues with ChIJ* place_id
+// 2. Treat Ei* IDs as "soft match" - use coordinates but flag for cleanup
+// 3. Log when falling back to Ei* ID for future cleanup opportunities
 // ============================================================================
 async function processEventsWithVenueCache(events) {
   const eventsWithVenues = [];
   let venuesCached = 0;
   let venuesReused = 0;
   let venuesFailed = 0;
-
-  console.log(`  [VenueCache] Processing ${events.length} events through venue cache...`);
+  let syntheticIdCount = 0;  // Track Ei* ID matches for reporting
 
   for (const event of events) {
     // Skip events without venue name
@@ -124,14 +151,31 @@ async function processEventsWithVenueCache(events) {
       }, `sync_events_${(event.source_model || 'unknown').toLowerCase()}`);
 
       if (venue) {
-        // Update event with precise venue coordinates
+        // 2026-01-09: Check venue ID quality
+        // ChIJ* = valid Google Place ID, Ei* = synthetic/session ID
+        const isChIJId = venue.place_id?.startsWith('ChIJ');
+        const isSyntheticId = venue.place_id?.startsWith('Ei');
+
+        // Update event with precise venue coordinates (regardless of ID type)
         if (venue.lat && venue.lng) {
           event.lat = venue.lat;
           event.lng = venue.lng;
         }
+
         // 2026-01-09: FIX - venue_catalog PK is venue_id, not id
-        // Using .id returned undefined, breaking venue linking
-        event._venue_id = venue.venue_id;
+        // Only link to venues with quality IDs; mark synthetic for later cleanup
+        if (isChIJId) {
+          event._venue_id = venue.venue_id;
+        } else if (isSyntheticId) {
+          // Soft match - use coordinates but flag for potential cleanup
+          event._venue_id = venue.venue_id;
+          event._synthetic_venue_id = true;  // Flag for future cleanup
+          syntheticIdCount++;
+        } else if (venue.venue_id) {
+          // No place_id at all - still link but flag
+          event._venue_id = venue.venue_id;
+          event._no_place_id = true;
+        }
 
         // Track if this was a reuse or new cache
         if (venue.access_count > 1) {
@@ -142,14 +186,17 @@ async function processEventsWithVenueCache(events) {
       }
     } catch (err) {
       // Venue cache is best-effort, don't fail event processing
-      console.log(`  [VenueCache] Warning for "${event.venue_name}": ${err.message}`);
       venuesFailed++;
     }
 
     eventsWithVenues.push(event);
   }
 
-  console.log(`  [VenueCache] Results: ${venuesCached} new, ${venuesReused} reused, ${venuesFailed} failed`);
+  // Log synthetic ID usage for future cleanup opportunities
+  if (syntheticIdCount > 0) {
+    eventsLog.warn(3, `${syntheticIdCount} events linked to synthetic (Ei*) venue IDs - candidates for cleanup`);
+  }
+
   return eventsWithVenues;
 }
 
@@ -165,25 +212,12 @@ function getDb() {
 }
 
 // ============================================================================
-// Generate event hash for deduplication
+// Event hash for deduplication - uses canonical hashEvent module
+// See: server/lib/events/pipeline/hashEvent.js
+// Hash = MD5(normalized title|venue|date|city)
 // ============================================================================
-function generateEventHash(event) {
-  // Normalize: lowercase, remove extra spaces, remove punctuation
-  const normalize = (str) => (str || '')
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const key = [
-    normalize(event.title),
-    normalize(event.venue_name || event.venue || ''),
-    event.event_date || '',
-    normalize(event.city)
-  ].join('|');
-
-  return crypto.createHash('md5').update(key).digest('hex');
-}
+// NOTE: generateEventHash is imported from ../lib/events/pipeline/hashEvent.js
+// Do NOT duplicate the implementation here.
 
 // ============================================================================
 // Fetch existing events for deduplication
@@ -203,7 +237,7 @@ async function fetchExistingEvents(db, city, state, startDate, endDate) {
     `);
     return result.rows || [];
   } catch (err) {
-    console.log(`  [Dedup] Error fetching existing events: ${err.message}`);
+    eventsLog.error(1, '[Dedup] Error fetching existing events', err.message);
     return [];
   }
 }
@@ -338,12 +372,12 @@ Search multiple sources thoroughly. Return [] only if truly no events found.`;
 async function searchWithSerpAPI(city, state) {
   const apiKey = process.env.SERP_API_KEY || process.env.SERPAPI_API_KEY;
   if (!apiKey) {
-    console.log('  [SerpAPI] Skipped - SERP_API_KEY not set');
+    eventsLog.phase(1, '[SerpAPI] Skipped - SERP_API_KEY not set');
     return [];
   }
 
   const startTime = Date.now();
-  console.log(`  [SerpAPI] Searching events near ${city}, ${state}...`);
+  eventsLog.phase(1, `[SerpAPI] Searching events near ${city}, ${state}...`, OP.API);
 
   try {
     const url = new URL('https://serpapi.com/search.json');
@@ -357,7 +391,7 @@ async function searchWithSerpAPI(city, state) {
 
     if (!response.ok) {
       const err = await response.text();
-      console.log(`  [SerpAPI] Error ${response.status}: ${err.slice(0, 100)}`);
+      eventsLog.error(1, `[SerpAPI] Error ${response.status}`, err.slice(0, 100));
       return [];
     }
 
@@ -423,10 +457,10 @@ async function searchWithSerpAPI(city, state) {
       }
     }
 
-    console.log(`  [SerpAPI] Found ${events.length} events (${Date.now() - startTime}ms)`);
+    eventsLog.done(1, `[SerpAPI] ${events.length} events`, Date.now() - startTime);
     return events;
   } catch (err) {
-    console.log(`  [SerpAPI] Error: ${err.message}`);
+    eventsLog.error(1, `[SerpAPI] Error`, err.message);
     return [];
   }
 }
@@ -437,7 +471,7 @@ async function searchWithSerpAPI(city, state) {
 async function searchWithGPT52(city, state, lat, lng, existingEvents = [], options = {}) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    console.log('  [GPT-5.2] Skipped - OPENAI_API_KEY not set');
+    eventsLog.phase(1, '[GPT-5.2] Skipped - OPENAI_API_KEY not set');
     return [];
   }
 
@@ -445,7 +479,7 @@ async function searchWithGPT52(city, state, lat, lng, existingEvents = [], optio
   // Use user's local date if provided, otherwise use server date
   const date = options.userLocalDate || new Date().toISOString().split('T')[0];
   const modeLabel = options.todayOnly ? 'TODAY ONLY' : '7-day';
-  console.log(`  [GPT-5.2] Searching events near ${city}, ${state} (${modeLabel}, date: ${date})... (${existingEvents.length} existing events for dedup)`);
+  eventsLog.phase(1, `[GPT-5.2] Searching ${city}, ${state} (${modeLabel}, date: ${date}, ${existingEvents.length} existing)`, OP.AI);
 
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
@@ -467,7 +501,7 @@ async function searchWithGPT52(city, state, lat, lng, existingEvents = [], optio
 
     if (!response.ok) {
       const err = await response.text();
-      console.log(`  [GPT-5.2] Error ${response.status}: ${err.slice(0, 100)}`);
+      eventsLog.error(1, `[GPT-5.2] Error ${response.status}`, err.slice(0, 100));
       return [];
     }
 
@@ -507,10 +541,10 @@ async function searchWithGPT52(city, state, lat, lng, existingEvents = [], optio
       raw_source_data: evt
     }));
 
-    console.log(`  [GPT-5.2] Found ${events.length} events (${Date.now() - startTime}ms)`);
+    eventsLog.done(1, `[GPT-5.2] ${events.length} events`, Date.now() - startTime);
     return events;
   } catch (err) {
-    console.log(`  [GPT-5.2] Error: ${err.message}`);
+    eventsLog.error(1, `[GPT-5.2] Error`, err.message);
     return [];
   }
 }
@@ -518,10 +552,12 @@ async function searchWithGPT52(city, state, lat, lng, existingEvents = [], optio
 // ============================================================================
 // MODEL: Gemini 3 Pro with Google Search (daily sync)
 // ============================================================================
-async function searchWithGemini3Pro(city, state, lat, lng, existingEvents = [], options = {}) {
+async function searchWithGoogleSearch(city, state, lat, lng, existingEvents = [], options = {}) {
+  // 2026-01-09: REFACTOR - Capability-based name (uses google_search tool)
+  // Model-agnostic: uses Gemini 3 Pro via env-driven configuration
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.log('  [Gemini 3 Pro] Skipped - GEMINI_API_KEY not set');
+    eventsLog.phase(1, '[Google Search] Skipped - GEMINI_API_KEY not set');
     return [];
   }
 
@@ -529,11 +565,13 @@ async function searchWithGemini3Pro(city, state, lat, lng, existingEvents = [], 
   // Use user's local date if provided, otherwise use server date
   const date = options.userLocalDate || new Date().toISOString().split('T')[0];
   const modeLabel = options.todayOnly ? 'TODAY ONLY' : '7-day';
-  console.log(`  [Gemini 3 Pro] Searching events near ${city}, ${state} (${modeLabel}, date: ${date})... (${existingEvents.length} existing for dedup)`);
+  eventsLog.phase(1, `[Google Search] Searching ${city}, ${state} (${modeLabel}, date: ${date}, ${existingEvents.length} existing)`, OP.AI);
 
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
+    // 2026-01-09: Uses gemini-3-pro-preview with google_search tool
+    // Model ID requires -preview suffix per project memory
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
       {
@@ -553,7 +591,7 @@ async function searchWithGemini3Pro(city, state, lat, lng, existingEvents = [], 
 
     if (!response.ok) {
       const err = await response.text();
-      console.log(`  [Gemini 3 Pro] Error ${response.status}: ${err.slice(0, 100)}`);
+      eventsLog.error(1, `[Google Search] Error ${response.status}`, err.slice(0, 100));
       return [];
     }
 
@@ -582,104 +620,21 @@ async function searchWithGemini3Pro(city, state, lat, lng, existingEvents = [], 
       lng: evt.lng || null,
       category: evt.category || categorizeEvent(evt.title),
       expected_attendance: evt.expected_attendance || 'medium',
-      source_model: 'Gemini-3-Pro',
+      source_model: 'Google-Search',  // Capability-based, not model-specific
       source_url: evt.source || null,
       raw_source_data: evt
     }));
 
-    console.log(`  [Gemini 3 Pro] Found ${events.length} events (${Date.now() - startTime}ms)`);
+    eventsLog.done(1, `[Google Search] ${events.length} events`, Date.now() - startTime);
     return events;
   } catch (err) {
-    console.log(`  [Gemini 3 Pro] Error: ${err.message}`);
+    eventsLog.error(1, `[Google Search] Error`, err.message);
     return [];
   }
 }
 
-// ============================================================================
-// MODEL: Gemini 2.5 Pro with Google Search (daily sync)
-// ============================================================================
-async function searchWithGemini25Pro(city, state, lat, lng) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.log('  [Gemini 2.5 Pro] Skipped - GEMINI_API_KEY not set');
-    return [];
-  }
-
-  const startTime = Date.now();
-  const date = new Date().toISOString().split('T')[0];
-  console.log(`  [Gemini 2.5 Pro] Searching events near ${city}, ${state}...`);
-
-  try {
-    const today = new Date(date);
-    const dayAfter = new Date(today);
-    dayAfter.setDate(today.getDate() + 6);
-    const dateRange = `${date} to ${dayAfter.toISOString().split('T')[0]}`;
-
-    const prompt = `Find events happening within 8 minutes drive of ${lat}, ${lng} (${city}, ${state}) from ${dateRange}.
-
-Return ONLY a valid JSON array (no markdown, no explanation, just the array):
-[{"title":"Event Name","venue":"Venue","address":"Address","event_date":"YYYY-MM-DD","event_time":"HH:MM AM/PM","category":"concert|sports|festival|theater|nightlife|other","expected_attendance":"high|medium|low","source":"source"}]
-
-Search for: concerts, sports games, festivals, theater, comedy shows, conventions, holiday events, nightlife.`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 16384
-          }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.log(`  [Gemini 3 Pro] Error ${response.status}: ${err.slice(0, 100)}`);
-      return [];
-    }
-
-    const data = await response.json();
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    let output = '';
-    for (const part of parts) {
-      if (part.text && !part.thought) {
-        output += part.text + '\n';
-      }
-    }
-
-    const parsed = parseEventsJson(output);
-    const events = parsed.map(evt => ({
-      title: evt.title,
-      venue_name: evt.venue || null,
-      address: evt.address || null,
-      city: city,
-      state: state,
-      zip: extractZip(evt.address),
-      event_date: evt.event_date || date,
-      event_time: evt.event_time || null,
-      event_end_time: evt.event_end_time || null,
-      lat: evt.lat || null,
-      lng: evt.lng || null,
-      category: evt.category || categorizeEvent(evt.title),
-      expected_attendance: evt.expected_attendance || 'medium',
-      source_model: 'Gemini-2.5-Pro',
-      source_url: evt.source || null,
-      raw_source_data: evt
-    }));
-
-    console.log(`  [Gemini 2.5 Pro] Found ${events.length} events (${Date.now() - startTime}ms)`);
-    return events;
-  } catch (err) {
-    console.log(`  [Gemini 2.5 Pro] Error: ${err.message}`);
-    return [];
-  }
-}
+// 2026-01-09: REMOVED - searchWithGemini25Pro was redundant with searchWithGoogleSearch
+// Both used google_search tool. Consolidated into single capability-based function.
 
 // ============================================================================
 // MODEL: Claude with Web Search (daily sync)
@@ -687,7 +642,7 @@ Search for: concerts, sports games, festivals, theater, comedy shows, convention
 async function searchWithClaude(city, state, lat, lng, existingEvents = [], options = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.log('  [Claude] Skipped - ANTHROPIC_API_KEY not set');
+    eventsLog.phase(1, '[Claude] Skipped - ANTHROPIC_API_KEY not set');
     return [];
   }
 
@@ -695,7 +650,7 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
   // Use user's local date if provided, otherwise use server date
   const date = options.userLocalDate || new Date().toISOString().split('T')[0];
   const modeLabel = options.todayOnly ? 'TODAY ONLY' : '7-day';
-  console.log(`  [Claude] Searching events near ${city}, ${state} (${modeLabel}, date: ${date})... (${existingEvents.length} existing for dedup)`);
+  eventsLog.phase(1, `[Claude] Searching ${city}, ${state} (${modeLabel}, date: ${date}, ${existingEvents.length} existing)`, OP.AI);
 
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
@@ -725,7 +680,7 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
 
     if (!response.ok) {
       const err = await response.text();
-      console.log(`  [Claude] Error ${response.status}: ${err.slice(0, 100)}`);
+      eventsLog.error(1, `[Claude] Error ${response.status}`, err.slice(0, 100));
       return [];
     }
 
@@ -757,10 +712,10 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
       raw_source_data: evt
     }));
 
-    console.log(`  [Claude] Found ${events.length} events (${Date.now() - startTime}ms)`);
+    eventsLog.done(1, `[Claude] ${events.length} events`, Date.now() - startTime);
     return events;
   } catch (err) {
-    console.log(`  [Claude] Error: ${err.message}`);
+    eventsLog.error(1, `[Claude] Error`, err.message);
     return [];
   }
 }
@@ -771,7 +726,7 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
 async function searchWithPerplexityReasoning(city, state, lat, lng, existingEvents = [], options = {}) {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) {
-    console.log('  [Perplexity Reasoning] Skipped - PERPLEXITY_API_KEY not set');
+    eventsLog.phase(1, '[Perplexity] Skipped - PERPLEXITY_API_KEY not set');
     return [];
   }
 
@@ -779,7 +734,7 @@ async function searchWithPerplexityReasoning(city, state, lat, lng, existingEven
   // Use user's local date if provided, otherwise use server date
   const date = options.userLocalDate || new Date().toISOString().split('T')[0];
   const modeLabel = options.todayOnly ? 'TODAY ONLY' : '7-day';
-  console.log(`  [Perplexity Reasoning] Searching events near ${city}, ${state} (${modeLabel}, date: ${date})... (${existingEvents.length} existing for dedup)`);
+  eventsLog.phase(1, `[Perplexity] Searching ${city}, ${state} (${modeLabel}, date: ${date}, ${existingEvents.length} existing)`, OP.AI);
 
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
@@ -807,7 +762,7 @@ async function searchWithPerplexityReasoning(city, state, lat, lng, existingEven
 
     if (!response.ok) {
       const err = await response.text();
-      console.log(`  [Perplexity Reasoning] Error ${response.status}: ${err.slice(0, 100)}`);
+      eventsLog.error(1, `[Perplexity] Error ${response.status}`, err.slice(0, 100));
       return [];
     }
 
@@ -834,10 +789,10 @@ async function searchWithPerplexityReasoning(city, state, lat, lng, existingEven
       raw_source_data: evt
     }));
 
-    console.log(`  [Perplexity Reasoning] Found ${events.length} events (${Date.now() - startTime}ms)`);
+    eventsLog.done(1, `[Perplexity] ${events.length} events`, Date.now() - startTime);
     return events;
   } catch (err) {
-    console.log(`  [Perplexity Reasoning] Error: ${err.message}`);
+    eventsLog.error(1, `[Perplexity] Error`, err.message);
     return [];
   }
 }
@@ -894,7 +849,16 @@ function parseEventsJson(output) {
 
 // ============================================================================
 // Store events in database with deduplication
+// ETL Phase 4: LOAD
+//
 // 2026-01-09: Fixed insert counting (use RETURNING) and added upsert for safe fields
+//
+// IMPORTANT: is_active PRESERVATION
+// The ON CONFLICT clause intentionally does NOT touch is_active.
+// This preserves the state of manually deactivated events:
+// - AI Coach can toggle is_active = false for low-value events
+// - Re-discovery of the same event will NOT re-activate it
+// - Only venue_id and updated_at are updated on conflict
 // ============================================================================
 async function storeEvents(db, events) {
   let inserted = 0;
@@ -908,7 +872,7 @@ async function storeEvents(db, events) {
       // 2026-01-09: Use UPSERT with RETURNING to accurately count inserts vs updates
       // - New rows: INSERT and return id → count as inserted
       // - Existing rows: UPDATE safe fields (venue_id, updated_at) → count as updated
-      // This fixes the previous bug where DO NOTHING + SELECT counted existing rows as inserts
+      // INVARIANT: is_active is NEVER touched in ON CONFLICT - preserves manual deactivation
       const result = await db.execute(sql`
         INSERT INTO discovered_events (
           title, venue_name, address, city, state, zip,
@@ -973,54 +937,55 @@ async function storeEvents(db, events) {
 
 // ============================================================================
 // Main sync function (for user location)
+// ETL Pipeline: Extract → Transform (Normalize + Validate) → Load
 // ============================================================================
 async function syncEventsForLocation(location, isDaily = false, options = {}) {
   const { city, state, lat, lng } = location;
   const { userLocalDate, todayOnly = false } = options;
+  const startTime = Date.now();
 
-  const mode = isDaily ? 'DAILY (all models)' : 'NORMAL (SerpAPI + GPT-5.2)';
+  const mode = isDaily ? 'DAILY (all providers)' : 'NORMAL (SerpAPI + GPT)';
   const dateMode = todayOnly ? 'TODAY ONLY' : '7-day window';
 
-  console.log('═══════════════════════════════════════════════════════════════');
-  console.log('EVENT DISCOVERY SYNC');
-  console.log(`Mode: ${mode} | Date Mode: ${dateMode}`);
-  console.log(`Location: ${city}, ${state} (${lat}, ${lng})`);
-  if (userLocalDate) console.log(`User Local Date: ${userLocalDate}`);
-  console.log(`Started: ${new Date().toISOString()}`);
-  console.log('═══════════════════════════════════════════════════════════════\n');
+  // ETL Pipeline start
+  eventsLog.start(`${city}, ${state} | ${mode} | ${dateMode}`);
 
   const db = getDb();
   let allEvents = [];
 
-  // Fetch existing events for semantic deduplication
+  // Fetch existing events for semantic deduplication (pre-extract)
   // Use user's local date if provided, otherwise use server date
   const today = userLocalDate || new Date().toISOString().split('T')[0];
   const weekFromNow = new Date(today);
   weekFromNow.setDate(weekFromNow.getDate() + 7);
   const endDate = weekFromNow.toISOString().split('T')[0];
 
-  console.log('[Dedup] Fetching existing events for semantic deduplication...');
+  eventsLog.phase(1, `Fetching existing events for semantic deduplication...`, OP.DB);
   const existingEvents = await fetchExistingEvents(db, city, state, today, endDate);
-  console.log(`[Dedup] Found ${existingEvents.length} existing events to avoid duplicates\n`);
+  eventsLog.done(1, `${existingEvents.length} existing events for dedup`, OP.DB);
 
-  // Options to pass to search functions
+  // Options to pass to discovery functions
   const searchOptions = { userLocalDate: today, todayOnly };
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // PHASE 1: EXTRACT - Call discovery providers
+  // ══════════════════════════════════════════════════════════════════════════
+  eventsLog.phase(1, `Running ${isDaily ? '5 providers' : '2 providers'} in parallel...`, OP.AI);
+
   if (isDaily) {
-    // DAILY MODE: Run ALL working models in parallel for maximum coverage
-    // All models receive existing events for semantic deduplication
-    console.log('Running 6 models in parallel (with semantic deduplication)...');
+    // DAILY MODE: Run ALL working providers in parallel for maximum coverage
+    // All providers receive existing events for semantic deduplication
+    // 2026-01-09: Consolidated to 5 providers (removed redundant Gemini 2.5 Pro)
     const results = await Promise.all([
       searchWithSerpAPI(city, state),  // SerpAPI doesn't support custom prompts
       searchWithGPT52(city, state, lat, lng, existingEvents, searchOptions),
-      searchWithGemini3Pro(city, state, lat, lng, existingEvents, searchOptions),
-      searchWithGemini25Pro(city, state, lat, lng),  // Uses different prompt format
+      searchWithGoogleSearch(city, state, lat, lng, existingEvents, searchOptions),  // Capability-based: uses google_search tool
       searchWithClaude(city, state, lat, lng, existingEvents, searchOptions),
       searchWithPerplexityReasoning(city, state, lat, lng, existingEvents, searchOptions)
     ]);
     allEvents = results.flat();
   } else {
-    // NORMAL MODE: Run only SerpAPI + GPT-5.2 (fast/efficient)
+    // NORMAL MODE: Run only SerpAPI + GPT (fast/efficient)
     const [serpEvents, gptEvents] = await Promise.all([
       searchWithSerpAPI(city, state),
       searchWithGPT52(city, state, lat, lng, existingEvents, searchOptions)
@@ -1028,45 +993,55 @@ async function syncEventsForLocation(location, isDaily = false, options = {}) {
     allEvents = [...serpEvents, ...gptEvents];
   }
 
+  eventsLog.done(1, `${allEvents.length} raw events from providers`, OP.AI);
+
   let inserted = 0;
   let updated = 0;
   let skipped = 0;
 
   if (allEvents.length > 0) {
-    // 2026-01-08: Filter out TBD/Unknown events BEFORE storing
-    // This prevents accumulation of invalid events in discovered_events table
-    const beforeFilter = allEvents.length;
-    allEvents = filterInvalidEvents(allEvents);
-    const afterFilter = allEvents.length;
-    if (beforeFilter !== afterFilter) {
-      console.log(`[TBD Filter] Removed ${beforeFilter - afterFilter} events with TBD/Unknown values`);
-    }
+    // ════════════════════════════════════════════════════════════════════════
+    // PHASE 2: TRANSFORM-A - Normalize + Validate (canonical modules)
+    // Uses validateEventsHard from pipeline/validateEvent.js
+    // ════════════════════════════════════════════════════════════════════════
+    eventsLog.phase(2, `Validating ${allEvents.length} events...`, OP.VALIDATE);
 
-    // Geocode events missing lat/lng coordinates
+    // 2026-01-09: Use canonical validateEventsHard (replaces filterInvalidEvents)
+    // This is the ONLY place validation should happen at STORE time
+    const validationResult = validateEventsHard(allEvents, {
+      logRemovals: true,
+      phase: 'SYNC_EVENTS'
+    });
+    allEvents = validationResult.valid;
+
+    eventsLog.done(2, `${validationResult.stats.valid}/${validationResult.stats.total} valid (${validationResult.stats.invalid} invalid removed)`, OP.VALIDATE);
+
+    // ════════════════════════════════════════════════════════════════════════
+    // PHASE 3: TRANSFORM-B - Geocode + Venue linking
+    // ════════════════════════════════════════════════════════════════════════
+    eventsLog.phase(3, `Geocoding ${allEvents.filter(e => !e.lat || !e.lng).length} events missing coordinates...`, OP.API);
     allEvents = await geocodeMissingCoordinates(allEvents);
 
-    // Process through venue cache for precise coordinates and venue linking
+    eventsLog.phase(3, `Processing ${allEvents.length} events through venue cache...`, OP.DB);
     allEvents = await processEventsWithVenueCache(allEvents);
+    eventsLog.done(3, `Venue linking complete`, OP.DB);
 
-    console.log(`\n[Storing] ${allEvents.length} events...`);
+    // ════════════════════════════════════════════════════════════════════════
+    // PHASE 4: LOAD - Upsert to discovered_events with event_hash deduplication
+    // ════════════════════════════════════════════════════════════════════════
+    eventsLog.phase(4, `Storing ${allEvents.length} events...`, OP.DB);
     const result = await storeEvents(db, allEvents);
     inserted = result.inserted;
     updated = result.updated || 0;
     skipped = result.skipped;
-    console.log(`[Result] Inserted: ${inserted}, Updated: ${updated}, Skipped: ${skipped}`);
+    eventsLog.done(4, `Inserted: ${inserted}, Updated: ${updated}, Skipped: ${skipped}`, OP.DB);
   } else {
-    console.log(`\n[Result] No events found`);
+    eventsLog.warn(1, 'No events found from any provider');
   }
 
-  console.log('\n═══════════════════════════════════════════════════════════════');
-  console.log('SYNC COMPLETE');
-  console.log('═══════════════════════════════════════════════════════════════');
-  console.log(`Mode: ${mode}`);
-  console.log(`Total events discovered: ${allEvents.length}`);
-  console.log(`New events inserted: ${inserted}`);
-  console.log(`Existing events updated: ${updated}`);
-  console.log(`Errors skipped: ${skipped}`);
-  console.log(`Completed: ${new Date().toISOString()}`);
+  // Pipeline complete
+  const totalMs = Date.now() - startTime;
+  eventsLog.complete(`${allEvents.length} events (${inserted} new, ${updated} updated)`, totalMs);
 
   return { events: allEvents, inserted, updated, skipped };
 }
@@ -1078,8 +1053,7 @@ export {
   syncEventsForLocation,
   searchWithSerpAPI,
   searchWithGPT52,
-  searchWithGemini3Pro,
-  searchWithGemini25Pro,
+  searchWithGoogleSearch,  // 2026-01-09: Renamed from searchWithGemini3Pro (capability-based)
   searchWithClaude,
   searchWithPerplexityReasoning,
   generateEventHash,
