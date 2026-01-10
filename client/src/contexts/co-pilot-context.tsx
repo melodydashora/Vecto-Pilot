@@ -436,12 +436,13 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
         // 2026-01-06: P4-C fix - use real timezone from server or LocationContext
         // NEVER use hardcoded timezone (was 'America/Chicago' - violates NO FALLBACKS rule)
-        // 2026-01-10: D-024 - Normalize to camelCase to match types (pathTaken not path_taken)
+        // 2026-01-10: D-027 - Server now returns camelCase (single contract)
+        // strategy object has strategyForNow, briefing has strategyForNow
         return {
           now: data.generatedAt || new Date().toISOString(),
           timezone: data.timezone || locationContext?.timeZone || null,
-          strategy: data.strategy_for_now || data.briefing?.strategy_for_now,
-          pathTaken: data.pathTaken ?? data.path_taken,
+          strategy: data.strategy?.strategyForNow || data.briefing?.strategyForNow,
+          pathTaken: data.pathTaken,
           refined: data.refined,
           timing: data.timing,
           isBlocksGenerating: isGenerating,

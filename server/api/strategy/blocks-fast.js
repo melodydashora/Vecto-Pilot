@@ -373,9 +373,10 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     const [strategyRow] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
+    // 2026-01-10: D-027 - Use camelCase for API response (single contract)
     const briefing = strategyRow ? {
-      consolidated_strategy: strategyRow.consolidated_strategy || null,
-      strategy_for_now: strategyRow.strategy_for_now || null
+      consolidated: strategyRow.consolidated_strategy || null,
+      strategyForNow: strategyRow.strategy_for_now || null
     } : null;
 
     // Fetch snapshot for holiday status check
@@ -543,8 +544,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           snapshotId: snapshotId,
           blocks,
           rankingId: ranking.ranking_id,
+          // 2026-01-10: D-027 - Use camelCase for API response (single contract)
           strategy: {
-            strategy_for_now: existingStrategy.strategy_for_now || '',
+            strategyForNow: existingStrategy.strategy_for_now || '',
             consolidated: existingStrategy.consolidated_strategy || ''
           }
         });
@@ -679,8 +681,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             snapshotId: snapshotId,
             blocks: blocks,
             rankingId: ranking.ranking_id,
+            // 2026-01-10: D-027 - Use camelCase for API response (single contract)
             strategy: {
-              strategy_for_now: strategyRow?.strategy_for_now || '',
+              strategyForNow: strategyRow?.strategy_for_now || '',
               consolidated: strategyRow?.consolidated_strategy || ''
             },
             message: 'Smart blocks generated successfully'
@@ -700,8 +703,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             status: 'ok',
             snapshotId: snapshotId,
             blocks: [],
+            // 2026-01-10: D-027 - Use camelCase for API response (single contract)
             strategy: {
-              strategy_for_now: strategyRow?.strategy_for_now || '',
+              strategyForNow: strategyRow?.strategy_for_now || '',
               consolidated: strategyRow?.consolidated_strategy || ''
             },
             message: 'Smart blocks generated (details pending)'
