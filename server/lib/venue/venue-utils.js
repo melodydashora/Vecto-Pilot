@@ -7,8 +7,13 @@
  * - Venue name normalization for deduplication
  * - is_open calculation from hours_full_week (Bar Markers)
  *
+ * 2026-01-10: D-014 Phase 4 - Now uses canonical hours module
+ *
  * @see /home/runner/.claude/plans/noble-purring-yeti.md
  */
+
+// 2026-01-10: D-014 Phase 4 - Use canonical hours module for all isOpen calculations
+import { parseHoursTextMap, getOpenStatus } from "./hours/index.js";
 
 /**
  * Parse Google addressComponents into granular address fields
@@ -118,130 +123,60 @@ export function normalizeVenueName(name) {
 }
 
 /**
- * Calculate is_open, next_close_time, and closing_soon from hours_full_week
+ * Calculate is_open, next_close_time, and closing_soon from hours text map
  *
  * CRITICAL: This powers the Bar Markers feature (green/red markers on MapTab)
  *
- * @param {Object} hoursFullWeek - Object with day names as keys, e.g., { monday: "4:00 PM - 2:00 AM", ... }
+ * 2026-01-10: D-014 Phase 4 - Now uses canonical hours module (parseHoursTextMap + getOpenStatus)
+ * This wrapper maintains backward compatibility while using the consolidated evaluation logic.
+ *
+ * @param {Object} hoursTextMap - Object with day names as keys, e.g., { monday: "4:00 PM - 2:00 AM", ... }
  * @param {string} timezone - IANA timezone string, e.g., "America/Chicago"
  * @returns {Object} { is_open: boolean|null, next_close_time: string|null, closing_soon: boolean }
  *
  * @example
- * const status = calculateIsOpen({ monday: "4:00 PM - 2:00 AM" }, "America/Chicago");
+ * const status = calculateIsOpenFromHoursTextMap({ monday: "4:00 PM - 2:00 AM" }, "America/Chicago");
  * // Returns: { is_open: true, next_close_time: "2:00 AM", closing_soon: false }
  */
-export function calculateIsOpen(hoursFullWeek, timezone) {
+export function calculateIsOpenFromHoursTextMap(hoursTextMap, timezone) {
   const defaultResult = { is_open: null, next_close_time: null, closing_soon: false };
 
-  if (!hoursFullWeek || typeof hoursFullWeek !== 'object') {
+  if (!hoursTextMap || typeof hoursTextMap !== 'object') {
     return defaultResult;
   }
 
   if (!timezone) {
-    console.warn('[venue-utils] calculateIsOpen called without timezone');
+    console.warn('[venue-utils] calculateIsOpenFromHoursTextMap called without timezone');
     return defaultResult;
   }
 
-  try {
-    const now = new Date();
+  // 2026-01-10: D-014 Phase 4 - Use canonical parser + evaluator
+  const parseResult = parseHoursTextMap(hoursTextMap);
 
-    // Get day name in venue's timezone
-    const dayName = now.toLocaleDateString('en-US', {
-      weekday: 'long',
-      timeZone: timezone
-    }).toLowerCase();
-
-    // Get current time in venue's timezone
-    const timeFormatter = new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: timezone
-    });
-    const currentTime = timeFormatter.format(now); // "14:30"
-    const [currentHour, currentMinute] = currentTime.split(':').map(Number);
-    const currentMinutes = currentHour * 60 + currentMinute; // Minutes since midnight
-
-    // Get today's hours
-    const todayHours = hoursFullWeek[dayName];
-
-    if (!todayHours || todayHours === 'Closed' || todayHours.toLowerCase() === 'closed') {
-      return { is_open: false, next_close_time: null, closing_soon: false };
-    }
-
-    // Handle "Open 24 hours"
-    if (todayHours.toLowerCase().includes('24 hours') || todayHours.toLowerCase() === 'open 24 hours') {
-      return { is_open: true, next_close_time: null, closing_soon: false };
-    }
-
-    // Parse hours like "4:00 PM - 2:00 AM" or "11:00 AM - 10:00 PM"
-    const hoursMatch = todayHours.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?\s*-\s*(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
-
-    if (!hoursMatch) {
-      // Can't parse, return unknown
-      return defaultResult;
-    }
-
-    const [, openHour, openMin, openAmPm, closeHour, closeMin, closeAmPm] = hoursMatch;
-
-    // Convert to 24-hour format
-    let openH = parseInt(openHour);
-    let closeH = parseInt(closeHour);
-    const openM = parseInt(openMin || '0');
-    const closeM = parseInt(closeMin || '0');
-
-    // Handle AM/PM
-    if (openAmPm?.toUpperCase() === 'PM' && openH !== 12) openH += 12;
-    if (openAmPm?.toUpperCase() === 'AM' && openH === 12) openH = 0;
-    if (closeAmPm?.toUpperCase() === 'PM' && closeH !== 12) closeH += 12;
-    if (closeAmPm?.toUpperCase() === 'AM' && closeH === 12) closeH = 0;
-
-    const openMinutes = openH * 60 + openM;
-    let closeMinutes = closeH * 60 + closeM;
-
-    // Handle overnight hours (closes after midnight)
-    const overnight = closeMinutes <= openMinutes;
-    if (overnight) {
-      closeMinutes += 24 * 60; // Add 24 hours
-    }
-
-    // Adjust current time for overnight comparison
-    let adjustedCurrentMinutes = currentMinutes;
-    if (overnight && currentMinutes < openMinutes) {
-      adjustedCurrentMinutes += 24 * 60; // We're in the "next day" portion
-    }
-
-    // Check if currently open
-    const is_open = adjustedCurrentMinutes >= openMinutes && adjustedCurrentMinutes < closeMinutes;
-
-    // Calculate next close time
-    const closeHour24 = closeH;
-    const closeMinStr = String(closeM).padStart(2, '0');
-    const closeAmPmStr = closeAmPm || (closeH >= 12 ? 'PM' : 'AM');
-    const next_close_time = is_open
-      ? `${closeH > 12 ? closeH - 12 : closeH}:${closeMinStr} ${closeAmPmStr}`
-      : null;
-
-    // Check if closing within 60 minutes (for red marker)
-    const minutesUntilClose = is_open ? closeMinutes - adjustedCurrentMinutes : 0;
-    const closing_soon = is_open && minutesUntilClose > 0 && minutesUntilClose <= 60;
-
-    return { is_open, next_close_time, closing_soon };
-  } catch (error) {
-    console.error('[venue-utils] Error calculating is_open:', error);
+  if (!parseResult.ok) {
+    console.warn(`[venue-utils] parseHoursTextMap failed: ${parseResult.error}`);
     return defaultResult;
   }
+
+  const status = getOpenStatus(parseResult.schedule, timezone);
+
+  // Map canonical OpenStatus to legacy return format for backward compatibility
+  return {
+    is_open: status.is_open,
+    next_close_time: status.closes_at,
+    closing_soon: status.closing_soon
+  };
 }
 
 /**
  * Format today's hours for display
  *
- * @param {Object} hoursFullWeek - Object with day names as keys
+ * @param {Object} hoursTextMap - Object with day names as keys
  * @param {string} timezone - IANA timezone string
  * @returns {string|null} Today's hours string or null
  */
-export function getHoursToday(hoursFullWeek, timezone) {
-  if (!hoursFullWeek || !timezone) return null;
+export function getHoursToday(hoursTextMap, timezone) {
+  if (!hoursTextMap || !timezone) return null;
 
   try {
     const now = new Date();
@@ -250,7 +185,7 @@ export function getHoursToday(hoursFullWeek, timezone) {
       timeZone: timezone
     }).toLowerCase();
 
-    return hoursFullWeek[dayName] || null;
+    return hoursTextMap[dayName] || null;
   } catch (error) {
     return null;
   }
@@ -291,3 +226,9 @@ export function expenseRankToLevel(rank) {
   if (!rank || rank < 1 || rank > 4) return null;
   return '$'.repeat(rank);
 }
+
+/**
+ * @deprecated Use calculateIsOpenFromHoursTextMap instead (D-014 Phase 0.1)
+ * Alias for backward compatibility - will be removed after Phase 6
+ */
+export const calculateIsOpen = calculateIsOpenFromHoursTextMap;
