@@ -38,7 +38,7 @@
 | D-003 | `LESSONS_LEARNED.md:702` | "Users table = source of truth for resolved location" | Changed to "Snapshots table = source of truth" | ✅ FIXED |
 | D-009 | `docs/DATA_FLOW_MAP.json:454` | Lists `venue_cache` as active table | Removed deleted table entry | ✅ FIXED |
 | D-010 | `docs/DATA_FLOW_MAP.json:233` | Lists `nearby_venues` as active table | Removed deleted table entry | ✅ FIXED |
-| D-013 | `places_cache.place_id` in schema.js:339 | Column stores `coordsKey` (lat_lng format), not Google place_id | **Recommended:** Rename to `coords_key` via migration. Only 1 file affected. | ⚠️ MIGRATION NEEDED |
+| D-013 | `places_cache.coords_key` in schema.js:341 | Column renamed to `coords_key` | Stores coordinate keys (lat_lng format) with correct semantic naming | ✅ FIXED |
 | D-014 | `server/lib/venue/hours/` | Consolidated isOpen via canonical hours module | All 3 functions now wrap `getOpenStatus()` from canonical module | ✅ FIXED |
 | D-017 | `client/src/hooks/useBarsQuery.ts:96` | Log uses `toFixed(4)` for coordinates | Changed to `toFixed(6)` with comment | ✅ FIXED |
 | D-018 | `server/lib/venue/venue-intelligence.js:18-72` | Now uses canonical hours module | Uses `getOpenStatus()`, Google `openNow` only for debug logging | ✅ FIXED |
@@ -80,7 +80,7 @@
 - [x] **D-004, D-011, D-012:** Fixed country code to ISO alpha-2 format
   - `location.js:164` → now uses `c.short_name` for country (returns "US" not "United States")
   - `venue-utils.js:37,74` → default changed from `'USA'` to `'US'`
-- [ ] **D-013:** Rename `places_cache.place_id` column to `coords_key` (semantic accuracy) - DB migration pending
+- [x] **D-013:** Renamed `places_cache.place_id` → `coords_key` (semantic accuracy)
 - [x] **D-017:** Fix toFixed(4) to toFixed(6) in useBarsQuery.ts
 - **Note:** DB migration for existing `country` columns still needed (see Migration Plan)
 
@@ -119,37 +119,22 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 
 ---
 
-### D-013: places_cache.place_id Column Rename
+### D-013: places_cache.place_id Column Rename ✅ COMPLETE
 
-**Issue:** Column named `place_id` stores `coordsKey` format (e.g., "33.123456_-96.123456"), not Google Place IDs.
+**Issue:** Column named `place_id` stored `coordsKey` format (e.g., "33.123456_-96.123456"), not Google Place IDs.
 
-**Impact Analysis:**
-- Only 1 file uses this table: `server/lib/venue/venue-enrichment.js`
-- Column is used correctly, just named misleadingly
-- Low risk, high semantic clarity benefit
+**Resolution (2026-01-10):**
 
-**Migration Plan:**
+| File | Change |
+|------|--------|
+| `shared/schema.js:341` | `place_id` → `coords_key` |
+| `server/lib/venue/venue-enrichment.js` | 4 references updated |
+| `scripts/create-all-tables.sql` | Column definition updated |
+| `server/db/migrations/2026-01-10-d013-places-cache-rename.sql` | Migration file created |
+| `docs/DATABASE_SCHEMA.md` | Documentation updated |
+| `docs/architecture/strategy-framework.md` | Documentation updated |
 
-**Step 1: Create migration file**
-```sql
--- migrations/20260110_rename_places_cache_column.sql
-ALTER TABLE places_cache RENAME COLUMN place_id TO coords_key;
-```
-
-**Step 2: Update schema.js**
-```javascript
-export const places_cache = pgTable("places_cache", {
-  coords_key: text("coords_key").primaryKey(),  // Was: place_id
-  formatted_hours: jsonb("formatted_hours"),
-  cached_at: timestamp("cached_at", { withTimezone: true }).notNull(),
-  access_count: integer("access_count").notNull().default(0),
-});
-```
-
-**Step 3: Update venue-enrichment.js**
-- Change `places_cache.place_id` → `places_cache.coords_key` (4 occurrences)
-
-**Status:** Ready to implement when approved
+**DB Migration Required:** Run `ALTER TABLE places_cache RENAME COLUMN place_id TO coords_key;` on live database
 
 ---
 
@@ -174,6 +159,7 @@ export const places_cache = pgTable("places_cache", {
 | D-018 | 2026-01-10 | `server/lib/venue/venue-intelligence.js` | Now uses canonical hours module; Google `openNow` only for debug comparison |
 | D-004 | 2026-01-10 | Multiple files | Country field now uses ISO 3166-1 alpha-2 codes (US, CA, GB) |
 | D-011 | 2026-01-10 | `server/api/location/location.js:164` | Changed `c.long_name` → `c.short_name` for country (ISO alpha-2) |
+| D-013 | 2026-01-10 | `shared/schema.js`, `venue-enrichment.js`, SQL scripts | Renamed `places_cache.place_id` → `coords_key` for semantic accuracy |
 
 ---
 

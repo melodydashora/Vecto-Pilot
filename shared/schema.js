@@ -335,8 +335,10 @@ export const http_idem = pgTable("http_idem", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// 2026-01-10: D-013 Fix - Renamed place_id → coords_key for semantic accuracy
+// Column stores coordinate keys (lat_lng format like "33.123456_-96.123456"), not Google Place IDs
 export const places_cache = pgTable("places_cache", {
-  place_id: text("place_id").primaryKey(),
+  coords_key: text("coords_key").primaryKey(),
   formatted_hours: jsonb("formatted_hours"),
   cached_at: timestamp("cached_at", { withTimezone: true }).notNull(),
   access_count: integer("access_count").notNull().default(0),

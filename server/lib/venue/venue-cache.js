@@ -161,6 +161,10 @@ export async function lookupVenueFuzzy(criteria) {
  * @param {string} [venue.district] - Explicit district name
  * @returns {Promise<Object>} Inserted venue record
  */
+// 2026-01-10: AUDIT FIX - insertVenue now uses onConflictDoUpdate instead of DoNothing
+// Previously: onConflictDoNothing().returning() returned undefined on conflict
+// This caused callers to think venue didn't exist when it actually did
+// See: docs/AUDIT_LEDGER.md - Breakpoint 3
 export async function insertVenue(venue) {
   const normalized = normalizeVenueName(venue.venueName);
   const coordKey = generateCoordKey(venue.lat, venue.lng);
@@ -173,42 +177,58 @@ export async function insertVenue(venue) {
   const district = venue.district || extractDistrictFromVenueName(venue.venueName);
   const districtSlug = district ? normalizeDistrictSlug(district) : null;
 
-  const [inserted] = await db
+  const insertValues = {
+    venue_name: venue.venueName,
+    normalized_name: normalized,
+    address: venue.address || venue.formattedAddress,
+    city: venue.city,
+    state: venue.state?.toUpperCase(),
+    zip: venue.zip,
+    // 2026-01-10: D-004 Fix - Use ISO-3166-1 alpha-2 code
+    country: venue.country || 'US',
+    lat: venue.lat,
+    lng: venue.lng,
+    coord_key: coordKey,
+    formatted_address: venue.formattedAddress,
+    place_id: venue.placeId,
+    business_hours: venue.hours,
+    hours_full_week: venue.hoursFullWeek,
+    hours_source: venue.hoursSource,
+    venue_types: venueTypes,
+    category: venue.category || venue.venueType || 'venue',
+    capacity_estimate: venue.capacityEstimate,
+    source: venue.source,
+    source_model: venue.sourceModel,
+    expense_rank: venue.expenseRank,
+    discovery_source: venue.source,
+    district: district,
+    district_slug: districtSlug,
+    access_count: 1,
+    last_accessed_at: new Date(),
+    updated_at: new Date()
+  };
+
+  // 2026-01-10: AUDIT FIX - Use onConflictDoUpdate to always return a record
+  // Conflict on coord_key ensures we don't create duplicate venues at same location
+  const [result] = await db
     .insert(venue_catalog)
-    .values({
-      venue_name: venue.venueName,
-      normalized_name: normalized,
-      address: venue.address || venue.formattedAddress,
-      city: venue.city,
-      state: venue.state?.toUpperCase(),
-      zip: venue.zip,
-      // 2026-01-10: D-004 Fix - Use ISO-3166-1 alpha-2 code
-      country: venue.country || 'US',
-      lat: venue.lat,
-      lng: venue.lng,
-      coord_key: coordKey,
-      formatted_address: venue.formattedAddress,
-      place_id: venue.placeId,
-      business_hours: venue.hours,
-      hours_full_week: venue.hoursFullWeek,
-      hours_source: venue.hoursSource,
-      venue_types: venueTypes,
-      category: venue.category || venue.venueType || 'venue',
-      capacity_estimate: venue.capacityEstimate,
-      source: venue.source,
-      source_model: venue.sourceModel,
-      expense_rank: venue.expenseRank,
-      discovery_source: venue.source,
-      district: district,
-      district_slug: districtSlug,
-      access_count: 1,
-      last_accessed_at: new Date(),
-      updated_at: new Date()
+    .values(insertValues)
+    .onConflictDoUpdate({
+      target: venue_catalog.coord_key,
+      set: {
+        // Update access stats and potentially missing fields on conflict
+        access_count: sql`COALESCE(${venue_catalog.access_count}, 0) + 1`,
+        last_accessed_at: new Date(),
+        updated_at: new Date(),
+        // Update place_id if we have one and existing doesn't (backfill)
+        place_id: sql`COALESCE(${venue_catalog.place_id}, ${venue.placeId})`,
+        // Update formatted_address if we have one and existing doesn't
+        formatted_address: sql`COALESCE(${venue_catalog.formatted_address}, ${venue.formattedAddress})`
+      }
     })
-    .onConflictDoNothing()
     .returning();
 
-  return inserted;
+  return result;
 }
 
 /**
@@ -344,6 +364,10 @@ export async function getEventsForVenue(venueId, options = {}) {
  * Find or create a venue for an event.
  * Used during event discovery to ensure venues are cached.
  *
+ * 2026-01-10: AUDIT FIX - Now uses place_id-first lookup strategy
+ * Previously used fuzzy matching which created duplicate venues
+ * See: docs/AUDIT_LEDGER.md - Breakpoint 4
+ *
  * @param {Object} eventData - Event with venue information
  * @param {string} eventData.venue - Venue name
  * @param {string} eventData.address - Venue address
@@ -351,17 +375,60 @@ export async function getEventsForVenue(venueId, options = {}) {
  * @param {number} eventData.longitude - Longitude
  * @param {string} eventData.city - City
  * @param {string} eventData.state - State
+ * @param {string} [eventData.placeId] - Google Place ID (ChIJ...) from geocoding
+ * @param {string} [eventData.formattedAddress] - Verified formatted address from geocoding
  * @param {string} source - Data source (e.g., 'sync_events_gpt52')
  * @returns {Promise<Object>} Venue record (existing or new)
  */
 export async function findOrCreateVenue(eventData, source) {
-  const { venue: venueName, address, latitude, longitude, city, state } = eventData;
+  const {
+    venue: venueName,
+    address,
+    latitude,
+    longitude,
+    city,
+    state,
+    placeId,          // 2026-01-10: AUDIT FIX - Accept place_id from geocoding
+    formattedAddress  // 2026-01-10: AUDIT FIX - Accept formatted_address from geocoding
+  } = eventData;
 
   if (!venueName || !city || !state) {
     return null;
   }
 
-  // First, try to find existing venue
+  // 2026-01-10: AUDIT FIX - place_id-first lookup strategy
+  // Check by place_id first (most reliable), then coord_key, then fuzzy match
+  // This follows the standard: "venue identification should be place_id-first"
+
+  // Strategy 1: If we have a valid ChIJ place_id, check by that first
+  if (placeId && placeId.startsWith('ChIJ')) {
+    const byPlaceId = await lookupVenue({ placeId });
+    if (byPlaceId) {
+      return byPlaceId;
+    }
+  }
+
+  // Strategy 2: Check by coord_key (exact coordinate match)
+  if (latitude && longitude) {
+    const coordKey = generateCoordKey(latitude, longitude);
+    const byCoords = await lookupVenue({ coordKey });
+    if (byCoords) {
+      // If we have a place_id and existing venue doesn't, update it
+      if (placeId && !byCoords.place_id) {
+        await db.update(venue_catalog)
+          .set({
+            place_id: placeId,
+            formatted_address: formattedAddress || byCoords.formatted_address,
+            updated_at: new Date()
+          })
+          .where(eq(venue_catalog.venue_id, byCoords.venue_id))
+          .catch(() => {}); // Non-blocking update
+      }
+      return byCoords;
+    }
+  }
+
+  // Strategy 3: Fall back to fuzzy matching (last resort)
   const existing = await lookupVenueFuzzy({
     venueName,
     city,
@@ -371,6 +438,17 @@ export async function findOrCreateVenue(eventData, source) {
   });
 
   if (existing) {
+    // If we have a place_id and existing venue doesn't, update it
+    if (placeId && !existing.place_id) {
+      await db.update(venue_catalog)
+        .set({
+          place_id: placeId,
+          formatted_address: formattedAddress || existing.formatted_address,
+          updated_at: new Date()
+        })
+        .where(eq(venue_catalog.venue_id, existing.venue_id))
+        .catch(() => {}); // Non-blocking update
+    }
     return existing;
   }
 
@@ -382,17 +460,20 @@ export async function findOrCreateVenue(eventData, source) {
   // Create new venue with District Tagging
   const district = extractDistrictFromVenueName(venueName);
 
+  // 2026-01-10: AUDIT FIX - Include place_id and formatted_address in new venue
   const created = await insertVenue({
     venueName,
     city,
     state,
     lat: latitude,
     lng: longitude,
-    address,
+    address: formattedAddress || address,  // Prefer verified formatted_address
+    formattedAddress,
+    placeId,  // Now properly passed to insertVenue
     source,
     venueTypes: ['event_host'],
     category: guessVenueType(venueName),
-    district: district  // Explicitly pass extracted district
+    district: district
   });
 
   return created;
