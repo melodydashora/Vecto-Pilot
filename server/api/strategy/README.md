@@ -181,6 +181,25 @@ isOpen: c.features?.isOpen ?? c.features?.is_open ?? c.isOpen ?? c.is_open ?? nu
 
 The server-side `isOpen` is calculated once during venue enrichment. For real-time accuracy, the client (`BarsTable.tsx`) trusts the server's timezone-aware calculation. See `client/src/components/README.md` for details.
 
+### Staleness Detection (Added 2026-01-10)
+
+**Problem:** Previous sessions could leave `status='pending_blocks'` if blocks generation failed mid-execution. New requests would see "complete" status and serve stale cached data instead of running fresh TRIAD pipeline.
+
+**Fix:** POST `/api/blocks-fast` now checks strategy staleness:
+- Threshold: 30 minutes (pipeline normally completes in ~2 minutes)
+- If stale AND status is `pending_blocks` or in-progress → reset to `pending` and delete stale data
+- Deletes: strategy row reset, triad_job row, briefing row
+- Result: Fresh TRIAD pipeline runs with new briefing + strategy
+
+```javascript
+// Staleness check (line 576-602 in blocks-fast.js)
+const STALENESS_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+const strategyAge = Date.now() - new Date(existingStrategy.updated_at).getTime();
+if (strategyAge > STALENESS_THRESHOLD_MS && (isStuckPendingBlocks || isStuckInProgress)) {
+  // Reset and regenerate
+}
+```
+
 ### Known Issues (2026-01-10)
 
 See `docs/DOC_DISCREPANCIES.md` for tracked issues:

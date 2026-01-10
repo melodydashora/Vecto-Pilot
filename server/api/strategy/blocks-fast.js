@@ -568,20 +568,58 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
     // 2026-01-10: S-004 FIX - Use canonical status constants
     const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    if (existingStrategy && STRATEGY_IN_PROGRESS_STATUSES.includes(existingStrategy.status)) {
-      triadLog.info(`Strategy already ${existingStrategy.status} for ${snapshotId.slice(0, 8)}, skipping`);
-      return sendOnce(202, {
-        ok: false,
-        reason: 'strategy_already_running',
-        status: existingStrategy.status,
-        message: `Strategy is ${existingStrategy.status} - polling/waiting...`,
-        snapshotId: snapshotId
-      });
+
+    // 2026-01-10: STALENESS FIX - Reset stale strategies that never completed
+    // Root cause: Previous session left status='pending_blocks' but blocks never generated.
+    // Without this check, app serves stale cached data and TRIAD pipeline never runs.
+    // Staleness threshold: 30 minutes (TRIAD pipeline should complete in ~2 minutes)
+    const STALENESS_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+    if (existingStrategy) {
+      const strategyAge = Date.now() - new Date(existingStrategy.updated_at || existingStrategy.created_at).getTime();
+      const isStale = strategyAge > STALENESS_THRESHOLD_MS;
+
+      // Check for incomplete stale strategies that need reset
+      const isStuckPendingBlocks = existingStrategy.status === STRATEGY_STATUS.PENDING_BLOCKS;
+      const isStuckInProgress = STRATEGY_IN_PROGRESS_STATUSES.includes(existingStrategy.status);
+
+      if (isStale && (isStuckPendingBlocks || isStuckInProgress)) {
+        triadLog.warn(1, `STALENESS FIX: Resetting stale strategy (status=${existingStrategy.status}, age=${Math.round(strategyAge/60000)}min) for ${snapshotId.slice(0, 8)}`);
+
+        // Reset strategy status so fresh pipeline runs
+        await db.update(strategies).set({
+          status: STRATEGY_STATUS.PENDING,
+          phase: 'starting',
+          strategy_for_now: null,
+          updated_at: new Date()
+        }).where(eq(strategies.snapshot_id, snapshotId));
+
+        // Delete stale triad_job so new one can be created
+        await db.delete(triad_jobs).where(eq(triad_jobs.snapshot_id, snapshotId));
+
+        // Delete stale briefing so fresh data is generated
+        await db.delete(briefings).where(eq(briefings.snapshot_id, snapshotId));
+
+        triadLog.info(`STALENESS FIX: Reset complete, running fresh pipeline for ${snapshotId.slice(0, 8)}`);
+        // Fall through to create new job and run full pipeline
+      } else if (!isStale && STRATEGY_IN_PROGRESS_STATUSES.includes(existingStrategy.status)) {
+        // Recent strategy is still running - don't interfere
+        triadLog.info(`Strategy already ${existingStrategy.status} for ${snapshotId.slice(0, 8)}, skipping`);
+        return sendOnce(202, {
+          ok: false,
+          reason: 'strategy_already_running',
+          status: existingStrategy.status,
+          message: `Strategy is ${existingStrategy.status} - polling/waiting...`,
+          snapshotId: snapshotId
+        });
+      }
     }
+
+    // Re-fetch strategy after potential reset
+    const [currentStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
     // If strategy is COMPLETE/OK/PENDING_BLOCKS, generate SmartBlocks if not already done
     // 2026-01-10: S-004 FIX - Use isStrategyComplete() which handles legacy 'complete' value
-    if (existingStrategy && isStrategyComplete(existingStrategy.status)) {
+    if (currentStrategy && isStrategyComplete(currentStrategy.status)) {
       const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
         triadLog.done(4, `Blocks already exist for ${snapshotId.slice(0, 8)}`);
@@ -599,13 +637,13 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           rankingId: ranking.ranking_id,
           // 2026-01-10: D-027 - Use camelCase for API response (single contract)
           strategy: {
-            strategyForNow: existingStrategy.strategy_for_now || '',
-            consolidated: existingStrategy.consolidated_strategy || ''
+            strategyForNow: currentStrategy.strategy_for_now || '',
+            consolidated: currentStrategy.consolidated_strategy || ''
           }
         });
       }
       // Strategy is ready but blocks don't exist yet - generate them
-      venuesLog.info(`Strategy status=${existingStrategy.status}, generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
+      venuesLog.info(`Strategy status=${currentStrategy.status}, generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
     }
 
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
@@ -637,8 +675,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // The immediate strategy REQUIRES briefing data (traffic, events, news) to be useful.
         // Without briefing, GPT consolidator runs with empty context = poor quality strategy.
         // If briefing fails, we should fail the whole pipeline rather than continue with bad data.
+        // 2026-01-10: Capture fresh briefing to pass directly to strategist (no DB re-read)
+        let freshBriefing = null;
         try {
-          await runBriefing(snapshotId, { snapshot });
+          const briefingResult = await runBriefing(snapshotId, { snapshot });
+          freshBriefing = briefingResult.briefing;
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
           briefingLog.error(2, `Briefing failed (BLOCKING): ${briefingErr.message}`);
@@ -663,8 +704,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
         try {
           // STRATEGY_TACTICAL → strategy_for_now (immediate 1hr strategy for Strategy Tab)
-          // Uses snapshot data + briefing (traffic, events) directly
-          await runImmediateStrategy(snapshotId, { snapshot });
+          // 2026-01-10: Pass fresh briefing directly (no DB re-read for stale data)
+          await runImmediateStrategy(snapshotId, { snapshot, briefingRow: freshBriefing });
 
           // 2026-01-09: Removed strategyEmitter.emit - DB NOTIFY 'strategy_ready' is canonical
           // SSE clients receive via subscribeToChannel('strategy_ready') in strategy-events.js
@@ -677,19 +718,19 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Phase 4: Venue Discovery
         await updatePhase(snapshotId, 'venues', { phaseEmitter });
 
-        // Generate smart blocks using shared helper (parallel DB queries for performance)
-        const [[consolidatedRow], [briefingRowForBlocks]] = await Promise.all([
-          db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1),
-          db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1)
-        ]);
+        // 2026-01-10: Use fresh briefing captured earlier, only fetch strategy row
+        // This ensures freshBriefing (not stale DB read) is passed to SmartBlocks
+        const [consolidatedRow] = await db.select().from(strategies)
+          .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
         triadLog.phase(4, `[blocks-fast] Strategy ready (${consolidatedRow?.strategy_for_now?.length || 0} chars), generating venues`);
 
         // Use shared helper for block generation
         // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
+        // 2026-01-10: Pass freshBriefing directly (captured from runBriefing above)
         const { ranking, error: blocksError } = await ensureSmartBlocksExist(snapshotId, {
           strategyRow: consolidatedRow,
-          briefingRow: briefingRowForBlocks,
+          briefingRow: freshBriefing,
           snapshot,
           phaseEmitter,
           userId: authUserId

@@ -964,6 +964,34 @@ router.post("/config/env/update", requireAgentAdmin, async (req, res) => {...});
 
 ## Common Bugs & Fixes
 
+### Bug: Stale Strategy Served Instead of Fresh Data (Added 2026-01-10)
+
+**Symptoms:**
+- App shows same events/data from previous session
+- Logs show "dedup" but no Gemini/GPT calls happening
+- `status='pending_blocks'` but no TRIAD pipeline runs
+- Strategy shows "ready=true" but data is hours/days old
+
+**Root Cause:**
+Previous session left `strategies.status='pending_blocks'` when blocks generation failed mid-execution. When new request arrives:
+1. `isStrategyComplete()` returns `true` for `pending_blocks`
+2. Code tries to serve existing data instead of regenerating
+3. `triad_jobs` row still exists → `onConflictDoNothing()` returns null
+4. Falls into "job exists" branch that doesn't run full pipeline
+
+**Fix (Applied):**
+Added staleness detection in `blocks-fast.js`:
+```javascript
+const STALENESS_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+const strategyAge = Date.now() - new Date(existingStrategy.updated_at).getTime();
+if (strategyAge > STALENESS_THRESHOLD_MS && (isStuckPendingBlocks || isStuckInProgress)) {
+  // Reset strategy row, delete triad_job, delete briefing
+  // Fall through to run fresh pipeline
+}
+```
+
+**Key Lesson:** Always check data freshness before serving cached data. Pipeline completion states (`pending_blocks`) can persist indefinitely if generation fails.
+
 ### Bug: "Cannot reach database"
 
 **Causes:**

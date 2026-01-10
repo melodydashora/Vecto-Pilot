@@ -20,7 +20,7 @@ import { briefingLog, OP } from '../../../logger/workflow.js';
  * @param {string} snapshotId - UUID of snapshot
  * @param {Object} options - Optional parameters
  * @param {Object} options.snapshot - Pre-fetched snapshot to avoid redundant DB reads
- * @returns {Promise<void>}
+ * @returns {Promise<{briefing: Object}>} The generated briefing row
  * @throws {Error} If snapshot not found or briefing generation fails
  */
 export async function runBriefing(snapshotId, options = {}) {
@@ -42,13 +42,17 @@ export async function runBriefing(snapshotId, options = {}) {
       snapshotId,
       snapshot
     });
-    
+
     if (!result.success) {
       briefingLog.warn(2, `Generation returned success=false: ${result.error}`);
       throw new Error(result.error || 'Briefing generation failed');
     }
 
     briefingLog.done(2, `[briefing.js] Briefing stored for ${snapshotId.slice(0, 8)}`, OP.DB);
+
+    // 2026-01-10: Return the fresh briefing so caller can pass it downstream
+    // This avoids re-reading from DB and ensures fresh data is used
+    return { briefing: result.briefing };
   } catch (error) {
     briefingLog.error(2, `Briefing failed for ${snapshotId.slice(0, 8)}`, error);
     throw error;
