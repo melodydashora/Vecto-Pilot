@@ -374,8 +374,9 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
     // 2026-01-10: D-027 - Use camelCase for API response (single contract)
+    // consolidatedStrategy = Briefing tab 6-12hr shift strategy (differs from strategy.consolidated)
     const briefing = strategyRow ? {
-      consolidated: strategyRow.consolidated_strategy || null,
+      consolidatedStrategy: strategyRow.consolidated_strategy || null,
       strategyForNow: strategyRow.strategy_for_now || null
     } : null;
 
