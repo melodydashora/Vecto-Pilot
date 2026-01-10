@@ -67,6 +67,17 @@ IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL T
 | D-030b | `client/src/pages/co-pilot/MapPage.tsx:53-66` | MapBar mapped to snake_case | Eliminated mapping layer, uses camelCase directly | ✅ FIXED |
 | D-030c | `server/validation/transformers.js:100` | `toApiVenue` missing tolerance | Added snake/camel tolerance for `isOpen`, `closedGoAnyway`, `closedReason` | ✅ FIXED |
 | D-030d | `migrations/20260110_rename_event_columns.sql` | DB has `event_date` but schema expects `event_start_date` | Created migration to rename columns for symmetric naming | ✅ CREATED |
+| D-031a | `server/lib/briefing/briefing-service.js:865` | `validateEventsHard` returns object, not array | Changed to destructure `{ valid: validatedEvents }` | ✅ FIXED |
+| D-031b | `server/lib/briefing/briefing-service.js:813-843` | Event discovery prompt missing date/time requirements | Added STRICT requirements for `event_date`, `event_time`, `event_end_time` | ✅ FIXED |
+
+**Impact of D-031a:**
+- "validated is not iterable" error when looping over validateEventsHard result
+- All discovered events failed to save to DB
+
+**Impact of D-031b:**
+- Gemini returned events without required date/time fields
+- 100% validation failure rate (9→0 events, 44→29 events in logs)
+- Events rejected for `missing_start_time`, `missing_end_time`
 
 **Impact of D-023/D-024:**
 - UI fields were silently undefined when server returned camelCase
