@@ -866,7 +866,8 @@ export default function StrategyPage() {
       {coords && (
         <div className="mb-6">
           <SmartBlocksStatus
-            strategyReady={strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks'}
+            // 2026-01-10: D-022 - Server sends 'ok' or 'pending_blocks', not 'complete'
+            strategyReady={strategyData?.status === 'ok' || strategyData?.status === 'pending_blocks'}
             isStrategyFetching={isStrategyFetching}
             hasBlocks={blocks.length > 0}
             isBlocksLoading={isBlocksLoading || !!blocksData?.isBlocksGenerating}

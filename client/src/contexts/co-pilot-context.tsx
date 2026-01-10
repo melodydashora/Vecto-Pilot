@@ -491,7 +491,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     enabled: (() => {
       const hasCoords = !!coords;
       const hasSnapshot = !!lastSnapshotId && lastSnapshotId !== 'live-snapshot';
-      const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'complete' || strategyData?.status === 'pending_blocks';
+      // 2026-01-10: D-021 - Server sends 'ok' or 'pending_blocks', not 'complete' (removed deprecated check)
+      const strategyReady = strategyData?.status === 'ok' || strategyData?.status === 'pending_blocks';
       const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
       return hasCoords && hasSnapshot && strategyReady && snapshotMatches;
     })(),

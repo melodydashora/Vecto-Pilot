@@ -589,7 +589,8 @@ export const discovered_events = pgTable("discovered_events", {
   deactivated_by: text("deactivated_by"), // 'ai_coach' | user_id
 }, (table) => ({
   idxCity: sql`create index if not exists idx_discovered_events_city on ${table} (city, state)`,
-  idxDate: sql`create index if not exists idx_discovered_events_date on ${table} (event_date)`,
+  // 2026-01-10: Fixed D-020 - column renamed from event_date to event_start_date
+  idxDate: sql`create index if not exists idx_discovered_events_start_date on ${table} (event_start_date)`,
   idxCategory: sql`create index if not exists idx_discovered_events_category on ${table} (category)`,
   idxHash: sql`create unique index if not exists idx_discovered_events_hash on ${table} (event_hash)`,
   idxDiscoveredAt: sql`create index if not exists idx_discovered_events_discovered_at on ${table} (discovered_at desc)`,

@@ -1,6 +1,14 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-10
 
 # Co-Pilot Pages (`client/src/pages/co-pilot/`)
+
+## 📋 Changelog
+
+### 2026-01-10: D-022 Status Value Fix
+- **File:** `StrategyPage.tsx:869`
+- **Change:** Removed deprecated `status === 'complete'` check in SmartBlocksStatus
+- **Server sends:** `'ok'` or `'pending_blocks'` (never `'complete'`)
+- **Impact:** SmartBlocks status indicator now matches server contract
 
 ## Purpose
 
