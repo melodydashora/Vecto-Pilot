@@ -858,7 +858,33 @@ RULES:
   try {
     const parsed = safeJsonParse(result.output);
     const events = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
-    return { items: events.filter(e => e.title && e.venue), reason: null };
+
+    // 2026-01-10: STRICT FILTER - Reject events missing required date/time fields at source
+    // This prevents incomplete events from entering the pipeline at all
+    const validEvents = events.filter(e => {
+      // Must have title and venue
+      if (!e.title || !e.venue) return false;
+
+      // Must have start date (accept both naming conventions)
+      const hasStartDate = e.event_start_date || e.event_date || e.date;
+      if (!hasStartDate) return false;
+
+      // Must have start time (accept both naming conventions)
+      const hasStartTime = e.event_start_time || e.event_time || e.time;
+      if (!hasStartTime) return false;
+
+      // Must have end time
+      if (!e.event_end_time && !e.end_time) return false;
+
+      return true;
+    });
+
+    const rejected = events.length - validEvents.length;
+    if (rejected > 0) {
+      briefingLog.warn(2, `Rejected ${rejected}/${events.length} events missing required date/time fields`, OP.AI);
+    }
+
+    return { items: validEvents, reason: null };
   } catch (err) {
     briefingLog.error(2, `Parse Gemini events failed`, err, OP.AI);
     throw new Error(`Failed to parse Gemini events response: ${err.message}`);
