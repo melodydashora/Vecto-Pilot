@@ -32,11 +32,65 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ## Currently Pending
 
-### Status: CLEAR
+### Status: CRITICAL - Comprehensive Architecture Audit (2026-01-10)
 
-All pending items have been processed and moved to `docs/reviewed-queue/CHANGES.md`.
+**Audit stored in:** `.serena/memories/comprehensive_audit_2026_01_10.md`
+**See also:** `docs/DOC_DISCREPANCIES.md` (12 active discrepancies)
 
-**Last Cleared:** 2026-01-09
+#### P0 - CRITICAL (AI Coach Broken - Wrong Column Names)
+
+| ID | Issue | Location | Status |
+|----|-------|----------|--------|
+| D-005 | Coach claims `snapshots.id` | `server/api/coach/schema.js:23` | PENDING |
+| D-006 | Coach claims `immediate_strategy` | `server/api/coach/schema.js:28` | PENDING |
+| D-007 | Coach claims `traffic`, `weather` | `server/api/coach/schema.js:33` | PENDING |
+| D-008 | Coach claims `opening_hours` | `server/api/coach/schema.js:43` | PENDING |
+
+**Actual columns:** `snapshot_id`, `strategy_for_now`, `traffic_conditions`, `weather_current`, `weather_forecast`, `business_hours`
+
+#### P0 - Documentation Lies ✅ FIXED 2026-01-10
+
+| Issue | Location | Status |
+|-------|----------|--------|
+| Users table claimed location data | `README.md:150`, `database-schema.md:7` | ✅ FIXED |
+| Comment says "users table" reads coords_cache | `snapshot.js:67-68` | ✅ FIXED |
+| Endpoint docs non-existent /api/users/location | `location/README.md:44` | ✅ FIXED |
+| coach-dal.js comment wrong | `coach-dal.js:82` | ✅ FIXED |
+
+#### P1 - HIGH PRIORITY (Country Field Inconsistency)
+
+| ID | Issue | Location | Status |
+|----|-------|----------|--------|
+| D-011 | `pickAddressParts()` uses `c.long_name` | `location.js:161` | PENDING |
+| D-012 | Default 'USA' not ISO 'US' | `venue-utils.js:31`, `schema.js:262` | PENDING |
+| D-009 | Deleted `venue_cache` in docs | `DATA_FLOW_MAP.json:454` | PENDING |
+| D-010 | Deleted `nearby_venues` in docs | `DATA_FLOW_MAP.json:233` | PENDING |
+
+#### P1 - Duplicate Functions
+
+| Issue | Locations | Status |
+|-------|-----------|--------|
+| 4 duplicate coordsKey functions | location.js, snapshot.js, venue-enrichment.js, venue-utils.js | PENDING |
+| 2 calculateIsOpen functions | venue-enrichment.js:293, venue-utils.js:133 | PENDING |
+
+#### P2 - MEDIUM PRIORITY (Adapter Bypasses)
+
+| File | Issue | Status |
+|------|-------|--------|
+| consolidator.js | Direct OpenAI/Gemini calls | PENDING |
+| holiday-detector.js | Direct Gemini call | PENDING |
+| sync-events.mjs | Direct OpenAI/Gemini calls | PENDING |
+| research.js | Direct Gemini calls | PENDING |
+| venue-events.js | Direct Gemini call | PENDING |
+| assistant-proxy.ts | Direct OpenAI/Gemini calls | PENDING |
+
+#### P3 - LOW PRIORITY
+
+| Issue | Location | Status |
+|-------|----------|--------|
+| MULTI_STRATEGY_ENABLED silent no-op | strategy-generator-parallel.js:321 | PENDING |
+
+**Last Updated:** 2026-01-10 (Comprehensive Audit)
 
 ### Deferred Items (Low Priority)
 
@@ -435,6 +489,88 @@ The following documentation was created as part of the ETL refactoring commit:
 - [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BarsDataGrid.tsx)
 
 #### Low Priority
+- [ ] Consider adding documentation - New file added (server/lib/events/pipeline/hashEvent.js)
+- [ ] Consider adding documentation - New file added (server/lib/events/pipeline/normalizeEvent.js)
+- [ ] Consider adding documentation - New file added (server/lib/events/pipeline/types.js)
+- [ ] Consider adding documentation - New file added (server/lib/events/pipeline/validateEvent.js)
+- [ ] Consider adding documentation - New file added (tests/events/pipeline.test.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-10 Analysis
+
+**Generated:** 2026-01-10T01:53:00.442Z
+**Branch:** main
+**Last Commit:** 75785eae Docs: Update documentation for ETL pipeline and validation rules
+
+### Uncommitted Changes (43)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+| `README.md` | Modified |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/MapTab.tsx` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/pages/co-pilot/MapPage.tsx` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/DATABASE_SCHEMA.md` | Modified |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/review-queue/2026-01-10.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `scripts/generate-schema-docs.js` | Modified |
+| `sent-to-strategist.txt` | Modified |
+| `server/api/briefing/briefing.js` | Modified |
+| `server/api/location/README.md` | Modified |
+| `server/api/location/snapshot.js` | Modified |
+| `server/jobs/event-sync-job.js` | Modified |
+| `server/lib/ai/coach-dal.js` | Modified |
+| ... and 23 more | |
+
+### Recent Commit Changes (31)
+| File | Status |
+|------|--------|
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `client/src/components/BarsDataGrid.tsx` | Modified |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/_future/MarketIntelligenceBlocks.tsx` | Modified |
+| `client/src/pages/co-pilot/BriefingPage.tsx` | Modified |
+| `client/src/pages/co-pilot/MapPage.tsx` | Modified |
+| `client/src/pages/co-pilot/StrategyPage.tsx` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/DATA_FLOW_MAP.json` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| `docs/architecture/etl-pipeline-refactoring-2026-01-09.md` | Added |
+| `docs/review-queue/2026-01-09.md` | Modified |
+| `docs/review-queue/2026-01-10.md` | Added |
+| `docs/review-queue/pending.md` | Modified |
+| `scripts/db-detox.js` | Modified |
+| `server/README.md` | Modified |
+| `server/lib/README.md` | Modified |
+| `server/lib/ai/providers/consolidator.js` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| ... and 11 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/getSnapshotTimeContext.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+- [ ] `docs/architecture/api-reference.md` - Briefing API changes (server/api/briefing/briefing.js)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/event-matcher.js)
+
+#### Low Priority
+- [ ] docs/architecture/server-structure.md - Background job changes (server/jobs/event-sync-job.js)
 - [ ] Consider adding documentation - New file added (server/lib/events/pipeline/hashEvent.js)
 - [ ] Consider adding documentation - New file added (server/lib/events/pipeline/normalizeEvent.js)
 - [ ] Consider adding documentation - New file added (server/lib/events/pipeline/types.js)

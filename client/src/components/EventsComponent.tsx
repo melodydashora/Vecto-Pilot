@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp, Navigation, Calendar } from "lucide-react";
 import { filterValidEvents, formatEventDate, formatEventTimeRange } from "@/utils/co-pilot-helpers";
 
+// 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
 interface Event {
   title: string;
   venue?: string;
   address?: string;
-  event_date?: string;
+  event_start_date?: string;
   event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
-  event_time?: string;
+  event_start_time?: string;
   event_end_time?: string;
   type?: string;
   subtype?: string;
@@ -212,19 +213,20 @@ export default function EventsComponent({ events, isLoading: _isLoading }: Event
 
                       <div className="space-y-1.5 text-xs text-gray-600">
                         {/* Date and Time - Always show for valid events */}
+                        {/* 2026-01-10: Use symmetric field names (event_start_date, event_start_time) */}
                         <div className="flex flex-wrap items-center gap-2">
-                          {event.event_date && (
+                          {event.event_start_date && (
                             <div className="flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-indigo-500 flex-shrink-0" />
-                              <span className={`font-medium ${formatEventDate(event.event_date) === 'Today' ? 'text-green-600' : 'text-indigo-600'}`}>
-                                {formatEventDate(event.event_date)}
+                              <span className={`font-medium ${formatEventDate(event.event_start_date) === 'Today' ? 'text-green-600' : 'text-indigo-600'}`}>
+                                {formatEventDate(event.event_start_date)}
                               </span>
                             </div>
                           )}
-                          {event.event_time && (
+                          {event.event_start_time && (
                             <div className="flex items-center gap-1">
                               <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                              <span>{formatEventTimeRange(event.event_time, event.event_end_time)}</span>
+                              <span>{formatEventTimeRange(event.event_start_time, event.event_end_time)}</span>
                             </div>
                           )}
                         </div>

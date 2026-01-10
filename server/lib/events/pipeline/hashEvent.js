@@ -131,8 +131,9 @@ export function buildHashInput(event) {
     .join(' ');
   const venue = normalizeForHash(venueAndAddress);
 
-  const date = event.event_date || '';
-  const time = normalizeTimeForHash(event.event_time);
+  // 2026-01-10: Use symmetric naming (event_start_date, event_start_time)
+  const date = event.event_start_date || '';
+  const time = normalizeTimeForHash(event.event_start_time);
 
   return `${title}|${venue}|${date}|${time}`;
 }

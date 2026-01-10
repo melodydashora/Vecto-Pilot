@@ -38,11 +38,11 @@ GET  /api/location/weather        - Current weather + 6hr forecast
 GET  /api/location/airquality     - AQI data
 ```
 
-### User Location
+### User Session (No Location Data)
 ```
-GET  /api/users/me                - Current user's stored location
-POST /api/users/location          - Update user location
+GET  /api/users/me                - Current user's session info (device, snapshot ref)
 ```
+Note: Users table has NO location fields (2026-01-05). Location data lives in snapshots table.
 
 ### Snapshots
 ```

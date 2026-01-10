@@ -133,7 +133,7 @@ function getTimezoneOffset(dateTimeStr, timezone) {
 
 /**
  * Check if an event is currently active (happening now)
- * @param {Object} event - Event object with event_date, event_time, event_end_time, event_end_date
+ * @param {Object} event - Event object with event_start_date, event_start_time, event_end_time, event_end_date
  * @param {Date} now - Current time
  * @param {string} timezone - IANA timezone for the event
  * @returns {boolean} - True if event is currently happening
@@ -142,16 +142,16 @@ function isEventActiveNow(event, now, timezone) {
   // Get today's date in the event's timezone
   const today = now.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD format
 
-  // Multi-day event check: is today within the event date range?
-  const eventStartDate = event.event_date;
-  const eventEndDate = event.event_end_date || event.event_date;
+  // 2026-01-10: Use symmetric field names (support both old and new during migration)
+  const eventStartDate = event.event_start_date || event.event_date;
+  const eventEndDate = event.event_end_date || eventStartDate;
 
   if (!eventStartDate) return false;
   if (today < eventStartDate || today > eventEndDate) return false;
 
   // Parse start and end times
-  // Use event_date for start, event_end_date for end (or today if single-day)
-  const startTime = parseEventTime(event.event_time || '00:00', eventStartDate, timezone);
+  const eventStartTime = event.event_start_time || event.event_time;
+  const startTime = parseEventTime(eventStartTime || '00:00', eventStartDate, timezone);
   const endTime = parseEventTime(event.event_end_time || '23:59', eventEndDate, timezone);
 
   // If we couldn't parse times, check if date matches (assume all-day event)
@@ -605,29 +605,30 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     weekFromNow.setDate(weekFromNow.getDate() + 7);
     const endDate = weekFromNow.toISOString().split('T')[0];
 
+    // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
     const events = await db.select()
       .from(discovered_events)
       .where(and(
         eq(discovered_events.city, snapshot.city),
         eq(discovered_events.state, snapshot.state),
-        gte(discovered_events.event_date, today),
-        lte(discovered_events.event_date, endDate),
+        gte(discovered_events.event_start_date, today),
+        lte(discovered_events.event_start_date, endDate),
         eq(discovered_events.is_active, true)
       ))
-      .orderBy(discovered_events.event_date)
+      .orderBy(discovered_events.event_start_date)
       .limit(50);
 
     // Map to briefing events format
     let allEvents = events.map(e => ({
       title: e.title,
-      summary: [e.title, e.venue_name, e.event_date, e.event_time].filter(Boolean).join(' • '),
+      summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
       impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
       source: e.source_model,
       event_type: e.category,
       subtype: e.category, // For EventsComponent category grouping
-      event_date: e.event_date,
+      event_start_date: e.event_start_date,
       event_end_date: e.event_end_date, // For multi-day events (e.g., holiday lights Dec 1 - Jan 4)
-      event_time: e.event_time,
+      event_start_time: e.event_start_time,
       event_end_time: e.event_end_time,
       address: e.address,
       venue: e.venue_name,
@@ -713,29 +714,30 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
             )
           );
 
+          // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
           const rawMarketEvents = await db.select()
             .from(discovered_events)
             .where(and(
               or(...cityConditions),
               eq(discovered_events.expected_attendance, 'high'), // Only high-value events
-              gte(discovered_events.event_date, today),
-              lte(discovered_events.event_date, endDate),
+              gte(discovered_events.event_start_date, today),
+              lte(discovered_events.event_start_date, endDate),
               eq(discovered_events.is_active, true)
             ))
-            .orderBy(discovered_events.event_date)
+            .orderBy(discovered_events.event_start_date)
             .limit(20);
 
           // Map to same format as local events
           marketEvents = rawMarketEvents.map(e => ({
             title: e.title,
-            summary: [e.title, e.venue_name, e.event_date, e.event_time].filter(Boolean).join(' • '),
+            summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
             impact: 'high', // All market events are high-value by definition
             source: e.source_model,
             event_type: e.category,
             subtype: e.category,
-            event_date: e.event_date,
+            event_start_date: e.event_start_date,
             event_end_date: e.event_end_date,
-            event_time: e.event_time,
+            event_start_time: e.event_start_time,
             event_end_time: e.event_end_time,
             address: e.address,
             venue: e.venue_name,
@@ -1078,8 +1080,9 @@ router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
     };
 
     // If correcting time data, update those fields too
+    // 2026-01-10: Use symmetric field names (event_start_time)
     if (reason === 'incorrect_time') {
-      if (correctedTime) updatePayload.event_time = correctedTime;
+      if (correctedTime) updatePayload.event_start_time = correctedTime;
       if (correctedEndTime) updatePayload.event_end_time = correctedEndTime;
     }
 
@@ -1157,16 +1160,17 @@ router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnersh
 
     console.log(`[BriefingRoute] GET /discovered-events for ${snapshot.city}, ${snapshot.state} (${today} to ${endDate})`);
 
+    // 2026-01-10: Use symmetric field names (event_start_date)
     const events = await db.select()
       .from(discovered_events)
       .where(and(
         eq(discovered_events.city, snapshot.city),
         eq(discovered_events.state, snapshot.state),
-        gte(discovered_events.event_date, today),
-        lte(discovered_events.event_date, endDate),
+        gte(discovered_events.event_start_date, today),
+        lte(discovered_events.event_start_date, endDate),
         eq(discovered_events.is_active, true)
       ))
-      .orderBy(discovered_events.event_date)
+      .orderBy(discovered_events.event_start_date)
       .limit(100);
 
     res.json({

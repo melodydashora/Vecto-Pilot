@@ -4,6 +4,60 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
+## 2026-01-10
+
+### Comprehensive Architecture Audit + Hardening Protocol
+
+**Memory Files Created:**
+- `.serena/memories/comprehensive_audit_2026_01_10.md` - Full findings
+- `.serena/memories/refactor-audit-2026-01-10.md` - ETL deep analysis
+- `.serena/memories/architectural_fixes_roadmap_2026_01_10.md` - Prioritized roadmap
+
+**Hardening Protocol Infrastructure:**
+
+| File | Purpose |
+|------|---------|
+| `docs/architecture/standards.md` | Comprehensive 10-section standards document |
+| `docs/preflight/standards.md` | Quick-reference card for all standards |
+| `scripts/check-standards.js` | CI enforcement (6 checks) |
+| `scripts/generate-schema-docs.js` | Auto-generates DATABASE_SCHEMA.md from schema.js |
+| `docs/DATABASE_SCHEMA.md` | Auto-generated schema docs (51 tables) |
+| `docs/DOC_DISCREPANCIES.md` | Blocking queue for doc/code conflicts |
+
+**CRITICAL: Coach Schema Metadata Mismatches (D-005 to D-008)**
+
+AI Coach is prompted with **wrong column names** causing hallucination:
+
+| Table | Coach Says | Actual Schema |
+|-------|------------|---------------|
+| `snapshots` | `id` (PK) | `snapshot_id` |
+| `strategies` | `immediate_strategy` | `strategy_for_now` |
+| `briefings` | `traffic`, `weather` | `traffic_conditions`, `weather_current`, `weather_forecast` |
+| `venue_catalog` | `opening_hours` | `business_hours` |
+
+**Fix Location:** `server/api/coach/schema.js:23-43`
+
+**Country Field Inconsistency (3 incompatible representations):**
+
+| Source | Value | Format |
+|--------|-------|--------|
+| `pickAddressParts()` | "United States" | Full name (c.long_name) |
+| `venue_catalog.country` | "USA" | Alpha-3 |
+| `driver_profiles.country` | "US" | Alpha-2 (correct) |
+
+**Root Cause:** `server/api/location/location.js:161` uses `c.long_name` instead of `c.short_name`
+
+**ETL Pipeline Refactoring (Complete):**
+- Created canonical modules in `server/lib/events/pipeline/`
+- Symmetric field naming: `event_date` → `event_start_date`, `event_time` → `event_start_time`
+- 57/57 tests passing
+
+**Active Discrepancy Count:** 12 total (4 Critical, 5 High, 3 Medium)
+
+See `docs/DOC_DISCREPANCIES.md` for full tracking.
+
+---
+
 ## 2026-01-09
 
 ### P0/P1 Security Audit + Schema Cleanup (commits 5ec01bf, 815c81a, 178a5d5)

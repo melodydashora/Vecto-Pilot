@@ -1,128 +1,128 @@
-# Documentation Discrepancy Tracker
+# Documentation Discrepancies Queue
 
-This file tracks discrepancies between documentation and actual codebase state.
+**Status:** BLOCKING QUEUE
+**Protocol:** Items here must be resolved within 24 hours
+**Rule:** Trust CODE over DOCS when they contradict
 
-**Last Updated:** 2025-12-27
-**Status Legend:** 🔴 Critical | 🟡 Medium | 🟢 Low | ✅ Resolved
+---
+
+## How to Use This File
+
+1. When you find docs that contradict code, add an entry below
+2. Trust the CODE (not docs) until resolved
+3. Fix the docs within 24 hours
+4. Remove the entry after fixing
+5. Log the fix in `docs/reviewed-queue/CHANGES.md`
 
 ---
 
 ## Active Discrepancies
 
-### 🟡 Old Replit Documents
+### CRITICAL (P0 - Breaks AI Coach)
 
-| Field | Value |
-|-------|-------|
-| **File Path** | `/home/runner/workspace/docs/melswork/needs-updating/` |
-| **Issue** | Contains outdated documentation from Replit era |
-| **Reality** | User mentioned "Replit documents are old and not what I wanted this app to become" |
-| **Date Found** | 2025-12-27 |
-| **Priority** | Medium - may contain incorrect feature claims |
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-005 | `server/api/coach/schema.js:23` | `snapshots.key_columns` claims PK is `id` | Actual PK is `snapshot_id` | PENDING |
+| D-006 | `server/api/coach/schema.js:28` | `strategies` claims `immediate_strategy` | Actual column is `strategy_for_now` | PENDING |
+| D-007 | `server/api/coach/schema.js:33` | `briefings` claims `traffic`, `weather` | Actual: `traffic_conditions`, `weather_current`, `weather_forecast` | PENDING |
+| D-008 | `server/api/coach/schema.js:43` | `venue_catalog` claims `opening_hours` | Actual column is `business_hours` | PENDING |
 
-**Notes:**
-- User: "put amazing functionality it said was working or coded but never did"
-- Need systematic review of all files in this folder
-- Compare claimed features vs actual implementation
+### HIGH PRIORITY
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-001 | `SYSTEM_MAP.md:392` | Claims users table has "GPS coordinates, location" | Users table has NO location fields (session tracking only) | PENDING |
+| D-002 | `docs/architecture/authentication.md:56` | References "users: last location" | Users table has no location data | PENDING |
+| D-003 | `LESSONS_LEARNED.md:702` | "Users table = source of truth for resolved location" | Snapshots table is location authority | PENDING |
+| D-009 | `docs/DATA_FLOW_MAP.json:454` | Lists `venue_cache` as active table | Table deleted (renamed to `venue_catalog`) | PENDING |
+| D-010 | `docs/DATA_FLOW_MAP.json:233` | Lists `nearby_venues` as active table | Table deleted from schema | PENDING |
+
+### MEDIUM PRIORITY
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-004 | Multiple files | Country field uses 'USA' not ISO 'US' | Should use ISO 3166-1 alpha-2 codes | PENDING |
+| D-011 | `server/api/location/location.js:161` | `pickAddressParts()` stores country as `c.long_name` | Should store `c.short_name` (ISO code) | PENDING |
+| D-012 | `server/lib/venue/venue-utils.js:31` | Default country is `'USA'` (alpha-3) | Should be `'US'` (ISO 3166-1 alpha-2) | PENDING |
 
 ---
 
-### 🟢 BottomTabNavigation Props
+## Schema Inconsistencies (Migration Needed)
 
-| Field | Value |
-|-------|-------|
-| **File Path** | `/home/runner/workspace/client/src/components/co-pilot/BottomTabNavigation.tsx` |
-| **Issue** | File header comment may reference old prop-based API |
-| **Reality** | Now uses React Router hooks (useNavigate, useLocation) |
-| **Date Found** | 2025-12-27 |
-| **Priority** | Low - component still works correctly |
+### Country Field Audit
+
+**Tables using `country` (legacy, string format):**
+
+| Table | Column | Default | Actual Values | Issue |
+|-------|--------|---------|---------------|-------|
+| `snapshots` | `country` | (none) | Full names from `pickAddressParts()` | Gets "United States" from `c.long_name` |
+| `coords_cache` | `country` | (none) | Full names from geocoding | Gets "United States" from `c.long_name` |
+| `venue_catalog` | `country` | `'USA'` | Alpha-3 default | Schema comment says "Country code" but uses alpha-3 |
+| `driver_profiles` | `country` | `'US'` | Alpha-2 | Correct format but column named `country` not `country_code` |
+
+**Root Cause:** `server/api/location/location.js:161` uses `c.long_name` instead of `c.short_name`:
+```javascript
+// Current (WRONG):
+if (types.includes("country")) country = c.long_name;  // "United States"
+
+// Should be:
+if (types.includes("country")) country_code = c.short_name;  // "US"
+```
+
+**Tables using `country_code` (correct, ISO format):**
+
+| Table | Column | Default | Status |
+|-------|--------|---------|--------|
+| `airports` | `country_code` | 'US' | ✅ Correct |
+| `market_information` | `country_code` | - | ✅ Correct |
+| `platform_markets` | `country_code` | 'US' | ✅ Correct |
+
+### Migration Plan
+
+**Phase 1: Add country_code columns**
+```sql
+ALTER TABLE snapshots ADD COLUMN country_code CHAR(2);
+ALTER TABLE coords_cache ADD COLUMN country_code CHAR(2);
+ALTER TABLE venue_catalog ADD COLUMN country_code CHAR(2);
+```
+
+**Phase 2: Backfill data**
+```sql
+UPDATE snapshots SET country_code = CASE
+  WHEN country IN ('USA', 'United States', 'US') THEN 'US'
+  WHEN country = 'Canada' THEN 'CA'
+  WHEN country IN ('UK', 'United Kingdom') THEN 'GB'
+  ELSE UPPER(LEFT(country, 2))
+END;
+-- Repeat for other tables
+```
+
+**Phase 3: Update code**
+- Update all reads to use `country_code`
+- Update all writes to populate `country_code`
+- Add validation for ISO format
+
+**Phase 4: Deprecate legacy columns**
+- Mark `country` columns as deprecated
+- Plan removal in future migration
 
 ---
 
 ## Resolved Discrepancies
 
-### ✅ Memory Table MCP Tools (2025-12-27)
-
-| Field | Value |
-|-------|-------|
-| **Issue** | docs/memory/README.md referenced MCP tools that no longer exist |
-| **Resolution** | Updated README with REST API endpoints (`/agent/memory/*`), 4 memory tables, and architecture diagram |
-| **Session** | Review queue processing |
+| ID | Resolved | Location | Resolution |
+|----|----------|----------|------------|
+| D-000 | 2026-01-10 | `README.md:150`, `docs/architecture/database-schema.md:7`, `server/api/location/snapshot.js:67`, `server/api/location/README.md:44`, `server/lib/ai/coach-dal.js:82` | Fixed 5 docs claiming users table had location data |
 
 ---
 
-### ✅ CLAUDE.md - Client Structure (2025-12-27)
-
-| Field | Value |
-|-------|-------|
-| **Issue** | Referenced deleted `co-pilot.tsx` |
-| **Resolution** | Already updated with router-based pages, routes.tsx, CoPilotLayout.tsx, co-pilot-context.tsx |
-| **Session** | Review queue processing |
-
----
-
-### ✅ co-pilot.tsx Missing Modern Features (2025-12-27)
-
-| Field | Value |
-|-------|-------|
-| **Issue** | Branch had old version of co-pilot.tsx |
-| **Resolution** | Merged main branch, then refactored to router-based architecture |
-| **Session** | Router refactor session |
-
----
-
-## How to Add New Discrepancies
+## Adding New Discrepancies
 
 ```markdown
-### 🔴/🟡/🟢 [Short Title]
-
-| Field | Value |
-|-------|-------|
-| **File Path** | `/full/path/to/file.md` |
-| **Line(s)** | Line number(s) if applicable |
-| **Issue** | What the doc says |
-| **Reality** | What the code actually does |
-| **Date Found** | YYYY-MM-DD |
-| **Session** | Session name/description |
-| **Priority** | Critical/Medium/Low |
-
-**Notes:**
-- Additional context
-- Questions to resolve
+| D-XXX | `file:line` | [Brief issue description] | [What the code actually does] | PENDING |
 ```
 
----
-
-## Files Needing Full Review
-
-These files in `docs/melswork/needs-updating/` need systematic comparison with actual code:
-
-| Subfolder | Contents | Status |
-|-----------|----------|--------|
-| `architecture/urgent/` | MISMATCHED.md (entry point analysis) | ⏳ Needs review |
-| `architecture/ai-ml/` | AI/ML documentation | ⏳ Unknown |
-| `architecture/auth/` | Auth system docs | ⏳ Unknown |
-| `architecture/guides/` | Setup guides | ⏳ Unknown |
-| `architecture/integration/` | Integration docs | ⏳ Unknown |
-| `architecture/reports/` | Analysis reports | ⏳ Unknown |
-| `architecture/rules/` | Code rules | ⏳ Unknown |
-| `architecture/schema/` | Database schema | ⏳ Unknown |
-| `architecture/ui/` | UI documentation | ⏳ Unknown |
-| `architecture/workflow/` | Workflow docs | ⏳ Unknown |
-| `assistant/` | Assistant docs | ⏳ Unknown |
-| `eidolon/` | Eidolon SDK docs | ⏳ Unknown |
-| `agent/` | Agent docs | ⏳ Unknown |
-| `repo/` | Repo structure docs | ⏳ Unknown |
-
----
-
-## Cross-Reference: Features Claimed vs Implemented
-
-| Feature Claimed | Doc Source | Actually Works? | Notes |
-|-----------------|------------|-----------------|-------|
-| *Add as discovered* | | | |
-
----
-
-## Session Notes Reference
-
-All session notes are stored in `/home/runner/workspace/docs/memory/sessions/`
+After fixing:
+1. Change status to RESOLVED
+2. Move to Resolved section with date
+3. Log in `docs/reviewed-queue/CHANGES.md`

@@ -199,9 +199,12 @@ export function normalizeEvent(rawEvent, context = {}) {
     state: rawEvent.state || state || '',
     zip: rawEvent.zip || null,
 
-    // Date/Time
-    event_date: normalizeDate(rawEvent.event_date || rawEvent.date),
-    event_time: normalizeTime(rawEvent.event_time || rawEvent.time),
+    // Date/Time (2026-01-10: Renamed to symmetric naming convention)
+    // Input: rawEvent.event_date → Output: event_start_date
+    // Input: rawEvent.event_time → Output: event_start_time
+    // Also accepts already-normalized input (event_start_date/event_start_time) for idempotency
+    event_start_date: normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
+    event_start_time: normalizeTime(rawEvent.event_time || rawEvent.event_start_time || rawEvent.time),
     event_end_time: normalizeTime(rawEvent.event_end_time || rawEvent.end_time),
     event_end_date: normalizeDate(rawEvent.event_end_date),
 

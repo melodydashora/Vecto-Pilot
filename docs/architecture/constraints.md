@@ -189,6 +189,61 @@ Manual override via `server/config/holiday-override.json`:
 - Actual holidays supersede overrides
 - CLI: `node server/scripts/holiday-override.js`
 
+## AI Model Configuration (Binding Contract)
+
+### Lowest Temperature / Highest Thinking Rule
+
+All AI calls MUST use:
+- **Lowest temperature available** (0 or disable if not supported)
+- **Highest thinking/reasoning level** appropriate for the task
+
+| Model | Temperature | Thinking/Reasoning |
+|-------|-------------|-------------------|
+| Claude Opus 4.5 | N/A (not configurable) | Extended thinking enabled |
+| GPT-5.2 | N/A (not supported) | `reasoning_effort: "high"` |
+| Gemini 3 Pro | N/A (not supported) | `thinkingLevel: "HIGH"` |
+
+### AI Call Logging (Mandatory)
+
+Every LLM call MUST log effective configuration to prove compliance:
+
+```javascript
+// Required log fields for every AI call
+console.log(JSON.stringify({
+  phase: 'llm_call',
+  model_id: 'claude-opus-4-5-20251101',  // Actual model ID used
+  role: 'STRATEGY_CORE',                  // Role from model-registry
+  reasoning_effort: 'high',               // GPT-5 specific
+  thinking_level: 'HIGH',                 // Gemini specific
+  max_tokens: 32000,
+  snapshot_id: snapshotId,
+  correlation_id: reqId,
+  timestamp: new Date().toISOString()
+}));
+```
+
+### Adapter Enforcement
+
+All LLM calls MUST go through `callModel()`:
+
+```javascript
+// CORRECT - Use adapter
+import { callModel } from '../lib/ai/adapters/index.js';
+const result = await callModel('STRATEGY_CORE', { system, user });
+
+// WRONG - Direct API call
+await fetch('https://api.openai.com/v1/chat/completions', ...);
+```
+
+**Files allowed to call LLM APIs directly:**
+- `server/lib/ai/adapters/*.js` - Adapters themselves
+- `server/api/chat/realtime.js` - WebSocket protocol
+- `tests/**/*.js` - Test mocks
+
+All other files MUST use the adapter pattern.
+
+---
+
 ## Deprecated Features
 
 **Do not use or re-implement:**

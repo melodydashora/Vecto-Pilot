@@ -556,11 +556,11 @@ export const discovered_events = pgTable("discovered_events", {
   // Reference to venue_catalog (enables venue → events queries for SmartBlocks)
   // Updated 2026-01-05: FK changed from venue_cache.id to venue_catalog.venue_id
   venue_id: uuid("venue_id").references(() => venue_catalog.venue_id, { onDelete: 'set null' }),
-  // Event timing
-  event_date: text("event_date").notNull(), // YYYY-MM-DD format
-  event_time: text("event_time"), // e.g., "7:00 PM", "All Day"
-  event_end_time: text("event_end_time"), // e.g., "10:00 PM"
+  // Event timing (2026-01-10: Renamed for symmetric naming convention)
+  event_start_date: text("event_start_date").notNull(), // YYYY-MM-DD format
+  event_start_time: text("event_start_time"), // e.g., "7:00 PM", "All Day"
   event_end_date: text("event_end_date"), // For multi-day events
+  event_end_time: text("event_end_time"), // e.g., "10:00 PM"
   // Coordinates (optional - from venue_cache if venue_id set, otherwise from LLM)
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),

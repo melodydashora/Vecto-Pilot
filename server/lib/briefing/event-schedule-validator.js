@@ -37,8 +37,9 @@ export async function validateEventSchedules(events, context) {
   const { date, city, state, timezone } = context;
 
   // Only validate events that claim to be happening "today" or "tonight"
+  // 2026-01-10: Support both old (event_date) and new (event_start_date) field names
   const eventsToValidate = events.filter(e => {
-    const eventDate = e.event_date || '';
+    const eventDate = e.event_start_date || e.event_date || '';
     const title = (e.title || '').toLowerCase();
     const summary = (e.summary || '').toLowerCase();
 
@@ -71,9 +72,12 @@ CRITICAL INSTRUCTIONS:
 
 After searching, return ONLY a JSON array - no markdown, no explanation text.`;
 
-  const eventList = eventsToValidate.map((e, i) =>
-    `${i + 1}. "${e.title}" at ${e.venue || e.location || 'unknown venue'} - claimed: ${e.event_date || date} at ${e.event_time || 'unknown time'}`
-  ).join('\n');
+  // 2026-01-10: Support both old and new field names
+  const eventList = eventsToValidate.map((e, i) => {
+    const eventDate = e.event_start_date || e.event_date || date;
+    const eventTime = e.event_start_time || e.event_time || 'unknown time';
+    return `${i + 1}. "${e.title}" at ${e.venue || e.location || 'unknown venue'} - claimed: ${eventDate} at ${eventTime}`;
+  }).join('\n');
 
   const user = `VERIFICATION REQUEST
 ==================

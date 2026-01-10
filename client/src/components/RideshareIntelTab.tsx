@@ -117,6 +117,7 @@ export default function RideshareIntelTab() {
   // Use .length dependency to avoid loops from array reference changes
   const eventMissions: EventMission[] = useMemo(() => {
     return (eventsData?.events || [])
+      // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
       .filter((e: any) => e.latitude && e.longitude)
       .map((e: any) => ({
         id: `event-${e.title}`,
@@ -124,10 +125,10 @@ export default function RideshareIntelTab() {
         name: e.venue || e.title,
         lat: e.latitude,
         lng: e.longitude,
-        subtitle: e.event_time ? `${e.title} - ${e.event_time}` : e.title,
+        subtitle: e.event_start_time ? `${e.title} - ${e.event_start_time}` : e.title,
         venue: e.venue,
-        eventDate: e.event_date,
-        eventTime: e.event_time,
+        eventDate: e.event_start_date,
+        eventTime: e.event_start_time,
         eventEndTime: e.event_end_time,
         impact: e.impact,
         category: e.event_type,

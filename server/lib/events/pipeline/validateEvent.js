@@ -92,14 +92,14 @@ export function validateEvent(event) {
     return { valid: false, reason: 'tbd_in_address', field: 'address' };
   }
 
-  // Rule 6: Must have event_time
-  if (!event.event_time) {
-    return { valid: false, reason: 'missing_time', field: 'event_time' };
+  // Rule 6: Must have event_start_time (2026-01-10: renamed from event_time)
+  if (!event.event_start_time) {
+    return { valid: false, reason: 'missing_start_time', field: 'event_start_time' };
   }
 
-  // Rule 7: Time must not contain TBD/Unknown
-  if (hasInvalidPattern(event.event_time)) {
-    return { valid: false, reason: 'tbd_in_time', field: 'event_time' };
+  // Rule 7: Start time must not contain TBD/Unknown
+  if (hasInvalidPattern(event.event_start_time)) {
+    return { valid: false, reason: 'tbd_in_start_time', field: 'event_start_time' };
   }
 
   // Rule 8: Must have event_end_time
@@ -114,14 +114,14 @@ export function validateEvent(event) {
     return { valid: false, reason: 'tbd_in_end_time', field: 'event_end_time' };
   }
 
-  // Rule 10: Must have event_date
-  if (!event.event_date) {
-    return { valid: false, reason: 'missing_date', field: 'event_date' };
+  // Rule 10: Must have event_start_date (2026-01-10: renamed from event_date)
+  if (!event.event_start_date) {
+    return { valid: false, reason: 'missing_start_date', field: 'event_start_date' };
   }
 
   // Rule 11: Date must be valid format (YYYY-MM-DD)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(event.event_date)) {
-    return { valid: false, reason: 'invalid_date_format', field: 'event_date' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(event.event_start_date)) {
+    return { valid: false, reason: 'invalid_date_format', field: 'event_start_date' };
   }
 
   // All rules passed

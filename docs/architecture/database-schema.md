@@ -4,31 +4,33 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 
 ## Core Tables
 
-### `users` - User Location Authority
+### `users` - Session Tracking
 
-**Purpose:** Authoritative source for user GPS coordinates and resolved location
+**Purpose:** Session tracking only (no location data - location lives in snapshots)
 
 **Files:**
 - Schema: `shared/schema.js`
-- Insert/Update: `server/api/location/location.js`
-- Query: `server/lib/ai/coach-dal.js`
+- Insert/Update: `server/middleware/auth.js`
+- Query: `server/middleware/auth.js`
 
 **Key Columns:**
 | Column | Type | Description |
 |--------|------|-------------|
-| `user_id` | UUID (PK) | Primary identifier |
-| `device_id` | VARCHAR | Unique device identifier |
-| `lat`, `lng` | DECIMAL | GPS coordinates |
-| `formatted_address` | TEXT | Full street address |
-| `city`, `state`, `country` | VARCHAR | Resolved location |
-| `timezone` | VARCHAR | IANA timezone |
+| `user_id` | UUID (PK) | Primary identifier (links to driver_profiles) |
+| `device_id` | TEXT | Device making request |
+| `session_id` | UUID | Current session UUID |
+| `current_snapshot_id` | UUID | Active snapshot reference |
+| `session_start_at` | TIMESTAMP | When session began |
+| `last_active_at` | TIMESTAMP | Last activity (60 min sliding TTL) |
 | `created_at`, `updated_at` | TIMESTAMP | Timestamps |
+
+**Note:** Location data (lat, lng, city, state, timezone) was removed from users table on 2026-01-05 per SAVE-IMPORTANT.md architecture simplification. All location data now lives in snapshots table.
 
 ---
 
-### `snapshots` - Point-in-Time Context
+### `snapshots` - Point-in-Time Context (Location Authority)
 
-**Purpose:** Self-contained context snapshot (location, time, weather, air quality)
+**Purpose:** Self-contained context snapshot with authoritative location data (lat, lng, city, state, timezone, weather, air quality)
 
 **Files:**
 - Schema: `shared/schema.js`
