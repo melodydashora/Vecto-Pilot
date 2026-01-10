@@ -359,7 +359,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
 
   // 2. Check database cache (second fastest)
   try {
-    const [dbCached] = await db.select().from(places_cache).where(eq(places_cache.place_id, coordsKey)).limit(1);
+    const [dbCached] = await db.select().from(places_cache).where(eq(places_cache.coords_key, coordsKey)).limit(1);
     if (dbCached && dbCached.formatted_hours) {
       const cachedAge = Date.now() - new Date(dbCached.cached_at).getTime();
       if (cachedAge < CACHE_TTL_MS) {
@@ -370,7 +370,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
         // Update access count
         db.update(places_cache)
           .set({ access_count: (dbCached.access_count || 0) + 1 })
-          .where(eq(places_cache.place_id, coordsKey))
+          .where(eq(places_cache.coords_key, coordsKey))
           .catch(() => {}); // Fire and forget
         // Recalculate isOpen with current timezone
         const isOpen = calculateIsOpenFromGoogleWeekdayText(cached.allHours, timezone);
@@ -497,15 +497,16 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
         placesMemoryCache.set(coordsKey, cacheData);
 
         // Save to DB cache (async, don't await)
+        // 2026-01-10: D-013 Fix - Renamed place_id → coords_key
         db.insert(places_cache)
           .values({
-            place_id: coordsKey,
+            coords_key: coordsKey,
             formatted_hours: result,
             cached_at: new Date(),
             access_count: 1
           })
           .onConflictDoUpdate({
-            target: places_cache.place_id,
+            target: places_cache.coords_key,
             set: {
               formatted_hours: result,
               cached_at: new Date(),

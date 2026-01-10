@@ -92,7 +92,8 @@ Every block recommendation flows through 13 strategic components in sequence. Ea
 **DB-first Policy**: For any known place_id, read address, lat/lng, and the last known open/closed metadata from our places cache before calling external APIs. `coords_verified_at` is authoritative for coordinates; `hours_last_checked` is authoritative for open/closed metadata. If both are within policy, skip the external call.
 
 **Data Storage**: `places_cache` table + `venue_feedback` table
-- **places_cache**: `place_id` (PK), `formatted_hours` (JSONB), `cached_at`, `access_count` (48h TTL constraint)
+- **places_cache**: `coords_key` (PK - lat_lng format), `formatted_hours` (JSONB), `cached_at`, `access_count` (48h TTL constraint)
+  - *Note: Column was renamed from `place_id` to `coords_key` (D-013) for semantic accuracy - stores coordinate keys, not Google Place IDs*
 - **venue_feedback**: `id` (UUID PK), `venue_id` (FK), `driver_user_id`, `feedback_type` (hours_wrong/closed_when_open), `comment`, `reported_at`
 - **Outcome Logging**: Each recommendation tagged with `open_confirmed/closed_confirmed/estimated_open/unknown_substituted` in rankings
 

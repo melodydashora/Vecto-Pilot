@@ -210,10 +210,14 @@
 
 **Export:** `places_cache`
 
+*2026-01-10: D-013 Fix - Renamed `place_id` → `coords_key` for semantic accuracy. Column stores coordinate keys (lat_lng format like "33.123456_-96.123456"), not Google Place IDs.*
+
 | Column | Type | Nullable | Default | References |
 |--------|------|----------|---------|------------|
-| `place_id` (PK) | TEXT | YES | - | - |
+| `coords_key` (PK) | TEXT | YES | - | - |
 | `formatted_hours` | JSONB | YES | - | - |
+| `cached_at` | TIMESTAMPTZ | NO | - | - |
+| `access_count` | INTEGER | NO | 0 | - |
 
 ---
 

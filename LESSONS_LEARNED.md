@@ -3001,7 +3001,7 @@ Deep audit of UI/API/DB schema wiring, naming consistency, and type mismatches.
 
 | Issue | Status | Reason |
 |-------|--------|--------|
-| places_cache naming (`place_id` stores `coord_key`) | Documented | Semantic confusion only, works correctly |
+| ~~places_cache naming (`place_id` stores `coord_key`)~~ | ✅ FIXED (2026-01-10) | D-013: Renamed column to `coords_key` |
 | SmartBlock mixed naming (snake/camel) | Documented | Would break existing data |
 | API envelope inconsistency (`ok` vs `success`) | Documented | Would require client updates |
 

@@ -337,6 +337,51 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 
 ---
 
+## 🏢 Venue Identity System
+
+### Core Identity Fields
+
+| Field | Format | Example | Description |
+|-------|--------|---------|-------------|
+| `place_id` | Google Place ID | `ChIJfTlLXrk8TIYRi7jESAUBky8` | Authoritative Google identifier |
+| `coord_key` | 6-decimal lat_lng | `33.090780_-96.821596` | Precise coordinate key for cache |
+| `normalized_name` | Lowercase, stripped | `ifly indoor skydiving frisco` | Deduplication key |
+| `venue_id` | UUID | `5a51a3c4-a97c-49de-9b62...` | Internal primary key |
+
+### Place ID Types
+
+| Prefix | Type | Trust Level | Use for API? |
+|--------|------|-------------|--------------|
+| `ChIJ...` | Valid Google Place ID | HIGH | ✅ YES |
+| `Ei...` | Synthetic Address ID | NONE | ❌ NEVER |
+| `null` | Missing | UNKNOWN | Needs resolution |
+
+**CRITICAL:** Ei* IDs are Base64-encoded addresses, NOT database references. They often point to wrong locations (e.g., highway segments instead of businesses).
+
+### Canonical Modules
+
+| Module | Purpose | Status |
+|--------|---------|--------|
+| `server/lib/venue/venue-address-resolver.js` | Authoritative place resolution | ✅ CORRECT |
+| `server/lib/venue/venue-cache.js` | Venue CRUD operations | ⚠️ Uses fuzzy matching |
+| `server/lib/venue/venue-enrichment.js` | Places API caching | ⚠️ Wrong key (coords in place_id) |
+| `server/scripts/sync-events.mjs` | Event ETL pipeline | ⚠️ Drops place_id |
+
+### Resolution Priority
+
+1. **place_id exact match** (most reliable)
+2. **coord_key exact match** (6-decimal precision = ~11cm)
+3. **normalized_name + city + state** (last resort)
+
+**Standard:** "venue identification should be place_id-first (not name similarity)"
+
+### Related Documentation
+
+- `docs/AUDIT_LEDGER.md` - Current pipeline issues
+- `docs/DOC_DISCREPANCIES.md` - D-013 places_cache mismatch
+
+---
+
 ### FAA ASWS (Aviation System Status)
 **What it is:** Airport delay and disruption data service.
 

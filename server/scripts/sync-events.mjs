@@ -48,6 +48,10 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 // Geocode address to coordinates (forward geocoding)
 // ETL Phase 3: TRANSFORM-B
 // ============================================================================
+// 2026-01-10: AUDIT FIX - Now returns full result including place_id, formatted_address
+// Previously only returned {lat, lng}, dropping critical data for venue identification
+// See: docs/AUDIT_LEDGER.md - Breakpoint 1
+// ============================================================================
 async function geocodeAddress(address, city, state) {
   if (!address || !GOOGLE_MAPS_API_KEY) return null;
 
@@ -64,8 +68,20 @@ async function geocodeAddress(address, city, state) {
 
     const data = await response.json();
     if (data.status === 'OK' && data.results?.[0]?.geometry?.location) {
-      const { lat, lng } = data.results[0].geometry.location;
-      return { lat, lng };
+      const result = data.results[0];
+      const { lat, lng } = result.geometry.location;
+
+      // 2026-01-10: AUDIT FIX - Return full result, not just coords
+      // place_id is critical for venue identification (ChIJ... format)
+      // formatted_address provides verified street address
+      // address_components enables granular parsing
+      return {
+        lat,
+        lng,
+        place_id: result.place_id,                    // Google Place ID (ChIJ...)
+        formatted_address: result.formatted_address,  // Verified address string
+        address_components: result.address_components // Granular address parts
+      };
     }
     return null;
   } catch (err) {
@@ -77,6 +93,10 @@ async function geocodeAddress(address, city, state) {
 // ============================================================================
 // Batch geocode events that are missing coordinates
 // ETL Phase 3: TRANSFORM-B - Geocoding
+// ============================================================================
+// 2026-01-10: AUDIT FIX - Now captures place_id and formatted_address from geocoding
+// Previously only stored lat/lng, missing critical venue identity data
+// See: docs/AUDIT_LEDGER.md - Breakpoint 1
 // ============================================================================
 async function geocodeMissingCoordinates(events) {
   const eventsNeedingGeocode = events.filter(e => !e.lat || !e.lng);
@@ -92,11 +112,28 @@ async function geocodeMissingCoordinates(events) {
     await Promise.all(batch.map(async (event) => {
       // Try venue name + city first, then full address
       const searchQuery = event.venue_name || event.address;
-      const coords = await geocodeAddress(searchQuery, event.city, event.state);
+      const geocodeResult = await geocodeAddress(searchQuery, event.city, event.state);
 
-      if (coords) {
-        event.lat = coords.lat;
-        event.lng = coords.lng;
+      if (geocodeResult) {
+        // 2026-01-10: AUDIT FIX - Capture full geocode result
+        event.lat = geocodeResult.lat;
+        event.lng = geocodeResult.lng;
+
+        // Capture place_id for venue identification (ChIJ... format)
+        // This enables proper venue linking without fuzzy matching
+        if (geocodeResult.place_id) {
+          event._geocoded_place_id = geocodeResult.place_id;
+        }
+
+        // Capture formatted_address for verified address
+        if (geocodeResult.formatted_address) {
+          event._geocoded_formatted_address = geocodeResult.formatted_address;
+        }
+
+        // Store address_components for potential granular parsing
+        if (geocodeResult.address_components) {
+          event._geocoded_address_components = geocodeResult.address_components;
+        }
       }
     }));
 
@@ -141,13 +178,19 @@ async function processEventsWithVenueCache(events) {
     }
 
     try {
+      // 2026-01-10: AUDIT FIX - Pass geocoded place_id and formatted_address
+      // This enables place_id-first lookup strategy and proper venue identification
+      // See: docs/AUDIT_LEDGER.md - Breakpoint 1 + Breakpoint 4
       const venue = await findOrCreateVenue({
         venue: event.venue_name,
         address: event.address,
         latitude: event.lat,
         longitude: event.lng,
         city: event.city,
-        state: event.state
+        state: event.state,
+        // Pass geocoded data if available (from geocodeMissingCoordinates)
+        placeId: event._geocoded_place_id,
+        formattedAddress: event._geocoded_formatted_address
       }, `sync_events_${(event.source_model || 'unknown').toLowerCase()}`);
 
       if (venue) {
