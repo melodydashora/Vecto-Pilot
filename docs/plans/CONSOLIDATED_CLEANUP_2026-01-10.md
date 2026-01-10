@@ -421,4 +421,146 @@ server/lib/venue/hours/
 
 ---
 
+---
+
+## Strategy Flow Analysis (2026-01-10 ULTRATHINK)
+
+Per user request, thorough analysis before any additional DB changes.
+
+**Naming Convention Clarification:**
+- `consolidated_strategy` = Daily strategy (manual trigger by end user)
+- `strategy_for_now` = NOW/Immediate strategy (pushed to strategy tab)
+
+### Finding A: strategy_ready Notification Logic
+
+**Status:** ✅ ALREADY FIXED (S-001)
+
+**Verification:** `migrations/20260110_fix_strategy_now_notify.sql`
+```sql
+-- Lines 18-23: Fires for NOW strategy
+IF (NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL) THEN
+  PERFORM pg_notify('strategy_ready', ...);
+END IF;
+
+-- Lines 28-33: Fires for Daily strategy
+IF (NEW.status = 'ok' AND NEW.consolidated_strategy IS NOT NULL) THEN
+  PERFORM pg_notify('strategy_ready', ...);
+END IF;
+```
+
+**Conclusion:** Migration is correct. SSE will fire for both strategy types once deployed.
+
+---
+
+### Finding B: Status === 'complete' vs Phase Issue
+
+**Status:** ⚠️ CLIENT STILL USES DEPRECATED VALUE
+
+**Problem:** Client code checks `status === 'complete'` but server uses `'ok'`.
+
+**Locations Found:**
+| File | Line | Current Code | Impact |
+|------|------|--------------|--------|
+| `client/src/contexts/co-pilot-context.tsx` | 494 | `if (strategyData.status === 'complete')` | Strategy never shows as "complete" |
+| `client/src/pages/co-pilot/StrategyPage.tsx` | ~869 | `status === 'complete'` check | Same issue |
+
+**Server Status Values:** (from `status-constants.js`)
+```javascript
+STRATEGY_STATUS = {
+  PENDING: 'pending',
+  RUNNING: 'running',
+  OK: 'ok',              // ← This is what server sends
+  PENDING_BLOCKS: 'pending_blocks',
+  FAILED: 'failed',
+}
+```
+
+**Fix Required:**
+```javascript
+// Option 1: Change client to use 'ok'
+if (strategyData.status === 'ok') { ... }
+
+// Option 2: Use canonical import
+import { STRATEGY_STATUS } from '../../../server/lib/strategy/status-constants.js';
+if (strategyData.status === STRATEGY_STATUS.OK) { ... }
+```
+
+---
+
+### Finding C: Block-Mapper Divergence
+
+**Status:** ⚠️ TWO DIFFERENT MAPPERS
+
+**Problem:** `blocks-fast.js` has its own `mapCandidatesToBlocks()` function while `content-blocks.js` uses `toApiBlock()`. They produce potentially different output.
+
+**Comparison:**
+
+| Aspect | `blocks-fast.js:mapCandidatesToBlocks()` | `content-blocks.js:toApiBlock()` |
+|--------|------------------------------------------|----------------------------------|
+| Location | Line 254-320 | `transformers.js` |
+| isOpen handling | `c.features?.isOpen ?? c.features?.is_open ?? c.isOpen ?? c.is_open ?? null` | `dbBlock.features?.isOpen ?? dbBlock.isOpen` (less tolerant) |
+| Field mapping | Custom inline | Centralized transformer |
+| Maintenance | Diverges from canonical | Single source of truth |
+
+**Fix Required:**
+1. `content-blocks.js` should use the same fallback chain as `blocks-fast.js`
+2. OR both should use `toApiBlock()` with enhanced snake/camel tolerance
+3. Consolidate to single canonical mapper
+
+---
+
+### Finding D: event_start_date Column Issue
+
+**Status:** ⚠️ SCHEMA INDEX BUG
+
+**Problem:** `shared/schema.js` line 592 defines an index on `event_date` but the column was renamed to `event_start_date`.
+
+**Current (BROKEN):**
+```javascript
+// shared/schema.js:592
+idxDate: sql`create index if not exists idx_discovered_events_date on ${table} (event_date)`,
+```
+
+**Should Be:**
+```javascript
+idxDate: sql`create index if not exists idx_discovered_events_start_date on ${table} (event_start_date)`,
+```
+
+**Impact:** Index may fail to create or may be on wrong/non-existent column.
+
+---
+
+### Finding E: Redundant Call Paths
+
+**Status:** ℹ️ DOCUMENTED - MITIGATED BY DEDUPE
+
+**Architecture:**
+```
+POST /api/blocks-fast triggered by:
+1. useEffect on mount (client/src/contexts/co-pilot-context.tsx:155)
+2. Event listener for 'vecto-snapshot-saved' (line 250)
+   └── Deduplicated via Set() preventing double calls
+```
+
+**Polling Configuration:**
+- Strategy polling: 3000ms (`co-pilot-context.tsx:389`)
+- Blocks polling: 15000ms (`co-pilot-context.tsx:501`)
+- SSE subscription active for `strategy_ready` events
+
+**Conclusion:** Dual trigger is intentional with dedupe. No immediate fix needed, but documented for future session resume improvements (C-008).
+
+---
+
+## Unified Fix Priority for Strategy Flow
+
+| Priority | Issue | Action | Blocking? |
+|----------|-------|--------|-----------|
+| P0 | D) Schema index bug | Fix `event_date` → `event_start_date` in schema.js | ❌ Not blocking |
+| P1 | B) Client status check | Change `'complete'` → `'ok'` in 2 files | ⚠️ UI shows wrong state |
+| P2 | C) Mapper divergence | Enhance `toApiBlock()` or consolidate | ⚠️ Can cause isOpen:undefined |
+| P3 | A) SSE trigger | Deploy migration (already correct) | ❌ Fixed, needs deploy |
+| P4 | E) Dual trigger | Document only | ❌ Mitigated |
+
+---
+
 *This plan consolidates all known issues for unified execution.*

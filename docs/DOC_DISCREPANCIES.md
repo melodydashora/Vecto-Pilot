@@ -44,6 +44,23 @@ IF NEW.status = 'ok' AND NEW.consolidated_strategy IS NOT NULL THEN
 IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL THEN
 ```
 
+### CRITICAL (P0 - Schema/Code Mismatch)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-020 | `shared/schema.js:592` | Index references `event_date` column | Column renamed to `event_start_date` (line 564) | PENDING |
+| D-021 | `client/src/contexts/co-pilot-context.tsx:494` | Client checks `status === 'complete'` | Server sends `status: 'ok'` - canonical values in `status-constants.js` | PENDING |
+| D-022 | `client/src/pages/co-pilot/StrategyPage.tsx` | Same `status === 'complete'` check | Should use `'ok'` or import canonical constant | PENDING |
+
+**Impact of D-020:**
+- Index creation may fail (references non-existent column)
+- Event queries may not use index efficiently
+- Drizzle schema sync could throw errors
+
+**Impact of D-021/D-022:**
+- Strategy UI never shows "complete" state (always shows loading/pending)
+- User sees infinite spinner or wrong status indicator
+
 ### CRITICAL (P0 - Breaks AI Coach)
 
 | ID | Location | Issue | Code Truth | Status |
