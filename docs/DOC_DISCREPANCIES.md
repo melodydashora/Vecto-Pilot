@@ -61,6 +61,7 @@ IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL T
 | D-025 | `client/src/pages/co-pilot/MapPage.tsx:82` | Duplicate bars fetch with `city: 'Unknown'` | Removed - now uses shared `barsData` from `useCoPilot()` | ✅ FIXED |
 | D-026 | `client/src/pages/co-pilot/MapPage.tsx:137` | Used `estimatedEarnings` only | Added fallback: `estimatedEarningsPerRide ?? estimatedEarnings` | ✅ FIXED |
 | D-027 | `server/api/strategy/blocks-fast.js` | Response used `strategy_for_now` | All response paths now use `strategyForNow` (camelCase) | ✅ FIXED |
+| D-028 | `server/lib/ai/model-registry.js` | Suboptimal LLM settings | Added thinkingLevel HIGH, lowered temperatures for consistency | ✅ FIXED |
 
 **Impact of D-023/D-024:**
 - UI fields were silently undefined when server returned camelCase
@@ -127,7 +128,7 @@ IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL T
 ### Phase 2: Enforce Adapter-Only AI Calls + ULTRATHINK ✅ COMPLETE
 - [x] **D-016:** Replace direct `anthropic.messages.create()` in briefing-service.js with `callModel()`
 - [ ] Add CI check: no direct SDK calls outside adapters
-- [ ] Verify all LLM calls use lowest temperature + highest thinking level
+- [x] **D-028:** Optimized LLM settings - lowered temperatures, added thinkingLevel HIGH for Gemini roles
 
 ### Phase 3: ISO DB Naming + Standards ✅ COMPLETE (Code Level)
 - [x] **D-004, D-011, D-012:** Fixed country code to ISO alpha-2 format
@@ -222,6 +223,7 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-025 | 2026-01-10 | `client/src/pages/co-pilot/MapPage.tsx` | Removed duplicate bars fetch, now uses shared `barsData` from `useCoPilot()` |
 | D-026 | 2026-01-10 | `client/src/pages/co-pilot/MapPage.tsx:137` | Earnings field now uses `estimatedEarningsPerRide ?? estimatedEarnings` fallback |
 | D-027 | 2026-01-10 | `server/api/strategy/blocks-fast.js` | All response paths now use `strategyForNow` (camelCase), client fallbacks removed |
+| D-028 | 2026-01-10 | `server/lib/ai/model-registry.js` | Optimized LLM settings: STRATEGY_CORE temp 0.7→0.5, added thinkingLevel HIGH for 5 Gemini roles |
 
 ---
 
