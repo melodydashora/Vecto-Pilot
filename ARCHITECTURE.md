@@ -1,11 +1,21 @@
 
 # Vecto Pilot - Architecture Reference
 
-**Last Updated:** 2026-01-08 UTC
+**Last Updated:** 2026-01-10 UTC
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
-## Recent Changes (2026-01-08)
+## Recent Changes (2026-01-10)
+
+- **ETL Pipeline Refactoring**: Canonical event processing modules
+  - New `server/lib/events/pipeline/` with 4 modules (types, normalizeEvent, validateEvent, hashEvent)
+  - 5-phase EVENTS workflow logger (Extract, Transform-Normalize, Transform-Geocode, Load, Assemble)
+  - 55 integration tests in `tests/events/`
+  - Verification matrix in `docs/architecture/etl-pipeline-refactoring-2026-01-09.md`
+  - Model-agnostic naming (functions named by capability, not model)
+  - Key invariants: No Cached Data to LLMs, Hash Stability, No Timezone Fallbacks
+
+## Changes (2026-01-08)
 
 - **Level 4 Architecture: Omni-Presence & Siri Interceptor**
   - New `/co-pilot/omni` route with `SignalTerminal.tsx` for real-time offer analysis
@@ -275,6 +285,7 @@ Every folder has a README.md. Total: **95 README files**.
 | `server/lib/strategy/` | [README](server/lib/strategy/README.md) | Strategy pipeline |
 | `server/lib/subagents/` | [README](server/lib/subagents/README.md) | AI sub-tasks |
 | `server/lib/venue/` | [README](server/lib/venue/README.md) | Venue intelligence |
+| `server/lib/events/` | [README](server/lib/events/pipeline/README.md) | ETL pipeline for event processing |
 | `server/logger/` | [README](server/logger/README.md) | Workflow logging |
 | `server/middleware/` | [README](server/middleware/README.md) | Express middleware |
 | `server/scripts/` | [README](server/scripts/README.md) | Server scripts |
@@ -308,13 +319,14 @@ Every folder has a README.md. Total: **95 README files**.
 | `client/src/_future/` | [README](client/src/_future/README.md) | Staged features |
 | `client/src/_future/engine/` | [README](client/src/_future/engine/README.md) | Reflection engine |
 
-### Test Folders (6 READMEs)
+### Test Folders (7 READMEs)
 
 | Folder | README | Purpose |
 |--------|--------|---------|
 | `tests/` | [README](tests/README.md) | Test overview |
 | `tests/e2e/` | [README](tests/e2e/README.md) | E2E tests |
 | `tests/eidolon/` | [README](tests/eidolon/README.md) | Eidolon tests |
+| `tests/events/` | [README](tests/events/README.md) | ETL pipeline tests (55 integration tests) |
 | `tests/gateway/` | [README](tests/gateway/README.md) | Gateway tests |
 | `tests/scripts/` | [README](tests/scripts/README.md) | Test scripts |
 | `tests/triad/` | [README](tests/triad/README.md) | TRIAD tests |

@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-10
 
 # Server Architecture (`server/`)
 
@@ -12,6 +12,7 @@ The server is organized into domain-specific folders. Each folder has its own RE
 |--------|---------|-----------|
 | [`api/`](api/README.md) | HTTP route handlers organized by domain | Routes mounted on Express |
 | [`lib/`](lib/README.md) | Core business logic and AI pipeline | Adapters, providers, strategies |
+| [`lib/events/`](lib/events/pipeline/README.md) | Event ETL pipeline | Normalize, validate, hash events |
 | [`db/`](db/README.md) | Database connection and Drizzle ORM | `drizzle.js`, `pool.js` |
 | [`middleware/`](middleware/README.md) | Express middleware | Auth, validation, rate limiting |
 | [`config/`](config/README.md) | Configuration and env loading | `load-env.js`, `validate-env.js` |

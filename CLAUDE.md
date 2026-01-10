@@ -609,6 +609,8 @@ server/
 │   │   ├── adapters/       # Model adapters (anthropic, openai, gemini)
 │   │   └── providers/      # AI providers (briefing, consolidator)
 │   ├── briefing/           # Briefing service
+│   ├── events/             # Event ETL pipeline
+│   │   └── pipeline/       # Canonical modules (normalize, validate, hash)
 │   ├── external/           # Third-party APIs (Perplexity, FAA)
 │   ├── infrastructure/     # Job queue
 │   ├── location/           # Geo, holiday detection, snapshot context
@@ -708,7 +710,12 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, strategies } from '../../../shared/schema.js';
 
 // Logging - workflow-aware
-import { triadLog, venuesLog, briefingLog } from '../../logger/workflow.js';
+import { triadLog, venuesLog, briefingLog, eventsLog } from '../../logger/workflow.js';
+
+// Events ETL Pipeline
+import { normalizeEvent } from '../../lib/events/pipeline/normalizeEvent.js';
+import { validateEventsHard } from '../../lib/events/pipeline/validateEvent.js';
+import { generateEventHash } from '../../lib/events/pipeline/hashEvent.js';
 
 // Snapshot context
 import { getSnapshotContext } from '../../lib/location/get-snapshot-context.js';
@@ -768,6 +775,30 @@ console.log(`[minstrategy] Starting Claude Opus for snapshot`);
 | TRIAD | 4 | Strategist, Briefer, Daily+NOW Strategy, SmartBlocks |
 | VENUES | 4 | Tactical Planner, Routes API, Places API, DB Store |
 | BRIEFING | 3 | Traffic, Events Discovery, Event Validation |
+| EVENTS | 5 | Extract\|Providers, Transform\|Normalize, Transform\|Geocode, Load\|Store, Assemble\|Briefing |
+
+### EVENTS ETL Pipeline Logger
+
+For event discovery/sync operations, use `eventsLog`:
+
+```javascript
+import { eventsLog, OP } from '../../logger/workflow.js';
+
+// Phase 1: Extract - Provider calls (SerpAPI, Gemini, Claude)
+eventsLog.phase(1, `Calling SerpAPI for ${city}`, OP.API);
+
+// Phase 2: Transform - Normalization + Validation
+eventsLog.phase(2, `Normalized ${events.length} events`, OP.NORMALIZE);
+
+// Phase 3: Transform - Geocode + Venue Linking
+eventsLog.phase(3, `Geocoding ${events.length} events`, OP.API);
+
+// Phase 4: Load - Upsert to discovered_events
+eventsLog.phase(4, `Upserting ${events.length} events`, OP.DB);
+
+// Phase 5: Assemble - Query from DB for briefings
+eventsLog.phase(5, `Assembled ${events.length} events for briefing`);
+```
 
 See `server/logger/README.md` for full documentation.
 

@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-10
 
 # Server Library (`server/lib/`)
 
@@ -14,6 +14,7 @@ lib/
 ├── auth/            # Authentication utilities (JWT, bearer tokens)
 ├── briefing/        # Real-time briefing service
 ├── change-analyzer/ # Documentation maintenance system
+├── events/          # Event ETL pipeline (normalize, validate, hash)
 ├── external/        # Third-party API integrations
 ├── infrastructure/  # Logging, job queues
 ├── location/        # Location services (geocoding, holidays)
@@ -36,6 +37,7 @@ lib/
 | `auth/` | Authentication utilities | `verifyJWT()`, `extractBearerToken()` |
 | `briefing/` | Events, traffic, weather, news | `getOrGenerateBriefing()` |
 | `change-analyzer/` | Documentation maintenance | `findAffectedDocs()` |
+| `events/` | Event ETL pipeline (normalize, validate, hash) | `normalizeEvent()`, `validateEventsHard()`, `generateEventHash()` |
 | `external/` | FAA, TTS, semantic search | `fetchFAAStatus()`, `synthesizeSpeech()` |
 | `infrastructure/` | Cross-cutting concerns | `enqueue()`, logging |
 | `location/` | Geocoding, holidays, validation | `detectHoliday()`, `validateConditions()` |
@@ -82,6 +84,11 @@ import { generateEnhancedSmartBlocks } from './venue/enhanced-smart-blocks.js';
 
 // Briefing
 import { getOrGenerateBriefing } from './briefing/briefing-service.js';
+
+// Events ETL Pipeline
+import { normalizeEvent, normalizeEvents } from './events/pipeline/normalizeEvent.js';
+import { validateEventsHard, needsReadTimeValidation } from './events/pipeline/validateEvent.js';
+import { generateEventHash, eventsHaveSameHash } from './events/pipeline/hashEvent.js';
 
 // Location
 import { detectHoliday } from './location/holiday-detector.js';

@@ -21,10 +21,11 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 | Immediate Consolidator | GPT-5.2 | OpenAI | 1hr tactical strategy |
 | Venue Planner | GPT-5.2 | OpenAI | Smart Blocks generation |
 
-**Note (Updated 2026-01-05):**
+**Note (Updated 2026-01-10):**
 - News uses dual-model parallel fetch (Gemini + GPT-5.2) with result consolidation
 - Events are discovered via SerpAPI + GPT-5.2 and stored in `discovered_events` table
 - Traffic uses TomTom for raw data, then Gemini Flash for driver-focused analysis
+- **ETL Pipeline (2026-01-09):** Event discovery uses canonical modules in `server/lib/events/pipeline/` with 5-phase workflow logging. See [ETL Pipeline Refactoring](etl-pipeline-refactoring-2026-01-09.md) for details.
 
 ## Pipeline Flow
 
@@ -230,6 +231,8 @@ GEMINI_API_KEY=...
 | `server/lib/strategies/strategy-utils.js` | Phase timing, strategy row management |
 | `server/lib/strategy/tactical-planner.js` | Venue planner (GPT-5.2) |
 | `server/lib/briefing/event-schedule-validator.js` | Event validator |
+| `server/lib/events/pipeline/` | ETL pipeline modules (normalize, validate, hash) |
+| `server/scripts/sync-events.mjs` | Event discovery script (daily sync) |
 
 **Note:** The minstrategy table and provider were removed in Dec 2025. Strategies are now written directly to the `strategies` table via `briefing` table data.
 
@@ -260,4 +263,37 @@ eventSource.addEventListener('blocks_ready', (event) => {
 });
 ```
 
-**Last Updated:** 2026-01-04
+## Event ETL Pipeline (2026-01-09)
+
+Events are processed through a 5-phase ETL pipeline with canonical modules in `server/lib/events/pipeline/`:
+
+```
+RawEvent (providers) → NormalizedEvent → ValidatedEvent → StoredEvent (DB)
+                                                              ↓
+BriefingEvent ← (DB read) ← discovered_events ← (DB write)
+```
+
+**Key Invariant:** Strategy LLMs ONLY receive BriefingEvent from DB rows. Raw provider payloads are NEVER passed to strategy LLMs.
+
+### ETL Phases
+
+| Phase | Label | Operation |
+|-------|-------|-----------|
+| 1 | Extract\|Providers | SerpAPI, Gemini, Claude discovery calls |
+| 2 | Transform\|Normalize | normalizeEvent + validateEvent |
+| 3 | Transform\|Geocode | Geocode + venue linking (ChIJ/Ei ID) |
+| 4 | Load\|Store | Upsert to discovered_events with event_hash |
+| 5 | Assemble\|Briefing | Query from DB + shape for briefings |
+
+### Canonical Modules
+
+| Module | Purpose | Key Functions |
+|--------|---------|---------------|
+| `types.js` | JSDoc type definitions | RawEvent, NormalizedEvent, ValidatedEvent, StoredEvent, BriefingEvent |
+| `normalizeEvent.js` | Raw → Normalized transformation | normalizeEvent, normalizeTitle, normalizeDate, normalizeTime |
+| `validateEvent.js` | Hard filter validation | validateEvent, validateEventsHard, needsReadTimeValidation |
+| `hashEvent.js` | MD5 hash for deduplication | generateEventHash, buildHashInput, eventsHaveSameHash |
+
+See [ETL Pipeline Refactoring](etl-pipeline-refactoring-2026-01-09.md) for complete verification matrix.
+
+**Last Updated:** 2026-01-10
