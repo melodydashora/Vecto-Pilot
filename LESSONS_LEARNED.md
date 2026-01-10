@@ -1053,6 +1053,57 @@ const within25Miles = (distanceMiles) => {
 
 **Root cause:** JavaScript returns `undefined` for missing properties instead of throwing, making typos invisible.
 
+### Bug: Overnight Hours "Day Rollover" (Added 2026-01-10)
+
+**Symptom:** Venues showing as "OPEN" at 12:47 AM when their Friday shift doesn't start until 11 AM.
+
+**Cause:** The overnight hours logic blindly checked if `currentMinutes < close_minute`, which "teleported" early AM times into today's overnight shift instead of yesterday's spillover.
+
+**Example - The Bug:**
+```javascript
+// Friday's hours: 11:00 AM - 2:00 AM (closes next day)
+// Current time: Friday 12:47 AM (47 minutes after midnight)
+
+// OLD BROKEN LOGIC:
+if (closes_next_day) {
+  // Overnight: open if current >= open OR current < close
+  return currentMinutes >= open_minute || currentMinutes < close_minute;
+  //      47 >= 660 (FALSE) OR 47 < 120 (TRUE) → TRUE (WRONG!)
+}
+// Result: "OPEN" - but Friday's shift hasn't started yet!
+```
+
+**Root cause:** The logic didn't distinguish between:
+1. **Yesterday's spillover** (e.g., Thursday's 11 AM - 2 AM extending into Friday morning)
+2. **Today's main shift** (e.g., Friday's 11 AM - 2 AM starting at 11 AM)
+
+**Fix:** Explicitly check two separate windows:
+```javascript
+// Check 1: Are we in YESTERDAY's overnight spillover?
+const yesterdayInterval = schedule[yesterdayName].intervals[0];
+if (yesterdayInterval.closes_next_day && currentMinutes < yesterdayInterval.close_minute) {
+  return { is_open: true, reason: "In yesterday's spillover" };
+}
+
+// Check 2: Are we in TODAY's main shift (only AFTER opening time)?
+if (currentMinutes >= todayInterval.open_minute) {
+  return { is_open: true, reason: "In today's shift" };
+}
+
+// Otherwise closed
+return { is_open: false };
+```
+
+**Test cases to verify:**
+| Scenario | Expected |
+|----------|----------|
+| Fri 12:47 AM, Thu 11 AM - 2 AM | OPEN (Thursday's spillover) |
+| Fri 12:47 AM, Fri 11 AM - 2 AM | CLOSED (Friday hasn't opened) |
+| Fri 11:30 PM, Fri 11 AM - 2 AM | OPEN (Friday's main shift) |
+| Sat 1:00 AM, Fri 11 AM - 2 AM | OPEN (Friday's spillover) |
+
+**Location:** `server/lib/venue/hours/evaluator.js` - `getOpenStatus()` function
+
 ### Bug: Login/Logout/Session Expiry destroys all user data (CASCADE DELETE → RESTRICT blocks)
 
 **Added: 2026-01-05, Updated: 2026-01-06**

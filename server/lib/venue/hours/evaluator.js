@@ -2,6 +2,7 @@
  * Canonical Venue Hours Evaluator
  *
  * 2026-01-10: D-014 Phase 3
+ * 2026-01-10: CRITICAL FIX - Overnight hours day rollover bug
  *
  * THE SINGLE SOURCE OF TRUTH for venue open/closed status.
  * All other modules MUST use this evaluator via the parsers.
@@ -11,6 +12,15 @@
  * - Deterministic: same inputs always produce same outputs
  * - No silent coercion: missing timezone = null (not guess)
  * - Rich output: includes next transition times and reasons
+ *
+ * OVERNIGHT LOGIC FIX (2026-01-10):
+ * Previous logic incorrectly marked early AM times as "open" when checking
+ * TODAY's overnight shift. Example: Friday 12:47 AM was marked "open" because
+ * Friday's shift (11 AM - 2 AM Saturday) has a close_minute of 120, and 47 < 120.
+ *
+ * CORRECT LOGIC: Two separate checks:
+ * 1. YESTERDAY'S SPILLOVER: Did yesterday's overnight shift extend into today?
+ * 2. TODAY'S MAIN SHIFT: Are we currently past today's opening time?
  */
 
 import {
@@ -24,7 +34,7 @@ import {
  *
  * @param {string} timezone - IANA timezone
  * @param {Date} [now] - Current time (default: new Date())
- * @returns {{ dayIndex: number, dayName: string, currentMinutes: number } | null}
+ * @returns {{ dayIndex: number, dayName: string, currentMinutes: number, yesterdayName: string } | null}
  */
 function getTimeInTimezone(timezone, now = new Date()) {
   try {
@@ -45,12 +55,16 @@ function getTimeInTimezone(timezone, now = new Date()) {
     const dayIndex = WEEKDAY_KEYS.indexOf(dayName);
     if (dayIndex === -1) return null;
 
+    // 2026-01-10: Also get yesterday for spillover check
+    const yesterdayIndex = (dayIndex + 6) % 7; // Go back 1 day (wrap around)
+    const yesterdayName = WEEKDAY_KEYS[yesterdayIndex];
+
     const timeParts = timeFormatter.formatToParts(now);
     const hour = parseInt(timeParts.find(p => p.type === 'hour')?.value || '0', 10);
     const minute = parseInt(timeParts.find(p => p.type === 'minute')?.value || '0', 10);
     const currentMinutes = hour * 60 + minute;
 
-    return { dayIndex, dayName, currentMinutes };
+    return { dayIndex, dayName, currentMinutes, yesterdayName, yesterdayIndex };
 
   } catch (e) {
     // Invalid timezone
@@ -59,23 +73,57 @@ function getTimeInTimezone(timezone, now = new Date()) {
 }
 
 /**
- * Check if current time falls within an interval
+ * Check if current time falls within TODAY's main shift
+ * (Only the portion AFTER opening, not the next-day spillover)
+ *
+ * 2026-01-10: FIXED - For overnight shifts, only returns true if we're PAST the opening time.
+ * The early AM portion (spillover) is handled by checkYesterdaySpillover instead.
  *
  * @param {number} currentMinutes - Minutes since midnight
  * @param {{ open_minute: number, close_minute: number, closes_next_day: boolean }} interval
  * @returns {boolean}
  */
-function isWithinInterval(currentMinutes, interval) {
+function isWithinTodayInterval(currentMinutes, interval) {
   const { open_minute, close_minute, closes_next_day } = interval;
 
   if (closes_next_day) {
-    // Overnight: open from open_minute until midnight, OR from midnight until close_minute
-    // Current time is "open" if: currentMinutes >= open_minute OR currentMinutes < close_minute
-    return currentMinutes >= open_minute || currentMinutes < close_minute;
+    // 2026-01-10 FIX: Overnight shift - only open if we're PAST opening time today
+    // Example: Opens 11 PM (1380), closes 2 AM (120) next day
+    // At 11:30 PM (1410): 1410 >= 1380 → TRUE (open)
+    // At 1:00 AM (60): 60 >= 1380 → FALSE (NOT in today's shift - this is yesterday's spillover)
+    return currentMinutes >= open_minute;
   } else {
     // Same day: open from open_minute until close_minute
     return currentMinutes >= open_minute && currentMinutes < close_minute;
   }
+}
+
+/**
+ * Check if current time falls within YESTERDAY's overnight spillover
+ *
+ * 2026-01-10: NEW - Checks if yesterday's overnight shift extended past midnight into today.
+ * Example: Yesterday opened 11 PM, closes 2 AM today. At 1 AM today, this returns true.
+ *
+ * @param {number} currentMinutes - Minutes since midnight (today)
+ * @param {{ open_minute: number, close_minute: number, closes_next_day: boolean } | null} interval
+ * @returns {{ inSpillover: boolean, close_minute: number }}
+ */
+function checkYesterdaySpillover(currentMinutes, interval) {
+  if (!interval || !interval.closes_next_day) {
+    return { inSpillover: false, close_minute: 0 };
+  }
+
+  const { close_minute } = interval;
+
+  // Yesterday's shift spills into today if:
+  // - Yesterday's shift was overnight (closes_next_day = true)
+  // - Current time is before the close time
+  // Example: Yesterday closed at 2 AM (120). Current time 1 AM (60). 60 < 120 → TRUE
+  if (currentMinutes < close_minute) {
+    return { inSpillover: true, close_minute };
+  }
+
+  return { inSpillover: false, close_minute: 0 };
 }
 
 /**
@@ -103,6 +151,11 @@ function minutesUntil(currentMinutes, targetMinutes, isNextDay = false) {
  * Evaluate venue open status from normalized schedule
  *
  * THE CANONICAL EVALUATOR - use this function for all open/closed checks.
+ *
+ * 2026-01-10: CRITICAL FIX - Properly handles overnight hours with day rollover.
+ * Now checks:
+ * 1. YESTERDAY'S SPILLOVER: Did yesterday's overnight shift extend into today?
+ * 2. TODAY'S MAIN SHIFT: Are we currently past today's opening time?
  *
  * @param {NormalizedSchedule} schedule - Normalized schedule from a parser
  * @param {string} timezone - IANA timezone (REQUIRED - no fallbacks)
@@ -143,16 +196,50 @@ export function getOpenStatus(schedule, timezone, now = new Date()) {
     return nullResult('Missing or invalid schedule');
   }
 
-  // 3. Get current time in venue timezone
+  // 3. Get current time in venue timezone (now includes yesterday info)
   const timeInfo = getTimeInTimezone(timezone, now);
   if (!timeInfo) {
     return nullResult(`Invalid timezone: ${timezone}`);
   }
 
-  const { dayIndex, dayName, currentMinutes } = timeInfo;
+  const { dayIndex, dayName, currentMinutes, yesterdayName } = timeInfo;
 
-  // 4. Get today's schedule
+  // 4. Get today's and yesterday's schedules
   const todaySchedule = schedule[dayName];
+  const yesterdaySchedule = schedule[yesterdayName];
+
+  // ================================================================
+  // CHECK 1: YESTERDAY'S SPILLOVER (2026-01-10 FIX)
+  // Did yesterday's overnight shift extend into today?
+  // ================================================================
+  if (yesterdaySchedule && !yesterdaySchedule.is_closed && !yesterdaySchedule.is_24h) {
+    const yesterdayIntervals = yesterdaySchedule.intervals || [];
+
+    for (const interval of yesterdayIntervals) {
+      const spillover = checkYesterdaySpillover(currentMinutes, interval);
+
+      if (spillover.inSpillover) {
+        // We're in yesterday's overnight spillover!
+        const minutesUntilClose = spillover.close_minute - currentMinutes;
+        const closingSoon = minutesUntilClose <= 60;
+
+        return {
+          is_open: true,
+          closes_at: minutesToTime(spillover.close_minute),
+          opens_at: null,
+          closing_soon: closingSoon,
+          minutes_until_close: minutesUntilClose,
+          minutes_until_open: null,
+          reason: `Open until ${minutesToDisplay(spillover.close_minute)} (from ${yesterdayName}'s shift)`
+        };
+      }
+    }
+  }
+
+  // ================================================================
+  // CHECK 2: TODAY'S MAIN SHIFT
+  // Are we currently past today's opening time?
+  // ================================================================
 
   // Handle missing day schedule
   if (!todaySchedule) {
@@ -186,13 +273,22 @@ export function getOpenStatus(schedule, timezone, now = new Date()) {
     };
   }
 
-  // 6. Check intervals
+  // 6. Check today's intervals (using fixed isWithinTodayInterval)
   const intervals = todaySchedule.intervals || [];
   for (const interval of intervals) {
-    if (isWithinInterval(currentMinutes, interval)) {
-      // Currently open - calculate close info
+    if (isWithinTodayInterval(currentMinutes, interval)) {
+      // Currently open in today's main shift
       const { close_minute, closes_next_day } = interval;
-      const minutesUntilClose = minutesUntil(currentMinutes, close_minute, closes_next_day);
+
+      // 2026-01-10 FIX: For overnight shifts that close next day,
+      // calculate minutes until close correctly
+      let minutesUntilClose;
+      if (closes_next_day) {
+        // Closing is tomorrow, so add remaining minutes today + close time tomorrow
+        minutesUntilClose = (24 * 60 - currentMinutes) + close_minute;
+      } else {
+        minutesUntilClose = close_minute - currentMinutes;
+      }
       const closingSoon = minutesUntilClose <= 60;
 
       return {

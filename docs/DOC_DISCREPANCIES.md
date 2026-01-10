@@ -18,6 +18,32 @@
 
 ## Active Discrepancies
 
+### STRATEGY PIPELINE (P0 - Audit 2026-01-10)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| S-001 | `migrations/20260110_fix_strategy_now_notify.sql` | SSE trigger only fires for `consolidated_strategy` | New migration fires for both `strategy_for_now` AND `consolidated_strategy` | ✅ FIXED |
+| S-002 | `server/api/strategy/blocks-fast.js:66-93` | Advisory locks use session-level (can leak) | Comment says `pg_advisory_xact_lock` but code uses `pg_advisory_lock` | DOCUMENTED |
+| S-003 | `server/api/strategy/blocks-fast.js:352` | Error message says "consolidated" | Changed to "Waiting for immediate strategy to complete" | ✅ FIXED |
+| S-004 | `server/lib/strategy/status-constants.js` | Status enum drift | Created canonical `STRATEGY_STATUS` enum with all valid values | ✅ FIXED |
+| S-005 | `server/api/strategy/blocks-fast.js:276` | `mapCandidatesToBlocks` missing snake_case tolerance | Added full snake/camel fallback chain for `isOpen` | ✅ FIXED |
+
+**Audit Source:** `.serena/memories/strategy-pipeline-audit-2026-01-10.md`
+
+**Impact of S-001:**
+- SSE `strategy_ready` event NEVER fires for the main use case (immediate strategy)
+- UI falls back to 2-second polling loop
+- Causes unnecessary server load
+
+**Fix for S-001:**
+```sql
+-- Current (broken): fires only for daily strategy
+IF NEW.status = 'ok' AND NEW.consolidated_strategy IS NOT NULL THEN
+
+-- Fixed: fires for immediate strategy
+IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL THEN
+```
+
 ### CRITICAL (P0 - Breaks AI Coach)
 
 | ID | Location | Issue | Code Truth | Status |
@@ -33,6 +59,7 @@
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
+| D-019 | `server/lib/venue/hours/evaluator.js` | Overnight hours "day rollover" bug | Fixed: now checks yesterday's spillover + today's main shift separately | ✅ FIXED |
 | D-001 | `SYSTEM_MAP.md:392` | Claims users table has "GPS coordinates, location" | Changed to "session tracking, auth - NO location data" | ✅ FIXED |
 | D-002 | `docs/architecture/authentication.md:56` | References "users: last location" | Changed to "Session tracking (device_id, NO location)" | ✅ FIXED |
 | D-003 | `LESSONS_LEARNED.md:702` | "Users table = source of truth for resolved location" | Changed to "Snapshots table = source of truth" | ✅ FIXED |
@@ -160,6 +187,22 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-004 | 2026-01-10 | Multiple files | Country field now uses ISO 3166-1 alpha-2 codes (US, CA, GB) |
 | D-011 | 2026-01-10 | `server/api/location/location.js:164` | Changed `c.long_name` → `c.short_name` for country (ISO alpha-2) |
 | D-013 | 2026-01-10 | `shared/schema.js`, `venue-enrichment.js`, SQL scripts | Renamed `places_cache.place_id` → `coords_key` for semantic accuracy |
+| D-019 | 2026-01-10 | `server/lib/venue/hours/evaluator.js` | Fixed overnight hours day rollover bug: now checks yesterday's spillover + today's main shift |
+
+---
+
+## Known Technical Debt (Future Improvements)
+
+These items are **documented and accepted** technical debt. They are NOT blocking deployment but should be addressed in future iterations.
+
+| ID | Area | Issue | Current State | Future Recommendation |
+|----|------|-------|---------------|----------------------|
+| ARCH-001 | Session Architecture | Users table used for sessions with `onDelete: 'restrict'` | Intentional - prevents data loss when sessions expire (2026-01-05) | Split into separate `sessions` table to decouple session lifecycle from user data |
+| ARCH-002 | Async Waterfall | `blocks-fast.js` runs strategy generation synchronously | HTTP request holds connection open (~35-50s) | Use true async: return 202 Accepted + poll/SSE for completion. Risk: mobile clients may timeout |
+
+**Documentation:**
+- ARCH-001: `shared/schema.js` comments, `LESSONS_LEARNED.md:1121`
+- ARCH-002: `server/jobs/README.md:36`, `blocks-fast.js:556` comments
 
 ---
 

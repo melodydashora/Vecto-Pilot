@@ -160,9 +160,14 @@ export function toApiBlock(dbBlock) {
     stagingArea: dbBlock.staging_tips
       ? { parkingTip: dbBlock.staging_tips }
       : dbBlock.stagingArea || null,
-    isOpen: dbBlock.features?.isOpen ?? dbBlock.isOpen,
+    // 2026-01-10: Snake/camel tolerant - check all variants
+    // DB stores is_open (snake), some paths use isOpen (camel)
+    isOpen: dbBlock.isOpen ?? dbBlock.is_open ??
+            dbBlock.features?.isOpen ?? dbBlock.features?.is_open ?? null,
     businessHours: dbBlock.business_hours ?? dbBlock.businessHours,
-    streetViewUrl: dbBlock.features?.streetViewUrl ?? dbBlock.streetViewUrl,
+    // 2026-01-10: Snake/camel tolerant for street view URL
+    streetViewUrl: dbBlock.streetViewUrl ?? dbBlock.street_view_url ??
+                   dbBlock.features?.streetViewUrl ?? dbBlock.features?.street_view_url ?? null,
     hasEvent: dbBlock.features?.hasEvent ??
       (Array.isArray(dbBlock.venue_events) && dbBlock.venue_events.length > 0),
     eventBadge: dbBlock.features?.eventBadge ??

@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-10
 
 # Strategy Module (`server/lib/strategy/`)
 
@@ -13,6 +13,7 @@ strategy/
 ├── strategy-generator.js          # Entry point - routes to parallel
 ├── strategy-generator-parallel.js # Main orchestrator (parallel pipeline)
 ├── strategy-utils.js              # Utility functions
+├── status-constants.js            # 2026-01-10: S-004 FIX - Canonical status enum
 ├── strategyPrompt.js              # System prompts
 ├── strategy-triggers.js           # Trigger condition detection
 ├── planner-gpt5.js                # Venue planner (GPT-5.2)
@@ -29,7 +30,8 @@ strategy/
 |------|---------|------------|
 | `strategy-generator.js` | Entry point | `generateStrategyForSnapshot(snapshotId, options)` |
 | `strategy-generator-parallel.js` | Parallel orchestrator | `runSimpleStrategyPipeline(params)` |
-| `strategy-utils.js` | Utilities | `ensureStrategyRow()`, `filterFreshEvents()`, `filterFreshNews()` |
+| `strategy-utils.js` | Utilities + status flow | `ensureStrategyRow()`, `isStrategyReady()`, `updatePhase()`, `PHASE_EXPECTED_DURATIONS` |
+| `status-constants.js` | Canonical status enum (S-004 fix) | `STRATEGY_STATUS`, `isStrategyComplete()`, `JOB_STATUS` |
 | `strategyPrompt.js` | Prompts | Strategy system prompts |
 | `strategy-triggers.js` | Trigger detection | `detectTriggers()` |
 | `planner-gpt5.js` | Venue planning | `planVenues(snapshotId)` |
@@ -38,6 +40,66 @@ strategy/
 | `assert-safe.js` | Async validation | `safeAssertStrategies()`, `maybeWarmCaches()` |
 | `dump-last-strategy.js` | Debug utility | CLI script for debugging |
 | `index.js` | Barrel exports | Module re-exports |
+
+## strategy-utils.js - Status Flow (Updated 2026-01-10)
+
+### Pipeline Phases
+
+Strategy generation moves through these phases:
+
+```
+starting → resolving → analyzing → immediate → venues → routing → places → verifying → complete
+└─────── Strategy Phases ───────┘ └───────────── SmartBlocks Phases ─────────────────┘
+```
+
+| Phase | Duration | Description |
+|-------|----------|-------------|
+| `starting` | ~500ms | Strategy row created |
+| `resolving` | ~2s | Location resolution |
+| `analyzing` | ~25s | Briefing (events, traffic, weather) |
+| `immediate` | ~8s | `strategy_for_now` generation |
+| `venues` | ~90s | Venue scoring (slowest) |
+| `routing` | ~2s | Google Routes API |
+| `places` | ~2s | Event matching + Places API |
+| `verifying` | ~1s | Event verification |
+| `complete` | - | Done |
+
+### Key Functions
+
+```javascript
+import {
+  ensureStrategyRow,
+  isStrategyReady,
+  updatePhase,
+  PHASE_EXPECTED_DURATIONS
+} from './strategy-utils.js';
+
+// Create strategy row (required before providers write)
+await ensureStrategyRow(snapshotId);
+
+// Check if immediate strategy is ready
+const { ready, strategy, status } = await isStrategyReady(snapshotId);
+
+// Update phase with SSE notification
+await updatePhase(snapshotId, 'venues', { phaseEmitter });
+
+// Get expected duration for progress bar
+const duration = PHASE_EXPECTED_DURATIONS['venues']; // 90000ms
+```
+
+### isStrategyReady Logic
+
+**Important:** `isStrategyReady()` checks for `strategy_for_now`, NOT `consolidated_strategy`:
+
+```javascript
+// Ready when strategy_for_now exists (immediate 1-hour tactical strategy)
+const ready = Boolean(strategyRow.strategy_for_now);
+```
+
+This is significant because:
+- `strategy_for_now` is generated automatically by the pipeline
+- `consolidated_strategy` (daily 8-12hr) is generated on-demand via `/api/strategy/daily`
+- The SSE trigger incorrectly fires only for `consolidated_strategy` (see S-001 in DOC_DISCREPANCIES.md)
 
 ## CRITICAL: Pass Full Snapshot Row
 

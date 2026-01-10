@@ -37,6 +37,12 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, rankings, ranking_candidates, strategies, triad_jobs, briefings } from '../../../shared/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { isStrategyReady, ensureStrategyRow, updatePhase } from '../../lib/strategy/strategy-utils.js';
+// 2026-01-10: S-004 FIX - Use canonical status constants instead of hardcoded strings
+import {
+  STRATEGY_STATUS,
+  STRATEGY_IN_PROGRESS_STATUSES,
+  isStrategyComplete
+} from '../../lib/strategy/status-constants.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
@@ -55,10 +61,24 @@ const router = Router();
 
 // PostgreSQL Advisory Lock helpers for cross-server coordination
 // Updated 2026-01-05: Replaced in-memory Map for horizontal scaling support
+//
+// 2026-01-10: S-002 FIX - IMPORTANT LIMITATION:
+// These are SESSION-LEVEL locks (pg_advisory_lock), not transaction-scoped.
+// With connection pooling, acquire/release CAN hit different sessions.
+// This is mitigated by:
+//   1. Drizzle's connection-per-query model (usually same session within request)
+//   2. Explicit try/finally release pattern in ensureSmartBlocksExist()
+//   3. Lock timeout via pg_advisory_lock (blocks until released)
+//
+// For full correctness, migrate to pg_advisory_xact_lock inside db.transaction()
+// See: .serena/memories/strategy-pipeline-audit-2026-01-10.md
 
 /**
  * Try to acquire a PostgreSQL advisory lock for a snapshot.
  * Returns immediately with true/false (non-blocking).
+ *
+ * NOTE: Uses session-level lock. With connection pooling, ensure
+ * release happens on same connection or within same request lifecycle.
  *
  * @param {string} snapshotId - Snapshot UUID to lock
  * @returns {Promise<boolean>} true if lock acquired, false if already held
@@ -268,8 +288,9 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
       proTips: c.pro_tips,
       closedVenueReasoning: c.closed_reasoning,
       stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
-      isOpen: c.features?.isOpen,
-      streetViewUrl: c.features?.streetViewUrl,
+      // 2026-01-10: S-005 FIX - Snake/camel tolerant (matches toApiBlock in transformers.js)
+      isOpen: c.features?.isOpen ?? c.features?.is_open ?? c.isOpen ?? c.is_open ?? null,
+      streetViewUrl: c.features?.streetViewUrl ?? c.features?.street_view_url ?? c.streetViewUrl ?? c.street_view_url ?? null,
       // Event flags from discovered_events matching (venue_events is array of matched events)
       hasEvent: c.features?.hasEvent || (Array.isArray(c.venue_events) && c.venue_events.length > 0),
       eventBadge: c.features?.eventBadge || (Array.isArray(c.venue_events) && c.venue_events.length > 0 ? c.venue_events[0].title : null),
@@ -338,11 +359,13 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     venuesLog.info(`[blocks-fast] Strategy check: ready=${ready}, status=${status}`);
 
     if (!ready) {
+      // 2026-01-10: S-003 FIX - Error message was misleading
+      // isStrategyReady() checks strategy_for_now, NOT consolidated_strategy
       return res.status(202).json({
         ok: false,
         reason: 'strategy_pending',
         status: status || 'pending',
-        message: 'Waiting for consolidated strategy to complete'
+        message: 'Waiting for immediate strategy to complete'
       });
     }
 
@@ -489,8 +512,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     triadLog.phase(1, `Snapshot resolved: ${snapshot.city}, ${snapshot.state}`);
 
     // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
+    // 2026-01-10: S-004 FIX - Use canonical status constants
     const [existingStrategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    if (existingStrategy && ['pending', 'running'].includes(existingStrategy.status)) {
+    if (existingStrategy && STRATEGY_IN_PROGRESS_STATUSES.includes(existingStrategy.status)) {
       triadLog.info(`Strategy already ${existingStrategy.status} for ${snapshotId.slice(0, 8)}, skipping`);
       return sendOnce(202, {
         ok: false,
@@ -502,7 +526,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     }
 
     // If strategy is COMPLETE/OK/PENDING_BLOCKS, generate SmartBlocks if not already done
-    if (existingStrategy && ['complete', 'ok', 'pending_blocks'].includes(existingStrategy.status)) {
+    // 2026-01-10: S-004 FIX - Use isStrategyComplete() which handles legacy 'complete' value
+    if (existingStrategy && isStrategyComplete(existingStrategy.status)) {
       const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
         triadLog.done(4, `Blocks already exist for ${snapshotId.slice(0, 8)}`);
@@ -689,7 +714,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
         // If strategy is complete but ranking missing, generate SmartBlocks now
-        if (strategy && ['complete', 'ok'].includes(strategy.status)) {
+        // 2026-01-10: S-004 FIX - Use isStrategyComplete() (includes legacy 'complete')
+        if (strategy && isStrategyComplete(strategy.status)) {
           // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
           const { ranking, error } = await ensureSmartBlocksExist(snapshotId, {
             strategyRow: strategy,

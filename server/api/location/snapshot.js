@@ -9,6 +9,8 @@ import { validateIncomingSnapshot } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
 import { generateAndStoreBriefing } from "../../lib/briefing/briefing-service.js";
 import { httpError } from "../utils/http-helpers.js";
+// 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
+import { makeCoordsKey } from "../../lib/location/coords-key.js";
 
 const router = Router();
 
@@ -16,14 +18,6 @@ router.use(express.json({ limit: "1mb", strict: true }));
 
 function uuid() {
   return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex");
-}
-
-// Helper: Generate cache key from coordinates (6 decimal places = ~11cm precision)
-// Must match location.js and coords_cache schema for consistent cache hits
-function makeCoordsKey(lat, lng) {
-  const lat6d = lat.toFixed(6);
-  const lng6d = lng.toFixed(6);
-  return `${lat6d}_${lng6d}`;
 }
 
 // Helper: Validate all required snapshot fields are present before INSERT
