@@ -35,12 +35,14 @@ export const MODEL_ROLES = {
     temperature: 0.2,
     features: ['google_search'],
   },
+  // 2026-01-10: Added thinkingLevel HIGH for news analysis
   BRIEFING_NEWS: {
     envKey: 'BRIEFING_NEWS_MODEL',
     default: 'gemini-3-pro-preview',
     purpose: 'Local news research (last 7 days) - Gemini + Google Search',
     maxTokens: 8192,
     temperature: 0.4,
+    thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
   // 2026-01-05: Added for dual-model news fetching
@@ -53,12 +55,14 @@ export const MODEL_ROLES = {
     reasoningEffort: 'medium',
     features: ['openai_web_search'],
   },
+  // 2026-01-10: Added thinkingLevel HIGH for event discovery accuracy
   BRIEFING_EVENTS_DISCOVERY: {
     envKey: 'BRIEFING_EVENTS_MODEL',
     default: 'gemini-3-pro-preview',
     purpose: 'Event discovery (parallel category search)',
     maxTokens: 8192,
     temperature: 0.4,
+    thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
   BRIEFING_EVENTS_VALIDATOR: {
@@ -97,19 +101,22 @@ export const MODEL_ROLES = {
   // ==========================
   // 2. STRATEGIES TABLE
   // ==========================
+  // 2026-01-10: Lowered temperature from 0.7 → 0.5 for more consistent strategy output
   STRATEGY_CORE: {
     envKey: 'STRATEGY_CORE_MODEL',
     default: 'claude-opus-4-5-20251101',
     purpose: 'Core strategic plan generation (pure reasoning)',
     maxTokens: 4096,
-    temperature: 0.7,
+    temperature: 0.5,
   },
+  // 2026-01-10: Added thinkingLevel HIGH for deeper analysis (token budget sufficient)
   STRATEGY_CONTEXT: {
     envKey: 'STRATEGY_CONTEXT_MODEL',
     default: 'gemini-3-pro-preview',
     purpose: 'Real-time context gathering for strategy pipeline',
     maxTokens: 8192,
     temperature: 0.4,
+    thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
   STRATEGY_TACTICAL: {
@@ -119,12 +126,14 @@ export const MODEL_ROLES = {
     maxTokens: 32000,
     reasoningEffort: 'medium',
   },
+  // 2026-01-10: Added thinkingLevel HIGH, lowered temp 0.5 → 0.4 for consistency
   STRATEGY_DAILY: {
     envKey: 'STRATEGY_DAILY_MODEL',
     default: 'gemini-3-pro-preview',
     purpose: 'Long-term 8-12hr daily strategy generation',
     maxTokens: 16000,
-    temperature: 0.5,
+    temperature: 0.4,
+    thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
 

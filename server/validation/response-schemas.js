@@ -159,6 +159,10 @@ export const AuditEntrySchema = z.object({
 
 /**
  * /api/blocks-fast GET - Success response (200)
+ *
+ * briefing.consolidatedStrategy = Briefing tab 6-12hr shift strategy (manual push)
+ * strategy.consolidated = AI pipeline consolidated output (StrategyContentSchema)
+ * These are DIFFERENT concepts - do not confuse them!
  */
 export const BlocksFastGetSuccessSchema = z.object({
   blocks: z.array(SmartBlockSchema),
