@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-07
+> **Last Verified:** 2026-01-10
 
 # Venue Module (`server/lib/venue/`)
 
@@ -8,7 +8,38 @@
 
 Per CLAUDE.md "NO FALLBACKS" rule: UTC would be wrong for non-UTC users (e.g., Tokyo user would see wrong open/closed status). If snapshot.timezone is null:
 - `enrichVenues()` logs warning: "No timezone in snapshot - isOpen will be null"
-- `calculateIsOpen()` returns `null` (unknown) instead of guessing
+- `getOpenStatus()` returns `{ is_open: null, reason: "Missing timezone" }` instead of guessing
+
+## 🆕 Canonical Hours Module (D-014 - 2026-01-10)
+
+**All `isOpen` calculations now use the canonical `hours/` module.**
+
+```javascript
+import { parseGoogleWeekdayText, getOpenStatus } from './hours/index.js';
+
+// Parse Google Places weekday_text array
+const parseResult = parseGoogleWeekdayText([
+  "Monday: 4:00 PM – 2:00 AM",
+  "Tuesday: 4:00 PM – 2:00 AM",
+  "Wednesday: Closed"
+]);
+
+// Evaluate open status with timezone
+if (parseResult.ok) {
+  const status = getOpenStatus(parseResult.schedule, "America/Chicago");
+  console.log(status.is_open);      // true/false/null
+  console.log(status.closes_at);    // "02:00"
+  console.log(status.closing_soon); // true if within 60 min
+}
+```
+
+**Key Benefits:**
+- Single source of truth for all open/closed logic
+- Handles overnight hours correctly (4PM-2AM)
+- Never trusts Google's `openNow` directly - always parses weekdayDescriptions
+- Explicit error handling (no silent guessing)
+
+See `hours/README.md` for full documentation.
 
 ## Purpose
 
@@ -25,6 +56,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 
 | File | Purpose | Key Export |
 |------|---------|------------|
+| `hours/` | **Canonical hours evaluation** | `parseGoogleWeekdayText()`, `getOpenStatus()` |
 | `enhanced-smart-blocks.js` | VENUES pipeline orchestrator | `generateEnhancedSmartBlocks(snapshotId)` |
 | `venue-intelligence.js` | Bar Tab discovery (GPT-5.2) | `discoverNearbyVenues()` |
 | `venue-enrichment.js` | Google Places/Routes data | `enrichVenue()`, `getBatchDriveTimes()` |
@@ -32,7 +64,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
 | `event-proximity-boost.js` | Airport proximity scoring | `calculateProximityBoost()` |
 | `venue-cache.js` | Venue deduplication cache | `findOrCreateVenue()`, `lookupVenue()` |
-| `venue-utils.js` | Venue consolidation utilities | `parseAddressComponents()`, `generateCoordKey()`, `calculateIsOpen()` |
+| `venue-utils.js` | Venue consolidation utilities | `parseAddressComponents()`, `generateCoordKey()`, `calculateIsOpenFromHoursTextMap()` |
 | `district-detection.js` | Entertainment district identification | `detectDistrict()` |
 | `event-matcher.js` | Event-to-venue matching | `matchEventsToVenues()` |
 | `index.js` | Module barrel exports | All venue exports |

@@ -15,6 +15,8 @@ import { callGemini } from '../ai/adapters/gemini-adapter.js';
 import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
 import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
+// 2026-01-10: D-014 Phase 4 - Use canonical hours module directly for all isOpen calculations
+import { parseGoogleWeekdayText, getOpenStatus } from './hours/index.js';
 
 // API Keys
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -43,8 +45,26 @@ function calculateOpenStatus(place, timezone) {
     return { is_open: null, hours_today: null, closing_soon: false, minutes_until_close: null, opens_in_minutes: null };
   }
 
-  // Google provides openNow directly
-  const is_open = hours.openNow ?? null;
+  // 2026-01-10: D-014 Phase 4 - Use canonical hours module for consistent evaluation
+  const weekdayDescs = hours.weekdayDescriptions || [];
+  let is_open = null;
+  let canonicalStatus = null;
+
+  // Try canonical calculation first (requires timezone + weekday descriptions)
+  if (timezone && weekdayDescs.length > 0) {
+    const parseResult = parseGoogleWeekdayText(weekdayDescs);
+    if (parseResult.ok) {
+      canonicalStatus = getOpenStatus(parseResult.schedule, timezone);
+      is_open = canonicalStatus.is_open;
+      barsLog.info(`"${place.displayName?.text}" - Calculated is_open=${is_open} from weekdayDescriptions (canonical)`);
+    }
+  }
+
+  // Fall back to Google's openNow only if we couldn't calculate (hint, not truth)
+  if (is_open === null && hours.openNow !== undefined) {
+    is_open = hours.openNow;
+    barsLog.info(`"${place.displayName?.text}" - Using Google openNow=${is_open} as fallback (no canonical data)`);
+  }
 
   // Get today's hours - NO FALLBACK, timezone required for accurate venue status
   if (!timezone) {
@@ -65,8 +85,7 @@ function calculateOpenStatus(place, timezone) {
   });
   const todayName = formatter.format(now);
 
-  // Find today in weekdayDescriptions
-  const weekdayDescs = hours.weekdayDescriptions || [];
+  // Find today in weekdayDescriptions (weekdayDescs already defined above)
   const todayHours = weekdayDescs.find(d =>
     d.toLowerCase().startsWith(todayName.toLowerCase())
   );
@@ -83,32 +102,31 @@ function calculateOpenStatus(place, timezone) {
     barsLog.info(`"${place.displayName?.text}" - Could not find ${todayName} in weekdayDescriptions`);
   }
 
-  // Calculate minutes until close (simplified - would need nextCloseTime for accuracy)
-  let closing_soon = false;
-  let minutes_until_close = null;
-  let opens_in_minutes = null;
+  // 2026-01-10: D-014 Phase 4 - Use canonical status data when available
+  // The canonical evaluator already calculates these values accurately
+  let closing_soon = canonicalStatus?.closing_soon || false;
+  let minutes_until_close = canonicalStatus?.minutes_until_close || null;
+  let opens_in_minutes = canonicalStatus?.minutes_until_open || null;
 
-  // Get current time in venue's timezone
-  const localFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  });
-  const parts = localFormatter.formatToParts(now);
-  const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-  const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
-  const currentMinutes = currentHour * 60 + currentMinute;
+  // Fallback: If canonical status not available but we have Google periods data, calculate manually
+  if (!canonicalStatus && hours.periods && timezone) {
+    // Get current time in venue's timezone
+    const localFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const parts = localFormatter.formatToParts(now);
+    const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+    const currentMinutes = currentHour * 60 + currentMinute;
 
-  // If we have periods, calculate closing/opening time
-  if (hours.periods && timezone) {
-    // 2026-01-09: Calculate opens_in_minutes for closed venues
+    // Calculate opens_in_minutes for closed venues
     if (is_open === false) {
-      // Find next opening time
       for (const period of hours.periods) {
         if (period.open?.hour !== undefined) {
           let openMinutes = period.open.hour * 60 + (period.open.minute || 0);
-          // Handle venue opening later today
           if (openMinutes > currentMinutes) {
             opens_in_minutes = openMinutes - currentMinutes;
             break;
@@ -122,7 +140,6 @@ function calculateOpenStatus(place, timezone) {
       for (const period of hours.periods) {
         if (period.close?.hour !== undefined) {
           let closeMinutes = period.close.hour * 60 + (period.close.minute || 0);
-          // Handle overnight (close time is next day)
           if (closeMinutes < currentMinutes) {
             closeMinutes += 24 * 60;
           }

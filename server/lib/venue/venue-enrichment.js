@@ -22,6 +22,8 @@ import { db } from "../../db/drizzle.js";
 import { places_cache } from "../../../shared/schema.js";
 import { eq } from "drizzle-orm";
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from "./district-detection.js";
+// 2026-01-10: D-014 Phase 4 - Use canonical hours module for all isOpen calculations
+import { parseGoogleWeekdayText, getOpenStatus } from "./hours/index.js";
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
@@ -285,12 +287,16 @@ function condenseWeeklyHours(weekdayTexts) {
 }
 
 /**
- * Calculate if venue is currently open based on Google hours and snapshot timezone
- * @param {Array<string>} weekdayTexts - e.g., ["Monday: 6:00 AM – 11:00 PM", ...]
+ * Calculate if venue is currently open based on Google Places weekday_text array
+ *
+ * 2026-01-10: D-014 Phase 4 - Now uses canonical hours module (parseGoogleWeekdayText + getOpenStatus)
+ * This wrapper maintains backward compatibility while using the consolidated evaluation logic.
+ *
+ * @param {Array<string>} weekdayTexts - Google Places weekday_text array, e.g., ["Monday: 6:00 AM – 11:00 PM", ...]
  * @param {string|null} timezone - IANA timezone (e.g., "America/Chicago")
  * @returns {boolean|null} - true if open, false if closed, null if hours unavailable or no timezone
  */
-function calculateIsOpen(weekdayTexts, timezone = null) {
+function calculateIsOpenFromGoogleWeekdayText(weekdayTexts, timezone = null) {
   if (!weekdayTexts || weekdayTexts.length === 0) {
     return null; // No hours data available
   }
@@ -301,128 +307,24 @@ function calculateIsOpen(weekdayTexts, timezone = null) {
     return null; // Cannot determine open/closed without timezone
   }
 
-  try {
-    // Get current time in the venue's timezone
-    const now = new Date();
-    // Validate timezone to avoid Intl errors on invalid timezones
-    try {
-      // Test if timezone is valid by creating formatter
-      const _testFormatter = new Intl.DateTimeFormat("en-US", {
-        timeZone: timezone,
-      });
-    } catch {
-      console.warn(`[calculateIsOpen] Invalid timezone "${timezone}" - cannot determine open/closed`);
-      return null; // Invalid timezone - don't guess
-    }
+  // 2026-01-10: D-014 Phase 4 - Use canonical parser + evaluator
+  const parseResult = parseGoogleWeekdayText(weekdayTexts);
 
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      weekday: "long",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-
-    const parts = formatter.formatToParts(now);
-    const dayName = parts.find((p) => p.type === "weekday")?.value;
-    const currentHour = parseInt(
-      parts.find((p) => p.type === "hour")?.value || "0",
-    );
-    const currentMinute = parseInt(
-      parts.find((p) => p.type === "minute")?.value || "0",
-    );
-    const currentTimeMinutes = currentHour * 60 + currentMinute;
-
-    // Find today's hours (e.g., "Monday: 6:00 AM – 11:00 PM" or "Monday: Closed")
-    const todayHours = weekdayTexts.find((text) => text.startsWith(dayName));
-    if (!todayHours) {
-      return null; // Can't find today's hours
-    }
-
-    // Check if closed for the day or open 24 hours
-    if (todayHours.includes("Closed")) return false;
-    if (todayHours.includes("Open 24 hours")) return true;
-
-    // Try 12-hour format first (e.g., "Monday: 6:00 AM – 11:00 PM")
-    let hoursMatch = todayHours.match(
-      /(\d{1,2}):(\d{2})\s*(AM|PM)\s*[–-]\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i,
-    );
-    let openHour24, closeHour24, openMin, closeMin;
-
-    if (hoursMatch) {
-      // Parse 12-hour AM/PM format
-      const [_, openHour, oMin, openPeriod, closeHour, cMin, closePeriod] =
-        hoursMatch;
-      openMin = parseInt(oMin);
-      closeMin = parseInt(cMin);
-
-      openHour24 = parseInt(openHour);
-      if (openPeriod.toUpperCase() === "PM" && openHour24 !== 12)
-        openHour24 += 12;
-      if (openPeriod.toUpperCase() === "AM" && openHour24 === 12)
-        openHour24 = 0;
-
-      closeHour24 = parseInt(closeHour);
-      if (closePeriod.toUpperCase() === "PM" && closeHour24 !== 12)
-        closeHour24 += 12;
-      if (closePeriod.toUpperCase() === "AM" && closeHour24 === 12)
-        closeHour24 = 0;
-    } else {
-      // Try 24-hour format (e.g., "Monday: 06:00–23:00" or "Monday: 6:00–24:00")
-      hoursMatch = todayHours.match(
-        /(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/,
-      );
-      if (!hoursMatch) {
-        console.warn(
-          `[calculateIsOpen] Can't parse hours format: "${todayHours}"`,
-        );
-        return null; // Can't parse hours format
-      }
-
-      const [_, openHour, oMin, closeHour, cMin] = hoursMatch;
-      openHour24 = parseInt(openHour);
-      closeHour24 = parseInt(closeHour);
-      openMin = parseInt(oMin);
-      closeMin = parseInt(cMin);
-
-      // Google API allows "24:00" for midnight closing
-      if (closeHour24 === 24) {
-        closeHour24 = 0; // Convert 24:00 to 00:00 (next day)
-      }
-    }
-
-    const openTimeMinutes = openHour24 * 60 + openMin;
-    let closeTimeMinutes = closeHour24 * 60 + closeMin;
-
-    // Handle overnight hours (e.g., 23:00–02:00 or 11:00 PM - 2:00 AM)
-    // Special case: If closing is 24:00 (midnight), treat as end of day
-    if (closeHour24 === 0 && closeMin === 0 && openTimeMinutes > 0) {
-      closeTimeMinutes = 24 * 60; // Midnight closing
-    }
-
-    if (closeTimeMinutes < openTimeMinutes) {
-      // Overnight hours (closes after midnight)
-      closeTimeMinutes += 24 * 60; // Add 24 hours
-      if (currentTimeMinutes < openTimeMinutes) {
-        // Current time is in the early AM (after midnight)
-        return currentTimeMinutes + 24 * 60 < closeTimeMinutes;
-      }
-    }
-
-    const isCurrentlyOpen =
-      currentTimeMinutes >= openTimeMinutes &&
-      currentTimeMinutes < closeTimeMinutes;
-
-    // Debug log
-    console.log(
-      `[calculateIsOpen] ${todayHours} → open: ${openHour24}:${openMin.toString().padStart(2, "0")} (${openTimeMinutes}min), close: ${closeHour24}:${closeMin.toString().padStart(2, "0")} (${closeTimeMinutes}min), now: ${currentHour}:${currentMinute.toString().padStart(2, "0")} (${currentTimeMinutes}min) → ${isCurrentlyOpen ? "OPEN" : "CLOSED"}`,
-    );
-
-    return isCurrentlyOpen;
-  } catch (error) {
-    console.error(`[calculateIsOpen] Error parsing hours:`, error.message);
-    return null; // Parsing error - can't determine
+  if (!parseResult.ok) {
+    console.warn(`[calculateIsOpenFromGoogleWeekdayText] Parse failed: ${parseResult.error}`);
+    return null;
   }
+
+  const status = getOpenStatus(parseResult.schedule, timezone);
+
+  // Debug log for backward compatibility (same info as before)
+  if (status.is_open !== null) {
+    console.log(
+      `[calculateIsOpenFromGoogleWeekdayText] ${status.reason} → ${status.is_open ? "OPEN" : "CLOSED"}`
+    );
+  }
+
+  return status.is_open;
 }
 
 /**
@@ -451,7 +353,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
   if (memCached && (Date.now() - memCached.cachedAt) < CACHE_TTL_MS) {
     venuesLog.info(`Places CACHE HIT (memory): "${name}"`, OP.CACHE);
     // Recalculate isOpen with current timezone (hours data is cached, not the open status)
-    const isOpen = calculateIsOpen(memCached.allHours, timezone);
+    const isOpen = calculateIsOpenFromGoogleWeekdayText(memCached.allHours, timezone);
     return { ...memCached, isOpen };
   }
 
@@ -471,7 +373,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
           .where(eq(places_cache.place_id, coordsKey))
           .catch(() => {}); // Fire and forget
         // Recalculate isOpen with current timezone
-        const isOpen = calculateIsOpen(cached.allHours, timezone);
+        const isOpen = calculateIsOpenFromGoogleWeekdayText(cached.allHours, timezone);
         return { ...cached, isOpen };
       }
     }
@@ -574,7 +476,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
         const weekdayTexts = hours?.weekdayDescriptions || [];
 
         // CRITICAL: Calculate isOpen ourselves using snapshot timezone (don't trust Google's openNow)
-        const isOpen = calculateIsOpen(weekdayTexts, timezone);
+        const isOpen = calculateIsOpenFromGoogleWeekdayText(weekdayTexts, timezone);
 
 
         // Condense weekly hours into readable format
@@ -739,7 +641,7 @@ export async function searchPlaceByText(venueName, district, city, state, timezo
     // Extract business hours
     const hours = bestPlace.currentOpeningHours || bestPlace.regularOpeningHours;
     const weekdayTexts = hours?.weekdayDescriptions || [];
-    const isOpen = calculateIsOpen(weekdayTexts, timezone);
+    const isOpen = calculateIsOpenFromGoogleWeekdayText(weekdayTexts, timezone);
     const condensedHours = condenseWeeklyHours(weekdayTexts);
 
     return {
