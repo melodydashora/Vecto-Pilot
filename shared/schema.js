@@ -261,7 +261,8 @@ export const venue_catalog = pgTable("venue_catalog", {
   address_1: text("address_1"),          // Street number + route (e.g., "123 Main St")
   address_2: text("address_2"),          // Suite, floor, unit (optional)
   zip: text("zip"),                      // Postal code
-  country: text("country").default('USA'), // Country code
+  // 2026-01-10: D-029 - Fixed default from 'USA' to 'US' (ISO 3166-1 alpha-2)
+  country: text("country").default('US'), // Country code (ISO alpha-2)
   formatted_address: text("formatted_address"), // Full Google-formatted address
 
   // Lookup & Deduplication
