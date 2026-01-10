@@ -216,7 +216,7 @@ async function fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat
 SEARCH QUERY: "${category.searchTerms(city, state, date)}"
 
 Return a JSON array of events with this format (max 3 events):
-[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_time":"7:00 PM","subtype":"${category.eventTypes[0]}","impact":"high"}]
+[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","subtype":"${category.eventTypes[0]}","impact":"high"}]
 
 Return an empty array [] if no events found.`;
 
@@ -568,6 +568,7 @@ function safeJsonParse(jsonString) {
   throw new Error(`JSON parse failed: Expected double-quoted property name - raw response may contain malformed JSON`);
 }
 
+// 2026-01-10: Updated to use canonical field names (event_start_date, event_start_time)
 const LocalEventSchema = z.object({
   title: z.string(),
   summary: z.string(),
@@ -577,8 +578,8 @@ const LocalEventSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   distance_miles: z.number().optional(),
-  event_date: z.string().optional(),
-  event_time: z.string().optional(),
+  event_start_date: z.string().optional(),
+  event_start_time: z.string().optional(),
   event_end_time: z.string().optional(),
   address: z.string().optional(),
   location: z.string().optional(),
@@ -608,7 +609,8 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
     }
 
     const location = e.venue && e.address ? `${e.venue}, ${e.address}` : e.venue || e.address || undefined;
-    const timeLabel = e.event_date && e.event_time ? `${e.event_date} ${e.event_time}` : e.event_date || e.event_time || '';
+    // 2026-01-10: Use new field names (event_start_date, event_start_time)
+    const timeLabel = e.event_start_date && e.event_start_time ? `${e.event_start_date} ${e.event_start_time}` : e.event_start_date || e.event_start_time || '';
     const summaryParts = [e.title, e.venue || null, timeLabel || null, e.impact ? `Impact: ${e.impact}` : null].filter(Boolean);
     const summary = summaryParts.join(' • ') || `Local event ${idx + 1}`;
 
@@ -626,8 +628,9 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
       latitude: e.latitude ?? undefined,
       longitude: e.longitude ?? undefined,
       distance_miles: typeof e.estimated_distance_miles === 'number' ? e.estimated_distance_miles : undefined,
-      event_date: e.event_date,
-      event_time: e.event_time,
+      // 2026-01-10: Use canonical field names
+      event_start_date: e.event_start_date,
+      event_start_time: e.event_start_time,
       event_end_time: e.event_end_time,
       address: e.address,
       location,
@@ -681,7 +684,7 @@ async function fetchEventCategory({ category, city, state, lat, lng, date, timez
 SEARCH: "${category.searchTerms(city, state, date)}"
 
 Return JSON array (max 3 events):
-[{"title":"Event","venue":"Venue","address":"Address","event_time":"7 PM","subtype":"${category.eventTypes[0]}","impact":"high"}]
+[{"title":"Event","venue":"Venue","address":"Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","subtype":"${category.eventTypes[0]}","impact":"high"}]
 
 Return [] if none found.`;
 
