@@ -810,9 +810,37 @@ async function _fetchEventsWithGemini3ProPreviewLegacy({ snapshot }) {
   const timeContext = hour >= 17 ? 'tonight' : 'today';
   const dayOfWeek = new Date().toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
 
-  const system = `You are an event discovery assistant. Search for local events and return structured JSON data.`;
+  // 2026-01-10: Enhanced prompt with STRICT date/time requirements
+  // Validation will reject events missing event_start_date, event_start_time, or event_end_time
+  const system = `You are an event discovery assistant. Search for local events and return structured JSON data.
+
+CRITICAL REQUIREMENTS - Every event MUST have:
+- event_date: Date in YYYY-MM-DD format (REQUIRED - NO EXCEPTIONS)
+- event_time: Start time like "7:00 PM" or "19:00" (REQUIRED - NO NULLS)
+- event_end_time: End time like "10:00 PM" or "22:00" (REQUIRED - ESTIMATE if unknown)
+
+Events without valid date/time data will be REJECTED. Never return null, "TBD", or "Unknown" for these fields.
+If an event time is not specified, estimate based on typical event patterns (concerts: 3 hours, sports: 3 hours, etc).`;
+
   const user = `Find events in ${city}, ${state} ${timeContext} (${date}, ${dayOfWeek}).
-Return JSON array of events with title, venue, address, event_time, event_end_time, subtype, impact.`;
+
+Return a JSON array where EVERY event has ALL required fields:
+{
+  "title": "Event Name",
+  "venue": "Venue Name",
+  "address": "Full Street Address",
+  "event_date": "${date}",
+  "event_time": "7:00 PM",
+  "event_end_time": "10:00 PM",
+  "subtype": "concert|sports|comedy|theater|festival|community",
+  "impact": "high|medium|low"
+}
+
+RULES:
+- event_date MUST be in YYYY-MM-DD format
+- event_time and event_end_time MUST be provided (estimate if not listed)
+- NO null values, NO "TBD", NO "Unknown" - skip the event if you cannot determine times
+- Include events for ${date} and the next 3 days`;
 
   // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
   const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
@@ -862,9 +890,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // Store discovered events in DB for caching and SmartBlocks integration
       // Note: This uses the canonical ETL pipeline for validation/normalization
       const normalized = discoveryResult.items.map(e => normalizeEvent(e));
-      const validated = validateEventsHard(normalized);
+      // 2026-01-10: validateEventsHard returns { valid, invalid, stats } - extract .valid array
+      const { valid: validatedEvents } = validateEventsHard(normalized);
 
-      for (const event of validated) {
+      for (const event of validatedEvents) {
         try {
           const hash = generateEventHash(event);
           await db.insert(discovered_events).values({
