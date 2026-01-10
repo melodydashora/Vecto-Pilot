@@ -436,11 +436,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
         // 2026-01-06: P4-C fix - use real timezone from server or LocationContext
         // NEVER use hardcoded timezone (was 'America/Chicago' - violates NO FALLBACKS rule)
+        // 2026-01-10: D-024 - Normalize to camelCase to match types (pathTaken not path_taken)
         return {
           now: data.generatedAt || new Date().toISOString(),
           timezone: data.timezone || locationContext?.timeZone || null,
           strategy: data.strategy_for_now || data.briefing?.strategy_for_now,
-          path_taken: data.path_taken,
+          pathTaken: data.pathTaken ?? data.path_taken,
           refined: data.refined,
           timing: data.timing,
           isBlocksGenerating: isGenerating,
@@ -512,13 +513,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Without useMemo, .map() creates a new array reference on every render.
   // Since `blocks` is in the context useMemo deps, this caused:
   // render → new blocks array → useMemo recalc → new context → consumer re-render → infinite loop
+  // 2026-01-10: D-023 - Use camelCase `closedVenueReasoning` to match types (not snake_case)
   const blocks = useMemo(() => {
     return (blocksData?.blocks || []).map(block => {
-      if (!block.isOpen && !block.closed_venue_reasoning) {
+      // 2026-01-10: Check both camelCase (types) and snake_case (legacy server response)
+      const hasReasoning = block.closedVenueReasoning || (block as Record<string, unknown>).closed_venue_reasoning;
+      if (block.isOpen === false && !hasReasoning) {
         const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
         const reasoning = enrichedReasonings.get(key);
         if (reasoning) {
-          return { ...block, closed_venue_reasoning: reasoning };
+          // Always return camelCase to match types
+          return { ...block, closedVenueReasoning: reasoning };
         }
       }
       return block;

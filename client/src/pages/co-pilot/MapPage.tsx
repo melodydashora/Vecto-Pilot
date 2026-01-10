@@ -2,14 +2,17 @@
 // Wrapper page for the Map tab showing venues and events on a map
 // Includes: strategy blocks, bar markers (green=open, red=closing soon), and events
 // Events are filtered to "active only" (currently happening) via useActiveEventsQuery
+//
+// 2026-01-10: D-025 - FIXED duplicate bars fetch
+// Now uses shared barsData from CoPilotContext via useBarsQuery cache
+// Removed separate useQuery that violated NO FALLBACKS rule (city: 'Unknown')
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { MapPin } from 'lucide-react';
 import MapTab from '@/components/MapTab';
 import { useCoPilot } from '@/contexts/co-pilot-context';
-import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
+import type { Venue } from '@/hooks/useBarsQuery';
 
 // Event type for MapTab
 // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
@@ -45,7 +48,8 @@ interface BriefingEvent {
   [key: string]: unknown;
 }
 
-// Bar type for map markers (from /api/venues/nearby)
+// Bar type for map markers (MapTab expects snake_case)
+// 2026-01-10: D-025 - Data comes from useBarsQuery (camelCase) and is mapped here
 interface MapBar {
   name: string;
   type: string;
@@ -61,74 +65,53 @@ interface MapBar {
   rating?: number | null;
 }
 
-// API response for bars
-interface BarsApiResponse {
-  data: {
-    venues: MapBar[];
-    last_call_venues: MapBar[];
-  };
-}
-
 export default function MapPage() {
-  const { coords, lastSnapshotId, blocks, isBlocksLoading, timezone } = useCoPilot();
+  // 2026-01-10: D-025 - Get barsData from shared cache (not duplicate useQuery)
+  // This eliminates the city: 'Unknown' NO FALLBACKS violation
+  const { coords, lastSnapshotId, blocks, isBlocksLoading, barsData } = useCoPilot();
 
   // Fetch only currently active events (happening now) for the map
   // This uses the ?filter=active endpoint which returns events during their duration
   const { data: activeEventsData } = useActiveEventsQuery(lastSnapshotId);
 
-  // Fetch bars for map markers (separate from strategy blocks)
-  // Only shows $$ and above (expense_rank >= 2) with open/closing soon status
-  const { data: barsData } = useQuery<BarsApiResponse>({
-    queryKey: ['map-bars', coords?.latitude, coords?.longitude, timezone],
-    queryFn: async () => {
-      if (!coords?.latitude || !coords?.longitude) {
-        throw new Error('No coordinates');
-      }
-
-      const params = new URLSearchParams({
-        lat: coords.latitude.toString(),
-        lng: coords.longitude.toString(),
-        city: 'Unknown',
-        state: '',
-        radius: '15',  // 15 mile radius for bar coverage on map
-        timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
-      });
-
-      const response = await fetch(`/api/venues/nearby?${params}`, {
-        headers: getAuthHeader()
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch bars');
-      }
-
-      return response.json();
-    },
-    enabled: !!(coords?.latitude && coords?.longitude),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchInterval: false,
-  });
-
-  // Filter bars: only $$ and above (expense_rank >= 2), only OPEN bars
+  // 2026-01-10: D-025 - Filter bars using shared barsData from useBarsQuery
+  // Map camelCase (from useBarsQuery) to snake_case (for MapTab)
   const filteredBars = React.useMemo(() => {
-    const allBars = [...(barsData?.data?.venues || []), ...(barsData?.data?.last_call_venues || [])];
+    // barsData is from useBarsQuery which returns camelCase Venue[]
+    const allBars: Venue[] = [...(barsData?.venues || []), ...(barsData?.lastCallVenues || [])];
 
-    // Remove duplicates by place_id or name+lat+lng
+    // Remove duplicates by placeId or name+lat+lng
     const seen = new Set<string>();
     const uniqueBars = allBars.filter(bar => {
-      const key = bar.place_id || `${bar.name}-${bar.lat}-${bar.lng}`;
+      const key = bar.placeId || `${bar.name}-${bar.lat}-${bar.lng}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
 
-    // Filter: $$ and above (expense_rank >= 2) AND open only (no closed bars)
-    const openPremiumBars = uniqueBars.filter(bar => bar.expense_rank >= 2 && bar.is_open);
+    // Filter: $$ and above (expenseRank >= 2) AND open only (no closed bars)
+    const openPremiumBars = uniqueBars.filter(bar => bar.expenseRank >= 2 && bar.isOpen === true);
 
-    const openCount = openPremiumBars.filter(b => !b.closing_soon).length;
-    const closingSoonCount = openPremiumBars.filter(b => b.closing_soon).length;
-    console.log(`[MapPage] Bars: ${openPremiumBars.length} open $$+ bars (${openCount} open, ${closingSoonCount} closing soon)`);
-    return openPremiumBars;
+    // Map camelCase → snake_case for MapTab compatibility
+    const mappedBars: MapBar[] = openPremiumBars.map(bar => ({
+      name: bar.name,
+      type: bar.type,
+      address: bar.address,
+      expense_level: bar.expenseLevel,
+      expense_rank: bar.expenseRank,
+      is_open: bar.isOpen === true,
+      closing_soon: bar.closingSoon,
+      minutes_until_close: bar.minutesUntilClose,
+      lat: bar.lat,
+      lng: bar.lng,
+      place_id: bar.placeId,
+      rating: bar.rating,
+    }));
+
+    const openCount = mappedBars.filter(b => !b.closing_soon).length;
+    const closingSoonCount = mappedBars.filter(b => b.closing_soon).length;
+    console.log(`[MapPage] Bars: ${mappedBars.length} open $$+ bars (${openCount} open, ${closingSoonCount} closing soon)`);
+    return mappedBars;
   }, [barsData]);
 
   // Show placeholder if no location or snapshot
@@ -144,6 +127,7 @@ export default function MapPage() {
 
   // Transform blocks to map venues format
   // 2026-01-09: Use camelCase property names to match SmartBlock type
+  // 2026-01-10: D-026 - Use fallback chain for earnings (types have both fields)
   const venues = blocks.map((block, idx) => ({
     id: `${idx}`,
     name: block.name,
@@ -151,7 +135,7 @@ export default function MapPage() {
     lng: block.coordinates.lng,
     distance_miles: block.estimatedDistanceMiles,
     drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
-    est_earnings_per_ride: block.estimatedEarnings,
+    est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? null,
     rank: idx + 1,
     value_grade: block.valueGrade,
   }));

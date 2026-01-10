@@ -4,11 +4,13 @@
 
 ## 📋 Changelog
 
-### 2026-01-10: D-021 Status Value Fix
-- **File:** `co-pilot-context.tsx:494`
-- **Change:** Removed deprecated `status === 'complete'` check
+### 2026-01-10: D-021/D-023/D-024 Casing + Status Fixes
+- **File:** `co-pilot-context.tsx`
+- **D-021:** Removed deprecated `status === 'complete'` check (line 494)
+- **D-023:** Enrichment now uses `closedVenueReasoning` (camelCase) to match types (line 517)
+- **D-024:** queryFn now returns `pathTaken` with `path_taken` fallback (line 443)
 - **Server sends:** `'ok'` or `'pending_blocks'` (never `'complete'`)
-- **Impact:** Blocks query `enabled` check now matches server contract
+- **Impact:** All fields now match TypeScript type definitions
 
 ## ⚠️ Manual Refresh Event (2026-01-07)
 

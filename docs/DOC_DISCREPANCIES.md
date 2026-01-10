@@ -52,6 +52,23 @@ IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL T
 | D-021 | `client/src/contexts/co-pilot-context.tsx:494` | Client checks `status === 'complete'` | Removed deprecated check, uses `'ok' \|\| 'pending_blocks'` | ✅ FIXED |
 | D-022 | `client/src/pages/co-pilot/StrategyPage.tsx:869` | Same `status === 'complete'` check | Removed deprecated check, uses `'ok' \|\| 'pending_blocks'` | ✅ FIXED |
 
+### HIGH PRIORITY (P1 - UI Casing Drift)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-023 | `client/src/contexts/co-pilot-context.tsx:517` | Enrichment used `closed_venue_reasoning` | Now uses `closedVenueReasoning` to match types | ✅ FIXED |
+| D-024 | `client/src/contexts/co-pilot-context.tsx:443` | queryFn returned `path_taken` | Now returns `pathTaken` with `path_taken` fallback | ✅ FIXED |
+| D-025 | `client/src/pages/co-pilot/MapPage.tsx:82` | Duplicate bars fetch with `city: 'Unknown'` | Removed - now uses shared `barsData` from `useCoPilot()` | ✅ FIXED |
+| D-026 | `client/src/pages/co-pilot/MapPage.tsx:137` | Used `estimatedEarnings` only | Added fallback: `estimatedEarningsPerRide ?? estimatedEarnings` | ✅ FIXED |
+
+**Impact of D-023/D-024:**
+- UI fields were silently undefined when server returned camelCase
+- Types expect camelCase, code was checking snake_case
+
+**Impact of D-025:**
+- Duplicate API call with different queryKey (no cache sharing)
+- Violated NO FALLBACKS rule: `city: 'Unknown'` could pollute DB
+
 ### CRITICAL (P0 - Breaks AI Coach)
 
 | ID | Location | Issue | Code Truth | Status |
@@ -199,6 +216,10 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-020 | 2026-01-10 | `shared/schema.js:592` | Fixed index column: `event_date` → `event_start_date` |
 | D-021 | 2026-01-10 | `client/src/contexts/co-pilot-context.tsx:494` | Removed deprecated `'complete'` status check, uses `'ok' \|\| 'pending_blocks'` |
 | D-022 | 2026-01-10 | `client/src/pages/co-pilot/StrategyPage.tsx:869` | Removed deprecated `'complete'` status check, uses `'ok' \|\| 'pending_blocks'` |
+| D-023 | 2026-01-10 | `client/src/contexts/co-pilot-context.tsx:517` | Enrichment now uses `closedVenueReasoning` (camelCase) to match types |
+| D-024 | 2026-01-10 | `client/src/contexts/co-pilot-context.tsx:443` | queryFn now returns `pathTaken` with `path_taken` fallback |
+| D-025 | 2026-01-10 | `client/src/pages/co-pilot/MapPage.tsx` | Removed duplicate bars fetch, now uses shared `barsData` from `useCoPilot()` |
+| D-026 | 2026-01-10 | `client/src/pages/co-pilot/MapPage.tsx:137` | Earnings field now uses `estimatedEarningsPerRide ?? estimatedEarnings` fallback |
 
 ---
 

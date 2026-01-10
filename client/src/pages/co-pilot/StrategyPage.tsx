@@ -606,13 +606,14 @@ export default function StrategyPage() {
                     )}
 
                     {/* Closed Venue Reasoning */}
-                    {!block.isOpen && block.closed_venue_reasoning && (
+                    {/* 2026-01-10: D-023 - Use camelCase closedVenueReasoning to match types */}
+                    {!block.isOpen && block.closedVenueReasoning && (
                       <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-3">
                         <div className="flex items-start gap-2">
                           <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                           <div>
                             <h4 className="text-sm font-semibold text-amber-900 mb-1">Why Go When Closed?</h4>
-                            <p className="text-sm text-amber-800">{block.closed_venue_reasoning}</p>
+                            <p className="text-sm text-amber-800">{block.closedVenueReasoning}</p>
                           </div>
                         </div>
                       </div>
