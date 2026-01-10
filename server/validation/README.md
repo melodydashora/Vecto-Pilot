@@ -46,6 +46,17 @@ Zod validation schemas for API requests and responses. Provides type-safe valida
 | `BlocksFastPostSuccessSchema` | /api/blocks-fast POST success response |
 | `StrategyPollingResponseSchema` | /api/blocks/strategy/:id responses |
 
+### ⚠️ "Consolidated" Field Naming (2026-01-10)
+
+Two different objects use similar field names with **different semantics**:
+
+| Object | Field | Purpose |
+|--------|-------|---------|
+| `briefing` (GET response) | `consolidatedStrategy` | Briefing tab 6-12hr shift strategy (manual push) |
+| `strategy` (POST response) | `consolidated` | AI pipeline consolidated output |
+
+**Do not confuse these!** The `briefing` object uses the full `consolidatedStrategy` name, while the `strategy` object uses the short `consolidated` name. This is intentional.
+
 ## Transformers (`transformers.js`)
 
 Convert database records to API responses with consistent camelCase:

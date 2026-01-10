@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-10
 
 # AI Module (`server/lib/ai/`)
 
@@ -116,6 +116,20 @@ When primary model fails, certain roles automatically fall back to Claude Opus:
 - Roles with fallback: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY`, `BRIEFING_EVENTS_DISCOVERY`, `BRIEFING_NEWS`
 - Fallback model: `claude-opus-4-5-20251101`
 - Configured in: `model-registry.js` → `FALLBACK_ENABLED_ROLES`
+
+## LLM Settings Optimization (D-028)
+
+**Updated 2026-01-10** - Gemini roles now use `thinkingLevel: 'HIGH'` for deeper analysis:
+
+| Role | Temperature | thinkingLevel | Token Budget |
+|------|-------------|---------------|--------------|
+| `STRATEGY_CORE` | 0.5 | N/A (Claude) | 4096 |
+| `STRATEGY_CONTEXT` | 0.4 | HIGH | 8192 |
+| `STRATEGY_DAILY` | 0.4 | HIGH | 16000 |
+| `BRIEFING_NEWS` | 0.4 | HIGH | 8192 |
+| `BRIEFING_EVENTS_DISCOVERY` | 0.4 | HIGH | 8192 |
+
+**Token Budget Rule:** `thinkingLevel: 'HIGH'` requires 8192+ `maxOutputTokens` because thinking consumes tokens from the output budget. Roles with smaller budgets (e.g., BRIEFING_TRAFFIC at 2048) do not use thinking.
 
 ## CoachDAL (AI Coach Data Access)
 
