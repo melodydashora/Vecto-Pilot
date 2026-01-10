@@ -23,7 +23,8 @@ import { parseHoursTextMap, getOpenStatus } from "./hours/index.js";
  *
  * @example
  * const parsed = parseAddressComponents(place.addressComponents);
- * // Returns: { address_1: "123 Main St", city: "Dallas", state: "TX", zip: "75201", country: "USA" }
+ * // Returns: { address_1: "123 Main St", city: "Dallas", state: "TX", zip: "75201", country: "US" }
+ * // Note: country uses ISO-3166-1 alpha-2 code (US, not USA) - 2026-01-10 D-004 fix
  */
 export function parseAddressComponents(components) {
   if (!components || !Array.isArray(components)) {
@@ -33,7 +34,7 @@ export function parseAddressComponents(components) {
       city: null,
       state: null,
       zip: null,
-      country: 'USA'
+      country: 'US'
     };
   }
 
@@ -70,7 +71,7 @@ export function parseAddressComponents(components) {
 
   // Postal code and country
   const zip = getComponent('postal_code');
-  const country = getComponent('country') || 'USA';
+  const country = getComponent('country') || 'US';
 
   return { address_1, address_2, city, state, zip, country };
 }

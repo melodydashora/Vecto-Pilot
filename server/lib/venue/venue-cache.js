@@ -182,7 +182,8 @@ export async function insertVenue(venue) {
       city: venue.city,
       state: venue.state?.toUpperCase(),
       zip: venue.zip,
-      country: venue.country || 'USA',
+      // 2026-01-10: D-004 Fix - Use ISO-3166-1 alpha-2 code
+      country: venue.country || 'US',
       lat: venue.lat,
       lng: venue.lng,
       coord_key: coordKey,

@@ -322,7 +322,8 @@ async function upsertVenueCatalog(venue) {
           city: venue.city,
           state: venue.state,
           zip: venue.zip,
-          country: venue.country || 'USA',
+          // 2026-01-10: D-004 Fix - Use ISO-3166-1 alpha-2 code
+          country: venue.country || 'US',
           formatted_address: venue.formatted_address,
           address_1: venue.address_1,
           place_id: venue.place_id,

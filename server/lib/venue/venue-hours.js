@@ -5,17 +5,22 @@
  * No LLM calls required - pure date/time logic
  *
  * 2026-01-08: Created for venue hours standardization
+ * 2026-01-10: D-014 Gap Fix - Now uses canonical hours module internally
  */
 
-const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+// 2026-01-10: D-014 Gap Fix - Use canonical hours module
+import { parseStructuredHoursFullWeek, getOpenStatus } from './hours/index.js';
 
 /**
  * Check if venue is open at a specific time
  *
+ * 2026-01-10: D-014 Gap Fix - Now uses canonical hours module internally.
+ * This wrapper maintains backward compatibility for consolidator.js and other callers.
+ *
  * @param {Object} hoursFullWeek - Structured hours JSON from venue_catalog.hours_full_week
  * @param {string} timezone - IANA timezone (e.g., "America/Chicago")
  * @param {Date} checkTime - Time to check (defaults to now)
- * @returns {Object} { isOpen: boolean, nextChange: string, reason: string }
+ * @returns {Object} { isOpen: boolean|null, nextChange: string|null, reason: string }
  *
  * @example
  * const result = isOpenNow(venue.hours_full_week, "America/Chicago");
@@ -26,60 +31,25 @@ export function isOpenNow(hoursFullWeek, timezone, checkTime = new Date()) {
     return { isOpen: null, nextChange: null, reason: 'No hours data' };
   }
 
-  // Get current day and time in venue's timezone
-  const dayOfWeek = checkTime.toLocaleDateString('en-US', {
-    timeZone: timezone,
-    weekday: 'long'
-  }).toLowerCase();
-
-  const currentTime = checkTime.toLocaleTimeString('en-US', {
-    timeZone: timezone,
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit'
-  }); // "14:30"
-
-  const todayHours = hoursFullWeek[dayOfWeek];
-
-  // Check if closed today
-  if (!todayHours || todayHours.closed === true) {
-    return { isOpen: false, nextChange: null, reason: `Closed on ${dayOfWeek}` };
+  // 2026-01-10: D-014 Gap Fix - Require timezone (no fallbacks per CLAUDE.md)
+  if (!timezone) {
+    return { isOpen: null, nextChange: null, reason: 'Missing timezone' };
   }
 
-  const { open, close, closes_next_day } = todayHours;
+  // 2026-01-10: D-014 Gap Fix - Use canonical parser + evaluator
+  const parseResult = parseStructuredHoursFullWeek(hoursFullWeek);
 
-  if (!open || !close) {
-    return { isOpen: null, nextChange: null, reason: 'Invalid hours data' };
+  if (!parseResult.ok) {
+    return { isOpen: null, nextChange: null, reason: parseResult.error || 'Parse failed' };
   }
 
-  // Check if currently open
-  let isOpen = false;
+  const status = getOpenStatus(parseResult.schedule, timezone, checkTime);
 
-  if (closes_next_day) {
-    // Venue closes after midnight (e.g., 4pm - 2am)
-    // Open if: currentTime >= open (same day) OR currentTime < close (early morning)
-    isOpen = currentTime >= open || currentTime < close;
-  } else {
-    // Normal hours (e.g., 11am - 11pm)
-    isOpen = currentTime >= open && currentTime < close;
-  }
-
-  // Format reason
-  const formatTime12h = (time24) => {
-    const [h, m] = time24.split(':').map(Number);
-    const period = h >= 12 ? 'PM' : 'AM';
-    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return m === 0 ? `${hour12} ${period}` : `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
-  };
-
-  const reason = isOpen
-    ? `Open until ${formatTime12h(close)}${closes_next_day ? ' (next day)' : ''}`
-    : `Opens at ${formatTime12h(open)}`;
-
+  // Map canonical OpenStatus to legacy return format for backward compatibility
   return {
-    isOpen,
-    nextChange: isOpen ? close : open,
-    reason
+    isOpen: status.is_open,
+    nextChange: status.is_open ? status.closes_at : status.opens_at,
+    reason: status.reason
   };
 }
 

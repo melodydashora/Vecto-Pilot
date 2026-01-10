@@ -60,10 +60,16 @@ function calculateOpenStatus(place, timezone) {
     }
   }
 
-  // Fall back to Google's openNow only if we couldn't calculate (hint, not truth)
-  if (is_open === null && hours.openNow !== undefined) {
-    is_open = hours.openNow;
-    barsLog.info(`"${place.displayName?.text}" - Using Google openNow=${is_open} as fallback (no canonical data)`);
+  // 2026-01-10: D-018 Fix - openNow is ONLY for debug comparison, NOT as truth
+  // Per CLAUDE.md: Never trust Google's openNow directly. Always parse weekdayDescriptions.
+  if (hours.openNow !== undefined && is_open !== null) {
+    // Log discrepancy for debugging (don't override canonical result)
+    if (hours.openNow !== is_open) {
+      barsLog.warn(`"${place.displayName?.text}" - openNow DISCREPANCY: Google=${hours.openNow}, Canonical=${is_open} (using canonical)`);
+    }
+  } else if (is_open === null && hours.openNow !== undefined) {
+    // No canonical data available - log warning but still don't use openNow as truth
+    barsLog.warn(`"${place.displayName?.text}" - Cannot calculate is_open (no weekdayDescriptions), Google openNow=${hours.openNow} (NOT USED)`);
   }
 
   // Get today's hours - NO FALLBACK, timezone required for accurate venue status
