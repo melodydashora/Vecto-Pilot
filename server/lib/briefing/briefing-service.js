@@ -19,6 +19,9 @@ import { dumpLastBriefingRow } from './dump-last-briefing.js';
 // 2026-01-09: Canonical ETL pipeline modules - use these for validation
 // Local filterInvalidEvents is kept for backwards compatibility but delegates to canonical
 import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
+// 2026-01-10: Added for Gemini-only event discovery (normalizing + hashing)
+import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
+import { generateEventHash } from '../events/pipeline/hashEvent.js';
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 import { getTomTomTraffic } from '../external/tomtom-traffic.js';
@@ -274,260 +277,9 @@ Return an empty array [] if no events found.`;
   return { items: allEvents, citations: allCitations, reason: null, provider: 'claude' };
 }
 
-/**
- * Analyze TomTom traffic data with Claude to produce human-readable briefing
- * Takes raw prioritized incidents and creates a dispatcher-style summary
- */
-async function analyzeTrafficWithClaude({ tomtomData, city, state, formattedAddress }) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return null; // Fall back to raw data
-  }
-
-  const startTime = Date.now();
-  briefingLog.ai(1, 'Claude', `analyzing traffic for ${city}, ${state}`);
-
-  try {
-    // 2026-01-10: Use callModel adapter instead of direct SDK call (D-016 fix)
-    // Prepare incident summary for traffic analysis
-    const stats = tomtomData.stats || {};
-    const incidents = tomtomData.incidents || [];
-
-    // Group incidents by category for analysis
-    const closures = incidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed');
-    const construction = incidents.filter(i => i.category === 'Road Works');
-    const jams = incidents.filter(i => i.category === 'Jam');
-    const accidents = incidents.filter(i => i.category === 'Accident');
-
-    const prompt = `You are a traffic analyst for rideshare drivers. Analyze this traffic data and provide a comprehensive briefing.
-
-DRIVER LOCATION: ${formattedAddress}
-CITY: ${city}, ${state}
-
-TRAFFIC STATISTICS:
-- Total incidents: ${stats.total || 0}
-- Highway incidents: ${stats.highways || 0}
-- Road closures: ${stats.closures || 0}
-- Construction zones: ${stats.construction || 0}
-- Traffic jams: ${stats.jams || 0}
-- Accidents: ${stats.accidents || 0}
-- Overall congestion: ${tomtomData.congestionLevel}
-
-HIGHEST PRIORITY INCIDENTS (sorted by driver impact):
-${incidents.slice(0, 20).map((inc, i) =>
-  `${i+1}. [${inc.category}] ${inc.road || ''} ${inc.location} (severity: ${inc.magnitude}, delay: ${inc.delayMinutes || 0}min)`
-).join('\n')}
-
-ROAD CLOSURES (${closures.length} total):
-${closures.slice(0, 15).map(c => `- ${c.road || ''}: ${c.location}`).join('\n') || 'None reported'}
-
-CONSTRUCTION ZONES (${construction.length} total):
-${construction.slice(0, 8).map(c => `- ${c.road || ''}: ${c.location}`).join('\n') || 'None reported'}
-
-ACTIVE TRAFFIC JAMS (${jams.length} total):
-${jams.slice(0, 10).map(j => `- ${j.road || ''}: ${j.location}`).join('\n') || 'None reported'}
-
-Return a JSON object with this EXACT structure:
-{
-  "briefing": "3-4 sentence traffic briefing focused on DRIVER IMPACT. First sentence: overall congestion level and incident count. Second sentence: which specific corridors/highways are worst affected and delays. Third sentence: secondary impacts and alternative routes. Fourth sentence (optional): time-sensitive info (rush hour ending, event traffic clearing). Be SPECIFIC with highway names, interchange names, and delay times.",
-  "keyIssues": [
-    "Specific issue 1 - road name, problem, and delay impact",
-    "Specific issue 2 - road name, problem, and delay impact",
-    "Specific issue 3 - road name, problem, and delay impact"
-  ],
-  "avoidAreas": [
-    "Road/area to avoid: specific reason (e.g., '20+ min delays')",
-    "Another road/area: specific reason"
-  ],
-  "driverImpact": "One sentence: How this specifically affects rideshare drivers - impact on pickup times, areas to avoid for efficient routing, expected delay ranges",
-  "closuresSummary": "Summary of road closures - count and most impactful ones",
-  "constructionSummary": "Summary of construction zones if significant"
-}
-
-IMPORTANT: The "briefing" field should be 3-4 sentences that a driver can read in 10 seconds to understand the traffic situation and make routing decisions. Focus on DRIVER IMPACT - which roads to avoid, expected delays, and alternative routing suggestions.`;
-
-    // 2026-01-10: Use adapter pattern per CLAUDE.md (D-016 fix)
-    const result = await callModel('BRIEFING_TRAFFIC', {
-      system: 'You are a traffic analyst for rideshare drivers.',
-      user: prompt
-    });
-
-    if (!result.ok) {
-      briefingLog.warn(1, `BRIEFING_TRAFFIC failed: ${result.error || 'unknown'}`, OP.AI);
-      return null;
-    }
-
-    const content = result.output || '';
-
-    // Parse JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      briefingLog.warn(1, `Claude traffic analysis returned non-JSON`, OP.AI);
-      return null;
-    }
-
-    const analysis = JSON.parse(jsonMatch[0]);
-    const elapsedMs = Date.now() - startTime;
-    briefingLog.done(1, `Claude traffic analysis (${elapsedMs}ms)`, OP.AI);
-
-    return {
-      briefing: analysis.briefing,  // Full 2-3 sentence traffic briefing
-      headline: analysis.briefing?.split('.')[0] + '.' || analysis.headline,  // First sentence for backwards compat
-      keyIssues: analysis.keyIssues || [],
-      avoidAreas: analysis.avoidAreas || [],
-      driverImpact: analysis.driverImpact,
-      closuresSummary: analysis.closuresSummary,
-      constructionSummary: analysis.constructionSummary,
-      analyzedAt: new Date().toISOString()
-    };
-  } catch (err) {
-    // Check if this is a credit exhaustion error - try GPT-5.2 fallback
-    const isCreditError = err.message?.includes('credit balance') ||
-                          err.message?.includes('insufficient_quota') ||
-                          err.status === 400 || err.status === 402;
-
-    if (isCreditError && openaiClient) {
-      briefingLog.warn(1, `Claude traffic analysis failed (credits) - trying GPT-5.2 fallback`, OP.FALLBACK);
-
-      // Try GPT-5.2 fallback
-      const fallbackResult = await analyzeTrafficWithGPT52({ tomtomData, city, state, formattedAddress });
-      const fallbackSucceeded = fallbackResult !== null;
-
-      // Send email alert about the credit error
-      sendModelErrorAlert({
-        model: 'claude-opus-4-5-20251101',
-        errorType: 'credit_exhaustion',
-        errorMessage: err.message || 'Credit balance too low to access Anthropic API',
-        context: 'traffic_analysis',
-        fallbackSucceeded,
-        fallbackModel: fallbackSucceeded ? 'gpt-5.2' : null
-      }).catch(emailErr => console.error('Email alert failed:', emailErr.message));
-
-      return fallbackResult;
-    }
-
-    // Send email alert for other errors too
-    sendModelErrorAlert({
-      model: 'claude-opus-4-5-20251101',
-      errorType: 'api_error',
-      errorMessage: err.message,
-      context: 'traffic_analysis',
-      fallbackSucceeded: false
-    }).catch(emailErr => console.error('Email alert failed:', emailErr.message));
-
-    briefingLog.warn(1, `Claude traffic analysis failed: ${err.message}`, OP.FALLBACK);
-    return null;
-  }
-}
-
-/**
- * Analyze TomTom traffic data with GPT-5.2 (fallback when Claude fails)
- * Takes raw prioritized incidents and creates a dispatcher-style summary
- */
-async function analyzeTrafficWithGPT52({ tomtomData, city, state, formattedAddress }) {
-  if (!openaiClient) {
-    briefingLog.warn(1, `GPT-5.2 fallback unavailable - no OPENAI_API_KEY`, OP.FALLBACK);
-    return null;
-  }
-
-  const startTime = Date.now();
-  briefingLog.ai(1, 'GPT-5.2', `analyzing traffic for ${city}, ${state} (fallback)`);
-
-  try {
-    // Prepare incident summary (same as Claude version)
-    const stats = tomtomData.stats || {};
-    const incidents = tomtomData.incidents || [];
-
-    // Group incidents by category for analysis
-    const closures = incidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed');
-    const construction = incidents.filter(i => i.category === 'Road Works');
-    const jams = incidents.filter(i => i.category === 'Jam');
-
-    const prompt = `You are a traffic analyst for rideshare drivers. Analyze this traffic data and provide a comprehensive briefing.
-
-DRIVER LOCATION: ${formattedAddress}
-CITY: ${city}, ${state}
-
-TRAFFIC STATISTICS:
-- Total incidents: ${stats.total || 0}
-- Highway incidents: ${stats.highways || 0}
-- Road closures: ${stats.closures || 0}
-- Construction zones: ${stats.construction || 0}
-- Traffic jams: ${stats.jams || 0}
-- Accidents: ${stats.accidents || 0}
-- Overall congestion: ${tomtomData.congestionLevel}
-
-HIGHEST PRIORITY INCIDENTS (sorted by driver impact):
-${incidents.slice(0, 20).map((inc, i) =>
-  `${i+1}. [${inc.category}] ${inc.road || ''} ${inc.location} (severity: ${inc.magnitude}, delay: ${inc.delayMinutes || 0}min)`
-).join('\n')}
-
-ROAD CLOSURES (${closures.length} total):
-${closures.slice(0, 15).map(c => `- ${c.road || ''}: ${c.location}`).join('\n') || 'None reported'}
-
-CONSTRUCTION ZONES (${construction.length} total):
-${construction.slice(0, 8).map(c => `- ${c.road || ''}: ${c.location}`).join('\n') || 'None reported'}
-
-ACTIVE TRAFFIC JAMS (${jams.length} total):
-${jams.slice(0, 10).map(j => `- ${j.road || ''}: ${j.location}`).join('\n') || 'None reported'}
-
-Return a JSON object with this EXACT structure:
-{
-  "briefing": "3-4 sentence traffic briefing focused on DRIVER IMPACT. First sentence: overall congestion level and incident count. Second sentence: which specific corridors/highways are worst affected and delays. Third sentence: secondary impacts and alternative routes. Fourth sentence (optional): time-sensitive info (rush hour ending, event traffic clearing). Be SPECIFIC with highway names, interchange names, and delay times.",
-  "keyIssues": [
-    "Specific issue 1 - road name, problem, and delay impact",
-    "Specific issue 2 - road name, problem, and delay impact",
-    "Specific issue 3 - road name, problem, and delay impact"
-  ],
-  "avoidAreas": [
-    "Road/area to avoid: specific reason (e.g., '20+ min delays')",
-    "Another road/area: specific reason"
-  ],
-  "driverImpact": "One sentence: How this specifically affects rideshare drivers - impact on pickup times, areas to avoid for efficient routing, expected delay ranges",
-  "closuresSummary": "Summary of road closures - count and most impactful ones",
-  "constructionSummary": "Summary of construction zones if significant"
-}
-
-IMPORTANT: Return ONLY valid JSON. The "briefing" field should be 3-4 sentences that a driver can read in 10 seconds.`;
-
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-5.2',
-      max_completion_tokens: 2048,
-      reasoning_effort: 'medium',
-      messages: [
-        { role: 'system', content: 'You are a traffic analyst assistant. Return only valid JSON responses.' },
-        { role: 'user', content: prompt }
-      ]
-    });
-
-    const content = response.choices[0]?.message?.content || '';
-
-    // Parse JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      briefingLog.warn(1, `GPT-5.2 traffic analysis returned non-JSON`, OP.FALLBACK);
-      return null;
-    }
-
-    const analysis = JSON.parse(jsonMatch[0]);
-    const elapsedMs = Date.now() - startTime;
-    briefingLog.done(1, `GPT-5.2 traffic analysis (${elapsedMs}ms) - fallback success`, OP.FALLBACK);
-
-    return {
-      briefing: analysis.briefing,
-      headline: analysis.briefing?.split('.')[0] + '.' || analysis.headline,
-      keyIssues: analysis.keyIssues || [],
-      avoidAreas: analysis.avoidAreas || [],
-      driverImpact: analysis.driverImpact,
-      closuresSummary: analysis.closuresSummary,
-      constructionSummary: analysis.constructionSummary,
-      analyzedAt: new Date().toISOString(),
-      fallbackProvider: 'gpt-5.2'
-    };
-  } catch (err) {
-    briefingLog.warn(1, `GPT-5.2 traffic analysis failed: ${err.message}`, OP.FALLBACK);
-    return null;
-  }
-}
+// 2026-01-10: DEAD CODE REMOVED - analyzeTrafficWithClaude and analyzeTrafficWithGPT52
+// Traffic analysis now uses analyzeTrafficWithAI exclusively (see below)
+// Previous multi-model fallback chain was replaced with single Briefer model approach
 
 /**
  * Analyze TomTom traffic data with AI for strategic, driver-focused summary
@@ -1096,19 +848,54 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   weekFromNow.setDate(weekFromNow.getDate() + 7);
   const endDateStr = weekFromNow.toISOString().split('T')[0];
 
-  briefingLog.ai(2, 'SerpAPI+GPT-5.2', `events for ${city}, ${state} (${todayStr})`);
+  // 2026-01-10: Consolidated event discovery using Briefer model with Google Search tools
+  // Simpler pipeline, lower cost, cleaner data - model-agnostic (configured via BRIEFING_EVENTS_MODEL)
+  briefingLog.phase(2, `Event discovery for ${city}, ${state} (${todayStr})`, OP.AI);
 
   try {
-    // Run SerpAPI + GPT-5.2 event discovery (isDaily=false = fast mode)
-    // This stores discovered events in the discovered_events table
-    const syncResult = await syncEventsForLocation(
-      { city, state, lat, lng },
-      false // isDaily=false means SerpAPI + GPT-5.2 only
-    );
+    // Run parallel category search using configured Briefer model
+    const discoveryResult = await fetchEventsWithGemini3ProPreview({ snapshot });
 
-    briefingLog.done(2, `Sync: ${syncResult.events.length} found, ${syncResult.inserted} new`, OP.AI);
-  } catch (syncErr) {
-    briefingLog.warn(2, `Event sync failed: ${syncErr.message}`, OP.AI);
+    if (discoveryResult.items && discoveryResult.items.length > 0) {
+      briefingLog.done(2, `Events: ${discoveryResult.items.length} discovered`, OP.AI);
+
+      // Store discovered events in DB for caching and SmartBlocks integration
+      // Note: This uses the canonical ETL pipeline for validation/normalization
+      const normalized = discoveryResult.items.map(e => normalizeEvent(e));
+      const validated = validateEventsHard(normalized);
+
+      for (const event of validated) {
+        try {
+          const hash = generateEventHash(event);
+          await db.insert(discovered_events).values({
+            title: event.title,
+            venue_name: event.venue || event.location,
+            address: event.address,
+            city: city,
+            state: state,
+            event_start_date: event.event_start_date,
+            event_start_time: event.event_start_time,
+            event_end_time: event.event_end_time,
+            lat: event.latitude || event.lat,
+            lng: event.longitude || event.lng,
+            category: event.event_type || event.category || 'other',
+            expected_attendance: event.impact === 'high' ? 'high' : event.impact === 'low' ? 'low' : 'medium',
+            source_model: 'gemini-3-pro',
+            event_hash: hash
+          }).onConflictDoUpdate({
+            target: discovered_events.event_hash,
+            set: { updated_at: sql`NOW()` }
+          });
+        } catch (insertErr) {
+          // Ignore individual insert errors (duplicates, etc.)
+          if (!insertErr.message?.includes('duplicate')) {
+            briefingLog.warn(2, `Event insert failed: ${insertErr.message}`, OP.DB);
+          }
+        }
+      }
+    }
+  } catch (discoveryErr) {
+    briefingLog.warn(2, `Event discovery failed: ${discoveryErr.message}`, OP.AI);
     // Continue - we can still read cached events from DB
   }
 
@@ -1780,9 +1567,9 @@ function filterRecentNews(newsItems, todayDate) {
 }
 
 /**
- * Fetch rideshare news using DUAL-MODEL parallel fetch
- * 2026-01-05: Refactored to use both Gemini + Google Search AND GPT-5.2 + web search
- * Results are consolidated with deduplication and relevance filtering
+ * Fetch rideshare news using Gemini 3.0 Pro with Google Search tools
+ * 2026-01-10: CONSOLIDATED to Gemini-only (removed GPT-5.2 parallel fetch)
+ * Single-model approach for simpler pipeline, lower cost, cleaner data
  *
  * @param {Object} params
  * @param {Object} params.snapshot - Snapshot with city, state, timezone
@@ -1832,104 +1619,59 @@ export async function fetchRideshareNews({ snapshot }) {
   }
 
   // Build the enhanced prompt with Market, City, Airport, Headlines
+  // 2026-01-10: Updated prompt to strip source citations for cleaner UI
   const newsPrompt = buildNewsPrompt({ city, state, market, date });
-  const system = `You are a rideshare news research assistant for drivers on platforms like Uber, Lyft, ridehail, taxis, and private car services. Search for recent news and return structured JSON with publication dates. Focus on news that IMPACTS driver earnings, strategy, and working conditions.`;
+  const system = `You are a rideshare news research assistant for drivers on platforms like Uber, Lyft, ridehail, taxis, and private car services. Search for recent news and return structured JSON with publication dates. Focus on news that IMPACTS driver earnings, strategy, and working conditions. DO NOT include source citations, URLs, or "[Source: ...]" text in your summaries - return CLEAN text suitable for display.`;
 
-  // 2026-01-05: DUAL-MODEL PARALLEL FETCH
-  // Run Gemini + Google Search AND GPT-5.2 + web search in parallel
-  briefingLog.phase(2, `Dual-model news fetch: ${city}, ${state} (market: ${market})`, OP.AI);
+  // 2026-01-10: Consolidated to single Briefer model (configured via BRIEFING_NEWS_MODEL)
+  // Single-model approach: simpler pipeline, lower cost, cleaner data
+  briefingLog.phase(2, `News fetch: ${city}, ${state} (market: ${market})`, OP.AI);
 
-  const hasGemini = !!process.env.GEMINI_API_KEY;
-  const hasOpenAI = !!process.env.OPENAI_API_KEY;
-
-  if (!hasGemini && !hasOpenAI) {
-    // Try Claude web search as last resort
-    if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.ai(2, 'Claude', `news for ${city}, ${state} - web search fallback`);
-      return fetchNewsWithClaudeWebSearch({ city, state, date });
-    }
-    briefingLog.warn(2, `No API keys configured for news search`, OP.AI);
-    return { items: [], reason: 'No API keys configured for news search' };
+  if (!process.env.GEMINI_API_KEY) {
+    briefingLog.warn(2, `BRIEFING_NEWS model not configured (requires GEMINI_API_KEY)`, OP.AI);
+    return { items: [], reason: 'Briefer model not configured' };
   }
 
-  // Launch parallel fetches
-  const fetchPromises = [];
+  try {
+    const result = await callModel('BRIEFING_NEWS', { system, user: newsPrompt });
 
-  if (hasGemini) {
-    briefingLog.ai(2, 'Gemini', `news for ${market}`);
-    fetchPromises.push(
-      callModel('BRIEFING_NEWS', { system, user: newsPrompt })
-        .then(result => ({ provider: 'gemini', result }))
-        .catch(err => ({ provider: 'gemini', result: { ok: false, error: err.message } }))
-    );
-  }
-
-  if (hasOpenAI) {
-    briefingLog.ai(2, 'GPT-5.2', `news for ${market}`);
-    fetchPromises.push(
-      callModel('BRIEFING_NEWS_GPT', { system, user: newsPrompt })
-        .then(result => ({ provider: 'gpt', result }))
-        .catch(err => ({ provider: 'gpt', result: { ok: false, error: err.message } }))
-    );
-  }
-
-  // Wait for all fetches to complete
-  const results = await Promise.all(fetchPromises);
-
-  // Process and consolidate results
-  const allNewsItems = [];
-  const providers = [];
-
-  for (const { provider, result } of results) {
     if (!result.ok) {
-      briefingLog.warn(2, `${provider} news failed: ${result.error}`, OP.AI);
-      continue;
+      briefingLog.warn(2, `News fetch failed: ${result.error}`, OP.AI);
+      return { items: [], reason: `News fetch failed: ${result.error}`, provider: 'briefer' };
     }
 
-    try {
-      const parsed = safeJsonParse(result.output);
-      const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
+    const parsed = safeJsonParse(result.output);
+    const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
 
-      if (newsArray.length > 0) {
-        // Tag each item with its source provider
-        const taggedItems = newsArray.map(item => ({
-          ...item,
-          _provider: provider
-        }));
-        allNewsItems.push(...taggedItems);
-        providers.push(provider);
-        briefingLog.info(`${provider}: ${newsArray.length} news items found`, OP.AI);
-      }
-    } catch (parseErr) {
-      briefingLog.warn(2, `${provider} news parse failed: ${parseErr.message}`, OP.AI);
+    if (newsArray.length === 0) {
+      briefingLog.info(`No news items found for ${market}`, OP.AI);
+      return { items: [], reason: `No rideshare news found for ${market} market`, provider: 'briefer' };
     }
+
+    // Filter recent news + sort by impact
+    const filtered = filterRecentNews(newsArray, date);
+    const sorted = filtered.sort((a, b) => {
+      const impactOrder = { high: 0, medium: 1, low: 2 };
+      return (impactOrder[a.impact] ?? 2) - (impactOrder[b.impact] ?? 2);
+    });
+
+    briefingLog.done(2, `News: ${sorted.length} items for ${market}`, OP.AI);
+
+    return {
+      items: sorted,
+      reason: null,
+      provider: 'briefer'
+    };
+  } catch (err) {
+    briefingLog.error(2, `News fetch error: ${err.message}`, err, OP.AI);
+    return { items: [], reason: `News fetch error: ${err.message}`, provider: 'briefer' };
   }
-
-  // If no news from either model, try Claude fallback
-  if (allNewsItems.length === 0) {
-    if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.warn(2, `Both models returned 0 news - trying Claude web search`, OP.FALLBACK);
-      return fetchNewsWithClaudeWebSearch({ city, state, date });
-    }
-    return { items: [], reason: `No rideshare news found for ${market} market`, provider: 'dual-model' };
-  }
-
-  // Consolidate: dedupe by title similarity + filter recent + sort by impact
-  const consolidated = consolidateNewsItems(allNewsItems, date);
-
-  briefingLog.done(2, `Dual-model: ${consolidated.length} unique news items (from ${allNewsItems.length} raw, providers: ${providers.join('+')})`, OP.AI);
-
-  return {
-    items: consolidated,
-    reason: null,
-    provider: providers.join('+'),
-    rawCount: allNewsItems.length
-  };
 }
 
 /**
  * Build the enhanced news prompt with Market, City, Airport, Headlines
  * 2026-01-05: Expanded scope for rideshare drivers
+ * 2026-01-10: GEMINI-ONLY - Updated to strip source citations for cleaner UI
  */
 function buildNewsPrompt({ city, state, market, date }) {
   return `Search for news relevant to RIDESHARE DRIVERS (Uber, Lyft, ridehail, taxi, private car service).
@@ -1955,17 +1697,15 @@ PUBLICATION DATE REQUIREMENT:
 - EVEN IF older, include if STILL RELEVANT to drivers (e.g., ongoing construction, multi-day events)
 - Each item MUST have a published_date - if you can't determine the date, exclude it
 
-Return JSON:
+Return JSON (NO source citations, NO URLs in summary text, CLEAN display-ready content):
 {
   "items": [
     {
-      "title": "News Title",
-      "summary": "HOW this affects rideshare drivers - be specific about impact on earnings or strategy",
+      "title": "News Title (clean, no source attribution)",
+      "summary": "HOW this affects rideshare drivers - be specific about impact on earnings or strategy. NO [Source: ...] or URL references.",
       "published_date": "YYYY-MM-DD",
       "impact": "high" | "medium" | "low",
-      "category": "airport" | "traffic" | "event" | "platform" | "regulation" | "weather" | "cost",
-      "source": "Source Name",
-      "link": "url"
+      "category": "airport" | "traffic" | "event" | "platform" | "regulation" | "weather" | "cost"
     }
   ],
   "reason": null
@@ -1975,7 +1715,8 @@ REQUIREMENTS:
 1. published_date is REQUIRED - extract from each article
 2. summary MUST explain the DRIVER IMPACT (not just what happened)
 3. Return 3-8 items maximum, sorted by impact (high first)
-4. If no news found: {"items": [], "reason": "No rideshare-relevant news for ${market} market"}`;
+4. NO source citations, NO URLs, NO "[Source: ...]" text - keep summaries CLEAN for mobile display
+5. If no news found: {"items": [], "reason": "No rideshare-relevant news for ${market} market"}`;
 }
 
 /**

@@ -132,44 +132,18 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (contextSnapshotId && !lastSnapshotId) {
-      console.log("🔄 CoPilotContext: Using snapshot from context:", contextSnapshotId);
+      // 2026-01-10: CONSOLIDATED - This useEffect only syncs state
+      // The vecto-snapshot-saved event listener (below) is the SINGLE source of waterfall triggers
+      // This prevents race conditions from having two code paths trigger the same POST
+      console.log("🔄 CoPilotContext: Syncing snapshot from context:", contextSnapshotId.slice(0, 8));
       setLastSnapshotId(contextSnapshotId);
 
-      // 2026-01-06: P3-D - Skip blocks-fast if this is a resume
+      // 2026-01-06: P3-D - Mark resume mode in dedup set (waterfall skipped by event handler)
       if (checkAndClearResumeMode()) {
-        console.log("📦 CoPilotContext: RESUME MODE - skipping blocks-fast waterfall, using cached strategy");
+        console.log("📦 CoPilotContext: RESUME MODE - marking in dedup set");
         waterfallTriggeredRef.current.add(contextSnapshotId);
-        return;
       }
-
-      // DEDUPLICATION: Skip if already triggered for this snapshot
-      if (waterfallTriggeredRef.current.has(contextSnapshotId)) {
-        console.log("⏭️ CoPilotContext: Skipping duplicate waterfall (already triggered via event):", contextSnapshotId.slice(0, 8));
-        return;
-      }
-      waterfallTriggeredRef.current.add(contextSnapshotId);
-
-      // Trigger waterfall for this snapshot
-      (async () => {
-        try {
-          console.log("🚀 Triggering POST /api/blocks-fast waterfall (from useEffect)...", contextSnapshotId.slice(0, 8));
-          const response = await fetch('/api/blocks-fast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-            body: JSON.stringify({ snapshotId: contextSnapshotId })
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            console.error("❌ Waterfall failed:", error);
-          } else {
-            const result = await response.json();
-            console.log("✅ Waterfall complete:", result);
-          }
-        } catch (err) {
-          console.error("❌ Waterfall error:", err);
-        }
-      })();
+      // NOTE: Waterfall is triggered by vecto-snapshot-saved event, not here
     }
   }, [locationContext?.lastSnapshotId, lastSnapshotId]);
 
@@ -467,7 +441,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
             businessHours: v.businessHours,
             isOpen: v.isOpen,
             businessStatus: v.businessStatus,
-            closedVenueReasoning: v.closedVenueReasoning,
+            // 2026-01-10: Snake/camel tolerant - fallback for legacy server responses
+            closedVenueReasoning: v.closedVenueReasoning ?? v.closed_venue_reasoning,
             stagingArea: v.stagingArea,
             proTips: v.proTips ?? [],
             streetViewUrl: v.streetViewUrl,
@@ -611,8 +586,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       traffic: trafficData?.traffic || null,
       news: newsData?.news || null,
       events: eventsData?.events || [],
-      schoolClosures: schoolClosuresData?.school_closures || [],
-      airport: airportData?.airport_conditions || null,
+      // 2026-01-10: Snake/camel tolerant - accept both server response formats
+      schoolClosures: schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures ?? [],
+      airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
       isLoading: briefingIsLoading,
     },
 

@@ -910,4 +910,110 @@ The following documentation was created as part of the ETL refactoring commit:
 
 ---
 
+## 2026-01-10 Analysis
+
+**Generated:** 2026-01-10T07:34:45.811Z
+**Branch:** main
+**Last Commit:** dd3a6b6c Fix: D-023 to D-026 UI Casing Drift + MapPage Cache
+
+### Uncommitted Changes (1)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+
+### Recent Commit Changes (40)
+| File | Status |
+|------|--------|
+| `.serena/memories/strategy-pipeline-audit-2026-01-10.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `client/src/contexts/README.md` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/pages/co-pilot/MapPage.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/pages/co-pilot/StrategyPage.tsx` | Modified |
+| `docs/AUDIT_LEDGER.md` | Added |
+| `docs/DATABASE_SCHEMA.md` | Modified |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/architecture/strategy-framework.md` | Modified |
+| `docs/plans/CONSOLIDATED_CLEANUP_2026-01-10.md` | Added |
+| `docs/review-queue/2026-01-10.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `migrations/20260110_fix_strategy_now_notify.sql` | Added |
+| `scripts/create-all-tables.sql` | Modified |
+| `scripts/venue-data-cleanup.js` | Added |
+| `sent-to-strategist.txt` | Modified |
+| `server/api/location/location.js` | Modified |
+| ... and 20 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/client-structure.md` - Context provider changes (client/src/contexts/co-pilot-context.tsx)
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/location/location.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/coords-key.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/coords-key.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Strategy pipeline changes (server/lib/strategy/status-constants.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/migrations/2026-01-10-d013-places-cache-rename.sql)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/migrations/2026-01-10-d013-places-cache-rename.sql)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (migrations/20260110_fix_strategy_now_notify.sql)
+- [ ] Consider adding documentation - New file added (scripts/venue-data-cleanup.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-10 Analysis
+
+**Generated:** 2026-01-10T08:17:08.737Z
+**Branch:** main
+**Last Commit:** 31483e0c Docs: Update READMEs for AI and Validation modules
+
+### Uncommitted Changes (8)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+| `client/src/components/MapTab.tsx` | Modified |
+| `client/src/pages/co-pilot/MapPage.tsx` | Modified |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/review-queue/2026-01-10.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `server/validation/transformers.js` | Modified |
+| `migrations/20260110_rename_event_columns.sql` | Untracked |
+
+### Recent Commit Changes (9)
+| File | Status |
+|------|--------|
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/plans/SINGLE_CONTRACT_PLAN_2026-01-10.md` | Added |
+| `server/api/strategy/blocks-fast.js` | Modified |
+| `server/lib/ai/README.md` | Modified |
+| `server/lib/ai/model-registry.js` | Modified |
+| `server/validation/README.md` | Modified |
+| `server/validation/response-schemas.js` | Modified |
+| `shared/schema.js` | Modified |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/model-registry.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/model-registry.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/MapTab.tsx)
+
+### Status: PENDING
+
+---
+
 ---

@@ -23,7 +23,7 @@
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
 | S-001 | `migrations/20260110_fix_strategy_now_notify.sql` | SSE trigger only fires for `consolidated_strategy` | New migration fires for both `strategy_for_now` AND `consolidated_strategy` | ✅ FIXED |
-| S-002 | `server/api/strategy/blocks-fast.js:66-93` | Advisory locks use session-level (can leak) | Comment says `pg_advisory_xact_lock` but code uses `pg_advisory_lock` | DOCUMENTED |
+| S-002 | `server/api/strategy/blocks-fast.js:162-217` | Advisory locks use session-level (can leak) | Now uses `pg_try_advisory_xact_lock` inside `db.transaction()` with two-phase locking | ✅ FIXED |
 | S-003 | `server/api/strategy/blocks-fast.js:352` | Error message says "consolidated" | Changed to "Waiting for immediate strategy to complete" | ✅ FIXED |
 | S-004 | `server/lib/strategy/status-constants.js` | Status enum drift | Created canonical `STRATEGY_STATUS` enum with all valid values | ✅ FIXED |
 | S-005 | `server/api/strategy/blocks-fast.js:276` | `mapCandidatesToBlocks` missing snake_case tolerance | Added full snake/camel fallback chain for `isOpen` | ✅ FIXED |
@@ -63,6 +63,10 @@ IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL T
 | D-027 | `server/api/strategy/blocks-fast.js` | Response used `strategy_for_now` | All response paths now use `strategyForNow` (camelCase) | ✅ FIXED |
 | D-028 | `server/lib/ai/model-registry.js` | Suboptimal LLM settings | Added thinkingLevel HIGH, lowered temperatures for consistency | ✅ FIXED |
 | D-029 | `shared/schema.js:264` | `venue_catalog.country` default was `'USA'` | Fixed to `'US'` (ISO 3166-1 alpha-2) | ✅ FIXED |
+| D-030a | `client/src/components/MapTab.tsx:84-94` | MapBar interface used snake_case | Updated to camelCase (`isOpen`, `expenseRank`, `closingSoon`, etc.) | ✅ FIXED |
+| D-030b | `client/src/pages/co-pilot/MapPage.tsx:53-66` | MapBar mapped to snake_case | Eliminated mapping layer, uses camelCase directly | ✅ FIXED |
+| D-030c | `server/validation/transformers.js:100` | `toApiVenue` missing tolerance | Added snake/camel tolerance for `isOpen`, `closedGoAnyway`, `closedReason` | ✅ FIXED |
+| D-030d | `migrations/20260110_rename_event_columns.sql` | DB has `event_date` but schema expects `event_start_date` | Created migration to rename columns for symmetric naming | ✅ CREATED |
 
 **Impact of D-023/D-024:**
 - UI fields were silently undefined when server returned camelCase
@@ -226,6 +230,10 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-027 | 2026-01-10 | `server/api/strategy/blocks-fast.js` | All response paths now use `strategyForNow` (camelCase), client fallbacks removed |
 | D-028 | 2026-01-10 | `server/lib/ai/model-registry.js` | Optimized LLM settings: STRATEGY_CORE temp 0.7→0.5, added thinkingLevel HIGH for 5 Gemini roles |
 | D-029 | 2026-01-10 | `shared/schema.js:264` | Fixed `venue_catalog.country` default from `'USA'` to `'US'` (ISO alpha-2) |
+| D-030a | 2026-01-10 | `client/src/components/MapTab.tsx` | Updated MapBar interface to camelCase: `isOpen`, `expenseRank`, `closingSoon`, `minutesUntilClose`, `placeId` |
+| D-030b | 2026-01-10 | `client/src/pages/co-pilot/MapPage.tsx` | Eliminated snake_case mapping layer, MapBar now uses camelCase directly from useBarsQuery |
+| D-030c | 2026-01-10 | `server/validation/transformers.js` | Added `closedGoAnyway`, `closedReason` with snake/camel tolerance; made `isOpen` tolerant |
+| D-030d | 2026-01-10 | `migrations/20260110_rename_event_columns.sql` | Created migration: `event_date` → `event_start_date`, `event_time` → `event_start_time` |
 
 ---
 

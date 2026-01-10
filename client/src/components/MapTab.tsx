@@ -93,19 +93,20 @@ interface MapEvent {
 }
 
 // Bar type for map markers (green=open, red=closing soon)
-// Only shows $$ and above (expense_rank >= 2)
+// Only shows $$ and above (expenseRank >= 2)
+// 2026-01-10: Updated to camelCase to match useBarsQuery API response
 interface MapBar {
   name: string;
   type: string;
   address: string;
-  expense_level: string;
-  expense_rank: number;
-  is_open: boolean;
-  closing_soon: boolean;
-  minutes_until_close: number | null;
+  expenseLevel: string;
+  expenseRank: number;
+  isOpen: boolean;
+  closingSoon: boolean;
+  minutesUntilClose: number | null;
   lat: number;
   lng: number;
-  place_id?: string;
+  placeId?: string;
   rating?: number | null;
 }
 
@@ -446,10 +447,11 @@ const MapTab: React.FC<MapTabProps> = ({
 
     bars.forEach((bar) => {
       // Color coding: green = open, red = closing soon (only open bars are passed)
-      const isClosingSoon = bar.closing_soon;
+      // 2026-01-10: Updated to use camelCase property names
+      const isClosingSoon = bar.closingSoon;
       const color = isClosingSoon ? 'red' : 'green';
       const statusLabel = isClosingSoon
-        ? (bar.minutes_until_close ? `Closing in ${bar.minutes_until_close}min` : 'Closing soon')
+        ? (bar.minutesUntilClose ? `Closing in ${bar.minutesUntilClose}min` : 'Closing soon')
         : 'Open';
 
       const icon = `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
@@ -457,7 +459,7 @@ const MapTab: React.FC<MapTabProps> = ({
       const marker = new window.google.maps.Marker({
         position: { lat: bar.lat, lng: bar.lng },
         map: mapInstanceRef.current,
-        title: `${bar.name} (${bar.expense_level})`,
+        title: `${bar.name} (${bar.expenseLevel})`,
         icon: icon,
         zIndex: 600, // Below venues and events
       });
@@ -496,7 +498,7 @@ const MapTab: React.FC<MapTabProps> = ({
 
             <div style="display: flex; gap: 8px; margin-bottom: 8px;">
               <span style="padding: 2px 8px; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 11px; font-weight: 600;">
-                ${bar.expense_level}
+                ${bar.expenseLevel}
               </span>
               ${bar.rating ? `
                 <span style="padding: 2px 8px; background: #e0f2fe; color: #0369a1; border-radius: 4px; font-size: 11px;">

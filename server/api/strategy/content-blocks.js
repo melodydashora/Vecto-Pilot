@@ -65,9 +65,10 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       .limit(1);
 
     if (!strategy) {
+      // 2026-01-10: Use camelCase for API response per contract
       return res.json({
         status: "missing",
-        snapshot_id: snapshotId,
+        snapshotId: snapshotId,
         timeElapsedMs: 0,
         phase: "starting", // Strategy row not yet created, still initializing
       });
@@ -86,13 +87,14 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       .where(eq(briefings.snapshot_id, snapshotId))
       .limit(1);
 
-    // Format briefing for frontend (useStrategy expects this shape)
+    // Format briefing for frontend (useStrategy expects camelCase per API contract)
+    // 2026-01-10: Fixed snake_case → camelCase for schoolClosures
     const briefingData = briefingRow ? {
       events: briefingRow.events || [],
       news: briefingRow.news?.items || briefingRow.news || [],
       traffic: briefingRow.traffic_conditions || {},
       holidays: briefingRow.holidays || [],
-      school_closures: briefingRow.school_closures || [],
+      schoolClosures: briefingRow.school_closures || [],
     } : null;
 
     // Calculate elapsed time
@@ -125,22 +127,23 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         : 0;
       const expectedDurationMs = PHASE_EXPECTED_DURATIONS[currentPhase] || 5000;
 
+      // 2026-01-10: Use camelCase for API response per contract
       return res.json({
         status: STRATEGY_STATUS.PENDING,
-        snapshot_id: snapshotId,
+        snapshotId: snapshotId,
         timeElapsedMs,
         phase: currentPhase,
         // Timing metadata for dynamic progress calculation
         timing: {
-          phase_started_at: phaseStartedAt,
-          phase_elapsed_ms: phaseElapsedMs,
-          expected_duration_ms: expectedDurationMs,
-          expected_durations: PHASE_EXPECTED_DURATIONS
+          phaseStartedAt: phaseStartedAt,
+          phaseElapsedMs: phaseElapsedMs,
+          expectedDurationMs: expectedDurationMs,
+          expectedDurations: PHASE_EXPECTED_DURATIONS
         },
         waitFor: ["strategy"],
         strategy: {
           consolidated: strategy.consolidated_strategy || "",
-          strategy_for_now: "",
+          strategyForNow: "",
           holiday: snapshot?.holiday || 'none',
           briefing: briefingData,
         },
@@ -179,22 +182,23 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         : 0;
       const expectedDurationMs = PHASE_EXPECTED_DURATIONS[currentPhase] || 5000;
 
+      // 2026-01-10: Use camelCase for API response per contract
       return res.json({
         status: STRATEGY_STATUS.PENDING_BLOCKS,
-        snapshot_id: snapshotId,
+        snapshotId: snapshotId,
         timeElapsedMs,
         phase: currentPhase,
         // Timing metadata for dynamic progress calculation
         timing: {
-          phase_started_at: phaseStartedAt,
-          phase_elapsed_ms: phaseElapsedMs,
-          expected_duration_ms: expectedDurationMs,
-          expected_durations: PHASE_EXPECTED_DURATIONS
+          phaseStartedAt: phaseStartedAt,
+          phaseElapsedMs: phaseElapsedMs,
+          expectedDurationMs: expectedDurationMs,
+          expectedDurations: PHASE_EXPECTED_DURATIONS
         },
         waitFor: ["blocks"],
         strategy: {
           consolidated: strategy.consolidated_strategy || "",
-          strategy_for_now: strategy.strategy_for_now || "",
+          strategyForNow: strategy.strategy_for_now || "",
           holiday: snapshot?.holiday || 'none',
           briefing: briefingData,
         },
@@ -209,19 +213,20 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
     }
 
     // Strategy AND blocks ready - return complete data
+    // 2026-01-10: Use camelCase for API response per contract
     res.json({
       status: STRATEGY_STATUS.OK,
-      snapshot_id: snapshotId,
+      snapshotId: snapshotId,
       timeElapsedMs,
       phase: 'complete',
       strategy: {
         consolidated: strategy.consolidated_strategy || "",
-        strategy_for_now: strategy.strategy_for_now || "",
+        strategyForNow: strategy.strategy_for_now || "",
         holiday: snapshot?.holiday || null,
         briefing: briefingData,
       },
       blocks,
-      ranking_id: ranking.ranking_id,
+      rankingId: ranking.ranking_id,
     });
   } catch (error) {
     console.error(`[content-blocks] Error:`, error);
