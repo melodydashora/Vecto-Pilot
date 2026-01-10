@@ -64,6 +64,31 @@ The AI Coach needs **write access** to capture learnings from real user interact
 - Capture app-specific advice (e.g., "Turn on destination filter to stay in busy area")
 - Learn from driver feedback what worked vs. what didn't
 
+### Rule 9: ALL FINDINGS ARE HIGH PRIORITY
+
+**This repo is a "how to code with AI" reference implementation. All issues must be completely resolved.**
+
+- **Every audit finding** (from AI assistants, code review, or human inspection) is HIGH priority
+- **No "low priority" bucket** - if an issue is found, it gets fixed or explicitly documented with a timeline
+- **Includes "nice to have" suggestions** like model consolidation (e.g., "use fewer models for news/events")
+- **Zero tolerance for drift** between docs, schema, metadata, and code
+- **Duplicate logic = bug** - if the same calculation exists in multiple places, consolidate immediately
+
+**Tracking Requirements:**
+1. All findings MUST be logged in `docs/DOC_DISCREPANCIES.md` with:
+   - Unique ID (D-XXX)
+   - Exact file:line location
+   - What code says vs. what it should say
+   - Status (PENDING/IN_PROGRESS/FIXED)
+2. Findings older than 24 hours without action = escalation
+3. Before closing any session, verify all findings are tracked
+
+**Why This Matters:**
+- This codebase demonstrates AI-assisted development best practices
+- Stale docs/metadata cause AI assistants to hallucinate
+- "Low priority" issues compound into "tables with no data" confusion
+- Every discrepancy is a potential bug in AI-generated code
+
 ---
 
 ## Project Overview
