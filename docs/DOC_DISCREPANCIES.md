@@ -62,6 +62,7 @@ IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL T
 | D-026 | `client/src/pages/co-pilot/MapPage.tsx:137` | Used `estimatedEarnings` only | Added fallback: `estimatedEarningsPerRide ?? estimatedEarnings` | ✅ FIXED |
 | D-027 | `server/api/strategy/blocks-fast.js` | Response used `strategy_for_now` | All response paths now use `strategyForNow` (camelCase) | ✅ FIXED |
 | D-028 | `server/lib/ai/model-registry.js` | Suboptimal LLM settings | Added thinkingLevel HIGH, lowered temperatures for consistency | ✅ FIXED |
+| D-029 | `shared/schema.js:264` | `venue_catalog.country` default was `'USA'` | Fixed to `'US'` (ISO 3166-1 alpha-2) | ✅ FIXED |
 
 **Impact of D-023/D-024:**
 - UI fields were silently undefined when server returned camelCase
@@ -224,6 +225,7 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-026 | 2026-01-10 | `client/src/pages/co-pilot/MapPage.tsx:137` | Earnings field now uses `estimatedEarningsPerRide ?? estimatedEarnings` fallback |
 | D-027 | 2026-01-10 | `server/api/strategy/blocks-fast.js` | All response paths now use `strategyForNow` (camelCase), client fallbacks removed |
 | D-028 | 2026-01-10 | `server/lib/ai/model-registry.js` | Optimized LLM settings: STRATEGY_CORE temp 0.7→0.5, added thinkingLevel HIGH for 5 Gemini roles |
+| D-029 | 2026-01-10 | `shared/schema.js:264` | Fixed `venue_catalog.country` default from `'USA'` to `'US'` (ISO alpha-2) |
 
 ---
 
