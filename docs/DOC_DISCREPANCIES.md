@@ -38,18 +38,18 @@
 | D-003 | `LESSONS_LEARNED.md:702` | "Users table = source of truth for resolved location" | Changed to "Snapshots table = source of truth" | ✅ FIXED |
 | D-009 | `docs/DATA_FLOW_MAP.json:454` | Lists `venue_cache` as active table | Removed deleted table entry | ✅ FIXED |
 | D-010 | `docs/DATA_FLOW_MAP.json:233` | Lists `nearby_venues` as active table | Removed deleted table entry | ✅ FIXED |
-| D-013 | `server/lib/venue/venue-enrichment.js:600` | `places_cache.place_id` column stores `coordsKey` | Semantic mismatch: column named `place_id` contains `"lat_lng"` format, not Google place_id | PENDING |
-| D-014 | `venue-hours.js:24`, `venue-enrichment.js:293`, `venue-utils.js:133` | 3 duplicate isOpen functions with different signatures | Complex: Functions serve different input formats (structured JSON vs text). Needs separate refactoring plan | ⚠️ DEFERRED |
+| D-013 | `places_cache.place_id` in schema.js:339 | Column stores `coordsKey` (lat_lng format), not Google place_id | **Recommended:** Rename to `coords_key` via migration. Only 1 file affected. | ⚠️ MIGRATION NEEDED |
+| D-014 | `server/lib/venue/hours/` | Consolidated isOpen via canonical hours module | All 3 functions now wrap `getOpenStatus()` from canonical module | ✅ FIXED |
 | D-017 | `client/src/hooks/useBarsQuery.ts:96` | Log uses `toFixed(4)` for coordinates | Changed to `toFixed(6)` with comment | ✅ FIXED |
-| D-018 | `server/lib/venue/venue-intelligence.js` | Trusts Google `openNow` directly | Should use unified venue-hours.js logic for consistency | PENDING |
+| D-018 | `server/lib/venue/venue-intelligence.js:18-72` | Now uses canonical hours module | Uses `getOpenStatus()`, Google `openNow` only for debug logging | ✅ FIXED |
 
 ### MEDIUM PRIORITY
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
-| D-004 | Multiple files | Country field uses 'USA' not ISO 'US' | Should use ISO 3166-1 alpha-2 codes | PENDING |
-| D-011 | `server/api/location/location.js:161` | `pickAddressParts()` stores country as `c.long_name` | Should store `c.short_name` (ISO code) | PENDING |
-| D-012 | `server/lib/venue/venue-utils.js:31` | Default country is `'USA'` (alpha-3) | Should be `'US'` (ISO 3166-1 alpha-2) | PENDING |
+| D-004 | Multiple files | Country field uses 'USA' not ISO 'US' | All fixed: venue-utils.js (D-012), location.js (D-011) | ✅ FIXED |
+| D-011 | `server/api/location/location.js:164` | `pickAddressParts()` country changed to `c.short_name` | Now returns ISO 3166-1 alpha-2 codes (US, CA, GB) | ✅ FIXED |
+| D-012 | `server/lib/venue/venue-utils.js:37,74` | Default country was `'USA'` (alpha-3) | Changed to `'US'` (ISO 3166-1 alpha-2) | ✅ FIXED |
 
 ---
 
@@ -63,23 +63,26 @@
 - [x] **D-009, D-010:** Regenerate `DATA_FLOW_MAP.json` with correct table names
 - [x] **D-001 to D-003:** Fix docs claiming users table has location data
 
-### Phase 1: Unify Duplicate Venue Hours Logic ⚠️ DEFERRED
-- [ ] **D-014:** Consolidate 3 duplicate isOpen functions into single source of truth
-  - `venue-hours.js:24` - `isOpenNow(hoursFullWeek, timezone, checkTime)` - Structured JSON
-  - `venue-enrichment.js:293` - `calculateIsOpen(weekdayTexts, timezone)` - Google Places text
-  - `venue-utils.js:133` - `calculateIsOpen(hoursFullWeek, timezone)` - Text in structured keys
-  - **Note:** These serve different data formats. Consolidation requires format converter layer.
-- [ ] **D-018:** Update venue-intelligence.js to use unified logic
+### Phase 1: Unify Duplicate Venue Hours Logic ✅ COMPLETE
+- [x] **D-014:** Consolidated via canonical hours module (`server/lib/venue/hours/`)
+  - `venue-hours.js` → uses `parseStructuredHoursFullWeek()` + `getOpenStatus()`
+  - `venue-enrichment.js` → uses `parseGoogleWeekdayText()` + `getOpenStatus()`
+  - `venue-utils.js` → uses `parseHoursTextMap()` + `getOpenStatus()`
+  - **Architecture:** Parsers convert input formats → `getOpenStatus()` is single source of truth
+- [x] **D-018:** venue-intelligence.js now uses canonical module (Google `openNow` only for debug)
 
 ### Phase 2: Enforce Adapter-Only AI Calls + ULTRATHINK ✅ COMPLETE
 - [x] **D-016:** Replace direct `anthropic.messages.create()` in briefing-service.js with `callModel()`
 - [ ] Add CI check: no direct SDK calls outside adapters
 - [ ] Verify all LLM calls use lowest temperature + highest thinking level
 
-### Phase 3: ISO DB Naming + Standards (Partial)
-- [ ] **D-004, D-011, D-012:** Implement country_code migration (see Migration Plan below)
-- [ ] **D-013:** Rename `places_cache.place_id` column to `coords_key` (semantic accuracy)
+### Phase 3: ISO DB Naming + Standards ✅ COMPLETE (Code Level)
+- [x] **D-004, D-011, D-012:** Fixed country code to ISO alpha-2 format
+  - `location.js:164` → now uses `c.short_name` for country (returns "US" not "United States")
+  - `venue-utils.js:37,74` → default changed from `'USA'` to `'US'`
+- [ ] **D-013:** Rename `places_cache.place_id` column to `coords_key` (semantic accuracy) - DB migration pending
 - [x] **D-017:** Fix toFixed(4) to toFixed(6) in useBarsQuery.ts
+- **Note:** DB migration for existing `country` columns still needed (see Migration Plan)
 
 ### Phase 4: Schema Defect Resolution
 - [ ] Run full schema validation against shared/schema.js
@@ -90,62 +93,63 @@
 
 ## Schema Inconsistencies (Migration Needed)
 
-### Country Field Audit
+### Country Field Audit ✅ CODE FIXED (DB Migration Optional)
 
-**Tables using `country` (legacy, string format):**
-
-| Table | Column | Default | Actual Values | Issue |
-|-------|--------|---------|---------------|-------|
-| `snapshots` | `country` | (none) | Full names from `pickAddressParts()` | Gets "United States" from `c.long_name` |
-| `coords_cache` | `country` | (none) | Full names from geocoding | Gets "United States" from `c.long_name` |
-| `venue_catalog` | `country` | `'USA'` | Alpha-3 default | Schema comment says "Country code" but uses alpha-3 |
-| `driver_profiles` | `country` | `'US'` | Alpha-2 | Correct format but column named `country` not `country_code` |
-
-**Root Cause:** `server/api/location/location.js:161` uses `c.long_name` instead of `c.short_name`:
+**Root Cause Fixed (2026-01-10):**
 ```javascript
-// Current (WRONG):
-if (types.includes("country")) country = c.long_name;  // "United States"
-
-// Should be:
-if (types.includes("country")) country_code = c.short_name;  // "US"
+// server/api/location/location.js:164
+// BEFORE: if (types.includes("country")) country = c.long_name;  // "United States"
+// AFTER:  if (types.includes("country")) country = c.short_name; // "US"
 ```
 
-**Tables using `country_code` (correct, ISO format):**
+New snapshots will now store ISO alpha-2 codes. Existing data has mixed formats:
 
-| Table | Column | Default | Status |
-|-------|--------|---------|--------|
-| `airports` | `country_code` | 'US' | ✅ Correct |
-| `market_information` | `country_code` | - | ✅ Correct |
-| `platform_markets` | `country_code` | 'US' | ✅ Correct |
+| Table | Column | Existing Data | New Data |
+|-------|--------|---------------|----------|
+| `snapshots` | `country` | "United States" (old) | "US" (new) |
+| `coords_cache` | `country` | "United States" (old) | "US" (new) |
+| `venue_catalog` | `country` | "USA" (old default) | "US" (new) |
 
-### Migration Plan
-
-**Phase 1: Add country_code columns**
+**Optional backfill migration:**
 ```sql
-ALTER TABLE snapshots ADD COLUMN country_code CHAR(2);
-ALTER TABLE coords_cache ADD COLUMN country_code CHAR(2);
-ALTER TABLE venue_catalog ADD COLUMN country_code CHAR(2);
+UPDATE snapshots SET country = 'US' WHERE country IN ('USA', 'United States');
+UPDATE coords_cache SET country = 'US' WHERE country IN ('USA', 'United States');
+UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States');
 ```
 
-**Phase 2: Backfill data**
+---
+
+### D-013: places_cache.place_id Column Rename
+
+**Issue:** Column named `place_id` stores `coordsKey` format (e.g., "33.123456_-96.123456"), not Google Place IDs.
+
+**Impact Analysis:**
+- Only 1 file uses this table: `server/lib/venue/venue-enrichment.js`
+- Column is used correctly, just named misleadingly
+- Low risk, high semantic clarity benefit
+
+**Migration Plan:**
+
+**Step 1: Create migration file**
 ```sql
-UPDATE snapshots SET country_code = CASE
-  WHEN country IN ('USA', 'United States', 'US') THEN 'US'
-  WHEN country = 'Canada' THEN 'CA'
-  WHEN country IN ('UK', 'United Kingdom') THEN 'GB'
-  ELSE UPPER(LEFT(country, 2))
-END;
--- Repeat for other tables
+-- migrations/20260110_rename_places_cache_column.sql
+ALTER TABLE places_cache RENAME COLUMN place_id TO coords_key;
 ```
 
-**Phase 3: Update code**
-- Update all reads to use `country_code`
-- Update all writes to populate `country_code`
-- Add validation for ISO format
+**Step 2: Update schema.js**
+```javascript
+export const places_cache = pgTable("places_cache", {
+  coords_key: text("coords_key").primaryKey(),  // Was: place_id
+  formatted_hours: jsonb("formatted_hours"),
+  cached_at: timestamp("cached_at", { withTimezone: true }).notNull(),
+  access_count: integer("access_count").notNull().default(0),
+});
+```
 
-**Phase 4: Deprecate legacy columns**
-- Mark `country` columns as deprecated
-- Plan removal in future migration
+**Step 3: Update venue-enrichment.js**
+- Change `places_cache.place_id` → `places_cache.coords_key` (4 occurrences)
+
+**Status:** Ready to implement when approved
 
 ---
 
@@ -165,6 +169,11 @@ END;
 | D-010 | 2026-01-10 | `docs/DATA_FLOW_MAP.json` | Removed deleted table `nearby_venues` |
 | D-016 | 2026-01-10 | `server/lib/briefing/briefing-service.js:349` | Replaced direct `anthropic.messages.create()` with `callModel('BRIEFING_TRAFFIC')` |
 | D-017 | 2026-01-10 | `client/src/hooks/useBarsQuery.ts:96` | Fixed `toFixed(4)` → `toFixed(6)` for GPS precision |
+| D-012 | 2026-01-10 | `server/lib/venue/venue-utils.js:37,74` | Changed default country from `'USA'` → `'US'` (ISO alpha-2) |
+| D-014 | 2026-01-10 | `server/lib/venue/hours/` | Created canonical hours module; all isOpen functions now wrap `getOpenStatus()` |
+| D-018 | 2026-01-10 | `server/lib/venue/venue-intelligence.js` | Now uses canonical hours module; Google `openNow` only for debug comparison |
+| D-004 | 2026-01-10 | Multiple files | Country field now uses ISO 3166-1 alpha-2 codes (US, CA, GB) |
+| D-011 | 2026-01-10 | `server/api/location/location.js:164` | Changed `c.long_name` → `c.short_name` for country (ISO alpha-2) |
 
 ---
 

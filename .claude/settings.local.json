@@ -178,7 +178,12 @@
       "mcp__plugin_serena_serena__replace_symbol_body",
       "mcp__plugin_serena_serena__think_about_whether_you_are_done",
       "mcp__plugin_serena_serena__edit_memory",
-      "mcp__plugin_serena_serena__find_file"
+      "mcp__plugin_serena_serena__find_file",
+      "Bash(claude update:*)",
+      "Bash(claude --version)",
+      "Bash(claude doctor)",
+      "Bash(npm config:*)",
+      "Bash(git rev-parse:*)"
     ],
     "deny": [],
     "ask": []
