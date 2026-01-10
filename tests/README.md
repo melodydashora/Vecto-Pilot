@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-09
 
 # Tests (`tests/`)
 
@@ -12,6 +12,7 @@ Test suites for the application.
 |-------------|---------|
 | `e2e/` | End-to-end Playwright tests |
 | `eidolon/` | Eidolon framework tests |
+| `events/` | ETL pipeline integration tests |
 | `gateway/` | Gateway server tests |
 | `scripts/` | Test utility scripts |
 | `triad/` | TRIAD pipeline tests |
@@ -48,6 +49,9 @@ npm run test:unit
 
 # Run e2e tests only
 npm run test:e2e
+
+# Run ETL pipeline tests
+node tests/events/pipeline.test.js
 
 # Run with coverage
 npm run test -- --coverage

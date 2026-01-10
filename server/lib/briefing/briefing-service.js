@@ -16,6 +16,10 @@ import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
 // Dump last briefing row to file for debugging
 import { dumpLastBriefingRow } from './dump-last-briefing.js';
 
+// 2026-01-09: Canonical ETL pipeline modules - use these for validation
+// Local filterInvalidEvents is kept for backwards compatibility but delegates to canonical
+import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
+
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 import { getTomTomTraffic } from '../external/tomtom-traffic.js';
 
@@ -167,83 +171,26 @@ export function deduplicateEvents(events) {
 
 /**
  * 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
+ * 2026-01-09: DEPRECATED - Delegates to canonical validateEventsHard module
  *
- * Replaces the old "smart" confirmTBDEventDetails which tried to repair events.
- * Now we simply REMOVE any event with incomplete data.
+ * This function is kept for backwards compatibility. New code should use:
+ * import { validateEventsHard } from '../events/pipeline/validateEvent.js';
  *
- * Rule: If title, location, venue, or time includes "TBD", "Venue TBD", "Unknown",
- *       or is missing entirely, the event is REMOVED (not repaired).
- *
+ * @deprecated Use validateEventsHard from pipeline/validateEvent.js instead
  * @param {Array} events - Array of events to filter
  * @returns {Array} Clean events with no TBD/Unknown values
  */
 export function filterInvalidEvents(events) {
   if (!events || events.length === 0) return events;
 
-  // Patterns that indicate incomplete/invalid data
-  const invalidPatterns = [
-    /\btbd\b/i,           // "TBD" as word
-    /\bunknown\b/i,       // "Unknown" as word
-    /venue\s*tbd/i,       // "Venue TBD"
-    /location\s*tbd/i,    // "Location TBD"
-    /time\s*tbd/i,        // "Time TBD"
-    /\(tbd\)/i,           // "(TBD)"
-    /to\s*be\s*determined/i, // "To Be Determined"
-    /not\s*yet\s*announced/i, // "Not Yet Announced"
-  ];
-
-  function hasInvalidValue(value) {
-    if (!value || typeof value !== 'string') return false;
-    return invalidPatterns.some(pattern => pattern.test(value));
-  }
-
-  function isMissingCriticalData(event) {
-    // Must have title
-    if (!event.title || event.title.trim() === '') return true;
-    // Must have venue/location (either field)
-    const hasLocation = event.location || event.venue || event.address;
-    if (!hasLocation) return true;
-    // Must have time
-    if (!event.event_time && !event.time) return true;
-    return false;
-  }
-
-  const originalCount = events.length;
-  const filtered = events.filter(event => {
-    // Check for missing critical data
-    if (isMissingCriticalData(event)) {
-      briefingLog.info(`[FilterInvalid] Removed (missing data): "${event.title?.slice(0, 40) || '(no title)'}"`);
-      return false;
-    }
-
-    // Check for TBD/Unknown patterns in critical fields
-    // Support both briefing format (venue) and discovered_events format (venue_name)
-    const fieldsToCheck = [
-      event.title,
-      event.location,
-      event.venue,
-      event.venue_name,  // 2026-01-08: Also check venue_name (discovered_events format)
-      event.address,
-      event.event_time,
-      event.time
-    ];
-
-    for (const field of fieldsToCheck) {
-      if (hasInvalidValue(field)) {
-        briefingLog.info(`[FilterInvalid] Removed (TBD/Unknown): "${event.title?.slice(0, 40)}" - field="${field?.slice(0, 30)}"`);
-        return false;
-      }
-    }
-
-    return true;
+  // 2026-01-09: Delegate to canonical validateEventsHard module
+  // This ensures consistent validation rules across the entire pipeline
+  const result = validateEventsHard(events, {
+    logRemovals: true,
+    phase: 'BRIEFING_SERVICE_COMPAT'  // Indicates legacy caller for debugging
   });
 
-  const removed = originalCount - filtered.length;
-  if (removed > 0) {
-    briefingLog.done(2, `Events filtered: ${originalCount} → ${filtered.length} (${removed} invalid/TBD removed)`, OP.DB);
-  }
-
-  return filtered;
+  return result.valid;
 }
 
 // Initialize OpenAI client for GPT-5.2 fallback
@@ -999,17 +946,17 @@ Return [] if none found.`;
 }
 
 async function fetchEventsWithGemini3ProPreview({ snapshot }) {
-  // Require valid location data - no hardcoded defaults for global app
-  if (!snapshot?.city || !snapshot?.state) {
-    briefingLog.warn(2, 'Missing city/state in snapshot - cannot fetch events', OP.AI);
-    return { items: [], reason: 'Location data not available' };
+  // 2026-01-09: Require ALL location data - no fallbacks for global app
+  if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
+    briefingLog.warn(2, 'Missing location data (city/state/timezone) - cannot fetch events', OP.AI);
+    return { items: [], reason: 'Location data not available (missing timezone)' };
   }
   const city = snapshot.city;
   const state = snapshot.state;
   const lat = snapshot.lat;
   const lng = snapshot.lng;
   const hour = snapshot?.hour ?? new Date().getHours();
-  const timezone = snapshot?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezone = snapshot.timezone;  // NO FALLBACK - timezone is required
 
   // Use local_iso if available, otherwise compute local date from timezone
   let date;
@@ -1084,17 +1031,17 @@ async function _fetchEventsWithGemini3ProPreviewLegacy({ snapshot }) {
     return [];
   }
 
-  // Require valid location data - no hardcoded defaults for global app
-  if (!snapshot?.city || !snapshot?.state) {
-    briefingLog.warn(2, 'Missing city/state in snapshot - cannot fetch events (legacy)', OP.AI);
-    return { items: [], reason: 'Location data not available' };
+  // 2026-01-09: Require ALL location data - no fallbacks for global app
+  if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
+    briefingLog.warn(2, 'Missing location data (city/state/timezone) - cannot fetch events (legacy)', OP.AI);
+    return { items: [], reason: 'Location data not available (missing timezone)' };
   }
   const city = snapshot.city;
   const state = snapshot.state;
   const lat = snapshot.lat;
   const lng = snapshot.lng;
   const hour = snapshot?.hour ?? new Date().getHours();
-  const timezone = snapshot?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezone = snapshot.timezone;  // NO FALLBACK - timezone is required
 
   let date;
   if (snapshot?.local_iso) {
@@ -1834,14 +1781,14 @@ function filterRecentNews(newsItems, todayDate) {
  * @returns {Promise<{items: Array, reason?: string, provider: string}>}
  */
 export async function fetchRideshareNews({ snapshot }) {
-  // Require valid location data - no hardcoded defaults for global app
-  if (!snapshot?.city || !snapshot?.state) {
-    briefingLog.warn(2, 'Missing city/state in snapshot - cannot fetch news', OP.AI);
-    return { items: [], reason: 'Location data not available' };
+  // 2026-01-09: Require ALL location data - no fallbacks for global app
+  if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
+    briefingLog.warn(2, 'Missing location data (city/state/timezone) - cannot fetch news', OP.AI);
+    return { items: [], reason: 'Location data not available (missing timezone)' };
   }
   const city = snapshot.city;
   const state = snapshot.state;
-  const timezone = snapshot?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezone = snapshot.timezone;  // NO FALLBACK - timezone is required
 
   // Get current date in user's timezone
   let date;
@@ -1872,7 +1819,7 @@ export async function fetchRideshareNews({ snapshot }) {
       briefingLog.info(`No market found for ${city}, ${state} - using city as market`, OP.DB);
     }
   } catch (dbErr) {
-    console.warn('[news] Market lookup failed (non-fatal):', dbErr.message);
+    briefingLog.warn(2, `Market lookup failed (non-fatal): ${dbErr.message}`, OP.DB);
     market = city; // Fallback to city
   }
 
@@ -2110,12 +2057,14 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     const hasNews = existing.news !== null;
     const hasClosures = existing.school_closures !== null;
 
-    // ALL fields must be populated for dedup to apply
+    // ALL fields must be populated for concurrent request deduplication to apply
     if (hasTraffic && hasEvents && hasNews && hasClosures) {
-      // Check freshness - only skip if data is < 60 seconds old
+      // 2026-01-10: Fixed misleading terminology - this is DEDUP not CACHE
+      // Prevents duplicate concurrent requests, not traditional caching
+      // Only skip if briefing was generated < 60 seconds ago (in-flight or just completed)
       const ageMs = Date.now() - new Date(existing.updated_at).getTime();
       if (ageMs < 60000) {
-        briefingLog.info(`Cache hit (${Math.round(ageMs/1000)}s old) - skipping`, OP.CACHE);
+        briefingLog.info(`Recent briefing (${Math.round(ageMs/1000)}s old) - skipping duplicate generation`, OP.CACHE);
         return { success: true, briefing: existing, deduplicated: true };
       }
     } else if (hasTraffic || hasEvents) {
@@ -2142,7 +2091,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     } catch (insertErr) {
       // Row might already exist from concurrent call - that's OK
       if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('unique')) {
-        console.warn(`[BriefingService] ⚠️ Placeholder insert warning: ${insertErr.message}`);
+        briefingLog.warn(1, `Placeholder insert warning: ${insertErr.message}`, OP.DB);
       }
     }
   } else {
@@ -2175,11 +2124,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       if (snapshotResult.length > 0) {
         snapshot = snapshotResult[0];
       } else {
-        console.warn(`[BriefingService] ⚠️ Snapshot ${snapshotId} not found in DB`);
+        briefingLog.warn(1, `Snapshot ${snapshotId} not found in DB`, OP.DB);
         return { success: false, error: 'Snapshot not found' };
       }
     } catch (err) {
-      console.warn('[BriefingService] Could not fetch snapshot:', err.message);
+      briefingLog.warn(1, `Could not fetch snapshot: ${err.message}`, OP.DB);
       return { success: false, error: err.message };
     }
   }
@@ -2243,7 +2192,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       }
     }
   } catch (cacheErr) {
-    console.warn(`[BriefingService] Cache lookup failed:`, cacheErr.message);
+    briefingLog.warn(1, `Cache lookup failed: ${cacheErr.message}`, OP.CACHE);
   }
 
   // Step 2: ALWAYS fetch fresh weather, traffic, events, airport, AND NEWS
@@ -2334,12 +2283,12 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
       briefingLog.info(`📢 NOTIFY briefing_ready sent for ${snapshotId.slice(0, 8)}`, OP.SSE);
     } catch (notifyErr) {
-      console.warn(`[BriefingService] ⚠️ Failed to send NOTIFY: ${notifyErr.message}`);
+      briefingLog.warn(1, `Failed to send NOTIFY: ${notifyErr.message}`, OP.SSE);
     }
 
     // Dump last briefing row to file for debugging
     dumpLastBriefingRow().catch(err => 
-      console.warn(`[BriefingService] ⚠️ Failed to dump briefing: ${err.message}`)
+      briefingLog.warn(1, `Failed to dump briefing: ${err.message}`, OP.DB)
     );
 
     return {
@@ -2376,7 +2325,7 @@ export async function getBriefingBySnapshotId(snapshotId) {
 function isDailyBriefingStale(briefing, timezone) {
   // NO FALLBACK - timezone is required for accurate date comparison
   if (!timezone) {
-    console.warn('[BriefingService] isDailyBriefingStale called without timezone - treating as stale');
+    briefingLog.warn(1, 'isDailyBriefingStale called without timezone - treating as stale', OP.CACHE);
     return true;
   }
   if (!briefing?.updated_at) return true;
@@ -2615,10 +2564,10 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
     briefing = await refreshTrafficInBriefing(briefing, snapshot);
     briefing = await refreshNewsInBriefing(briefing, snapshot);
 
-    // CRITICAL: If events are EMPTY, fetch immediately
-    if (areEventsEmpty(briefing)) {
-      briefing = await refreshEventsInBriefing(briefing, snapshot);
-    } else if (isEventsStale(briefing)) {
+    // 2026-01-09: Simplified event refresh logic
+    // Trust "No Cached Data" architecture - if events are stale OR empty, refresh ONCE
+    // Removed redundant "FINAL SAFETY NET" check - no infinite retry loops
+    if (areEventsEmpty(briefing) || isEventsStale(briefing)) {
       briefing = await refreshEventsInBriefing(briefing, snapshot);
     }
   } else {
@@ -2633,14 +2582,11 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
     }
   }
 
-  // FINAL SAFETY NET: If events are STILL empty after all paths, fetch now
-  if (briefing && areEventsEmpty(briefing)) {
-    try {
-      briefing = await refreshEventsInBriefing(briefing, snapshot);
-    } catch (eventsErr) {
-      briefingLog.warn(2, `Safety net events failed: ${eventsErr.message}`, OP.AI);
-    }
-  }
+  // 2026-01-09: REMOVED "FINAL SAFETY NET"
+  // Trust the "No Cached Data" architecture:
+  // - If DB read returns empty, accept it (location may genuinely have no events)
+  // - Events are stored in discovered_events table by sync-events.mjs
+  // - Multiple re-fetch attempts mask upstream bugs instead of surfacing them
 
   return briefing;
 }

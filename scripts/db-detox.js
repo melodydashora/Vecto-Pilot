@@ -474,9 +474,13 @@ async function deduplicateVenues() {
 /**
  * Phase 7: Deduplicate events
  */
-async function deduplicateEvents() {
-  log.section('Phase 7: Deduplicate Events');
+async function purgeEventDuplicatesFromDB() {
+  log.section('Phase 7: Purge Duplicate Events from DB');
 
+  // 2026-01-10: Renamed from deduplicateEvents to avoid confusion
+  // with briefing-service.js:deduplicateEvents which does in-memory display dedup
+  // This function does SQL DELETE to remove duplicate rows by event_hash
+  
   // Find duplicate event_hashes and keep only the most recent
   // First, identify duplicates
   const dupeCheckResult = await pool.query(`
@@ -586,7 +590,7 @@ async function main() {
     stats.strategies = await purgeStaleStrategies();
     stats.bloat = await clearBloatColumns();
     stats.venueCatalogDupes = await deduplicateVenues();
-    stats.eventDuplicates = await deduplicateEvents();
+    stats.eventDuplicates = await purgeEventDuplicatesFromDB();
 
     // Vacuum if executing
     await vacuumTables();
