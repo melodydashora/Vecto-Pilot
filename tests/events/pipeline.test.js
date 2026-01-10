@@ -262,7 +262,8 @@ class ETLPipelineTester {
         venue_name: 'Madison Square Garden',
         address: '4 Penn Plaza, New York, NY',
         event_date: '2026-01-15',
-        event_time: '19:00'
+        event_time: '19:00',
+        event_end_time: '22:00'  // 2026-01-10: Required by frontend contract
       };
 
       const result = validateEvent(event);
@@ -334,11 +335,40 @@ class ETLPipelineTester {
         title: 'Valid Event',
         address: '123 Main St',
         event_date: '2026-01-15',
-        event_time: '19:00'
+        event_time: '19:00',
+        event_end_time: '22:00'
       };
 
       const result = validateEvent(event);
       assert.strictEqual(result.valid, true);
+    });
+
+    await this.test('validateEvent: rejects missing end time', () => {
+      const event = {
+        title: 'Valid Event',
+        venue_name: 'Venue',
+        event_date: '2026-01-15',
+        event_time: '19:00'
+        // Missing event_end_time
+      };
+
+      const result = validateEvent(event);
+      assert.strictEqual(result.valid, false);
+      assert.strictEqual(result.reason, 'missing_end_time');
+    });
+
+    await this.test('validateEvent: rejects TBD in end time', () => {
+      const event = {
+        title: 'Valid Event',
+        venue_name: 'Venue',
+        event_date: '2026-01-15',
+        event_time: '19:00',
+        event_end_time: 'TBD'
+      };
+
+      const result = validateEvent(event);
+      assert.strictEqual(result.valid, false);
+      assert.strictEqual(result.reason, 'tbd_in_end_time');
     });
 
     await this.test('validateEvent: rejects missing time', () => {
@@ -357,7 +387,9 @@ class ETLPipelineTester {
       const event = {
         title: 'Valid Event',
         venue_name: 'Venue',
-        event_time: '19:00'
+        event_time: '19:00',
+        event_end_time: '22:00'
+        // Missing event_date
       };
 
       const result = validateEvent(event);
@@ -370,7 +402,8 @@ class ETLPipelineTester {
         title: 'Valid Event',
         venue_name: 'Venue',
         event_date: '01/15/2026', // Not YYYY-MM-DD
-        event_time: '19:00'
+        event_time: '19:00',
+        event_end_time: '22:00'
       };
 
       const result = validateEvent(event);
@@ -382,10 +415,10 @@ class ETLPipelineTester {
 
     await this.test('validateEventsHard: separates valid and invalid', () => {
       const events = [
-        { title: 'Valid 1', venue_name: 'V1', event_date: '2026-01-15', event_time: '19:00' },
-        { title: 'TBD Event', venue_name: 'V2', event_date: '2026-01-15', event_time: '19:00' },
-        { title: 'Valid 2', venue_name: 'V3', event_date: '2026-01-16', event_time: '20:00' },
-        { title: 'No Date', venue_name: 'V4', event_time: '19:00' }
+        { title: 'Valid 1', venue_name: 'V1', event_date: '2026-01-15', event_time: '19:00', event_end_time: '22:00' },
+        { title: 'TBD Event', venue_name: 'V2', event_date: '2026-01-15', event_time: '19:00', event_end_time: '22:00' },
+        { title: 'Valid 2', venue_name: 'V3', event_date: '2026-01-16', event_time: '20:00', event_end_time: '23:00' },
+        { title: 'No End Time', venue_name: 'V4', event_date: '2026-01-15', event_time: '19:00' }  // Missing end_time
       ];
 
       const result = validateEventsHard(events, { logRemovals: false });
@@ -711,6 +744,7 @@ class ETLPipelineTester {
           venue: 'AT&T Stadium, Arlington, TX',
           event_date: '01/15/2026',
           event_time: '7 PM',
+          event_end_time: '11 PM',  // 2026-01-10: Required by validation
           lat: '32.747778',
           lng: '-97.092778',
           category: 'concert',
@@ -718,10 +752,11 @@ class ETLPipelineTester {
           source_model: 'test-provider'
         },
         {
-          title: 'TBD Event',  // Should be filtered
+          title: 'TBD Event',  // Should be filtered (TBD in title)
           venue: 'Unknown',
           event_date: '01/16/2026',
-          event_time: '8 PM'
+          event_time: '8 PM',
+          event_end_time: '11 PM'
         },
         {
           title: '"Dallas Mavericks vs Lakers"',
@@ -729,6 +764,7 @@ class ETLPipelineTester {
           address: '2500 Victory Ave, Dallas, TX',
           event_date: '01/17/2026',
           event_time: '7:30 PM',
+          event_end_time: '10:30 PM',  // 2026-01-10: Required by validation
           category: 'NBA Game',
           expected_attendance: 'large'
         }

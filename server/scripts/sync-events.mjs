@@ -361,7 +361,15 @@ Return a JSON array with ALL events found:
 
 IMPORTANT: Always include lat/lng coordinates for each event venue. You can search for the venue coordinates or use known landmark coordinates.
 
-IMPORTANT: Always include event_end_time when available. For concerts, typically 2-3 hours after start. For sports, check typical game lengths. If end time is unknown, omit the field.
+**CRITICAL - event_end_time is REQUIRED (2026-01-10 Rule):**
+- MUST include event_end_time for EVERY event (no TBD, no omitting)
+- If end time is not listed, ESTIMATE based on event type:
+  - Concerts: 2-3 hours after start
+  - Sports: Check typical game length (NBA ~2.5hr, NFL ~3.5hr, MLB ~3hr)
+  - Theater: 2-3 hours
+  - Festivals: Use posted closing time
+- Events without determinable end times should NOT be returned
+- This is required for rideshare driver pickup surge prediction
 
 Search multiple sources thoroughly. Return [] only if truly no events found.`;
 }

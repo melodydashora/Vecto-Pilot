@@ -26,8 +26,9 @@ function BriefingPage() {
     isLoading,
   } = useBriefingQueries({ snapshotId: lastSnapshotId });
 
-  // Still need persistentStrategy from CoPilot context for display
-  const { persistentStrategy } = useCoPilot();
+  // Still need persistentStrategy and timezone from CoPilot context for display
+  // 2026-01-10: timezone required for isEventForToday calculation (NO FALLBACKS)
+  const { persistentStrategy, timezone } = useCoPilot();
 
   // Debug logging: Only log when snapshotId changes (not on every render)
   // 2026-01-06: Moved from inline to useEffect to prevent excessive logs
@@ -43,6 +44,7 @@ function BriefingPage() {
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="briefing-page">
       <BriefingTab
         snapshotId={lastSnapshotId || undefined}
+        timezone={timezone}
         weatherData={weatherData}
         trafficData={trafficData}
         newsData={newsData}

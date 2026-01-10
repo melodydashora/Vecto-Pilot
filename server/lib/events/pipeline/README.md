@@ -84,7 +84,7 @@ Hash algorithm = MD5 (32-char hex)
 - Matinee show at 14:00
 - Evening show at 20:00
 
-## Validation Rules (VALIDATION_SCHEMA_VERSION = 2)
+## Validation Rules (VALIDATION_SCHEMA_VERSION = 3)
 
 | Rule | Field | Pattern |
 |------|-------|---------|
@@ -92,11 +92,26 @@ Hash algorithm = MD5 (32-char hex)
 | Required | venue_name OR address | At least one location |
 | Required | event_date | Must be YYYY-MM-DD format |
 | Required | event_time | Must be non-empty |
-| TBD/Unknown | title, venue, address, time | Pattern matching for incomplete data |
+| Required | event_end_time | **Must be non-empty (2026-01-10)** |
+| TBD/Unknown | title, venue, address, time, end_time | Pattern matching for incomplete data |
 
 **Patterns Rejected:**
 - `TBD`, `Unknown`, `To Be Determined`, `Not Yet Announced`
 - `Various Locations`, `Coming Soon`
+
+### event_end_time Requirement (2026-01-10)
+
+**Rule:** Every event MUST have an `event_end_time`. Events without end times are rejected at validation.
+
+**Why:** Frontend (BriefingTab.tsx) requires both start and end times to display events correctly. The end time is also critical for rideshare drivers to predict pickup surge timing.
+
+**LLM Prompt Instruction:** If end time is not listed, LLM must ESTIMATE:
+- Concerts: 2-3 hours after start
+- Sports: NBA ~2.5hr, NFL ~3.5hr, MLB ~3hr
+- Theater: 2-3 hours
+- Festivals: Use posted closing time
+
+Events where end time cannot be determined should NOT be returned by the LLM.
 
 ## When to Call Validation
 
