@@ -367,10 +367,12 @@ function getEventEndTime(event, timezone = null) {
 
   // PRIORITY 4: Single-day event with event_time only - use event_date + event_end_time
   // Some events have event_date + event_time (start) + event_end_time (end) but no event_end_date
-  if (event.event_date && event.event_end_time && !event.event_end_date) {
+  // 2026-01-10: Support both old (event_date) and new (event_start_date) field names
+  const eventDateForEnd = event.event_start_date || event.event_date;
+  if (eventDateForEnd && event.event_end_time && !event.event_end_date) {
     const timeParts = parseTimeString(event.event_end_time);
     if (timeParts) {
-      const dateStr = event.event_date;
+      const dateStr = eventDateForEnd;
       const [year, month, day] = dateStr.split('-').map(Number);
 
       if (timezone) {
@@ -526,11 +528,14 @@ function getEventStartTime(event, timezone = null) {
   }
 
   // PRIORITY 2: Combine event_date + event_time (briefing events pattern)
-  // event_date: "2026-01-05", event_time: "3:30 PM"
-  if (event.event_date && event.event_time) {
-    const timeParts = parseTimeString(event.event_time);
+  // 2026-01-10: Support both old (event_date/event_time) and new (event_start_date/event_start_time) field names
+  const eventDate = event.event_start_date || event.event_date;
+  const eventTime = event.event_start_time || event.event_time;
+
+  if (eventDate && eventTime) {
+    const timeParts = parseTimeString(eventTime);
     if (timeParts) {
-      const dateStr = event.event_date; // "2026-01-05"
+      const dateStr = eventDate; // "2026-01-05"
       const [year, month, day] = dateStr.split('-').map(Number);
 
       // If timezone provided, use it for proper UTC conversion
@@ -551,8 +556,10 @@ function getEventStartTime(event, timezone = null) {
   }
 
   // PRIORITY 3: Fall back to date-only fields (use noon in timezone or local time)
+  // 2026-01-10: Added event_start_date (new column name) as first priority
   const dateFields = [
-    'event_date',
+    'event_start_date',  // New DB column name
+    'event_date',        // Legacy/prompt field name
     'startDate',
     'start_date',
     'date'
