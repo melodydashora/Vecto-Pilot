@@ -22,7 +22,7 @@ The `types/` subfolder contains shared TypeScript types.
 ## Schema
 
 `schema.js` defines all database tables using Drizzle ORM:
-- `users` - User location authority
+- `users` - Session tracking (NO location data)
 - `snapshots` - Point-in-time context
 - `strategies` - AI strategy outputs
 - `briefings` - Real-time intelligence

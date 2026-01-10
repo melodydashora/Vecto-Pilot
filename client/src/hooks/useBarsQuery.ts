@@ -93,7 +93,8 @@ export function useBarsQuery({
         timezone: timezone  // No fallback - required for accurate venue hours
       });
 
-      console.log('[useBarsQuery] Prefetching bars data for:', { city, state, lat: latitude?.toFixed(4) });
+      // 2026-01-10: Use 6-decimal precision per CLAUDE.md ABSOLUTE PRECISION rule (D-017 fix)
+      console.log('[useBarsQuery] Prefetching bars data for:', { city, state, lat: latitude?.toFixed(6) });
 
       const response = await fetch(`/api/venues/nearby?${params}`, {
         headers: getAuthHeader()

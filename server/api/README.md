@@ -90,7 +90,7 @@ GET  /api/location/resolve       - Geocode + city/state/timezone
 GET  /api/location/weather       - Current weather + 6hr forecast
 GET  /api/location/airquality    - AQI data
 POST /api/location/snapshot      - Save location snapshot
-GET  /api/users/me               - Current user's location
+GET  /api/users/me               - Current user session (via snapshot)
 ```
 
 ### research/
