@@ -32,6 +32,9 @@ import {
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../../middleware/auth.js";
 import { PHASE_EXPECTED_DURATIONS, updatePhase } from "../../lib/strategy/strategy-utils.js";
+import { toApiBlock } from "../../validation/transformers.js";
+// 2026-01-10: S-004 FIX - Use canonical status constants
+import { STRATEGY_STATUS } from "../../lib/strategy/status-constants.js";
 
 export const router = Router();
 
@@ -123,7 +126,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       const expectedDurationMs = PHASE_EXPECTED_DURATIONS[currentPhase] || 5000;
 
       return res.json({
-        status: "pending",
+        status: STRATEGY_STATUS.PENDING,
         snapshot_id: snapshotId,
         timeElapsedMs,
         phase: currentPhase,
@@ -159,27 +162,10 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
         .orderBy(ranking_candidates.rank);
 
-      // 2026-01-09: Fixed event mapping (was using wrong property path)
-      // Also standardized to camelCase for API consistency
+      // 2026-01-10: Use centralized transformer for snake/camel tolerance
+      // toApiBlock handles isOpen, streetViewUrl, businessHours casing automatically
       blocks = candidates.map((c) => ({
-        name: c.name,
-        coordinates: { lat: c.lat, lng: c.lng },
-        placeId: c.place_id,
-        estimatedDistanceMiles: c.distance_miles,
-        driveTimeMinutes: c.drive_minutes,
-        valuePerMin: c.value_per_min,
-        valueGrade: c.value_grade,
-        notWorth: c.not_worth,
-        proTips: c.pro_tips,
-        closedVenueReasoning: c.closed_reasoning,
-        stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
-        businessHours: c.business_hours,
-        isOpen: c.features?.isOpen,
-        streetViewUrl: c.features?.streetViewUrl,
-        // Fixed: venue_events is an array with {title, category, event_time}, not {badge, summary}
-        hasEvent: c.features?.hasEvent || (Array.isArray(c.venue_events) && c.venue_events.length > 0),
-        eventBadge: c.features?.eventBadge || (Array.isArray(c.venue_events) && c.venue_events.length > 0 ? c.venue_events[0].title : null),
-        eventSummary: Array.isArray(c.venue_events) && c.venue_events.length > 0 ? `${c.venue_events[0].category} at ${c.venue_events[0].event_time || 'today'}` : null,
+        ...toApiBlock(c),
         rankingId: ranking.ranking_id,
       }));
     } else {
@@ -194,7 +180,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       const expectedDurationMs = PHASE_EXPECTED_DURATIONS[currentPhase] || 5000;
 
       return res.json({
-        status: "pending_blocks",
+        status: STRATEGY_STATUS.PENDING_BLOCKS,
         snapshot_id: snapshotId,
         timeElapsedMs,
         phase: currentPhase,
@@ -224,7 +210,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
 
     // Strategy AND blocks ready - return complete data
     res.json({
-      status: "ok",
+      status: STRATEGY_STATUS.OK,
       snapshot_id: snapshotId,
       timeElapsedMs,
       phase: 'complete',

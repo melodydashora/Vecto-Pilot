@@ -6,15 +6,8 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, strategies, users, coords_cache, markets } from '../../../shared/schema.js';
 import { sql, eq, or, ilike } from 'drizzle-orm';
 import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
-
-// Helper: Generate cache key from coordinates (6 decimal places = ~11cm precision)
-// Full precision ensures each unique location gets its own cache entry
-// This supports multi-driver density analysis and historical tracking
-function makeCoordsKey(lat, lng) {
-  const lat6d = lat.toFixed(6);
-  const lng6d = lng.toFixed(6);
-  return `${lat6d}_${lng6d}`;
-}
+// 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
+import { makeCoordsKey } from '../../lib/location/coords-key.js';
 import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
 import { validateSnapshotV1 } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';

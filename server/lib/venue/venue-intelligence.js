@@ -326,6 +326,8 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         phone: place.nationalPhoneNumber || null,
         expense_level: price.level,
         expense_rank: price.rank,
+        // 2026-01-10: Dual compatibility - camelCase for client, snake_case for legacy
+        isOpen: openStatus.is_open,
         is_open: openStatus.is_open,
         hours_today: openStatus.hours_today,
         closing_soon: openStatus.closing_soon,
@@ -359,12 +361,13 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     // Filter to only open venues OR closed high-value venues (for staging)
     // - Open or Unknown status: Always keep
     // - Closed status: Only keep if Expense Rank >= 3 ($$$ or $$$$)
+    // 2026-01-10: Use isOpen (camelCase) for consistency
     const relevantVenues = venues.filter(v => {
       // 1. Open or Unknown status
-      if (v.is_open === true || v.is_open === null) return true;
+      if (v.isOpen === true || v.isOpen === null) return true;
 
       // 2. Closed Go Anyway: High value venues ($$$+) worth staging near
-      if (v.is_open === false && v.expense_rank >= 3) {
+      if (v.isOpen === false && v.expense_rank >= 3) {
         v.closed_go_anyway = true; // Flag for UI/Strategy
         v.closed_reason = "High-value venue - good for staging spillover";
         return true;
@@ -378,11 +381,12 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     // 2. Last call venues (closing soon) - still valuable for quick pickups
     // 3. Unknown status venues
     // 4. Closed High-Value Venues (Go Anyway)
+    // 2026-01-10: Use isOpen (camelCase) for consistency
     relevantVenues.sort((a, b) => {
-      const aOpen = a.is_open === true;
-      const bOpen = b.is_open === true;
-      const aClosed = a.is_open === false;
-      const bClosed = b.is_open === false;
+      const aOpen = a.isOpen === true;
+      const bOpen = b.isOpen === true;
+      const aClosed = a.isOpen === false;
+      const bClosed = b.isOpen === false;
 
       // Open venues first
       if (aOpen && !bOpen) return -1;
@@ -411,9 +415,10 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     });
 
     // Extract last-call venues
-    const lastCallVenues = relevantVenues.filter(v => v.is_open && v.closing_soon);
+    // 2026-01-10: Use isOpen (camelCase) for consistency
+    const lastCallVenues = relevantVenues.filter(v => v.isOpen && v.closing_soon);
 
-    barsLog.complete(`${relevantVenues.length} venues (incl. ${relevantVenues.filter(v => v.is_open === false).length} closed high-value)`);
+    barsLog.complete(`${relevantVenues.length} venues (incl. ${relevantVenues.filter(v => v.isOpen === false).length} closed high-value)`);
 
     return {
       query_time: new Date().toLocaleTimeString(),

@@ -7,6 +7,8 @@ import { eq } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
 import { validateConditions } from '../location/weather-traffic-validator.js';
 import { triadLog, aiLog, dbLog, briefingLog, OP } from '../../logger/workflow.js';
+// 2026-01-10: S-004 FIX - Use canonical status constants
+import { STRATEGY_STATUS } from './status-constants.js';
 // Dump last strategy row to file for debugging
 import { dumpLastStrategyRow } from './dump-last-strategy.js';
 
@@ -219,7 +221,7 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
     const [existingStrategy] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
-    if (existingStrategy && existingStrategy.status === 'running') {
+    if (existingStrategy && existingStrategy.status === STRATEGY_STATUS.RUNNING) {
       const elapsedMs = Date.now() - new Date(existingStrategy.updated_at).getTime();
       if (elapsedMs < 30000) { // Less than 30 seconds old
         triadLog.info(`Strategy already running for ${snapshotId.slice(0, 8)} (${elapsedMs}ms old), skipping`);
@@ -229,10 +231,11 @@ export async function runSimpleStrategyPipeline({ snapshotId, userId, snapshot }
 
     // Create initial strategy row - ensures exactly ONE row per snapshot
     // CRITICAL: Set phase='starting' on insert to avoid NULL phase race condition in prod
+    // 2026-01-10: S-004 FIX - Use canonical status constant
     const [insertedStrategy] = await db.insert(strategies).values({
       snapshot_id: snapshotId,
       user_id: userId,
-      status: 'running',
+      status: STRATEGY_STATUS.RUNNING,
       phase: 'starting',
       model_name: modelChain,
       created_at: new Date(),

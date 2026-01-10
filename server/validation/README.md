@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-09
+> **Last Verified:** 2026-01-10
 
 # Validation (`server/validation/`)
 
@@ -60,6 +60,27 @@ res.json({
   data: toApiVenueData(venueData)  // Converts snake_case → camelCase
 });
 ```
+
+### Snake/Camel Tolerance (2026-01-10)
+
+The `toApiBlock()` transformer now handles mixed casing from different data sources:
+
+```javascript
+// These all produce isOpen correctly:
+toApiBlock({ is_open: true });                    // snake_case root
+toApiBlock({ isOpen: false });                    // camelCase root
+toApiBlock({ features: { is_open: true } });      // nested snake
+toApiBlock({ features: { isOpen: false } });      // nested camel
+```
+
+**Fields with casing tolerance:**
+
+| Field | Checks (in order) |
+|-------|-------------------|
+| `isOpen` | `isOpen`, `is_open`, `features.isOpen`, `features.is_open` |
+| `streetViewUrl` | `streetViewUrl`, `street_view_url`, `features.streetViewUrl`, `features.street_view_url` |
+
+**Why this matters:** Database stores `is_open` (snake_case), but some code paths use `isOpen` (camelCase). The transformer normalizes all variants to ensure API consumers always receive `isOpen`.
 
 ### Available Transformers
 

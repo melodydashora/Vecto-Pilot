@@ -75,7 +75,9 @@ export const strategies = pgTable("strategies", {
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   correlation_id: uuid("correlation_id"),
   strategy: text("strategy"),
-  status: text("status").notNull().default("pending"), // pending|ok|failed
+  // 2026-01-10: S-004 FIX - Documented actual status values (see status-constants.js)
+  // State machine: pending → running → ok | pending_blocks → ok | failed
+  status: text("status").notNull().default("pending"), // pending|running|ok|pending_blocks|failed
   phase: text("phase").default("starting"), // starting|resolving|analyzing|consolidator|venues|enriching|complete
   phase_started_at: timestamp("phase_started_at", { withTimezone: true }), // When current phase started (for progress calculation)
   trigger_reason: text("trigger_reason"), // 'initial' | 'retry' | 'refresh' - why strategy was generated

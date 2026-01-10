@@ -14,6 +14,8 @@
 
 // 2026-01-10: D-014 Phase 4 - Use canonical hours module for all isOpen calculations
 import { parseHoursTextMap, getOpenStatus } from "./hours/index.js";
+// 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
+import { coordsKey as generateCoordKeyCanonical } from "../location/coords-key.js";
 
 /**
  * Parse Google addressComponents into granular address fields
@@ -78,6 +80,7 @@ export function parseAddressComponents(components) {
 
 /**
  * Generate a coordinate key with 6 decimal precision
+ * 2026-01-10: Now re-exports from canonical coords-key module
  *
  * 6 decimals = ~11cm precision, suitable for 50m radius matching
  * Format: "lat_lng" e.g., "33.123456_-96.123456"
@@ -86,12 +89,7 @@ export function parseAddressComponents(components) {
  * @param {number} lng - Longitude
  * @returns {string|null} Coordinate key or null if invalid
  */
-export function generateCoordKey(lat, lng) {
-  if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
-    return null;
-  }
-  return `${Number(lat).toFixed(6)}_${Number(lng).toFixed(6)}`;
-}
+export const generateCoordKey = generateCoordKeyCanonical;
 
 /**
  * Normalize a venue name for deduplication matching

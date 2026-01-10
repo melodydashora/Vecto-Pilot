@@ -76,6 +76,46 @@ if (parseResult.ok) {
 3. **No direct openNow** - Never trust Google's `openNow` directly. Always parse and evaluate.
 4. **Overnight handling** - `closes_next_day: true` when closing time < opening time.
 
+## Overnight Hours Fix (2026-01-10)
+
+**CRITICAL BUG FIXED:** The previous logic incorrectly handled day rollover for overnight venues.
+
+### The Bug
+
+At Friday 12:47 AM, a venue with hours "Friday: 11:00 AM - 2:00 AM (Saturday)" was incorrectly marked as "OPEN" because:
+- Old logic: `currentMinutes >= open_minute || currentMinutes < close_minute`
+- Check: `47 >= 660` (FALSE) OR `47 < 120` (TRUE) → **OPEN** (wrong!)
+
+The bug "teleported" 12:47 AM Friday into Friday's shift, but Friday's shift hasn't started yet at 12:47 AM!
+
+### The Fix
+
+The evaluator now explicitly checks **two separate windows**:
+
+1. **YESTERDAY'S SPILLOVER**: Did Thursday's overnight shift (11 AM - 2 AM) extend into Friday morning?
+2. **TODAY'S MAIN SHIFT**: Are we past Friday's opening time (11 AM)?
+
+```javascript
+// Check 1: Yesterday's spillover
+if (yesterdayInterval.closes_next_day && currentMinutes < yesterdayInterval.close_minute) {
+  // We're in yesterday's overnight spillover - OPEN
+}
+
+// Check 2: Today's main shift (only AFTER opening time)
+if (currentMinutes >= todayInterval.open_minute) {
+  // We're in today's main shift - OPEN
+}
+```
+
+### Test Cases
+
+| Scenario | Expected | Notes |
+|----------|----------|-------|
+| Fri 12:47 AM, Thu 11 AM - 2 AM | OPEN | In Thursday's spillover |
+| Fri 12:47 AM, Fri 11 AM - 2 AM | CLOSED | Friday hasn't opened yet |
+| Fri 11:30 PM, Fri 11 AM - 2 AM | OPEN | In Friday's main shift |
+| Sat 1:00 AM, Fri 11 AM - 2 AM | OPEN | In Friday's spillover into Saturday |
+
 ## Migration from Legacy Code
 
 | Old Function | Location | New Pattern | Status |

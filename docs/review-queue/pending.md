@@ -32,19 +32,29 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ## Currently Pending
 
-### Status: CRITICAL - Comprehensive Architecture Audit (2026-01-10)
+### Status: REVIEWED - Comprehensive Architecture Audit (2026-01-10)
 
 **Audit stored in:** `.serena/memories/comprehensive_audit_2026_01_10.md`
-**See also:** `docs/DOC_DISCREPANCIES.md` (12 active discrepancies)
+**See also:** `docs/DOC_DISCREPANCIES.md` (S-001 to S-005 + D-* items)
 
-#### P0 - CRITICAL (AI Coach Broken - Wrong Column Names)
+#### Documentation Sync Completed (2026-01-10)
+
+| Document | Update | Status |
+|----------|--------|--------|
+| `server/lib/location/README.md` | Added coords-key.js module documentation | DONE |
+| `server/validation/README.md` | Added snake/camel tolerance section for toApiBlock() | DONE |
+| `server/api/strategy/README.md` | Added blocks-fast vs content-blocks distinction + known issues | DONE |
+| `server/lib/strategy/README.md` | Added strategy-utils.js status flow + phase documentation | DONE |
+| `docs/DOC_DISCREPANCIES.md` | Added S-001 through S-005 strategy pipeline findings | DONE |
+
+#### P0 - CRITICAL (AI Coach Broken - Wrong Column Names) ✅ FIXED per DOC_DISCREPANCIES.md
 
 | ID | Issue | Location | Status |
 |----|-------|----------|--------|
-| D-005 | Coach claims `snapshots.id` | `server/api/coach/schema.js:23` | PENDING |
-| D-006 | Coach claims `immediate_strategy` | `server/api/coach/schema.js:28` | PENDING |
-| D-007 | Coach claims `traffic`, `weather` | `server/api/coach/schema.js:33` | PENDING |
-| D-008 | Coach claims `opening_hours` | `server/api/coach/schema.js:43` | PENDING |
+| D-005 | Coach claims `snapshots.id` | `server/api/coach/schema.js:23` | ✅ FIXED |
+| D-006 | Coach claims `immediate_strategy` | `server/api/coach/schema.js:28` | ✅ FIXED |
+| D-007 | Coach claims `traffic`, `weather` | `server/api/coach/schema.js:33` | ✅ FIXED |
+| D-008 | Coach claims `opening_hours` | `server/api/coach/schema.js:43` | ✅ FIXED |
 
 **Actual columns:** `snapshot_id`, `strategy_for_now`, `traffic_conditions`, `weather_current`, `weather_forecast`, `business_hours`
 
@@ -57,21 +67,21 @@ Items flagged by the Change Analyzer for human-AI validation.
 | Endpoint docs non-existent /api/users/location | `location/README.md:44` | ✅ FIXED |
 | coach-dal.js comment wrong | `coach-dal.js:82` | ✅ FIXED |
 
-#### P1 - HIGH PRIORITY (Country Field Inconsistency)
+#### P1 - HIGH PRIORITY (Country Field Inconsistency) ✅ FIXED per DOC_DISCREPANCIES.md
 
 | ID | Issue | Location | Status |
 |----|-------|----------|--------|
-| D-011 | `pickAddressParts()` uses `c.long_name` | `location.js:161` | PENDING |
-| D-012 | Default 'USA' not ISO 'US' | `venue-utils.js:31`, `schema.js:262` | PENDING |
-| D-009 | Deleted `venue_cache` in docs | `DATA_FLOW_MAP.json:454` | PENDING |
-| D-010 | Deleted `nearby_venues` in docs | `DATA_FLOW_MAP.json:233` | PENDING |
+| D-011 | `pickAddressParts()` uses `c.long_name` | `location.js:161` | ✅ FIXED (now uses c.short_name) |
+| D-012 | Default 'USA' not ISO 'US' | `venue-utils.js:31`, `schema.js:262` | ✅ FIXED (now uses 'US') |
+| D-009 | Deleted `venue_cache` in docs | `DATA_FLOW_MAP.json:454` | ✅ FIXED |
+| D-010 | Deleted `nearby_venues` in docs | `DATA_FLOW_MAP.json:233` | ✅ FIXED |
 
-#### P1 - Duplicate Functions
+#### P1 - Duplicate Functions ✅ CONSOLIDATED 2026-01-10
 
-| Issue | Locations | Status |
-|-------|-----------|--------|
-| 4 duplicate coordsKey functions | location.js, snapshot.js, venue-enrichment.js, venue-utils.js | PENDING |
-| 2 calculateIsOpen functions | venue-enrichment.js:293, venue-utils.js:133 | PENDING |
+| Issue | Resolution | Status |
+|-------|------------|--------|
+| 4 duplicate coordsKey functions | Created canonical `server/lib/location/coords-key.js` | ✅ FIXED |
+| 2 calculateIsOpen functions | Consolidated via `server/lib/venue/hours/` canonical module (D-014) | ✅ FIXED |
 
 #### P2 - MEDIUM PRIORITY (Adapter Bypasses)
 
@@ -754,6 +764,147 @@ The following documentation was created as part of the ETL refactoring commit:
 #### Low Priority
 - [ ] Consider adding documentation - New file added (scripts/check-standards.js)
 - [ ] docs/architecture/server-structure.md - Background job changes (server/jobs/event-sync-job.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-10 Analysis
+
+**Generated:** 2026-01-10T06:36:19.569Z
+**Branch:** main
+**Last Commit:** d487a47e CRITICAL: Root cause fix for venue pipeline data quality issues
+
+### Uncommitted Changes (12)
+| File | Status |
+|------|--------|
+| `erver/api/location/location.js` | Modified |
+| `server/api/location/snapshot.js` | Modified |
+| `server/api/strategy/blocks-fast.js` | Modified |
+| `server/api/strategy/content-blocks.js` | Modified |
+| `server/lib/location/README.md` | Modified |
+| `server/lib/venue/venue-enrichment.js` | Modified |
+| `server/lib/venue/venue-utils.js` | Modified |
+| `server/validation/transformers.js` | Modified |
+| `.serena/memories/strategy-pipeline-audit-2026-01-10.md` | Untracked |
+| `docs/plans/CONSOLIDATED_CLEANUP_2026-01-10.md` | Untracked |
+| `migrations/20260110_fix_strategy_now_notify.sql` | Untracked |
+| `server/lib/location/coords-key.js` | Untracked |
+
+### Recent Commit Changes (40)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/memories/d014_d018_audit_verification_2026_01_10.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `SYSTEM_MAP.md` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `docs/AUDIT_LEDGER.md` | Added |
+| `docs/DATABASE_SCHEMA.md` | Modified |
+| `docs/DATA_FLOW_MAP.json` | Modified |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/architecture/authentication.md` | Modified |
+| `docs/architecture/strategy-framework.md` | Modified |
+| `docs/review-queue/2026-01-10.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `docs/reviewed-queue/CHANGES.md` | Modified |
+| `scripts/create-all-tables.sql` | Modified |
+| `scripts/venue-data-cleanup.js` | Added |
+| `server/api/README.md` | Modified |
+| `server/api/coach/schema.js` | Modified |
+| `server/api/location/location.js` | Modified |
+| ... and 20 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/location/snapshot.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/coords-key.js)
+
+#### Medium Priority
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/venue-enrichment.js)
+- [ ] `docs/architecture/client-structure.md` - Hook changes (client/src/hooks/useBarsQuery.ts)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/migrations/2026-01-10-d013-places-cache-rename.sql)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/migrations/2026-01-10-d013-places-cache-rename.sql)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/venue-data-cleanup.js)
+
+### Status: PENDING
+
+---
+
+## 2026-01-10 Analysis
+
+**Generated:** 2026-01-10T06:45:27.753Z
+**Branch:** main
+**Last Commit:** d487a47e CRITICAL: Root cause fix for venue pipeline data quality issues
+
+### Uncommitted Changes (19)
+| File | Status |
+|------|--------|
+| `ocs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/review-queue/2026-01-10.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `sent-to-strategist.txt` | Modified |
+| `server/api/location/location.js` | Modified |
+| `server/api/location/snapshot.js` | Modified |
+| `server/api/strategy/README.md` | Modified |
+| `server/api/strategy/blocks-fast.js` | Modified |
+| `server/api/strategy/content-blocks.js` | Modified |
+| `server/lib/location/README.md` | Modified |
+| `server/lib/strategy/README.md` | Modified |
+| `server/lib/venue/venue-enrichment.js` | Modified |
+| `server/lib/venue/venue-utils.js` | Modified |
+| `server/validation/README.md` | Modified |
+| `server/validation/transformers.js` | Modified |
+| `.serena/memories/strategy-pipeline-audit-2026-01-10.md` | Untracked |
+| `docs/plans/CONSOLIDATED_CLEANUP_2026-01-10.md` | Untracked |
+| `migrations/20260110_fix_strategy_now_notify.sql` | Untracked |
+| `server/lib/location/coords-key.js` | Untracked |
+
+### Recent Commit Changes (40)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.serena/memories/d014_d018_audit_verification_2026_01_10.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `SYSTEM_MAP.md` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `docs/AUDIT_LEDGER.md` | Added |
+| `docs/DATABASE_SCHEMA.md` | Modified |
+| `docs/DATA_FLOW_MAP.json` | Modified |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/architecture/authentication.md` | Modified |
+| `docs/architecture/strategy-framework.md` | Modified |
+| `docs/review-queue/2026-01-10.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `docs/reviewed-queue/CHANGES.md` | Modified |
+| `scripts/create-all-tables.sql` | Modified |
+| `scripts/venue-data-cleanup.js` | Added |
+| `server/api/README.md` | Modified |
+| `server/api/coach/schema.js` | Modified |
+| `server/api/location/location.js` | Modified |
+| ... and 20 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/location/location.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/coords-key.js)
+
+#### Medium Priority
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/venue-enrichment.js)
+- [ ] `docs/architecture/client-structure.md` - Hook changes (client/src/hooks/useBarsQuery.ts)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/migrations/2026-01-10-d013-places-cache-rename.sql)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/migrations/2026-01-10-d013-places-cache-rename.sql)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/venue-data-cleanup.js)
 
 ### Status: PENDING
 

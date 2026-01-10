@@ -24,6 +24,8 @@ import { eq } from "drizzle-orm";
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from "./district-detection.js";
 // 2026-01-10: D-014 Phase 4 - Use canonical hours module for all isOpen calculations
 import { parseGoogleWeekdayText, getOpenStatus } from "./hours/index.js";
+// 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
+import { getCoordsKey } from "../location/coords-key.js";
 
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
@@ -327,15 +329,7 @@ function calculateIsOpenFromGoogleWeekdayText(weekdayTexts, timezone = null) {
   return status.is_open;
 }
 
-/**
- * Generate cache key from coordinates
- * 2026-01-05: Use 6-decimal precision to match canonical coord_key format
- * Previously used 4 decimals (~11m) but this caused inconsistencies with venue_catalog lookups
- */
-function getCoordsKey(lat, lng) {
-  // 6 decimal places (~11cm precision) - matches generateCoordKey in venue-utils.js
-  return `${Number(lat).toFixed(6)}_${Number(lng).toFixed(6)}`;
-}
+// getCoordsKey imported from canonical coords-key.js module (2026-01-10)
 
 /**
  * Get place details from Google Places API (New) with caching and retry logic
