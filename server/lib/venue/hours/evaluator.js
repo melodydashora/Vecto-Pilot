@@ -204,6 +204,14 @@ export function getOpenStatus(schedule, timezone, now = new Date()) {
 
   const { dayIndex, dayName, currentMinutes, yesterdayName } = timeInfo;
 
+  // 2026-01-10: Debug logging for isOpen investigation
+  const DEBUG_HOURS = process.env.DEBUG_HOURS === 'true';
+  if (DEBUG_HOURS) {
+    const hr = Math.floor(currentMinutes / 60);
+    const min = currentMinutes % 60;
+    console.log(`[getOpenStatus] tz=${timezone}, day=${dayName}, time=${hr}:${String(min).padStart(2, '0')} (${currentMinutes} min)`);
+  }
+
   // 4. Get today's and yesterday's schedules
   const todaySchedule = schedule[dayName];
   const yesterdaySchedule = schedule[yesterdayName];
@@ -275,6 +283,14 @@ export function getOpenStatus(schedule, timezone, now = new Date()) {
 
   // 6. Check today's intervals (using fixed isWithinTodayInterval)
   const intervals = todaySchedule.intervals || [];
+
+  // 2026-01-10: Debug logging for isOpen investigation
+  if (DEBUG_HOURS) {
+    console.log(`[getOpenStatus] Today's ${dayName} has ${intervals.length} intervals:`,
+      intervals.map(i => `${i.open_minute}-${i.close_minute}${i.closes_next_day ? '(overnight)' : ''}`).join(', ')
+    );
+  }
+
   for (const interval of intervals) {
     if (isWithinTodayInterval(currentMinutes, interval)) {
       // Currently open in today's main shift

@@ -96,7 +96,8 @@ export function toApiVenue(dbVenue) {
     phone: dbVenue.phone,
     expenseLevel: dbVenue.expense_level,
     expenseRank: dbVenue.expense_rank,
-    isOpen: dbVenue.is_open,
+    // 2026-01-10: D-030 - Snake/camel tolerant for isOpen
+    isOpen: dbVenue.isOpen ?? dbVenue.is_open ?? null,
     opensInMinutes: dbVenue.opens_in_minutes,
     hoursToday: dbVenue.hours_today,
     closingSoon: dbVenue.closing_soon,
@@ -106,7 +107,10 @@ export function toApiVenue(dbVenue) {
     rating: dbVenue.rating,
     lat: dbVenue.lat,
     lng: dbVenue.lng,
-    placeId: dbVenue.place_id
+    placeId: dbVenue.place_id,
+    // 2026-01-10: D-030 - Added for "Closed but worth it" UI feature
+    closedGoAnyway: dbVenue.closed_go_anyway ?? dbVenue.closedGoAnyway ?? false,
+    closedReason: dbVenue.closed_reason ?? dbVenue.closedReason ?? null
   };
 }
 
@@ -133,51 +137,127 @@ export function toApiVenueData(venueData) {
 // ============================================================================
 
 /**
- * Transform a single SmartBlock from DB/server format to API format
+ * Transform a single SmartBlock from DB/server format to API format.
+ *
+ * 2026-01-10: CANONICAL MAPPER - Single source of truth for block transformation
+ *
+ * Handles:
+ * - snake_case vs camelCase (is_open/isOpen, pro_tips/proTips)
+ * - Legacy event fields (event_time) vs New migration (event_start_time)
+ * - Nested features JSON vs top-level properties
+ * - Address merging from external resolution
+ * - Number coercion for metrics
+ * - Staging area normalization (string → object)
+ *
  * DB: { distance_miles, drive_minutes, value_per_min, ... }
  * API: { estimatedDistanceMiles, driveTimeMinutes, valuePerMin, ... }
  *
- * @param {Object} dbBlock - Block from ranking_candidates table
+ * @param {Object} dbBlock - Block from ranking_candidates table or merged candidate
  * @returns {Object} API-formatted block
  */
 export function toApiBlock(dbBlock) {
   if (!dbBlock) return null;
 
+  // 1. Resolve Status (isOpen) - check ALL casing variants
+  // Priority: top-level camel > top-level snake > features camel > features snake
+  const isOpen = dbBlock.isOpen ??
+                 dbBlock.is_open ??
+                 dbBlock.features?.isOpen ??
+                 dbBlock.features?.is_open ??
+                 null;
+
+  // 2. Resolve Business Hours (snake/camel tolerant)
+  const businessHours = dbBlock.businessHours ??
+                        dbBlock.business_hours ??
+                        dbBlock.features?.businessHours ??
+                        dbBlock.features?.business_hours ??
+                        null;
+
+  // 3. Resolve Staging Area (normalize to object)
+  // DB might store string "Use north lot" or object { parkingTip: "..." }
+  let stagingArea = dbBlock.stagingArea ??
+                    dbBlock.staging_area ??
+                    dbBlock.staging_tips ??
+                    null;
+  if (typeof stagingArea === 'string') {
+    stagingArea = { parkingTip: stagingArea };
+  }
+
+  // 4. Resolve Events fields (Migration Compatibility)
+  // Check discovered_events array (if joined) or features flags
+  const hasEvent = dbBlock.hasEvent ??
+                   dbBlock.has_event ??
+                   dbBlock.features?.hasEvent ??
+                   dbBlock.features?.has_event ??
+                   (Array.isArray(dbBlock.venue_events) && dbBlock.venue_events.length > 0) ??
+                   false;
+
+  let eventBadge = dbBlock.eventBadge ??
+                   dbBlock.event_badge ??
+                   dbBlock.features?.eventBadge ??
+                   null;
+  let eventSummary = dbBlock.eventSummary ??
+                     dbBlock.event_summary ??
+                     dbBlock.features?.eventSummary ??
+                     null;
+
+  // Fallback: Generate summary from joined events if not pre-calculated
+  if (!eventSummary && Array.isArray(dbBlock.venue_events) && dbBlock.venue_events.length > 0) {
+    const evt = dbBlock.venue_events[0];
+    // 2026-01-10: Support new columns (event_start_time) and legacy (event_time)
+    const time = evt.event_start_time || evt.event_time || 'today';
+    eventSummary = `${evt.category || 'Event'} at ${time}`;
+    if (!eventBadge) eventBadge = evt.title;
+  }
+
+  // 5. Resolve Street View URL (snake/camel tolerant)
+  const streetViewUrl = dbBlock.streetViewUrl ??
+                        dbBlock.street_view_url ??
+                        dbBlock.features?.streetViewUrl ??
+                        dbBlock.features?.street_view_url ??
+                        null;
+
+  // 6. Resolve Closed Venue Reasoning (multiple legacy column names)
+  const closedVenueReasoning = dbBlock.closedVenueReasoning ??
+                               dbBlock.closed_venue_reasoning ??
+                               dbBlock.closed_reasoning ??
+                               dbBlock.features?.closedVenueReasoning ??
+                               null;
+
+  // 7. Construct Canonical API Object
   return {
     name: dbBlock.name,
-    address: dbBlock.address,
+    address: dbBlock.address, // Prefer resolved address passed in by caller
     coordinates: dbBlock.coordinates || { lat: dbBlock.lat, lng: dbBlock.lng },
-    placeId: dbBlock.place_id || dbBlock.placeId,
-    // 2026-01-09: Fallbacks kept for backward compatibility with old data
-    // Phase 2 stopped writing legacy columns; Phase 3 will drop them + remove fallbacks
-    estimatedDistanceMiles: dbBlock.distance_miles ?? dbBlock.estimated_distance_miles,
-    driveTimeMinutes: dbBlock.drive_minutes ?? dbBlock.driveTimeMinutes,
-    valuePerMin: dbBlock.value_per_min,
-    valueGrade: dbBlock.value_grade,
-    notWorth: dbBlock.not_worth,
-    proTips: dbBlock.pro_tips ?? dbBlock.proTips,
-    closedVenueReasoning: dbBlock.closed_reasoning ?? dbBlock.closed_venue_reasoning,
-    stagingArea: dbBlock.staging_tips
-      ? { parkingTip: dbBlock.staging_tips }
-      : dbBlock.stagingArea || null,
-    // 2026-01-10: Snake/camel tolerant - check all variants
-    // DB stores is_open (snake), some paths use isOpen (camel)
-    isOpen: dbBlock.isOpen ?? dbBlock.is_open ??
-            dbBlock.features?.isOpen ?? dbBlock.features?.is_open ?? null,
-    businessHours: dbBlock.business_hours ?? dbBlock.businessHours,
-    // 2026-01-10: Snake/camel tolerant for street view URL
-    streetViewUrl: dbBlock.streetViewUrl ?? dbBlock.street_view_url ??
-                   dbBlock.features?.streetViewUrl ?? dbBlock.features?.street_view_url ?? null,
-    hasEvent: dbBlock.features?.hasEvent ??
-      (Array.isArray(dbBlock.venue_events) && dbBlock.venue_events.length > 0),
-    eventBadge: dbBlock.features?.eventBadge ??
-      (Array.isArray(dbBlock.venue_events) && dbBlock.venue_events.length > 0
-        ? dbBlock.venue_events[0].title
-        : null),
-    // 2026-01-10: Use symmetric field name (event_start_time)
-    eventSummary: Array.isArray(dbBlock.venue_events) && dbBlock.venue_events.length > 0
-      ? `${dbBlock.venue_events[0].category} at ${dbBlock.venue_events[0].event_start_time || 'today'}`
-      : null
+    placeId: dbBlock.placeId ?? dbBlock.place_id,
+
+    // Metrics - coerce to numbers with defaults
+    estimatedDistanceMiles: Number(dbBlock.estimatedDistanceMiles ?? dbBlock.distance_miles ?? dbBlock.estimated_distance_miles ?? 0),
+    driveTimeMinutes: Number(dbBlock.driveTimeMinutes ?? dbBlock.drive_minutes ?? 0),
+    distanceSource: dbBlock.distanceSource ?? dbBlock.distance_source ?? "routes_api",
+    valuePerMin: Number(dbBlock.valuePerMin ?? dbBlock.value_per_min ?? 0),
+    valueGrade: dbBlock.valueGrade ?? dbBlock.value_grade ?? null,
+    notWorth: !!(dbBlock.notWorth ?? dbBlock.not_worth),
+    surge: dbBlock.surge ?? null,
+    estimatedEarningsPerRide: dbBlock.estimatedEarningsPerRide ?? dbBlock.estimated_earnings_per_ride ?? null,
+    estimatedWaitTime: dbBlock.estimatedWaitTime ?? dbBlock.estimated_wait_time ?? null,
+    demandLevel: dbBlock.demandLevel ?? dbBlock.demand_level ?? null,
+
+    // Intelligence
+    proTips: dbBlock.proTips ?? dbBlock.pro_tips ?? [],
+    closedVenueReasoning: closedVenueReasoning,
+    stagingArea: stagingArea,
+
+    // Status
+    isOpen: isOpen,
+    businessHours: businessHours,
+    businessStatus: dbBlock.businessStatus ?? dbBlock.business_status ?? null,
+
+    // Visuals / Events
+    streetViewUrl: streetViewUrl,
+    hasEvent: hasEvent,
+    eventBadge: eventBadge,
+    eventSummary: eventSummary
   };
 }
 
@@ -228,16 +308,18 @@ export function toApiStrategyPolling(data) {
   } : undefined;
 
   // Transform strategy object
+  // 2026-01-10: Snake/camel tolerant for all briefing fields
   const strategy = data.strategy ? {
     consolidated: data.strategy.consolidated || '',
-    strategyForNow: data.strategy.strategy_for_now || '',
+    strategyForNow: data.strategy.strategyForNow ?? data.strategy.strategy_for_now ?? '',
     holiday: data.strategy.holiday,
     briefing: data.strategy.briefing ? {
-      events: data.strategy.briefing.events,
-      news: data.strategy.briefing.news,
-      traffic: data.strategy.briefing.traffic,
-      holidays: data.strategy.briefing.holidays,
-      schoolClosures: data.strategy.briefing.school_closures
+      events: data.strategy.briefing.events ?? [],
+      news: data.strategy.briefing.news ?? [],
+      traffic: data.strategy.briefing.traffic ?? {},
+      holidays: data.strategy.briefing.holidays ?? [],
+      // Fix the casing mismatch - accept both snake and camel
+      schoolClosures: data.strategy.briefing.schoolClosures ?? data.strategy.briefing.school_closures ?? []
     } : null
   } : undefined;
 

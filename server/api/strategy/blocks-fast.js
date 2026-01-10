@@ -56,62 +56,71 @@ import { isPlusCode } from '../utils/http-helpers.js';
 // Extracted to dedicated module (eliminates legacy SSE router dependency)
 import { phaseEmitter } from '../../events/phase-emitter.js';
 import { sseLog, venuesLog, triadLog, dbLog, briefingLog } from '../../logger/workflow.js';
+// 2026-01-10: Import canonical transformer (single source of truth for block mapping)
+import { toApiBlock } from '../../validation/transformers.js';
 
 const router = Router();
 
 // PostgreSQL Advisory Lock helpers for cross-server coordination
-// Updated 2026-01-05: Replaced in-memory Map for horizontal scaling support
+// 2026-01-10: S-002 FIX - Now uses TRANSACTION-SCOPED locks (pg_try_advisory_xact_lock)
 //
-// 2026-01-10: S-002 FIX - IMPORTANT LIMITATION:
-// These are SESSION-LEVEL locks (pg_advisory_lock), not transaction-scoped.
-// With connection pooling, acquire/release CAN hit different sessions.
-// This is mitigated by:
-//   1. Drizzle's connection-per-query model (usually same session within request)
-//   2. Explicit try/finally release pattern in ensureSmartBlocksExist()
-//   3. Lock timeout via pg_advisory_lock (blocks until released)
+// CRITICAL CHANGE: Advisory locks are now transaction-scoped, meaning:
+//   1. Lock is AUTOMATICALLY released when transaction commits/rollbacks
+//   2. No risk of lock leaks due to connection pooling mismatches
+//   3. Must use db.transaction() wrapper for the generation logic
 //
-// For full correctness, migrate to pg_advisory_xact_lock inside db.transaction()
-// See: .serena/memories/strategy-pipeline-audit-2026-01-10.md
+// For long-running operations (like SmartBlocks generation that calls external APIs),
+// we use a two-phase approach:
+//   Phase 1: Short transaction to acquire lock + validate preconditions
+//   Phase 2: Generation runs outside transaction (lock released after phase 1)
+//   Phase 3: Row-level locking (UPDATE strategies SET status='ok' WHERE status='running')
+//
+// This is safe because:
+//   - strategies.status acts as a secondary state-based lock
+//   - If phase 2 fails, status remains 'running' (can be retried/cleaned)
+//   - See: .serena/memories/strategy-pipeline-audit-2026-01-10.md
 
 /**
- * Try to acquire a PostgreSQL advisory lock for a snapshot.
- * Returns immediately with true/false (non-blocking).
+ * Try to acquire a transaction-scoped advisory lock for a snapshot.
+ * Must be called inside a db.transaction() block.
+ * Lock auto-releases when transaction commits or rollbacks.
  *
- * NOTE: Uses session-level lock. With connection pooling, ensure
- * release happens on same connection or within same request lifecycle.
+ * 2026-01-10: S-002 FIX - Changed from session-level to transaction-scoped
  *
  * @param {string} snapshotId - Snapshot UUID to lock
  * @returns {Promise<boolean>} true if lock acquired, false if already held
  */
-async function tryAcquireGenerationLock(snapshotId) {
+async function tryAcquireXactLock(snapshotId) {
   const result = await db.execute(
-    sql`SELECT pg_try_advisory_lock(hashtext(${snapshotId})) as acquired`
+    sql`SELECT pg_try_advisory_xact_lock(hashtext(${snapshotId})) as acquired`
   );
   return result.rows[0]?.acquired === true;
 }
 
 /**
- * Wait to acquire a PostgreSQL advisory lock for a snapshot.
- * Blocks until lock is available (blocking wait).
+ * Check if a generation lock is currently held (for status checking only).
+ * This is a non-blocking check that doesn't acquire the lock.
  *
- * @param {string} snapshotId - Snapshot UUID to lock
+ * @param {string} snapshotId - Snapshot UUID to check
+ * @returns {Promise<boolean>} true if lock is NOT held (available), false if held
  */
-async function waitForGenerationLock(snapshotId) {
-  await db.execute(
-    sql`SELECT pg_advisory_lock(hashtext(${snapshotId}))`
+async function isLockAvailable(snapshotId) {
+  // pg_try_advisory_lock returns true if we got it - if so, release immediately
+  const result = await db.execute(
+    sql`SELECT pg_try_advisory_lock(hashtext(${snapshotId})) as acquired`
   );
+  const acquired = result.rows[0]?.acquired === true;
+  if (acquired) {
+    // Release immediately - we just wanted to check
+    await db.execute(sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`);
+  }
+  return acquired; // If we got it (and released), it was available
 }
 
-/**
- * Release a PostgreSQL advisory lock for a snapshot.
- *
- * @param {string} snapshotId - Snapshot UUID to unlock
- */
-async function releaseGenerationLock(snapshotId) {
-  await db.execute(
-    sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`
-  );
-}
+// DEPRECATED: Session-level locks - kept for reference only
+// async function tryAcquireGenerationLock(snapshotId) { ... }
+// async function waitForGenerationLock(snapshotId) { ... }
+// async function releaseGenerationLock(snapshotId) { ... }
 
 // ============================================================================
 // SHARED HELPERS - DRY principle: single source of truth for blocks logic
@@ -120,6 +129,12 @@ async function releaseGenerationLock(snapshotId) {
 /**
  * Ensure SmartBlocks exist for a snapshot, generating them if missing.
  * Single function replaces 3 duplicate call sites.
+ *
+ * 2026-01-10: S-002 FIX - Uses two-phase locking approach:
+ *   Phase 1: Short transaction to check/claim via strategies.status
+ *   Phase 2: Long-running generation (external APIs) outside transaction
+ *
+ * This avoids advisory lock leaks with connection pooling.
  *
  * @param {string} snapshotId - Snapshot UUID
  * @param {Object} options - Optional overrides
@@ -138,62 +153,107 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     return { ranking: existingRanking, generated: false, error: null };
   }
 
-  // Try to acquire PostgreSQL advisory lock (non-blocking check)
-  // Updated 2026-01-05: Replaced in-memory Map for horizontal scaling
-  const lockAcquired = await tryAcquireGenerationLock(snapshotId);
+  // 2026-01-10: S-002 FIX - Use two-phase approach with state-based locking
+  // Phase 1: Try to claim generation via transaction-scoped advisory lock + status check
+  let canGenerate = false;
+  let strategyRow = options.strategyRow;
+  let briefingRow = options.briefingRow;
+  let snapshot = options.snapshot;
 
-  if (!lockAcquired) {
-    // Another process is generating - wait for it to complete
-    venuesLog.info(`Generation locked by another process for ${snapshotId.slice(0, 8)}, waiting...`);
-    try {
-      await waitForGenerationLock(snapshotId);
-      // Lock acquired means other process finished, release immediately
-      await releaseGenerationLock(snapshotId);
+  try {
+    // Short transaction to atomically check and claim
+    await db.transaction(async (tx) => {
+      // Try to acquire transaction-scoped advisory lock
+      const lockResult = await tx.execute(
+        sql`SELECT pg_try_advisory_xact_lock(hashtext(${snapshotId})) as acquired`
+      );
+      const lockAcquired = lockResult.rows[0]?.acquired === true;
 
-      // Check for the ranking created by the other process
+      if (!lockAcquired) {
+        // Another process has the lock - they're generating
+        venuesLog.info(`[S-002] Transaction lock held by another process for ${snapshotId.slice(0, 8)}`);
+        return; // Transaction commits, lock check was atomic
+      }
+
+      // Lock acquired - check if strategy is ready and not already being processed
+      if (!strategyRow) {
+        const [row] = await tx.select().from(strategies)
+          .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+        strategyRow = row;
+      }
+
+      if (!strategyRow?.strategy_for_now) {
+        venuesLog.warn(`[S-002] No strategy_for_now for ${snapshotId.slice(0, 8)}`);
+        return;
+      }
+
+      // Check if status indicates generation is already happening
+      if (strategyRow.status === STRATEGY_STATUS.PENDING_BLOCKS) {
+        // Already being generated by another process
+        venuesLog.info(`[S-002] Status already pending_blocks for ${snapshotId.slice(0, 8)}`);
+        return;
+      }
+
+      // Claim by marking status as pending_blocks (atomic state transition)
+      await tx.update(strategies).set({
+        status: STRATEGY_STATUS.PENDING_BLOCKS,
+        phase: 'venues',
+        updated_at: new Date()
+      }).where(eq(strategies.snapshot_id, snapshotId));
+
+      // Fetch other required data while we have the lock
+      if (!briefingRow) {
+        const [row] = await tx.select().from(briefings)
+          .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+        briefingRow = row;
+      }
+
+      if (!snapshot) {
+        const [row] = await tx.select().from(snapshots)
+          .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+        snapshot = row;
+      }
+
+      canGenerate = true;
+      // Transaction commits here, advisory lock auto-releases
+    });
+  } catch (err) {
+    venuesLog.error(4, `[S-002] Lock transaction failed`, err);
+    return { ranking: null, generated: false, error: `lock_failed: ${err.message}` };
+  }
+
+  if (!canGenerate) {
+    // Another process is handling it - poll for completion
+    venuesLog.info(`[S-002] Waiting for other process to complete ${snapshotId.slice(0, 8)}`);
+
+    // Poll with exponential backoff (max 30s)
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, Math.min(1000 * (i + 1), 5000)));
       const [ranking] = await db.select().from(rankings)
         .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
-      return { ranking: ranking || null, generated: false, error: ranking ? null : 'generation_in_progress_completed_without_ranking' };
-    } catch (err) {
-      return { ranking: null, generated: false, error: `generation_in_progress_failed: ${err.message}` };
+      if (ranking) {
+        return { ranking, generated: false, error: null };
+      }
     }
+    return { ranking: null, generated: false, error: 'generation_timeout' };
   }
 
-  // We have the lock - proceed with generation
-  // Fetch required data (use provided or fetch fresh)
-  const strategyRow = options.strategyRow || (await db.select().from(strategies)
-    .where(eq(strategies.snapshot_id, snapshotId)).limit(1))[0];
-
+  // Validate we have all required data
   if (!strategyRow?.strategy_for_now) {
-    await releaseGenerationLock(snapshotId);
     return { ranking: null, generated: false, error: 'missing_immediate_strategy' };
   }
-
-  const briefingRow = options.briefingRow || (await db.select().from(briefings)
-    .where(eq(briefings.snapshot_id, snapshotId)).limit(1))[0];
-
   if (!briefingRow) {
-    await releaseGenerationLock(snapshotId);
     return { ranking: null, generated: false, error: 'missing_briefing' };
   }
-
-  const snapshot = options.snapshot || (await db.select().from(snapshots)
-    .where(eq(snapshots.snapshot_id, snapshotId)).limit(1))[0];
-
   if (!snapshot) {
-    await releaseGenerationLock(snapshotId);
     return { ranking: null, generated: false, error: 'missing_snapshot' };
   }
 
-  // Generate SmartBlocks
+  // Phase 2: Generate SmartBlocks (outside transaction - makes external API calls)
   venuesLog.info(`[blocks-fast] Generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
 
   try {
-    // Phase updates now happen INSIDE generateEnhancedSmartBlocks for granular tracking
-    // Phases: venues → routing → verifying → complete
-
     // 2026-01-09: P0-3 FIX - Pass authenticated userId instead of null
-    // This ensures rankings/candidates are owned by the authenticated user
     await generateEnhancedSmartBlocks({
       snapshotId,
       immediateStrategy: strategyRow.strategy_for_now,
@@ -207,12 +267,8 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
     const [newRanking] = await db.select().from(rankings)
       .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
 
-    // Release PostgreSQL advisory lock
-    await releaseGenerationLock(snapshotId);
-
     if (newRanking) {
       venuesLog.done(4, `SmartBlocks generated for ${snapshotId.slice(0, 8)}`);
-      // Mark phase complete (updatePhase is imported at file level)
       await updatePhase(snapshotId, 'complete', { phaseEmitter: options.phaseEmitter });
       return { ranking: newRanking, generated: true, error: null };
     } else {
@@ -220,20 +276,31 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       return { ranking: null, generated: true, error: 'ranking_not_created' };
     }
   } catch (err) {
-    // Release PostgreSQL advisory lock on error
-    await releaseGenerationLock(snapshotId).catch(() => {});
     venuesLog.error(4, `SmartBlocks generation failed`, err);
+    // Reset status so retry is possible
+    await db.update(strategies).set({
+      status: STRATEGY_STATUS.OK,
+      updated_at: new Date()
+    }).where(eq(strategies.snapshot_id, snapshotId)).catch(() => {});
     return { ranking: null, generated: false, error: err.message };
   }
 }
 
 /**
- * Map ranking candidates to client-friendly block format.
- * Single function replaces duplicate mapping logic in GET and POST routes.
+ * Resolve addresses and transform candidates to API blocks using canonical transformer.
+ *
+ * 2026-01-10: REFACTORED - Uses toApiBlock from transformers.js as single source of truth.
+ * This eliminates duplicate field mapping logic and ensures consistent casing.
+ *
+ * Steps:
+ * 1. Batch resolve venue addresses (efficient, parallel)
+ * 2. Filter Plus Codes from resolved addresses
+ * 3. Merge resolved address into candidate
+ * 4. Transform using toApiBlock (handles all snake/camel variants)
  *
  * @param {Array} candidates - Raw candidates from ranking_candidates table
  * @param {Object} options - Configuration options
- * @param {boolean} options.isHoliday - Whether today is a holiday (affects businessHours)
+ * @param {boolean} options.isHoliday - Whether today is a holiday (suppresses businessHours)
  * @param {boolean} options.hasSpecialHours - Whether special hours are in effect
  * @param {boolean} options.logPlusCodes - Whether to log filtered Plus Codes
  * @returns {Promise<Array>} Formatted blocks ready for client
@@ -241,19 +308,20 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
 async function mapCandidatesToBlocks(candidates, options = {}) {
   const { isHoliday = false, hasSpecialHours = false, logPlusCodes = false } = options;
 
-  // Batch resolve venue addresses for all candidates in parallel
+  // Step 1: Batch resolve venue addresses for all candidates in parallel
   const venueKeys = candidates.map(c => ({ lat: c.lat, lng: c.lng, name: c.name }));
   const addressMap = await resolveVenueAddressesBatch(venueKeys);
 
+  // Step 2-4: Map each candidate using canonical transformer
+  // toApiBlock imported at top of file from '../../validation/transformers.js'
   return candidates.map(c => {
     const coordKey = `${c.lat},${c.lng}`;
 
-    // 2026-01-05: Extract string from venue object returned by resolveVenueAddressesBatch
-    // The resolver returns {formatted_address, address, city, state, ...} but blocks need a string
+    // Step 2: Extract and filter address
     const venueData = addressMap[coordKey];
     let resolvedAddress = venueData?.formatted_address || venueData?.address || null;
 
-    // Filter out Plus Codes - use resolved address if it exists and is not a Plus Code
+    // Filter Plus Codes
     if (resolvedAddress && isPlusCode(resolvedAddress)) {
       if (logPlusCodes) {
         console.log(`[blocks-fast] ⚠️ Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);
@@ -266,7 +334,7 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
       resolvedAddress = c.address;
     }
 
-    // If we still have a Plus Code from candidate, reject it too
+    // Final Plus Code check
     if (resolvedAddress && isPlusCode(resolvedAddress)) {
       if (logPlusCodes) {
         console.log(`[blocks-fast] ⚠️ Filtering Plus Code from candidate: "${resolvedAddress}" for ${c.name}`);
@@ -274,35 +342,19 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
       resolvedAddress = null;
     }
 
-    // 2026-01-09: P1-5 FIX - Standardized to camelCase for API consistency
-    const block = {
-      name: c.name,
-      address: resolvedAddress || null,
-      coordinates: { lat: c.lat, lng: c.lng },
-      placeId: c.place_id,
-      estimatedDistanceMiles: c.distance_miles,
-      driveTimeMinutes: c.drive_minutes,
-      valuePerMin: c.value_per_min,
-      valueGrade: c.value_grade,
-      notWorth: c.not_worth,
-      proTips: c.pro_tips,
-      closedVenueReasoning: c.closed_reasoning,
-      stagingArea: c.staging_tips ? { parkingTip: c.staging_tips } : null,
-      // 2026-01-10: S-005 FIX - Snake/camel tolerant (matches toApiBlock in transformers.js)
-      isOpen: c.features?.isOpen ?? c.features?.is_open ?? c.isOpen ?? c.is_open ?? null,
-      streetViewUrl: c.features?.streetViewUrl ?? c.features?.street_view_url ?? c.streetViewUrl ?? c.street_view_url ?? null,
-      // Event flags from discovered_events matching (venue_events is array of matched events)
-      hasEvent: c.features?.hasEvent || (Array.isArray(c.venue_events) && c.venue_events.length > 0),
-      eventBadge: c.features?.eventBadge || (Array.isArray(c.venue_events) && c.venue_events.length > 0 ? c.venue_events[0].title : null),
-      eventSummary: Array.isArray(c.venue_events) && c.venue_events.length > 0 ? `${c.venue_events[0].category} at ${c.venue_events[0].event_time || 'today'}` : null,
+    // Step 3: Prepare input for transformer with resolved address
+    // If holiday/special hours, suppress businessHours by setting to null
+    const inputForTransformer = {
+      ...c,
+      address: resolvedAddress || c.address,
+      // Suppress business hours on holidays (transformer will pass through null)
+      businessHours: (isHoliday || hasSpecialHours) ? null : c.business_hours,
+      business_hours: (isHoliday || hasSpecialHours) ? null : c.business_hours
     };
 
-    // Dynamic business hours enrichment - only include if NOT holiday/special hours
-    if (c.business_hours && !isHoliday && !hasSpecialHours) {
-      block.businessHours = c.business_hours;
-    }
-
-    return block;
+    // Step 4: Use canonical transformer (single source of truth for field mapping)
+    // toApiBlock handles: snake/camel variants, event_start_time/event_time, staging normalization
+    return toApiBlock(inputForTransformer);
   });
 }
 

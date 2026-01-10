@@ -48,20 +48,20 @@ interface BriefingEvent {
   [key: string]: unknown;
 }
 
-// Bar type for map markers (MapTab expects snake_case)
-// 2026-01-10: D-025 - Data comes from useBarsQuery (camelCase) and is mapped here
+// Bar type for map markers - now uses camelCase (matches useBarsQuery + MapTab)
+// 2026-01-10: D-030 - Eliminated snake_case mapping layer
 interface MapBar {
   name: string;
   type: string;
   address: string;
-  expense_level: string;
-  expense_rank: number;
-  is_open: boolean;
-  closing_soon: boolean;
-  minutes_until_close: number | null;
+  expenseLevel: string;
+  expenseRank: number;
+  isOpen: boolean;
+  closingSoon: boolean;
+  minutesUntilClose: number | null;
   lat: number;
   lng: number;
-  place_id?: string;
+  placeId?: string;
   rating?: number | null;
 }
 
@@ -75,7 +75,7 @@ export default function MapPage() {
   const { data: activeEventsData } = useActiveEventsQuery(lastSnapshotId);
 
   // 2026-01-10: D-025 - Filter bars using shared barsData from useBarsQuery
-  // Map camelCase (from useBarsQuery) to snake_case (for MapTab)
+  // 2026-01-10: D-030 - Now uses camelCase directly (no mapping needed)
   const filteredBars = React.useMemo(() => {
     // barsData is from useBarsQuery which returns camelCase Venue[]
     const allBars: Venue[] = [...(barsData?.venues || []), ...(barsData?.lastCallVenues || [])];
@@ -92,24 +92,24 @@ export default function MapPage() {
     // Filter: $$ and above (expenseRank >= 2) AND open only (no closed bars)
     const openPremiumBars = uniqueBars.filter(bar => bar.expenseRank >= 2 && bar.isOpen === true);
 
-    // Map camelCase → snake_case for MapTab compatibility
+    // Direct camelCase pass-through (MapTab now expects camelCase)
     const mappedBars: MapBar[] = openPremiumBars.map(bar => ({
       name: bar.name,
       type: bar.type,
       address: bar.address,
-      expense_level: bar.expenseLevel,
-      expense_rank: bar.expenseRank,
-      is_open: bar.isOpen === true,
-      closing_soon: bar.closingSoon,
-      minutes_until_close: bar.minutesUntilClose,
+      expenseLevel: bar.expenseLevel,
+      expenseRank: bar.expenseRank,
+      isOpen: bar.isOpen === true,
+      closingSoon: bar.closingSoon,
+      minutesUntilClose: bar.minutesUntilClose,
       lat: bar.lat,
       lng: bar.lng,
-      place_id: bar.placeId,
+      placeId: bar.placeId,
       rating: bar.rating,
     }));
 
-    const openCount = mappedBars.filter(b => !b.closing_soon).length;
-    const closingSoonCount = mappedBars.filter(b => b.closing_soon).length;
+    const openCount = mappedBars.filter(b => !b.closingSoon).length;
+    const closingSoonCount = mappedBars.filter(b => b.closingSoon).length;
     console.log(`[MapPage] Bars: ${mappedBars.length} open $$+ bars (${openCount} open, ${closingSoonCount} closing soon)`);
     return mappedBars;
   }, [barsData]);
