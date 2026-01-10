@@ -1,7 +1,7 @@
 
 import { db } from '../../db/drizzle.js';
 import { briefings, snapshots, discovered_events, us_market_cities } from '../../../shared/schema.js';
-import { eq, and, desc, sql, gte, lte, ilike } from 'drizzle-orm';
+import { eq, and, desc, sql, gte, lte, ilike, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 // Event validation disabled - Gemini handles event discovery, Claude is fallback only
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
@@ -814,13 +814,14 @@ async function _fetchEventsWithGemini3ProPreviewLegacy({ snapshot }) {
   // Validation will reject events missing event_start_date, event_start_time, or event_end_time
   const system = `You are an event discovery assistant. Search for local events and return structured JSON data.
 
-CRITICAL REQUIREMENTS - Every event MUST have:
-- event_date: Date in YYYY-MM-DD format (REQUIRED - NO EXCEPTIONS)
-- event_time: Start time like "7:00 PM" or "19:00" (REQUIRED - NO NULLS)
+CRITICAL REQUIREMENTS - Every event MUST have ALL of these fields:
+- event_start_date: Start date in YYYY-MM-DD format (REQUIRED)
+- event_start_time: Start time like "7:00 PM" or "19:00" (REQUIRED)
+- event_end_date: End date in YYYY-MM-DD format (REQUIRED - same as start for single-day events)
 - event_end_time: End time like "10:00 PM" or "22:00" (REQUIRED - ESTIMATE if unknown)
 
-Events without valid date/time data will be REJECTED. Never return null, "TBD", or "Unknown" for these fields.
-If an event time is not specified, estimate based on typical event patterns (concerts: 3 hours, sports: 3 hours, etc).`;
+Events without ALL date/time fields will be REJECTED. Never return null, "TBD", or "Unknown" for these fields.
+If end time is not specified, estimate: Sports=3h, Concerts=3h, Festivals=4h, Theater=2.5h.`;
 
   const user = `Find events in ${city}, ${state} ${timeContext} (${date}, ${dayOfWeek}).
 
@@ -829,18 +830,20 @@ Return a JSON array where EVERY event has ALL required fields:
   "title": "Event Name",
   "venue": "Venue Name",
   "address": "Full Street Address",
-  "event_date": "${date}",
-  "event_time": "7:00 PM",
+  "event_start_date": "${date}",
+  "event_start_time": "7:00 PM",
+  "event_end_date": "${date}",
   "event_end_time": "10:00 PM",
   "subtype": "concert|sports|comedy|theater|festival|community",
   "impact": "high|medium|low"
 }
 
 RULES:
-- event_date MUST be in YYYY-MM-DD format
-- event_time and event_end_time MUST be provided (estimate if not listed)
-- NO null values, NO "TBD", NO "Unknown" - skip the event if you cannot determine times
-- Include events for ${date} and the next 3 days`;
+1. event_start_date and event_end_date MUST be in YYYY-MM-DD format
+2. event_start_time and event_end_time MUST be separate fields (NEVER combine)
+3. If exact end time unknown, estimate duration: Sports=3h, Concert=3h, Festival=4h
+4. NO null values, NO "TBD", NO "Unknown" - SKIP the event entirely if times cannot be determined
+5. Include events for ${date} and the next 3 days`;
 
   // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
   const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
@@ -931,6 +934,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   // Read events from discovered_events table for this city/state and date range
   try {
     // 2026-01-10: Use symmetric field names (event_start_date)
+    // 2026-01-10: Added NOT NULL filters to exclude broken events from UI
     const events = await db.select()
       .from(discovered_events)
       .where(and(
@@ -938,7 +942,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         eq(discovered_events.state, state),
         gte(discovered_events.event_start_date, todayStr),
         lte(discovered_events.event_start_date, endDateStr),
-        eq(discovered_events.is_active, true)
+        eq(discovered_events.is_active, true),
+        // STRICT FILTER: Hide events with NULL times from UI
+        isNotNull(discovered_events.event_start_time),
+        isNotNull(discovered_events.event_end_time)
       ))
       .orderBy(discovered_events.event_start_date)
       .limit(50);
