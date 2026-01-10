@@ -48,18 +48,9 @@ IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL T
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
-| D-020 | `shared/schema.js:592` | Index references `event_date` column | Column renamed to `event_start_date` (line 564) | PENDING |
-| D-021 | `client/src/contexts/co-pilot-context.tsx:494` | Client checks `status === 'complete'` | Server sends `status: 'ok'` - canonical values in `status-constants.js` | PENDING |
-| D-022 | `client/src/pages/co-pilot/StrategyPage.tsx` | Same `status === 'complete'` check | Should use `'ok'` or import canonical constant | PENDING |
-
-**Impact of D-020:**
-- Index creation may fail (references non-existent column)
-- Event queries may not use index efficiently
-- Drizzle schema sync could throw errors
-
-**Impact of D-021/D-022:**
-- Strategy UI never shows "complete" state (always shows loading/pending)
-- User sees infinite spinner or wrong status indicator
+| D-020 | `shared/schema.js:592` | Index references `event_date` column | Fixed: now uses `event_start_date` | ✅ FIXED |
+| D-021 | `client/src/contexts/co-pilot-context.tsx:494` | Client checks `status === 'complete'` | Removed deprecated check, uses `'ok' \|\| 'pending_blocks'` | ✅ FIXED |
+| D-022 | `client/src/pages/co-pilot/StrategyPage.tsx:869` | Same `status === 'complete'` check | Removed deprecated check, uses `'ok' \|\| 'pending_blocks'` | ✅ FIXED |
 
 ### CRITICAL (P0 - Breaks AI Coach)
 
@@ -205,6 +196,9 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-011 | 2026-01-10 | `server/api/location/location.js:164` | Changed `c.long_name` → `c.short_name` for country (ISO alpha-2) |
 | D-013 | 2026-01-10 | `shared/schema.js`, `venue-enrichment.js`, SQL scripts | Renamed `places_cache.place_id` → `coords_key` for semantic accuracy |
 | D-019 | 2026-01-10 | `server/lib/venue/hours/evaluator.js` | Fixed overnight hours day rollover bug: now checks yesterday's spillover + today's main shift |
+| D-020 | 2026-01-10 | `shared/schema.js:592` | Fixed index column: `event_date` → `event_start_date` |
+| D-021 | 2026-01-10 | `client/src/contexts/co-pilot-context.tsx:494` | Removed deprecated `'complete'` status check, uses `'ok' \|\| 'pending_blocks'` |
+| D-022 | 2026-01-10 | `client/src/pages/co-pilot/StrategyPage.tsx:869` | Removed deprecated `'complete'` status check, uses `'ok' \|\| 'pending_blocks'` |
 
 ---
 

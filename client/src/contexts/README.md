@@ -1,6 +1,14 @@
-> **Last Verified:** 2026-01-07
+> **Last Verified:** 2026-01-10
 
 # Contexts (`client/src/contexts/`)
+
+## 📋 Changelog
+
+### 2026-01-10: D-021 Status Value Fix
+- **File:** `co-pilot-context.tsx:494`
+- **Change:** Removed deprecated `status === 'complete'` check
+- **Server sends:** `'ok'` or `'pending_blocks'` (never `'complete'`)
+- **Impact:** Blocks query `enabled` check now matches server contract
 
 ## ⚠️ Manual Refresh Event (2026-01-07)
 
