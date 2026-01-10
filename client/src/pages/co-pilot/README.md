@@ -4,6 +4,13 @@
 
 ## 📋 Changelog
 
+### 2026-01-10: D-025/D-026 MapPage Cache + Casing Fixes
+- **File:** `MapPage.tsx`
+- **D-025:** Removed duplicate bars fetch, now uses shared `barsData` from `useCoPilot()`
+  - Eliminated `city: 'Unknown'` violation of NO FALLBACKS rule
+  - Maps camelCase from useBarsQuery → snake_case for MapTab compatibility
+- **D-026:** Earnings field now uses `estimatedEarningsPerRide ?? estimatedEarnings` fallback
+
 ### 2026-01-10: D-022 Status Value Fix
 - **File:** `StrategyPage.tsx:869`
 - **Change:** Removed deprecated `status === 'complete'` check in SmartBlocksStatus
