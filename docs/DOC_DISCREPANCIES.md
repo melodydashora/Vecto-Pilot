@@ -27,6 +27,7 @@
 | S-003 | `server/api/strategy/blocks-fast.js:352` | Error message says "consolidated" | Changed to "Waiting for immediate strategy to complete" | ✅ FIXED |
 | S-004 | `server/lib/strategy/status-constants.js` | Status enum drift | Created canonical `STRATEGY_STATUS` enum with all valid values | ✅ FIXED |
 | S-005 | `server/api/strategy/blocks-fast.js:276` | `mapCandidatesToBlocks` missing snake_case tolerance | Added full snake/camel fallback chain for `isOpen` | ✅ FIXED |
+| S-006 | `server/api/strategy/blocks-fast.js:570-615` | No staleness check for `pending_blocks` status | Added 30-minute staleness detection - resets stale strategy, triad_job, briefing | ✅ FIXED |
 
 **Audit Source:** `.serena/memories/strategy-pipeline-audit-2026-01-10.md`
 
@@ -42,6 +43,22 @@ IF NEW.status = 'ok' AND NEW.consolidated_strategy IS NOT NULL THEN
 
 -- Fixed: fires for immediate strategy
 IF NEW.status IN ('ok', 'pending_blocks') AND NEW.strategy_for_now IS NOT NULL THEN
+```
+
+**Impact of S-006:**
+- Previous session failure left `status='pending_blocks'` but no ranking
+- New requests saw `isStrategyComplete()` = true and served stale data
+- `triad_jobs` row existed → `onConflictDoNothing()` returned null
+- TRIAD pipeline never ran → UI showed cached events/strategy from hours/days ago
+
+**Fix for S-006:**
+```javascript
+// Check staleness (30 minutes threshold)
+const strategyAge = Date.now() - new Date(existingStrategy.updated_at).getTime();
+if (strategyAge > 30*60*1000 && (isStuckPendingBlocks || isStuckInProgress)) {
+  // Reset: strategy status, delete triad_job, delete briefing
+  // Fall through to run fresh pipeline
+}
 ```
 
 ### CRITICAL (P0 - Schema/Code Mismatch)

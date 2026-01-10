@@ -902,6 +902,7 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
  * @param {string} snapshotId - UUID of snapshot
  * @param {Object} options - Optional parameters
  * @param {Object} options.snapshot - Pre-fetched snapshot row to avoid redundant DB reads
+ * @param {Object} options.briefingRow - Pre-fetched briefing row (2026-01-10: pass fresh briefing directly)
  */
 export async function runImmediateStrategy(snapshotId, options = {}) {
   const startTime = Date.now();
@@ -920,8 +921,12 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       throw new Error(`Snapshot not found: ${snapshotId}`);
     }
 
-    // Fetch briefing data
-    const [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    // 2026-01-10: Use pre-fetched briefing if provided (ensures fresh data is used)
+    // This avoids re-reading from DB after runBriefing just wrote it
+    let briefingRow = options.briefingRow;
+    if (!briefingRow) {
+      [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+    }
 
     if (!briefingRow) {
       throw new Error(`Briefing not found for snapshot ${snapshotId}`);

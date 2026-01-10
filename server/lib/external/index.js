@@ -2,7 +2,8 @@
 // Third-party API integrations
 
 // Traffic
-export { getTrafficData, analyzeTrafficWithClaude } from './tomtom-traffic.js';
+// 2026-01-10: Fixed stale exports - actual function names from tomtom-traffic.js
+export { getTomTomTraffic, getTomTomTrafficForCity } from './tomtom-traffic.js';
 
 // Google APIs
 export { calculateRoutes } from './routes-api.js';
@@ -20,7 +21,7 @@ export { synthesizeSpeech } from './tts-handler.js';
 export { getFAAStatus } from './faa-asws.js';
 
 // Module summary:
-// - tomtom-traffic.js: TomTom Traffic API + Claude analysis
+// - tomtom-traffic.js: TomTom Traffic API (raw data only, analysis via briefing-service)
 // - routes-api.js: Google Routes API (distance, drive time)
 // - streetview-api.js: Google Street View images
 // - perplexity-api.js: Perplexity search API
