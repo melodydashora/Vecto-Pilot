@@ -29,6 +29,7 @@
 // Parsers
 export { parseGoogleWeekdayText } from './parsers/google-weekday-text.js';
 export { parseHoursTextMap } from './parsers/hours-text-map.js';
+export { parseStructuredHoursFullWeek } from './parsers/structured-hours.js';
 
 // Evaluator
 export { getOpenStatus } from './evaluator.js';

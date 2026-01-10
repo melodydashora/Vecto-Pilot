@@ -49,8 +49,9 @@ if (parseResult.ok) {
 | `index.js` | Barrel export for all module functions |
 | `normalized-types.js` | Type definitions and helper functions |
 | `evaluator.js` | Canonical `getOpenStatus()` function |
-| `parsers/google-weekday-text.js` | Google Places format parser |
-| `parsers/hours-text-map.js` | { day: "hours" } format parser |
+| `parsers/google-weekday-text.js` | Google Places `weekday_text` array parser |
+| `parsers/hours-text-map.js` | `{ day: "hours" }` format parser |
+| `parsers/structured-hours.js` | `hours_full_week` JSON format parser (for venue-hours.js) |
 
 ## NormalizedSchedule Format
 
@@ -77,11 +78,11 @@ if (parseResult.ok) {
 
 ## Migration from Legacy Code
 
-| Old Function | Location | New Pattern |
-|--------------|----------|-------------|
-| `calculateIsOpen(weekdayTexts, tz)` | venue-enrichment.js | `parseGoogleWeekdayText()` + `getOpenStatus()` |
-| `calculateIsOpen(hoursMap, tz)` | venue-utils.js | `parseHoursTextMap()` + `getOpenStatus()` |
-| `isOpenNow(hoursFullWeek, tz)` | venue-hours.js | Will be updated to use `getOpenStatus()` |
+| Old Function | Location | New Pattern | Status |
+|--------------|----------|-------------|--------|
+| `calculateIsOpen(weekdayTexts, tz)` | venue-enrichment.js | `parseGoogleWeekdayText()` + `getOpenStatus()` | ✅ Done |
+| `calculateIsOpen(hoursMap, tz)` | venue-utils.js | `parseHoursTextMap()` + `getOpenStatus()` | ✅ Done |
+| `isOpenNow(hoursFullWeek, tz)` | venue-hours.js | `parseStructuredHoursFullWeek()` + `getOpenStatus()` | ✅ Done |
 
 ## Test Coverage Required
 
