@@ -124,12 +124,13 @@ Google Maps integration with multiple marker layers:
 bars={filteredBars}  // $$+ only
 
 // Events with coordinates appear as purple markers
+// 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
 events={eventsData?.events?.map(e => ({
   title: e.title,
   venue: e.venue,
-  event_date: e.event_date,
+  event_start_date: e.event_start_date,
   event_end_date: e.event_end_date,  // Multi-day support
-  event_time: e.event_time,
+  event_start_time: e.event_start_time,
   event_end_time: e.event_end_time,
   latitude: e.latitude,
   longitude: e.longitude,
