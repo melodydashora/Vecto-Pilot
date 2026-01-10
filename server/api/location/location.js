@@ -149,6 +149,8 @@ const GOOGLEAQ_API_KEY = process.env.GOOGLEAQ_API_KEY;
 // UNIFIED: Accept manual city overrides consistently (test and debug feature)
 
 // Helper to extract city, state, country from Google Geocoding response
+// 2026-01-10: D-011 Fix - Use short_name for country to get ISO 3166-1 alpha-2 codes (US, CA, GB)
+// instead of long_name which returns full names (United States, Canada, United Kingdom)
 function pickAddressParts(components) {
   let city;
   let state;
@@ -158,7 +160,8 @@ function pickAddressParts(components) {
     const types = c.types || [];
     if (types.includes("locality")) city = c.long_name;
     if (types.includes("administrative_area_level_1")) state = c.short_name;
-    if (types.includes("country")) country = c.long_name;
+    // 2026-01-10: D-011 Fix - short_name gives ISO alpha-2 code (US), long_name gave "United States"
+    if (types.includes("country")) country = c.short_name;
   }
   return { city, state, country };
 }

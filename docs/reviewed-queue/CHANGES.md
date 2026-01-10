@@ -6,6 +6,50 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ## 2026-01-10
 
+### D-014/D-018 Audit Verification + D-011 Fix (Session 2)
+
+**Verified Fixes from commits `9fbd22ba` and `e6b6171d`:**
+
+| ID | Issue | Resolution | Verified |
+|----|-------|------------|----------|
+| D-014 | 3 duplicate isOpen functions | Created canonical hours module (`server/lib/venue/hours/`) | ✅ |
+| D-018 | venue-intelligence.js trusts Google openNow | Now uses canonical module; openNow only for debug | ✅ |
+| D-012 | Default country 'USA' not ISO 'US' | Changed to 'US' in venue-utils.js:37,74 | ✅ |
+| D-011 | location.js uses c.long_name for country | **FIXED THIS SESSION** - changed to c.short_name | ✅ |
+| D-004 | Country field inconsistency | All components now use ISO alpha-2 codes | ✅ |
+
+**Canonical Hours Module Architecture:**
+```
+server/lib/venue/hours/
+├── index.js                    # Barrel export
+├── evaluator.js                # getOpenStatus() - SINGLE SOURCE OF TRUTH
+├── normalized-types.js         # Type definitions
+├── README.md                   # Documentation
+└── parsers/
+    ├── google-weekday-text.js  # Google Places format
+    ├── hours-text-map.js       # Text map format
+    └── structured-hours.js     # JSON format
+```
+
+**Wrapper Pattern:**
+- `venue-hours.js` → `parseStructuredHoursFullWeek()` + `getOpenStatus()`
+- `venue-enrichment.js` → `parseGoogleWeekdayText()` + `getOpenStatus()`
+- `venue-utils.js` → `parseHoursTextMap()` + `getOpenStatus()`
+
+**Documentation Updated:**
+- `docs/DOC_DISCREPANCIES.md` - Marked D-014, D-018, D-012, D-011, D-004 as FIXED
+- Phase 1 and Phase 3 marked COMPLETE in 4-Phase Hardening Plan
+- `.serena/memories/d014_d018_audit_verification_2026_01_10.md` - Audit findings stored
+
+**Code Fix (D-011):**
+```javascript
+// server/api/location/location.js:164
+// BEFORE: if (types.includes("country")) country = c.long_name;  // "United States"
+// AFTER:  if (types.includes("country")) country = c.short_name; // "US"
+```
+
+---
+
 ### Comprehensive Architecture Audit + Hardening Protocol
 
 **Memory Files Created:**
