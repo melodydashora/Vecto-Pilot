@@ -147,8 +147,8 @@ Snapshot Creation
 
 ### Core Tables
 
-- **`users`**: GPS coordinates, resolved address, timezone (authoritative location source)
-- **`snapshots`**: Point-in-time context (location, time, weather, air quality)
+- **`users`**: Session tracking only (device_id, session_id, current_snapshot_id) - NO location data
+- **`snapshots`**: Point-in-time context with location (lat, lng, city, state, timezone, weather, air quality)
 - **`strategies`**: AI strategy outputs (minstrategy, consolidated_strategy, strategy_for_now)
 - **`briefings`**: Comprehensive briefing data (events, news, traffic, weather, closures)
 - **`rankings`**: Venue recommendation session metadata

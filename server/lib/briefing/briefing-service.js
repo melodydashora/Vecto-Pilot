@@ -124,7 +124,8 @@ export function deduplicateEvents(events) {
   function getDedupeKey(event) {
     const name = normalizeEventName(event.title);
     const addr = normalizeAddress(event.address);
-    const time = normalizeTime(event.event_time);
+    // 2026-01-10: Support both old (event_time) and new (event_start_time) field names during migration
+    const time = normalizeTime(event.event_start_time || event.event_time);
     return `${name}|${addr}|${time}`;
   }
 
@@ -1109,29 +1110,32 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
   // Read events from discovered_events table for this city/state and date range
   try {
+    // 2026-01-10: Use symmetric field names (event_start_date)
     const events = await db.select()
       .from(discovered_events)
       .where(and(
         eq(discovered_events.city, city),
         eq(discovered_events.state, state),
-        gte(discovered_events.event_date, todayStr),
-        lte(discovered_events.event_date, endDateStr),
+        gte(discovered_events.event_start_date, todayStr),
+        lte(discovered_events.event_start_date, endDateStr),
         eq(discovered_events.is_active, true)
       ))
-      .orderBy(discovered_events.event_date)
+      .orderBy(discovered_events.event_start_date)
       .limit(50);
 
     if (events.length > 0) {
       // Map discovered_events format to the briefing events format
+      // 2026-01-10: DB columns are now event_start_date, event_start_time
+      // BriefingEvent output uses event_start_date, event_start_time for consistency
       const normalizedEvents = events.map(e => ({
         title: e.title,
-        summary: [e.title, e.venue_name, e.event_date, e.event_time].filter(Boolean).join(' • '),
+        summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
         impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
         source: e.source_model,
         event_type: e.category,
         subtype: e.category, // For EventsComponent category grouping
-        event_date: e.event_date,
-        event_time: e.event_time,
+        event_start_date: e.event_start_date,
+        event_start_time: e.event_start_time,
         event_end_time: e.event_end_time,
         address: e.address,
         venue: e.venue_name,

@@ -79,7 +79,8 @@ export class CoachDAL {
   }
   /**
    * Get header snapshot with timezone, DST, day-of-week, day-part, location display
-   * Location data is pulled from users table (authoritative source)
+   * Location data is pulled from snapshots table (authoritative source)
+   * 2026-01-10: Fixed comment - users table has no location data (per SAVE-IMPORTANT.md)
    * @param {string} snapshotId - Snapshot ID to scope reads
    * @returns {Promise<Object|null>} Snapshot context or null
    */

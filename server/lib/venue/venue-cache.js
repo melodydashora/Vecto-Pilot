@@ -324,12 +324,13 @@ export async function getEventsForVenue(venueId, options = {}) {
 
   let conditions = [eq(discovered_events.venue_id, venueId)];
 
+  // 2026-01-10: Use symmetric field name (event_start_date)
   if (fromDate) {
-    conditions.push(sql`${discovered_events.event_date} >= ${fromDate}`);
+    conditions.push(sql`${discovered_events.event_start_date} >= ${fromDate}`);
   }
 
   if (toDate) {
-    conditions.push(sql`${discovered_events.event_date} <= ${toDate}`);
+    conditions.push(sql`${discovered_events.event_start_date} <= ${toDate}`);
   }
 
   return db

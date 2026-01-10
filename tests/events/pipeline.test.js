@@ -194,6 +194,8 @@ class ETLPipelineTester {
     this.suite('normalizeEvent.js - Full Event Normalization');
 
     await this.test('normalizeEvent: normalizes complete event', () => {
+      // Raw LLM input uses old field names (event_date, event_time)
+      // normalizeEvent converts to new symmetric names (event_start_date, event_start_time)
       const raw = {
         title: '"Concert at Madison Square Garden"',
         venue: 'MSG, 4 Penn Plaza',
@@ -211,8 +213,8 @@ class ETLPipelineTester {
 
       assert.strictEqual(normalized.title, 'Concert at Madison Square Garden');
       assert.strictEqual(normalized.venue_name, 'MSG');
-      assert.strictEqual(normalized.event_date, '2026-01-15');
-      assert.strictEqual(normalized.event_time, '19:00');
+      assert.strictEqual(normalized.event_start_date, '2026-01-15');
+      assert.strictEqual(normalized.event_start_time, '19:00');
       assert.strictEqual(normalized.lat, 40.750504);
       assert.strictEqual(normalized.lng, -73.993439);
       assert.strictEqual(normalized.city, 'New York');
@@ -222,6 +224,7 @@ class ETLPipelineTester {
     });
 
     await this.test('normalizeEvent: uses context for city/state', () => {
+      // Raw input uses old field names; normalizer accepts both for flexibility
       const raw = { title: 'Test Event', event_date: '2026-01-15', event_time: '19:00' };
       const normalized = normalizeEvent(raw, { city: 'Dallas', state: 'TX' });
 
@@ -230,6 +233,7 @@ class ETLPipelineTester {
     });
 
     await this.test('normalizeEvents: normalizes array', () => {
+      // Raw LLM input uses old field names (event_date, event_time)
       const rawEvents = [
         { title: 'Event 1', event_date: '2026-01-15', event_time: '7 PM' },
         { title: 'Event 2', event_date: '2026-01-16', event_time: '8 PM' }
@@ -238,8 +242,9 @@ class ETLPipelineTester {
       const normalized = normalizeEvents(rawEvents, { city: 'Dallas', state: 'TX' });
 
       assert.strictEqual(normalized.length, 2);
-      assert.strictEqual(normalized[0].event_time, '19:00');
-      assert.strictEqual(normalized[1].event_time, '20:00');
+      // 2026-01-10: Normalized output uses symmetric names (event_start_time)
+      assert.strictEqual(normalized[0].event_start_time, '19:00');
+      assert.strictEqual(normalized[1].event_start_time, '20:00');
     });
 
     await this.test('normalizeEvents: handles non-array gracefully', () => {
@@ -257,12 +262,13 @@ class ETLPipelineTester {
     this.suite('validateEvent.js - Single Event Validation');
 
     await this.test('validateEvent: passes valid event', () => {
+      // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
       const event = {
         title: 'Valid Concert',
         venue_name: 'Madison Square Garden',
         address: '4 Penn Plaza, New York, NY',
-        event_date: '2026-01-15',
-        event_time: '19:00',
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00',
         event_end_time: '22:00'  // 2026-01-10: Required by frontend contract
       };
 
@@ -272,7 +278,7 @@ class ETLPipelineTester {
     });
 
     await this.test('validateEvent: rejects missing title', () => {
-      const event = { venue_name: 'Venue', event_date: '2026-01-15', event_time: '19:00' };
+      const event = { venue_name: 'Venue', event_start_date: '2026-01-15', event_start_time: '19:00', event_end_time: '22:00' };
       const result = validateEvent(event);
 
       assert.strictEqual(result.valid, false);
@@ -283,8 +289,9 @@ class ETLPipelineTester {
       const event = {
         title: 'Event TBD',
         venue_name: 'Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00',
+        event_end_time: '22:00'
       };
 
       const result = validateEvent(event);
@@ -296,8 +303,9 @@ class ETLPipelineTester {
       const event = {
         title: 'Valid Event',
         venue_name: 'Venue TBD',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00',
+        event_end_time: '22:00'
       };
 
       const result = validateEvent(event);
@@ -309,8 +317,9 @@ class ETLPipelineTester {
       const event = {
         title: 'Unknown Event',
         venue_name: 'Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00',
+        event_end_time: '22:00'
       };
 
       const result = validateEvent(event);
@@ -321,8 +330,9 @@ class ETLPipelineTester {
     await this.test('validateEvent: rejects missing location', () => {
       const event = {
         title: 'Valid Event',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00',
+        event_end_time: '22:00'
       };
 
       const result = validateEvent(event);
@@ -334,8 +344,8 @@ class ETLPipelineTester {
       const event = {
         title: 'Valid Event',
         address: '123 Main St',
-        event_date: '2026-01-15',
-        event_time: '19:00',
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00',
         event_end_time: '22:00'
       };
 
@@ -347,8 +357,8 @@ class ETLPipelineTester {
       const event = {
         title: 'Valid Event',
         venue_name: 'Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
         // Missing event_end_time
       };
 
@@ -361,8 +371,8 @@ class ETLPipelineTester {
       const event = {
         title: 'Valid Event',
         venue_name: 'Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00',
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00',
         event_end_time: 'TBD'
       };
 
@@ -375,34 +385,36 @@ class ETLPipelineTester {
       const event = {
         title: 'Valid Event',
         venue_name: 'Venue',
-        event_date: '2026-01-15'
+        event_start_date: '2026-01-15',
+        event_end_time: '22:00'
+        // Missing event_start_time
       };
 
       const result = validateEvent(event);
       assert.strictEqual(result.valid, false);
-      assert.strictEqual(result.reason, 'missing_time');
+      assert.strictEqual(result.reason, 'missing_start_time');
     });
 
     await this.test('validateEvent: rejects missing date', () => {
       const event = {
         title: 'Valid Event',
         venue_name: 'Venue',
-        event_time: '19:00',
+        event_start_time: '19:00',
         event_end_time: '22:00'
-        // Missing event_date
+        // Missing event_start_date
       };
 
       const result = validateEvent(event);
       assert.strictEqual(result.valid, false);
-      assert.strictEqual(result.reason, 'missing_date');
+      assert.strictEqual(result.reason, 'missing_start_date');
     });
 
     await this.test('validateEvent: rejects invalid date format', () => {
       const event = {
         title: 'Valid Event',
         venue_name: 'Venue',
-        event_date: '01/15/2026', // Not YYYY-MM-DD
-        event_time: '19:00',
+        event_start_date: '01/15/2026', // Not YYYY-MM-DD
+        event_start_time: '19:00',
         event_end_time: '22:00'
       };
 
@@ -414,11 +426,12 @@ class ETLPipelineTester {
     this.suite('validateEvent.js - Batch Validation');
 
     await this.test('validateEventsHard: separates valid and invalid', () => {
+      // 2026-01-10: Use symmetric field names
       const events = [
-        { title: 'Valid 1', venue_name: 'V1', event_date: '2026-01-15', event_time: '19:00', event_end_time: '22:00' },
-        { title: 'TBD Event', venue_name: 'V2', event_date: '2026-01-15', event_time: '19:00', event_end_time: '22:00' },
-        { title: 'Valid 2', venue_name: 'V3', event_date: '2026-01-16', event_time: '20:00', event_end_time: '23:00' },
-        { title: 'No End Time', venue_name: 'V4', event_date: '2026-01-15', event_time: '19:00' }  // Missing end_time
+        { title: 'Valid 1', venue_name: 'V1', event_start_date: '2026-01-15', event_start_time: '19:00', event_end_time: '22:00' },
+        { title: 'TBD Event', venue_name: 'V2', event_start_date: '2026-01-15', event_start_time: '19:00', event_end_time: '22:00' },
+        { title: 'Valid 2', venue_name: 'V3', event_start_date: '2026-01-16', event_start_time: '20:00', event_end_time: '23:00' },
+        { title: 'No End Time', venue_name: 'V4', event_start_date: '2026-01-15', event_start_time: '19:00' }  // Missing end_time
       ];
 
       const result = validateEventsHard(events, { logRemovals: false });
@@ -474,8 +487,8 @@ class ETLPipelineTester {
         title: 'Concert',
         venue_name: 'Stadium',
         address: '123 Main St',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const input1 = buildHashInput(event);
@@ -493,16 +506,16 @@ class ETLPipelineTester {
         title: 'Cirque du Soleil',
         venue_name: 'Cosm',
         address: 'Dallas, TX',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const event2 = {
         title: 'Cirque du Soleil at Cosm',
         venue_name: 'Cosm',
         address: 'Dallas, TX',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const input1 = buildHashInput(event1);
@@ -517,16 +530,16 @@ class ETLPipelineTester {
         title: 'DJ Night',
         venue_name: 'The Club',
         address: 'Dallas, TX',
-        event_date: '2026-01-15',
-        event_time: '21:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '21:00'
       };
 
       const event2 = {
         title: 'DJ Night @ The Club',
         venue_name: 'The Club',
         address: 'Dallas, TX',
-        event_date: '2026-01-15',
-        event_time: '21:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '21:00'
       };
 
       const input1 = buildHashInput(event1);
@@ -540,16 +553,16 @@ class ETLPipelineTester {
         title: 'Festival',
         venue_name: 'City Park',
         address: 'Dallas, TX',
-        event_date: '2026-01-15',
-        event_time: '12:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '12:00'
       };
 
       const event2 = {
         title: 'Festival - City Park',
         venue_name: 'City Park',
         address: 'Dallas, TX',
-        event_date: '2026-01-15',
-        event_time: '12:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '12:00'
       };
 
       const input1 = buildHashInput(event1);
@@ -562,15 +575,15 @@ class ETLPipelineTester {
       const event1 = {
         title: 'Concert',
         venue_name: 'Arena',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const event2 = {
         title: 'Concert',
         venue_name: 'Arena',
-        event_date: '2026-01-15',
-        event_time: '7 PM'
+        event_start_date: '2026-01-15',
+        event_start_time: '7 PM'
       };
 
       const input1 = buildHashInput(event1);
@@ -585,8 +598,8 @@ class ETLPipelineTester {
       const event = {
         title: 'Test Event',
         venue_name: 'Test Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const hash = generateEventHash(event);
@@ -599,8 +612,8 @@ class ETLPipelineTester {
       const event = {
         title: 'Test Event',
         venue_name: 'Test Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const hash1 = generateEventHash(event);
@@ -613,15 +626,15 @@ class ETLPipelineTester {
       const event1 = {
         title: 'Show',
         venue_name: 'Theater',
-        event_date: '2026-01-15',
-        event_time: '14:00' // Matinee
+        event_start_date: '2026-01-15',
+        event_start_time: '14:00' // Matinee
       };
 
       const event2 = {
         title: 'Show',
         venue_name: 'Theater',
-        event_date: '2026-01-15',
-        event_time: '20:00' // Evening
+        event_start_date: '2026-01-15',
+        event_start_time: '20:00' // Evening
       };
 
       const hash1 = generateEventHash(event1);
@@ -634,15 +647,15 @@ class ETLPipelineTester {
       const event1 = {
         title: 'Show',
         venue_name: 'Theater',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const event2 = {
         title: 'Show',
         venue_name: 'Theater',
-        event_date: '2026-01-16',
-        event_time: '19:00'
+        event_start_date: '2026-01-16',
+        event_start_time: '19:00'
       };
 
       const hash1 = generateEventHash(event1);
@@ -657,15 +670,15 @@ class ETLPipelineTester {
       const event1 = {
         title: 'Concert at Venue',
         venue_name: 'Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const event2 = {
         title: 'Concert',
         venue_name: 'Venue',
-        event_date: '2026-01-15',
-        event_time: '7 PM'
+        event_start_date: '2026-01-15',
+        event_start_time: '7 PM'
       };
 
       assert.strictEqual(eventsHaveSameHash(event1, event2), true);
@@ -675,15 +688,15 @@ class ETLPipelineTester {
       const event1 = {
         title: 'Concert A',
         venue_name: 'Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const event2 = {
         title: 'Concert B',
         venue_name: 'Venue',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       assert.strictEqual(eventsHaveSameHash(event1, event2), false);
@@ -691,10 +704,10 @@ class ETLPipelineTester {
 
     await this.test('groupEventsByHash: groups duplicates', () => {
       const events = [
-        { title: 'A', venue_name: 'V1', event_date: '2026-01-15', event_time: '19:00' },
-        { title: 'A', venue_name: 'V1', event_date: '2026-01-15', event_time: '7 PM' }, // Duplicate
-        { title: 'B', venue_name: 'V2', event_date: '2026-01-15', event_time: '19:00' },
-        { title: 'B', venue_name: 'V2', event_date: '2026-01-15', event_time: '19:00' }  // Duplicate
+        { title: 'A', venue_name: 'V1', event_start_date: '2026-01-15', event_start_time: '19:00' },
+        { title: 'A', venue_name: 'V1', event_start_date: '2026-01-15', event_start_time: '7 PM' }, // Duplicate
+        { title: 'B', venue_name: 'V2', event_start_date: '2026-01-15', event_start_time: '19:00' },
+        { title: 'B', venue_name: 'V2', event_start_date: '2026-01-15', event_start_time: '19:00' }  // Duplicate
       ];
 
       const groups = groupEventsByHash(events);
@@ -704,10 +717,10 @@ class ETLPipelineTester {
 
     await this.test('findDuplicatesByHash: finds duplicate groups', () => {
       const events = [
-        { title: 'Unique', venue_name: 'V1', event_date: '2026-01-15', event_time: '19:00' },
-        { title: 'Dup', venue_name: 'V2', event_date: '2026-01-15', event_time: '19:00' },
-        { title: 'Dup', venue_name: 'V2', event_date: '2026-01-15', event_time: '7 PM' }, // Same hash
-        { title: 'Dup', venue_name: 'V2', event_date: '2026-01-15', event_time: '19:00' }  // Same hash
+        { title: 'Unique', venue_name: 'V1', event_start_date: '2026-01-15', event_start_time: '19:00' },
+        { title: 'Dup', venue_name: 'V2', event_start_date: '2026-01-15', event_start_time: '19:00' },
+        { title: 'Dup', venue_name: 'V2', event_start_date: '2026-01-15', event_start_time: '7 PM' }, // Same hash
+        { title: 'Dup', venue_name: 'V2', event_start_date: '2026-01-15', event_start_time: '19:00' }  // Same hash
       ];
 
       const duplicates = findDuplicatesByHash(events);
@@ -718,9 +731,9 @@ class ETLPipelineTester {
 
     await this.test('findDuplicatesByHash: handles no duplicates', () => {
       const events = [
-        { title: 'Event 1', venue_name: 'V1', event_date: '2026-01-15', event_time: '19:00' },
-        { title: 'Event 2', venue_name: 'V2', event_date: '2026-01-16', event_time: '20:00' },
-        { title: 'Event 3', venue_name: 'V3', event_date: '2026-01-17', event_time: '21:00' }
+        { title: 'Event 1', venue_name: 'V1', event_start_date: '2026-01-15', event_start_time: '19:00' },
+        { title: 'Event 2', venue_name: 'V2', event_start_date: '2026-01-16', event_start_time: '20:00' },
+        { title: 'Event 3', venue_name: 'V3', event_start_date: '2026-01-17', event_start_time: '21:00' }
       ];
 
       const duplicates = findDuplicatesByHash(events);
@@ -737,7 +750,7 @@ class ETLPipelineTester {
     this.suite('ETL Integration - Full Pipeline');
 
     await this.test('Full pipeline: raw → normalized → validated → hashed', () => {
-      // Simulate raw events from provider
+      // Simulate raw events from provider (uses old field names: event_date, event_time)
       const rawEvents = [
         {
           title: '"Taylor Swift Concert at AT&T Stadium"',
@@ -773,7 +786,8 @@ class ETLPipelineTester {
       // Step 1: Normalize
       const normalized = normalizeEvents(rawEvents, { city: 'Dallas', state: 'TX' });
       assert.strictEqual(normalized.length, 3);
-      assert.strictEqual(normalized[0].event_time, '19:00');
+      // 2026-01-10: Use symmetric field name in normalized output
+      assert.strictEqual(normalized[0].event_start_time, '19:00');
       assert.strictEqual(normalized[0].lat, 32.747778);
       assert.strictEqual(normalized[2].category, 'sports');
 
@@ -794,6 +808,7 @@ class ETLPipelineTester {
     });
 
     await this.test('Idempotency: normalization is stable', () => {
+      // Raw LLM input uses old field names
       const raw = {
         title: 'Test Event',
         venue: 'Test Venue',
@@ -801,12 +816,15 @@ class ETLPipelineTester {
         event_time: '7 PM'
       };
 
+      // First normalization: raw (event_date, event_time) → normalized (event_start_date, event_start_time)
       const first = normalizeEvent(raw);
-      const second = normalizeEvent(first); // Normalize again
+      // Second normalization: should be stable (normalizer accepts both old and new field names)
+      const second = normalizeEvent(first);
 
       assert.strictEqual(first.title, second.title);
-      assert.strictEqual(first.event_date, second.event_date);
-      assert.strictEqual(first.event_time, second.event_time);
+      // 2026-01-10: Use symmetric field names in normalized output
+      assert.strictEqual(first.event_start_date, second.event_start_date);
+      assert.strictEqual(first.event_start_time, second.event_start_time);
     });
 
     await this.test('Hash stability: venue suffix stripping prevents duplicates', () => {
@@ -815,16 +833,16 @@ class ETLPipelineTester {
         title: 'Cirque du Soleil',
         venue_name: 'Cosm Dallas',
         address: 'The Colony, TX',
-        event_date: '2026-01-15',
-        event_time: '19:00'
+        event_start_date: '2026-01-15',
+        event_start_time: '19:00'
       };
 
       const geminiEvent = {
         title: 'Cirque du Soleil at Cosm Dallas',
         venue_name: 'Cosm Dallas',
         address: 'The Colony, TX',
-        event_date: '2026-01-15',
-        event_time: '7 PM'
+        event_start_date: '2026-01-15',
+        event_start_time: '7 PM'
       };
 
       const hash1 = generateEventHash(serpApiEvent);

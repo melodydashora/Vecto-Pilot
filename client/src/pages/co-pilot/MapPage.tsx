@@ -12,13 +12,14 @@ import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
 
 // Event type for MapTab
+// 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
 interface MapEvent {
   title: string;
   venue?: string;
   address?: string;
-  event_date?: string;
+  event_start_date?: string;
   event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
-  event_time?: string;
+  event_start_time?: string;
   event_end_time?: string;
   latitude?: number;
   longitude?: number;
@@ -27,8 +28,9 @@ interface MapEvent {
 }
 
 // Briefing event type (from API)
+// 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
 interface BriefingEvent {
-  event_date?: string;
+  event_start_date?: string;
   event_type?: string;
   subtype?: string;
   title?: string;
@@ -38,7 +40,7 @@ interface BriefingEvent {
   latitude?: number;
   longitude?: number;
   impact?: 'high' | 'medium' | 'low';
-  event_time?: string;
+  event_start_time?: string;
   event_end_time?: string;
   [key: string]: unknown;
 }
@@ -157,13 +159,14 @@ export default function MapPage() {
   // Transform ACTIVE events to map format (only events happening NOW)
   // Uses useActiveEventsQuery which fetches ?filter=active from the API
   // This ensures the map shows real-time events, not all upcoming events
+  // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
   const mapEvents: MapEvent[] = (activeEventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
     title: e.title as string,
     venue: e.venue as string | undefined,
     address: e.address as string | undefined,
-    event_date: e.event_date as string | undefined,
+    event_start_date: e.event_start_date as string | undefined,
     event_end_date: (e as BriefingEvent & { event_end_date?: string }).event_end_date,
-    event_time: e.event_time as string | undefined,
+    event_start_time: e.event_start_time as string | undefined,
     event_end_time: e.event_end_time as string | undefined,
     latitude: e.latitude as number | undefined,
     longitude: e.longitude as number | undefined,

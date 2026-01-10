@@ -56,9 +56,9 @@
  * @property {string} city - City name
  * @property {string} state - State code (2-letter)
  * @property {string|null} zip - ZIP code if available
- * @property {string} event_date - Date in YYYY-MM-DD format
- * @property {string} event_time - Time in HH:MM format (24h)
- * @property {string|null} event_end_time - End time in HH:MM format
+ * @property {string} event_start_date - Date in YYYY-MM-DD format (2026-01-10: renamed from event_date)
+ * @property {string} event_start_time - Time in HH:MM format (24h) (2026-01-10: renamed from event_time)
+ * @property {string|null} event_end_time - End time in HH:MM format (REQUIRED - see validateEvent.js Rule 8)
  * @property {string|null} event_end_date - End date if multi-day
  * @property {number|null} lat - Latitude (6 decimal precision)
  * @property {number|null} lng - Longitude (6 decimal precision)
@@ -89,10 +89,10 @@
  * @property {string} city
  * @property {string} state
  * @property {string|null} zip
- * @property {string} event_date
- * @property {string} event_time
- * @property {string|null} event_end_time
- * @property {string|null} event_end_date
+ * @property {string} event_start_date - YYYY-MM-DD format (2026-01-10: renamed from event_date)
+ * @property {string} event_start_time - e.g., "7:00 PM" (2026-01-10: renamed from event_time)
+ * @property {string} event_end_time - e.g., "10:00 PM" (REQUIRED)
+ * @property {string|null} event_end_date - For multi-day events
  * @property {number|null} lat
  * @property {number|null} lng
  * @property {string} category
@@ -119,9 +119,9 @@
  * @property {string} source - Provider name (not raw data)
  * @property {string} event_type - Category for grouping
  * @property {string} subtype - Subtype for filtering
- * @property {string} event_date
- * @property {string} event_time
- * @property {string|null} event_end_time
+ * @property {string} event_start_date - YYYY-MM-DD (2026-01-10: renamed from event_date)
+ * @property {string} event_start_time - e.g., "7:00 PM" (2026-01-10: renamed from event_time)
+ * @property {string} event_end_time - e.g., "10:00 PM" (REQUIRED)
  * @property {string} address
  * @property {string} venue - Venue name
  * @property {string} location - "venue, address" combined

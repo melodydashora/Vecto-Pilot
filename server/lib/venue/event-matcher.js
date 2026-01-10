@@ -22,13 +22,14 @@ export async function matchVenuesToEvents(venues, city, state, eventDate) {
 
   try {
     // Fetch today's events for this city
+    // 2026-01-10: Use symmetric field name (event_start_date)
     const events = await db.select()
       .from(discovered_events)
       .where(
         and(
           eq(discovered_events.city, city),
           eq(discovered_events.state, state),
-          eq(discovered_events.event_date, eventDate),
+          eq(discovered_events.event_start_date, eventDate),
           eq(discovered_events.is_active, true)
         )
       );
@@ -52,10 +53,11 @@ export async function matchVenuesToEvents(venues, city, state, eventDate) {
         const nameMatch = venueNamesMatch(venue.name, event.venue_name);
 
         if (addressMatch || nameMatch) {
+          // 2026-01-10: Use symmetric field names from DB
           matchedEvents.push({
             title: event.title,
             venue_name: event.venue_name,
-            event_time: event.event_time,
+            event_start_time: event.event_start_time,
             event_end_time: event.event_end_time,
             category: event.category,
             expected_attendance: event.expected_attendance

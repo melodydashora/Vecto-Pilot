@@ -27,9 +27,10 @@ interface BriefingEvent {
   location?: string;
   address?: string;
   city?: string;  // For market events - shows which city the event is in
-  event_date?: string;
+  // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
+  event_start_date?: string;
   event_end_date?: string;  // For multi-day events
-  event_time?: string;
+  event_start_time?: string;
   event_end_time?: string;
   event_type?: string;
   subtype?: string;
@@ -389,20 +390,20 @@ export default function BriefingTab({
 
   /**
    * Filter events for the Briefing tab:
-   * 1. Must have both event_time and event_end_time
+   * 1. Must have both event_start_time and event_end_time
    * 2. Must be happening today (single-day OR today is within multi-day range)
    *
    * 2026-01-10: NO FALLBACKS - Uses snapshot timezone, not browser timezone
-   * If timezone is missing, this is a critical data error upstream.
+   * 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
    */
   const isEventForToday = (event: BriefingEvent): boolean => {
     // Require both start and end times
-    if (!event.event_time || !event.event_end_time) {
+    if (!event.event_start_time || !event.event_end_time) {
       return false;
     }
 
-    // Require event_date
-    if (!event.event_date) {
+    // Require event_start_date
+    if (!event.event_start_date) {
       return false;
     }
 
@@ -424,8 +425,8 @@ export default function BriefingTab({
         day: '2-digit'
       }).format(now);
 
-      const eventStartDate = event.event_date; // YYYY-MM-DD format
-      const eventEndDate = event.event_end_date || event.event_date; // If no end date, use start date
+      const eventStartDate = event.event_start_date; // YYYY-MM-DD format
+      const eventEndDate = event.event_end_date || event.event_start_date; // If no end date, use start date
 
       // Check if today falls within the event date range (inclusive)
       return todayStr >= eventStartDate && todayStr <= eventEndDate;

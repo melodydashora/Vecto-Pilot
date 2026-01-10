@@ -169,8 +169,9 @@ export function toApiBlock(dbBlock) {
       (Array.isArray(dbBlock.venue_events) && dbBlock.venue_events.length > 0
         ? dbBlock.venue_events[0].title
         : null),
+    // 2026-01-10: Use symmetric field name (event_start_time)
     eventSummary: Array.isArray(dbBlock.venue_events) && dbBlock.venue_events.length > 0
-      ? `${dbBlock.venue_events[0].category} at ${dbBlock.venue_events[0].event_time || 'today'}`
+      ? `${dbBlock.venue_events[0].category} at ${dbBlock.venue_events[0].event_start_time || 'today'}`
       : null
   };
 }

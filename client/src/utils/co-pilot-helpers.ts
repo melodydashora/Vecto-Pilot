@@ -320,48 +320,50 @@ export function getGreeting(): { text: string; icon: string; period: 'morning' |
 // Event Filtering Utilities
 // ============================================================================
 
+// 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
 export interface FilterableEvent {
   title?: string;
-  event_date?: string;
+  event_start_date?: string;
   event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
-  event_time?: string;
+  event_start_time?: string;
   event_end_time?: string;
   [key: string]: unknown;
 }
 
 /**
  * Check if an event is happening today
- * For single-day events: checks event_date === today
- * For multi-day events: checks if today falls within event_date to event_end_date range
+ * For single-day events: checks event_start_date === today
+ * For multi-day events: checks if today falls within event_start_date to event_end_date range
  */
 export function isEventToday(event: FilterableEvent): boolean {
-  if (!event.event_date) return false;
+  if (!event.event_start_date) return false;
 
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   // Multi-day event: check if today falls within the date range
   if (event.event_end_date) {
-    const inRange = event.event_date <= today && today <= event.event_end_date;
+    const inRange = event.event_start_date <= today && today <= event.event_end_date;
     if (inRange) {
-      console.log(`[EventFilter] ✅ Multi-day event "${event.title}" - today ${today} is within range ${event.event_date} to ${event.event_end_date}`);
+      console.log(`[EventFilter] ✅ Multi-day event "${event.title}" - today ${today} is within range ${event.event_start_date} to ${event.event_end_date}`);
     }
     return inRange;
   }
 
   // Single-day event: exact date match
-  return event.event_date === today;
+  return event.event_start_date === today;
 }
 
 /**
  * Check if an event has valid timing information
  * Events MUST have at least a start time to be considered valid
+ * 2026-01-10: Use event_start_time instead of event_time
  */
 export function hasValidEventTime(event: FilterableEvent): boolean {
-  // Must have event_time (start time) - reject if missing
-  if (!event.event_time) return false;
+  // Must have event_start_time (start time) - reject if missing
+  if (!event.event_start_time) return false;
 
   // Reject TBD or placeholder times
-  const time = event.event_time.toLowerCase();
+  const time = event.event_start_time.toLowerCase();
   if (time.includes('tbd') || time.includes('unknown') || time === '') return false;
 
   return true;
@@ -377,9 +379,9 @@ export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
     const hasTime = hasValidEventTime(event);
 
     if (!isToday) {
-      console.log(`[EventFilter] Rejected "${event.title}" - not today (date: ${event.event_date})`);
+      console.log(`[EventFilter] Rejected "${event.title}" - not today (date: ${event.event_start_date})`);
     } else if (!hasTime) {
-      console.log(`[EventFilter] Rejected "${event.title}" - no valid time (time: ${event.event_time})`);
+      console.log(`[EventFilter] Rejected "${event.title}" - no valid time (time: ${event.event_start_time})`);
     }
 
     return isToday && hasTime;
@@ -390,7 +392,8 @@ export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
  * Filter events for briefing display
  * Shows all upcoming events but still requires valid times
  * Returns events grouped by: today (active now), today (upcoming), future
- * Handles multi-day events by checking if today falls within event_date to event_end_date range
+ * Handles multi-day events by checking if today falls within event_start_date to event_end_date range
+ * 2026-01-10: Use symmetric field names
  */
 export function filterValidEvents<T extends FilterableEvent>(events: T[]): {
   todayEvents: T[];
@@ -405,21 +408,21 @@ export function filterValidEvents<T extends FilterableEvent>(events: T[]): {
   for (const event of events) {
     if (!hasValidEventTime(event)) {
       invalidEvents.push(event);
-      console.log(`[EventFilter] Invalid event "${event.title}" - no time (${event.event_time})`);
+      console.log(`[EventFilter] Invalid event "${event.title}" - no time (${event.event_start_time})`);
       continue;
     }
 
-    // Determine the effective end date (use event_end_date for multi-day, event_date for single-day)
-    const effectiveEndDate = event.event_end_date || event.event_date;
+    // Determine the effective end date (use event_end_date for multi-day, event_start_date for single-day)
+    const effectiveEndDate = event.event_end_date || event.event_start_date;
 
     // Check if it's a today event (multi-day: today within range, single-day: exact match)
     const isTodayEvent = event.event_end_date
-      ? (event.event_date && event.event_date <= today && today <= event.event_end_date)
-      : (event.event_date === today);
+      ? (event.event_start_date && event.event_start_date <= today && today <= event.event_end_date)
+      : (event.event_start_date === today);
 
     if (isTodayEvent) {
       todayEvents.push(event);
-    } else if (event.event_date && event.event_date > today) {
+    } else if (event.event_start_date && event.event_start_date > today) {
       // Event starts in the future
       upcomingEvents.push(event);
     } else if (effectiveEndDate && effectiveEndDate < today) {

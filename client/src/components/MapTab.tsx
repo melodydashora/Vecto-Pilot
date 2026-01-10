@@ -77,13 +77,14 @@ interface Venue {
   value_grade?: string;
 }
 
+// 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
 interface MapEvent {
   title: string;
   venue?: string;
   address?: string;
-  event_date?: string;
+  event_start_date?: string;
   event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
-  event_time?: string;
+  event_start_time?: string;
   event_end_time?: string;
   latitude?: number;
   longitude?: number;
@@ -339,8 +340,9 @@ const MapTab: React.FC<MapTabProps> = ({
       });
 
       // Build date and time display
-      const dateDisplay = formatEventDate(event.event_date);
-      const timeDisplay = formatEventTimeRange(event.event_time, event.event_end_time);
+      // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
+      const dateDisplay = formatEventDate(event.event_start_date);
+      const timeDisplay = formatEventTimeRange(event.event_start_time, event.event_end_time);
 
       // Get event category icon
       const getCategoryIcon = (subtype?: string) => {

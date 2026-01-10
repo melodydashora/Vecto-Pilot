@@ -169,7 +169,16 @@
       "Bash(gemini:*)",
       "Bash(gcloud --version:*)",
       "Bash(git rm:*)",
-      "Bash(Catch Anti-Pattern\" lesson explaining why catching 23505 with ON\n  CONFLICT masks bugs\n- progress-bar-and-snapshot-flow.md: Fixed SSE endpoint path to\n  strategy-events.js \\(was events.js\\)\n- briefing/README.md: Noted events.js deletion, SSE consolidation\n- CHANGES.md: Documented all 2026-01-09 commits \\(e00c031, 4c8c037,\n  a7d5589\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(Catch Anti-Pattern\" lesson explaining why catching 23505 with ON\n  CONFLICT masks bugs\n- progress-bar-and-snapshot-flow.md: Fixed SSE endpoint path to\n  strategy-events.js \\(was events.js\\)\n- briefing/README.md: Noted events.js deletion, SSE consolidation\n- CHANGES.md: Documented all 2026-01-09 commits \\(e00c031, 4c8c037,\n  a7d5589\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "mcp__plugin_serena_serena__get_symbols_overview",
+      "mcp__plugin_serena_serena__read_memory",
+      "mcp__plugin_serena_serena__check_onboarding_performed",
+      "mcp__plugin_serena_serena__find_referencing_symbols",
+      "mcp__plugin_serena_serena__think_about_task_adherence",
+      "mcp__plugin_serena_serena__replace_symbol_body",
+      "mcp__plugin_serena_serena__think_about_whether_you_are_done",
+      "mcp__plugin_serena_serena__edit_memory",
+      "mcp__plugin_serena_serena__find_file"
     ],
     "deny": [],
     "ask": []

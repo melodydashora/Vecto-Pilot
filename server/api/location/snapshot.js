@@ -64,8 +64,9 @@ router.post("/", async (req, res) => {
     const lng = snap.coord?.lng;
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // LOCATION RESOLUTION: Get resolved address from users table (source of truth)
-    // Users table is populated from coords_cache when location.js resolves coords
+    // LOCATION RESOLUTION: Get resolved address from coords_cache
+    // 2026-01-10: Fixed comment - users table has NO location data (per SAVE-IMPORTANT.md)
+    // Location authority is in snapshots table; coords_cache is fallback for resolution
     // NEVER send raw coords to strategists - they can't reverse geocode
     // ═══════════════════════════════════════════════════════════════════════════
     let city = snap.resolved?.city;

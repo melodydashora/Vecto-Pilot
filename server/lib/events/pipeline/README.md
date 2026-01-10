@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-09
+> **Last Verified:** 2026-01-10
 
 # Event Pipeline (`server/lib/events/pipeline/`)
 
@@ -86,14 +86,17 @@ Hash algorithm = MD5 (32-char hex)
 
 ## Validation Rules (VALIDATION_SCHEMA_VERSION = 3)
 
+> **2026-01-10: Symmetric Naming Convention**
+> Fields renamed: `event_date` → `event_start_date`, `event_time` → `event_start_time`
+
 | Rule | Field | Pattern |
 |------|-------|---------|
 | Required | title | Must be non-empty |
 | Required | venue_name OR address | At least one location |
-| Required | event_date | Must be YYYY-MM-DD format |
-| Required | event_time | Must be non-empty |
+| Required | event_start_date | Must be YYYY-MM-DD format |
+| Required | event_start_time | Must be non-empty |
 | Required | event_end_time | **Must be non-empty (2026-01-10)** |
-| TBD/Unknown | title, venue, address, time, end_time | Pattern matching for incomplete data |
+| TBD/Unknown | title, venue, address, start_time, end_time | Pattern matching for incomplete data |
 
 **Patterns Rejected:**
 - `TBD`, `Unknown`, `To Be Determined`, `Not Yet Announced`

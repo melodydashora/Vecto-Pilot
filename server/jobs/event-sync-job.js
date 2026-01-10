@@ -46,8 +46,9 @@ async function getActiveLocations() {
 }
 
 /**
- * Clean up past events (event_date < today)
+ * Clean up past events (event_start_date < today)
  * Marks them as inactive rather than deleting for audit trail
+ * 2026-01-10: Use symmetric field name (event_start_date)
  */
 async function cleanupPastEvents() {
   const today = new Date().toISOString().split('T')[0];
@@ -55,7 +56,7 @@ async function cleanupPastEvents() {
   const result = await db
     .update(discovered_events)
     .set({ is_active: false })
-    .where(lt(discovered_events.event_date, today));
+    .where(lt(discovered_events.event_start_date, today));
 
   return result.rowCount || 0;
 }

@@ -224,15 +224,16 @@ function getDb() {
 // ============================================================================
 async function fetchExistingEvents(db, city, state, startDate, endDate) {
   try {
+    // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
     const result = await db.execute(sql`
-      SELECT title, venue_name, address, event_date, event_time
+      SELECT title, venue_name, address, event_start_date, event_start_time
       FROM discovered_events
       WHERE city = ${city}
         AND state = ${state}
-        AND event_date >= ${startDate}
-        AND event_date <= ${endDate}
+        AND event_start_date >= ${startDate}
+        AND event_start_date <= ${endDate}
         AND is_active = true
-      ORDER BY event_date, title
+      ORDER BY event_start_date, title
       LIMIT 100
     `);
     return result.rows || [];
@@ -248,9 +249,10 @@ async function fetchExistingEvents(db, city, state, startDate, endDate) {
 function formatExistingEventsForPrompt(events) {
   if (!events || events.length === 0) return '';
 
+  // 2026-01-10: Use symmetric field names from DB rows
   const eventList = events.map(e => {
-    const time = e.event_time || 'time unknown';
-    return `- "${e.title}" @ ${e.venue_name || 'Unknown Venue'} on ${e.event_date} at ${time}`;
+    const time = e.event_start_time || 'time unknown';
+    return `- "${e.title}" @ ${e.venue_name || 'Unknown Venue'} on ${e.event_start_date} at ${time}`;
   }).join('\n');
 
   return `
@@ -881,10 +883,11 @@ async function storeEvents(db, events) {
       // - New rows: INSERT and return id → count as inserted
       // - Existing rows: UPDATE safe fields (venue_id, updated_at) → count as updated
       // INVARIANT: is_active is NEVER touched in ON CONFLICT - preserves manual deactivation
+      // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
       const result = await db.execute(sql`
         INSERT INTO discovered_events (
           title, venue_name, address, city, state, zip,
-          event_date, event_time, event_end_time, event_end_date,
+          event_start_date, event_start_time, event_end_time, event_end_date,
           lat, lng, category, expected_attendance,
           source_model, source_url, raw_source_data,
           event_hash, venue_id, updated_at
@@ -895,8 +898,8 @@ async function storeEvents(db, events) {
           ${event.city},
           ${event.state},
           ${event.zip},
-          ${event.event_date},
-          ${event.event_time},
+          ${event.event_start_date},
+          ${event.event_start_time},
           ${event.event_end_time || null},
           ${event.event_end_date || null},
           ${event.lat || null},
