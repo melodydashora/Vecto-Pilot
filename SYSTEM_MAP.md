@@ -389,7 +389,7 @@ The UI uses **React Router** with:
 ## 🗄️ TABLE DEPENDENCY GRAPH
 
 ```
-users (GPS coordinates, location, auth)
+users (session tracking, auth - NO location data)
   ├─→ auth_sessions (JWT tokens)
   ├─→ auth_verification_codes (email/SMS codes)
   ├─→ intercepted_signals (Siri/external offer analysis) [NEW - Level 4]

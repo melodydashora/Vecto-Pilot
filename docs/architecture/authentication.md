@@ -53,7 +53,7 @@ VectoPilot uses a multi-layer authentication system supporting:
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          Database (PostgreSQL)                      │
 ├─────────────────────────────────────────────────────────────────────┤
-│  users                 │ Base user record (device_id, last location)│
+│  users                 │ Session tracking (device_id, NO location)  │
 │  auth_credentials      │ Password hash, login attempts, reset tokens│
 │  driver_profiles       │ Personal info, address, market, geocoded   │
 │  driver_vehicles       │ Year, make, model, seatbelts               │

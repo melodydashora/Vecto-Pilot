@@ -230,14 +230,6 @@
       "server/scripts/seed-uber-airports.js"
     ]
   },
-  "nearby_venues": {
-    "push": [],
-    "fetch": [
-      "server/lib/venue/venue-intelligence.js",
-      "server/scripts/migrate-venues-to-catalog.ARCHIVED.js",
-      "shared/schema.js"
-    ]
-  },
   "news_deactivations": {
     "push": [
       "server/lib/ai/coach-dal.js"
@@ -449,14 +441,6 @@
     ],
     "fetch": [
       "server/api/vehicle/vehicle.js"
-    ]
-  },
-  "venue_cache": {
-    "push": [],
-    "fetch": [
-      "server/lib/venue/venue-cache.js",
-      "server/scripts/migrate-venues-to-catalog.ARCHIVED.js",
-      "shared/schema.js"
     ]
   },
   "venue_catalog": {

@@ -697,9 +697,9 @@ const { data } = useQuery({
    ```typescript
    enabled: !!(coords?.latitude && coords?.longitude && locationContext?.isLocationResolved)
    ```
-2. **Server:** Add users table lookup BEFORE coords_cache to reuse resolved addresses
-   - If same device_id + coords within 100m → return cached city/state (no API call)
-   - Users table = source of truth for resolved location identity
+2. **Server:** Add coords_cache lookup to reuse resolved addresses
+   - If same coords within 100m → return cached city/state (no API call)
+   - Snapshots table = source of truth for resolved location (users has NO location data)
 
 **Key Insight:** Don't access `coords.city` - it doesn't exist. Use `locationContext.city` instead.
 

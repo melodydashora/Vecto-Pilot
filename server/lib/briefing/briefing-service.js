@@ -5,7 +5,7 @@ import { eq, and, desc, sql, gte, lte, ilike } from 'drizzle-orm';
 import { z } from 'zod';
 // Event validation disabled - Gemini handles event discovery, Claude is fallback only
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
-import Anthropic from "@anthropic-ai/sdk";
+// 2026-01-10: Removed direct Anthropic import - use callModel adapter instead (D-016)
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import { briefingLog, OP } from '../../logger/workflow.js';
@@ -287,9 +287,8 @@ async function analyzeTrafficWithClaude({ tomtomData, city, state, formattedAddr
   briefingLog.ai(1, 'Claude', `analyzing traffic for ${city}, ${state}`);
 
   try {
-    const anthropic = new Anthropic();
-
-    // Prepare incident summary for Claude
+    // 2026-01-10: Use callModel adapter instead of direct SDK call (D-016 fix)
+    // Prepare incident summary for traffic analysis
     const stats = tomtomData.stats || {};
     const incidents = tomtomData.incidents || [];
 
@@ -346,13 +345,18 @@ Return a JSON object with this EXACT structure:
 
 IMPORTANT: The "briefing" field should be 3-4 sentences that a driver can read in 10 seconds to understand the traffic situation and make routing decisions. Focus on DRIVER IMPACT - which roads to avoid, expected delays, and alternative routing suggestions.`;
 
-    const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5-20251101',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }]
+    // 2026-01-10: Use adapter pattern per CLAUDE.md (D-016 fix)
+    const result = await callModel('BRIEFING_TRAFFIC', {
+      system: 'You are a traffic analyst for rideshare drivers.',
+      user: prompt
     });
 
-    const content = response.content[0]?.text || '';
+    if (!result.ok) {
+      briefingLog.warn(1, `BRIEFING_TRAFFIC failed: ${result.error || 'unknown'}`, OP.AI);
+      return null;
+    }
+
+    const content = result.output || '';
 
     // Parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);

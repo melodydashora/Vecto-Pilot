@@ -20,17 +20,17 @@ export const coachSchemaMetadata = {
   readable_tables: {
     snapshots: {
       description: "User location sessions with GPS, weather, and context",
-      key_columns: ["id", "user_id", "city", "state", "timezone", "lat", "lng", "weather", "created_at"],
+      key_columns: ["snapshot_id", "user_id", "city", "state", "timezone", "lat", "lng", "created_at"],
       sample_query: "Get user's recent sessions to understand driving patterns"
     },
     strategies: {
       description: "AI-generated driving strategies for each session",
-      key_columns: ["id", "snapshot_id", "consolidated_strategy", "immediate_strategy", "strategy_timestamp"],
+      key_columns: ["id", "snapshot_id", "consolidated_strategy", "strategy_for_now", "strategy_timestamp"],
       sample_query: "Get current strategy recommendations"
     },
     briefings: {
       description: "Events, traffic, news, weather briefings",
-      key_columns: ["id", "snapshot_id", "events", "traffic", "news", "weather"],
+      key_columns: ["id", "snapshot_id", "events", "traffic_conditions", "news", "weather_current", "weather_forecast"],
       sample_query: "Get today's events and traffic conditions"
     },
     discovered_events: {
@@ -41,7 +41,7 @@ export const coachSchemaMetadata = {
     },
     venue_catalog: {
       description: "Venue database with ratings, hours, and pricing",
-      key_columns: ["venue_id", "venue_name", "city", "expense_rank", "lat", "lng", "opening_hours"],
+      key_columns: ["venue_id", "venue_name", "city", "expense_rank", "lat", "lng", "business_hours"],
       sample_query: "Find high-end venues in a neighborhood"
     },
     ranking_candidates: {
