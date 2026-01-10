@@ -143,6 +143,7 @@ interface NewsData {
 
 interface BriefingTabProps {
   snapshotId?: string;
+  timezone?: string | null;  // 2026-01-10: Required for isEventForToday calculation (NO FALLBACKS)
   weatherData?: WeatherData;
   trafficData?: TrafficData;
   newsData?: NewsData;
@@ -167,7 +168,8 @@ export default function BriefingTab({
   isEventsLoading,
   schoolClosuresData,
   airportData,
-  consolidatedStrategy
+  consolidatedStrategy,
+  timezone
 }: BriefingTabProps) {
   // React Query client for cache invalidation after refresh
   const queryClient = useQueryClient();
@@ -389,6 +391,9 @@ export default function BriefingTab({
    * Filter events for the Briefing tab:
    * 1. Must have both event_time and event_end_time
    * 2. Must be happening today (single-day OR today is within multi-day range)
+   *
+   * 2026-01-10: NO FALLBACKS - Uses snapshot timezone, not browser timezone
+   * If timezone is missing, this is a critical data error upstream.
    */
   const isEventForToday = (event: BriefingEvent): boolean => {
     // Require both start and end times
@@ -401,17 +406,31 @@ export default function BriefingTab({
       return false;
     }
 
+    // 2026-01-10: NO FALLBACKS - timezone MUST come from snapshot
+    // If timezone is missing, this is a data integrity bug upstream
+    if (!timezone) {
+      console.error('[BriefingTab] isEventForToday: Missing timezone - this is a critical data bug');
+      return false; // Fail safe: don't show events if we can't determine "today" correctly
+    }
+
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+      // Calculate "today" in the snapshot's timezone (NOT browser timezone)
+      // Using Intl.DateTimeFormat with 'en-CA' locale gives YYYY-MM-DD format
+      const now = new Date();
+      const todayStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(now);
 
       const eventStartDate = event.event_date; // YYYY-MM-DD format
       const eventEndDate = event.event_end_date || event.event_date; // If no end date, use start date
 
       // Check if today falls within the event date range (inclusive)
       return todayStr >= eventStartDate && todayStr <= eventEndDate;
-    } catch {
+    } catch (err) {
+      console.error('[BriefingTab] isEventForToday: Date calculation error:', err);
       return false;
     }
   };

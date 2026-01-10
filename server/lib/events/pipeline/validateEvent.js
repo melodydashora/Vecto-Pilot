@@ -21,7 +21,7 @@ import { eventsLog, OP } from '../../../logger/workflow.js';
  * Increment when validation rules change.
  * Rows with version >= this do not need read-time revalidation.
  */
-export const VALIDATION_SCHEMA_VERSION = 2; // 2026-01-09: Initial canonical version
+export const VALIDATION_SCHEMA_VERSION = 3; // 2026-01-10: Added event_end_time validation (Rules 8-9)
 
 /**
  * Patterns that indicate incomplete/invalid data
@@ -102,12 +102,24 @@ export function validateEvent(event) {
     return { valid: false, reason: 'tbd_in_time', field: 'event_time' };
   }
 
-  // Rule 8: Must have event_date
+  // Rule 8: Must have event_end_time
+  // 2026-01-10: Added to enforce frontend contract (BriefingTab.tsx requires both times)
+  // Events without end times are not useful for rideshare drivers (can't predict pickup surge)
+  if (!event.event_end_time) {
+    return { valid: false, reason: 'missing_end_time', field: 'event_end_time' };
+  }
+
+  // Rule 9: End time must not contain TBD/Unknown
+  if (hasInvalidPattern(event.event_end_time)) {
+    return { valid: false, reason: 'tbd_in_end_time', field: 'event_end_time' };
+  }
+
+  // Rule 10: Must have event_date
   if (!event.event_date) {
     return { valid: false, reason: 'missing_date', field: 'event_date' };
   }
 
-  // Rule 9: Date must be valid format (YYYY-MM-DD)
+  // Rule 11: Date must be valid format (YYYY-MM-DD)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(event.event_date)) {
     return { valid: false, reason: 'invalid_date_format', field: 'event_date' };
   }
