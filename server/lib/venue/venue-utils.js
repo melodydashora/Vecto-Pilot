@@ -231,3 +231,217 @@ export function expenseRankToLevel(rank) {
  * Alias for backward compatibility - will be removed after Phase 6
  */
 export const calculateIsOpen = calculateIsOpenFromHoursTextMap;
+
+// ============================================================================
+// COMPACT HOURS FORMATTER (2026-01-14)
+// ============================================================================
+
+/**
+ * Helper: Convert 24-hour time string to 12-hour format
+ * Input: "1700" or "0030"
+ * Output: "5PM" or "12:30AM"
+ *
+ * @param {string} timeStr - 4-digit time string (HHMM)
+ * @returns {string} Formatted time like "5PM" or "12:30AM"
+ */
+function formatTime24to12(timeStr) {
+  if (!timeStr || timeStr.length !== 4) return timeStr;
+
+  const hour = parseInt(timeStr.slice(0, 2), 10);
+  const min = timeStr.slice(2);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+
+  // Only show minutes if not :00
+  return min === '00' ? `${hour12}${ampm}` : `${hour12}:${min}${ampm}`;
+}
+
+/**
+ * Formats Google Places hours into a compressed weekly view for UI display
+ *
+ * 2026-01-14: Added for compact hours display in venue listings
+ *
+ * Input: Google Places API 'opening_hours' object with 'periods' array
+ * Output: "Mon-Thu: 11AM-8PM, Fri-Sat: 10AM-9PM, Sun: 12-6PM"
+ *
+ * @param {Object} googleHours - Google Places opening_hours object
+ * @param {Array} googleHours.periods - Array of {open: {day, time}, close: {day, time}}
+ * @returns {string} Compact hours string or "Hours not available"
+ *
+ * @example
+ * // Input from Google Places API:
+ * const hours = {
+ *   periods: [
+ *     { open: { day: 1, time: "1100" }, close: { day: 1, time: "2000" } },
+ *     { open: { day: 2, time: "1100" }, close: { day: 2, time: "2000" } },
+ *     // ... etc
+ *   ]
+ * };
+ * formatCompactHours(hours);
+ * // Returns: "Mon-Thu: 11AM-8PM, Fri-Sat: 10AM-9PM"
+ */
+export function formatCompactHours(googleHours) {
+  if (!googleHours || !googleHours.periods || googleHours.periods.length === 0) {
+    return "Hours not available";
+  }
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Step 1: Map periods to daily hours (keyed by day index 0-6)
+  // Handle multiple periods per day (e.g., lunch + dinner service)
+  const dailyHours = {};
+
+  for (const period of googleHours.periods) {
+    if (!period.open || period.open.day === undefined) continue;
+
+    const dayIdx = period.open.day;
+    const openTime = period.open.time || '0000';
+    const closeTime = period.close?.time || '2359';
+
+    const timeRange = `${formatTime24to12(openTime)}-${formatTime24to12(closeTime)}`;
+
+    if (!dailyHours[dayIdx]) {
+      dailyHours[dayIdx] = [];
+    }
+    dailyHours[dayIdx].push(timeRange);
+  }
+
+  // Step 2: Convert daily hours to string per day
+  const dailyStrings = {};
+  for (let i = 0; i < 7; i++) {
+    if (dailyHours[i] && dailyHours[i].length > 0) {
+      dailyStrings[i] = dailyHours[i].join(', ');
+    } else {
+      dailyStrings[i] = 'Closed';
+    }
+  }
+
+  // Step 3: Group consecutive days with identical hours
+  // Start from Monday (1) and wrap to Sunday (0)
+  const groups = [];
+  let currentGroup = null;
+
+  // Order: Mon(1), Tue(2), Wed(3), Thu(4), Fri(5), Sat(6), Sun(0)
+  const orderedDays = [1, 2, 3, 4, 5, 6, 0];
+
+  for (const dayIdx of orderedDays) {
+    const hours = dailyStrings[dayIdx];
+
+    if (!currentGroup) {
+      currentGroup = { startIdx: dayIdx, endIdx: dayIdx, hours };
+    } else if (currentGroup.hours === hours) {
+      currentGroup.endIdx = dayIdx;
+    } else {
+      groups.push(currentGroup);
+      currentGroup = { startIdx: dayIdx, endIdx: dayIdx, hours };
+    }
+  }
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+
+  // Step 4: Format groups into readable strings
+  const formatted = groups
+    .filter(g => g.hours !== 'Closed') // Hide closed days for brevity
+    .map(g => {
+      const startDay = dayNames[g.startIdx];
+      const endDay = dayNames[g.endIdx];
+      const dayLabel = (g.startIdx === g.endIdx) ? startDay : `${startDay}-${endDay}`;
+      return `${dayLabel}: ${g.hours}`;
+    });
+
+  // If all days are closed, show that explicitly
+  if (formatted.length === 0) {
+    return "Closed";
+  }
+
+  return formatted.join(', ');
+}
+
+/**
+ * Formats Google weekdayDescriptions array into compact format
+ *
+ * Alternative to formatCompactHours when you have weekdayDescriptions
+ * instead of periods array.
+ *
+ * Input: ["Monday: 4:00 PM – 2:00 AM", "Tuesday: 4:00 PM – 2:00 AM", ...]
+ * Output: "Mon-Fri: 4PM-2AM, Sat-Sun: 2PM-2AM"
+ *
+ * @param {string[]} weekdayDescriptions - Array of "Day: Hours" strings
+ * @returns {string} Compact hours string
+ */
+export function formatCompactHoursFromDescriptions(weekdayDescriptions) {
+  if (!weekdayDescriptions || !Array.isArray(weekdayDescriptions) || weekdayDescriptions.length === 0) {
+    return "Hours not available";
+  }
+
+  const dayNameMap = {
+    'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+    'thursday': 4, 'friday': 5, 'saturday': 6
+  };
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Step 1: Parse weekdayDescriptions into daily hours
+  const dailyStrings = {};
+  for (let i = 0; i < 7; i++) {
+    dailyStrings[i] = 'Closed';
+  }
+
+  for (const desc of weekdayDescriptions) {
+    // Format: "Monday: 4:00 PM – 2:00 AM" or "Monday: Closed"
+    const colonIdx = desc.indexOf(':');
+    if (colonIdx === -1) continue;
+
+    const dayName = desc.slice(0, colonIdx).toLowerCase().trim();
+    const hours = desc.slice(colonIdx + 1).trim();
+
+    const dayIdx = dayNameMap[dayName];
+    if (dayIdx !== undefined) {
+      // Compact the hours format (remove extra spaces, normalize)
+      const compactHours = hours
+        .replace(/\s*–\s*/g, '-')  // Normalize dash
+        .replace(/\s*-\s*/g, '-')
+        .replace(/:00/g, '')       // Remove :00 for cleaner display
+        .replace(/\s+/g, '');      // Remove spaces
+
+      dailyStrings[dayIdx] = compactHours;
+    }
+  }
+
+  // Step 2: Group consecutive days with identical hours (same as above)
+  const groups = [];
+  let currentGroup = null;
+  const orderedDays = [1, 2, 3, 4, 5, 6, 0];
+
+  for (const dayIdx of orderedDays) {
+    const hours = dailyStrings[dayIdx];
+
+    if (!currentGroup) {
+      currentGroup = { startIdx: dayIdx, endIdx: dayIdx, hours };
+    } else if (currentGroup.hours === hours) {
+      currentGroup.endIdx = dayIdx;
+    } else {
+      groups.push(currentGroup);
+      currentGroup = { startIdx: dayIdx, endIdx: dayIdx, hours };
+    }
+  }
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+
+  // Step 3: Format groups
+  const formatted = groups
+    .filter(g => g.hours.toLowerCase() !== 'closed')
+    .map(g => {
+      const startDay = dayNames[g.startIdx];
+      const endDay = dayNames[g.endIdx];
+      const dayLabel = (g.startIdx === g.endIdx) ? startDay : `${startDay}-${endDay}`;
+      return `${dayLabel}: ${g.hours}`;
+    });
+
+  if (formatted.length === 0) {
+    return "Closed";
+  }
+
+  return formatted.join(', ');
+}

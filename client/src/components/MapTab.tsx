@@ -543,7 +543,7 @@ const MapTab: React.FC<MapTabProps> = ({
       barMarkersRef.current.push(marker);
     });
 
-    console.log(`✅ Added ${bars.length} open bar markers ($$+): ${bars.filter(b => !b.closing_soon).length} open (green), ${bars.filter(b => b.closing_soon).length} closing soon (red)`);
+    console.log(`✅ Added ${bars.length} open bar markers ($$+): ${bars.filter(b => !b.closingSoon).length} open (green), ${bars.filter(b => b.closingSoon).length} closing soon (red)`);
   }, [mapReady, bars]);
 
   return (
