@@ -557,25 +557,20 @@ export const discovered_events = pgTable("discovered_events", {
   address: text("address"),
   city: text("city").notNull(),
   state: text("state").notNull(),
-  zip: text("zip"),
+  // 2026-01-10: Removed zip, lat, lng, source_url, raw_source_data
+  // Geocoding (lat/lng) happens in venue_catalog, which is source of truth for coordinates
   // Reference to venue_catalog (enables venue → events queries for SmartBlocks)
   // Updated 2026-01-05: FK changed from venue_cache.id to venue_catalog.venue_id
   venue_id: uuid("venue_id").references(() => venue_catalog.venue_id, { onDelete: 'set null' }),
   // Event timing (2026-01-10: Renamed for symmetric naming convention)
   event_start_date: text("event_start_date").notNull(), // YYYY-MM-DD format
   event_start_time: text("event_start_time"), // e.g., "7:00 PM", "All Day"
-  event_end_date: text("event_end_date"), // For multi-day events
+  event_end_date: text("event_end_date"), // For multi-day events (defaults to event_start_date in normalizeEvent)
   event_end_time: text("event_end_time"), // e.g., "10:00 PM"
-  // Coordinates (optional - from venue_cache if venue_id set, otherwise from LLM)
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
   // Categorization
   category: text("category").notNull().default('other'), // concert, sports, theater, conference, festival, nightlife, civic, academic, airport, other
   expected_attendance: text("expected_attendance").default('medium'), // high, medium, low
-  // Discovery metadata
-  source_model: text("source_model").notNull(), // SerpAPI, GPT-5.2, Gemini, Claude, etc.
-  source_url: text("source_url"), // Original source link if available
-  raw_source_data: jsonb("raw_source_data"), // Full response from source for debugging
+  // 2026-01-10: Removed source_model - not needed, all events come from Gemini discovery
   // Deduplication
   event_hash: text("event_hash").notNull().unique(), // MD5 of normalized(title + venue + date + city)
   // Timestamps

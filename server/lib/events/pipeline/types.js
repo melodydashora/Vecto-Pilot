@@ -49,24 +49,22 @@
  * Normalized event - canonical field names and formats.
  * This is the internal representation used for validation and hashing.
  *
+ * 2026-01-10: Removed zip, lat, lng, source_url, raw_source_data
+ * Geocoding (lat/lng) happens in venue_catalog, which is source of truth for coordinates.
+ *
  * @typedef {Object} NormalizedEvent
  * @property {string} title - Cleaned title (no quotes, trimmed)
  * @property {string} venue_name - Canonical venue name
  * @property {string} address - Full address string
  * @property {string} city - City name
  * @property {string} state - State code (2-letter)
- * @property {string|null} zip - ZIP code if available
  * @property {string} event_start_date - Date in YYYY-MM-DD format (2026-01-10: renamed from event_date)
  * @property {string} event_start_time - Time in HH:MM format (24h) (2026-01-10: renamed from event_time)
  * @property {string|null} event_end_time - End time in HH:MM format (REQUIRED - see validateEvent.js Rule 8)
- * @property {string|null} event_end_date - End date if multi-day
- * @property {number|null} lat - Latitude (6 decimal precision)
- * @property {number|null} lng - Longitude (6 decimal precision)
+ * @property {string|null} event_end_date - End date if multi-day (defaults to event_start_date for single-day events)
  * @property {string} category - Normalized category
  * @property {string} expected_attendance - high/medium/low
- * @property {string} source_model - Provider identifier
- * @property {string|null} source_url - Source URL
- * @property {Object|null} raw_source_data - Original response (audit only)
+ * // 2026-01-10: Removed source_model - not needed
  */
 
 /**
@@ -80,6 +78,9 @@
  * Stored event - the discovered_events table row format.
  * Includes event_hash for deduplication.
  *
+ * 2026-01-10: Removed zip, lat, lng, source_url, raw_source_data
+ * Coordinates come from venue_catalog (JOIN on venue_id) which is source of truth.
+ *
  * @typedef {Object} StoredEvent
  * @property {string} id - UUID primary key
  * @property {string} event_hash - MD5 hash of normalized(title|venue|date|city)
@@ -88,19 +89,14 @@
  * @property {string} address
  * @property {string} city
  * @property {string} state
- * @property {string|null} zip
  * @property {string} event_start_date - YYYY-MM-DD format (2026-01-10: renamed from event_date)
  * @property {string} event_start_time - e.g., "7:00 PM" (2026-01-10: renamed from event_time)
  * @property {string} event_end_time - e.g., "10:00 PM" (REQUIRED)
- * @property {string|null} event_end_date - For multi-day events
- * @property {number|null} lat
- * @property {number|null} lng
+ * @property {string|null} event_end_date - For multi-day events (defaults to event_start_date)
  * @property {string} category
  * @property {string} expected_attendance
- * @property {string} source_model
- * @property {string|null} source_url
- * @property {Object|null} raw_source_data - NEVER sent to LLMs
- * @property {string|null} venue_id - FK to venue_catalog
+ * // 2026-01-10: Removed source_model - not needed
+ * @property {string|null} venue_id - FK to venue_catalog (source of lat/lng)
  * @property {boolean} is_active
  * @property {Date} discovered_at
  * @property {Date} updated_at

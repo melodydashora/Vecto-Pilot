@@ -104,19 +104,7 @@ export function normalizeTime(timeStr) {
   return `${hour.toString().padStart(2, '0')}:${minute}`;
 }
 
-/**
- * Normalize coordinates to 6 decimal precision
- * @param {number|string|undefined} coord - Raw coordinate
- * @returns {number|null} Normalized coordinate (6 decimals) or null
- */
-export function normalizeCoordinate(coord) {
-  if (coord === undefined || coord === null) return null;
-
-  const num = typeof coord === 'string' ? parseFloat(coord) : coord;
-  if (isNaN(num)) return null;
-
-  return parseFloat(num.toFixed(6));
-}
+// 2026-01-10: Removed normalizeCoordinate - geocoding happens in venue_catalog
 
 /**
  * Normalize category to canonical values
@@ -197,7 +185,8 @@ export function normalizeEvent(rawEvent, context = {}) {
     // Location context
     city: rawEvent.city || city || '',
     state: rawEvent.state || state || '',
-    zip: rawEvent.zip || null,
+    // 2026-01-10: Removed zip, lat, lng, source_url, raw_source_data
+    // Geocoding (lat/lng) happens in venue_catalog, which is source of truth for coordinates
 
     // Date/Time (2026-01-10: Renamed to symmetric naming convention)
     // Input: rawEvent.event_date → Output: event_start_date
@@ -206,22 +195,14 @@ export function normalizeEvent(rawEvent, context = {}) {
     event_start_date: normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
     event_start_time: normalizeTime(rawEvent.event_time || rawEvent.event_start_time || rawEvent.time),
     event_end_time: normalizeTime(rawEvent.event_end_time || rawEvent.end_time),
-    event_end_date: normalizeDate(rawEvent.event_end_date),
-
-    // Coordinates
-    lat: normalizeCoordinate(rawEvent.lat || rawEvent.latitude),
-    lng: normalizeCoordinate(rawEvent.lng || rawEvent.longitude),
+    // 2026-01-10: Default event_end_date to event_start_date for single-day events
+    // Most events (concerts, sports games, DJ nights) are single-day - only multi-day festivals need explicit end_date
+    event_end_date: normalizeDate(rawEvent.event_end_date) || normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
 
     // Classification
     category: normalizeCategory(rawEvent.category, rawEvent.subtype),
-    expected_attendance: normalizeAttendance(rawEvent.expected_attendance || rawEvent.impact),
-
-    // Provenance
-    source_model: rawEvent.source_model || 'unknown',
-    source_url: rawEvent.source_url || null,
-
-    // Raw data preserved for audit (NEVER sent to LLMs)
-    raw_source_data: rawEvent.raw_source_data || null
+    expected_attendance: normalizeAttendance(rawEvent.expected_attendance || rawEvent.impact)
+    // 2026-01-10: Removed source_model - not needed, all events come from Gemini discovery
   };
 }
 

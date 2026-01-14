@@ -89,6 +89,30 @@ The AI Coach needs **write access** to capture learnings from real user interact
 - "Low priority" issues compound into "tables with no data" confusion
 - Every discrepancy is a potential bug in AI-generated code
 
+### Rule 10: MELODY IS THE ARCHITECT
+
+**Claude does NOT make architecture decisions. Melody (the human) is the architect.**
+
+- **Do NOT propose architecture changes** - wait for Melody to define the design
+- **Do NOT infer how systems should connect** - ask Melody first
+- **Do NOT add fields, tables, or flows** without explicit direction from Melody
+- **When confused about design**, STOP and ask - don't guess
+- **Your role**: Help Melody code what she decides, not decide for her
+
+**What Claude CAN do:**
+- Point out potential issues or conflicts with existing code
+- Ask clarifying questions about requirements
+- Suggest implementation details AFTER architecture is defined
+- Execute the implementation as directed
+
+**What Claude CANNOT do:**
+- Decide how data flows between tables
+- Decide which fields belong where
+- Decide how UI should display data
+- Make any "this makes sense so I'll do it" changes
+
+**If you catch yourself thinking "I think this should..."** - STOP and ask Melody instead.
+
 ---
 
 ## Project Overview
