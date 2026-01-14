@@ -50,12 +50,16 @@ The AI Coach needs **write access** to capture learnings from real user interact
 
 | Table | Purpose |
 |-------|---------|
-| `venue_catalogue` | Driver-contributed venue intel (staging spots, GPS dead zones) |
-| `market_information` | Market-specific patterns, surge zones, timing insights |
-| `user_notes` | Per-snapshot notes from driver interactions |
-| `school_event_intel` | School/event patterns discovered through use |
-| `traffic_road_closures` | Road closure patterns, construction zones |
+| `venue_catalog` | Driver-contributed venue intel (staging spots, GPS dead zones) |
+| `market_intelligence` | Market-specific patterns, surge zones, timing insights |
+| `user_intel_notes` | Per-user notes from driver interactions |
+| `zone_intelligence` | Crowd-sourced zone knowledge (dead zones, honey holes, staging spots) |
+| `coach_conversations` | Thread history for cross-session memory |
 | `coach_system_notes` | **AI Coach observations** about system enhancements |
+| `discovered_events` | Event deactivation/reactivation (via `is_active` flag) |
+| `news_deactivations` | User news hiding preferences |
+
+**Note:** School closures and traffic conditions are stored in `briefings.school_closures` and `briefings.traffic_conditions` (JSONB columns), not separate tables. LLM consolidation via `callModel('BRIEFING_TRAFFIC')` at `briefing-service.js:1543`.
 
 **Use Cases (examples, not exhaustive):**
 - "Give me an exact staging location central to events and high-end venues where GPS signal is not blocked"

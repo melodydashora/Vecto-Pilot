@@ -134,6 +134,7 @@ if (strategyAge > 30*60*1000 && (isStuckPendingBlocks || isStuckInProgress)) {
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
+| D-032 | `CLAUDE.md:Rule 8` | AI Coach write access table names are wrong | Uses `venue_catalogue`, `market_information`, `user_notes` but actual tables are `venue_catalog`, `market_intelligence`, `user_intel_notes`; `school_event_intel` and `traffic_road_closures` don't exist (data is in `briefings` JSONB columns) | ✅ FIXED |
 | D-004 | Multiple files | Country field uses 'USA' not ISO 'US' | All fixed: venue-utils.js (D-012), location.js (D-011) | ✅ FIXED |
 | D-011 | `server/api/location/location.js:164` | `pickAddressParts()` country changed to `c.short_name` | Now returns ISO 3166-1 alpha-2 codes (US, CA, GB) | ✅ FIXED |
 | D-012 | `server/lib/venue/venue-utils.js:37,74` | Default country was `'USA'` (alpha-3) | Changed to `'US'` (ISO 3166-1 alpha-2) | ✅ FIXED |
@@ -262,6 +263,7 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-030b | 2026-01-10 | `client/src/pages/co-pilot/MapPage.tsx` | Eliminated snake_case mapping layer, MapBar now uses camelCase directly from useBarsQuery |
 | D-030c | 2026-01-10 | `server/validation/transformers.js` | Added `closedGoAnyway`, `closedReason` with snake/camel tolerance; made `isOpen` tolerant |
 | D-030d | 2026-01-10 | `migrations/20260110_rename_event_columns.sql` | Created migration: `event_date` → `event_start_date`, `event_time` → `event_start_time` |
+| D-032 | 2026-01-14 | `CLAUDE.md:Rule 8` | Fixed AI Coach write access table names: `venue_catalogue`→`venue_catalog`, `market_information`→`market_intelligence`, `user_notes`→`user_intel_notes`; removed non-existent tables (`school_event_intel`, `traffic_road_closures`); added note about JSONB columns for traffic/school data |
 
 ---
 
