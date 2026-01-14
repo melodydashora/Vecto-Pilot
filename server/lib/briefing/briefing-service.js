@@ -11,8 +11,8 @@ import { GoogleGenAI } from "@google/genai";
 import { briefingLog, OP } from '../../logger/workflow.js';
 // Centralized AI adapter - use for all model calls
 import { callModel } from '../ai/adapters/index.js';
-// SerpAPI + GPT-5.2 event discovery (replaces Gemini for events)
-import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
+// 2026-01-14: REMOVED dead import - syncEventsForLocation (SerpAPI + GPT-5.2) is no longer used
+// Briefer Model now uses Gemini 3 Pro with Google Search tools for ALL discovery (events, news, school closures)
 // Dump last briefing row to file for debugging
 import { dumpLastBriefingRow } from './dump-last-briefing.js';
 

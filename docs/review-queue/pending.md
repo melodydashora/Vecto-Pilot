@@ -942,4 +942,58 @@ The following items have been addressed and consolidated into `../reviewed-queue
 
 ---
 
+## 2026-01-14 Analysis
+
+**Generated:** 2026-01-14T22:20:57.408Z
+**Branch:** main
+**Last Commit:** 1e45e38a Fix: Consolidated validateSnapshotFields guard to prevent incomplete snapshots
+
+### Recent Commit Changes (32)
+| File | Status |
+|------|--------|
+| `CLAUDE.md` | Modified |
+| `client/src/components/RideshareIntelTab.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| `client/src/utils/co-pilot-helpers.ts` | Modified |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/review-queue/2026-01-14.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `migrations/20260114_lean_strategies_table.sql` | Added |
+| `sent-to-strategist.txt` | Modified |
+| `server/api/briefing/briefing.js` | Modified |
+| `server/api/coach/schema.js` | Modified |
+| `server/api/location/location.js` | Modified |
+| `server/api/location/snapshot.js` | Modified |
+| `server/api/strategy/content-blocks.js` | Modified |
+| `server/api/strategy/strategy.js` | Modified |
+| `server/lib/ai/coach-dal.js` | Modified |
+| `server/lib/ai/providers/consolidator.js` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| ... and 12 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/content-blocks.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/get-snapshot-context.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/get-snapshot-context.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/RideshareIntelTab.tsx)
+- [ ] `docs/architecture/api-reference.md` - Briefing API changes (server/api/briefing/briefing.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (migrations/20260114_lean_strategies_table.sql)
+- [ ] Consider adding documentation - New file added (server/scripts/link-events.js)
+
+### Status: PENDING
+
+---
+
 ---
