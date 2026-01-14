@@ -23,6 +23,9 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
 import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
 import { generateEventHash } from '../events/pipeline/hashEvent.js';
 
+// 2026-01-10: Venue linking - find or create venue in venue_catalog, link events via venue_id
+import { findOrCreateVenueByAddress } from '../venue/venue-linker.js';
+
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 import { getTomTomTraffic } from '../external/tomtom-traffic.js';
 
@@ -928,20 +931,21 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       for (const event of validatedEvents) {
         try {
           const hash = generateEventHash(event);
+          // 2026-01-10: Use normalized field names (event is already normalized by normalizeEvent)
+          // Removed: lat, lng, zip, source_url, raw_source_data (geocoding happens in venue_catalog)
           await db.insert(discovered_events).values({
             title: event.title,
-            venue_name: event.venue || event.location,
+            venue_name: event.venue_name,  // Already normalized - was bug: event.venue || event.location
             address: event.address,
             city: city,
             state: state,
             event_start_date: event.event_start_date,
             event_start_time: event.event_start_time,
             event_end_time: event.event_end_time,
-            lat: event.latitude || event.lat,
-            lng: event.longitude || event.lng,
-            category: event.event_type || event.category || 'other',
-            expected_attendance: event.impact === 'high' ? 'high' : event.impact === 'low' ? 'low' : 'medium',
-            source_model: 'gemini-3-pro',
+            event_end_date: event.event_end_date,
+            category: event.category,  // Already normalized
+            expected_attendance: event.expected_attendance,  // Already normalized
+            source_model: event.source_model || 'gemini-3-pro',
             event_hash: hash
           }).onConflictDoUpdate({
             target: discovered_events.event_hash,

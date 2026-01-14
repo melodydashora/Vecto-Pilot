@@ -183,7 +183,9 @@
       "Bash(claude --version)",
       "Bash(claude doctor)",
       "Bash(npm config:*)",
-      "Bash(git rev-parse:*)"
+      "Bash(git rev-parse:*)",
+      "Bash(git status:*)",
+      "Bash(npx drizzle-kit:*)"
     ],
     "deny": [],
     "ask": []
