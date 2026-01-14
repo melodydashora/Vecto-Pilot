@@ -945,15 +945,37 @@ router.get('/resolve', async (req, res) => {
         // ═══════════════════════════════════════════════════════════════════════════
         const forceRefresh = req.query.force === 'true';
 
-        // If user already has a snapshot and this isn't a forced refresh → return existing
-        if (!forceRefresh && existingUser?.current_snapshot_id) {
-          console.log(`📸 [SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (same session)`);
-          resolvedData.snapshot_id = existingUser.current_snapshot_id;
-          resolvedData.snapshot_reused = true;
+        // If user already has a snapshot and this isn't a forced refresh → check age and maybe reuse
+        // 2026-01-14: FIX - Must check snapshot age! Previous code reused 6-day-old snapshots!
+        const SNAPSHOT_TTL_MS = 60 * 60 * 1000; // 60 minutes TTL for snapshot reuse
 
-          // Return existing - no new snapshot needed
-          res.setHeader('Content-Type', 'application/json');
-          return res.json(resolvedData);
+        if (!forceRefresh && existingUser?.current_snapshot_id) {
+          // Query the snapshot to check its age before reusing
+          const existingSnapshot = await db.query.snapshots.findFirst({
+            where: eq(snapshots.snapshot_id, existingUser.current_snapshot_id),
+            columns: { snapshot_id: true, created_at: true }
+          }).catch(() => null);
+
+          if (existingSnapshot?.created_at) {
+            const snapshotAge = now.getTime() - new Date(existingSnapshot.created_at).getTime();
+
+            if (snapshotAge < SNAPSHOT_TTL_MS) {
+              // Snapshot is fresh - reuse it
+              console.log(`📸 [SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (age: ${Math.round(snapshotAge / 60000)}min)`);
+              resolvedData.snapshot_id = existingUser.current_snapshot_id;
+              resolvedData.snapshot_reused = true;
+
+              // Return existing - no new snapshot needed
+              res.setHeader('Content-Type', 'application/json');
+              return res.json(resolvedData);
+            } else {
+              // Snapshot is stale - log and create new
+              console.log(`📸 [SNAPSHOT] ⏰ Existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} is STALE (age: ${Math.round(snapshotAge / 60000)}min > 60min TTL) - creating fresh`);
+            }
+          } else {
+            // Snapshot not found in DB (orphaned reference) - create new
+            console.log(`📸 [SNAPSHOT] ⚠️ Existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} not found in DB - creating fresh`);
+          }
         }
 
         // ═══════════════════════════════════════════════════════════════════════════
