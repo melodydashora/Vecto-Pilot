@@ -9,7 +9,7 @@ import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
 import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
-import { validateSnapshotV1 } from '../../util/validate-snapshot.js';
+import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
 import { validateLocationFreshness } from '../../lib/location/validation-gates.js';
 import { uuidOrNull } from '../../util/uuid.js';
@@ -30,23 +30,8 @@ function getDayPartKey(hour) {
   return 'evening';
 }
 
-// Helper: Validate all required snapshot fields are present before INSERT
-// These fields are NOT NULL in the database schema
-function validateSnapshotFields(record) {
-  const required = [
-    'lat', 'lng', 'city', 'state', 'country',
-    'formatted_address', 'timezone', 'local_iso',
-    'dow', 'hour', 'day_part_key'
-  ];
-  const missing = required.filter(f => record[f] === null || record[f] === undefined);
-  if (missing.length > 0) {
-    const error = new Error(`SNAPSHOT_VALIDATION_FAILED: Missing required fields: ${missing.join(', ')}`);
-    error.missingFields = missing;
-    error.code = 'SNAPSHOT_INCOMPLETE';
-    throw error;
-  }
-  return true;
-}
+// 2026-01-14: validateSnapshotFields moved to shared module (server/util/validate-snapshot.js)
+// Import above: import { validateSnapshotFields } from '../../util/validate-snapshot.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MARKET TIMEZONE LOOKUP: Skip Google Timezone API for known global markets
