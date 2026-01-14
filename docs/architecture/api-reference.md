@@ -9,9 +9,36 @@ Complete frontend → backend API endpoint reference.
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
 | `/api/blocks-fast` | POST | `server/api/strategy/blocks-fast.js` | Full TRIAD pipeline (strategy + venues) |
-| `/api/blocks-fast` | GET | `server/api/strategy/blocks-fast.js` | Retrieve existing blocks |
+| `/api/blocks-fast` | GET | `server/api/strategy/blocks-fast.js` | Retrieve existing blocks (generates if missing) |
 | `/api/blocks/strategy/:id` | GET | `server/api/strategy/content-blocks.js` | Fetch strategy content blocks |
 | `/api/strategy/:snapshotId` | GET | `server/api/strategy/strategy.js` | Fetch strategy for snapshot |
+| `/api/strategy/daily/:snapshotId` | POST | `server/api/strategy/daily.js` | On-demand daily strategy (user-triggered) |
+
+#### Strategy API Details (Updated 2026-01-14)
+
+**POST /api/blocks-fast**
+
+Triggers the full TRIAD pipeline:
+1. Phase 1 (Resolving): Location validation
+2. Phase 2 (Analyzing): Briefing generation (Gemini with Google Search)
+3. Phase 3 (Immediate): GPT-5.2 immediate strategy
+4. Phase 4 (Venues): SmartBlocks generation + Google enrichment
+
+**Response Fields:**
+- `status`: ok | pending | pending_blocks | running | failed
+- `blocks[]`: Array of venue recommendations (camelCase)
+- `strategy.strategyForNow`: Immediate 1hr strategy
+- `strategy.consolidated`: Daily strategy (if generated)
+- `audit[]`: Pipeline execution trace
+
+**Staleness Detection (2026-01-10):**
+- Strategies older than 30 minutes with incomplete status are automatically reset
+- Prevents serving stale cached data from interrupted sessions
+
+**GET /api/blocks-fast**
+
+Returns 202 with `reason: strategy_pending` until immediate strategy is ready.
+Strategy-first gating ensures blocks are not generated until strategy_for_now exists.
 
 ### Location & GPS
 

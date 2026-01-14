@@ -290,14 +290,14 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 
 ### `discovered_events` - AI-Discovered Events
 
-**Purpose:** Events found by multi-model AI search (SerpAPI, GPT-5.2, Gemini, Claude, Perplexity) for rideshare demand prediction
+**Purpose:** Events found by AI search (Gemini with Google Search) for rideshare demand prediction
 
 **Files:**
 - Schema: `shared/schema.js`
-- Insert: `server/scripts/sync-events.mjs`
-- Query: `server/api/briefing/briefing.js`
+- Insert: `server/scripts/sync-events.mjs`, `server/lib/events/pipeline/`
+- Query: `server/api/briefing/briefing.js`, `server/lib/briefing/briefing-service.js`
 
-**Key Columns:**
+**Key Columns (Updated 2026-01-10):**
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID (PK) | Primary identifier |
@@ -305,20 +305,29 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 | `venue_name` | TEXT | Venue name |
 | `address` | TEXT | Full address |
 | `city`, `state` | TEXT | Location |
-| `event_date` | TEXT | Date (YYYY-MM-DD) |
-| `event_time` | TEXT | Start time (e.g., "7:00 PM") |
+| `event_start_date` | TEXT | Start date (YYYY-MM-DD) - **renamed from event_date** |
+| `event_start_time` | TEXT | Start time (e.g., "7:00 PM") - **renamed from event_time** |
+| `event_end_date` | TEXT | End date for multi-day events (defaults to event_start_date) |
 | `event_end_time` | TEXT | End time (e.g., "10:00 PM") |
-| `lat`, `lng` | DOUBLE PRECISION | Coordinates |
 | `category` | TEXT | concert/sports/festival/etc. |
 | `expected_attendance` | TEXT | high/medium/low |
-| `source_model` | TEXT | SerpAPI, GPT-5.2, Gemini, etc. |
 | `event_hash` | TEXT (UNIQUE) | Deduplication key |
 | `is_active` | BOOLEAN | False if cancelled |
+| `is_verified` | BOOLEAN | Human verified |
 | `venue_id` | UUID (FK) | Reference to venue_catalog.venue_id (for precise coords & SmartBlocks) |
+| `deactivation_reason` | TEXT | Why event was deactivated (event_ended, cancelled, etc.) |
+| `deactivated_at` | TIMESTAMP | When event was deactivated |
+| `deactivated_by` | TEXT | 'ai_coach' or user_id |
+
+**Note (2026-01-10):** Columns `lat`, `lng`, `source_model`, `source_url`, `raw_source_data` were removed. Coordinates now come from `venue_catalog` via `venue_id` FK join. All events are discovered via Gemini with Google Search.
+
+**Field Naming Convention (2026-01-10):**
+- Old: `event_date`, `event_time`
+- New: `event_start_date`, `event_start_time` (symmetric with `event_end_date`, `event_end_time`)
 
 **Deduplication:** Uses MD5 hash of `normalize(title + venue + date + city)` to prevent duplicates across sources.
 
-See [Event Discovery Architecture](event-discovery.md) for full documentation.
+See [Event Discovery Architecture](event-discovery.md) and [ETL Pipeline Refactoring](etl-pipeline-refactoring-2026-01-09.md) for full documentation.
 
 ---
 

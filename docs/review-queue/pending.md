@@ -1186,15 +1186,15 @@ The following documentation was created as part of the ETL refactoring commit:
 ### Documentation Review Needed
 
 #### High Priority
-- [ ] `docs/architecture/api-reference.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
-- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
-- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/providers/briefing.js)
-- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/providers/briefing.js)
+- [x] `docs/architecture/api-reference.md` - Strategy API changes (server/api/strategy/blocks-fast.js) **UPDATED 2026-01-14**
+- [x] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js) **UPDATED 2026-01-14**
+- [x] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/providers/briefing.js) **UPDATED 2026-01-14**
+- [x] `docs/architecture/database-schema.md` - Event field name changes **UPDATED 2026-01-14**
 
 #### Low Priority
 - [ ] Consider adding documentation - New file added (migrations/20260110_cleanup_invalid_events.sql)
 
-### Status: PENDING
+### Status: REVIEWED (2026-01-14)
 
 ---
 

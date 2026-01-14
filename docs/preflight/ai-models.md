@@ -4,12 +4,24 @@ Quick reference for AI model usage. Read before modifying any AI code.
 
 ## Current Models
 
+**NAMING CONVENTION:** `{TABLE}_{FUNCTION}` - Each role maps to a DB table destination.
+
 | Role | Model | Use For |
 |------|-------|---------|
-| Strategist | `claude-opus-4-5-20251101` | Long-term strategy |
-| Briefer | `gemini-3-pro-preview` | Events, traffic, news |
-| Consolidator | `gpt-5.2` | Immediate tactics |
-| Event Validator | `claude-opus-4-5-20251101` | Event verification |
+| `STRATEGY_CORE` | `claude-opus-4-5-20251101` | Long-term strategy |
+| `STRATEGY_CONTEXT` | `gemini-3-pro-preview` | Real-time context gathering |
+| `STRATEGY_TACTICAL` | `gpt-5.2` | Immediate 1-hour tactics |
+| `STRATEGY_DAILY` | `gemini-3-pro-preview` | 8-12hr daily strategy |
+| `BRIEFING_EVENTS_VALIDATOR` | `claude-opus-4-5-20251101` | Event verification |
+| `BRIEFING_EVENTS_DISCOVERY` | `gemini-3-pro-preview` | Event discovery |
+| `VENUE_SCORER` | `gpt-5.2` | Smart Blocks venue scoring |
+| `COACH_CHAT` | `gemini-3-pro-preview` | AI Strategy Coach |
+
+**Legacy role names** (still work via automatic mapping):
+- `strategist` -> `STRATEGY_CORE`
+- `briefer` -> `STRATEGY_CONTEXT`
+- `consolidator` -> `STRATEGY_TACTICAL`
+- `event_validator` -> `BRIEFING_EVENTS_VALIDATOR`
 
 ## DO: Use the Adapter Pattern
 
@@ -87,5 +99,5 @@ model: "gemini-3-flash-preview"
 
 - [ ] Am I using `callModel()` not direct API calls?
 - [ ] Are model parameters in the correct format?
-- [ ] Is the role name correct? (strategist, briefer, consolidator)
-- [ ] Did I check `server/lib/ai/models-dictionary.js` for current config?
+- [ ] Is the role name correct? (Use `{TABLE}_{FUNCTION}` format or legacy names)
+- [ ] Did I check `server/lib/ai/model-registry.js` for current config?

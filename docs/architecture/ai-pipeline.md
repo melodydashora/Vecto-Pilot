@@ -263,7 +263,7 @@ eventSource.addEventListener('blocks_ready', (event) => {
 });
 ```
 
-## Event ETL Pipeline (2026-01-09)
+## Event ETL Pipeline (2026-01-09, Updated 2026-01-10)
 
 Events are processed through a 5-phase ETL pipeline with canonical modules in `server/lib/events/pipeline/`:
 
@@ -279,11 +279,24 @@ BriefingEvent ← (DB read) ← discovered_events ← (DB write)
 
 | Phase | Label | Operation |
 |-------|-------|-----------|
-| 1 | Extract\|Providers | SerpAPI, Gemini, Claude discovery calls |
+| 1 | Extract\|Providers | Gemini with Google Search discovery |
 | 2 | Transform\|Normalize | normalizeEvent + validateEvent |
-| 3 | Transform\|Geocode | Geocode + venue linking (ChIJ/Ei ID) |
+| 3 | Transform\|Geocode | Geocode + venue linking (venue_catalog) |
 | 4 | Load\|Store | Upsert to discovered_events with event_hash |
 | 5 | Assemble\|Briefing | Query from DB + shape for briefings |
+
+### Canonical Field Names (2026-01-10)
+
+Event date/time fields use symmetric naming:
+
+| Field | Format | Description |
+|-------|--------|-------------|
+| `event_start_date` | YYYY-MM-DD | Event start date (required) |
+| `event_start_time` | HH:MM or "7:00 PM" | Event start time |
+| `event_end_date` | YYYY-MM-DD | Event end date (defaults to start_date) |
+| `event_end_time` | HH:MM or "10:00 PM" | Event end time |
+
+**Note:** Old field names (`event_date`, `event_time`) are no longer used. The normalization layer maps legacy inputs to canonical names.
 
 ### Canonical Modules
 
@@ -294,6 +307,14 @@ BriefingEvent ← (DB read) ← discovered_events ← (DB write)
 | `validateEvent.js` | Hard filter validation | validateEvent, validateEventsHard, needsReadTimeValidation |
 | `hashEvent.js` | MD5 hash for deduplication | generateEventHash, buildHashInput, eventsHaveSameHash |
 
+### Freshness Filtering
+
+Events are filtered for freshness in `server/lib/strategy/strategy-utils.js`:
+
+- `filterFreshEvents()` - Removes stale events (already ended) based on timezone-aware date/time parsing
+- `filterFreshNews()` - Removes news older than 3 days
+- Events without valid date/time info are rejected (not included in briefings)
+
 See [ETL Pipeline Refactoring](etl-pipeline-refactoring-2026-01-09.md) for complete verification matrix.
 
-**Last Updated:** 2026-01-10
+**Last Updated:** 2026-01-14
