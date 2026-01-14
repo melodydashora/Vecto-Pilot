@@ -6,6 +6,8 @@ import { db } from '../../db/drizzle.js';
 import { strategies, briefings, snapshots } from '../../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { ensureStrategyRow } from '../../lib/strategy/strategy-utils.js';
+// 2026-01-14: Import shared snapshot validation to prevent incomplete snapshots
+import { validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
 import { runConsolidator } from '../../lib/ai/providers/consolidator.js';
 import { safeElapsedMs } from '../utils/safeElapsedMs.js';
@@ -185,7 +187,9 @@ router.post('/:snapshotId/retry', async (req, res) => {
     const parts = formatter.formatToParts(now);
     const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
     
-    await db.insert(snapshots).values({
+    // 2026-01-14: Build snapshot record with ALL required fields before validation
+    // Previous code was missing local_iso, dow, hour, day_part_key which caused SNAPSHOT_INCOMPLETE errors
+    const snapshotRecord = {
       snapshot_id: newSnapshotId,
       created_at: now,
       date: today,
@@ -199,6 +203,12 @@ router.post('/:snapshotId/retry', async (req, res) => {
       country: originalSnapshot.country,
       formatted_address: originalSnapshot.formatted_address,
       timezone: originalSnapshot.timezone,
+      // 2026-01-14: FIX - Copy time context fields (were missing, causing validation failures)
+      local_iso: originalSnapshot.local_iso,
+      dow: originalSnapshot.dow,
+      hour: originalSnapshot.hour,
+      day_part_key: originalSnapshot.day_part_key,
+      // Optional fields
       h3_r8: originalSnapshot.h3_r8,
       weather: originalSnapshot.weather,
       air: originalSnapshot.air,
@@ -207,7 +217,12 @@ router.post('/:snapshotId/retry', async (req, res) => {
       permissions: originalSnapshot.permissions,
       holiday: originalSnapshot.holiday,
       is_holiday: originalSnapshot.is_holiday
-    });
+    };
+
+    // 2026-01-14: Validate ALL required fields BEFORE insert (prevents incomplete snapshots)
+    validateSnapshotFields(snapshotRecord);
+
+    await db.insert(snapshots).values(snapshotRecord);
 
     // Create strategy row for new snapshot
     // 2026-01-14: Lean strategies - trigger_reason column dropped (unused)

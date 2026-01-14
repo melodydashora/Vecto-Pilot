@@ -5,7 +5,7 @@ import { db } from "../../db/drizzle.js";
 import { sql, eq } from "drizzle-orm";
 import { snapshots, strategies, coords_cache } from "../../../shared/schema.js";
 import { generateStrategyForSnapshot } from "../../lib/strategy/strategy-generator.js";
-import { validateIncomingSnapshot } from "../../util/validate-snapshot.js";
+import { validateIncomingSnapshot, validateSnapshotFields } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
 import { generateAndStoreBriefing } from "../../lib/briefing/briefing-service.js";
 import { httpError } from "../utils/http-helpers.js";
@@ -20,23 +20,8 @@ function uuid() {
   return crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex");
 }
 
-// Helper: Validate all required snapshot fields are present before INSERT
-// These fields are NOT NULL in the database schema
-function validateSnapshotFields(record) {
-  const required = [
-    'lat', 'lng', 'city', 'state', 'country',
-    'formatted_address', 'timezone', 'local_iso',
-    'dow', 'hour', 'day_part_key'
-  ];
-  const missing = required.filter(f => record[f] === null || record[f] === undefined);
-  if (missing.length > 0) {
-    const error = new Error(`SNAPSHOT_VALIDATION_FAILED: Missing required fields: ${missing.join(', ')}`);
-    error.missingFields = missing;
-    error.code = 'SNAPSHOT_INCOMPLETE';
-    throw error;
-  }
-  return true;
-}
+// 2026-01-14: validateSnapshotFields moved to shared module (server/util/validate-snapshot.js)
+// Import above: import { validateSnapshotFields } from "../../util/validate-snapshot.js";
 
 function requireStr(v, name) {
   if (typeof v !== "string" || !v.trim()) throw new Error(`missing:${name}`);
