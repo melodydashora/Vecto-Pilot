@@ -313,11 +313,12 @@ export function toApiStrategyPolling(data) {
     consolidated: data.strategy.consolidated || '',
     strategyForNow: data.strategy.strategyForNow ?? data.strategy.strategy_for_now ?? '',
     holiday: data.strategy.holiday,
+    // 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
+    // Holiday info is now in snapshots table (holiday, is_holiday) - see 'holiday' field above
     briefing: data.strategy.briefing ? {
       events: data.strategy.briefing.events ?? [],
       news: data.strategy.briefing.news ?? [],
       traffic: data.strategy.briefing.traffic ?? {},
-      holidays: data.strategy.briefing.holidays ?? [],
       // Fix the casing mismatch - accept both snake and camel
       schoolClosures: data.strategy.briefing.schoolClosures ?? data.strategy.briefing.school_closures ?? []
     } : null

@@ -71,21 +71,27 @@ export async function validateWeather(snapshot) {
 /**
  * Validate traffic conditions from snapshot
  * Returns: { valid: boolean, reason?: string, impact: string }
+ *
+ * 2026-01-14: airport_context dropped from snapshots - now in briefings.airport_conditions
+ * This function now expects airport data to be passed via briefing parameter
  */
-export async function validateTraffic(snapshot) {
-  if (!snapshot?.airport_context) {
+export async function validateTraffic(snapshot, briefing = null) {
+  // 2026-01-14: airport_context moved to briefings.airport_conditions
+  const airportConditions = briefing?.airport_conditions;
+  if (!airportConditions?.airports?.length) {
     return { valid: true, impact: 'normal', reason: 'No airport disruptions' };
   }
 
   try {
-    const { airport_context } = snapshot;
+    // Use the first/nearest airport from briefing data
+    const airport = airportConditions.airports[0];
     const prompt = `Analyze this airport/traffic data for rideshare viability.
 
     Data:
-    Airport: ${airport_context.airport_code}
-    Distance: ${airport_context.distance_miles} miles
-    Delays: ${airport_context.delay_minutes} minutes
-    Closure: ${airport_context.closure_status}
+    Airport: ${airport.code || 'Unknown'}
+    Name: ${airport.name || 'Unknown'}
+    Status: ${airport.status || 'unknown'}
+    Delays: ${airport.delays || 'None reported'}
 
     Return strict JSON matching this schema:
     {

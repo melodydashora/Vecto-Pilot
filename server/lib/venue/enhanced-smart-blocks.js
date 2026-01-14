@@ -83,8 +83,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
   }
 
   // NOTE: Briefing is now OPTIONAL - blocks generation proceeds even without briefing content
+  // 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
+  // Holiday info is now in snapshots table (holiday, is_holiday)
   if (!briefing) {
-    briefing = { events: [], news: [], traffic: {}, holidays: [] };
+    briefing = { events: [], news: [], traffic: {}, school_closures: [] };
   }
 
   venuesLog.phase(1, `Input ready: strategy=${immediateStrategy.length}chars, briefing=${Object.keys(briefing).filter(k => briefing[k]).length} fields`);

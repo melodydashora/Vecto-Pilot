@@ -281,7 +281,7 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
       day_part_key: snapshot.day_part_key,
       weather: snapshot.weather,
       air: snapshot.air,
-      airport_context: snapshot.airport_context,
+      // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
       holiday: snapshot.holiday,
       is_holiday: snapshot.is_holiday,
       h3_r8: snapshot.h3_r8,

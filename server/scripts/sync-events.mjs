@@ -322,9 +322,15 @@ function buildEventPrompt(city, state, date, lat, lng, existingEvents = [], opti
   const { todayOnly = false } = options;
   const dedupSection = formatExistingEventsForPrompt(existingEvents);
 
+  // 2026-01-14: CRITICAL FIX - Always format coordinates to 6 decimals
+  // This is required per CLAUDE.md "ABSOLUTE PRECISION" rule
+  // 6 decimals = ~11cm accuracy, prevents fuzzy matching issues
+  const latStr = Number(lat).toFixed(6);
+  const lngStr = Number(lng).toFixed(6);
+
   // TODAY-ONLY MODE: For briefing tab, only get today's events with required times
   if (todayOnly) {
-    return `Search for events happening TODAY (${date}) within ${MAX_DRIVE_MINUTES} minutes drive of coordinates ${lat}, ${lng} (near ${city}, ${state}).${dedupSection}
+    return `Search for events happening TODAY (${date}) within ${MAX_DRIVE_MINUTES} minutes drive of coordinates ${latStr}, ${lngStr} (near ${city}, ${state}).${dedupSection}
 
 **CRITICAL REQUIREMENTS:**
 1. ONLY events happening on ${date} (today)
@@ -369,7 +375,8 @@ IMPORTANT: Skip events without confirmed start AND end times. Return [] if no ev
   dayAfter.setDate(today.getDate() + 6); // Get a week of events
   const dateRange = `${date} to ${dayAfter.toISOString().split('T')[0]}`;
 
-  return `Search for ALL events happening within ${MAX_DRIVE_MINUTES} minutes drive of coordinates ${lat}, ${lng} (near ${city}, ${state}) from ${dateRange}.${dedupSection}
+  // 2026-01-14: Use 6-decimal formatted coordinates (latStr, lngStr defined above)
+  return `Search for ALL events happening within ${MAX_DRIVE_MINUTES} minutes drive of coordinates ${latStr}, ${lngStr} (near ${city}, ${state}) from ${dateRange}.${dedupSection}
 
 This is for rideshare drivers - we need events that generate pickups/dropoffs.
 

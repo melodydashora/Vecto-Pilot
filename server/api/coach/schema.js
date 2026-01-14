@@ -25,7 +25,7 @@ export const coachSchemaMetadata = {
     },
     strategies: {
       description: "AI-generated driving strategies for each session",
-      key_columns: ["id", "snapshot_id", "consolidated_strategy", "strategy_for_now", "strategy_timestamp"],
+      key_columns: ["id", "snapshot_id", "consolidated_strategy", "strategy_for_now", "created_at"],
       sample_query: "Get current strategy recommendations"
     },
     briefings: {

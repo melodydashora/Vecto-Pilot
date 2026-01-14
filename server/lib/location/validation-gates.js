@@ -175,27 +175,12 @@ export function validateStrategyDelivery({
   }
 
   // Gate 2: Strategy freshness
-  if (strategy.strategy_timestamp) {
-    const strategyCheck = validateStrategyFreshness(strategy.strategy_timestamp, requestTime);
+  // 2026-01-14: Lean strategies - use created_at as canonical timestamp
+  // (strategy_timestamp, valid_window_start, valid_window_end columns dropped)
+  if (strategy.created_at) {
+    const strategyCheck = validateStrategyFreshness(strategy.created_at, requestTime);
     if (!strategyCheck.valid) {
       errors.push(strategyCheck.error);
-    }
-  }
-
-  // Gate 3: Window duration
-  if (strategy.valid_window_start && strategy.valid_window_end) {
-    const windowCheck = validateWindowDuration(
-      strategy.valid_window_start,
-      strategy.valid_window_end
-    );
-    if (!windowCheck.valid) {
-      errors.push(windowCheck.error);
-    }
-
-    // Gate 4: Window not expired
-    const expiryCheck = validateWindowNotExpired(strategy.valid_window_end, requestTime);
-    if (!expiryCheck.valid) {
-      errors.push(expiryCheck.error);
     }
   }
 
@@ -225,16 +210,7 @@ export function checkMovementInvalidation(currentSnapshot, strategySnapshot, str
     };
   }
 
-  // Check window expiry
-  if (strategy.valid_window_end) {
-    const expiryCheck = validateWindowNotExpired(strategy.valid_window_end);
-    if (!expiryCheck.valid) {
-      return {
-        needsRegeneration: true,
-        reason: expiryCheck.error
-      };
-    }
-  }
-
+  // 2026-01-14: Lean strategies - valid_window_end column dropped
+  // Strategy freshness is now based on created_at + TTL (handled by validateStrategyFreshness)
   return { needsRegeneration: false };
 }

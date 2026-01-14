@@ -139,7 +139,8 @@ export function useStrategyPolling({ snapshotId }: UseStrategyPollingOptions): U
   // Update persistent strategy when new data arrives
   useEffect(() => {
     const consolidatedStrategy = strategyData?.strategy?.consolidated;
-    const strategyForNow = strategyData?.strategy?.strategy_for_now;
+    // 2026-01-14: FIX - Server returns camelCase 'strategyForNow', not snake_case 'strategy_for_now'
+    const strategyForNow = strategyData?.strategy?.strategyForNow;
 
     if (consolidatedStrategy && consolidatedStrategy !== persistentStrategy) {
       console.log('[strategy-polling] New consolidated strategy received');

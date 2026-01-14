@@ -118,7 +118,7 @@ ${lastBriefing.airport_conditions ? JSON.stringify(lastBriefing.airport_conditio
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-strategy_id: ${strategy?.strategy_id || '(not found)'}
+id: ${strategy?.id || '(not found)'}
 snapshot_id: ${strategy?.snapshot_id || '(null)'}
 status: ${strategy?.status || '(null)'}
 error_message: ${strategy?.error_message || '(none)'}

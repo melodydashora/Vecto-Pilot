@@ -172,15 +172,19 @@ export function hasRenderableBriefing(briefing) {
 /**
  * Normalize briefing to ensure consistent shape
  * Guarantees all fields are arrays/objects even if input is malformed
+ *
+ * 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
+ * Holiday info is now in snapshots table (holiday, is_holiday)
+ *
  * @param {any} briefing - Raw briefing data
  * @returns {Object} - Normalized briefing with guaranteed shape
  */
 export function normalizeBriefingShape(briefing) {
   return {
     events: Array.isArray(briefing?.events) ? briefing.events : [],
-    holidays: Array.isArray(briefing?.holidays) ? briefing.holidays : [],
     news: Array.isArray(briefing?.news) ? briefing.news : [],
-    traffic: Array.isArray(briefing?.traffic) ? briefing.traffic : []
+    traffic: Array.isArray(briefing?.traffic) ? briefing.traffic : [],
+    school_closures: Array.isArray(briefing?.school_closures) ? briefing.school_closures : []
   };
 }
 

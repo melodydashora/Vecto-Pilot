@@ -42,9 +42,12 @@ router.get('/:snapshotId', async (req, res) => {
     if (!hasStrategyForNow) waitFor.push('strategy_for_now');
     if (!hasBriefing) waitFor.push('briefing');
 
-    const startedAt = row.strategy_timestamp ?? row.created_at ?? null;
+    // 2026-01-14: Lean strategies - use created_at as canonical timestamp (strategy_timestamp dropped)
+    const startedAt = row.created_at ?? null;
     const timeElapsedMs = safeElapsedMs(startedAt, Date.now());
 
+    // 2026-01-14: Removed holidays from briefing fallback (column dropped in 20251209_drop_unused_briefing_columns.sql)
+    // Holiday info is now in snapshots table (holiday, is_holiday)
     res.json({
       status: hasStrategyForNow ? 'ok' : 'pending',
       snapshot_id: snapshotId,
@@ -54,7 +57,7 @@ router.get('/:snapshotId', async (req, res) => {
         news: briefingRow.news || { items: [] },
         traffic: briefingRow.traffic_conditions || {},
         school_closures: briefingRow.school_closures || []
-      } : { events: [], holidays: [], traffic: [], news: [] },
+      } : { events: [], traffic: [], news: [], school_closures: [] },
       consolidated: hasConsolidated ? row.consolidated_strategy : '',
       waitFor,
       timeElapsedMs
@@ -199,18 +202,16 @@ router.post('/:snapshotId/retry', async (req, res) => {
       h3_r8: originalSnapshot.h3_r8,
       weather: originalSnapshot.weather,
       air: originalSnapshot.air,
-      airport_context: originalSnapshot.airport_context,
+      // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
       device: originalSnapshot.device,
       permissions: originalSnapshot.permissions,
       holiday: originalSnapshot.holiday,
       is_holiday: originalSnapshot.is_holiday
     });
 
-    // Create strategy row and set trigger_reason on strategies table (not snapshots)
+    // Create strategy row for new snapshot
+    // 2026-01-14: Lean strategies - trigger_reason column dropped (unused)
     await ensureStrategyRow(newSnapshotId);
-    await db.update(strategies)
-      .set({ trigger_reason: 'retry' })
-      .where(eq(strategies.snapshot_id, newSnapshotId));
 
     // Retry uses the same blocks-fast pipeline
     console.log(`[strategy] ℹ️  Retry: Use POST /api/blocks-fast with snapshot_id=${newSnapshotId} for complete pipeline`);
