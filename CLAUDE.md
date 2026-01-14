@@ -117,6 +117,52 @@ The AI Coach needs **write access** to capture learnings from real user interact
 
 **If you catch yourself thinking "I think this should..."** - STOP and ask Melody instead.
 
+### Rule 11: PIPELINE DATA DEPENDENCIES (2026-01-14)
+
+**The AI pipeline has strict data dependencies. Understand this flow:**
+
+```
+SNAPSHOT (required first)
+    │
+    ├── GPS location: lat, lng, formatted_address
+    ├── Time context: local_iso, dow, hour, day_part_key, timezone
+    └── Resolved location: city, state, country
+
+    ↓ [BRIEFING requires SNAPSHOT]
+
+BRIEFING ROW (requires snapshot_id)
+    │
+    ├── Weather: Google Weather API → briefings.weather_current/forecast
+    ├── Traffic: TomTom → Gemini → briefings.traffic_conditions
+    ├── Events: Gemini Discovery → briefings.events
+    ├── News: Gemini Search → briefings.news
+    └── Airport: Gemini Search → briefings.airport_conditions
+
+    ↓ [STRATEGY requires SNAPSHOT + BRIEFING]
+
+STRATEGY_FOR_NOW (requires snapshot + briefing row)
+    │
+    └── Consolidator receives: snapshot context + all briefing data
+
+    ↓ [VENUES requires STRATEGY_FOR_NOW + SNAPSHOT]
+
+VENUE RECOMMENDATIONS (requires strategy + driver location)
+    │
+    └── Tactical Planner: strategy text + driver GPS → scored venues
+```
+
+**Critical Dependencies:**
+| Step | Requires | Error if Missing |
+|------|----------|------------------|
+| Briefing | `snapshot_id` with valid GPS | "Missing location data" |
+| Strategy | `briefing_row` + `snapshot_row` | "Cannot generate strategy without briefing" |
+| Venues | `strategy_for_now` + `snapshot.lat/lng` | "Cannot recommend venues without strategy" |
+
+**Why This Matters:**
+- Strategist AI needs briefing data to make intelligent recommendations
+- Venue planner needs strategy text to score venues appropriately
+- Skipping steps = garbage recommendations or cryptic errors
+
 ---
 
 ## Project Overview
