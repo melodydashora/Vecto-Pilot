@@ -185,8 +185,24 @@ export function useEnrichmentProgress({
   const expectedDurations = timing?.expected_durations ?? DEFAULT_EXPECTED_DURATIONS;
 
   // Calculate dynamic progress
+  // 2026-01-14: FIX - Require BOTH hasBlocks AND phase === 'complete' for 100%
+  // Previously: hasBlocks alone would jump to 100% even if phase was 'venues'
+  // This caused the progress bar to snap to 100% prematurely when:
+  //   1. Server sets status='ok' after immediate strategy (~1s)
+  //   2. Old blocks from previous snapshot are still in state
+  // Now: Only show 100% when the full pipeline is actually complete
   const { progress: targetProgress, strategyProgress: targetStrategyProgress, timeRemainingMs } = useMemo(() => {
-    if (hasBlocks) return { progress: 100, strategyProgress: 100, timeRemainingMs: 0 };
+    // Only 100% when BOTH conditions met: blocks exist AND phase is complete
+    if (hasBlocks && backendPhase === 'complete') {
+      return { progress: 100, strategyProgress: 100, timeRemainingMs: 0 };
+    }
+
+    // If we have blocks but phase isn't complete, show near-completion (95%)
+    // This handles edge case where blocks arrive before phase updates
+    if (hasBlocks && backendPhase !== 'complete') {
+      return { progress: 95, strategyProgress: 100, timeRemainingMs: 2000 };
+    }
+
     if (!coords) return { progress: 0, strategyProgress: 0, timeRemainingMs: 0 };
 
     // Show progress if we have backend phase data, even during snapshot transitions
