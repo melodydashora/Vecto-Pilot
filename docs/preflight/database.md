@@ -29,6 +29,25 @@ await db.insert(rankings).values({
 | `rankings` | `ranking_id` | snapshots (snapshot_id) |
 | `ranking_candidates` | `id` | rankings (ranking_id) |
 | `actions` | `action_id` | snapshots, rankings |
+| `discovered_events` | `id` | venue_catalog (venue_id) |
+| `venue_catalog` | `venue_id` | - (source of truth for venues) |
+
+## Event Field Names (2026-01-10 Canonical Names)
+
+**Always use canonical field names** - no fallbacks to legacy names:
+
+| Canonical Field | Purpose | Format |
+|-----------------|---------|--------|
+| `event_start_date` | Event date | `YYYY-MM-DD` |
+| `event_start_time` | Event time | `HH:MM` (24h) |
+| `event_end_time` | End time | `HH:MM` (24h) - REQUIRED |
+| `event_end_date` | Multi-day end | `YYYY-MM-DD` (defaults to start) |
+
+**Legacy field names** (DO NOT use in new code):
+- `event_date` -> Use `event_start_date`
+- `event_time` -> Use `event_start_time`
+
+See `server/lib/events/pipeline/types.js` for full type definitions.
 
 ## Sorting Convention
 
@@ -62,3 +81,5 @@ import { snapshots } from '../../../shared/schema.js';
 - [ ] Am I sorting by `created_at DESC`?
 - [ ] Am I using Drizzle ORM, not raw SQL?
 - [ ] Did I check `shared/schema.js` for table structure?
+- [ ] Am I using canonical event field names? (`event_start_date`, `event_start_time`)
+- [ ] For event data, did I check `server/lib/events/pipeline/types.js`?

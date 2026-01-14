@@ -445,9 +445,56 @@ Each Google API has a specific, non-overlapping purpose:
 4. **API Cost Management**: Caching, gating, and fallbacks prevent quota exhaustion
 5. **Accuracy-First Posture**: When driver income affected, correctness trumps cost
 
+## Strategy Pipeline Utilities (2026-01-14)
+
+The `server/lib/strategy/strategy-utils.js` module provides core utilities for the recommendation pipeline:
+
+### State Management
+
+| Function | Purpose |
+|----------|---------|
+| `ensureStrategyRow(snapshotId)` | Creates strategy row with snapshot location data |
+| `isStrategyReady(snapshotId)` | Checks if `strategy_for_now` is ready (gates blocks) |
+| `getStrategyContext(snapshotId)` | Returns full context for venue/event planners |
+| `updatePhase(snapshotId, phase)` | Updates pipeline phase with SSE emission |
+| `getPhaseTimingInfo(snapshotId)` | Returns phase timing for progress calculation |
+
+### Freshness Filtering
+
+| Function | Purpose |
+|----------|---------|
+| `filterFreshEvents(events, now, timezone)` | Removes stale events (timezone-aware) |
+| `filterFreshNews(newsItems, now, timezone)` | Removes news older than 3 days |
+| `isEventFresh(event, now, timezone)` | Checks if single event is still active |
+| `isNewsFresh(newsItem, now, timezone)` | Checks if news is within freshness window |
+
+### Phase Timing Constants
+
+```javascript
+const PHASE_EXPECTED_DURATIONS = {
+  starting: 500,      // Nearly instant
+  resolving: 2000,    // Location resolution
+  analyzing: 25000,   // Briefing (traffic + events)
+  immediate: 8000,    // GPT-5.2 immediate strategy
+  venues: 90000,      // VENUE_SCORER role (slowest)
+  routing: 2000,      // Google Routes API
+  places: 2000,       // Places lookup
+  verifying: 1000,    // Event verification
+  complete: 0         // Done
+};
+```
+
+### Event Date/Time Field Names (2026-01-10)
+
+The freshness filtering functions use canonical field names:
+- `event_start_date` / `event_start_time` - When event begins
+- `event_end_date` / `event_end_time` - When event ends
+- Legacy field names (`event_date`, `event_time`) are mapped in `normalizeEvent.js`
+
 ## Related Documentation
 
 - [AI Pipeline](ai-pipeline.md) - TRIAD architecture and model configuration
 - [Database Schema](database-schema.md) - Table definitions and relationships
 - [Google Cloud APIs](google-cloud-apis.md) - API usage and cost management
 - [Constraints](constraints.md) - Critical rules that cannot be violated
+- [ETL Pipeline Refactoring](etl-pipeline-refactoring-2026-01-09.md) - Event pipeline details

@@ -992,6 +992,44 @@ if (strategyAge > STALENESS_THRESHOLD_MS && (isStuckPendingBlocks || isStuckInPr
 
 **Key Lesson:** Always check data freshness before serving cached data. Pipeline completion states (`pending_blocks`) can persist indefinitely if generation fails.
 
+### Bug: Event Field Name Inconsistency (Added 2026-01-10)
+
+**Symptoms:**
+- Events not appearing in briefing even though they exist in DB
+- `undefined` values when accessing `event_date` or `event_time`
+- Filter functions silently passing all events (because `undefined` passes filters)
+- Logs showing events but UI showing none
+
+**Root Cause:**
+The codebase had inconsistent event field naming:
+- **Schema/DB:** `event_start_date`, `event_start_time`
+- **Some code:** `event_date`, `event_time` (old names)
+- **Pipeline modules:** Mix of both
+
+When code accessed `event.event_date` but the actual field was `event_start_date`, JavaScript returned `undefined`. The undefined value then passed filters like `if (!Number.isFinite(x)) return true;` - silently failing.
+
+**Fix (Applied):**
+1. **Canonical naming convention**: All event fields now use `event_start_date`, `event_start_time`, `event_end_date`, `event_end_time`
+2. **Schema migration**: `migrations/20260110_rename_event_columns.sql`
+3. **normalizeEvent.js**: Accepts BOTH old and new field names for backwards compatibility:
+```javascript
+// Accepts: event_date, event_start_date, date → outputs: event_start_date
+event_start_date: normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date)
+```
+4. **No fallbacks policy**: Code now requires canonical names instead of falling back to old names
+
+**Key Lessons:**
+1. **Property name mismatches are invisible in JavaScript** - always use TypeScript or strict checks
+2. **Rename migrations must update ALL code paths** - schema, queries, transforms, and filters
+3. **Filters that pass `undefined` mask bugs** - be suspicious of `!Number.isFinite()` checks
+4. **Canonical modules enforce consistency** - route all event processing through pipeline/
+
+**Files Changed:**
+- `shared/schema.js`: Column renames
+- `server/lib/events/pipeline/normalizeEvent.js`: Accepts both formats
+- `server/lib/briefing/briefing-service.js`: Uses canonical names
+- `server/lib/strategy/strategy-utils.js`: Uses canonical names
+
 ### Bug: "Cannot reach database"
 
 **Causes:**

@@ -1,11 +1,29 @@
 
 # Vecto Pilot - Architecture Reference
 
-**Last Updated:** 2026-01-10 UTC
+**Last Updated:** 2026-01-14 UTC
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
-## Recent Changes (2026-01-10)
+## Recent Changes (2026-01-14)
+
+- **Canonical Event Field Names (2026-01-10)**
+  - Renamed `event_date` to `event_start_date`, `event_time` to `event_start_time`
+  - Schema migration: `migrations/20260110_rename_event_columns.sql`
+  - All pipeline modules updated: normalizeEvent.js accepts both old and new names
+  - Fixes S-006 (staleness detection) and D-031 (field name consistency)
+
+- **Staleness Detection (2026-01-10)**
+  - Added 30-minute staleness threshold in blocks-fast.js
+  - Detects stuck `pending_blocks` states and resets for fresh pipeline run
+  - Fixes bug where stale data was served instead of fresh briefing
+
+- **Coordinate Key Consolidation (2026-01-10)**
+  - New canonical module: `server/lib/location/coords-key.js`
+  - Provides `makeCoordsKey()`, `coordsKey()`, `parseCoordKey()` for 6-decimal precision
+  - Consolidated 4 duplicate implementations into single source of truth
+
+## Changes (2026-01-10)
 
 - **ETL Pipeline Refactoring**: Canonical event processing modules
   - New `server/lib/events/pipeline/` with 4 modules (types, normalizeEvent, validateEvent, hashEvent)

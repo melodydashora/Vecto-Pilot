@@ -24,8 +24,18 @@ const log = `Resolving ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 |-----------|----------|----------|
 | 4 decimals | ~11 meters | **NEVER** - causes cache collisions |
 | 6 decimals | ~11 centimeters | **ALWAYS** - cache keys, logs, DB |
+| 8 decimals | ~1.1 millimeters | Overkill, wastes storage |
 
-**Key function:** `makeCoordsKey(lat, lng)` in `location.js` and `snapshot.js`
+**Canonical function:** `coordsKey(lat, lng)` from `server/lib/location/coords-key.js`
+
+```javascript
+import { coordsKey } from '../../lib/location/coords-key.js';
+
+// Returns "33.081235_-96.812346" or null if invalid
+const key = coordsKey(lat, lng);
+```
+
+Legacy aliases (`makeCoordsKey`, `getCoordsKey`, `generateCoordKey`) still work but use `coordsKey` for new code.
 
 ## NO FALLBACKS - CRITICAL
 
@@ -78,6 +88,32 @@ const coords = aiResponse.venue.coordinates;   // Never trust AI coords
 | Places Details | **No** | Business hours only |
 | Routes | **No** | Distance/time only |
 
+## Venue Hours - Canonical isOpen Logic (2026-01-10)
+
+**All venue open/closed calculations use the canonical `hours/` module.**
+
+```javascript
+import { parseGoogleWeekdayText, getOpenStatus } from '../../lib/venue/hours/index.js';
+
+// 1. Parse Google Places weekday_text array
+const parseResult = parseGoogleWeekdayText(weekdayTexts);
+
+// 2. Evaluate with venue timezone (REQUIRED - no fallbacks)
+if (parseResult.ok) {
+  const status = getOpenStatus(parseResult.schedule, timezone);
+  // status.is_open: true/false/null
+  // status.closing_soon: true if within 60 min of close
+}
+```
+
+**Key rules:**
+- **Server calculates `isOpen`** using venue's timezone (not browser timezone)
+- **Client trusts server value** - no client-side recalculation
+- **Missing timezone = `null`** (not UTC fallback)
+- **Never trust Google's `openNow`** - always parse weekdayDescriptions
+
+See `server/lib/venue/README.md` for full hours module documentation.
+
 ## Check Before Editing
 
 - [ ] Am I using browser GPS, not IP geolocation?
@@ -86,5 +122,6 @@ const coords = aiResponse.venue.coordinates;   // Never trust AI coords
 - [ ] Am I using `location-context-clean.tsx` for client location?
 - [ ] **NO FALLBACKS**: Am I returning an error if data is missing (not using `|| 'default'`)?
 - [ ] **NO HARDCODED LOCATIONS**: No cities, states, airports, timezones, or coordinates in code?
-- [ ] **6-DECIMAL PRECISION**: Am I using `toFixed(6)` for all coordinate formatting/caching?
+- [ ] **6-DECIMAL PRECISION**: Am I using `coordsKey()` for all coordinate key generation?
 - [ ] **ROOT CAUSE**: If I'm catching coordinate errors, should they be architecturally possible?
+- [ ] **VENUE HOURS**: Am I using the canonical `hours/` module for open/closed checks?

@@ -420,6 +420,31 @@ const result = await callModel('strategist', { system, user });
 - `location-context-clean.tsx` is the single weather source
 - All location data (city, state, timezone, airports) comes from user's actual GPS position
 
+### Event Field Naming Convention (2026-01-10)
+
+**Canonical field names for events:**
+
+| Old Name | New Name | Notes |
+|----------|----------|-------|
+| `event_date` | `event_start_date` | YYYY-MM-DD format |
+| `event_time` | `event_start_time` | HH:MM format (24h) or "7:00 PM" |
+| N/A | `event_end_date` | For multi-day events (defaults to start date) |
+| N/A | `event_end_time` | Required - no TBD/Unknown allowed |
+
+**Pipeline enforces these names:**
+```javascript
+// normalizeEvent.js converts all input formats to canonical names
+import { normalizeEvent } from './lib/events/pipeline/normalizeEvent.js';
+
+const normalized = normalizeEvent({
+  event_date: '2026-01-15',    // OLD: will be converted
+  event_time: '7:00 PM'        // OLD: will be converted
+});
+// Output: { event_start_date: '2026-01-15', event_start_time: '19:00', ... }
+```
+
+**Why this matters:** Consistent field names prevent property access bugs (e.g., `event_date` vs `event_start_date` returning undefined).
+
 ### Venue Open/Closed Status
 
 **Server-side** (`venue-enrichment.js`): `isOpen` is calculated using the **venue's timezone** via `Intl.DateTimeFormat` with snapshot timezone and stored in `ranking_candidates.features.isOpen`.
@@ -657,14 +682,16 @@ server/
 │   ├── ai/                 # AI layer
 │   │   ├── adapters/       # Model adapters (anthropic, openai, gemini)
 │   │   └── providers/      # AI providers (briefing, consolidator)
+│   ├── auth/               # Authentication services
 │   ├── briefing/           # Briefing service
 │   ├── events/             # Event ETL pipeline
-│   │   └── pipeline/       # Canonical modules (normalize, validate, hash)
-│   ├── external/           # Third-party APIs (Perplexity, FAA)
+│   │   └── pipeline/       # Canonical modules (normalize, validate, hash, types)
+│   ├── external/           # Third-party APIs (TomTom, FAA)
 │   ├── infrastructure/     # Job queue
-│   ├── location/           # Geo, holiday detection, snapshot context
+│   ├── location/           # Geo, holiday detection, snapshot context, coords-key
 │   ├── strategy/           # Strategy pipeline, providers, validation
 │   └── venue/              # Venue intelligence, enrichment, places
+│       └── hours/          # Business hours parsing and evaluation
 │
 ├── config/                 # Configuration files
 ├── db/                     # Database connection, pool, migrations
@@ -761,10 +788,13 @@ import { snapshots, strategies } from '../../../shared/schema.js';
 // Logging - workflow-aware
 import { triadLog, venuesLog, briefingLog, eventsLog } from '../../logger/workflow.js';
 
-// Events ETL Pipeline
-import { normalizeEvent } from '../../lib/events/pipeline/normalizeEvent.js';
-import { validateEventsHard } from '../../lib/events/pipeline/validateEvent.js';
-import { generateEventHash } from '../../lib/events/pipeline/hashEvent.js';
+// Events ETL Pipeline (2026-01-10: Uses canonical field names event_start_date/event_start_time)
+import { normalizeEvent, normalizeEvents } from '../../lib/events/pipeline/normalizeEvent.js';
+import { validateEventsHard, needsReadTimeValidation } from '../../lib/events/pipeline/validateEvent.js';
+import { generateEventHash, eventsHaveSameHash } from '../../lib/events/pipeline/hashEvent.js';
+
+// Coordinate Key (canonical 6-decimal precision for cache keys)
+import { makeCoordsKey, coordsKey, parseCoordKey } from '../../lib/location/coords-key.js';
 
 // Snapshot context
 import { getSnapshotContext } from '../../lib/location/get-snapshot-context.js';

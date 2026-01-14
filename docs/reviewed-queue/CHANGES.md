@@ -4,7 +4,243 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
-## 2026-01-10
+## 2026-01-10 (Comprehensive)
+
+### Event Discovery Pipeline Hardening (Late Session)
+
+**Commits:** `686d0ffe`, `ae98754d`, `14ea5780`, `22c63f4a`, `fbecce6a`, `8b8584d4`
+
+**Summary:** Fixed critical event data quality issues causing stale/invalid events in briefings.
+
+| Issue | Fix | Files |
+|-------|-----|-------|
+| S-006 Staleness detection | Fresh briefings now pass through (skip cache when briefing is recent) | `briefing-service.js`, `consolidator.js` |
+| Stale barrel exports | Fixed index.js exports in `server/lib/external/` | `external/index.js` |
+| Field name inconsistency | Canonical `event_start_date`/`event_start_time` throughout (no fallbacks) | `briefing-service.js`, `strategy-utils.js` |
+| LLM date filter missing | Added strict date/time validation at LLM response source | `briefing-service.js` |
+| Event discovery alignment | Aligned Prompt/Validation/Query for complete pipeline consistency | Multiple files |
+
+### D-030: Transformation Layer Overhaul (Commit `3751e52a`)
+
+**Complete UI data loss prevention:**
+
+| Component | Fix |
+|-----------|-----|
+| `MapTab.tsx` | Fixed missing event data on map |
+| `co-pilot-context.tsx` | Preserve events through state updates |
+| `MapPage.tsx` | Cache events properly |
+| `transformers.js` | Complete server response transformation |
+| `hours/evaluator.js` | Fix overnight hours calculation |
+
+### D-023 to D-029: Contract Normalization (Commits `dd3a6b6c`, `accdc8f5`, `28d875cb`, `91a3acc1`, `ffa4b2f2`)
+
+**UI/API casing drift fixes:**
+
+| ID | Issue | Resolution |
+|----|-------|------------|
+| D-023 to D-026 | UI components using wrong property casing | Standardized to camelCase |
+| D-027 | Server response casing inconsistent | Added response normalizer |
+| D-028 | LLM settings not optimized | Moved to model-registry.js |
+| D-029 | venue_catalog.country default 'USA' | Changed to ISO 'US' |
+
+### D-019 to D-022: Schema & Status Fixes (Commits `7b455047`, `28d875cb`)
+
+| ID | Issue | Resolution |
+|----|-------|------------|
+| D-019 | Overnight hours broken (11PM-2AM shows closed) | Fixed hour wraparound logic |
+| D-020 | Missing schema indexes | Added performance indexes |
+| D-021 | Client status contract broken | Fixed status field mapping |
+| D-022 | Strategy pipeline status issues | S-001 to S-005 audit complete |
+
+### Strategy Pipeline Audit (S-001 to S-005)
+
+**Findings from commit `7b455047`:**
+
+| ID | Issue | Status |
+|----|-------|--------|
+| S-001 | Status constants scattered | Consolidated to `status-constants.js` |
+| S-002 | Duplicate status checks | Removed redundancy |
+| S-003 | Missing error states | Added proper error handling |
+| S-004 | Status race conditions | Fixed with atomic updates |
+| S-005 | Inconsistent status names | Standardized naming |
+
+### Venue Pipeline Root Cause Fix (Commit `d487a47e`)
+
+**CRITICAL data quality issues fixed:**
+
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| Missing place data | `place_id` not propagated | Fixed data flow |
+| Invalid coordinates | AI-generated coords used | Enforced Google API only |
+| Duplicate venues | Hash collision | Improved hash function |
+
+### D-014/D-018 Canonical Hours Module (Commits `e6b6171d`, `9fbd22ba`, `a9fc8f03`)
+
+**Created unified hours evaluation system:**
+
+```
+server/lib/venue/hours/
+├── index.js                    # Barrel export
+├── evaluator.js                # getOpenStatus() - SINGLE SOURCE OF TRUTH
+├── normalized-types.js         # Type definitions
+├── README.md                   # Documentation
+└── parsers/
+    ├── google-weekday-text.js  # Google Places format
+    ├── hours-text-map.js       # Text map format
+    └── structured-hours.js     # JSON format
+```
+
+| ID | Issue | Resolution |
+|----|-------|------------|
+| D-014 | 3 duplicate isOpen functions | Consolidated to canonical module |
+| D-018 | venue-intelligence trusts Google openNow | Uses canonical evaluator |
+| D-012 | Default country 'USA' not ISO 'US' | Fixed in venue-utils.js |
+| D-011 | location.js uses c.long_name for country | Changed to c.short_name |
+| D-004 | Country field inconsistency | All use ISO alpha-2 codes |
+
+### 4-Phase Hardening Plan (Commits `02b5e764`, `24925a47`, `bcd82ab8`)
+
+**Infrastructure created:**
+
+| File | Purpose |
+|------|---------|
+| `docs/architecture/standards.md` | Comprehensive standards document |
+| `docs/preflight/standards.md` | Quick-reference card |
+| `scripts/check-standards.js` | CI enforcement (6 checks) |
+| `scripts/generate-schema-docs.js` | Auto-generates DATABASE_SCHEMA.md |
+| `docs/DATABASE_SCHEMA.md` | Auto-generated schema docs (51 tables) |
+| `docs/DOC_DISCREPANCIES.md` | Blocking queue for doc/code conflicts |
+| `docs/AUDIT_LEDGER.md` | Audit tracking ledger |
+
+**Memory Files Created:**
+- `.serena/memories/comprehensive_audit_2026_01_10.md`
+- `.serena/memories/refactor-audit-2026-01-10.md`
+- `.serena/memories/architectural_fixes_roadmap_2026_01_10.md`
+- `.serena/memories/hardening-4-phase-plan-2026-01-10.md`
+
+### ETL Pipeline Refactoring (Commits `a60e3216`, `75785eae`, `47de0981`)
+
+**New canonical modules in `server/lib/events/pipeline/`:**
+
+| File | Purpose |
+|------|---------|
+| `types.js` | JSDoc type definitions |
+| `normalizeEvent.js` | Canonical event normalization |
+| `validateEvent.js` | Schema-versioned validation |
+| `hashEvent.js` | Venue suffix stripping, time in hash |
+| `README.md` | Pipeline documentation |
+
+**Field Renaming (Symmetric Naming):**
+- `event_date` → `event_start_date`
+- `event_time` → `event_start_time`
+- Creates symmetry with `event_end_date`/`event_end_time`
+
+**Test Coverage:** 57/57 tests passing in `tests/events/pipeline.test.js`
+
+---
+
+## 2026-01-09 (Comprehensive)
+
+### ETL Pipeline Foundation + Model-Agnostic Refactoring
+
+**Commits (early session):** `1241d51f`, `65a26b7f`, `e00c031f`, `4c8c037c`, `a7d5589f`
+
+**SSE Dual System Consolidation:**
+
+| Before (Duplicate) | After (Single Source) |
+|-------------------|----------------------|
+| `/events` → EventEmitter SSE | Removed from routes.js |
+| `/events/*` → DB NOTIFY SSE | Kept as canonical |
+| `strategyEmitter.emit()` | Removed (DB NOTIFY canonical) |
+| `blocksEmitter.emit()` | Removed (DB NOTIFY canonical) |
+
+**storeEvents() Fixes:**
+- Fixed insert counting with `xmax = 0` check
+- Changed `ON CONFLICT DO NOTHING` → `DO UPDATE` for venue_id refresh
+- Removed defensive 23505 catch (anti-pattern)
+- Throws on unexpected duplicate key to surface root cause
+
+### P0/P1 Security Audit (Commits `5ec01bf1`, `815c81a4`, `178a5d58`)
+
+**Security Fixes (P0):**
+
+| Issue | Fix | Files |
+|-------|-----|-------|
+| Timezone fallback | `/api/location/timezone` returns 502 on error | `location.js` |
+| Auth bypass | Removed `user_id` query param impersonation | `location.js`, `location-context-clean.tsx` |
+| Ownership leak | `blocks-fast` enforces snapshot ownership | `blocks-fast.js` |
+| NULL bypass | Ownership middleware rejects NULL-owned snapshots | `require-snapshot-ownership.js` |
+
+**Contract Fixes (P1):**
+
+| Issue | Fix | Files |
+|-------|-----|-------|
+| Response fallbacks | Removed client-side fallbacks tolerating broken contract | `co-pilot-context.tsx` |
+| Storage keys | Replaced hardcoded `'vectopilot_auth_token'` with constants | 5 client files |
+
+**Schema Cleanup Phase 1 & 2:**
+
+| Phase | Change |
+|-------|--------|
+| Phase 1 | Consolidated reads to canonical columns (`drive_minutes`, `distance_miles`) |
+| Phase 2 | Stopped writing legacy columns (`drive_time_min`, `straight_line_km`) |
+| Bug Fix | **25-mile filter was completely broken** - property name mismatch |
+
+### Service Account Pattern (Commit `4013740e`)
+
+- Implemented Service Account pattern for AI Agent authentication
+- Updated auth middleware for service account support
+- Strategy API changes for agent authentication
+
+### Schema Consistency (Commit `be2f761d`)
+
+- Standardized to camelCase property names
+- Updated BarsDataGrid.tsx, auth-context.tsx, co-pilot-context.tsx
+- Fixed strategy API response format
+
+### Component Renames (Commit `cf3e0296`)
+
+**Disambiguation to prevent AI confusion:**
+
+| Before | After | Reason |
+|--------|-------|--------|
+| BarsTable.tsx | (kept) | Already disambiguated |
+| BarTab.tsx | (kept) | Already disambiguated |
+| (confusing names) | (clear names) | Prevent AI model confusion |
+
+### API Response Schemas (Commit `12abe27b`)
+
+- Added transformation layer for consistent camelCase responses
+- Created `server/validation/response-schemas.js`
+- Created `server/validation/transformers.js`
+
+### Coordinate Precision Upgrade (Commit `bdf40e4f`)
+
+- Upgraded from 4 decimals (~11m) to 6 decimals (~11cm)
+- Critical for GPS-first policy
+- Prevents cache collisions
+
+### Database Detox Script (Commit in session)
+
+**New `scripts/db-detox.js`:**
+- 8-phase database cleanup
+- Cleaned 582 duplicate venue rows
+- FK-aware deduplication
+- Supports `--analyze` and `--execute` modes
+
+### Documentation Updates
+
+**Files Updated:**
+- `ARCHITECTURE.md` - Added server/lib/events/, tests/events/
+- `server/lib/README.md` - Added events/ subfolder
+- `server/README.md` - Added lib/events/ to structure
+- `CLAUDE.md` - Added EVENTS workflow, folder map
+- `docs/architecture/ai-pipeline.md` - Added Event ETL Pipeline section
+- `LESSONS_LEARNED.md` - Added SSE consolidation, defensive catch anti-pattern
+
+---
+
+## 2026-01-10 (Previous Entry - Retained for Reference)
 
 ### D-014/D-018 Audit Verification + D-011 Fix (Session 2)
 
