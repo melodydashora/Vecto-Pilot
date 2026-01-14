@@ -18,6 +18,8 @@
 import { getRouteWithTraffic, getRouteMatrix } from "../external/routes-api.js";
 import { getStreetViewUrl, checkStreetViewAvailability } from "../external/streetview-api.js";
 import { venuesLog, OP } from "../../logger/workflow.js";
+// 2026-01-14: Import batch address resolver to replace per-venue geocoding
+import { resolveVenueAddressesBatch } from "./venue-address-resolver.js";
 import { db } from "../../db/drizzle.js";
 import { places_cache } from "../../../shared/schema.js";
 import { eq } from "drizzle-orm";
@@ -30,7 +32,7 @@ import { getCoordsKey } from "../location/coords-key.js";
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
 const PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
-const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
+// 2026-01-14: GEOCODE_URL REMOVED - now using resolveVenueAddressesBatch from venue-address-resolver.js
 
 // In-memory cache for places (lasts duration of request batch)
 // Key: rounded coords "lat_lng" → value: place details
@@ -87,13 +89,28 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
     // routeResults stays empty, will fall back to individual calls below
   }
 
-  // Parallelize remaining enrichments (geocoding + places)
+  // 2026-01-14: BATCH ADDRESS RESOLUTION (replaces per-venue reverseGeocode calls)
+  // This reduces N API calls to a single batch operation with concurrency limiting
+  let addressResults = {};
+  try {
+    venuesLog.phase(1, `[venue-enrichment] Batch resolving ${venues.length} addresses`, OP.API);
+    const venueKeys = venues.map(v => ({ lat: v.lat, lng: v.lng, name: v.name }));
+    addressResults = await resolveVenueAddressesBatch(venueKeys);
+    venuesLog.done(1, `[venue-enrichment] Batch address resolution complete`, OP.API);
+  } catch (addressError) {
+    venuesLog.warn(1, `[venue-enrichment] Batch address resolution failed: ${addressError.message}`, OP.API);
+    // addressResults stays empty, places API fallback will handle below
+  }
+
+  // Parallelize remaining enrichments (places details)
   const enriched = await Promise.all(
     venues.map(async (venue, index) => {
       const venueName = venue.name.length > 35 ? venue.name.slice(0, 32) + '...' : venue.name;
       try {
-        // 1. Reverse geocode coords → address
-        const address = await reverseGeocode(venue.lat, venue.lng);
+        // 1. Get address from BATCH RESULTS (2026-01-14: replaces per-venue reverseGeocode)
+        const coordKey = `${venue.lat},${venue.lng}`;
+        const addressData = addressResults[coordKey];
+        const address = addressData?.formatted_address || null;
 
         // 2. Get route from batch results OR fallback to individual call
         let route = routeResults.get(index);
@@ -199,37 +216,8 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
   return filtered;
 }
 
-/**
- * Reverse geocode coordinates to formatted address
- * @param {number} lat
- * @param {number} lng
- * @returns {Promise<string>} Formatted address
- */
-async function reverseGeocode(lat, lng) {
-  try {
-    const url = `${GEOCODE_URL}?latlng=${lat},${lng}&key=${GOOGLE_PLACES_API_KEY}`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.status === "OK" && data.results?.length > 0) {
-      // Filter out Plus Codes - look for proper street addresses
-      for (const result of data.results) {
-        const addr = result.formatted_address;
-        // Skip Plus Codes (format: "XXXX+XX City, State, Country")
-        if (!/^\w{4}\+\w{2}/.test(addr)) {
-          return addr;
-        }
-      }
-      // Fallback to first result if no street address found
-      return data.results[0].formatted_address;
-    }
-
-    throw new Error(`Geocoding failed: ${data.status}`);
-  } catch (error) {
-    console.error(`[Reverse Geocode] Failed for ${lat},${lng}:`, error.message);
-    return null;
-  }
-}
+// 2026-01-14: reverseGeocode function REMOVED - now using resolveVenueAddressesBatch
+// from venue-address-resolver.js which handles caching and batch resolution
 
 /**
  * Condense weekly hours into readable format

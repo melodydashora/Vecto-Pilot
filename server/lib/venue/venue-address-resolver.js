@@ -313,6 +313,7 @@ async function upsertVenueCatalog(venue) {
         .where(eq(venue_catalog.venue_id, existing.venue_id));
     } else {
       // Insert new venue
+      // 2026-01-14: Set record_status: 'stub' for address-resolver-only venues
       await db.insert(venue_catalog)
         .values({
           venue_name: venue.venue_name,
@@ -334,7 +335,11 @@ async function upsertVenueCatalog(venue) {
           discovery_source: 'address_resolver',
           access_count: 1,
           last_accessed_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
+          // 2026-01-14: Progressive Enrichment - address resolver creates stubs
+          is_bar: false,
+          is_event_venue: false,
+          record_status: 'stub'
         })
         .onConflictDoNothing(); // Handle race conditions
     }

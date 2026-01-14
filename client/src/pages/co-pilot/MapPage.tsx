@@ -50,6 +50,7 @@ interface BriefingEvent {
 
 // Bar type for map markers - now uses camelCase (matches useBarsQuery + MapTab)
 // 2026-01-10: D-030 - Eliminated snake_case mapping layer
+// 2026-01-14: Added closedGoAnyway for high-value venues worth staging near
 interface MapBar {
   name: string;
   type: string;
@@ -63,6 +64,8 @@ interface MapBar {
   lng: number;
   placeId?: string;
   rating?: number | null;
+  closedGoAnyway?: boolean;       // High-value closed venues worth staging near
+  closedReason?: string | null;   // Reason to visit anyway
 }
 
 export default function MapPage() {
@@ -89,10 +92,15 @@ export default function MapPage() {
       return true;
     });
 
-    // Filter: $$ and above (expenseRank >= 2) AND open only (no closed bars)
-    const openPremiumBars = uniqueBars.filter(bar => bar.expenseRank >= 2 && bar.isOpen === true);
+    // 2026-01-14: Filter: $$ and above (expenseRank >= 2) AND (open OR closedGoAnyway)
+    // closedGoAnyway allows high-value venues worth staging near even when closed
+    const openPremiumBars = uniqueBars.filter(bar => {
+      if (bar.expenseRank < 2) return false; // Must be $$ or higher
+      return bar.isOpen === true || bar.closedGoAnyway === true;
+    });
 
     // Direct camelCase pass-through (MapTab now expects camelCase)
+    // 2026-01-14: Added closedGoAnyway and closedReason for orange marker support
     const mappedBars: MapBar[] = openPremiumBars.map(bar => ({
       name: bar.name,
       type: bar.type,
@@ -106,6 +114,8 @@ export default function MapPage() {
       lng: bar.lng,
       placeId: bar.placeId,
       rating: bar.rating,
+      closedGoAnyway: bar.closedGoAnyway,
+      closedReason: bar.closedReason,
     }));
 
     const openCount = mappedBars.filter(b => !b.closingSoon).length;

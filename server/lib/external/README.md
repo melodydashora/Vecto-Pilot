@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-14
 
 # External Module (`server/lib/external/`)
 
@@ -10,7 +10,7 @@ Third-party API integrations that don't fit into other domain modules.
 
 | File | Purpose | Key Export |
 |------|---------|------------|
-| `tomtom-traffic.js` | TomTom real-time traffic | `getTomTomTraffic()` |
+| ~~`tomtom-traffic.js`~~ | **Moved to `server/lib/traffic/tomtom.js`** | Re-exported for backwards compat |
 | `faa-asws.js` | FAA airport status | `fetchFAAStatus(airportCode)` |
 | `routes-api.js` | Google Routes API | `getRouteMatrix()`, `getDriveTime()` |
 | `semantic-search.js` | Vector/semantic search | `indexFeedback()`, `searchSimilar()` |
@@ -22,29 +22,19 @@ Third-party API integrations that don't fit into other domain modules.
 
 ## Usage
 
-### TomTom Traffic (Primary Traffic Provider)
+### TomTom Traffic (Moved to `server/lib/traffic/`)
+
+**2026-01-14:** TomTom module moved to `server/lib/traffic/tomtom.js` for architecture cleanup.
+
 ```javascript
-import { getTomTomTraffic } from './tomtom-traffic.js';
+// NEW LOCATION (preferred)
+import { getTomTomTraffic, fetchRawTraffic } from '../traffic/tomtom.js';
 
-const result = await getTomTomTraffic({
-  lat: 40.7128,
-  lon: -74.0060,
-  radiusMiles: 15,
-  city: 'New York',
-  state: 'NY'
-});
-
-// Returns prioritized incidents sorted by:
-// 1. Road type (Interstate/Motorway > US/A-road > State > local)
-// 2. Incident severity (Major > Moderate > Minor)
-// 3. Category (closures > construction > accidents > jams)
-//
-// Works globally: US interstates, UK motorways, European routes
-//
-// result.traffic.incidents      - Top 15 prioritized incidents
-// result.traffic.stats          - { highways, construction, closures, jams }
-// result.traffic.congestionLevel - 'light' | 'moderate' | 'heavy'
+// BACKWARDS COMPAT (still works via re-export)
+import { getTomTomTraffic } from '../external/index.js';
 ```
+
+See `server/lib/traffic/README.md` for full documentation.
 
 ### FAA Airport Status
 ```javascript

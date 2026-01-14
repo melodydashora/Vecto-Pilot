@@ -157,8 +157,11 @@ export async function lookupVenueFuzzy(criteria) {
  * @param {string} [venue.sourceModel] - AI model if from LLM
  * @param {number} [venue.expenseRank] - 1-4 expense ranking
  * @param {string} [venue.category] - Category for venue_catalog
- * @param {string} [venue.country] - Country code (default: USA)
+ * @param {string} [venue.country] - Country code (ISO-2, default: 'US')
  * @param {string} [venue.district] - Explicit district name
+ * @param {boolean} [venue.isBar] - 2026-01-14: Progressive enrichment - is_bar flag
+ * @param {boolean} [venue.isEventVenue] - 2026-01-14: Progressive enrichment - is_event_venue flag
+ * @param {string} [venue.recordStatus] - 2026-01-14: Progressive enrichment - record_status
  * @returns {Promise<Object>} Inserted venue record
  */
 // 2026-01-10: AUDIT FIX - insertVenue now uses onConflictDoUpdate instead of DoNothing
@@ -205,7 +208,11 @@ export async function insertVenue(venue) {
     district_slug: districtSlug,
     access_count: 1,
     last_accessed_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
+    // 2026-01-14: Progressive Enrichment fields
+    is_bar: venue.isBar || false,
+    is_event_venue: venue.isEventVenue || false,
+    record_status: venue.recordStatus || 'stub'
   };
 
   // 2026-01-10: AUDIT FIX - Use onConflictDoUpdate to always return a record
@@ -235,10 +242,18 @@ export async function insertVenue(venue) {
  * Upsert a venue - insert if new, update if exists.
  * Matches on coord_key or (normalized_name + city + state).
  *
+ * 2026-01-14: Progressive Enrichment - "Best Write Wins" merge logic
+ * - Boolean flags (is_bar, is_event_venue): OR logic - once true, stays true
+ * - record_status: MAX logic - verified > enriched > stub
+ *
  * @param {Object} venue - Same as insertVenue
+ * @param {Object} [options] - Additional options
+ * @param {boolean} [options.isBar] - Set is_bar flag to true
+ * @param {boolean} [options.isEventVenue] - Set is_event_venue flag to true
+ * @param {string} [options.recordStatus] - Record status: 'stub', 'enriched', 'verified'
  * @returns {Promise<Object>} Upserted venue record
  */
-export async function upsertVenue(venue) {
+export async function upsertVenue(venue, options = {}) {
   const normalized = normalizeVenueName(venue.venueName);
   const coordKey = generateCoordKey(venue.lat, venue.lng);
 
@@ -264,6 +279,19 @@ export async function upsertVenue(venue) {
     const finalDistrict = newDistrict || existing.district;
     const finalDistrictSlug = finalDistrict ? normalizeDistrictSlug(finalDistrict) : existing.district_slug;
 
+    // 2026-01-14: Progressive Enrichment - "Best Write Wins" merge logic
+    // Boolean flags: OR logic (once true, stays true)
+    const finalIsBar = existing.is_bar || options.isBar || false;
+    const finalIsEventVenue = existing.is_event_venue || options.isEventVenue || false;
+
+    // Record status: MAX logic (verified > enriched > stub)
+    const statusPriority = { 'stub': 0, 'enriched': 1, 'verified': 2 };
+    const existingPriority = statusPriority[existing.record_status] || 0;
+    const newPriority = statusPriority[options.recordStatus] || 0;
+    const finalRecordStatus = newPriority > existingPriority
+      ? options.recordStatus
+      : existing.record_status || 'stub';
+
     const [updated] = await db
       .update(venue_catalog)
       .set({
@@ -281,6 +309,10 @@ export async function upsertVenue(venue) {
         expense_rank: venue.expenseRank || existing.expense_rank,
         district: finalDistrict,
         district_slug: finalDistrictSlug,
+        // 2026-01-14: Progressive Enrichment fields
+        is_bar: finalIsBar,
+        is_event_venue: finalIsEventVenue,
+        record_status: finalRecordStatus,
         updated_at: new Date(),
         access_count: sql`COALESCE(access_count, 0) + 1`,
         last_accessed_at: new Date()
@@ -291,8 +323,13 @@ export async function upsertVenue(venue) {
     return updated;
   }
 
-  // Insert new venue
-  return insertVenue(venue);
+  // Insert new venue with progressive enrichment fields
+  return insertVenue({
+    ...venue,
+    isBar: options.isBar,
+    isEventVenue: options.isEventVenue,
+    recordStatus: options.recordStatus
+  });
 }
 
 /**
@@ -461,6 +498,7 @@ export async function findOrCreateVenue(eventData, source) {
   const district = extractDistrictFromVenueName(venueName);
 
   // 2026-01-10: AUDIT FIX - Include place_id and formatted_address in new venue
+  // 2026-01-14: Progressive Enrichment - Set isEventVenue flag for event-discovered venues
   const created = await insertVenue({
     venueName,
     city,
@@ -473,7 +511,10 @@ export async function findOrCreateVenue(eventData, source) {
     source,
     venueTypes: ['event_host'],
     category: guessVenueType(venueName),
-    district: district
+    district: district,
+    // 2026-01-14: Progressive Enrichment - Mark as event venue
+    isEventVenue: true,
+    recordStatus: 'enriched' // Events have geocoded addresses but not full bar details
   });
 
   return created;

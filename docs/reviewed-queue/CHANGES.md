@@ -4,6 +4,146 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
+## 2026-01-14 (Phase 3: Intelligence Hardening)
+
+### OpenAI Audit Resolution - Complete Implementation
+
+**Plan File:** `.claude/plans/generic-honking-cocke.md`
+
+This session completed the full OpenAI Audit Resolution Plan across all three priorities.
+
+### Priority 1: Critical Unblockers ✅
+
+| Task | Resolution | Files |
+|------|------------|-------|
+| Wire up `db:migrate` script | Added bash loop for sequential SQL execution | `package.json:14-15` |
+| MapPage "Closed Go Anyway" filter | Filter now includes `closedGoAnyway === true` venues | `MapPage.tsx:95-99` |
+| Batch address resolution | Replaced N per-venue `reverseGeocode()` calls with single batch call | `venue-enrichment.js:92-99` |
+
+**db:migrate scripts added:**
+```json
+"db:migrate": "for f in migrations/*.sql; do echo \"Running $f...\"; psql $DATABASE_URL -f \"$f\"; done",
+"db:migrate:latest": "psql $DATABASE_URL -f migrations/20260110_rename_event_columns.sql"
+```
+
+### Priority 2: Progressive Enrichment Architecture ✅
+
+**Database Migration Applied:** `migrations/20260114_progressive_enrichment.sql`
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `is_bar` | boolean | Fast filtering for bar venues |
+| `is_event_venue` | boolean | Venues discovered via event discovery |
+| `record_status` | text | Lifecycle: `stub` → `enriched` → `verified` |
+
+**Backfill Results:**
+- 5 venues set to `record_status = 'enriched'` (have `place_id` or hours data)
+- 0 bars initially (no `expense_rank` data yet - populated by Bar Tab discovery)
+- 3 partial indexes created for efficient filtering
+
+**New File Created:** `server/lib/briefing/context-loader.js`
+
+Provides "ground truth" data to AI models:
+```javascript
+export async function getStrategistContext(city, state, date = new Date()) {
+  // Fetches verified bars (is_bar=true, expense_rank >= 2) and active events
+  return { topVenues, activeEvents };
+}
+```
+
+### Priority 3: Intelligence & Strategy Hardening ✅
+
+#### TomTom Module Refactoring
+
+**Moved:** `server/lib/external/tomtom-traffic.js` → `server/lib/traffic/tomtom.js`
+
+| Function | Purpose |
+|----------|---------|
+| `fetchRawTraffic(lat, lng, radiusMeters)` | **NEW** - Raw data for Gemini processing |
+| `getTomTomTraffic()` | Existing - Processed data for UI display |
+| `fetchRawTrafficExtended()` | Extended format with bbox and metadata |
+
+**New File Created:** `server/lib/traffic/README.md`
+
+#### "Briefer Model" Pattern Implementation
+
+**File Updated:** `server/lib/ai/providers/briefing.js`
+
+Added `generateTrafficBriefing()` function implementing the "Briefer Model" pattern:
+
+1. **Parallel fetch:** TomTom traffic + DB context (bars/events)
+2. **Single Gemini call:** BRIEFING_TRAFFIC role with verified ground-truth
+3. **Zod validation:** Strict schema with deterministic fallback
+
+```javascript
+const TrafficBriefingSchema = z.object({
+  traffic_summary: z.string(),
+  risk_level: z.enum(['low', 'medium', 'high', 'severe']),
+  top_incidents: z.array(z.object({...})).max(5),
+  recommended_departure_window: z.string().nullable(),
+  venue_correlations: z.array(z.string()).optional(),
+  event_correlations: z.array(z.string()).optional()
+});
+```
+
+#### Snake_case Fallback Removal
+
+**File Updated:** `client/src/contexts/co-pilot-context.tsx`
+
+Removed legacy snake_case fallbacks since server now uses `toApiBlock()` consistently:
+
+```javascript
+// BEFORE: closedVenueReasoning: v.closedVenueReasoning ?? v.closed_venue_reasoning
+// AFTER:  closedVenueReasoning: v.closedVenueReasoning
+```
+
+#### Time-Sensitive Event Badge Filtering
+
+**File Updated:** `server/lib/venue/enhanced-smart-blocks.js`
+
+Added `isEventTimeRelevant()` function to filter stale event badges:
+- Event starts within 2 hours (120 min) → Show badge
+- Event started within last 4 hours (240 min) → Show badge
+- Otherwise → Hide badge (prevents stale badges from yesterday's events)
+
+### Files Modified Summary
+
+| File | Change |
+|------|--------|
+| `package.json` | Added `db:migrate` scripts |
+| `server/lib/traffic/tomtom.js` | **NEW** - Moved from external/, added `fetchRawTraffic()` |
+| `server/lib/traffic/README.md` | **NEW** - Traffic module documentation |
+| `server/lib/briefing/context-loader.js` | **NEW** - DB ground-truth loader |
+| `server/lib/ai/providers/briefing.js` | Added `generateTrafficBriefing()` |
+| `server/lib/external/index.js` | Re-exports TomTom for backwards compat |
+| `server/lib/venue/enhanced-smart-blocks.js` | Added time-sensitive event filtering |
+| `client/src/contexts/co-pilot-context.tsx` | Removed snake_case fallbacks |
+| `client/src/pages/co-pilot/MapPage.tsx` | Updated closedGoAnyway filter |
+| `client/src/hooks/useBarsQuery.ts` | Added closedGoAnyway interface fields |
+| `migrations/20260114_progressive_enrichment.sql` | **NEW** - Venue classification columns |
+
+### Architecture Insight: "Briefer Model" Pattern
+
+The "Briefer Model" pattern replaces fragile multi-model chains:
+
+**Before (Multi-Model Chain):**
+```
+TomTom → Claude (analyze) → Gemini (format) → GPT (validate) → UI
+```
+
+**After (Single Briefer Model):**
+```
+TomTom + DB Context → Gemini 3 Pro (BRIEFING_TRAFFIC) → Zod Validate → UI
+```
+
+**Benefits:**
+1. Single point of failure (easier debugging)
+2. Ground-truth from DB prevents hallucination
+3. Zod schema ensures consistent output format
+4. Deterministic fallback when AI fails
+
+---
+
 ## 2026-01-10 (Comprehensive)
 
 ### Event Discovery Pipeline Hardening (Late Session)

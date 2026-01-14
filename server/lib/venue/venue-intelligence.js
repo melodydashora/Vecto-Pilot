@@ -358,13 +358,13 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     }
 
     // Step 4: "CLOSED GO ANYWAY" Logic
-    // Filter to only open venues OR closed high-value venues (for staging)
-    // - Open or Unknown status: Always keep
-    // - Closed status: Only keep if Expense Rank >= 3 ($$$ or $$$$)
-    // 2026-01-10: Use isOpen (camelCase) for consistency
+    // 2026-01-14: Filter venues to only those with KNOWN operating hours
+    // - Open status (isOpen === true): Always keep
+    // - Unknown status (isOpen === null): DROP - no hours data = unusable (Mikes, BBQ Galaxy, etc.)
+    // - Closed status: Only keep if Expense Rank >= 3 ($$$ or $$$$) for staging
     const relevantVenues = venues.filter(v => {
-      // 1. Open or Unknown status
-      if (v.isOpen === true || v.isOpen === null) return true;
+      // 1. Open status ONLY - must have confirmed operating hours
+      if (v.isOpen === true) return true;
 
       // 2. Closed Go Anyway: High value venues ($$$+) worth staging near
       if (v.isOpen === false && v.expense_rank >= 3) {
@@ -373,20 +373,22 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         return true;
       }
 
-      return false; // Skip low-value closed venues
+      // 3. Drop venues with unknown hours (isOpen === null)
+      // These lack weekdayDescriptions from Google Places, making them unreliable
+      if (v.isOpen === null) {
+        barsLog.info(`Dropping "${v.name}" - no operating hours data available`);
+      }
+
+      return false; // Skip low-value closed AND unknown-hours venues
     });
 
-    // Strategic sort for drivers:
+    // 2026-01-14: Strategic sort for drivers (unknown-hours venues now filtered out)
     // 1. Open venues with time to work (not closing soon) - sorted by expense ($$$$ first)
     // 2. Last call venues (closing soon) - still valuable for quick pickups
-    // 3. Unknown status venues
-    // 4. Closed High-Value Venues (Go Anyway)
-    // 2026-01-10: Use isOpen (camelCase) for consistency
+    // 3. Closed High-Value Venues (Go Anyway) - staging spillover
     relevantVenues.sort((a, b) => {
       const aOpen = a.isOpen === true;
       const bOpen = b.isOpen === true;
-      const aClosed = a.isOpen === false;
-      const bClosed = b.isOpen === false;
 
       // Open venues first
       if (aOpen && !bOpen) return -1;
@@ -406,11 +408,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         return (b.rating || 0) - (a.rating || 0);
       }
 
-      // Closed venues last (after unknown)
-      if (aClosed && !bClosed) return 1;
-      if (!aClosed && bClosed) return -1;
-
-      // Both same status (Unknown or Closed) - sort by expense
+      // Both closed (Go Anyway) - sort by expense
       return (b.expense_rank || 0) - (a.expense_rank || 0);
     });
 
@@ -612,6 +610,13 @@ export async function persistVenuesToDatabase(venues, context) {
           venueTypes.push('bar');
         }
 
+        // 2026-01-14: Progressive Enrichment - Bar Tab discovery is a verified source
+        // Use OR logic for is_bar (once true, stays true)
+        // Use MAX logic for record_status (verified > enriched > stub)
+        const statusPriority = { 'stub': 0, 'enriched': 1, 'verified': 2 };
+        const existingPriority = statusPriority[existing.record_status] || 0;
+        const finalRecordStatus = existingPriority < 2 ? 'verified' : existing.record_status;
+
         const [updated] = await db.update(venue_catalog)
           .set({
             expense_rank: v.expense_rank || existing.expense_rank,
@@ -621,6 +626,9 @@ export async function persistVenuesToDatabase(venues, context) {
             // Prefer existing district if set, otherwise try new extraction
             district: existing.district || district,
             district_slug: existing.district_slug || districtSlug,
+            // 2026-01-14: Progressive Enrichment fields
+            is_bar: true, // Bar Tab discovery = is_bar
+            record_status: finalRecordStatus, // Verified source
             access_count: (existing.access_count || 0) + 1,
             last_accessed_at: now,
             updated_at: now
@@ -634,6 +642,7 @@ export async function persistVenuesToDatabase(venues, context) {
         const venueType = v.type === 'nightclub' ? 'nightclub' :
                           v.type === 'wine_bar' ? 'wine_bar' : 'bar';
 
+        // 2026-01-14: Progressive Enrichment - Bar Tab discovery creates verified bars
         const [inserted] = await db.insert(venue_catalog)
           .values({
             venue_name: v.name,
@@ -655,6 +664,10 @@ export async function persistVenuesToDatabase(venues, context) {
             district_slug: districtSlug,
             source: 'google_places',
             discovery_source: 'bar_discovery',
+            // 2026-01-14: Progressive Enrichment fields
+            is_bar: true,           // Bar Tab discovery = is_bar
+            is_event_venue: false,
+            record_status: 'verified', // Bar Tab is a trusted source
             access_count: 1,
             last_accessed_at: now,
             updated_at: now
