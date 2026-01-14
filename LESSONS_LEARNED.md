@@ -1022,13 +1022,38 @@ event_start_date: normalizeDate(rawEvent.event_date || rawEvent.event_start_date
 1. **Property name mismatches are invisible in JavaScript** - always use TypeScript or strict checks
 2. **Rename migrations must update ALL code paths** - schema, queries, transforms, and filters
 3. **Filters that pass `undefined` mask bugs** - be suspicious of `!Number.isFinite()` checks
-4. **Canonical modules enforce consistency** - route all event processing through pipeline/
 
-**Files Changed:**
-- `shared/schema.js`: Column renames
-- `server/lib/events/pipeline/normalizeEvent.js`: Accepts both formats
-- `server/lib/briefing/briefing-service.js`: Uses canonical names
-- `server/lib/strategy/strategy-utils.js`: Uses canonical names
+### Bug: Schema-Code Drift - source_model Column Removed (Added 2026-01-14)
+
+**Symptoms:**
+- `Cannot convert undefined or null to object` error during events DB read
+- Events discovery succeeds (Gemini) but events=0 in final briefing
+- Log shows: `❌ Events DB read failed: Cannot convert undefined or null to object`
+
+**Root Cause:**
+The `source_model` column was **removed from schema** on 2026-01-10 (all events come from Gemini Briefer), but code still referenced it in three places:
+1. **INSERT**: `source_model: event.source_model || 'gemini-3-pro'` - tried to INSERT undefined column
+2. **SELECT**: `source_model: discovered_events.source_model` - Drizzle threw error on undefined column
+3. **MAP**: `source: e.source_model` - tried to read undefined field
+
+**Fix (Applied):**
+Removed all `source_model` references from `briefing-service.js`:
+```javascript
+// REMOVED from INSERT (line ~996):
+// source_model: event.source_model || 'gemini-3-pro',
+
+// REMOVED from SELECT (line ~1039):
+// source_model: discovered_events.source_model,
+
+// REMOVED from MAP (line ~1068):
+// source: e.source_model,
+```
+
+**Key Lesson:** When removing schema columns, grep the entire codebase:
+```bash
+grep -r "source_model" server/ --include="*.js" | grep -v "// "
+```
+Schema changes MUST be accompanied by code changes. The column removal comment in schema was not enough - the actual code references persisted.
 
 ### Bug: "Cannot reach database"
 

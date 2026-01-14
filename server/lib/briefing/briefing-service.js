@@ -993,7 +993,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             event_end_date: event.event_end_date,
             category: event.category,  // Already normalized
             expected_attendance: event.expected_attendance,  // Already normalized
-            source_model: event.source_model || 'gemini-3-pro',
+            // 2026-01-14: Removed source_model - column removed from schema (all events from Gemini)
             event_hash: hash
           }).onConflictDoUpdate({
             target: discovered_events.event_hash,
@@ -1036,7 +1036,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       event_end_time: discovered_events.event_end_time,
       category: discovered_events.category,
       expected_attendance: discovered_events.expected_attendance,
-      source_model: discovered_events.source_model,
+      // 2026-01-14: Removed source_model - column removed from schema
       // Venue coordinates from join (may be null if not linked)
       venue_lat: venue_catalog.lat,
       venue_lng: venue_catalog.lng,
@@ -1061,11 +1061,11 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // Map discovered_events format to the briefing events format
       // 2026-01-10: DB columns are now event_start_date, event_start_time
       // 2026-01-14: Coordinates now come from linked venue_catalog (not deprecated event.lat/lng)
+      // 2026-01-14: Removed source_model field entirely - all events come from Gemini Briefer
       const normalizedEvents = events.map(e => ({
         title: e.title,
         summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
         impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
-        source: e.source_model,
         event_type: e.category,
         subtype: e.category, // For EventsComponent category grouping
         event_start_date: e.event_start_date,
