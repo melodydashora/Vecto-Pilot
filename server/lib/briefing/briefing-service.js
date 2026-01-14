@@ -23,11 +23,12 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
 import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
 import { generateEventHash } from '../events/pipeline/hashEvent.js';
 
-// 2026-01-10: Venue linking - find or create venue in venue_catalog, link events via venue_id
-import { findOrCreateVenueByAddress } from '../venue/venue-linker.js';
+// 2026-01-14: Removed stale venue-linker.js import (file never existed)
+// Venue linking uses findOrCreateVenue from venue-cache.js if needed
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
-import { getTomTomTraffic } from '../external/tomtom-traffic.js';
+// 2026-01-14: Moved TomTom to server/lib/traffic/ for architecture cleanup
+import { getTomTomTraffic, fetchRawTraffic } from '../traffic/tomtom.js';
 
 // Haversine distance calculation for school closures filtering
 import { haversineDistanceMiles } from '../location/geo.js';

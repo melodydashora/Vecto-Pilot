@@ -92,9 +92,10 @@ interface MapEvent {
   subtype?: string;
 }
 
-// Bar type for map markers (green=open, red=closing soon)
+// Bar type for map markers (green=open, orange=closed but worth it, red=closing soon)
 // Only shows $$ and above (expenseRank >= 2)
 // 2026-01-10: Updated to camelCase to match useBarsQuery API response
+// 2026-01-14: Added closedGoAnyway for orange marker support
 interface MapBar {
   name: string;
   type: string;
@@ -108,6 +109,8 @@ interface MapBar {
   lng: number;
   placeId?: string;
   rating?: number | null;
+  closedGoAnyway?: boolean;       // High-value closed venues worth staging near
+  closedReason?: string | null;   // Reason to visit anyway
 }
 
 interface MapTabProps {
@@ -446,11 +449,16 @@ const MapTab: React.FC<MapTabProps> = ({
     barMarkersRef.current = [];
 
     bars.forEach((bar) => {
-      // Color coding: green = open, red = closing soon (only open bars are passed)
-      // 2026-01-10: Updated to use camelCase property names
+      // 2026-01-14: Color coding:
+      // - Orange = closedGoAnyway (closed but worth staging near)
+      // - Red = closing soon
+      // - Green = open
+      const isClosedGoAnyway = bar.closedGoAnyway === true;
       const isClosingSoon = bar.closingSoon;
-      const color = isClosingSoon ? 'red' : 'green';
-      const statusLabel = isClosingSoon
+      const color = isClosedGoAnyway ? 'orange' : isClosingSoon ? 'red' : 'green';
+      const statusLabel = isClosedGoAnyway
+        ? (bar.closedReason || 'Closed (Worth It)')
+        : isClosingSoon
         ? (bar.minutesUntilClose ? `Closing in ${bar.minutesUntilClose}min` : 'Closing soon')
         : 'Open';
 
@@ -480,10 +488,12 @@ const MapTab: React.FC<MapTabProps> = ({
           infoWindowRef.current.close();
         }
 
-        // Status style: green for open, red for closing soon
-        const statusStyle = isClosingSoon
-          ? 'background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5;'
-          : 'background: #dcfce7; color: #166534; border: 1px solid #86efac;';
+        // 2026-01-14: Status style: orange for closedGoAnyway, red for closing soon, green for open
+        const statusStyle = isClosedGoAnyway
+          ? 'background: #fff7ed; color: #c2410c; border: 1px solid #fdba74;'  // Orange for closedGoAnyway
+          : isClosingSoon
+          ? 'background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5;'  // Red for closing soon
+          : 'background: #dcfce7; color: #166534; border: 1px solid #86efac;'; // Green for open
 
         const content = `
           <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 260px;">
@@ -595,11 +605,15 @@ const MapTab: React.FC<MapTabProps> = ({
               <span className="text-gray-700">Open bar</span>
             </div>
             <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-orange-400 border border-orange-500" />
+              <span className="text-gray-700">Closed (worth staging near)</span>
+            </div>
+            <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded-full bg-red-500 border border-red-600" />
               <span className="text-gray-700">Closing soon (last call!)</span>
             </div>
             <div className="text-xs text-gray-500 mt-1">
-              Only shows open $$ and above venues
+              Shows $$ and above venues
             </div>
           </div>
         </div>

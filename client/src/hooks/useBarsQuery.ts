@@ -31,6 +31,9 @@ export interface Venue {
   lat: number;
   lng: number;
   placeId?: string;
+  // 2026-01-14: Closed Go Anyway feature - high-value venues worth staging near even when closed
+  closedGoAnyway?: boolean;      // Flag for high-value closed venues
+  closedReason?: string | null;  // Reason to visit anyway (e.g., "Opens in 30 min")
 }
 
 /**

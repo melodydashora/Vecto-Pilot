@@ -441,8 +441,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
             businessHours: v.businessHours,
             isOpen: v.isOpen,
             businessStatus: v.businessStatus,
-            // 2026-01-10: Snake/camel tolerant - fallback for legacy server responses
-            closedVenueReasoning: v.closedVenueReasoning ?? v.closed_venue_reasoning,
+            // 2026-01-14: Server uses toApiBlock (camelCase) - no snake_case fallback needed
+            closedVenueReasoning: v.closedVenueReasoning,
             stagingArea: v.stagingArea,
             proTips: v.proTips ?? [],
             streetViewUrl: v.streetViewUrl,
@@ -489,12 +489,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Without useMemo, .map() creates a new array reference on every render.
   // Since `blocks` is in the context useMemo deps, this caused:
   // render → new blocks array → useMemo recalc → new context → consumer re-render → infinite loop
-  // 2026-01-10: D-023 - Use camelCase `closedVenueReasoning` to match types (not snake_case)
+  // 2026-01-14: Server uses toApiBlock (camelCase) - simplified check
   const blocks = useMemo(() => {
     return (blocksData?.blocks || []).map(block => {
-      // 2026-01-10: Check both camelCase (types) and snake_case (legacy server response)
-      const hasReasoning = block.closedVenueReasoning || (block as Record<string, unknown>).closed_venue_reasoning;
-      if (block.isOpen === false && !hasReasoning) {
+      // 2026-01-14: toApiBlock outputs camelCase only - no snake_case fallback needed
+      if (block.isOpen === false && !block.closedVenueReasoning) {
         const key = `${block.name}-${block.coordinates.lat}-${block.coordinates.lng}`;
         const reasoning = enrichedReasonings.get(key);
         if (reasoning) {

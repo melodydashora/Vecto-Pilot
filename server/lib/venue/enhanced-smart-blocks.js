@@ -25,6 +25,30 @@
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
 import { rankings, ranking_candidates } from '../../../shared/schema.js';
+
+// 2026-01-14: Time-sensitive event badge filtering
+// Only show event badges for events that are time-relevant (within 2h future or 4h past start)
+function isEventTimeRelevant(eventStartTime, snapshotTimezone) {
+  if (!eventStartTime) return false;
+
+  // Get current time in venue's timezone
+  const now = new Date();
+  const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: snapshotTimezone || 'America/Chicago' }));
+  const currentMinutes = nowInTimezone.getHours() * 60 + nowInTimezone.getMinutes();
+
+  // Parse event start time (HH:MM format)
+  const [hours, minutes] = eventStartTime.split(':').map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return false;
+  const eventMinutes = hours * 60 + minutes;
+
+  // Check: starts within next 2 hours OR started within last 4 hours
+  const minutesUntilStart = eventMinutes - currentMinutes;
+  const minutesSinceStart = currentMinutes - eventMinutes;
+
+  // Event starts within 2 hours (120 min) OR started within last 4 hours (240 min)
+  return (minutesUntilStart >= 0 && minutesUntilStart <= 120) ||
+         (minutesSinceStart >= 0 && minutesSinceStart <= 240);
+}
 import { eq } from 'drizzle-orm';
 import { generateTacticalPlan } from '../strategy/tactical-planner.js';
 import { hasRenderableBriefing, updatePhase } from '../strategy/strategy-utils.js';
@@ -170,10 +194,14 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       const valuePerMin = driveMinutes > 0 ? estimatedEarnings / driveMinutes : 0;
 
       // Get matched events for this venue
-      const matchedEvents = eventMatches.get(enriched.name) || null;
-      const hasEvent = matchedEvents && matchedEvents.length > 0;
+      // 2026-01-14: Filter to only time-relevant events (within 2h future or 4h past start)
+      const allMatchedEvents = eventMatches.get(enriched.name) || [];
+      const matchedEvents = allMatchedEvents.filter(evt =>
+        isEventTimeRelevant(evt.event_start_time, snapshot.timezone)
+      );
+      const hasEvent = matchedEvents.length > 0;
 
-      console.log(`🏢 [VENUE "${enriched.name}"] ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}${hasEvent ? `, 🎫 EVENT: ${matchedEvents[0].title}` : ''}`);
+      console.log(`🏢 [VENUE "${enriched.name}"] ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}${hasEvent ? `, 🎫 EVENT: ${matchedEvents[0].title}` : (allMatchedEvents.length > 0 ? ' (event stale)' : '')}`);
 
       // Grade venues: A = $1+/min, B = $0.50-$1/min, C = <$0.50/min
       let valueGrade = 'C';
@@ -204,7 +232,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         staging_name: enriched.staging_name || null,
         staging_lat: enriched.staging_lat || null,
         staging_lng: enriched.staging_lng || null,
-        venue_events: matchedEvents,  // Events matched from discovered_events table
+        venue_events: matchedEvents,  // 2026-01-14: Time-relevant events only (within 2h future or 4h past)
         business_hours: enriched.businessHours,
         closed_reasoning: enriched.strategic_timing || null,
         

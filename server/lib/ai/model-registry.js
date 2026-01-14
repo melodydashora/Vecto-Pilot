@@ -9,7 +9,20 @@
 // - COACH_*: Roles that populate 'coach_conversations'
 // - UTIL_*: Utility roles for validation/parsing (no direct DB write)
 //
-// Last updated: 2026-01-05
+// ============================================================================
+// CURRENT FRONTIER MODELS (January 2026)
+// ============================================================================
+// - Claude Opus 4.5:    claude-opus-4-5-20251101    (Best reasoning, code)
+// - Claude Sonnet 4.5:  claude-sonnet-4-5-20250929  (Fast, cost-effective)
+// - Claude Sonnet 4:    claude-sonnet-4-20250514    (Stable, agentic coding)
+// - Claude Haiku 4.5:   claude-haiku-4-5-20251201   (Fastest, cheapest)
+// - Gemini 3 Pro:       gemini-3-pro-preview        (Best speed, multimodal)
+// - Gemini 3 Flash:     gemini-3-flash-preview      (Ultra-fast, cheap)
+// - GPT-5.2:            gpt-5.2                     (Best complex reasoning)
+// - GPT-5.2 Pro:        gpt-5.2-pro                 (Extended reasoning)
+// ============================================================================
+//
+// Last updated: 2026-01-14
 
 /**
  * Model roles following {TABLE}_{FUNCTION} convention.
@@ -149,8 +162,8 @@ export const MODEL_ROLES = {
   },
   VENUE_FILTER: {
     envKey: 'VENUE_FILTER_MODEL',
-    // 2026-01-05: Updated from deprecated claude-3-5-haiku-20241022 to latest
-    default: 'claude-3-5-haiku-latest',
+    // 2026-01-14: Claude Haiku primary, Gemini Flash fallback (see FALLBACK_CONFIG)
+    default: 'claude-haiku-4-5-20251201',
     purpose: 'Fast low-cost venue filtering',
     maxTokens: 200,
     temperature: 0,
@@ -245,15 +258,22 @@ export const FALLBACK_ENABLED_ROLES = [
   'STRATEGY_DAILY',
   'BRIEFING_EVENTS_DISCOVERY',
   'BRIEFING_NEWS',
+  'VENUE_FILTER',           // 2026-01-14: Added for Anthropic credit fallback
+  'STRATEGY_CORE',          // 2026-01-14: Added for Anthropic credit fallback
+  'BRIEFING_EVENTS_VALIDATOR', // 2026-01-14: Added for Anthropic credit fallback
+  'BRIEFING_FALLBACK',      // 2026-01-14: Added for Anthropic credit fallback
 ];
 
 /**
  * Centralized fallback configuration
+ * 2026-01-14: Changed to Gemini 3 Flash for Anthropic credit issues
+ * This is a TEMPORARY fallback - Claude remains the primary model
  */
 export const FALLBACK_CONFIG = {
-  model: 'claude-opus-4-5-20251101',
-  maxTokens: 16000,
-  temperature: 0.3,
+  model: 'gemini-3-flash-preview',
+  maxTokens: 8192,
+  temperature: 0.2,
+  features: ['google_search'], // Gemini tool for web search if needed
 };
 
 /**

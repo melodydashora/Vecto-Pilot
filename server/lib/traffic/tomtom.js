@@ -1,14 +1,38 @@
-// server/lib/external/tomtom-traffic.js
-// TomTom Traffic API integration for real-time traffic conditions
+// server/lib/traffic/tomtom.js
+// ============================================================================
+// TOMTOM TRAFFIC API INTEGRATION
+// ============================================================================
 //
-// Docs: https://developer.tomtom.com/traffic-api/documentation/traffic-incidents/incident-details
-// Free tier: 2,500 requests/day
-// Updates: Every minute with latest traffic data
+// PURPOSE: Fetch real-time traffic data from TomTom for Gemini processing
+//
+// ARCHITECTURE (2026-01-14):
+//   1. fetchRawTraffic() - Returns raw TomTom API data for AI processing
+//   2. getTomTomTraffic() - Returns processed/prioritized traffic data
+//   3. getTomTomTrafficForCity() - Convenience wrapper with city context
+//
+// USAGE:
+//   import { fetchRawTraffic, getTomTomTraffic } from '../traffic/tomtom.js';
+//
+//   // For Gemini processing (raw data)
+//   const rawTraffic = await fetchRawTraffic(lat, lng, 10);
+//   const briefing = await generateTrafficBriefing(rawTraffic);
+//
+//   // For direct use (pre-processed)
+//   const { traffic } = await getTomTomTraffic({ lat, lon, city, state });
+//
+// DOCS: https://developer.tomtom.com/traffic-api/documentation/traffic-incidents
+// FREE TIER: 2,500 requests/day
+// ============================================================================
 
 import { briefingLog, OP } from '../../logger/workflow.js';
 
 const TOMTOM_API_KEY = process.env.TOMTOM_API_KEY;
 const TOMTOM_BASE_URL = 'https://api.tomtom.com/traffic/services/5';
+const TOMTOM_FLOW_URL = 'https://api.tomtom.com/traffic/services/4/flowSegmentData/relative0/10/json';
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 /**
  * Calculate distance between two coordinates using Haversine formula
@@ -27,6 +51,28 @@ function calculateDistanceMiles(lat1, lon1, lat2, lon2) {
             Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+/**
+ * Create a bounding box around coordinates
+ * @param {number} lat - Latitude
+ * @param {number} lon - Longitude
+ * @param {number} radiusMiles - Radius in miles (default 10)
+ * @returns {string} - bbox string: minLon,minLat,maxLon,maxLat
+ */
+function createBoundingBox(lat, lon, radiusMiles = 10) {
+  const latDegPerMile = 1 / 69;
+  const lonDegPerMile = 1 / (69 * Math.cos(lat * Math.PI / 180));
+
+  const latDelta = radiusMiles * latDegPerMile;
+  const lonDelta = radiusMiles * lonDegPerMile;
+
+  const minLon = (lon - lonDelta).toFixed(6);
+  const minLat = (lat - latDelta).toFixed(6);
+  const maxLon = (lon + lonDelta).toFixed(6);
+  const maxLat = (lat + latDelta).toFixed(6);
+
+  return `${minLon},${minLat},${maxLon},${maxLat}`;
 }
 
 // Incident category mapping for display
@@ -56,186 +102,155 @@ const MAGNITUDE_LABELS = {
 };
 
 // Road type priority for ranking (higher = more important to drivers)
-// Global patterns that work across US/international roads
 const ROAD_PRIORITY = {
-  // Interstates & Motorways (highest priority)
-  'I-': 100,       // US Interstate (I-35, I-95)
-  'M-': 100,       // UK Motorway (M1, M25)
-  'A-': 90,        // European A-roads / UK A-roads
-  'E-': 95,        // European E-roads
-
-  // US Highways
-  'US-': 90,       // US Highway (US-75, US-1)
-  'SR-': 80,       // State Route (generic)
-  'SH-': 80,       // State Highway
-  'HWY': 70,       // Generic highway
-  'HIGHWAY': 70,
-  'ROUTE': 70,
-
-  // State-specific patterns (handled dynamically)
-  // Two-letter state codes followed by dash (TX-, CA-, NY-, FL-)
-  // Will be matched by pattern check below
-
-  // Toll roads (high priority - usually major arterials)
-  'TOLLWAY': 85,
-  'TOLL': 85,
-  'TURNPIKE': 85,
-  'PIKE': 80,
-  'EXPRESSWAY': 80,
-  'EXPWY': 80,
-  'FREEWAY': 85,
-  'FWY': 85,
-
-  // Secondary roads
-  'PKWY': 65,      // Parkway
-  'PARKWAY': 65,
-  'BLVD': 50,      // Boulevard
-  'BOULEVARD': 50,
-  'AVE': 35,       // Avenue
-  'AVENUE': 35,
-  'RD': 30,        // Road
-  'ROAD': 30,
-  'DR': 25,        // Drive
-  'DRIVE': 25,
-  'ST': 25,        // Street
-  'STREET': 25,
-  'WAY': 20,       // Way
-  'LN': 15,        // Lane
-  'LANE': 15,
-  'CT': 10,        // Court
-  'COURT': 10,
-  'CIR': 10,       // Circle
-  'CIRCLE': 10,
-  'PL': 10,        // Place
-  'PLACE': 10,
+  'I-': 100, 'M-': 100, 'A-': 90, 'E-': 95,
+  'US-': 90, 'SR-': 80, 'SH-': 80, 'HWY': 70, 'HIGHWAY': 70, 'ROUTE': 70,
+  'TOLLWAY': 85, 'TOLL': 85, 'TURNPIKE': 85, 'PIKE': 80,
+  'EXPRESSWAY': 80, 'EXPWY': 80, 'FREEWAY': 85, 'FWY': 85,
+  'PKWY': 65, 'PARKWAY': 65, 'BLVD': 50, 'BOULEVARD': 50,
+  'AVE': 35, 'AVENUE': 35, 'RD': 30, 'ROAD': 30,
+  'DR': 25, 'DRIVE': 25, 'ST': 25, 'STREET': 25,
+  'WAY': 20, 'LN': 15, 'LANE': 15, 'CT': 10, 'COURT': 10,
+  'CIR': 10, 'CIRCLE': 10, 'PL': 10, 'PLACE': 10,
 };
 
 /**
  * Calculate road priority score based on road name/number
- * Higher score = more important road for drivers
- * Works globally - handles US interstates, state highways, UK motorways, European routes
  */
 function getRoadPriority(roadName, roadNumbers) {
   let maxPriority = 0;
 
-  // Check road numbers first (TX-114, I-35, M25, A1, etc.)
   if (roadNumbers && roadNumbers.length > 0) {
     for (const road of roadNumbers) {
       const upperRoad = road.toUpperCase();
-
-      // Check against known patterns
       for (const [prefix, priority] of Object.entries(ROAD_PRIORITY)) {
         if (upperRoad.includes(prefix) || upperRoad.startsWith(prefix)) {
           maxPriority = Math.max(maxPriority, priority);
         }
       }
-
-      // Dynamic state highway detection: [A-Z]{2}-\d+ (TX-114, CA-1, NY-17, FL-528)
-      if (/^[A-Z]{2}-\d+/.test(upperRoad)) {
-        maxPriority = Math.max(maxPriority, 80); // State highway priority
-      }
-
-      // Farm-to-Market roads (FM-) - common in rural US
-      if (/^FM-\d+/.test(upperRoad)) {
-        maxPriority = Math.max(maxPriority, 60);
-      }
-
-      // County roads (CR-, CO-)
-      if (/^(CR|CO)-\d+/.test(upperRoad)) {
-        maxPriority = Math.max(maxPriority, 45);
-      }
+      if (/^[A-Z]{2}-\d+/.test(upperRoad)) maxPriority = Math.max(maxPriority, 80);
+      if (/^FM-\d+/.test(upperRoad)) maxPriority = Math.max(maxPriority, 60);
+      if (/^(CR|CO)-\d+/.test(upperRoad)) maxPriority = Math.max(maxPriority, 45);
     }
   }
 
-  // Check road name for patterns
   if (roadName) {
     const upperName = roadName.toUpperCase();
-
     for (const [prefix, priority] of Object.entries(ROAD_PRIORITY)) {
-      if (upperName.includes(prefix)) {
-        maxPriority = Math.max(maxPriority, priority);
-      }
+      if (upperName.includes(prefix)) maxPriority = Math.max(maxPriority, priority);
     }
-
-    // Check for major road keywords (global)
     if (upperName.includes('MOTORWAY') || upperName.includes('AUTOBAHN') ||
         upperName.includes('AUTOROUTE') || upperName.includes('AUTOPISTA')) {
       maxPriority = Math.max(maxPriority, 100);
     }
-
-    // Check for tollway keywords (global)
-    if (upperName.includes('TOLLWAY') || upperName.includes('TOLL') ||
-        upperName.includes('TURNPIKE') || upperName.includes('EXPRESSWAY') ||
-        upperName.includes('PEAGE') || upperName.includes('MAUT')) {
-      maxPriority = Math.max(maxPriority, 85);
-    }
   }
 
-  return maxPriority || 15; // Default to low priority for unknown roads
+  return maxPriority || 15;
 }
 
 /**
  * Calculate overall incident priority for sorting
- * Combines road importance + incident severity + type
  */
 function calculateIncidentPriority(incident) {
   const roadPriority = getRoadPriority(incident.location, incident.road ? [incident.road] : []);
-
-  // Magnitude score
-  const magnitudeScore = {
-    'Major': 40,
-    'Moderate': 25,
-    'Minor': 10,
-    'Unknown': 5,
-  }[incident.magnitude] || 5;
-
-  // Category score (construction and closures affect routes more)
+  const magnitudeScore = { 'Major': 40, 'Moderate': 25, 'Minor': 10, 'Unknown': 5 }[incident.magnitude] || 5;
   const categoryScore = {
-    'Road Closed': 35,
-    'Road Works': 30,  // Construction
-    'Accident': 25,
-    'Lane Closed': 20,
-    'Jam': 15,
-    'Flooding': 30,
-    'Dangerous Conditions': 20,
+    'Road Closed': 35, 'Road Works': 30, 'Accident': 25,
+    'Lane Closed': 20, 'Jam': 15, 'Flooding': 30, 'Dangerous Conditions': 20,
   }[incident.category] || 10;
-
-  // Delay score (longer delays = higher priority)
   const delayScore = Math.min(incident.delayMinutes || 0, 30);
-
   return roadPriority + magnitudeScore + categoryScore + delayScore;
 }
 
+// ============================================================================
+// EXPORTED FUNCTIONS
+// ============================================================================
+
 /**
- * Create a bounding box around coordinates
+ * Fetch raw traffic data from TomTom (for Gemini processing)
+ *
+ * 2026-01-14: New function for AI pipeline integration
+ * Returns raw API response data that can be passed to Gemini for analysis.
+ *
  * @param {number} lat - Latitude
- * @param {number} lon - Longitude
- * @param {number} radiusMiles - Radius in miles (default 10)
- * @returns {string} - bbox string: minLon,minLat,maxLon,maxLat
+ * @param {number} lng - Longitude
+ * @param {number} radiusMiles - Search radius (default 10 miles)
+ * @returns {Promise<{flowSegmentData: Object|null, incidents: Array, bbox: string, fetchedAt: string}>}
  */
-function createBoundingBox(lat, lon, radiusMiles = 10) {
-  // Approximate degrees per mile
-  const latDegPerMile = 1 / 69;
-  const lonDegPerMile = 1 / (69 * Math.cos(lat * Math.PI / 180));
+export async function fetchRawTraffic(lat, lng, radiusMeters = 5000) {
+  // 2026-01-14: Phase 3 Intelligence Hardening - simplified raw data fetch for Gemini
+  // Returns null instead of throwing to allow graceful degradation
+  if (!TOMTOM_API_KEY) {
+    console.warn('[TomTom] API Key missing. Returning null.');
+    return null;
+  }
 
-  const latDelta = radiusMiles * latDegPerMile;
-  const lonDelta = radiusMiles * lonDegPerMile;
+  if (!lat || !lng) {
+    console.warn('[TomTom] Coordinates required. Returning null.');
+    return null;
+  }
 
-  const minLon = (lon - lonDelta).toFixed(6);
-  const minLat = (lat - latDelta).toFixed(6);
-  const maxLon = (lon + lonDelta).toFixed(6);
-  const maxLat = (lat + latDelta).toFixed(6);
+  try {
+    // 1. Get Flow Segment Data (Current speed vs Free flow)
+    const flowUrl = `${TOMTOM_FLOW_URL}?point=${lat},${lng}&unit=mph&key=${TOMTOM_API_KEY}`;
+    const flowRes = await fetch(flowUrl);
+    const flowData = flowRes.ok ? await flowRes.json() : null;
 
-  return `${minLon},${minLat},${maxLon},${maxLat}`;
+    // 2. Get Incidents (Accidents, Jams, Roadworks)
+    // Convert radius meters to bbox (rough degree conversion)
+    const offset = radiusMeters / 111320;
+    const bbox = `${lng - offset},${lat - offset},${lng + offset},${lat + offset}`;
+
+    const incidentsFields = '{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,events{description},startTime,endTime,from,to,roadNumbers}}}';
+    const incUrl = `${TOMTOM_BASE_URL}/incidentDetails?bbox=${bbox}&fields=${encodeURIComponent(incidentsFields)}&language=en-US&key=${TOMTOM_API_KEY}`;
+    const incRes = await fetch(incUrl);
+    const incData = incRes.ok ? await incRes.json() : null;
+
+    briefingLog.phase(1, `TomTom raw: flow=${!!flowData?.flowSegmentData}, incidents=${incData?.incidents?.length || 0}`, OP.API);
+
+    return {
+      flow: flowData?.flowSegmentData || null,
+      incidents: incData?.incidents || []
+    };
+  } catch (error) {
+    console.error('[TomTom] Error fetching traffic:', error);
+    return null;
+  }
 }
 
 /**
- * Get real-time traffic incidents from TomTom
+ * Fetch raw traffic with extended metadata (backwards compatible)
+ * Use this when you need bbox and metadata alongside raw data
+ */
+export async function fetchRawTrafficExtended(lat, lng, radiusMiles = 10) {
+  const radiusMeters = radiusMiles * 1609.34;
+  const rawData = await fetchRawTraffic(lat, lng, radiusMeters);
+
+  if (!rawData) return null;
+
+  const bbox = createBoundingBox(lat, lng, radiusMiles);
+
+  return {
+    flowSegmentData: rawData.flow,
+    incidents: rawData.incidents,
+    bbox,
+    radiusMiles,
+    driverLocation: { lat, lng },
+    fetchedAt: new Date().toISOString()
+  };
+}
+
+/**
+ * Get real-time traffic incidents from TomTom (processed)
+ *
+ * Returns fully processed and prioritized traffic data ready for display.
+ * Use this when you don't need AI analysis.
+ *
  * @param {Object} params - Request parameters
  * @param {number} params.lat - Latitude
  * @param {number} params.lon - Longitude
- * @param {number} params.radiusMiles - Search radius in miles (default 10 for bounding box)
- * @param {number} params.maxDistanceMiles - Maximum distance from driver to include (default 10)
+ * @param {number} params.radiusMiles - Search radius in miles (default 10)
+ * @param {number} params.maxDistanceMiles - Maximum distance from driver (default 10)
  * @param {string} params.city - City name (for logging)
  * @param {string} params.state - State name (for logging)
  * @returns {Promise<Object>} - Traffic incidents and conditions
@@ -259,8 +274,6 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
 
   try {
     const bbox = createBoundingBox(lat, lon, radiusMiles);
-
-    // Fields parameter to get road names and details
     const fields = '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,events{description,code},startTime,endTime,from,to,length,delay,roadNumbers}}}';
     const url = `${TOMTOM_BASE_URL}/incidentDetails?key=${TOMTOM_API_KEY}&bbox=${bbox}&language=en-US&timeValidityFilter=present&fields=${encodeURIComponent(fields)}`;
 
@@ -288,130 +301,85 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
       const props = inc.properties || {};
       const category = CATEGORY_LABELS[props.iconCategory] || 'Unknown';
       const magnitude = MAGNITUDE_LABELS[props.magnitudeOfDelay] || 'Unknown';
-
-      // Get description from events
       const description = props.events?.map(e => e.description).join('; ') || category;
-
-      // Format road info - prefer road numbers for clarity
       const roadNumbers = props.roadNumbers || [];
       const road = roadNumbers.join(', ') || '';
-
-      // Create location string
       const fromTo = props.from && props.to ? `${props.from} to ${props.to}` : '';
-
-      // Delay in minutes
       const delayMinutes = props.delay ? Math.round(props.delay / 60) : 0;
-
-      // Length in miles
       const lengthMiles = props.length ? parseFloat((props.length / 1609.34).toFixed(1)) : null;
 
-      // Get incident coordinates (first point of geometry for distance calc)
-      // TomTom returns coordinates as [lon, lat] (GeoJSON format)
+      // Get incident coordinates
       let incidentLat = null;
       let incidentLon = null;
       if (inc.geometry?.coordinates) {
         const coords = inc.geometry.coordinates;
-        // Handle LineString (array of coordinate pairs) or Point (single pair)
         if (Array.isArray(coords[0])) {
-          // LineString: take midpoint or first point
           incidentLon = coords[0][0];
           incidentLat = coords[0][1];
         } else {
-          // Point
           incidentLon = coords[0];
           incidentLat = coords[1];
         }
       }
 
-      // Calculate actual distance from driver to incident
+      // Calculate distance from driver
       let distanceFromDriver = null;
       if (incidentLat !== null && incidentLon !== null && lat && lon) {
         distanceFromDriver = parseFloat(calculateDistanceMiles(lat, lon, incidentLat, incidentLon).toFixed(1));
       }
 
       const incident = {
-        id: props.id,
-        category,
-        magnitude,
-        description,
-        road,
-        roadNumbers,
-        location: fromTo,
-        from: props.from || '',
-        to: props.to || '',
-        delayMinutes,
-        lengthMiles,
-        startTime: props.startTime,
-        endTime: props.endTime,
-        // Add city context from the request
-        city: city || null,
-        state: state || null,
-        // Add distance from driver's position
-        distanceFromDriver,
-        incidentLat,
-        incidentLon,
+        id: props.id, category, magnitude, description, road, roadNumbers,
+        location: fromTo, from: props.from || '', to: props.to || '',
+        delayMinutes, lengthMiles, startTime: props.startTime, endTime: props.endTime,
+        city: city || null, state: state || null,
+        distanceFromDriver, incidentLat, incidentLon,
       };
 
-      // Calculate priority score for sorting
       incident.priority = calculateIncidentPriority(incident);
-
-      // Determine if this is a major arterial/highway
       incident.isHighway = getRoadPriority(incident.location, roadNumbers) >= 60;
 
-      // Format display description with road context and distance
       const distanceStr = distanceFromDriver !== null ? ` [${distanceFromDriver} mi]` : '';
-      if (road) {
-        incident.displayDescription = `${category}: ${road} (${fromTo})${distanceStr}`;
-      } else {
-        incident.displayDescription = `${category}: ${fromTo}${distanceStr}`;
-      }
+      incident.displayDescription = road
+        ? `${category}: ${road} (${fromTo})${distanceStr}`
+        : `${category}: ${fromTo}${distanceStr}`;
 
       return incident;
     });
 
-    // Deduplicate reverse-direction incidents (e.g., "A to B" and "B to A" are the same closure)
+    // Deduplicate reverse-direction incidents
     const seenPairs = new Set();
     const deduplicatedIncidents = parsedIncidents.filter(inc => {
-      if (!inc.from || !inc.to) return true; // Keep incidents without from/to
-
-      // Create a normalized key that's the same regardless of direction
-      // Sort the two endpoints alphabetically to get consistent key
+      if (!inc.from || !inc.to) return true;
       const endpoints = [inc.from.toLowerCase().trim(), inc.to.toLowerCase().trim()].sort();
       const pairKey = `${inc.category}|${endpoints[0]}|${endpoints[1]}`;
-
-      if (seenPairs.has(pairKey)) {
-        return false; // Skip this duplicate
-      }
-
+      if (seenPairs.has(pairKey)) return false;
       seenPairs.add(pairKey);
       return true;
     });
 
-    // Filter by actual distance from driver (not just bounding box)
-    // This removes incidents that are technically in the bbox but farther than maxDistanceMiles
+    // Filter by distance
     const distanceFilteredIncidents = deduplicatedIncidents.filter(inc => {
-      // Keep incidents without distance (couldn't calculate) - they're likely relevant
       if (inc.distanceFromDriver === null) return true;
       return inc.distanceFromDriver <= maxDistanceMiles;
     });
 
-    // Log how many were filtered out
     const filteredOutCount = deduplicatedIncidents.length - distanceFilteredIncidents.length;
     if (filteredOutCount > 0) {
       briefingLog.phase(1, `Traffic: filtered ${filteredOutCount} incidents beyond ${maxDistanceMiles} mi`, OP.AI);
     }
 
-    // Sort by priority (highest first) - highways and major incidents first
+    // Sort by priority
     const sortedIncidents = distanceFilteredIncidents.sort((a, b) => b.priority - a.priority);
 
-    // Categorize incidents for better display
+    // Categorize
     const highwayIncidents = sortedIncidents.filter(i => i.isHighway);
     const constructionIncidents = sortedIncidents.filter(i => i.category === 'Road Works');
     const closureIncidents = sortedIncidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed');
     const jamIncidents = sortedIncidents.filter(i => i.category === 'Jam');
     const accidentIncidents = sortedIncidents.filter(i => i.category === 'Accident');
 
-    // Calculate overall congestion level based on incidents
+    // Calculate congestion level
     let congestionLevel = 'light';
     const majorIncidents = sortedIncidents.filter(i => i.magnitude === 'Major').length;
     const moderateIncidents = sortedIncidents.filter(i => i.magnitude === 'Moderate').length;
@@ -423,7 +391,7 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
       congestionLevel = 'moderate';
     }
 
-    // Generate summary with city context
+    // Generate summary
     const locationContext = city ? ` near ${city}` : '';
     let summary = `${sortedIncidents.length} active traffic incidents${locationContext}`;
     if (jamIncidents.length > 0) summary += `, ${jamIncidents.length} traffic jams`;
@@ -434,23 +402,17 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
       congestionLevel = 'light';
     }
 
-    // Create prioritized list: highways first, then by category importance
-    // Take top 10 most important for display
     const prioritizedForDisplay = sortedIncidents.slice(0, 15);
-
     const elapsedMs = Date.now() - startTime;
     briefingLog.done(1, `Traffic: ${congestionLevel}, ${sortedIncidents.length} incidents (${elapsedMs}ms)`, OP.AI);
 
     return {
       traffic: {
         summary,
-        // Return prioritized incidents (sorted by importance)
         incidents: prioritizedForDisplay,
-        // Also provide full sorted list for detailed views
         allIncidents: sortedIncidents,
         congestionLevel,
         totalIncidents: sortedIncidents.length,
-        // Categorized counts
         stats: {
           total: sortedIncidents.length,
           highways: highwayIncidents.length,
@@ -460,11 +422,9 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
           accidents: accidentIncidents.length,
           major: majorIncidents,
         },
-        // Legacy fields for backwards compatibility
         majorIncidents,
         jams: jamIncidents.length,
         closures: closureIncidents.length,
-        // Metadata
         source: 'tomtom',
         city: city || null,
         state: state || null,
@@ -490,19 +450,11 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
 }
 
 /**
- * Get traffic for a city using geocoding
- * Falls back to city center coordinates if no lat/lon provided
- * @param {Object} params - Request parameters
- * @param {string} params.city - City name
- * @param {string} params.state - State name
- * @param {number} params.lat - Optional latitude (uses city center if not provided)
- * @param {number} params.lon - Optional longitude
- * @param {number} params.radiusMiles - Search radius (default 15 for city-wide)
+ * Get traffic for a city (convenience wrapper)
+ * @param {Object} params - { city, state, lat, lon, radiusMiles }
  * @returns {Promise<Object>} - Traffic data
  */
 export async function getTomTomTrafficForCity({ city, state, lat, lon, radiusMiles = 15 }) {
-  // If no coordinates provided, we'd need to geocode
-  // For now, require coordinates (they should come from the snapshot)
   if (!lat || !lon) {
     return {
       traffic: {

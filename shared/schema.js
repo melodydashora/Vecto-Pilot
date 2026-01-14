@@ -289,6 +289,15 @@ export const venue_catalog = pgTable("venue_catalog", {
   access_count: integer("access_count").default(0), // Cache hit tracking
   last_accessed_at: timestamp("last_accessed_at", { withTimezone: true }), // Last cache access
   updated_at: timestamp("updated_at", { withTimezone: true }).default(sql`NOW()`), // Update tracking
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PROGRESSIVE ENRICHMENT (2026-01-14)
+  // Boolean flags for efficient filtering and record_status for tracking data completeness
+  // ══════════════════════════════════════════════════════════════════════════
+  is_bar: boolean("is_bar").default(false).notNull(),           // Faster than venue_types JSONB
+  is_event_venue: boolean("is_event_venue").default(false).notNull(), // Discovered via events
+  // record_status: 'stub' (geocode only), 'enriched' (has details), 'verified' (trusted source)
+  record_status: text("record_status").default('stub').notNull(),
 }, (table) => ({
   // Indexes for efficient lookups
   idxCoordKey: sql`create unique index if not exists idx_venue_catalog_coord_key on ${table} (coord_key) where coord_key is not null`,
@@ -297,6 +306,10 @@ export const venue_catalog = pgTable("venue_catalog", {
   idxMarketSlug: sql`create index if not exists idx_venue_catalog_market_slug on ${table} (market_slug)`,
   idxVenueTypes: sql`create index if not exists idx_venue_catalog_venue_types on ${table} using gin (venue_types)`,
   idxExpenseRank: sql`create index if not exists idx_venue_catalog_expense_rank on ${table} (expense_rank) where expense_rank is not null`,
+  // 2026-01-14: Progressive Enrichment indexes
+  idxIsBar: sql`create index if not exists idx_venue_catalog_is_bar on ${table} (is_bar) where is_bar = true`,
+  idxIsEventVenue: sql`create index if not exists idx_venue_catalog_is_event_venue on ${table} (is_event_venue) where is_event_venue = true`,
+  idxRecordStatus: sql`create index if not exists idx_venue_catalog_record_status on ${table} (record_status)`,
 }));
 
 export const venue_metrics = pgTable("venue_metrics", {
