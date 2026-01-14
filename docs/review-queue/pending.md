@@ -185,4 +185,69 @@ The following items have been addressed and consolidated into `../reviewed-queue
 
 ---
 
+## 2026-01-14 Analysis
+
+**Generated:** 2026-01-14T18:22:17.475Z
+**Branch:** main
+**Last Commit:** b1daad97 Phase 3: Intelligence Hardening + Venue Filter Fixes
+
+### Uncommitted Changes (6)
+| File | Status |
+|------|--------|
+| `ocs/reviewed-queue/CHANGES.md` | Modified |
+| `package.json` | Modified |
+| `sent-to-strategist.txt` | Modified |
+| `server/lib/ai/adapters/index.js` | Modified |
+| `server/lib/venue/venue-intelligence.js` | Modified |
+| `migrations/20260114_create_places_cache.sql` | Untracked |
+
+### Recent Commit Changes (50)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/MapTab.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/pages/co-pilot/MapPage.tsx` | Modified |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/EVENT_FRESHNESS_AND_TTL.md` | Modified |
+| `docs/VENUELOGIC.md` | Added |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| `docs/architecture/api-reference.md` | Modified |
+| `docs/architecture/database-schema.md` | Modified |
+| `docs/architecture/strategy-framework.md` | Modified |
+| `docs/preflight/ai-models.md` | Modified |
+| `docs/preflight/database.md` | Modified |
+| `docs/preflight/location.md` | Modified |
+| `docs/review-queue/2026-01-09.md` | Deleted |
+| `docs/review-queue/2026-01-14.md` | Added |
+| ... and 30 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/index.js)
+- [ ] `docs/architecture/api-reference.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/venue-intelligence.js)
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/MapTab.tsx)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (migrations/20260110_drop_discovered_events_unused_cols.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260114_progressive_enrichment.sql)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/context-loader.js)
+
+### Status: PENDING
+
+---
+
 ---

@@ -4,6 +4,88 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
+## 2026-01-14 (Phase 3: Intelligence Hardening - Session 2)
+
+### Critical Bug Fixes
+
+| Bug | Root Cause | Fix | File |
+|-----|------------|-----|------|
+| **Gemini Fallback Routing** | Fallback always called `callAnthropic()` even for `gemini-3-flash-preview` | Dynamic provider routing based on model prefix | `adapters/index.js:193-226` |
+| **places_cache Missing** | Table never created in migrations | Added CREATE TABLE migration | `migrations/20260114_create_places_cache.sql` |
+| **Cache First Pattern** | Every request called Google Places API | Check DB before API, return if 5+ cached venues | `venue-intelligence.js:298-413` |
+
+### Gemini Fallback Routing Fix (Critical)
+
+**Problem:** When primary model failed and fallback was `gemini-3-flash-preview`, the adapter still called `callAnthropic()`, causing:
+```
+🔄 [FALLBACK] Model: gemini-3-flash-preview
+[model/anthropic] calling gemini-3-flash-preview  ← WRONG PROVIDER!
+```
+
+**Solution:** Dynamic provider routing in fallback logic:
+```javascript
+if (fallbackModel.startsWith('gemini-')) {
+  fallbackResult = await callGemini({ model: fallbackModel, ... });
+} else if (fallbackModel.startsWith('gpt-') || fallbackModel.startsWith('o1-')) {
+  fallbackResult = await callOpenAI({ model: fallbackModel, ... });
+} else {
+  fallbackResult = await callAnthropic({ model: fallbackModel, ... });
+}
+```
+
+### Cache First Pattern Implementation
+
+**File:** `server/lib/venue/venue-intelligence.js`
+
+Added "Step 0" to `discoverNearbyVenues()`:
+1. Query `venue_catalog` for cached bar/nightclub/wine_bar venues
+2. Filter to venues within search radius (Haversine distance)
+3. If 5+ cached venues found:
+   - Re-hydrate with live open status calculation
+   - Return immediately without calling Google Places API
+4. Otherwise, fall through to Google Places API
+
+**Benefits:**
+- Reduces Google Places API costs
+- Improves response time for repeat queries
+- Cached venues are re-validated for current open/closed status
+
+### places_cache Migration
+
+**File:** `migrations/20260114_create_places_cache.sql`
+
+```sql
+CREATE TABLE IF NOT EXISTS places_cache (
+    coords_key TEXT PRIMARY KEY,
+    formatted_hours JSONB,
+    cached_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    access_count INTEGER NOT NULL DEFAULT 0
+);
+```
+
+**Note:** Table was referenced in code but never had a CREATE TABLE migration.
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `server/lib/ai/adapters/index.js` | Fixed fallback provider routing |
+| `server/lib/venue/venue-intelligence.js` | Added Cache First pattern |
+| `migrations/20260114_create_places_cache.sql` | **NEW** - Create places_cache table |
+| `package.json` | Updated `db:migrate:latest` to run new migrations |
+
+### Migration Command
+
+```bash
+npm run db:migrate:latest
+```
+
+This runs:
+1. `migrations/20260114_create_places_cache.sql`
+2. `migrations/20260114_progressive_enrichment.sql`
+
+---
+
 ## 2026-01-14 (Phase 3: Intelligence Hardening)
 
 ### OpenAI Audit Resolution - Complete Implementation

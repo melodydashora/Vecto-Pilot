@@ -14,6 +14,8 @@ import { callModel } from '../ai/adapters/index.js';
 import { callGemini } from '../ai/adapters/gemini-adapter.js';
 import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
 import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
+// 2026-01-14: Cache First pattern - check database before calling Google Places API
+import { getVenuesByType } from './venue-cache.js';
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 // 2026-01-10: D-014 Phase 4 - Use canonical hours module directly for all isOpen calculations
 import { parseGoogleWeekdayText, getOpenStatus } from './hours/index.js';
@@ -180,6 +182,27 @@ const EXCLUDED_VENUES = new Set([
 ]);
 
 /**
+ * Haversine distance calculation (miles)
+ * Used for Cache First pattern to filter cached venues within search radius
+ * 2026-01-14: Added for database-first venue lookup
+ */
+function toRadians(deg) {
+  return deg * (Math.PI / 180);
+}
+
+function haversineDistanceMiles(lat1, lon1, lat2, lon2) {
+  const R = 3958.8; // Earth radius in miles
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
  * Check if venue name suggests it's not a real bar/lounge
  */
 function isExcludedVenue(name) {
@@ -271,6 +294,123 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
   // Cap radius at 50km (Google Places limit)
   const radiusMeters = Math.min(radiusMiles * 1609.34, 50000);
   barsLog.start(`${city}, ${state} (${Math.round(radiusMeters/1609.34)} mile radius)`);
+
+  // ==========================================================================
+  // STEP 0: CACHE FIRST PATTERN
+  // Check database before calling Google Places API to avoid redundant API calls
+  // 2026-01-14: Added to reduce API costs and improve response time
+  // ==========================================================================
+  try {
+    const cachedBars = await getVenuesByType({
+      venueTypes: ['bar', 'nightclub', 'wine_bar'],
+      city,
+      state,
+      limit: 100 // Get more than we need, filter by distance
+    });
+
+    if (cachedBars.length > 0) {
+      barsLog.phase(0, `Found ${cachedBars.length} cached venues in ${city}, ${state}`);
+
+      // Filter to venues within search radius using Haversine distance
+      const nearbyBars = cachedBars.filter(v => {
+        if (!v.lat || !v.lng) return false;
+        const distance = haversineDistanceMiles(lat, lng, v.lat, v.lng);
+        return distance <= radiusMiles;
+      });
+
+      barsLog.phase(0, `${nearbyBars.length} venues within ${radiusMiles} mile radius`);
+
+      // If we have 5+ cached venues, re-hydrate with live status and return
+      // This threshold ensures we don't serve stale data when cache is sparse
+      if (nearbyBars.length >= 5) {
+        barsLog.phase(0, `Using ${nearbyBars.length} cached venues (Cache First)`);
+
+        // Re-hydrate cached venues with live open status calculations
+        const rehydrated = nearbyBars.map(v => {
+          // Build a mock place object for calculateOpenStatus
+          const mockPlace = {
+            displayName: { text: v.venue_name },
+            currentOpeningHours: v.business_hours ? {
+              weekdayDescriptions: v.business_hours.weekdayDescriptions || []
+            } : null,
+            regularOpeningHours: v.hours_full_week ? {
+              weekdayDescriptions: v.hours_full_week.weekdayDescriptions || []
+            } : null
+          };
+
+          const openStatus = calculateOpenStatus(mockPlace, timezone);
+
+          return {
+            name: v.venue_name,
+            type: v.category || 'bar',
+            address: v.formatted_address || v.address || '',
+            phone: null,
+            expense_level: v.expense_rank === 4 ? '$$$$' : v.expense_rank === 3 ? '$$$' : v.expense_rank === 2 ? '$$' : '$',
+            expense_rank: v.expense_rank || 2,
+            isOpen: openStatus.is_open,
+            is_open: openStatus.is_open,
+            hours_today: openStatus.hours_today,
+            closing_soon: openStatus.closing_soon,
+            minutes_until_close: openStatus.minutes_until_close,
+            opens_in_minutes: openStatus.opens_in_minutes,
+            rating: null,
+            crowd_level: v.crowd_level || 'medium',
+            rideshare_potential: v.rideshare_potential || 'medium',
+            lat: v.lat,
+            lng: v.lng,
+            place_id: v.place_id,
+            google_types: v.venue_types || [],
+            distance_miles: haversineDistanceMiles(lat, lng, v.lat, v.lng).toFixed(1),
+            from_cache: true // Flag to indicate cached data
+          };
+        });
+
+        // Apply same filtering as Google Places results
+        // Filter to only $$+ venues with known hours
+        const filteredVenues = rehydrated.filter(v => {
+          if (v.expense_rank < 2) return false;
+          if (v.isOpen === true) return true;
+          if (v.isOpen === false && v.expense_rank >= 3) {
+            v.closed_go_anyway = true;
+            v.closed_reason = "High-value venue - good for staging spillover";
+            return true;
+          }
+          return false; // Skip unknown hours
+        });
+
+        // Sort by open status, expense, then distance
+        filteredVenues.sort((a, b) => {
+          const aOpen = a.isOpen === true;
+          const bOpen = b.isOpen === true;
+          if (aOpen && !bOpen) return -1;
+          if (!aOpen && bOpen) return 1;
+          if ((b.expense_rank || 0) !== (a.expense_rank || 0)) {
+            return (b.expense_rank || 0) - (a.expense_rank || 0);
+          }
+          return parseFloat(a.distance_miles) - parseFloat(b.distance_miles);
+        });
+
+        const lastCallVenues = filteredVenues.filter(v => v.isOpen && v.closing_soon);
+
+        barsLog.complete(`${filteredVenues.length} venues from cache (${filteredVenues.filter(v => v.isOpen).length} open)`);
+
+        return {
+          query_time: new Date().toLocaleTimeString(),
+          location: `${city}, ${state}`,
+          total_venues: filteredVenues.length,
+          venues: filteredVenues,
+          last_call_venues: lastCallVenues,
+          search_sources: ['Database Cache']
+        };
+      }
+    }
+  } catch (cacheErr) {
+    // Non-blocking: if cache lookup fails, fall through to Google Places API
+    barsLog.warn(0, `Cache lookup failed, falling back to API: ${cacheErr.message}`);
+  }
+  // ==========================================================================
+  // END CACHE FIRST PATTERN - Fall through to Google Places API
+  // ==========================================================================
 
   try {
     // Call Google Places API (New) - searchNearby

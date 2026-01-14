@@ -12,7 +12,7 @@
     "dev": "NODE_ENV=development node gateway-server.js",
     "db:push": "drizzle-kit generate && drizzle-kit push",
     "db:migrate": "for f in migrations/*.sql; do echo \"Running $f...\"; psql $DATABASE_URL -f \"$f\"; done",
-    "db:migrate:latest": "psql $DATABASE_URL -f migrations/20260110_rename_event_columns.sql",
+    "db:migrate:latest": "psql $DATABASE_URL -f migrations/20260114_create_places_cache.sql && psql $DATABASE_URL -f migrations/20260114_progressive_enrichment.sql",
     "build": "vite build",
     "dev:client": "vite dev",
     "lint": "eslint client/src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",

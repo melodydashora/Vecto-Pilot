@@ -190,13 +190,40 @@ export async function callModel(role, { system, user }) {
     console.log(`🔄 [FALLBACK] Model:    ${FALLBACK_CONFIG.model}`);
     console.log(`🔄 [FALLBACK] ═══════════════════════════════════════════`);
 
-    const fallbackResult = await callAnthropic({
-      model: FALLBACK_CONFIG.model,
-      system,
-      user,
-      maxTokens: FALLBACK_CONFIG.maxTokens,
-      temperature: FALLBACK_CONFIG.temperature,
-    });
+    // 2026-01-14: FIX - Dynamically route fallback to correct provider based on model prefix
+    // Previously hardcoded to callAnthropic, causing gemini-3-flash-preview to fail
+    const fallbackModel = FALLBACK_CONFIG.model;
+    let fallbackResult;
+
+    if (fallbackModel.startsWith('gemini-')) {
+      // Route to Gemini adapter for gemini-* models
+      fallbackResult = await callGemini({
+        model: fallbackModel,
+        system,
+        user,
+        maxTokens: FALLBACK_CONFIG.maxTokens,
+        temperature: FALLBACK_CONFIG.temperature,
+        useSearch: FALLBACK_CONFIG.features?.includes('google_search') || false,
+      });
+    } else if (fallbackModel.startsWith('gpt-') || fallbackModel.startsWith('o1-')) {
+      // Route to OpenAI adapter for gpt-* and o1-* models
+      fallbackResult = await callOpenAI({
+        model: fallbackModel,
+        system,
+        user,
+        maxTokens: FALLBACK_CONFIG.maxTokens,
+        temperature: fallbackModel.includes('gpt-5') ? undefined : FALLBACK_CONFIG.temperature,
+      });
+    } else {
+      // Default to Anthropic for claude-* models
+      fallbackResult = await callAnthropic({
+        model: fallbackModel,
+        system,
+        user,
+        maxTokens: FALLBACK_CONFIG.maxTokens,
+        temperature: FALLBACK_CONFIG.temperature,
+      });
+    }
 
     const fallbackDuration = Date.now() - fallbackStart;
 
