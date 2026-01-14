@@ -89,17 +89,18 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
 
     // Format briefing for frontend (useStrategy expects camelCase per API contract)
     // 2026-01-10: Fixed snake_case → camelCase for schoolClosures
+    // 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
+    //             Holiday info is now in snapshots table (holiday, is_holiday)
     const briefingData = briefingRow ? {
       events: briefingRow.events || [],
       news: briefingRow.news?.items || briefingRow.news || [],
       traffic: briefingRow.traffic_conditions || {},
-      holidays: briefingRow.holidays || [],
       schoolClosures: briefingRow.school_closures || [],
     } : null;
 
     // Calculate elapsed time
-    const startedAt =
-      strategy.strategy_timestamp ?? strategy.created_at ?? null;
+    // 2026-01-14: Lean strategies - use created_at as canonical timestamp (strategy_timestamp dropped)
+    const startedAt = strategy.created_at ?? null;
     const timeElapsedMs = startedAt
       ? Date.now() - new Date(startedAt).getTime()
       : 0;

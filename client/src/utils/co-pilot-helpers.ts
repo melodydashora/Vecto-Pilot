@@ -460,13 +460,46 @@ export function formatEventDate(eventDate: string | undefined): string {
 }
 
 /**
+ * Convert 24h time string (HH:MM) to 12h AM/PM format
+ * Examples: "15:00" → "3:00 PM", "09:30" → "9:30 AM", "00:00" → "12:00 AM"
+ * 2026-01-14: FIX - Users expect 12h AM/PM format, not military time
+ */
+export function formatEventTime(timeStr?: string): string {
+  if (!timeStr) return '';
+
+  // Handle already-formatted times (contains AM/PM)
+  if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+    return timeStr;
+  }
+
+  // Parse HH:MM format
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr; // Can't parse, return as-is
+
+  const hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+
+  if (isNaN(hours)) return timeStr; // Invalid hour, return as-is
+
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const standardHour = hours % 12 || 12; // Convert 0 → 12, 13 → 1, etc.
+
+  return `${standardHour}:${minutes} ${suffix}`;
+}
+
+/**
  * Format event time range for display
  * Combines start and end time into a readable format
+ * 2026-01-14: FIX - Now converts 24h → 12h AM/PM format
  */
 export function formatEventTimeRange(startTime?: string, endTime?: string): string {
   if (!startTime) return '';
-  if (!endTime) return startTime;
-  return `${startTime} - ${endTime}`;
+
+  const formattedStart = formatEventTime(startTime);
+  if (!endTime) return formattedStart;
+
+  const formattedEnd = formatEventTime(endTime);
+  return `${formattedStart} - ${formattedEnd}`;
 }
 
 // ============================================================================

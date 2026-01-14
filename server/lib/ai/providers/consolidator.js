@@ -180,11 +180,16 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
     // 2026-01-08: Pre-format events (now async to lookup venue hours from venue_catalog)
     const formattedEvents = await formatEventsForLLM(briefing.events, snapshot.timezone);
 
+    // 2026-01-14: FIX - Send full formatted_address and snapshot context to LLM
+    const driverAddress = snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`;
+
     const prompt = `You are a rideshare strategist. Analyze the briefing data and tell the driver what to do RIGHT NOW.
 
 === DRIVER CONTEXT ===
-Location: ${snapshot.city}, ${snapshot.state}
+Address: ${driverAddress}
+City: ${snapshot.city}, ${snapshot.state}
 Coords: ${parseFloat(snapshot.lat).toFixed(6)},${parseFloat(snapshot.lng).toFixed(6)}
+Timezone: ${snapshot.timezone}
 Time: ${localTime} (${snapshot.day_part_key})
 ${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
@@ -491,13 +496,45 @@ function filterEventsToTimeWindow(events, timezone) {
  * @param {Map} venueStatusMap - Optional map of venueName -> { isOpen, reason }
  * @returns {Array} Optimized events for LLM
  */
+/**
+ * 2026-01-14: Convert 24h time (HH:MM) to 12h AM/PM format for LLM clarity
+ * Examples: "19:00" → "7:00 PM", "09:30" → "9:30 AM", "00:00" → "12:00 AM"
+ */
+function formatTime12h(timeStr) {
+  if (!timeStr) return null;
+
+  // Already has AM/PM - return as-is
+  if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+    return timeStr;
+  }
+
+  // Parse HH:MM format
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+
+  const hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+
+  if (isNaN(hours)) return timeStr;
+
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const standardHour = hours % 12 || 12;
+
+  return `${standardHour}:${minutes} ${suffix}`;
+}
+
+/**
+ * 2026-01-14: FIX - Use correct field names from briefing-service.js normalization
+ * Briefing events have: title, venue, event_start_time, event_end_time, event_type
+ * NOT: event_name, name, event_start, category
+ */
 function optimizeEventsForLLM(events, venueStatusMap = null) {
   if (!events || !Array.isArray(events)) return [];
 
   return events.map(event => {
-    // Standardize coordinates to 6 decimals
-    const lat = event.lat ? parseFloat(event.lat).toFixed(6) : null;
-    const lng = event.lng ? parseFloat(event.lng).toFixed(6) : null;
+    // Standardize coordinates to 6 decimals (lat/longitude come from briefing normalization)
+    const lat = event.latitude ? parseFloat(event.latitude).toFixed(6) : null;
+    const lng = event.longitude ? parseFloat(event.longitude).toFixed(6) : null;
 
     // Look up venue open/closed status if we have a map
     const venueName = event.venue_name || event.venue;
@@ -506,24 +543,72 @@ function optimizeEventsForLLM(events, venueStatusMap = null) {
       venueStatus = venueStatusMap.get(venueName.toLowerCase());
     }
 
+    // 2026-01-14: FIX - Use correct field names from briefing-service.js (lines 991-1006)
+    // title (not event_name), event_start_time (not event_start), event_type (not category)
+    // Also format times to 12h AM/PM for LLM clarity (not military time)
     return {
-      name: event.event_name || event.name,
+      // CRITICAL: Include event title so AI knows "Live Band Karaoke" vs generic "Concert"
+      event: event.title,
       venue: venueName,
-      time: event.event_start || event.start_time || event.time,
-      end: event.event_end || event.end_time,
-      category: event.category || event.event_type,
+      // Time window for "right now" context (12h format for LLM clarity)
+      time: formatTime12h(event.event_start_time),
+      end: formatTime12h(event.event_end_time),
+      // Use event_type (normalized category from briefing-service)
+      type: event.event_type || event.category,
       // Only include coords if we have them (6 decimal precision)
       ...(lat && lng ? { coords: `${lat},${lng}` } : {}),
       // Include distance if available
       ...(event.distance_mi ? { distance: `${event.distance_mi}mi` } : {}),
       // 2026-01-08: Include venue open/closed status from venue_catalog.hours_full_week
-      // Guard against undefined venueStatus (use ?. for safe navigation)
       ...(venueStatus?.isOpen != null ? {
         venue_open: venueStatus.isOpen,
         hours_note: venueStatus.reason || ''
       } : {})
       // Deliberately NOT including: source, provider, address (redundant with coords)
     };
+  });
+}
+
+/**
+ * 2026-01-14: "Strategy-Worthy" filter - avoid spamming AI with generic bar events
+ * Only include bar events (live_music, nightlife) if they have a "strong signal"
+ * (not just generic happy hour or drink specials)
+ *
+ * @param {Array} events - Array of event objects
+ * @returns {Array} Filtered events worth including in strategy
+ */
+function filterStrategyWorthyEvents(events) {
+  if (!events || !Array.isArray(events)) return [];
+
+  return events.filter(event => {
+    const category = (event.event_type || event.category || '').toLowerCase();
+    const title = (event.title || '').toLowerCase();
+
+    // Always include major event types
+    const isMajorEvent = ['concert', 'sports', 'community', 'conference'].includes(category);
+    if (isMajorEvent) return true;
+
+    // For bar events (live_music, nightlife), require a "strong signal"
+    const isBarEvent = ['live_music', 'nightlife', 'bar'].includes(category);
+    if (isBarEvent) {
+      // Filter out generic bar noise
+      const isGenericNoise =
+        title.includes('happy hour') ||
+        title.includes('drink special') ||
+        title.includes('specials') ||
+        title.includes('ladies night') ||
+        title === '' ||
+        !event.title; // No title = no signal
+
+      if (isGenericNoise) {
+        return false; // Skip generic bar events
+      }
+      // Has a specific event name (e.g., "Live Band Karaoke") - include it
+      return true;
+    }
+
+    // Include other categories by default
+    return true;
   });
 }
 
@@ -542,8 +627,16 @@ async function formatEventsForLLM(events, timezone) {
     return 'No relevant events in the next 6 hours';
   }
 
+  // 2026-01-14: FIX - Filter out generic bar noise (happy hours, specials)
+  // Only include bar events that have a "strong signal" (specific event title)
+  const strategyWorthy = filterStrategyWorthyEvents(relevantEvents);
+
+  if (strategyWorthy.length === 0) {
+    return 'No significant events in the next 6 hours';
+  }
+
   // Extract venue names for batch lookup
-  const venueNames = relevantEvents
+  const venueNames = strategyWorthy
     .map(e => e.venue_name || e.venue)
     .filter(Boolean);
 
@@ -551,7 +644,7 @@ async function formatEventsForLLM(events, timezone) {
   const venueStatusMap = await batchLookupVenueHours(venueNames, timezone);
 
   // Optimize and format (now includes venue open/closed status)
-  const optimized = optimizeEventsForLLM(relevantEvents, venueStatusMap);
+  const optimized = optimizeEventsForLLM(strategyWorthy, venueStatusMap);
 
   // Limit to 15 most relevant events to save tokens
   const limited = optimized.slice(0, 15);
@@ -734,10 +827,17 @@ export async function runConsolidator(snapshotId, options = {}) {
 
     triadLog.phase(3, `Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, airport=${!!airportData}`);
 
+    // 2026-01-14: FIX - NO FALLBACKS rule - require location data from snapshot
+    // If snapshot is missing required location fields, it's a bug upstream that must be fixed
+    if (!snapshot.city || !snapshot.state) {
+      throw new Error(`Snapshot ${snapshotId} missing required location data (city=${snapshot.city}, state=${snapshot.state})`);
+    }
+
     // Get location/time context from SNAPSHOT (not strategies table)
-    const userAddress = snapshot.formatted_address || 'Unknown location';
-    const cityDisplay = snapshot.city || 'your area';
-    const stateDisplay = snapshot.state || '';
+    // Use formatted_address if available, otherwise construct from city/state
+    const userAddress = snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`;
+    const cityDisplay = snapshot.city;
+    const stateDisplay = snapshot.state;
     const lat = snapshot.lat;
     const lng = snapshot.lng;
 
@@ -775,9 +875,10 @@ export async function runConsolidator(snapshotId, options = {}) {
     const prompt = `You are a STRATEGIC ADVISOR for rideshare drivers. Create a comprehensive "Daily Strategy" covering the next 8-12 hours.
 
 === DRIVER CONTEXT ===
-Location: ${userAddress}
-Coordinates: ${lat}, ${lng}
+Address: ${userAddress}
 City: ${cityDisplay}, ${stateDisplay}
+Coordinates: ${lat}, ${lng}
+Timezone: ${snapshot.timezone}
 Current Time: ${localTime}
 Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
 Day Part: ${dayPart}

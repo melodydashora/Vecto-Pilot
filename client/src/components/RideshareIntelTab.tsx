@@ -56,6 +56,7 @@ import { MarketBoundaryGrid } from "@/components/intel/MarketBoundaryGrid";
 import { MarketDeadheadCalculator } from "@/components/intel/MarketDeadheadCalculator";
 import type { EventMission, AirportMission } from "@/types/tactical-map";
 import type { RegionType } from "@/types/demand-patterns";
+import { formatEventTime } from "@/utils/co-pilot-helpers";
 
 export default function RideshareIntelTab() {
   const { refreshGPS, isUpdating, currentCoords, timeZone } = useLocation();
@@ -125,7 +126,8 @@ export default function RideshareIntelTab() {
         name: e.venue || e.title,
         lat: e.latitude,
         lng: e.longitude,
-        subtitle: e.event_start_time ? `${e.title} - ${e.event_start_time}` : e.title,
+        // 2026-01-14: FIX - Format time as 12h AM/PM instead of 24h military time
+        subtitle: e.event_start_time ? `${e.title} - ${formatEventTime(e.event_start_time)}` : e.title,
         venue: e.venue,
         eventDate: e.event_start_date,
         eventTime: e.event_start_time,

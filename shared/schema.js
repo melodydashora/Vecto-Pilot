@@ -59,7 +59,7 @@ export const snapshots = pgTable("snapshots", {
   // API-enriched contextual data only
   weather: jsonb("weather"),
   air: jsonb("air"),
-  airport_context: jsonb("airport_context"),
+  // 2026-01-14: airport_context dropped - airport data now lives in briefings.airport_conditions
   // NOTE: local_news, news_briefing, extras, trigger_reason, device removed Dec 2025
   // - briefing data is now in separate 'briefings' table
   // - trigger_reason moved to strategies table
@@ -69,38 +69,34 @@ export const snapshots = pgTable("snapshots", {
   is_holiday: boolean("is_holiday").notNull().default(false), // Boolean flag: true if today is a holiday
 });
 
+// 2026-01-14: LEAN STRATEGIES TABLE
+// This table stores ONLY the AI's strategic output linked to a snapshot.
+// All location/time context lives in snapshots table.
+// All briefing data lives in briefings table.
+// Dropped columns (see migration 20260114_lean_strategies_table.sql):
+//   strategy_id, correlation_id, strategy (legacy), error_code, attempt,
+//   latency_ms, tokens, next_retry_at, model_name, trigger_reason,
+//   valid_window_start, valid_window_end, strategy_timestamp
 export const strategies = pgTable("strategies", {
   id: uuid("id").primaryKey().defaultRandom(),
-  strategy_id: uuid("strategy_id"),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
-  correlation_id: uuid("correlation_id"),
-  strategy: text("strategy"),
-  // 2026-01-10: S-004 FIX - Documented actual status values (see status-constants.js)
-  // State machine: pending → running → ok | pending_blocks → ok | failed
-  status: text("status").notNull().default("pending"), // pending|running|ok|pending_blocks|failed
-  phase: text("phase").default("starting"), // starting|resolving|analyzing|consolidator|venues|enriching|complete
-  phase_started_at: timestamp("phase_started_at", { withTimezone: true }), // When current phase started (for progress calculation)
-  trigger_reason: text("trigger_reason"), // 'initial' | 'retry' | 'refresh' - why strategy was generated
-  error_code: integer("error_code"),
-  error_message: text("error_message"),
-  attempt: integer("attempt").notNull().default(1),
-  latency_ms: integer("latency_ms"),
-  tokens: integer("tokens"),
-  next_retry_at: timestamp("next_retry_at", { withTimezone: true }),
-  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  // Model version tracking for A/B testing and rollback capability
-  model_name: text("model_name"), // e.g., 'gemini-3-pro→gpt-5.2'
   user_id: uuid("user_id"),
 
-  // Time windowing (freshness-first spec compliance)
-  valid_window_start: timestamp("valid_window_start", { withTimezone: true }),
-  valid_window_end: timestamp("valid_window_end", { withTimezone: true }),
-  strategy_timestamp: timestamp("strategy_timestamp", { withTimezone: true }),
+  // State machine: pending → running → ok | pending_blocks → ok | failed
+  status: text("status").notNull().default("pending"), // pending|running|ok|pending_blocks|failed
+  phase: text("phase").default("starting"), // starting|resolving|analyzing|immediate|venues|routing|places|verifying|complete
+  phase_started_at: timestamp("phase_started_at", { withTimezone: true }), // When current phase started (for progress calculation)
 
-  // Strategy outputs
-  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour strategy (GPT-5.2)
-  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (user-request only)
+  // Error tracking
+  error_message: text("error_message"),
+
+  // Strategy outputs - THE PRODUCT
+  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour tactical strategy (GPT-5.2)
+  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (on-demand via Briefing tab)
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // Briefing data from Perplexity Sonar Pro + Gemini 3.0 Pro with Google Search
@@ -118,6 +114,11 @@ export const briefings = pgTable("briefings", {
   events: jsonb("events"), // Local events: concerts, sports, festivals, nightlife, comedy
   school_closures: jsonb("school_closures"), // School district & college closures/reopenings
   airport_conditions: jsonb("airport_conditions"), // Airport: delays, arrivals, busy periods, recommendations
+
+  // === METADATA ===
+  holiday: text("holiday"), // Holiday name if applicable (from snapshot context)
+  status: text("status"), // Briefing status: pending, complete, error
+  generated_at: timestamp("generated_at", { withTimezone: true }), // When briefing was fully generated
 
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

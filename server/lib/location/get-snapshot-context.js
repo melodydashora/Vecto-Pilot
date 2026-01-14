@@ -62,8 +62,8 @@ export async function getSnapshotContext(snapshotId, options = {}) {
     is_holiday: snapshot.is_holiday,
     // Conditions (needed for strategist prompt)
     weather: snapshot.weather,
-    air: snapshot.air,
-    airport_context: snapshot.airport_context
+    air: snapshot.air
+    // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
   };
 
   console.log('[getSnapshotContext] ✅ Retrieved snapshot context:', {
@@ -81,8 +81,7 @@ export async function getSnapshotContext(snapshotId, options = {}) {
     day_part_key: ctx.day_part_key,
     is_holiday: ctx.is_holiday,
     weather: ctx.weather ? { tempF: ctx.weather.tempF, conditions: ctx.weather.conditions } : null,
-    air: ctx.air ? { aqi: ctx.air.aqi, category: ctx.air.category } : null,
-    airport: ctx.airport_context?.airport_code || null
+    air: ctx.air ? { aqi: ctx.air.aqi, category: ctx.air.category } : null
   });
 
   return ctx;
@@ -140,10 +139,10 @@ export async function getFullSnapshot(snapshotId) {
 
     // Enriched data
     weather: snapshot.weather,
-    air: snapshot.air,
-    airport_context: snapshot.airport_context
+    air: snapshot.air
+    // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
   };
-  
+
   console.log('[getFullSnapshot] ✅ Retrieved FULL snapshot:', {
     snapshot_id: ctx.snapshot_id,
     city: ctx.city,
@@ -157,8 +156,7 @@ export async function getFullSnapshot(snapshotId) {
     dow: ctx.dow,
     day_part_key: ctx.day_part_key,
     weather: ctx.weather ? { tempF: ctx.weather.tempF, conditions: ctx.weather.conditions } : null,
-    air: ctx.air ? { aqi: ctx.air.aqi, category: ctx.air.category } : null,
-    airport_context: ctx.airport_context ? { code: ctx.airport_context.airport_code } : null
+    air: ctx.air ? { aqi: ctx.air.aqi, category: ctx.air.category } : null
   });
   
   return ctx;

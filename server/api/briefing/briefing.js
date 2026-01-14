@@ -1001,16 +1001,31 @@ router.post('/discover-events/:snapshotId', expensiveEndpointLimiter, requireAut
     const snapshot = req.snapshot;
     const isDaily = req.query.daily !== 'false'; // Default to daily (all models)
 
+    // 2026-01-14: FIX - Get user's local date from snapshot timezone (not server date)
+    // This matches the fix in /refresh-daily endpoint
+    if (!snapshot.timezone) {
+      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for discover-events', { snapshot_id: snapshot.snapshot_id });
+      return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+    }
+    const userTimezone = snapshot.timezone;
+    const userLocalDate = snapshot.local_iso
+      ? new Date(snapshot.local_iso).toISOString().split('T')[0]
+      : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
+
     console.log(`[BriefingRoute] POST /discover-events/${snapshot.snapshot_id} - isDaily=${isDaily}`);
     console.log(`[BriefingRoute] Location: ${snapshot.city}, ${snapshot.state} (${snapshot.lat}, ${snapshot.lng})`);
+    console.log(`[BriefingRoute] User timezone: ${userTimezone}, local date: ${userLocalDate}`);
 
-    // Run event discovery with snapshot location
+    // Run event discovery with snapshot location AND user's local date
     const result = await syncEventsForLocation({
       city: snapshot.city,
       state: snapshot.state,
       lat: snapshot.lat,
       lng: snapshot.lng
-    }, isDaily);
+    }, isDaily, {
+      userLocalDate,
+      todayOnly: false  // Full 7-day window for this endpoint
+    });
 
     console.log(`[BriefingRoute] ✅ Event discovery complete: ${result.events.length} found, ${result.inserted} inserted`);
 

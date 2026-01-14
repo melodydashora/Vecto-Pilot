@@ -1750,7 +1750,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         aqi: snapshotV1.air.aqi,
         category: snapshotV1.air.category
       } : null,
-      airport_context: airportContext,
+      // 2026-01-14: airport_context dropped - now stored in briefings.airport_conditions
       holiday: holidayInfo.holiday,
       is_holiday: holidayInfo.is_holiday,
       permissions: snapshotV1.permissions || null,
@@ -1816,7 +1816,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     console.log('  → TIME: date=%s hour=%s dow=%s day_part=%s', dbSnapshot.date, dbSnapshot.hour, dbSnapshot.dow, dbSnapshot.day_part_key);
     console.log('  → weather:', dbSnapshot.weather);
     console.log('  → air:', dbSnapshot.air);
-    console.log('  → airport_context:', dbSnapshot.airport_context);
+    // 2026-01-14: airport_context moved to briefings.airport_conditions
     
     try {
       // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
@@ -1955,7 +1955,7 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
       state: state || address.split(',')[1]?.trim() || null,
       timezone: null, // Will be resolved via Google Timezone API if needed
       created_at: new Date().toISOString(),
-      airport_context: null // Will be determined by Gemini
+      // 2026-01-14: airport_context now in briefings.airport_conditions
     };
 
     // Generate news briefing using briefing-service

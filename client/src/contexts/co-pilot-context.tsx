@@ -369,7 +369,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
     const consolidatedStrategy = strategyData?.strategy?.consolidated;
-    const strategyForNow = strategyData?.strategy?.strategy_for_now;
+    // 2026-01-14: FIX - Server returns camelCase 'strategyForNow', not snake_case 'strategy_for_now'
+    // This was causing strategy_for_now to always be undefined in the UI
+    const strategyForNow = strategyData?.strategy?.strategyForNow;
 
     if (consolidatedStrategy && consolidatedStrategy !== persistentStrategy) {
       localStorage.setItem(STORAGE_KEYS.PERSISTENT_STRATEGY, consolidatedStrategy);

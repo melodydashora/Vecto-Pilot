@@ -1,6 +1,6 @@
 
 import { db } from '../../db/drizzle.js';
-import { briefings, snapshots, discovered_events, us_market_cities } from '../../../shared/schema.js';
+import { briefings, snapshots, discovered_events, us_market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, and, desc, sql, gte, lte, ilike, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 // Event validation disabled - Gemini handles event discovery, Claude is fallback only
@@ -23,8 +23,12 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
 import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
 import { generateEventHash } from '../events/pipeline/hashEvent.js';
 
-// 2026-01-14: Removed stale venue-linker.js import (file never existed)
-// Venue linking uses findOrCreateVenue from venue-cache.js if needed
+// 2026-01-14: FIX - Import venue lookup for event-venue linking at discovery time
+// This ensures discovered_events.venue_id is populated, enabling:
+// - Events on map (coordinates from venue)
+// - Event badges on venue cards
+// - Precise location data in strategies
+import { lookupVenueFuzzy } from '../venue/venue-cache.js';
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 // 2026-01-14: Moved TomTom to server/lib/traffic/ for architecture cleanup
@@ -224,7 +228,17 @@ Return a JSON array of events with this format (max 3 events):
 
 Return an empty array [] if no events found.`;
 
-    const system = `You are an event search assistant. Search the web for local events and return structured JSON data. Only include events happening TODAY. Be accurate with venue names and times.`;
+    // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
+    const system = `You are an event search assistant. Search the web for local events and return structured JSON data. Only include events happening TODAY. Be accurate with venue names and times.
+
+STRICT CATEGORIZATION RULES (MUST FOLLOW):
+- concert: ONLY for ticketed performances at dedicated music venues, theaters, arenas, or stadiums.
+- live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges. NEVER tag these as 'concert'.
+- nightlife: For club nights, karaoke, trivia, themed bar parties. NEVER tag bar events as 'community'.
+- community: ONLY for public/civic gatherings (markets, library events).
+- sports: Official league games (High School, NBA, NHL, NFL, MLB, MLS).
+
+DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
 
     try {
       // Uses BRIEFING_FALLBACK role (Claude with web_search) for parallel event discovery
@@ -693,7 +707,18 @@ Return JSON array (max 3 events):
 Return [] if none found.`;
 
   try {
-    const system = `You are an event discovery assistant. Search for local events and return structured JSON data.`;
+    // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
+    // This ensures bars with live music are tagged as "live_music", not "concert"
+    const system = `You are an event discovery assistant. Search for local events and return structured JSON data.
+
+STRICT CATEGORIZATION RULES (MUST FOLLOW):
+- concert: ONLY for ticketed performances at dedicated music venues, theaters, arenas, or stadiums (e.g., American Airlines Center, Toyota Stadium).
+- live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges (e.g., "Live Band at Sidecar Social", "Jazz at Snowbird"). NEVER tag these as 'concert'.
+- nightlife: For club nights, karaoke, trivia, themed bar parties (e.g., "Music Bingo at MVP's"). NEVER tag bar events as 'community'.
+- community: ONLY for public/civic gatherings (markets, library events, city council).
+- sports: Official league games (High School, NBA, NHL, NFL, MLB, MLS).
+
+DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
     // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
     const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user: prompt });
 
@@ -932,6 +957,27 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       for (const event of validatedEvents) {
         try {
           const hash = generateEventHash(event);
+
+          // 2026-01-14: FIX - Link event to venue at discovery time
+          // This populates venue_id, enabling map pins and event badges
+          let venueId = null;
+          if (event.venue_name) {
+            try {
+              const matchedVenue = await lookupVenueFuzzy({
+                venueName: event.venue_name,
+                city: city,
+                state: state
+              });
+              if (matchedVenue) {
+                venueId = matchedVenue.venue_id;
+                briefingLog.info(`🔗 Linked "${event.title}" → "${matchedVenue.venue_name}"`);
+              }
+            } catch (lookupErr) {
+              // Non-fatal - continue without link
+              briefingLog.warn(2, `Venue lookup failed for "${event.venue_name}": ${lookupErr.message}`, OP.DB);
+            }
+          }
+
           // 2026-01-10: Use normalized field names (event is already normalized by normalizeEvent)
           // Removed: lat, lng, zip, source_url, raw_source_data (geocoding happens in venue_catalog)
           await db.insert(discovered_events).values({
@@ -940,6 +986,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             address: event.address,
             city: city,
             state: state,
+            venue_id: venueId,  // 2026-01-14: FIX - Link to venue_catalog for coords/map
             event_start_date: event.event_start_date,
             event_start_time: event.event_start_time,
             event_end_time: event.event_end_time,
@@ -950,7 +997,11 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             event_hash: hash
           }).onConflictDoUpdate({
             target: discovered_events.event_hash,
-            set: { updated_at: sql`NOW()` }
+            set: {
+              updated_at: sql`NOW()`,
+              // 2026-01-14: Also update venue_id on conflict (in case venue was added later)
+              venue_id: venueId || discovered_events.venue_id
+            }
           });
         } catch (insertErr) {
           // Ignore individual insert errors (duplicates, etc.)
@@ -966,11 +1017,33 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   }
 
   // Read events from discovered_events table for this city/state and date range
+  // 2026-01-14: JOIN with venue_catalog to get coordinates for map display
   try {
     // 2026-01-10: Use symmetric field names (event_start_date)
     // 2026-01-10: Added NOT NULL filters to exclude broken events from UI
-    const events = await db.select()
+    // 2026-01-14: LEFT JOIN with venue_catalog to get venue coordinates
+    const events = await db.select({
+      // Event fields
+      id: discovered_events.id,
+      title: discovered_events.title,
+      venue_name: discovered_events.venue_name,
+      address: discovered_events.address,
+      city: discovered_events.city,
+      state: discovered_events.state,
+      venue_id: discovered_events.venue_id,
+      event_start_date: discovered_events.event_start_date,
+      event_start_time: discovered_events.event_start_time,
+      event_end_time: discovered_events.event_end_time,
+      category: discovered_events.category,
+      expected_attendance: discovered_events.expected_attendance,
+      source_model: discovered_events.source_model,
+      // Venue coordinates from join (may be null if not linked)
+      venue_lat: venue_catalog.lat,
+      venue_lng: venue_catalog.lng,
+      venue_address: venue_catalog.address
+    })
       .from(discovered_events)
+      .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
       .where(and(
         eq(discovered_events.city, city),
         eq(discovered_events.state, state),
@@ -987,7 +1060,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
     if (events.length > 0) {
       // Map discovered_events format to the briefing events format
       // 2026-01-10: DB columns are now event_start_date, event_start_time
-      // BriefingEvent output uses event_start_date, event_start_time for consistency
+      // 2026-01-14: Coordinates now come from linked venue_catalog (not deprecated event.lat/lng)
       const normalizedEvents = events.map(e => ({
         title: e.title,
         summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
@@ -998,11 +1071,15 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         event_start_date: e.event_start_date,
         event_start_time: e.event_start_time,
         event_end_time: e.event_end_time,
-        address: e.address,
+        // 2026-01-14: Prefer venue address from catalog (more accurate)
+        address: e.venue_address || e.address,
         venue: e.venue_name,
-        location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
-        latitude: e.lat,
-        longitude: e.lng
+        location: e.venue_name ? `${e.venue_name}, ${e.venue_address || e.address || ''}`.trim() : e.address,
+        // 2026-01-14: FIX - Get coordinates from linked venue (enables map pins!)
+        latitude: e.venue_lat,
+        longitude: e.venue_lng,
+        // Include venue_id for debugging/linking verification
+        venue_id: e.venue_id
       }));
 
       // 2026-01-05: Deduplicate events with similar names, addresses, and times

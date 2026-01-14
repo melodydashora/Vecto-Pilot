@@ -47,14 +47,15 @@ export class CoachDAL {
    */
   async resolveStrategyToSnapshot(strategyId) {
     try {
+      // 2026-01-14: FIX - Use 'id' instead of dropped 'strategy_id' column
       const [strat] = await db
         .select({
+          id: strategies.id,
           snapshot_id: strategies.snapshot_id,
-          user_id: strategies.user_id,
-          strategy_id: strategies.strategy_id
+          user_id: strategies.user_id
         })
         .from(strategies)
-        .where(eq(strategies.strategy_id, strategyId))
+        .where(eq(strategies.id, strategyId))
         .limit(1);
 
       if (!strat) return null;
@@ -70,7 +71,7 @@ export class CoachDAL {
         snapshot_id: strat.snapshot_id,
         user_id: strat.user_id,
         session_id: snap?.session_id || null,
-        strategy_id: strat.strategy_id
+        strategy_id: strat.id  // Return id as strategy_id for backwards compatibility
       };
     } catch (error) {
       console.error('[CoachDAL] resolveStrategyToSnapshot error:', error);
@@ -93,7 +94,7 @@ export class CoachDAL {
           created_at: snapshots.created_at,
           weather: snapshots.weather,
           air: snapshots.air,
-          airport_context: snapshots.airport_context,
+          // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
           // TIME CONTEXT - READ FROM SNAPSHOT (authoritative)
           dow: snapshots.dow,
           hour: snapshots.hour,
@@ -150,7 +151,7 @@ export class CoachDAL {
         lng: userData?.new_lng ?? userData?.lng ?? snap.lng,
         weather: snap.weather,
         air: snap.air,
-        airport_context: snap.airport_context,
+        // 2026-01-14: airport_context dropped - get from briefings.airport_conditions if needed
       };
     } catch (error) {
       console.error('[CoachDAL] getHeaderSnapshot error:', error);
@@ -166,20 +167,20 @@ export class CoachDAL {
   async getLatestStrategy(snapshotId) {
     try {
       // Fetch strategy and snapshot together (location/time context now in snapshot)
+      // 2026-01-14: FIX - Removed strategy_timestamp and model_name (columns dropped)
+      // Use created_at for ordering instead
       const [strat] = await db
         .select({
           snapshot_id: strategies.snapshot_id,
           user_id: strategies.user_id,
           consolidated_strategy: strategies.consolidated_strategy,
           strategy_for_now: strategies.strategy_for_now,
-          strategy_timestamp: strategies.strategy_timestamp,
           created_at: strategies.created_at,
-          model_name: strategies.model_name,
           status: strategies.status,
         })
         .from(strategies)
         .where(eq(strategies.snapshot_id, snapshotId))
-        .orderBy(desc(strategies.strategy_timestamp), desc(strategies.created_at))
+        .orderBy(desc(strategies.created_at))
         .limit(1);
 
       if (!strat) return null;
@@ -196,18 +197,18 @@ export class CoachDAL {
         .where(eq(snapshots.snapshot_id, snapshotId))
         .limit(1);
 
+      // 2026-01-14: Lean strategies table - removed strategy_timestamp and model_name columns
       return {
         snapshot_id: strat.snapshot_id,
         user_id: strat.user_id,
         strategy_text: strat.consolidated_strategy || strat.strategy_for_now || null,
         strategy_for_now: strat.strategy_for_now,
         consolidated_strategy: strat.consolidated_strategy,
-        strategy_timestamp: strat.strategy_timestamp?.toISOString() || strat.created_at?.toISOString() || null,
+        strategy_timestamp: strat.created_at?.toISOString() || null,  // Use created_at as canonical timestamp
         holiday: snapshot?.holiday || null,
         user_address: snapshot?.formatted_address || null,
         user_city: snapshot?.city || null,
         user_state: snapshot?.state || null,
-        model_name: strat.model_name,
         status: strat.status,
       };
     } catch (error) {
@@ -342,8 +343,9 @@ export class CoachDAL {
   }
 
   /**
-   * Get briefing data (events, traffic, news, holidays) from briefings table
+   * Get briefing data (events, traffic, news) from briefings table
    * NOTE: Briefing data is in separate `briefings` table, NOT in strategies table
+   * NOTE: Holiday info is in snapshots table (holiday, is_holiday), not briefings
    * @param {string} snapshotId - Snapshot ID to scope reads
    * @returns {Promise<Object>} Briefing data
    */
@@ -360,15 +362,15 @@ export class CoachDAL {
           events: [],
           traffic: [],
           news: [],
-          holidays: [],
         };
       }
 
+      // 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
+      // Holiday info is now in snapshots table (holiday, is_holiday)
       return {
         events: briefingRecord.events || [],
         traffic: briefingRecord.traffic_conditions || {},
         news: briefingRecord.news || { items: [] },
-        holidays: briefingRecord.holidays || [],
         school_closures: briefingRecord.school_closures || [],
       };
     } catch (error) {
@@ -377,7 +379,6 @@ export class CoachDAL {
         events: [],
         traffic: [],
         news: [],
-        holidays: [],
       };
     }
   }
@@ -983,10 +984,11 @@ export class CoachDAL {
         if (snapshot.air.pollutants) prompt += `\n   Pollutants: ${JSON.stringify(snapshot.air.pollutants).substring(0, 100)}`;
       }
 
-      // Airport Conditions
-      if (snapshot.airport_context?.airports && snapshot.airport_context.airports.length > 0) {
+      // Airport Conditions - now in briefings.airport_conditions (not snapshot)
+      // 2026-01-14: airport_context dropped from snapshots, get from briefing if passed
+      if (briefing?.airport_conditions?.airports && briefing.airport_conditions.airports.length > 0) {
         prompt += `\n\n✈️  AIRPORT CONDITIONS (30-mile radius)`;
-        snapshot.airport_context.airports.slice(0, 3).forEach(a => {
+        briefing.airport_conditions.airports.slice(0, 3).forEach(a => {
           prompt += `\n   ${a.name || 'Unknown'} (${a.code || 'N/A'}): ${a.distance_miles?.toFixed(1) || 'N/A'}mi`;
           if (a.delays) prompt += ` - DELAYS: ${a.delays}`;
           if (a.closures) prompt += ` - CLOSURES: ${a.closures}`;

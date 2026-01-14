@@ -33,12 +33,6 @@ id:
 snapshot_id:
   "${lastStrategy.snapshot_id}"
 
-strategy_id:
-  "${lastStrategy.strategy_id || '(null)'}"
-
-correlation_id:
-  "${lastStrategy.correlation_id || '(null)'}"
-
 user_id:
   "${lastStrategy.user_id || '(null)'}"
 
@@ -48,11 +42,11 @@ status:
 phase:
   "${lastStrategy.phase || '(null)'}"
 
-trigger_reason:
-  "${lastStrategy.trigger_reason || '(null)'}"
+phase_started_at:
+  "${lastStrategy.phase_started_at || '(null)'}"
 
-model_name:
-  "${lastStrategy.model_name || '(null)'}"
+error_message:
+  "${lastStrategy.error_message || '(null)'}"
 
 strategy_for_now:
   ${lastStrategy.strategy_for_now ? JSON.stringify(lastStrategy.strategy_for_now, null, 2) : '(null)'}
@@ -60,41 +54,16 @@ strategy_for_now:
 consolidated_strategy:
   ${lastStrategy.consolidated_strategy ? JSON.stringify(lastStrategy.consolidated_strategy, null, 2) : '(null)'}
 
-error_code:
-  ${lastStrategy.error_code || '(null)'}
-
-error_message:
-  "${lastStrategy.error_message || '(null)'}"
-
-attempt:
-  ${lastStrategy.attempt}
-
-latency_ms:
-  ${lastStrategy.latency_ms || '(null)'}
-
-tokens:
-  ${lastStrategy.tokens || '(null)'}
-
-phase_started_at:
-  "${lastStrategy.phase_started_at || '(null)'}"
-
-strategy_timestamp:
-  "${lastStrategy.strategy_timestamp || '(null)'}"
-
-valid_window_start:
-  "${lastStrategy.valid_window_start || '(null)'}"
-
-valid_window_end:
-  "${lastStrategy.valid_window_end || '(null)'}"
-
 created_at:
   "${lastStrategy.created_at}"
 
 updated_at:
   "${lastStrategy.updated_at}"
 
-next_retry_at:
-  "${lastStrategy.next_retry_at || '(null)'}"
+-- NOTE: Columns dropped in 20260114_lean_strategies_table.sql:
+-- strategy_id, correlation_id, strategy, error_code, attempt, next_retry_at,
+-- latency_ms, tokens, model_name, trigger_reason, valid_window_start,
+-- valid_window_end, strategy_timestamp
 
 `;
 
