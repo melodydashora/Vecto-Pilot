@@ -350,14 +350,14 @@ DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
 
 /**
  * Analyze TomTom traffic data with AI for strategic, driver-focused summary
- * Model-agnostic: Uses configured STRATEGY_TRAFFIC_ANALYZER model or defaults to Gemini Flash
- * Gemini Flash: $0.50/M input - cost-effective for high-volume traffic analysis
+ * 2026-01-15: Single Briefer Model Architecture - all briefing roles use Gemini Pro
+ * Uses BRIEFING_TRAFFIC_MODEL env var or defaults to Gemini 3 Pro Preview
  * @param {Object} params - { tomtomData, city, state, formattedAddress, driverLat, driverLon }
  */
 async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress, driverLat, driverLon }) {
-  // Default to Gemini Flash for traffic analysis (fast, cheap, good at structured output)
-  // NOTE: Model ID must include "-preview" suffix (gemini-3-flash is not valid)
-  const trafficModel = process.env.STRATEGY_TRAFFIC_ANALYZER || 'gemini-3-flash-preview';
+  // 2026-01-15: Single Briefer Model - Gemini 3 Pro for consistent quality across briefings
+  // NOTE: Model ID must include "-preview" suffix (gemini-3-pro is not valid)
+  const trafficModel = process.env.BRIEFING_TRAFFIC_MODEL || 'gemini-3-pro-preview';
 
   if (!process.env.GEMINI_API_KEY && trafficModel.startsWith('gemini')) {
     briefingLog.warn(1, `Traffic analyzer unavailable - no GEMINI_API_KEY`, OP.FALLBACK);
@@ -365,7 +365,7 @@ async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress,
   }
 
   const startTime = Date.now();
-  const modelLabel = trafficModel.includes('flash') ? 'Gemini Flash' : trafficModel.split('-').slice(0, 2).join(' ');
+  const modelLabel = trafficModel.includes('flash') ? 'Gemini Flash' : 'Gemini Pro';
   briefingLog.ai(1, modelLabel, `analyzing traffic for ${city}, ${state}`);
 
   try {

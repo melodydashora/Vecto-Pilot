@@ -201,6 +201,7 @@ Override any role's model via environment variable:
 ```bash
 # Override specific roles
 BRIEFING_WEATHER_MODEL=gemini-3-flash-preview
+BRIEFING_TRAFFIC_MODEL=gemini-3-pro-preview  # 2026-01-15: Single Briefer Model default
 STRATEGY_CORE_MODEL=claude-sonnet-4-5-20250929
 VENUE_FILTER_MODEL=claude-haiku-4-5-20251201
 
