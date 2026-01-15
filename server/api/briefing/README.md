@@ -115,13 +115,11 @@ Reads events from `discovered_events` table for snapshot's city/state, next 7 da
       "title": "Taylor Swift - Eras Tour",
       "venue": "AT&T Stadium",
       "address": "1 AT&T Way, Arlington, TX",
-      "event_date": "2024-12-15",
-      "event_time": "7:00 PM",
+      "event_start_date": "2026-01-15",
+      "event_start_time": "7:00 PM",
       "event_end_time": "11:00 PM",
       "impact": "high",
-      "subtype": "concert",
-      "latitude": 32.7473,
-      "longitude": -97.0945
+      "subtype": "concert"
     }
   ],
   "reason": null,

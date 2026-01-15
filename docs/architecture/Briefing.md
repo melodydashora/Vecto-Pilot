@@ -120,10 +120,12 @@ The briefing workflow provides real-time intelligence to rideshare drivers:
 | id | uuid | Primary key |
 | city, state | text | Event location |
 | title | text | Event name |
-| event_date | date | Event date |
-| event_time | text | Start time |
+| event_start_date | text | Event date (YYYY-MM-DD) - **renamed 2026-01-10** |
+| event_start_time | text | Start time - **renamed 2026-01-10** |
+| event_end_date | text | End date (for multi-day events) |
+| event_end_time | text | End time |
 | venue_name | text | Venue name |
-| lat, lng | double | Venue coordinates |
+| venue_id | uuid | FK to venue_catalog (coordinates now there) |
 | is_active | boolean | Whether event is active |
 
 ## Data Structures

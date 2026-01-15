@@ -264,6 +264,10 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-030c | 2026-01-10 | `server/validation/transformers.js` | Added `closedGoAnyway`, `closedReason` with snake/camel tolerance; made `isOpen` tolerant |
 | D-030d | 2026-01-10 | `migrations/20260110_rename_event_columns.sql` | Created migration: `event_date` → `event_start_date`, `event_time` → `event_start_time` |
 | D-032 | 2026-01-14 | `CLAUDE.md:Rule 8` | Fixed AI Coach write access table names: `venue_catalogue`→`venue_catalog`, `market_information`→`market_intelligence`, `user_notes`→`user_intel_notes`; removed non-existent tables (`school_event_intel`, `traffic_road_closures`); added note about JSONB columns for traffic/school data |
+| D-033 | 2026-01-15 | `scripts/db-detox.js:127-132,261,277` | Fixed SQL queries using legacy column names: `event_time`→`event_start_time`, `event_date`→`event_start_date` |
+| D-034 | 2026-01-15 | `server/api/coach/schema.js:38` | Fixed key_columns array: `event_date`→`event_start_date`, `event_time`→`event_start_time` |
+| D-035 | 2026-01-15 | `shared/README.md:49-50` | Updated discovered_events schema documentation to show current columns after D-030 migration |
+| D-036 | 2026-01-15 | Multiple architecture docs | Updated `event_date`/`event_time` → `event_start_date`/`event_start_time` in: `ai-coach.md:82`, `Briefing.md:123-124`, `event-discovery.md:97-98,174-175`, `server/api/briefing/README.md:118-119` |
 
 ---
 

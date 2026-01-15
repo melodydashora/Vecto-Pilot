@@ -35,7 +35,8 @@ export const coachSchemaMetadata = {
     },
     discovered_events: {
       description: "Local events (concerts, sports, festivals, etc.)",
-      key_columns: ["id", "title", "venue_name", "event_date", "event_time", "city", "category", "is_active"],
+      // 2026-01-15: Fixed column names - renamed from event_date/event_time to event_start_date/event_start_time
+      key_columns: ["id", "title", "venue_name", "event_start_date", "event_start_time", "city", "category", "is_active"],
       sample_query: "Find events happening tonight",
       notes: "Use discovered_at for sorting (not created_at)"
     },
