@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-15
 
 # Components (`client/src/components/`)
 
@@ -11,6 +11,7 @@ React UI components organized by feature area.
 ```
 components/
 ├── GlobalHeader.tsx       # Header: location, weather, time
+├── CriticalError.tsx      # Blocking error modal (FAIL HARD pattern)
 ├── CoachChat.tsx          # AI Strategy Coach with voice
 ├── BriefingTab.tsx        # Events, traffic, news, weather
 ├── BarsTable.tsx          # Venue table display
@@ -36,6 +37,7 @@ components/
 | Component | LOC | Used By |
 |-----------|-----|---------|
 | `GlobalHeader.tsx` | 488 | CoPilotLayout.tsx |
+| `CriticalError.tsx` | 142 | co-pilot-context.tsx |
 | `CoachChat.tsx` | 535 | StrategyPage.tsx |
 | `BriefingTab.tsx` | 466 | BriefingPage.tsx |
 | `BarsTable.tsx` | 400 | BarsPage.tsx |
@@ -64,6 +66,55 @@ components/
 - **Rendered by:** `../pages/co-pilot/*.tsx`
 
 ## Key Implementation Details
+
+### CriticalError.tsx - Blocking Error Modal (FAIL HARD Pattern)
+
+**Added:** 2026-01-15
+
+Full-screen blocking modal that replaces the entire dashboard when the app enters an unrecoverable state. Part of the "FAIL HARD" pattern - never show partial/degraded UI with missing critical data.
+
+**Error Types:**
+| Type | When Triggered | User Message |
+|------|----------------|--------------|
+| `snapshot_missing` | Snapshot fetch returns 4xx/5xx | "Session Data Missing" |
+| `snapshot_incomplete` | Snapshot missing city or timezone | "Incomplete Location Data" |
+| `location_failed` | GPS resolution times out (30s) | "Location Resolution Failed" |
+| `auth_failed` | Session expired or invalid | "Authentication Required" |
+| `unknown` | Catch-all for unexpected errors | "Something Went Wrong" |
+
+**Usage:**
+```typescript
+// In co-pilot-context.tsx
+const [criticalError, setCriticalError] = useState<{
+  type: CriticalErrorType;
+  message?: string;
+  details?: string;
+} | null>(null);
+
+// When error detected, set criticalError
+if (snapshotError) {
+  setCriticalError({ type: 'snapshot_missing', message: snapshotError.message });
+}
+
+// Provider renders CriticalError INSTEAD of children when error set
+if (criticalError) {
+  return (
+    <CriticalError
+      type={criticalError.type}
+      message={criticalError.message}
+      onRetry={handleClearError}
+    />
+  );
+}
+```
+
+**Actions Available:**
+- **Try Again**: Calls `onRetry` callback (clears error state and allows fresh retry)
+- **Sign Out & Start Fresh**: Clears localStorage/sessionStorage and redirects to `/`
+
+**Key Principle:** If critical data is missing, the app cannot function correctly. Showing "Unknown Location" or empty strategies just delays failure and confuses debugging. FAIL HARD = show blocking modal, force user to retry.
+
+**See Also:** `LESSONS_LEARNED.md` > "FAIL HARD Pattern for Critical Data"
 
 ### BarsTable.tsx - Venue Open/Closed Status
 

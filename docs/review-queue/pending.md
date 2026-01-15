@@ -1396,4 +1396,52 @@ The following items have been addressed and consolidated into `../reviewed-queue
 
 ---
 
+## 2026-01-15 Analysis
+
+**Generated:** 2026-01-15T02:11:56.920Z
+**Branch:** main
+**Last Commit:** 3e0a1115 Published your App
+
+### Recent Commit Changes (40)
+| File | Status |
+|------|--------|
+| `LESSONS_LEARNED.md` | Modified |
+| `client/src/components/BarsMainTab.tsx` | Modified |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/DonationTab.tsx` | Modified |
+| `client/src/components/FeedbackModal.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/intel/TacticalStagingMap.tsx` | Modified |
+| `client/src/constants/apiRoutes.ts` | Modified |
+| `client/src/contexts/auth-context.tsx` | Modified |
+| `client/src/contexts/co-pilot-context.tsx` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/features/strategy/README.md` | Modified |
+| `client/src/hooks/README.md` | Modified |
+| `client/src/hooks/useBarsQuery.ts` | Modified |
+| `client/src/hooks/useBriefingQueries.ts` | Modified |
+| `client/src/hooks/useMarketIntelligence.ts` | Modified |
+| `client/src/hooks/usePlatformData.ts` | Modified |
+| `client/src/hooks/useStrategy.ts` | Modified |
+| `client/src/hooks/useStrategyPolling.ts` | Modified |
+| ... and 20 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/blocks-fast.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/model-registry.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/model-registry.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/geocode.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/geocode.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BarsMainTab.tsx)
+
+### Status: PENDING
+
+---
+
 ---

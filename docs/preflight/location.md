@@ -114,6 +114,34 @@ if (parseResult.ok) {
 
 See `server/lib/venue/README.md` for full hours module documentation.
 
+## Timezone-Aware Date Filtering (2026-01-15)
+
+**When filtering events/data by date, ALWAYS use the user's timezone.**
+
+```javascript
+// WRONG - UTC date (fails at night when UTC is "tomorrow")
+const today = new Date().toISOString().split('T')[0];
+
+// CORRECT - User's timezone from snapshot
+const userTimezone = snapshot.timezone;
+const today = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone });
+```
+
+**Why this matters:**
+- At 8:20 PM CST, UTC is already the next day
+- Events dated "today" (local) won't match UTC "tomorrow"
+- Users see 0 events in the evening even though events exist
+
+**Pattern for events queries:**
+```javascript
+if (!snapshot.timezone) {
+  return res.status(500).json({ error: 'Snapshot timezone required' });
+}
+const today = snapshot.local_iso
+  ? new Date(snapshot.local_iso).toISOString().split('T')[0]
+  : new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone });
+```
+
 ## Check Before Editing
 
 - [ ] Am I using browser GPS, not IP geolocation?
@@ -125,3 +153,4 @@ See `server/lib/venue/README.md` for full hours module documentation.
 - [ ] **6-DECIMAL PRECISION**: Am I using `coordsKey()` for all coordinate key generation?
 - [ ] **ROOT CAUSE**: If I'm catching coordinate errors, should they be architecturally possible?
 - [ ] **VENUE HOURS**: Am I using the canonical `hours/` module for open/closed checks?
+- [ ] **TIMEZONE DATES**: Am I using `snapshot.timezone` when filtering by date? (Not UTC!)

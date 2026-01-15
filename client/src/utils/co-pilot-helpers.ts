@@ -126,9 +126,11 @@ export async function logAction(
   fromRank?: number
 ): Promise<void> {
   try {
-    const ranking_id = rankingId || 'unknown';
+    // 2026-01-15: Clarified - 'no-ranking' is only for idempotency key, NOT sent to server
+    // Server receives null when rankingId is missing (per NO FALLBACKS rule)
+    const idempotencyRankingId = rankingId || 'no-ranking';
     const timestamp = new Date().toISOString();
-    const idempotencyKey = `${ranking_id}:${action}:${blockId || 'na'}:${timestamp}`;
+    const idempotencyKey = `${idempotencyRankingId}:${action}:${blockId || 'na'}:${timestamp}`;
 
     // 2026-01-09: SECURITY FIX - Use Authorization header for user attribution
     // Server now derives user_id from JWT (not request body) to prevent spoofing
@@ -140,7 +142,7 @@ export async function logAction(
         ...getAuthHeader(), // Include Authorization: Bearer token
       },
       body: JSON.stringify({
-        ranking_id: ranking_id !== 'unknown' ? ranking_id : null,
+        ranking_id: rankingId || null, // NO FALLBACKS - send null if missing
         action,
         block_id: blockId || null,
         dwell_ms: dwellMs || null,

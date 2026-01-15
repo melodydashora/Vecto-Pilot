@@ -442,9 +442,14 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'message required' });
   }
 
-  // Use authenticated user if available, otherwise use provided userId or 'anonymous'
-  const authUserId = req.auth?.userId || userId || 'anonymous';
-  const isAuthenticated = authUserId !== 'anonymous';
+  // 2026-01-15: Removed 'anonymous' fallback - requireAuth middleware guarantees userId
+  // If req.auth.userId is somehow missing, that's a bug in auth middleware
+  const authUserId = req.auth?.userId;
+  if (!authUserId) {
+    console.error('[chat] CRITICAL: No userId despite requireAuth middleware - auth bug');
+    return res.status(401).json({ error: 'Authentication required', code: 'auth_missing' });
+  }
+  const isAuthenticated = true; // Always true - requireAuth guarantees this
 
   // Generate or use existing conversation_id for thread tracking
   const conversationId = clientConversationId || randomUUID();

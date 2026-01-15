@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-09
+> **Last Verified:** 2026-01-15
 
 # Briefing API (`server/api/briefing/`)
 
@@ -106,6 +106,13 @@ Refreshes events AND news in a single call. Called when user clicks "Refresh Dai
 ### GET /api/briefing/events/:snapshotId
 Reads events from `discovered_events` table for snapshot's city/state, next 7 days.
 
+**Important (2026-01-15):** Date filtering uses the **user's timezone** from the snapshot, not UTC. This prevents events from "disappearing" in the evening when UTC date rolls over.
+
+```javascript
+// Date filtering uses snapshot.timezone
+const today = new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone });
+```
+
 **Response:**
 ```json
 {
@@ -129,6 +136,8 @@ Reads events from `discovered_events` table for snapshot's city/state, next 7 da
 
 ### GET /api/briefing/discovered-events/:snapshotId
 Direct access to `discovered_events` table rows.
+
+**Important (2026-01-15):** Date filtering uses the **user's timezone** from the snapshot, not UTC.
 
 **Response:**
 ```json

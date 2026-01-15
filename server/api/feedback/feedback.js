@@ -14,10 +14,15 @@ const rateLimits = new Map(); // user_id -> { count, resetAt }
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60 * 1000; // 1 minute
 
+// 2026-01-15: Removed 'anonymous' fallback - all routes require auth
+// If userId is somehow missing, throw error (data integrity bug)
 function checkRateLimit(userId) {
+  if (!userId) {
+    throw new Error('[feedback] checkRateLimit called without userId - auth middleware should prevent this');
+  }
   const now = Date.now();
-  const key = userId || 'anonymous';
-  
+  const key = userId;
+
   if (!rateLimits.has(key)) {
     rateLimits.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
     return true;

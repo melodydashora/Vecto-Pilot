@@ -59,7 +59,7 @@ Strategy-first gating ensures blocks are not generated until strategy_for_now ex
 |----------|--------|---------|---------|
 | `/api/briefing/weather/:snapshotId` | GET | `server/api/briefing/briefing.js` | Weather briefing data |
 | `/api/briefing/traffic/:snapshotId` | GET | `server/api/briefing/briefing.js` | Traffic conditions data |
-| `/api/briefing/events/:snapshotId` | GET | `server/api/briefing/briefing.js` | Local events (7-day window) |
+| `/api/briefing/events/:snapshotId` | GET | `server/api/briefing/briefing.js` | Local events (7-day window, timezone-aware) |
 | `/api/briefing/events/:snapshotId?filter=active` | GET | `server/api/briefing/briefing.js` | Events happening NOW (active filter) |
 | `/api/briefing/rideshare-news/:snapshotId` | GET | `server/api/briefing/briefing.js` | Rideshare-relevant news |
 | `/api/briefing/school-closures/:snapshotId` | GET | `server/api/briefing/briefing.js` | School/college closures |
@@ -181,6 +181,23 @@ Common HTTP codes:
 - `429` - Rate limited
 - `500` - Internal server error
 - `504` - Gateway timeout (AI processing took too long)
+
+## Timezone Handling (2026-01-15)
+
+**Events endpoints use snapshot timezone, not UTC.**
+
+When querying events by date, the API uses the user's timezone from `snapshot.timezone` to calculate "today":
+
+```javascript
+// Uses user's timezone to avoid events "disappearing" at night
+const today = new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone });
+```
+
+**Why?** At 8:20 PM CST, UTC is already the next day. Using UTC would cause events dated "today" (local) to not match the UTC "tomorrow" filter.
+
+Affected endpoints:
+- `GET /api/briefing/events/:snapshotId`
+- `GET /api/briefing/discovered-events/:snapshotId`
 
 ## Related Documentation
 

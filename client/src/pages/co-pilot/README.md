@@ -1,8 +1,15 @@
-> **Last Verified:** 2026-01-10
+> **Last Verified:** 2026-01-15
 
 # Co-Pilot Pages (`client/src/pages/co-pilot/`)
 
 ## 📋 Changelog
+
+### 2026-01-15: BriefingPage SSE Fix
+- **File:** `BriefingPage.tsx`
+- **Fix:** Page was calling `useBriefingQueries` directly, creating duplicate SSE subscriptions
+- **Change:** Now uses `briefingData` from `useCoPilot()` context (single source of truth)
+- **Added:** `useMemo` wrappers for all prop objects to prevent BriefingTab re-renders
+- **Impact:** Only ONE SSE subscription to `briefing_ready` instead of 2+
 
 ### 2026-01-10: D-025/D-026 MapPage Cache + Casing Fixes
 - **File:** `MapPage.tsx`
@@ -82,8 +89,10 @@ Real-time briefing with:
 
 Uses:
 - `BriefingTab` component
-- `useBriefingQueries()` hook
+- `briefingData` from `useCoPilot()` (NOT `useBriefingQueries` directly!)
 - `EventsComponent` for event listings
+
+**Important (2026-01-15):** BriefingPage must NOT call `useBriefingQueries()` directly. Use `briefingData` from CoPilotContext to prevent duplicate SSE subscriptions.
 
 ### MapPage
 Interactive Google Map showing:

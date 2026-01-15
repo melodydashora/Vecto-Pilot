@@ -13,6 +13,8 @@ import { useBarsQuery, type BarsData } from '@/hooks/useBarsQuery';
 // 2026-01-15: Added API_ROUTES and QUERY_KEYS for endpoint/cache consistency
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants';
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
+// 2026-01-15: FAIL HARD - Critical error component for unrecoverable states
+import CriticalError, { type CriticalErrorType } from '@/components/CriticalError';
 
 interface CoPilotContextValue {
   // Location (from LocationContext)
@@ -21,6 +23,11 @@ interface CoPilotContextValue {
   state: string | null;
   timezone: string | null;
   isLocationResolved: boolean;
+
+  // 2026-01-15: FAIL HARD - Critical error state
+  // When set, the dashboard should be unmounted and CriticalError shown
+  criticalError: { type: CriticalErrorType; message?: string; details?: string } | null;
+  setCriticalError: (error: { type: CriticalErrorType; message?: string; details?: string } | null) => void;
 
   // Snapshot lifecycle
   lastSnapshotId: string | null;
@@ -81,6 +88,14 @@ export function useCoPilot() {
 export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const locationContext = useLocationContext();
   const queryClient = useQueryClient();
+
+  // 2026-01-15: FAIL HARD - Critical error state
+  // When set, the entire dashboard unmounts and CriticalError is shown
+  const [criticalError, setCriticalError] = useState<{
+    type: CriticalErrorType;
+    message?: string;
+    details?: string;
+  } | null>(null);
 
   // Snapshot state
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
@@ -330,20 +345,55 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch snapshot data
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
-  const { data: snapshotData } = useQuery({
+  // 2026-01-15: FAIL HARD - Set critical error if snapshot fetch fails with 4xx/5xx
+  const { data: snapshotData, error: snapshotError } = useQuery({
     queryKey: QUERY_KEYS.SNAPSHOT(lastSnapshotId),
     queryFn: async () => {
       if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
       const response = await fetch(API_ROUTES.SNAPSHOT.GET(lastSnapshotId), {
         headers: getAuthHeader()
       });
-      if (!response.ok) return null;
-      return response.json();
+      if (!response.ok) {
+        // 2026-01-15: FAIL HARD - Don't silently return null, throw so react-query catches it
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.error || `Snapshot fetch failed: ${response.status}`);
+        (error as any).code = errorData.error;
+        (error as any).details = errorData.message;
+        throw error;
+      }
+      const data = await response.json();
+      // 2026-01-15: FAIL HARD - Validate critical fields exist
+      if (!data.city || !data.timezone) {
+        const error = new Error('Snapshot data incomplete: missing city or timezone');
+        (error as any).code = 'SNAPSHOT_INCOMPLETE';
+        throw error;
+      }
+      return data;
     },
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     staleTime: 10 * 60 * 1000,
     gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error: any) => {
+      // Don't retry on 4xx errors (client-side issues)
+      if (error?.code === 'SNAPSHOT_NOT_FOUND' || error?.code === 'SNAPSHOT_INCOMPLETE') {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
+
+  // 2026-01-15: FAIL HARD - Detect snapshot errors and trigger critical error
+  useEffect(() => {
+    if (snapshotError && lastSnapshotId && lastSnapshotId !== 'live-snapshot') {
+      const err = snapshotError as any;
+      console.error('[CoPilotContext] ❌ CRITICAL: Snapshot fetch failed:', err.message);
+      setCriticalError({
+        type: err.code === 'SNAPSHOT_INCOMPLETE' ? 'snapshot_incomplete' : 'snapshot_missing',
+        message: err.message,
+        details: `Snapshot ID: ${lastSnapshotId.slice(0, 8)}... | ${err.details || ''}`
+      });
+    }
+  }, [snapshotError, lastSnapshotId]);
 
   // Fetch strategy
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
@@ -414,6 +464,14 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
         const data = await response.json();
         const isGenerating = data.status === 'pending_blocks' || data.reason === 'blocks_generating';
+
+        // 2026-01-15: FAIL HARD - Validate ranking_id exists when blocks are returned
+        // ranking_id is required to link votes, strategy, and blocks
+        if (data.blocks && data.blocks.length > 0 && !data.rankingId) {
+          const error = new Error('CRITICAL: Blocks returned without ranking_id - feedback system broken');
+          (error as any).code = 'RANKING_ID_MISSING';
+          throw error;
+        }
 
         // 2026-01-06: P4-C fix - use real timezone from server or LocationContext
         // NEVER use hardcoded timezone (was 'America/Chicago' - violates NO FALLBACKS rule)
@@ -488,9 +546,28 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     retry: (failureCount, error: any) => {
       if (error?.message?.includes('timeout')) return false;
       if (error?.message?.includes('NOT_FOUND')) return false;
+      // 2026-01-15: FAIL HARD - Don't retry on missing ranking_id (data integrity bug)
+      if (error?.code === 'RANKING_ID_MISSING') return false;
       return failureCount < 6;
     },
   });
+
+  // 2026-01-15: FAIL HARD - Detect blocks errors and trigger critical error
+  useEffect(() => {
+    if (blocksError) {
+      const err = blocksError as any;
+      // Only trigger critical error for specific error codes
+      if (err.code === 'RANKING_ID_MISSING') {
+        console.error('[CoPilotContext] ❌ CRITICAL: Blocks returned without ranking_id');
+        setCriticalError({
+          type: 'unknown', // No specific type for this yet
+          message: 'Venue data is corrupted: missing ranking identifier.',
+          details: err.message
+        });
+      }
+      // Other block errors (timeout, network) should show toast, not critical error
+    }
+  }, [blocksError, setCriticalError]);
 
   // 2026-01-06: CRITICAL FIX - Memoize blocks to prevent infinite re-render loop
   // Without useMemo, .map() creates a new array reference on every render.
@@ -554,6 +631,14 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // LESSON LEARNED (Dec 2025): Context value MUST be memoized to prevent re-render cascade.
   // Without useMemo, every render creates a new object → all children re-render → flashing UI.
   // NOTE: refetchBlocks and refetchBars are STABLE refs from useQuery, so they're NOT in deps.
+  // 2026-01-15: FAIL HARD - Callback to clear critical error (for retry functionality)
+  const handleClearError = React.useCallback(() => {
+    setCriticalError(null);
+    // Also clear related state to allow fresh retry
+    setLastSnapshotId(null);
+    queryClient.resetQueries({ queryKey: QUERY_KEYS.SNAPSHOT(lastSnapshotId) });
+  }, [lastSnapshotId, queryClient]);
+
   const value: CoPilotContextValue = useMemo(() => ({
     // Location
     coords,
@@ -561,6 +646,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     state: locationContext?.state || null,
     timezone: locationContext?.timeZone || null,
     isLocationResolved: locationContext?.isLocationResolved || false,
+
+    // 2026-01-15: FAIL HARD - Critical error state
+    criticalError,
+    setCriticalError,
 
     // Snapshot
     lastSnapshotId,
@@ -609,6 +698,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     locationContext?.state,
     locationContext?.timeZone,
     locationContext?.isLocationResolved,
+    // 2026-01-15: FAIL HARD - Critical error state
+    criticalError,
+    // setCriticalError is stable (useState setter), no need in deps
     lastSnapshotId,
     strategyData,
     persistentStrategy,
@@ -635,6 +727,21 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     isBarsLoading,
     // refetchBlocks and refetchBars are EXCLUDED - they're stable refs from useQuery
   ]);
+
+  // 2026-01-15: FAIL HARD - Render CriticalError modal when in error state
+  // This completely blocks the dashboard UI - no partial rendering allowed
+  if (criticalError) {
+    return (
+      <CoPilotContext.Provider value={value}>
+        <CriticalError
+          type={criticalError.type}
+          message={criticalError.message}
+          details={criticalError.details}
+          onRetry={handleClearError}
+        />
+      </CoPilotContext.Provider>
+    );
+  }
 
   return (
     <CoPilotContext.Provider value={value}>
