@@ -301,6 +301,40 @@ if (res.status === 503) {
 3. Re-throw errors so callers can handle or know something failed
 4. If you're catching an error just to return null - you're masking a bug
 
+### FAIL HARD - CRITICAL DATA RULE (2026-01-15)
+
+**When critical data is missing, block the UI entirely. Never show partial/degraded state.**
+
+```javascript
+// WRONG - soft fallback masks bugs
+if (!snapshot?.city) {
+  return { city: 'Unknown Location' };  // NO! UI continues with broken state
+}
+
+// CORRECT - fail hard with blocking error
+if (!snapshot?.city) {
+  setCriticalError({ type: 'snapshot_incomplete', message: 'Missing city' });
+  return; // CriticalError modal blocks entire dashboard
+}
+```
+
+**Critical data that requires FAIL HARD:**
+| Data | Why Critical | Action |
+|------|--------------|--------|
+| Snapshot ID | All queries depend on it | Block UI |
+| City/Timezone | Strategy, events filtering | Block UI |
+| GPS Coords | Maps, venue distances | Block UI |
+| Auth Token | All API calls | Redirect to login |
+| Ranking ID | Feedback linkage | Block UI |
+
+**Implementation:**
+- **Server**: Return 4xx/5xx errors, not 200 with empty data
+- **Client**: Validate critical fields exist, throw if missing
+- **UI**: `CriticalError` component replaces dashboard when `criticalError` is set
+- **Timeout**: 30-second location resolution timeout in GlobalHeader
+
+**See:** `client/src/components/CriticalError.tsx`, `LESSONS_LEARNED.md` > "FAIL HARD Pattern"
+
 ### ROOT CAUSE FIRST - INVESTIGATION RULE
 
 **Never catch or handle errors that should be architecturally impossible.**
@@ -689,6 +723,7 @@ STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
 | `client/src/layouts/CoPilotLayout.tsx` | Shared layout with GlobalHeader |
 | `client/src/contexts/co-pilot-context.tsx` | Shared state for co-pilot pages |
 | `client/src/contexts/location-context-clean.tsx` | Location provider |
+| `client/src/components/CriticalError.tsx` | Blocking error modal (FAIL HARD) |
 
 ## AI Pipeline Summary
 

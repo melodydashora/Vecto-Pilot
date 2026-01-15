@@ -36,6 +36,7 @@ This document captures historical issues, pitfalls, and best practices discovere
 11. **DO NOT create new objects inline when passing to hooks/components** - Example: `useHook({ coords: { lat: x, lng: y } })` creates a new object reference every render → infinite re-renders. Instead, pass existing refs: `useHook({ coords })` or memoize: `useMemo(() => ({ lat: x, lng: y }), [x, y])`. (Added 2026-01-07)
 12. **DO NOT catch errors that are architecturally impossible** - If you have `ON CONFLICT DO UPDATE` and catch error 23505, you're masking a SQL bug. If the error shouldn't be possible, throw instead of catching - this surfaces the root cause. Example: catching 23505 with ON CONFLICT means your conflict column is wrong. Fix the SQL, don't catch the symptom. See CLAUDE.md "ROOT CAUSE FIRST" rule. (Added 2026-01-09)
 13. **DO NOT use 4-decimal precision for coordinates** - Always use 6 decimals (~11cm). 4 decimals (~11m) causes cache collisions between nearby drivers. All coordinate formatting, cache keys, and logs must use `toFixed(6)`. See CLAUDE.md "ABSOLUTE PRECISION" rule. (Added 2026-01-09)
+14. **DO NOT allow soft fallbacks or partial state for critical data** - When location, snapshot, or other critical data is missing, show a blocking error modal (CriticalError) instead of continuing with degraded state. Never show "Unknown Location" or empty strategies. If critical data is missing, the app cannot function correctly - fail hard and force the user to retry. See "FAIL HARD Pattern" section below. (Added 2026-01-15)
 
 ### ALWAYS DO
 
@@ -48,6 +49,7 @@ This document captures historical issues, pitfalls, and best practices discovere
 7. **ALWAYS use 6-decimal precision for GPS** - Coordinates must use `toFixed(6)` for ~11cm accuracy. Get coordinates from Google APIs (authoritative), not AI models (hallucinated). Cache keys via `makeCoordsKey(lat, lng)`. (Added 2026-01-09)
 8. **ALWAYS update docs after changes** - Every code change requires: (1) folder README.md update, (2) inline comment with date/reason for major changes, (3) LESSONS_LEARNED.md for non-obvious discoveries. If unsure, flag in docs/review-queue/pending.md. (Added 2026-01-09)
 9. **ALWAYS add timeouts to external API calls in parallel pipelines** - If a single API call hangs in a `Promise.all`, the entire pipeline blocks. Use `withTimeout(promise, ms, name)` wrapper to ensure stalled calls are abandoned. Example: event discovery uses 45s timeout per category search to prevent 3.5+ minute zombie hangs. Timeouts should return empty results, not throw, so `Promise.all` can still complete with partial data. (Added 2026-01-15)
+10. **ALWAYS fail hard for critical data dependencies** - Location, snapshot, and auth are critical dependencies. If they fail, show `CriticalError` modal and block the entire UI. Never show partial data or "Unknown" placeholders for required fields. Server returns 4xx/5xx errors instead of soft fallbacks; client validates critical fields exist and shows blocking modal if missing. (Added 2026-01-15)
 
 ---
 
@@ -255,6 +257,150 @@ All data MUST link to `snapshot_id`:
 ---
 
 ## Frontend Pitfalls
+
+### FAIL HARD Pattern for Critical Data (2026-01-15) - CRITICAL
+
+**Problem:** App showed "Unknown Location" or empty strategies when critical data was missing, leading to confusing UX and debugging nightmares.
+
+**Root Cause:** Soft fallbacks at both server and client allowed partial state:
+- Server returned 200 with empty/null data instead of 4xx/5xx errors
+- Client continued rendering with degraded data instead of blocking
+- Silent failures masked the root cause of missing data
+
+**The Pattern:**
+
+```
+CRITICAL DATA FLOW:
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Server API     │ ──► │  Client Fetch   │ ──► │  UI Rendering   │
+│                 │     │                 │     │                 │
+│ FAIL HARD:      │     │ FAIL HARD:      │     │ FAIL HARD:      │
+│ Return 4xx/5xx  │     │ Validate fields │     │ Show blocking   │
+│ Not 200+empty   │     │ Throw if missing│     │ CriticalError   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+**Server Side (location.js):**
+```javascript
+// OLD (WRONG) - Soft fallback masks bugs
+try {
+  await saveSnapshot(...);
+} catch (err) {
+  console.error('Snapshot save failed');
+  // Continued execution with no snapshot!
+}
+
+// NEW (CORRECT) - Fail hard
+try {
+  await saveSnapshot(...);
+} catch (err) {
+  console.error('Snapshot save failed:', err);
+  return res.status(500).json({ error: 'SNAPSHOT_SAVE_FAILED', message: err.message });
+}
+```
+
+**Client Side (co-pilot-context.tsx):**
+```typescript
+// OLD (WRONG) - Silent continuation
+const { data: snapshotData } = useQuery({
+  queryFn: async () => {
+    const response = await fetch(...);
+    if (!response.ok) return null;  // Silent failure!
+    return response.json();
+  },
+});
+
+// NEW (CORRECT) - Validate and throw
+const { data: snapshotData } = useQuery({
+  queryFn: async () => {
+    const response = await fetch(...);
+    if (!response.ok) {
+      const err = new Error('Snapshot fetch failed');
+      throw err;  // React Query catches this
+    }
+    const data = await response.json();
+    // VALIDATE critical fields
+    if (!data.city || !data.timezone) {
+      throw new Error('Snapshot data incomplete');
+    }
+    return data;
+  },
+});
+
+// When error state detected, set criticalError
+useEffect(() => {
+  if (snapshotError) {
+    setCriticalError({ type: 'snapshot_missing', message: snapshotError.message });
+  }
+}, [snapshotError]);
+```
+
+**CriticalError Component:**
+```typescript
+// Full-screen blocking modal - replaces dashboard entirely
+export type CriticalErrorType =
+  | 'snapshot_missing'
+  | 'snapshot_incomplete'
+  | 'location_failed'
+  | 'auth_failed'
+  | 'unknown';
+
+// Provider renders CriticalError INSTEAD of children when error set
+if (criticalError) {
+  return (
+    <CoPilotContext.Provider value={value}>
+      <CriticalError
+        type={criticalError.type}
+        message={criticalError.message}
+        onRetry={handleClearError}
+      />
+    </CoPilotContext.Provider>
+  );
+}
+```
+
+**GlobalHeader Timeout (30 seconds):**
+```typescript
+// If location doesn't resolve within 30s, something is wrong
+const LOCATION_RESOLUTION_TIMEOUT_MS = 30000;
+
+useEffect(() => {
+  if (isLocationResolved || hasTriggeredErrorRef.current) return;
+
+  locationTimeoutRef.current = setTimeout(() => {
+    setCriticalError({
+      type: 'location_failed',
+      message: 'Unable to determine location within 30 seconds.'
+    });
+  }, LOCATION_RESOLUTION_TIMEOUT_MS);
+
+  return () => clearTimeout(locationTimeoutRef.current);
+}, [isLocationResolved, setCriticalError]);
+```
+
+**Files Changed:**
+- `server/api/location/location.js` - Removed soft fallbacks, returns 4xx/5xx
+- `client/src/components/CriticalError.tsx` - NEW blocking error modal
+- `client/src/contexts/co-pilot-context.tsx` - Added criticalError state and validation
+- `client/src/components/GlobalHeader.tsx` - Added 30-second location timeout
+
+**When to Use FAIL HARD:**
+| Data | Required For | Fallback? |
+|------|--------------|-----------|
+| Snapshot ID | All queries | NO - Block UI |
+| City/Timezone | Strategy, Events | NO - Block UI |
+| GPS Coords | Maps, Venues | NO - Block UI |
+| Auth Token | All API calls | NO - Redirect to login |
+| Ranking ID | Feedback system | NO - Block UI |
+
+**When Soft Fallback is OK:**
+| Data | Fallback Acceptable |
+|------|---------------------|
+| Weather icon | Show placeholder |
+| Air quality | Omit from display |
+| Event thumbnails | Show generic icon |
+
+**Key Lesson:** Critical data has no acceptable fallback. If location is missing, the app cannot function - showing "Unknown Location" just delays the inevitable failure and confuses debugging. Fail hard, fail early, fail obviously.
 
 ### Context Provider Value Not Memoized (2026-01-06) - CRITICAL
 
@@ -986,6 +1132,128 @@ When strategy completed: SSE fired → BOTH subscribers reacted → double cache
 3. Hook preserved for type reference only, will be deleted in future cleanup
 
 **Key Lesson:** Pick ONE place to own SSE subscriptions. Multiple subscribers with different cache strategies (`invalidate` vs `refetch`) cause inconsistent behavior. If you must have multiple subscribers, they should ALL use `refetchQueries` to avoid UI flash.
+
+### Bug: Events API Returning 0 Events Due to UTC vs Local Timezone (Added 2026-01-15)
+
+**Symptoms:**
+- `/api/briefing/events/:snapshotId` returns 0 events at night
+- Events exist in DB with correct dates (e.g., `event_start_date = '2026-01-14'`)
+- At 8:20 PM CST on Jan 14, API returns no events for Jan 14
+- Same events show up correctly in the morning
+
+**Root Cause:**
+The events API calculated "today" using UTC instead of the user's timezone:
+```javascript
+// OLD (WRONG) - At 8:20 PM CST, UTC is already Jan 15!
+const today = new Date().toISOString().split('T')[0];  // "2026-01-15" (UTC)
+
+// Query: WHERE event_start_date >= "2026-01-15"
+// Result: 0 events (all events are dated "2026-01-14")
+```
+
+**Timeline of failure:**
+- 5:59 PM CST (11:59 PM UTC): API returns Jan 14 events (correct)
+- 6:00 PM CST (midnight UTC): `new Date()` rolls to Jan 15 UTC
+- API now queries for events >= Jan 15, misses all Jan 14 events
+
+**Fix (Applied 2026-01-15):**
+Use snapshot's timezone to calculate "today":
+```javascript
+// NEW (CORRECT) - Use user's timezone
+if (!snapshot.timezone) {
+  return res.status(500).json({ error: 'Snapshot timezone is required' });
+}
+const userTimezone = snapshot.timezone;
+const today = snapshot.local_iso
+  ? new Date(snapshot.local_iso).toISOString().split('T')[0]
+  : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD
+```
+
+**Files Changed:**
+- `server/api/briefing/briefing.js` (lines 604-620, 1182-1205)
+- Both `/events/:snapshotId` and `/discovered-events/:snapshotId` endpoints
+
+**Key Lesson:** When filtering by date for user-facing features, ALWAYS use the user's timezone from the snapshot. UTC date boundaries cause events to "disappear" in the evening hours. The snapshot stores `timezone` for exactly this purpose.
+
+### Bug: GPS Fetching 4x in 200ms on Mount (Added 2026-01-15)
+
+**Symptoms:**
+- Network tab shows 4 rapid `/api/location/resolve` calls on page load
+- Console shows `[LocationContext] Starting GPS fetch` multiple times
+- Race conditions causing duplicate snapshots
+- Excessive API calls and potential rate limiting
+
+**Root Cause:**
+The GPS fetch useEffect had `lastSnapshotId`, `currentCoords`, and `city` in its deps array. But these values are SET by `refreshGPS`:
+```javascript
+// OLD (WRONG)
+useEffect(() => {
+  refreshGPSRef.current?.(false);  // Sets currentCoords, city, lastSnapshotId
+}, [authLoading, user?.userId, token, lastSnapshotId, currentCoords, city]);
+// ↑ When refreshGPS sets these, effect re-runs → cascade!
+```
+
+**The cascade:**
+1. Effect runs → `refreshGPS()` → `setCurrentCoords(newCoords)`
+2. `currentCoords` changes → effect re-runs → `refreshGPS()` again
+3. `setCity(newCity)` → effect re-runs → `refreshGPS()` again
+4. `setLastSnapshotId(newId)` → effect re-runs → `refreshGPS()` again
+
+**Fix (Applied 2026-01-15):**
+1. Removed GPS data from deps (they're outputs, not inputs)
+2. Added `gpsEffectRanRef` flag to prevent duplicate runs
+3. Added state refs to read current values without adding to deps
+```javascript
+// Keep refs in sync for reading (without adding to deps)
+useEffect(() => { lastSnapshotIdRef.current = lastSnapshotId; }, [lastSnapshotId]);
+useEffect(() => { currentCoordsRef.current = currentCoords; }, [currentCoords]);
+
+// GPS effect only depends on auth state, not GPS data
+useEffect(() => {
+  if (gpsEffectRanRef.current) return;  // Already ran this session
+  // ... auth checks ...
+  gpsEffectRanRef.current = true;
+  refreshGPSRef.current?.(false);
+}, [authLoading, user?.userId, token]);  // NO GPS data in deps!
+```
+
+**Files Changed:**
+- `client/src/contexts/location-context-clean.tsx` (lines 651-732)
+
+**Key Lesson:** Never put OUTPUTS of an effect in its dependency array. If an effect sets state X, X should NOT be in the deps. Use refs to read current values when needed without triggering re-runs.
+
+### Bug: BriefingPage Creating Duplicate SSE Subscriptions (Added 2026-01-15)
+
+**Symptoms:**
+- `briefing_ready` SSE fires and triggers multiple handlers
+- Network tab shows duplicate briefing fetches
+- Console shows both BriefingPage and RideshareIntelTab handling same SSE
+
+**Root Cause:**
+Both `BriefingPage` and `RideshareIntelTab` were calling `useBriefingQueries()` directly, which subscribes to SSE events. Each call = new subscription.
+
+**Fix (Applied 2026-01-15):**
+Both pages now use `briefingData` from `useCoPilot()` context instead of calling `useBriefingQueries` directly. CoPilotContext is the SINGLE source of truth for briefing data.
+```typescript
+// OLD (WRONG) - Multiple SSE subscriptions
+function BriefingPage() {
+  const briefingQueries = useBriefingQueries(snapshotId);  // Creates SSE subscription
+}
+function RideshareIntelTab() {
+  const briefingQueries = useBriefingQueries(snapshotId);  // Another subscription!
+}
+
+// NEW (CORRECT) - Single source of truth
+function BriefingPage() {
+  const { briefingData } = useCoPilot();  // Uses shared context
+}
+```
+
+**Files Changed:**
+- `client/src/pages/co-pilot/BriefingPage.tsx`
+- `client/src/components/RideshareIntelTab.tsx`
+
+**Key Lesson:** SSE subscriptions must be singletons. When multiple components need the same data, use a shared context as the single subscriber, not multiple direct hook calls.
 
 ---
 

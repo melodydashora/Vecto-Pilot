@@ -1,8 +1,20 @@
-> **Last Verified:** 2026-01-10
+> **Last Verified:** 2026-01-15
 
 # Contexts (`client/src/contexts/`)
 
 ## 📋 Changelog
+
+### 2026-01-15: GPS Fetch Fix + SSE Single Source of Truth
+- **File:** `location-context-clean.tsx`
+- **Fix:** GPS was fetching 4x in 200ms due to output values in useEffect deps
+- **Change:** Removed `lastSnapshotId`, `currentCoords`, `city` from GPS effect deps
+- **Added:** `gpsEffectRanRef` flag to prevent duplicate fetches per session
+- **Added:** State refs (`lastSnapshotIdRef`, `currentCoordsRef`, `cityRef`) for reading values without adding to deps
+- **Impact:** GPS now fetches once instead of cascading
+
+- **File:** `co-pilot-context.tsx`
+- **Change:** CoPilotContext is now the SINGLE source of truth for briefing data
+- **Impact:** BriefingPage and RideshareIntelTab use `briefingData` from context instead of calling `useBriefingQueries` directly, preventing duplicate SSE subscriptions
 
 ### 2026-01-10: D-021/D-023/D-024 Casing + Status Fixes
 - **File:** `co-pilot-context.tsx`
@@ -163,6 +175,30 @@ From CLAUDE.md:
 - **Single weather source**: Weather fetched here only, not in GlobalHeader
 - **Deduplication**: Uses `lastEnrichmentCoordsRef` to prevent duplicate API calls
 - **isLocationResolved gate**: Downstream queries (Bar Tab, Strategy) must wait for this flag
+
+### GPS Effect Pattern (2026-01-15)
+
+**Never put effect OUTPUTS in its dependency array:**
+
+```typescript
+// WRONG - Causes 4x GPS fetches in 200ms!
+useEffect(() => {
+  refreshGPS();  // Sets currentCoords, city, lastSnapshotId
+}, [authLoading, user?.userId, token, currentCoords, city, lastSnapshotId]);
+//                                    ↑ These are OUTPUTS of refreshGPS!
+
+// CORRECT - Use refs to read values without adding to deps
+const lastSnapshotIdRef = useRef(lastSnapshotId);
+useEffect(() => { lastSnapshotIdRef.current = lastSnapshotId; }, [lastSnapshotId]);
+
+useEffect(() => {
+  if (gpsEffectRanRef.current) return;  // Prevent duplicate runs
+  // Read current values via ref, not state
+  if (lastSnapshotIdRef.current && cachedCoords) { /* resume */ }
+  gpsEffectRanRef.current = true;
+  refreshGPSRef.current?.(false);
+}, [authLoading, user?.userId, token]);  // Only auth deps!
+```
 
 ### isLocationResolved Flag (Dec 2025)
 

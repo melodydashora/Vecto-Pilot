@@ -20,6 +20,8 @@ import { useQuery } from "@tanstack/react-query";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
+// 2026-01-15: FAIL HARD - Access critical error setter from CoPilotContext
+import { useCoPilot } from '@/contexts/co-pilot-context';
 
 // helpers (add these files from sections 2 and 3 below)
 import { classifyDayPart } from "@/lib/daypart";
@@ -70,11 +72,19 @@ type ExtendedLocationContext = {
  * - Handles snapshot creation with validation gates
  * Memoized to prevent unnecessary re-renders from parent context updates
  */
+// 2026-01-15: FAIL HARD - Location resolution timeout (30 seconds)
+// If location doesn't resolve within this time, trigger critical error
+const LOCATION_RESOLUTION_TIMEOUT_MS = 30000;
+
 const GlobalHeaderComponent: React.FC = () => {
   // CRITICAL FIX Issue #3: Removed incorrect useLocation hook and used useContext for LocationContext
   const loc = useContext(LocationContext) as ExtendedLocationContext | null;
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // 2026-01-15: FAIL HARD - Get setCriticalError from CoPilotContext
+  // GlobalHeader is always used inside CoPilotProvider (via CoPilotLayout)
+  const { setCriticalError } = useCoPilot();
 
   // state for display
   const [now, setNow] = useState<Date>(new Date());
@@ -164,6 +174,43 @@ const GlobalHeaderComponent: React.FC = () => {
       currentLocationString !== "Getting location..." &&
       currentLocationString !== "Detecting...",
   );
+
+  // 2026-01-15: FAIL HARD - Timeout if location doesn't resolve
+  // Start timer when component mounts, cancel if location resolves
+  const locationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasTriggeredErrorRef = useRef(false);
+
+  useEffect(() => {
+    // Don't start timeout if already resolved or already errored
+    if (isLocationResolved || hasTriggeredErrorRef.current) {
+      if (locationTimeoutRef.current) {
+        clearTimeout(locationTimeoutRef.current);
+        locationTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Start timeout for location resolution
+    locationTimeoutRef.current = setTimeout(() => {
+      if (!isLocationResolved && !hasTriggeredErrorRef.current) {
+        hasTriggeredErrorRef.current = true;
+        console.error('[GlobalHeader] ❌ CRITICAL: Location resolution timeout after 30s');
+        setCriticalError({
+          type: 'location_failed',
+          message: 'Unable to determine your location within 30 seconds.',
+          details: `Coords: ${coords ? 'available' : 'missing'} | City: ${currentLocationString || 'unknown'}`
+        });
+      }
+    }, LOCATION_RESOLUTION_TIMEOUT_MS);
+
+    return () => {
+      if (locationTimeoutRef.current) {
+        clearTimeout(locationTimeoutRef.current);
+        locationTimeoutRef.current = null;
+      }
+    };
+  }, [isLocationResolved, coords, currentLocationString, setCriticalError]);
+
   // CRITICAL FIX Issue #3: Get refreshGPS from the correctly imported context
   const refreshGPS: undefined | (() => Promise<void>) =
     loc?.refreshGPS ?? loc?.location?.refreshGPS;

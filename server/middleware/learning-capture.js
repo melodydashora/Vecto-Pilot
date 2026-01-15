@@ -35,9 +35,10 @@ export async function capturelearning(eventType, data, userId = null) {
   try {
     // TODO: Store in assistant_memory when rememberContext is available
     // For now, just log the event
+    // 2026-01-15: Removed 'anonymous' fallback - callers should always provide userId
     console.log(`[learning] Captured: ${eventType}`, {
       event_id: eventId,
-      user_id: userId || 'anonymous',
+      user_id: userId || '[MISSING - BUG]', // Flag missing userId as bug, don't mask with 'anonymous'
       data_keys: Object.keys(data)
     });
     

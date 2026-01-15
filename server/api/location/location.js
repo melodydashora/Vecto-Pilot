@@ -1040,12 +1040,33 @@ router.get('/resolve', async (req, res) => {
 
         } catch (snapshotErr) {
           snapshotLog.error(1, `Failed to create`, snapshotErr, OP.DB);
-          // Don't fail the whole request - location is resolved, snapshot is optional
-          // Client can still create snapshot via POST /api/location/snapshot
+          // 2026-01-15: FAIL HARD - Snapshot is NOT optional
+          // If snapshot creation fails, the entire request must fail
+          // The UI depends on snapshot_id to function - partial responses break downstream
+          if (snapshotErr.code === 'SNAPSHOT_INCOMPLETE') {
+            return res.status(400).json({
+              ok: false,
+              error: 'snapshot_incomplete',
+              message: snapshotErr.message,
+              missingFields: snapshotErr.missingFields
+            });
+          }
+          return res.status(500).json({
+            ok: false,
+            error: 'snapshot_creation_failed',
+            message: `Failed to create snapshot: ${snapshotErr.message}`
+          });
         }
 
       } catch (err) {
-        console.warn('[location] Failed to save user location:', err.message);
+        // 2026-01-15: FAIL HARD - User location save is NOT optional
+        // If we can't save the user/location data, the session is broken
+        console.error('[location] ❌ Failed to save user location:', err.message);
+        return res.status(500).json({
+          ok: false,
+          error: 'user_location_save_failed',
+          message: `Failed to persist location data: ${err.message}`
+        });
       }
     }
 
