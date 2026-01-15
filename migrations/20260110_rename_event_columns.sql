@@ -7,9 +7,17 @@
 --
 -- IMPORTANT: Run this migration BEFORE deploying code that uses event_start_date
 
--- Step 1: Rename the columns
-ALTER TABLE discovered_events RENAME COLUMN event_date TO event_start_date;
-ALTER TABLE discovered_events RENAME COLUMN event_time TO event_start_time;
+-- Step 1: Rename the columns (idempotent - checks if old column exists)
+-- 2026-01-15: Made idempotent to prevent "column does not exist" errors on re-run
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'discovered_events' AND column_name = 'event_date') THEN
+    ALTER TABLE discovered_events RENAME COLUMN event_date TO event_start_date;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'discovered_events' AND column_name = 'event_time') THEN
+    ALTER TABLE discovered_events RENAME COLUMN event_time TO event_start_time;
+  END IF;
+END $$;
 
 -- Step 2: Drop old index and create new one with correct name
 DROP INDEX IF EXISTS idx_discovered_events_date;
