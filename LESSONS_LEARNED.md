@@ -965,6 +965,30 @@ router.post("/config/env/update", requireAgentAdmin, async (req, res) => {...});
 
 ## Common Bugs & Fixes
 
+### Bug: Duplicate SSE Subscriptions Causing Cache Churn (Added 2026-01-15)
+
+**Symptoms:**
+- Strategy data fetching twice in network tab
+- UI flash when strategy updates
+- Logs showing both `[strategy-polling]` and `[CoPilotContext]` SSE events
+- `invalidateQueries` causing cache clear → UI goes blank → refetch → data appears
+
+**Root Cause:**
+Both `useStrategyPolling.ts` and `co-pilot-context.tsx` were subscribing to SSE `strategy_ready` events. Each subscriber triggered its own React Query cache operation:
+- `co-pilot-context.tsx`: Used `refetchQueries` (correct - no UI flash)
+- `useStrategyPolling.ts`: Used `invalidateQueries` (bad - clears cache, causes flash)
+
+When strategy completed: SSE fired → BOTH subscribers reacted → double cache operations → churn.
+
+**Fix (Applied 2026-01-15):**
+1. **Gutted `useStrategyPolling.ts`** - Removed all active code, now throws error if imported
+2. **CoPilotContext is the single owner** of strategy lifecycle (SSE, polling, localStorage)
+3. Hook preserved for type reference only, will be deleted in future cleanup
+
+**Key Lesson:** Pick ONE place to own SSE subscriptions. Multiple subscribers with different cache strategies (`invalidate` vs `refetch`) cause inconsistent behavior. If you must have multiple subscribers, they should ALL use `refetchQueries` to avoid UI flash.
+
+---
+
 ### Bug: Stale Strategy Served Instead of Fresh Data (Added 2026-01-10)
 
 **Symptoms:**
@@ -2186,25 +2210,33 @@ LLM prompt                      ← "LOCATION: 1753 Saddle Tree Rd, Frisco, TX"
 
 ## Stable Implementations (DO NOT CHANGE)
 
-### Traffic Briefing System - STABLE (Dec 2025)
+### Traffic Briefing System - STABLE (Updated 2026-01-15)
 
 **⚠️ DO NOT MODIFY without very good reason - this implementation is working perfectly.**
 
-The traffic briefing system combines TomTom real-time data with Claude analysis:
+The traffic briefing system combines TomTom real-time data with Gemini Pro analysis:
 
-**Data Flow:**
+**Data Flow (Single Briefer Model Architecture):**
 ```
 TomTom Traffic API → Raw incidents with priority scoring
        ↓
-analyzeTrafficWithClaude() → Human-readable briefing
+analyzeTrafficWithLLM() → Human-readable briefing (Gemini 3 Pro Preview)
        ↓
 BriefingTab.tsx → Collapsible UI
+       ↓
+Gemini fallback → If TomTom fails, Gemini searches for traffic (secondary)
 ```
 
+**2026-01-15 Update - Single Briefer Model:**
+- **Primary:** TomTom API + `BRIEFING_TRAFFIC` (Gemini 3 Pro Preview) for analysis
+- **Fallback:** Pure Gemini search if TomTom fails
+- **Why Pro (not Flash):** TomTom returns complex JSON with 20+ incident types, road closures, construction zones. Pro's deeper reasoning produces better driver-focused synthesis.
+- **Consistency:** All briefing roles use Gemini Pro (weather, traffic, events, news) for consistent quality.
+
 **Backend (`briefing-service.js`):**
-- `analyzeTrafficWithClaude()` - Sends prioritized TomTom data to Claude Opus 4.5
+- `analyzeTrafficWithLLM()` - Sends prioritized TomTom data to Gemini Pro (was Claude Opus)
 - Returns structured JSON: `briefing`, `keyIssues`, `avoidAreas`, `driverImpact`
-- Uses 2048 max_tokens for comprehensive analysis
+- Uses 4096 max_tokens for comprehensive analysis with HIGH thinkingLevel
 
 **Traffic Briefing Format (3-4 sentences):**
 1. Overall congestion level and incident count
