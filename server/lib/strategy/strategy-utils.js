@@ -223,15 +223,36 @@ export async function updatePhase(snapshotId, phase, options = {}) {
   try {
     const now = new Date();
 
+    // 2026-01-15: FIX - When phase='complete', also update status to 'ok'
+    // This was missing, causing strategies to stay in 'pending_blocks' status forever
+    // The status flow is: pending → pending_blocks → ok (see status-constants.js)
+    const updateData = {
+      phase,
+      phase_started_at: now,  // Track when this phase started
+      updated_at: now
+    };
+
+    // When pipeline completes, finalize the status
+    if (phase === 'complete') {
+      updateData.status = 'ok';
+    }
+
     const result = await db.update(strategies)
-      .set({
-        phase,
-        phase_started_at: now  // Track when this phase started
-      })
+      .set(updateData)
       .where(eq(strategies.snapshot_id, snapshotId));
 
+    // 2026-01-15: Also mark triad_jobs as complete when phase='complete'
+    if (phase === 'complete') {
+      const { triad_jobs } = await import('../../../shared/schema.js');
+      await db.update(triad_jobs)
+        .set({ status: 'ok' })
+        .where(eq(triad_jobs.snapshot_id, snapshotId))
+        .catch(err => triadLog.warn(1, `Failed to update triad_job status: ${err.message}`));
+    }
+
     // Log phase transition with confirmation
-    console.log(`[PHASE-UPDATE] ${snapshotId.slice(0, 8)} → ${phase} (updated at ${now.toISOString()})`);
+    const statusNote = phase === 'complete' ? ' (status→ok)' : '';
+    console.log(`[PHASE-UPDATE] ${snapshotId.slice(0, 8)} → ${phase}${statusNote} (updated at ${now.toISOString()})`);
 
     // Map phase to TRIAD type for clearer logging
     const triadType = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'Strategy' :
