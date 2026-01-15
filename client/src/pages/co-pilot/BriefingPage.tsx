@@ -1,34 +1,36 @@
 // client/src/pages/co-pilot/BriefingPage.tsx
 // Wrapper page for the Briefing tab with weather, traffic, news, and events
-// Fetches briefing data directly from API using snapshotId from LocationContext
+// Uses pre-loaded briefing data from CoPilotContext (single source of truth)
 //
 // 2026-01-06: Removed excessive debug logs that caused hundreds of console entries
 // per render cycle. Use React DevTools Profiler for debugging re-renders instead.
+// 2026-01-14: FIX - Use briefingData from CoPilotContext instead of calling useBriefingQueries
+// directly. This prevents duplicate SSE subscriptions (was causing 2+ subscribers to briefing_ready).
 
-import React, { memo, useRef, useEffect } from 'react';
+import React, { memo, useRef, useEffect, useMemo } from 'react';
 import BriefingTab from '@/components/BriefingTab';
-import { useLocation } from '@/contexts/location-context-clean';
-import { useBriefingQueries } from '@/hooks/useBriefingQueries';
 import { useCoPilot } from '@/contexts/co-pilot-context';
 
 function BriefingPage() {
-  // Get snapshotId directly from LocationContext (single source of truth)
-  const { lastSnapshotId } = useLocation();
-
-  // Fetch briefing data directly from API - not through CoPilotContext
+  // 2026-01-14: Get ALL data from CoPilotContext (single source of truth)
+  // This prevents duplicate useBriefingQueries calls which create extra SSE subscriptions
   const {
-    weatherData,
-    trafficData,
-    newsData,
-    eventsData,
-    schoolClosuresData,
-    airportData,
-    isLoading,
-  } = useBriefingQueries({ snapshotId: lastSnapshotId });
+    lastSnapshotId,
+    persistentStrategy,
+    timezone,
+    briefingData
+  } = useCoPilot();
 
-  // Still need persistentStrategy and timezone from CoPilot context for display
-  // 2026-01-10: timezone required for isEventForToday calculation (NO FALLBACKS)
-  const { persistentStrategy, timezone } = useCoPilot();
+  // Destructure briefing data for easier access
+  const {
+    weather: weatherData,
+    traffic: trafficData,
+    news: newsData,
+    events: eventsData,
+    schoolClosures: schoolClosuresData,
+    airport: airportData,
+    isLoading
+  } = briefingData;
 
   // Debug logging: Only log when snapshotId changes (not on every render)
   // 2026-01-06: Moved from inline to useEffect to prevent excessive logs
@@ -40,18 +42,45 @@ function BriefingPage() {
     }
   }, [lastSnapshotId]);
 
+  // 2026-01-14: Memoize wrapped props to prevent BriefingTab re-renders
+  // Without useMemo, inline objects like { weather: weatherData } are recreated on every render
+  const wrappedWeatherData = useMemo(
+    () => weatherData ? { weather: weatherData } : undefined,
+    [weatherData]
+  );
+  const wrappedTrafficData = useMemo(
+    () => trafficData ? { traffic: trafficData } : undefined,
+    [trafficData]
+  );
+  const wrappedNewsData = useMemo(
+    () => newsData ? { news: newsData } : undefined,
+    [newsData]
+  );
+  const wrappedEventsData = useMemo(
+    () => eventsData ? { events: eventsData } : undefined,
+    [eventsData]
+  );
+  const wrappedSchoolClosuresData = useMemo(
+    () => schoolClosuresData ? { school_closures: schoolClosuresData } : undefined,
+    [schoolClosuresData]
+  );
+  const wrappedAirportData = useMemo(
+    () => airportData ? { airport_conditions: airportData } : undefined,
+    [airportData]
+  );
+
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="briefing-page">
       <BriefingTab
         snapshotId={lastSnapshotId || undefined}
         timezone={timezone}
-        weatherData={weatherData}
-        trafficData={trafficData}
-        newsData={newsData}
-        eventsData={eventsData}
+        weatherData={wrappedWeatherData}
+        trafficData={wrappedTrafficData}
+        newsData={wrappedNewsData}
+        eventsData={wrappedEventsData}
         isEventsLoading={isLoading.events}
-        schoolClosuresData={schoolClosuresData}
-        airportData={airportData}
+        schoolClosuresData={wrappedSchoolClosuresData}
+        airportData={wrappedAirportData}
         consolidatedStrategy={persistentStrategy || undefined}
       />
     </div>

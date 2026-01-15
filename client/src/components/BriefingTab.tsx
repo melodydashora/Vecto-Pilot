@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -161,7 +161,9 @@ interface BriefingTabProps {
   consolidatedStrategy?: string;
 }
 
-export default function BriefingTab({
+// 2026-01-14: Wrapped with memo to prevent excessive re-renders
+// This component was re-rendering hundreds of times due to unstable prop references
+const BriefingTab = memo(function BriefingTab({
   snapshotId,
   weatherData,
   trafficData,
@@ -299,23 +301,8 @@ export default function BriefingTab({
     }
   }, [snapshotId, isGeneratingDaily]);
 
-  // Log data received for debugging
-  console.log('[BriefingTab] Received data:', {
-    snapshotId,
-    hasWeather: !!weatherData,
-    hasTraffic: !!trafficData,
-    hasNews: !!newsData,
-    hasEvents: !!eventsData,
-    hasClosures: !!schoolClosuresData,
-    hasAirport: !!airportData
-  });
-  if (eventsData) {
-    console.log('[BriefingTab] Events data:', { 
-      eventsDataStructure: JSON.stringify(eventsData).substring(0, 200),
-      eventsArray: eventsData.events,
-      eventsArrayLength: eventsData.events?.length
-    });
-  }
+  // 2026-01-14: Removed debug logging that ran on every render (caused hundreds of log entries)
+  // Use React DevTools Profiler to debug re-renders instead
 
   // Utility functions
   const _celsiusToFahrenheit = (celsius: number) => Math.round((celsius * 9/5) + 32);
@@ -469,16 +456,6 @@ export default function BriefingTab({
   const closuresReason = schoolClosuresData?.reason || null;
   const schoolClosures = allClosures.filter(isClosureRelevant);
 
-  // Debug: Log closures data transformation
-  if (allClosures.length > 0 || schoolClosures.length > 0) {
-    console.log('[BriefingTab] School closures:', {
-      allClosuresCount: allClosures.length,
-      filteredCount: schoolClosures.length,
-      allClosures: allClosures.map(c => ({ name: c.schoolName, start: c.closureStart, end: c.reopeningDate })),
-      closuresReason
-    });
-  }
-  
   // Filter events to show only TODAY's events with valid start/end times
   // Map tab shows full 7-day window; Briefing tab shows today only
   const eventsToday = allEvents.filter(isEventForToday);
@@ -492,19 +469,6 @@ export default function BriefingTab({
     venue: event.venue || event.location,
   }));
   const marketEventsToday = allMarketEvents.filter(isEventForToday);
-
-  // Debug: Log event filtering
-  if (allEvents.length > 0 || allMarketEvents.length > 0) {
-    console.log('[BriefingTab] Events filter:', {
-      total: allEvents.length,
-      todayOnly: eventsToday.length,
-      filtered: allEvents.length - eventsToday.length,
-      marketTotal: allMarketEvents.length,
-      marketTodayOnly: marketEventsToday.length,
-      marketName,
-      today: new Date().toISOString().split('T')[0]
-    });
-  }
 
   const newsItems = (news?.filtered || news?.items || []);
   const newsReason = news?.reason || null;
@@ -1298,4 +1262,6 @@ export default function BriefingTab({
       </Card>
     </div>
   );
-}
+});
+
+export default BriefingTab;

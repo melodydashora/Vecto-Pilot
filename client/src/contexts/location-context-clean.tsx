@@ -207,6 +207,12 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // The ref is updated after refreshGPS is defined (see useEffect below refreshGPS definition)
   const refreshGPSRef = useRef<(force?: boolean) => Promise<void>>();
 
+  // 2026-01-14: Refs to access current state values in GPS effect without adding to deps
+  // This prevents the closure capture problem where setTimeout sees stale values
+  const lastSnapshotIdRef = useRef<string | null>(null);
+  const currentCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const cityRef = useRef<string | null>(null);
+
   // 2026-01-06: P3-B - Restore FULL session including snapshotId for resume
   // Previous: Only restored display data, always created new snapshot
   // Problem: User switches apps for 5 min → returns → 35-50s regeneration
@@ -641,11 +647,28 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     refreshGPSRef.current = refreshGPS;
   }, [refreshGPS]);
 
+  // 2026-01-14: Keep state refs in sync for GPS effect to read current values
+  // Without this, setTimeout closure captures stale values from when effect ran
+  useEffect(() => { lastSnapshotIdRef.current = lastSnapshotId; }, [lastSnapshotId]);
+  useEffect(() => { currentCoordsRef.current = currentCoords; }, [currentCoords]);
+  useEffect(() => { cityRef.current = city; }, [city]);
+
   // Initial GPS fetch - ONLY start when user is AUTHENTICATED
   // This ensures snapshots are ALWAYS linked to the authenticated user
   // Anonymous users on sign-up/sign-in pages should NOT create snapshots
   // Note: Browser may show "[Violation] Only request geolocation in response to user gesture"
   // This is a warning, not an error - we try anyway and fall back to button click if needed
+  //
+  // 2026-01-14: FIX - Removed lastSnapshotId, currentCoords, city from deps
+  // These values are SET by refreshGPS, so having them in deps caused cascade:
+  // 1. Effect runs → refreshGPS called → setCurrentCoords
+  // 2. currentCoords changed → effect re-runs → another refreshGPS
+  // This was causing 4x GPS fetches in 200ms!
+  //
+  // Instead, we use refs to check cached data without adding to deps.
+  // The ref is updated in session restore (line 270-273) and by state updates.
+  const gpsEffectRanRef = useRef(false);
+
   useEffect(() => {
     // Don't start GPS fetch until auth state is determined
     if (authLoading) {
@@ -660,12 +683,27 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return;
     }
 
+    // 2026-01-14: Prevent duplicate GPS fetches
+    // This flag ensures we only start ONE GPS fetch per auth session
+    if (gpsEffectRanRef.current) {
+      console.log('⏭️ [LocationContext] GPS effect already ran this session - skipping');
+      return;
+    }
+
     const timer = setTimeout(() => {
-      // 2026-01-07: Handle resume with cached data
-      // Auth is now verified (we're past the auth checks above), so we can safely enable queries
-      if (lastSnapshotId && currentCoords && city) {
+      // Double-check the flag inside timeout (state might have changed)
+      if (gpsEffectRanRef.current) return;
+
+      // 2026-01-14: Handle resume with cached data
+      // Auth is now verified, check if we have valid cached data to resume from
+      // Use REFS to get current values - closures would capture stale values!
+      const cachedSnapshotId = lastSnapshotIdRef.current;
+      const cachedCoords = currentCoordsRef.current;
+      const cachedCity = cityRef.current;
+
+      if (cachedSnapshotId && cachedCoords && cachedCity) {
         console.log('📦 [LocationContext] RESUME: Auth verified, enabling cached data');
-        console.log(`📦 [LocationContext] Cached snapshot: ${lastSnapshotId.slice(0, 8)}, city: ${city}`);
+        console.log(`📦 [LocationContext] Cached snapshot: ${cachedSnapshotId.slice(0, 8)}, city: ${cachedCity}`);
 
         // Mark location as resolved - auth is verified, cached data is valid
         // This gates downstream queries (bars, briefing)
@@ -674,23 +712,24 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Dispatch event so CoPilotContext can use the cached snapshotId
         // reason: 'resume' tells it not to regenerate strategy
         window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-          detail: { snapshotId: lastSnapshotId, holiday: null, is_holiday: false, reason: 'resume' }
+          detail: { snapshotId: cachedSnapshotId, holiday: null, is_holiday: false, reason: 'resume' }
         }));
 
+        gpsEffectRanRef.current = true;
         return;
       }
+
+      gpsEffectRanRef.current = true;
       console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
       // Initial mount: allow server to reuse existing snapshot if < 60 min old
       // 2026-01-07: Use ref to call latest refreshGPS without adding to deps
-      // Adding refreshGPS to deps caused infinite loop (Maximum update depth exceeded)
-      // The ref is kept in sync via the effect above (line 636-641)
       refreshGPSRef.current?.(false);
     }, 50);
     return () => clearTimeout(timer);
-  // 2026-01-07: DO NOT add refreshGPS to deps - causes infinite loop
-  // Instead, we use refreshGPSRef which is kept in sync via a separate effect
-  // The ref pattern allows us to always call the latest version without triggering re-runs
-  }, [authLoading, user?.userId, token, lastSnapshotId, currentCoords, city]);
+  // 2026-01-14: CRITICAL - Only depend on auth state, NOT on GPS data (lastSnapshotId, currentCoords, city)
+  // Those values are SET by refreshGPS, so having them in deps caused 4x GPS fetches
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.userId, token]);
 
   // Listen for snapshot ownership errors (when user changes but stale snapshot ID is used)
   // This triggers a fresh GPS fetch to create a new snapshot for the current user
