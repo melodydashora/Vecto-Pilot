@@ -44,7 +44,13 @@ CREATE TABLE IF NOT EXISTS discovered_events (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_discovered_events_city ON discovered_events (city, state);
-CREATE INDEX IF NOT EXISTS idx_discovered_events_date ON discovered_events (event_date);
+-- 2026-01-15: Index on event_date is idempotent - will skip if column was renamed to event_start_date
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'discovered_events' AND column_name = 'event_date') THEN
+    CREATE INDEX IF NOT EXISTS idx_discovered_events_date ON discovered_events (event_date);
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_discovered_events_category ON discovered_events (category);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_discovered_events_hash ON discovered_events (event_hash);
 CREATE INDEX IF NOT EXISTS idx_discovered_events_discovered_at ON discovered_events (discovered_at DESC);
@@ -52,4 +58,10 @@ CREATE INDEX IF NOT EXISTS idx_discovered_events_discovered_at ON discovered_eve
 -- Comments
 COMMENT ON TABLE discovered_events IS 'AI-discovered events from SerpAPI, GPT-5.2, and other sources for rideshare demand prediction';
 COMMENT ON COLUMN discovered_events.event_hash IS 'MD5 hash of normalized(title + venue + date + city) for deduplication';
-COMMENT ON COLUMN discovered_events.source_model IS 'AI model or API that discovered this event: SerpAPI, GPT-5.2, Gemini, Claude, etc.';
+-- 2026-01-15: source_model column may not exist after cleanup migration
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'discovered_events' AND column_name = 'source_model') THEN
+    COMMENT ON COLUMN discovered_events.source_model IS 'AI model or API that discovered this event: SerpAPI, GPT-5.2, Gemini, Claude, etc.';
+  END IF;
+END $$;
