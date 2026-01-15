@@ -6,6 +6,7 @@ import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, 
 import { useMemory } from "@/hooks/useMemory";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
+import { API_ROUTES } from "@/constants/apiRoutes";
 
 // 2026-01-05: Added for AI Coach notes panel feature
 interface UserNote {
@@ -102,7 +103,7 @@ export default function CoachChat({
     setNotesLoading(true);
     try {
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      const res = await fetch('/api/coach/notes?sort=pinned&limit=50', {
+      const res = await fetch(API_ROUTES.COACH.NOTES_WITH_PARAMS, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -130,7 +131,7 @@ export default function CoachChat({
 
     try {
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      const res = await fetch(`/api/coach/notes/${noteId}`, {
+      const res = await fetch(API_ROUTES.COACH.NOTE(noteId), {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -151,7 +152,7 @@ export default function CoachChat({
 
     try {
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      const res = await fetch(`/api/coach/notes/${noteId}/pin`, {
+      const res = await fetch(API_ROUTES.COACH.NOTE_PIN(noteId), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -175,7 +176,7 @@ export default function CoachChat({
 
     try {
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      const res = await fetch(`/api/coach/notes/${noteId}`, {
+      const res = await fetch(API_ROUTES.COACH.NOTE(noteId), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +219,7 @@ export default function CoachChat({
 
         // First, find the event by title (search in discovered events)
         const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-        const searchRes = await fetch(`/api/briefing/discovered-events/${snapshotId}`, {
+        const searchRes = await fetch(API_ROUTES.BRIEFING.DISCOVERED_EVENTS(snapshotId!), {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -238,7 +239,7 @@ export default function CoachChat({
         }
 
         // Deactivate the event
-        const deactivateRes = await fetch(`/api/briefing/event/${eventToDeactivate.id}/deactivate`, {
+        const deactivateRes = await fetch(API_ROUTES.BRIEFING.EVENT_DEACTIVATE(eventToDeactivate.id), {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -292,7 +293,7 @@ export default function CoachChat({
       console.log('[voice] Starting voice chat session...');
 
       // Get ephemeral token from backend
-      const res = await fetch('/api/realtime/token', {
+      const res = await fetch(API_ROUTES.REALTIME.TOKEN, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ snapshotId, userId, strategyId }),
@@ -512,7 +513,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const res = await fetch("/api/chat", {
+      const res = await fetch(API_ROUTES.CHAT.SEND, {
         method: "POST",
         headers,
         // 2026-01-06: P1-C - Reduced payload size

@@ -9,11 +9,11 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Heart, 
-  Code2, 
-  TrendingUp, 
-  Clock, 
+import {
+  Heart,
+  Code2,
+  TrendingUp,
+  Clock,
   Zap,
   MapPin,
   Users,
@@ -24,6 +24,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { InstructionsTab } from './InstructionsTab';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface DonationTabProps {
   userId?: string;
@@ -328,7 +329,7 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => 
             variant="outline"
             onClick={async () => {
               try {
-                const res = await fetch('/api/diagnostic/identity');
+                const res = await fetch(API_ROUTES.DIAGNOSTIC.IDENTITY);
                 const data = await res.json();
                 
                 // Format the JSON nicely

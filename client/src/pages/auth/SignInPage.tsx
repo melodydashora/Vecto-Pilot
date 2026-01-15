@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
+import { API_ROUTES } from '@/constants/apiRoutes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -138,14 +139,14 @@ export default function SignInPage() {
     setSocialLoading('google');
     setError(null);
     // Redirect to Google OAuth endpoint
-    window.location.href = '/api/auth/google';
+    window.location.href = API_ROUTES.AUTH.GOOGLE;
   };
 
   const handleAppleLogin = async () => {
     setSocialLoading('apple');
     setError(null);
     // Redirect to Apple OAuth endpoint
-    window.location.href = '/api/auth/apple';
+    window.location.href = API_ROUTES.AUTH.APPLE;
   };
 
   return (

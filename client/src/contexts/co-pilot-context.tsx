@@ -10,7 +10,9 @@ import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
 import { useBriefingQueries } from '@/hooks/useBriefingQueries';
 import { useBarsQuery, type BarsData } from '@/hooks/useBarsQuery';
 // 2026-01-09: P1-6 - Centralized storage keys (prevents magic string bugs)
+// 2026-01-15: Added API_ROUTES and QUERY_KEYS for endpoint/cache consistency
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants';
+import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 
 interface CoPilotContextValue {
   // Location (from LocationContext)
@@ -176,9 +178,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       // Reset previous snapshot ref so change detection works
       prevSnapshotIdRef.current = null;
 
-      // Reset react-query cache
-      queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
-      queryClient.resetQueries({ queryKey: ['/api/blocks-fast'] });
+      // Reset react-query cache (using centralized query keys)
+      queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(null) });
+      queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_FAST(null) });
 
       console.log('[CoPilotContext] ✅ State cleared, manualRefreshInProgressRef=true - waiting for new snapshot');
     };
@@ -222,7 +224,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
         try {
           console.log("🚀 Triggering POST /api/blocks-fast waterfall (from event)...", snapshotId.slice(0, 8));
-          const response = await fetch('/api/blocks-fast', {
+          const response = await fetch(API_ROUTES.BLOCKS.FAST, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
             body: JSON.stringify({ snapshotId })
@@ -275,7 +277,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       setPersistentStrategy(null);
       setImmediateStrategy(null);
       setStrategySnapshotId(null);
-      queryClient.resetQueries({ queryKey: ['/api/blocks/strategy'] });
+      queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(null) });
     }
 
     prevSnapshotIdRef.current = lastSnapshotId;
@@ -290,7 +292,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
       if (readySnapshotId === lastSnapshotId) {
-        queryClient.refetchQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId], type: 'active' });
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), type: 'active' });
       }
     });
 
@@ -303,7 +305,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = subscribeBlocksReady((data) => {
       if (data.snapshot_id === lastSnapshotId) {
-        queryClient.refetchQueries({ queryKey: ['/api/blocks-fast', lastSnapshotId], type: 'active' });
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_FAST(lastSnapshotId), type: 'active' });
       }
     });
 
@@ -319,7 +321,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = subscribePhaseChange((data) => {
       if (data.snapshot_id === lastSnapshotId) {
         // Use refetchQueries to get fresh phase/timing data without clearing cache (prevents flash)
-        queryClient.refetchQueries({ queryKey: ['/api/blocks/strategy', lastSnapshotId], type: 'active' });
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), type: 'active' });
       }
     });
 
@@ -327,11 +329,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   }, [lastSnapshotId, queryClient]);
 
   // Fetch snapshot data
+  // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
   const { data: snapshotData } = useQuery({
-    queryKey: ['/api/snapshot', lastSnapshotId],
+    queryKey: QUERY_KEYS.SNAPSHOT(lastSnapshotId),
     queryFn: async () => {
       if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
-      const response = await fetch(`/api/snapshot/${lastSnapshotId}`, {
+      const response = await fetch(API_ROUTES.SNAPSHOT.GET(lastSnapshotId), {
         headers: getAuthHeader()
       });
       if (!response.ok) return null;
@@ -343,12 +346,13 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   });
 
   // Fetch strategy
+  // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
   const { data: strategyData, isFetching: isStrategyFetching } = useQuery({
-    queryKey: ['/api/blocks/strategy', lastSnapshotId],
+    queryKey: QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId),
     queryFn: async () => {
       if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return null;
 
-      const response = await fetch(`/api/blocks/strategy/${lastSnapshotId}`, {
+      const response = await fetch(API_ROUTES.BLOCKS.STRATEGY(lastSnapshotId), {
         headers: getAuthHeader()
       });
       if (!response.ok) return null;
@@ -386,8 +390,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   }, [strategyData, lastSnapshotId, persistentStrategy, immediateStrategy]);
 
   // Fetch blocks
+  // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
   const { data: blocksData, isLoading: isBlocksLoading, error: blocksError, refetch: refetchBlocks } = useQuery<BlocksResponse>({
-    queryKey: ['/api/blocks-fast', lastSnapshotId],
+    queryKey: QUERY_KEYS.BLOCKS_FAST(lastSnapshotId),
     queryFn: async () => {
       if (!coords) throw new Error('No GPS coordinates');
 
@@ -395,7 +400,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       const timeoutId = setTimeout(() => controller.abort(), 230000);
 
       try {
-        const response = await fetch(`/api/blocks-fast?snapshotId=${lastSnapshotId}`, {
+        const response = await fetch(API_ROUTES.BLOCKS.FAST_WITH_QUERY(lastSnapshotId!), {
           method: 'GET',
           signal: controller.signal,
           headers: { 'X-Snapshot-Id': lastSnapshotId || '', ...getAuthHeader() }

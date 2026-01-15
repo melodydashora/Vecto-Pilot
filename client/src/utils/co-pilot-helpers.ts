@@ -3,6 +3,7 @@
 // 2026-01-09: P1-6 FIX - Using centralized constants
 
 import { STORAGE_KEYS } from '@/constants/storageKeys';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 // ============================================================================
 // Singleton SSE Connection Manager
@@ -131,7 +132,7 @@ export async function logAction(
 
     // 2026-01-09: SECURITY FIX - Use Authorization header for user attribution
     // Server now derives user_id from JWT (not request body) to prevent spoofing
-    await fetch('/api/actions', {
+    await fetch(API_ROUTES.ACTIONS, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

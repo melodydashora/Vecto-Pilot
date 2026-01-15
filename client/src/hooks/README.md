@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-07
+> **Last Verified:** 2026-01-15
 
 # Hooks (`client/src/hooks/`)
 
@@ -17,7 +17,7 @@ Custom React hooks for data fetching and UI state.
 | `useMemory.ts` | Cross-session memory management |
 | `useMobile.tsx` | Mobile device detection |
 | `usePlatformData.ts` | Rideshare platform data (Uber/Lyft coverage) |
-| `useStrategyPolling.ts` | Strategy data fetching with SSE and caching |
+| `useStrategyPolling.ts` | **DEPRECATED** - Use CoPilotContext instead |
 | `useStrategy.ts` | Strategy hook for strategy state management |
 | `useStrategyLoadingMessages.ts` | Rotating loading messages during strategy generation |
 | `useVenueLoadingMessages.ts` | Rotating loading messages during venue enrichment |
@@ -60,16 +60,17 @@ The hook uses expected phase durations from the backend to calculate progress:
 - `venues`: 3000ms
 - `enriching`: 15000ms (Google APIs)
 
-### useStrategyPolling
+### useStrategyPolling ⚠️ DEPRECATED
 ```typescript
+// ❌ DON'T USE - This hook is deprecated
 const { strategyData, persistentStrategy, immediateStrategy } = useStrategyPolling({ snapshotId });
-```
-Fetches strategy data with SSE subscriptions and localStorage persistence.
 
-**Manual Refresh Support (2026-01-07):**
-- Listens for `vecto-strategy-cleared` event (dispatched by location-context on refresh button click)
-- Clears React state AND resets react-query cache
-- This ensures strategy regenerates when user manually refreshes location
+// ✅ USE THIS INSTEAD - Strategy is now managed by CoPilotContext
+const { strategyData, persistentStrategy, immediateStrategy, isStrategyFetching } = useCoPilot();
+```
+**Deprecated 2026-01-15:** Strategy polling is now handled by `co-pilot-context.tsx`.
+Both implementations were doing the same thing (SSE subscription, polling, localStorage), creating duplicate subscriptions.
+Use `useCoPilot()` instead. This file is kept for reference only.
 
 ### useTTS
 ```typescript

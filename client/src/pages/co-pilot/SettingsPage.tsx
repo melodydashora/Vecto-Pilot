@@ -20,6 +20,7 @@ import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase, AlertTriangle, 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import type { MarketOption, VehicleMake, VehicleModel } from '@/types/auth';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 // Validation schema for settings form
 const settingsSchema = z.object({
@@ -198,7 +199,7 @@ export default function SettingsPage() {
 
   // Fetch countries on mount
   useEffect(() => {
-    fetch('/api/platform/countries-dropdown?all=true')
+    fetch(API_ROUTES.PLATFORM.COUNTRIES_DROPDOWN)
       .then(res => res.json())
       .then(data => setCountries(data.countries || []))
       .catch(err => console.error('Failed to load countries:', err));
@@ -208,7 +209,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (watchCountry) {
       setIsLoadingRegions(true);
-      fetch(`/api/platform/regions?country=${watchCountry}`)
+      fetch(API_ROUTES.PLATFORM.REGIONS(watchCountry))
         .then(res => res.json())
         .then(data => {
           let regionList = data.regions || [];
@@ -230,7 +231,7 @@ export default function SettingsPage() {
 
       // Fetch markets for country
       setIsLoadingMarkets(true);
-      fetch(`/api/platform/markets?country=${watchCountry}`)
+      fetch(API_ROUTES.PLATFORM.MARKETS_BY_COUNTRY(watchCountry))
         .then(res => res.json())
         .then(data => {
           let marketList = data.markets || [];
@@ -254,7 +255,7 @@ export default function SettingsPage() {
 
   // Fetch vehicle years on mount
   useEffect(() => {
-    fetch('/api/platform/uber/years')
+    fetch(API_ROUTES.PLATFORM.UBER.YEARS)
       .then(res => res.json())
       .then(data => {
         let yearList = data.years || [];
@@ -277,7 +278,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (watchYear) {
       setIsLoadingMakes(true);
-      fetch(`/api/platform/uber/makes?year=${watchYear}`)
+      fetch(API_ROUTES.PLATFORM.UBER.MAKES(watchYear.toString()))
         .then(res => res.json())
         .then(data => {
           let makeList = data.makes || [];
@@ -303,7 +304,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (watchYear && watchMake) {
       setIsLoadingModels(true);
-      fetch(`/api/platform/uber/models?year=${watchYear}&make=${encodeURIComponent(watchMake)}`)
+      fetch(API_ROUTES.PLATFORM.UBER.MODELS(watchYear.toString(), watchMake))
         .then(res => res.json())
         .then(data => {
           let modelList = data.models || [];

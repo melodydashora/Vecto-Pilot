@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/useToast';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -78,9 +79,9 @@ export function FeedbackModal({
     setIsSubmitting(true);
 
     // Choose endpoint based on feedback type
-    const endpoint = isAppFeedback 
-      ? '/api/feedback/app' 
-      : (isStrategyFeedback ? '/api/feedback/strategy' : '/api/feedback/venue');
+    const endpoint = isAppFeedback
+      ? API_ROUTES.FEEDBACK.APP
+      : (isStrategyFeedback ? API_ROUTES.FEEDBACK.STRATEGY : API_ROUTES.FEEDBACK.VENUE);
     
     // Build payload based on feedback type
     const payload = isAppFeedback

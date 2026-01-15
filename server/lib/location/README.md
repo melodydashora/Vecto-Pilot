@@ -29,7 +29,7 @@ location/
 | `address-validation.js` | Address validation | `validateAddress()`, `normalizeAddress()` |
 | `coords-key.js` | Coordinate key generator | `coordsKey()`, `parseCoordKey()`, `isValidCoordKey()` |
 | `geo.js` | Distance calculation | `haversineKm()`, `haversineDistanceMeters()`, `haversineDistanceMiles()` |
-| `geocode.js` | Google Geocoding API | `geocodeAddress()`, `reverseGeocode()` |
+| `geocode.js` | Google Geocoding/Timezone API | `geocodeAddress()`, `getTimezoneForCoords()` |
 | `get-snapshot-context.js` | Context builder | `getSnapshotContext()`, `getFullSnapshot()` |
 | `getSnapshotTimeContext.js` | Time context extraction | `getSnapshotTimeContext()` |
 | `holiday-detector.js` | Holiday detection | `detectHoliday(city, state, date)` |
@@ -152,8 +152,11 @@ Manual holiday overrides via `server/config/holiday-override.json`:
 | API | Purpose | File |
 |-----|---------|------|
 | Gemini + Google Search | Holiday detection | `holiday-detector.js` |
-| Google Geocoding | Address resolution | `geo.js` |
-| Google Timezone | Timezone lookup | Used by routes/location.js |
+| Google Geocoding | Forward geocoding (address → coords) | `geocode.js` |
+| Google Timezone | Timezone lookup | `geocode.js` |
+
+> **Note:** Reverse geocoding (coords → address) is handled by `server/lib/venue/venue-address-resolver.js`
+> which includes venue_catalog caching and Google Places API (New) integration.
 
 ## Validation Flow
 

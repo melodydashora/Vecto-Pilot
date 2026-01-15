@@ -5,6 +5,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 /**
  * Venue type - matches server/validation/response-schemas.js VenueSchema
@@ -99,7 +100,7 @@ export function useBarsQuery({
       // 2026-01-10: Use 6-decimal precision per CLAUDE.md ABSOLUTE PRECISION rule (D-017 fix)
       console.log('[useBarsQuery] Prefetching bars data for:', { city, state, lat: latitude?.toFixed(6) });
 
-      const response = await fetch(`/api/venues/nearby?${params}`, {
+      const response = await fetch(API_ROUTES.VENUES.NEARBY_WITH_PARAMS(params), {
         headers: getAuthHeader()
       });
 

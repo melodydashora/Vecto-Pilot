@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { getAuthHeader } from "@/utils/co-pilot-helpers";
 import EventsComponent from "./EventsComponent";
+import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 
 interface SchoolClosure {
   schoolName: string;
@@ -217,7 +218,7 @@ export default function BriefingTab({
 
     try {
       console.log('[BriefingTab] Refreshing daily data for snapshot:', snapshotId);
-      const response = await fetch(`/api/briefing/refresh-daily/${snapshotId}`, {
+      const response = await fetch(API_ROUTES.BRIEFING.REFRESH_DAILY(snapshotId), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -247,8 +248,8 @@ export default function BriefingTab({
 
         // 2026-01-05: Invalidate React Query cache so UI shows fresh data
         console.log('[BriefingTab] Invalidating query cache for fresh data...');
-        queryClient.invalidateQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });
-        queryClient.invalidateQueries({ queryKey: ['/api/briefing/events', snapshotId] });
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_RIDESHARE_NEWS(snapshotId) });
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_EVENTS(snapshotId) });
       } else {
         throw new Error('No data returned');
       }
@@ -269,7 +270,7 @@ export default function BriefingTab({
 
     try {
       console.log('[BriefingTab] Generating daily strategy for snapshot:', snapshotId);
-      const response = await fetch(`/api/strategy/daily/${snapshotId}`, {
+      const response = await fetch(API_ROUTES.STRATEGY.DAILY(snapshotId), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

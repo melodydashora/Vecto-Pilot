@@ -13,6 +13,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useEffect } from 'react';
 import { getAuthHeader, subscribeBriefingReady } from '@/utils/co-pilot-helpers';
 import type { PipelinePhase } from '@/types/co-pilot';
+// 2026-01-15: Centralized API routes and query keys
+import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 
 interface BriefingQueriesOptions {
   snapshotId: string | null;
@@ -163,12 +165,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
 
     const refetchAllBriefingQueries = () => {
       console.log('[BriefingQuery] 📢 briefing_ready received, refetching for', snapshotId.slice(0, 8));
-      queryClient.refetchQueries({ queryKey: ['/api/briefing/weather', snapshotId] });
-      queryClient.refetchQueries({ queryKey: ['/api/briefing/traffic', snapshotId] });
-      queryClient.refetchQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });
-      queryClient.refetchQueries({ queryKey: ['/api/briefing/events', snapshotId] });
-      queryClient.refetchQueries({ queryKey: ['/api/briefing/school-closures', snapshotId] });
-      queryClient.refetchQueries({ queryKey: ['/api/briefing/airport', snapshotId] });
+      queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_WEATHER(snapshotId) });
+      queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_TRAFFIC(snapshotId) });
+      queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_RIDESHARE_NEWS(snapshotId) });
+      queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_EVENTS(snapshotId) });
+      queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_SCHOOL_CLOSURES(snapshotId) });
+      queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_AIRPORT(snapshotId) });
     };
 
     const unsubscribe = subscribeBriefingReady((readySnapshotId) => {
@@ -210,12 +212,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     console.log('[BriefingQuery] 🔄 SnapshotId changed to', snapshotId.slice(0, 8), '- invalidating all caches');
 
     // Invalidate all briefing queries for this snapshot to force fresh fetch
-    queryClient.invalidateQueries({ queryKey: ['/api/briefing/weather', snapshotId] });
-    queryClient.invalidateQueries({ queryKey: ['/api/briefing/traffic', snapshotId] });
-    queryClient.invalidateQueries({ queryKey: ['/api/briefing/rideshare-news', snapshotId] });
-    queryClient.invalidateQueries({ queryKey: ['/api/briefing/events', snapshotId] });
-    queryClient.invalidateQueries({ queryKey: ['/api/briefing/school-closures', snapshotId] });
-    queryClient.invalidateQueries({ queryKey: ['/api/briefing/airport', snapshotId] });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_WEATHER(snapshotId) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_TRAFFIC(snapshotId) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_RIDESHARE_NEWS(snapshotId) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_EVENTS(snapshotId) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_SCHOOL_CLOSURES(snapshotId) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BRIEFING_AIRPORT(snapshotId) });
   }, [snapshotId, queryClient]);
 
   // 2026-01-06: Listen for new snapshots to exit cooling off early
@@ -245,11 +247,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
 
   // Weather - usually available immediately, no retry needed
   const weatherQuery = useQuery({
-    queryKey: ['/api/briefing/weather', snapshotId],
+    queryKey: QUERY_KEYS.BRIEFING_WEATHER(snapshotId!),
     queryFn: async () => {
       console.log('[BriefingQuery] ☀️ Fetching weather for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { weather: null };
-      const response = await fetch(`/api/briefing/weather/${snapshotId}`, {
+      const response = await fetch(API_ROUTES.BRIEFING.WEATHER(snapshotId), {
         headers: getAuthHeader()
       });
       if (!response.ok) {
@@ -294,11 +296,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
 
   // Traffic - may need retries while briefing generates
   const trafficQuery = useQuery({
-    queryKey: ['/api/briefing/traffic', snapshotId],
+    queryKey: QUERY_KEYS.BRIEFING_TRAFFIC(snapshotId!),
     queryFn: async () => {
       console.log('[BriefingQuery] 🚗 Fetching traffic for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { traffic: null };
-      const response = await fetch(`/api/briefing/traffic/${snapshotId}`, {
+      const response = await fetch(API_ROUTES.BRIEFING.TRAFFIC(snapshotId), {
         headers: getAuthHeader()
       });
       if (!response.ok) {
@@ -354,11 +356,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
 
   // News - may need retries while briefing generates
   const newsQuery = useQuery({
-    queryKey: ['/api/briefing/rideshare-news', snapshotId],
+    queryKey: QUERY_KEYS.BRIEFING_RIDESHARE_NEWS(snapshotId!),
     queryFn: async () => {
       console.log('[BriefingQuery] 📰 Fetching news for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { news: null };
-      const response = await fetch(`/api/briefing/rideshare-news/${snapshotId}`, {
+      const response = await fetch(API_ROUTES.BRIEFING.RIDESHARE_NEWS(snapshotId), {
         headers: getAuthHeader()
       });
       if (!response.ok) {
@@ -412,11 +414,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
 
   // Events - from discovered_events table, usually ready quickly
   const eventsQuery = useQuery({
-    queryKey: ['/api/briefing/events', snapshotId],
+    queryKey: QUERY_KEYS.BRIEFING_EVENTS(snapshotId!),
     queryFn: async () => {
       console.log('[BriefingQuery] 🎭 Fetching events for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { events: [] };
-      const response = await fetch(`/api/briefing/events/${snapshotId}`, {
+      const response = await fetch(API_ROUTES.BRIEFING.EVENTS(snapshotId), {
         headers: getAuthHeader()
       });
       if (!response.ok) {
@@ -456,11 +458,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
 
   // School closures - usually ready quickly
   const schoolClosuresQuery = useQuery({
-    queryKey: ['/api/briefing/school-closures', snapshotId],
+    queryKey: QUERY_KEYS.BRIEFING_SCHOOL_CLOSURES(snapshotId!),
     queryFn: async () => {
       console.log('[BriefingQuery] 🏫 Fetching school closures for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { school_closures: [] };
-      const response = await fetch(`/api/briefing/school-closures/${snapshotId}`, {
+      const response = await fetch(API_ROUTES.BRIEFING.SCHOOL_CLOSURES(snapshotId), {
         headers: getAuthHeader()
       });
       if (!response.ok) {
@@ -499,11 +501,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
 
   // Airport - may need retries while briefing generates
   const airportQuery = useQuery({
-    queryKey: ['/api/briefing/airport', snapshotId],
+    queryKey: QUERY_KEYS.BRIEFING_AIRPORT(snapshotId!),
     queryFn: async () => {
       console.log('[BriefingQuery] ✈️ Fetching airport for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { airport_conditions: null };
-      const response = await fetch(`/api/briefing/airport/${snapshotId}`, {
+      const response = await fetch(API_ROUTES.BRIEFING.AIRPORT(snapshotId), {
         headers: getAuthHeader()
       });
       if (!response.ok) {
@@ -583,12 +585,12 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
  */
 export function useActiveEventsQuery(snapshotId: string | null) {
   return useQuery({
-    queryKey: ['/api/briefing/events', snapshotId, 'active'],
+    queryKey: QUERY_KEYS.BRIEFING_EVENTS_ACTIVE(snapshotId!),
     queryFn: async () => {
       if (!snapshotId) return { events: [] };
 
       console.log('[BriefingQuery] 🎯 Fetching active events for', snapshotId.slice(0, 8));
-      const response = await fetch(`/api/briefing/events/${snapshotId}?filter=active`, {
+      const response = await fetch(API_ROUTES.BRIEFING.EVENTS_ACTIVE(snapshotId), {
         headers: getAuthHeader()
       });
 

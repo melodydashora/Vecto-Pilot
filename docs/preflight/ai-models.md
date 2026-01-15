@@ -29,7 +29,7 @@ Quick reference for AI model usage. Read before modifying any AI code.
 | Role | Default Model | Purpose | Features |
 |------|---------------|---------|----------|
 | `BRIEFING_WEATHER` | `gemini-3-pro-preview` | Weather intelligence | google_search |
-| `BRIEFING_TRAFFIC` | `gemini-3-flash-preview` | Traffic analysis | google_search |
+| `BRIEFING_TRAFFIC` | `gemini-3-pro-preview` | Traffic analysis (TomTom → Driver Advice) | google_search |
 | `BRIEFING_NEWS` | `gemini-3-pro-preview` | Local news (7 days) | google_search, thinkingLevel: HIGH |
 | `BRIEFING_NEWS_GPT` | `gpt-5.2` | News (parallel) | openai_web_search |
 | `BRIEFING_EVENTS_DISCOVERY` | `gemini-3-pro-preview` | Event discovery | google_search, thinkingLevel: HIGH |

@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, ArrowLeft } from 'lucide-react';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 const resetPasswordSchema = z.object({
   code: z.string().optional(),
@@ -68,7 +69,7 @@ export default function ResetPasswordPage() {
         ? { token, newPassword: data.newPassword }
         : { code: data.code, email: data.email, newPassword: data.newPassword };
 
-      const response = await fetch('/api/auth/reset-password', {
+      const response = await fetch(API_ROUTES.AUTH.RESET_PASSWORD, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
