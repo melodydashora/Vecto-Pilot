@@ -1,29 +1,29 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 2026-01-15T01:52:53.093Z
-Snapshot ID: 07477571-7441-4348-a457-869c357deb81
+Generated: 2026-01-15T03:16:47.617Z
+Snapshot ID: c42cfe43-d7e5-402b-af6e-0e74dce82663
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: 07477571-7441-4348-a457-869c357deb81
+snapshot_id: c42cfe43-d7e5-402b-af6e-0e74dce82663
 user_id: 9216b521-6fd7-4b8c-aee4-94f8cfb6fa80
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
-  formatted_address: 2855 Hidden Knoll Tr, Frisco, TX 75034, USA
-  lat: 33.128448
-  lng: -96.8654848
+  formatted_address: 6058 Midnight Moon Dr, Frisco, TX 75036, USA
+  lat: 33.1284838
+  lng: -96.8757855
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Thu Jan 15 2026 01:52:05 GMT+0000 (Coordinated Universal Time)
+  local_iso: Thu Jan 15 2026 03:15:53 GMT+0000 (Coordinated Universal Time)
   dow: 3 (Wednesday)
-  day_part_key: early_evening
+  day_part_key: evening
   is_holiday: false
   holiday: none
 
@@ -38,61 +38,47 @@ WEATHER (from snapshot):
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 253f5cda-2093-4e2e-ba3c-555f2db62a03
-snapshot_id: 07477571-7441-4348-a457-869c357deb81
-created_at: Thu Jan 15 2026 01:52:06 GMT+0000 (Coordinated Universal Time)
-updated_at: Thu Jan 15 2026 01:52:52 GMT+0000 (Coordinated Universal Time)
+briefing_id: 0f22b179-af55-4304-8c31-d3dd7fcdaeee
+snapshot_id: c42cfe43-d7e5-402b-af6e-0e74dce82663
+created_at: Thu Jan 15 2026 03:15:57 GMT+0000 (Coordinated Universal Time)
+updated_at: Thu Jan 15 2026 03:16:47 GMT+0000 (Coordinated Universal Time)
 
-NEWS (7 items):
+NEWS (5 items):
 {
   "items": [
     {
-      "title": "Major I-30 Weekend Closure Warning (Downtown Dallas)",
+      "title": "Event Demand: Mavericks vs. Jazz at AAC",
       "impact": "high",
-      "summary": "Prepare for major traffic disruption starting Friday night (Jan 16). All lanes of I-30 (both directions) between I-35E and I-45/US 75 will close for the weekend. Drivers heading south from Frisco to Dallas or for airport runs should plan alternate routes now to avoid getting stuck in gridlock.",
-      "category": "traffic",
-      "published_date": "2026-01-12"
-    },
-    {
-      "title": "Event Demand: Dallas Pulse Volleyball at Comerica Center",
-      "impact": "high",
-      "summary": "Confirmed event tonight (Thursday, Jan 15) at Comerica Center: Dallas Pulse vs. San Diego Mojo. Expect pickup demand around the arena (near The Star) after the match concludes. Good opportunity for short local trips or rides back to hotels.",
+      "summary": "The Dallas Mavericks host the Utah Jazz tonight at the American Airlines Center (Dallas). Tip-off is at 7:30 PM. Expect high demand for rides from Frisco to downtown Dallas starting around 5:30 PM, with a strong surge potential for pickups after the game ends (approx. 10:00 PM).",
       "category": "event",
       "published_date": "2026-01-15"
     },
     {
-      "title": "DFW Airport Terminal C Parking & Access Changes",
+      "title": "DNT Widening Project: Frisco Lane Closures",
       "impact": "medium",
-      "summary": "Ongoing construction at DFW: Terminal C South parking garage is CLOSED. Terminal A has a new right-hand exit open but detours remain. Terminal B also has a new right-hand exit. Allow extra time for pickups/drop-offs at these terminals due to confused passenger traffic.",
-      "category": "airport",
-      "published_date": "2026-01-13"
-    },
-    {
-      "title": "Lyft Announces Robotaxi Fleet for Dallas Market",
-      "impact": "medium",
-      "summary": "Lyft has officially announced plans to deploy robotaxis in the Dallas area starting in 2026. While not an immediate replacement, this signals increasing automated competition in the local market. Drivers should stay alert for further rollout details.",
-      "category": "platform",
-      "published_date": "2026-01-12"
-    },
-    {
-      "title": "New Texas Driver License Laws (Health & Insurance)",
-      "impact": "medium",
-      "summary": "New 2026 regulations are now in effect requiring stricter health reporting and real-time insurance verification for driver licenses. Ensure your documentation is up to date to avoid automatic suspension, which would immediately deactivate your rideshare accounts.",
-      "category": "regulation",
-      "published_date": "2026-01-13"
-    },
-    {
-      "title": "Frisco Roadwork: Lebanon Rd & Starwood Dr",
-      "impact": "low",
-      "summary": "Weekly roadwork update: Pavement replacement is ongoing at Eastbound Lebanon Rd at Starwood Dr. and Kings Ridge Rd. Expect lane closures and potential delays during peak commuting hours in these residential areas.",
+      "summary": "Ongoing widening of the Dallas North Tollway (DNT) between Sam Rayburn Tollway (SRT) and US 380 continues to cause delays. Lane closures are active as crews work to complete the fourth lane addition (scheduled for early 2026 completion). Watch for reduced speed limits (60 mph) and sudden slowdowns near Eldorado Pkwy and PGA Pkwy.",
       "category": "traffic",
-      "published_date": "2026-01-12"
+      "published_date": "2026-01-15"
     },
     {
-      "title": "Sunny Weather Forecast for Driving",
+      "title": "Construction Traffic: Universal Kids Resort & Fields Development",
+      "impact": "medium",
+      "summary": "Heavy construction traffic continues along Fields Parkway and the DNT frontage roads due to the Universal Kids Resort and Fields West projects (slated for mid-2026 opening). While not yet generating passenger rides, the area has increased truck activity and potential road debris/obstructions for drivers navigating northern Frisco.",
+      "category": "traffic",
+      "published_date": "2026-01-15"
+    },
+    {
+      "title": "Local Event: 'Illuminate' Concert at Heritage Center",
       "impact": "low",
-      "summary": "Excellent driving conditions today (Jan 15) with sunny skies and highs near 57°F. No rain or snow expected, meaning lower surge potential from weather but safer/faster driving conditions overall.",
-      "category": "weather",
+      "summary": "A smaller local event, 'Illuminate: Video Game Classics,' is taking place at the Frisco Heritage Center tonight from 6:30 PM to 7:30 PM. This may create a micro-surge of short trips within Frisco around the downtown/Heritage Center area during the early evening.",
+      "category": "event",
+      "published_date": "2026-01-15"
+    },
+    {
+      "title": "Dallas Stars: Away Game (No Home Demand)",
+      "impact": "low",
+      "summary": "Note for strategy: The Dallas Stars are playing an away game against the Utah Mammoth tonight. Do not position at the AAC for hockey crowds; focus solely on the Mavericks basketball crowd.",
+      "category": "strategy",
       "published_date": "2026-01-15"
     }
   ],
@@ -105,14 +91,14 @@ WEATHER_CURRENT:
   "tempF": 47,
   "country": "US",
   "uvIndex": 0,
-  "humidity": 49,
+  "humidity": 51,
   "tempUnit": "°F",
   "feelsLike": 42,
   "isDaytime": false,
   "conditions": "Clear with periodic clouds",
-  "feelsLikeC": 5,
+  "feelsLikeC": 6,
   "feelsLikeF": 42,
-  "observedAt": "2026-01-15T01:52:07.007496173Z",
+  "observedAt": "2026-01-15T03:15:57.540919265Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
@@ -140,79 +126,79 @@ WEATHER_CURRENT:
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-01-15T01:52:07.050Z",
-    "tempC": 10,
-    "tempF": 49,
+    "time": "2026-01-15T03:15:57.579Z",
+    "tempC": 9,
+    "tempF": 48,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Partly cloudy",
-    "temperature": 49,
+    "temperature": 48,
     "conditionType": "PARTLY_CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-15T02:52:07.050Z",
-    "tempC": 8,
-    "tempF": 47,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Clear with periodic clouds",
-    "temperature": 47,
-    "conditionType": "MOSTLY_CLEAR",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 0
-  },
-  {
-    "time": "2026-01-15T03:52:07.050Z",
+    "time": "2026-01-15T04:15:57.579Z",
     "tempC": 8,
     "tempF": 46,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Partly cloudy",
+    "conditions": "Clear",
     "temperature": 46,
-    "conditionType": "PARTLY_CLOUDY",
+    "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-15T04:52:07.050Z",
+    "time": "2026-01-15T05:15:57.579Z",
     "tempC": 7,
-    "tempF": 45,
+    "tempF": 44,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Clear",
-    "temperature": 45,
+    "temperature": 44,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-15T05:52:07.050Z",
+    "time": "2026-01-15T06:15:57.579Z",
     "tempC": 6,
-    "tempF": 43,
+    "tempF": 42,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Clear",
-    "temperature": 43,
+    "temperature": 42,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-01-15T06:52:07.050Z",
+    "time": "2026-01-15T07:15:57.579Z",
     "tempC": 5,
-    "tempF": 41,
+    "tempF": 40,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Clear",
-    "temperature": 41,
+    "temperature": 40,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-01-15T08:15:57.579Z",
+    "tempC": 4,
+    "tempF": 38,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Clear",
+    "temperature": 38,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
@@ -221,82 +207,89 @@ WEATHER_FORECAST (6 hours):
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 8,
+  "jams": 9,
   "stats": {
-    "jams": 8,
+    "jams": 9,
     "major": 8,
-    "total": 32,
+    "total": 33,
     "closures": 18,
-    "highways": 20,
+    "highways": 21,
     "accidents": 0,
     "construction": 6
   },
-  "summary": "Frisco is under heavy congestion with severe localized bottlenecks and critical access closures. Teel Pkwy is currently a major dead zone with a 13-minute delay just 2 miles away, while the Dallas Pkwy to DNT South ramp is closed. Drivers should avoid the western Teel Pkwy corridor and FM-720, utilizing Preston Rd for north-south movement despite moderate delays.",
+  "summary": "Frisco is experiencing heavy congestion, particularly on the western and northern perimeters. Major jams are impacting I-35E (9.2mi away), while multiple road closures on FM-720 (3-4.4mi away) and lane closures on US-380 (6.3mi+ away) are choking cross-town traffic. Drivers should prioritize north-south movement via the Dallas North Tollway or Preston Road to bypass these bottlenecks.",
   "analyzed": true,
-  "briefing": "Frisco is under heavy congestion with severe localized bottlenecks and critical access closures. Teel Pkwy is currently a major dead zone with a 13-minute delay just 2 miles away, while the Dallas Pkwy to DNT South ramp is closed. Drivers should avoid the western Teel Pkwy corridor and FM-720, utilizing Preston Rd for north-south movement despite moderate delays.",
+  "briefing": "Frisco is experiencing heavy congestion, particularly on the western and northern perimeters. Major jams are impacting I-35E (9.2mi away), while multiple road closures on FM-720 (3-4.4mi away) and lane closures on US-380 (6.3mi+ away) are choking cross-town traffic. Drivers should prioritize north-south movement via the Dallas North Tollway or Preston Road to bypass these bottlenecks.",
   "closures": [
     {
       "road": "",
       "location": "FM-720 / Lobo Ln to Lighthouse Beach Dr / Main St",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 5
+      "distanceFromDriver": 4.4
     },
     {
       "road": "",
-      "location": "Lamar Hunt Way to FM-720",
+      "location": "FM-720 to Lamar Hunt Way",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 2.6
+      "distanceFromDriver": 3
     },
     {
       "road": "",
       "location": "FM-720 to FM-720",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 2.7
+      "distanceFromDriver": 3.2
     },
     {
       "road": "",
       "location": "Elm St to FM-720",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 2.7
+      "distanceFromDriver": 3.2
+    },
+    {
+      "road": "FM-1171",
+      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 9.6
     },
     {
       "road": "US-380 E",
       "location": "US-377 (US-380) to FM-2931 (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 9.9
+      "distanceFromDriver": 9.5
     },
     {
       "road": "US-380 E",
       "location": "FM-2931 (US-380) to FM-1385 (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.5
+      "distanceFromDriver": 7.2
     },
     {
       "road": "US-380 E",
       "location": "FM-1385 (US-380) to Gee Rd (US-380)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.4
+      "distanceFromDriver": 6.3
     },
     {
       "road": "",
       "location": "Dallas Pkwy to Dallas North Tollway S",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 4.9
+      "distanceFromDriver": 5.1
     },
     {
       "road": "US-380 E",
       "location": "Doe Creek Rd to Hollyhock Rd",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 6.4
+      "distanceFromDriver": 6.3
     },
     {
       "road": "US-380 E",
@@ -307,24 +300,17 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Pga Pkwy/Rockhill Pkwy (Hillcrest Rd) to Panther Creek Pkwy (Hillcrest Rd)",
-      "severity": "low",
-      "isHighway": true,
-      "distanceFromDriver": 6.7
-    },
-    {
-      "road": "",
       "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.3
+      "distanceFromDriver": 7.8
     },
     {
       "road": "",
       "location": "Navo Rd to Paloma Creek Blvd",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 7.6
+      "distanceFromDriver": 7.3
     },
     {
       "road": "",
@@ -338,57 +324,81 @@ TRAFFIC_CONDITIONS:
       "location": "Benjamins Way to N Cowan Ave",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.7
+      "distanceFromDriver": 8.2
     },
     {
       "road": "",
       "location": "Tournament Rd to Kings Ridge Rd",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 4.3
+      "distanceFromDriver": 4.9
     },
     {
       "road": "",
-      "location": "Main St / N Hook St to Lakewood Dr",
+      "location": "Lakewood Dr to Main St / N Hook St",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.6
+      "distanceFromDriver": 8.1
     },
     {
       "road": "",
       "location": "Archgate Dr to Preston Meadow Dr / Turnberry Ct",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 6.1
+      "distanceFromDriver": 6.6
     }
   ],
-  "headline": "Frisco is under heavy congestion with severe localized bottlenecks and critical access closures.",
+  "headline": "Frisco is experiencing heavy congestion, particularly on the western and northern perimeters.",
   "provider": "tomtom",
-  "fetchedAt": "2026-01-15T01:52:07.224Z",
+  "fetchedAt": "2026-01-15T03:15:57.729Z",
   "incidents": [
     {
-      "road": "",
+      "road": "US-77 S, I-35E S",
       "category": "Jam",
-      "location": "FM-2934 to Pilot Point-Aubrey",
+      "location": "Eagle Point Rd/Exit 454B (I-35E) to Valley Ridge Blvd/Exit 453 (I-35E)",
+      "priority": 160,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: US-77 S, I-35E S (Eagle Point Rd/Exit 454B (I-35E) to Valley Ridge Blvd/Exit 453 (I-35E)) [9.2 mi]",
+      "lengthMiles": 1.5,
+      "delayMinutes": 5,
+      "distanceFromDriver": 9.2
+    },
+    {
+      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
+      "category": "Jam",
+      "location": "FM-1171/W Main St (Texpress Lanes/I-35) to FM-3040/E Round Grove Rd (Texpress Lanes/I-35)",
       "priority": 159,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: FM-2934 to Pilot Point-Aubrey [3.8 mi]",
-      "lengthMiles": 0.1,
+      "description": "Jam: I-35E N, US-77 S, US-77 N, I-35E S (FM-1171/W Main St (Texpress Lanes/I-35) to FM-3040/E Round Grove Rd (Texpress Lanes/I-35)) [9.8 mi]",
+      "lengthMiles": 0.5,
       "delayMinutes": 4,
-      "distanceFromDriver": 3.8
+      "distanceFromDriver": 9.8
+    },
+    {
+      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
+      "category": "Jam",
+      "location": "FM-2181/Swisher Rd (Texpress Lanes/I-35) to W Valley Ridge Blvd (Texpress Lanes/I-35)",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: I-35E N, US-77 S, US-77 N, I-35E S (FM-2181/Swisher Rd (Texpress Lanes/I-35) to W Valley Ridge Blvd (Texpress Lanes/I-35)) [9.2 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 2,
+      "distanceFromDriver": 9.2
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "N Preston Rd to FM-1193 / TX-289",
-      "priority": 158,
-      "severity": "high",
+      "location": "FM-407 / Summit Ave to FM-407",
+      "priority": 143,
+      "severity": "medium",
       "isHighway": true,
-      "description": "Jam: N Preston Rd to FM-1193 / TX-289 [8.7 mi]",
+      "description": "Jam: FM-407 / Summit Ave to FM-407 [9.4 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 3,
-      "distanceFromDriver": 8.7
+      "distanceFromDriver": 9.4
     },
     {
       "road": "",
@@ -397,22 +407,22 @@ TRAFFIC_CONDITIONS:
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: FM-720 / Lobo Ln to Lighthouse Beach Dr / Main St [5 mi]",
+      "description": "Road Closed: FM-720 / Lobo Ln to Lighthouse Beach Dr / Main St [4.4 mi]",
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 5
+      "distanceFromDriver": 4.4
     },
     {
       "road": "",
       "category": "Road Closed",
-      "location": "Lamar Hunt Way to FM-720",
+      "location": "FM-720 to Lamar Hunt Way",
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Lamar Hunt Way to FM-720 [2.6 mi]",
+      "description": "Road Closed: FM-720 to Lamar Hunt Way [3 mi]",
       "lengthMiles": 0.2,
       "delayMinutes": 0,
-      "distanceFromDriver": 2.6
+      "distanceFromDriver": 3
     },
     {
       "road": "",
@@ -421,10 +431,10 @@ TRAFFIC_CONDITIONS:
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720 [2.7 mi]",
+      "description": "Road Closed: FM-720 to FM-720 [3.2 mi]",
       "lengthMiles": 0,
       "delayMinutes": 0,
-      "distanceFromDriver": 2.7
+      "distanceFromDriver": 3.2
     },
     {
       "road": "",
@@ -433,10 +443,10 @@ TRAFFIC_CONDITIONS:
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Elm St to FM-720 [2.7 mi]",
+      "description": "Road Closed: Elm St to FM-720 [3.2 mi]",
       "lengthMiles": 0,
       "delayMinutes": 0,
-      "distanceFromDriver": 2.7
+      "distanceFromDriver": 3.2
     },
     {
       "road": "US-380 W",
@@ -445,10 +455,10 @@ TRAFFIC_CONDITIONS:
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [8 mi]",
+      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [7.6 mi]",
       "lengthMiles": 0,
       "delayMinutes": 0,
-      "distanceFromDriver": 8
+      "distanceFromDriver": 7.6
     },
     {
       "road": "US-380 W",
@@ -457,77 +467,116 @@ TRAFFIC_CONDITIONS:
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.5 mi]",
-      "lengthMiles": 0.1,
+      "description": "Road Works: US-380 W (Gee Rd (US-380) to FM-1385 (US-380)) [6.3 mi]",
+      "lengthMiles": 0.2,
       "delayMinutes": 0,
-      "distanceFromDriver": 6.5
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Teel Pkwy / Old Orchard Dr to Teel Pkwy",
-      "priority": 133,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Teel Pkwy / Old Orchard Dr to Teel Pkwy [2 mi]",
-      "lengthMiles": 0.4,
-      "delayMinutes": 13,
-      "distanceFromDriver": 2
-    },
-    {
-      "road": "US-380 E",
-      "category": "Lane Closed",
-      "location": "US-377 (US-380) to FM-2931 (US-380)",
-      "priority": 125,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Lane Closed: US-380 E (US-377 (US-380) to FM-2931 (US-380)) [9.9 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 0,
-      "distanceFromDriver": 9.9
+      "distanceFromDriver": 6.3
     }
   ],
   "keyIssues": [
-    "Teel Pkwy / Old Orchard Dr: Major jam 2mi away - 13min delay",
-    "Dallas Pkwy to DNT South: Road closed 4.9mi away - critical highway access blocked",
-    "US-380 (E/W): Multiple lane closures and road works 6-10mi away - heavy cross-town friction",
-    "FM-720 / Lobo Ln: Multiple road closures 2.6mi to 5mi away - area impassable"
+    "I-35E South: Major jam 9.2mi away - 5min delay near Eagle Point Rd",
+    "FM-720: Multiple road closures 3-4.4mi away - blocking access toward Little Elm",
+    "US-380 E/W: Extensive lane closures and road works 6.3-9.5mi away - high unpredictability"
   ],
   "avoidAreas": [
-    "Teel Pkwy corridor: Severe 13min delay 2mi away will kill hourly earnings",
-    "FM-720 / Little Elm area: Multiple closures between 2.6mi and 5mi make navigation difficult",
-    "US-380 Corridor: Extensive lane closures 6-10mi away causing unpredictable flow"
+    "FM-720 Corridor: Multiple closures 3-4.4mi away making transit to Little Elm difficult",
+    "I-35E Lewisville/Lake Dallas: Major jams 9.2mi away affecting southbound commuters",
+    "US-380 North Frisco/Prosper: Heavy construction and lane closures starting 6.3mi away"
   ],
-  "safetyAlert": "8 active traffic jams in the area",
-  "driverImpact": "Prioritize pickups on the eastern side of Frisco near Preston Rd and avoid the Teel Pkwy/FM-720 pocket to prevent getting trapped in 13+ minute local jams.",
+  "safetyAlert": "9 active traffic jams in the area",
+  "driverImpact": "Prioritize short-to-medium distance trips within central Frisco and Plano; decline long-haul requests toward Little Elm or Denton to avoid being trapped by closures and I-35E gridlock.",
   "surgePricing": true,
   "closuresCount": 18,
   "repositioning": null,
-  "incidentsCount": 32,
-  "totalIncidents": 32,
-  "closuresSummary": "8 closures within 10mi, most critical: Dallas Pkwy to DNT South and the FM-720/Lobo Ln corridor.",
+  "incidentsCount": 33,
+  "totalIncidents": 33,
+  "closuresSummary": "8 closures within 10mi, most critical: FM-720 at Lamar Hunt Way and FM-720 at Lobo Ln.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Significant construction and lane closures on US-380 affecting both East and Westbound traffic between US-377 and Gee Rd."
+  "constructionSummary": "Significant ongoing road works and lane closures along the US-380 corridor between US-377 and Gee Rd affecting both directions."
 }
 
-EVENTS (19 total):
+EVENTS (23 total):
 [
   {
-    "title": "DJ Joe Vega",
-    "venue": "Sidecar Social Frisco",
-    "impact": "medium",
-    "address": "6770 Winning Dr, Frisco, TX 75034, USA",
-    "subtype": "concert",
-    "summary": "DJ Joe Vega • Sidecar Social Frisco • 2026-01-15 • 21:30",
-    "latitude": 33.1077444,
-    "location": "Sidecar Social Frisco, 6770 Winning Dr, Frisco, TX 75034, USA",
-    "venue_id": "79eee0de-bd4b-4c74-9c15-8cf3d0619907",
-    "longitude": -96.82701879999999,
-    "event_type": "concert",
-    "event_end_time": "01:30",
+    "title": "Music Bingo Thursdays!",
+    "venue": "Rollertown Beerworks",
+    "impact": "low",
+    "address": "6450 Main Street, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Music Bingo Thursdays! • Rollertown Beerworks • 2026-01-15 • 19:00",
+    "latitude": null,
+    "location": "Rollertown Beerworks, 6450 Main Street, Frisco, TX 75033",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "nightlife",
+    "event_end_time": "21:00",
     "event_start_date": "2026-01-15",
-    "event_start_time": "21:30"
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Trivia Night",
+    "venue": "The Brass Tap - Frisco",
+    "impact": "low",
+    "address": "1951 FM 423 STE 900, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Trivia Night • The Brass Tap - Frisco • 2026-01-15 • 19:00",
+    "latitude": null,
+    "location": "The Brass Tap - Frisco, 1951 FM 423 STE 900, Frisco, TX 75033",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "nightlife",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Frisco's Best Karaoke Night with KJ Shoji",
+    "venue": "The Revel",
+    "impact": "medium",
+    "address": "9305 Preston Road, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Frisco's Best Karaoke Night with KJ Shoji • The Revel • 2026-01-15 • 21:00",
+    "latitude": null,
+    "location": "The Revel, 9305 Preston Road, Frisco, TX 75033",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "nightlife",
+    "event_end_time": "01:00",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "21:00"
+  },
+  {
+    "title": "Family Story Time",
+    "venue": "Frisco Public Library",
+    "impact": "low",
+    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "Family Story Time • Frisco Public Library • 2026-01-15 • 10:00",
+    "latitude": null,
+    "location": "Frisco Public Library, 8000 Dallas Pkwy, Frisco, TX 75034",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "other",
+    "event_end_time": "10:30",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "10:00"
+  },
+  {
+    "title": "Illuminate: Video Game Classics",
+    "venue": "Frisco Heritage Center",
+    "impact": "high",
+    "address": "6455 Page St, Frisco, TX 75034",
+    "subtype": "concert",
+    "summary": "Illuminate: Video Game Classics • Frisco Heritage Center • 2026-01-15 • 18:30",
+    "latitude": null,
+    "location": "Frisco Heritage Center, 6455 Page St, Frisco, TX 75034",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_time": "19:30",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "18:30"
   },
   {
     "title": "Dallas Pulse vs. San Diego Mojo",
@@ -546,94 +595,78 @@ EVENTS (19 total):
     "event_start_time": "19:00"
   },
   {
-    "title": "Family Story Time",
-    "venue": "Frisco Public Library",
+    "title": "Music Bingo Night",
+    "venue": "Rollertown Beerworks",
     "impact": "low",
-    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
-    "subtype": "other",
-    "summary": "Family Story Time • Frisco Public Library • 2026-01-15 • 11:00",
+    "address": "6448 Main St, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Music Bingo Night • Rollertown Beerworks • 2026-01-15 • 19:00",
     "latitude": null,
-    "location": "Frisco Public Library, 8000 Dallas Pkwy, Frisco, TX 75034",
+    "location": "Rollertown Beerworks, 6448 Main St, Frisco, TX 75033",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "nightlife",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "You're A Good Man, Charlie Brown",
+    "venue": "Centennial High School Auditorium",
+    "impact": "high",
+    "address": "6901 Coit Rd, Frisco, TX 75035",
+    "subtype": "comedy",
+    "summary": "You're A Good Man, Charlie Brown • Centennial High School Auditorium • 2026-01-15 • 19:00",
+    "latitude": null,
+    "location": "Centennial High School Auditorium, 6901 Coit Rd, Frisco, TX 75035",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "comedy",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "$1,000 Progressive Trivia Night with Shoji",
+    "venue": "The Revel Patio Grill",
+    "impact": "medium",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "$1,000 Progressive Trivia Night with Shoji • The Revel Patio Grill • 2026-01-15 • 19:00",
+    "latitude": null,
+    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "nightlife",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "City Council Winter Work Session",
+    "venue": "UNT Frisco Landing",
+    "impact": "high",
+    "address": "12995 Preston Rd, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "City Council Winter Work Session • UNT Frisco Landing • 2026-01-15 • 08:00",
+    "latitude": null,
+    "location": "UNT Frisco Landing, 12995 Preston Rd, Frisco, TX 75034",
     "venue_id": null,
     "longitude": null,
     "event_type": "other",
-    "event_end_time": "11:30",
+    "event_end_time": "18:15",
     "event_start_date": "2026-01-15",
-    "event_start_time": "11:00"
+    "event_start_time": "08:00"
   },
   {
-    "title": "Trivia Night with Shoji",
-    "venue": "The Revel Patio Grill",
-    "impact": "low",
-    "address": "9305 Preston Rd, Frisco, TX 75033",
-    "subtype": "nightlife",
-    "summary": "Trivia Night with Shoji • The Revel Patio Grill • 2026-01-15 • 19:00",
-    "latitude": null,
-    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-01-15",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Music Bingo Thursdays",
-    "venue": "Rollertown Beerworks",
-    "impact": "low",
-    "address": "6450 Main St, Frisco, TX 75033",
-    "subtype": "nightlife",
-    "summary": "Music Bingo Thursdays • Rollertown Beerworks • 2026-01-15 • 19:00",
-    "latitude": null,
-    "location": "Rollertown Beerworks, 6450 Main St, Frisco, TX 75033",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-01-15",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "$1,000 Progressive Cash Pot Trivia Night",
-    "venue": "The Revel Patio Grill",
-    "impact": "low",
-    "address": "9305 Preston Rd, Frisco, TX 75033",
-    "subtype": "nightlife",
-    "summary": "$1,000 Progressive Cash Pot Trivia Night • The Revel Patio Grill • 2026-01-15 • 19:00",
-    "latitude": null,
-    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-01-15",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Karaoke Night with KJ Shoji",
-    "venue": "The Revel Patio Grill",
-    "impact": "low",
-    "address": "9305 Preston Road, Frisco, TX 75033",
-    "subtype": "nightlife",
-    "summary": "Karaoke Night with KJ Shoji • The Revel Patio Grill • 2026-01-15 • 21:00",
-    "latitude": null,
-    "location": "The Revel Patio Grill, 9305 Preston Road, Frisco, TX 75033",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_time": "01:30",
-    "event_start_date": "2026-01-15",
-    "event_start_time": "21:00"
-  },
-  {
-    "title": "Illuminate: Video Game Classics",
-    "venue": "Frisco Heritage Center",
-    "impact": "high",
-    "address": "6455 Page Street, Frisco, TX 75034",
+    "title": "Illuminate Candlelight Concert: Video Game Classics",
+    "venue": "Frisco Heritage Center (Lebanon Chapel)",
+    "impact": "medium",
+    "address": "6455 Page St, Frisco, TX 75034",
     "subtype": "concert",
-    "summary": "Illuminate: Video Game Classics • Frisco Heritage Center • 2026-01-15 • 18:30",
+    "summary": "Illuminate Candlelight Concert: Video Game Classics • Frisco Heritage Center (Lebanon Chapel) • 2026-01-15 • 18:30",
     "latitude": null,
-    "location": "Frisco Heritage Center, 6455 Page Street, Frisco, TX 75034",
+    "location": "Frisco Heritage Center (Lebanon Chapel), 6455 Page St, Frisco, TX 75034",
     "venue_id": null,
     "longitude": null,
     "event_type": "concert",
@@ -661,11 +694,11 @@ EVENTS (19 total):
     "title": "Illuminate: Video Game Classics",
     "venue": "Frisco Heritage Center",
     "impact": "high",
-    "address": "6455 Page St, Frisco, TX 75034",
+    "address": "6455 Page Street, Frisco, TX 75034",
     "subtype": "concert",
     "summary": "Illuminate: Video Game Classics • Frisco Heritage Center • 2026-01-15 • 18:30",
     "latitude": null,
-    "location": "Frisco Heritage Center, 6455 Page St, Frisco, TX 75034",
+    "location": "Frisco Heritage Center, 6455 Page Street, Frisco, TX 75034",
     "venue_id": null,
     "longitude": null,
     "event_type": "concert",
@@ -674,12 +707,44 @@ EVENTS (19 total):
     "event_start_time": "18:30"
   },
   {
-    "title": "$1,000 Progressive Trivia Night with Shoji",
-    "venue": "The Revel Patio Grill",
+    "title": "DJ Joe Vega",
+    "venue": "Sidecar Social Frisco",
     "impact": "medium",
+    "address": "6770 Winning Dr, Frisco, TX 75034, USA",
+    "subtype": "concert",
+    "summary": "DJ Joe Vega • Sidecar Social Frisco • 2026-01-15 • 21:30",
+    "latitude": 33.1077444,
+    "location": "Sidecar Social Frisco, 6770 Winning Dr, Frisco, TX 75034, USA",
+    "venue_id": "79eee0de-bd4b-4c74-9c15-8cf3d0619907",
+    "longitude": -96.82701879999999,
+    "event_type": "concert",
+    "event_end_time": "01:30",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "21:30"
+  },
+  {
+    "title": "Karaoke Night with KJ Shoji",
+    "venue": "The Revel Patio Grill",
+    "impact": "low",
+    "address": "9305 Preston Road, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Karaoke Night with KJ Shoji • The Revel Patio Grill • 2026-01-15 • 21:00",
+    "latitude": null,
+    "location": "The Revel Patio Grill, 9305 Preston Road, Frisco, TX 75033",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "nightlife",
+    "event_end_time": "01:30",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "21:00"
+  },
+  {
+    "title": "$1,000 Progressive Cash Pot Trivia Night",
+    "venue": "The Revel Patio Grill",
+    "impact": "low",
     "address": "9305 Preston Rd, Frisco, TX 75033",
     "subtype": "nightlife",
-    "summary": "$1,000 Progressive Trivia Night with Shoji • The Revel Patio Grill • 2026-01-15 • 19:00",
+    "summary": "$1,000 Progressive Cash Pot Trivia Night • The Revel Patio Grill • 2026-01-15 • 19:00",
     "latitude": null,
     "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
     "venue_id": null,
@@ -690,52 +755,52 @@ EVENTS (19 total):
     "event_start_time": "19:00"
   },
   {
-    "title": "You're A Good Man, Charlie Brown",
-    "venue": "Centennial High School Auditorium",
-    "impact": "high",
-    "address": "6901 Coit Rd, Frisco, TX 75035",
-    "subtype": "comedy",
-    "summary": "You're A Good Man, Charlie Brown • Centennial High School Auditorium • 2026-01-15 • 19:00",
-    "latitude": null,
-    "location": "Centennial High School Auditorium, 6901 Coit Rd, Frisco, TX 75035",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "comedy",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-01-15",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "City Council Winter Work Session",
-    "venue": "UNT Frisco Landing",
-    "impact": "high",
-    "address": "12995 Preston Rd, Frisco, TX 75034",
-    "subtype": "other",
-    "summary": "City Council Winter Work Session • UNT Frisco Landing • 2026-01-15 • 08:00",
-    "latitude": null,
-    "location": "UNT Frisco Landing, 12995 Preston Rd, Frisco, TX 75034",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "other",
-    "event_end_time": "18:15",
-    "event_start_date": "2026-01-15",
-    "event_start_time": "08:00"
-  },
-  {
-    "title": "Music Bingo Night",
+    "title": "Music Bingo Thursdays",
     "venue": "Rollertown Beerworks",
     "impact": "low",
-    "address": "6448 Main St, Frisco, TX 75033",
+    "address": "6450 Main St, Frisco, TX 75033",
     "subtype": "nightlife",
-    "summary": "Music Bingo Night • Rollertown Beerworks • 2026-01-15 • 19:00",
+    "summary": "Music Bingo Thursdays • Rollertown Beerworks • 2026-01-15 • 19:00",
     "latitude": null,
-    "location": "Rollertown Beerworks, 6448 Main St, Frisco, TX 75033",
+    "location": "Rollertown Beerworks, 6450 Main St, Frisco, TX 75033",
     "venue_id": null,
     "longitude": null,
     "event_type": "nightlife",
     "event_end_time": "21:00",
     "event_start_date": "2026-01-15",
     "event_start_time": "19:00"
+  },
+  {
+    "title": "Trivia Night with Shoji",
+    "venue": "The Revel Patio Grill",
+    "impact": "low",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Trivia Night with Shoji • The Revel Patio Grill • 2026-01-15 • 19:00",
+    "latitude": null,
+    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "nightlife",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Family Story Time",
+    "venue": "Frisco Public Library",
+    "impact": "low",
+    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "Family Story Time • Frisco Public Library • 2026-01-15 • 11:00",
+    "latitude": null,
+    "location": "Frisco Public Library, 8000 Dallas Pkwy, Frisco, TX 75034",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "other",
+    "event_end_time": "11:30",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "11:00"
   },
   {
     "title": "Live Music: Rodney Smith",
@@ -754,46 +819,14 @@ EVENTS (19 total):
     "event_start_time": "18:00"
   },
   {
-    "title": "Family Story Time",
-    "venue": "Frisco Public Library",
+    "title": "Music Bingo",
+    "venue": "Rollertown Beerworks",
     "impact": "low",
-    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
-    "subtype": "other",
-    "summary": "Family Story Time • Frisco Public Library • 2026-01-15 • 10:00",
-    "latitude": null,
-    "location": "Frisco Public Library, 8000 Dallas Pkwy, Frisco, TX 75034",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "other",
-    "event_end_time": "10:30",
-    "event_start_date": "2026-01-15",
-    "event_start_time": "10:00"
-  },
-  {
-    "title": "Frisco's Best Karaoke Night with KJ Shoji",
-    "venue": "The Revel",
-    "impact": "medium",
-    "address": "9305 Preston Road, Frisco, TX 75033",
+    "address": "6450 Main St, Frisco, TX 75033",
     "subtype": "nightlife",
-    "summary": "Frisco's Best Karaoke Night with KJ Shoji • The Revel • 2026-01-15 • 21:00",
+    "summary": "Music Bingo • Rollertown Beerworks • 2026-01-15 • 19:00",
     "latitude": null,
-    "location": "The Revel, 9305 Preston Road, Frisco, TX 75033",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_time": "01:00",
-    "event_start_date": "2026-01-15",
-    "event_start_time": "21:00"
-  },
-  {
-    "title": "Trivia Night",
-    "venue": "The Brass Tap - Frisco",
-    "impact": "low",
-    "address": "1951 FM 423 STE 900, Frisco, TX 75033",
-    "subtype": "nightlife",
-    "summary": "Trivia Night • The Brass Tap - Frisco • 2026-01-15 • 19:00",
-    "latitude": null,
-    "location": "The Brass Tap - Frisco, 1951 FM 423 STE 900, Frisco, TX 75033",
+    "location": "Rollertown Beerworks, 6450 Main St, Frisco, TX 75033",
     "venue_id": null,
     "longitude": null,
     "event_type": "nightlife",
@@ -802,18 +835,34 @@ EVENTS (19 total):
     "event_start_time": "19:00"
   },
   {
-    "title": "Music Bingo Thursdays!",
-    "venue": "Rollertown Beerworks",
+    "title": "Frisco's Best Karaoke Night with KJ Shoji",
+    "venue": "The Revel Patio Grill",
     "impact": "low",
-    "address": "6450 Main Street, Frisco, TX 75033",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
     "subtype": "nightlife",
-    "summary": "Music Bingo Thursdays! • Rollertown Beerworks • 2026-01-15 • 19:00",
+    "summary": "Frisco's Best Karaoke Night with KJ Shoji • The Revel Patio Grill • 2026-01-15 • 21:00",
     "latitude": null,
-    "location": "Rollertown Beerworks, 6450 Main Street, Frisco, TX 75033",
+    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
     "venue_id": null,
     "longitude": null,
     "event_type": "nightlife",
-    "event_end_time": "21:00",
+    "event_end_time": "00:00",
+    "event_start_date": "2026-01-15",
+    "event_start_time": "21:00"
+  },
+  {
+    "title": "Creating Images with AI",
+    "venue": "Frisco Public Library",
+    "impact": "low",
+    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "community",
+    "summary": "Creating Images with AI • Frisco Public Library • 2026-01-15 • 19:00",
+    "latitude": null,
+    "location": "Frisco Public Library, 8000 Dallas Pkwy, Frisco, TX 75034",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "community",
+    "event_end_time": "20:30",
     "event_start_date": "2026-01-15",
     "event_start_time": "19:00"
   }
@@ -961,44 +1010,43 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor delays reported. Gate hold and taxi delays of 15 minutes or less for departures; airborne delays of ~15 minutes for arrivals.",
-      "status": "delays",
-      "busyTimes": [
-        "08:00 AM - 11:00 AM",
-        "04:00 PM - 06:00 PM"
-      ]
-    },
-    {
-      "code": "DAL",
-      "name": "Dallas Love Field",
-      "delays": "Traffic Management Program in effect due to volume/other factors. Expect airborne delays of ~15 minutes and potential schedule adjustments for departures.",
+      "delays": "Minor delays. Gate hold and taxi delays of 15 minutes or less; airborne arrival delays of ~15 minutes.",
       "status": "delays",
       "busyTimes": [
         "05:00 AM - 08:00 AM",
         "04:00 PM - 07:00 PM"
       ]
+    },
+    {
+      "code": "DAL",
+      "name": "Dallas Love Field",
+      "delays": "Normal operations. No significant delays reported.",
+      "status": "normal",
+      "busyTimes": [
+        "06:00 AM - 09:00 AM",
+        "03:00 PM - 06:00 PM"
+      ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-01-15T01:52:38.381Z",
+  "fetchedAt": "2026-01-15T03:16:47.249Z",
   "busyPeriods": [
-    "Morning rush (5:00 AM - 9:00 AM) is heavy for departures at both airports.",
-    "Evening peak (4:00 PM - 7:00 PM) sees high volume for both arrivals and departures.",
-    "Security lines at DFW are longest mid-morning, while DAL sees earliest spikes starting at 5 AM."
+    "Thursday mornings (business travel departures) and late afternoons (consultant returns/commuter rush) are the busiest periods.",
+    "Expect higher traffic volume on the Dallas North Tollway and Sam Rayburn Tollway heading towards airports between 4:00 PM and 6:30 PM."
   ],
-  "recommendations": "DFW DRIVERS: Use the Terminal B infield waiting lot for the FIFO queue (Terminal E lot opens after 6 PM). \n\nDAL DRIVERS: Pickups are located at Garage C, Level 1 (Valet Pavilion). Be aware of ongoing roadway construction on Mockingbird Lane which may slow entry/exit. \n\nGENERAL: Thursday is a high-volume business travel day; expect steady demand from 4 PM onwards as travelers return home."
+  "recommendations": "For DFW: Rideshare pickups are at the lower level 'Green Curb' zones (follow signs for 'App-Based Rides'). Drivers should utilize the designated staging lots to enter the FIFO queue. \n\nFor DAL: Pickups are NOT at the terminal curb. Drivers must proceed to the designated pickup zone in Garage C / Valet Pavilion (Level 1). Passengers must walk to this area; instruct them to follow signs for 'App-Based Rides' or 'Valet'."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: c2b043e1-110f-469b-9257-fcbc3ffe2fe4
-snapshot_id: 07477571-7441-4348-a457-869c357deb81
+id: 9b748422-53c0-454c-a8dd-ab47f85ef131
+snapshot_id: c42cfe43-d7e5-402b-af6e-0e74dce82663
 status: pending
 error_message: (none)
-created_at: Thu Jan 15 2026 01:52:06 GMT+0000 (Coordinated Universal Time)
-updated_at: Thu Jan 15 2026 01:52:52 GMT+0000 (Coordinated Universal Time)
+created_at: Thu Jan 15 2026 03:15:57 GMT+0000 (Coordinated Universal Time)
+updated_at: Thu Jan 15 2026 03:16:47 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -1029,10 +1077,10 @@ School Closures Filter Check:
   (None active today)
 
 Event Count:
-  Total events in briefing: 19
+  Total events in briefing: 23
   High impact: 5
-  Medium impact: 4
-  Low impact: 10
+  Medium impact: 5
+  Low impact: 13
 
 TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in location: 0
@@ -1040,8 +1088,8 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in time: 0
 
 Events AFTER filterInvalidEvents (what LLM actually receives):
-  Raw events in DB: 19
-  Filtered events (sent to LLM): 19
+  Raw events in DB: 23
+  Filtered events (sent to LLM): 23
   TBD events removed: 0
 
 ════════════════════════════════════════════════════════════════════════════════
