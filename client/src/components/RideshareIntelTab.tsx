@@ -37,7 +37,8 @@ import {
 
 import { useMarketIntelligence } from "@/hooks/useMarketIntelligence";
 import { useLocation } from "@/contexts/location-context-clean";
-import { useBriefingQueries } from "@/hooks/useBriefingQueries";
+// 2026-01-14: Removed useBriefingQueries import - now using pre-loaded data from CoPilotContext
+// This prevents duplicate SSE subscriptions to briefing_ready
 import { useCoPilot } from "@/contexts/co-pilot-context";
 import {
   ZoneCards,
@@ -60,7 +61,9 @@ import { formatEventTime } from "@/utils/co-pilot-helpers";
 
 export default function RideshareIntelTab() {
   const { refreshGPS, isUpdating, currentCoords, timeZone } = useLocation();
-  const { lastSnapshotId: snapshotId } = useCoPilot();
+  // 2026-01-14: Get ALL data from CoPilotContext (single source of truth)
+  // This prevents duplicate useBriefingQueries calls which create extra SSE subscriptions
+  const { lastSnapshotId: snapshotId, briefingData } = useCoPilot();
 
   // Extract coords for TacticalStagingMap
   const latitude = currentCoords?.latitude;
@@ -109,15 +112,16 @@ export default function RideshareIntelTab() {
   const timing = useMemo(() => rawTiming || [], [rawTiming?.length]);
   // ---------------------------------------------------------------------------
 
-  // Briefing data for tactical map (events, airports, traffic)
-  const { eventsData, trafficData, airportData } = useBriefingQueries({
-    snapshotId,
-  });
+  // 2026-01-14: Use pre-loaded briefing data from CoPilotContext
+  // Context provides unwrapped values: events (array), traffic (object), airport (object)
+  const eventsArray = briefingData?.events || [];
+  const trafficObj = briefingData?.traffic;
+  const airportObj = briefingData?.airport;
 
   // Transform briefing data for TacticalStagingMap
   // Use .length dependency to avoid loops from array reference changes
   const eventMissions: EventMission[] = useMemo(() => {
-    return (eventsData?.events || [])
+    return eventsArray
       // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
       .filter((e: any) => e.latitude && e.longitude)
       .map((e: any) => ({
@@ -136,10 +140,10 @@ export default function RideshareIntelTab() {
         category: e.event_type,
         subtype: e.subtype,
       }));
-  }, [eventsData?.events?.length]);
+  }, [eventsArray?.length]);
 
   const airportMissions: AirportMission[] = useMemo(() => {
-    return (airportData?.airports || [])
+    return (airportObj?.airports || [])
       .filter((a: any) => a.lat && a.lng)
       .map((a: any) => ({
         id: `airport-${a.code}`,
@@ -153,19 +157,20 @@ export default function RideshareIntelTab() {
         currentDelays:
           a.arrivalDelays?.avgMinutes || a.departureDelays?.avgMinutes,
       }));
-  }, [airportData?.airports?.length]);
+  }, [airportObj?.airports?.length]);
 
   // Traffic context for AI tactical planner - use primitive deps for stability
+  // 2026-01-14: Updated to use trafficObj from CoPilotContext (unwrapped value)
   const trafficContext = useMemo(() => {
-    if (!trafficData?.traffic) return undefined;
+    if (!trafficObj) return undefined;
     return {
-      congestionLevel: trafficData.traffic.congestionLevel,
-      incidents: trafficData.traffic.incidents,
-      avoidAreas: trafficData.traffic.avoidAreas,
+      congestionLevel: trafficObj.congestionLevel,
+      incidents: trafficObj.incidents,
+      avoidAreas: trafficObj.avoidAreas,
     };
   }, [
-    trafficData?.traffic?.congestionLevel,
-    trafficData?.traffic?.incidents?.length,
+    trafficObj?.congestionLevel,
+    trafficObj?.incidents?.length,
   ]);
 
   // Expand/collapse states

@@ -600,10 +600,24 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     // Read events directly from discovered_events table for this snapshot's location
     const snapshot = req.snapshot;
     const { filter } = req.query; // ?filter=active for currently happening events
-    const today = new Date().toISOString().split('T')[0];
-    const weekFromNow = new Date();
-    weekFromNow.setDate(weekFromNow.getDate() + 7);
-    const endDate = weekFromNow.toISOString().split('T')[0];
+
+    // 2026-01-14: FIX - Use snapshot timezone to calculate "today" (not UTC)
+    // At 8:20 PM CST on Jan 14, UTC is already Jan 15 - this was causing 0 events to return
+    if (!snapshot.timezone) {
+      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for events query', { snapshot_id: snapshot.snapshot_id });
+      return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+    }
+    const userTimezone = snapshot.timezone;
+    const today = snapshot.local_iso
+      ? new Date(snapshot.local_iso).toISOString().split('T')[0]
+      : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
+
+    // Calculate end date in user's timezone (today + 7 days)
+    const endDateObj = new Date();
+    endDateObj.setDate(endDateObj.getDate() + 7);
+    const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: userTimezone });
+
+    console.log(`[BriefingRoute] GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
 
     // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
     const events = await db.select()
@@ -1168,12 +1182,26 @@ router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
 router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     const snapshot = req.snapshot;
-    const today = new Date().toISOString().split('T')[0];
-    const weekFromNow = new Date();
-    weekFromNow.setDate(weekFromNow.getDate() + 7);
-    const endDate = weekFromNow.toISOString().split('T')[0];
 
-    console.log(`[BriefingRoute] GET /discovered-events for ${snapshot.city}, ${snapshot.state} (${today} to ${endDate})`);
+    // 2026-01-14: FIX - Use snapshot timezone to calculate "today" (not UTC)
+    // At 8:20 PM CST on Jan 14, UTC is already Jan 15 - this was causing events to not match
+    if (!snapshot.timezone) {
+      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for discovered-events query', { snapshot_id: snapshot.snapshot_id });
+      return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
+    }
+    const userTimezone = snapshot.timezone;
+
+    // Calculate "today" in user's timezone
+    const today = snapshot.local_iso
+      ? new Date(snapshot.local_iso).toISOString().split('T')[0]
+      : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
+
+    // Calculate end date in user's timezone (today + 7 days)
+    const endDateObj = new Date();
+    endDateObj.setDate(endDateObj.getDate() + 7);
+    const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: userTimezone });
+
+    console.log(`[BriefingRoute] GET /discovered-events for ${snapshot.city}, ${snapshot.state} (${today} to ${endDate}, tz=${userTimezone})`);
 
     // 2026-01-10: Use symmetric field names (event_start_date)
     const events = await db.select()
