@@ -43,6 +43,7 @@ import type {
   TacticalPlanResponse,
   StagingAreasResponse,
 } from '@/types/tactical-map';
+import { API_ROUTES } from '@/constants/apiRoutes';
 // MARKER_CONFIGS import removed - currently unused
 // import { MARKER_CONFIGS } from '@/types/tactical-map';
 
@@ -429,7 +430,7 @@ export default function TacticalStagingMap({
 
     try {
       // Fetch pre-computed staging areas from ranking_candidates
-      const response = await fetch(`/api/intelligence/staging-areas?snapshotId=${snapshotId}`);
+      const response = await fetch(API_ROUTES.INTELLIGENCE.STAGING_AREAS(snapshotId));
       const data: StagingAreasResponse = await response.json();
 
       // Filter staging zones that are near this mission (within ~1km)
@@ -484,7 +485,7 @@ export default function TacticalStagingMap({
     setError(null);
 
     try {
-      const response = await fetch('/api/strategy/tactical-plan', {
+      const response = await fetch(API_ROUTES.STRATEGY.TACTICAL_PLAN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

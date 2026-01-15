@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-15
 
 # Strategy Feature (`client/src/features/strategy/`)
 
@@ -14,9 +14,11 @@ Components are currently staged in `../../components/strategy/_future/`:
 
 ## Hooks Used
 
-- `useStrategyPolling` - Fetches strategy with SSE and caching
+- `useCoPilot` - Strategy state (replaces deprecated useStrategyPolling)
 - `useEnrichmentProgress` - Tracks generation progress
 - `useTTS` - Text-to-speech for strategy
+
+> **Note:** `useStrategyPolling` is deprecated as of 2026-01-15. Use `useCoPilot()` instead.
 
 ## To Activate
 
@@ -27,23 +29,24 @@ Components are currently staged in `../../components/strategy/_future/`:
 ## Data Flow
 
 ```
-1. Location change triggers snapshot save
-2. POST /api/blocks-fast starts waterfall
-3. useStrategyPolling polls for strategy
-4. SSE events notify when ready
-5. Strategy displayed in UI
+1. Location change triggers snapshot save (vecto-snapshot-saved event)
+2. CoPilotContext receives event, triggers POST /api/blocks-fast (deduped)
+3. CoPilotContext polls for strategy via useQuery (3s interval until ready)
+4. SSE events (strategy_ready, blocks_ready) trigger refetchQueries
+5. Strategy displayed in UI via useCoPilot()
 ```
 
 ## Types
 
 ```typescript
 interface StrategyData {
-  status: 'pending' | 'ok' | 'complete' | 'failed';
+  status: 'pending' | 'ok' | 'pending_blocks' | 'error';
   strategy: {
     consolidated: string;      // 8-12hr overview
-    strategy_for_now: string;  // 1hr tactical
+    strategyForNow: string;    // 1hr tactical (camelCase, 2026-01-14 fix)
     holiday?: string;
   };
+  phase?: string;              // Current pipeline phase
   timeElapsedMs: number;
 }
 ```
@@ -51,5 +54,6 @@ interface StrategyData {
 ## Connections
 
 - **Fetches:** `/api/blocks/strategy/:snapshotId`
-- **SSE:** `/api/events` (strategy_ready)
-- **Uses:** `../../hooks/useStrategyPolling.ts`
+- **SSE:** `/api/events` (strategy_ready, blocks_ready, phase_change)
+- **Uses:** `../../contexts/co-pilot-context.tsx` (strategy polling + SSE subscriptions)
+- **Deprecated:** `../../hooks/useStrategyPolling.ts` (do not use)

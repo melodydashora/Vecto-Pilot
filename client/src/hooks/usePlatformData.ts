@@ -9,6 +9,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 // API response types
 export interface MarketListItem {
@@ -83,31 +84,31 @@ export interface StatsResponse {
 
 // Fetch functions
 async function fetchMarkets(platform: string = 'uber'): Promise<MarketsResponse> {
-  const response = await fetch(`/api/platform/markets?platform=${platform}`);
+  const response = await fetch(API_ROUTES.PLATFORM.MARKETS(platform));
   if (!response.ok) throw new Error('Failed to fetch markets');
   return response.json();
 }
 
 async function fetchMarketCities(market: string, platform: string = 'uber'): Promise<MarketCitiesResponse> {
-  const response = await fetch(`/api/platform/markets/${encodeURIComponent(market)}?platform=${platform}`);
+  const response = await fetch(API_ROUTES.PLATFORM.MARKET_DETAILS(market, platform));
   if (!response.ok) throw new Error('Failed to fetch market cities');
   return response.json();
 }
 
 async function fetchCountries(platform: string = 'uber'): Promise<CountriesResponse> {
-  const response = await fetch(`/api/platform/countries?platform=${platform}`);
+  const response = await fetch(API_ROUTES.PLATFORM.COUNTRIES(platform));
   if (!response.ok) throw new Error('Failed to fetch countries');
   return response.json();
 }
 
 async function fetchStats(platform: string = 'uber'): Promise<StatsResponse> {
-  const response = await fetch(`/api/platform/stats?platform=${platform}`);
+  const response = await fetch(API_ROUTES.PLATFORM.STATS(platform));
   if (!response.ok) throw new Error('Failed to fetch stats');
   return response.json();
 }
 
 async function searchCities(query: string, platform: string = 'uber', limit: number = 20): Promise<SearchResponse> {
-  const response = await fetch(`/api/platform/search?q=${encodeURIComponent(query)}&platform=${platform}&limit=${limit}`);
+  const response = await fetch(API_ROUTES.PLATFORM.SEARCH(query, platform, limit));
   if (!response.ok) throw new Error('Failed to search cities');
   return response.json();
 }

@@ -676,10 +676,32 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Without briefing, GPT consolidator runs with empty context = poor quality strategy.
         // If briefing fails, we should fail the whole pipeline rather than continue with bad data.
         // 2026-01-10: Capture fresh briefing to pass directly to strategist (no DB re-read)
+
+        // =========================================================================
+        // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 1 - PRE-BRIEFING
+        // =========================================================================
+        triadLog.phase(2, `[VERIFY] Snapshot row ready: city=${snapshot.city}, state=${snapshot.state}, lat=${snapshot.lat?.toFixed(6)}, lng=${snapshot.lng?.toFixed(6)}`);
+        triadLog.phase(2, `[VERIFY] Snapshot context: timezone=${snapshot.timezone}, day_part=${snapshot.day_part_key}, is_holiday=${snapshot.is_holiday}`);
+
         let freshBriefing = null;
         try {
           const briefingResult = await runBriefing(snapshotId, { snapshot });
           freshBriefing = briefingResult.briefing;
+
+          // =========================================================================
+          // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 2 - POST-BRIEFING
+          // =========================================================================
+          const hasTraffic = freshBriefing?.traffic_conditions !== null;
+          const hasEvents = freshBriefing?.events !== null;
+          const hasNews = freshBriefing?.news !== null;
+          const hasWeather = freshBriefing?.weather_current !== null;
+          const hasSchools = freshBriefing?.school_closures !== null;
+          const hasAirport = freshBriefing?.airport_conditions !== null;
+          triadLog.phase(2, `[VERIFY] Briefing row populated: traffic=${hasTraffic}, events=${hasEvents}, news=${hasNews}, weather=${hasWeather}, schools=${hasSchools}, airport=${hasAirport}`);
+
+          if (!hasTraffic && !hasEvents) {
+            triadLog.warn(2, `[VERIFY] WARNING: Briefing row missing critical data (traffic + events both null)`);
+          }
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
           briefingLog.error(2, `Briefing failed (BLOCKING): ${briefingErr.message}`);
@@ -700,7 +722,15 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Phase 3: Immediate Strategy (STRATEGY_TACTICAL role)
         await updatePhase(snapshotId, 'immediate', { phaseEmitter });
 
-        triadLog.phase(3, `[blocks-fast] Calling runImmediateStrategy for ${snapshot.city}, ${snapshot.state}`);
+        // =========================================================================
+        // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 3 - PRE-STRATEGY
+        // =========================================================================
+        triadLog.phase(3, `[VERIFY] Sending to STRATEGY_TACTICAL (GPT-5.2):`);
+        triadLog.phase(3, `[VERIFY]   • snapshot_id: ${snapshotId.slice(0, 8)}`);
+        triadLog.phase(3, `[VERIFY]   • snapshot.city: ${snapshot.city}, snapshot.state: ${snapshot.state}`);
+        triadLog.phase(3, `[VERIFY]   • briefing_id: ${freshBriefing?.briefing_id?.slice(0, 8) || 'N/A'}`);
+        triadLog.phase(3, `[VERIFY]   • briefing.traffic: ${freshBriefing?.traffic_conditions ? 'YES' : 'NULL'}`);
+        triadLog.phase(3, `[VERIFY]   • briefing.events: ${Array.isArray(freshBriefing?.events) ? `${freshBriefing.events.length} items` : 'NULL'}`);
 
         try {
           // STRATEGY_TACTICAL → strategy_for_now (immediate 1hr strategy for Strategy Tab)
@@ -723,7 +753,18 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         const [consolidatedRow] = await db.select().from(strategies)
           .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
-        triadLog.phase(4, `[blocks-fast] Strategy ready (${consolidatedRow?.strategy_for_now?.length || 0} chars), generating venues`);
+        // =========================================================================
+        // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 4 - PRE-SMARTBLOCKS
+        // =========================================================================
+        triadLog.phase(4, `[VERIFY] Sending to VENUE_SCORER (Tactical Planner):`);
+        triadLog.phase(4, `[VERIFY]   • snapshot_id: ${snapshotId.slice(0, 8)}`);
+        triadLog.phase(4, `[VERIFY]   • snapshot.lat/lng: ${snapshot.lat?.toFixed(6)}, ${snapshot.lng?.toFixed(6)}`);
+        triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${consolidatedRow?.strategy_for_now ? `${consolidatedRow.strategy_for_now.length} chars` : 'NULL'}`);
+        triadLog.phase(4, `[VERIFY]   • briefing.events: ${Array.isArray(freshBriefing?.events) ? `${freshBriefing.events.length} items` : 'NULL'}`);
+
+        if (!consolidatedRow?.strategy_for_now) {
+          triadLog.warn(4, `[VERIFY] CRITICAL: strategy_for_now is NULL - SmartBlocks may fail`);
+        }
 
         // Use shared helper for block generation
         // 2026-01-09: P0-3 FIX - Pass authUserId for ownership

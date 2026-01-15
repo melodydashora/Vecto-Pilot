@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 export type BriefingItem = {
   title?: string;
@@ -62,7 +63,7 @@ export function useStrategy(snapshotId?: string) {
       try {
         if (!active) return;
         
-        const response = await fetch(`/api/blocks/strategy/${snapshotId}`, {
+        const response = await fetch(API_ROUTES.BLOCKS.STRATEGY(snapshotId), {
           signal: abortController.signal,
           credentials: 'include'
         });

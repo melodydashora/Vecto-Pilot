@@ -1,5 +1,15 @@
 // client/src/hooks/useStrategyPolling.ts
-// Strategy polling hook - fetches and caches strategy data
+// ============================================================================
+// DEPRECATED - 2026-01-15
+// ============================================================================
+// This hook is NOT USED. Strategy polling is handled by co-pilot-context.tsx.
+// Both files were doing the same thing (SSE subscription, polling, localStorage).
+//
+// DO NOT USE THIS HOOK. Use the CoPilotContext instead:
+//   const { strategyData, isStrategyFetching, persistentStrategy } = useCoPilot();
+//
+// This file is kept for reference only and will be deleted in a future cleanup.
+// ============================================================================
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';

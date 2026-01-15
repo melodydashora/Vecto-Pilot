@@ -40,6 +40,35 @@ import { haversineDistanceMiles } from '../location/geo.js';
 // Email alerts for model errors
 import { sendModelErrorAlert } from '../notifications/email-alerts.js';
 
+// =============================================================================
+// TIMEOUT UTILITY
+// =============================================================================
+// 2026-01-15: Added to prevent zombie event searches from blocking the pipeline
+// A single stalled search was observed hanging for 3.5 minutes, blocking all other work
+// This wrapper ensures each search is abandoned after the timeout, returning an empty result
+
+const EVENT_SEARCH_TIMEOUT_MS = 45000; // 45 seconds per category search
+
+/**
+ * Wrap a promise with a timeout. If the promise doesn't resolve within the timeout,
+ * it returns a timeout error result instead of hanging indefinitely.
+ *
+ * @param {Promise} promise - The promise to wrap
+ * @param {number} timeoutMs - Timeout in milliseconds
+ * @param {string} operationName - Name for logging purposes
+ * @returns {Promise} - Resolves with either the original result or a timeout error
+ */
+function withTimeout(promise, timeoutMs, operationName = 'Operation') {
+  const timeoutPromise = new Promise((resolve) => {
+    setTimeout(() => {
+      briefingLog.warn(2, `${operationName} timed out after ${timeoutMs}ms - returning empty`, OP.AI);
+      resolve({ timedOut: true, error: `Timeout after ${timeoutMs}ms` });
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]);
+}
+
 /**
  * Get region-specific search terms for school authorities
  * Handles US, UK, Canada, and other international variations
@@ -213,12 +242,13 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 /**
  * Fetch events using Claude web search (fallback when Gemini fails)
  * Uses parallel category searches similar to Gemini approach
+ * 2026-01-15: Added 45s timeout per search to prevent zombie searches
  */
 async function fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat, lng, timezone }) {
   const startTime = Date.now();
 
-  // Run all 5 categories in parallel using Claude web search
-  const categoryPromises = EVENT_CATEGORIES.map(async (category) => {
+  // Helper to search a single category with Claude
+  async function searchCategory(category) {
     const prompt = `Search the web for ${category.name.replace('_', ' ')} events happening in ${city}, ${state} TODAY (${date}).
 
 SEARCH QUERY: "${category.searchTerms(city, state, date)}"
@@ -258,7 +288,16 @@ DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
     } catch (err) {
       return { category: category.name, items: [], error: err.message };
     }
-  });
+  }
+
+  // Run all 5 categories in parallel using Claude web search (with 45s timeout each)
+  const categoryPromises = EVENT_CATEGORIES.map(category =>
+    withTimeout(
+      searchCategory(category),
+      EVENT_SEARCH_TIMEOUT_MS,
+      `Claude event search: ${category.name}`
+    )
+  );
 
   const categoryResults = await Promise.all(categoryPromises);
 
@@ -267,13 +306,19 @@ DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
   const allCitations = [];
   const seenTitles = new Set();
   let totalFound = 0;
+  let timedOutCount = 0;
 
   for (const result of categoryResults) {
-    totalFound += result.items.length;
+    // 2026-01-15: Handle timeout results - treat as empty with warning
+    if (result.timedOut) {
+      timedOutCount++;
+      continue;
+    }
+    totalFound += result.items?.length || 0;
     if (result.citations) {
       allCitations.push(...result.citations);
     }
-    for (const event of result.items) {
+    for (const event of result.items || []) {
       const titleKey = event.title?.toLowerCase().trim();
       if (titleKey && !seenTitles.has(titleKey)) {
         seenTitles.add(titleKey);
@@ -283,6 +328,10 @@ DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
     if (result.error) {
       briefingLog.warn(2, `Claude category ${result.category} failed: ${result.error}`, OP.AI);
     }
+  }
+
+  if (timedOutCount > 0) {
+    briefingLog.warn(2, `${timedOutCount}/${EVENT_CATEGORIES.length} Claude category searches timed out`, OP.FALLBACK);
   }
 
   const elapsedMs = Date.now() - startTime;
@@ -766,14 +815,19 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     return { items: [], reason: 'No API keys configured for event search' };
   }
 
-  briefingLog.ai(2, 'Gemini', `events for ${city}, ${state} (${date}) - 5 parallel searches`);
+  briefingLog.ai(2, 'Gemini', `events for ${city}, ${state} (${date}) - 5 parallel searches (45s timeout each)`);
 
   // PARALLEL CATEGORY SEARCHES - 5 simultaneous searches for better coverage
   // Each category runs independently, results are merged and deduplicated
+  // 2026-01-15: Added 45s timeout per search to prevent zombie searches from blocking pipeline
   const startTime = Date.now();
 
   const categoryPromises = EVENT_CATEGORIES.map(category =>
-    fetchEventCategory({ category, city, state, lat, lng, date, timezone })
+    withTimeout(
+      fetchEventCategory({ category, city, state, lat, lng, date, timezone }),
+      EVENT_SEARCH_TIMEOUT_MS,
+      `Event search: ${category.name}`
+    )
   );
 
   const categoryResults = await Promise.all(categoryPromises);
@@ -782,10 +836,16 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const allEvents = [];
   const seenTitles = new Set();
   let totalFound = 0;
+  let timedOutCount = 0;
 
   for (const result of categoryResults) {
-    totalFound += result.items.length;
-    for (const event of result.items) {
+    // 2026-01-15: Handle timeout results - treat as empty with warning
+    if (result.timedOut) {
+      timedOutCount++;
+      continue;
+    }
+    totalFound += result.items?.length || 0;
+    for (const event of result.items || []) {
       // Deduplicate by title (case-insensitive)
       const titleKey = event.title?.toLowerCase().trim();
       if (titleKey && !seenTitles.has(titleKey)) {
@@ -796,6 +856,10 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     if (result.error) {
       briefingLog.warn(2, `Category ${result.category} failed: ${result.error}`, OP.AI);
     }
+  }
+
+  if (timedOutCount > 0) {
+    briefingLog.warn(2, `${timedOutCount}/${EVENT_CATEGORIES.length} category searches timed out`, OP.AI);
   }
 
   const elapsedMs = Date.now() - startTime;

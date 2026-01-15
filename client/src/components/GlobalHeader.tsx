@@ -19,6 +19,7 @@ import { LocationContext } from "@/contexts/location-context-clean";
 import { useQuery } from "@tanstack/react-query";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
+import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 
 // helpers (add these files from sections 2 and 3 below)
 import { classifyDayPart } from "@/lib/daypart";
@@ -100,11 +101,11 @@ const GlobalHeaderComponent: React.FC = () => {
   // This is disabled for anonymous users who don't have auth tokens
   const authToken = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
   const { data: dbUserLocation } = useQuery({
-    queryKey: ["/api/auth/me", deviceId],
+    queryKey: QUERY_KEYS.AUTH_ME(deviceId || ''),
     queryFn: async () => {
       if (!deviceId || !authToken) return null;
       const res = await fetch(
-        `/api/auth/me`,
+        API_ROUTES.AUTH.ME,
         { headers: { Authorization: `Bearer ${authToken}` } }
       );
       if (!res.ok) return null;

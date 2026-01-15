@@ -102,7 +102,8 @@ GPS coords → /api/location/resolve
 
 - **Uses:** `../../db/drizzle.js` for database access
 - **Uses:** `../../../shared/schema.js` for database schema
-- **Uses:** `../../lib/location/geo.js` for geocoding
+- **Uses:** `../../lib/location/geo.js` for distance calculations
+- **Uses:** `../../lib/location/geocode.js` for forward geocoding
 - **Uses:** Google Maps API (Geocoding, Weather, Air Quality)
 - **Called by:** Client LocationContext on GPS update
 
@@ -114,9 +115,10 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, users, coords_cache, markets } from '../../../shared/schema.js';
 
 // Location lib
-import { geocode, reverseGeocode } from '../../lib/location/geo.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';  // For 100m threshold check
+import { geocodeAddress, getTimezoneForCoords } from '../../lib/location/geocode.js';
 import { getSnapshotContext } from '../../lib/location/get-snapshot-context.js';
+// Note: reverseGeocode is in server/lib/venue/venue-address-resolver.js (venue-specific)
 
 // Validation
 import { snapshotMinimalSchema } from '../../validation/schemas.js';

@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Mail, Smartphone, ArrowLeft, CheckCircle } from 'lucide-react';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -40,7 +41,7 @@ export default function ForgotPasswordPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
+      const response = await fetch(API_ROUTES.AUTH.FORGOT_PASSWORD, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

@@ -110,61 +110,7 @@ export async function getTimezoneForCoords(lat, lng) {
   }
 }
 
-/**
- * Reverse geocode coordinates to get address
- * @param {number} lat - Latitude
- * @param {number} lng - Longitude
- * @returns {Promise<{formattedAddress: string, city: string, state: string, country: string, zipCode: string} | null>}
- */
-export async function reverseGeocode(lat, lng) {
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.warn('[geocode] Google Maps API key not configured');
-    return null;
-  }
-
-  try {
-    const url = `${GEOCODE_API_URL}?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`;
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      console.error('[geocode] Reverse geocode API request failed:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
-
-    if (data.status !== 'OK' || !data.results || data.results.length === 0) {
-      console.warn('[geocode] No results for coordinates:', lat, lng);
-      return null;
-    }
-
-    const result = data.results[0];
-    const components = result.address_components;
-
-    // Extract address components
-    const getComponent = (type) => {
-      const comp = components.find(c => c.types.includes(type));
-      return comp ? comp.long_name : null;
-    };
-
-    const getComponentShort = (type) => {
-      const comp = components.find(c => c.types.includes(type));
-      return comp ? comp.short_name : null;
-    };
-
-    return {
-      formattedAddress: result.formatted_address,
-      streetNumber: getComponent('street_number'),
-      streetName: getComponent('route'),
-      city: getComponent('locality') || getComponent('sublocality') || getComponent('administrative_area_level_2'),
-      state: getComponent('administrative_area_level_1'),
-      stateCode: getComponentShort('administrative_area_level_1'),
-      country: getComponent('country'),
-      countryCode: getComponentShort('country'),
-      zipCode: getComponent('postal_code')
-    };
-  } catch (error) {
-    console.error('[geocode] Failed to reverse geocode:', error.message);
-    return null;
-  }
-}
+// 2026-01-15: reverseGeocode REMOVED - was dead code (not imported anywhere)
+// Reverse geocoding is now handled exclusively by venue-address-resolver.js
+// which has its own local reverseGeocode() optimized for venue resolution workflow
+// See: venue-address-resolver.js:235

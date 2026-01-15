@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import type { MarketOption, RegisterData } from '@/types/auth';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 // Social login icons as inline SVGs for reliability
 const GoogleIcon = () => (
@@ -216,7 +217,7 @@ export default function SignUpPage() {
   // Fetch countries on mount (all=true to show all countries, not just those with platform data)
   useEffect(() => {
     setIsLoadingCountries(true);
-    fetch('/api/platform/countries-dropdown?all=true')
+    fetch(API_ROUTES.PLATFORM.COUNTRIES_DROPDOWN)
       .then(res => res.json())
       .then(data => {
         setCountries(data.countries || []);
@@ -234,7 +235,7 @@ export default function SignUpPage() {
       setIsLoadingRegions(true);
       form.setValue('stateTerritory', ''); // Reset region when country changes
       form.setValue('market', ''); // Reset market when country changes
-      fetch(`/api/platform/regions-dropdown?country=${encodeURIComponent(watchCountry)}`)
+      fetch(API_ROUTES.PLATFORM.REGIONS_DROPDOWN(watchCountry))
         .then(res => res.json())
         .then(data => {
           setRegions(data.regions || []);
@@ -249,8 +250,8 @@ export default function SignUpPage() {
       // 2026-01-05: Use intelligence endpoint for US markets (has 243 markets with "Other" support)
       setIsLoadingMarkets(true);
       const marketsEndpoint = watchCountry === 'US'
-        ? '/api/intelligence/markets-dropdown'
-        : `/api/platform/markets-dropdown?country=${encodeURIComponent(watchCountry)}`;
+        ? API_ROUTES.INTELLIGENCE.MARKETS_DROPDOWN
+        : API_ROUTES.PLATFORM.MARKETS_DROPDOWN(watchCountry);
 
       fetch(marketsEndpoint)
         .then(res => res.json())
@@ -281,7 +282,7 @@ export default function SignUpPage() {
 
   // Fetch vehicle years
   useEffect(() => {
-    fetch('/api/vehicle/years')
+    fetch(API_ROUTES.VEHICLE.YEARS)
       .then(res => res.json())
       .then(data => setYears(data.years || []))
       .catch(err => console.error('Failed to fetch years:', err));
@@ -305,14 +306,14 @@ export default function SignUpPage() {
     setSocialLoading('google');
     setError(null);
     // Redirect to Google OAuth endpoint (signup mode)
-    window.location.href = '/api/auth/google?mode=signup';
+    window.location.href = API_ROUTES.AUTH.GOOGLE_SIGNUP;
   };
 
   const handleAppleSignUp = () => {
     setSocialLoading('apple');
     setError(null);
     // Redirect to Apple OAuth endpoint (signup mode)
-    window.location.href = '/api/auth/apple?mode=signup';
+    window.location.href = API_ROUTES.AUTH.APPLE_SIGNUP;
   };
 
 
@@ -370,7 +371,7 @@ export default function SignUpPage() {
     if (data.market === '__OTHER__' && customMarket.trim()) {
       // Add the new market to the database first
       try {
-        const addMarketRes = await fetch('/api/intelligence/add-market', {
+        const addMarketRes = await fetch(API_ROUTES.INTELLIGENCE.ADD_MARKET, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

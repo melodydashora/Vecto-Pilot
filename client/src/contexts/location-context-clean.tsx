@@ -2,6 +2,7 @@
 import React, { createContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from './auth-context';
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
@@ -336,7 +337,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       // 2026-01-09: P0-2 FIX - Removed user_id query param (was security bypass)
       // Authentication ONLY comes from Authorization header now
-      let resolveUrl = `/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`;
+      // 2026-01-15: Using centralized API_ROUTES constant
+      let resolveUrl = API_ROUTES.LOCATION.RESOLVE_WITH_PARAMS(lat, lng, deviceId, accuracy);
       // Force refresh bypasses server-side snapshot reuse (60 min TTL)
       // This is used when user explicitly clicks the refresh button
       if (forceRefresh) {
@@ -361,9 +363,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       // Start all requests in parallel with abort signal
       // Updated 2026-01-05: Added signal for request cancellation
+      // 2026-01-15: Using centralized API_ROUTES constants
       const locationPromise = fetch(resolveUrl, { headers, signal: controller.signal });
-      const weatherPromise = fetch(`/api/location/weather?lat=${lat}&lng=${lng}`, { signal: controller.signal });
-      const airPromise = fetch(`/api/location/airquality?lat=${lat}&lng=${lng}`, { signal: controller.signal });
+      const weatherPromise = fetch(API_ROUTES.LOCATION.WEATHER_WITH_COORDS(lat, lng), { signal: controller.signal });
+      const airPromise = fetch(API_ROUTES.LOCATION.AIR_QUALITY_WITH_COORDS(lat, lng), { signal: controller.signal });
 
       // Track weather/air data for snapshot enrichment later
       let weatherData: { available: boolean; temperature: number; conditions: string; description?: string } | null = null;
@@ -476,9 +479,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         console.log(`📸 [LocationContext] Using server-created snapshot: ${snapshotId.slice(0, 8)}...`);
 
         // Enrich snapshot with weather/air if available
+        // 2026-01-15: Using centralized API_ROUTES constant
         if (weatherData?.available || airQualityData?.available) {
           try {
-            await fetch(`/api/location/snapshot/${snapshotId}/enrich`, {
+            await fetch(API_ROUTES.LOCATION.SNAPSHOT_ENRICH(snapshotId), {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -556,7 +560,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           permissions: { geolocation: 'granted' }
         };
 
-        const snapshotRes = await fetch('/api/location/snapshot', {
+        // 2026-01-15: Using centralized API_ROUTES constant
+        const snapshotRes = await fetch(API_ROUTES.LOCATION.SNAPSHOT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(snapshot),

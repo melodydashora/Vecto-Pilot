@@ -47,6 +47,7 @@ This document captures historical issues, pitfalls, and best practices discovere
 6. **ALWAYS find the root cause** - Before catching an error, ask "Should this error be possible?" If no, investigate why it's happening instead of handling it. Errors are symptoms; fix the disease, not the symptom. (Added 2026-01-09)
 7. **ALWAYS use 6-decimal precision for GPS** - Coordinates must use `toFixed(6)` for ~11cm accuracy. Get coordinates from Google APIs (authoritative), not AI models (hallucinated). Cache keys via `makeCoordsKey(lat, lng)`. (Added 2026-01-09)
 8. **ALWAYS update docs after changes** - Every code change requires: (1) folder README.md update, (2) inline comment with date/reason for major changes, (3) LESSONS_LEARNED.md for non-obvious discoveries. If unsure, flag in docs/review-queue/pending.md. (Added 2026-01-09)
+9. **ALWAYS add timeouts to external API calls in parallel pipelines** - If a single API call hangs in a `Promise.all`, the entire pipeline blocks. Use `withTimeout(promise, ms, name)` wrapper to ensure stalled calls are abandoned. Example: event discovery uses 45s timeout per category search to prevent 3.5+ minute zombie hangs. Timeouts should return empty results, not throw, so `Promise.all` can still complete with partial data. (Added 2026-01-15)
 
 ---
 

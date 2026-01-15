@@ -11,6 +11,8 @@ import type {
 } from '@/types/auth';
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
+// 2026-01-15: Centralized API routes
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface AuthContextValue extends AuthState {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
@@ -83,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (token: string) => {
     try {
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch(API_ROUTES.AUTH.ME, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -119,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (credentials: LoginCredentials) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(API_ROUTES.AUTH.LOGIN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
@@ -152,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (data: RegisterData) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch(API_ROUTES.AUTH.REGISTER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -176,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     try {
       if (state.token) {
-        await fetch('/api/auth/logout', {
+        await fetch(API_ROUTES.AUTH.LOGOUT, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${state.token}`,
@@ -215,7 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch('/api/auth/profile', {
+      const response = await fetch(API_ROUTES.AUTH.PROFILE, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -40,11 +40,14 @@ export const MODEL_ROLES = {
     temperature: 0.1,
     features: ['google_search'],
   },
+  // 2026-01-15: Upgraded from Flash to Pro per "Single Briefer Model" architecture
+  // Rationale: Traffic requires complex synthesis of TomTom JSON (incidents, flow segments)
+  // into actionable "Driver Advice". Pro's reasoning is needed for accurate spatial analysis.
   BRIEFING_TRAFFIC: {
     envKey: 'BRIEFING_TRAFFIC_MODEL',
-    default: 'gemini-3-flash-preview',
-    purpose: 'Traffic conditions analysis (structured output)',
-    maxTokens: 2048,
+    default: 'gemini-3-pro-preview',
+    purpose: 'Traffic conditions analysis (TomTom JSON → Driver Advice)',
+    maxTokens: 4096,
     temperature: 0.2,
     features: ['google_search'],
   },

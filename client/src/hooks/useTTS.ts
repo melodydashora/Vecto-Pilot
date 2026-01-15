@@ -3,6 +3,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/useToast';
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface UseTTSReturn {
   isSpeaking: boolean;
@@ -39,7 +40,7 @@ export function useTTS(): UseTTSReturn {
       setIsSpeaking(true);
       console.log('[TTS] Requesting audio synthesis...');
 
-      const response = await fetch('/api/tts', {
+      const response = await fetch(API_ROUTES.TTS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text })

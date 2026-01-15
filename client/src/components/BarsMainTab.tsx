@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Navigation, MapPin, Phone, Wine, Loader, AlertCircle } from "lucide-react";
 import { openNavigation } from "@/utils/co-pilot-helpers";
+import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface BarTabProps {
   latitude: number | null;
@@ -148,7 +149,7 @@ export default function BarTab({
         timezone: timezone  // No fallback - required for accurate venue hours
       });
 
-      const response = await fetch(`/api/venues/nearby?${params}`, {
+      const response = await fetch(API_ROUTES.VENUES.NEARBY_WITH_PARAMS(params), {
         headers: getAuthHeader()
       });
 
