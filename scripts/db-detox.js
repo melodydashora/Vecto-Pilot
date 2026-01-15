@@ -124,12 +124,14 @@ async function analyzeDatabase() {
       sql: `SELECT COUNT(*) as count FROM discovered_events WHERE venue_name IS NULL`
     },
     {
-      label: 'Events with NULL event_time',
-      sql: `SELECT COUNT(*) as count FROM discovered_events WHERE event_time IS NULL OR event_time = ''`
+      // 2026-01-15: Fixed column name - renamed from event_time to event_start_time
+      label: 'Events with NULL event_start_time',
+      sql: `SELECT COUNT(*) as count FROM discovered_events WHERE event_start_time IS NULL OR event_start_time = ''`
     },
     {
-      label: 'Past events (event_date < today)',
-      sql: `SELECT COUNT(*) as count FROM discovered_events WHERE event_date < CURRENT_DATE::text`
+      // 2026-01-15: Fixed column name - renamed from event_date to event_start_date
+      label: 'Past events (event_start_date < today)',
+      sql: `SELECT COUNT(*) as count FROM discovered_events WHERE event_start_date < CURRENT_DATE::text`
     },
     {
       label: 'Inactive events (is_active = false)',
@@ -258,7 +260,7 @@ async function purgeDiscoveredEventsZombies() {
         OR venue_name ILIKE '%unknown%'
         OR venue_name ILIKE '%venue tbd%'
         OR venue_name ILIKE '%location tbd%'
-        OR event_time ILIKE '%tbd%'`,
+        OR event_start_time ILIKE '%tbd%'`,
     [],
     'Remove TBD/Unknown events'
   );
@@ -274,7 +276,7 @@ async function purgeDiscoveredEventsZombies() {
 
   // 1c. Delete past events (keep today and future only)
   const pastResult = await execute(
-    `DELETE FROM discovered_events WHERE event_date < CURRENT_DATE::text`,
+    `DELETE FROM discovered_events WHERE event_start_date < CURRENT_DATE::text`,
     [],
     'Remove past events'
   );

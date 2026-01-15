@@ -91,26 +91,20 @@ CREATE TABLE discovered_events (
   address TEXT,
   city TEXT NOT NULL,
   state TEXT NOT NULL,
-  zip TEXT,
+  venue_id UUID REFERENCES venue_catalog(venue_id),  -- FK for coordinates
 
-  -- Event timing
-  event_date TEXT NOT NULL,      -- YYYY-MM-DD format
-  event_time TEXT,               -- e.g., "7:00 PM"
-  event_end_time TEXT,           -- e.g., "10:00 PM"
-  event_end_date TEXT,           -- For multi-day events
-
-  -- Coordinates
-  lat DOUBLE PRECISION,
-  lng DOUBLE PRECISION,
+  -- Event timing (2026-01-10: Symmetric naming convention)
+  event_start_date TEXT NOT NULL,  -- YYYY-MM-DD format (renamed from event_date)
+  event_start_time TEXT,           -- e.g., "7:00 PM" (renamed from event_time)
+  event_end_date TEXT,             -- For multi-day events
+  event_end_time TEXT,             -- e.g., "10:00 PM"
 
   -- Categorization
   category TEXT NOT NULL DEFAULT 'other',
   expected_attendance TEXT DEFAULT 'medium',  -- high, medium, low
 
-  -- Discovery metadata
-  source_model TEXT NOT NULL,    -- SerpAPI, GPT-5.2, Gemini-3-Pro, etc.
-  source_url TEXT,
-  raw_source_data JSONB,
+  -- Note: lat, lng, zip, source_model, source_url, raw_source_data removed 2026-01-10
+  -- Geocoding now in venue_catalog, which is source of truth for coordinates
 
   -- Deduplication
   event_hash TEXT NOT NULL UNIQUE,  -- MD5 hash for dedup
@@ -171,13 +165,11 @@ Fetch events from discovered_events table for the snapshot's city/state.
       "title": "Taylor Swift - Eras Tour",
       "venue": "AT&T Stadium",
       "address": "1 AT&T Way, Arlington, TX",
-      "event_date": "2024-12-15",
-      "event_time": "7:00 PM",
+      "event_start_date": "2026-01-15",
+      "event_start_time": "7:00 PM",
       "event_end_time": "11:00 PM",
       "impact": "high",
-      "subtype": "concert",
-      "latitude": 32.7473,
-      "longitude": -97.0945
+      "subtype": "concert"
     }
   ],
   "timestamp": "2024-12-14T..."

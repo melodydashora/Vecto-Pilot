@@ -4,6 +4,41 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
+## 2026-01-15 (Schema↔Code Drift Audit Fix)
+
+### Schema Column Name Synchronization
+
+Following D-030 migration (`event_date` → `event_start_date`, `event_time` → `event_start_time`), completed full audit to synchronize all remaining legacy column references:
+
+| ID | File | Fix |
+|----|------|-----|
+| D-033 | `scripts/db-detox.js` | Updated SQL queries to use `event_start_date` and `event_start_time` |
+| D-034 | `server/api/coach/schema.js` | Fixed AI Coach key_columns to use canonical column names |
+| D-035 | `shared/README.md` | Updated discovered_events schema documentation |
+| D-036 | Architecture docs | Synced field names across: `ai-coach.md`, `Briefing.md`, `event-discovery.md`, `server/api/briefing/README.md` |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `scripts/db-detox.js` | 4 SQL queries updated to use `event_start_date`/`event_start_time` |
+| `server/api/coach/schema.js` | key_columns array updated for discovered_events table |
+| `server/lib/briefing/dump-last-briefing.js` | Added fallback: `event_start_time \|\| event_time` for diagnostic |
+| `shared/README.md` | Complete schema example updated to reflect current columns |
+| `docs/architecture/ai-coach.md` | Table column reference updated |
+| `docs/architecture/Briefing.md` | Table schema updated with new column names |
+| `docs/architecture/event-discovery.md` | Table schema and example JSON updated |
+| `server/api/briefing/README.md` | Example JSON response updated |
+| `docs/DOC_DISCREPANCIES.md` | Added entries D-033 through D-036 |
+
+### Migration Dependency Note
+
+**IMPORTANT:** These fixes assume the D-030 migration (`migrations/20260110_rename_event_columns.sql`) has been run. If deploying to an environment where the migration hasn't run yet:
+1. Run: `npm run db:migrate` to apply pending migrations
+2. The migration renames: `event_date` → `event_start_date`, `event_time` → `event_start_time`
+
+---
+
 ## 2026-01-14 (Phase 3: Intelligence Hardening - Session 2)
 
 ### Critical Bug Fixes

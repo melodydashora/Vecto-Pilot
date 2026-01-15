@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-01-15
 
 # Shared (`shared/`)
 
@@ -39,6 +39,7 @@ The `types/` subfolder contains shared TypeScript types.
 Stores events found by multi-model AI search (SerpAPI, GPT-5.2, Gemini, Claude, Perplexity):
 
 ```javascript
+// 2026-01-15: Updated to reflect current schema after D-030 migration
 export const discovered_events = pgTable("discovered_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
@@ -46,14 +47,14 @@ export const discovered_events = pgTable("discovered_events", {
   address: text("address"),
   city: text("city").notNull(),
   state: text("state").notNull(),
-  event_date: text("event_date").notNull(),   // YYYY-MM-DD
-  event_time: text("event_time"),              // "7:00 PM"
-  event_end_time: text("event_end_time"),      // "10:00 PM"
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
+  venue_id: uuid("venue_id"),                  // FK to venue_catalog
+  // Event timing (2026-01-10: Symmetric naming convention)
+  event_start_date: text("event_start_date").notNull(), // YYYY-MM-DD
+  event_start_time: text("event_start_time"),           // "7:00 PM"
+  event_end_date: text("event_end_date"),               // For multi-day events
+  event_end_time: text("event_end_time"),               // "10:00 PM"
   category: text("category").notNull().default('other'),
   expected_attendance: text("expected_attendance").default('medium'),
-  source_model: text("source_model").notNull(),  // SerpAPI, GPT-5.2, etc.
   event_hash: text("event_hash").notNull().unique(),  // Deduplication key
   is_active: boolean("is_active").default(true),      // False if deactivated
   deactivation_reason: text("deactivation_reason"),   // event_ended, incorrect_time, etc.
@@ -61,6 +62,8 @@ export const discovered_events = pgTable("discovered_events", {
   deactivated_by: text("deactivated_by"),             // ai_coach or user_id
   // ...
 });
+// NOTE: lat, lng, source_model, source_url, raw_source_data were removed in 2026-01-10
+// Geocoding happens in venue_catalog, which is source of truth for coordinates
 ```
 
 **Deduplication**: Uses MD5 hash of `normalize(title + venue + date + city)` to prevent duplicates across sources.

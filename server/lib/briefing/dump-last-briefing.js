@@ -162,7 +162,7 @@ Event Count:
 TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in location: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.location || '')).length : 0}
   Events with TBD in venue: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.venue || '')).length : 0}
-  Events with TBD in time: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.event_time || '')).length : 0}
+  Events with TBD in time: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.event_start_time || e.event_time || '')).length : 0}
 
 Events AFTER filterInvalidEvents (what LLM actually receives):
   Raw events in DB: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.length : 0}
