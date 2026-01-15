@@ -603,14 +603,14 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
 
     // 2026-01-14: FIX - Use snapshot timezone to calculate "today" (not UTC)
     // At 8:20 PM CST on Jan 14, UTC is already Jan 15 - this was causing 0 events to return
+    // 2026-01-15: ACTUAL FIX - toISOString() still converts to UTC! Use toLocaleDateString instead.
     if (!snapshot.timezone) {
       console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for events query', { snapshot_id: snapshot.snapshot_id });
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const userTimezone = snapshot.timezone;
-    const today = snapshot.local_iso
-      ? new Date(snapshot.local_iso).toISOString().split('T')[0]
-      : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
+    // CRITICAL: Always use toLocaleDateString with timezone - toISOString() converts to UTC!
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
 
     // Calculate end date in user's timezone (today + 7 days)
     const endDateObj = new Date();
@@ -926,9 +926,8 @@ router.post('/refresh-daily/:snapshotId', expensiveEndpointLimiter, requireAuth,
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const userTimezone = snapshot.timezone;
-    const userLocalDate = snapshot.local_iso
-      ? new Date(snapshot.local_iso).toISOString().split('T')[0]
-      : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
+    // 2026-01-15: FIX - toISOString() converts to UTC, use toLocaleDateString instead
+    const userLocalDate = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
 
     console.log(`[BriefingRoute] POST /refresh-daily/${snapshot.snapshot_id} - isDaily=${isDaily}`);
     console.log(`[BriefingRoute] Location: ${snapshot.city}, ${snapshot.state} (${snapshot.lat}, ${snapshot.lng})`);
@@ -1022,9 +1021,8 @@ router.post('/discover-events/:snapshotId', expensiveEndpointLimiter, requireAut
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const userTimezone = snapshot.timezone;
-    const userLocalDate = snapshot.local_iso
-      ? new Date(snapshot.local_iso).toISOString().split('T')[0]
-      : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
+    // 2026-01-15: FIX - toISOString() converts to UTC, use toLocaleDateString instead
+    const userLocalDate = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
 
     console.log(`[BriefingRoute] POST /discover-events/${snapshot.snapshot_id} - isDaily=${isDaily}`);
     console.log(`[BriefingRoute] Location: ${snapshot.city}, ${snapshot.state} (${snapshot.lat}, ${snapshot.lng})`);
@@ -1192,9 +1190,8 @@ router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnersh
     const userTimezone = snapshot.timezone;
 
     // Calculate "today" in user's timezone
-    const today = snapshot.local_iso
-      ? new Date(snapshot.local_iso).toISOString().split('T')[0]
-      : new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
+    // 2026-01-15: FIX - toISOString() converts to UTC, use toLocaleDateString instead
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }); // YYYY-MM-DD format
 
     // Calculate end date in user's timezone (today + 7 days)
     const endDateObj = new Date();
