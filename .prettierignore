@@ -1,0 +1,68 @@
+# Prettier Ignore File
+# Files and directories that should not be formatted
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+coverage/
+client/dist/
+
+# Generated files
+*.min.js
+*.min.css
+*.bundle.js
+*.d.ts
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Database
+*.sql
+
+# Logs
+*.log
+logs/
+
+# Environment files (may contain secrets)
+.env
+.env.*
+!.env.example
+
+# IDE and editor specific
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Cache directories
+.cache/
+.eslintcache
+.turbo/
+
+# Documentation that shouldn't be auto-formatted
+CHANGELOG.md
+
+# Test snapshots
+__snapshots__/
+
+# Third-party code
+vendor/
+
+# Migration files (SQL formatting is different)
+migrations/
