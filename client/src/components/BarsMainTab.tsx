@@ -130,7 +130,7 @@ export default function BarTab({
     queryKey: ['bar-tab', latitude, longitude, city, state, timezone],
     queryFn: async () => {
       // 2026-01-09: NO FALLBACKS - fail explicitly if required data missing
-      if (!latitude || !longitude) {
+      if (latitude == null || longitude == null) {
         throw new Error('[BarTab] BUG: Query enabled without coordinates');
       }
       if (!timezone) {
@@ -161,7 +161,7 @@ export default function BarTab({
       return result.data;
     },
     // 2026-01-09: Explicitly require city and timezone (not just isLocationResolved)
-    enabled: !!(latitude && longitude && city && timezone && isLocationResolved),
+    enabled: latitude != null && longitude != null && !!city && !!timezone && isLocationResolved,
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: false,
   });

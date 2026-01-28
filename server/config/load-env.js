@@ -89,6 +89,9 @@ function validateEnvContract() {
 export function loadEnvironment() {
   const isReplitDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
   const deployMode = process.env.DEPLOY_MODE || null;
+  if (!process.env.APP_MODE && (deployMode === 'mono' || deployMode === 'split')) {
+    process.env.APP_MODE = deployMode;
+  }
   
   console.log('[env-loader] ========================================');
   console.log('[env-loader] Environment Contract Loader');
