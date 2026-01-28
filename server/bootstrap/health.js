@@ -4,7 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, '..', '..');
@@ -53,7 +53,7 @@ export function configureHealthEndpoints(app, distDir, mode) {
 export async function mountHealthRouter(app) {
   try {
     const healthPath = path.join(rootDir, 'server/api/health/health.js');
-    const { default: healthRouter } = await import(healthPath);
+    const { default: healthRouter } = await import(pathToFileURL(healthPath).href);
     app.use('/api/health', healthRouter);
     console.log('[gateway] ✅ Health API router mounted at /api/health');
     return true;

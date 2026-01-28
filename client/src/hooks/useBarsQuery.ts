@@ -78,7 +78,7 @@ export function useBarsQuery({
     queryFn: async () => {
       // 2026-01-06: P3-C - NO FALLBACKS - fail explicitly if required data missing
       // If this errors, it's a bug in LocationContext (isLocationResolved was true but data missing)
-      if (!latitude || !longitude) {
+      if (latitude == null || longitude == null) {
         throw new Error('[useBarsQuery] BUG: Query enabled without coordinates');
       }
       if (!timezone) {
@@ -114,7 +114,7 @@ export function useBarsQuery({
     },
     // Only fetch when location is fully resolved with all required data
     // 2026-01-06: P3-C - explicitly require city and timezone (not just isLocationResolved)
-    enabled: !!(latitude && longitude && city && timezone && isLocationResolved),
+    enabled: latitude != null && longitude != null && !!city && !!timezone && isLocationResolved,
     // Cache for 5 minutes (bars don't change frequently)
     staleTime: 5 * 60 * 1000,
     // Keep in cache for 10 minutes

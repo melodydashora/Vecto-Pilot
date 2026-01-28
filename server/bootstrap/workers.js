@@ -3,12 +3,16 @@
 
 import { spawn } from 'node:child_process';
 import { openSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 // Track spawned child processes for graceful shutdown
 const children = new Map();
 
 // Track in-process jobs
 let eventSyncJob = null;
+let isShuttingDown = false;
+const workerLogPath = path.join(os.tmpdir(), 'worker.log');
 
 /**
  * Spawn a child process with auto-restart on crash
@@ -34,9 +38,25 @@ export function spawnChild(name, command, args, env = {}) {
     console.error(`[${name}] ${data.toString().trim()}`)
   );
 
-  child.on('exit', (code) => {
-    console.error(`❌ [gateway] ${name} exited with code ${code}, restarting...`);
+  child.on('error', (err) => {
+    console.error(`[gateway] ${name} spawn error:`, err.message);
     children.delete(name);
+    if (!isShuttingDown) {
+      setTimeout(() => spawnChild(name, command, args, env), 2000);
+    }
+  });
+
+  child.on('exit', (code, signal) => {
+    children.delete(name);
+    if (isShuttingDown) {
+      console.log(`[gateway] ${name} stopped (${signal || code})`);
+      return;
+    }
+    if (code === 0) {
+      console.warn(`[gateway] ${name} exited cleanly (code 0) - not restarting`);
+      return;
+    }
+    console.error(`[gateway] ${name} exited with code ${code ?? 'null'}, restarting...`);
     setTimeout(() => spawnChild(name, command, args, env), 2000);
   });
 
@@ -57,7 +77,7 @@ export function startStrategyWorker(options = {}) {
 
   try {
     if (useLogFile) {
-      const workerLogFd = openSync('/tmp/worker.log', 'a');
+      const workerLogFd = openSync(workerLogPath, 'a');
 
       const worker = spawn('node', ['strategy-generator.js'], {
         stdio: ['ignore', workerLogFd, workerLogFd],
@@ -66,16 +86,27 @@ export function startStrategyWorker(options = {}) {
 
       worker.on('error', (err) => {
         console.error('[gateway:worker:error] Failed to spawn worker:', err.message);
+        if (!isShuttingDown) {
+          setTimeout(() => startStrategyWorker(options), 5000);
+        }
       });
 
-      worker.on('exit', (code) => {
-        console.error(`[gateway:worker:exit] Worker exited with code ${code}, restarting...`);
+      worker.on('exit', (code, signal) => {
+        if (isShuttingDown) {
+          console.log(`[gateway] strategy-worker stopped (${signal || code})`);
+          return;
+        }
+        if (code === 0) {
+          console.warn('[gateway] strategy-worker exited cleanly (code 0) - not restarting');
+          return;
+        }
+        console.error(`[gateway:worker:exit] Worker exited with code ${code ?? 'null'}, restarting...`);
         setTimeout(() => startStrategyWorker(options), 5000);
       });
 
       children.set('strategy-worker', worker);
       console.log(`[gateway] ✅ Worker started (PID: ${worker.pid})`);
-      console.log(`[gateway] 📋 Worker logs: /tmp/worker.log`);
+      console.log(`[gateway] Worker logs: ${workerLogPath}`);
       return worker;
     } else {
       // Use spawnChild for auto-restart with stdout/stderr piped
@@ -146,6 +177,7 @@ export function getChildren() {
  * @param {string} signal - Signal to send (SIGINT or SIGTERM)
  */
 export function killAllChildren(signal = 'SIGTERM') {
+  isShuttingDown = true;
   children.forEach((child, name) => {
     console.log(`[gateway] Stopping ${name}...`);
     child.kill(signal);
@@ -173,3 +205,8 @@ export async function startEventSyncJob() {
     return null;
   }
 }
+
+
+
+
+

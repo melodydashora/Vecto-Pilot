@@ -1,7 +1,7 @@
 // server/bootstrap/routes.js
 // Centralized route mounting for gateway-server.js
 
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,7 +18,7 @@ async function mountRoute(app, routePath, modulePath, description) {
   try {
     console.log(`[gateway] Loading ${description}...`);
     const fullPath = path.join(rootDir, modulePath);
-    const router = (await import(fullPath)).default;
+    const router = (await import(pathToFileURL(fullPath).href)).default;
     app.use(routePath, router);
     console.log(`[gateway] ✅ ${description} mounted at ${routePath}`);
     return true;
@@ -115,7 +115,7 @@ export async function mountRoutes(app, server) {
   try {
     console.log('[gateway] Loading Agent embed...');
     const agentPath = path.join(rootDir, 'server/agent/embed.js');
-    const { mountAgent } = await import(agentPath);
+    const { mountAgent } = await import(pathToFileURL(agentPath).href);
     mountAgent({
       app,
       basePath: process.env.AGENT_PREFIX || '/agent',
@@ -133,7 +133,7 @@ export async function mountRoutes(app, server) {
   try {
     console.log('[gateway] Loading SDK embed (catch-all fallback)...');
     const sdkPath = path.join(rootDir, 'sdk-embed.js');
-    const createSdkRouter = (await import(sdkPath)).default;
+    const createSdkRouter = (await import(pathToFileURL(sdkPath).href)).default;
     const sdkRouter = createSdkRouter({});
     app.use(process.env.API_PREFIX || '/api', sdkRouter);
     console.log('[gateway] ✅ SDK routes mounted at /api (catch-all fallback)');
@@ -154,7 +154,7 @@ export async function mountSSE(app) {
   try {
     console.log('[gateway] Loading SSE strategy events...');
     const ssePath = path.join(rootDir, 'server/api/strategy/strategy-events.js');
-    const strategyEvents = (await import(ssePath)).default;
+    const strategyEvents = (await import(pathToFileURL(ssePath).href)).default;
     app.use('/', strategyEvents);
     console.log('[gateway] ✅ SSE strategy events endpoint mounted');
     return true;
@@ -171,7 +171,7 @@ export async function mountSSE(app) {
 export async function mountUnifiedCapabilities(app) {
   try {
     const unifiedPath = path.join(rootDir, 'server/api/health/unified-capabilities.js');
-    const { default: unifiedCapabilitiesRoutes } = await import(unifiedPath);
+    const { default: unifiedCapabilitiesRoutes } = await import(pathToFileURL(unifiedPath).href);
     unifiedCapabilitiesRoutes(app);
     console.log('[gateway] ✅ Unified capabilities routes mounted');
     return true;

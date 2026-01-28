@@ -3,7 +3,7 @@
 import http from 'node:http';
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 import { loadEnvironment } from './server/config/load-env.js';
 import { validateOrExit } from './server/config/validate-env.js';
@@ -22,6 +22,9 @@ const distDir = path.join(__dirname, 'client', 'dist');
 // Deployment detection
 const isDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
 const isAutoscaleMode = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === '1';
+
+// Exported app reference for tests/importers (live binding)
+export let app = null;
 
 // Global error handlers
 process.on('uncaughtException', (err) => {
@@ -42,7 +45,7 @@ process.on('unhandledRejection', (reason, promise) => {
     console.log(`[gateway] Deployment: ${isDeployment}, Autoscale: ${isAutoscaleMode}`);
 
     // Create Express app
-    const app = express();
+    app = express();
     app.set('trust proxy', 1);
 
     // Import bootstrap modules
@@ -67,7 +70,8 @@ process.on('unhandledRejection', (reason, promise) => {
     });
 
     // Listen
-    if (import.meta.url === `file://${process.argv[1]}`) {
+    const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
+    if (entryUrl && import.meta.url === entryUrl) {
       server.listen(PORT, '0.0.0.0', () => {
         console.log(`🌐 [gateway] HTTP listening on 0.0.0.0:${PORT}`);
         console.log(`[gateway] Bootstrap completed in ${Date.now() - startTime}ms`);
@@ -212,4 +216,4 @@ function startUnifiedAIMonitoring() {
   });
 }
 
-export default globalThis.testApp;
+export { app as default };
