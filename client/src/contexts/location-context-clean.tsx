@@ -728,7 +728,6 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => clearTimeout(timer);
   // 2026-01-14: CRITICAL - Only depend on auth state, NOT on GPS data (lastSnapshotId, currentCoords, city)
   // Those values are SET by refreshGPS, so having them in deps caused 4x GPS fetches
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.userId, token]);
 
   // Listen for snapshot ownership errors (when user changes but stale snapshot ID is used)

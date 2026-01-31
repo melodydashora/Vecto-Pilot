@@ -185,7 +185,9 @@
       "Bash(npm config:*)",
       "Bash(git rev-parse:*)",
       "Bash(git status:*)",
-      "Bash(npx drizzle-kit:*)"
+      "Bash(npx drizzle-kit:*)",
+      "Bash(npx knip:*)",
+      "Bash(npx ts-prune:*)"
     ],
     "deny": [],
     "ask": []
