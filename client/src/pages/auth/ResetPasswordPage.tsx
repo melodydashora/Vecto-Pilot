@@ -92,21 +92,21 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 overflow-y-auto">
-        <Card className="w-full max-w-md bg-slate-800/50 border-slate-700">
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-gray-50 p-4 overflow-y-auto">
+        <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
               <CheckCircle className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-2xl text-white">Password Reset!</CardTitle>
-            <CardDescription className="text-slate-400">
+            <CardTitle className="text-2xl text-gray-800">Password Reset!</CardTitle>
+            <CardDescription className="text-gray-500">
               Your password has been successfully reset. You can now sign in with your new password.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Link to="/auth/sign-in">
               <Button
-                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
               >
                 Sign In
               </Button>
@@ -118,14 +118,14 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 overflow-y-auto">
-      <Card className="w-full max-w-md bg-slate-800/50 border-slate-700">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-gray-50 p-4 overflow-y-auto">
+      <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
             <span className="text-2xl font-bold text-white">VP</span>
           </div>
-          <CardTitle className="text-2xl text-white">Reset Password</CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardTitle className="text-2xl text-gray-800">Reset Password</CardTitle>
+          <CardDescription className="text-gray-500">
             {isTokenReset
               ? 'Enter your new password below'
               : 'Enter the code sent to your phone and create a new password'}
@@ -148,12 +148,12 @@ export default function ResetPasswordPage() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Email</FormLabel>
+                        <FormLabel className="text-gray-700">Email</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
                             placeholder="driver@example.com"
-                            className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                            className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-500"
                             {...field}
                           />
                         </FormControl>
@@ -167,7 +167,7 @@ export default function ResetPasswordPage() {
                     name="code"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Verification Code</FormLabel>
+                        <FormLabel className="text-gray-700">Verification Code</FormLabel>
                         <FormControl>
                           <InputOTP
                             maxLength={6}
@@ -175,16 +175,16 @@ export default function ResetPasswordPage() {
                             onChange={field.onChange}
                           >
                             <InputOTPGroup className="gap-2">
-                              <InputOTPSlot index={0} className="bg-slate-700/50 border-slate-600 text-white" />
-                              <InputOTPSlot index={1} className="bg-slate-700/50 border-slate-600 text-white" />
-                              <InputOTPSlot index={2} className="bg-slate-700/50 border-slate-600 text-white" />
-                              <InputOTPSlot index={3} className="bg-slate-700/50 border-slate-600 text-white" />
-                              <InputOTPSlot index={4} className="bg-slate-700/50 border-slate-600 text-white" />
-                              <InputOTPSlot index={5} className="bg-slate-700/50 border-slate-600 text-white" />
+                              <InputOTPSlot index={0} className="bg-white border-gray-300 text-gray-800" />
+                              <InputOTPSlot index={1} className="bg-white border-gray-300 text-gray-800" />
+                              <InputOTPSlot index={2} className="bg-white border-gray-300 text-gray-800" />
+                              <InputOTPSlot index={3} className="bg-white border-gray-300 text-gray-800" />
+                              <InputOTPSlot index={4} className="bg-white border-gray-300 text-gray-800" />
+                              <InputOTPSlot index={5} className="bg-white border-gray-300 text-gray-800" />
                             </InputOTPGroup>
                           </InputOTP>
                         </FormControl>
-                        <FormDescription className="text-slate-400 text-xs">
+                        <FormDescription className="text-gray-500 text-xs">
                           Enter the 6-digit code sent to your phone
                         </FormDescription>
                         <FormMessage />
@@ -199,16 +199,16 @@ export default function ResetPasswordPage() {
                 name="newPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-200">New Password</FormLabel>
+                    <FormLabel className="text-gray-700">New Password</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
                         placeholder="Create a new password"
-                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                        className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-500"
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription className="text-slate-400 text-xs">
+                    <FormDescription className="text-gray-500 text-xs">
                       Min 8 chars, 1 uppercase, 1 lowercase, 1 number
                     </FormDescription>
                     <FormMessage />
@@ -221,12 +221,12 @@ export default function ResetPasswordPage() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-200">Confirm New Password</FormLabel>
+                    <FormLabel className="text-gray-700">Confirm New Password</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
                         placeholder="Confirm your new password"
-                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                        className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-500"
                         {...field}
                       />
                     </FormControl>
@@ -237,7 +237,7 @@ export default function ResetPasswordPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -253,7 +253,7 @@ export default function ResetPasswordPage() {
           </Form>
 
           <div className="mt-6 text-center">
-            <Link to="/auth/sign-in" className="text-amber-400 hover:text-amber-300 text-sm">
+            <Link to="/auth/sign-in" className="text-blue-600 hover:text-blue-700 text-sm">
               <ArrowLeft className="inline mr-1 h-4 w-4" />
               Back to Sign In
             </Link>

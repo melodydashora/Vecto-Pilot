@@ -47,10 +47,10 @@ const AppleIcon = () => (
 const OrDivider = () => (
   <div className="relative my-6">
     <div className="absolute inset-0 flex items-center">
-      <div className="w-full border-t border-slate-600" />
+      <div className="w-full border-t border-gray-300" />
     </div>
     <div className="relative flex justify-center text-sm">
-      <span className="px-4 bg-slate-800/50 text-slate-400">or continue with</span>
+      <span className="px-4 bg-white text-gray-500">or continue with</span>
     </div>
   </div>
 );
@@ -110,10 +110,10 @@ export default function SignInPage() {
   // Show loading while checking auth state - prevents flash of login form
   if (authLoading) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
-          <p className="text-slate-400">Loading...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-gray-500">Loading...</p>
         </div>
       </div>
     );
@@ -150,14 +150,14 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 overflow-y-auto">
-      <Card className="w-full max-w-md bg-slate-800/50 border-slate-700">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-gray-50 p-4 overflow-y-auto">
+      <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
             <span className="text-2xl font-bold text-white">VP</span>
           </div>
-          <CardTitle className="text-2xl text-white">Welcome Back</CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardTitle className="text-2xl text-gray-800">Welcome Back</CardTitle>
+          <CardDescription className="text-gray-500">
             Sign in to your VectoPilot account
           </CardDescription>
         </CardHeader>
@@ -185,12 +185,12 @@ export default function SignInPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-200">Email</FormLabel>
+                    <FormLabel className="text-gray-700">Email</FormLabel>
                     <FormControl>
                       <Input
                         type="email"
                         placeholder="driver@example.com"
-                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                        className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-400"
                         {...field}
                       />
                     </FormControl>
@@ -204,12 +204,12 @@ export default function SignInPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-200">Password</FormLabel>
+                    <FormLabel className="text-gray-700">Password</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
                         placeholder="Enter your password"
-                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                        className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-400"
                         {...field}
                       />
                     </FormControl>
@@ -221,7 +221,7 @@ export default function SignInPage() {
               <div className="flex justify-end">
                 <Link
                   to="/auth/forgot-password"
-                  className="text-sm text-amber-400 hover:text-amber-300"
+                  className="text-sm text-blue-600 hover:text-blue-700"
                 >
                   Forgot password?
                 </Link>
@@ -229,7 +229,7 @@ export default function SignInPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                 disabled={isLoading || socialLoading !== null}
               >
                 {isLoading ? (
@@ -279,9 +279,9 @@ export default function SignInPage() {
             </Button>
           </div>
 
-          <div className="mt-6 text-center text-slate-400">
+          <div className="mt-6 text-center text-gray-500">
             <span>Don't have an account? </span>
-            <Link to="/auth/sign-up" className="text-amber-400 hover:text-amber-300 font-medium">
+            <Link to="/auth/sign-up" className="text-blue-600 hover:text-blue-700 font-medium">
               Sign up
             </Link>
           </div>

@@ -8,25 +8,25 @@ import { ArrowLeft, Shield, AlertTriangle, Lock, Scale, Ban, FileText } from 'lu
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 py-8">
+    <div className="min-h-screen bg-gray-50 p-4 py-8">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
             <FileText className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Terms of Use</h1>
-          <p className="text-slate-400">Last updated: December 2024</p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Terms of Use</h1>
+          <p className="text-gray-500">Last updated: December 2024</p>
         </div>
 
-        <Card className="bg-slate-800/50 border-slate-700 mb-6">
+        <Card className="bg-white border-gray-200 shadow-sm mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <Shield className="w-5 h-5 text-amber-400" />
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <Shield className="w-5 h-5 text-blue-600" />
               1. Service Description
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-300 space-y-3">
+          <CardContent className="text-gray-700 space-y-3">
             <p>
               VectoPilot provides AI-powered recommendations and strategic insights for rideshare drivers.
               Our service analyzes various data points including weather, events, traffic patterns, and
@@ -39,15 +39,15 @@ export default function TermsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-800/50 border-slate-700 mb-6">
+        <Card className="bg-white border-gray-200 shadow-sm mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <Ban className="w-5 h-5 text-amber-400" />
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <Ban className="w-5 h-5 text-blue-600" />
               2. No Platform Affiliation
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-300 space-y-3">
-            <p className="font-semibold text-amber-400">
+          <CardContent className="text-gray-700 space-y-3">
+            <p className="font-semibold text-blue-600">
               VectoPilot is NOT affiliated with, endorsed by, or sponsored by Uber, Lyft, or any
               other rideshare platform.
             </p>
@@ -63,14 +63,14 @@ export default function TermsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-800/50 border-slate-700 mb-6">
+        <Card className="bg-white border-gray-200 shadow-sm mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <AlertTriangle className="w-5 h-5 text-blue-600" />
               3. No Guarantees
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-300 space-y-3">
+          <CardContent className="text-gray-700 space-y-3">
             <p className="font-semibold text-red-400">
               We make NO guarantees about earnings, ride availability, or accuracy of recommendations.
             </p>
@@ -92,14 +92,14 @@ export default function TermsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-800/50 border-slate-700 mb-6">
+        <Card className="bg-white border-gray-200 shadow-sm mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <Lock className="w-5 h-5 text-amber-400" />
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <Lock className="w-5 h-5 text-blue-600" />
               4. Data Privacy
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-300 space-y-3">
+          <CardContent className="text-gray-700 space-y-3">
             <p className="font-semibold text-green-400">
               We do NOT sell your personal data to third parties.
             </p>
@@ -116,14 +116,14 @@ export default function TermsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-800/50 border-slate-700 mb-6">
+        <Card className="bg-white border-gray-200 shadow-sm mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <Scale className="w-5 h-5 text-amber-400" />
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <Scale className="w-5 h-5 text-blue-600" />
               5. Account Termination
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-300 space-y-3">
+          <CardContent className="text-gray-700 space-y-3">
             <p>
               We reserve the right to suspend or terminate your account at any time for:
             </p>
@@ -139,14 +139,14 @@ export default function TermsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-800/50 border-slate-700 mb-6">
+        <Card className="bg-white border-gray-200 shadow-sm mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <CardTitle className="flex items-center gap-2 text-gray-800">
+              <AlertTriangle className="w-5 h-5 text-blue-600" />
               6. Limitation of Liability
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-slate-300 space-y-3">
+          <CardContent className="text-gray-700 space-y-3">
             <p className="font-semibold">
               VectoPilot is provided "AS IS" without warranties of any kind, either express or implied.
             </p>
@@ -163,15 +163,15 @@ export default function TermsPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-800/50 border-slate-700 mb-6">
+        <Card className="bg-white border-gray-200 shadow-sm mb-6">
           <CardContent className="pt-6">
-            <p className="text-slate-300 text-center">
+            <p className="text-gray-700 text-center">
               By creating an account, you acknowledge that you have read, understood, and agree
               to these Terms of Use.
             </p>
-            <p className="text-slate-400 text-center mt-2 text-sm">
+            <p className="text-gray-500 text-center mt-2 text-sm">
               If you have any questions about these terms, please contact us at{' '}
-              <a href="mailto:support@vectopilot.com" className="text-amber-400 hover:text-amber-300">
+              <a href="mailto:support@vectopilot.com" className="text-blue-600 hover:text-blue-700">
                 support@vectopilot.com
               </a>
             </p>
@@ -183,7 +183,7 @@ export default function TermsPage() {
           <Link to="/auth/sign-up">
             <Button
               variant="outline"
-              className="border-slate-600 text-slate-200 hover:bg-slate-700"
+              className="border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Sign Up

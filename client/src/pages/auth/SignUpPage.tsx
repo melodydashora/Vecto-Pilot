@@ -51,10 +51,10 @@ const AppleIcon = () => (
 const OrDivider = () => (
   <div className="relative my-6">
     <div className="absolute inset-0 flex items-center">
-      <div className="w-full border-t border-slate-600" />
+      <div className="w-full border-t border-gray-300" />
     </div>
     <div className="relative flex justify-center text-sm">
-      <span className="px-4 bg-slate-800/50 text-slate-400">or continue with email</span>
+      <span className="px-4 bg-white text-gray-500">or continue with email</span>
     </div>
   </div>
 );
@@ -292,10 +292,10 @@ export default function SignUpPage() {
   // IMPORTANT: All hooks must be called BEFORE this conditional return
   if (authLoading) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-amber-400" />
-          <p className="text-slate-400">Loading...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-gray-500">Loading...</p>
         </div>
       </div>
     );
@@ -424,14 +424,14 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 py-8 overflow-y-auto">
-      <Card className="w-full max-w-lg bg-slate-800/50 border-slate-700">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-gray-50 p-4 py-8 overflow-y-auto">
+      <Card className="w-full max-w-lg bg-white border-gray-200 shadow-lg">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
             <span className="text-2xl font-bold text-white">VP</span>
           </div>
-          <CardTitle className="text-2xl text-white">Create Account</CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardTitle className="text-2xl text-gray-800">Create Account</CardTitle>
+          <CardDescription className="text-gray-500">
             Step {step} of 4: {STEPS[step - 1].description}
           </CardDescription>
 
@@ -443,16 +443,16 @@ export default function SignUpPage() {
                 <div
                   key={s.id}
                   className={`flex flex-col items-center ${
-                    s.id <= step ? 'text-amber-400' : 'text-slate-500'
+                    s.id <= step ? 'text-blue-600' : 'text-gray-400'
                   }`}
                 >
                   <div
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                       s.id < step
-                        ? 'bg-amber-500 text-white'
+                        ? 'bg-blue-600 text-white'
                         : s.id === step
-                        ? 'bg-amber-500/20 border-2 border-amber-500 text-amber-500'
-                        : 'bg-slate-700 text-slate-500'
+                        ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
+                        : 'bg-gray-200 text-gray-400'
                     }`}
                   >
                     {s.id < step ? <Check className="w-3 h-3" /> : s.id}
@@ -521,11 +521,11 @@ export default function SignUpPage() {
                       name="firstName"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-slate-200">First Name *</FormLabel>
+                          <FormLabel className="text-gray-700">First Name *</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="John"
-                              className="bg-slate-700/50 border-slate-600 text-white"
+                              className="bg-white border-gray-300 text-gray-800"
                               {...field}
                             />
                           </FormControl>
@@ -538,11 +538,11 @@ export default function SignUpPage() {
                       name="lastName"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-slate-200">Last Name *</FormLabel>
+                          <FormLabel className="text-gray-700">Last Name *</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="Doe"
-                              className="bg-slate-700/50 border-slate-600 text-white"
+                              className="bg-white border-gray-300 text-gray-800"
                               {...field}
                             />
                           </FormControl>
@@ -557,12 +557,12 @@ export default function SignUpPage() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Email *</FormLabel>
+                        <FormLabel className="text-gray-700">Email *</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
                             placeholder="driver@example.com"
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="bg-white border-gray-300 text-gray-800"
                             {...field}
                           />
                         </FormControl>
@@ -576,16 +576,16 @@ export default function SignUpPage() {
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Phone Number *</FormLabel>
+                        <FormLabel className="text-gray-700">Phone Number *</FormLabel>
                         <div className="flex gap-2">
-                          <div className="flex items-center px-3 bg-slate-700/50 border border-slate-600 rounded-md text-slate-300 text-sm min-w-[60px] justify-center">
+                          <div className="flex items-center px-3 bg-gray-100 border border-gray-300 rounded-md text-gray-600 text-sm min-w-[60px] justify-center">
                             +1
                           </div>
                           <FormControl>
                             <Input
                               type="tel"
                               placeholder="(555) 123-4567"
-                              className="bg-slate-700/50 border-slate-600 text-white flex-1"
+                              className="bg-white border-gray-300 text-gray-800 flex-1"
                               {...field}
                             />
                           </FormControl>
@@ -600,16 +600,16 @@ export default function SignUpPage() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Password *</FormLabel>
+                        <FormLabel className="text-gray-700">Password *</FormLabel>
                         <FormControl>
                           <Input
                             type="password"
                             placeholder="Create a password"
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="bg-white border-gray-300 text-gray-800"
                             {...field}
                           />
                         </FormControl>
-                        <FormDescription className="text-slate-400 text-xs">
+                        <FormDescription className="text-gray-500 text-xs">
                           Min 8 chars, 1 uppercase, 1 lowercase, 1 number
                         </FormDescription>
                         <FormMessage />
@@ -622,12 +622,12 @@ export default function SignUpPage() {
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Confirm Password *</FormLabel>
+                        <FormLabel className="text-gray-700">Confirm Password *</FormLabel>
                         <FormControl>
                           <Input
                             type="password"
                             placeholder="Confirm your password"
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="bg-white border-gray-300 text-gray-800"
                             {...field}
                           />
                         </FormControl>
@@ -647,10 +647,10 @@ export default function SignUpPage() {
                     name="country"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Country *</FormLabel>
+                        <FormLabel className="text-gray-700">Country *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                            <SelectTrigger className="bg-white border-gray-300 text-gray-800">
                               <SelectValue placeholder={isLoadingCountries ? 'Loading...' : 'Select country'} />
                             </SelectTrigger>
                           </FormControl>
@@ -672,11 +672,11 @@ export default function SignUpPage() {
                     name="address1"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Address Line 1 *</FormLabel>
+                        <FormLabel className="text-gray-700">Address Line 1 *</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="123 Main Street"
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="bg-white border-gray-300 text-gray-800"
                             {...field}
                           />
                         </FormControl>
@@ -690,11 +690,11 @@ export default function SignUpPage() {
                     name="address2"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Address Line 2</FormLabel>
+                        <FormLabel className="text-gray-700">Address Line 2</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="Apt, Suite, Unit (optional)"
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="bg-white border-gray-300 text-gray-800"
                             {...field}
                           />
                         </FormControl>
@@ -710,11 +710,11 @@ export default function SignUpPage() {
                       name="city"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-slate-200">City *</FormLabel>
+                          <FormLabel className="text-gray-700">City *</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="Dallas"
-                              className="bg-slate-700/50 border-slate-600 text-white"
+                              className="bg-white border-gray-300 text-gray-800"
                               {...field}
                             />
                           </FormControl>
@@ -728,7 +728,7 @@ export default function SignUpPage() {
                       name="stateTerritory"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-slate-200">State/Province *</FormLabel>
+                          <FormLabel className="text-gray-700">State/Province *</FormLabel>
                           {/* Show dropdown if regions available, otherwise show text input */}
                           {regions.length > 0 && !isOtherCountry ? (
                             <Select
@@ -737,7 +737,7 @@ export default function SignUpPage() {
                               disabled={!watchCountry || isLoadingRegions}
                             >
                               <FormControl>
-                                <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                                <SelectTrigger className="bg-white border-gray-300 text-gray-800">
                                   <SelectValue placeholder={
                                     !watchCountry
                                       ? 'Select country first'
@@ -759,7 +759,7 @@ export default function SignUpPage() {
                             <FormControl>
                               <Input
                                 placeholder={isLoadingRegions ? 'Loading...' : 'Enter state/province'}
-                                className="bg-slate-700/50 border-slate-600 text-white"
+                                className="bg-white border-gray-300 text-gray-800"
                                 disabled={!watchCountry || isLoadingRegions}
                                 {...field}
                               />
@@ -776,11 +776,11 @@ export default function SignUpPage() {
                     name="zipCode"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">ZIP Code</FormLabel>
+                        <FormLabel className="text-gray-700">ZIP Code</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="75201"
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="bg-white border-gray-300 text-gray-800"
                             {...field}
                           />
                         </FormControl>
@@ -794,7 +794,7 @@ export default function SignUpPage() {
                     name="market"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Market *</FormLabel>
+                        <FormLabel className="text-gray-700">Market *</FormLabel>
                         {/* Show dropdown if markets available, otherwise show text input */}
                         {markets.length > 0 && !isOtherCountry ? (
                           <>
@@ -808,7 +808,7 @@ export default function SignUpPage() {
                               disabled={!watchCountry || isLoadingMarkets}
                             >
                               <FormControl>
-                                <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                                <SelectTrigger className="bg-white border-gray-300 text-gray-800">
                                   <SelectValue placeholder={
                                     !watchCountry
                                       ? 'Select country first'
@@ -831,11 +831,11 @@ export default function SignUpPage() {
                               <div className="mt-2">
                                 <Input
                                   placeholder="Enter your market name (e.g., Timbuktu)"
-                                  className="bg-slate-700/50 border-slate-600 text-white"
+                                  className="bg-white border-gray-300 text-gray-800"
                                   value={customMarket}
                                   onChange={(e) => setCustomMarket(e.target.value)}
                                 />
-                                <FormDescription className="text-slate-400 text-xs mt-1">
+                                <FormDescription className="text-gray-500 text-xs mt-1">
                                   Your market will be added to our database
                                 </FormDescription>
                               </div>
@@ -846,12 +846,12 @@ export default function SignUpPage() {
                             <FormControl>
                               <Input
                                 placeholder={isLoadingMarkets ? 'Loading...' : 'Enter your market (e.g., Dallas-Fort Worth)'}
-                                className="bg-slate-700/50 border-slate-600 text-white"
+                                className="bg-white border-gray-300 text-gray-800"
                                 disabled={!watchCountry || isLoadingMarkets}
                                 {...field}
                               />
                             </FormControl>
-                            <FormDescription className="text-slate-400 text-xs">
+                            <FormDescription className="text-gray-500 text-xs">
                               Enter the city/metro area where you primarily drive
                             </FormDescription>
                           </>
@@ -871,13 +871,13 @@ export default function SignUpPage() {
                     name="vehicleYear"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Year *</FormLabel>
+                        <FormLabel className="text-gray-700">Year *</FormLabel>
                         <Select
                           onValueChange={(val) => field.onChange(parseInt(val))}
                           defaultValue={field.value?.toString()}
                         >
                           <FormControl>
-                            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                            <SelectTrigger className="bg-white border-gray-300 text-gray-800">
                               <SelectValue placeholder="Select year" />
                             </SelectTrigger>
                           </FormControl>
@@ -899,11 +899,11 @@ export default function SignUpPage() {
                     name="vehicleMake"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Make *</FormLabel>
+                        <FormLabel className="text-gray-700">Make *</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="e.g., Toyota, Honda, Tesla"
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="bg-white border-gray-300 text-gray-800"
                             {...field}
                           />
                         </FormControl>
@@ -917,11 +917,11 @@ export default function SignUpPage() {
                     name="vehicleModel"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Model *</FormLabel>
+                        <FormLabel className="text-gray-700">Model *</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="e.g., Camry, Model 3, Accord"
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="bg-white border-gray-300 text-gray-800"
                             {...field}
                           />
                         </FormControl>
@@ -935,13 +935,13 @@ export default function SignUpPage() {
                     name="seatbelts"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-slate-200">Number of Seatbelts *</FormLabel>
+                        <FormLabel className="text-gray-700">Number of Seatbelts *</FormLabel>
                         <Select
                           onValueChange={(val) => field.onChange(parseInt(val))}
                           defaultValue={field.value?.toString()}
                         >
                           <FormControl>
-                            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                            <SelectTrigger className="bg-white border-gray-300 text-gray-800">
                               <SelectValue placeholder="Select seatbelt count" />
                             </SelectTrigger>
                           </FormControl>
@@ -965,8 +965,8 @@ export default function SignUpPage() {
                 <>
                   {/* Platforms Section */}
                   <div>
-                    <FormLabel className="text-slate-200">Which platforms do you drive for? *</FormLabel>
-                    <p className="text-xs text-slate-400 mt-1 mb-3">
+                    <FormLabel className="text-gray-700">Which platforms do you drive for? *</FormLabel>
+                    <p className="text-xs text-gray-500 mt-1 mb-3">
                       Select all that apply
                     </p>
                     <div className="grid grid-cols-2 gap-2">
@@ -978,7 +978,7 @@ export default function SignUpPage() {
                       ].map((platform) => (
                         <div
                           key={platform.id}
-                          className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700/30 transition-colors"
+                          className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors"
                         >
                           <Checkbox
                             id={platform.id}
@@ -987,7 +987,7 @@ export default function SignUpPage() {
                           />
                           <label
                             htmlFor={platform.id}
-                            className="text-sm text-slate-200 cursor-pointer"
+                            className="text-sm text-gray-700 cursor-pointer"
                           >
                             {platform.label}
                           </label>
@@ -1002,9 +1002,9 @@ export default function SignUpPage() {
                   </div>
 
                   {/* Vehicle Class Section */}
-                  <div className="bg-slate-700/30 rounded-lg p-4">
-                    <FormLabel className="text-slate-200">Vehicle Class</FormLabel>
-                    <p className="text-xs text-slate-400 mt-1 mb-3">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <FormLabel className="text-gray-700">Vehicle Class</FormLabel>
+                    <p className="text-xs text-gray-500 mt-1 mb-3">
                       What type of vehicle do you drive? Select all that apply.
                     </p>
                     <div className="grid grid-cols-2 gap-2">
@@ -1021,13 +1021,13 @@ export default function SignUpPage() {
                           control={form.control}
                           name={name as keyof SignUpFormData}
                           render={({ field }) => (
-                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700/50 transition-colors">
+                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors">
                               <Checkbox
                                 id={name}
                                 checked={field.value as boolean}
                                 onCheckedChange={field.onChange}
                               />
-                              <label htmlFor={name} className="text-sm text-slate-200 cursor-pointer">
+                              <label htmlFor={name} className="text-sm text-gray-700 cursor-pointer">
                                 {label}
                               </label>
                             </div>
@@ -1038,9 +1038,9 @@ export default function SignUpPage() {
                   </div>
 
                   {/* Vehicle Attributes Section */}
-                  <div className="bg-slate-700/30 rounded-lg p-4">
-                    <FormLabel className="text-slate-200">Vehicle Features</FormLabel>
-                    <p className="text-xs text-slate-400 mt-1 mb-3">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <FormLabel className="text-gray-700">Vehicle Features</FormLabel>
+                    <p className="text-xs text-gray-500 mt-1 mb-3">
                       Special features of your vehicle
                     </p>
                     <div className="grid grid-cols-2 gap-2">
@@ -1056,13 +1056,13 @@ export default function SignUpPage() {
                           control={form.control}
                           name={name as keyof SignUpFormData}
                           render={({ field }) => (
-                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700/50 transition-colors">
+                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors">
                               <Checkbox
                                 id={name}
                                 checked={field.value as boolean}
                                 onCheckedChange={field.onChange}
                               />
-                              <label htmlFor={name} className="text-sm text-slate-200 cursor-pointer">
+                              <label htmlFor={name} className="text-sm text-gray-700 cursor-pointer">
                                 {label}
                               </label>
                             </div>
@@ -1073,9 +1073,9 @@ export default function SignUpPage() {
                   </div>
 
                   {/* Service Preferences Section */}
-                  <div className="bg-slate-700/30 rounded-lg p-4">
-                    <FormLabel className="text-slate-200">Service Preferences</FormLabel>
-                    <p className="text-xs text-slate-400 mt-1 mb-3">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <FormLabel className="text-gray-700">Service Preferences</FormLabel>
+                    <p className="text-xs text-gray-500 mt-1 mb-3">
                       Rides you're willing to accept. Unchecked = we'll avoid sending you these.
                     </p>
                     <div className="grid grid-cols-2 gap-2">
@@ -1090,13 +1090,13 @@ export default function SignUpPage() {
                           control={form.control}
                           name={name as keyof SignUpFormData}
                           render={({ field }) => (
-                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-slate-700/50 transition-colors">
+                            <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors">
                               <Checkbox
                                 id={name}
                                 checked={field.value as boolean}
                                 onCheckedChange={field.onChange}
                               />
-                              <label htmlFor={name} className="text-sm text-slate-200 cursor-pointer">
+                              <label htmlFor={name} className="text-sm text-gray-700 cursor-pointer">
                                 {label}
                               </label>
                             </div>
@@ -1116,7 +1116,7 @@ export default function SignUpPage() {
                           checked={field.value}
                           onCheckedChange={field.onChange}
                         />
-                        <label htmlFor="marketingOptIn" className="text-sm text-slate-200 cursor-pointer">
+                        <label htmlFor="marketingOptIn" className="text-sm text-gray-700 cursor-pointer">
                           Receive VectoPilot news and updates
                         </label>
                       </div>
@@ -1135,9 +1135,9 @@ export default function SignUpPage() {
                             onCheckedChange={field.onChange}
                             className="mt-0.5"
                           />
-                          <label htmlFor="termsAccepted" className="text-sm text-slate-200 cursor-pointer">
+                          <label htmlFor="termsAccepted" className="text-sm text-gray-700 cursor-pointer">
                             I agree to the{' '}
-                            <Link to="/auth/terms" className="text-amber-400 hover:text-amber-300" target="_blank">
+                            <Link to="/auth/terms" className="text-blue-600 hover:text-blue-700" target="_blank">
                               Terms and Conditions
                             </Link>{' '}
                             *
@@ -1157,7 +1157,7 @@ export default function SignUpPage() {
                     type="button"
                     variant="outline"
                     onClick={prevStep}
-                    className="border-slate-600 text-slate-200 hover:bg-slate-700"
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
                   >
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back
@@ -1170,7 +1170,7 @@ export default function SignUpPage() {
                   <Button
                     type="button"
                     onClick={nextStep}
-                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                   >
                     Next
                     <ArrowRight className="ml-2 h-4 w-4" />
@@ -1178,7 +1178,7 @@ export default function SignUpPage() {
                 ) : (
                   <Button
                     type="submit"
-                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                     disabled={isLoading}
                   >
                     {isLoading ? (
@@ -1198,9 +1198,9 @@ export default function SignUpPage() {
             </form>
           </Form>
 
-          <div className="mt-6 text-center text-slate-400">
+          <div className="mt-6 text-center text-gray-500">
             <span>Already have an account? </span>
-            <Link to="/auth/sign-in" className="text-amber-400 hover:text-amber-300 font-medium">
+            <Link to="/auth/sign-in" className="text-blue-600 hover:text-blue-700 font-medium">
               Sign in
             </Link>
           </div>

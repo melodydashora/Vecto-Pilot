@@ -65,14 +65,14 @@ export default function ForgotPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 overflow-y-auto">
-        <Card className="w-full max-w-md bg-slate-800/50 border-slate-700">
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-gray-50 p-4 overflow-y-auto">
+        <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
               <CheckCircle className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-2xl text-white">Check Your {selectedMethod === 'email' ? 'Email' : 'Phone'}</CardTitle>
-            <CardDescription className="text-slate-400">
+            <CardTitle className="text-2xl text-gray-800">Check Your {selectedMethod === 'email' ? 'Email' : 'Phone'}</CardTitle>
+            <CardDescription className="text-gray-500">
               {selectedMethod === 'email'
                 ? 'We sent you a password reset link. Check your inbox and follow the instructions.'
                 : 'We sent you a verification code via SMS. Enter the code on the reset page.'}
@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
               {selectedMethod === 'sms' && (
                 <Link to="/auth/reset-password">
                   <Button
-                    className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                   >
                     Enter Reset Code
                   </Button>
@@ -92,7 +92,7 @@ export default function ForgotPasswordPage() {
               <Link to="/auth/sign-in">
                 <Button
                   variant="outline"
-                  className="w-full border-slate-600 text-slate-200 hover:bg-slate-700"
+                  className="w-full border-gray-300 text-gray-700 hover:bg-gray-100"
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back to Sign In
@@ -106,14 +106,14 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 overflow-y-auto">
-      <Card className="w-full max-w-md bg-slate-800/50 border-slate-700">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-gray-50 p-4 overflow-y-auto">
+      <Card className="w-full max-w-md bg-white border-gray-200 shadow-lg">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center">
+          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
             <span className="text-2xl font-bold text-white">VP</span>
           </div>
-          <CardTitle className="text-2xl text-white">Forgot Password?</CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardTitle className="text-2xl text-gray-800">Forgot Password?</CardTitle>
+          <CardDescription className="text-gray-500">
             Enter your email and we'll help you reset your password
           </CardDescription>
         </CardHeader>
@@ -131,12 +131,12 @@ export default function ForgotPasswordPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-200">Email</FormLabel>
+                    <FormLabel className="text-gray-700">Email</FormLabel>
                     <FormControl>
                       <Input
                         type="email"
                         placeholder="driver@example.com"
-                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                        className="bg-white border-gray-300 text-gray-800 placeholder:text-gray-400"
                         {...field}
                       />
                     </FormControl>
@@ -150,7 +150,7 @@ export default function ForgotPasswordPage() {
                 name="method"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-200">Reset Method</FormLabel>
+                    <FormLabel className="text-gray-700">Reset Method</FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={field.onChange}
@@ -165,11 +165,11 @@ export default function ForgotPasswordPage() {
                           />
                           <label
                             htmlFor="email"
-                            className="flex flex-col items-center justify-center rounded-lg border-2 border-slate-600 bg-slate-700/30 p-4 hover:bg-slate-700/50 cursor-pointer peer-checked:border-amber-500 peer-checked:bg-amber-500/10"
+                            className="flex flex-col items-center justify-center rounded-lg border-2 border-gray-300 bg-gray-50 p-4 hover:bg-gray-100 cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50"
                           >
-                            <Mail className="h-6 w-6 text-amber-400 mb-2" />
-                            <span className="text-sm font-medium text-slate-200">Email</span>
-                            <span className="text-xs text-slate-400">Reset link</span>
+                            <Mail className="h-6 w-6 text-blue-600 mb-2" />
+                            <span className="text-sm font-medium text-gray-700">Email</span>
+                            <span className="text-xs text-gray-500">Reset link</span>
                           </label>
                         </div>
                         <div className="relative">
@@ -180,11 +180,11 @@ export default function ForgotPasswordPage() {
                           />
                           <label
                             htmlFor="sms"
-                            className="flex flex-col items-center justify-center rounded-lg border-2 border-slate-600 bg-slate-700/30 p-4 hover:bg-slate-700/50 cursor-pointer peer-checked:border-amber-500 peer-checked:bg-amber-500/10"
+                            className="flex flex-col items-center justify-center rounded-lg border-2 border-gray-300 bg-gray-50 p-4 hover:bg-gray-100 cursor-pointer peer-checked:border-blue-600 peer-checked:bg-blue-50"
                           >
-                            <Smartphone className="h-6 w-6 text-amber-400 mb-2" />
-                            <span className="text-sm font-medium text-slate-200">SMS</span>
-                            <span className="text-xs text-slate-400">6-digit code</span>
+                            <Smartphone className="h-6 w-6 text-blue-600 mb-2" />
+                            <span className="text-sm font-medium text-gray-700">SMS</span>
+                            <span className="text-xs text-gray-500">6-digit code</span>
                           </label>
                         </div>
                       </RadioGroup>
@@ -196,7 +196,7 @@ export default function ForgotPasswordPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -212,7 +212,7 @@ export default function ForgotPasswordPage() {
           </Form>
 
           <div className="mt-6 text-center">
-            <Link to="/auth/sign-in" className="text-amber-400 hover:text-amber-300 text-sm">
+            <Link to="/auth/sign-in" className="text-blue-600 hover:text-blue-700 text-sm">
               <ArrowLeft className="inline mr-1 h-4 w-4" />
               Back to Sign In
             </Link>

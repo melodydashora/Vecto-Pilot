@@ -8,7 +8,7 @@ run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-repli
 
 # Nix/packages configuration
 [nix]
-packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "glib", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nodejs-22", "nspr", "nss", "pango", "pgroll", "spidermonkey_91", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr"]
+packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "glib", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nodejs-22", "nspr", "nss", "pango", "pgroll", "spidermonkey_91", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "docker", "python313Packages.conda"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
