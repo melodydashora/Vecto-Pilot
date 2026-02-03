@@ -45,13 +45,15 @@ POST /api/auth/uber/webhook      - Receives webhook events from Uber
 UBER_CLIENT_ID=...              # From Uber Developer Dashboard
 UBER_CLIENT_SECRET=...          # From Uber Developer Dashboard
 UBER_REDIRECT_URI=...           # Default: https://vectopilot.com/api/auth/uber/callback
+UBER_WEBHOOK_SECRET=...         # Signing key for webhook verification (you create this)
 ```
 
 #### Webhook Security
 Uber uses HMAC-SHA256 signature verification:
 - Signature sent in `X-Uber-Signature` header
-- Uses client secret as HMAC key
+- Uses dedicated webhook signing key (UBER_WEBHOOK_SECRET) as HMAC key
 - Must return 200 OK within 5 seconds
+- Uses timing-safe comparison to prevent timing attacks
 
 #### Webhook Event Types
 | Event | Description |
