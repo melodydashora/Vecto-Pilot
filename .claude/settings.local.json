@@ -194,7 +194,9 @@
       "Bash(for i in 1 2 3 4 5 6 7 8)",
       "Bash(do sleep 1)",
       "Bash(for i in 1 2 3 4 5 6 7 8 9 10)",
-      "Bash(source .env)"
+      "Bash(source .env)",
+      "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node:*)",
+      "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node scripts/test-uber-webhook.js:*)"
     ],
     "deny": [],
     "ask": []
