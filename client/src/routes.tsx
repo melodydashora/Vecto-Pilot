@@ -34,6 +34,15 @@ export const router = createBrowserRouter([
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Public Routes (no authentication required)
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    // 2026-02-03: Public privacy policy for OAuth providers (Uber requires public access)
+    path: '/policy',
+    element: <PolicyPage />,
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Public Auth Routes (no layout)
   // ═══════════════════════════════════════════════════════════════════════════
   {
