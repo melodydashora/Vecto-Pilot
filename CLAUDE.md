@@ -2,6 +2,32 @@
 
 This file provides guidance to Claude Code when working with this repository.
 
+> **Vecto-Pilot-Ultimate v5.0.0** - Consolidated rideshare AI platform with hedged LLM routing, Uber OAuth integration, and enhanced location verification.
+
+---
+
+## 🆕 VECTO-PILOT-ULTIMATE FEATURES (v5.0.0)
+
+### Hedged LLM Router
+- **Location:** `server/lib/ai/router/`
+- **Docs:** `docs/architecture/llm-router.md`
+- Fires concurrent requests to multiple providers, takes first response
+- Circuit breaker protects against cascading failures
+- Configure via `LLM_ROUTER_MODE=hedged` or `single`
+
+### Uber OAuth Integration
+- **Location:** `server/lib/auth/oauth/uber-oauth.js`, `server/api/auth/uber.js`
+- **Docs:** `docs/architecture/oauth-integration.md`
+- Full OAuth 2.0 flow with encrypted token storage
+- Webhook handler for real-time trip/payment data
+- Database tables: `uber_connections`, `uber_trips`, `uber_payments`
+
+### Enhanced Location Verification
+- **Location:** `server/lib/location/`
+- Confidence scoring (A-D grades) for geocoded addresses
+- GPS verification against entered addresses
+- Address Validation API integration
+
 ---
 
 ## 🚨 DEVELOPMENT PROCESS RULES (MANDATORY)

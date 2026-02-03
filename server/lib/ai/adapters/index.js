@@ -19,6 +19,7 @@ import {
   FALLBACK_CONFIG,
 } from "../model-registry.js";
 import { OP } from "../../../logger/workflow.js";
+import { createHedgedRouter, getRouterConfig } from "../router/index.js";
 
 /**
  * Call a model by its registry ROLE name.
@@ -298,3 +299,129 @@ export async function callModelStream(role, { system, messageHistory }) {
 
 // Re-export Vertex AI helpers for external use
 export { isVertexAIAvailable, getVertexAIStatus };
+
+/**
+ * Hedged Router Integration
+ *
+ * Create provider-specific adapters for the hedged router
+ */
+function createProviderAdapters() {
+  const adapters = new Map();
+
+  // Anthropic adapter for router
+  adapters.set('anthropic', async (request, options = {}) => {
+    const result = await callAnthropic({
+      model: 'claude-sonnet-4-20250514',
+      system: request.system,
+      user: request.user,
+      maxTokens: request.maxTokens || 4096,
+      temperature: request.temperature || 0.7,
+    });
+    if (!result.ok) throw new Error(result.error || 'Anthropic call failed');
+    return result;
+  });
+
+  // OpenAI adapter for router
+  adapters.set('openai', async (request, options = {}) => {
+    const result = await callOpenAI({
+      model: 'gpt-4.1',
+      system: request.system,
+      user: request.user,
+      maxTokens: request.maxTokens || 4096,
+      temperature: request.temperature || 0.7,
+    });
+    if (!result.ok) throw new Error(result.error || 'OpenAI call failed');
+    return result;
+  });
+
+  // Google/Gemini adapter for router
+  adapters.set('google', async (request, options = {}) => {
+    const result = await callGemini({
+      model: 'gemini-2.5-pro',
+      system: request.system,
+      user: request.user,
+      maxTokens: request.maxTokens || 4096,
+      temperature: request.temperature || 0.7,
+      useSearch: false,
+    });
+    if (!result.ok) throw new Error(result.error || 'Gemini call failed');
+    return result;
+  });
+
+  return adapters;
+}
+
+// Lazy-initialized hedged router
+let _hedgedRouter = null;
+
+/**
+ * Get or create the shared hedged router instance
+ * @returns {HedgedRouter}
+ */
+export function getHedgedRouter() {
+  if (!_hedgedRouter) {
+    _hedgedRouter = createHedgedRouter({
+      adapters: createProviderAdapters(),
+      timeout: parseInt(process.env.LLM_HEDGED_TIMEOUT_MS || '8000', 10),
+    });
+  }
+  return _hedgedRouter;
+}
+
+/**
+ * Call a model with optional hedged routing based on role configuration.
+ *
+ * This is the preferred entry point for roles that benefit from hedged routing.
+ * Hedged routing fires requests to multiple providers concurrently and takes
+ * the first successful response, improving latency for speed-critical roles.
+ *
+ * @param {string} role - Role key from model-registry
+ * @param {Object} params - { system, user }
+ * @param {Object} [options] - { forceMode: 'single' | 'hedged' }
+ * @returns {Promise<{ok: boolean, output: string, provider?: string, latencyMs?: number}>}
+ */
+export async function callModelWithRouter(role, { system, user }, options = {}) {
+  const config = getRouterConfig(role);
+  const mode = options.forceMode || config.mode;
+
+  // Single mode uses standard callModel path
+  if (mode === 'single') {
+    return callModel(role, { system, user });
+  }
+
+  // Hedged mode fires to multiple providers
+  const router = getHedgedRouter();
+
+  try {
+    const result = await router.execute({
+      system,
+      user,
+      maxTokens: 4096,
+      temperature: 0.7,
+    }, {
+      timeout: config.timeout,
+    });
+
+    return {
+      ok: true,
+      output: result.response.output,
+      citations: result.response.citations,
+      provider: result.provider,
+      latencyMs: result.latencyMs,
+      routerMode: 'hedged',
+    };
+  } catch (err) {
+    console.log(`⚡ [HEDGED] All providers failed for ${role}: ${err.message}`);
+    // Fall back to standard single-provider call
+    return callModel(role, { system, user });
+  }
+}
+
+/**
+ * Get router metrics for monitoring
+ * @returns {Object}
+ */
+export function getRouterMetrics() {
+  const router = getHedgedRouter();
+  return router.getMetrics();
+}

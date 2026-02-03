@@ -1729,6 +1729,78 @@ export const zone_intelligence = pgTable("zone_intelligence", {
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
+// UBER OAUTH INTEGRATION TABLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Uber OAuth Connections
+ * Stores encrypted OAuth tokens for Uber Driver API access
+ */
+export const uber_connections = pgTable("uber_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+  uber_driver_id: varchar("uber_driver_id", { length: 255 }),
+  access_token_encrypted: text("access_token_encrypted").notNull(),
+  refresh_token_encrypted: text("refresh_token_encrypted"),
+  token_expires_at: timestamp("token_expires_at", { withTimezone: true }).notNull(),
+  scopes: text("scopes").array().default(sql`'{}'`),
+  connected_at: timestamp("connected_at", { withTimezone: true }).defaultNow(),
+  last_sync_at: timestamp("last_sync_at", { withTimezone: true }),
+  is_active: boolean("is_active").default(true),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Uber Trips - Earnings data from webhooks
+ */
+export const uber_trips = pgTable("uber_trips", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+  uber_trip_id: varchar("uber_trip_id", { length: 255 }).notNull().unique(),
+  fare: doublePrecision("fare"),
+  distance_miles: doublePrecision("distance_miles"),
+  duration_minutes: integer("duration_minutes"),
+  surge_multiplier: doublePrecision("surge_multiplier").default(1.0),
+  pickup_time: timestamp("pickup_time", { withTimezone: true }),
+  dropoff_time: timestamp("dropoff_time", { withTimezone: true }),
+  pickup_location: jsonb("pickup_location"), // { lat, lng, address }
+  dropoff_location: jsonb("dropoff_location"), // { lat, lng, address }
+  vehicle_type: varchar("vehicle_type", { length: 50 }), // uberX, uberXL, Comfort, etc.
+  raw_data: jsonb("raw_data"), // Full webhook payload
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Uber Payments - Payment events from webhooks
+ */
+export const uber_payments = pgTable("uber_payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+  uber_payment_id: varchar("uber_payment_id", { length: 255 }).notNull().unique(),
+  amount: doublePrecision("amount").notNull(),
+  payment_type: varchar("payment_type", { length: 50 }), // trip_earning, bonus, tip, adjustment
+  event_time: timestamp("event_time", { withTimezone: true }).notNull(),
+  description: text("description"),
+  related_trip_id: uuid("related_trip_id").references(() => uber_trips.id),
+  raw_data: jsonb("raw_data"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * OAuth States - CSRF protection for OAuth flows
+ */
+export const oauth_states = pgTable("oauth_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  state: varchar("state", { length: 255 }).notNull().unique(),
+  provider: varchar("provider", { length: 50 }).notNull(), // 'uber', 'lyft', etc.
+  user_id: uuid("user_id").references(() => users.user_id, { onDelete: 'cascade' }),
+  redirect_uri: text("redirect_uri"),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DRIZZLE RELATIONS: Enable eager loading via `with: { coords: true }`
 // ═══════════════════════════════════════════════════════════════════════════
 

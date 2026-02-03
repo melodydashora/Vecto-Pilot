@@ -6,11 +6,16 @@
  * 2. Standardize formatting
  * 3. Get precise lat/lng coordinates
  * 4. Detect and correct typos
+ * 5. Provide confidence scoring (added 2026-02-02)
  *
  * @see https://developers.google.com/maps/documentation/address-validation
  *
  * Created: 2026-01-05
+ * Enhanced: 2026-02-02 - Added confidence scoring integration
  */
+
+import { calculateConfidenceScore, getConfidenceDescription } from './confidence-scorer.js';
+import { reverseGeocode } from './geocode-enhanced.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const ADDRESS_VALIDATION_URL = 'https://addressvalidation.googleapis.com/v1:validateAddress';
@@ -212,8 +217,134 @@ export async function isAddressDeliverable(address) {
   return result.valid;
 }
 
+/**
+ * Validate a location using GPS coordinates
+ * Returns reverse-geocoded address with confidence scoring
+ *
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @returns {Promise<Object>}
+ */
+export async function validateLocation(lat, lng) {
+  const result = await reverseGeocode(lat, lng);
+
+  if (!result.ok) {
+    return {
+      valid: false,
+      address: null,
+      components: null,
+      confidence: null,
+      message: result.error || 'Location could not be resolved',
+    };
+  }
+
+  // Extract key address components
+  const components = {};
+  for (const c of result.address_components || []) {
+    if (c.types?.includes('locality')) {
+      components.city = c.long_name;
+    } else if (c.types?.includes('administrative_area_level_1')) {
+      components.state = c.short_name;
+    } else if (c.types?.includes('country')) {
+      components.country = c.short_name;
+    } else if (c.types?.includes('postal_code')) {
+      components.postalCode = c.long_name;
+    } else if (c.types?.includes('street_number')) {
+      components.streetNumber = c.long_name;
+    } else if (c.types?.includes('route')) {
+      components.street = c.long_name;
+    }
+  }
+
+  return {
+    valid: true,
+    address: result.formatted_address,
+    location: result.location,
+    components,
+    confidence: result.confidence,
+    message: 'Location validated successfully',
+  };
+}
+
+/**
+ * Compare GPS location with entered address
+ * Returns match status and distance
+ *
+ * @param {Object} gpsLocation - { lat, lng }
+ * @param {Object} address - Address components
+ * @returns {Promise<Object>}
+ */
+export async function compareGpsToAddress(gpsLocation, address) {
+  // Get address from GPS
+  const gpsResult = await reverseGeocode(gpsLocation.lat, gpsLocation.lng);
+  if (!gpsResult.ok) {
+    return {
+      match: false,
+      distance: null,
+      gpsAddress: null,
+      enteredAddress: address,
+      message: 'Could not determine GPS address',
+    };
+  }
+
+  // Validate entered address
+  const addressResult = await validateAddress(address);
+
+  if (!addressResult.valid) {
+    return {
+      match: false,
+      distance: null,
+      gpsAddress: gpsResult.formatted_address,
+      enteredAddress: address,
+      message: 'Could not validate entered address',
+    };
+  }
+
+  // Calculate distance between the two points
+  const distance = calculateDistanceKm(
+    gpsLocation.lat,
+    gpsLocation.lng,
+    addressResult.lat,
+    addressResult.lng
+  );
+
+  // Consider a match if within 500 meters
+  const match = distance <= 0.5;
+
+  return {
+    match,
+    distance,
+    gpsAddress: gpsResult.formatted_address,
+    gpsLocation,
+    geocodedLocation: { lat: addressResult.lat, lng: addressResult.lng },
+    enteredAddress: address,
+    resolvedAddress: addressResult.formattedAddress,
+    message: match
+      ? 'GPS location matches entered address'
+      : `GPS location is ${(distance * 1000).toFixed(0)}m from entered address`,
+  };
+}
+
+/**
+ * Calculate distance between two coordinates (Haversine)
+ */
+function calculateDistanceKm(lat1, lng1, lat2, lng2) {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return Infinity;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export default {
   validateAddress,
   isAddressDeliverable,
+  validateLocation,
+  compareGpsToAddress,
   ValidationVerdict,
 };

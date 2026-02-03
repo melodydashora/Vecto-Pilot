@@ -15,9 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { Loader2, ArrowLeft, ArrowRight, Check, MapPin } from 'lucide-react';
 import type { MarketOption, RegisterData } from '@/types/auth';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { AppSelectionChips } from '@/components/auth/AppSelectionChips';
+import { GPSVerifyButton } from '@/components/auth/GPSVerifyButton';
 
 // Social login icons as inline SVGs for reliability
 const GoogleIcon = () => (
@@ -151,6 +153,8 @@ export default function SignUpPage() {
   const [isLoadingRegions, setIsLoadingRegions] = useState(false);
   const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
   const [customMarket, setCustomMarket] = useState(''); // For "Other" market input
+  const [connectedApps, setConnectedApps] = useState<string[]>([]); // OAuth connected apps
+  const [gpsAddress, setGpsAddress] = useState<{ address: string; lat: number; lng: number } | null>(null);
 
   const form = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -314,6 +318,58 @@ export default function SignUpPage() {
     setError(null);
     // Redirect to Apple OAuth endpoint (signup mode)
     window.location.href = API_ROUTES.AUTH.APPLE_SIGNUP;
+  };
+
+  // Handle Uber OAuth connect
+  const handleConnectApp = (appId: string) => {
+    if (appId === 'uber') {
+      // Store form data to localStorage before redirect
+      localStorage.setItem('signupFormData', JSON.stringify(form.getValues()));
+      localStorage.setItem('signupStep', step.toString());
+      // Redirect to Uber OAuth flow
+      window.location.href = '/api/auth/uber';
+    } else if (appId === 'lyft') {
+      // Lyft OAuth not yet implemented
+      setError('Lyft connection coming soon');
+    }
+  };
+
+  // Check for OAuth callback (uber_connected=true in URL)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('uber_connected') === 'true') {
+      setConnectedApps(prev => [...prev, 'uber']);
+      // Restore form data
+      const savedData = localStorage.getItem('signupFormData');
+      const savedStep = localStorage.getItem('signupStep');
+      if (savedData) {
+        const data = JSON.parse(savedData);
+        Object.entries(data).forEach(([key, value]) => {
+          form.setValue(key as keyof SignUpFormData, value as never);
+        });
+        localStorage.removeItem('signupFormData');
+      }
+      if (savedStep) {
+        setStep(parseInt(savedStep));
+        localStorage.removeItem('signupStep');
+      }
+      // Clean URL
+      window.history.replaceState({}, '', '/auth/sign-up');
+    }
+  }, [form]);
+
+  // Handle GPS location result
+  const handleGpsLocation = (result: { lat: number; lng: number; address: string }) => {
+    setGpsAddress(result);
+    // Auto-fill city from address if we can parse it
+    const addressParts = result.address.split(',').map(p => p.trim());
+    if (addressParts.length >= 2) {
+      // Typically: "123 Main St, City, State ZIP, Country"
+      form.setValue('address1', addressParts[0] || '');
+      if (addressParts.length >= 3) {
+        form.setValue('city', addressParts[addressParts.length - 3] || '');
+      }
+    }
   };
 
 
@@ -641,6 +697,20 @@ export default function SignUpPage() {
               {/* Step 2: Address */}
               {step === 2 && (
                 <>
+                  {/* GPS Verify Button */}
+                  <div className="mb-4">
+                    <GPSVerifyButton
+                      onLocationFound={handleGpsLocation}
+                      onError={(err) => console.warn('GPS error:', err)}
+                    />
+                    {gpsAddress && (
+                      <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        Location verified: {gpsAddress.address}
+                      </p>
+                    )}
+                  </div>
+
                   {/* Country dropdown - first */}
                   <FormField
                     control={form.control}
@@ -963,41 +1033,27 @@ export default function SignUpPage() {
               {/* Step 4: Services & Terms */}
               {step === 4 && (
                 <>
-                  {/* Platforms Section */}
-                  <div>
-                    <FormLabel className="text-gray-700">Which platforms do you drive for? *</FormLabel>
-                    <p className="text-xs text-gray-500 mt-1 mb-3">
-                      Select all that apply
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: 'uber', label: 'Uber' },
-                        { id: 'lyft', label: 'Lyft' },
-                        { id: 'ridehail', label: 'Other Ridehail' },
-                        { id: 'private', label: 'Private/Chauffeur' },
-                      ].map((platform) => (
-                        <div
-                          key={platform.id}
-                          className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          <Checkbox
-                            id={platform.id}
-                            checked={watchPlatforms?.includes(platform.id)}
-                            onCheckedChange={() => togglePlatform(platform.id)}
-                          />
-                          <label
-                            htmlFor={platform.id}
-                            className="text-sm text-gray-700 cursor-pointer"
-                          >
-                            {platform.label}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
+                  {/* Enhanced App Selection with Connect Buttons */}
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <AppSelectionChips
+                      selectedApps={watchPlatforms || []}
+                      connectedApps={connectedApps}
+                      onChange={(apps) => form.setValue('ridesharePlatforms', apps)}
+                      onConnect={handleConnectApp}
+                      showConnectButtons={true}
+                    />
                     {form.formState.errors.ridesharePlatforms && (
-                      <p className="text-sm text-red-500 mt-1">
+                      <p className="text-sm text-red-500 mt-2">
                         {form.formState.errors.ridesharePlatforms.message}
                       </p>
+                    )}
+                    {connectedApps.includes('uber') && (
+                      <div className="mt-3 p-2 bg-green-100 rounded-md">
+                        <p className="text-xs text-green-700 flex items-center gap-1">
+                          <Check className="w-3 h-3" />
+                          Uber account connected - we'll sync your earnings data
+                        </p>
+                      </div>
                     )}
                   </div>
 
