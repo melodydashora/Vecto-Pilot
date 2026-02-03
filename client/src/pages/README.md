@@ -18,15 +18,15 @@ pages/
 │   ├── TermsPage.tsx      # Terms and conditions
 │   └── index.ts           # Barrel export
 ├── co-pilot/              # Main app pages
-│   ├── StrategyPage.tsx   # AI strategy + blocks + coach (40KB)
-│   ├── BarsPage.tsx       # Premium venue listings
-│   ├── BriefingPage.tsx   # Weather, traffic, news
-│   ├── MapPage.tsx        # Interactive map
-│   ├── IntelPage.tsx      # Rideshare intelligence
-│   ├── SettingsPage.tsx   # User profile settings (42KB)
-│   ├── AboutPage.tsx      # About/donation
-│   ├── PolicyPage.tsx     # Privacy policy
-│   └── index.tsx          # Barrel export
+│   ├── StrategyPage.tsx     # AI strategy + blocks + coach (40KB)
+│   ├── VenueManagerPage.tsx # Premium venue listings (renamed from BarsPage 2026-01-09)
+│   ├── BriefingPage.tsx     # Weather, traffic, news
+│   ├── MapPage.tsx          # Interactive map
+│   ├── IntelPage.tsx        # Rideshare intelligence
+│   ├── SettingsPage.tsx     # User profile settings (42KB)
+│   ├── AboutPage.tsx        # About/donation
+│   ├── PolicyPage.tsx       # Privacy policy
+│   └── index.tsx            # Barrel export
 └── SafeScaffold.tsx       # Safe scaffold wrapper
 ```
 
@@ -53,7 +53,7 @@ Main application pages (router-based architecture):
 | Page | Route | Purpose |
 |------|-------|---------|
 | `StrategyPage.tsx` | `/co-pilot/strategy` | AI recommendations, smart blocks |
-| `BarsPage.tsx` | `/co-pilot/bars` | Premium venue listings |
+| `VenueManagerPage.tsx` | `/co-pilot/bars` | Premium venue listings |
 | `BriefingPage.tsx` | `/co-pilot/briefing` | Weather, traffic, events |
 | `MapPage.tsx` | `/co-pilot/map` | Interactive venue/event map |
 | `IntelPage.tsx` | `/co-pilot/intel` | Rideshare platform intel |

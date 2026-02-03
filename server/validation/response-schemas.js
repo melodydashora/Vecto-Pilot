@@ -366,3 +366,80 @@ export function assertResponse(schema, data, context = '') {
   }
   return result.data;
 }
+
+// ============================================================================
+// GEMINI AI RESPONSE SCHEMAS - For structured AI outputs
+// ============================================================================
+// 2026-01-31: Added as part of data pipeline restructure
+// These schemas validate structured JSON responses from Gemini models
+
+/**
+ * Event Discovery Schema - validates Gemini event discovery responses
+ * Used by: BRIEFING_EVENTS_DISCOVERY role
+ *
+ * Events must have ALL required date/time fields to be valid.
+ * TBD/Unknown values are rejected at the schema level.
+ */
+export const EventDiscoverySchema = z.object({
+  events: z.array(z.object({
+    title: z.string().min(1),
+    venue_name: z.string().min(1),
+    address: z.string().optional(),
+    event_start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format'),
+    event_start_time: z.string().min(1), // e.g., "7:00 PM" or "19:00"
+    event_end_time: z.string().min(1),   // Required - no TBD/Unknown allowed
+    category: z.enum([
+      'concert', 'sports', 'comedy', 'live_music', 'festival',
+      'nightlife', 'community', 'theater', 'conference', 'other'
+    ]).optional(),
+    expected_crowd: z.enum(['high', 'medium', 'low']).optional(),
+    impact: z.enum(['high', 'medium', 'low']).optional(),
+    latitude: z.number().optional(),
+    longitude: z.number().optional()
+  }))
+});
+
+/**
+ * Traffic Summary Schema - validates AI traffic analysis responses
+ * Used by: BRIEFING_TRAFFIC_MODEL (Gemini Pro)
+ *
+ * Provides strategic traffic summary for driver briefings.
+ */
+export const TrafficSummarySchema = z.object({
+  briefing: z.string().max(500),  // 2-3 sentence strategic summary
+  keyIssues: z.array(z.string()).max(5),  // Top traffic issues
+  avoidAreas: z.array(z.string()).max(3), // Areas to avoid
+  driverImpact: z.string().max(300),      // One-line strategic advice
+  riskLevel: z.enum(['low', 'medium', 'high', 'severe']).optional(),
+  closuresSummary: z.string().optional(),
+  constructionSummary: z.string().optional()
+});
+
+/**
+ * News Discovery Schema - validates Gemini news search responses
+ * Used by: BRIEFING_NEWS_DISCOVERY role
+ */
+export const NewsDiscoverySchema = z.object({
+  items: z.array(z.object({
+    title: z.string().min(1),
+    summary: z.string().max(500),  // Why this matters to drivers
+    published_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format'),
+    impact: z.enum(['high', 'medium', 'low']),
+    source: z.string().optional(),
+    link: z.string().url().optional()
+  })),
+  reason: z.string().nullable().optional()  // Why no news found (if empty)
+});
+
+/**
+ * School Closure Schema - validates school closure discovery responses
+ */
+export const SchoolClosureSchema = z.object({
+  closures: z.array(z.object({
+    name: z.string().min(1),        // School or district name
+    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    reason: z.string().optional(),  // e.g., "Teacher In-Service", "Snow Day"
+    type: z.enum(['district', 'school', 'university']).optional()
+  }))
+});

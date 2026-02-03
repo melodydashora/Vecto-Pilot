@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-02-01
 
 # Platform Data API
 
@@ -12,6 +12,9 @@ API endpoints for querying rideshare platform coverage data.
 | GET | `/api/platform/markets` | List all markets with city counts |
 | GET | `/api/platform/markets/:market` | Cities in a specific market |
 | GET | `/api/platform/countries` | List countries with city counts |
+| GET | `/api/platform/countries-dropdown` | Countries formatted for dropdown UI |
+| GET | `/api/platform/regions-dropdown` | Regions/states formatted for dropdown UI |
+| GET | `/api/platform/markets-dropdown` | Markets formatted for dropdown UI |
 | GET | `/api/platform/search?q=` | Search cities by name |
 | GET | `/api/platform/city/:city` | Details for a specific city |
 

@@ -180,6 +180,22 @@ const GlobalHeaderComponent: React.FC = () => {
   const locationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasTriggeredErrorRef = useRef(false);
 
+  // 2026-02-01: FAIL HARD IMMEDIATE - Check for location error from context
+  // This fires immediately when geocode fails, don't wait for 30s timeout
+  const locationError = loc?.locationError ?? null;
+
+  useEffect(() => {
+    if (locationError && !hasTriggeredErrorRef.current) {
+      hasTriggeredErrorRef.current = true;
+      console.error('[GlobalHeader] ❌ CRITICAL: Location error from context:', locationError);
+      setCriticalError({
+        type: 'location_failed',
+        message: locationError.message || 'Unable to determine your location.',
+        details: `Error code: ${locationError.code}`
+      });
+    }
+  }, [locationError, setCriticalError]);
+
   useEffect(() => {
     // Don't start timeout if already resolved or already errored
     if (isLocationResolved || hasTriggeredErrorRef.current) {

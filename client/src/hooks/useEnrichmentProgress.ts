@@ -173,16 +173,19 @@ export function useEnrichmentProgress({
   // Get backend data
   const backendPhase = (strategyData?.phase as PipelinePhase) || 'starting';
   const snapshotMatches = strategyData?._snapshotId === lastSnapshotId;
+  // 2026-01-31: FIX - Server sends camelCase (phaseStartedAt), not snake_case
+  // This mismatch caused progress bar to get stuck at 7% then jump to 99%
   const timing = strategyData?.timing as {
-    phase_started_at?: string;
-    phase_elapsed_ms?: number;
-    expected_duration_ms?: number;
-    expected_durations?: Record<string, number>;
+    phaseStartedAt?: string;
+    phaseElapsedMs?: number;
+    expectedDurationMs?: number;
+    expectedDurations?: Record<string, number>;
   } | undefined;
 
   // Use backend elapsed time or calculate locally
-  const phaseElapsedMs = timing?.phase_elapsed_ms ?? localPhaseElapsed;
-  const expectedDurations = timing?.expected_durations ?? DEFAULT_EXPECTED_DURATIONS;
+  // 2026-01-31: Fixed to use camelCase to match server response
+  const phaseElapsedMs = timing?.phaseElapsedMs ?? localPhaseElapsed;
+  const expectedDurations = timing?.expectedDurations ?? DEFAULT_EXPECTED_DURATIONS;
 
   // Calculate dynamic progress
   // 2026-01-14: FIX - Require BOTH hasBlocks AND phase === 'complete' for 100%
@@ -237,13 +240,14 @@ export function useEnrichmentProgress({
   }, [coords, startTime]);
 
   // Update local phase elapsed time every 500ms for smooth progress
+  // 2026-01-31: Fixed to use camelCase (phaseStartedAt) to match server response
   useEffect(() => {
-    if (!timing?.phase_started_at || hasBlocks) {
+    if (!timing?.phaseStartedAt || hasBlocks) {
       setLocalPhaseElapsed(0);
       return;
     }
 
-    const phaseStartTime = new Date(timing.phase_started_at).getTime();
+    const phaseStartTime = new Date(timing.phaseStartedAt).getTime();
 
     const updateElapsed = () => {
       setLocalPhaseElapsed(Date.now() - phaseStartTime);
@@ -253,7 +257,7 @@ export function useEnrichmentProgress({
     const interval = setInterval(updateElapsed, 500);
 
     return () => clearInterval(interval);
-  }, [timing?.phase_started_at, hasBlocks]);
+  }, [timing?.phaseStartedAt, hasBlocks]);
 
   // Animate bottom bar progress smoothly toward target (250ms for smoother UX with fewer re-renders)
   useEffect(() => {

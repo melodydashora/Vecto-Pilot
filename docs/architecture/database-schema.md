@@ -55,9 +55,11 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 
 ---
 
-### `strategies` - AI Strategy Generation
+### `strategies` - AI Strategy Generation (LEAN - Refactored 2026-01-14)
 
-**Purpose:** Strategy outputs from TRIAD pipeline (Strategist → Briefer → Consolidator)
+**Purpose:** Strategy outputs from TRIAD pipeline. Stores ONLY the AI's strategic output linked to a snapshot.
+
+> **LEAN Architecture (2026-01-14):** All location/time context lives in `snapshots` table. All briefing data lives in `briefings` table. Legacy columns were dropped - see `migrations/20260114_lean_strategies_table.sql`.
 
 **Files:**
 - Schema: `shared/schema.js`
@@ -75,15 +77,18 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 |--------|------|-------------|
 | `id` | UUID (PK) | Primary identifier |
 | `snapshot_id` | UUID (FK, UNIQUE) | Reference to snapshots |
+| `user_id` | UUID (FK) | Reference to users |
+| `status` | VARCHAR | pending, in_progress, ok, pending_blocks, error |
+| `phase` | VARCHAR | strategist, briefer, consolidator, venues (current pipeline phase) |
+| `phase_started_at` | TIMESTAMP | When current phase started (for timeout detection) |
+| `error_message` | TEXT | Error details if status='error' |
 | `strategy_for_now` | TEXT | **Strategy Tab**: 1hr immediate strategy (GPT-5.2, automatic) |
 | `consolidated_strategy` | TEXT | **Briefing Tab**: 8-12hr daily strategy (Gemini 3 Pro, manual) |
-| `strategy` | TEXT | Internal: raw strategist output (not user-facing) |
-| `status` | VARCHAR | pending/ok/failed |
-| `phase` | VARCHAR | starting/resolving/analyzing/consolidator/venues/enriching/complete |
-| `phase_started_at` | TIMESTAMP | When current phase started |
-| `trigger_reason` | VARCHAR | initial/retry/refresh |
-| `model_name` | VARCHAR | Model route (e.g., 'gemini-3-pro→gpt-5.2') |
-| `latency_ms` | INTEGER | Total generation time |
+| `created_at` | TIMESTAMP | Creation timestamp |
+| `updated_at` | TIMESTAMP | Last update timestamp |
+
+**Dropped Columns (2026-01-14):**
+The following columns were removed in the LEAN refactoring: `strategy`, `error_code`, `attempt`, `latency_ms`, `tokens`, `next_retry_at`, `model_name`, `trigger_reason`, `valid_window_start`, `valid_window_end`, `strategy_timestamp`
 
 ---
 
@@ -331,7 +336,7 @@ See [Event Discovery Architecture](event-discovery.md) and [ETL Pipeline Refacto
 
 ---
 
-### `venue_catalog` - Venue Deduplication & Precision Coordinates
+### `venue_catalog` - Venue Deduplication & Precision Coordinates (Updated 2026-02-01)
 
 > **Note (2026-01-09):** Formerly `venue_cache`, renamed to `venue_catalog` for clarity.
 > PK is `venue_id`, not `id`. Always access via `venue.venue_id`.
@@ -343,36 +348,82 @@ See [Event Discovery Architecture](event-discovery.md) and [ETL Pipeline Refacto
 - Insert/Query: `server/lib/venue/venue-cache.js`
 - Integration: `server/scripts/sync-events.mjs`
 
-**Key Columns:**
+**All Columns:**
 | Column | Type | Description |
 |--------|------|-------------|
+| **Identity & Basic Info** | | |
 | `venue_id` | UUID (PK) | Primary identifier |
 | `venue_name` | TEXT | Original venue name |
-| `normalized_name` | TEXT | Normalized for matching ("The Rustic" → "rustic") |
-| `city`, `state`, `country` | TEXT | Location (country defaults to 'USA') |
-| `lat`, `lng` | DOUBLE PRECISION | **Full precision coordinates** (15+ decimals) |
-| `coord_key` | TEXT | 6-decimal key for proximity lookup (~0.11m accuracy) |
-| `address` | TEXT | Street address |
-| `formatted_address` | TEXT | Full formatted address |
-| `zip` | TEXT | ZIP code |
 | `place_id` | TEXT (UNIQUE) | Google Place ID |
+| `category` | TEXT | Venue category |
+| `dayparts` | JSONB | Active dayparts |
+| `staging_notes` | TEXT | Driver staging notes |
+| **Location - Precise** | | |
+| `lat`, `lng` | DOUBLE PRECISION | Full precision coordinates (15+ decimals) |
+| `city` | TEXT | City name |
+| `state` | TEXT | State abbreviation (e.g., "TX") |
+| `country` | TEXT | Country code (ISO alpha-2, default: 'US') |
+| `metro` | TEXT | Metro area |
+| `district` | TEXT | District/neighborhood name |
+| `district_slug` | TEXT | District slug for lookups |
+| `district_centroid_lat/lng` | DOUBLE | District center coordinates |
+| **Address Fields** | | |
+| `address` | TEXT | Short address |
+| `address_1` | TEXT | Street number + route |
+| `address_2` | TEXT | Suite, floor, unit |
+| `zip` | TEXT | Postal code |
+| `formatted_address` | TEXT | Full Google-formatted address |
+| **Hours & Status** | | |
 | `hours` | JSONB | Opening hours from Google Places |
-| `hours_source` | TEXT | Where hours came from |
-| `venue_type` | TEXT | stadium/arena/bar/restaurant/etc. |
-| `capacity_estimate` | INTEGER | Estimated capacity |
-| `source` | TEXT | Data source (e.g., 'sync_events_gpt52') |
-| `source_model` | TEXT | AI model if from LLM |
+| `ai_estimated_hours` | TEXT | AI-estimated hours if Google unavailable |
+| `business_hours` | TEXT | Human-readable business hours |
+| `hours_full_week` | JSONB | `{monday: "4:00 PM - 2:00 AM", ...}` |
+| `hours_source` | TEXT | 'google_places', 'manual', 'inferred' |
+| `last_known_status` | TEXT | OPEN, CLOSED, UNKNOWN |
+| `status_checked_at` | TIMESTAMP | When status was last checked |
+| `consecutive_closed_checks` | INTEGER | Closed check counter |
+| `auto_suppressed` | BOOLEAN | Auto-suppressed after repeated closures |
+| `suppression_reason` | TEXT | Why venue was suppressed |
+| **Discovery & Validation** | | |
+| `discovery_source` | TEXT | How venue was discovered |
+| `validated_at` | TIMESTAMP | When venue was validated |
+| `suggestion_metadata` | JSONB | LLM suggestion context |
+| `source` | TEXT | 'google_places', 'serpapi', 'llm', 'manual' |
+| `source_model` | TEXT | Which AI model discovered this |
+| **Deduplication** | | |
+| `normalized_name` | TEXT | Lowercase alphanumeric for fuzzy matching |
+| `coord_key` | TEXT (UNIQUE) | "33.123456_-96.123456" (6 decimal precision) |
+| **Classification** | | |
+| `venue_types` | JSONB | Array: ['bar', 'event_host', 'restaurant'] |
+| `market_slug` | TEXT | References markets table |
+| `expense_rank` | INTEGER | 1-4 for $/$$/$$$/$$$$ filtering |
+| `crowd_level` | TEXT | 'low', 'medium', 'high' |
+| `rideshare_potential` | TEXT | 'low', 'medium', 'high' |
+| `capacity_estimate` | INTEGER | Venue capacity |
+| **Progressive Enrichment (2026-01-14)** | | |
+| `is_bar` | BOOLEAN | Quick filter flag |
+| `is_event_venue` | BOOLEAN | Discovered via events |
+| `record_status` | TEXT | 'stub', 'enriched', 'verified' |
+| **Tracking** | | |
 | `access_count` | INTEGER | Cache hit counter |
-| `last_accessed_at` | TIMESTAMP | Last cache hit time |
+| `last_accessed_at` | TIMESTAMP | Last cache access |
+| `created_at` | TIMESTAMP | Creation timestamp |
+| `updated_at` | TIMESTAMP | Last update timestamp |
 
-**Indexes:**
+**Indexes (13 total):**
 | Index | Purpose |
 |-------|---------|
 | `UNIQUE (normalized_name, city, state)` | Prevent venue duplicates |
 | `UNIQUE (place_id)` | Google Place ID lookup |
-| `idx_venue_catalog_coord_key` | Coordinate proximity lookup |
-| `idx_venue_catalog_city_state` | Regional venue queries |
+| `UNIQUE (coord_key)` | Coordinate key lookup |
 | `idx_venue_catalog_normalized_name` | Fuzzy name search |
+| `idx_venue_catalog_city_state` | Regional venue queries |
+| `idx_venue_catalog_market_slug` | Market-based queries |
+| `idx_venue_catalog_venue_types` | GIN index for JSONB array |
+| `idx_venue_catalog_expense_rank` | Price filtering (partial) |
+| `idx_venue_catalog_is_bar` | Bar filtering (partial: where true) |
+| `idx_venue_catalog_is_event_venue` | Event venue filtering (partial) |
+| `idx_venue_catalog_record_status` | Enrichment status queries |
 
 **Relationship:** `discovered_events.venue_id` → `venue_catalog.venue_id` (FK, ON DELETE SET NULL)
 
@@ -847,7 +898,372 @@ When suggesting staging locations:
 
 ---
 
-## JSONB Field Schemas
+## Memory & Agent Tables (Added 2026-02-01)
+
+These tables support AI agent memory, context persistence, and cross-session continuity.
+
+### `agent_memory` - General Agent Memory
+
+**Purpose:** Memory layer for agent context across sessions (key-value with tags)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `key` | TEXT | Memory key identifier |
+| `content` | TEXT | Memory content |
+| `tags` | TEXT[] | Searchable tags array |
+| `metadata` | JSONB | Additional metadata |
+| `ttl_hours` | INTEGER | Time-to-live in hours |
+| `created_at` | TIMESTAMP | Creation timestamp |
+| `updated_at` | TIMESTAMP | Last update timestamp |
+
+### `assistant_memory` - Thread-Aware Enhanced Memory
+
+**Purpose:** Enhanced memory for thread-aware context tracking with session persistence
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `thread_id` | TEXT | Thread/conversation identifier |
+| `key` | TEXT | Memory key |
+| `content` | TEXT | Memory content |
+| `tags` | TEXT[] | Searchable tags |
+| `metadata` | JSONB | Additional metadata |
+| `expires_at` | TIMESTAMP | Optional expiration |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `cross_thread_memory` - Cross-Session Memory
+
+**Purpose:** Memory that persists across different conversation threads
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `scope` | TEXT | Memory scope (global, project, user) |
+| `key` | TEXT | Memory key |
+| `content` | TEXT | Memory content |
+| `metadata` | JSONB | Additional metadata |
+| `created_at` | TIMESTAMP | Creation timestamp |
+| `updated_at` | TIMESTAMP | Last update timestamp |
+
+### `eidolon_memory` - Eidolon SDK Memory
+
+**Purpose:** Memory storage for Eidolon SDK operations
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `project_id` | TEXT | Project identifier |
+| `key` | TEXT | Memory key |
+| `value` | JSONB | Memory value |
+| `created_at` | TIMESTAMP | Creation timestamp |
+| `updated_at` | TIMESTAMP | Last update timestamp |
+
+### `eidolon_snapshots` - Eidolon Project State
+
+**Purpose:** Project/session state persistence for Eidolon SDK
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `project_id` | TEXT | Project identifier |
+| `snapshot_data` | JSONB | Full state snapshot |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+---
+
+## Job Tracking Tables
+
+### `triad_jobs` - TRIAD Pipeline Job Tracking
+
+**Purpose:** Background job tracking for TRIAD pipeline (strategy generation)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `snapshot_id` | UUID (FK, UNIQUE) | Reference to snapshots |
+| `status` | TEXT | pending, running, complete, failed |
+| `started_at` | TIMESTAMP | Job start time |
+| `completed_at` | TIMESTAMP | Job completion time |
+| `error` | TEXT | Error message if failed |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `block_jobs` - Smart Blocks Job Tracking
+
+**Purpose:** Background job tracking for smart blocks generation
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `snapshot_id` | UUID (FK) | Reference to snapshots |
+| `status` | TEXT | pending, running, complete, failed |
+| `blocks_count` | INTEGER | Number of blocks generated |
+| `started_at` | TIMESTAMP | Job start time |
+| `completed_at` | TIMESTAMP | Job completion time |
+| `error` | TEXT | Error message if failed |
+
+---
+
+## Intelligence Tables
+
+### `market_intelligence` - Market-Level Research
+
+**Purpose:** Market-level research intelligence (rules, zones, timing patterns)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `market_slug` | TEXT | Market identifier (e.g., "dallas-tx") |
+| `intel_type` | TEXT | rule, pattern, timing, zone |
+| `title` | TEXT | Short title |
+| `content` | TEXT | Full intelligence content |
+| `source` | TEXT | Where intel came from |
+| `confidence` | INTEGER | 1-100 confidence score |
+| `is_active` | BOOLEAN | Active flag |
+| `created_at` | TIMESTAMP | Creation timestamp |
+| `updated_at` | TIMESTAMP | Last update timestamp |
+
+### `user_intel_notes` - Coach-Generated Notes
+
+**Purpose:** Per-user notes from driver interactions with AI Coach
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users |
+| `note_type` | TEXT | preference, tip, observation, warning |
+| `title` | TEXT | Note title |
+| `content` | TEXT | Note content |
+| `source_conversation_id` | UUID | Conversation that generated note |
+| `is_pinned` | BOOLEAN | Pinned for quick reference |
+| `is_deleted` | BOOLEAN | Soft delete flag |
+| `created_at` | TIMESTAMP | Creation timestamp |
+| `updated_at` | TIMESTAMP | Last update timestamp |
+
+### `traffic_zones` - Real-Time Traffic Intelligence
+
+**Purpose:** Real-time traffic zone intelligence from TomTom
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `market_slug` | TEXT | Market identifier |
+| `zone_name` | TEXT | Zone description |
+| `severity` | INTEGER | 1-5 severity level |
+| `delay_minutes` | INTEGER | Estimated delay |
+| `lat`, `lng` | DOUBLE | Zone center |
+| `radius_miles` | DOUBLE | Affected radius |
+| `expires_at` | TIMESTAMP | When this intel expires |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `travel_disruptions` - Airport/Travel Delays
+
+**Purpose:** FAA airport delays and ground stops
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `airport_code` | TEXT | IATA airport code |
+| `disruption_type` | TEXT | delay, ground_stop, ground_delay |
+| `reason` | TEXT | Weather, volume, equipment, etc. |
+| `average_delay` | INTEGER | Minutes of average delay |
+| `start_time` | TIMESTAMP | When disruption started |
+| `end_time` | TIMESTAMP | Expected end time |
+| `is_active` | BOOLEAN | Currently active |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+---
+
+## Venue Intelligence Tables
+
+### `venue_events` - Per-Venue Event Listings
+
+**Purpose:** Events associated with specific venues (different from discovered_events)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `venue_id` | UUID (FK) | Reference to venue_catalog |
+| `event_name` | TEXT | Event name |
+| `event_date` | DATE | Event date |
+| `event_time` | TEXT | Event time |
+| `event_type` | TEXT | concert, sports, theater, etc. |
+| `expected_attendance` | INTEGER | Estimated attendance |
+| `source` | TEXT | Where event was discovered |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `venue_feedback` - Per-Venue Thumbs Up/Down
+
+**Purpose:** Driver feedback on venue recommendations
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users |
+| `venue_id` | UUID (FK) | Reference to venue_catalog |
+| `ranking_id` | UUID (FK) | Reference to ranking_candidates |
+| `feedback_type` | TEXT | thumbs_up, thumbs_down |
+| `reason` | TEXT | Optional reason |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `venue_metrics` - Venue Recommendation Metrics
+
+**Purpose:** Track venue recommendation performance
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `venue_id` | UUID (FK) | Reference to venue_catalog |
+| `times_recommended` | INTEGER | Total recommendations |
+| `times_selected` | INTEGER | Times user selected |
+| `thumbs_up_count` | INTEGER | Positive feedback count |
+| `thumbs_down_count` | INTEGER | Negative feedback count |
+| `avg_score` | DOUBLE | Average recommendation score |
+| `updated_at` | TIMESTAMP | Last update timestamp |
+
+### `llm_venue_suggestions` - LLM-Generated Venue Suggestions
+
+**Purpose:** Venue suggestions from LLMs awaiting validation
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `snapshot_id` | UUID (FK) | Reference to snapshots |
+| `venue_name` | TEXT | Suggested venue name |
+| `suggested_address` | TEXT | Address from LLM |
+| `category` | TEXT | Bar, restaurant, event venue, etc. |
+| `reason` | TEXT | Why LLM suggested this venue |
+| `validated` | BOOLEAN | Whether Places API validated |
+| `place_id` | TEXT | Google Place ID if validated |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+---
+
+## Cache & Reference Tables
+
+### `places_cache` - Places API Cache
+
+**Purpose:** Cache for Google Places API results (note: `coords_key` column stores coordinate keys like "33.123456_-96.123456")
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `coords_key` | TEXT (UNIQUE) | Coordinate key (lat_lng format) |
+| `places_data` | JSONB | Cached Places API response |
+| `expires_at` | TIMESTAMP | Cache expiration |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+> **Note (2026-01-10):** Column was renamed from `place_id` to `coords_key` for semantic accuracy per D-013.
+
+### `vehicle_makes_cache` - NHTSA Vehicle Makes Cache
+
+**Purpose:** Cache for NHTSA API vehicle makes
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `make_id` | INTEGER | NHTSA make ID |
+| `make_name` | TEXT | Make name (e.g., "Toyota") |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `vehicle_models_cache` - NHTSA Vehicle Models Cache
+
+**Purpose:** Cache for NHTSA API vehicle models
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `make_id` | INTEGER | NHTSA make ID |
+| `model_id` | INTEGER | NHTSA model ID |
+| `model_name` | TEXT | Model name (e.g., "Camry") |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `us_market_cities` - City to Market Lookup
+
+**Purpose:** Maps cities to their rideshare markets (e.g., "Frisco, TX" → "Dallas market")
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `city` | TEXT | City name |
+| `state` | TEXT | State code |
+| `market_slug` | TEXT | Market identifier |
+| `is_anchor` | BOOLEAN | Is this the market's main city |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+---
+
+## Feedback & Audit Tables
+
+### `app_feedback` - General App Feedback
+
+**Purpose:** General app-level feedback from users
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users |
+| `feedback_type` | TEXT | bug, suggestion, compliment, other |
+| `content` | TEXT | Feedback content |
+| `page` | TEXT | Which page user was on |
+| `metadata` | JSONB | Additional context |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `strategy_feedback` - Strategy-Level Feedback
+
+**Purpose:** Feedback specifically on strategy recommendations
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `user_id` | UUID (FK) | Reference to users |
+| `strategy_id` | UUID (FK) | Reference to strategies |
+| `feedback_type` | TEXT | thumbs_up, thumbs_down |
+| `reason` | TEXT | Optional reason |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `connection_audit` - Database Connection Audit
+
+**Purpose:** Audit trail for database connection events
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `event_type` | TEXT | connect, disconnect, error, pool_full |
+| `connection_id` | TEXT | Connection identifier |
+| `details` | JSONB | Event details |
+| `created_at` | TIMESTAMP | Event timestamp |
+
+### `http_idem` - HTTP Idempotency Tracking
+
+**Purpose:** Track HTTP request idempotency for replay protection
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `idempotency_key` | TEXT (UNIQUE) | Client-provided key |
+| `response` | JSONB | Cached response |
+| `status_code` | INTEGER | HTTP status code |
+| `expires_at` | TIMESTAMP | When to expire |
+| `created_at` | TIMESTAMP | Creation timestamp |
+
+### `agent_changes` - File Change Tracking
+
+**Purpose:** Track file changes and document modifications for Change Analyzer
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Primary identifier |
+| `file_path` | TEXT | Relative file path |
+| `change_type` | TEXT | added, modified, deleted |
+| `commit_hash` | TEXT | Git commit hash |
+| `detected_at` | TIMESTAMP | When change was detected |
+| `reviewed` | BOOLEAN | Whether change has been reviewed |
+| `notes` | TEXT | Review notes |
+
+---
+
+## JSONB Field Schemas (Updated 2026-02-01)
 
 ### `weather` (in snapshots)
 ```json
@@ -880,6 +1296,113 @@ When suggesting staging locations:
     "impact": "high"
   }
 ]
+```
+
+### `features` (in ranking_candidates)
+Venue enrichment data calculated during TRIAD pipeline:
+```json
+{
+  "isOpen": true,
+  "businessStatus": "OPERATIONAL",
+  "hoursToday": "5:00 PM - 2:00 AM",
+  "closingSoon": false,
+  "minutesUntilClose": 180,
+  "placeId": "ChIJ...",
+  "priceLevel": 2
+}
+```
+
+### `weather_current` (in briefings)
+```json
+{
+  "temperature": 72,
+  "feelsLike": 75,
+  "condition": "Clear",
+  "humidity": 45,
+  "windSpeed": 8,
+  "windDirection": "NW",
+  "icon": "clear_day"
+}
+```
+
+### `weather_forecast` (in briefings)
+```json
+[
+  {
+    "hour": "2:00 PM",
+    "temperature": 75,
+    "condition": "Partly Cloudy",
+    "precipitation": 10
+  }
+]
+```
+
+### `traffic_conditions` (in briefings)
+```json
+{
+  "headline": "Heavy congestion on I-35",
+  "keyIssues": [
+    "I-35 northbound: 15 min delay due to accident",
+    "US-75 heavy traffic near downtown"
+  ],
+  "avoidAreas": ["I-35 between exits 428-432"],
+  "driverImpact": "Expect +10-15 min for downtown pickups",
+  "closures": []
+}
+```
+
+### `school_closures` (in briefings)
+```json
+[
+  {
+    "name": "Dallas ISD",
+    "type": "district",
+    "status": "closed",
+    "reason": "Weather"
+  }
+]
+```
+
+### `hours_full_week` (in venue_catalog)
+```json
+{
+  "monday": "4:00 PM - 2:00 AM",
+  "tuesday": "4:00 PM - 2:00 AM",
+  "wednesday": "4:00 PM - 2:00 AM",
+  "thursday": "4:00 PM - 2:00 AM",
+  "friday": "4:00 PM - 3:00 AM",
+  "saturday": "12:00 PM - 3:00 AM",
+  "sunday": "12:00 PM - 12:00 AM"
+}
+```
+
+### `venue_types` (in venue_catalog)
+```json
+["bar", "event_host", "restaurant", "nightclub"]
+```
+**Valid types:** bar, restaurant, nightclub, stadium, arena, theater, event_host, hotel, casino, concert_hall
+
+### `parsed_data` (in intercepted_signals)
+```json
+{
+  "price": 12.50,
+  "miles": 4.2,
+  "time": 8,
+  "pickup": "Main St",
+  "dropoff": "Airport",
+  "platform": "uber",
+  "surge": 1.5,
+  "per_mile": 2.98
+}
+```
+
+### `time_constraints` (in zone_intelligence)
+```json
+{
+  "after_hour": 22,
+  "before_hour": 6,
+  "days": ["friday", "saturday"]
+}
 ```
 
 ---

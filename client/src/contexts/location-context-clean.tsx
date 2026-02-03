@@ -193,6 +193,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [airQuality, setAirQuality] = useState<{ aqi: number; category: string } | null>(null);
   // Location resolution gate - prevents race conditions by gating downstream queries
   const [isLocationResolved, setIsLocationResolved] = useState(false);
+  // 2026-02-01: FAIL HARD - Location error state for immediate critical error trigger
+  // When set, CoPilotContext should block the UI with CriticalError modal
+  const [locationError, setLocationError] = useState<{ code: string; message: string } | null>(null);
   // Expose snapshot ID directly so co-pilot can access it as fallback if event is missed
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
   const generationCounterRef = useRef(0);
@@ -461,7 +464,38 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setCity(locationData.city);
       setState(locationData.state);
       setTimeZone(locationData.timeZone);
-      setCurrentLocationString(`${locationData.city}, ${locationData.state}`);
+      // 2026-02-01: FAIL HARD - If city/state missing, trigger critical error
+      // This prevents waterfall from progressing with incomplete location data
+      if (locationData.city && locationData.state) {
+        setCurrentLocationString(`${locationData.city}, ${locationData.state}`);
+        setLocationError(null); // Clear any previous error
+      } else {
+        // FAIL HARD: Set error state that will block the UI
+        console.error('❌ [LocationContext] FAIL HARD: City/state missing from geocode response', {
+          city: locationData.city,
+          state: locationData.state,
+          formattedAddress: locationData.formattedAddress
+        });
+
+        // CRITICAL: Clear ALL stale data from session restore
+        // Without valid coords, weather/AQI/timezone are meaningless and misleading
+        setWeather(null);
+        setAirQuality(null);
+        setTimeZone(null);
+        setCity(null);
+        setState(null);
+        setCurrentCoords(null);
+        setLastSnapshotId(null);
+        sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+        console.log('🧹 [LocationContext] Cleared ALL stale data - coords are required for everything');
+
+        setLocationError({
+          code: 'geocode_incomplete',
+          message: 'Could not determine your city/state. Please check GPS permissions and try again.'
+        });
+        setCurrentLocationString('Location unavailable');
+        return; // Stop processing - don't allow waterfall to continue
+      }
       setLastUpdated(new Date().toISOString());
       console.log('📍 [LocationContext] Location updated (phase 2):', locationData.city, locationData.state);
 
@@ -783,7 +817,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     isLocationResolved,
     lastSnapshotId,
     isLoading: isUpdating,
-    setOverrideCoords
+    setOverrideCoords,
+    // 2026-02-01: FAIL HARD - Expose location error for CoPilotContext to trigger CriticalError
+    locationError
   }), [
     currentCoords,
     currentLocationString,
@@ -798,7 +834,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     airQuality,
     isLocationResolved,
     lastSnapshotId,
-    setOverrideCoords
+    setOverrideCoords,
+    locationError
   ]);
 
   return (

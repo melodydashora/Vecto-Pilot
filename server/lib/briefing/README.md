@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-14
+> **Last Verified:** 2026-02-01
 
 # Briefing Module (`server/lib/briefing/`)
 
@@ -34,6 +34,7 @@ Real-time briefing service for events, traffic, weather, news, airport condition
 | File | Purpose | Key Export |
 |------|---------|------------|
 | `briefing-service.js` | Main briefing orchestrator | `getOrGenerateBriefing(snapshotId)` |
+| `filter-for-planner.js` | Filter briefing for venue planner (2026-01-31) | `filterBriefingForPlanner(briefing, snapshot)` |
 | `event-schedule-validator.js` | Event verification (DISABLED) | `validateEventSchedules(events)` |
 | `index.js` | Module barrel exports | All briefing exports |
 | `dump-last-briefing.js` | Debug utility: dump last briefing | CLI script |
@@ -48,7 +49,7 @@ All discovery uses the centralized `callModel()` adapter with these roles:
 | Role | Model | Purpose | JSON Schema |
 |------|-------|---------|-------------|
 | `BRIEFING_TRAFFIC` | Gemini 3 Pro | Traffic analysis | `{ summary, congestionLevel, incidents[], highDemandZones[], repositioning }` |
-| `BRIEFING_EVENTS_DISCOVERY` | Gemini 3 Pro | Event discovery | `[{ title, venue, address, event_start_date, event_start_time, event_end_time }]` |
+| `BRIEFING_EVENTS_DISCOVERY` | Gemini 3 Pro | Event discovery | `[{ title, venue, address, event_start_date, event_start_time, event_end_time, event_end_date }]` |
 | `BRIEFING_NEWS` | Gemini 3 Pro | Rideshare news | `[{ title, summary, impact, published_date }]` |
 | `BRIEFING_AIRPORT` | Gemini 3 Pro | Airport conditions | `{ airports[], busyPeriods[], recommendations }` |
 | `BRIEFING_SCHOOL_CLOSURES` | Gemini 3 Pro | School closures | `[{ district, type, reason, closed_date, reopen_date, impact }]` |
@@ -75,6 +76,44 @@ await db.insert(discovered_events).values({
   event_hash: hash
 }).onConflictDoUpdate({ target: discovered_events.event_hash, ... });
 ```
+
+### Hybrid Search Architecture (2026-02-01)
+
+Event discovery uses **2 focused parallel searches** instead of 5 separate category searches:
+
+| Search | Focus | Event Types |
+|--------|-------|-------------|
+| `high_impact` | Major venues (stadiums, arenas, theaters) | concerts, sports, festivals |
+| `local_entertainment` | Smaller venues (bars, clubs, community) | live_music, comedy, nightlife, community |
+
+**Why 2 searches instead of 5:**
+- **60% cost reduction** - 2 API calls vs 5
+- **Same quality** - each search is comprehensive for its focus area
+- **Better resilience** - focused prompts get better grounding results
+- **90s timeout per search** - Gemini with HIGH thinking needs time
+
+**Why not 1 single search:**
+- Single prompt would be too broad → misses niche events
+- One failure kills all events
+- Better LLM focus with split high-impact vs local
+
+### Market-Based Event Discovery (2026-02-01)
+
+Event and news searches use the **market** (e.g., "Dallas-Fort Worth") instead of just the driver's city (e.g., "Frisco"). This ensures we find events at AT&T Stadium (Arlington), AAC (Dallas), and other major venues across the metro area.
+
+**Market Source Priority:**
+1. `snapshot.market` - From `driver_profiles.market` (set at user signup)
+2. `getMarketForLocation()` fallback - Looks up `us_market_cities` table for older snapshots
+
+```javascript
+// In fetchEventsWithGemini3ProPreview and fetchRideshareNews:
+const market = snapshot.market || await getMarketForLocation(city, state);
+```
+
+**Why from driver_profiles:**
+- Market is known at signup (user selects it)
+- No need for DB lookup on every briefing request
+- Faster and more reliable
 
 ## Usage
 
@@ -123,7 +162,8 @@ The snapshot MUST have `formatted_address` - LLMs cannot reverse geocode.
   },
 
   // Events (Gemini discovery → discovered_events table)
-  events: [{ title, venue, event_start_time, event_end_time, category }],
+  // 2026-02-01: event_end_date added (defaults to event_start_date for single-day events)
+  events: [{ title, venue, event_start_date, event_start_time, event_end_time, event_end_date, category }],
 
   // News (Gemini with Google Search)
   news: { items: [{ title, summary, impact }] },
@@ -166,3 +206,66 @@ import { getOrGenerateBriefing } from '../../lib/briefing/briefing-service.js';
 // From server/lib/*/
 import { getOrGenerateBriefing } from '../briefing/briefing-service.js';
 ```
+
+## Briefing Filter for Venue Planner (2026-01-31)
+
+The `filter-for-planner.js` module filters full briefing data for efficient venue planner consumption:
+
+```javascript
+import { filterBriefingForPlanner, formatBriefingForPrompt } from './filter-for-planner.js';
+
+// Filter briefing to reduce token usage
+const filteredBriefing = filterBriefingForPlanner(briefingRow, snapshot);
+
+// Format for LLM prompt inclusion
+const promptSection = formatBriefingForPrompt(filteredBriefing);
+```
+
+### Filtering Rules
+
+| Data Type | Filter Logic |
+|-----------|--------------|
+| Events | Today only. Large events (stadiums, arenas) kept from entire market. Small events (bars) filtered to user's city. |
+| Traffic | Summary only: briefing text + top 3 keyIssues + top 2 avoidAreas |
+| Weather | Essential fields: condition, temperature, driver impact |
+| School Closures | Today only (start_date <= today <= end_date) |
+| Airport | Pass-through (already summarized) |
+
+### Why This Matters
+
+- **Token Reduction**: Full briefing can be 5K+ tokens. Filtered version is ~500 tokens.
+- **Relevance**: Venue planner only needs today's actionable data.
+- **Market-Wide Events**: Large events (Cowboys game in Arlington) affect traffic across the entire DFW market, so they're kept even if user is in Frisco.
+- **Local Events**: Bar trivia in Dallas isn't relevant to a driver in Frisco, so it's filtered out.
+
+## Recommended Driver Resources (Curated)
+
+The AI news search (`BRIEFING_NEWS`) discovers relevant news dynamically, but these authoritative resources provide valuable, regularly-updated information for rideshare drivers:
+
+| Resource | URL | Content | Update Frequency |
+|----------|-----|---------|------------------|
+| **Lyft Driver Hub** | `https://www.lyft.com/driver/hub` | Official Lyft driver news, policy changes, earnings updates, promotions | Real-time |
+| **AAA Gas Prices** | `https://gasprices.aaa.com/?state={STATE}` | State-by-state fuel prices, trends | Daily |
+| **Uber Driver Blog** | `https://www.uber.com/blog/driver/` | Official Uber driver updates, features | Weekly |
+
+### Dynamic URL Parameters
+
+For global app support, these URLs use dynamic state/region parameters:
+
+```javascript
+// AAA Gas Prices - uses user's state/province from snapshot
+const gasUrl = `https://gasprices.aaa.com/?state=${snapshot.state}`;
+
+// Example: Texas driver sees https://gasprices.aaa.com/?state=TX
+// Example: California driver sees https://gasprices.aaa.com/?state=CA
+```
+
+### Why These Resources Matter
+
+1. **Lyft Driver Hub**: Primary source for Lyft-specific policy changes, bonus structures, and market-specific promotions. Drivers should check before each shift.
+
+2. **AAA Gas Prices**: Authoritative fuel cost data helps drivers calculate true earnings per mile and identify optimal fueling locations.
+
+3. **Driver Platform Blogs**: Official channels for platform updates that may not appear in general news searches.
+
+> **Note:** The `BRIEFING_NEWS` AI search covers general rideshare news from multiple sources. These curated resources complement AI-discovered news with authoritative, platform-specific information.

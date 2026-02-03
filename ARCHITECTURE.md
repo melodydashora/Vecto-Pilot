@@ -35,12 +35,13 @@ This file provides navigation to focused architecture documentation. Each linked
 
 ## Changes (2026-01-08)
 
-- **Level 4 Architecture: Omni-Presence & Siri Interceptor**
-  - New `/co-pilot/omni` route with `SignalTerminal.tsx` for real-time offer analysis
-  - iOS Siri Shortcut integration via `POST /api/hooks/analyze-offer`
-  - New `intercepted_signals` database table for offer tracking
-  - AI-powered ACCEPT/REJECT decisions with reasoning
-  - Driver override capability with feedback loop
+- **Level 4 Architecture: Omni-Presence & Siri Interceptor** ⏳ PLANNED - NOT YET IMPLEMENTED
+  > **Status:** Database table exists (`intercepted_signals`), but UI components and API endpoints are not yet implemented. This is a future feature.
+  - Planned: `/co-pilot/omni` route with `SignalTerminal.tsx` for real-time offer analysis
+  - Planned: iOS Siri Shortcut integration via `POST /api/hooks/analyze-offer`
+  - ✅ Exists: `intercepted_signals` database table for offer tracking
+  - Planned: AI-powered ACCEPT/REJECT decisions with reasoning
+  - Planned: Driver override capability with feedback loop
 - **Dispatch Primitives** (schema only - not yet implemented):
   - `driver_goals` - earning targets and deadlines
   - `driver_tasks` - hard stops and obligations

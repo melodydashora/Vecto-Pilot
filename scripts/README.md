@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-02-01
 
 # Scripts (`scripts/`)
 
@@ -27,6 +27,37 @@ Build, development, and operational utility scripts.
 | `resolve-venue-addresses.js` | Resolve venue addresses via geocoding |
 | `test-event-dedup.js` | Test event deduplication logic |
 | `test-news-fetch.js` | Test news fetching functionality |
+| `import-market-cities.js` | **Import market cities from JSON/CSV** (2026-02-01) |
+| `fix-market-names.js` | Fix market name mismatches from research file |
+
+## Market Data Scripts
+
+### import-market-cities.js (2026-02-01)
+
+Import/update `us_market_cities` table from JSON or CSV files with field names that match the schema exactly.
+
+```bash
+# Preview changes (dry run)
+node scripts/import-market-cities.js path/to/markets.json --dry-run
+
+# Import from JSON
+node scripts/import-market-cities.js path/to/markets.json
+
+# Import from CSV with updates
+node scripts/import-market-cities.js path/to/markets.csv --upsert
+```
+
+**Supported formats:**
+- **JSON**: See `platform-data/uber/research-findings/market-template.json` for template
+- **CSV**: Header row with: `state_abbr,state,city,market_name,region_type`
+
+### fix-market-names.js
+
+One-time script to update market names from the legacy research-intel.txt format (CSV with `State,City,Market_Anchor,Region_Type`).
+
+```bash
+node scripts/fix-market-names.js
+```
 
 ## Usage
 

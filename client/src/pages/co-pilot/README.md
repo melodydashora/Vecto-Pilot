@@ -32,15 +32,15 @@ Route-based page components for the co-pilot section of Vecto Pilot.
 
 ```
 co-pilot/
-├── StrategyPage.tsx     # AI strategy + Smart Blocks + Coach (~800 LOC)
-├── BarsPage.tsx         # Premium venue listings
-├── BriefingPage.tsx     # Weather, traffic, news, events
-├── MapPage.tsx          # Interactive venue + event map
-├── IntelPage.tsx        # Rideshare platform intelligence
-├── SettingsPage.tsx     # User profile settings
-├── AboutPage.tsx        # Donation/about (no GlobalHeader)
-├── PolicyPage.tsx       # Privacy policy
-└── index.tsx            # Barrel exports
+├── StrategyPage.tsx      # AI strategy + Smart Blocks + Coach (~800 LOC)
+├── VenueManagerPage.tsx  # Premium venue listings (renamed from BarsPage.tsx 2026-01-09)
+├── BriefingPage.tsx      # Weather, traffic, news, events
+├── MapPage.tsx           # Interactive venue + event map
+├── IntelPage.tsx         # Rideshare platform intelligence
+├── SettingsPage.tsx      # User profile settings
+├── AboutPage.tsx         # Donation/about (no GlobalHeader)
+├── PolicyPage.tsx        # Privacy policy
+└── index.tsx             # Barrel exports
 ```
 
 ## Route Mapping
@@ -48,7 +48,7 @@ co-pilot/
 | Route | Page Component | Purpose |
 |-------|----------------|---------|
 | `/co-pilot/strategy` | StrategyPage | AI-powered driving strategy with Smart Blocks |
-| `/co-pilot/bars` | BarsPage | Premium venue listings with open/closed status |
+| `/co-pilot/bars` | VenueManagerPage | Premium venue listings with open/closed status |
 | `/co-pilot/briefing` | BriefingPage | Weather, traffic, news, and local events |
 | `/co-pilot/map` | MapPage | Interactive map with venue and event markers |
 | `/co-pilot/intel` | IntelPage | Rideshare platform coverage data |
@@ -70,15 +70,15 @@ Uses:
 - `CoachChat` for AI chat
 - `SmartBlocksStatus` for loading states
 
-### BarsPage
+### VenueManagerPage (formerly BarsPage)
 Premium venue listings with:
 - Distance and rating information
 - Open/closed status (timezone-aware)
 - Price range indicators
 
 Uses:
-- `BarsTable` for venue display
-- `BarTab` for sidebar
+- `BarsDataGrid` for venue display
+- `BarsMainTab` for sidebar
 
 ### BriefingPage
 Real-time briefing with:

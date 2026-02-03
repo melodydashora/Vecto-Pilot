@@ -1,0 +1,208 @@
+{
+  "_comment": "Research findings for markets missing from us_market_cities table",
+  "_date": "2026-02-02",
+  "_sources": [
+    "uber.com city pages",
+    "ride.guru",
+    "tripadvisor forums",
+    "ridester.com"
+  ],
+  "markets": [
+    {
+      "market_name": "Chico",
+      "state": "California",
+      "state_abbr": "CA",
+      "cities": [
+        { "city": "Chico", "region_type": "Core" },
+        { "city": "Paradise", "region_type": "Satellite" },
+        { "city": "Oroville", "region_type": "Satellite" },
+        { "city": "Gridley", "region_type": "Rural" },
+        { "city": "Red Bluff", "region_type": "Rural" },
+        { "city": "Corning", "region_type": "Rural" },
+        { "city": "Orland", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Eureka",
+      "state": "California",
+      "state_abbr": "CA",
+      "cities": [
+        { "city": "Eureka", "region_type": "Core" },
+        { "city": "Arcata", "region_type": "Satellite" },
+        { "city": "McKinleyville", "region_type": "Satellite" },
+        { "city": "Fortuna", "region_type": "Satellite" },
+        { "city": "Blue Lake", "region_type": "Rural" },
+        { "city": "Ferndale", "region_type": "Rural" },
+        { "city": "Garberville", "region_type": "Rural" },
+        { "city": "Willow Creek", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Imperial Valley",
+      "state": "California",
+      "state_abbr": "CA",
+      "cities": [
+        { "city": "El Centro", "region_type": "Core" },
+        { "city": "Imperial", "region_type": "Satellite" },
+        { "city": "Brawley", "region_type": "Satellite" },
+        { "city": "Calexico", "region_type": "Satellite" },
+        { "city": "Holtville", "region_type": "Rural" },
+        { "city": "Heber", "region_type": "Rural" },
+        { "city": "Westmorland", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Lake Tahoe",
+      "state": "California",
+      "state_abbr": "CA",
+      "cities": [
+        { "city": "South Lake Tahoe", "region_type": "Core" },
+        { "city": "Tahoe City", "region_type": "Satellite" },
+        { "city": "Truckee", "region_type": "Satellite" },
+        { "city": "Kings Beach", "region_type": "Satellite" },
+        { "city": "Tahoma", "region_type": "Rural" },
+        { "city": "Homewood", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Merced",
+      "state": "California",
+      "state_abbr": "CA",
+      "cities": [
+        { "city": "Merced", "region_type": "Core" },
+        { "city": "Atwater", "region_type": "Satellite" },
+        { "city": "Livingston", "region_type": "Satellite" },
+        { "city": "Los Banos", "region_type": "Satellite" },
+        { "city": "Winton", "region_type": "Rural" },
+        { "city": "Planada", "region_type": "Rural" },
+        { "city": "Gustine", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Monterey",
+      "state": "California",
+      "state_abbr": "CA",
+      "cities": [
+        { "city": "Monterey", "region_type": "Core" },
+        { "city": "Pacific Grove", "region_type": "Satellite" },
+        { "city": "Seaside", "region_type": "Satellite" },
+        { "city": "Marina", "region_type": "Satellite" },
+        { "city": "Carmel-by-the-Sea", "region_type": "Satellite" },
+        { "city": "Carmel Valley", "region_type": "Satellite" },
+        { "city": "Sand City", "region_type": "Satellite" },
+        { "city": "Del Rey Oaks", "region_type": "Satellite" },
+        { "city": "Pebble Beach", "region_type": "Satellite" },
+        { "city": "Castroville", "region_type": "Rural" },
+        { "city": "Moss Landing", "region_type": "Rural" },
+        { "city": "Prunedale", "region_type": "Rural" },
+        { "city": "Big Sur", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Napa Valley",
+      "state": "California",
+      "state_abbr": "CA",
+      "cities": [
+        { "city": "Napa", "region_type": "Core" },
+        { "city": "Yountville", "region_type": "Satellite" },
+        { "city": "St. Helena", "region_type": "Satellite" },
+        { "city": "Calistoga", "region_type": "Satellite" },
+        { "city": "American Canyon", "region_type": "Satellite" },
+        { "city": "Angwin", "region_type": "Rural" },
+        { "city": "Oakville", "region_type": "Rural" },
+        { "city": "Rutherford", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Prescott",
+      "state": "Arizona",
+      "state_abbr": "AZ",
+      "cities": [
+        { "city": "Prescott", "region_type": "Core" },
+        { "city": "Prescott Valley", "region_type": "Satellite" },
+        { "city": "Chino Valley", "region_type": "Satellite" },
+        { "city": "Dewey-Humboldt", "region_type": "Satellite" },
+        { "city": "Cottonwood", "region_type": "Satellite" },
+        { "city": "Clarkdale", "region_type": "Satellite" },
+        { "city": "Jerome", "region_type": "Rural" },
+        { "city": "Paulden", "region_type": "Rural" },
+        { "city": "Mayer", "region_type": "Rural" },
+        { "city": "Kirkland", "region_type": "Rural" },
+        { "city": "Cornville", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Columbus (GA)",
+      "state": "Georgia",
+      "state_abbr": "GA",
+      "cities": [
+        { "city": "Columbus", "region_type": "Core" },
+        { "city": "Fort Moore", "region_type": "Satellite" },
+        { "city": "Midland", "region_type": "Satellite" },
+        { "city": "Hamilton", "region_type": "Rural" },
+        { "city": "Pine Mountain", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Columbus (GA)",
+      "state": "Alabama",
+      "state_abbr": "AL",
+      "cities": [
+        { "city": "Phenix City", "region_type": "Satellite" },
+        { "city": "Smiths Station", "region_type": "Rural" },
+        { "city": "Seale", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Memphis (TN)",
+      "state": "Tennessee",
+      "state_abbr": "TN",
+      "cities": [
+        { "city": "Memphis", "region_type": "Core" },
+        { "city": "Germantown", "region_type": "Satellite" },
+        { "city": "Collierville", "region_type": "Satellite" },
+        { "city": "Bartlett", "region_type": "Satellite" },
+        { "city": "Cordova", "region_type": "Satellite" },
+        { "city": "Lakeland", "region_type": "Satellite" },
+        { "city": "Arlington", "region_type": "Satellite" },
+        { "city": "Millington", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Memphis (TN)",
+      "state": "Arkansas",
+      "state_abbr": "AR",
+      "cities": [
+        { "city": "West Memphis", "region_type": "Satellite" },
+        { "city": "Marion", "region_type": "Rural" },
+        { "city": "Earle", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Memphis (TN)",
+      "state": "Mississippi",
+      "state_abbr": "MS",
+      "cities": [
+        { "city": "Southaven", "region_type": "Satellite" },
+        { "city": "Olive Branch", "region_type": "Satellite" },
+        { "city": "Horn Lake", "region_type": "Satellite" },
+        { "city": "Hernando", "region_type": "Satellite" },
+        { "city": "Tunica", "region_type": "Rural" }
+      ]
+    },
+    {
+      "market_name": "Russellville",
+      "state": "Arkansas",
+      "state_abbr": "AR",
+      "cities": [
+        { "city": "Russellville", "region_type": "Core" },
+        { "city": "Pottsville", "region_type": "Satellite" },
+        { "city": "Atkins", "region_type": "Rural" },
+        { "city": "Dover", "region_type": "Rural" },
+        { "city": "Hector", "region_type": "Rural" },
+        { "city": "London", "region_type": "Rural" },
+        { "city": "Dardanelle", "region_type": "Satellite" }
+      ]
+    }
+  ]
+}

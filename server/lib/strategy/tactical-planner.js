@@ -8,6 +8,8 @@
 // INPUT:
 //   - strategy: "strategy_for_now" text (where to go RIGHT NOW)
 //   - snapshot: Location/time context (lat, lng, city, state, timezone, etc.)
+//   - briefingContext: (optional) Filtered briefing data for enhanced recommendations
+//     Contains today's events, traffic summary, weather, airport conditions
 //
 // OUTPUT:
 //   - 4-6 venue recommendations with:
@@ -29,6 +31,7 @@
 import { callModel } from "../ai/adapters/index.js";
 import { z } from "zod";
 import { safeJsonParse } from "../../api/utils/http-helpers.js";
+import { formatBriefingForPrompt } from "../briefing/filter-for-planner.js";
 
 // VENUE_SCORER response schema: venue coords + staging coords + category + district + pro tips
 // Addresses, distances, and place details resolved via Google Places API (New) + Routes API (New)
@@ -61,12 +64,18 @@ const GPT5ResponseSchema = z.object({
 
 /**
  * Generate tactical venue recommendations using VENUE_SCORER role
+ *
+ * 2026-01-31: Added briefingContext parameter for enhanced venue recommendations
+ * When provided, includes today's events, traffic summary, and weather in the prompt
+ * This helps the venue planner match venues to events and avoid congested areas
+ *
  * @param {Object} params
  * @param {string} params.strategy - AI-generated strategic overview
  * @param {Object} params.snapshot - Context snapshot data
+ * @param {Object} [params.briefingContext] - Optional filtered briefing data from filterBriefingForPlanner()
  * @returns {Promise<Object>} Tactical plan with venue recommendations
  */
-export async function generateTacticalPlan({ strategy, snapshot }) {
+export async function generateTacticalPlan({ strategy, snapshot, briefingContext }) {
   if (!strategy) {
     throw new Error("Strategy required for tactical planning");
   }
@@ -172,13 +181,23 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
   ].join("\n");
 
   // Build user prompt - include current date/time for business hours
+  // 2026-01-31: Include briefingContext if provided for enhanced venue matching
+  const briefingSection = briefingContext
+    ? [
+        "",
+        "=== TODAY'S CONTEXT (prioritize venues near events, avoid traffic issues) ===",
+        formatBriefingForPrompt(briefingContext),
+        ""
+      ].join("\n")
+    : "";
+
   const user = [
     "CURRENT DATE/TIME:",
     `${dayName}, ${dateStr} at ${timeStr}`,
     "",
     "🎯 IMMEDIATE ACTION PLAN (What to do RIGHT NOW):",
     strategy,
-    "",
+    briefingSection,
     "DRIVER CURRENT LOCATION:",
     `${snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown'}`,
     `GPS: ${snapshot?.lat}, ${snapshot?.lng}`,
@@ -186,10 +205,16 @@ export async function generateTacticalPlan({ strategy, snapshot }) {
     "YOUR TASK:",
     "Convert the immediate action plan above into 4-6 SPECIFIC venues with exact coordinates.",
     "Focus on venues with ACTIVE demand RIGHT NOW (not future events).",
+    briefingContext?.events?.length > 0
+      ? "PRIORITIZE venues near today's events listed above."
+      : "",
+    briefingContext?.traffic?.avoidAreas?.length > 0
+      ? `AVOID areas with traffic issues: ${briefingContext.traffic.avoidAreas.join(', ')}.`
+      : "",
     "All venues must be within 15 miles of driver's current GPS coordinates.",
     "",
     "Return JSON with venue coords, staging coords, category, pro tips, and tactical summary."
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   console.log(`🏢 [VENUES 1/4 - Tactical Planner] Calling AI for venue recommendations...`);
 

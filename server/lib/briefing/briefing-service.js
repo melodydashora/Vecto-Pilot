@@ -46,8 +46,9 @@ import { sendModelErrorAlert } from '../notifications/email-alerts.js';
 // 2026-01-15: Added to prevent zombie event searches from blocking the pipeline
 // A single stalled search was observed hanging for 3.5 minutes, blocking all other work
 // This wrapper ensures each search is abandoned after the timeout, returning an empty result
+// 2026-02-01: Increased from 45s to 90s - Gemini with HIGH thinking takes 50-70s per search
 
-const EVENT_SEARCH_TIMEOUT_MS = 45000; // 45 seconds per category search
+const EVENT_SEARCH_TIMEOUT_MS = 90000; // 90 seconds per category search (Gemini + thinking needs time)
 
 /**
  * Wrap a promise with a timeout. If the promise doesn't resolve within the timeout,
@@ -67,6 +68,40 @@ function withTimeout(promise, timeoutMs, operationName = 'Operation') {
   });
 
   return Promise.race([promise, timeoutPromise]);
+}
+
+/**
+ * Get market name for a city/state location
+ * 2026-02-01: Extracted as reusable function for events + news
+ *
+ * @param {string} city - City name (e.g., "Frisco")
+ * @param {string} state - State abbreviation (e.g., "TX")
+ * @returns {Promise<string>} - Market name (e.g., "Dallas") or city as fallback
+ */
+async function getMarketForLocation(city, state) {
+  try {
+    // 2026-02-01: FIX - Use state_abbr (not state) since snapshot has "TX" not "Texas"
+    const [marketResult] = await db
+      .select({ market_name: us_market_cities.market_name })
+      .from(us_market_cities)
+      .where(and(
+        ilike(us_market_cities.city, city),
+        eq(us_market_cities.state_abbr, state)
+      ))
+      .limit(1);
+
+    if (marketResult?.market_name) {
+      briefingLog.info(`Market resolved: ${city}, ${state} → ${marketResult.market_name}`, OP.DB);
+      return marketResult.market_name;
+    }
+
+    // Fallback: use city name as market
+    briefingLog.info(`No market found for ${city}, ${state} - using city as market`, OP.DB);
+    return city;
+  } catch (dbErr) {
+    briefingLog.warn(2, `Market lookup failed (non-fatal): ${dbErr.message}`, OP.DB);
+    return city; // Fallback to city
+  }
 }
 
 /**
@@ -113,6 +148,7 @@ export function deduplicateEvents(events) {
    * Normalize event name for comparison:
    * - Remove quotes and special chars
    * - Remove parenthetical content like "(Shared Reality)"
+   * - Remove common PREFIXES like "Live Music:", "Concert:", "Live Band:" (2026-01-31)
    * - Remove common suffixes like "at Cosm", "in Shared Reality"
    * - Lowercase and trim
    */
@@ -121,6 +157,8 @@ export function deduplicateEvents(events) {
     return name
       .toLowerCase()
       .replace(/["'"]/g, '')                          // Remove quotes
+      // 2026-01-31: Strip common event prefixes that create duplicates
+      .replace(/^(live music|live band|concert|show|event|performance|dj set|acoustic):\s*/i, '')
       .replace(/\s*\([^)]*\)\s*/g, ' ')              // Remove (parenthetical content)
       .replace(/\s+(at|in|from|@)\s+.+$/i, '')       // Remove "at Cosm", "in Shared Reality" suffixes
       .replace(/[^a-z0-9\s]/g, ' ')                  // Remove special chars
@@ -242,19 +280,23 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 /**
  * Fetch events using Claude web search (fallback when Gemini fails)
  * Uses parallel category searches similar to Gemini approach
- * 2026-01-15: Added 45s timeout per search to prevent zombie searches
+ * 2026-01-15: Added 90s timeout per search to prevent zombie searches
+ * 2026-02-01: Added market parameter for metro-wide search
  */
-async function fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat, lng, timezone }) {
+async function fetchEventsWithClaudeWebSearch({ snapshot, city, state, market, date, lat, lng, timezone }) {
   const startTime = Date.now();
+  const searchArea = market || city;
 
   // Helper to search a single category with Claude
   async function searchCategory(category) {
-    const prompt = `Search the web for ${category.name.replace('_', ' ')} events happening in ${city}, ${state} TODAY (${date}).
+    const prompt = `Search the web for ${category.name.replace('_', ' ')} events happening in the ${searchArea} metro area TODAY (${date}).
 
-SEARCH QUERY: "${category.searchTerms(city, state, date)}"
+SEARCH THE ENTIRE ${searchArea.toUpperCase()} MARKET - include events in ${city} AND nearby cities.
 
-Return a JSON array of events with this format (max 3 events):
-[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","subtype":"${category.eventTypes[0]}","impact":"high"}]
+SEARCH QUERY: "${category.searchTerms(searchArea, state, date)}"
+
+Return a JSON array of events with this format (max 5 events):
+[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","subtype":"${category.eventTypes[0]}","impact":"high"}]
 
 Return an empty array [] if no events found.`;
 
@@ -290,7 +332,7 @@ DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
     }
   }
 
-  // Run all 5 categories in parallel using Claude web search (with 45s timeout each)
+  // Run both categories in parallel using Claude web search (with 90s timeout each)
   const categoryPromises = EVENT_CATEGORIES.map(category =>
     withTimeout(
       searchCategory(category),
@@ -487,7 +529,7 @@ WHAT MATTERS TO RIDESHARE DRIVERS:
 - Gas prices, toll changes, airport pickup rules
 - Local regulations affecting gig workers
 
-PRIORITY: News published TODAY (${date}). If no news from today, include yesterday's news.
+STRICT DATE REQUIREMENT: ONLY include news published TODAY (${date}) or yesterday.
 Also search the broader market/metro area - news from nearby cities in the same metro is relevant.
 
 Return a JSON object:
@@ -508,7 +550,7 @@ Return a JSON object:
 CRITICAL REQUIREMENTS:
 1. "published_date" is REQUIRED - extract the actual date from each article
 2. If you cannot determine the publication date, DO NOT include that article
-3. ONLY return articles from the last 3 days (prefer today's)
+3. ONLY return articles from TODAY or YESTERDAY - older news will be rejected
 4. Each summary MUST explain why a rideshare driver should care
 5. If NO news with valid dates found, return: {"items": [], "reason": "No rideshare-relevant news with publication dates found for ${city}, ${state} market today"}`;
 
@@ -533,7 +575,7 @@ CRITICAL REQUIREMENTS:
       return { items: [], reason: llmReason || 'No news found via Claude web search', provider: 'claude' };
     }
 
-    // Filter out stale news (older than 7 days) as safety net
+    // 2026-01-31: Filter out stale news (older than 2 days) - fresh data on every login
     const filteredNews = filterRecentNews(newsArray, date);
 
     briefingLog.done(2, `Claude: ${filteredNews.length} news items (${newsArray.length - filteredNews.length} filtered), ${result.citations?.length || 0} citations`, OP.FALLBACK);
@@ -710,50 +752,59 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
 }
 
 /**
- * PARALLEL EVENT CATEGORIES - Each category is searched independently for better coverage
- * This replaces the single monolithic search with 5 focused parallel searches
+ * HYBRID EVENT CATEGORIES - 2 focused searches instead of 5 for better cost/quality balance
+ * 2026-02-01: Consolidated from 5 categories to 2 (60% cost reduction, same quality)
+ * 2026-02-01: Now uses MARKET (not city) for broader event coverage
+ *
+ * Split rationale:
+ * - high_impact: Big venues that generate surge demand (stadiums, arenas, concert halls)
+ * - local_entertainment: Smaller venues, local events (bars, comedy clubs, community)
  */
 const EVENT_CATEGORIES = [
   {
-    name: 'concerts_music',
-    searchTerms: (city, state, date) => `concerts live music shows ${city} ${state} ${date}`,
-    eventTypes: ['concert', 'live_music', 'festival']
+    name: 'high_impact',
+    description: 'Major events at large venues (stadiums, arenas, concert halls)',
+    // Uses market (e.g., "Dallas") not city (e.g., "Frisco") for broader coverage
+    searchTerms: (market, state, date) => `concerts sports games festivals ${market} metro ${state} ${date} stadium arena theater NBA NFL NHL MLB MLS college major events tonight`,
+    eventTypes: ['concert', 'sports', 'festival', 'game'],
+    maxEvents: 8
   },
   {
-    name: 'sports',
-    searchTerms: (city, state, date) => `sports games ${city} ${state} ${date} NBA NFL NHL MLB MLS college`,
-    eventTypes: ['sports', 'game']
-  },
-  {
-    name: 'comedy_theater',
-    searchTerms: (city, state, date) => `comedy shows theater performances ${city} ${state} ${date}`,
-    eventTypes: ['comedy', 'performance']
-  },
-  {
-    name: 'nightlife',
-    searchTerms: (city, state, date) => `nightclub events bar events ${city} ${state} tonight ${date}`,
-    eventTypes: ['nightlife', 'club']
-  },
-  {
-    name: 'community',
-    searchTerms: (city, state, date) => `festivals parades community events ${city} ${state} ${date}`,
-    eventTypes: ['festival', 'parade', 'community']
+    name: 'local_entertainment',
+    description: 'Local nightlife and community events',
+    searchTerms: (market, state, date) => `comedy shows live music bars nightlife community events ${market} ${state} ${date} trivia karaoke DJ local entertainment`,
+    eventTypes: ['live_music', 'comedy', 'nightlife', 'community'],
+    maxEvents: 8
   }
 ];
 
 /**
  * Fetch events for a single category - used in parallel
- * Uses lower thinking level for speed since these are focused searches
+ * 2026-02-01: Updated for hybrid 2-category approach + market-wide search
  */
-async function fetchEventCategory({ category, city, state, lat, lng, date, timezone }) {
-  const prompt = `Find ${category.name.replace('_', ' ')} events in ${city}, ${state} TODAY (${date}).
+async function fetchEventCategory({ category, city, state, market, lat, lng, date, timezone }) {
+  const maxEvents = category.maxEvents || 8;
+  // Use market for search (e.g., "Dallas") but mention driver's city for local relevance
+  const searchArea = market || city;
 
-SEARCH: "${category.searchTerms(city, state, date)}"
+  const prompt = `Find ${category.description || category.name.replace('_', ' ')} in the ${searchArea} metro area TODAY (${date}).
 
-Return JSON array (max 3 events):
-[{"title":"Event","venue":"Venue","address":"Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","subtype":"${category.eventTypes[0]}","impact":"high"}]
+SEARCH THE ENTIRE ${searchArea.toUpperCase()} MARKET - include events in ${city} AND nearby cities (Dallas, Arlington, Fort Worth, Plano, etc. for DFW).
 
-Return [] if none found.`;
+SEARCH FOCUS: "${category.searchTerms(searchArea, state, date)}"
+
+EVENT TYPES TO FIND: ${category.eventTypes.join(', ')}
+
+Return JSON array (max ${maxEvents} events, prioritize high-impact events):
+[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","subtype":"${category.eventTypes[0]}","impact":"high|medium|low"}]
+
+IMPORTANT:
+- SEARCH THE ENTIRE METRO MARKET, not just one city
+- Include major venue events (stadiums, arenas, concert halls) from the whole market
+- Include event_end_date (same as start_date for single-day events)
+- Prioritize events with large expected attendance
+- Include full address for navigation
+- Return [] if no events found for today.`;
 
   try {
     // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
@@ -804,27 +855,32 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
+  // 2026-02-01: Use market from snapshot (set from driver_profiles at signup)
+  // Fallback to lookup for older snapshots that don't have market set
+  // This ensures we find events at AT&T Stadium (Arlington), AAC (Dallas), etc.
+  const market = snapshot.market || await getMarketForLocation(city, state);
+
   // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
   if (!process.env.GEMINI_API_KEY) {
     // Try Claude web search as fallback if Gemini not configured
     if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.ai(2, 'Claude', `events for ${city}, ${state} (${date}) - web search fallback`);
-      return fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat, lng, timezone });
+      briefingLog.ai(2, 'Claude', `events for ${market} market (${date}) - web search fallback`);
+      return fetchEventsWithClaudeWebSearch({ snapshot, city, state, market, date, lat, lng, timezone });
     }
     briefingLog.error(2, `Neither GEMINI_API_KEY nor ANTHROPIC_API_KEY set`, null, OP.AI);
     return { items: [], reason: 'No API keys configured for event search' };
   }
 
-  briefingLog.ai(2, 'Gemini', `events for ${city}, ${state} (${date}) - 5 parallel searches (45s timeout each)`);
+  briefingLog.ai(2, 'Gemini', `events for ${market} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
 
-  // PARALLEL CATEGORY SEARCHES - 5 simultaneous searches for better coverage
+  // PARALLEL CATEGORY SEARCHES - 2 focused searches (high_impact + local_entertainment)
   // Each category runs independently, results are merged and deduplicated
-  // 2026-01-15: Added 45s timeout per search to prevent zombie searches from blocking pipeline
+  // 2026-02-01: Now searches entire market, not just driver's city
   const startTime = Date.now();
 
   const categoryPromises = EVENT_CATEGORIES.map(category =>
     withTimeout(
-      fetchEventCategory({ category, city, state, lat, lng, date, timezone }),
+      fetchEventCategory({ category, city, state, market, lat, lng, date, timezone }),
       EVENT_SEARCH_TIMEOUT_MS,
       `Event search: ${category.name}`
     )
@@ -863,7 +919,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   }
 
   const elapsedMs = Date.now() - startTime;
-  briefingLog.done(2, `Gemini: ${allEvents.length} unique events (${totalFound} total from 5 searches) in ${elapsedMs}ms`, OP.AI);
+  briefingLog.done(2, `Gemini: ${allEvents.length} unique events (${totalFound} total from 2 searches) in ${elapsedMs}ms`, OP.AI);
 
   if (allEvents.length === 0) {
     // TRY CLAUDE WEB SEARCH AS FALLBACK
@@ -1098,6 +1154,8 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       event_start_date: discovered_events.event_start_date,
       event_start_time: discovered_events.event_start_time,
       event_end_time: discovered_events.event_end_time,
+      // 2026-02-01: FIX - Add event_end_date (defaults to event_start_date for single-day events)
+      event_end_date: discovered_events.event_end_date,
       category: discovered_events.category,
       expected_attendance: discovered_events.expected_attendance,
       // 2026-01-14: Removed source_model - column removed from schema
@@ -1126,6 +1184,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // 2026-01-10: DB columns are now event_start_date, event_start_time
       // 2026-01-14: Coordinates now come from linked venue_catalog (not deprecated event.lat/lng)
       // 2026-01-14: Removed source_model field entirely - all events come from Gemini Briefer
+      // 2026-02-01: Added event_end_date (defaults to event_start_date for single-day events)
       const normalizedEvents = events.map(e => ({
         title: e.title,
         summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
@@ -1135,6 +1194,8 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         event_start_date: e.event_start_date,
         event_start_time: e.event_start_time,
         event_end_time: e.event_end_time,
+        // 2026-02-01: FIX - Include event_end_date (defaults to event_start_date for single-day events)
+        event_end_date: e.event_end_date || e.event_start_date,
         // 2026-01-14: Prefer venue address from catalog (more accurate)
         address: e.venue_address || e.address,
         venue: e.venue_name,
@@ -1731,7 +1792,10 @@ Return JSON (use actual airport codes and names for the location):
 }
 
 /**
- * Filter news items to only include articles from the last 7 days
+ * Filter news items to only include articles from the last 2 days
+ * 2026-01-31: Tightened from 7 days to 2 days - since we fetch fresh on every
+ * login/refresh, we only want TODAY's news (with 1 day buffer for timezone edge cases)
+ *
  * Safety net in case AI returns outdated articles despite prompt instructions
  * @param {Array} newsItems - Array of news items with optional published_date field
  * @param {string} todayDate - Today's date in YYYY-MM-DD format
@@ -1743,8 +1807,9 @@ function filterRecentNews(newsItems, todayDate) {
   }
 
   const today = new Date(todayDate);
-  const sevenDaysAgo = new Date(today);
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // 2026-01-31: Tightened from 7 days to 2 days (today + yesterday buffer)
+  const twoDaysAgo = new Date(today);
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
   const filtered = newsItems.filter(item => {
     // If no published_date, include with warning (can't verify freshness)
@@ -1760,7 +1825,7 @@ function filterRecentNews(newsItems, todayDate) {
         return true; // Include but log warning
       }
 
-      const isRecent = pubDate >= sevenDaysAgo;
+      const isRecent = pubDate >= twoDaysAgo;
       if (!isRecent) {
         briefingLog.warn(2, `Filtered stale news (${item.published_date}): "${item.title?.slice(0, 40)}..."`, OP.AI);
       }
@@ -1804,30 +1869,9 @@ export async function fetchRideshareNews({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // 2026-01-05: Look up market from us_market_cities table
-  let market = null;
-  try {
-    const [marketResult] = await db
-      .select({ market_name: us_market_cities.market_name })
-      .from(us_market_cities)
-      .where(and(
-        ilike(us_market_cities.city, city),
-        eq(us_market_cities.state, state)
-      ))
-      .limit(1);
-
-    if (marketResult?.market_name) {
-      market = marketResult.market_name;
-      briefingLog.info(`Market resolved: ${city}, ${state} → ${market}`, OP.DB);
-    } else {
-      // Fallback: use city name as market (e.g., "Dallas" for Dallas, TX)
-      market = city;
-      briefingLog.info(`No market found for ${city}, ${state} - using city as market`, OP.DB);
-    }
-  } catch (dbErr) {
-    briefingLog.warn(2, `Market lookup failed (non-fatal): ${dbErr.message}`, OP.DB);
-    market = city; // Fallback to city
-  }
+  // 2026-02-01: Use market from snapshot (set from driver_profiles at signup)
+  // Fallback to lookup for older snapshots that don't have market set
+  const market = snapshot.market || await getMarketForLocation(city, state);
 
   // Build the enhanced prompt with Market, City, Airport, Headlines
   // 2026-01-10: Updated prompt to strip source citations for cleaner UI
@@ -1904,9 +1948,10 @@ SEARCH SCOPE - Include ALL of these:
 SEARCH THE ENTIRE ${market.toUpperCase()} MARKET - not just ${city}. News from nearby cities in the metro is highly relevant.
 
 PUBLICATION DATE REQUIREMENT:
-- Include news from the last 48 hours (prefer TODAY ${date})
-- EVEN IF older, include if STILL RELEVANT to drivers (e.g., ongoing construction, multi-day events)
-- Each item MUST have a published_date - if you can't determine the date, exclude it
+- ONLY include news published TODAY (${date}) or yesterday
+- Do NOT include older news even if "still relevant" - we fetch fresh data daily
+- Each item MUST have a published_date - if you can't determine the date, EXCLUDE it
+- Stale news (older than yesterday) will be rejected
 
 Return JSON (NO source citations, NO URLs in summary text, CLEAN display-ready content):
 {

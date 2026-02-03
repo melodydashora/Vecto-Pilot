@@ -14,8 +14,8 @@ components/
 ├── CriticalError.tsx      # Blocking error modal (FAIL HARD pattern)
 ├── CoachChat.tsx          # AI Strategy Coach with voice
 ├── BriefingTab.tsx        # Events, traffic, news, weather
-├── BarsTable.tsx          # Venue table display
-├── BarTab.tsx             # Premium bars sidebar
+├── BarsDataGrid.tsx       # Venue table display (renamed from BarsTable.tsx 2026-01-09)
+├── BarsMainTab.tsx        # Premium bars sidebar (renamed from BarTab.tsx 2026-01-09)
 ├── MapTab.tsx             # Interactive map
 ├── DonationTab.tsx        # Donation section
 ├── InstructionsTab.tsx    # How-to instructions
@@ -40,8 +40,8 @@ components/
 | `CriticalError.tsx` | 142 | co-pilot-context.tsx |
 | `CoachChat.tsx` | 535 | StrategyPage.tsx |
 | `BriefingTab.tsx` | 466 | BriefingPage.tsx |
-| `BarsTable.tsx` | 400 | BarsPage.tsx |
-| `BarTab.tsx` | 400 | BarsPage.tsx |
+| `BarsDataGrid.tsx` | 356 | VenueManagerPage.tsx |
+| `BarsMainTab.tsx` | 495 | VenueManagerPage.tsx |
 | `MapTab.tsx` | 237 | MapPage.tsx |
 | `DonationTab.tsx` | 396 | AboutPage.tsx |
 | `InstructionsTab.tsx` | 428 | DonationTab.tsx |

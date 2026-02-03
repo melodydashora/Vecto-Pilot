@@ -151,6 +151,65 @@ The `/api/chat` POST endpoint parses special action tags from AI responses and e
 | `/ready` | GET | `server/api/health/health.js` | Kubernetes readiness probe |
 | `/api/diagnostic/identity` | GET | `server/api/health/diagnostic-identity.js` | System identity check |
 
+### Coach API (Added 2026-02-01)
+
+AI Coach endpoints for notes, schema discovery, and data validation.
+
+| Endpoint | Method | Handler | Purpose |
+|----------|--------|---------|---------|
+| `/api/coach/notes` | GET | `server/api/coach/notes.js` | List user's coach notes |
+| `/api/coach/notes/:id` | GET | `server/api/coach/notes.js` | Get specific note |
+| `/api/coach/notes` | POST | `server/api/coach/notes.js` | Create new note |
+| `/api/coach/notes/:id` | PUT | `server/api/coach/notes.js` | Update note |
+| `/api/coach/notes/:id` | DELETE | `server/api/coach/notes.js` | Soft delete note |
+| `/api/coach/notes/:id/pin` | POST | `server/api/coach/notes.js` | Pin/unpin note |
+| `/api/coach/notes/:id/restore` | POST | `server/api/coach/notes.js` | Restore deleted note |
+| `/api/coach/notes/stats/summary` | GET | `server/api/coach/notes.js` | Notes statistics |
+| `/api/coach/schema` | GET | `server/api/coach/schema.js` | Full database schema info |
+| `/api/coach/schema/tables` | GET | `server/api/coach/schema.js` | List available tables |
+| `/api/coach/schema/table/:name` | GET | `server/api/coach/schema.js` | Get table schema details |
+| `/api/coach/schema/prompt` | GET | `server/api/coach/schema.js` | Schema formatted for AI prompts |
+| `/api/coach/validate` | POST | `server/api/coach/validate.js` | Validate data against schema |
+| `/api/coach/validate/schemas` | GET | `server/api/coach/validate.js` | Get validation schemas |
+| `/api/coach/validate/batch` | POST | `server/api/coach/validate.js` | Batch validation |
+| `/api/coach/validate/event` | POST | `server/api/coach/validate.js` | Validate event data |
+| `/api/coach/validate/venue` | POST | `server/api/coach/validate.js` | Validate venue data |
+
+### Intelligence API (Added 2026-02-01)
+
+Market intelligence endpoints for rideshare strategy research.
+
+| Endpoint | Method | Handler | Purpose |
+|----------|--------|---------|---------|
+| `/api/intelligence` | GET | `server/api/intelligence/intelligence.js` | List all intelligence records |
+| `/api/intelligence/markets` | GET | `server/api/intelligence/intelligence.js` | List markets with intel |
+| `/api/intelligence/markets-dropdown` | GET | `server/api/intelligence/intelligence.js` | Markets for dropdown UI |
+| `/api/intelligence/for-location` | GET | `server/api/intelligence/intelligence.js` | Intel for specific location |
+| `/api/intelligence/market/:slug` | GET | `server/api/intelligence/intelligence.js` | Market details by slug |
+| `/api/intelligence/coach/:market` | GET | `server/api/intelligence/intelligence.js` | Coach-ready intel for market |
+| `/api/intelligence/staging-areas` | GET | `server/api/intelligence/intelligence.js` | Staging area recommendations |
+| `/api/intelligence/:id` | GET | `server/api/intelligence/intelligence.js` | Specific intel record |
+| `/api/intelligence` | POST | `server/api/intelligence/intelligence.js` | Create intel record |
+| `/api/intelligence/add-market` | POST | `server/api/intelligence/intelligence.js` | Add market intelligence |
+| `/api/intelligence/:id` | PUT | `server/api/intelligence/intelligence.js` | Update intel record |
+| `/api/intelligence/:id` | DELETE | `server/api/intelligence/intelligence.js` | Delete intel record |
+
+### Platform API (Added 2026-02-01)
+
+Platform statistics and market data endpoints.
+
+| Endpoint | Method | Handler | Purpose |
+|----------|--------|---------|---------|
+| `/api/platform/stats` | GET | `server/api/platform/platform.js` | Platform statistics |
+| `/api/platform/markets` | GET | `server/api/platform/platform.js` | List all markets |
+| `/api/platform/markets/:market` | GET | `server/api/platform/platform.js` | Market details |
+| `/api/platform/countries` | GET | `server/api/platform/platform.js` | List countries |
+| `/api/platform/countries-dropdown` | GET | `server/api/platform/platform.js` | Countries for dropdown UI |
+| `/api/platform/regions-dropdown` | GET | `server/api/platform/platform.js` | Regions for dropdown UI |
+| `/api/platform/markets-dropdown` | GET | `server/api/platform/platform.js` | Markets for dropdown UI |
+| `/api/platform/search` | GET | `server/api/platform/platform.js` | Search markets/cities |
+| `/api/platform/city/:city` | GET | `server/api/platform/platform.js` | City details |
+
 ## Authentication
 
 All API calls should include the JWT token:

@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-07
+> **Last Verified:** 2026-02-01
 
 # Location API (`server/api/location/`)
 
@@ -30,12 +30,14 @@ GPS processing, geocoding, weather, air quality, and snapshot management.
 ```
 GET  /api/location/resolve        - Geocode coords to city/state/timezone
 POST /api/location/reverse        - Reverse geocode address to coords
+GET  /api/location/ip             - IP-based location (debug/fallback only)
 ```
 
 ### Weather & Air Quality
 ```
 GET  /api/location/weather        - Current weather + 6hr forecast
 GET  /api/location/airquality     - AQI data
+GET  /api/location/pollen         - Pollen count and allergen data
 ```
 
 ### User Session (No Location Data)
@@ -46,9 +48,16 @@ Note: Users table has NO location fields (2026-01-05). Location data lives in sn
 
 ### Snapshots
 ```
-POST /api/location/snapshot       - Save new snapshot
-GET  /api/snapshot/:id            - Get snapshot by ID
-GET  /api/snapshot/latest         - Get latest snapshot for user
+POST  /api/location/snapshot              - Save new snapshot
+GET   /api/location/snapshots/:snapshotId - Get snapshot by ID
+GET   /api/snapshot/:id                   - Get snapshot by ID (alias)
+GET   /api/snapshot/latest                - Get latest snapshot for user
+PATCH /api/location/snapshot/:snapshotId/enrich - Enrich existing snapshot with additional data
+```
+
+### Briefing Generation
+```
+POST /api/location/news-briefing  - Generate news briefing for location
 ```
 
 ## Data Flow (Updated Dec 2025)
@@ -75,7 +84,14 @@ GPS coords → /api/location/resolve
 1. Client calls `/api/location/snapshot` with resolved data
 2. Server can also pull from users table if client data missing (fallback)
 3. Enriches with airport proximity, holiday detection
-4. Stores complete context in snapshots table
+4. **2026-02-01:** Copies `market` from `driver_profiles.market` (for market-wide event discovery)
+5. Stores complete context in snapshots table
+
+**Market Field (2026-02-01):**
+- Snapshots now include a `market` column (e.g., "Dallas-Fort Worth")
+- Copied from `driver_profiles.market` at snapshot creation time
+- Used by briefing service for market-wide event/news discovery
+- Avoids repeated `us_market_cities` lookups during briefing generation
 
 ## Caching (Four-Tier)
 
@@ -97,6 +113,42 @@ GPS coords → /api/location/resolve
 - Coords cache = fast (shared across devices)
 - Market lookup = fast (timezone only, no Google API)
 - Google API = slowest (only when needed)
+
+## Snapshot Reuse Logic (Updated 2026-01-31)
+
+Snapshots have a 60-minute TTL for reuse, BUT city changes force a fresh snapshot:
+
+```
+User Request → Check existing snapshot
+                     ↓
+            ┌───────────────────────────────────┐
+            │ 1. City changed?                  │
+            │    YES → Create new snapshot      │
+            │                                   │
+            │ 2. Age < 60 min?                  │
+            │    YES → Reuse snapshot           │
+            │    NO  → Create new snapshot      │
+            │                                   │
+            │ 3. force=true?                    │
+            │    YES → Create new snapshot      │
+            └───────────────────────────────────┘
+```
+
+**Why This Matters:**
+- Driver in Frisco sees Frisco events/traffic
+- Driver moves to Dallas (within 60 min)
+- OLD: Reused snapshot → stale Frisco data
+- NEW: City change detected → fresh Dallas data
+
+**Implementation (location.js lines 937-964):**
+```javascript
+const cityChanged = existingSnapshot.city?.toLowerCase() !== city?.toLowerCase() ||
+                    existingSnapshot.state?.toLowerCase() !== state?.toLowerCase();
+
+if (cityChanged) {
+  // Create fresh snapshot for new city
+}
+```
 
 ## Connections
 
