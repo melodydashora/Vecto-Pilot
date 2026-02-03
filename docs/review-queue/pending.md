@@ -2627,4 +2627,209 @@ The following items have been addressed and consolidated into `../reviewed-queue
 
 ---
 
+## 2026-02-03 Analysis
+
+**Generated:** 2026-02-03T03:31:59.435Z
+**Branch:** main
+**Last Commit:** b6cbb988 Use dedicated webhook signing key for Uber webhooks
+
+### Uncommitted Changes (1)
+| File | Status |
+|------|--------|
+| `scripts/test-uber-webhook.js` | Untracked |
+
+### Recent Commit Changes (56)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `client/src/pages/README.md` | Modified |
+| `client/src/pages/auth/ForgotPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/ResetPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `client/src/pages/auth/TermsPage.tsx` | Modified |
+| `client/src/pages/co-pilot/PolicyPage.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/routes.tsx` | Modified |
+| `docs/DEAD_CODE_ANALYSIS.md` | Added |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 36 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/index.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/tactical-planner.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/GlobalHeader.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/enhanced-smart-blocks.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (platform-data/Uber Cities by Market and State.docx)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/docx-extracted-markets.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/docx-market-intelligence.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/market-template.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/missing-markets-research.json)
+- [ ] Consider adding documentation - New file added (scripts/fix-market-names.js)
+- [ ] Consider adding documentation - New file added (scripts/import-market-cities.js)
+- [ ] Consider adding documentation - New file added (scripts/import-market-intelligence.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/filter-for-planner.js)
+
+### Status: PENDING
+
+---
+
+## 2026-02-03 Analysis
+
+**Generated:** 2026-02-03T03:44:58.859Z
+**Branch:** main
+**Last Commit:** b6cbb988 Use dedicated webhook signing key for Uber webhooks
+
+### Uncommitted Changes (4)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `docs/review-queue/2026-02-03.md` | Untracked |
+| `scripts/test-uber-webhook.js` | Untracked |
+
+### Recent Commit Changes (56)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `client/src/pages/README.md` | Modified |
+| `client/src/pages/auth/ForgotPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/ResetPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `client/src/pages/auth/TermsPage.tsx` | Modified |
+| `client/src/pages/co-pilot/PolicyPage.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/routes.tsx` | Modified |
+| `docs/DEAD_CODE_ANALYSIS.md` | Added |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 36 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/index.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/tactical-planner.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/GlobalHeader.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/enhanced-smart-blocks.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (platform-data/Uber Cities by Market and State.docx)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/docx-extracted-markets.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/docx-market-intelligence.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/market-template.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/missing-markets-research.json)
+- [ ] Consider adding documentation - New file added (scripts/fix-market-names.js)
+- [ ] Consider adding documentation - New file added (scripts/import-market-cities.js)
+- [ ] Consider adding documentation - New file added (scripts/import-market-intelligence.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/filter-for-planner.js)
+
+### Status: PENDING
+
+---
+
+## 2026-02-03 Analysis
+
+**Generated:** 2026-02-03T04:03:33.291Z
+**Branch:** main
+**Last Commit:** b6cbb988 Use dedicated webhook signing key for Uber webhooks
+
+### Uncommitted Changes (5)
+| File | Status |
+|------|--------|
+| `claude/settings.local.json` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `sent-to-strategist.txt` | Modified |
+| `docs/review-queue/2026-02-03.md` | Untracked |
+| `scripts/test-uber-webhook.js` | Untracked |
+
+### Recent Commit Changes (56)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useEnrichmentProgress.ts` | Modified |
+| `client/src/pages/README.md` | Modified |
+| `client/src/pages/auth/ForgotPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/ResetPasswordPage.tsx` | Modified |
+| `client/src/pages/auth/SignInPage.tsx` | Modified |
+| `client/src/pages/auth/SignUpPage.tsx` | Modified |
+| `client/src/pages/auth/TermsPage.tsx` | Modified |
+| `client/src/pages/co-pilot/PolicyPage.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/routes.tsx` | Modified |
+| `docs/DEAD_CODE_ANALYSIS.md` | Added |
+| `docs/DOC_DISCREPANCIES.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 36 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/index.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/index.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/providers/consolidator.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/tactical-planner.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/GlobalHeader.tsx)
+- [ ] `docs/preflight/location.md` - Venue logic changes (server/lib/venue/enhanced-smart-blocks.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (platform-data/Uber Cities by Market and State.docx)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/docx-extracted-markets.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/docx-market-intelligence.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/market-template.json)
+- [ ] Consider adding documentation - New file added (platform-data/uber/research-findings/missing-markets-research.json)
+- [ ] Consider adding documentation - New file added (scripts/fix-market-names.js)
+- [ ] Consider adding documentation - New file added (scripts/import-market-cities.js)
+- [ ] Consider adding documentation - New file added (scripts/import-market-intelligence.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/filter-for-planner.js)
+
+### Status: PENDING
+
+---
+
 ---
