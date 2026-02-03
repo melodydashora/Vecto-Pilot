@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-02-03
 
 # Auth API (`server/api/auth/`)
 
@@ -11,6 +11,7 @@ Full authentication system with JWT tokens, session management, password reset, 
 | File | Route | Purpose |
 |------|-------|---------|
 | `auth.js` | `/api/auth/*` | All authentication endpoints |
+| `uber.js` | `/api/auth/uber/*` | Uber OAuth and webhook integration (2026-02-03) |
 
 ## Endpoints
 
@@ -31,6 +32,36 @@ GET  /api/auth/apple            - Apple Sign In redirect (stub → returns error
 > **Note (2026-01-06):** Social login routes are stubs that redirect back to
 > `/auth/sign-in?error=social_not_implemented&provider={google|apple}`.
 > The frontend displays "Coming soon!" message. TODO: Implement full OAuth.
+
+### Uber OAuth (2026-02-03)
+```
+GET  /api/auth/uber              - Initiates Uber OAuth flow
+GET  /api/auth/uber/callback     - Handles OAuth callback from Uber
+POST /api/auth/uber/webhook      - Receives webhook events from Uber
+```
+
+#### Environment Variables
+```bash
+UBER_CLIENT_ID=...              # From Uber Developer Dashboard
+UBER_CLIENT_SECRET=...          # From Uber Developer Dashboard
+UBER_REDIRECT_URI=...           # Default: https://vectopilot.com/api/auth/uber/callback
+```
+
+#### Webhook Security
+Uber uses HMAC-SHA256 signature verification:
+- Signature sent in `X-Uber-Signature` header
+- Uses client secret as HMAC key
+- Must return 200 OK within 5 seconds
+
+#### Webhook Event Types
+| Event | Description |
+|-------|-------------|
+| `trips.status_changed` | Trip status updated |
+| `trips.completed` | Trip completed |
+| `driver.status_changed` | Driver status changed |
+| `driver.online` | Driver went online |
+| `driver.offline` | Driver went offline |
+| `payments.trip_payment` | Payment received |
 
 ### Password Management
 ```
