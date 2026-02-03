@@ -28,12 +28,15 @@ import { rankings, ranking_candidates } from '../../../shared/schema.js';
 
 // 2026-01-14: Time-sensitive event badge filtering
 // Only show event badges for events that are time-relevant (within 2h future or 4h past start)
+// 2026-01-31: Removed hardcoded timezone fallback - timezone is required per NO FALLBACKS rule
 function isEventTimeRelevant(eventStartTime, snapshotTimezone) {
   if (!eventStartTime) return false;
+  // 2026-01-31: NO FALLBACKS - timezone is required for global app
+  if (!snapshotTimezone) return false;
 
   // Get current time in venue's timezone
   const now = new Date();
-  const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: snapshotTimezone || 'America/Chicago' }));
+  const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: snapshotTimezone }));
   const currentMinutes = nowInTimezone.getHours() * 60 + nowInTimezone.getMinutes();
 
   // Parse event start time (HH:MM format)
@@ -56,6 +59,8 @@ import { enrichVenues } from './venue-enrichment.js';
 import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
 import { matchVenuesToEvents } from './event-matcher.js';
 import { venuesLog } from '../../logger/workflow.js';
+// 2026-01-31: Filter briefing data for venue planner to reduce token usage
+import { filterBriefingForPlanner } from '../briefing/filter-for-planner.js';
 
 /**
  * Generate enhanced smart blocks using VENUE_SCORER role
@@ -96,10 +101,17 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // Phase: 'venues' - AI venue recommendation
     await updatePhase(snapshotId, 'venues', { phaseEmitter });
 
+    // 2026-01-31: Filter briefing data for venue planner
+    // Reduces token usage by only including today's events + traffic summary
+    // Large market-wide events (stadiums) kept from entire region
+    // Small local events filtered to user's city only
+    const filteredBriefing = filterBriefingForPlanner(briefing, snapshot);
+
     const plannerStart = Date.now();
     const venuesPlan = await generateTacticalPlan({
       strategy: immediateStrategy,  // Uses "where to go NOW" strategy
-      snapshot
+      snapshot,
+      briefingContext: filteredBriefing  // 2026-01-31: Pass filtered briefing for enhanced recommendations
     });
     const plannerMs = Date.now() - plannerStart;
 

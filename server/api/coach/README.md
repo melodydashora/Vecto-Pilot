@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-02-01
 
 # Coach API (`server/api/coach/`)
 
@@ -19,12 +19,17 @@ AI Coach API routes for schema awareness, validation, and notes CRUD operations.
 
 ### Schema Awareness
 ```
+GET  /api/coach/schema            - Full schema info for AI prompts
 GET  /api/coach/schema/tables     - List available tables for Coach
 GET  /api/coach/schema/table/:name - Get table schema details
+GET  /api/coach/schema/prompt     - Schema formatted for AI context injection
 ```
 
 ### Validation
 ```
+POST /api/coach/validate          - General data validation
+GET  /api/coach/validate/schemas  - Get available validation schemas
+POST /api/coach/validate/batch    - Batch validate multiple items
 POST /api/coach/validate/event    - Validate event data
 POST /api/coach/validate/venue    - Validate venue data
 ```
@@ -33,9 +38,12 @@ POST /api/coach/validate/venue    - Validate venue data
 ```
 GET    /api/coach/notes              - List user notes
 GET    /api/coach/notes/:id          - Get specific note
+GET    /api/coach/notes/stats/summary - Notes statistics (counts by type)
 POST   /api/coach/notes              - Create new note
 PUT    /api/coach/notes/:id          - Update note
-DELETE /api/coach/notes/:id          - Delete note
+DELETE /api/coach/notes/:id          - Delete note (soft delete)
+POST   /api/coach/notes/:id/pin      - Pin/unpin a note
+POST   /api/coach/notes/:id/restore  - Restore a soft-deleted note
 ```
 
 ## Authentication

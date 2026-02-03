@@ -3,7 +3,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { latLngToCell } from 'h3-js';
 import { db } from '../../db/drizzle.js';
-import { snapshots, strategies, users, coords_cache, markets } from '../../../shared/schema.js';
+import { snapshots, strategies, users, coords_cache, markets, driver_profiles } from '../../../shared/schema.js';
 import { sql, eq, or, ilike } from 'drizzle-orm';
 import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
@@ -133,14 +133,31 @@ function pickAddressParts(components) {
   let city;
   let state;
   let country;
+  // 2026-02-01: Fallback components for locations without "locality" (rural areas, etc.)
+  let sublocality;
+  let neighborhood;
+  let adminLevel2; // County
 
   for (const c of components || []) {
     const types = c.types || [];
     if (types.includes("locality")) city = c.long_name;
+    if (types.includes("sublocality") || types.includes("sublocality_level_1")) sublocality = c.long_name;
+    if (types.includes("neighborhood")) neighborhood = c.long_name;
+    if (types.includes("administrative_area_level_2")) adminLevel2 = c.long_name;
     if (types.includes("administrative_area_level_1")) state = c.short_name;
     // 2026-01-10: D-011 Fix - short_name gives ISO alpha-2 code (US), long_name gave "United States"
     if (types.includes("country")) country = c.short_name;
   }
+
+  // 2026-02-01: Fallback chain for city - prevents "undefined, undefined" display
+  // Priority: locality > sublocality > neighborhood > county
+  if (!city) {
+    city = sublocality || neighborhood || adminLevel2;
+    if (city) {
+      console.log(`[location] 📍 Using fallback for city: "${city}" (no locality found)`);
+    }
+  }
+
   return { city, state, country };
 }
 
@@ -544,6 +561,21 @@ router.get('/resolve', async (req, res) => {
       return res.status(400).json({ error: 'lat/lng required for precise location resolution', ok: false });
     }
 
+    // 2026-02-01: Validate coordinate ranges
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      console.error('[Location API] COORDINATES OUT OF RANGE', { lat, lng });
+      return res.status(400).json({
+        error: 'COORDINATES_OUT_OF_RANGE',
+        message: `Coordinates [${lat}, ${lng}] are outside valid range`,
+        ok: false
+      });
+    }
+
+    // 2026-02-01: Warn about suspicious coordinates (might be GPS error)
+    if (lat === 0 && lng === 0) {
+      console.warn('[Location API] ⚠️ Suspicious coordinates (0,0) - possible GPS error');
+    }
+
     locationLog.phase(1, `Resolving ${lat.toFixed(6)}, ${lng.toFixed(6)}`, OP.API);
 
     // 2026-01-09: P0-2 FIX - NO FALLBACKS - Require Google Maps API key
@@ -577,27 +609,24 @@ router.get('/resolve', async (req, res) => {
     
     if (cacheHit) {
       // CACHE HIT: Use cached geocode/timezone data, skip API calls
-      // 2026-01-06: NO FALLBACKS - If cache is missing timezone, treat as cache miss
-      if (!cacheHit.timezone) {
-        console.warn(`[Location API] ⚠️ Cache entry missing timezone, treating as cache miss`);
-        cacheHit = null; // Force API lookup
+      // 2026-02-01: STRICT VALIDATION - No partial cache entries allowed
+      // Rule: Cache MUST have timezone, city, state, AND formatted_address
+      if (!cacheHit.timezone || !cacheHit.city || !cacheHit.state || !cacheHit.formatted_address) {
+        console.warn(`[Location API] ⚠️ Cache entry incomplete, forcing fresh API lookup`, {
+          hasTimezone: !!cacheHit.timezone,
+          hasCity: !!cacheHit.city,
+          hasState: !!cacheHit.state,
+          hasFormattedAddress: !!cacheHit.formatted_address,
+          coordKey
+        });
+        cacheHit = null; // Force API lookup - no partial data allowed
       } else {
-        locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state}`, OP.CACHE);
+        locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state} ✓`, OP.CACHE);
         city = cacheHit.city;
         state = cacheHit.state;
         country = cacheHit.country;
         formattedAddress = cacheHit.formatted_address;
         timeZone = cacheHit.timezone;
-
-        // SAFETY: Validate cached formattedAddress (same guard as live API path)
-        if (!formattedAddress || formattedAddress.trim() === '') {
-          console.warn(`[Location API] ⚠️ Cache entry has empty formatted_address, using city/state`);
-          if (city && state) {
-            formattedAddress = `${city}, ${state}`;
-          } else {
-            formattedAddress = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-          }
-        }
 
         // Increment hit count (fire and forget)
         db.update(coords_cache)
@@ -624,31 +653,86 @@ router.get('/resolve', async (req, res) => {
       // Use Plus Code filtering to prefer street addresses over Plus Codes
       if (geocodeData.status === 'OK') {
         const best = pickBestGeocodeResult(geocodeData.results);
-        ({ city, state, country } = best ? pickAddressParts(best.address_components) : {});
-        formattedAddress = best?.formatted_address;
 
-        // CRITICAL FIX: Validate formatted_address is not empty (Google API can return empty string)
-        if (!formattedAddress || formattedAddress.trim() === '') {
-          console.warn(`[Location API] ⚠️ Google API returned empty formatted_address for coords [${lat}, ${lng}]`, {
-            city,
-            state,
-            country,
-            rawAddress: formattedAddress,
-            accuracy: 'low - coordinates may be too approximate'
+        // 2026-02-01: FAIL HARD if no results even though status is OK
+        if (!best) {
+          console.error(`[location] ❌ Geocode returned OK but no results for coords [${lat}, ${lng}]`);
+          return res.status(502).json({
+            error: 'GEOCODE_NO_RESULTS',
+            message: 'Google Geocode returned OK but no address results',
+            code: 'geocode_empty_results',
+            location: { lat, lng },
+            resultsCount: geocodeData.results?.length || 0
           });
-          // Use fallback: City, State if available
-          if (city && state) {
-            formattedAddress = `${city}, ${state}`;
-            console.log(`[Location API] 📍 Using city/state fallback: "${formattedAddress}"`);
-          } else {
-            console.error(`[Location API] ❌ CRITICAL: No fallback available - cannot determine address at coords [${lat}, ${lng}]`);
-            formattedAddress = null; // Let validation gate catch this
-          }
         }
 
-        locationLog.done(2, `Geocode: ${city}, ${state}`, OP.API);
+        ({ city, state, country } = pickAddressParts(best.address_components));
+        formattedAddress = best.formatted_address;
+
+        // 2026-02-01: DEBUG - Log what was extracted to diagnose geocode_incomplete errors
+        console.log(`[Location API] 🔍 Geocode extraction for [${lat}, ${lng}]:`, {
+          city,
+          state,
+          country,
+          formattedAddress,
+          componentCount: best.address_components?.length || 0,
+          resultTypes: geocodeData.results?.[0]?.types || []
+        });
+
+        // 2026-02-01: STRICT VALIDATION - No partial state allowed
+        // Rule: coords → formatted_address (MUST) → city, state (MUST)
+        // If ANY required field is missing, FAIL HARD immediately
+
+        if (!formattedAddress || formattedAddress.trim() === '') {
+          console.error(`[Location API] ❌ FAIL HARD: No formatted_address for coords [${lat}, ${lng}]`);
+          return res.status(502).json({
+            error: 'GEOCODE_NO_ADDRESS',
+            message: 'Google Geocode did not return a formatted address for these coordinates',
+            code: 'geocode_no_formatted_address',
+            location: { lat, lng }
+          });
+        }
+
+        if (!city) {
+          console.error(`[Location API] ❌ FAIL HARD: No city extracted for coords [${lat}, ${lng}]`);
+          return res.status(502).json({
+            error: 'GEOCODE_NO_CITY',
+            message: 'Could not extract city from geocode response',
+            code: 'geocode_no_city',
+            location: { lat, lng },
+            formattedAddress
+          });
+        }
+
+        if (!state) {
+          console.error(`[Location API] ❌ FAIL HARD: No state extracted for coords [${lat}, ${lng}]`);
+          return res.status(502).json({
+            error: 'GEOCODE_NO_STATE',
+            message: 'Could not extract state from geocode response',
+            code: 'geocode_no_state',
+            location: { lat, lng },
+            formattedAddress,
+            city
+          });
+        }
+
+        locationLog.done(2, `Geocode: ${city}, ${state} ✓`, OP.API);
       } else {
+        // 2026-02-01: FAIL HARD - Return error instead of continuing with undefined values
         locationLog.error(2, `Geocode failed: ${geocodeData.status}`, null, OP.API);
+        return res.status(502).json({
+          error: 'GEOCODE_API_FAILED',
+          message: `Google Geocode API returned status: ${geocodeData.status}`,
+          code: 'geocode_api_error',
+          location: { lat, lng },
+          apiStatus: geocodeData.status,
+          // Common statuses: ZERO_RESULTS, OVER_QUERY_LIMIT, REQUEST_DENIED, INVALID_REQUEST
+          hint: geocodeData.status === 'ZERO_RESULTS'
+            ? 'No address found for these coordinates - may be ocean, remote area, or invalid coords'
+            : geocodeData.status === 'OVER_QUERY_LIMIT'
+            ? 'API rate limit exceeded - please wait and retry'
+            : 'Check Google Maps API key and quota'
+        });
       }
 
       // Step 2: Try market timezone lookup FIRST (saves ~200-300ms for known markets)
@@ -718,6 +802,25 @@ router.get('/resolve', async (req, res) => {
         }
       }
     } // End of cache miss block
+
+    // 2026-02-01: FAIL HARD - city and state are required for downstream operations
+    // If geocode failed to extract these, return error instead of undefined values
+    if (!city || !state) {
+      console.error(`[location] ❌ CRITICAL: Geocode did not return city/state for coords [${lat}, ${lng}]`, {
+        city,
+        state,
+        country,
+        formattedAddress,
+        cacheHit: !!cacheHit
+      });
+      return res.status(502).json({
+        error: 'GEOCODE_INCOMPLETE',
+        message: 'Could not determine city/state for this location',
+        code: 'geocode_missing_fields',
+        location: { lat, lng },
+        partial: { city, state, country, formattedAddress }
+      });
+    }
 
     let userId = null;
     const resolvedData = {
@@ -935,17 +1038,26 @@ router.get('/resolve', async (req, res) => {
         const SNAPSHOT_TTL_MS = 60 * 60 * 1000; // 60 minutes TTL for snapshot reuse
 
         if (!forceRefresh && existingUser?.current_snapshot_id) {
-          // Query the snapshot to check its age before reusing
+          // Query the snapshot to check its age AND city before reusing
+          // 2026-01-31: FIX - Also check if city changed (user moved to different city)
           const existingSnapshot = await db.query.snapshots.findFirst({
             where: eq(snapshots.snapshot_id, existingUser.current_snapshot_id),
-            columns: { snapshot_id: true, created_at: true }
+            columns: { snapshot_id: true, created_at: true, city: true, state: true }
           }).catch(() => null);
 
           if (existingSnapshot?.created_at) {
             const snapshotAge = now.getTime() - new Date(existingSnapshot.created_at).getTime();
 
-            if (snapshotAge < SNAPSHOT_TTL_MS) {
-              // Snapshot is fresh - reuse it
+            // 2026-01-31: FIX - Check if city changed (case-insensitive comparison)
+            // User moving from Frisco to Dallas should get fresh snapshot + briefing
+            const cityChanged = existingSnapshot.city?.toLowerCase() !== city?.toLowerCase() ||
+                                existingSnapshot.state?.toLowerCase() !== state?.toLowerCase();
+
+            if (cityChanged) {
+              // City changed - must create new snapshot for fresh briefing data
+              console.log(`📸 [SNAPSHOT] 🏙️ CITY CHANGED: ${existingSnapshot.city}, ${existingSnapshot.state} → ${city}, ${state} - creating fresh snapshot`);
+            } else if (snapshotAge < SNAPSHOT_TTL_MS) {
+              // Snapshot is fresh AND same city - reuse it
               console.log(`📸 [SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (age: ${Math.round(snapshotAge / 60000)}min)`);
               resolvedData.snapshot_id = existingUser.current_snapshot_id;
               resolvedData.snapshot_reused = true;
@@ -988,6 +1100,26 @@ router.get('/resolve', async (req, res) => {
           const localDate = dateFormatter.format(now);
           const finalSessionId = sessionId || crypto.randomUUID();
 
+          // 2026-02-01: Look up user's market from driver_profiles (set at signup)
+          // This is used for market-wide event discovery (e.g., "Dallas-Fort Worth" not just "Frisco")
+          let userMarket = null;
+          if (userId) {
+            try {
+              const [profileResult] = await db
+                .select({ market: driver_profiles.market })
+                .from(driver_profiles)
+                .where(eq(driver_profiles.user_id, userId))
+                .limit(1);
+              userMarket = profileResult?.market || null;
+              if (userMarket) {
+                console.log(`📸 [SNAPSHOT] 🌆 User market from profile: ${userMarket}`);
+              }
+            } catch (err) {
+              // Non-fatal: market is optional enhancement for event discovery
+              console.warn(`📸 [SNAPSHOT] ⚠️ Could not lookup user market: ${err.message}`);
+            }
+          }
+
           // Create snapshot with location identity from users table
           const snapshotRecord = {
             snapshot_id: snapshotId,
@@ -1007,6 +1139,8 @@ router.get('/resolve', async (req, res) => {
             country,
             formatted_address: formattedAddress,
             timezone: timeZone,
+            // 2026-02-01: Market from driver_profiles (for market-wide event discovery)
+            market: userMarket,
             // Time context (calculated fresh)
             local_iso: now,
             dow,

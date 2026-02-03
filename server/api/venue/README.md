@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-02-01
 
 # Venue API (`server/api/venue/`)
 
@@ -21,11 +21,15 @@ Venue intelligence, events, and closed venue reasoning.
 GET  /api/venues/:placeId         - Get venue details
 POST /api/venues/enrich           - Enrich venue with hours, events
 GET  /api/venues/nearby           - Get nearby venues
+GET  /api/venues/traffic          - Venue traffic/busyness data
+GET  /api/venues/smart-blocks     - Get smart blocks for venues
+GET  /api/venues/last-call        - Venues near closing time
 ```
 
 ### Venue Events
 ```
 GET  /api/venue/events/:placeId   - Events at specific venue
+POST /api/venue/events            - Add event to venue
 ```
 
 ### Closed Venue Reasoning

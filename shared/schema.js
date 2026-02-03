@@ -49,6 +49,9 @@ export const snapshots = pgTable("snapshots", {
   country: text("country").notNull(),
   formatted_address: text("formatted_address").notNull(),
   timezone: text("timezone").notNull(),
+  // 2026-02-01: Market from driver_profiles.market - captured at snapshot creation
+  // Used for market-wide event discovery (e.g., "Dallas-Fort Worth" instead of just "Frisco")
+  market: text("market"),
   // Time context (authoritative for this snapshot)
   local_iso: timestamp("local_iso", { withTimezone: false }).notNull(),
   dow: integer("dow").notNull(), // 0=Sunday, 1=Monday, etc.

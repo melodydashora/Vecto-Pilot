@@ -755,11 +755,15 @@ server/
 │   ├── auth/               # Authentication endpoints
 │   ├── briefing/           # Events, traffic, news, weather
 │   ├── chat/               # AI Coach text/voice chat, TTS
+│   ├── coach/              # AI Coach notes, schema discovery, validation
 │   ├── feedback/           # User feedback, actions logging
 │   ├── health/             # Health checks, diagnostics
+│   ├── intelligence/       # Market intelligence, staging areas
 │   ├── location/           # GPS resolution, snapshots
+│   ├── platform/           # Platform stats, markets, countries
 │   ├── research/           # Vector search, research
 │   ├── strategy/           # Strategy generation, blocks, SSE events
+│   ├── vehicle/            # Vehicle management
 │   ├── venue/              # Venue intelligence, events
 │   └── utils/              # HTTP helpers, timing
 │
@@ -775,6 +779,7 @@ server/
 │   ├── infrastructure/     # Job queue
 │   ├── location/           # Geo, holiday detection, snapshot context, coords-key
 │   ├── strategy/           # Strategy pipeline, providers, validation
+│   ├── traffic/            # TomTom traffic API integration
 │   └── venue/              # Venue intelligence, enrichment, places
 │       └── hours/          # Business hours parsing and evaluation
 │
@@ -841,11 +846,22 @@ client/src/
 /                         → Redirects to /co-pilot/strategy
 /co-pilot                 → Redirects to /co-pilot/strategy
 /co-pilot/strategy        → StrategyPage (AI + blocks + coach)
-/co-pilot/bars            → BarsPage (venue listings)
+/co-pilot/bars            → VenueManagerPage (venue listings)
 /co-pilot/briefing        → BriefingPage (weather, traffic, news)
 /co-pilot/map             → MapPage (interactive map)
 /co-pilot/intel           → IntelPage (rideshare intel)
+/co-pilot/settings        → SettingsPage (user preferences)
 /co-pilot/about           → AboutPage (no GlobalHeader)
+/co-pilot/policy          → PolicyPage (privacy policy)
+```
+
+### Auth Route Structure
+```
+/auth/sign-in             → SignInPage (email/password login)
+/auth/sign-up             → SignUpPage (multi-step registration)
+/auth/forgot-password     → ForgotPasswordPage (request reset)
+/auth/reset-password      → ResetPasswordPage (reset with token)
+/auth/terms               → TermsPage (terms of service)
 ```
 
 ### Root Structure

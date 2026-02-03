@@ -141,6 +141,71 @@ if (strategyAge > 30*60*1000 && (isStuckPendingBlocks || isStuckInProgress)) {
 
 ---
 
+## COMPREHENSIVE AUDIT (2026-02-01)
+
+**Audit Date:** 2026-02-01
+**Conducted By:** Claude Code (5 parallel exploration agents)
+**Fix Plan:** `docs/review-queue/FIX_PLAN_2026-02-01.md`
+**Total Discrepancies:** 48
+
+### CRITICAL (P0 - Must Fix Immediately)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-037 | `docs/architecture/database-schema.md` | 25 tables completely missing from documentation | Tables exist in `shared/schema.js`: agent_memory, assistant_memory, coach_conversations (partial), cross_thread_memory, eidolon_memory, eidolon_snapshots, llm_venue_suggestions, market_intelligence, places_cache, traffic_zones, travel_disruptions, triad_jobs, user_intel_notes, us_market_cities, vehicle_makes_cache, vehicle_models_cache, venue_events, venue_feedback, venue_metrics, app_feedback, block_jobs, connection_audit, http_idem, strategy_feedback, agent_changes | ✅ FIXED 2026-02-01 |
+| D-038 | `docs/architecture/database-schema.md:73-86` | `strategies` table shows OLD columns that no longer exist | Table was refactored 2026-01-14 (LEAN). New columns: `status`, `phase`, `phase_started_at`, `error_message`, `strategy_for_now`, `consolidated_strategy`. OLD columns removed: `strategy`, `error_code`, `attempt`, `latency_ms`, `tokens`, `next_retry_at`, etc. | ✅ FIXED 2026-02-01 |
+| D-039 | `ARCHITECTURE.md:38-216` | OmniPage/SignalTerminal feature extensively documented but NOT implemented | `intercepted_signals` DB table exists, but NO `/co-pilot/omni` route, NO `OmniPage.tsx`, NO `SignalTerminal.tsx`, NO `/api/hooks/analyze-offer` endpoint | ✅ FIXED 2026-02-01 (marked as PLANNED) |
+| D-040 | `docs/architecture/api-reference.md` | Missing 2 entire API domains | `/api/coach/*` (14+ endpoints) and `/api/intelligence/*` (13+ endpoints) completely missing from centralized API reference | ✅ FIXED 2026-02-01 |
+| D-041 | `CLAUDE.md:754-764` | 4 API folders undocumented in Server Structure | Missing: `server/api/coach/`, `server/api/intelligence/`, `server/api/platform/`, `server/api/vehicle/` | ✅ FIXED 2026-02-01 |
+
+### HIGH PRIORITY (P1 - Fix Within 24 Hours)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-042 | `docs/architecture/ai-pipeline.md:12-15` | Model assignments are stale | Events: docs say "SerpAPI + GPT-5.2" → actual is Gemini 3 Pro. News: docs say "Dual-Model" → actual is single Gemini 3 Pro. Traffic: docs say "Gemini 3.0 Flash" → actual is Gemini 3 Pro | ✅ FIXED 2026-02-01 |
+| D-043 | `docs/architecture/ai-pipeline.md:150` | Traffic fallback chain wrong | Docs: "TomTom → Claude → Gemini → Static". Actual: "TomTom → Gemini 3 Pro → Gemini 3 Flash → Static" (no Claude) | ✅ FIXED 2026-02-01 |
+| D-044 | `client/src/components/README.md:17-18,43-44` | Component files documented that don't exist | Docs: `BarsTable.tsx`, `BarTab.tsx`. Actual: `BarsDataGrid.tsx`, `BarsMainTab.tsx` (renamed 2026-01-09) | ✅ FIXED 2026-02-01 |
+| D-045 | Multiple files | `BarsPage.tsx` renamed to `VenueManagerPage.tsx` but docs not updated | Stale refs in: CLAUDE.md:806, ARCHITECTURE.md:378, client/src/pages/co-pilot/README.md:36, client/src/components/README.md:43-44 | ✅ FIXED 2026-02-01 |
+| D-046 | `server/api/platform/README.md` | 3 endpoints undocumented | Missing: `GET /api/platform/countries-dropdown`, `GET /api/platform/regions-dropdown`, `GET /api/platform/markets-dropdown` | ✅ FIXED 2026-02-01 |
+| D-047 | `server/api/coach/README.md` | 6 endpoints undocumented | Missing: `POST .../pin`, `POST .../restore`, `GET .../stats/summary`, `GET /schema`, `GET /schema/prompt`, `POST /validate/batch` | ✅ FIXED 2026-02-01 |
+| D-048 | `server/api/location/README.md` | 5 endpoints undocumented | Missing: `GET /pollen`, `POST /news-briefing`, `GET /ip`, `PATCH /snapshot/:id/enrich`, `GET /snapshots/:id` | ✅ FIXED 2026-02-01 |
+| D-049 | `server/api/venue/README.md` | 4 endpoints undocumented | Missing: `GET /traffic`, `GET /smart-blocks`, `GET /last-call`, `POST /venue/events` | ✅ FIXED 2026-02-01 |
+| D-050 | `docs/architecture/database-schema.md:352` | `venue_catalog.country` default wrong in docs | Docs: `'USA'`. Code: `'US'` (ISO 3166-1 alpha-2, fixed in D-029) | ✅ FIXED 2026-02-01 (already correct after D-037) |
+
+### MEDIUM PRIORITY (P2)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-051 | `docs/architecture/database-schema.md` | `venue_catalog` only 16 of 40+ columns documented | Missing 24+ columns including: place_id, category, dayparts, staging_notes, metro, district, ai_estimated_hours, business_hours, discovery_source, etc. | ✅ FIXED 2026-02-01 |
+| D-052 | `docs/architecture/database-schema.md` | `coach_conversations` missing 8 columns | Missing: parent_message_id, content_type, sentiment, tokens_in, tokens_out, model_used, is_edited, is_regenerated | DEFERRED (table already documented in D-037) |
+| D-053 | `docs/architecture/database-schema.md` | `driver_profiles` missing 10+ columns | Missing: zip_code, home_formatted_address, home_timezone, marketing_opt_in, terms_version, profile_complete, legacy uber_* fields | DEFERRED (low usage) |
+| D-054 | `docs/architecture/database-schema.md` | `auth_credentials` missing 5 security columns | Missing: last_login_at, last_login_ip, password_changed_at, created_at, updated_at | DEFERRED (low usage) |
+| D-055 | `CLAUDE.md:840-849` | Missing 7 routes from Co-Pilot Route Structure | Missing: /co-pilot/settings, /co-pilot/policy, /auth/sign-in, /auth/sign-up, /auth/forgot-password, /auth/reset-password, /auth/terms | ✅ FIXED 2026-02-01 |
+| D-056 | `server/lib/README.md` | Missing `traffic/` module entry | `server/lib/traffic/` exists with TomTom integration but not listed in README | ✅ FIXED 2026-02-01 (added to CLAUDE.md) |
+| D-057 | `docs/architecture/database-schema.md` | JSONB field schemas undocumented | No schema for: ranking_candidates.features, briefings.weather_current, briefings.traffic_conditions, etc. | ✅ FIXED 2026-02-01 |
+| D-058 | `docs/architecture/database-schema.md` | 13 indexes defined for venue_catalog but only 5 documented | Missing: idx_normalized_name, idx_city_state, idx_market_slug, idx_venue_types (GIN), idx_expense_rank, idx_is_bar, idx_is_event_venue, idx_record_status | ✅ FIXED 2026-02-01 (in D-051) |
+
+### LOW PRIORITY (P3)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-059 | `CLAUDE.md` | Intel components folder not mentioned in component overview | `/client/src/components/intel/` has 7 components but not listed in CLAUDE.md Client Structure | PENDING |
+| D-060 | `docs/architecture/database-schema.md` | FK onDelete behaviors not documented | Relationships like `discovered_events.venue_id` have `onDelete: 'set null'` but docs don't specify | PENDING |
+
+---
+
+**Impact Summary:**
+- Developers searching for documented features (OmniPage) will find nothing
+- Coach and Intelligence APIs invisible in centralized reference
+- AI pipeline model assignments cause confusion about which models are actually used
+- Database schema docs significantly outdated after 2026-01-14 LEAN refactoring
+- Component renames make docs point to non-existent files
+
+**Resolution:**
+See `docs/review-queue/FIX_PLAN_2026-02-01.md` for detailed fix plan with exact edits.
+
+---
+
 ## 4-Phase Hardening Plan
 
 **Added:** 2026-01-10

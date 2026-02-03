@@ -172,9 +172,10 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
     localTime = `${snapshot.local_iso} (timezone unknown)`;
   }
 
-  // 60s timeout - fail fast if STRATEGY_TACTICAL role hangs
+  // 90s timeout - fail fast if STRATEGY_TACTICAL role hangs
+  // 2026-02-01: Increased from 60s to 90s to match briefing timeouts
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
 
   try {
     // 2026-01-08: Pre-format events (now async to lookup venue hours from venue_catalog)
@@ -243,7 +244,7 @@ RULES:
         reasoning_effort: 'medium',
         max_completion_tokens: 2000  // Model needs tokens for reasoning + output
       }),
-      signal: controller.signal  // Abort after 60s timeout
+      signal: controller.signal  // Abort after 90s timeout
     });
     clearTimeout(timeoutId);  // Clear timeout on successful response
 
@@ -266,7 +267,7 @@ RULES:
   } catch (error) {
     clearTimeout(timeoutId);  // Clean up timeout on error
     const isTimeout = error.name === 'AbortError';
-    aiLog.warn(1, `Immediate strategy call failed${isTimeout ? ' (TIMEOUT after 60s)' : ''}: ${error.message}`, OP.AI);
+    aiLog.warn(1, `Immediate strategy call failed${isTimeout ? ' (TIMEOUT after 90s)' : ''}: ${error.message}`, OP.AI);
     return { strategy: '' };
   }
 }
@@ -288,9 +289,10 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
   const callStart = Date.now();
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
-    // 60s timeout per attempt - fail fast if Gemini hangs
+    // 90s timeout per attempt - fail fast if Gemini hangs
+    // 2026-02-01: Increased from 60s to 90s - Gemini with thinking needs more time
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
 
     try {
       if (attempt > 1) {
@@ -302,7 +304,7 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,  // Abort after 60s timeout
+          signal: controller.signal,  // Abort after 90s timeout
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             tools: [{ google_search: {} }],
@@ -377,7 +379,7 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
       }
       const elapsed = Date.now() - callStart;
       aiLog.error(1, `Consolidator failed after ${elapsed}ms and ${MAX_RETRIES} retries: ${error.message}`);
-      return { ok: false, error: isTimeout ? 'TIMEOUT after 60s' : error.message };
+      return { ok: false, error: isTimeout ? 'TIMEOUT after 90s' : error.message };
     }
   }
 }

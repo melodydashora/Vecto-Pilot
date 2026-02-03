@@ -9,10 +9,10 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 | Role | Model | Provider | Purpose |
 |------|-------|----------|---------|
 | Strategist | Claude Opus 4.5 | Anthropic | Generate strategic overview |
-| Events | SerpAPI + GPT-5.2 | OpenAI | Event discovery (daily sync) |
-| News (Dual-Model) | Gemini 3.0 Pro + GPT-5.2 | Google + OpenAI | Parallel news fetch (both run, results merged) |
+| Events | Gemini 3.0 Pro | Google | Event discovery via BRIEFING_EVENTS_DISCOVERY role |
+| News | Gemini 3.0 Pro | Google | News briefing via BRIEFING_NEWS role (single model) |
 | Traffic (Primary) | TomTom | TomTom | Real-time traffic data |
-| Traffic (Analysis) | Gemini 3.0 Flash | Google | Analyze traffic data for driver briefing |
+| Traffic (Analysis) | Gemini 3.0 Pro | Google | Analyze traffic data for driver briefing |
 | Weather | Google Weather API | Google | 4-hour forecast |
 | Airport | Gemini 3.0 Pro | Google | Flight delays, airport conditions |
 | School Closures | Gemini 3.0 Pro | Google | School calendar data |
@@ -21,10 +21,10 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 | Immediate Consolidator | GPT-5.2 | OpenAI | 1hr tactical strategy |
 | Venue Planner | GPT-5.2 | OpenAI | Smart Blocks generation |
 
-**Note (Updated 2026-01-10):**
-- News uses dual-model parallel fetch (Gemini + GPT-5.2) with result consolidation
-- Events are discovered via SerpAPI + GPT-5.2 and stored in `discovered_events` table
-- Traffic uses TomTom for raw data, then Gemini Flash for driver-focused analysis
+**Model Changes (Updated 2026-02-01):**
+- **2026-01-10:** Dual-model news fetch removed - now uses Gemini 3 Pro only via BRIEFING_NEWS role
+- **2026-01-14:** SerpAPI + GPT-5.2 event discovery removed - now Gemini 3 Pro via BRIEFING_EVENTS_DISCOVERY
+- **2026-01-15:** Traffic analysis upgraded from Gemini Flash to Gemini 3 Pro for complex spatial analysis
 - **ETL Pipeline (2026-01-09):** Event discovery uses canonical modules in `server/lib/events/pipeline/` with 5-phase workflow logging. See [ETL Pipeline Refactoring](etl-pipeline-refactoring-2026-01-09.md) for details.
 
 ## Pipeline Flow
@@ -144,20 +144,24 @@ The adapter at `server/lib/ai/adapters/index.js` handles:
 
 Claude Opus 4.5 with web search serves as automatic fallback when primary models fail:
 
-**Briefing Fallbacks (Gemini → Claude):**
-- Events: If Gemini returns 0 events → Claude web search with parallel category searches
-- News: If Gemini fails/returns empty → Claude web search for rideshare news
-- Traffic: TomTom (primary) → Claude analysis → Gemini (secondary) → Static fallback
+**Briefing Fallbacks (Updated 2026-02-01):**
+- Events: Gemini 3 Pro (primary) → Gemini 3 Flash (fallback) → Static fallback
+- News: Gemini 3 Pro (primary) → Gemini 3 Flash (fallback) → Static fallback
+- Traffic: TomTom (data) → Gemini 3 Pro (analysis) → Gemini 3 Flash (fallback) → Static fallback
 - Airport: Gemini with Google Search → Static fallback
 
-**Traffic Analysis Pipeline:**
+> **Curated Driver Resources:** In addition to AI-discovered news, see `server/lib/briefing/README.md` for authoritative driver resources including Lyft Driver Hub (`lyft.com/driver/hub`) and AAA Gas Prices (`gasprices.aaa.com/?state={STATE}`).
+
+**Traffic Analysis Pipeline (Updated 2026-01-15):**
 1. TomTom provides raw incidents with priority scoring
-2. Claude Opus analyzes and produces human-readable briefing:
+2. Gemini 3 Pro analyzes and produces human-readable briefing:
    - `headline`: One sentence overview
    - `keyIssues`: Top 3 problems with specific roads
    - `avoidAreas`: Roads to avoid and why
    - `driverImpact`: How it affects earnings/routes
    - `closures`: Expandable list of all road closures
+
+> **Note:** Claude was previously in the traffic analysis path but was replaced by Gemini 3 Pro per "Single Briefer Model" architecture (2026-01-15). Traffic requires complex synthesis of TomTom JSON into actionable advice - Pro's reasoning handles this better than Flash.
 
 **Strategy Fallbacks:**
 - Daily Consolidator: Gemini 3 Pro → Claude Opus fallback
