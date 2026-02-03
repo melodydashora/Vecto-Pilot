@@ -1,0 +1,96 @@
+> **Last Verified:** 2026-01-07
+
+# Agent (`server/agent/`)
+
+## Purpose
+
+AI agent infrastructure for enhanced context and WebSocket communication.
+
+## ⚠️ Security Notice (Updated 2026-01-07)
+
+**This module exposes powerful admin operations and MUST be protected.**
+
+### Required Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `AGENT_ENABLED` | `false` | Must be `'true'` to enable agent routes |
+| `AGENT_ALLOWED_IPS` | `127.0.0.1,::1,localhost` | Comma-separated IP allowlist (⚠️ `*` blocked in prod) |
+| `AGENT_ADMIN_USERS` | _(none)_ | Comma-separated user IDs for admin operations |
+
+### Security Layers
+
+1. **Env Gate:** Agent routes return 503 unless `AGENT_ENABLED=true`
+2. **IP Allowlist:** Requests blocked unless from allowed IPs
+   - ⚠️ **2026-01-07:** Wildcard `*` is now blocked in production
+3. **Auth Required:** All routes (except `/health`) require valid JWT token
+4. **Admin Required:** Dangerous operations (`/config/env/update`, `/config/backup`) require admin user
+5. **WebSocket Auth:** WS connections require `?token=` query parameter
+
+### Admin-Only Routes (2026-01-07)
+
+These routes require the authenticated user to be in `AGENT_ADMIN_USERS`:
+
+| Route | Reason |
+|-------|--------|
+| `POST /config/env/update` | Can modify API keys, DB credentials, secrets |
+| `POST /config/backup/:filename` | Backups could leak sensitive config files |
+
+### Production Checklist
+
+- [ ] `AGENT_ENABLED` is NOT set (disabled by default)
+- [ ] If enabled, `AGENT_ALLOWED_IPS` is set to specific admin IPs (NOT `*`)
+- [ ] `AGENT_ADMIN_USERS` contains only trusted user IDs
+- [ ] Never expose `/agent` to public internet without auth proxy
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `embed.js` | Mount agent routes and WebSocket |
+| `routes.js` | Agent API endpoints (context, memory, thread mgmt) |
+| `enhanced-context.js` | Context enrichment for AI |
+| `context-awareness.js` | Contextual data gathering |
+| `config-manager.js` | Agent configuration file management |
+| `agent-override-llm.js` | LLM override for agent |
+| `thread-context.js` | Thread context management |
+| `index.ts` | TypeScript entry point |
+
+## API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/agent/context` | GET | Get enhanced project context |
+| `/agent/health` | GET | Agent health check |
+| `/agent/capabilities` | GET | Agent capabilities list |
+| `/agent/memory/preference` | POST | Store user preference |
+| `/agent/memory/session` | POST | Store session state |
+| `/agent/memory/project` | POST | Store project state |
+| `/agent/memory/conversation` | POST | Log conversation |
+| `/agent/memory/conversations` | GET | Get conversation history |
+| `/agent/thread/init` | POST | Initialize new thread |
+| `/agent/thread/:id` | GET | Get thread context |
+| `/agent/thread/:id/message` | POST | Add message to thread |
+
+## Mounting
+
+Agent is mounted in `server/bootstrap/routes.js` via `embed.js`:
+
+```javascript
+const { mountAgent } = await import('./server/agent/embed.js');
+mountAgent({
+  app,
+  basePath: '/agent',
+  wsPath: '/agent/ws',
+  server,
+});
+```
+
+**2026-01-06 Fix:** `embed.js` now imports and mounts `routes.js`. Previously, the routes were orphaned and `/agent/context` returned 404 (useMemory hook failed).
+
+## Connections
+
+- **Mounted by:** `../bootstrap/routes.js`
+- **Uses:** AI adapters from `../lib/ai/`
+- **WebSocket:** `/agent/ws` for real-time communication
+- **Client hook:** `useMemory` in `client/src/hooks/useMemory.ts`

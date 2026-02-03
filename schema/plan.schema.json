@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["strategy_for_now", "blocks"],
+  "additionalProperties": false,
+  "properties": {
+    "strategy_for_now": {
+      "type": "string",
+      "maxLength": 600,
+      "description": "≤120 words overall strategy"
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "pro_tips"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "pro_tips": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "type": "string",
+              "maxLength": 140
+            }
+          }
+        }
+      }
+    }
+  }
+}

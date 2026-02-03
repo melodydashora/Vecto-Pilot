@@ -1,0 +1,288 @@
+/* Tailwind v4 imports */
+@import "tailwindcss";
+
+/* ---- Tailwind v4 Theme Configuration ---- */
+/* Maps CSS variables to Tailwind utility classes */
+@theme {
+  /* Color palette - connects CSS vars to bg-*, text-*, border-* classes */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-ring: hsl(var(--ring));
+  --color-success: hsl(var(--success));
+  --color-warning: hsl(var(--warning));
+  --color-error: hsl(var(--error));
+  --color-surface: hsl(var(--surface));
+
+  /* Border radius */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@keyframes progressBar {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+}
+
+/* ---- Design tokens ---- */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 210 11% 15%;
+  --muted: 210 11% 96%;
+  --muted-foreground: 210 7% 46%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 11% 15%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 11% 15%;
+  --border: 210 11% 90%;
+  --input: 210 11% 90%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 100% 51%;
+  --secondary-foreground: 0 0% 100%;
+  --accent: 210 11% 96%;
+  --accent-foreground: 210 11% 15%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 207 90% 54%;
+  --radius: 0.5rem;
+  --success: 120 61% 50%;
+  --warning: 25 95% 53%;
+  --error: 4 90% 58%;
+  --surface: 210 11% 98%;
+}
+
+.dark {
+  --background: 224 71% 4%;
+  --foreground: 213 31% 91%;
+  --muted: 223 47% 11%;
+  --muted-foreground: 215.4 16.3% 56.9%;
+  --popover: 224 71% 4%;
+  --popover-foreground: 213 31% 91%;
+  --card: 224 71% 4%;
+  --card-foreground: 213 31% 91%;
+  --border: 216 34% 17%;
+  --input: 216 34% 17%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 45 100% 51%;
+  --secondary-foreground: 0 0% 100%;
+  --accent: 216 34% 17%;
+  --accent-foreground: 213 31% 91%;
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 213 31% 91%;
+  --ring: 207 90% 54%;
+  --success: 120 61% 50%;
+  --warning: 25 95% 53%;
+  --error: 4 90% 58%;
+  --surface: 224 71% 4%;
+}
+
+/* ---- Base layer ---- */
+@layer base {
+  *, ::before, ::after {
+    @apply border-gray-200 dark:border-gray-800;
+  }
+  html, body, #root { 
+    height: auto;
+    min-height: 100%;
+    overflow: auto;
+  }
+  body {
+    @apply bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 font-sans antialiased;
+    color: hsl(var(--foreground));
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+  }
+}
+
+/* ---- Components ---- */
+@layer components {
+  .stats-card { @apply text-center p-3 rounded-lg; }
+  .stats-card.success { @apply bg-green-50 dark:bg-green-950; }
+  .stats-card.warning { @apply bg-yellow-50 dark:bg-yellow-950; }
+  .stats-card.primary { @apply bg-blue-50 dark:bg-blue-950; }
+  .stats-card.purple { @apply bg-purple-50 dark:bg-purple-950; }
+
+  .prediction-card { @apply flex items-center justify-between p-3 rounded-lg border-l-4; }
+  .prediction-card.high { @apply bg-green-50 dark:bg-green-950 border-green-500; }
+  .prediction-card.medium { @apply bg-yellow-50 dark:bg-yellow-950 border-yellow-500; }
+  .prediction-card.low { @apply bg-blue-50 dark:bg-blue-950 border-blue-500; }
+
+  .alert-card { @apply flex items-center space-x-4 p-4 rounded-lg border-l-4; }
+  .alert-card.warning { @apply bg-yellow-50 dark:bg-yellow-950 border-yellow-500; }
+  .alert-card.success { @apply bg-green-50 dark:bg-green-950 border-green-500; }
+  .alert-card.info { @apply bg-blue-50 dark:bg-blue-950 border-blue-500; }
+
+  .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+  .pulse-glow { animation: pulseGlow 2s infinite; }
+}
+
+/* ---- Header stack tweaks ---- */
+:root { --vecto-header-height: 200px; }
+
+.vecto-header-stack {
+  position: static;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+}
+.vh-row { width: 100%; }
+
+/* Reorder header rows */
+.vecto-header-stack .vh-row.vh-status { order: 0; }
+.vecto-header-stack .vh-row.vh-brand { order: 1; }
+.vecto-header-stack .vh-row.vh-location { order: 2; }
+
+/* Main content flows normally beneath static header */
+.main-content-with-header {
+  padding-top: 0;
+}
+
+/* Fix for React Router main content */
+main {
+  min-height: calc(100vh - 80px);
+}
+
+/* Footer nav */
+.bottom-navigation {
+  position: static;
+  width: 100%;
+  z-index: 50;
+}
+
+/* ---- Misc ---- */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ---- shadcn/ui Animation Support (tailwindcss-animate replacement) ---- */
+/* These animations are used by Radix UI primitives in shadcn components */
+
+@keyframes enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0) scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1)) rotate(var(--tw-enter-rotate, 0));
+  }
+}
+
+@keyframes exit {
+  to {
+    opacity: var(--tw-exit-opacity, 1);
+    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0));
+  }
+}
+
+/* Base animation classes */
+.animate-in {
+  animation-name: enter;
+  animation-duration: 150ms;
+  --tw-enter-opacity: initial;
+  --tw-enter-scale: initial;
+  --tw-enter-rotate: initial;
+  --tw-enter-translate-x: initial;
+  --tw-enter-translate-y: initial;
+}
+
+.animate-out {
+  animation-name: exit;
+  animation-duration: 150ms;
+  --tw-exit-opacity: initial;
+  --tw-exit-scale: initial;
+  --tw-exit-rotate: initial;
+  --tw-exit-translate-x: initial;
+  --tw-exit-translate-y: initial;
+}
+
+/* Fade animations */
+.fade-in-0 { --tw-enter-opacity: 0; }
+.fade-in-5 { --tw-enter-opacity: 0.05; }
+.fade-in-10 { --tw-enter-opacity: 0.1; }
+.fade-in-20 { --tw-enter-opacity: 0.2; }
+.fade-in-50 { --tw-enter-opacity: 0.5; }
+.fade-out-0 { --tw-exit-opacity: 0; }
+.fade-out-5 { --tw-exit-opacity: 0.05; }
+.fade-out-10 { --tw-exit-opacity: 0.1; }
+.fade-out-20 { --tw-exit-opacity: 0.2; }
+.fade-out-50 { --tw-exit-opacity: 0.5; }
+
+/* Zoom animations */
+.zoom-in-50 { --tw-enter-scale: 0.5; }
+.zoom-in-75 { --tw-enter-scale: 0.75; }
+.zoom-in-90 { --tw-enter-scale: 0.9; }
+.zoom-in-95 { --tw-enter-scale: 0.95; }
+.zoom-in-100 { --tw-enter-scale: 1; }
+.zoom-out-50 { --tw-exit-scale: 0.5; }
+.zoom-out-75 { --tw-exit-scale: 0.75; }
+.zoom-out-90 { --tw-exit-scale: 0.9; }
+.zoom-out-95 { --tw-exit-scale: 0.95; }
+.zoom-out-100 { --tw-exit-scale: 1; }
+
+/* Slide animations */
+.slide-in-from-top-2 { --tw-enter-translate-y: -0.5rem; }
+.slide-in-from-top-4 { --tw-enter-translate-y: -1rem; }
+.slide-in-from-bottom-2 { --tw-enter-translate-y: 0.5rem; }
+.slide-in-from-bottom-4 { --tw-enter-translate-y: 1rem; }
+.slide-in-from-left-2 { --tw-enter-translate-x: -0.5rem; }
+.slide-in-from-left-4 { --tw-enter-translate-x: -1rem; }
+.slide-in-from-right-2 { --tw-enter-translate-x: 0.5rem; }
+.slide-in-from-right-4 { --tw-enter-translate-x: 1rem; }
+
+.slide-out-to-top-2 { --tw-exit-translate-y: -0.5rem; }
+.slide-out-to-top-4 { --tw-exit-translate-y: -1rem; }
+.slide-out-to-bottom-2 { --tw-exit-translate-y: 0.5rem; }
+.slide-out-to-bottom-4 { --tw-exit-translate-y: 1rem; }
+.slide-out-to-left-2 { --tw-exit-translate-x: -0.5rem; }
+.slide-out-to-left-4 { --tw-exit-translate-x: -1rem; }
+.slide-out-to-right-2 { --tw-exit-translate-x: 0.5rem; }
+.slide-out-to-right-4 { --tw-exit-translate-x: 1rem; }
+
+/* Duration modifiers */
+.duration-150 { animation-duration: 150ms; }
+.duration-200 { animation-duration: 200ms; }
+.duration-300 { animation-duration: 300ms; }
+.duration-500 { animation-duration: 500ms; }

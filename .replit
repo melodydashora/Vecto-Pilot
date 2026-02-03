@@ -1,0 +1,114 @@
+# Entrypoint and runtime modules
+entrypoint = "gateway-server.js"
+modules = ["python-3.11", "nodejs-20", "postgresql-16"]
+
+# Primary run command (Run button / default start)
+# Source env safely so comments/quotes are handled correctly
+run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js\""
+
+# Nix/packages configuration
+[nix]
+packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "glib", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nodejs-22", "nspr", "nss", "pango", "pgroll", "spidermonkey_91", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "docker", "python313Packages.conda"]
+channel = "stable-25_05"
+
+# Deployment settings (CI-like build/start)
+[deployment]
+build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
+run = ["sh", "-c", "DEPLOY_MODE=webservice node gateway-server.js"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 24282
+
+[[ports]]
+localPort = 62789
+externalPort = 3000
+
+# Workflows
+[workflows]
+runButton = "Run App"
+
+[[workflows.workflow]]
+name = "Run App"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "set -a && . mono-mode.env && set +a && npm run start:replit"
+
+[agent]
+integrations = ["perplexity_v0:1.0.0"]
+expertMode = true
+
+[assistant]
+# System prompt for Replit IDE Assistant
+system_prompt = """
+You are Replit Assistant Enhanced. You have FULL shell execution capabilities.
+RUN bash commands directly - do NOT just suggest them.
+You have web_search and web_fetch tools via Anthropic API.
+If asked who you are, respond: 'I am Replit Assistant Enhanced with web search, web fetch, and full shell capabilities.'
+DO NOT say you cannot run shell commands or search the web - you CAN and SHOULD do both.
+"""
+model = "claude-opus-4-5-20251101"
+web_search = true
+web_fetch = true
+shell_exec = true
+
+[userenv]
+
+[userenv.shared]
+# ==========================
+# AI Role Configuration
+# Naming convention: {TABLE}_{FUNCTION}_MODEL
+# See server/lib/ai/model-registry.js for defaults
+# ==========================
+
+# STRATEGIES TABLE
+STRATEGY_CORE_MODEL = "claude-opus-4-5-20251101"
+STRATEGY_CONTEXT_MODEL = "gemini-3-pro-preview"
+STRATEGY_TACTICAL_MODEL = "gpt-5.2"
+STRATEGY_DAILY_MODEL = "gemini-3-pro-preview"
+
+# BRIEFINGS TABLE
+BRIEFING_WEATHER_MODEL = "gemini-3-pro-preview"
+BRIEFING_TRAFFIC_MODEL = "gemini-3-flash-preview"
+BRIEFING_NEWS_MODEL = "gemini-3-pro-preview"
+BRIEFING_EVENTS_MODEL = "gemini-3-pro-preview"
+BRIEFING_VALIDATOR_MODEL = "claude-opus-4-5-20251101"
+
+# VENUES TABLE (ranking_candidates)
+VENUE_SCORER_MODEL = "gpt-5.2"
+VENUE_FILTER_MODEL = "claude-3-5-haiku-latest"
+VENUE_TRAFFIC_MODEL = "gemini-3-pro-preview"
+
+# COACH TABLE
+COACH_CHAT_MODEL = "gemini-3-pro-preview"
+
+# UTILITIES
+UTIL_PARSER_MODEL = "gpt-5.2"
+
+# ==========================
+# Legacy env vars (deprecated - kept for backward compatibility)
+# ==========================
+STRATEGY_STRATEGIST = "claude-opus-4-5-20251101"
+STRATEGY_BRIEFER = "gemini-3-pro-preview"
+STRATEGY_CONSOLIDATOR = "gpt-5.2"
+STRATEGY_VENUE_PLANNER = "gpt-5.2"
+STRATEGY_HOLIDAY_CHECKER = "gemini-3-pro-preview"
+
+# ==========================
+# Shared Model Parameters
+# ==========================
+GEMINI_MODEL = "gemini-3-pro-preview"
+MODEL_TEMPERATURE = "0.0"
+MODEL_TOP_P = "0.8"
+MODEL_TOP_K = "40"

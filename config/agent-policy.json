@@ -1,0 +1,179 @@
+{
+  "identity_assertion": true,
+  "identity": "agent",
+  "announce": "🧠 Agent (Claude Opus 4.5 Enhanced) - Extended thinking with all tools enabled.",
+  "model": "claude-opus-4-5-20251101",
+  "context_window": 200000,
+  "max_tokens": 16000,
+  "mode": "single_path",
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 10000
+  },
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "top_k": 0,
+  "service_tier": "auto",
+  "stream": true,
+  "tools": {
+    "enabled": true,
+    "available": [
+      {
+        "type": "web_search_20250305",
+        "name": "web_search",
+        "max_uses": 10,
+        "user_location": {
+          "type": "approximate",
+          "country": "US",
+          "timezone": "America/Chicago"
+        }
+      },
+      {
+        "type": "web_fetch_20250910",
+        "name": "web_fetch",
+        "max_uses": 5
+      },
+      {
+        "type": "code_execution_20250825",
+        "name": "code_execution"
+      },
+      {
+        "type": "text_editor_20250124",
+        "name": "str_replace_editor"
+      },
+      {
+        "type": "bash_20250124",
+        "name": "bash"
+      },
+      {
+        "type": "computer_20250124",
+        "name": "computer",
+        "display_width_px": 1920,
+        "display_height_px": 1080,
+        "display_number": 1
+      }
+    ],
+    "tool_choice": {
+      "type": "auto"
+    }
+  },
+  "headers": {
+    "anthropic-version": "2023-06-01",
+    "anthropic-beta": [
+      "interleaved-thinking-2025-05-14",
+      "code-execution-2025-08-25",
+      "web-search-20250305",
+      "web-fetch-2025-09-10",
+      "fine-grained-tool-streaming-2025-05-14"
+    ]
+  },
+  "allow_ops": [
+    "fs.read", "fs.write", "fs.delete", "fs.create", "fs.rename", "fs.list", "fs.stat", "fs.copy", "fs.move",
+    "shell.exec", "shell.spawn", "shell.kill", "shell.signal",
+    "sql.query", "sql.execute", "sql.ddl", "sql.dml", "sql.schema", "sql.transaction",
+    "http.fetch", "http.post", "http.put", "http.delete", "http.patch", "http.head",
+    "web.search", "web.fetch", "web.research", "web.scrape",
+    "code.execute", "code.sandbox", "code.analyze", "code.lint",
+    "ide.modify", "ide.config", "ide.workspace", "ide.debug",
+    "process.manage", "process.spawn", "process.kill",
+    "system.diagnose", "system.monitor", "system.config",
+    "memory.write", "memory.persist", "memory.query", "memory.delete",
+    "computer.screenshot", "computer.click", "computer.type", "computer.scroll", "computer.move"
+  ],
+  "invariants": {
+    "no_venue_invention": true,
+    "schema_strict": true,
+    "word_caps": true,
+    "require_json_output": true,
+    "require_exact_model_ids": true,
+    "gpt5_reasoning_effort": "high"
+  },
+  "budgets_ms": {
+    "total": 360000,
+    "claude": 45000,
+    "gpt5": 120000,
+    "gemini": 60000
+  },
+  "memory": {
+    "backend": "postgres",
+    "tables": {
+      "state": "agent_memory",
+      "snapshots": "agent_snapshots"
+    },
+    "ttl_days": 730
+  },
+  "capabilities": {
+    "fs_read": true,
+    "fs_write": true,
+    "fs_delete": true,
+    "fs_create": true,
+    "fs_rename": true,
+    "fs_list": true,
+    "fs_copy": true,
+    "fs_move": true,
+    "shell_exec": true,
+    "shell_spawn": true,
+    "sql_query": true,
+    "sql_execute": true,
+    "web_search": true,
+    "web_fetch": true,
+    "code_execution": true,
+    "text_editor": true,
+    "bash": true,
+    "computer_use": true,
+    "atlas_fallback": true,
+    "thinking": true
+  },
+  "flags": {
+    "atlas_enabled": true,
+    "thinking_enabled": true,
+    "all_tools_enabled": true,
+    "full_access": true,
+    "unrestricted_shell": true,
+    "no_fallbacks": true,
+    "autonomous_mode": true,
+    "self_healing": true,
+    "circuit_breaker": true,
+    "unified_routing": true
+  },
+  "triad": {
+    "enabled": true,
+    "invariants": {
+      "no_venue_invention": true,
+      "schema_strict": true,
+      "word_caps": true,
+      "require_json_output": true,
+      "require_exact_model_ids": true,
+      "gpt5_reasoning_effort": "high"
+    },
+    "budgets": {
+      "timeouts": {
+        "claude_ms": 45000,
+        "planner_ms": 120000,
+        "gemini_ms": 60000
+      },
+      "tokens": {
+        "claude_max": 64000,
+        "gpt5_max_completion": 32000,
+        "gemini_max_output": 8192
+      }
+    }
+  },
+  "research": {
+    "enabled": true,
+    "provider": "gemini",
+    "model": "gemini-3-pro-preview",
+    "grounding": true
+  },
+  "startup": {
+    "require_env": [
+      "ANTHROPIC_API_KEY",
+      "OPENAI_API_KEY",
+      "GEMINI_API_KEY"
+    ]
+  },
+  "ui": {
+    "showResearchBanner": true,
+    "showThinkingIndicator": true
+  }
+}

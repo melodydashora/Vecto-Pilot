@@ -1,0 +1,367 @@
+════════════════════════════════════════════════════════════════════════════════
+SENT TO STRATEGIST - Verification File
+════════════════════════════════════════════════════════════════════════════════
+Generated: 2026-02-02T23:57:08.935Z
+Snapshot ID: 072c508c-cb2e-4a80-a592-9f4a4ffd97cc
+════════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+snapshot_id: 072c508c-cb2e-4a80-a592-9f4a4ffd97cc
+user_id: 9216b521-6fd7-4b8c-aee4-94f8cfb6fa80
+
+LOCATION (what strategist sees):
+  city: Frisco
+  state: TX
+  formatted_address: 6028 Midnight Moon Dr, Frisco, TX 75036, USA
+  lat: 33.12827309525537
+  lng: -96.87569944657896
+  timezone: America/Chicago
+
+TIME (what strategist sees):
+  local_iso: Mon Feb 02 2026 23:56:45 GMT+0000 (Coordinated Universal Time)
+  dow: 1 (Monday)
+  day_part_key: early_evening
+  is_holiday: false
+  holiday: none
+
+WEATHER (from snapshot):
+(null)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+briefing_id: 92569311-6296-49a1-9aff-4283e5c8160e
+snapshot_id: 072c508c-cb2e-4a80-a592-9f4a4ffd97cc
+created_at: Mon Feb 02 2026 23:56:46 GMT+0000 (Coordinated Universal Time)
+updated_at: Mon Feb 02 2026 23:57:08 GMT+0000 (Coordinated Universal Time)
+
+NEWS (0 items):
+{
+  "items": [],
+  "reason": "News fetch failed: {\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \",\"status\":\"RESOURCE_EXHAUSTED\"}}"
+}
+
+WEATHER_CURRENT:
+(null)
+
+WEATHER_FORECAST (0 hours):
+[]
+
+TRAFFIC_CONDITIONS:
+{
+  "jams": 87,
+  "stats": {
+    "jams": 87,
+    "major": 45,
+    "total": 100,
+    "closures": 9,
+    "highways": 77,
+    "accidents": 0,
+    "construction": 4
+  },
+  "summary": "100 active traffic incidents near Frisco, 87 traffic jams, 9 road closures, 4 construction zones",
+  "analyzed": false,
+  "briefing": "100 active traffic incidents near Frisco, 87 traffic jams, 9 road closures, 4 construction zones",
+  "closures": [
+    {
+      "road": "",
+      "location": "Lamar Hunt Way to FM-720",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 3.1
+    },
+    {
+      "road": "",
+      "location": "FM-720 to FM-720",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 3.2
+    },
+    {
+      "road": "",
+      "location": "Dallas Pkwy to Dallas North Tollway S",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 5.1
+    },
+    {
+      "road": "",
+      "location": "Gaylord Pkwy to Avenue Of Champions",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 3.1
+    },
+    {
+      "road": "",
+      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 7.7
+    },
+    {
+      "road": "",
+      "location": "Navo Rd to Paloma Creek Blvd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.3
+    },
+    {
+      "road": "",
+      "location": "Benjamins Way to N Cowan Ave",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.2
+    },
+    {
+      "road": "",
+      "location": "Lakewood Dr to Main St / N Hook St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.1
+    },
+    {
+      "road": "",
+      "location": "Archgate Dr to Preston Meadow Dr / Turnberry Ct",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 6.6
+    }
+  ],
+  "headline": "100 active traffic incidents near Frisco, 87 traffic jams, 9 road closures, 4 construction zones",
+  "provider": "tomtom",
+  "fetchedAt": "2026-02-02T23:56:46.991Z",
+  "incidents": [
+    {
+      "road": "US-380 W",
+      "category": "Jam",
+      "location": "Dallas Pkwy (US-380) to FM-1385 (US-380)",
+      "priority": 165,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: US-380 W (Dallas Pkwy (US-380) to FM-1385 (US-380)) [6.3 mi]",
+      "lengthMiles": 1,
+      "delayMinutes": 10,
+      "distanceFromDriver": 6.3
+    },
+    {
+      "road": "FM-423",
+      "category": "Jam",
+      "location": "Panther Creek Pkwy (TX-423) to US-380 (Gee Rd/TX-423)",
+      "priority": 164,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-423 (Panther Creek Pkwy (TX-423) to US-380 (Gee Rd/TX-423)) [5.4 mi]",
+      "lengthMiles": 0.9,
+      "delayMinutes": 9,
+      "distanceFromDriver": 5.4
+    },
+    {
+      "road": "FM-423",
+      "category": "Jam",
+      "location": "Gordon Heights Ln to US-380 W",
+      "priority": 162,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-423 (Gordon Heights Ln to US-380 W) [6.2 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 7,
+      "distanceFromDriver": 6.2
+    },
+    {
+      "road": "US-77 S, I-35E S",
+      "category": "Jam",
+      "location": "Eagle Point Rd/Exit 454B (I-35E) to FM-1171/Exit 452 (I-35E)",
+      "priority": 161,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: US-77 S, I-35E S (Eagle Point Rd/Exit 454B (I-35E) to FM-1171/Exit 452 (I-35E)) [9.3 mi]",
+      "lengthMiles": 2,
+      "delayMinutes": 6,
+      "distanceFromDriver": 9.3
+    },
+    {
+      "road": "FM-720",
+      "category": "Jam",
+      "location": "US-380 W to Fishtrap Rd",
+      "priority": 160,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-720 (US-380 W to Fishtrap Rd) [9 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 5,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Gee Rd (1st St) to FM-1385 (1st St)",
+      "priority": 160,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Gee Rd (1st St) to FM-1385 (1st St) [7 mi]",
+      "lengthMiles": 0.9,
+      "delayMinutes": 5,
+      "distanceFromDriver": 7
+    },
+    {
+      "road": "FM-720",
+      "category": "Jam",
+      "location": "W Eldorado Pkwy (W Main St/FM-720) to US-380 (W Main St/FM-720)",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-720 (W Eldorado Pkwy (W Main St/FM-720) to US-380 (W Main St/FM-720)) [6.9 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 4,
+      "distanceFromDriver": 6.9
+    },
+    {
+      "road": "FM-2934",
+      "category": "Jam",
+      "location": "Dallas Pkwy (Eldorado Pkwy/FM-2934) to Teel Pkwy (Eldorado Pkwy/FM-2934)",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-2934 (Dallas Pkwy (Eldorado Pkwy/FM-2934) to Teel Pkwy (Eldorado Pkwy/FM-2934)) [3.6 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 4,
+      "distanceFromDriver": 3.6
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Dallas North Tollway (W Parker Rd/FM-2514) to TX-289/Preston Rd (W Parker Rd/FM-2514)",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Dallas North Tollway (W Parker Rd/FM-2514) to TX-289/Preston Rd (W Parker Rd/FM-2514) [7.4 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 4,
+      "distanceFromDriver": 7.4
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Valley Ridge Blvd (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage)",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Valley Ridge Blvd (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage) [9.4 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 3,
+      "distanceFromDriver": 9.4
+    }
+  ],
+  "keyIssues": [],
+  "avoidAreas": [],
+  "safetyAlert": "87 active traffic jams in the area",
+  "driverImpact": null,
+  "surgePricing": true,
+  "closuresCount": 9,
+  "repositioning": null,
+  "incidentsCount": 100,
+  "totalIncidents": 100,
+  "closuresSummary": "9 road closures",
+  "congestionLevel": "high",
+  "highDemandZones": [],
+  "constructionSummary": null
+}
+
+EVENTS (1 total):
+[
+  {
+    "title": "Super Bowl LX",
+    "venue": "AT&T Stadium",
+    "impact": "high",
+    "address": "1 AT&T Way, Arlington, TX 76011",
+    "subtype": "sports",
+    "summary": "Super Bowl LX • AT&T Stadium • 2026-02-02 • 17:30",
+    "latitude": null,
+    "location": "AT&T Stadium, 1 AT&T Way, Arlington, TX 76011",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "sports",
+    "event_end_date": "2026-02-02",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-02-02",
+    "event_start_time": "17:30"
+  }
+]
+
+SCHOOL_CLOSURES (0 total, 0 active today):
+{
+  "items": [],
+  "reason": "No school closures found"
+}
+
+AIRPORT_CONDITIONS:
+{
+  "airports": [],
+  "fetchedAt": "2026-02-02T23:56:46.670Z",
+  "isFallback": true,
+  "busyPeriods": [],
+  "recommendations": null
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECTION 3: STRATEGY ROW (AI Output)                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+id: 06ce24bb-4340-4977-94c1-ab20969eb585
+snapshot_id: 072c508c-cb2e-4a80-a592-9f4a4ffd97cc
+status: pending
+error_message: (none)
+created_at: Mon Feb 02 2026 23:56:46 GMT+0000 (Coordinated Universal Time)
+updated_at: Mon Feb 02 2026 23:57:08 GMT+0000 (Coordinated Universal Time)
+
+STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
+────────────────────────────────────────────────────────────────────────────────
+(null or empty)
+────────────────────────────────────────────────────────────────────────────────
+
+CONSOLIDATED_STRATEGY (Gemini Daily Strategy):
+────────────────────────────────────────────────────────────────────────────────
+(null or empty)
+────────────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECTION 4: VERIFICATION CHECKLIST                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Data Integrity:
+  ✓ Snapshot timezone: America/Chicago
+  ✓ Briefing has traffic: YES
+  ✓ Briefing has events: YES
+  ✓ Strategy status: pending
+  ✓ Strategy has immediate: NO
+  ✓ Strategy has daily: NO
+  ✓ IDs match: YES
+
+School Closures Filter Check:
+  Today's date (America/Chicago): 2026-02-02
+  Active closures (start_date <= today <= end_date): 0 / 0
+  (None active today)
+
+Event Count:
+  Total events in briefing: 1
+  High impact: 1
+  Medium impact: 0
+  Low impact: 0
+
+TBD/Unknown Check (RAW DB data - these get filtered at read time):
+  Events with TBD in location: 0
+  Events with TBD in venue: 0
+  Events with TBD in time: 0
+
+Events AFTER filterInvalidEvents (what LLM actually receives):
+  Raw events in DB: 1
+  Filtered events (sent to LLM): 1
+  TBD events removed: 0
+
+════════════════════════════════════════════════════════════════════════════════
+END OF VERIFICATION FILE
+════════════════════════════════════════════════════════════════════════════════

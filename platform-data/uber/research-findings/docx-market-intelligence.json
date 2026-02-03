@@ -1,0 +1,292 @@
+[
+  {
+    "market": "Birmingham",
+    "market_slug": "birmingham",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "Alabama Tri-Polar Market Structure",
+    "summary": "Alabama operates as three distinct operational fiefdoms, not a single state market.",
+    "content": "## Birmingham Central Cluster\n\nBirmingham serves as the primary gravity well for central Alabama. The market boundary is expansive, swallowing Jefferson and Shelby counties entirely.\n\n**Key Satellites:** Adamsville, Bessemer, Fultondale, Gardendale, Irondale, Trussville, Hoover\n\n**Strategic Insight:** The inclusion of Clanton (halfway to Montgomery) suggests Birmingham's market has a massive southern tail designed to capture I-65 interstate transit traffic. A driver in Trussville is subject to the pricing surges of downtown Birmingham.\n\n**Tip:** Don't underestimate the reach of Birmingham's surge zones - they extend far into the suburbs.",
+    "neighborhoods": [
+      "Downtown Birmingham",
+      "Southside",
+      "Homewood",
+      "Mountain Brook",
+      "Vestavia Hills"
+    ],
+    "tags": [
+      "market-structure",
+      "hub-and-spoke",
+      "interstate-traffic",
+      "surge-zones"
+    ],
+    "priority": 75,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "3.1 Alabama: The Tri-Polar State",
+    "confidence": 85
+  },
+  {
+    "market": "Mobile",
+    "market_slug": "mobile",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "Coastal Corridor Market Structure",
+    "summary": "Mobile operates as a linear coastal market driven by tourism and cross-bay commuting.",
+    "content": "## The Mobile Coastal Corridor\n\nMobile is not just a city market - it's a coastal corridor that hugs the Gulf shoreline.\n\n**Key Areas:** Daphne, Fairhope, Spanish Fort, Gulf Shores, Orange Beach, Bayou La Batre\n\n**Tourism Driver:** The market structure is heavily influenced by beach tourism. Gulf Shores and Orange Beach generate significant seasonal demand.\n\n**Cross-Bay Dynamics:** The Eastern Shore communities (Daphne, Fairhope, Spanish Fort) are connected to Mobile via the I-10 tunnel and causeway. Cross-bay commuting creates consistent demand patterns.\n\n**Strategic Tip:** Position near the causeway/tunnel approaches during rush hours for high-probability pickups.",
+    "neighborhoods": [
+      "Downtown Mobile",
+      "Midtown",
+      "West Mobile",
+      "Eastern Shore"
+    ],
+    "tags": [
+      "coastal-market",
+      "tourism",
+      "seasonal",
+      "cross-bay-commuting"
+    ],
+    "priority": 70,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "3.1 Alabama: The Tri-Polar State - The Coastal Mobile Market",
+    "confidence": 80
+  },
+  {
+    "market": "Huntsville",
+    "market_slug": "huntsville",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "Northern Tech Corridor Market",
+    "summary": "Huntsville market is characterized by high-tech commuters with bedroom community satellites.",
+    "content": "## The Huntsville Tech Corridor\n\nHuntsville represents a rapidly expanding market node driven by aerospace and defense industries.\n\n**Key Satellites:** Madison, Decatur, Athens, Harvest, Hazel Green, Meridianville\n\n**Market Character:** Unlike tourism-driven Mobile, Huntsville's demand comes from tech workers. Morning and evening commute patterns are pronounced.\n\n**Bridge Node:** Cullman serves as a bridge between Huntsville and Birmingham markets, but is generally grouped with Huntsville for operational purposes.\n\n**Strategic Tip:** Focus on Research Park, Redstone Arsenal gates, and the airport for consistent corporate/professional riders.",
+    "neighborhoods": [
+      "Research Park",
+      "Downtown Huntsville",
+      "Madison",
+      "Jones Valley"
+    ],
+    "tags": [
+      "tech-corridor",
+      "commuter-market",
+      "aerospace",
+      "defense"
+    ],
+    "priority": 70,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "3.1 Alabama: The Tri-Polar State - The Northern Tech Corridor",
+    "confidence": 80
+  },
+  {
+    "market": "Fayetteville",
+    "market_slug": "fayetteville-ar",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "Twin City Tier-2 Dense Market",
+    "summary": "Fayetteville-Bentonville is a bipolar Tier-2 market rivaling Little Rock in density, driven by Walmart HQ and University of Arkansas.",
+    "content": "## The Fayetteville-Bentonville Complex\n\nThis is NOT \"Rural Arkansas\" - it's a Tier-2 dense urban market that rivals Little Rock in operational density.\n\n**Bipolar Structure:** Two major anchors create the market:\n- **Fayetteville:** University of Arkansas campus drives demand\n- **Bentonville/Rogers:** Walmart corporate headquarters creates business traveler demand\n\n**Key Satellites:** Cave Springs, Centerton, Lowell, Springdale, Siloam Springs\n\n**Strategic Insight:** The contiguous urban corridor along I-49 creates excellent positioning opportunities. Business travelers coming to Walmart HQ often need rides to XNA airport.\n\n**Peak Times:**\n- Game days at University of Arkansas (major surge events)\n- Walmart supplier meetings (Tuesday-Thursday business travel)\n- Weekend entertainment in downtown Fayetteville",
+    "neighborhoods": [
+      "Downtown Fayetteville",
+      "University of Arkansas",
+      "Bentonville Square",
+      "Rogers"
+    ],
+    "tags": [
+      "twin-city",
+      "tier-2-market",
+      "university",
+      "corporate-hq",
+      "walmart"
+    ],
+    "priority": 80,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "3.2 Arkansas: The Little Rock Radial",
+    "confidence": 85
+  },
+  {
+    "market": "Florida Keys",
+    "market_slug": "florida-keys",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "Isolated Island Market - Overseas Highway Bottleneck",
+    "summary": "The Florida Keys operate as an independent market despite proximity to Miami due to the Overseas Highway geographic bottleneck.",
+    "content": "## The Florida Keys Isolation\n\nDespite being relatively close to Miami, the Florida Keys function as a completely separate market.\n\n**Why Isolated:** The geographic bottleneck of the Overseas Highway (US-1) creates a \"hard border.\" There's only one road in and out, making the Keys operationally distinct.\n\n**Key Insight:** A driver in Key Largo is operationally distinct from a driver in Homestead. The platform maintains separate heatmaps for the Keys.\n\n**Market Characteristics:**\n- Tourism-driven demand\n- Limited driver supply (small resident population)\n- High surge potential during peak tourist seasons\n- Cruise ship days in Key West create demand spikes\n\n**Strategic Tip:** If you live in the Keys, you have a captive market. If you're from Miami, don't take fares to Key West unless you want a 3+ hour deadhead return.",
+    "neighborhoods": [
+      "Key West",
+      "Key Largo",
+      "Islamorada",
+      "Marathon"
+    ],
+    "tags": [
+      "isolated-market",
+      "tourism",
+      "bottleneck",
+      "limited-supply",
+      "cruise-ships"
+    ],
+    "priority": 75,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "3.3 Florida: The Peninsula of Convergence",
+    "confidence": 90
+  },
+  {
+    "market": "Inland Empire",
+    "market_slug": "inland-empire",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "LA vs Inland Empire - The Deadhead Risk",
+    "summary": "Inland Empire is operationally distinct from Los Angeles despite physical connection, due to the significant deadhead risk.",
+    "content": "## The Inland Empire Separation\n\nOne of the most critical market distinctions in California: Los Angeles and Inland Empire are physically connected but operationally DISTINCT.\n\n**Why Separate:** A driver taking a fare from Santa Monica to Moreno Valley faces a **two-hour unpaid return trip**. This \"deadhead risk\" is why Area Preferences are heavily utilized to wall off these markets.\n\n**Inland Empire Core Cities:** Fontana, Rialto, San Bernardino, Riverside, Moreno Valley, Ontario, Rancho Cucamonga\n\n**Strategic Warning:** If you're an LA driver, be very careful accepting rides heading east on the 10 or 60 freeways. Check the destination before accepting.\n\n**Palm Springs Connection:** Desert cities like Twentynine Palms and Yucca Valley are satellite nodes of Palm Springs, NOT the Inland Empire. They cater to military personnel (Marines base) and tourists.\n\n**Tip for IE Drivers:** ONT (Ontario Airport) is your best friend - business travelers need rides to/from the airport constantly.",
+    "neighborhoods": [
+      "Downtown Riverside",
+      "Ontario Mills",
+      "San Bernardino",
+      "Rancho Cucamonga",
+      "Fontana"
+    ],
+    "tags": [
+      "deadhead-risk",
+      "market-separation",
+      "area-preferences",
+      "airport-strategy"
+    ],
+    "priority": 85,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "4.1 California: The Infinite Grid - The Inland Empire Problem",
+    "confidence": 90
+  },
+  {
+    "market": "San Francisco",
+    "market_slug": "san-francisco",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "Bay Area Outer Ring - Fence-Sitter Cities",
+    "summary": "Cities like Vacaville and Fairfield sit on the fence between Bay Area and Sacramento markets.",
+    "content": "## The Bay Area Outer Ring Challenge\n\nThe San Francisco Bay Area market unifies Peninsula, East Bay, and South Bay. But the outer ring presents strategic challenges.\n\n**Fence-Sitter Cities:** Vacaville and Fairfield have dual market identity:\n- Grouped with Bay Area for SFO airport runs\n- Share commuter ties with Sacramento\n\n**Strategic Implication:** If you're in Vacaville/Fairfield:\n- Morning: Many riders heading to Bay Area employment\n- Airport runs: SFO is the destination, not SMF\n- But Sacramento is closer for some purposes\n\n**Bay Area Core Integration:** Palo Alto, Mountain View, Oakland, Berkeley, Fremont, and San Jose are fully interconnected. A ride from Fremont to SF is within-market.\n\n**Tip:** The I-680 and I-880 corridors define much of the East Bay market flow. Position along these for consistent demand.",
+    "neighborhoods": [
+      "Financial District",
+      "SoMa",
+      "Mission",
+      "Oakland Downtown",
+      "Palo Alto",
+      "San Jose Downtown"
+    ],
+    "tags": [
+      "fence-sitter",
+      "airport-strategy",
+      "commuter-flow",
+      "multi-market"
+    ],
+    "priority": 70,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "4.1 California: The Infinite Grid - The Bay Area Amalgamation",
+    "confidence": 80
+  },
+  {
+    "market": "Phoenix",
+    "market_slug": "phoenix",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "Phoenix Fringe Markets - Exurb Strategy",
+    "summary": "Maricopa and Casa Grande are Phoenix Fringe zones with spotty availability and long pickup fees.",
+    "content": "## The Phoenix Monolith and Its Fringe\n\nPhoenix functions as a massive, unified grid - unlike the distinct markets of the Bay Area. But the exurbs require special strategy.\n\n**Phoenix Core:** Phoenix, Scottsdale, Tempe, Mesa, Chandler, Gilbert, Glendale - all interconnected with consistent demand.\n\n**Fringe Markets:** Maricopa and Casa Grande are:\n- Geographically separated by tribal land or desert\n- Economically tethered to Phoenix\n- \"Phoenix Fringe\" zones with spotty availability\n- Long pickup fees likely apply\n\n**Isolated Independent Markets:** Flagstaff, Sedona, and Yuma operate with their own isolated driver pools. They rarely interact with Phoenix market.\n\n**Strategic Tips:**\n- PHX Sky Harbor is the gravity center - all roads lead there\n- Scottsdale has premium clientele, especially during tourist season\n- ASU game days create massive Tempe demand\n- If you're in Maricopa/Casa Grande, expect long pickups but potentially longer, better-paying rides to Phoenix",
+    "neighborhoods": [
+      "Downtown Phoenix",
+      "Scottsdale Old Town",
+      "Tempe Mill Ave",
+      "Mesa Downtown",
+      "Gilbert"
+    ],
+    "tags": [
+      "unified-grid",
+      "fringe-markets",
+      "long-pickup",
+      "airport-hub"
+    ],
+    "priority": 75,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "4.2 Arizona: The Phoenix Monolith",
+    "confidence": 85
+  },
+  {
+    "market": "Stamford",
+    "market_slug": "stamford",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "NYC Tributary Market - Connecticut Corridor",
+    "summary": "Southwestern Connecticut functions as a tributary to the NYC market, with regulatory boundaries preventing full merger.",
+    "content": "## Connecticut: The NYC Tributary\n\nConnecticut is unique - it lacks a singular dominant city. Instead, southwestern CT functions as a tributary to New York City.\n\n**NYC Economic Zone:** Stamford, Greenwich, Norwalk are effectively part of the NYC economic sphere:\n- Metro-North commuters\n- NYC corporate satellite offices\n- Hedge fund corridor\n\n**Regulatory Hard Border:** Despite economic integration, state lines create regulatory boundaries. A CT driver can't easily operate in NY without separate licensing.\n\n**Statewide Model:** The granular coverage (Ansonia, Berlin, Branford, Bristol, etc.) suggests a \"Statewide Market\" model where drivers can operate anywhere in CT.\n\n**Demand Hotspots:**\n- New Haven (Yale University)\n- Hartford (state capital, insurance industry)\n- Stamford (corporate hub)\n- Metro-North stations (commuter rush hours)\n\n**Strategic Tip:** Train station positioning during rush hours is highly effective in CT.",
+    "neighborhoods": [
+      "Downtown Stamford",
+      "Greenwich Avenue",
+      "New Haven Green",
+      "Hartford Downtown"
+    ],
+    "tags": [
+      "nyc-tributary",
+      "commuter-market",
+      "train-stations",
+      "statewide-market"
+    ],
+    "priority": 70,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "5.1 Connecticut: The Commuter Tributary",
+    "confidence": 80
+  },
+  {
+    "market": "Wilmington",
+    "market_slug": "wilmington-de",
+    "platform": "uber",
+    "intel_type": "strategy",
+    "title": "Delaware Beach vs Bank Bifurcation",
+    "summary": "Delaware operates as two distinct markets: Northern Delaware (corporate/Philadelphia satellite) and Southern Delaware (seasonal beach tourism).",
+    "content": "## Delaware: Beach vs Bank\n\nDelaware shows a clear bifurcation into two distinct market types:\n\n### Northern Delaware (The Bank)\n**Cities:** Wilmington, Newark, Claymont\n**Character:** Corporate/urban center, functionally a satellite of Philadelphia\n**Demand Drivers:**\n- Corporate headquarters (many Fortune 500 companies incorporated in DE)\n- Philadelphia commuters\n- University of Delaware (Newark)\n\n### Southern Delaware (The Beach)\n**Cities:** Rehoboth Beach, Dewey Beach, Bethany Beach, Lewes\n**Character:** Purely seasonal tourism market\n**Demand Drivers:**\n- Summer beach tourism\n- Weekend getaways from DC/Baltimore/Philadelphia\n\n**Bridge Towns:** Georgetown and Seaford connect the beach economy with workforce housing further west.\n\n**Strategic Insight:** If you're a DE driver, the beach towns are extremely seasonal. Plan for summer surge and winter slowdown. Northern DE is more consistent year-round.",
+    "neighborhoods": [
+      "Downtown Wilmington",
+      "Riverfront",
+      "Rehoboth Avenue",
+      "Dewey Beach"
+    ],
+    "time_context": {
+      "seasonal": "beach_summer_peak"
+    },
+    "tags": [
+      "bifurcated-market",
+      "seasonal-tourism",
+      "corporate-satellite",
+      "beach-market"
+    ],
+    "priority": 65,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "5.2 Delaware: The Beach vs. The Bank",
+    "confidence": 80
+  },
+  {
+    "market": "Los Angeles",
+    "market_slug": "los-angeles",
+    "platform": "uber",
+    "intel_type": "general",
+    "title": "Upfront Pricing and Market Border Hardening",
+    "summary": "Upfront pricing deployment hardens market borders by allowing drivers to see destinations beforehand, reducing cross-market rides.",
+    "content": "## Upfront Pricing: The Border Hardening Effect\n\nWhen a market transitions to upfront pricing, the algorithmic definition of that market HARDENS.\n\n**How It Works:** Drivers in upfront pricing markets see the destination and fare BEFORE accepting. This fundamentally changes market dynamics.\n\n**The Deadhead Effect:** A driver in an upfront market is LESS likely to accept a ride taking them out of the market because they can see the \"deadhead risk\" coming.\n\n**Strategic Implications:**\n- Long-distance rides out of market become harder to fill\n- Drivers cherry-pick to stay within their comfort zone\n- Cross-market liquidity decreases\n\n**For Riders:** If you need a ride from LA to Inland Empire, expect:\n- Possible longer wait times\n- Potentially higher prices (incentive needed to get a driver to accept)\n\n**For Drivers:** Use upfront pricing information strategically:\n- Avoid rides that will strand you in low-demand areas\n- Time your \"return\" rides during surge periods\n- Know your market's hard borders\n\nThis is why understanding market boundaries is CRITICAL - upfront pricing reinforces them.",
+    "tags": [
+      "upfront-pricing",
+      "market-borders",
+      "deadhead-risk",
+      "algorithm"
+    ],
+    "priority": 80,
+    "source": "research",
+    "source_file": "platform-data/Uber Cities by Market and State.docx",
+    "source_section": "7.2 The Mechanics of Upfront Pricing",
+    "confidence": 85
+  }
+]

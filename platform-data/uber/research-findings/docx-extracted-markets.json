@@ -1,0 +1,5271 @@
+{
+  "_comment": "Extracted from 'Uber Cities by Market and State.docx'",
+  "_date": "2026-02-02",
+  "_source": "Global Market Intelligence research document",
+  "markets": [
+    {
+      "market_name": "Birmingham",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Adamsville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Alabaster",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Anniston",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bessemer",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Birmingham",
+          "region_type": "Core"
+        },
+        {
+          "city": "Calera",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Center Point",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Chelsea",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Childersburg",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Clanton",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fairfield",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fultondale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gadsden",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gardendale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Graysville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Helena",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hoover",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Indian Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Irondale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Jacksonville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Jasper",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Leeds",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Midfield",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Montevallo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Moody",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mountain Brk",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Oxford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pelham",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pell City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Piedmont",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Pinson",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pleasant Grove",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rainbow City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Southside",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sylacauga",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Talladega",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Trussville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Vestavia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Warrior",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Huntsville",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Albertville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Arab",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Athens",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Boaz",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Cullman",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Decatur",
+          "region_type": "Core"
+        },
+        {
+          "city": "Guntersville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Gurley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hartselle",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Harvest",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hazel Green",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Huntsville",
+          "region_type": "Core"
+        },
+        {
+          "city": "Madison",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Meridianville",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Dothan",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Ashford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Daleville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Dothan",
+          "region_type": "Core"
+        },
+        {
+          "city": "Enterprise",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ozark",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Taylor",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Auburn",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Auburn",
+          "region_type": "Core"
+        },
+        {
+          "city": "Lanett",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Opelika",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Valley",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Mobile",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Bayou La Batre",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Chickasaw",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Daphne",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fairhope",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Foley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Grand Bay",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Gulf Shores",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Loxley",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Mobile",
+          "region_type": "Core"
+        },
+        {
+          "city": "Orange Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Prichard",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Robertsdale",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Saraland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Semmes",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Spanish Fort",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Florence",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Florence",
+          "region_type": "Core"
+        },
+        {
+          "city": "Killen",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Muscle Shoals",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sheffield",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Montgomery",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Millbrook",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Montgomery",
+          "region_type": "Core"
+        },
+        {
+          "city": "Prattville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Wetumpka",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Tuscaloosa",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Northport",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Tuscaloosa",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Columbus (GA)",
+      "state_abbr": "AL",
+      "cities": [
+        {
+          "city": "Phenix City",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Alabama"
+    },
+    {
+      "market_name": "Anchorage",
+      "state_abbr": "AK",
+      "cities": [
+        {
+          "city": "Anchorage",
+          "region_type": "Core"
+        },
+        {
+          "city": "Wasilla",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Alaska"
+    },
+    {
+      "market_name": "Fairbanks",
+      "state_abbr": "AK",
+      "cities": [
+        {
+          "city": "Fairbanks",
+          "region_type": "Core"
+        },
+        {
+          "city": "North Pole",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Alaska"
+    },
+    {
+      "market_name": "Phoenix",
+      "state_abbr": "AZ",
+      "cities": [
+        {
+          "city": "Anthem",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Apache Junction",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Avondale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Buckeye",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Casa Grande",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Cave Creek",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Chandler",
+          "region_type": "Core"
+        },
+        {
+          "city": "Coolidge",
+          "region_type": "Rural"
+        },
+        {
+          "city": "El Mirage",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Eloy",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Florence",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fountain Hills",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gilbert",
+          "region_type": "Core"
+        },
+        {
+          "city": "Glendale",
+          "region_type": "Core"
+        },
+        {
+          "city": "Gold Canyon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Goodyear",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Guadalupe",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Litchfield Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Maricopa",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Mesa",
+          "region_type": "Core"
+        },
+        {
+          "city": "Paradise Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Payson",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Peoria",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Phoenix",
+          "region_type": "Core"
+        },
+        {
+          "city": "Queen Creek",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Tan Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Scottsdale",
+          "region_type": "Core"
+        },
+        {
+          "city": "Sun City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sun City West",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sun Lakes",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Surprise",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Tempe",
+          "region_type": "Core"
+        },
+        {
+          "city": "Tolleson",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Youngtown",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Arizona"
+    },
+    {
+      "market_name": "Las Vegas (NV)",
+      "state_abbr": "AZ",
+      "cities": [
+        {
+          "city": "Bullhead City",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fort Mohave",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Kingman",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lake Havasu City",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Arizona"
+    },
+    {
+      "market_name": "Flagstaff",
+      "state_abbr": "AZ",
+      "cities": [
+        {
+          "city": "Flagstaff",
+          "region_type": "Core"
+        },
+        {
+          "city": "Sedona",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Arizona"
+    },
+    {
+      "market_name": "Tucson",
+      "state_abbr": "AZ",
+      "cities": [
+        {
+          "city": "Green Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Nogales",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Oro Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sahuarita",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sierra Vista",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Tucson",
+          "region_type": "Core"
+        },
+        {
+          "city": "Vail",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Arizona"
+    },
+    {
+      "market_name": "Prescott",
+      "state_abbr": "AZ",
+      "cities": [
+        {
+          "city": "Prescott",
+          "region_type": "Core"
+        },
+        {
+          "city": "Prescott Valley",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Arizona"
+    },
+    {
+      "market_name": "Yuma",
+      "state_abbr": "AZ",
+      "cities": [
+        {
+          "city": "Yuma",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Arizona"
+    },
+    {
+      "market_name": "Fort Smith",
+      "state_abbr": "AR",
+      "cities": [
+        {
+          "city": "Alma",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Barling",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Clarksville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fort Smith",
+          "region_type": "Core"
+        },
+        {
+          "city": "Greenwood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Van Buren",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Arkansas"
+    },
+    {
+      "market_name": "Little Rock",
+      "state_abbr": "AR",
+      "cities": [
+        {
+          "city": "Batesville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Beebe",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Benton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bryant",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cabot",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Conway",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Greenbrier",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Hensley",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Jacksonville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Little Rock",
+          "region_type": "Core"
+        },
+        {
+          "city": "Maumelle",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mountain Home",
+          "region_type": "Rural"
+        },
+        {
+          "city": "North Little Rock",
+          "region_type": "Core"
+        },
+        {
+          "city": "Pine Bluff",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Searcy",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Sherwood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "White Hall",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Arkansas"
+    },
+    {
+      "market_name": "Fayetteville",
+      "state_abbr": "AR",
+      "cities": [
+        {
+          "city": "Bella Vista",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bentonville",
+          "region_type": "Core"
+        },
+        {
+          "city": "Cave Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Centerton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Elkins",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Eureka Springs",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Farmington",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fayetteville",
+          "region_type": "Core"
+        },
+        {
+          "city": "Gentry",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lowell",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pea Ridge",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rogers",
+          "region_type": "Core"
+        },
+        {
+          "city": "Siloam Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Springdale",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Arkansas"
+    },
+    {
+      "market_name": "Jonesboro",
+      "state_abbr": "AR",
+      "cities": [
+        {
+          "city": "Brookland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Jonesboro",
+          "region_type": "Core"
+        },
+        {
+          "city": "Paragould",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Wynne",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Arkansas"
+    },
+    {
+      "market_name": "Russellville",
+      "state_abbr": "AR",
+      "cities": [
+        {
+          "city": "Dardanelle",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Russellville",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Arkansas"
+    },
+    {
+      "market_name": "Hot Springs",
+      "state_abbr": "AR",
+      "cities": [
+        {
+          "city": "Hot Springs",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Arkansas"
+    },
+    {
+      "market_name": "Memphis (TN)",
+      "state_abbr": "AR",
+      "cities": [
+        {
+          "city": "Marion",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "West Memphis",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Arkansas"
+    },
+    {
+      "market_name": "Texarkana",
+      "state_abbr": "AR",
+      "cities": [
+        {
+          "city": "Texarkana",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Arkansas"
+    },
+    {
+      "market_name": "Los Angeles",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Acton",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Agoura Hills",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Alhambra",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Altadena",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Arcadia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Artesia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Azusa",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Baldwin Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bell",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bell Gardens",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bellflower",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Beverly Hills",
+          "region_type": "Core"
+        },
+        {
+          "city": "Burbank",
+          "region_type": "Core"
+        },
+        {
+          "city": "Calabasas",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Carson",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Castaic",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Cerritos",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "City of Industry",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Claremont",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Commerce",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Compton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Covina",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cudahy",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Culver City",
+          "region_type": "Core"
+        },
+        {
+          "city": "Diamond Bar",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Downey",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Duarte",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "El Monte",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "El Segundo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gardena",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Glendale",
+          "region_type": "Core"
+        },
+        {
+          "city": "Glendora",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hacienda Heights",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Harbor City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hawaiian Gardens",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hawthorne",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hermosa Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Huntington Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Inglewood",
+          "region_type": "Core"
+        },
+        {
+          "city": "Irwindale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "La Crescenta",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "La Mirada",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "LA Puente",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "La Verne",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lakewood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lancaster",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lawndale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Littlerock",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lomita",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Long Beach",
+          "region_type": "Core"
+        },
+        {
+          "city": "Los Angeles",
+          "region_type": "Core"
+        },
+        {
+          "city": "Lynwood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Malibu",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Manhattan Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Maywood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Monrovia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Montebello",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Monterey Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Norwalk",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Palmdale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Palos Verdes Estates",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Paramount",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pasadena",
+          "region_type": "Core"
+        },
+        {
+          "city": "Pico Rivera",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pomona",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Quartz Hill",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rancho Palos Verdes",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Redondo Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rolling Hills Estates",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rosemead",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rowland Heights",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Dimas",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Fernando",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Gabriel",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Marino",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santa Clarita",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santa Fe Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santa Monica",
+          "region_type": "Core"
+        },
+        {
+          "city": "Sierra Madre",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Signal Hill",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "South El Monte",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "South Gate",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "South Pasadena",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Stevenson Ranch",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Temple City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Topanga",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Torrance",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Vernon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Walnut",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "West Covina",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "West Hollywood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Westlake Village",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Whittier",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Inland Empire",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Adelanto",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Apple Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Banning",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Barstow",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Beaumont",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bloomington",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cabazon",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Calimesa",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Canyon Lake",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Chino",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Chino Hills",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Colton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Corona",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Crestline",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fontana",
+          "region_type": "Core"
+        },
+        {
+          "city": "Grand Terrace",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hemet",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hesperia",
+          "region_type": "Core"
+        },
+        {
+          "city": "Highland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lake Arrowhead",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lake Elsinore",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Loma Linda",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Menifee",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mentone",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Montclair",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Moreno Valley",
+          "region_type": "Core"
+        },
+        {
+          "city": "Murrieta",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Norco",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Nuevo",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Oak Hills",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Ontario",
+          "region_type": "Core"
+        },
+        {
+          "city": "Perris",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Phelan",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Rancho Cucamonga",
+          "region_type": "Core"
+        },
+        {
+          "city": "Redlands",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rialto",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Riverside",
+          "region_type": "Core"
+        },
+        {
+          "city": "San Bernardino",
+          "region_type": "Core"
+        },
+        {
+          "city": "San Jacinto",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Temecula",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Twentynine Palms",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Upland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Victorville",
+          "region_type": "Core"
+        },
+        {
+          "city": "Wildomar",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Winchester",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Yucaipa",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Yucca Valley",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "San Francisco",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Alameda",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Alamo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Albany",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "American Canyon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Antioch",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bay Point",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Belmont",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Benicia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Berkeley",
+          "region_type": "Core"
+        },
+        {
+          "city": "Brentwood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Brisbane",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Burlingame",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Campbell",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Castro Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Clayton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Colma",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Concord",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Corte Madera",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cupertino",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Daly City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Danville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Discovery Bay",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Dublin",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "East Palo Alto",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "El Cerrito",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "El Sobrante",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Emerald Hills",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Emeryville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fairfax",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fairfield",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Foster City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fremont",
+          "region_type": "Core"
+        },
+        {
+          "city": "Gilroy",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Half Moon Bay",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Hayward",
+          "region_type": "Core"
+        },
+        {
+          "city": "Hercules",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Kentfield",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lafayette",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Larkspur",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Livermore",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Los Altos",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Los Gatos",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Martinez",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Menlo Park",
+          "region_type": "Core"
+        },
+        {
+          "city": "Mill Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Millbrae",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Milpitas",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Moraga",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Morgan Hill",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mountain View",
+          "region_type": "Core"
+        },
+        {
+          "city": "Newark",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Novato",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Oakland",
+          "region_type": "Core"
+        },
+        {
+          "city": "Oakley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Orinda",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pacheco",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pacifica",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Palo Alto",
+          "region_type": "Core"
+        },
+        {
+          "city": "Piedmont",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pinole",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pittsburg",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pleasant Hill",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pleasanton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Portola Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Redwood City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Richmond",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rio Vista",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Rodeo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ross",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Anselmo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Bruno",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Carlos",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Francisco",
+          "region_type": "Core"
+        },
+        {
+          "city": "San Jose",
+          "region_type": "Core"
+        },
+        {
+          "city": "San Leandro",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Lorenzo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Mateo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Pablo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Rafael",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Ramon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santa Clara",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Saratoga",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sausalito",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "South San Francisco",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Stanford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Suisun City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sunnyvale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Tiburon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Union City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Vacaville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Vallejo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Walnut Creek",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Orange County",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Aliso Viejo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Anaheim",
+          "region_type": "Core"
+        },
+        {
+          "city": "Brea",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Buena Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Costa Mesa",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cypress",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Dana Point",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fountain Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fullerton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Garden Grove",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Huntington Beach",
+          "region_type": "Core"
+        },
+        {
+          "city": "Irvine",
+          "region_type": "Core"
+        },
+        {
+          "city": "LA Habra",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "LA Palma",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Laguna Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Laguna Hills",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Laguna Niguel",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Laguna Woods",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lake Forest",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Las Flores",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Los Alamitos",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mission Viejo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Newport Beach",
+          "region_type": "Core"
+        },
+        {
+          "city": "Orange",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Placentia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rancho Santa Margarita",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Clemente",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Juan Capistrano",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santa Ana",
+          "region_type": "Core"
+        },
+        {
+          "city": "Seal Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Stanton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Tustin",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Villa Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Westminster",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Yorba Linda",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "San Diego",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Alpine",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Bonita",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bonsall",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Carlsbad",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Chula Vista",
+          "region_type": "Core"
+        },
+        {
+          "city": "Coronado",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Del Mar",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "El Cajon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Encinitas",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Escondido",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fallbrook",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Imperial Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Jamul",
+          "region_type": "Rural"
+        },
+        {
+          "city": "La Mesa",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lakeside",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lemon Grove",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "National City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Oceanside",
+          "region_type": "Core"
+        },
+        {
+          "city": "Poway",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ramona",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Rancho Santa Fe",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Diego",
+          "region_type": "Core"
+        },
+        {
+          "city": "San Marcos",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santee",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Solana Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Spring Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Valley Center",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Vista",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Redding",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Anderson",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Redding",
+          "region_type": "Core"
+        },
+        {
+          "city": "Shasta Lake",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Sacramento",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Antelope",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Auburn",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Cameron Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Carmichael",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Citrus Heights",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Davis",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Dixon",
+          "region_type": "Rural"
+        },
+        {
+          "city": "El Dorado Hills",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Elk Grove",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Elverta",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fair Oaks",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Folsom",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Galt",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Gold River",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Granite Bay",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Grass Valley",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lincoln",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Loomis",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mather",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "McClellan",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Newcastle",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "North Highlands",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Orangevale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Placerville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rancho Cordova",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rio Linda",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rocklin",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Roseville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sacramento",
+          "region_type": "Core"
+        },
+        {
+          "city": "Sheridan",
+          "region_type": "Rural"
+        },
+        {
+          "city": "West Sacramento",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Woodland",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Santa Cruz",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Aptos",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ben Lomond",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Capitola",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Felton",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Santa Cruz",
+          "region_type": "Core"
+        },
+        {
+          "city": "Scot Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Soquel",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Watsonville",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Eureka",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Arcata",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Eureka",
+          "region_type": "Core"
+        },
+        {
+          "city": "McKinleyville",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "San Luis Obispo",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Arroyo Grande",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Atascadero",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Grover Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Los Osos",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Morro Bay",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Nipomo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Oceano",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Paso Robles",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pismo Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Luis Obispo",
+          "region_type": "Core"
+        },
+        {
+          "city": "Templeton",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Bakersfield",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Arvin",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bakersfield",
+          "region_type": "Core"
+        },
+        {
+          "city": "Lamont",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ridgecrest",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Rosamond",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Shafter",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Tehachapi",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Wasco",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Merced",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Atwater",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Delhi",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Hilmar",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Livingston",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Merced",
+          "region_type": "Core"
+        },
+        {
+          "city": "Winton",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Palm Springs",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Bermuda Dunes",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Blythe",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Cathedral City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Coachella",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Desert Hot Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Indian Wells",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Indio",
+          "region_type": "Core"
+        },
+        {
+          "city": "Joshua Tree",
+          "region_type": "Rural"
+        },
+        {
+          "city": "LA Quinta",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Palm Desert",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Palm Springs",
+          "region_type": "Core"
+        },
+        {
+          "city": "Rancho Mirage",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Thousand Palms",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Imperial Valley",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Brawley",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Calexico",
+          "region_type": "Rural"
+        },
+        {
+          "city": "El Centro",
+          "region_type": "Core"
+        },
+        {
+          "city": "Imperial",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Santa Barbara",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Buellton",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Carpinteria",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Goleta",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lompoc",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santa Barbara",
+          "region_type": "Core"
+        },
+        {
+          "city": "Santa Maria",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Solvang",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Napa Valley",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Calistoga",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Napa",
+          "region_type": "Core"
+        },
+        {
+          "city": "Saint Helena",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Ventura",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Camarillo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fillmore",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Moorpark",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Oak Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ojai",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Oxnard",
+          "region_type": "Core"
+        },
+        {
+          "city": "Port Hueneme",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santa Paula",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Simi Valley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Thousand Oaks",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ventura",
+          "region_type": "Core"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Monterey",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Carmel",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Castroville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Marina",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Monterey",
+          "region_type": "Core"
+        },
+        {
+          "city": "Pacific Grove",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sand City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Seaside",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Modesto",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Ceres",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Denair",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Hughson",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Modesto",
+          "region_type": "Core"
+        },
+        {
+          "city": "Oakdale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Riverbank",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Salida",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sonora",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Turlock",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Waterford",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Chico",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Chico",
+          "region_type": "Core"
+        },
+        {
+          "city": "Paradise",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Sonoma",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Cloverdale",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Cotati",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Glen Ellen",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Guerneville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Healdsburg",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Penngrove",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Petaluma",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rohnert Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Santa Rosa",
+          "region_type": "Core"
+        },
+        {
+          "city": "Sebastopol",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sonoma",
+          "region_type": "Core"
+        },
+        {
+          "city": "Windsor",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Fresno",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Clovis",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fowler",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fresno",
+          "region_type": "Core"
+        },
+        {
+          "city": "Kerman",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Kingsburg",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Madera",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Parlier",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Reedley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sanger",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Selma",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Visalia",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Dinuba",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Exeter",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Farmersville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hanford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lemoore",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lindsay",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Orosi",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Porterville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Tulare",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Visalia",
+          "region_type": "Core"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Salinas",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Gonzales",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Greenfield",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Hollister",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "King City",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Salinas",
+          "region_type": "Core"
+        },
+        {
+          "city": "Soledad",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Lake Tahoe",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Kings Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "South Lake Tahoe",
+          "region_type": "Core"
+        },
+        {
+          "city": "Tahoe City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Tahoe Vista",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Truckee",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Stockton",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Lathrop",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lodi",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Manteca",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ripon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Stockton",
+          "region_type": "Core"
+        },
+        {
+          "city": "Tracy",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Woodbridge",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Yuba City",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Linda",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Marysville",
+          "region_type": "Core"
+        },
+        {
+          "city": "Olivehurst",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Yuba City",
+          "region_type": "Core"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Ukiah",
+      "state_abbr": "CA",
+      "cities": [
+        {
+          "city": "Ukiah",
+          "region_type": "Core"
+        }
+      ],
+      "state": "California"
+    },
+    {
+      "market_name": "Abilene",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Abilene",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Dallas-Fort Worth",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Allen",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Arlington",
+          "region_type": "Core"
+        },
+        {
+          "city": "Dallas",
+          "region_type": "Core"
+        },
+        {
+          "city": "Denton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fort Worth",
+          "region_type": "Core"
+        },
+        {
+          "city": "Frisco",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Garland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Grand Prairie",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Irving",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lewisville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "McKinney",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mesquite",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Plano",
+          "region_type": "Core"
+        },
+        {
+          "city": "Richardson",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Amarillo",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Amarillo",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Austin",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Austin",
+          "region_type": "Core"
+        },
+        {
+          "city": "Round Rock",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Marcos",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Houston",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Baytown",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Conroe",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Galveston",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Houston",
+          "region_type": "Core"
+        },
+        {
+          "city": "Katy",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pasadena",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pearland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Sugar Land",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "The Woodlands",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Beaumont",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Beaumont",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "College Station",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "College Station",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Corpus Christi",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Corpus Christi",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "El Paso",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "El Paso",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Laredo",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Laredo",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Longview",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Longview",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Lubbock",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Lubbock",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "McAllen",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "McAllen",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Midland-Odessa",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Midland",
+          "region_type": "Core"
+        },
+        {
+          "city": "Odessa",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "San Antonio",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "New Braunfels",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "San Antonio",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "San Angelo",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "San Angelo",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Killeen-Temple",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Temple",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Tyler",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Tyler",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Victoria",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Victoria",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Waco",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Waco",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Wichita Falls",
+      "state_abbr": "TX",
+      "cities": [
+        {
+          "city": "Wichita Falls",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Texas"
+    },
+    {
+      "market_name": "Denver",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Arvada",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Aurora",
+          "region_type": "Core"
+        },
+        {
+          "city": "Brighton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Broomfield",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Castle Pines",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Castle Rock",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Centennial",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Commerce City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Denver",
+          "region_type": "Core"
+        },
+        {
+          "city": "Edgewater",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Englewood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Erie",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Evergreen",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Federal Heights",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Firestone",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fort Lupton",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Frederick",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Golden",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Greenwood Village",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Highlands Ranch",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lakewood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Littleton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lochbuie",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lone Tree",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mead",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Morrison",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Northglenn",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Parker",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Thornton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Westminster",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Wheat Ridge",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Vail",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Avon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Vail",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Aspen",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Basalt",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Carbondale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Glenwood Springs",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Fort Collins",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Berthoud",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fort Collins",
+          "region_type": "Core"
+        },
+        {
+          "city": "Johnstown",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Loveland",
+          "region_type": "Core"
+        },
+        {
+          "city": "Timnath",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Wellington",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Windsor",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Boulder",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Boulder",
+          "region_type": "Core"
+        },
+        {
+          "city": "Lafayette",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Longmont",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Louisville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Superior",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Summit County",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Breckenridge",
+          "region_type": "Core"
+        },
+        {
+          "city": "Dillon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Silverthorne",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Grand Junction",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Clifton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fruita",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Grand Junction",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Colorado Springs",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Colorado Springs",
+          "region_type": "Core"
+        },
+        {
+          "city": "Fort Carson",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fountain",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Manitou Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Monument",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Woodland Park",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Durango",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Durango",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Greeley",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Eaton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Evans",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Garden City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Greeley",
+          "region_type": "Core"
+        },
+        {
+          "city": "La Salle",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Milliken",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Pueblo",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Pueblo",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "Steamboat Springs",
+      "state_abbr": "CO",
+      "cities": [
+        {
+          "city": "Steamboat Springs",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Colorado"
+    },
+    {
+      "market_name": "New Haven",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Ansonia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Branford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cheshire",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Clinton",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Deep River",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Derby",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Durham",
+          "region_type": "Rural"
+        },
+        {
+          "city": "East Haven",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Essex",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Guilford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Madison",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Meriden",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Milford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "New Haven",
+          "region_type": "Core"
+        },
+        {
+          "city": "North Haven",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Old Saybrook",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Orange",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Wallingford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "West Haven",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Westbrook",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Hartford",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Berlin",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bloomfield",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bristol",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Broad Brook",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Canton",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Colchester",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Collinsville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Coventry",
+          "region_type": "Rural"
+        },
+        {
+          "city": "East Hampton",
+          "region_type": "Rural"
+        },
+        {
+          "city": "East Hartford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Enfield",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Glastonbury",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Granby",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Hartford",
+          "region_type": "Core"
+        },
+        {
+          "city": "Manchester",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Marlborough",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Middletown",
+          "region_type": "Core"
+        },
+        {
+          "city": "New Britain",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "New Hartford",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Newington",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Plantsville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Portland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Simsbury",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Stafford Springs",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Storrs Mansfield",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Suffield",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Tariffville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Vernon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Weatogue",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "West Hartford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Wethersfield",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Windsor Locks",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Danbury",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Bethel",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Danbury",
+          "region_type": "Core"
+        },
+        {
+          "city": "New Milford",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Newtown",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Ridgefield",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Bridgeport",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Bridgeport",
+          "region_type": "Core"
+        },
+        {
+          "city": "Shelton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Southport",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Stratford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Trumbull",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Willimantic",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Brooklyn",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Putnam",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Willimantic",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Stamford",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Cos Cob",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Darien",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Greenwich",
+          "region_type": "Core"
+        },
+        {
+          "city": "Old Greenwich",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Port Chester",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Riverside",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Rye Brook",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Stamford",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "New London",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Gales Ferry",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Groton",
+          "region_type": "Core"
+        },
+        {
+          "city": "Ledyard",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Mystic",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "New London",
+          "region_type": "Core"
+        },
+        {
+          "city": "Niantic",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Pawcatuck",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Uncasville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Waterford",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Norwich",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Griswold",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Norwich",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Waterbury",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Naugatuck",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Terryville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Thomaston",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Waterbury",
+          "region_type": "Core"
+        },
+        {
+          "city": "Watertown",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Woodbury",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Norwalk",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Norwalk",
+          "region_type": "Core"
+        },
+        {
+          "city": "Westport",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Wilton",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Torrington",
+      "state_abbr": "CT",
+      "cities": [
+        {
+          "city": "Torrington",
+          "region_type": "Core"
+        },
+        {
+          "city": "Winsted",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Connecticut"
+    },
+    {
+      "market_name": "Salisbury (MD)",
+      "state_abbr": "DE",
+      "cities": [
+        {
+          "city": "Bethany Beach",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Delmar",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Dewey Beach",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fenwick Island",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Georgetown",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lewes",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Millsboro",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Millville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Ocean View",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Rehoboth Beach",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Seaford",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Selbyville",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Delaware"
+    },
+    {
+      "market_name": "Dover",
+      "state_abbr": "DE",
+      "cities": [
+        {
+          "city": "Camden",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Dover",
+          "region_type": "Core"
+        },
+        {
+          "city": "Harrington",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Magnolia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Milford",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Smyrna",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Delaware"
+    },
+    {
+      "market_name": "Wilmington",
+      "state_abbr": "DE",
+      "cities": [
+        {
+          "city": "Claymont",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hockessin",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Middletown",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "New Castle",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Newark",
+          "region_type": "Core"
+        },
+        {
+          "city": "Wilmington",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Delaware"
+    },
+    {
+      "market_name": "Washington DC",
+      "state_abbr": "DC",
+      "cities": [
+        {
+          "city": "Washington",
+          "region_type": "Core"
+        }
+      ],
+      "state": "District of Columbia"
+    },
+    {
+      "market_name": "Gainesville",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Alachua",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gainesville",
+          "region_type": "Core"
+        },
+        {
+          "city": "Newberry",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Orlando",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Altamonte Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Apopka",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Belle Isle",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Casselberry",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Chuluota",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Clermont",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Davenport",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Eatonville",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Edgewood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Eustis",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fern Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gotha",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Groveland",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Kissimmee",
+          "region_type": "Core"
+        },
+        {
+          "city": "Lake Buena Vista",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lake Mary",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Longwood",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Maitland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Minneola",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Montverde",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Mount Dora",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Tampa",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Apollo Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Belleair Bluffs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Brandon",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Brooksville",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Clearwater",
+          "region_type": "Core"
+        },
+        {
+          "city": "Dade City",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Dunedin",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gibsonton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gulfport",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hernando Beach",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Holiday",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hudson",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Indian Rocks Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Indian Shores",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Kenneth City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Land O Lakes",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Largo",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lithia",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lutz",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Madeira Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "New Port Richey",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Jacksonville",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Asbury Lake",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Atlantic Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Callahan",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Fernandina Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fleming Island",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Green Cove Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Jacksonville",
+          "region_type": "Core"
+        },
+        {
+          "city": "Jacksonville Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Macclenny",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Middleburg",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Neptune Beach",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Lakeland",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Auburndale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bartow",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Dundee",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Eagle Lake",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Haines City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lake Alfred",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lake Wales",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lakeland",
+          "region_type": "Core"
+        },
+        {
+          "city": "Mulberry",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Miami",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Aventura",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bal Harbour",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Bay Harbor Islands",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Coral Gables",
+          "region_type": "Core"
+        },
+        {
+          "city": "Cutler Bay",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Doral",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "El Portal",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Florida City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hialeah",
+          "region_type": "Core"
+        },
+        {
+          "city": "Hialeah Gardens",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Homestead",
+          "region_type": "Core"
+        },
+        {
+          "city": "Key Biscayne",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Medley",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Miami",
+          "region_type": "Core"
+        },
+        {
+          "city": "Miami Beach",
+          "region_type": "Core"
+        },
+        {
+          "city": "Miami Gardens",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Miami Lakes",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Miami Shores",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Miami Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "North Bay Village",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Sebring",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Avon Park",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lake Placid",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Melbourne",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Barefoot Bay",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cape Canaveral",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cocoa",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cocoa Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Indialantic",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Indian Harbour Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Malabar",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Melbourne",
+          "region_type": "Core"
+        },
+        {
+          "city": "Melbourne Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Merritt Island",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Mims",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "West Palm Beach",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Belle Glade",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Boca Raton",
+          "region_type": "Core"
+        },
+        {
+          "city": "Boynton Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cabana Colony",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Delray Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Greenacres",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Haverhill",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Juno Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Jupiter",
+          "region_type": "Core"
+        },
+        {
+          "city": "Lake Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lake Worth",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lantana",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Loxahatchee",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Ocala",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Belleview",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Citrus County",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Beverly Hills",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Crystal River",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Hernando",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Homosassa",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Inverness",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lecanto",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Fort Myers",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Bonita Springs",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cape Coral",
+          "region_type": "Core"
+        },
+        {
+          "city": "Clewiston",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Estero",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fort Myers",
+          "region_type": "Core"
+        },
+        {
+          "city": "Immokalee",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Labelle",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lehigh Acres",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "North Fort Myers",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Sarasota",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Bradenton",
+          "region_type": "Core"
+        },
+        {
+          "city": "Bradenton Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Ellenton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Englewood",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Holmes Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Longboat Key",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Nokomis",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Daytona Beach",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Bunnell",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Daytona Beach",
+          "region_type": "Core"
+        },
+        {
+          "city": "Daytona Beach Shores",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Debary",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Deland",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Deltona",
+          "region_type": "Core"
+        },
+        {
+          "city": "Edgewater",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Flagler Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Holly Hill",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "New Smyrna Beach",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Pensacola",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Cantonment",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Gulf Breeze",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Milton",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Navarre",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Panama City",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Chipley",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Lynn Haven",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Marianna",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Fort Lauderdale",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Coconut Creek",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Cooper City",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Coral Springs",
+          "region_type": "Core"
+        },
+        {
+          "city": "Davie",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Deerfield Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Fort Lauderdale",
+          "region_type": "Core"
+        },
+        {
+          "city": "Hallandale",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hallandale Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Hollywood",
+          "region_type": "Core"
+        },
+        {
+          "city": "Lauderdale Lakes",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lauderhill",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lighthouse Point",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Margate",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Miramar",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "North Lauderdale",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Fort Walton Beach",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Crestview",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Destin",
+          "region_type": "Core"
+        },
+        {
+          "city": "Fort Walton Beach",
+          "region_type": "Core"
+        },
+        {
+          "city": "Mary Esther",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Miramar Beach",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Niceville",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "St. Augustine",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "East Palatka",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Sebastian",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Fellsmere",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Port St. Lucie",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Fort Pierce",
+          "region_type": "Core"
+        },
+        {
+          "city": "Hobe Sound",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Jensen Beach",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "The Villages",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Fruitland Park",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Lady Lake",
+          "region_type": "Satellite"
+        },
+        {
+          "city": "Leesburg",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Tallahassee",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Havana",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Midway",
+          "region_type": "Rural"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Vero Beach",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Indian River Shores",
+          "region_type": "Satellite"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Florida Keys",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Islamorada",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Key Largo",
+          "region_type": "Rural"
+        },
+        {
+          "city": "Key West",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Lake City",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Lake City",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Florida"
+    },
+    {
+      "market_name": "Naples",
+      "state_abbr": "FL",
+      "cities": [
+        {
+          "city": "Marco Island",
+          "region_type": "Core"
+        },
+        {
+          "city": "Naples",
+          "region_type": "Core"
+        }
+      ],
+      "state": "Florida"
+    }
+  ]
+}

@@ -1,0 +1,1430 @@
+✅ DEBUG: Briefing + Snapshot Verification
+================================================================================
+Generated: 2026-01-08T21:52:29.597Z
+================================================================================
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 1: SNAPSHOT ROW (What the driver's context is)
+════════════════════════════════════════════════════════════════════════════════
+
+snapshot_id:
+  "a775d369-dead-4e34-8e52-2960a4eb9011"
+
+user_id:
+  "9216b521-6fd7-4b8c-aee4-94f8cfb6fa80"
+
+LOCATION DATA (sent to strategist):
+  city: "Frisco"
+  state: "TX"
+  formatted_address: "2855 Hidden Knoll Tr, Frisco, TX 75034, USA"
+  lat: 33.128448
+  lng: -96.8654848
+  timezone: "America/Chicago"
+
+TIME DATA (sent to strategist):
+  local_iso: "Thu Jan 08 2026 21:25:49 GMT+0000 (Coordinated Universal Time)"
+  dow: 4 (Thursday)
+  day_part_key: "afternoon"
+  is_holiday: false
+  holiday: "none"
+
+WEATHER FROM SNAPSHOT (used in immediate strategy):
+  {
+  "tempF": 76,
+  "conditions": "Mostly cloudy",
+  "description": "Mostly cloudy"
+}
+
+created_at:
+  "Thu Jan 08 2026 21:25:49 GMT+0000 (Coordinated Universal Time)"
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 2: BRIEFING ROW (What the AI sees for context)
+════════════════════════════════════════════════════════════════════════════════
+
+briefing_id:
+  "1a978d3b-5d54-48e5-a52a-24cf8c4b1a50"
+
+snapshot_id:
+  "a775d369-dead-4e34-8e52-2960a4eb9011"
+
+NEWS (7 items):
+  {
+  "items": [
+    {
+      "link": "https://www.weather.gov/fwd/",
+      "title": "Rain & Thunderstorms to Slow Evening Commute",
+      "impact": "high",
+      "source": "National Weather Service / AccuWeather",
+      "summary": "Forecasts call for rain and potential thunderstorms throughout the day and evening on Jan 8. Drivers should expect slower traffic speeds on the Dallas North Tollway (DNT) and Sam Rayburn Tollway (SRT). Surge pricing is likely during the evening rush hour (5 PM - 7 PM) as demand rises while casual drivers stay off the road due to poor visibility.",
+      "category": "weather",
+      "_provider": "gemini",
+      "published_date": "2026-01-08"
+    },
+    {
+      "link": "https://www.dfwairport.com/construction/",
+      "title": "Major DFW Airport Construction: Terminal A & B Detours",
+      "impact": "high",
+      "source": "DFW Airport Construction Advisory",
+      "summary": "Ongoing 'International Parkway Project' construction is causing significant delays. A southbound detour is in effect for Terminal A access. Drivers dropping off at Terminal B must use a temporary route. Terminal C's south parking garage is closed, increasing congestion at the curb. Plan for extra time for all airport runs today.",
+      "category": "airport",
+      "_provider": "gemini",
+      "published_date": "2026-01-08"
+    },
+    {
+      "link": "https://www.thebombfactory.com/",
+      "title": "Cody Jinks Concert at The Bomb Factory (Deep Ellum)",
+      "impact": "medium",
+      "source": "Ticketmaster / SeatGeek",
+      "summary": "Country artist Cody Jinks performs tonight at 8:00 PM at The Studio at the Bomb Factory in Deep Ellum. Expect high demand for rides from Frisco/Plano to downtown Dallas between 6:00 PM - 7:30 PM, and a surge of return trips after 10:30 PM. Good opportunity for long-haul fares.",
+      "category": "event",
+      "_provider": "gemini",
+      "published_date": "2026-01-08"
+    },
+    {
+      "link": "https://www.attpac.org/",
+      "title": "Grand Kyiv Ballet: Snow White at Wyly Theatre",
+      "impact": "medium",
+      "source": "AT&T Performing Arts Center",
+      "summary": "A performance of 'Snow White' is scheduled for tonight at the Wyly Theatre in the Dallas Arts District. This will generate premium/Black/SUV demand from affluent areas in Frisco and Plano heading downtown for the 7:00 PM curtain time.",
+      "category": "event",
+      "_provider": "gemini",
+      "published_date": "2026-01-08"
+    },
+    {
+      "link": "https://www.lyft.com/driver/hub",
+      "title": "Lyft 'Stackable Bonuses' & 1-Minute Wait Time Pay",
+      "impact": "medium",
+      "source": "Lyft Driver Blog",
+      "summary": "Lyft has rolled out new 2026 features including 'stackable' percentage-based Turbo bonuses that can be combined with other incentives. Additionally, wait-time pay now kicks in after just 1 minute (previously 2+ minutes) at pickup. Check your driver app for these specific opportunities today.",
+      "category": "platform",
+      "_provider": "gemini",
+      "published_date": "2026-01-07"
+    },
+    {
+      "link": "https://communityimpact.com/",
+      "title": "Road Closures: Custer Road & Parker Road Construction",
+      "impact": "medium",
+      "source": "Community Impact / City of Plano",
+      "summary": "Ongoing construction projects in Plano/Frisco are affecting key arteries. All northbound lanes of Custer Rd (between Westridge & Grandview) are closed/shifted. Parker Road in Plano also has lane reductions. Avoid these routes during rush hour if possible to maintain efficiency.",
+      "category": "traffic",
+      "_provider": "gemini",
+      "published_date": "2026-01-06"
+    },
+    {
+      "link": "https://gasprices.aaa.com/?state=TX",
+      "title": "Gas Prices Holding Steady at ~$2.42/Gallon",
+      "impact": "low",
+      "source": "AAA Texas",
+      "summary": "Gas prices in the DFW area are averaging around $2.42/gallon for regular unleaded, down slightly from last week. This relatively low operating cost helps preserve margins on longer trips to Dallas events tonight.",
+      "category": "cost",
+      "_provider": "gemini",
+      "published_date": "2026-01-08"
+    }
+  ],
+  "reason": null
+}
+
+WEATHER_CURRENT:
+  {
+  "tempC": 24,
+  "tempF": 76,
+  "country": "United States",
+  "uvIndex": 0,
+  "humidity": 27,
+  "tempUnit": "°F",
+  "feelsLike": 76,
+  "isDaytime": true,
+  "conditions": "Mostly cloudy",
+  "feelsLikeC": 24,
+  "feelsLikeF": 76,
+  "observedAt": "2026-01-08T21:25:50.773401513Z",
+  "visibility": {
+    "unit": "KILOMETERS",
+    "distance": 16
+  },
+  "temperature": 76,
+  "conditionType": "MOSTLY_CLOUDY",
+  "precipitation": {
+    "qpf": {
+      "unit": "MILLIMETERS",
+      "quantity": 0
+    },
+    "snowQpf": {
+      "unit": "MILLIMETERS",
+      "quantity": 0
+    },
+    "probability": {
+      "type": "RAIN",
+      "percent": 10
+    }
+  },
+  "windDirection": "SOUTHWEST",
+  "windSpeedUnit": "mph"
+}
+
+WEATHER_FORECAST (6 hours):
+  [
+  {
+    "time": "2026-01-08T21:25:50.819Z",
+    "tempC": 25,
+    "tempF": 76,
+    "tempUnit": "°F",
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 76,
+    "conditionType": "MOSTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-08T22:25:50.819Z",
+    "tempC": 24,
+    "tempF": 76,
+    "tempUnit": "°F",
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 76,
+    "conditionType": "MOSTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-08T23:25:50.819Z",
+    "tempC": 23,
+    "tempF": 73,
+    "tempUnit": "°F",
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 73,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-09T00:25:50.819Z",
+    "tempC": 21,
+    "tempF": 70,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 70,
+    "conditionType": "MOSTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-09T01:25:50.819Z",
+    "tempC": 19,
+    "tempF": 67,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 67,
+    "conditionType": "MOSTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-01-09T02:25:50.820Z",
+    "tempC": 18,
+    "tempF": 64,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Partly cloudy",
+    "temperature": 64,
+    "conditionType": "PARTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  }
+]
+
+TRAFFIC_CONDITIONS:
+  {
+  "jams": 92,
+  "stats": {
+    "jams": 92,
+    "major": 71,
+    "total": 118,
+    "closures": 15,
+    "highways": 43,
+    "accidents": 0,
+    "construction": 11
+  },
+  "summary": "Frisco is experiencing heavy congestion, particularly concentrated on the US-380 corridor and the FM-720 artery. Critical road closures on FM-720 within 3 miles and major jams on Legacy Drive near the Tollway will significantly impede local movement. Drivers should prioritize north-south travel via the Dallas North Tollway and avoid the US-380 construction zones to the north.",
+  "analyzed": true,
+  "briefing": "Frisco is experiencing heavy congestion, particularly concentrated on the US-380 corridor and the FM-720 artery. Critical road closures on FM-720 within 3 miles and major jams on Legacy Drive near the Tollway will significantly impede local movement. Drivers should prioritize north-south travel via the Dallas North Tollway and avoid the US-380 construction zones to the north.",
+  "closures": [
+    {
+      "road": "",
+      "location": "FM-720 to Lamar Hunt Way",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 2.5
+    },
+    {
+      "road": "",
+      "location": "FM-720 to FM-720",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 2.7
+    },
+    {
+      "road": "US-380 E",
+      "location": "US-377 (US-380) to FM-2931 (US-380)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 9.9
+    },
+    {
+      "road": "US-380 E",
+      "location": "FM-2931 (US-380) to FM-1385 (US-380)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 7.5
+    },
+    {
+      "road": "US-380 E",
+      "location": "FM-1385 (US-380) to Gee Rd (US-380)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 6.4
+    },
+    {
+      "road": "US-380 E",
+      "location": "Doe Creek Rd to Hollyhock Rd",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 6.4
+    },
+    {
+      "road": "US-380 E",
+      "location": "Gee Rd (US-380) to Dallas Pkwy (US-380)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 6.3
+    },
+    {
+      "road": "",
+      "location": "Pga Pkwy/Rockhill Pkwy (Hillcrest Rd) to Panther Creek Pkwy (Hillcrest Rd)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 6.7
+    },
+    {
+      "road": "",
+      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 7.3
+    },
+    {
+      "road": "",
+      "location": "Navo Rd to Paloma Creek Blvd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.6
+    },
+    {
+      "road": "",
+      "location": "Kelly Blvd to Belton Dr",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.5
+    },
+    {
+      "road": "",
+      "location": "N Cowan Ave to Benjamins Way",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "location": "Tournament Rd to Kings Ridge Rd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 4.3
+    },
+    {
+      "road": "",
+      "location": "Main St / N Hook St to Lakewood Dr",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.6
+    },
+    {
+      "road": "",
+      "location": "Archgate Dr to Preston Meadow Dr / Turnberry Ct",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 6.1
+    }
+  ],
+  "headline": "Frisco is experiencing heavy congestion, particularly concentrated on the US-380 corridor and the FM-720 artery.",
+  "provider": "tomtom",
+  "fetchedAt": "2026-01-08T21:25:50.985Z",
+  "incidents": [
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-720 (FM-2931) to US-380 (FM-2931)",
+      "priority": 161,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-720 (FM-2931) to US-380 (FM-2931) [8.3 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 6,
+      "distanceFromDriver": 8.3
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "McKinney to FM-720",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: McKinney to FM-720 [8 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 4,
+      "distanceFromDriver": 8
+    },
+    {
+      "road": "FM-1385",
+      "category": "Jam",
+      "location": "US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-1385 (US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)) [7 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3,
+      "distanceFromDriver": 7
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Kenley Dr to FM-2478",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Kenley Dr to FM-2478 [8.2 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3,
+      "distanceFromDriver": 8.2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-544 to Cookie Ln",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-544 to Cookie Ln [6.2 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 2,
+      "distanceFromDriver": 6.2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-2934 to Newman Blvd",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-2934 to Newman Blvd [3.5 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 2,
+      "distanceFromDriver": 3.5
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Coit Rd to US-380 E",
+      "priority": 147,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Coit Rd to US-380 E [8.2 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 2,
+      "distanceFromDriver": 8.2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Dallas North Tollway (Legacy Dr) to Hedgcoxe Rd (Legacy Dr)",
+      "priority": 144,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Dallas North Tollway (Legacy Dr) to Hedgcoxe Rd (Legacy Dr) [4.3 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 4,
+      "distanceFromDriver": 4.3
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Dallas North Tollway (Legacy Dr) to TX-121 (Legacy Dr)",
+      "priority": 143,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Dallas North Tollway (Legacy Dr) to TX-121 (Legacy Dr) [3.6 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 3,
+      "distanceFromDriver": 3.6
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd)",
+      "priority": 142,
+      "severity": "medium",
+      "isHighway": true,
+      "description": "Jam: N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd) [9.9 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 2,
+      "distanceFromDriver": 9.9
+    }
+  ],
+  "keyIssues": [
+    "FM-720 road closures 2.5mi west - Total blockage near Lamar Hunt Way",
+    "US-380 corridor 6.5-8.7mi north - Multiple major jams and construction zones with 6min+ delays",
+    "Legacy Dr near DNT 3.6-4.3mi south - Major jams affecting the business district"
+  ],
+  "avoidAreas": [
+    "FM-720 / Little Elm border: Road closures and moderate jams within 3 miles",
+    "US-380 Westbound: Heavy construction and major jams between Coit Rd and FM-2931",
+    "Legacy Drive & TX-121: High-density jams impacting short-haul efficiency"
+  ],
+  "safetyAlert": "92 active traffic jams in the area",
+  "driverImpact": "Avoid the northern US-380 corridor and western FM-720 bottlenecks; focus operations in Central Frisco or move south toward Plano to maintain high trip turnover.",
+  "surgePricing": true,
+  "closuresCount": 15,
+  "repositioning": null,
+  "incidentsCount": 118,
+  "totalIncidents": 118,
+  "closuresSummary": "2 closures within 10mi, most critical: FM-720 to Lamar Hunt Way and FM-720 near the 2.7mi mark.",
+  "congestionLevel": "high",
+  "highDemandZones": [],
+  "constructionSummary": "Significant road works on US-380 W at FM-1385 and Gee Rd are compounding heavy congestion in the northern sector."
+}
+
+EVENTS (44 events):
+  [
+  {
+    "title": "Live Music: Chaz Marie",
+    "venue": "Didi's Downtown",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "7210 W Main St, Frisco, TX 75033",
+    "subtype": "concert",
+    "summary": "Live Music: Chaz Marie • Didi's Downtown • 2026-01-08 • 6:00 PM",
+    "latitude": 33.1505,
+    "location": "Didi's Downtown, 7210 W Main St, Frisco, TX 75033",
+    "longitude": -96.824,
+    "event_date": "2026-01-08",
+    "event_time": "6:00 PM",
+    "event_type": "concert",
+    "event_end_time": null
+  },
+  {
+    "title": "Live Band Karaoke (Weekly)",
+    "venue": "Lexus Box Garden at Legacy Hall",
+    "impact": "medium",
+    "source": "Claude",
+    "address": "7800 Windrose Ave, Plano, TX 75024",
+    "subtype": "nightlife",
+    "summary": "Live Band Karaoke (Weekly) • Lexus Box Garden at Legacy Hall • 2026-01-08 • 7:00 PM",
+    "latitude": 33.0765,
+    "location": "Lexus Box Garden at Legacy Hall, 7800 Windrose Ave, Plano, TX 75024",
+    "longitude": -96.8217,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "CFP: Vrbo Fiesta Bowl: #10 Miami vs. #6 Ole Miss",
+    "venue": "Cosm Dallas",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "sports",
+    "summary": "CFP: Vrbo Fiesta Bowl: #10 Miami vs. #6 Ole Miss • Cosm Dallas • 2026-01-08 • 7:00 PM",
+    "latitude": 33.077,
+    "location": "Cosm Dallas, 5776 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.86,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "sports",
+    "event_end_time": "10:30 PM"
+  },
+  {
+    "title": "Willy Wonka & the Chocolate Factory in Shared Reality",
+    "venue": "Cosm Dallas",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "theater",
+    "summary": "Willy Wonka & the Chocolate Factory in Shared Reality • Cosm Dallas • 2026-01-08 • 12:00 PM",
+    "latitude": 33.077,
+    "location": "Cosm Dallas, 5776 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.86,
+    "event_date": "2026-01-08",
+    "event_time": "12:00 PM",
+    "event_type": "theater",
+    "event_end_time": "2:00 PM"
+  },
+  {
+    "title": "$1,000 Progressive Cash Pot Trivia Night with Shoji",
+    "venue": "The Revel Patio Grill",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "$1,000 Progressive Cash Pot Trivia Night with Shoji • The Revel Patio Grill • 2026-01-08 • 7:00 PM",
+    "latitude": 33.1552065,
+    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
+    "longitude": -96.8044103,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Is This Thing On? (Comedy Event)",
+    "venue": "Galaxy Theatres Grandscape",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "5740 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "theater",
+    "summary": "Is This Thing On? (Comedy Event) • Galaxy Theatres Grandscape • 2026-01-08 • 7:00 PM",
+    "latitude": 33.0767,
+    "location": "Galaxy Theatres Grandscape, 5740 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8633,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "theater",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Dueling Piano Show",
+    "venue": "Pete's Dueling Piano Bar",
+    "impact": "medium",
+    "source": "Gemini-2.5-Pro",
+    "address": "6765 Winning Dr #810, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "Dueling Piano Show • Pete's Dueling Piano Bar • 2026-01-08 • 08:00 PM",
+    "latitude": 33.11,
+    "location": "Pete's Dueling Piano Bar, 6765 Winning Dr #810, Frisco, TX 75034",
+    "longitude": -96.828,
+    "event_date": "2026-01-08",
+    "event_time": "08:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": null
+  },
+  {
+    "title": "Stroll (Painting Class)",
+    "venue": "Painting with a Twist",
+    "impact": "low",
+    "source": "Claude",
+    "address": "4112 Legacy Dr, Ste 306, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "Stroll (Painting Class) • Painting with a Twist • 2026-01-08 • 6:00 PM",
+    "latitude": 33.1142023,
+    "location": "Painting with a Twist, 4112 Legacy Dr, Ste 306, Frisco, TX 75034",
+    "longitude": -96.8382166,
+    "event_date": "2026-01-08",
+    "event_time": "6:00 PM",
+    "event_type": "other",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Music Bingo",
+    "venue": "Walk-On's Sports Bistreaux",
+    "impact": "low",
+    "source": "Claude",
+    "address": "5774 Grandscape Boulevard #200, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Music Bingo • Walk-On's Sports Bistreaux • 2026-01-08 • 7:00 PM",
+    "latitude": 33.087,
+    "location": "Walk-On's Sports Bistreaux, 5774 Grandscape Boulevard #200, The Colony, TX 75056",
+    "longitude": -96.884,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Karaoke Wednesdays at Twisted Bar and Grill",
+    "venue": "Twisted Bar and Grill",
+    "impact": "low",
+    "source": "Claude",
+    "address": "6520 Cascades Court #200, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Karaoke Wednesdays at Twisted Bar and Grill • Twisted Bar and Grill • 2026-01-08 • 7:00 PM",
+    "latitude": 33.0952,
+    "location": "Twisted Bar and Grill, 6520 Cascades Court #200, The Colony, TX 75056",
+    "longitude": -96.8631,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "Wakeland HS Boys Soccer vs The Woodlands",
+    "venue": "Wakeland High School",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "10700 Legacy Dr, Frisco, TX 75034",
+    "subtype": "sports",
+    "summary": "Wakeland HS Boys Soccer vs The Woodlands • Wakeland High School • 2026-01-08 • 5:00 PM",
+    "latitude": 33.167988,
+    "location": "Wakeland High School, 10700 Legacy Dr, Frisco, TX 75034",
+    "longitude": -96.8454854,
+    "event_date": "2026-01-08",
+    "event_time": "5:00 PM",
+    "event_type": "sports",
+    "event_end_time": null
+  },
+  {
+    "title": "Little Elm Chamber Luncheon",
+    "venue": "Little Elm Area (Venue TBD)",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "Little Elm, TX 75068",
+    "subtype": "other",
+    "summary": "Little Elm Chamber Luncheon • Little Elm Area (Venue TBD) • 2026-01-08 • 11:30 AM",
+    "latitude": 33.1517852,
+    "location": "Little Elm Area (Venue TBD), Little Elm, TX 75068",
+    "longitude": -96.9463851,
+    "event_date": "2026-01-08",
+    "event_time": "11:30 AM",
+    "event_type": "other",
+    "event_end_time": null
+  },
+  {
+    "title": "Trivia Night",
+    "venue": "LSA Burger Co.",
+    "impact": "low",
+    "source": "Claude",
+    "address": "5752 Grandscape Boulevard #120, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Trivia Night • LSA Burger Co. • 2026-01-08 • 7:00 PM",
+    "latitude": 33.0868,
+    "location": "LSA Burger Co., 5752 Grandscape Boulevard #120, The Colony, TX 75056",
+    "longitude": -96.8839,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Shen Yun",
+    "venue": "Eisemann Center",
+    "impact": "high",
+    "source": "Claude",
+    "address": "2351 Performance Dr, Richardson, TX 75082",
+    "subtype": "theater",
+    "summary": "Shen Yun • Eisemann Center • 2026-01-08 • 7:30 PM",
+    "latitude": 32.9565,
+    "location": "Eisemann Center, 2351 Performance Dr, Richardson, TX 75082",
+    "longitude": -96.7472,
+    "event_date": "2026-01-08",
+    "event_time": "7:30 PM",
+    "event_type": "theater",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Music Bingo Thursdays",
+    "venue": "Rollertown Beerworks",
+    "impact": "medium",
+    "source": "Gemini-2.5-Pro",
+    "address": "412 N Main St, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "Music Bingo Thursdays • Rollertown Beerworks • 2026-01-08 • 07:00 PM",
+    "latitude": 33.1538,
+    "location": "Rollertown Beerworks, 412 N Main St, Frisco, TX 75034",
+    "longitude": -96.8232,
+    "event_date": "2026-01-08",
+    "event_time": "07:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": null
+  },
+  {
+    "title": "Labyrinth 40th Anniversary Screening",
+    "venue": "Flix Brewhouse Frisco/Little Elm",
+    "impact": "medium",
+    "source": "Gemini-2.5-Pro",
+    "address": "1660 FM 423, Frisco, TX 75033",
+    "subtype": "theater",
+    "summary": "Labyrinth 40th Anniversary Screening • Flix Brewhouse Frisco/Little Elm • 2026-01-08 • 07:00 PM",
+    "latitude": 33.1568602,
+    "location": "Flix Brewhouse Frisco/Little Elm, 1660 FM 423, Frisco, TX 75033",
+    "longitude": -96.8919053,
+    "event_date": "2026-01-08",
+    "event_time": "07:00 PM",
+    "event_type": "theater",
+    "event_end_time": null
+  },
+  {
+    "title": "Santa's Last Stop Holiday Pop-Up (Through Jan 11)",
+    "venue": "Grandscape",
+    "impact": "medium",
+    "source": "Claude",
+    "address": "5752 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "festival",
+    "summary": "Santa's Last Stop Holiday Pop-Up (Through Jan 11) • Grandscape • 2026-01-08 • 10:00 AM",
+    "latitude": 33.0868,
+    "location": "Grandscape, 5752 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8839,
+    "event_date": "2026-01-08",
+    "event_time": "10:00 AM",
+    "event_type": "festival",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Parks & Recreation Board Meeting",
+    "venue": "The Grove at Frisco Commons",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "8300 McKinney Rd, Frisco, TX 75034",
+    "subtype": "civic",
+    "summary": "Parks & Recreation Board Meeting • The Grove at Frisco Commons • 2026-01-08 • 6:00 PM",
+    "latitude": 33.1334,
+    "location": "The Grove at Frisco Commons, 8300 McKinney Rd, Frisco, TX 75034",
+    "longitude": -96.8239,
+    "event_date": "2026-01-08",
+    "event_time": "6:00 PM",
+    "event_type": "civic",
+    "event_end_time": "7:00 PM"
+  },
+  {
+    "title": "Salsa Nights (Live Salsa Band)",
+    "venue": "JĀKÖ Cocina y Agave (Grandscape)",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "5754 Grandscape Blvd, Suite 110, The Colony, TX 75056",
+    "subtype": "nightlife",
+    "summary": "Salsa Nights (Live Salsa Band) • JĀKÖ Cocina y Agave (Grandscape) • 2026-01-08 • 8:00 PM",
+    "latitude": 33.0822,
+    "location": "JĀKÖ Cocina y Agave (Grandscape), 5754 Grandscape Blvd, Suite 110, The Colony, TX 75056",
+    "longitude": -96.8264,
+    "event_date": "2026-01-08",
+    "event_time": "8:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "Multicultural Committee Meeting",
+    "venue": "George A. Purefoy Municipal Center",
+    "impact": "low",
+    "source": "Gemini-3-Pro",
+    "address": "6101 Frisco Square Blvd, Frisco, TX 75034",
+    "subtype": "civic",
+    "summary": "Multicultural Committee Meeting • George A. Purefoy Municipal Center • 2026-01-08 • 5:00 PM",
+    "latitude": 33.151,
+    "location": "George A. Purefoy Municipal Center, 6101 Frisco Square Blvd, Frisco, TX 75034",
+    "longitude": -96.833,
+    "event_date": "2026-01-08",
+    "event_time": "5:00 PM",
+    "event_type": "civic",
+    "event_end_time": "6:00 PM"
+  },
+  {
+    "title": "Try Golf Clinic",
+    "venue": "PGA of America Coaching Center",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "3255 PGA Parkway, Frisco, TX 75033",
+    "subtype": "sports",
+    "summary": "Try Golf Clinic • PGA of America Coaching Center • 2026-01-08 • 2:00 PM",
+    "latitude": 33.18,
+    "location": "PGA of America Coaching Center, 3255 PGA Parkway, Frisco, TX 75033",
+    "longitude": -96.82,
+    "event_date": "2026-01-08",
+    "event_time": "2:00 PM",
+    "event_type": "sports",
+    "event_end_time": "3:00 PM"
+  },
+  {
+    "title": "CFP: Vrbo Fiesta Bowl at Cosm",
+    "venue": "Cosm Dallas",
+    "impact": "high",
+    "source": "Gemini-3-Pro",
+    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "sports",
+    "summary": "CFP: Vrbo Fiesta Bowl at Cosm • Cosm Dallas • 2026-01-08 • 6:30 PM",
+    "latitude": 33.077,
+    "location": "Cosm Dallas, 5776 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.86,
+    "event_date": "2026-01-08",
+    "event_time": "6:30 PM",
+    "event_type": "sports",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Santa's Last Stop Holiday Pop-Up",
+    "venue": "Truck Yard The Colony",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "5959 Grove Ln, The Colony, TX 75056",
+    "subtype": "festival",
+    "summary": "Santa's Last Stop Holiday Pop-Up • Truck Yard The Colony • 2026-01-08 • 11:00 AM",
+    "latitude": 33.0725,
+    "location": "Truck Yard The Colony, 5959 Grove Ln, The Colony, TX 75056",
+    "longitude": -96.864,
+    "event_date": "2026-01-08",
+    "event_time": "11:00 AM",
+    "event_type": "festival",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Trivia Night & Karaoke",
+    "venue": "The Revel Patio Grill",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Trivia Night & Karaoke • The Revel Patio Grill • 2026-01-08 • 07:00 PM",
+    "latitude": 33.1552065,
+    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
+    "longitude": -96.8044103,
+    "event_date": "2026-01-08",
+    "event_time": "07:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": null
+  },
+  {
+    "title": "Into the Woods JR (Musical)",
+    "venue": "Willow Bend Center for the Arts - Copeland Theatre",
+    "impact": "low",
+    "source": "Claude",
+    "address": "6121 W. Park Blvd, Plano, TX 75093",
+    "subtype": "theater",
+    "summary": "Into the Woods JR (Musical) • Willow Bend Center for the Arts - Copeland Theatre • 2026-01-08 • 6:30 PM",
+    "latitude": 33.03167,
+    "location": "Willow Bend Center for the Arts - Copeland Theatre, 6121 W. Park Blvd, Plano, TX 75093",
+    "longitude": -96.82827,
+    "event_date": "2026-01-08",
+    "event_time": "6:30 PM",
+    "event_type": "theater",
+    "event_end_time": "8:30 PM"
+  },
+  {
+    "title": "Team Trivia",
+    "venue": "Drunken Donkey",
+    "impact": "low",
+    "source": "Claude",
+    "address": "4897 State Highway 121, The Colony, TX 75056",
+    "subtype": "other",
+    "summary": "Team Trivia • Drunken Donkey • 2026-01-08 • 7:30 PM",
+    "latitude": 33.0889,
+    "location": "Drunken Donkey, 4897 State Highway 121, The Colony, TX 75056",
+    "longitude": -96.8622,
+    "event_date": "2026-01-08",
+    "event_time": "7:30 PM",
+    "event_type": "other",
+    "event_end_time": "9:30 PM"
+  },
+  {
+    "title": "Copilot AI Essentials",
+    "venue": "Frisco Library",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "8000 Dallas Pkwy, Frisco, TX 75034",
+    "subtype": "academic",
+    "summary": "Copilot AI Essentials • Frisco Library • 2026-01-08 • 7:00 PM",
+    "latitude": 33.1046,
+    "location": "Frisco Library, 8000 Dallas Pkwy, Frisco, TX 75034",
+    "longitude": -96.8247,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "academic",
+    "event_end_time": "8:30 PM"
+  },
+  {
+    "title": "Music Bingo at Rollertown Beerworks - Frisco, TX",
+    "venue": "Rollertown Beerworks",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "6450 Main Street, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Music Bingo at Rollertown Beerworks - Frisco, TX • Rollertown Beerworks • 2026-01-08 • 7:00 PM",
+    "latitude": 33.1567,
+    "location": "Rollertown Beerworks, 6450 Main Street, Frisco, TX 75033",
+    "longitude": -96.8219,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "The Social Shift Presents: Kickoff and Connect Happy Hour",
+    "venue": "Thirsty Lion (Grandscape)",
+    "impact": "low",
+    "source": "GPT-5.2",
+    "address": "5754 Grandscape Boulevard Suite 205, The Colony, TX 75056",
+    "subtype": "civic",
+    "summary": "The Social Shift Presents: Kickoff and Connect Happy Hour • Thirsty Lion (Grandscape) • 2026-01-08 • 5:00 PM",
+    "latitude": 33.0771,
+    "location": "Thirsty Lion (Grandscape), 5754 Grandscape Boulevard Suite 205, The Colony, TX 75056",
+    "longitude": -96.8593,
+    "event_date": "2026-01-08",
+    "event_time": "5:00 PM",
+    "event_type": "civic",
+    "event_end_time": "7:00 PM"
+  },
+  {
+    "title": "Hot Girl Comedy Presents Brady Matthews",
+    "venue": "Mic Drop Comedy Plano",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "7301 Lone Star Dr, Suite A-110, Plano, TX 75024",
+    "subtype": "theater",
+    "summary": "Hot Girl Comedy Presents Brady Matthews • Mic Drop Comedy Plano • 2026-01-08 • 7:30 PM",
+    "latitude": 33.0806,
+    "location": "Mic Drop Comedy Plano, 7301 Lone Star Dr, Suite A-110, Plano, TX 75024",
+    "longitude": -96.821,
+    "event_date": "2026-01-08",
+    "event_time": "7:30 PM",
+    "event_type": "theater",
+    "event_end_time": "9:00 PM"
+  },
+  {
+    "title": "Game Days at D&B",
+    "venue": "Dave and Buster's",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "2601 Preston Road, Suite 1200, Frisco, TX 75034",
+    "subtype": "nightlife",
+    "summary": "Game Days at D&B • Dave and Buster's • 2026-01-08 • 11:00 AM",
+    "latitude": 33.0989608,
+    "location": "Dave and Buster's, 2601 Preston Road, Suite 1200, Frisco, TX 75034",
+    "longitude": -96.81107940000001,
+    "event_date": "2026-01-08",
+    "event_time": "11:00 AM",
+    "event_type": "nightlife",
+    "event_end_time": null
+  },
+  {
+    "title": "Frisco Dinner Society: January Social Hour Mixer",
+    "venue": "Cane Rosso",
+    "impact": "low",
+    "source": "Gemini-2.5-Pro",
+    "address": "3685 The Star Blvd, Suite 200, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "Frisco Dinner Society: January Social Hour Mixer • Cane Rosso • 2026-01-08 • 06:30 PM",
+    "latitude": 33.1088062,
+    "location": "Cane Rosso, 3685 The Star Blvd, Suite 200, Frisco, TX 75034",
+    "longitude": -96.8283245,
+    "event_date": "2026-01-08",
+    "event_time": "06:30 PM",
+    "event_type": "other",
+    "event_end_time": null
+  },
+  {
+    "title": "Shine On: Pink Floyd Laser Spectacular",
+    "venue": "Eisemann Center",
+    "impact": "high",
+    "source": "Claude",
+    "address": "2351 Performance Drive, Richardson, TX 75082",
+    "subtype": "concert",
+    "summary": "Shine On: Pink Floyd Laser Spectacular • Eisemann Center • 2026-01-08 • 7:30 PM",
+    "latitude": 32.9487,
+    "location": "Eisemann Center, 2351 Performance Drive, Richardson, TX 75082",
+    "longitude": -96.7297,
+    "event_date": "2026-01-08",
+    "event_time": "7:30 PM",
+    "event_type": "concert",
+    "event_end_time": "9:30 PM"
+  },
+  {
+    "title": "No One Productions Presents: Benny Smoke, Ricky Tha Rapper, Wolfie Moncler & More!",
+    "venue": "Three Links Deep Ellum",
+    "impact": "medium",
+    "source": "Claude",
+    "address": "2704 Elm St, Dallas, TX 75226",
+    "subtype": "concert",
+    "summary": "No One Productions Presents: Benny Smoke, Ricky Tha Rapper, Wolfie Moncler & More! • Three Links Deep Ellum • 2026-01-08 • 7:00 PM",
+    "latitude": 32.7831,
+    "location": "Three Links Deep Ellum, 2704 Elm St, Dallas, TX 75226",
+    "longitude": -96.7734,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "concert",
+    "event_end_time": "11:00 PM"
+  },
+  {
+    "title": "Shine On: Pink Floyd Laser Spectacular",
+    "venue": "Eisemann Center for Performing Arts",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "2351 Performance Dr, Richardson, TX 75082",
+    "subtype": "concert",
+    "summary": "Shine On: Pink Floyd Laser Spectacular • Eisemann Center for Performing Arts • 2026-01-08 • 7:30 PM",
+    "latitude": 32.9516,
+    "location": "Eisemann Center for Performing Arts, 2351 Performance Dr, Richardson, TX 75082",
+    "longitude": -96.7303,
+    "event_date": "2026-01-08",
+    "event_time": "7:30 PM",
+    "event_type": "concert",
+    "event_end_time": "9:30 PM"
+  },
+  {
+    "title": "Game Days at D&B",
+    "venue": "Dave & Buster's Frisco",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "2601 Preston Rd Suite 2220, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "Game Days at D&B • Dave & Buster's Frisco • 2026-01-08 • 11:00 AM",
+    "latitude": 33.0994,
+    "location": "Dave & Buster's Frisco, 2601 Preston Rd Suite 2220, Frisco, TX 75034",
+    "longitude": -96.8113,
+    "event_date": "2026-01-08",
+    "event_time": "11:00 AM",
+    "event_type": "other",
+    "event_end_time": "2:00 PM"
+  },
+  {
+    "title": "Builders Bowl",
+    "venue": "Gaylord Parkway",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "Gaylord Pkwy, Frisco, TX 75034",
+    "subtype": "conference",
+    "summary": "Builders Bowl • Gaylord Parkway • 2026-01-08 • 8:00 AM",
+    "latitude": 33.105,
+    "location": "Gaylord Parkway, Gaylord Pkwy, Frisco, TX 75034",
+    "longitude": -96.82,
+    "event_date": "2026-01-08",
+    "event_time": "8:00 AM",
+    "event_type": "conference",
+    "event_end_time": "12:00 PM"
+  },
+  {
+    "title": "Trivia Night with Shoji",
+    "venue": "The Revel Patio Grill",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "9305 Preston Rd, Frisco, TX 75033",
+    "subtype": "nightlife",
+    "summary": "Trivia Night with Shoji • The Revel Patio Grill • 2026-01-08 • 7:00 PM",
+    "latitude": 33.1504,
+    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
+    "longitude": -96.805,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "nightlife",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Willy Wonka & the Chocolate Factory – Dessert Included",
+    "venue": "Cosm Dallas",
+    "impact": "medium",
+    "source": "Gemini-3-Pro",
+    "address": "5776 Grandscape Blvd, The Colony, TX 75056",
+    "subtype": "theater",
+    "summary": "Willy Wonka & the Chocolate Factory – Dessert Included • Cosm Dallas • 2026-01-08 • 12:00 PM",
+    "latitude": 33.0772,
+    "location": "Cosm Dallas, 5776 Grandscape Blvd, The Colony, TX 75056",
+    "longitude": -96.8601,
+    "event_date": "2026-01-08",
+    "event_time": "12:00 PM",
+    "event_type": "theater",
+    "event_end_time": "2:00 PM"
+  },
+  {
+    "title": "Snow Globe Experience",
+    "venue": "The Westin Dallas Stonebriar Golf Resort & Spa",
+    "impact": "low",
+    "source": "Gemini-3-Pro",
+    "address": "1549 Legacy Dr, Frisco, TX 75034",
+    "subtype": "other",
+    "summary": "Snow Globe Experience • The Westin Dallas Stonebriar Golf Resort & Spa • 2026-01-08 • 5:00 PM",
+    "latitude": 33.0904,
+    "location": "The Westin Dallas Stonebriar Golf Resort & Spa, 1549 Legacy Dr, Frisco, TX 75034",
+    "longitude": -96.8203,
+    "event_date": "2026-01-08",
+    "event_time": "5:00 PM",
+    "event_type": "other",
+    "event_end_time": "10:00 PM"
+  },
+  {
+    "title": "Shine On - Musical and Visual Tribute to Pink Floyd",
+    "venue": "Eisemann Center for Performing Arts",
+    "impact": "high",
+    "source": "GPT-5.2",
+    "address": "2351 Performance Dr, Richardson, TX 75082",
+    "subtype": "concert",
+    "summary": "Shine On - Musical and Visual Tribute to Pink Floyd • Eisemann Center for Performing Arts • 2026-01-08 • 7:30 PM",
+    "latitude": 32.9547,
+    "location": "Eisemann Center for Performing Arts, 2351 Performance Dr, Richardson, TX 75082",
+    "longitude": -96.7176,
+    "event_date": "2026-01-08",
+    "event_time": "7:30 PM",
+    "event_type": "concert",
+    "event_end_time": "9:30 PM"
+  },
+  {
+    "title": "Into the Woods JR",
+    "venue": "Willow Bend Center For The Arts, Copeland Theatre",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "6121 W Park Blvd, Plano, TX 75093",
+    "subtype": "theater",
+    "summary": "Into the Woods JR • Willow Bend Center For The Arts, Copeland Theatre • 2026-01-08 • 6:30 PM",
+    "latitude": 33.0326,
+    "location": "Willow Bend Center For The Arts, Copeland Theatre, 6121 W Park Blvd, Plano, TX 75093",
+    "longitude": -96.8268,
+    "event_date": "2026-01-08",
+    "event_time": "6:30 PM",
+    "event_type": "theater",
+    "event_end_time": "8:30 PM"
+  },
+  {
+    "title": "Little Women – Academy",
+    "venue": "Willow Bend Center For The Arts, Rodenbaugh Theatre",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "6121 W Park Blvd, Plano, TX 75093",
+    "subtype": "theater",
+    "summary": "Little Women – Academy • Willow Bend Center For The Arts, Rodenbaugh Theatre • 2026-01-08 • 7:30 PM",
+    "latitude": 33.0326,
+    "location": "Willow Bend Center For The Arts, Rodenbaugh Theatre, 6121 W Park Blvd, Plano, TX 75093",
+    "longitude": -96.8268,
+    "event_date": "2026-01-08",
+    "event_time": "7:30 PM",
+    "event_type": "theater",
+    "event_end_time": "9:30 PM"
+  },
+  {
+    "title": "Footloose! The Musical! By: DAMPA",
+    "venue": "Cox Playhouse",
+    "impact": "medium",
+    "source": "GPT-5.2",
+    "address": "1517 H Ave, Plano, TX 75074",
+    "subtype": "theater",
+    "summary": "Footloose! The Musical! By: DAMPA • Cox Playhouse • 2026-01-08 • 7:00 PM",
+    "latitude": 33.0168,
+    "location": "Cox Playhouse, 1517 H Ave, Plano, TX 75074",
+    "longitude": -96.7036,
+    "event_date": "2026-01-08",
+    "event_time": "7:00 PM",
+    "event_type": "theater",
+    "event_end_time": "9:00 PM"
+  }
+]
+
+SCHOOL_CLOSURES (10 closures):
+  [
+  {
+    "lat": 33.1507,
+    "lng": -96.8236,
+    "type": "public",
+    "impact": "high",
+    "reason": "Martin Luther King Jr. Day",
+    "schoolName": "Frisco ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 3.4
+  },
+  {
+    "lat": 33.1626,
+    "lng": -96.9375,
+    "type": "public",
+    "impact": "medium",
+    "reason": "District Holiday (MLK Day)",
+    "schoolName": "Little Elm ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 4.3
+  },
+  {
+    "lat": 33.1626,
+    "lng": -96.9375,
+    "type": "public",
+    "impact": "medium",
+    "reason": "Professional Learning / Student Holiday",
+    "schoolName": "Little Elm ISD",
+    "closureStart": "2026-02-06",
+    "reopeningDate": "2026-02-09",
+    "distanceFromDriver": 4.3
+  },
+  {
+    "lat": 33.2362,
+    "lng": -96.8003,
+    "type": "public",
+    "impact": "medium",
+    "reason": "School Holiday (MLK Day)",
+    "schoolName": "Prosper ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 8.6
+  },
+  {
+    "lat": 33.0462,
+    "lng": -96.9942,
+    "type": "public",
+    "impact": "high",
+    "reason": "Holiday (MLK Day)",
+    "schoolName": "Lewisville ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 8.9
+  },
+  {
+    "lat": 33.0198,
+    "lng": -96.6989,
+    "type": "public",
+    "impact": "high",
+    "reason": "Student Holiday (MLK Day)",
+    "schoolName": "Plano ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 12.7
+  },
+  {
+    "lat": 33.1032,
+    "lng": -96.6706,
+    "type": "public",
+    "impact": "medium",
+    "reason": "Holiday (MLK Day)",
+    "schoolName": "Allen ISD",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 12
+  },
+  {
+    "lat": 33.1611,
+    "lng": -96.8067,
+    "type": "college",
+    "impact": "high",
+    "reason": "MLK Holiday (All Campuses Closed)",
+    "schoolName": "Collin College (Frisco Campus)",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 4.6
+  },
+  {
+    "lat": 33.1053,
+    "lng": -96.8197,
+    "type": "college",
+    "impact": "medium",
+    "reason": "MLK Holiday",
+    "schoolName": "University of North Texas (Frisco)",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 3.6
+  },
+  {
+    "lat": 33.1744,
+    "lng": -96.8278,
+    "type": "private",
+    "impact": "low",
+    "reason": "MLK Day (No School)",
+    "schoolName": "Legacy Christian Academy",
+    "closureStart": "2026-01-19",
+    "reopeningDate": "2026-01-20",
+    "distanceFromDriver": 4.2
+  }
+]
+
+AIRPORT_CONDITIONS:
+  {
+  "airports": [
+    {
+      "code": "DFW",
+      "name": "Dallas/Fort Worth International Airport",
+      "delays": "Very low delay status. Minor gate hold and taxi delays of less than 15 minutes reported. Total cancellations are minimal (approx. 10 today).",
+      "status": "normal",
+      "busyTimes": [
+        "05:00 AM - 08:00 AM",
+        "04:00 PM - 07:00 PM"
+      ]
+    },
+    {
+      "code": "DAL",
+      "name": "Dallas Love Field",
+      "delays": "Normal operations. General departure and arrival delays are currently less than 15 minutes.",
+      "status": "normal",
+      "busyTimes": [
+        "05:00 AM - 08:00 AM",
+        "04:00 PM - 07:00 PM"
+      ]
+    }
+  ],
+  "provider": "gemini",
+  "fetchedAt": "2026-01-08T21:26:27.436Z",
+  "busyPeriods": [
+    "Morning rush (5am-8am) and evening rush (4pm-7pm) are the peak congestion times.",
+    "Windy conditions today (gusts up to 30 mph) may cause minor airborne delays but operations are largely normal."
+  ],
+  "recommendations": "For DFW: Drivers should utilize the designated 'Ride App Pickup' zones located at the lower level curbs for Terminals A, C, D, and E. Note that for Terminal B, the pickup zone is inside the Parking Garage on Level 2. \n\nFor DAL: Pickup locations have permanently moved to the Valet Pavilion and Garage C, Level 1 (relocated from Garage B in 2025). Drivers must wait in the designated TNC holding lot to receive trips; circling the terminal is prohibited."
+}
+
+briefing_created_at:
+  "Thu Jan 08 2026 21:25:50 GMT+0000 (Coordinated Universal Time)"
+
+briefing_updated_at:
+  "Thu Jan 08 2026 21:26:35 GMT+0000 (Coordinated Universal Time)"
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 3: STRATEGY ROW (What the AI generated)
+════════════════════════════════════════════════════════════════════════════════
+
+strategy_id:
+  "(not found)"
+
+status:
+  "ok"
+
+STRATEGY_FOR_NOW (immediate - what GPT-5.2 returned):
+  **GO:** **Central Frisco (DNT/121 corridor) → South Plano/Legacy West** staging lots  
+**AVOID:** **US-380 (north)**, **FM-720 (west)**, **Custer Rd & Parker Rd** work zones  
+**WHEN:** Be in position **3:45–7:00 PM** (stormy commute); then **8:00–9:30 PM** for nightlife exits  
+**WHY:** **Rain & thunderstorms** + multiple **nightlife/theater/sports** demand nearby boosts short-trip turnover  
+**IF NO PING:** Wait **10–12 min**, then reposition **south to Plano (Legacy/121)**; avoid long deadheads toward **DFW (Terminal A/B detours)**
+
+CONSOLIDATED_STRATEGY (daily - what Gemini returned):
+  (null or empty)
+
+error_message:
+  "(none)"
+
+strategy_created_at:
+  "Thu Jan 08 2026 21:25:50 GMT+0000 (Coordinated Universal Time)"
+
+strategy_updated_at:
+  "Thu Jan 08 2026 21:26:44 GMT+0000 (Coordinated Universal Time)"
+
+════════════════════════════════════════════════════════════════════════════════
+SECTION 4: VERIFICATION CHECKLIST
+════════════════════════════════════════════════════════════════════════════════
+
+✓ Snapshot timezone: America/Chicago
+✓ Briefing has traffic: YES
+✓ Briefing has events: YES
+✓ Strategy status: ok
+✓ Strategy has immediate: YES
+✓ Strategy has daily: NO
+✓ IDs match: YES
+
+School closures TODAY (should be filtered in strategist):
+  Today's date in America/Chicago: 2026-01-08
+  Closures with start_date <= today <= end_date: 0 / 10 total
+
+Events within 6-hour window:
+  Current time: 2026-01-08T21:52:29.617Z
+  Events starting in next 6 hours: 44 events
+
+================================================================================
+END OF DEBUG OUTPUT
+================================================================================

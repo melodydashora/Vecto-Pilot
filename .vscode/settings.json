@@ -1,0 +1,15 @@
+{
+    "geminicodeassist.agentDebugMode": true,
+    "geminicodeassist.codeGenerationPaneViewEnabled": true,
+    "geminicodeassist.inlineSuggestions.nextEditPredictions": true,
+    "cloudcode.enableConfigLessExperience": true,
+    "cloudcode.enableSkaffoldSkipUnreachableDirs": true,
+    "cloudcode.enableMultiSkaffoldConfigsKey": true,
+    "cloudcode.dependencyPaths": {
+        "gcloud": ""
+    },
+    "cloudcode.updateChannel": "Insiders",
+    "cloudcode.verboseLogging": true,
+    "cloudcode.yaml.format.enable": true,
+    "cloudcode.yaml.format.singleQuote": true
+}
