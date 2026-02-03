@@ -14,6 +14,8 @@ const router = Router();
 const UBER_CLIENT_ID = process.env.UBER_CLIENT_ID;
 const UBER_CLIENT_SECRET = process.env.UBER_CLIENT_SECRET;
 const UBER_REDIRECT_URI = process.env.UBER_REDIRECT_URI || 'https://vectopilot.com/api/auth/uber/callback';
+// Dedicated webhook signing key (separate from client secret for security)
+const UBER_WEBHOOK_SECRET = process.env.UBER_WEBHOOK_SECRET;
 
 // Uber OAuth URLs
 const UBER_AUTH_URL = 'https://login.uber.com/oauth/v2/authorize';
@@ -139,18 +141,19 @@ router.get('/callback', async (req, res) => {
 
 /**
  * Verify Uber webhook signature
- * Uber uses HMAC-SHA256 with client secret as key
+ * Uber uses HMAC-SHA256 with dedicated webhook signing key
  * @param {string} payload - Raw request body
  * @param {string} signature - X-Uber-Signature header value
  * @returns {boolean} - Whether signature is valid
  */
 function verifyUberSignature(payload, signature) {
-  if (!UBER_CLIENT_SECRET || !signature) {
+  if (!UBER_WEBHOOK_SECRET || !signature) {
+    authLog.warn(1, `Uber Webhook: Missing ${!UBER_WEBHOOK_SECRET ? 'UBER_WEBHOOK_SECRET' : 'signature'}`);
     return false;
   }
 
   const expectedSignature = crypto
-    .createHmac('sha256', UBER_CLIENT_SECRET)
+    .createHmac('sha256', UBER_WEBHOOK_SECRET)
     .update(payload, 'utf8')
     .digest('hex');
 
