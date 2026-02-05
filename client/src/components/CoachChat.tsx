@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle } from "lucide-react";
 import { useMemory } from "@/hooks/useMemory";
+import { useChatPersistence, ChatMessage } from "@/hooks/useChatPersistence";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { API_ROUTES } from "@/constants/apiRoutes";
@@ -28,11 +29,8 @@ interface ValidationError {
   message: string;
 }
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  attachments?: Array<{ name: string; type: string; data: string; }>;
-}
+// Replaced by ChatMessage from hook, but keeping alias for compatibility if needed
+type Message = ChatMessage;
 
 interface SnapshotData {
   snapshot_id?: string;
@@ -71,7 +69,9 @@ export default function CoachChat({
   blocks: _blocks = [],
   strategyReady = false
 }: CoachChatProps) {
-  const [msgs, setMsgs] = useState<Message[]>([]);
+  // Use persistent state hook
+  const { messages: msgs, setMessages: setMsgs, isLoaded: _isChatLoaded } = useChatPersistence(userId, snapshotId);
+  
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [_isVoiceActive, setIsVoiceActive] = useState(false);
@@ -563,7 +563,6 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       const dec = new TextDecoder();
       let acc = "";
 
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;

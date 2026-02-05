@@ -19,8 +19,7 @@ import { useToast } from '@/hooks/useToast';
 import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase, AlertTriangle, Check, ChevronsUpDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import type { MarketOption, VehicleMake, VehicleModel } from '@/types/auth';
-import { API_ROUTES } from '@/constants/apiRoutes';
+import { UberSettingsSection } from '@/components/settings/UberSettingsSection';
 
 // Validation schema for settings form
 const settingsSchema = z.object({
@@ -857,6 +856,9 @@ export default function SettingsPage() {
               />
             </CardContent>
           </Card>
+
+          {/* Uber Integration Section */}
+          <UberSettingsSection />
 
           {/* Rideshare Platforms Section */}
           <Card className="bg-slate-800/50 border-slate-700">

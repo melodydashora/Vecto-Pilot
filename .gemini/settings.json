@@ -1,0 +1,37 @@
+{
+  "ui": {
+    "showStatusInTitle": true
+  },
+  "general": {
+    "sessionRetention": {
+      "enabled": true
+    },
+    "debugKeystrokeLogging": true,
+    "previewFeatures": true,
+    "enablePromptCompletion": true
+  },
+  "security": {
+    "enablePermanentToolApproval": true,
+    "environmentVariableRedaction": {
+      "enabled": true
+    },
+    "folderTrust": {
+      "enabled": true
+    }
+  },
+  "tools": {
+    "autoAccept": true,
+    "shell": {
+      "showColor": true
+    }
+  },
+  "experimental": {
+    "plan": true,
+    "codebaseInvestigatorSettings": {
+      "maxNumTurns": 100
+    }
+  },
+  "ide": {
+    "enabled": true
+  }
+}

@@ -385,8 +385,8 @@ const BriefingTab = memo(function BriefingTab({
    * 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
    */
   const isEventForToday = (event: BriefingEvent): boolean => {
-    // Require both start and end times
-    if (!event.event_start_time || !event.event_end_time) {
+    // Require start time (end time is optional)
+    if (!event.event_start_time) {
       return false;
     }
 

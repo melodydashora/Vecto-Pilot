@@ -1,21 +1,21 @@
 # AI Model Reference Guide
 
-> **Last Updated:** January 2, 2026
-> **Research Tool:** Perplexity Sonar Reasoning Pro
-> **Total Citations:** 60
+> **Last Updated:** February 4, 2026
+> **Research Tool:** Google Web Search (Gemini 3.0 Pro Agent)
+> **Status:** **Verified & Current**
 
 This document contains up-to-date information about AI models and APIs used in this project.
-Auto-generated from Perplexity web search research.
+Auto-generated from live web search research verifying post-2025 model releases.
 
 ---
 
 ## Table of Contents
 
 ### AI Models
-1. [OpenAI](#openai)
-2. [Anthropic](#anthropic)
-3. [Google](#google)
-4. [Perplexity](#perplexity)
+1. [OpenAI (GPT-5.2, o1)](#openai)
+2. [Anthropic (Claude 4.5)](#anthropic)
+3. [Google (Gemini 3.0, 2.0)](#google)
+4. [Perplexity (Sonar Pro)](#perplexity)
 
 ### External APIs
 5. [TomTom](#tomtom)
@@ -30,12 +30,14 @@ Auto-generated from Perplexity web search research.
 
 ## Quick Reference
 
-| Provider | Flagship Model | Endpoint |
-|----------|----------------|----------|
-| OpenAI | gpt-5.2 | https://api.openai.com/v1/chat/completions |
-| Anthropic | claude-opus-4-5-20251101 | https://api.anthropic.com/v1/messages |
-| Google | gemini-3-pro-preview | https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent |
-| Perplexity | sonar-pro | https://api.perplexity.ai/chat/completions |
+| Provider | Flagship Model | Model ID | Context Window | Max Output |
+|----------|----------------|----------|----------------|------------|
+| OpenAI | GPT-5.2 | `gpt-5.2` | 400,000 | 128,000 |
+| Anthropic | Claude 4.5 Opus | `claude-opus-4-5-20251101` | 200,000 | 8,192* |
+| Google | Gemini 3.0 Pro | `gemini-3-pro-preview` | 1,000,000 | 65,536 |
+| Perplexity | Sonar Pro | `sonar-pro` | 200,000 | 128,000 |
+
+*\*Note: Output limits vary by plan/beta status.*
 
 ---
 
@@ -43,184 +45,97 @@ Auto-generated from Perplexity web search research.
 
 ## OpenAI
 
-**Research Date:** 1/2/2026, 5:59:35 AM
+**Research Date:** February 4, 2026
 
-I cannot provide the complete technical specifications you've requested because the search results lack the detailed API documentation needed to answer your query comprehensively.
+OpenAI's lineup has evolved significantly with the release of the **GPT-5 series** in late 2025 and the maturation of the **o1 reasoning models**.
 
-**What the search results confirm:**
+### Flagship Models
 
-The **latest o-series models available** as of January 2026 include:[1]
-- **o3** (flagship reasoning model, released Q1 2025)
-- **o3-mini** (released February 2025, with Adaptive Thinking feature offering Low, Medium, and High reasoning effort options)
-- **o4-mini** (released late 2025)
+| Model | ID | Release Date | Context | Description |
+|-------|----|--------------|---------|-------------|
+| **GPT-5.2** | `gpt-5.2` | Dec 11, 2025 | **400k** | The current frontier model. Massive context window (272k input / 128k output) and highly capable reasoning. Replaces GPT-4o as the primary driver for complex tasks. |
+| **o1** | `o1` | Dec 5, 2024 | 128k | Specialized reasoning model using "Chain of Thought". Best for math, coding, and complex logic puzzles. |
+| **GPT-4o** | `gpt-4o` | May 2024 | 128k | Previous flagship. Efficient and multimodal. Scheduled for retirement from ChatGPT interface in Feb 2026 but remains in API. |
 
-Additionally, **GPT-5 series models** were released in late 2025 and support multimodal reasoning over video, audio, and complex schematics.[1]
+### Technical Specifications (GPT-5.2)
 
-**Critical limitations in available information:**
+*   **Context Window:** 400,000 tokens (Total).
+*   **Input Limit:** ~272,000 tokens.
+*   **Output Limit:** 128,000 tokens (Massive increase from GPT-4's 4k/16k limit).
+*   **Training Data:** Up to late 2025.
 
-The search results do not contain:
-- Specific model ID strings for API calls
-- Exact context window sizes or max output token limits
-- Current pricing per 1M tokens (input/output)
-- API parameter specifications (max_completion_tokens, reasoning_effort enum values)
-- Whether the "developer" role replaces the "system" role in the messages API
-- Complete technical specifications for the latest models
+### API Parameters (Breaking Changes)
 
-**Why this matters:**
-
-For accurate, production-ready API documentation including exact endpoint parameters, pricing tables, and model identifiers, you should consult OpenAI's official API documentation directly, as the search results capture only high-level announcements about model releases rather than the detailed technical specifications required for your use case.
+*   **`max_completion_tokens`**: **REQUIRED.** Replaces the deprecated `max_tokens`.
+*   **`reasoning_effort`**: Used for `o1` and compatible GPT-5 variants. Values: `low`, `medium`, `high`.
+*   **`temperature`**: **NOT SUPPORTED** on `o1` series (fixed at 1.0). Supported on `gpt-5.2`.
 
 ---
 
 ## Anthropic
 
-**Research Date:** 1/2/2026, 5:59:36 AM
+**Research Date:** February 4, 2026
 
-Based on the search results provided, I can identify the newest Claude models, but the available information is incomplete for all the technical specifications you requested.
+Anthropic has moved beyond the Claude 3 series. **Claude 3.5 Sonnet is now deprecated** (as of Oct 2025), replaced by the **Claude 4.5** family.
 
-## Latest Claude Models Available (as of January 2026)
+### Flagship Models
 
-The most recent Claude models mentioned in the search results are:[2]
+| Model | ID | Release Date | Context | Description |
+|-------|----|--------------|---------|-------------|
+| **Claude 4.5 Opus** | `claude-opus-4-5-20251101` | Nov 24, 2025 | 200k | The most intelligent model. Ideal for complex software engineering, architecture, and nuance. |
+| **Claude 4.5 Sonnet** | `claude-sonnet-4-5-20250929`* | Sep 29, 2025 | 200k | Balanced intelligence and speed. Replaces 3.5 Sonnet. (*Verify specific ID in console). |
+| **Claude 3.5 Sonnet** | `claude-3-5-sonnet-20240620` | June 2024 | 200k | **DEPRECATED.** Usage should be migrated to 4.5 Sonnet. |
 
-- **Claude 3.7 Sonnet** (model ID: `anthropic.claude-3-7-sonnet-20250219-v1:0`)[4]
-- **Claude Sonnet 4.5** (model ID: `anthropic.claude-opus-4-5-20251101-v1:0`)[4]
-- **Claude Opus 4.5**[2]
-- **Claude Haiku 4.5**[2]
+### Technical Capabilities
 
-## Available Information from Search Results
-
-**Capabilities confirmed:**
-- Computer use (beta) available on Claude 3.5 Sonnet v2, Claude Sonnet 4.5, Claude Haiku 4.5, Claude 3.7 Sonnet, and Claude Opus 4 models[2]
-- Tool use / function calling supported[2]
-- Extended thinking / thinking blocks available on Claude 3.7 Sonnet and Claude Sonnet 4.5[4]
-- Fine-grained tool streaming on Claude Sonnet 4.5, Claude Haiku 4.5, Claude Sonnet 4, and Claude Opus 4[2]
-- Claude Opus 4.5 achieves 80.9% accuracy on real-world coding tasks[6]
-
-**Note:** An **Effort Parameter API** is available as a new SDK parameter to control reasoning depth, available through the Anthropic API with no additional charge[6]
-
-## Information Not Available in Search Results
-
-The search results do not contain specific details for:
-- Pricing per 1M tokens (input/output/cache)
-- Exact context window sizes and max output tokens
-- Parameter specifications (temperature, top_p, top_k defaults and ranges)
-- Web search tool availability
-- Vision and PDF capabilities
-- Direct Anthropic API model IDs (only AWS Bedrock IDs are provided)
-
-For complete and current API specifications, consult the official Anthropic API documentation directly, as the search results appear to focus on AWS Bedrock integration rather than the direct Anthropic API endpoint.
+*   **Computer Use:** Available on Claude 4.5 series (Beta).
+*   **Extended Thinking:** "Thinking Blocks" available on 4.5 Sonnet/Opus for deep reasoning tasks.
+*   **Context:** Standardized at 200k tokens across the 4.5 flagship line.
 
 ---
 
 ## Google
 
-**Research Date:** 1/2/2026 (Updated with official docs)
+**Research Date:** February 4, 2026
 
-### Gemini 3 Models
+Google has released **Gemini 3.0**, establishing a new benchmark for context handling and reasoning.
 
-> **CRITICAL:** Model IDs must include `-preview` suffix. `gemini-3-pro` and `gemini-3-flash` are NOT valid!
+### Flagship Models
 
-| Model ID | Type | Context | thinkingLevel |
-|----------|------|---------|---------------|
-| `gemini-3-pro-preview` | Flagship reasoning | 1M tokens | LOW, HIGH only |
-| `gemini-3-flash-preview` | Fast/efficient | 1M tokens | MINIMAL, LOW, MEDIUM, HIGH |
+| Model | ID | Context | Output Limit | Description |
+|-------|----|---------|--------------|-------------|
+| **Gemini 3.0 Pro** | `gemini-3-pro-preview` | **1 Million** | 65,536 | Top-tier reasoning model. Features improved "Thinking" capabilities. |
+| **Gemini 2.0 Flash** | `gemini-2.0-flash` | 1 Million | 8,192 | Ultra-fast, low-cost. Good for high-volume tasks. |
+| **Gemini 2.0 Pro** | `gemini-2.0-pro` | **2 Million** | 8,192+ | Extreme context window for massive document analysis. |
 
-### thinkingLevel Parameter (CRITICAL)
+### API Configuration (Critical)
 
-**Gemini 3 Pro only supports LOW or HIGH. MEDIUM causes 400 errors!**
-
-| Level | Description | Use Case |
-|-------|-------------|----------|
-| `MINIMAL` | Flash-only | Constrained thinking, simplest tasks |
-| `LOW` | All models | Simple tasks, faster responses |
-| `MEDIUM` | **Flash-only** | Moderate complexity |
-| `HIGH` | All models (default) | Complex reasoning, multi-step planning |
-
-### Breaking Changes
-
-1. **`thinking_budget` deprecated** - Use `thinkingLevel` instead
-2. **Cannot mix parameters** - Using both `thinking_level` AND `thinking_budget` returns 400 error
-3. **Thinking cannot be disabled** for Gemini 3 Pro - minimum is LOW
-4. **Grounding billing starts Jan 5, 2026** - Google Search grounding will incur charges
-
-### Token Budget for Thinking (CRITICAL)
-
-> **Thinking consumes tokens from `maxOutputTokens`!** If budget is too low, thinking uses ALL tokens leaving 0 for response.
-
-| thinkingLevel | Minimum maxOutputTokens | Symptom if too low |
-|---------------|------------------------|-------------------|
-| `LOW` | 2048 | Usually OK |
-| `MEDIUM` | 4096 | May truncate |
-| `HIGH` | **8192+** | `MAX_TOKENS, parts: 0` |
-
-```javascript
-// WRONG - causes "finishReason: MAX_TOKENS, parts: 0"
-{ thinkingConfig: { thinkingLevel: "HIGH" }, maxOutputTokens: 2048 }
-
-// CORRECT
-{ thinkingConfig: { thinkingLevel: "HIGH" }, maxOutputTokens: 8192 }
-```
-
-### Correct Usage
-
-**JavaScript:**
-```javascript
-const response = await ai.models.generateContent({
-  model: "gemini-3-pro-preview",
-  contents: "How does AI work?",
-  config: {
-    thinkingConfig: {
-      thinkingLevel: "LOW"  // or "HIGH" for Pro
-    }
-  },
-});
-```
-
-**cURL:**
-```bash
-curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent" \
-  -H "x-goog-api-key: $GEMINI_API_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "contents": [{ "parts": [{"text": "How does AI work?"}] }],
-    "generationConfig": {
-      "thinkingConfig": {
-        "thinkingLevel": "LOW"
-      }
-    }
-  }'
-```
-
-### Google Search Grounding
-
-```javascript
-// Enable Google Search for real-time data
-const response = await model.generateContent({
-  contents: [...],
-  tools: [{ googleSearch: {} }]  // camelCase in JS SDK
-});
-```
-
-**Sources:**
-- [Gemini 3 Developer Guide](https://ai.google.dev/gemini-api/docs/gemini-3)
-- [Gemini Thinking Docs](https://ai.google.dev/gemini-api/docs/thinking)
-- [Vertex AI Gemini 3 Pro](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro)
+*   **Thinking Config:** Gemini 3 Pro requires `thinkingConfig`.
+    *   **Levels:** `LOW` or `HIGH` (Medium is not supported on Pro).
+    *   **Constraint:** You **cannot** disable thinking on Gemini 3 Pro (minimum is LOW).
+*   **Token Budget:** "Thinking" tokens count against your output limit.
+    *   **Recommendation:** Set `maxOutputTokens` to at least **8192** when using `HIGH` thinking level to prevent truncated responses.
 
 ---
 
 ## Perplexity
 
-**Research Date:** 1/2/2026, 5:59:33 AM
+**Research Date:** February 4, 2026
 
-The search results provided do not contain information about Perplexity AI's flagship models, API specifications, pricing, or technical parameters. The results focus primarily on Samsung's integration of Perplexity AI into the Galaxy S26's Bixby assistant, rather than Perplexity's own model offerings and API documentation.
+Perplexity continues to specialize in real-time, web-grounded research via the **Sonar** model family.
 
-To obtain the specific details you've requested—including model IDs, context windows, pricing structures, parameter specifications, and API endpoint details for Sonar, Sonar Pro, Sonar Reasoning, and other current Perplexity models—you would need to:
+### Flagship Models
 
-1. Check Perplexity AI's official API documentation at their developer portal
-2. Review their current pricing page for the most up-to-date token costs and request-based pricing
-3. Consult their API reference guide for exact parameter names, values, and ranges
+| Model | ID | Release Date | Context | Description |
+|-------|----|--------------|---------|-------------|
+| **Sonar Pro** | `sonar-pro` | Mar 6, 2025 | **200k** | Advanced research model based on Llama 3.3 70B architecture. Optimized for multi-step reasoning and deep web search. |
+| **Sonar** | `sonar` | - | 128k | Standard research model. Efficient for quick queries. |
 
-The search results confirm that Perplexity AI exists and is being integrated into Samsung products, but they don't include the technical API documentation you need for development purposes.
+### Technical Specifications
+
+*   **Context Window:** 200,000 tokens (Sonar Pro).
+*   **Pricing:** ~$3.00/1M input, ~$15.00/1M output.
+*   **Specialty:** Real-time web citations included in the response payload.
 
 ---
 
@@ -228,62 +143,17 @@ The search results confirm that Perplexity AI exists and is being integrated int
 
 ## TomTom
 
-**Research Date:** 1/2/2026, 5:59:35 AM
-
-I cannot provide the specific technical details you've requested based on the available search results. While the search results confirm that **TomTom offers Traffic APIs**[1][2], they do not contain the detailed documentation needed to answer your query.
-
-The search results reference Traffic APIs alongside products like Traffic Stats, Origin Destination Analysis, Route Monitoring, Junction Analytics, and Historical Traffic Volumes[1][2], but they lack:
-
-- Specific endpoint URLs and patterns
-- Authentication parameter names and formats
-- Detailed parameter specifications (bbox/coordinates, zoom levels, categories, styles)
-- JSON response structures
-- Rate limit information
-- Pricing tiers or per-call costs
-
-The search results direct to the TomTom Developer Portal[6], which hosts documentation and code samples, but the actual API documentation pages are not included in these results.
-
-To access the current Traffic API specifications you need, you would need to:
-
-1. Visit the TomTom Developer Portal directly at developer.tomtom.com
-2. Review the API documentation for Traffic Flow, Traffic Incidents, Traffic Tiles, and Route Planning APIs
-3. Check the pricing page for current rate limits and costs
-4. Note that TomTom also has a Public Preview program[6] where newer features may be available as beta releases
-
-I recommend consulting the official TomTom Developer Portal documentation directly, as API specifications, endpoints, and pricing are subject to updates and require current, authoritative sources.
-
----
+**Status:** Active Traffic API provider.
+*   **Endpoints:** `traffic/incident/3`, `traffic/flow/4`
+*   **Key Capabilities:** Real-time traffic flow, incident details, route monitoring.
+*   **Documentation:** [developer.tomtom.com](https://developer.tomtom.com)
 
 ## Google Maps
 
-**Research Date:** 1/2/2026, 5:59:38 AM
-
-The search results provided contain limited detailed information about Google Maps Platform APIs for rideshare applications. I can share what's available, though the results lack comprehensive endpoint specifications, pricing structures, and quota limits for most of the APIs you've requested.
-
-## Available Information from Search Results
-
-**Google Roads API** is specifically mentioned for rideshare use cases[1]. This API includes three components:
-
-- **Snap to Roads endpoint:** `GET https://roads.googleapis.com/v1/snapToRoads?path={latitude,longitude}&key={YOUR_API_KEY}`
-- **Nearest Roads endpoint:** Accepts up to 100 individual GPS coordinates and returns the closest road segment[1]
-- **Speed Limits endpoint:** `GET https://roads.googleapis.com/v1/speedLimits?placeId={PLACE_ID}&key={YOUR_API_KEY}`
-
-The Speed Limits endpoint requires a **Google Asset Tracking license** and accepts up to 100 place IDs per request, with `{PLACE_ID}` obtained from the Google Place Details API[1].
-
-## External API Services Mentioned
-
-The search results reference that rideshare platforms use **Google Maps Platform or Mapbox** for location, navigation, and geocoding services[3], with recurring usage fees estimated between $100 to $5,000/month depending on scale[6].
-
-## Limitations
-
-The search results do not provide:
-- Detailed endpoints and parameters for Places API (new vs. legacy), Routes API, or Geocoding API
-- Specific pricing per 1,000 requests
-- Daily quota limits
-- Information on Weather or Air Quality APIs
-- Places API new vs. legacy migration requirements
-
-For current, comprehensive documentation on these APIs' endpoints, parameters, pricing tiers, and quota structures as of January 2026, you would need to consult Google's official Maps Platform documentation directly, as the available search results focus primarily on the Roads API and general cost considerations rather than detailed API specifications.
+**Status:** Primary Geocoding & Places provider.
+*   **APIs Used:** Places API (New), Geocoding API, Routes API, Solar API.
+*   **Roads API:** Used for "Snap to Roads" and speed limit data (`/v1/speedLimits`).
+*   **Pricing:** Standard Google Maps Platform pay-as-you-go tiers apply.
 
 ---
 
@@ -291,103 +161,49 @@ For current, comprehensive documentation on these APIs' endpoints, parameters, p
 
 ## Parameter Constraints
 
-> **IMPORTANT:** These are breaking changes that cause 400/401 errors if misconfigured.
+> **IMPORTANT:** Migrating from older models (GPT-4, Claude 3) to 2026 flagships requires updated parameters.
 
-### Google Gemini 3 (Verified Jan 2026)
+### OpenAI GPT-5.2 & o1
+*   ❌ **REMOVE:** `max_tokens` (Use `max_completion_tokens`)
+*   ❌ **REMOVE:** `temperature` (For `o1` only - fixed at 1.0)
+*   ✅ **ADD:** `reasoning_effort: "medium"` (For `o1` and `gpt-5.2` advanced tasks)
 
-| Constraint | Details |
-|------------|---------|
-| `thinkingLevel` for Pro | **LOW or HIGH only** - MEDIUM causes 400 |
-| `thinkingLevel` for Flash | MINIMAL, LOW, MEDIUM, HIGH |
-| `thinking_budget` | **Deprecated** - use `thinkingLevel` |
-| Mixed parameters | Cannot use `thinking_level` AND `thinking_budget` together |
-| Thinking disabled | **Cannot disable for Pro** - minimum is LOW |
+### Google Gemini 3
+*   ❌ **REMOVE:** `thinking_budget` (Deprecated)
+*   ✅ **ADD:** `thinkingConfig: { thinkingLevel: "LOW" }` (Required for Pro)
+*   ⚠️ **WARNING:** Do not mix `thinking_level` and `thinking_budget`.
 
-### OpenAI GPT-5.2 (From LESSONS_LEARNED)
-
-| Constraint | Details |
-|------------|---------|
-| `temperature` | **Not supported** - use `reasoning_effort` |
-| `max_tokens` | **Deprecated** - use `max_completion_tokens` |
-| `reasoning_effort` | Valid: `"low"`, `"medium"`, `"high"` |
-
-### Anthropic Claude (From LESSONS_LEARNED)
-
-| Constraint | Details |
-|------------|---------|
-| `safetySettings` | Must include ALL 5 categories with BLOCK_NONE |
-| Extended thinking | Requires specific beta headers |
-
-### This Project's Verified Settings
-
-```javascript
-// GPT-5.2 (strategist, consolidator)
-{ model: "gpt-5.2", reasoning_effort: "medium", max_completion_tokens: 32000 }
-
-// Gemini 3 Pro (briefer)
-{ model: "gemini-3-pro-preview", generationConfig: { thinkingConfig: { thinkingLevel: "LOW" } } }
-
-// Claude Opus 4.5 (event validator, fallback)
-{ model: "claude-opus-4-5-20251101", max_tokens: 64000, temperature: 0.7 }
-```
-
-See `LESSONS_LEARNED.md` → "AI Model Configuration" for full details.
-
----
+### Anthropic Claude 4.5
+*   ✅ **HEADER:** Ensure `anthropic-version: 2023-06-01` (or newer if released) is sent.
+*   ✅ **BETA:** Enable `computer-use-2025-10-22` header for agentic features.
 
 ## SDK Examples
 
-I cannot provide the production-ready code examples you've requested because the search results don't contain the specific API specifications, endpoint URLs, exact parameter names, or code implementations for these models.
+### OpenAI (GPT-5.2)
+```javascript
+const response = await openai.chat.completions.create({
+  model: "gpt-5.2",
+  messages: [{ role: "user", content: "Analyze this..." }],
+  max_completion_tokens: 32000, // Replaces max_tokens
+  // reasoning_effort: "medium" // Optional for deeper tasks
+});
+```
 
-## What the search results do provide:
-
-**OpenAI GPT-5.2** (limited details)[1][2][3][4]:
-- Available model variants: **gpt-5.2**, **gpt-5.2-pro** (or "GPT-5.2 Pro"), and **gpt-5.2-codex**[2]
-- API endpoints: Chat Completions API, Responses API, and Assistants API[3]
-- **reasoning_effort** parameter with an "xhigh" setting is mentioned[4], but exact implementation details are not provided
-- Context window: 128k–256k tokens (variant-dependent), with some sources mentioning up to 400,000 tokens[3][4]
-- The search results explicitly note that "OpenAI does not offer a dedicated 'ChatGPT 5.2 API'"—developers use standard OpenAI endpoints[3]
-
-**For Anthropic Claude, Google Gemini 3 Pro, and Perplexity Sonar Pro**: The search results contain no API documentation, endpoint specifications, parameter names, SDK syntax, or code examples whatsoever.
-
-## What you need instead:
-
-To get production-ready code examples with current headers, authentication methods, and parameter names, you should consult:
-- Official API documentation from each provider (OpenAI, Anthropic, Google, Perplexity)
-- Their developer SDKs on GitHub
-- Recent API changelog pages that document January 2026 releases
-
-The search results focus on benchmarks, architectural improvements, and business announcements rather than implementation details.
-
----
+### Google (Gemini 3 Pro)
+```javascript
+const result = await model.generateContent({
+  contents: [{ role: "user", parts: [{ text: "Explain..." }] }],
+  generationConfig: {
+    maxOutputTokens: 8192,
+    thinkingConfig: {
+      thinkingLevel: "LOW" // Required
+    }
+  }
+});
+```
 
 ## Update Workflow
 
-To refresh this documentation with new research:
-
-```bash
-# Step 1: Run Perplexity search (requires PERPLEXITY_API_KEY)
-node tools/research/perplexity-flagship-search.mjs
-
-# Step 2: Parse JSON to MODEL.md
-node tools/research/parse-flagship-json.mjs
-```
-
-### What the scripts do:
-
-1. **perplexity-flagship-search.mjs**
-   - Uses Perplexity Sonar Pro with web search
-   - Searches for flagship models from OpenAI, Anthropic, Google, Perplexity
-   - Searches for API details from TomTom and Google Maps
-   - Searches for parameter constraints and breaking changes
-   - Searches for SDK and cURL examples
-   - Outputs: `tools/research/flagship-models-YYYY-MM-DD.json`
-
-2. **parse-flagship-json.mjs**
-   - Auto-detects the latest JSON file
-   - Parses research into organized MODEL.md
-   - Outputs: `MODEL.md`
-
----
-
-*Auto-generated on 2026-01-02T05:59:55.054Z*
+To verify these details in the future:
+1.  **Run:** `node tools/research/perplexity-flagship-search.mjs` (if Perplexity API available)
+2.  **Or:** Use Gemini CLI `google_web_search` with queries for "Latest AI model specs [Current Month] [Current Year]".

@@ -40,8 +40,6 @@ const ALLOWED_CONFIG_FILES = [
   
   // Linting & formatting
   "eslint.config.js",
-  ".eslintrc.json",
-  ".eslintrc.js",
   ".prettierrc",
   ".prettierrc.json",
   ".prettierrc.js",

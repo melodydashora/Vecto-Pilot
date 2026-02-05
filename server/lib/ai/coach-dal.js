@@ -1559,7 +1559,8 @@ export class CoachDAL {
         news_source,
         news_date,
         reason, // Free-form - we'll learn patterns as users interact
-        deactivated_by = 'user'
+        deactivated_by = 'user',
+        snapshot_id // Optional: for real-time UI update
       } = deactivationData;
 
       if (!user_id || !news_title || !reason) {
@@ -1589,6 +1590,14 @@ export class CoachDAL {
         .returning();
 
       console.log(`[CoachDAL] Deactivated news: "${news_title.substring(0, 30)}..." for user ${user_id.slice(0, 8)} (reason: ${reason})`);
+
+      // 2026-02-04: Real-time update - notify client to refresh briefing
+      if (snapshot_id && deactivation) {
+        const payload = JSON.stringify({ snapshot_id, type: 'news_update' });
+        await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
+        console.log(`[CoachDAL] 📢 Sent briefing_ready notification for news update (snapshot: ${snapshot_id.slice(0, 8)})`);
+      }
+
       return deactivation;
     } catch (error) {
       console.error('[CoachDAL] deactivateNews error:', error);
@@ -1626,6 +1635,7 @@ export class CoachDAL {
    * @param {string} deactivationData.reason - Reason for deactivation
    * @param {string} [deactivationData.notes] - Additional notes
    * @param {string} [deactivationData.deactivated_by] - Who deactivated (default: 'ai_coach')
+   * @param {string} [deactivationData.snapshot_id] - Snapshot ID for real-time update
    * @returns {Promise<Object|null>} Updated event or null
    */
   async deactivateEvent(deactivationData) {
@@ -1635,7 +1645,8 @@ export class CoachDAL {
         event_title,
         reason,
         notes,
-        deactivated_by = 'ai_coach'
+        deactivated_by = 'ai_coach',
+        snapshot_id // Optional: for real-time UI update
       } = deactivationData;
 
       if (!reason) {
@@ -1699,6 +1710,14 @@ export class CoachDAL {
         .returning();
 
       console.log(`[CoachDAL] Deactivated event: ${targetEventId} (reason: ${deactivationReason})`);
+
+      // 2026-02-04: Real-time update - notify client to refresh briefing
+      if (snapshot_id && event) {
+        const payload = JSON.stringify({ snapshot_id, type: 'event_update' });
+        await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
+        console.log(`[CoachDAL] 📢 Sent briefing_ready notification for event deactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
+      }
+
       return event;
     } catch (error) {
       console.error('[CoachDAL] deactivateEvent error:', error);
@@ -1715,6 +1734,7 @@ export class CoachDAL {
    * @param {string} reactivationData.reason - Reason for reactivation
    * @param {string} [reactivationData.notes] - Additional notes
    * @param {string} [reactivationData.reactivated_by] - Who reactivated (default: 'ai_coach')
+   * @param {string} [reactivationData.snapshot_id] - Snapshot ID for real-time update
    * @returns {Promise<Object|null>} Updated event or null
    */
   async reactivateEvent(reactivationData) {
@@ -1724,7 +1744,8 @@ export class CoachDAL {
         event_title,
         reason,
         notes,
-        reactivated_by = 'ai_coach'
+        reactivated_by = 'ai_coach',
+        snapshot_id // Optional: for real-time UI update
       } = reactivationData;
 
       if (!reason) {
@@ -1791,6 +1812,14 @@ export class CoachDAL {
         .returning();
 
       console.log(`[CoachDAL] Reactivated event: ${targetEventId} (reason: ${reactivationNote}, by: ${reactivated_by})`);
+
+      // 2026-02-04: Real-time update - notify client to refresh briefing
+      if (snapshot_id && event) {
+        const payload = JSON.stringify({ snapshot_id, type: 'event_update' });
+        await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
+        console.log(`[CoachDAL] 📢 Sent briefing_ready notification for event reactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
+      }
+
       return event;
     } catch (error) {
       console.error('[CoachDAL] reactivateEvent error:', error);

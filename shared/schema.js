@@ -583,7 +583,7 @@ export const discovered_events = pgTable("discovered_events", {
   event_start_date: text("event_start_date").notNull(), // YYYY-MM-DD format
   event_start_time: text("event_start_time"), // e.g., "7:00 PM", "All Day"
   event_end_date: text("event_end_date"), // For multi-day events (defaults to event_start_date in normalizeEvent)
-  event_end_time: text("event_end_time"), // e.g., "10:00 PM"
+  event_end_time: text("event_end_time").notNull(), // e.g., "10:00 PM"
   // Categorization
   category: text("category").notNull().default('other'), // concert, sports, theater, conference, festival, nightlife, civic, academic, airport, other
   expected_attendance: text("expected_attendance").default('medium'), // high, medium, low

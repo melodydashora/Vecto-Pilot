@@ -162,6 +162,21 @@ export function normalizeAttendance(attendance) {
 }
 
 /**
+ * Add duration to a time string (HH:MM)
+ * @param {string} startTime - Start time in HH:MM
+ * @param {number} durationHours - Duration to add in hours
+ * @returns {string} New time in HH:MM
+ */
+function addDuration(startTime, durationHours) {
+  if (!startTime) return '';
+  const [h, m] = startTime.split(':').map(Number);
+  let newH = h + durationHours;
+  // Handle midnight rollover (simple wrap for 24h clock)
+  if (newH >= 24) newH -= 24;
+  return `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+/**
  * Normalize a raw event to canonical format
  * This is the ONLY function that should convert provider output to internal format.
  *
@@ -171,6 +186,25 @@ export function normalizeAttendance(attendance) {
  */
 export function normalizeEvent(rawEvent, context = {}) {
   const { city, state } = context;
+
+  // Classification
+  const category = normalizeCategory(rawEvent.category, rawEvent.subtype);
+  const expected_attendance = normalizeAttendance(rawEvent.expected_attendance || rawEvent.impact);
+
+  // Date/Time Normalization
+  const event_start_date = normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date);
+  const event_start_time = normalizeTime(rawEvent.event_time || rawEvent.event_start_time || rawEvent.time);
+  let event_end_time = normalizeTime(rawEvent.event_end_time || rawEvent.end_time);
+
+  // 2026-02-05: Auto-estimate end time if missing (Requirement: End time MUST be resolved)
+  if (event_start_time && !event_end_time) {
+    let duration = 3; // Default 3 hours
+    if (category === 'festival' || category === 'convention') duration = 4;
+    else if (category === 'comedy' || category === 'theater') duration = 2;
+    else if (category === 'sports' || category === 'concert') duration = 3;
+    
+    event_end_time = addDuration(event_start_time, duration);
+  }
 
   return {
     // Title - prefer 'title', fallback to 'name'
@@ -189,19 +223,15 @@ export function normalizeEvent(rawEvent, context = {}) {
     // Geocoding (lat/lng) happens in venue_catalog, which is source of truth for coordinates
 
     // Date/Time (2026-01-10: Renamed to symmetric naming convention)
-    // Input: rawEvent.event_date → Output: event_start_date
-    // Input: rawEvent.event_time → Output: event_start_time
-    // Also accepts already-normalized input (event_start_date/event_start_time) for idempotency
-    event_start_date: normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
-    event_start_time: normalizeTime(rawEvent.event_time || rawEvent.event_start_time || rawEvent.time),
-    event_end_time: normalizeTime(rawEvent.event_end_time || rawEvent.end_time),
+    event_start_date,
+    event_start_time,
+    event_end_time,
     // 2026-01-10: Default event_end_date to event_start_date for single-day events
-    // Most events (concerts, sports games, DJ nights) are single-day - only multi-day festivals need explicit end_date
     event_end_date: normalizeDate(rawEvent.event_end_date) || normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
 
     // Classification
-    category: normalizeCategory(rawEvent.category, rawEvent.subtype),
-    expected_attendance: normalizeAttendance(rawEvent.expected_attendance || rawEvent.impact)
+    category,
+    expected_attendance
     // 2026-01-10: Removed source_model - not needed, all events come from Gemini discovery
   };
 }

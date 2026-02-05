@@ -6,6 +6,8 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { authLog } from '../../logger/workflow.js';
 
+import UberClient from '../../lib/external/uber-client.js';
+
 const router = Router();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -20,6 +22,138 @@ const UBER_WEBHOOK_SECRET = process.env.UBER_WEBHOOK_SECRET;
 // Uber OAuth URLs
 const UBER_AUTH_URL = 'https://login.uber.com/oauth/v2/authorize';
 const UBER_TOKEN_URL = 'https://login.uber.com/oauth/v2/token';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Data Proxy Endpoints (New for Phase 2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Helper to get initialized UberClient
+ * In Phase 4, this will lookup the token from DB based on req.user.id
+ */
+const getUberClient = (req) => {
+  // For Phase 2, we expect the client to pass the access token
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  // Use mock mode if no token provided (Dev convenience)
+  // In production, this should return null or throw error
+  const useMock = !token || process.env.NODE_ENV === 'development';
+  
+  return new UberClient(token, { mock: useMock && !token });
+};
+
+/**
+ * GET /api/auth/uber/profile
+ * Proxies request to Uber /partners/me
+ */
+router.get('/profile', async (req, res) => {
+  try {
+    const client = getUberClient(req);
+    const profile = await client.getProfile();
+    res.json(profile);
+  } catch (err) {
+    console.error('Uber Profile Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/auth/uber/trips
+ * Proxies request to Uber /partners/trips
+ */
+router.get('/trips', async (req, res) => {
+  try {
+    const client = getUberClient(req);
+    const params = {
+      limit: req.query.limit || 10,
+      offset: req.query.offset || 0,
+      from_time: req.query.from_time,
+      to_time: req.query.to_time
+    };
+    const trips = await client.getTrips(params);
+    res.json(trips);
+  } catch (err) {
+    console.error('Uber Trips Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/auth/uber/payments
+ * Proxies request to Uber /partners/payments
+ */
+router.get('/payments', async (req, res) => {
+  try {
+    const client = getUberClient(req);
+    const params = {
+      limit: req.query.limit || 10,
+      offset: req.query.offset || 0,
+      from_time: req.query.from_time,
+      to_time: req.query.to_time
+    };
+    const payments = await client.getPayments(params);
+    res.json(payments);
+  } catch (err) {
+    console.error('Uber Payments Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/auth/uber/exchange
+ * Exchanges authorization code for access token (Frontend calls this)
+ */
+router.post('/exchange', async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: 'Authorization code is required' });
+    }
+
+    // If no client secret, we can't do the exchange (sandbox safety)
+    if (!UBER_CLIENT_SECRET) {
+      console.warn('UBER_CLIENT_SECRET missing, using mock token for dev');
+      return res.json({
+        access_token: 'mock_access_token_' + Date.now(),
+        refresh_token: 'mock_refresh_token',
+        expires_in: 2592000,
+        scope: 'profile partner.trips'
+      });
+    }
+
+    const params = new URLSearchParams({
+      client_id: UBER_CLIENT_ID,
+      client_secret: UBER_CLIENT_SECRET,
+      grant_type: 'authorization_code',
+      redirect_uri: UBER_REDIRECT_URI,
+      code
+    });
+
+    const response = await fetch(UBER_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Uber Token Error:', data);
+      return res.status(response.status).json({ error: data.error_description || 'Failed to exchange token' });
+    }
+    
+    // In Phase 4, we store this. For now, send back to client to hold in memory/storage
+    res.json(data);
+
+  } catch (error) {
+    console.error('Uber Auth Exception:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OAuth Flow
