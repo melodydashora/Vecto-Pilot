@@ -1,0 +1,321 @@
+Gemini CLI installation, execution, and deployment
+
+Copy as Markdown
+Install and run Gemini CLI. This document provides an overview of Gemini CLI’s installation methods and deployment architecture.
+
+How to install and/or run Gemini CLI
+There are several ways to run Gemini CLI. The recommended option depends on how you intend to use Gemini CLI.
+
+As a standard installation. This is the most straightforward method of using Gemini CLI.
+In a sandbox. This method offers increased security and isolation.
+From the source. This is recommended for contributors to the project.
+1. Standard installation (recommended for standard users)
+This is the recommended way for end-users to install Gemini CLI. It involves downloading the Gemini CLI package from the NPM registry.
+
+Global install:
+
+Terminal window
+npm install -g @google/gemini-cli
+
+Then, run the CLI from anywhere:
+
+Terminal window
+gemini
+
+NPX execution:
+
+Terminal window
+# Execute the latest version from NPM without a global install
+npx @google/gemini-cli
+
+2. Run in a sandbox (Docker/Podman)
+For security and isolation, Gemini CLI can be run inside a container. This is the default way that the CLI executes tools that might have side effects.
+
+Directly from the registry: You can run the published sandbox image directly. This is useful for environments where you only have Docker and want to run the CLI.
+Terminal window
+# Run the published sandbox image
+docker run --rm -it us-docker.pkg.dev/gemini-code-dev/gemini-cli/sandbox:0.1.1
+
+Using the --sandbox flag: If you have Gemini CLI installed locally (using the standard installation described above), you can instruct it to run inside the sandbox container.
+Terminal window
+gemini --sandbox -y -p "your prompt here"
+
+3. Run from source (recommended for Gemini CLI contributors)
+Contributors to the project will want to run the CLI directly from the source code.
+
+Development mode: This method provides hot-reloading and is useful for active development.
+
+Terminal window
+# From the root of the repository
+npm run start
+
+Production-like mode (linked package): This method simulates a global installation by linking your local package. It’s useful for testing a local build in a production workflow.
+
+Terminal window
+# Link the local cli package to your global node_modules
+npm link packages/cli
+
+# Now you can run your local version using the `gemini` command
+gemini
+
+4. Running the latest Gemini CLI commit from GitHub
+You can run the most recently committed version of Gemini CLI directly from the GitHub repository. This is useful for testing features still in development.
+
+Terminal window
+# Execute the CLI directly from the main branch on GitHub
+npx https://github.com/google-gemini/gemini-cli
+
+Deployment architecture
+The execution methods described above are made possible by the following architectural components and processes:
+
+NPM packages
+
+Gemini CLI project is a monorepo that publishes two core packages to the NPM registry:
+
+@google/gemini-cli-core: The backend, handling logic and tool execution.
+@google/gemini-cli: The user-facing frontend.
+These packages are used when performing the standard installation and when running Gemini CLI from the source.
+
+Build and packaging processes
+
+There are two distinct build processes used, depending on the distribution channel:
+
+NPM publication: For publishing to the NPM registry, the TypeScript source code in @google/gemini-cli-core and @google/gemini-cli is transpiled into standard JavaScript using the TypeScript Compiler (tsc). The resulting dist/ directory is what gets published in the NPM package. This is a standard approach for TypeScript libraries.
+
+GitHub npx execution: When running the latest version of Gemini CLI directly from GitHub, a different process is triggered by the prepare script in package.json. This script uses esbuild to bundle the entire application and its dependencies into a single, self-contained JavaScript file. This bundle is created on-the-fly on the user’s machine and is not checked into the repository.
+
+Docker sandbox image
+
+The Docker-based execution method is supported by the gemini-cli-sandbox container image. This image is published to a container registry and contains a pre-installed, global version of Gemini CLI.
+
+Release process
+The release process is automated through GitHub Actions. The release workflow performs the following actions:
+
+Build the NPM packages using tsc.
+Publish the NPM packages to the artifact registry.
+Create GitHub releases with bundled assets.
+
+Gemini CLI authentication setup
+
+Copy as Markdown
+To use Gemini CLI, you’ll need to authenticate with Google. This guide helps you quickly find the best way to sign in based on your account type and how you’re using the CLI.
+
+For most users, we recommend starting Gemini CLI and logging in with your personal Google account.
+
+Choose your authentication method 
+Select the authentication method that matches your situation in the table below:
+
+User Type / Scenario	Recommended Authentication Method	Google Cloud Project Required
+Individual Google accounts	Login with Google	No, with exceptions
+Organization users with a company, school, or Google Workspace account	Login with Google	Yes
+AI Studio user with a Gemini API key	Use Gemini API Key	No
+Google Cloud Vertex AI user	Vertex AI	Yes
+Headless mode	Use Gemini API Key or
+Vertex AI	No (for Gemini API Key)
+Yes (for Vertex AI)
+What is my Google account type?
+Individual Google accounts: Includes all free tier accounts such as Gemini Code Assist for individuals, as well as paid subscriptions for Google AI Pro and Ultra.
+
+Organization accounts: Accounts using paid licenses through an organization such as a company, school, or Google Workspace. Includes Google AI Ultra for Business subscriptions.
+
+(Recommended) Login with Google 
+If you run Gemini CLI on your local machine, the simplest authentication method is logging in with your Google account. This method requires a web browser on a machine that can communicate with the terminal running Gemini CLI (e.g., your local machine).
+
+Important: If you are a Google AI Pro or Google AI Ultra subscriber, use the Google account associated with your subscription.
+
+To authenticate and use Gemini CLI:
+
+Start the CLI:
+
+Terminal window
+gemini
+
+Select Login with Google. Gemini CLI opens a login prompt using your web browser. Follow the on-screen instructions. Your credentials will be cached locally for future sessions.
+
+Do I need to set my Google Cloud project?
+Most individual Google accounts (free and paid) don’t require a Google Cloud project for authentication. However, you’ll need to set a Google Cloud project when you meet at least one of the following conditions:
+
+You are using a company, school, or Google Workspace account.
+You are using a Gemini Code Assist license from the Google Developer Program.
+You are using a license from a Gemini Code Assist subscription.
+For instructions, see Set your Google Cloud Project.
+
+Use Gemini API key 
+If you don’t want to authenticate using your Google account, you can use an API key from Google AI Studio.
+
+To authenticate and use Gemini CLI with a Gemini API key:
+
+Obtain your API key from Google AI Studio.
+
+Set the GEMINI_API_KEY environment variable to your key. For example:
+
+Terminal window
+# Replace YOUR_GEMINI_API_KEY with the key from AI Studio
+export GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+
+To make this setting persistent, see Persisting Environment Variables.
+
+Start the CLI:
+
+Terminal window
+gemini
+
+Select Use Gemini API key.
+
+Warning: Treat API keys, especially for services like Gemini, as sensitive credentials. Protect them to prevent unauthorized access and potential misuse of the service under your account.
+
+Use Vertex AI 
+To use Gemini CLI with Google Cloud’s Vertex AI platform, choose from the following authentication options:
+
+A. Application Default Credentials (ADC) using gcloud.
+B. Service account JSON key.
+C. Google Cloud API key.
+Regardless of your authentication method for Vertex AI, you’ll need to set GOOGLE_CLOUD_PROJECT to your Google Cloud project ID with the Vertex AI API enabled, and GOOGLE_CLOUD_LOCATION to the location of your Vertex AI resources or the location where you want to run your jobs.
+
+For example:
+
+Terminal window
+# Replace with your project ID and desired location (e.g., us-central1)
+export GOOGLE_CLOUD_PROJECT="YOUR_PROJECT_ID"
+export GOOGLE_CLOUD_LOCATION="YOUR_PROJECT_LOCATION"
+
+To make any Vertex AI environment variable settings persistent, see Persisting Environment Variables.
+
+A. Vertex AI - application default credentials (ADC) using gcloud
+Consider this authentication method if you have Google Cloud CLI installed.
+
+Note: If you have previously set GOOGLE_API_KEY or GEMINI_API_KEY, you must unset them to use ADC:
+
+Terminal window
+unset GOOGLE_API_KEY GEMINI_API_KEY
+
+Verify you have a Google Cloud project and Vertex AI API is enabled.
+
+Log in to Google Cloud:
+
+Terminal window
+gcloud auth application-default login
+
+Configure your Google Cloud Project.
+
+Start the CLI:
+
+Terminal window
+gemini
+
+Select Vertex AI.
+
+B. Vertex AI - service account JSON key
+Consider this method of authentication in non-interactive environments, CI/CD pipelines, or if your organization restricts user-based ADC or API key creation.
+
+Note: If you have previously set GOOGLE_API_KEY or GEMINI_API_KEY, you must unset them:
+
+Terminal window
+unset GOOGLE_API_KEY GEMINI_API_KEY
+
+Create a service account and key and download the provided JSON file. Assign the “Vertex AI User” role to the service account.
+
+Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the JSON file’s absolute path. For example:
+
+Terminal window
+# Replace /path/to/your/keyfile.json with the actual path
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/keyfile.json"
+
+Configure your Google Cloud Project.
+
+Start the CLI:
+
+Terminal window
+gemini
+
+Select Vertex AI.
+
+Warning: Protect your service account key file as it gives access to your resources.
+
+C. Vertex AI - Google Cloud API key
+Obtain a Google Cloud API key: Get an API Key.
+
+Set the GOOGLE_API_KEY environment variable:
+
+Terminal window
+# Replace YOUR_GOOGLE_API_KEY with your Vertex AI API key
+export GOOGLE_API_KEY="YOUR_GOOGLE_API_KEY"
+
+Note: If you see errors like "API keys are not supported by this API...", your organization might restrict API key usage for this service. Try the other Vertex AI authentication methods instead.
+
+Configure your Google Cloud Project.
+
+Start the CLI:
+
+Terminal window
+gemini
+
+Select Vertex AI.
+
+Set your Google Cloud project 
+Important: Most individual Google accounts (free and paid) don’t require a Google Cloud project for authentication.
+
+When you sign in using your Google account, you may need to configure a Google Cloud project for Gemini CLI to use. This applies when you meet at least one of the following conditions:
+
+You are using a Company, School, or Google Workspace account.
+You are using a Gemini Code Assist license from the Google Developer Program.
+You are using a license from a Gemini Code Assist subscription.
+To configure Gemini CLI to use a Google Cloud project, do the following:
+
+Find your Google Cloud Project ID.
+
+Enable the Gemini for Cloud API.
+
+Configure necessary IAM access permissions.
+
+Configure your environment variables. Set either the GOOGLE_CLOUD_PROJECT or GOOGLE_CLOUD_PROJECT_ID variable to the project ID to use with Gemini CLI. Gemini CLI checks for GOOGLE_CLOUD_PROJECT first, then falls back to GOOGLE_CLOUD_PROJECT_ID.
+
+For example, to set the GOOGLE_CLOUD_PROJECT_ID variable:
+
+Terminal window
+# Replace YOUR_PROJECT_ID with your actual Google Cloud project ID
+export GOOGLE_CLOUD_PROJECT="YOUR_PROJECT_ID"
+
+To make this setting persistent, see Persisting Environment Variables.
+
+Persisting environment variables 
+To avoid setting environment variables for every terminal session, you can persist them with the following methods:
+
+Add your environment variables to your shell configuration file: Append the export ... commands to your shell’s startup file (e.g., ~/.bashrc, ~/.zshrc, or ~/.profile) and reload your shell (e.g., source ~/.bashrc).
+
+Terminal window
+# Example for .bashrc
+echo 'export GOOGLE_CLOUD_PROJECT="YOUR_PROJECT_ID"' >> ~/.bashrc
+source ~/.bashrc
+
+Warning: Be aware that when you export API keys or service account paths in your shell configuration file, any process launched from that shell can read them.
+
+Use a .env file: Create a .gemini/.env file in your project directory or home directory. Gemini CLI automatically loads variables from the first .env file it finds, searching up from the current directory, then in ~/.gemini/.env or ~/.env. .gemini/.env is recommended.
+
+Example for user-wide settings:
+
+Terminal window
+mkdir -p ~/.gemini
+cat >> ~/.gemini/.env <<'EOF'
+GOOGLE_CLOUD_PROJECT="your-project-id"
+# Add other variables like GEMINI_API_KEY as needed
+EOF
+
+Variables are loaded from the first file found, not merged.
+
+Running in Google Cloud environments 
+When running Gemini CLI within certain Google Cloud environments, authentication is automatic.
+
+In a Google Cloud Shell environment, Gemini CLI typically authenticates automatically using your Cloud Shell credentials. In Compute Engine environments, Gemini CLI automatically uses Application Default Credentials (ADC) from the environment’s metadata server.
+
+If automatic authentication fails, use one of the interactive methods described on this page.
+
+Running in headless mode 
+Headless mode will use your existing authentication method, if an existing authentication credential is cached.
+
+If you have not already logged in with an authentication credential, you must configure authentication using environment variables:
+
+Use Gemini API Key
+Vertex AI
+What’s next?
+Your authentication method affects your quotas, pricing, Terms of Service, and privacy notices. Review the following pages to learn more:

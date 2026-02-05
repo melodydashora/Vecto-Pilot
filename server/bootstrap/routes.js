@@ -67,7 +67,7 @@ export async function mountRoutes(app, server) {
 
     // Auth (server/api/auth/)
     { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
-    // 2026-02-03: Uber OAuth and webhooks
+    // 2026-02-03: Uber OAuth
     { path: '/api/auth/uber', module: './server/api/auth/uber.js', desc: 'Uber OAuth' },
 
     // Location (server/api/location/)

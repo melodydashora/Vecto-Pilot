@@ -132,6 +132,16 @@ This document provides a complete mapping of UI components to their source files
 | `hooks/useMemory.ts` | Memory persistence utilities | Multiple | ✅ Active |
 | `hooks/useMarketIntelligence.ts` | Market intelligence queries | IntelPage.tsx | ✅ Active |
 | `hooks/usePlatformData.ts` | Platform data queries (countries, markets, etc.) | SettingsPage.tsx | ✅ Active |
+| `hooks/useChatPersistence.ts` | Chat history persistence | CoachChat.tsx | ✅ Active |
+
+### Tests
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `tests/BriefingPageEvents.test.tsx` | Unit tests for BriefingPage data binding | ✅ Active |
+| `tests/BriefingTabIntegration.test.tsx` | Integration tests for event filtering logic | ✅ Active |
+| `tests/useChatPersistence.test.tsx` | Unit tests for chat persistence hook | ✅ Active |
+| `jest.client.config.js` | Client-side Jest configuration | ✅ Active |
 
 ### Libraries
 

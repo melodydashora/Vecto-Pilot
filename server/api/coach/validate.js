@@ -46,9 +46,12 @@ export const noteSchema = z.object({
 export const eventDeactivationSchema = z.object({
   event_id: z.string().uuid('event_id must be a valid UUID').optional(),
   event_title: z.string().min(1, 'event_title is required').max(500, 'event_title must be at most 500 characters'),
-  reason: z.enum(['event_ended', 'incorrect_time', 'no_longer_relevant', 'cancelled', 'duplicate', 'other'], {
-    errorMap: () => ({ message: 'reason must be one of: event_ended, incorrect_time, no_longer_relevant, cancelled, duplicate, other' })
-  }),
+  reason: z.preprocess(
+    (val) => typeof val === 'string' ? val.toLowerCase().trim().replace(/[\s-]/g, '_') : val,
+    z.enum(['event_ended', 'incorrect_time', 'no_longer_relevant', 'cancelled', 'duplicate', 'other'], {
+      errorMap: () => ({ message: 'reason must be one of: event_ended, incorrect_time, no_longer_relevant, cancelled, duplicate, other' })
+    })
+  ),
   notes: z.string().max(1000, 'notes must be at most 1000 characters').optional()
 });
 

@@ -451,6 +451,108 @@ function checkCountryCodeFormat() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CHECK 7: Deprecated AI Models & Parameters
+// ═══════════════════════════════════════════════════════════════════════════
+
+function checkDeprecatedAI() {
+  log('Checking for deprecated AI models and parameters...');
+  checksRun++;
+
+  // 2026-02-04: AI-Native Standards
+  const deprecatedPatterns = [
+    // Models
+    { regex: /['"]gpt-4['"]/g, message: "Deprecated model 'gpt-4'. Use 'gpt-5.2' or 'o1'." },
+    { regex: /['"]gpt-4-turbo['"]/g, message: "Deprecated model 'gpt-4-turbo'. Use 'gpt-5.2'." },
+    { regex: /['"]claude-3-5-sonnet['"]/g, message: "Deprecated model 'claude-3-5-sonnet'. Use 'claude-sonnet-4-5'." },
+    { regex: /['"]gemini-pro['"]/g, message: "Ambiguous model 'gemini-pro'. Use 'gemini-3-pro-preview'." },
+    
+    // Parameters
+    { regex: /max_tokens(?=:)/g, message: "Deprecated parameter 'max_tokens' (OpenAI). Use 'max_completion_tokens'." },
+    { regex: /thinking_budget(?=:)/g, message: "Deprecated parameter 'thinking_budget' (Gemini). Use 'thinkingConfig.thinkingLevel'." },
+  ];
+
+  let found = 0;
+
+  for (const dir of CONFIG.serverDirs) {
+    const fullDir = path.join(ROOT, dir);
+    if (!fs.existsSync(fullDir)) continue;
+
+    walkDir(fullDir, (filePath, relativePath) => {
+      // Skip this script itself and node_modules
+      if (relativePath.includes('check-standards.js')) return;
+
+      const content = readFile(filePath);
+      if (!content) return;
+
+      const lines = content.split('\n');
+      lines.forEach((line, idx) => {
+        for (const pattern of deprecatedPatterns) {
+          pattern.regex.lastIndex = 0;
+          if (pattern.regex.test(line)) {
+            addViolation(
+              'deprecated-ai',
+              relativePath,
+              idx + 1,
+              pattern.message,
+              'warning' // Warning for now, error later
+            );
+            found++;
+          }
+        }
+      });
+    });
+  }
+
+  if (found === 0) {
+    checksPassed++;
+    log('No deprecated AI models/params found', 'success');
+  } else {
+    log(`Found ${found} deprecated AI usage(s)`, 'warn');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHECK 8: Lint Configuration (ESLint v9)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function checkLintConfig() {
+  log('Checking for legacy lint configuration...');
+  checksRun++;
+
+  const legacyFiles = ['.eslintrc', '.eslintrc.js', '.eslintrc.json', '.eslintrc.cjs', '.eslintrc.yaml', '.eslintrc.yml'];
+  let found = 0;
+
+  legacyFiles.forEach(file => {
+    if (fs.existsSync(path.join(ROOT, file))) {
+      addViolation(
+        'legacy-lint-config',
+        file,
+        0,
+        `Legacy lint config found. Project uses ESLint v9 Flat Config (eslint.config.js). Please delete this file.`
+      );
+      found++;
+    }
+  });
+
+  if (!fs.existsSync(path.join(ROOT, 'eslint.config.js'))) {
+    addViolation(
+      'missing-lint-config',
+      'eslint.config.js',
+      0,
+      `Missing ESLint v9 configuration file (eslint.config.js).`
+    );
+    found++;
+  }
+
+  if (found === 0) {
+    checksPassed++;
+    log('Lint configuration is correct (Flat Config)', 'success');
+  } else {
+    log(`Found ${found} lint configuration issue(s)`, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -515,6 +617,9 @@ function main() {
   if (!checkFilter || checkFilter === 'comments') checkSpeculativeComments();
   if (!checkFilter || checkFilter === 'schema') checkSchemaNaming();
   if (!checkFilter || checkFilter === 'country') checkCountryCodeFormat();
+  // New AI-Native checks
+  if (!checkFilter || checkFilter === 'ai') checkDeprecatedAI();
+  if (!checkFilter || checkFilter === 'lint') checkLintConfig();
 
   // Print report and exit
   const exitCode = printReport();

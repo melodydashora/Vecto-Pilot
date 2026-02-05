@@ -802,6 +802,7 @@ IMPORTANT:
 - SEARCH THE ENTIRE METRO MARKET, not just one city
 - Include major venue events (stadiums, arenas, concert halls) from the whole market
 - Include event_end_date (same as start_date for single-day events)
+- ESTIMATE event_end_time if unknown (Sports=3h, Concert=3h, Festival=4h) - DO NOT leave blank
 - Prioritize events with large expected attendance
 - Include full address for navigation
 - Return [] if no events found for today.`;

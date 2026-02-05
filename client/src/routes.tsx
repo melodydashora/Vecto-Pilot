@@ -20,6 +20,7 @@ import {
   ResetPasswordPage,
   TermsPage,
 } from '@/pages/auth';
+import { UberCallbackPage } from '@/pages/auth/uber/Callback';
 import AuthRedirect from '@/components/auth/AuthRedirect';
 
 export const router = createBrowserRouter([
@@ -40,6 +41,16 @@ export const router = createBrowserRouter([
     // 2026-02-03: Public privacy policy for OAuth providers (Uber requires public access)
     path: '/policy',
     element: <PolicyPage />,
+  },
+  
+  // 2026-02-03: Uber OAuth Callback (Must be public/handled specially)
+  {
+    path: '/auth/uber/callback',
+    element: (
+      <ProtectedRoute>
+        <UberCallbackPage />
+      </ProtectedRoute>
+    ),
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

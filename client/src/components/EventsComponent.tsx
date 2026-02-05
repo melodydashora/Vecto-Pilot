@@ -23,6 +23,7 @@ interface Event {
   latitude?: number;
   longitude?: number;
   location?: string;
+  [key: string]: unknown;
 }
 
 interface EventsComponentProps {

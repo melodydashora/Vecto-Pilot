@@ -162,6 +162,9 @@ interface LocationContextType {
   isLocationResolved: boolean;
   isLoading: boolean;
   setOverrideCoords: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
+  // Expose snapshot ID directly so co-pilot can access it as fallback
+  lastSnapshotId: string | null;
+  locationError?: { code: string; message: string } | null;
 }
 
 export const LocationContext = createContext<LocationContextType | null>(null);

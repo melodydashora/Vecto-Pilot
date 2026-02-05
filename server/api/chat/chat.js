@@ -213,7 +213,8 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         event_title: validation.data.event_title,
         reason: validation.data.reason,
         notes: validation.data.notes,
-        deactivated_by: 'ai_coach'
+        deactivated_by: 'ai_coach',
+        snapshot_id: snapshotId // 2026-02-04: Pass snapshot_id for real-time UI update
       });
       results.saved++;
       console.log(`[chat/actions] Deactivated event: ${validation.data.event_title}`);
@@ -230,7 +231,8 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         event_title: event.event_title,
         reason: event.reason,
         notes: event.notes,
-        reactivated_by: 'ai_coach'
+        reactivated_by: 'ai_coach',
+        snapshot_id: snapshotId // 2026-02-04: Pass snapshot_id for real-time UI update
       });
       results.saved++;
       console.log(`[chat/actions] Reactivated event: ${event.event_title}`);
@@ -246,7 +248,8 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         user_id: userId,
         news_title: news.news_title,
         reason: news.reason,
-        deactivated_by: 'ai_coach'
+        deactivated_by: 'ai_coach',
+        snapshot_id: snapshotId // 2026-02-04: Pass snapshot_id for real-time UI update
       });
       results.saved++;
       console.log(`[chat/actions] Deactivated news: ${news.news_title}`);

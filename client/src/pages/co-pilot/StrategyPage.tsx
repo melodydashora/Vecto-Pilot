@@ -62,7 +62,7 @@ export default function StrategyPage() {
   const filteredBlocks = useMemo(() => {
     if (!blocks || blocks.length === 0) return [];
 
-    const filtered = filterHighValueSpacedBlocks(blocks, 1.0, 3); // 1 mile minimum, max 3 venues
+    const filtered = filterHighValueSpacedBlocks(blocks as any[], 1.0, 3); // 1 mile minimum, max 3 venues
     console.log(`[StrategyPage] NOW Strategy: ${filtered.length} Grade A venues (>= 1mi apart, max 3)`);
     return filtered;
   }, [blocks]);
@@ -136,18 +136,18 @@ export default function StrategyPage() {
 
   // Log action wrapper
   const logAction = (action: string, blockId?: string, dwellMs?: number, fromRank?: number) => {
-    logActionHelper(blocksData?.ranking_id, action, blockId, dwellMs, fromRank);
+    logActionHelper(blocksData?.rankingId, action, blockId, dwellMs, fromRank);
   };
 
   const metadata = blocksData?.metadata;
 
   // Log view action when blocks are loaded
   useEffect(() => {
-    if (blocks && blocks.length > 0 && blocksData?.ranking_id) {
+    if (blocks && blocks.length > 0 && blocksData?.rankingId) {
       logAction('blocks_viewed');
-      console.log(`📊 Logged view action for ${blocks.length} blocks (ranking: ${blocksData.ranking_id})`);
+      console.log(`📊 Logged view action for ${blocks.length} blocks (ranking: ${blocksData.rankingId})`);
     }
-  }, [blocksData?.ranking_id]);
+  }, [blocksData?.rankingId]);
 
   // Track dwell time for each block using IntersectionObserver
   useEffect(() => {
@@ -192,7 +192,7 @@ export default function StrategyPage() {
     return () => {
       observers.forEach(observer => observer.disconnect());
     };
-  }, [blocks, blocksData?.ranking_id]);
+  }, [blocks, blocksData?.rankingId]);
 
   const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
@@ -853,7 +853,7 @@ export default function StrategyPage() {
             <CoachChat
               userId={localStorage.getItem('vecto_user_id') || 'default'}
               snapshotId={lastSnapshotId || undefined}
-              strategyId={strategyData?.strategy_id || undefined}
+              strategyId={strategyData?.strategyId || undefined}
               strategy={persistentStrategy}
               snapshot={snapshotData}
               blocks={blocks}
@@ -890,7 +890,7 @@ export default function StrategyPage() {
         venueName={feedbackModal.block?.name}
         placeId={feedbackModal.block?.placeId}
         snapshotId={lastSnapshotId || undefined}
-        rankingId={blocksData?.ranking_id}
+        rankingId={blocksData?.rankingId}
         userId={localStorage.getItem('vecto_user_id') || 'default'}
         onSuccess={(sentiment) => {
           console.log(`Feedback submitted: ${sentiment}`);
