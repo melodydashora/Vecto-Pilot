@@ -1,0 +1,222 @@
+{
+  // VS Code Tasks for Vecto Pilot
+  // https://code.visualstudio.com/docs/editor/tasks
+  "version": "2.0.0",
+  "tasks": [
+    // ===== Development =====
+    {
+      "label": "Dev: Start Server",
+      "type": "npm",
+      "script": "dev",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Dev: Start Client Only",
+      "type": "npm",
+      "script": "dev:client",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      }
+    },
+
+    // ===== Build =====
+    {
+      "label": "Build: Client",
+      "type": "npm",
+      "script": "build:client",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$tsc"],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Build: Production",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Build: Deploy",
+      "type": "npm",
+      "script": "build:deploy",
+      "group": "build",
+      "problemMatcher": ["$tsc", "$eslint-stylish"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // ===== Code Quality =====
+    {
+      "label": "Lint: ESLint",
+      "type": "npm",
+      "script": "lint",
+      "problemMatcher": ["$eslint-stylish"],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "group": "test"
+    },
+    {
+      "label": "Lint: TypeCheck",
+      "type": "npm",
+      "script": "typecheck",
+      "problemMatcher": ["$tsc"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "test"
+    },
+    {
+      "label": "Lint: Format Check",
+      "type": "shell",
+      "command": "npx prettier --check .",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Lint: Format Fix",
+      "type": "shell",
+      "command": "npx prettier --write .",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Guard: All Checks",
+      "type": "npm",
+      "script": "guard",
+      "problemMatcher": ["$eslint-stylish"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "test"
+    },
+
+    // ===== Testing =====
+    {
+      "label": "Test: All",
+      "type": "npm",
+      "script": "test",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Test: Unit (Jest)",
+      "type": "npm",
+      "script": "test:unit",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Test: E2E (Playwright)",
+      "type": "npm",
+      "script": "test:e2e",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // ===== Database =====
+    {
+      "label": "DB: Push Schema",
+      "type": "npm",
+      "script": "db:push",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "DB: Migrate",
+      "type": "npm",
+      "script": "db:migrate",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+
+    // ===== Utilities =====
+    {
+      "label": "Doctor: Health Check",
+      "type": "npm",
+      "script": "doctor",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Preview: Production Build",
+      "type": "npm",
+      "script": "preview",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+
+    // ===== Pre-PR Checklist =====
+    {
+      "label": "Pre-PR: Full Validation",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Lint: ESLint",
+        "Lint: TypeCheck",
+        "Build: Production"
+      ],
+      "problemMatcher": [],
+      "group": "build"
+    }
+  ]
+}

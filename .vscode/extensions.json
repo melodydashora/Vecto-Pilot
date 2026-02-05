@@ -1,0 +1,56 @@
+{
+  // Recommended extensions for Vecto Pilot development
+  // VS Code will prompt to install these when opening the project
+  "recommendations": [
+    // ===== Essential: Code Quality =====
+    "dbaeumer.vscode-eslint",           // ESLint integration
+    "esbenp.prettier-vscode",           // Prettier code formatter
+    "editorconfig.editorconfig",        // EditorConfig support
+
+    // ===== TypeScript & JavaScript =====
+    "ms-vscode.vscode-typescript-next", // Latest TypeScript features
+    "christian-kohler.path-intellisense", // Path autocomplete
+
+    // ===== React & Frontend =====
+    "dsznajder.es7-react-js-snippets",  // React/Redux snippets
+    "bradlc.vscode-tailwindcss",        // Tailwind CSS IntelliSense
+    "csstools.postcss",                 // PostCSS support
+
+    // ===== Database =====
+    "cweijan.vscode-postgresql-client2", // PostgreSQL explorer
+    "prisma.prisma",                     // Prisma schema support (similar to Drizzle)
+
+    // ===== API & Testing =====
+    "ms-playwright.playwright",          // Playwright test runner
+    "orta.vscode-jest",                  // Jest test runner
+    "humao.rest-client",                 // REST API testing
+
+    // ===== Git & Version Control =====
+    "eamodio.gitlens",                   // Git supercharged
+    "mhutchie.git-graph",                // Git commit graph visualization
+
+    // ===== Documentation =====
+    "yzhang.markdown-all-in-one",        // Markdown editing support
+    "bierner.markdown-mermaid",          // Mermaid diagram preview
+    "redhat.vscode-yaml",                // YAML support
+
+    // ===== DX Improvements =====
+    "streetsidesoftware.code-spell-checker", // Spell checking
+    "usernamehw.errorlens",              // Inline error display
+    "christian-kohler.npm-intellisense", // NPM package autocomplete
+    "mikestead.dotenv",                  // .env syntax highlighting
+    "aaron-bond.better-comments",        // Colored comments
+
+    // ===== AI Assistants (Optional) =====
+    "github.copilot",                    // GitHub Copilot
+    "continue.continue"                  // Continue AI assistant
+  ],
+
+  // Extensions that should NOT be used with this project
+  "unwantedRecommendations": [
+    // Avoid TSLint (deprecated in favor of ESLint)
+    "ms-vscode.vscode-typescript-tslint-plugin",
+    // Avoid Beautify (use Prettier instead)
+    "hookyqr.beautify"
+  ]
+}
