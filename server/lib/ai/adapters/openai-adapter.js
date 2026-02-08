@@ -9,16 +9,17 @@ import { aiLog, OP } from "../../../logger/workflow.js";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export async function callOpenAI({ model, system, user, maxTokens, temperature, reasoningEffort }) {
+export async function callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort }) {
   try {
-    const messages = [
+    // Allow passing full messages array OR build from system/user
+    const finalMessages = messages || [
       { role: "system", content: system },
       { role: "user", content: user }
     ];
 
     const body = {
       model,
-      messages
+      messages: finalMessages
     };
 
     // o1 models and gpt-5 family use max_completion_tokens, other models use max_tokens

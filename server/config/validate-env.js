@@ -40,9 +40,17 @@ export function validateEnvironment() {
   if (!process.env.GOOGLEAQ_API_KEY) {
     warnings.push('GOOGLEAQ_API_KEY not set - air quality data will be unavailable');
   }
+
+  // Uber OAuth & Encryption (Optional but recommended for full feature set)
+  if (!process.env.TOKEN_ENCRYPTION_KEY) {
+    warnings.push('TOKEN_ENCRYPTION_KEY not set - Uber auth will fail');
+  }
+  if (!process.env.UBER_CLIENT_ID || !process.env.UBER_CLIENT_SECRET || !process.env.UBER_REDIRECT_URI) {
+    warnings.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured');
+  }
   
   // Model configuration validation
-  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-5-20251101';
+  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-6-20260201';
   const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro-preview';
   const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.2';
   
@@ -95,6 +103,12 @@ export function validateEnvironment() {
  * Use this at server startup to prevent misconfigured deployments
  */
 export function validateOrExit() {
+  // Skip exit in test mode to allow test runner to mock env or handle errors
+  if (process.env.NODE_ENV === 'test') {
+    console.log('[env-validation] Test mode detected - skipping fatal exit');
+    return { valid: true, errors: [], warnings: [] };
+  }
+
   const result = validateEnvironment();
   
   if (!result.valid) {

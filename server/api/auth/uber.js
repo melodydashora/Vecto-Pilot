@@ -1,421 +1,292 @@
-// server/api/auth/uber.js
-// 2026-02-03: Uber OAuth and Webhook integration
-// Handles OAuth authentication flow and webhook events from Uber
+/**
+ * Uber OAuth API Routes
+ * Handles OAuth flow for Uber Driver integration
+ */
 
 import { Router } from 'express';
-import crypto from 'crypto';
-import { authLog } from '../../logger/workflow.js';
-
-import UberClient from '../../lib/external/uber-client.js';
+import { db } from '../../db/drizzle.js';
+import { uber_connections, oauth_states } from '../../../shared/schema.js';
+import { eq, and, gt } from 'drizzle-orm';
+import {
+  generateState,
+  getAuthorizationUrl,
+  exchangeCodeForTokens,
+  refreshAccessToken,
+  revokeToken,
+  encryptToken,
+  decryptToken,
+  calculateExpiresAt,
+  isTokenExpired,
+} from '../../lib/auth/oauth/uber-oauth.js';
 
 const router = Router();
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Configuration
-// ═══════════════════════════════════════════════════════════════════════════
-const UBER_CLIENT_ID = process.env.UBER_CLIENT_ID;
-const UBER_CLIENT_SECRET = process.env.UBER_CLIENT_SECRET;
-const UBER_REDIRECT_URI = process.env.UBER_REDIRECT_URI || 'https://vectopilot.com/api/auth/uber/callback';
-// Dedicated webhook signing key (separate from client secret for security)
-const UBER_WEBHOOK_SECRET = process.env.UBER_WEBHOOK_SECRET;
-
-// Uber OAuth URLs
-const UBER_AUTH_URL = 'https://login.uber.com/oauth/v2/authorize';
-const UBER_TOKEN_URL = 'https://login.uber.com/oauth/v2/token';
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Data Proxy Endpoints (New for Phase 2)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Helper to get initialized UberClient
- * In Phase 4, this will lookup the token from DB based on req.user.id
- */
-const getUberClient = (req) => {
-  // For Phase 2, we expect the client to pass the access token
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  // Use mock mode if no token provided (Dev convenience)
-  // In production, this should return null or throw error
-  const useMock = !token || process.env.NODE_ENV === 'development';
-  
-  return new UberClient(token, { mock: useMock && !token });
-};
-
-/**
- * GET /api/auth/uber/profile
- * Proxies request to Uber /partners/me
- */
-router.get('/profile', async (req, res) => {
-  try {
-    const client = getUberClient(req);
-    const profile = await client.getProfile();
-    res.json(profile);
-  } catch (err) {
-    console.error('Uber Profile Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/**
- * GET /api/auth/uber/trips
- * Proxies request to Uber /partners/trips
- */
-router.get('/trips', async (req, res) => {
-  try {
-    const client = getUberClient(req);
-    const params = {
-      limit: req.query.limit || 10,
-      offset: req.query.offset || 0,
-      from_time: req.query.from_time,
-      to_time: req.query.to_time
-    };
-    const trips = await client.getTrips(params);
-    res.json(trips);
-  } catch (err) {
-    console.error('Uber Trips Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/**
- * GET /api/auth/uber/payments
- * Proxies request to Uber /partners/payments
- */
-router.get('/payments', async (req, res) => {
-  try {
-    const client = getUberClient(req);
-    const params = {
-      limit: req.query.limit || 10,
-      offset: req.query.offset || 0,
-      from_time: req.query.from_time,
-      to_time: req.query.to_time
-    };
-    const payments = await client.getPayments(params);
-    res.json(payments);
-  } catch (err) {
-    console.error('Uber Payments Error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/**
- * POST /api/auth/uber/exchange
- * Exchanges authorization code for access token (Frontend calls this)
- */
-router.post('/exchange', async (req, res) => {
-  try {
-    const { code } = req.body;
-
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code is required' });
-    }
-
-    // If no client secret, we can't do the exchange (sandbox safety)
-    if (!UBER_CLIENT_SECRET) {
-      console.warn('UBER_CLIENT_SECRET missing, using mock token for dev');
-      return res.json({
-        access_token: 'mock_access_token_' + Date.now(),
-        refresh_token: 'mock_refresh_token',
-        expires_in: 2592000,
-        scope: 'profile partner.trips'
-      });
-    }
-
-    const params = new URLSearchParams({
-      client_id: UBER_CLIENT_ID,
-      client_secret: UBER_CLIENT_SECRET,
-      grant_type: 'authorization_code',
-      redirect_uri: UBER_REDIRECT_URI,
-      code
-    });
-
-    const response = await fetch(UBER_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: params
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Uber Token Error:', data);
-      return res.status(response.status).json({ error: data.error_description || 'Failed to exchange token' });
-    }
-    
-    // In Phase 4, we store this. For now, send back to client to hold in memory/storage
-    res.json(data);
-
-  } catch (error) {
-    console.error('Uber Auth Exception:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// OAuth Flow
-// ═══════════════════════════════════════════════════════════════════════════
+// State expiration time (10 minutes)
+const STATE_EXPIRY_MS = 10 * 60 * 1000;
 
 /**
  * GET /api/auth/uber
- * Initiates Uber OAuth flow - redirects user to Uber login
+ * Initiate Uber OAuth flow - redirects to Uber login
  */
-router.get('/', (req, res) => {
-  if (!UBER_CLIENT_ID) {
-    authLog.error(1, 'Uber OAuth: Missing UBER_CLIENT_ID');
-    return res.redirect('/auth/sign-in?error=uber_not_configured');
+router.get('/', async (req, res) => {
+  try {
+    // Require authenticated user
+    if (!req.user?.user_id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Generate CSRF state
+    const state = generateState();
+
+    // Store state in database for validation on callback
+    await db.insert(oauth_states).values({
+      state,
+      provider: 'uber',
+      user_id: req.user.user_id,
+      redirect_uri: process.env.UBER_REDIRECT_URI,
+      expires_at: new Date(Date.now() + STATE_EXPIRY_MS),
+    });
+
+    // Build and redirect to Uber authorization URL
+    const authUrl = getAuthorizationUrl({ state });
+    res.redirect(authUrl);
+
+  } catch (error) {
+    console.error('Uber OAuth initiation error:', error);
+    res.status(500).json({ error: 'Failed to initiate OAuth flow' });
   }
-
-  // Generate state for CSRF protection
-  const state = crypto.randomBytes(16).toString('hex');
-
-  // Store state in session/cookie for verification (simplified - use proper session in production)
-  res.cookie('uber_oauth_state', state, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    maxAge: 10 * 60 * 1000 // 10 minutes
-  });
-
-  // Scopes for driver data access
-  // See: https://developer.uber.com/docs/drivers/references/api
-  const scopes = [
-    'profile',           // Basic profile info
-    'partner.accounts',  // Driver account info
-    'partner.payments',  // Earnings data
-    'partner.trips',     // Trip history
-  ].join(' ');
-
-  const authUrl = new URL(UBER_AUTH_URL);
-  authUrl.searchParams.set('client_id', UBER_CLIENT_ID);
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('redirect_uri', UBER_REDIRECT_URI);
-  authUrl.searchParams.set('scope', scopes);
-  authUrl.searchParams.set('state', state);
-
-  authLog.phase(1, `Uber OAuth: Redirecting to Uber login`);
-  res.redirect(authUrl.toString());
 });
 
 /**
  * GET /api/auth/uber/callback
- * Handles OAuth callback from Uber after user authorizes
+ * Handle OAuth callback from Uber
  */
 router.get('/callback', async (req, res) => {
   const { code, state, error, error_description } = req.query;
 
-  // Handle OAuth errors
+  // Handle OAuth errors from Uber
   if (error) {
-    authLog.error(1, `Uber OAuth error: ${error} - ${error_description}`);
-    return res.redirect(`/auth/sign-in?error=uber_oauth_error&message=${encodeURIComponent(error_description || error)}`);
+    console.error('Uber OAuth error:', error, error_description);
+    return res.redirect(`/auth/signup?error=${encodeURIComponent(error_description || error)}`);
   }
 
-  // Verify state for CSRF protection
-  const storedState = req.cookies?.uber_oauth_state;
-  if (!storedState || storedState !== state) {
-    authLog.error(1, 'Uber OAuth: State mismatch (CSRF protection)');
-    return res.redirect('/auth/sign-in?error=uber_state_mismatch');
-  }
-
-  // Clear the state cookie
-  res.clearCookie('uber_oauth_state');
-
-  if (!code) {
-    authLog.error(1, 'Uber OAuth: No authorization code received');
-    return res.redirect('/auth/sign-in?error=uber_no_code');
+  if (!code || !state) {
+    return res.redirect('/auth/signup?error=missing_params');
   }
 
   try {
-    // Exchange authorization code for access token
-    const tokenResponse = await fetch(UBER_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: UBER_CLIENT_ID,
-        client_secret: UBER_CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        redirect_uri: UBER_REDIRECT_URI,
-        code,
-      }),
+    // Validate state parameter
+    const [storedState] = await db.select()
+      .from(oauth_states)
+      .where(and(
+        eq(oauth_states.state, state),
+        eq(oauth_states.provider, 'uber'),
+        gt(oauth_states.expires_at, new Date())
+      ))
+      .limit(1);
+
+    if (!storedState) {
+      return res.redirect('/auth/signup?error=invalid_state');
+    }
+
+    const userId = storedState.user_id;
+
+    // Clean up used state
+    await db.delete(oauth_states).where(eq(oauth_states.id, storedState.id));
+
+    // Exchange code for tokens
+    const tokens = await exchangeCodeForTokens(code);
+
+    // Encrypt tokens for storage
+    const encryptedAccessToken = encryptToken(tokens.access_token);
+    const encryptedRefreshToken = tokens.refresh_token
+      ? encryptToken(tokens.refresh_token)
+      : null;
+
+    // Calculate expiration
+    const expiresAt = calculateExpiresAt(tokens.expires_in);
+
+    // Parse scopes
+    const scopes = tokens.scope ? tokens.scope.split(' ') : [];
+
+    // Upsert connection record
+    await db.insert(uber_connections)
+      .values({
+        user_id: userId,
+        access_token_encrypted: encryptedAccessToken,
+        refresh_token_encrypted: encryptedRefreshToken,
+        token_expires_at: expiresAt,
+        scopes,
+        connected_at: new Date(),
+        is_active: true,
+      })
+      .onConflictDoUpdate({
+        target: uber_connections.user_id,
+        set: {
+          access_token_encrypted: encryptedAccessToken,
+          refresh_token_encrypted: encryptedRefreshToken,
+          token_expires_at: expiresAt,
+          scopes,
+          connected_at: new Date(),
+          is_active: true,
+          updated_at: new Date(),
+        },
+      });
+
+    // Redirect to success page
+    res.redirect('/auth/signup?uber_connected=true');
+
+  } catch (error) {
+    console.error('Uber OAuth callback error:', error);
+    res.redirect(`/auth/signup?error=${encodeURIComponent('oauth_failed')}`);
+  }
+});
+
+/**
+ * POST /api/auth/uber/disconnect
+ * Disconnect Uber integration
+ */
+router.post('/disconnect', async (req, res) => {
+  try {
+    if (!req.user?.user_id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Get existing connection
+    const [connection] = await db.select()
+      .from(uber_connections)
+      .where(and(
+        eq(uber_connections.user_id, req.user.user_id),
+        eq(uber_connections.is_active, true)
+      ))
+      .limit(1);
+
+    if (!connection) {
+      return res.status(404).json({ error: 'No Uber connection found' });
+    }
+
+    // Revoke token with Uber (best effort)
+    try {
+      const accessToken = decryptToken(connection.access_token_encrypted);
+      await revokeToken(accessToken);
+    } catch (revokeError) {
+      console.warn('Token revocation warning:', revokeError.message);
+    }
+
+    // Mark connection as inactive
+    await db.update(uber_connections)
+      .set({
+        is_active: false,
+        updated_at: new Date(),
+      })
+      .where(eq(uber_connections.id, connection.id));
+
+    res.json({ success: true, message: 'Uber disconnected successfully' });
+
+  } catch (error) {
+    console.error('Uber disconnect error:', error);
+    res.status(500).json({ error: 'Failed to disconnect Uber' });
+  }
+});
+
+/**
+ * POST /api/auth/uber/refresh
+ * Refresh Uber access token
+ */
+router.post('/refresh', async (req, res) => {
+  try {
+    if (!req.user?.user_id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Get existing connection
+    const [connection] = await db.select()
+      .from(uber_connections)
+      .where(and(
+        eq(uber_connections.user_id, req.user.user_id),
+        eq(uber_connections.is_active, true)
+      ))
+      .limit(1);
+
+    if (!connection) {
+      return res.status(404).json({ error: 'No Uber connection found' });
+    }
+
+    if (!connection.refresh_token_encrypted) {
+      return res.status(400).json({ error: 'No refresh token available' });
+    }
+
+    // Decrypt refresh token
+    const refreshToken = decryptToken(connection.refresh_token_encrypted);
+
+    // Get new tokens
+    const tokens = await refreshAccessToken(refreshToken);
+
+    // Encrypt new tokens
+    const encryptedAccessToken = encryptToken(tokens.access_token);
+    const encryptedRefreshToken = tokens.refresh_token
+      ? encryptToken(tokens.refresh_token)
+      : connection.refresh_token_encrypted;
+
+    // Update connection
+    await db.update(uber_connections)
+      .set({
+        access_token_encrypted: encryptedAccessToken,
+        refresh_token_encrypted: encryptedRefreshToken,
+        token_expires_at: calculateExpiresAt(tokens.expires_in),
+        updated_at: new Date(),
+      })
+      .where(eq(uber_connections.id, connection.id));
+
+    res.json({
+      success: true,
+      expires_at: calculateExpiresAt(tokens.expires_in),
     });
 
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      authLog.error(1, `Uber OAuth: Token exchange failed - ${errorData}`);
-      return res.redirect('/auth/sign-in?error=uber_token_failed');
-    }
-
-    const tokenData = await tokenResponse.json();
-    const { access_token, refresh_token, expires_in, scope } = tokenData;
-
-    authLog.done(1, `Uber OAuth: Token received (expires in ${expires_in}s, scopes: ${scope})`);
-
-    // TODO: Fetch user profile from Uber API
-    // TODO: Create/link user account in database
-    // TODO: Store tokens securely for API access
-
-    // For now, redirect with success (implement full flow later)
-    authLog.warn(1, 'Uber OAuth: Token exchange successful but user creation not yet implemented');
-    res.redirect('/auth/sign-in?success=uber_connected&message=Uber+account+linked+successfully');
-
-  } catch (err) {
-    authLog.error(1, `Uber OAuth callback failed: ${err.message}`);
-    res.redirect(`/auth/sign-in?error=uber_callback_failed&message=${encodeURIComponent(err.message)}`);
+  } catch (error) {
+    console.error('Uber token refresh error:', error);
+    res.status(500).json({ error: 'Failed to refresh token' });
   }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Webhooks
-// ═══════════════════════════════════════════════════════════════════════════
-
 /**
- * Verify Uber webhook signature
- * Uber uses HMAC-SHA256 with dedicated webhook signing key
- * @param {string} payload - Raw request body
- * @param {string} signature - X-Uber-Signature header value
- * @returns {boolean} - Whether signature is valid
+ * GET /api/auth/uber/status
+ * Get current Uber connection status
  */
-function verifyUberSignature(payload, signature) {
-  if (!UBER_WEBHOOK_SECRET || !signature) {
-    authLog.warn(1, `Uber Webhook: Missing ${!UBER_WEBHOOK_SECRET ? 'UBER_WEBHOOK_SECRET' : 'signature'}`);
-    return false;
-  }
-
-  const expectedSignature = crypto
-    .createHmac('sha256', UBER_WEBHOOK_SECRET)
-    .update(payload, 'utf8')
-    .digest('hex');
-
-  // Timing-safe comparison to prevent timing attacks
+router.get('/status', async (req, res) => {
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * POST /api/auth/uber/webhook
- * Receives webhook events from Uber
- *
- * Uber webhooks documentation:
- * - Signature verification via X-Uber-Signature header (HMAC-SHA256)
- * - Must return 200 OK within 5 seconds
- * - Retry policy: 3 attempts with exponential backoff
- */
-router.post('/webhook', async (req, res) => {
-  const signature = req.headers['x-uber-signature'];
-  const rawBody = JSON.stringify(req.body); // Note: Need raw body middleware for production
-
-  // Verify webhook signature
-  if (!verifyUberSignature(rawBody, signature)) {
-    authLog.warn(1, 'Uber Webhook: Invalid signature - rejecting request');
-    return res.status(401).json({ error: 'Invalid signature' });
-  }
-
-  const { event_type, event_id, event_time, resource_href, meta } = req.body;
-
-  authLog.phase(1, `Uber Webhook received: ${event_type} (${event_id})`);
-
-  try {
-    // Process different event types
-    switch (event_type) {
-      // ─────────────────────────────────────────────────────────────────────
-      // Trip Events
-      // ─────────────────────────────────────────────────────────────────────
-      case 'trips.status_changed':
-        await handleTripStatusChanged(req.body);
-        break;
-
-      case 'trips.completed':
-        await handleTripCompleted(req.body);
-        break;
-
-      // ─────────────────────────────────────────────────────────────────────
-      // Driver Events
-      // ─────────────────────────────────────────────────────────────────────
-      case 'driver.status_changed':
-        await handleDriverStatusChanged(req.body);
-        break;
-
-      case 'driver.online':
-      case 'driver.offline':
-        await handleDriverOnlineStatus(req.body);
-        break;
-
-      // ─────────────────────────────────────────────────────────────────────
-      // Earnings Events
-      // ─────────────────────────────────────────────────────────────────────
-      case 'payments.trip_payment':
-        await handleTripPayment(req.body);
-        break;
-
-      // ─────────────────────────────────────────────────────────────────────
-      // Default - Log unknown events
-      // ─────────────────────────────────────────────────────────────────────
-      default:
-        authLog.warn(1, `Uber Webhook: Unhandled event type: ${event_type}`);
-        console.log('[Uber Webhook] Unhandled event:', JSON.stringify(req.body, null, 2));
+    if (!req.user?.user_id) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Always return 200 OK to acknowledge receipt
-    // Uber will retry if we don't respond quickly
-    authLog.done(1, `Uber Webhook processed: ${event_type}`);
-    res.status(200).json({ received: true, event_id });
+    const [connection] = await db.select({
+      connected_at: uber_connections.connected_at,
+      last_sync_at: uber_connections.last_sync_at,
+      token_expires_at: uber_connections.token_expires_at,
+      scopes: uber_connections.scopes,
+      is_active: uber_connections.is_active,
+    })
+      .from(uber_connections)
+      .where(eq(uber_connections.user_id, req.user.user_id))
+      .limit(1);
 
-  } catch (err) {
-    authLog.error(1, `Uber Webhook processing error: ${err.message}`);
-    // Still return 200 to prevent retries for application errors
-    // Log the error for investigation
-    res.status(200).json({ received: true, event_id, warning: 'Processing error logged' });
+    if (!connection || !connection.is_active) {
+      return res.json({ connected: false });
+    }
+
+    res.json({
+      connected: true,
+      connected_at: connection.connected_at,
+      last_sync_at: connection.last_sync_at,
+      token_valid: !isTokenExpired(connection.token_expires_at),
+      token_expires_at: connection.token_expires_at,
+      scopes: connection.scopes,
+    });
+
+  } catch (error) {
+    console.error('Uber status error:', error);
+    res.status(500).json({ error: 'Failed to get connection status' });
   }
 });
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Webhook Event Handlers
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function handleTripStatusChanged(event) {
-  const { resource_href, meta } = event;
-  authLog.phase(1, `Trip status changed: ${meta?.status || 'unknown'}`);
-  // TODO: Update trip status in database
-  // TODO: Trigger real-time notification to driver
-}
-
-async function handleTripCompleted(event) {
-  const { resource_href, meta } = event;
-  authLog.phase(1, `Trip completed`);
-  // TODO: Fetch trip details from Uber API
-  // TODO: Store trip data for analytics
-  // TODO: Update driver statistics
-}
-
-async function handleDriverStatusChanged(event) {
-  const { meta } = event;
-  authLog.phase(1, `Driver status: ${meta?.status || 'unknown'}`);
-  // TODO: Update driver status in real-time
-}
-
-async function handleDriverOnlineStatus(event) {
-  const { event_type, meta } = event;
-  const isOnline = event_type === 'driver.online';
-  authLog.phase(1, `Driver ${isOnline ? 'online' : 'offline'}`);
-  // TODO: Track driver session for analytics
-}
-
-async function handleTripPayment(event) {
-  const { meta } = event;
-  authLog.phase(1, `Payment received: ${meta?.amount || 'unknown'}`);
-  // TODO: Store payment for earnings tracking
-  // TODO: Update daily/weekly earnings summary
-}
 
 export default router;

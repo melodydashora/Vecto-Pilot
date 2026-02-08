@@ -159,7 +159,7 @@ This file provides navigation to focused architecture documentation. Each linked
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EXTERNAL AI/API SERVICES                      │
-│  • Anthropic (Claude Opus 4.5)                                  │
+│  • Anthropic (Claude Opus 4.6)                                  │
 │  • OpenAI (GPT-5.2, Realtime API)                               │
 │  • Google (Gemini 3.0 Pro, Places, Routes, Weather, AQ)         │
 └─────────────────────────────────────────────────────────────────┘

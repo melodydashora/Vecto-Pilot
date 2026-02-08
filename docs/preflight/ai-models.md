@@ -10,7 +10,7 @@ Quick reference for AI model usage. Read before modifying any AI code.
 
 | Provider | Model ID | Strengths | Cost |
 |----------|----------|-----------|------|
-| **Anthropic** | `claude-opus-4-5-20251101` | Best reasoning, code quality | $$$$ |
+| **Anthropic** | `claude-opus-4-6-20260201` | Best reasoning, code quality | $$$$ |
 | **Anthropic** | `claude-sonnet-4-5-20250929` | Fast, cost-effective | $$ |
 | **Anthropic** | `claude-sonnet-4-20250514` | Stable, agentic coding | $$ |
 | **Anthropic** | `claude-haiku-4-5-20251201` | Fastest Claude, cheapest | $ |
@@ -33,15 +33,15 @@ Quick reference for AI model usage. Read before modifying any AI code.
 | `BRIEFING_NEWS` | `gemini-3-pro-preview` | Local news (7 days) | google_search, thinkingLevel: HIGH |
 | `BRIEFING_NEWS_GPT` | `gpt-5.2` | News (parallel) | openai_web_search |
 | `BRIEFING_EVENTS_DISCOVERY` | `gemini-3-pro-preview` | Event discovery | google_search, thinkingLevel: HIGH |
-| `BRIEFING_EVENTS_VALIDATOR` | `claude-opus-4-5-20251101` | Event verification | web_search |
-| `BRIEFING_FALLBACK` | `claude-opus-4-5-20251101` | General fallback | web_search |
+| `BRIEFING_EVENTS_VALIDATOR` | `claude-opus-4-6-20260201` | Event verification | web_search |
+| `BRIEFING_FALLBACK` | `claude-opus-4-6-20260201` | General fallback | web_search |
 | `BRIEFING_SCHOOLS` | `gemini-3-pro-preview` | School calendars | google_search |
 | `BRIEFING_AIRPORT` | `gemini-3-pro-preview` | Airport conditions | google_search |
 
 ### Strategies Table
 | Role | Default Model | Purpose | Features |
 |------|---------------|---------|----------|
-| `STRATEGY_CORE` | `claude-opus-4-5-20251101` | Core strategy (pure reasoning) | - |
+| `STRATEGY_CORE` | `claude-opus-4-6-20260201` | Core strategy (pure reasoning) | - |
 | `STRATEGY_CONTEXT` | `gemini-3-pro-preview` | Real-time context | google_search, thinkingLevel: HIGH |
 | `STRATEGY_TACTICAL` | `gpt-5.2` | 1-hour tactics | reasoningEffort: medium |
 | `STRATEGY_DAILY` | `gemini-3-pro-preview` | 8-12hr daily strategy | google_search, thinkingLevel: HIGH |
@@ -179,7 +179,7 @@ model: "gemini-3-flash-preview"
 
 ### Claude Extended Thinking
 
-Extended thinking is now available on Claude Opus 4.5, Sonnet 4.5, and Haiku 4.5:
+Extended thinking is now available on Claude Opus 4.6, Sonnet 4.5, and Haiku 4.5:
 
 ```javascript
 // Enable extended thinking
@@ -206,7 +206,7 @@ STRATEGY_CORE_MODEL=claude-sonnet-4-5-20250929
 VENUE_FILTER_MODEL=claude-haiku-4-5-20251201
 
 # Global defaults (used by diagnostics)
-ANTHROPIC_MODEL=claude-opus-4-5-20251101
+ANTHROPIC_MODEL=claude-opus-4-6-20260201
 OPENAI_MODEL=gpt-5.2
 GEMINI_MODEL=gemini-3-pro-preview
 ```

@@ -4,16 +4,19 @@
 import Anthropic from "@anthropic-ai/sdk";
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-export async function callAnthropic({ model, system, user, maxTokens, temperature }) {
+export async function callAnthropic({ model, system, user, messages, maxTokens, temperature }) {
   try {
     console.log(`[model/anthropic] calling ${model} with max_tokens=${maxTokens}`);
+
+    // Allow passing full messages array (for chat history) OR simple user string
+    const finalMessages = messages || [{ role: "user", content: user }];
 
     const res = await client.messages.create({
       model,
       max_tokens: maxTokens,
       temperature,
       system,
-      messages: [{ role: "user", content: user }]
+      messages: finalMessages
     });
 
     const output = res?.content?.[0]?.text?.trim() || "";

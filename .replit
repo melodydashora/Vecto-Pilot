@@ -58,7 +58,7 @@ You have web_search and web_fetch tools via Anthropic API.
 If asked who you are, respond: 'I am Replit Assistant Enhanced with web search, web fetch, and full shell capabilities.'
 DO NOT say you cannot run shell commands or search the web - you CAN and SHOULD do both.
 """
-model = "claude-opus-4-5-20251101"
+model = "claude-opus-4-6-20260201"
 web_search = true
 web_fetch = true
 shell_exec = true
@@ -73,7 +73,7 @@ shell_exec = true
 # ==========================
 
 # STRATEGIES TABLE
-STRATEGY_CORE_MODEL = "claude-opus-4-5-20251101"
+STRATEGY_CORE_MODEL = "claude-opus-4-6-20260201"
 STRATEGY_CONTEXT_MODEL = "gemini-3-pro-preview"
 STRATEGY_TACTICAL_MODEL = "gpt-5.2"
 STRATEGY_DAILY_MODEL = "gemini-3-pro-preview"
@@ -83,7 +83,7 @@ BRIEFING_WEATHER_MODEL = "gemini-3-pro-preview"
 BRIEFING_TRAFFIC_MODEL = "gemini-3-flash-preview"
 BRIEFING_NEWS_MODEL = "gemini-3-pro-preview"
 BRIEFING_EVENTS_MODEL = "gemini-3-pro-preview"
-BRIEFING_VALIDATOR_MODEL = "claude-opus-4-5-20251101"
+BRIEFING_VALIDATOR_MODEL = "claude-opus-4-6-20260201"
 
 # VENUES TABLE (ranking_candidates)
 VENUE_SCORER_MODEL = "gpt-5.2"
@@ -99,7 +99,7 @@ UTIL_PARSER_MODEL = "gpt-5.2"
 # ==========================
 # Legacy env vars (deprecated - kept for backward compatibility)
 # ==========================
-STRATEGY_STRATEGIST = "claude-opus-4-5-20251101"
+STRATEGY_STRATEGIST = "claude-opus-4-6-20260201"
 STRATEGY_BRIEFER = "gemini-3-pro-preview"
 STRATEGY_CONSOLIDATOR = "gpt-5.2"
 STRATEGY_VENUE_PLANNER = "gpt-5.2"

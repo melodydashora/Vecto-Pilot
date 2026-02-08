@@ -43,7 +43,7 @@ The strategy workflow generates tactical recommendations for rideshare drivers u
 │   Phase 1: Strategist + Briefer (Parallel)                                   │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │                                                                      │   │
-│   │   STRATEGIST (Claude Opus 4.5)         BRIEFER (Gemini 3.0 Pro)     │   │
+│   │   STRATEGIST (Claude Opus 4.6)         BRIEFER (Gemini 3.0 Pro)     │   │
 │   │   ┌───────────────────────────┐       ┌───────────────────────────┐ │   │
 │   │   │ Input: Location, time,    │       │ Input: Location, date     │ │   │
 │   │   │   weather, events         │       │                           │ │   │
@@ -85,7 +85,7 @@ The strategy workflow generates tactical recommendations for rideshare drivers u
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                        │                                     │
 │                                        ▼                                     │
-│   Phase 4: Event Validator (Claude Opus 4.5)                                 │
+│   Phase 4: Event Validator (Claude Opus 4.6)                                 │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │ Validates discovered events, removes duplicates, confirms times     │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
@@ -121,7 +121,7 @@ The strategy workflow generates tactical recommendations for rideshare drivers u
 | File | Purpose |
 |------|---------|
 | `server/lib/ai/adapters/index.js` | Model dispatcher (`callModel()`) |
-| `server/lib/ai/adapters/anthropic.js` | Claude Opus 4.5 adapter |
+| `server/lib/ai/adapters/anthropic.js` | Claude Opus 4.6 adapter |
 | `server/lib/ai/adapters/openai.js` | GPT-5.2 adapter |
 | `server/lib/ai/adapters/gemini.js` | Gemini 3.0 Pro adapter |
 
@@ -194,12 +194,12 @@ eventSource.addEventListener('strategy_ready', (event) => {
 
 | Phase | Model | Expected Duration |
 |-------|-------|-------------------|
-| 1. Strategist | Claude Opus 4.5 | 8-12s |
+| 1. Strategist | Claude Opus 4.6 | 8-12s |
 | 1. Briefer | Gemini 3.0 Pro | 10-15s |
 | 2. NOW Consolidator | GPT-5.2 | 5-8s |
 | 3. Venue Planner | GPT-5.2 | 6-10s |
 | 3. Enrichment | Google APIs | 2-5s |
-| 4. Event Validator | Claude Opus 4.5 | 5-8s |
+| 4. Event Validator | Claude Opus 4.6 | 5-8s |
 | **Total** | | **35-50s** |
 
 ## Model Parameters
@@ -227,10 +227,10 @@ eventSource.addEventListener('strategy_ready', (event) => {
 // thinkingLevel: "MEDIUM"  // MEDIUM is Flash-only
 ```
 
-### Claude Opus 4.5 (Strategist, Validator)
+### Claude Opus 4.6 (Strategist, Validator)
 ```javascript
 {
-  model: "claude-opus-4-5-20251101",
+  model: "claude-opus-4-6-20260201",
   max_tokens: 16000
 }
 ```

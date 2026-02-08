@@ -199,7 +199,7 @@ All AI calls MUST use:
 
 | Model | Temperature | Thinking/Reasoning |
 |-------|-------------|-------------------|
-| Claude Opus 4.5 | N/A (not configurable) | Extended thinking enabled |
+| Claude Opus 4.6 | N/A (not configurable) | Extended thinking enabled |
 | GPT-5.2 | N/A (not supported) | `reasoning_effort: "high"` |
 | Gemini 3 Pro | N/A (not supported) | `thinkingLevel: "HIGH"` |
 
@@ -211,7 +211,7 @@ Every LLM call MUST log effective configuration to prove compliance:
 // Required log fields for every AI call
 console.log(JSON.stringify({
   phase: 'llm_call',
-  model_id: 'claude-opus-4-5-20251101',  // Actual model ID used
+  model_id: 'claude-opus-4-6-20260201',  // Actual model ID used
   role: 'STRATEGY_CORE',                  // Role from model-registry
   reasoning_effort: 'high',               // GPT-5 specific
   thinking_level: 'HIGH',                 // Gemini specific

@@ -52,9 +52,9 @@ if (result.ok) {
 | `BRIEFING_TRAFFIC` | Traffic conditions | Gemini 3 Flash |
 | `BRIEFING_NEWS` | Local news research | Gemini 3 Pro |
 | `BRIEFING_EVENTS_DISCOVERY` | Event discovery | Gemini 3 Pro |
-| `BRIEFING_EVENTS_VALIDATOR` | Event verification | Claude Opus 4.5 |
+| `BRIEFING_EVENTS_VALIDATOR` | Event verification | Claude Opus 4.6 |
 | **STRATEGIES TABLE** |||
-| `STRATEGY_CORE` | Core strategic plan | Claude Opus 4.5 |
+| `STRATEGY_CORE` | Core strategic plan | Claude Opus 4.6 |
 | `STRATEGY_CONTEXT` | Real-time context | Gemini 3 Pro |
 | `STRATEGY_TACTICAL` | 1-hour tactical strategy | GPT-5.2 |
 | `STRATEGY_DAILY` | 8-12hr daily strategy | Gemini 3 Pro |
@@ -134,12 +134,12 @@ Fallback-enabled roles: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY
 
 ```bash
 # Role → Model mapping (new {TABLE}_{FUNCTION} convention)
-STRATEGY_CORE_MODEL=claude-opus-4-5-20251101
+STRATEGY_CORE_MODEL=claude-opus-4-6-20260201
 STRATEGY_CONTEXT_MODEL=gemini-3-pro-preview
 STRATEGY_TACTICAL_MODEL=gpt-5.2
 STRATEGY_DAILY_MODEL=gemini-3-pro-preview
 BRIEFING_EVENTS_MODEL=gemini-3-pro-preview
-BRIEFING_VALIDATOR_MODEL=claude-opus-4-5-20251101
+BRIEFING_VALIDATOR_MODEL=claude-opus-4-6-20260201
 VENUE_SCORER_MODEL=gpt-5.2
 VENUE_FILTER_MODEL=claude-3-5-haiku-20241022
 COACH_CHAT_MODEL=gemini-3-pro-preview

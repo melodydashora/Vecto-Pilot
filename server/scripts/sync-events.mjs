@@ -39,6 +39,16 @@ import { generateEventHash, buildHashInput } from '../lib/events/pipeline/hashEv
 // Workflow-aware logging with ETL phases
 import { eventsLog, OP } from '../logger/workflow.js';
 
+// AI Adapters for Standardized Access
+// @ts-ignore
+import { callOpenAI } from '../lib/ai/adapters/openai-adapter.js';
+// @ts-ignore
+import { callGemini } from '../lib/ai/adapters/gemini-adapter.js';
+// @ts-ignore
+import { callAnthropicWithWebSearch } from '../lib/ai/adapters/anthropic-adapter.js';
+
+const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
+
 const { Pool } = pg;
 
 const MAX_DRIVE_MINUTES = 8;
@@ -544,43 +554,21 @@ async function searchWithGPT52(city, state, lat, lng, existingEvents = [], optio
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-5.2',
-        tools: [{ type: 'web_search' }],
-        input: prompt,
-        instructions: `You are an event discovery assistant for rideshare drivers in ${city}, ${state}. Search the web thoroughly and return ONLY a JSON array of events, no prose or explanation.`,
-        max_output_tokens: 16000
-      })
+    const response = await callOpenAI({
+      model: 'gpt-5.2',
+      messages: [
+        { role: 'system', content: `You are an event discovery assistant for rideshare drivers in ${city}, ${state}. Search the web thoroughly and return ONLY a JSON array of events, no prose or explanation.` },
+        { role: 'user', content: prompt }
+      ],
+      maxTokens: 16000
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      eventsLog.error(1, `[GPT-5.2] Error ${response.status}`, err.slice(0, 100));
+      eventsLog.error(1, `[GPT-5.2] Error: ${response.error}`);
       return [];
     }
 
-    const data = await response.json();
-
-    // Extract output text
-    let output = '';
-    if (data.output) {
-      for (const item of data.output) {
-        if (item.type === 'message' && item.content) {
-          for (const content of item.content) {
-            if (content.type === 'output_text') {
-              output += content.text;
-            }
-          }
-        }
-      }
-    }
-
+    const output = response.output;
     const parsed = parseEventsJson(output);
     const events = parsed.map(evt => ({
       title: evt.title,
@@ -632,39 +620,20 @@ async function searchWithGoogleSearch(city, state, lat, lng, existingEvents = []
 
     // 2026-01-09: Uses gemini-3-pro-preview with google_search tool
     // Model ID requires -preview suffix per project memory
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 16384,
-            responseMimeType: "application/json"
-          }
-        })
-      }
-    );
+    const response = await callGemini({
+      model: 'gemini-3-pro-preview',
+      user: prompt,
+      maxTokens: 16384,
+      temperature: 0.1,
+      useSearch: true
+    });
 
     if (!response.ok) {
-      const err = await response.text();
-      eventsLog.error(1, `[Google Search] Error ${response.status}`, err.slice(0, 100));
+      eventsLog.error(1, `[Google Search] Error: ${response.error}`);
       return [];
     }
 
-    const data = await response.json();
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    let output = '';
-    for (const part of parts) {
-      if (part.text && !part.thought) {
-        output = part.text;
-        break;
-      }
-    }
-
+    const output = response.output;
     const parsed = parseEventsJson(output);
     const events = parsed.map(evt => ({
       title: evt.title,
@@ -715,43 +684,18 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'web-search-2025-03-05',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-5-20251101',
-        max_tokens: 32000,
-        tools: [{
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 15
-        }],
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
-      })
+    const response = await callAnthropicWithWebSearch({
+      model: 'claude-opus-4-6-20260201',
+      maxTokens: 32000,
+      user: prompt
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      eventsLog.error(1, `[Claude] Error ${response.status}`, err.slice(0, 100));
+      eventsLog.error(1, `[Claude] Error: ${response.error}`);
       return [];
     }
 
-    const data = await response.json();
-    let output = '';
-    for (const block of data.content || []) {
-      if (block.type === 'text') {
-        output += block.text;
-      }
-    }
-
+    const output = response.output;
     const parsed = parseEventsJson(output);
     const events = parsed.map(evt => ({
       title: evt.title,
@@ -799,7 +743,7 @@ async function searchWithPerplexityReasoning(city, state, lat, lng, existingEven
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    const response = await fetch(PERPLEXITY_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,

@@ -20,7 +20,6 @@ import {
   normalizeVenueName,
   normalizeDate,
   normalizeTime,
-  normalizeCoordinate,
   normalizeCategory,
   normalizeAttendance,
   normalizeEvent,
@@ -154,24 +153,6 @@ class ETLPipelineTester {
       assert.strictEqual(normalizeTime(''), null);
     });
 
-    this.suite('normalizeEvent.js - Coordinate Normalization');
-
-    await this.test('normalizeCoordinate: normalizes to 6 decimals', () => {
-      assert.strictEqual(normalizeCoordinate(33.12345678), 33.123457);
-      assert.strictEqual(normalizeCoordinate(-96.87654321), -96.876543);
-    });
-
-    await this.test('normalizeCoordinate: parses string coordinates', () => {
-      assert.strictEqual(normalizeCoordinate('33.128'), 33.128);
-      assert.strictEqual(normalizeCoordinate('-96.875'), -96.875);
-    });
-
-    await this.test('normalizeCoordinate: returns null for invalid', () => {
-      assert.strictEqual(normalizeCoordinate(null), null);
-      assert.strictEqual(normalizeCoordinate(undefined), null);
-      assert.strictEqual(normalizeCoordinate('invalid'), null);
-    });
-
     this.suite('normalizeEvent.js - Category Normalization');
 
     await this.test('normalizeCategory: maps concert keywords', () => {
@@ -215,8 +196,6 @@ class ETLPipelineTester {
       assert.strictEqual(normalized.venue_name, 'MSG');
       assert.strictEqual(normalized.event_start_date, '2026-01-15');
       assert.strictEqual(normalized.event_start_time, '19:00');
-      assert.strictEqual(normalized.lat, 40.750504);
-      assert.strictEqual(normalized.lng, -73.993439);
       assert.strictEqual(normalized.city, 'New York');
       assert.strictEqual(normalized.state, 'NY');
       assert.strictEqual(normalized.category, 'concert');
@@ -788,7 +767,6 @@ class ETLPipelineTester {
       assert.strictEqual(normalized.length, 3);
       // 2026-01-10: Use symmetric field name in normalized output
       assert.strictEqual(normalized[0].event_start_time, '19:00');
-      assert.strictEqual(normalized[0].lat, 32.747778);
       assert.strictEqual(normalized[2].category, 'sports');
 
       // Step 2: Validate

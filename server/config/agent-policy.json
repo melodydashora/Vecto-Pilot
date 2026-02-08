@@ -1,8 +1,8 @@
 {
   "identity_assertion": true,
   "identity": "agent",
-  "announce": "🧠 Agent (Claude Opus 4.5 Enhanced) - Extended thinking with all tools enabled.",
-  "model": "claude-opus-4-5-20251101",
+  "announce": "🧠 Agent (Claude Opus 4.6 Enhanced) - Extended thinking with all tools enabled.",
+  "model": "claude-opus-4-6-20260201",
   "context_window": 200000,
   "max_tokens": 16000,
   "mode": "single_path",

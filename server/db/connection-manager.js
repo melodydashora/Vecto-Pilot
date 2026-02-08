@@ -6,7 +6,9 @@ import { Pool } from 'pg';
 
 if (!process.env.DATABASE_URL) {
   console.error("❌ Fatal: DATABASE_URL is missing. Ensure Replit Postgres is enabled.");
-  process.exit(1);
+  if (process.env.NODE_ENV !== 'test') {
+    process.exit(1);
+  }
 }
 
 // Create a standard Postgres pool using the environment provided URL

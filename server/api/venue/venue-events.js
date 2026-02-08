@@ -2,6 +2,8 @@
 // Check for events at a venue using Gemini 3 Pro Preview
 
 import express from 'express';
+// @ts-ignore
+import { callGemini } from '../../lib/ai/adapters/gemini-adapter.js';
 
 const router = express.Router();
 
@@ -43,37 +45,20 @@ router.post('/events', async (req, res) => {
 
     // Create promise for this research task
     const researchPromise = (async () => {
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: query
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.0,
-            maxOutputTokens: 500
-          }
-        })
+      const response = await callGemini({
+        model: 'gemini-3-pro-preview',
+        maxTokens: 500,
+        temperature: 0.0,
+        user: query
       });
 
       if (!response.ok) {
-        throw new Error(`Gemini API failed: ${response.status}`);
+        throw new Error(response.error);
       }
 
-      const data = await response.json();
-      const eventInfo = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No events found';
+      const eventInfo = response.output || 'No events found';
 
-      // Parse event info (simple extraction)
+      // Parse eventInfo (simple extraction - unchanged logic)
       const hasEvents = !eventInfo.toLowerCase().includes('no events') && 
                        !eventInfo.toLowerCase().includes('no scheduled');
 
@@ -81,7 +66,7 @@ router.post('/events', async (req, res) => {
         venue: venueName,
         hasEvents,
         eventInfo,
-        sources: data.citations || []
+        sources: [] // callGemini doesn't return citations in same format, defaulting to empty
       };
     })();
 

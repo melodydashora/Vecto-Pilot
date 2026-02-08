@@ -1,5 +1,7 @@
 // Research API endpoint - Internet-powered research via UTIL_RESEARCH role
 import express from 'express';
+// @ts-ignore
+import { callGemini } from '../../lib/ai/adapters/gemini-adapter.js';
 
 const router = express.Router();
 
@@ -19,40 +21,21 @@ router.get('/search', async (req, res) => {
       return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
     }
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `Provide concise, technical information for software development. Focus on best practices and actionable insights.\n\nQuery: ${q}`
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 500
-        }
-      })
+    const response = await callGemini({
+      model: 'gemini-3-pro-preview',
+      maxTokens: 500,
+      temperature: 0.2,
+      user: `Provide concise, technical information for software development. Focus on best practices and actionable insights.\n\nQuery: ${q}`
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API failed: ${response.status}`);
+      throw new Error(response.error);
     }
-
-    const data = await response.json();
-    const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     res.json({
       ok: true,
       query: q,
-      answer: answer,
+      answer: response.output,
       model: 'gemini-3-pro-preview',
       timestamp: new Date().toISOString()
     });
@@ -83,41 +66,22 @@ router.post('/deep', async (req, res) => {
 
     const depthInstruction = depth === 'deep' ? 'Provide comprehensive, detailed analysis.' : 'Provide concise summary.';
     
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `${depthInstruction}\n\nTopic: ${topic}`
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 2000
-        }
-      })
+    const response = await callGemini({
+      model: 'gemini-3-pro-preview',
+      maxTokens: 2000,
+      temperature: 0.3,
+      user: `${depthInstruction}\n\nTopic: ${topic}`
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API failed: ${response.status}`);
+      throw new Error(response.error);
     }
-
-    const data = await response.json();
-    const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     res.json({
       ok: true,
       topic: topic,
       depth: depth,
-      answer: answer,
+      answer: response.output,
       model: 'gemini-3-pro-preview',
       timestamp: new Date().toISOString()
     });

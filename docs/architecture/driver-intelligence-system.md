@@ -29,7 +29,7 @@ POST /api/blocks-fast
     ▼
 ┌─────────────────────────────────────────────────────────┐
 │  PHASE 1 (10-15s, Parallel)                             │
-│  ├── Strategist (Claude Opus 4.5) → minstrategy         │
+│  ├── Strategist (Claude Opus 4.6) → minstrategy         │
 │  ├── Briefer (Gemini 3.0 Pro) → events, traffic, news   │
 │  └── Holiday Detector (Gemini) → holiday status         │
 └─────────────────────────────────────────────────────────┘
@@ -554,7 +554,7 @@ async function capturePingScreenshot() {
 // Server-side: Claude 4.5 Vision
 async function extractPingData(imageBase64) {
   const response = await anthropic.messages.create({
-    model: "claude-opus-4-5-20251101",
+    model: "claude-opus-4-6-20260201",
     max_tokens: 1000,
     messages: [{
       role: "user",

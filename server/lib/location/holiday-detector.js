@@ -135,6 +135,9 @@ function getHolidayOverride(date) {
   }
 }
 
+// @ts-ignore
+import { callGemini } from '../ai/adapters/gemini-adapter.js';
+
 /**
  * Detect holiday for a given date/location using BRIEFING_HOLIDAY role
  * @param {Object} context - { created_at, city, state, country, timezone }
@@ -208,45 +211,18 @@ export async function detectHoliday(context) {
   }`;
 
   try {
-    // 3. Raw Fetch to BRIEFING_HOLIDAY role model with specific arguments
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: prompt }]
-            }
-          ],
-          tools: [{ google_search: {} }],
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
-          ],
-          generationConfig: {
-            thinkingConfig: {
-              thinkingLevel: "HIGH"
-            },
-            temperature: 0.1,
-            topP: 0.95,
-            topK: 40,
-            responseMimeType: "application/json"
-          }
-        })
-      }
-    );
+    // 3. Call Gemini via Adapter
+    const response = await callGemini({
+      model: 'gemini-3-pro-preview',
+      user: prompt,
+      maxTokens: 1024,
+      temperature: 0.1,
+      useSearch: true,
+      thinkingLevel: "HIGH"
+    });
 
     if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[holiday-detector] Gemini API Error ${response.status}: ${errText.substring(0, 200)}`);
+      console.error(`[holiday-detector] Gemini API Error: ${response.error}`);
       // Fall back to override if API fails
       if (override) {
         return { holiday: override.holiday, is_holiday: true };
@@ -254,9 +230,7 @@ export async function detectHoliday(context) {
       return { holiday: 'none', is_holiday: false };
     }
 
-    const data = await response.json();
-    const candidate = data.candidates?.[0];
-    const text = candidate?.content?.parts?.[0]?.text;
+    const text = response.output;
 
     if (!text) {
       console.warn('[holiday-detector] Empty response from Gemini');

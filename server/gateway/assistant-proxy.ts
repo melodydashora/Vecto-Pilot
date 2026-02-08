@@ -1,6 +1,7 @@
 import express from "express";
-// Using Node.js built-in fetch (available in Node 18+)
 import type { Request, Response } from "express";
+// @ts-ignore
+import { callModel } from "../lib/ai/adapters/index.js";
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
@@ -10,26 +11,12 @@ app.get('/health', (_req: Request, res: Response) => res.status(200).send('OK'))
 app.get('/ready', (_req: Request, res: Response) => res.status(200).send('READY'));
 
 const {
-  CLAUDE_MODEL = "claude-opus-4-5-20251101",
-  ANTHROPIC_API_KEY = "",
-  ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1",
-  ANTHROPIC_VERSION = "2023-06-01",
-  OPENAI_MODEL = "gpt-5.2",
-  OPENAI_API_KEY = "",
-  PERPLEXITY_API_KEY = "",
-  PERPLEXITY_MODEL = "sonar-pro",
   EIDOLON_TOKEN = "",
   AGENT_TOKEN = "",
   EIDOLON_POLICY_PATH = "config/eidolon-policy.json",
-  ASSISTANT_POLICY_PATH = "config/assistant-policy.json",
   REPL_SLUG = "",
   REPL_OWNER = "",
-  REPL_ID = "",
 } = process.env;
-
-// Gemini: Always use gemini-3-pro-preview (not 2.5), read API key at runtime
-const GEMINI_MODEL = "gemini-3-pro-preview";
-const getGeminiApiKey = () => process.env.GEMINI_API_KEY || "";
 
 const FAIL = (res: Response, code: number, msg: string) =>
   res.status(code).json({ ok: false, error: msg });
@@ -41,66 +28,57 @@ const assertInvariants = (payload: any) => {
 
 const eidolonReply = async (payload: any) => {
   // Single-path strategist → planner → validator
-  const strategist = await fetch(`${ANTR_BASE()}/messages`, {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": ANTHROPIC_VERSION,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 64000,
-      temperature: 0.2,
-      system: await loadPolicy(EIDOLON_POLICY_PATH, "eidolon"),
-      messages: payload.messages,
-    }),
-  }).then(r => r.json());
+  
+  // 1. STRATEGIST (Claude Opus)
+  const strategistResult = await callModel('STRATEGY_CORE', {
+    system: await loadPolicy(EIDOLON_POLICY_PATH, "eidolon"),
+    messages: payload.messages, // Pass full history
+  });
 
-  const planner = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { authorization: `Bearer ${OPENAI_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      reasoning: { effort: "high" },
-      max_output_tokens: 2048,
-      input: [{ role: "user", content: [{ type: "text", text: planPrompt(strategist) }]}],
-    }),
-  }).then(r => r.json());
+  if (!strategistResult.ok) throw new Error(`Strategist failed: ${strategistResult.error}`);
+  const strategistOutput = strategistResult.output;
 
-  const validator = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent", {
-    method: "POST",
-    headers: { 
-      "content-type": "application/json",
-      "x-goog-api-key": getGeminiApiKey()
-    },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: validatePrompt(planner) }]}],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 2048, responseMimeType: "application/json" },
-      safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" }
-      ]
-    }),
-  }).then(r => r.json());
+  // 2. PLANNER (GPT-5.2)
+  const plannerResult = await callModel('STRATEGY_TACTICAL', {
+    user: planPrompt(strategistOutput),
+  });
 
-  const result = finalize(validator);
+  if (!plannerResult.ok) throw new Error(`Planner failed: ${plannerResult.error}`);
+  const plannerOutput = JSON.parse(plannerResult.output); // GPT usually returns JSON string if prompted, or we might need to parse
+
+  // 3. VALIDATOR (Gemini 3 Pro)
+  // Using BRIEFING_EVENTS_VALIDATOR which maps to Claude Opus in registry, 
+  // but we want Gemini as per original code. 
+  // Let's use STRATEGY_CONTEXT (Gemini 3 Pro) or override.
+  // Ideally we stick to registry roles. 
+  // The original code used "GEMINI_MODEL" directly.
+  // We'll use 'STRATEGY_CONTEXT' as it is a Gemini 3 Pro role.
+  const validatorResult = await callModel('STRATEGY_CONTEXT', {
+    user: validatePrompt(plannerOutput),
+  });
+
+  if (!validatorResult.ok) throw new Error(`Validator failed: ${validatorResult.error}`);
+  let validatorOutput;
+  try {
+     validatorOutput = JSON.parse(validatorResult.output);
+  } catch (e) {
+     // If not JSON, just return text wrapped
+     validatorOutput = { result: validatorResult.output };
+  }
+
+  const result = finalize(validatorOutput);
   return {
-    identity: `🧠 Eidolon (Claude Opus 4.5 Enhanced) • slug=${REPL_SLUG} owner=${REPL_OWNER}`,
-    triad: { strategist, planner, validator },
+    identity: `🧠 Eidolon (Claude Opus 4.6 Enhanced) • slug=${REPL_SLUG} owner=${REPL_OWNER}`,
+    triad: { strategist: strategistOutput, planner: plannerOutput, validator: validatorOutput },
     result,
   };
 };
 
-const ANTR_BASE = () => process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1";
 const loadPolicy = async (path: string, who: string) => {
   const fs = await import("fs/promises");
   try { return await fs.readFile(path, "utf8"); } catch { return `${who.toUpperCase()} POLICY MISSING`; }
 };
-const planPrompt = (s: any) => `Convert strategist intent into exact steps and code edits:\n${JSON.stringify(s)}`;
+const planPrompt = (s: string) => `Convert strategist intent into exact steps and code edits:\n${s}`;
 const validatePrompt = (p: any) => `Validate JSON against schema, correct addresses, and normalize:\n${JSON.stringify(p)}`;
 const finalize = (v: any) => {
   // Enforce schema-strict invariant, no invented venues

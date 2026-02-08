@@ -4,7 +4,19 @@
 import { Resend } from 'resend';
 
 // Initialize Resend client (API key from environment)
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resend = null;
+if (process.env.RESEND_API_KEY) {
+  try {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  } catch (e) {
+    console.warn('[email-alerts] Failed to initialize Resend client:', e.message);
+  }
+} else {
+  // Only warn once at startup if not in test mode
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn('[email-alerts] RESEND_API_KEY not set - email alerts disabled');
+  }
+}
 
 // Alert recipient
 const ALERT_EMAIL = 'melodydashora@gmail.com';
@@ -27,6 +39,13 @@ export async function sendModelErrorAlert({
   fallbackSucceeded = false,
   fallbackModel = null
 }) {
+  if (!resend) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('[email-alerts] Skipping alert (no API key):', errorType, errorMessage);
+    }
+    return { success: false, error: 'RESEND_API_KEY not configured' };
+  }
+
   // NOTE: This is an intentional hardcoded timezone for INTERNAL developer alerts.
   // This is NOT user-facing location data - it's for consistent alert timestamps.
   // All system alerts use the same timezone for easy comparison in the dev team.
@@ -112,6 +131,11 @@ export async function sendModelErrorAlert({
  * Send a test email to verify the notification system works
  */
 export async function sendTestEmail() {
+  if (!resend) {
+    console.warn('[email-alerts] Skipping test email (no API key)');
+    return { success: false, error: 'RESEND_API_KEY not configured' };
+  }
+
   // NOTE: Intentional hardcoded timezone for internal test alerts (not user data)
   const timestamp = new Date().toLocaleString('en-US', {
     timeZone: 'America/Chicago', // Internal alert timezone (intentional - not user data)

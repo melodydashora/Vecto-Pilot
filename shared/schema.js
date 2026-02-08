@@ -1750,3 +1750,43 @@ export const coordsCacheRelations = relations(coords_cache, ({ many }) => ({
 }));
 
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OAUTH & INTEGRATIONS (2026-02-08)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const oauth_states = pgTable("oauth_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  state: text("state").notNull().unique(),
+  provider: text("provider").notNull(), // 'uber', 'lyft'
+  user_id: uuid("user_id").notNull(), // Intentionally no FK to users to allow soft failures
+  redirect_uri: text("redirect_uri"),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxState: sql`create index if not exists idx_oauth_states_state on ${table} (state)`,
+  idxExpires: sql`create index if not exists idx_oauth_states_expires on ${table} (expires_at)`,
+}));
+
+export const uber_connections = pgTable("uber_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'cascade' }),
+  
+  // Tokens (Encrypted at rest)
+  access_token_encrypted: text("access_token_encrypted").notNull(),
+  refresh_token_encrypted: text("refresh_token_encrypted"),
+  token_expires_at: timestamp("token_expires_at", { withTimezone: true }),
+  
+  // Permissions
+  scopes: text("scopes").array(), // ['profile', 'history', 'places']
+  
+  // Status
+  is_active: boolean("is_active").default(true),
+  connected_at: timestamp("connected_at", { withTimezone: true }).defaultNow(),
+  last_sync_at: timestamp("last_sync_at", { withTimezone: true }),
+  
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  idxUserId: sql`create index if not exists idx_uber_connections_user_id on ${table} (user_id)`,
+}));
