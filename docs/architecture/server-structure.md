@@ -128,7 +128,7 @@ Every folder has a README.md explaining its purpose.
 | `adapters/anthropic-adapter.js` | Claude integration |
 | `adapters/openai-adapter.js` | GPT-5.2 integration |
 | `adapters/gemini-adapter.js` | Gemini integration |
-| `providers/minstrategy.js` | Strategic overview (Claude Opus 4.5) |
+| `providers/minstrategy.js` | Strategic overview (Claude Opus 4.6) |
 | `providers/briefing.js` | Events, traffic, news (Gemini 3.0 Pro) |
 | `providers/consolidator.js` | Final strategy (GPT-5.2) |
 | `models-dictionary.js` | Model configuration and roles |

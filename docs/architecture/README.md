@@ -69,7 +69,7 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 
 | Role | Default Model | Purpose |
 |------|---------------|---------|
-| Strategist | Claude Opus 4.5 | Long-term strategy analysis |
+| Strategist | Claude Opus 4.6 | Long-term strategy analysis |
 | Briefer | Gemini 3.0 Pro | Real-time events, traffic, news |
 | Consolidator | GPT-5.2 | Immediate tactical strategy |
 

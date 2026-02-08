@@ -4,11 +4,13 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
-import { snapshots, strategies } from '../../../shared/schema.js';
+import { snapshots, strategies, driver_profiles } from '../../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 import { coachDAL } from '../../lib/ai/coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { validateAction } from '../coach/validate.js';
+// @ts-ignore
+import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
 
 const router = Router();
 
@@ -581,6 +583,24 @@ router.post('/', requireAuth, async (req, res) => {
     // Track active snapshot ID for conversation persistence
     let activeSnapshotId = snapshotId || null;
 
+    // Check for Super User (Agent Capabilities)
+    let isSuperUser = false;
+    if (isAuthenticated) {
+      try {
+        const [profile] = await db.select({ email: driver_profiles.email })
+          .from(driver_profiles)
+          .where(eq(driver_profiles.user_id, authUserId))
+          .limit(1);
+        
+        if (profile?.email === 'melodydashora@gmail.com') {
+          isSuperUser = true;
+          console.log(`[chat] 🚀 Super User detected: ${profile.email} - Enabling Agent Capabilities`);
+        }
+      } catch (e) {
+        console.warn('[chat] Failed to check user profile:', e.message);
+      }
+    }
+
     // Save user message to coach_conversations (non-blocking, authenticated users only)
     let userMessageId = null;
     if (isAuthenticated) {
@@ -609,7 +629,7 @@ router.post('/', requireAuth, async (req, res) => {
       }
     }
 
-    const systemPrompt = `You are an AI companion for rideshare drivers using Vecto Pilot - but you're much more than just a rideshare assistant. You're a powerful, versatile helper who can assist with anything the driver needs.
+    let systemPrompt = `You are an AI companion for rideshare drivers using Vecto Pilot - but you're much more than just a rideshare assistant. You're a powerful, versatile helper who can assist with anything the driver needs.
 
 **Your Capabilities:**
 
@@ -759,6 +779,46 @@ You can WRITE to these tables via action tags:
 ${contextInfo}
 
 You're a powerful AI companion with research-backed market intelligence and persistent memory. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.`;
+
+    // 🚀 SUPER USER ENHANCEMENT: Inject Agent Capabilities & Memory
+    if (isSuperUser) {
+      try {
+        const agentContext = await getEnhancedProjectContext();
+        
+        systemPrompt += `
+
+══════════════════════════════════════════════════════════════════════════
+🚀 **SUPER USER DETECTED: AGENT ENHANCEMENTS ENABLED**
+══════════════════════════════════════════════════════════════════════════
+You are interacting with a Super User (Developer/Admin). You have elevated privileges and expanded context.
+
+**ADDITIONAL CAPABILITIES:**
+- **Codebase Awareness:** You have context about the project structure and recent changes.
+- **Deep Memory:** You have access to Agent/Eidolon memory and preferences.
+- **Technical Depth:** You can discuss code, architecture, and system internals freely.
+
+**ENHANCED CONTEXT:**
+- **Current Time:** ${agentContext.currentTime}
+- **Environment:** ${agentContext.environment}
+- **Workspace:** ${agentContext.workspace}
+
+**Recent System Activity:**
+- Snapshots (24h): ${agentContext.recentSnapshots?.length || 0}
+- Strategies (24h): ${agentContext.recentStrategies?.length || 0}
+- Actions (24h): ${agentContext.recentActions?.length || 0}
+
+**Agent Memory:**
+${JSON.stringify(agentContext.agentPreferences, null, 2)}
+
+**Project State:**
+${JSON.stringify(agentContext.projectState, null, 2)}
+
+Use this enhanced context to provide deeper, more technical, and system-aware assistance.
+══════════════════════════════════════════════════════════════════════════`;
+      } catch (err) {
+        console.warn('[chat] Failed to inject Super User context:', err.message);
+      }
+    }
 
     // Set up SSE headers
     res.setHeader('Content-Type', 'text/event-stream');

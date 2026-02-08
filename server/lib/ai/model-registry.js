@@ -12,7 +12,7 @@
 // ============================================================================
 // CURRENT FRONTIER MODELS (January 2026)
 // ============================================================================
-// - Claude Opus 4.5:    claude-opus-4-5-20251101    (Best reasoning, code)
+// - Claude Opus 4.6:    claude-opus-4-6-20260201    (Best reasoning, code)
 // - Claude Sonnet 4.5:  claude-sonnet-4-5-20250929  (Fast, cost-effective)
 // - Claude Sonnet 4:    claude-sonnet-4-20250514    (Stable, agentic coding)
 // - Claude Haiku 4.5:   claude-haiku-4-5-20251201   (Fastest, cheapest)
@@ -77,7 +77,7 @@ export const MODEL_ROLES = {
   },
   BRIEFING_EVENTS_VALIDATOR: {
     envKey: 'BRIEFING_VALIDATOR_MODEL',
-    default: 'claude-opus-4-5-20251101',
+    default: 'claude-opus-4-6-20260201',
     purpose: 'Event schedule verification',
     maxTokens: 4096,
     temperature: 0.3,
@@ -85,7 +85,7 @@ export const MODEL_ROLES = {
   },
   BRIEFING_FALLBACK: {
     envKey: 'BRIEFING_FALLBACK_MODEL',
-    default: 'claude-opus-4-5-20251101',
+    default: 'claude-opus-4-6-20260201',
     purpose: 'General fallback for failed briefing calls',
     maxTokens: 8192,
     temperature: 0.3,
@@ -114,7 +114,7 @@ export const MODEL_ROLES = {
   // 2026-01-10: Lowered temperature from 0.7 → 0.5 for more consistent strategy output
   STRATEGY_CORE: {
     envKey: 'STRATEGY_CORE_MODEL',
-    default: 'claude-opus-4-5-20251101',
+    default: 'claude-opus-4-6-20260201',
     purpose: 'Core strategic plan generation (pure reasoning)',
     maxTokens: 4096,
     temperature: 0.5,
@@ -275,7 +275,7 @@ export const FALLBACK_CONFIG = {
 
 /**
  * Get provider for a model name
- * @param {string} model - Model name (e.g., 'gpt-5.2', 'claude-opus-4-5-20251101')
+ * @param {string} model - Model name (e.g., 'gpt-5.2', 'claude-opus-4-6-20260201')
  * @returns {string} Provider name ('openai', 'anthropic', 'google', 'unknown')
  */
 export function getProviderForModel(model) {
@@ -466,7 +466,7 @@ export function getLLMDiagnostics() {
 
   // Check Anthropic
   if (process.env.ANTHROPIC_API_KEY) {
-    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-5-20251101';
+    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6-20260201';
     providers.push({ key: 'anthropic', model });
   }
 
@@ -485,7 +485,7 @@ export function getLLMDiagnostics() {
   return {
     providers,
     preferred: process.env.PREFERRED_MODEL || 'google:gemini-3-pro-preview',
-    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.2,anthropic:claude-opus-4-5-20251101',
+    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.2,anthropic:claude-opus-4-6-20260201',
   };
 }
 

@@ -59,10 +59,10 @@ validateStrategyEnv(); // Validates AI model configuration
 
 ### Strategy Models
 ```bash
-STRATEGY_STRATEGIST=claude-opus-4-5-20251101
+STRATEGY_STRATEGIST=claude-opus-4-6-20260201
 STRATEGY_BRIEFER=gemini-3-pro-preview
 STRATEGY_CONSOLIDATOR=gpt-5.2
-STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
+STRATEGY_EVENT_VALIDATOR=claude-opus-4-6-20260201
 ```
 
 ## Holiday Override System

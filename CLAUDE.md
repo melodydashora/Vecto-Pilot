@@ -167,7 +167,7 @@ VENUE RECOMMENDATIONS (requires strategy + driver location)
 
 ## Project Overview
 
-Vecto Pilot is an AI-powered rideshare intelligence platform. It uses a multi-model AI pipeline (Claude Opus 4.5, Gemini 3.0 Pro, GPT-5.2) to generate venue recommendations and tactical guidance for drivers.
+Vecto Pilot is an AI-powered rideshare intelligence platform. It uses a multi-model AI pipeline (Claude Opus 4.6, Gemini 3.0 Pro, GPT-5.2) to generate venue recommendations and tactical guidance for drivers.
 
 ## Quick Start
 
@@ -700,16 +700,16 @@ See [docs/review-queue/README.md](docs/review-queue/README.md) for full document
 DATABASE_URL=...           # PostgreSQL
 OPENAI_API_KEY=...         # GPT-5.2
 GEMINI_API_KEY=...         # Gemini 3.0 Pro
-ANTHROPIC_API_KEY=...      # Claude Opus 4.5
+ANTHROPIC_API_KEY=...      # Claude Opus 4.6
 GOOGLE_MAPS_API_KEY=...    # Places, Routes, Weather
 ```
 
 ### Model Configuration
 ```bash
-STRATEGY_STRATEGIST=claude-opus-4-5-20251101
+STRATEGY_STRATEGIST=claude-opus-4-6-20260201
 STRATEGY_BRIEFER=gemini-3-pro-preview
 STRATEGY_CONSOLIDATOR=gpt-5.2
-STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
+STRATEGY_EVENT_VALIDATOR=claude-opus-4-6-20260201
 ```
 
 ## Key Files

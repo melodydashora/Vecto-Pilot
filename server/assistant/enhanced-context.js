@@ -237,7 +237,10 @@ export async function getEnhancedProjectContext(options = {}) {
   return context;
 }
 
-// Internet search capabilities using Claude Opus 4.5 with web_search tool
+// @ts-ignore
+import { callAnthropicWithWebSearch } from "../lib/ai/adapters/anthropic-adapter.js";
+
+// Internet search capabilities using Claude Opus 4.6 with web_search tool
 export async function performInternetSearch(query, userId = null) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -250,47 +253,16 @@ export async function performInternetSearch(query, userId = null) {
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "web-search-20250305,web-fetch-2025-09-10",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "claude-opus-4-5-20251101",
-        max_tokens: 4096,
-        system: "You are Assistant, a helpful AI with deep technical knowledge. Provide accurate, up-to-date information with citations from web search results.",
-        tools: [
-          {
-            type: "web_search_20250305",
-            name: "web_search",
-            max_uses: 5,
-            user_location: {
-              type: "approximate",
-              country: "US",
-              timezone: "America/Chicago"
-            }
-          },
-          {
-            type: "web_fetch_20250910",
-            name: "web_fetch",
-            max_uses: 5
-          }
-        ],
-        tool_choice: { type: "auto" },
-        messages: [
-          {
-            role: "user",
-            content: query
-          }
-        ]
-      })
+    const response = await callAnthropicWithWebSearch({
+      model: "claude-opus-4-6-20260201",
+      maxTokens: 4096,
+      system: "You are Assistant, a helpful AI with deep technical knowledge. Provide accurate, up-to-date information with citations from web search results.",
+      user: query
     });
 
-    const data = await response.json();
-    const result = data.content?.find(c => c.type === "text")?.text || "";
+    if (!response.ok) throw new Error(response.error);
+
+    const result = response.output;
 
     // Store search result in memory
     await memoryPut({
@@ -302,7 +274,7 @@ export async function performInternetSearch(query, userId = null) {
         query,
         result,
         timestamp: new Date().toISOString(),
-        model: "claude-opus-4-5-20251101",
+        model: "claude-opus-4-6-20260201",
         tool_used: "web_search",
         identity: "assistant"
       },
@@ -314,7 +286,7 @@ export async function performInternetSearch(query, userId = null) {
       query,
       result,
       timestamp: new Date().toISOString(),
-      model: "claude-opus-4-5-20251101",
+      model: "claude-opus-4-6-20260201",
       identity: "assistant"
     };
   } catch (err) {

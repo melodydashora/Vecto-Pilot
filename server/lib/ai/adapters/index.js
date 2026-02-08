@@ -62,7 +62,7 @@ import { OP } from "../../../logger/workflow.js";
  * @param {Object} params - { system, user }
  * @returns {Promise<{ok: boolean, output: string, citations?: array}>}
  */
-export async function callModel(role, { system, user }) {
+export async function callModel(role, { system, user, messages }) {
   const callStart = Date.now();
 
   // 1. Get configuration from registry (handles legacy name resolution)
@@ -76,8 +76,7 @@ export async function callModel(role, { system, user }) {
   const { model, provider, maxTokens, temperature, reasoningEffort, role: canonicalRole } = config;
 
   // 2026-01-06: SECURITY - Log only metadata, not message content
-  // Message content may contain PII, driver locations, or sensitive strategy info
-  console.log(`🤖 [AI CALL] Role=${canonicalRole} Model=${model} Provider=${provider} SystemLen=${system?.length || 0} UserLen=${user?.length || 0}`);
+  console.log(`🤖 [AI CALL] Role=${canonicalRole} Model=${model} Provider=${provider} SystemLen=${system?.length || 0} UserLen=${user?.length || 0} MsgCount=${messages?.length || 0}`);
 
   let result;
 
@@ -104,6 +103,7 @@ export async function callModel(role, { system, user }) {
           model,
           system,
           user,
+          messages,
           maxTokens,
           temperature: tempToPass,
           reasoningEffort,
@@ -117,7 +117,7 @@ export async function callModel(role, { system, user }) {
       if (useWebSearch) {
         result = await callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature });
       } else {
-        result = await callAnthropic({ model, system, user, maxTokens, temperature });
+        result = await callAnthropic({ model, system, user, messages, maxTokens, temperature });
       }
 
     } else if (model.startsWith("gemini-")) {

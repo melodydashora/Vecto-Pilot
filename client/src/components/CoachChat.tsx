@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle } from "lucide-react";
 import { useMemory } from "@/hooks/useMemory";
-import { useChatPersistence, ChatMessage } from "@/hooks/useChatPersistence";
+import { useChatPersistence } from "@/hooks/useChatPersistence";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { API_ROUTES } from "@/constants/apiRoutes";
@@ -28,9 +28,6 @@ interface ValidationError {
   field: string;
   message: string;
 }
-
-// Replaced by ChatMessage from hook, but keeping alias for compatibility if needed
-type Message = ChatMessage;
 
 interface SnapshotData {
   snapshot_id?: string;

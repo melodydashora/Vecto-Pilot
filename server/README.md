@@ -81,7 +81,7 @@ Response
 POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 │
 ├── Phase 1 (Parallel): Strategist + Briefer + Holiday
-│   ├── minstrategy (Claude Opus 4.5) → strategies.minstrategy
+│   ├── minstrategy (Claude Opus 4.6) → strategies.minstrategy
 │   ├── briefing.js (Gemini 3.0 Pro) → briefings table
 │   └── holiday-checker → holiday context
 │

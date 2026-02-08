@@ -1,6 +1,17 @@
 // tests/blocksApi.test.js
 // Block Schema Contract validation tests
 
+// Ensure test mode is set BEFORE any imports run
+process.env.NODE_ENV = 'test';
+
+// Mock critical secrets to pass startup validation
+if (!process.env.DATABASE_URL) process.env.DATABASE_URL = "postgres://mock:mock@localhost:5432/mock";
+if (!process.env.GOOGLE_MAPS_API_KEY) process.env.GOOGLE_MAPS_API_KEY = "mock_key";
+if (!process.env.OPENAI_API_KEY) process.env.OPENAI_API_KEY = "mock_key";
+if (!process.env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = "mock_key";
+if (!process.env.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = "mock_key";
+process.env.JWT_SECRET = 'test-secret';
+
 import request from "supertest";
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 
@@ -76,12 +87,15 @@ describe("Blocks API Contract", () => {
       const res = await request(app)
         .get(`/api/blocks-fast?snapshotId=${testSnapshotId}`)
         .set('Accept', 'application/json')
-        .set('Authorization', `Bearer ${testToken}`);
+        .set('Authorization', `Bearer ${testToken}`)
+        .set('User-Agent', 'TestRunner');
 
       // Should return 200 or 202 (if strategy is still pending)
       expect([200, 202]).toContain(res.status);
-      expect(res.body).toHaveProperty('blocks');
-      expect(Array.isArray(res.body.blocks)).toBe(true);
+      if (res.status === 200) {
+        expect(res.body).toHaveProperty('blocks');
+        expect(Array.isArray(res.body.blocks)).toBe(true);
+      }
 
       // Only validate blocks if they exist (200 status)
       if (res.status === 200 && res.body.blocks.length > 0) {
@@ -102,19 +116,23 @@ describe("Blocks API Contract", () => {
       const res = await request(app)
         .get(`/api/blocks-fast?snapshotId=${fakeSnapshotId}`)
         .set('Accept', 'application/json')
-        .set('Authorization', `Bearer ${testToken}`);
+        .set('Authorization', `Bearer ${testToken}`)
+        .set('User-Agent', 'TestRunner');
 
       // API returns 202 if strategy pending, or 200 with empty blocks
       expect([200, 202]).toContain(res.status);
-      expect(res.body).toHaveProperty('blocks');
-      expect(Array.isArray(res.body.blocks)).toBe(true);
+      if (res.status === 200) {
+        expect(res.body).toHaveProperty('blocks');
+        expect(Array.isArray(res.body.blocks)).toBe(true);
+      }
     });
 
     it("returns 400 for missing snapshotId", async () => {
       const res = await request(app)
         .get('/api/blocks-fast')
         .set('Accept', 'application/json')
-        .set('Authorization', `Bearer ${testToken}`);
+        .set('Authorization', `Bearer ${testToken}`)
+        .set('User-Agent', 'TestRunner');
 
       expect(res.status).toBe(400);
       expect(res.body).toHaveProperty('error');

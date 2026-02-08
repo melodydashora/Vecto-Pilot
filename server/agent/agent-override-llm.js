@@ -1,12 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-// UNIFIED CONFIGURATION - Claude Opus 4.5 (Agent/Assistant/Eidolon)
+// UNIFIED CONFIGURATION - Claude Opus 4.6 (Agent/Assistant/Eidolon)
 const AGENT_OVERRIDE_ORDER = ["anthropic"]; // Single provider
 
 const CLAUDE_KEY = process.env.AGENT_OVERRIDE_API_KEY_C || process.env.ANTHROPIC_API_KEY;
 
-// Claude Opus 4.5 - unified across all AI systems
-const CLAUDE_MODEL = process.env.AGENT_OVERRIDE_CLAUDE_MODEL || process.env.AGENT_MODEL || "claude-opus-4-5-20251101";
+// Claude Opus 4.6 - unified across all AI systems
+const CLAUDE_MODEL = process.env.AGENT_OVERRIDE_CLAUDE_MODEL || process.env.AGENT_MODEL || "claude-opus-4-6-20260201";
 
 // Match Eidolon's ULTRA-ENHANCED parameters
 const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS || process.env.AGENT_MAX_TOKENS || "200000", 10);
@@ -74,7 +74,7 @@ export async function agentAsk({ system, user, json = false }) {
   const fn = PROVIDERS.anthropic;
   
   try {
-    console.log(`[Atlas] Using Claude Opus 4.5 (unified configuration)...`);
+    console.log(`[Atlas] Using Claude Opus 4.6 (unified configuration)...`);
     const result = await fn({ system, user, json });
     console.log(`✅ [Atlas] Claude succeeded in ${result.elapsed_ms}ms`);
     
@@ -97,7 +97,7 @@ export async function agentAsk({ system, user, json = false }) {
       healingState.circuitBreakerOpen = true;
     }
     
-    const error = new Error("Atlas Agent (Claude Opus 4.5) failed");
+    const error = new Error("Atlas Agent (Claude Opus 4.6) failed");
     error.code = "atlas_claude_failed";
     error.details = [{ provider: "anthropic", error: errorMsg }];
     error.healingState = healingState;

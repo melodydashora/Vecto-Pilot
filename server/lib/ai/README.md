@@ -70,11 +70,11 @@ Roles follow the `{TABLE}_{FUNCTION}` naming convention where the prefix indicat
 
 | Role | Env Variable | Default Model | Purpose |
 |------|--------------|---------------|---------|
-| `STRATEGY_CORE` | `STRATEGY_CORE_MODEL` | Claude Opus 4.5 | Core strategic plan generation |
+| `STRATEGY_CORE` | `STRATEGY_CORE_MODEL` | Claude Opus 4.6 | Core strategic plan generation |
 | `STRATEGY_CONTEXT` | `STRATEGY_CONTEXT_MODEL` | Gemini 3 Pro | Real-time context gathering |
 | `STRATEGY_TACTICAL` | `STRATEGY_TACTICAL_MODEL` | GPT-5.2 | Immediate 1hr tactical strategy |
 | `STRATEGY_DAILY` | `STRATEGY_DAILY_MODEL` | Gemini 3 Pro | Long-term 8-12hr daily strategy |
-| `BRIEFING_EVENTS_VALIDATOR` | `BRIEFING_VALIDATOR_MODEL` | Claude Opus 4.5 | Event schedule verification |
+| `BRIEFING_EVENTS_VALIDATOR` | `BRIEFING_VALIDATOR_MODEL` | Claude Opus 4.6 | Event schedule verification |
 | `VENUE_SCORER` | `VENUE_SCORER_MODEL` | GPT-5.2 | Smart Blocks venue scoring |
 | `VENUE_FILTER` | `VENUE_FILTER_MODEL` | Claude Haiku | Fast venue filtering |
 
@@ -114,7 +114,7 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 
 When primary model fails, certain roles automatically fall back to Claude Opus:
 - Roles with fallback: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY`, `BRIEFING_EVENTS_DISCOVERY`, `BRIEFING_NEWS`
-- Fallback model: `claude-opus-4-5-20251101`
+- Fallback model: `claude-opus-4-6-20260201`
 - Configured in: `model-registry.js` → `FALLBACK_ENABLED_ROLES`
 
 ## LLM Settings Optimization (D-028)

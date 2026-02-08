@@ -1,8 +1,8 @@
 // Unified AI configuration for Agent, Eidolon, and Assistant
-// All services use Claude Opus 4.5 with extended thinking
+// All services use Claude Opus 4.6 with extended thinking
 
 export const AGENT_AI_CONFIG = {
-  model: 'claude-opus-4-5-20251101',
+  model: 'claude-opus-4-6-20260201',
   temperature: 0.7,
   top_p: 1.0,
   max_tokens: 16000,

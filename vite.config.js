@@ -53,6 +53,10 @@ export default defineConfig(async () => {
               if (id.includes('tailwind-merge') || id.includes('class-variance-authority') || id.includes('clsx')) {
                 return 'vendor-css';
               }
+              // Charts - separate chunk
+              if (id.includes('recharts')) {
+                return 'vendor-charts';
+              }
               // Let Rollup handle React, charts, and everything else naturally
               // This prevents forwardRef errors from chunk load ordering issues
             }

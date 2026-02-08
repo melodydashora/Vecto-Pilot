@@ -169,7 +169,7 @@
       "Bash(gemini:*)",
       "Bash(gcloud --version:*)",
       "Bash(git rm:*)",
-      "Bash(Catch Anti-Pattern\" lesson explaining why catching 23505 with ON\n  CONFLICT masks bugs\n- progress-bar-and-snapshot-flow.md: Fixed SSE endpoint path to\n  strategy-events.js \\(was events.js\\)\n- briefing/README.md: Noted events.js deletion, SSE consolidation\n- CHANGES.md: Documented all 2026-01-09 commits \\(e00c031, 4c8c037,\n  a7d5589\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(Catch Anti-Pattern\" lesson explaining why catching 23505 with ON\n  CONFLICT masks bugs\n- progress-bar-and-snapshot-flow.md: Fixed SSE endpoint path to\n  strategy-events.js \\(was events.js\\)\n- briefing/README.md: Noted events.js deletion, SSE consolidation\n- CHANGES.md: Documented all 2026-01-09 commits \\(e00c031, 4c8c037,\n  a7d5589\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
       "mcp__plugin_serena_serena__get_symbols_overview",
       "mcp__plugin_serena_serena__read_memory",
       "mcp__plugin_serena_serena__check_onboarding_performed",
@@ -196,7 +196,8 @@
       "Bash(for i in 1 2 3 4 5 6 7 8 9 10)",
       "Bash(source .env)",
       "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node:*)",
-      "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node scripts/test-uber-webhook.js:*)"
+      "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node scripts/test-uber-webhook.js:*)",
+      "Bash(gh api:*)"
     ],
     "deny": [],
     "ask": []

@@ -16,6 +16,10 @@ import { db } from '../../../db/drizzle.js';
 import { strategies, briefings, news_deactivations, venue_catalog } from '../../../../shared/schema.js';
 import { eq, inArray, or, ilike, sql } from 'drizzle-orm';
 import { callAnthropic } from '../adapters/anthropic-adapter.js';
+// @ts-ignore
+import { callOpenAI } from '../adapters/openai-adapter.js';
+// @ts-ignore
+import { callGemini } from '../adapters/gemini-adapter.js';
 import { triadLog, aiLog, dbLog, OP } from '../../../logger/workflow.js';
 import { isOpenNow } from '../../venue/venue-hours.js';
 // 2026-01-09: Use canonical validation module
@@ -133,7 +137,7 @@ async function filterDeactivatedNews(newsData, userId) {
 }
 
 // BRIEFING_FALLBACK role configuration
-const FALLBACK_MODEL = 'claude-opus-4-5-20251101';
+const FALLBACK_MODEL = 'claude-opus-4-6-20260201';
 const FALLBACK_MAX_TOKENS = 8000;
 const FALLBACK_TEMPERATURE = 0.3;
 
@@ -171,11 +175,6 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
     // No timezone - show ISO without formatting
     localTime = `${snapshot.local_iso} (timezone unknown)`;
   }
-
-  // 90s timeout - fail fast if STRATEGY_TACTICAL role hangs
-  // 2026-02-01: Increased from 60s to 90s to match briefing timeouts
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 90000);
 
   try {
     // 2026-01-08: Pre-format events (now async to lookup venue hours from venue_catalog)
@@ -227,47 +226,33 @@ RULES:
 
 
     // STRATEGY_TACTICAL role with medium reasoning for strategic analysis
-    // Note: This model requires max_completion_tokens and reasoning_effort
-    // Use "developer" role instead of "system" for newer models
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-5.2',
-        messages: [
-          { role: 'developer', content: 'You are a rideshare strategy expert. Provide concise, actionable guidance.' },
-          { role: 'user', content: prompt }
-        ],
-        reasoning_effort: 'medium',
-        max_completion_tokens: 2000  // Model needs tokens for reasoning + output
-      }),
-      signal: controller.signal  // Abort after 90s timeout
+    // Using callOpenAI adapter instead of direct fetch
+    const response = await callOpenAI({
+      model: 'gpt-5.2',
+      messages: [
+        { role: 'developer', content: 'You are a rideshare strategy expert. Provide concise, actionable guidance.' },
+        { role: 'user', content: prompt }
+      ],
+      reasoningEffort: 'medium',
+      maxTokens: 2000
     });
-    clearTimeout(timeoutId);  // Clear timeout on successful response
 
     if (!response.ok) {
-      const errText = await response.text();
-      aiLog.warn(1, `[STRATEGY_TACTICAL] Immediate strategy failed (${response.status}): ${errText.substring(0, 200)}`, OP.AI);
+      aiLog.warn(1, `[STRATEGY_TACTICAL] Immediate strategy failed: ${response.error}`, OP.AI);
       return { strategy: '' };
     }
 
-    const data = await response.json();
-    const strategy = data.choices?.[0]?.message?.content || '';
+    const strategy = response.output || '';
 
     if (strategy) {
       aiLog.done(1, `[STRATEGY_TACTICAL] Immediate strategy (${strategy.length} chars)`, OP.AI);
       return { strategy };
     }
 
-    aiLog.warn(1, `[STRATEGY_TACTICAL] Empty response. Response: ${JSON.stringify(data).substring(0, 300)}`, OP.AI);
+    aiLog.warn(1, `[STRATEGY_TACTICAL] Empty response`, OP.AI);
     return { strategy: '' };
   } catch (error) {
-    clearTimeout(timeoutId);  // Clean up timeout on error
-    const isTimeout = error.name === 'AbortError';
-    aiLog.warn(1, `Immediate strategy call failed${isTimeout ? ' (TIMEOUT after 90s)' : ''}: ${error.message}`, OP.AI);
+    aiLog.warn(1, `Immediate strategy call failed: ${error.message}`, OP.AI);
     return { strategy: '' };
   }
 }
@@ -289,74 +274,45 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
   const callStart = Date.now();
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
-    // 90s timeout per attempt - fail fast if Gemini hangs
-    // 2026-02-01: Increased from 60s to 90s - Gemini with thinking needs more time
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
-
     try {
       if (attempt > 1) {
         aiLog.info(`Consolidator retry attempt ${attempt-1}/${MAX_RETRIES} due to overload...`);
       }
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,  // Abort after 90s timeout
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            tools: [{ google_search: {} }],
-            safetySettings: [
-              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-              { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
-            ],
-            generationConfig: {
-              thinkingConfig: {
-                // STRATEGY_DAILY role model only supports LOW or HIGH thinking levels
-                thinkingLevel: "LOW"
-              },
-              temperature,
-              maxOutputTokens: maxTokens
-            }
-          })
-        }
-      );
+      // Using callGemini adapter
+      // Adapter handles thinkingConfig, tools, safetySettings, etc.
+      // But we need to ensure thinkingLevel is passed if supported
+      const response = await callGemini({
+        model: 'gemini-3-pro-preview',
+        user: prompt,
+        maxTokens,
+        temperature,
+        useSearch: true,
+        thinkingLevel: "LOW" // Explicitly request low thinking
+      });
 
-      clearTimeout(timeoutId);  // Clear timeout on any response
-
-      // Handle Overloaded (503) or Rate Limited (429)
-      if (response.status === 503 || response.status === 429) {
-        const errText = await response.text();
-        aiLog.warn(1, `Gemini consolidator busy (${response.status}): ${errText.substring(0, 100)}`);
-
-        if (attempt <= MAX_RETRIES) {
-          // Wait before retrying (Exponential Backoff)
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-          aiLog.info(`Waiting ${delay}ms before retry...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue; // Retry loop
-        }
-        return { ok: false, error: `Gemini Overloaded after ${MAX_RETRIES} retries` };
-      }
-
+      // Handle Overloaded (503) or Rate Limited (429) emulation
+      // The adapter generally catches errors, but if it returns specific error strings we might retry
       if (!response.ok) {
-        const errText = await response.text();
-        aiLog.error(1, `Gemini consolidator API error ${response.status}: ${errText.substring(0, 500)}`);
-
-        if (response.status === 400 && errText.includes('API key expired')) {
+        if (response.error.includes('503') || response.error.includes('429')) {
+           aiLog.warn(1, `Gemini consolidator busy: ${response.error.substring(0, 100)}`);
+           if (attempt <= MAX_RETRIES) {
+             const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+             aiLog.info(`Waiting ${delay}ms before retry...`);
+             await new Promise(resolve => setTimeout(resolve, delay));
+             continue;
+           }
+           return { ok: false, error: `Gemini Overloaded after ${MAX_RETRIES} retries` };
+        }
+        
+        if (response.error.includes('API key expired')) {
           return { ok: false, error: 'GEMINI_API_KEY expired - update in Secrets' };
         }
-
-        return { ok: false, error: `API error ${response.status}` };
+        
+        return { ok: false, error: response.error };
       }
 
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = response.output;
 
       if (!text) {
         aiLog.warn(1, `Gemini consolidator returned empty response`);
@@ -368,9 +324,6 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
       return { ok: true, output: text.trim(), durationMs: elapsed };
 
     } catch (error) {
-      clearTimeout(timeoutId);  // Clean up timeout on error
-      const isTimeout = error.name === 'AbortError';
-      aiLog.error(1, `Consolidator ${isTimeout ? 'TIMEOUT' : 'network error'} (attempt ${attempt}): ${error.message}`);
       if (attempt <= MAX_RETRIES) {
         const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
         aiLog.info(`Waiting ${delay}ms before retry...`);
@@ -379,7 +332,7 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
       }
       const elapsed = Date.now() - callStart;
       aiLog.error(1, `Consolidator failed after ${elapsed}ms and ${MAX_RETRIES} retries: ${error.message}`);
-      return { ok: false, error: isTimeout ? 'TIMEOUT after 90s' : error.message };
+      return { ok: false, error: error.message };
     }
   }
 }

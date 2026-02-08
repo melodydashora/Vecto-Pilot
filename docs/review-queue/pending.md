@@ -3339,4 +3339,880 @@ The following items have been addressed and consolidated into `../reviewed-queue
 
 ---
 
+## 2026-02-07 Analysis
+
+**Generated:** 2026-02-07T23:23:00.481Z
+**Branch:** main
+**Last Commit:** 3b36bea1 refactor enhancements and updates to dependencies
+
+### Uncommitted Changes (56)
+| File | Status |
+|------|--------|
+| `claude/agents/docs-sync.md` | Modified |
+| `.claude/settings.local.json` | Modified |
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `MODEL.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| `config/eidolon-policy.json` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/ai-tools/memory.md` | Modified |
+| `docs/architecture/README.md` | Modified |
+| `docs/architecture/Strategy.md` | Modified |
+| `docs/architecture/ai-coach.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/architecture/driver-intelligence-system.html` | Modified |
+| ... and 36 more | |
+
+### Recent Commit Changes (65)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.eslintrc.cjs` | Deleted |
+| `.gemini/gemini-setup.txt` | Added |
+| `.gemini/settings.json` | Added |
+| `FEATURESANDNOTES.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `README.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `check-plugins.mjs` | Added |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/auth/UberConnectButton.tsx` | Added |
+| `client/src/components/auth/UberConnectionStatus.tsx` | Added |
+| `client/src/components/settings/UberSettingsSection.tsx` | Added |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useChatPersistence.ts` | Added |
+| `client/src/pages/auth/uber/Callback.tsx` | Added |
+| ... and 45 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/model-registry.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/model-registry.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/confidence-scorer.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/assistant.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `server/assistant/README.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+
+#### Low Priority
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (.gemini/gemini-setup.txt)
+- [ ] Consider adding documentation - New file added (.gemini/settings.json)
+- [ ] Consider adding documentation - New file added (check-plugins.mjs)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberApiClient.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberAuth.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberPaymentsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberProfileService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberTripsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/uber.ts)
+- [ ] Consider adding documentation - New file added (eslint.config.js)
+- [ ] Consider adding documentation - New file added (jest.client.config.js)
+- [ ] Consider adding documentation - New file added (migrations/20260205_add_event_cleanup_indices.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260205_enforce_event_end_time.sql)
+- [ ] Consider adding documentation - New file added (scripts/check_coach_table.js)
+- [ ] Consider adding documentation - New file added (scripts/check_system_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/check_user_intel_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/export-notes.js)
+- [ ] Consider adding documentation - New file added (scripts/test-uber-webhook.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/cleanup-events.js)
+- [ ] Consider adding documentation - New file added (server/lib/external/uber-client.js)
+- [ ] Consider adding documentation - New file added (tests/BriefingEventsFetch.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingPageEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingTabIntegration.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/SmartBlockEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/useChatPersistence.test.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-02-07 Analysis
+
+**Generated:** 2026-02-07T23:41:28.261Z
+**Branch:** main
+**Last Commit:** 3b36bea1 refactor enhancements and updates to dependencies
+
+### Uncommitted Changes (61)
+| File | Status |
+|------|--------|
+| `claude/agents/docs-sync.md` | Modified |
+| `.claude/settings.local.json` | Modified |
+| `.gemini/settings.json` | Modified |
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `MODEL.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| `config/eidolon-policy.json` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/ai-tools/memory.md` | Modified |
+| `docs/architecture/README.md` | Modified |
+| `docs/architecture/Strategy.md` | Modified |
+| `docs/architecture/ai-coach.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| ... and 41 more | |
+
+### Recent Commit Changes (65)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.eslintrc.cjs` | Deleted |
+| `.gemini/gemini-setup.txt` | Added |
+| `.gemini/settings.json` | Added |
+| `FEATURESANDNOTES.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `README.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `check-plugins.mjs` | Added |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/auth/UberConnectButton.tsx` | Added |
+| `client/src/components/auth/UberConnectionStatus.tsx` | Added |
+| `client/src/components/settings/UberSettingsSection.tsx` | Added |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useChatPersistence.ts` | Added |
+| `client/src/pages/auth/uber/Callback.tsx` | Added |
+| ... and 45 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/model-registry.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/model-registry.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/confidence-scorer.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/assistant.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `server/assistant/README.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+
+#### Low Priority
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (.gemini/gemini-setup.txt)
+- [ ] Consider adding documentation - New file added (.gemini/settings.json)
+- [ ] Consider adding documentation - New file added (check-plugins.mjs)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberApiClient.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberAuth.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberPaymentsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberProfileService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberTripsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/uber.ts)
+- [ ] Consider adding documentation - New file added (eslint.config.js)
+- [ ] Consider adding documentation - New file added (jest.client.config.js)
+- [ ] Consider adding documentation - New file added (migrations/20260205_add_event_cleanup_indices.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260205_enforce_event_end_time.sql)
+- [ ] Consider adding documentation - New file added (scripts/check_coach_table.js)
+- [ ] Consider adding documentation - New file added (scripts/check_system_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/check_user_intel_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/export-notes.js)
+- [ ] Consider adding documentation - New file added (scripts/test-uber-webhook.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/cleanup-events.js)
+- [ ] Consider adding documentation - New file added (server/lib/external/uber-client.js)
+- [ ] Consider adding documentation - New file added (tests/BriefingEventsFetch.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingPageEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingTabIntegration.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/SmartBlockEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/useChatPersistence.test.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-02-08 Analysis
+
+**Generated:** 2026-02-08T00:01:02.658Z
+**Branch:** main
+**Last Commit:** 3b36bea1 refactor enhancements and updates to dependencies
+
+### Uncommitted Changes (72)
+| File | Status |
+|------|--------|
+| `claude/agents/docs-sync.md` | Modified |
+| `.claude/settings.local.json` | Modified |
+| `.gemini/settings.json` | Modified |
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `MODEL.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| `config/eidolon-policy.json` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/ai-tools/memory.md` | Modified |
+| `docs/architecture/README.md` | Modified |
+| `docs/architecture/Strategy.md` | Modified |
+| `docs/architecture/ai-coach.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 52 more | |
+
+### Recent Commit Changes (65)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.eslintrc.cjs` | Deleted |
+| `.gemini/gemini-setup.txt` | Added |
+| `.gemini/settings.json` | Added |
+| `FEATURESANDNOTES.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `README.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `check-plugins.mjs` | Added |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/auth/UberConnectButton.tsx` | Added |
+| `client/src/components/auth/UberConnectionStatus.tsx` | Added |
+| `client/src/components/settings/UberSettingsSection.tsx` | Added |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useChatPersistence.ts` | Added |
+| `client/src/pages/auth/uber/Callback.tsx` | Added |
+| ... and 45 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/planner-gpt5.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/assistant.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `server/assistant/README.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (.gemini/gemini-setup.txt)
+- [ ] Consider adding documentation - New file added (.gemini/settings.json)
+- [ ] Consider adding documentation - New file added (check-plugins.mjs)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberApiClient.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberAuth.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberPaymentsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberProfileService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberTripsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/uber.ts)
+- [ ] Consider adding documentation - New file added (eslint.config.js)
+- [ ] Consider adding documentation - New file added (jest.client.config.js)
+- [ ] Consider adding documentation - New file added (migrations/20260205_add_event_cleanup_indices.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260205_enforce_event_end_time.sql)
+- [ ] Consider adding documentation - New file added (scripts/check_coach_table.js)
+- [ ] Consider adding documentation - New file added (scripts/check_system_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/check_user_intel_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/export-notes.js)
+- [ ] Consider adding documentation - New file added (scripts/test-uber-webhook.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/cleanup-events.js)
+- [ ] Consider adding documentation - New file added (server/lib/external/uber-client.js)
+- [ ] Consider adding documentation - New file added (tests/BriefingEventsFetch.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingPageEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingTabIntegration.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/SmartBlockEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/useChatPersistence.test.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-02-08 Analysis
+
+**Generated:** 2026-02-08T00:05:17.521Z
+**Branch:** main
+**Last Commit:** 3b36bea1 refactor enhancements and updates to dependencies
+
+### Uncommitted Changes (73)
+| File | Status |
+|------|--------|
+| `claude/agents/docs-sync.md` | Modified |
+| `.claude/settings.local.json` | Modified |
+| `.gemini/settings.json` | Modified |
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `MODEL.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| `config/eidolon-policy.json` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/ai-tools/memory.md` | Modified |
+| `docs/architecture/README.md` | Modified |
+| `docs/architecture/Strategy.md` | Modified |
+| `docs/architecture/ai-coach.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 53 more | |
+
+### Recent Commit Changes (65)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.eslintrc.cjs` | Deleted |
+| `.gemini/gemini-setup.txt` | Added |
+| `.gemini/settings.json` | Added |
+| `FEATURESANDNOTES.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `README.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `check-plugins.mjs` | Added |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/auth/UberConnectButton.tsx` | Added |
+| `client/src/components/auth/UberConnectionStatus.tsx` | Added |
+| `client/src/components/settings/UberSettingsSection.tsx` | Added |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useChatPersistence.ts` | Added |
+| `client/src/pages/auth/uber/Callback.tsx` | Added |
+| ... and 45 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/planner-gpt5.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/assistant.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `server/assistant/README.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (.gemini/gemini-setup.txt)
+- [ ] Consider adding documentation - New file added (.gemini/settings.json)
+- [ ] Consider adding documentation - New file added (check-plugins.mjs)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberApiClient.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberAuth.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberPaymentsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberProfileService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberTripsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/uber.ts)
+- [ ] Consider adding documentation - New file added (eslint.config.js)
+- [ ] Consider adding documentation - New file added (jest.client.config.js)
+- [ ] Consider adding documentation - New file added (migrations/20260205_add_event_cleanup_indices.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260205_enforce_event_end_time.sql)
+- [ ] Consider adding documentation - New file added (scripts/check_coach_table.js)
+- [ ] Consider adding documentation - New file added (scripts/check_system_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/check_user_intel_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/export-notes.js)
+- [ ] Consider adding documentation - New file added (scripts/test-uber-webhook.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/cleanup-events.js)
+- [ ] Consider adding documentation - New file added (server/lib/external/uber-client.js)
+- [ ] Consider adding documentation - New file added (tests/BriefingEventsFetch.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingPageEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingTabIntegration.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/SmartBlockEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/useChatPersistence.test.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-02-08 Analysis
+
+**Generated:** 2026-02-08T00:18:11.712Z
+**Branch:** main
+**Last Commit:** 3b36bea1 refactor enhancements and updates to dependencies
+
+### Uncommitted Changes (73)
+| File | Status |
+|------|--------|
+| `claude/agents/docs-sync.md` | Modified |
+| `.claude/settings.local.json` | Modified |
+| `.gemini/settings.json` | Modified |
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `MODEL.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| `config/eidolon-policy.json` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/ai-tools/memory.md` | Modified |
+| `docs/architecture/README.md` | Modified |
+| `docs/architecture/Strategy.md` | Modified |
+| `docs/architecture/ai-coach.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 53 more | |
+
+### Recent Commit Changes (65)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.eslintrc.cjs` | Deleted |
+| `.gemini/gemini-setup.txt` | Added |
+| `.gemini/settings.json` | Added |
+| `FEATURESANDNOTES.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `README.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `check-plugins.mjs` | Added |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/auth/UberConnectButton.tsx` | Added |
+| `client/src/components/auth/UberConnectionStatus.tsx` | Added |
+| `client/src/components/settings/UberSettingsSection.tsx` | Added |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useChatPersistence.ts` | Added |
+| `client/src/pages/auth/uber/Callback.tsx` | Added |
+| ... and 45 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/planner-gpt5.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/assistant.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `server/assistant/README.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (.gemini/gemini-setup.txt)
+- [ ] Consider adding documentation - New file added (.gemini/settings.json)
+- [ ] Consider adding documentation - New file added (check-plugins.mjs)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberApiClient.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberAuth.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberPaymentsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberProfileService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberTripsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/uber.ts)
+- [ ] Consider adding documentation - New file added (eslint.config.js)
+- [ ] Consider adding documentation - New file added (jest.client.config.js)
+- [ ] Consider adding documentation - New file added (migrations/20260205_add_event_cleanup_indices.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260205_enforce_event_end_time.sql)
+- [ ] Consider adding documentation - New file added (scripts/check_coach_table.js)
+- [ ] Consider adding documentation - New file added (scripts/check_system_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/check_user_intel_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/export-notes.js)
+- [ ] Consider adding documentation - New file added (scripts/test-uber-webhook.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/cleanup-events.js)
+- [ ] Consider adding documentation - New file added (server/lib/external/uber-client.js)
+- [ ] Consider adding documentation - New file added (tests/BriefingEventsFetch.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingPageEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingTabIntegration.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/SmartBlockEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/useChatPersistence.test.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-02-08 Analysis
+
+**Generated:** 2026-02-08T01:00:00.083Z
+**Branch:** main
+**Last Commit:** 3b36bea1 refactor enhancements and updates to dependencies
+
+### Uncommitted Changes (73)
+| File | Status |
+|------|--------|
+| `claude/agents/docs-sync.md` | Modified |
+| `.claude/settings.local.json` | Modified |
+| `.gemini/settings.json` | Modified |
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `MODEL.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| `config/eidolon-policy.json` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/ai-tools/memory.md` | Modified |
+| `docs/architecture/README.md` | Modified |
+| `docs/architecture/Strategy.md` | Modified |
+| `docs/architecture/ai-coach.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 53 more | |
+
+### Recent Commit Changes (65)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.eslintrc.cjs` | Deleted |
+| `.gemini/gemini-setup.txt` | Added |
+| `.gemini/settings.json` | Added |
+| `FEATURESANDNOTES.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `README.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `check-plugins.mjs` | Added |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/auth/UberConnectButton.tsx` | Added |
+| `client/src/components/auth/UberConnectionStatus.tsx` | Added |
+| `client/src/components/settings/UberSettingsSection.tsx` | Added |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useChatPersistence.ts` | Added |
+| `client/src/pages/auth/uber/Callback.tsx` | Added |
+| ... and 45 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/planner-gpt5.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/assistant.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `server/assistant/README.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (.gemini/gemini-setup.txt)
+- [ ] Consider adding documentation - New file added (.gemini/settings.json)
+- [ ] Consider adding documentation - New file added (check-plugins.mjs)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberApiClient.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberAuth.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberPaymentsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberProfileService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberTripsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/uber.ts)
+- [ ] Consider adding documentation - New file added (eslint.config.js)
+- [ ] Consider adding documentation - New file added (jest.client.config.js)
+- [ ] Consider adding documentation - New file added (migrations/20260205_add_event_cleanup_indices.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260205_enforce_event_end_time.sql)
+- [ ] Consider adding documentation - New file added (scripts/check_coach_table.js)
+- [ ] Consider adding documentation - New file added (scripts/check_system_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/check_user_intel_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/export-notes.js)
+- [ ] Consider adding documentation - New file added (scripts/test-uber-webhook.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/cleanup-events.js)
+- [ ] Consider adding documentation - New file added (server/lib/external/uber-client.js)
+- [ ] Consider adding documentation - New file added (tests/BriefingEventsFetch.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingPageEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingTabIntegration.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/SmartBlockEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/useChatPersistence.test.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-02-08 Analysis
+
+**Generated:** 2026-02-08T01:39:13.620Z
+**Branch:** main
+**Last Commit:** 3b36bea1 refactor enhancements and updates to dependencies
+
+### Uncommitted Changes (78)
+| File | Status |
+|------|--------|
+| `claude/agents/docs-sync.md` | Modified |
+| `.claude/settings.local.json` | Modified |
+| `.gemini/settings.json` | Modified |
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `MODEL.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| `config/eidolon-policy.json` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/ai-tools/memory.md` | Modified |
+| `docs/architecture/README.md` | Modified |
+| `docs/architecture/Strategy.md` | Modified |
+| `docs/architecture/ai-coach.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 58 more | |
+
+### Recent Commit Changes (65)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.eslintrc.cjs` | Deleted |
+| `.gemini/gemini-setup.txt` | Added |
+| `.gemini/settings.json` | Added |
+| `FEATURESANDNOTES.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `README.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `check-plugins.mjs` | Added |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/auth/UberConnectButton.tsx` | Added |
+| `client/src/components/auth/UberConnectionStatus.tsx` | Added |
+| `client/src/components/settings/UberSettingsSection.tsx` | Added |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useChatPersistence.ts` | Added |
+| `client/src/pages/auth/uber/Callback.tsx` | Added |
+| ... and 45 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/planner-gpt5.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/assistant.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `server/assistant/README.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (.gemini/gemini-setup.txt)
+- [ ] Consider adding documentation - New file added (.gemini/settings.json)
+- [ ] Consider adding documentation - New file added (check-plugins.mjs)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberApiClient.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberAuth.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberPaymentsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberProfileService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberTripsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/uber.ts)
+- [ ] Consider adding documentation - New file added (eslint.config.js)
+- [ ] Consider adding documentation - New file added (jest.client.config.js)
+- [ ] Consider adding documentation - New file added (migrations/20260205_add_event_cleanup_indices.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260205_enforce_event_end_time.sql)
+- [ ] Consider adding documentation - New file added (scripts/check_coach_table.js)
+- [ ] Consider adding documentation - New file added (scripts/check_system_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/check_user_intel_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/export-notes.js)
+- [ ] Consider adding documentation - New file added (scripts/test-uber-webhook.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/cleanup-events.js)
+- [ ] Consider adding documentation - New file added (server/lib/external/uber-client.js)
+- [ ] Consider adding documentation - New file added (tests/BriefingEventsFetch.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingPageEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingTabIntegration.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/SmartBlockEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/useChatPersistence.test.tsx)
+
+### Status: PENDING
+
+---
+
+## 2026-02-08 Analysis
+
+**Generated:** 2026-02-08T01:45:35.960Z
+**Branch:** main
+**Last Commit:** 3b36bea1 refactor enhancements and updates to dependencies
+
+### Uncommitted Changes (80)
+| File | Status |
+|------|--------|
+| `claude/agents/docs-sync.md` | Modified |
+| `.claude/settings.local.json` | Modified |
+| `.gemini/settings.json` | Modified |
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `MODEL.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| `config/eidolon-policy.json` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/ai-tools/memory.md` | Modified |
+| `docs/architecture/README.md` | Modified |
+| `docs/architecture/Strategy.md` | Modified |
+| `docs/architecture/ai-coach.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| ... and 60 more | |
+
+### Recent Commit Changes (65)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.eslintrc.cjs` | Deleted |
+| `.gemini/gemini-setup.txt` | Added |
+| `.gemini/settings.json` | Added |
+| `FEATURESANDNOTES.md` | Added |
+| `LESSONS_LEARNED.md` | Modified |
+| `MODEL.md` | Modified |
+| `README.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `check-plugins.mjs` | Added |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/EventsComponent.tsx` | Modified |
+| `client/src/components/auth/UberConnectButton.tsx` | Added |
+| `client/src/components/auth/UberConnectionStatus.tsx` | Added |
+| `client/src/components/settings/UberSettingsSection.tsx` | Added |
+| `client/src/contexts/location-context-clean.tsx` | Modified |
+| `client/src/hooks/useChatPersistence.ts` | Added |
+| `client/src/pages/auth/uber/Callback.tsx` | Added |
+| ... and 45 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/auth-system.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/architecture/api-reference.md` - Authentication changes (server/api/auth/uber.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/anthropic-adapter.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy pipeline changes (server/lib/strategy/planner-gpt5.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/assistant.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `server/assistant/README.md` - Assistant changes (server/assistant/enhanced-context.js)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (.gemini/gemini-setup.txt)
+- [ ] Consider adding documentation - New file added (.gemini/settings.json)
+- [ ] Consider adding documentation - New file added (check-plugins.mjs)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberApiClient.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberAuth.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberPaymentsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberProfileService.ts)
+- [ ] Consider adding documentation - New file added (client/src/services/uber/uberTripsService.ts)
+- [ ] Consider adding documentation - New file added (client/src/types/uber.ts)
+- [ ] Consider adding documentation - New file added (eslint.config.js)
+- [ ] Consider adding documentation - New file added (jest.client.config.js)
+- [ ] Consider adding documentation - New file added (migrations/20260205_add_event_cleanup_indices.sql)
+- [ ] Consider adding documentation - New file added (migrations/20260205_enforce_event_end_time.sql)
+- [ ] Consider adding documentation - New file added (scripts/check_coach_table.js)
+- [ ] Consider adding documentation - New file added (scripts/check_system_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/check_user_intel_notes.js)
+- [ ] Consider adding documentation - New file added (scripts/export-notes.js)
+- [ ] Consider adding documentation - New file added (scripts/test-uber-webhook.js)
+- [ ] Consider adding documentation - New file added (server/lib/briefing/cleanup-events.js)
+- [ ] Consider adding documentation - New file added (server/lib/external/uber-client.js)
+- [ ] Consider adding documentation - New file added (tests/BriefingEventsFetch.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingPageEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/BriefingTabIntegration.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/SmartBlockEvents.test.tsx)
+- [ ] Consider adding documentation - New file added (tests/useChatPersistence.test.tsx)
+
+### Status: PENDING
+
+---
+
 ---

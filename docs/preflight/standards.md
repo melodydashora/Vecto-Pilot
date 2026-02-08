@@ -53,7 +53,7 @@ currency_code ISO 4217             → 'USD', 'EUR'
 // Every LLM call MUST log:
 {
   phase: 'llm_call',
-  model_id: 'claude-opus-4-5-20251101',
+  model_id: 'claude-opus-4-6-20260201',
   role: 'STRATEGY_CORE',
   reasoning_effort: 'high',
   snapshot_id, correlation_id
