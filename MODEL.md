@@ -60,9 +60,9 @@ Auto-generated from live web search research verifying post-2025 model releases.
 | Provider | Flagship Model | Model ID | Context Window | Max Output |
 |----------|----------------|----------|----------------|------------|
 | OpenAI | GPT-5.2 | `gpt-5.2` | 400,000 | 128,000 |
-| Anthropic | Claude 4.6 Opus | `claude-opus-4-6-20260201` | 200,000 | 8,192* |
+| Anthropic | Claude 4.6 Opus | `claude-opus-4-6-20260201` | 1,000,000 | 128,000 |
 | Google | Gemini 3.0 Pro | `gemini-3-pro-preview` | 1,000,000 | 65,536 |
-| Perplexity | Sonar Pro | `sonar-pro` | 200,000 | 128,000 |
+| Perplexity | Sonar Pro | `sonar-pro` | 200,000 | 8,000 |
 
 *\*Note: Output limits vary by plan/beta status.*
 
@@ -72,7 +72,7 @@ Auto-generated from live web search research verifying post-2025 model releases.
 
 ## OpenAI
 
-**Research Date:** February 4, 2026
+**Research Date:** February 8, 2026
 
 OpenAI's lineup has evolved significantly with the release of the **GPT-5 series** in late 2025 and the maturation of the **o1 reasoning models**.
 
@@ -82,7 +82,6 @@ OpenAI's lineup has evolved significantly with the release of the **GPT-5 series
 |-------|----|--------------|---------|-------------|
 | **GPT-5.2** | `gpt-5.2` | Dec 11, 2025 | **400k** | The current frontier model. Massive context window (272k input / 128k output) and highly capable reasoning. Replaces GPT-4o as the primary driver for complex tasks. |
 | **o1** | `o1` | Dec 5, 2024 | 128k | Specialized reasoning model using "Chain of Thought". Best for math, coding, and complex logic puzzles. |
-| **GPT-4o** | `gpt-4o` | May 2024 | 128k | Previous flagship. Efficient and multimodal. Scheduled for retirement from ChatGPT interface in Feb 2026 but remains in API. |
 
 ### Technical Specifications (GPT-5.2)
 
@@ -95,35 +94,34 @@ OpenAI's lineup has evolved significantly with the release of the **GPT-5 series
 
 *   **`max_completion_tokens`**: **REQUIRED.** Replaces the deprecated `max_tokens`.
 *   **`reasoning_effort`**: Used for `o1` and compatible GPT-5 variants. Values: `low`, `medium`, `high`.
-*   **`temperature`**: **NOT SUPPORTED** on `o1` series (fixed at 1.0). Supported on `gpt-5.2`.
+*   **`temperature`**: **NOT SUPPORTED** on `o1` or `gpt-5.2` when reasoning is enabled. Fixed at 1.0.
 
 ---
 
 ## Anthropic
 
-**Research Date:** February 4, 2026
+**Research Date:** February 8, 2026
 
-Anthropic has moved beyond the Claude 3 series. **Claude 3.5 Sonnet is now deprecated** (as of Oct 2025), replaced by the **Claude 4.5** family.
+Anthropic has moved beyond the Claude 3 series with the release of the **Claude 4.6** family, featuring massive context windows and adaptive thinking.
 
 ### Flagship Models
 
 | Model | ID | Release Date | Context | Description |
 |-------|----|--------------|---------|-------------|
-| **Claude 4.6 Opus** | `claude-opus-4-6-20260201` | Nov 24, 2025 | 200k | The most intelligent model. Ideal for complex software engineering, architecture, and nuance. |
+| **Claude 4.6 Opus** | `claude-opus-4-6-20260201` | Nov 24, 2025 | **1 Million** | The most intelligent model. Features adaptive thinking and massive context. Ideal for complex software engineering and deep research. |
 | **Claude 4.5 Sonnet** | `claude-sonnet-4-5-20250929`* | Sep 29, 2025 | 200k | Balanced intelligence and speed. Replaces 3.5 Sonnet. (*Verify specific ID in console). |
-| **Claude 3.5 Sonnet** | `claude-3-5-sonnet-20240620` | June 2024 | 200k | **DEPRECATED.** Usage should be migrated to 4.5 Sonnet. |
 
 ### Technical Capabilities
 
-*   **Computer Use:** Available on Claude 4.5 series (Beta).
-*   **Extended Thinking:** "Thinking Blocks" available on 4.5 Sonnet/Opus for deep reasoning tasks.
-*   **Context:** Standardized at 200k tokens across the 4.5 flagship line.
+*   **Adaptive Thinking:** Replaces "Extended Thinking". Controlled via `effort` parameter (`low`, `medium`, `high`, `max`).
+*   **Context:** 1,000,000 tokens (Opus 4.6 Beta). 200k standard.
+*   **Max Output:** 128,000 tokens (Opus 4.6).
 
 ---
 
 ## Google
 
-**Research Date:** February 4, 2026
+**Research Date:** February 8, 2026
 
 Google has released **Gemini 3.0**, establishing a new benchmark for context handling and reasoning.
 
@@ -131,56 +129,36 @@ Google has released **Gemini 3.0**, establishing a new benchmark for context han
 
 | Model | ID | Context | Output Limit | Description |
 |-------|----|---------|--------------|-------------|
-| **Gemini 3.0 Pro** | `gemini-3-pro-preview` | **1 Million** | 65,536 | Top-tier reasoning model. Features improved "Thinking" capabilities. |
+| **Gemini 3.0 Pro** | `gemini-3-pro-preview` | **1 Million** | 65,536 | Top-tier reasoning model. Features improved "Thinking" capabilities via `thinkingConfig`. |
 | **Gemini 2.0 Flash** | `gemini-2.0-flash` | 1 Million | 8,192 | Ultra-fast, low-cost. Good for high-volume tasks. |
-| **Gemini 2.0 Pro** | `gemini-2.0-pro` | **2 Million** | 8,192+ | Extreme context window for massive document analysis. |
 
 ### API Configuration (Critical)
 
 *   **Thinking Config:** Gemini 3 Pro requires `thinkingConfig`.
-    *   **Levels:** `LOW` or `HIGH` (Medium is not supported on Pro).
+    *   **Levels:** `low` or `high` (Medium is not supported on Pro).
     *   **Constraint:** You **cannot** disable thinking on Gemini 3 Pro (minimum is LOW).
+*   **Temperature:** Defaults to 1.0. Recommended 0.7 for focused reasoning tasks.
 *   **Token Budget:** "Thinking" tokens count against your output limit.
-    *   **Recommendation:** Set `maxOutputTokens` to at least **8192** when using `HIGH` thinking level to prevent truncated responses.
 
 ---
 
 ## Perplexity
 
-**Research Date:** February 4, 2026
+**Research Date:** February 8, 2026
 
 Perplexity continues to specialize in real-time, web-grounded research via the **Sonar** model family.
 
 ### Flagship Models
 
-| Model | ID | Release Date | Context | Description |
-|-------|----|--------------|---------|-------------|
-| **Sonar Pro** | `sonar-pro` | Mar 6, 2025 | **200k** | Advanced research model based on Llama 3.3 70B architecture. Optimized for multi-step reasoning and deep web search. |
-| **Sonar** | `sonar` | - | 128k | Standard research model. Efficient for quick queries. |
+| Model | ID | Release Date | Context | Max Output |
+|-------|----|--------------|---------|------------|
+| **Sonar Pro** | `sonar-pro` | Mar 6, 2025 | **200k** | 8,000 |
 
 ### Technical Specifications
 
 *   **Context Window:** 200,000 tokens (Sonar Pro).
-*   **Pricing:** ~$3.00/1M input, ~$15.00/1M output.
+*   **Max Output:** 8,000 tokens per request.
 *   **Specialty:** Real-time web citations included in the response payload.
-
----
-
-# External APIs
-
-## TomTom
-
-**Status:** Active Traffic API provider.
-*   **Endpoints:** `traffic/incident/3`, `traffic/flow/4`
-*   **Key Capabilities:** Real-time traffic flow, incident details, route monitoring.
-*   **Documentation:** [developer.tomtom.com](https://developer.tomtom.com)
-
-## Google Maps
-
-**Status:** Primary Geocoding & Places provider.
-*   **APIs Used:** Places API (New), Geocoding API, Routes API, Solar API.
-*   **Roads API:** Used for "Snap to Roads" and speed limit data (`/v1/speedLimits`).
-*   **Pricing:** Standard Google Maps Platform pay-as-you-go tiers apply.
 
 ---
 
@@ -192,45 +170,15 @@ Perplexity continues to specialize in real-time, web-grounded research via the *
 
 ### OpenAI GPT-5.2 & o1
 *   ❌ **REMOVE:** `max_tokens` (Use `max_completion_tokens`)
-*   ❌ **REMOVE:** `temperature` (For `o1` only - fixed at 1.0)
+*   ❌ **REMOVE:** `temperature` (When `reasoning_effort` is set)
 *   ✅ **ADD:** `reasoning_effort: "medium"` (For `o1` and `gpt-5.2` advanced tasks)
 
 ### Google Gemini 3
 *   ❌ **REMOVE:** `thinking_budget` (Deprecated)
-*   ✅ **ADD:** `thinkingConfig: { thinkingLevel: "LOW" }` (Required for Pro)
+*   ✅ **ADD:** `thinkingConfig: { thinkingLevel: "high" }` (Required for Pro)
 *   ⚠️ **WARNING:** Do not mix `thinking_level` and `thinking_budget`.
 
-### Anthropic Claude 4.5
+### Anthropic Claude 4.6
+*   ❌ **REMOVE:** `thinking` (Deprecated manual budget)
+*   ✅ **ADD:** `effort: "high"` (For adaptive thinking)
 *   ✅ **HEADER:** Ensure `anthropic-version: 2023-06-01` (or newer if released) is sent.
-*   ✅ **BETA:** Enable `computer-use-2025-10-22` header for agentic features.
-
-## SDK Examples
-
-### OpenAI (GPT-5.2)
-```javascript
-const response = await openai.chat.completions.create({
-  model: "gpt-5.2",
-  messages: [{ role: "user", content: "Analyze this..." }],
-  max_completion_tokens: 32000, // Replaces max_tokens
-  // reasoning_effort: "medium" // Optional for deeper tasks
-});
-```
-
-### Google (Gemini 3 Pro)
-```javascript
-const result = await model.generateContent({
-  contents: [{ role: "user", parts: [{ text: "Explain..." }] }],
-  generationConfig: {
-    maxOutputTokens: 8192,
-    thinkingConfig: {
-      thinkingLevel: "LOW" // Required
-    }
-  }
-});
-```
-
-## Update Workflow
-
-To verify these details in the future:
-1.  **Run:** `node tools/research/perplexity-flagship-search.mjs` (if Perplexity API available)
-2.  **Or:** Use Gemini CLI `google_web_search` with queries for "Latest AI model specs [Current Month] [Current Year]"

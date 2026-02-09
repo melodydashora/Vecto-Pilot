@@ -41,11 +41,7 @@ import { eventsLog, OP } from '../logger/workflow.js';
 
 // AI Adapters for Standardized Access
 // @ts-ignore
-import { callOpenAI } from '../lib/ai/adapters/openai-adapter.js';
-// @ts-ignore
-import { callGemini } from '../lib/ai/adapters/gemini-adapter.js';
-// @ts-ignore
-import { callAnthropicWithWebSearch } from '../lib/ai/adapters/anthropic-adapter.js';
+import { callModel } from '../lib/ai/adapters/index.js';
 
 const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
 
@@ -554,13 +550,9 @@ async function searchWithGPT52(city, state, lat, lng, existingEvents = [], optio
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
-    const response = await callOpenAI({
-      model: 'gpt-5.2',
-      messages: [
-        { role: 'system', content: `You are an event discovery assistant for rideshare drivers in ${city}, ${state}. Search the web thoroughly and return ONLY a JSON array of events, no prose or explanation.` },
-        { role: 'user', content: prompt }
-      ],
-      maxTokens: 16000
+    const response = await callModel('DISCOVERY_GPT', {
+      system: `You are an event discovery assistant for rideshare drivers in ${city}, ${state}. Search the web thoroughly and return ONLY a JSON array of events, no prose or explanation.`,
+      user: prompt
     });
 
     if (!response.ok) {
@@ -620,12 +612,8 @@ async function searchWithGoogleSearch(city, state, lat, lng, existingEvents = []
 
     // 2026-01-09: Uses gemini-3-pro-preview with google_search tool
     // Model ID requires -preview suffix per project memory
-    const response = await callGemini({
-      model: 'gemini-3-pro-preview',
-      user: prompt,
-      maxTokens: 16384,
-      temperature: 0.1,
-      useSearch: true
+    const response = await callModel('BRIEFING_EVENTS_DISCOVERY', {
+      user: prompt
     });
 
     if (!response.ok) {
@@ -684,9 +672,7 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
-    const response = await callAnthropicWithWebSearch({
-      model: 'claude-opus-4-6-20260201',
-      maxTokens: 32000,
+    const response = await callModel('DISCOVERY_CLAUDE', {
       user: prompt
     });
 

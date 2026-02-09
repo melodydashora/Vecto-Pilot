@@ -1,19 +1,19 @@
 
 /**
  * Eidolon Enhanced SDK - MAXIMUM CONTEXT & CAPABILITIES
- * Claude Opus 4.6 (claude-opus-4-6-20260201) with 200K context window
+ * Gemini 3 Pro (gemini-3-pro-preview) with 1M context window
  */
 
 export const EIDOLON_CONFIG = {
   version: "8.0.0-unified-max",
-  identity: "Eidolon Unified AI - Complete IDE Integration (Claude Opus 4.6 - 200K Context + Ultra-Deep Thinking)",
+  identity: "Eidolon Unified AI - Complete IDE Integration (Gemini 3 Pro - 1M Context + High Thinking)",
 
   // UNIFIED MAXIMUM CAPABILITIES - All AI systems have identical access
   capabilities: {
     // Model & Thinking
-    model: "claude-opus-4-6-20260201",
-    context_window: 200000,
-    thinking_mode: "ultra-deep",
+    model: "gemini-3-pro-preview",
+    context_window: 1000000,
+    thinking_mode: "high",
     
     // Core Intelligence
     enhanced_memory: true,
@@ -156,16 +156,15 @@ export const EIDOLON_CONFIG = {
     ]
   },
 
-  // Model configuration - Claude Opus 4.6 ULTRA-ENHANCED MODE
+  // Model configuration - Gemini 3 Pro ULTRA-ENHANCED MODE
   model: {
-    primary: "claude-opus-4-6-20260201",
-    provider: "anthropic",
-    max_tokens: 200000, // MAXIMUM - Full output capacity
-    temperature: 1.0, // Optimal for deep reasoning and creativity
-    context_window: 200000, // 200K token context - FULL UTILIZATION
-    thinking_mode: "ultra-deep", // Maximum depth thinking for complex tasks
-    api_version: "2023-06-01",
-    reasoning_depth: "maximum",
+    primary: "gemini-3-pro-preview",
+    provider: "google",
+    max_tokens: 65536, // MAXIMUM - Full output capacity
+    temperature: 0.7, // Optimal for thinking models
+    context_window: 1000000, // 1M token context - FULL UTILIZATION
+    thinking_mode: "high", // Maximum depth thinking
+    reasoning_depth: "deep",
     multi_iteration: true,
     predictive_analysis: true
   },

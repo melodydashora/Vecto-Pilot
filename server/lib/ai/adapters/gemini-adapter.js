@@ -82,41 +82,53 @@ export async function callGemini({
     // GEMINI CLEANUP: Remove markdown code blocks and wrapper text
     if (output) {
       const rawLength = output.length;
-      const codeBlockMatch = output.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      
+      // 2026-02-09: FIX - Only strip code blocks if they wrap the ENTIRE response
+      // Prevents data loss when code blocks are embedded in documentation
+      // Matches: start, optional whitespace, ```tag, content, ```, optional whitespace, end
+      const codeBlockMatch = output.match(/^\s*```(?:\w+)?\s*([\s\S]*?)\s*```\s*$/);
       if (codeBlockMatch) {
         output = codeBlockMatch[1].trim();
-        console.log(`[model/gemini] 🧹 Removed markdown code block (${rawLength} → ${output.length} chars)`);
+        console.log(`[model/gemini] 🧹 Removed wrapping markdown code block (${rawLength} → ${output.length} chars)`);
       }
 
       if (user.toLowerCase().includes('json')) {
-        let jsonStart = -1;
-        let jsonEnd = -1;
-        let isArray = false;
+        // 2026-02-09: FIX - Don't extract JSON if output looks like a Markdown doc
+        // Prevents data loss for DOCS_GENERATOR requests that mention "json"
+        const isMarkdown = output.trim().startsWith('#');
+        
+        if (!isMarkdown) {
+          let jsonStart = -1;
+          let jsonEnd = -1;
+          let isArray = false;
 
-        const arrayStart = output.indexOf('[');
-        const objectStart = output.indexOf('{');
+          const arrayStart = output.indexOf('[');
+          const objectStart = output.indexOf('{');
 
-        if (arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart)) {
-          jsonStart = arrayStart;
-          jsonEnd = output.lastIndexOf(']');
-          isArray = true;
-        } else if (objectStart !== -1) {
-          jsonStart = objectStart;
-          jsonEnd = output.lastIndexOf('}');
-          isArray = false;
-        }
+          if (arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart)) {
+            jsonStart = arrayStart;
+            jsonEnd = output.lastIndexOf(']');
+            isArray = true;
+          } else if (objectStart !== -1) {
+            jsonStart = objectStart;
+            jsonEnd = output.lastIndexOf('}');
+            isArray = false;
+          }
 
-        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-          if (jsonStart > 0 || jsonEnd < output.length - 1) {
-            const extracted = output.slice(jsonStart, jsonEnd + 1);
-            try {
-              JSON.parse(extracted);
-              output = extracted;
-              console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
-            } catch (e) {
-              console.log(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            if (jsonStart > 0 || jsonEnd < output.length - 1) {
+              const extracted = output.slice(jsonStart, jsonEnd + 1);
+              try {
+                JSON.parse(extracted);
+                output = extracted;
+                console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
+              } catch (e) {
+                console.log(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
+              }
             }
           }
+        } else {
+           console.log(`[model/gemini] ℹ️ Output looks like Markdown, skipping JSON extraction`);
         }
       }
     }

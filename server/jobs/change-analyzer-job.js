@@ -14,6 +14,7 @@ import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import { findAffectedDocs, categorizeGitStatus } from '../lib/change-analyzer/file-doc-mapping.js';
+import { docsOrchestrator } from '../lib/docs-agent/orchestrator.js';
 
 const execAsync = promisify(exec);
 
@@ -77,11 +78,27 @@ export async function runAnalysis() {
     // Map to affected documentation
     const docImpacts = analyzeDocImpact(allChanges);
 
+    // ---------------------------------------------------------
+    // AUTO-ALIGNMENT (New 2026-02-08)
+    // Trigger Docs Agent to autonomously update documentation
+    // ---------------------------------------------------------
+    let autoUpdateResults = [];
+    if (process.env.ENABLE_DOCS_AGENT !== 'false') {
+      try {
+        console.log('[ChangeAnalyzer] Triggering Docs Auto-Alignment...');
+        autoUpdateResults = await docsOrchestrator.processChanges(allChanges);
+        console.log(`[ChangeAnalyzer] Auto-Alignment complete: ${autoUpdateResults.length} docs processed`);
+      } catch (agentErr) {
+        console.error('[ChangeAnalyzer] Docs Agent failed:', agentErr);
+      }
+    }
+
     // Generate report
     const report = generateReport({
       uncommittedChanges,
       recentCommits,
       docImpacts,
+      autoUpdateResults, // Pass results to report
       branch: currentBranch,
       lastCommit,
       timestamp: new Date().toISOString()
