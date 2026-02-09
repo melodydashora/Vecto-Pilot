@@ -83,7 +83,7 @@ BRIEFING_WEATHER_MODEL = "gemini-3-pro-preview"
 BRIEFING_TRAFFIC_MODEL = "gemini-3-flash-preview"
 BRIEFING_NEWS_MODEL = "gemini-3-pro-preview"
 BRIEFING_EVENTS_MODEL = "gemini-3-pro-preview"
-BRIEFING_VALIDATOR_MODEL = "claude-opus-4-6-20260201"
+BRIEFING_VALIDATOR_MODEL = "gemini-3-pro-preview"
 
 # VENUES TABLE (ranking_candidates)
 VENUE_SCORER_MODEL = "gpt-5.2"
@@ -112,3 +112,6 @@ GEMINI_MODEL = "gemini-3-pro-preview"
 MODEL_TEMPERATURE = "0.0"
 MODEL_TOP_P = "0.8"
 MODEL_TOP_K = "40"
+
+[userenv.development]
+AGENT_OVERRIDE_MODEL = "gemini-3-pro-preview"

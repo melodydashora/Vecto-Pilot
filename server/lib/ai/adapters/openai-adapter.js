@@ -7,10 +7,21 @@
 import OpenAI from "openai";
 import { aiLog, OP } from "../../../logger/workflow.js";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let client;
+
+function getClient() {
+  if (!client) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error("Missing OPENAI_API_KEY in environment variables");
+    }
+    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return client;
+}
 
 export async function callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort }) {
   try {
+    const openai = getClient();
     // Allow passing full messages array OR build from system/user
     const finalMessages = messages || [
       { role: "system", content: system },
@@ -52,7 +63,7 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
     const shortModel = model.split('-').slice(0, 2).join('-');
     aiLog.phase(1, `${shortModel} request (${maxTokens} tokens)`, OP.AI);
 
-    const res = await client.chat.completions.create(body);
+    const res = await openai.chat.completions.create(body);
 
     const output = res?.choices?.[0]?.message?.content?.trim() || "";
 
@@ -116,7 +127,8 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
 
     aiLog.phase(1, `${searchModel} web-search request (${maxTokens} tokens)`, OP.AI);
 
-    const res = await client.chat.completions.create(body);
+    const openai = getClient();
+    const res = await openai.chat.completions.create(body);
 
     // Extract content and any citations/sources from web search
     const choice = res?.choices?.[0];

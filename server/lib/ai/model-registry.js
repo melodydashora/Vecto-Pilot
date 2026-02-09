@@ -77,19 +77,19 @@ export const MODEL_ROLES = {
   },
   BRIEFING_EVENTS_VALIDATOR: {
     envKey: 'BRIEFING_VALIDATOR_MODEL',
-    default: 'claude-opus-4-6-20260201',
-    purpose: 'Event schedule verification',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Event schedule verification (Gemini)',
     maxTokens: 4096,
     temperature: 0.3,
-    features: ['web_search'], // Anthropic tool
+    features: ['google_search'],
   },
   BRIEFING_FALLBACK: {
     envKey: 'BRIEFING_FALLBACK_MODEL',
-    default: 'claude-opus-4-6-20260201',
+    default: 'gemini-3-pro-preview',
     purpose: 'General fallback for failed briefing calls',
     maxTokens: 8192,
     temperature: 0.3,
-    features: ['web_search'],
+    features: ['google_search'],
   },
   BRIEFING_SCHOOLS: {
     envKey: 'BRIEFING_SCHOOLS_MODEL',
@@ -111,13 +111,14 @@ export const MODEL_ROLES = {
   // ==========================
   // 2. STRATEGIES TABLE
   // ==========================
-  // 2026-01-10: Lowered temperature from 0.7 → 0.5 for more consistent strategy output
+  // 2026-02-08: Switched to Gemini 3 Pro for core reasoning
   STRATEGY_CORE: {
     envKey: 'STRATEGY_CORE_MODEL',
-    default: 'claude-opus-4-6-20260201',
-    purpose: 'Core strategic plan generation (pure reasoning)',
-    maxTokens: 4096,
-    temperature: 0.5,
+    default: 'gemini-3-pro-preview',
+    purpose: 'Core strategic plan generation (Gemini 3 Pro)',
+    maxTokens: 8192,
+    temperature: 0.7,
+    thinkingLevel: 'HIGH',
   },
   // 2026-01-10: Added thinkingLevel HIGH for deeper analysis (token budget sufficient)
   STRATEGY_CONTEXT: {
@@ -197,6 +198,14 @@ export const MODEL_ROLES = {
   // ==========================
   // 5. UTILITIES (no direct DB write)
   // ==========================
+  UTIL_RESEARCH: {
+    envKey: 'UTIL_RESEARCH_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Internet-powered research via API',
+    maxTokens: 2000,
+    temperature: 0.3,
+    features: ['google_search'],
+  },
   UTIL_WEATHER_VALIDATOR: {
     envKey: 'UTIL_WEATHER_VALIDATOR_MODEL',
     default: 'gemini-3-pro-preview',
@@ -217,6 +226,37 @@ export const MODEL_ROLES = {
     purpose: 'Parsing unstructured market research data',
     maxTokens: 16000,
     reasoningEffort: 'low',
+  },
+
+  // ==========================
+  // 6. EVENT DISCOVERY (ETL Pipeline)
+  // ==========================
+  DISCOVERY_GPT: {
+    envKey: 'DISCOVERY_GPT_MODEL',
+    default: 'gpt-5.2',
+    purpose: 'Event discovery via GPT-5.2 (ETL Phase 1)',
+    maxTokens: 16000,
+    reasoningEffort: 'medium',
+    features: ['openai_web_search'],
+  },
+  DISCOVERY_CLAUDE: {
+    envKey: 'DISCOVERY_CLAUDE_MODEL',
+    default: 'claude-opus-4-6-20260201',
+    purpose: 'Event discovery via Claude Opus (ETL Phase 1)',
+    maxTokens: 32000,
+    features: ['web_search'],
+  },
+
+  // ==========================
+  // 7. INTERNAL AGENTS
+  // ==========================
+  DOCS_GENERATOR: {
+    envKey: 'DOCS_GENERATOR_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Autonomous documentation generation (Gemini 3)',
+    maxTokens: 8192,
+    temperature: 0.7,
+    thinkingLevel: 'HIGH',
   },
 };
 
@@ -319,15 +359,44 @@ export function getRoleConfig(role) {
     throw new Error(`Unknown model role: ${role} (resolved to: ${canonicalRole})`);
   }
 
-  const envValue = process.env[roleConfig.envKey];
-  const model = envValue || roleConfig.default;
+  // 1. Role-specific Env (Highest Priority)
+  let model = process.env[roleConfig.envKey];
+  let sourceInfo = `env:${roleConfig.envKey}`;
+
+  // 2. Service Override (Medium Priority)
+  // Check if this role belongs to a service that has a global override
+  if (!model) {
+    // Agent roles
+    if (canonicalRole === 'DOCS_GENERATOR' || canonicalRole === 'AGENT_TASK') {
+      if (process.env.AGENT_OVERRIDE_MODEL) {
+        model = process.env.AGENT_OVERRIDE_MODEL;
+        sourceInfo = 'env:AGENT_OVERRIDE_MODEL';
+      }
+    }
+    // Assistant roles (Coach)
+    else if (canonicalRole.startsWith('COACH_')) {
+      if (process.env.ASSISTANT_OVERRIDE_MODEL) {
+        model = process.env.ASSISTANT_OVERRIDE_MODEL;
+        sourceInfo = 'env:ASSISTANT_OVERRIDE_MODEL';
+      }
+    }
+    // Strategy roles
+    else if (canonicalRole.startsWith('STRATEGY_')) {
+      // Optional: Could have STRATEGY_OVERRIDE_MODEL, but usually defaults or role-specific are fine
+    }
+  }
+
+  // 3. Registry Default (Lowest Priority)
+  if (!model) {
+    model = roleConfig.default;
+    sourceInfo = 'default';
+  }
+
   const provider = getProviderForModel(model);
-  const isEnvOverride = !!envValue;
 
   // Log role configuration resolution
   const features = roleConfig.features?.join(', ') || 'none';
   const tablePrefix = canonicalRole.split('_')[0];
-  const sourceInfo = isEnvOverride ? `env:${roleConfig.envKey}` : 'default';
 
   console.log(`📋 [REGISTRY] ┌─────────────────────────────────────────────`);
   console.log(`📋 [REGISTRY] │ Role:     ${canonicalRole}`);

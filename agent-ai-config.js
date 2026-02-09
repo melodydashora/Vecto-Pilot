@@ -2,18 +2,15 @@
 // All services use Claude Opus 4.6 with extended thinking
 
 export const AGENT_AI_CONFIG = {
-  model: 'claude-opus-4-6-20260201',
+  model: 'gemini-3-pro-preview',
   temperature: 0.7,
-  top_p: 1.0,
-  max_tokens: 16000,
+  top_p: 0.95,
+  max_tokens: 65536,
   thinking: {
     enabled: true,
-    budget_tokens: 10000
+    level: 'high' // Gemini 3 uses thinkingLevel: "low"|"high"
   },
-  reasoning_depth: 'deep',
-  chain_of_thought: 'structured',
-  hallucination_guard: 'strict',
-  execution_mode: 'evidence_first'
+  reasoning_depth: 'deep'
 };
 
 export const EIDOLON_CONFIG = {

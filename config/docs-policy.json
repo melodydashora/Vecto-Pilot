@@ -1,0 +1,39 @@
+{
+  "auto_update_enabled": true,
+  "trigger_events": ["server_start", "git_commit"],
+  "agents": {
+    "generator": {
+      "model": "claude-opus-4-6-20260201",
+      "temperature": 0.2,
+      "allowed_paths": ["docs/architecture/", "docs/preflight/", "server/api/"]
+    },
+    "validator": {
+      "enforce_links": true,
+      "enforce_markdown_lint": true
+    },
+    "publisher": {
+      "git_user": "Gemini Docs Agent",
+      "git_email": "gemini-agent@vecto-pilot.internal",
+      "commit_prefix": "docs(auto):",
+      "create_branch": false
+    }
+  },
+  "rules": [
+    {
+      "pattern": "server/api/**",
+      "target_doc": "docs/architecture/api-reference.md",
+      "action": "auto_update",
+      "confidence_threshold": 0.85
+    },
+    {
+      "pattern": "shared/schema.js",
+      "target_doc": "docs/architecture/database-schema.md",
+      "action": "auto_update",
+      "confidence_threshold": 0.95
+    },
+    {
+      "pattern": "ARCHITECTURE.md",
+      "action": "review_required"
+    }
+  ]
+}

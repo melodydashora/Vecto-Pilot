@@ -1,7 +1,7 @@
 // Research API endpoint - Internet-powered research via UTIL_RESEARCH role
 import express from 'express';
 // @ts-ignore
-import { callGemini } from '../../lib/ai/adapters/gemini-adapter.js';
+import { callModel } from '../../lib/ai/adapters/index.js';
 
 const router = express.Router();
 
@@ -16,15 +16,7 @@ router.get('/search', async (req, res) => {
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
-    }
-
-    const response = await callGemini({
-      model: 'gemini-3-pro-preview',
-      maxTokens: 500,
-      temperature: 0.2,
+    const response = await callModel('UTIL_RESEARCH', {
       user: `Provide concise, technical information for software development. Focus on best practices and actionable insights.\n\nQuery: ${q}`
     });
 
@@ -36,7 +28,7 @@ router.get('/search', async (req, res) => {
       ok: true,
       query: q,
       answer: response.output,
-      model: 'gemini-3-pro-preview',
+      model: 'util-research',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -59,17 +51,9 @@ router.post('/deep', async (req, res) => {
       });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
-    }
-
     const depthInstruction = depth === 'deep' ? 'Provide comprehensive, detailed analysis.' : 'Provide concise summary.';
     
-    const response = await callGemini({
-      model: 'gemini-3-pro-preview',
-      maxTokens: 2000,
-      temperature: 0.3,
+    const response = await callModel('UTIL_RESEARCH', {
       user: `${depthInstruction}\n\nTopic: ${topic}`
     });
 
@@ -82,7 +66,7 @@ router.post('/deep', async (req, res) => {
       topic: topic,
       depth: depth,
       answer: response.output,
-      model: 'gemini-3-pro-preview',
+      model: 'util-research',
       timestamp: new Date().toISOString()
     });
   } catch (error) {

@@ -2,16 +2,28 @@
 // Generic Anthropic adapter - returns { ok, output } shape
 
 import Anthropic from "@anthropic-ai/sdk";
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+let client;
+
+function getClient() {
+  if (!client) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error("Missing ANTHROPIC_API_KEY in environment variables");
+    }
+    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return client;
+}
 
 export async function callAnthropic({ model, system, user, messages, maxTokens, temperature }) {
   try {
+    const anthropic = getClient();
     console.log(`[model/anthropic] calling ${model} with max_tokens=${maxTokens}`);
 
     // Allow passing full messages array (for chat history) OR simple user string
     const finalMessages = messages || [{ role: "user", content: user }];
 
-    const res = await client.messages.create({
+    const res = await anthropic.messages.create({
       model,
       max_tokens: maxTokens,
       temperature,
@@ -54,7 +66,8 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
       messages.push({ role: "assistant", content: "[" });
     }
 
-    const res = await client.messages.create({
+    const anthropic = getClient();
+    const res = await anthropic.messages.create({
       model,
       max_tokens: maxTokens,
       temperature,
