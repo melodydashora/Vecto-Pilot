@@ -1,6 +1,3 @@
-Based on the code changes (the addition of `server/api/auth/uber.js`), the documentation needs to be updated to include the API reference for the Uber OAuth integration. The provided "Current Documentation" appears to be a placeholder or an artifact from a previous verification step; it will be replaced with the actual API documentation derived from the code.
-
-
 # Uber OAuth API
 
 This module handles the OAuth 2.0 authentication flow for the Uber Driver integration. It manages the lifecycle of connecting a user's Uber account, including the initial redirect, callback handling, token storage, and disconnection.
@@ -42,7 +39,7 @@ Handles the redirect from Uber after the user has authorized (or denied) the app
     3.  Exchanges the `code` for access and refresh tokens via `exchangeCodeForTokens`.
     4.  Encrypts the tokens.
     5.  Upserts the connection record in `uber_connections` with `is_active: true`.
-    6.  Redirects the user to the frontend success page (`/auth/signup?uber_connected=true`) or error page.
+    6.  Redirects the user to the frontend success page (`/auth/signup?uber_connected=true`) or error page (`/auth/signup?error=...`).
 
 ### Disconnect Integration
 **Route:** `POST /api/auth/uber/disconnect`

@@ -1,15 +1,15 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 2026-02-09T20:35:57.724Z
-Snapshot ID: 3707835d-e724-4f29-be74-ed0883e35e3f
+Generated: 2026-02-10T01:05:06.918Z
+Snapshot ID: 5425f9da-08ce-4fd3-942e-46e06b0c1d3a
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: 3707835d-e724-4f29-be74-ed0883e35e3f
+snapshot_id: 5425f9da-08ce-4fd3-942e-46e06b0c1d3a
 user_id: 9216b521-6fd7-4b8c-aee4-94f8cfb6fa80
 
 LOCATION (what strategist sees):
@@ -17,19 +17,19 @@ LOCATION (what strategist sees):
   state: TX
   formatted_address: 1769 Timber Ridge Dr, Frisco, TX 75036, USA
   lat: 33.12921942563668
-  lng: -96.87550749704471
+  lng: -96.87550932665366
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Mon Feb 09 2026 20:34:45 GMT+0000 (Coordinated Universal Time)
+  local_iso: Tue Feb 10 2026 01:03:57 GMT+0000 (Coordinated Universal Time)
   dow: 1 (Monday)
-  day_part_key: late_morning_noon
+  day_part_key: early_evening
   is_holiday: false
   holiday: none
 
 WEATHER (from snapshot):
 {
-  "tempF": 77,
+  "tempF": 69,
   "conditions": "Cloudy",
   "description": "Cloudy"
 }
@@ -38,55 +38,48 @@ WEATHER (from snapshot):
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 6675d9d0-46e5-4dcf-a957-39fad69eb1cd
-snapshot_id: 3707835d-e724-4f29-be74-ed0883e35e3f
-created_at: Mon Feb 09 2026 20:34:46 GMT+0000 (Coordinated Universal Time)
-updated_at: Mon Feb 09 2026 20:35:57 GMT+0000 (Coordinated Universal Time)
+briefing_id: 32659b7a-4893-483f-89ad-a88a3b525c3e
+snapshot_id: 5425f9da-08ce-4fd3-942e-46e06b0c1d3a
+created_at: Tue Feb 10 2026 01:03:58 GMT+0000 (Coordinated Universal Time)
+updated_at: Tue Feb 10 2026 01:05:06 GMT+0000 (Coordinated Universal Time)
 
-NEWS (6 items):
+NEWS (5 items):
 {
   "items": [
     {
-      "title": "Lyft Teen Launches in DFW Today",
+      "title": "Dallas Open Tennis Tournament in Frisco (High Demand)",
       "impact": "high",
-      "summary": "Lyft has officially launched 'Lyft Teen' in Dallas-Fort Worth as of today. This new feature allows unaccompanied minors (ages 13-17) to request rides. Drivers should expect new request types with specific safety requirements, including mandatory PIN verification before the ride starts. This opens a new pool of potential passengers, particularly for school and extracurricular pickups.",
-      "category": "platform",
-      "published_date": "2026-02-09"
+      "summary": "The Dallas Open (ATP Tour) is underway at the Ford Center at The Star in Frisco. Matches are scheduled daily through Feb 15, with sessions at 12:00 PM and 7:00 PM today. Expect high demand and potential surge pricing around The Star and nearby hotels/restaurants in Frisco.",
+      "category": "event",
+      "published_date": "2026-02-10"
     },
     {
-      "title": "Major Delays: Henderson St. Closure in Fort Worth",
+      "title": "American Airlines Labor Unrest & DFW Operations",
       "impact": "high",
-      "summary": "Starting today, expect significant delays in downtown Fort Worth as Henderson Street is reduced to one lane in each direction between West 7th Street and the Trinity River Bridge. Crews are repairing a water main break. Avoid this route if possible or plan for extra time when dropping off in the downtown area.",
+      "summary": "The American Airlines flight attendants union passed a 'no-confidence' vote in the CEO yesterday, citing operational failures and poor working conditions. While no immediate strike is active, tensions are high at DFW Airport. Drivers should expect potential delays or frustrated passengers as the airline deals with ongoing operational scrutiny following recent winter storm disruptions.",
+      "category": "airport",
+      "published_date": "2026-02-09"
+    },
+    {
+      "title": "Construction Delays on I-20 and I-820",
+      "impact": "medium",
+      "summary": "TxDOT reports daily lane closures on I-20 (eastbound/westbound) between the I-30 split and Bentley Road. Additionally, the I-820 southbound frontage road is periodically closed between Westpoint Dr and Alemeda St through Feb 14. Expect delays during daytime hours (9 AM - 3 PM).",
       "category": "traffic",
-      "published_date": "2026-02-09"
+      "published_date": "2026-02-10"
     },
     {
-      "title": "Ride Demand: Dallas Open Tennis in Frisco",
+      "title": "Concert at House of Blues Dallas",
       "impact": "medium",
-      "summary": "The Dallas Open tennis tournament is underway at the Ford Center at The Star in Frisco (running through Feb 15). This is the primary demand driver for the northern suburbs today, as the Mavericks are away and the Stars are on an Olympic break. Position yourself near The Star for pickup opportunities.",
+      "summary": "Pop artist Ruel performs tonight at the House of Blues (White Swan Building). Doors typically open around 6:00 PM with the show at 7:00 PM. Expect pickup demand in the Victory Park/Downtown area late tonight.",
       "category": "event",
-      "published_date": "2026-02-09"
+      "published_date": "2026-02-10"
     },
     {
-      "title": "I-20 Lane Closures Today",
-      "impact": "medium",
-      "summary": "Eastbound I-20 will have the left lane closed from 9:00 AM to 3:00 PM today between the I-20/I-30 split and Bentley Road Bridge. Expect midday congestion in this corridor.",
-      "category": "traffic",
-      "published_date": "2026-02-09"
-    },
-    {
-      "title": "Quiet Night at Major Arenas (Olympic Break)",
-      "impact": "medium",
-      "summary": "Demand at American Airlines Center and Dickies Arena will be low tonight. The NHL is on pause for the Winter Olympics (Feb 6-24), and the Mavericks are not playing at home. Focus on airport runs and the Frisco tennis event rather than downtown sports venues.",
-      "category": "event",
-      "published_date": "2026-02-09"
-    },
-    {
-      "title": "Warm Weather Driving Conditions",
+      "title": "Mild Weather & Driving Conditions",
       "impact": "low",
-      "summary": "Expect ideal driving conditions today with highs reaching the upper 70s to mid-80s. However, rain chances return Tuesday and Wednesday, so maximize earnings today before wet weather potentially slows down traffic later in the week.",
+      "summary": "Forecasts for Tuesday show cloudy skies with a high near 74°F and a 20% chance of rain. Driving conditions are generally good, a significant improvement from the recent winter weather. No ice or severe weather impacts are expected today.",
       "category": "weather",
-      "published_date": "2026-02-09"
+      "published_date": "2026-02-10"
     }
   ],
   "reason": null
@@ -94,23 +87,23 @@ NEWS (6 items):
 
 WEATHER_CURRENT:
 {
-  "tempC": 25,
-  "tempF": 77,
+  "tempC": 21,
+  "tempF": 69,
   "country": "US",
   "uvIndex": 0,
-  "humidity": 31,
+  "humidity": 46,
   "tempUnit": "°F",
-  "feelsLike": 77,
-  "isDaytime": true,
+  "feelsLike": 75,
+  "isDaytime": false,
   "conditions": "Cloudy",
-  "feelsLikeC": 25,
-  "feelsLikeF": 77,
-  "observedAt": "2026-02-09T20:34:46.769416957Z",
+  "feelsLikeC": 24,
+  "feelsLikeF": 75,
+  "observedAt": "2026-02-10T01:03:58.686741226Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 77,
+  "temperature": 69,
   "conditionType": "CLOUDY",
   "precipitation": {
     "qpf": {
@@ -126,86 +119,86 @@ WEATHER_CURRENT:
       "percent": 10
     }
   },
-  "windDirection": "SOUTH",
+  "windDirection": "SOUTHEAST",
   "windSpeedUnit": "mph"
 }
 
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-02-09T20:34:46.790Z",
-    "tempC": 25,
-    "tempF": 76,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 76,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-09T21:34:46.790Z",
-    "tempC": 25,
-    "tempF": 78,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 78,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-09T22:34:46.790Z",
-    "tempC": 26,
-    "tempF": 78,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 78,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-09T23:34:46.790Z",
-    "tempC": 25,
-    "tempF": 77,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 77,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-10T00:34:46.790Z",
-    "tempC": 23,
-    "tempF": 73,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 73,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-10T01:34:46.790Z",
+    "time": "2026-02-10T01:03:58.707Z",
     "tempC": 21,
-    "tempF": 70,
+    "tempF": 69,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Cloudy",
-    "temperature": 70,
+    "temperature": 69,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-10T02:03:58.707Z",
+    "tempC": 20,
+    "tempF": 68,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 68,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-10T03:03:58.707Z",
+    "tempC": 20,
+    "tempF": 67,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 67,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-10T04:03:58.707Z",
+    "tempC": 19,
+    "tempF": 66,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 66,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-10T05:03:58.707Z",
+    "tempC": 19,
+    "tempF": 66,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 66,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-10T06:03:58.707Z",
+    "tempC": 19,
+    "tempF": 66,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 66,
     "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
@@ -214,26 +207,26 @@ WEATHER_FORECAST (6 hours):
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 19,
+  "jams": 30,
   "stats": {
-    "jams": 19,
-    "major": 13,
-    "total": 30,
-    "closures": 8,
-    "highways": 17,
+    "jams": 30,
+    "major": 22,
+    "total": 44,
+    "closures": 10,
+    "highways": 28,
     "accidents": 0,
-    "construction": 3
+    "construction": 4
   },
-  "summary": "Frisco is experiencing heavy congestion with 30 total incidents, primarily impacting the FM-720 corridor and Dallas North Tollway (DNT) access. Critical closures on FM-720 and the DNT South ramp at 5 miles will severely disrupt north-south and westward movement. Drivers should prioritize short-range trips within central Frisco and avoid the US-380 corridor due to multiple active construction zones.",
+  "summary": "Frisco is experiencing heavy congestion, primarily driven by a massive 28-minute delay on I-35E Southbound 9.5 miles away and multiple clusters of jams along the FM-1385/US-380 corridor. Preston Road (TX-289) is also seeing delays near Eldorado Parkway, impacting north-south movement. Drivers should prioritize local Frisco trips or routes heading south toward Plano to avoid the gridlock developing to the west and northwest.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion with 30 total incidents, primarily impacting the FM-720 corridor and Dallas North Tollway (DNT) access. Critical closures on FM-720 and the DNT South ramp at 5 miles will severely disrupt north-south and westward movement. Drivers should prioritize short-range trips within central Frisco and avoid the US-380 corridor due to multiple active construction zones.",
+  "briefing": "Frisco is experiencing heavy congestion, primarily driven by a massive 28-minute delay on I-35E Southbound 9.5 miles away and multiple clusters of jams along the FM-1385/US-380 corridor. Preston Road (TX-289) is also seeing delays near Eldorado Parkway, impacting north-south movement. Drivers should prioritize local Frisco trips or routes heading south toward Plano to avoid the gridlock developing to the west and northwest.",
   "closures": [
     {
       "road": "",
-      "location": "FM-720 to Lamar Hunt Way",
+      "location": "Lamar Hunt Way to FM-720",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 2.9
+      "distanceFromDriver": 3
     },
     {
       "road": "",
@@ -244,6 +237,13 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
+      "location": "US-380 W to US-380 E",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 6.5
+    },
+    {
+      "road": "",
       "location": "Dallas Pkwy to Dallas North Tollway S",
       "severity": "low",
       "isHighway": true,
@@ -251,10 +251,17 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
+      "location": "Warren Pkwy to Warren Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.6
+      "distanceFromDriver": 3.6
+    },
+    {
+      "road": "",
+      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 7.7
     },
     {
       "road": "",
@@ -272,7 +279,7 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Lakewood Dr to Main St / N Hook St",
+      "location": "Main St / N Hook St to Lakewood Dr",
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 8.1
@@ -285,444 +292,375 @@ TRAFFIC_CONDITIONS:
       "distanceFromDriver": 6.6
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion with 30 total incidents, primarily impacting the FM-720 corridor and Dallas North Tollway (DNT) access.",
+  "headline": "Frisco is experiencing heavy congestion, primarily driven by a massive 28-minute delay on I-35E Southbound 9.",
   "provider": "tomtom",
-  "fetchedAt": "2026-02-09T20:34:46.956Z",
+  "fetchedAt": "2026-02-10T01:03:58.880Z",
   "incidents": [
     {
-      "road": "",
+      "road": "US-77 S, I-35E S, Stemmons Fwy",
       "category": "Jam",
-      "location": "Lakefront Dr / Main St to FM-720",
-      "priority": 159,
+      "location": "FM-2181/Exit 458 (I-35E) to Copperas Branch Rd/Exit 454B (I-35E)",
+      "priority": 183,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Lakefront Dr / Main St to FM-720 [4.3 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 4,
-      "distanceFromDriver": 4.3
-    },
-    {
-      "road": "FM-544",
-      "category": "Jam",
-      "location": "W 15th St (Coit Rd) to W Parker Rd (Coit Rd)",
-      "priority": 158,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: FM-544 (W 15th St (Coit Rd) to W Parker Rd (Coit Rd)) [9.6 mi]",
-      "lengthMiles": 0.4,
-      "delayMinutes": 3,
-      "distanceFromDriver": 9.6
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "S Stemmons Fwy / Fox Ave to Lake Shore Dr",
-      "priority": 143,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: S Stemmons Fwy / Fox Ave to Lake Shore Dr [9.5 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 3,
+      "description": "Jam: US-77 S, I-35E S, Stemmons Fwy (FM-2181/Exit 458 (I-35E) to Copperas Branch Rd/Exit 454B (I-35E)) [9.5 mi]",
+      "lengthMiles": 2.4,
+      "delayMinutes": 28,
       "distanceFromDriver": 9.5
     },
     {
-      "road": "TX-121 Bus",
+      "road": "",
       "category": "Jam",
-      "location": "Corporate Dr (TX-121) to I-35E/US-77/Stemmons Fwy (TX-121)",
-      "priority": 142,
-      "severity": "medium",
+      "location": "Copperas Branch Rd (I-35E Frontage) to N Garden Ridge Blvd (I-35E Frontage)",
+      "priority": 161,
+      "severity": "high",
       "isHighway": true,
-      "description": "Jam: TX-121 Bus (Corporate Dr (TX-121) to I-35E/US-77/Stemmons Fwy (TX-121)) [9.8 mi]",
-      "lengthMiles": 0.3,
-      "delayMinutes": 2,
-      "distanceFromDriver": 9.8
+      "description": "Jam: Copperas Branch Rd (I-35E Frontage) to N Garden Ridge Blvd (I-35E Frontage) [9.2 mi]",
+      "lengthMiles": 0.6,
+      "delayMinutes": 6,
+      "distanceFromDriver": 9.2
     },
     {
-      "road": "US-380 E",
+      "road": "",
       "category": "Jam",
-      "location": "US-377 (US-380) to FM-2931 (US-380)",
-      "priority": 142,
-      "severity": "medium",
+      "location": "Pilot Point-Aubrey to FM-1385",
+      "priority": 160,
+      "severity": "high",
       "isHighway": true,
-      "description": "Jam: US-380 E (US-377 (US-380) to FM-2931 (US-380)) [8.5 mi]",
+      "description": "Jam: Pilot Point-Aubrey to FM-1385 [6.4 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 5,
+      "distanceFromDriver": 6.4
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Denton Way to FM-1385",
+      "priority": 160,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Denton Way to FM-1385 [7.7 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 5,
+      "distanceFromDriver": 7.7
+    },
+    {
+      "road": "FM-1385",
+      "category": "Jam",
+      "location": "US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-1385 (US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)) [6.7 mi]",
+      "lengthMiles": 0.5,
+      "delayMinutes": 4,
+      "distanceFromDriver": 6.7
+    },
+    {
+      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
+      "category": "Jam",
+      "location": "FM-2181/Swisher Rd (Texpress Lanes/I-35) to FM-407/Lake Park Rd (Texpress Lanes/I-35)",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: I-35E N, US-77 S, US-77 N, I-35E S (FM-2181/Swisher Rd (Texpress Lanes/I-35) to FM-407/Lake Park Rd (Texpress Lanes/I-35)) [9 mi]",
       "lengthMiles": 0.4,
       "delayMinutes": 2,
-      "distanceFromDriver": 8.5
+      "distanceFromDriver": 9
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "Gary Burns Dr to FM-720",
-      "priority": 141,
-      "severity": "medium",
+      "location": "W College St (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage)",
+      "priority": 157,
+      "severity": "high",
       "isHighway": true,
-      "description": "Jam: Gary Burns Dr to FM-720 [4.3 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 1,
-      "distanceFromDriver": 4.3
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "FM-720 to Lamar Hunt Way",
-      "priority": 140,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: FM-720 to Lamar Hunt Way [2.9 mi]",
+      "description": "Jam: W College St (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage) [9.5 mi]",
       "lengthMiles": 0.2,
-      "delayMinutes": 0,
-      "distanceFromDriver": 2.9
+      "delayMinutes": 2,
+      "distanceFromDriver": 9.5
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "FM-720 to FM-720",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "Lewisville-Flower Mound to S Stemmons Fwy",
+      "priority": 154,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720 [3.2 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 0,
-      "distanceFromDriver": 3.2
-    },
-    {
-      "road": "FM-1171",
-      "category": "Road Works",
-      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
+      "description": "Jam: Lewisville-Flower Mound to S Stemmons Fwy [9.5 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 9.7
+      "delayMinutes": 4,
+      "distanceFromDriver": 9.5
     },
     {
-      "road": "US-380 E",
-      "category": "Road Works",
-      "location": "US-377 (US-380) to FM-2931 (US-380)",
-      "priority": 135,
-      "severity": "low",
+      "road": "",
+      "category": "Jam",
+      "location": "S Stemmons Fwy to Highland Village Rd",
+      "priority": 149,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Works: US-380 E (US-377 (US-380) to FM-2931 (US-380)) [8.9 mi]",
-      "lengthMiles": 0.5,
-      "delayMinutes": 0,
+      "description": "Jam: S Stemmons Fwy to Highland Village Rd [8.9 mi]",
+      "lengthMiles": 1.1,
+      "delayMinutes": 9,
       "distanceFromDriver": 8.9
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "S Stemmons Fwy to US-77 S",
+      "priority": 148,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: S Stemmons Fwy to US-77 S [9.1 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 3,
+      "distanceFromDriver": 9.1
     }
   ],
   "keyIssues": [
-    "FM-720/Main St: Major jam and road closures 2.9-4.3mi west - 4min delay and restricted access",
-    "Dallas Pkwy to DNT South: Road closed 5mi south - critical highway entry point blocked",
-    "US-380 (East & West): Multiple construction zones and jams 6.9-8.9mi north - high unpredictability"
+    "I-35E S (Stemmons Fwy) jam 9.5mi away - Major 28min delay near Exit 458",
+    "FM-1385/US-380 corridor 6.4mi away - Multiple major jams with 4-5min delays",
+    "TX-289 (Preston Rd) at Eldorado 5.5mi away - 3min delay affecting central Frisco"
   ],
   "avoidAreas": [
-    "FM-720/Little Elm Corridor: Multiple closures and major jams within 4 miles",
-    "US-380 Corridor: Three separate roadwork zones and moderate jams between 6-9 miles north",
-    "DNT Southbound at Dallas Pkwy: Closure at 5 miles prevents efficient southbound long-haul trips"
+    "I-35E Southbound corridor: Major bottleneck 9.5mi away causing nearly 30-minute delays",
+    "FM-1385 and US-380 West: Clustered local jams 6-8mi away making westward transit inefficient"
   ],
-  "safetyAlert": "19 active traffic jams in the area",
-  "driverImpact": "Rideshare operations are restricted to the west and north; focus on local pickups in East Frisco or Plano to maintain high turnover and avoid the gridlock surrounding FM-720.",
+  "safetyAlert": "30 active traffic jams in the area",
+  "driverImpact": "Decline long-haul requests toward Lewisville or Denton due to I-35E gridlock; focus on high-frequency short trips within Frisco or south toward the Legacy West/Plano area.",
   "surgePricing": true,
-  "closuresCount": 8,
+  "closuresCount": 10,
   "repositioning": null,
-  "incidentsCount": 30,
-  "totalIncidents": 30,
-  "closuresSummary": "3 closures within 10mi, most critical: FM-720 at Lamar Hunt Way and Dallas Pkwy to DNT South.",
+  "incidentsCount": 44,
+  "totalIncidents": 44,
+  "closuresSummary": "0 closures within 10mi, most critical: None",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Significant roadwork on US-380 (both directions) and FM-1171, creating persistent bottlenecks for cross-town transit."
+  "constructionSummary": "No significant construction reported, though heavy congestion on FM-1385 and US-380 suggests high-volume bottlenecks or unreported work zones."
 }
 
-EVENTS (17 total):
+EVENTS (13 total):
 [
   {
-    "title": "Dallas Open (ATP 500 Tennis): Main Draw Day 1",
-    "venue": "Ford Center at The Star",
+    "title": "TCU Horned Frogs vs. Iowa State Cyclones",
+    "venue": "Schollmaier Arena",
     "impact": "high",
-    "address": "9 Cowboys Way, Frisco, TX 75034, USA",
+    "address": "2900 Stadium Dr, Fort Worth, TX 76109",
     "subtype": "sports",
-    "summary": "Dallas Open (ATP 500 Tennis): Main Draw Day 1 • Ford Center at The Star • 2026-02-09 • 12:00",
-    "latitude": 33.1105911,
-    "location": "Ford Center at The Star, 9 Cowboys Way, Frisco, TX 75034, USA",
-    "venue_id": "ab228b55-b3bd-4dfd-84eb-af1193f124c5",
-    "longitude": -96.8283481,
+    "summary": "TCU Horned Frogs vs. Iowa State Cyclones • Schollmaier Arena • 2026-02-10 • 20:00",
+    "latitude": null,
+    "location": "Schollmaier Arena, 2900 Stadium Dr, Fort Worth, TX 76109",
+    "venue_id": null,
+    "longitude": null,
     "event_type": "sports",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "12:00"
+    "event_end_date": "2026-02-10",
+    "event_end_time": "22:30",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "20:00"
   },
   {
-    "title": "The St. Olaf Choir",
-    "venue": "Morton H. Meyerson Symphony Center",
-    "impact": "medium",
-    "address": "2301 Flora St, Dallas, TX 75201",
-    "subtype": "concert",
-    "summary": "The St. Olaf Choir • Morton H. Meyerson Symphony Center • 2026-02-09 • 19:30",
+    "title": "SMU Mustangs vs. Notre Dame Fighting Irish",
+    "venue": "Moody Coliseum",
+    "impact": "high",
+    "address": "3009 Binkley Ave, Dallas, TX 75205",
+    "subtype": "sports",
+    "summary": "SMU Mustangs vs. Notre Dame Fighting Irish • Moody Coliseum • 2026-02-10 • 18:00",
     "latitude": null,
-    "location": "Morton H. Meyerson Symphony Center, 2301 Flora St, Dallas, TX 75201",
+    "location": "Moody Coliseum, 3009 Binkley Ave, Dallas, TX 75205",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "sports",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "20:30",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "18:00"
+  },
+  {
+    "title": "SIX the Musical",
+    "venue": "Bass Performance Hall",
+    "impact": "high",
+    "address": "525 Commerce St, Fort Worth, TX 76102",
+    "subtype": "concert",
+    "summary": "SIX the Musical • Bass Performance Hall • 2026-02-10 • 19:30",
+    "latitude": null,
+    "location": "Bass Performance Hall, 525 Commerce St, Fort Worth, TX 76102",
     "venue_id": null,
     "longitude": null,
     "event_type": "concert",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-09",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-02-10",
     "event_start_time": "19:30"
   },
   {
-    "title": "Kenny G",
-    "venue": "Arlington Music Hall",
-    "impact": "medium",
-    "address": "224 N Center St, Arlington, TX 76011",
-    "subtype": "concert",
-    "summary": "Kenny G • Arlington Music Hall • 2026-02-09 • 19:00",
-    "latitude": null,
-    "location": "Arlington Music Hall, 224 N Center St, Arlington, TX 76011",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Dry Cleaning",
-    "venue": "The Texas Theatre",
-    "impact": "medium",
-    "address": "231 W Jefferson Blvd, Dallas, TX 75208",
-    "subtype": "concert",
-    "summary": "Dry Cleaning • The Texas Theatre • 2026-02-09 • 19:00",
-    "latitude": null,
-    "location": "The Texas Theatre, 231 W Jefferson Blvd, Dallas, TX 75208",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Snow Strippers",
+    "title": "Ruel - Kicking My Feet Tour",
     "venue": "House of Blues Dallas",
-    "impact": "medium",
+    "impact": "high",
     "address": "2200 N Lamar St, Dallas, TX 75202",
     "subtype": "concert",
-    "summary": "Snow Strippers • House of Blues Dallas • 2026-02-09 • 18:00",
+    "summary": "Ruel - Kicking My Feet Tour • House of Blues Dallas • 2026-02-10 • 19:00",
     "latitude": null,
     "location": "House of Blues Dallas, 2200 N Lamar St, Dallas, TX 75202",
     "venue_id": null,
     "longitude": null,
     "event_type": "concert",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "18:00"
+    "event_end_date": "2026-02-10",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "19:00"
   },
   {
-    "title": "Stand-Up/Skits at Sundown",
-    "venue": "Granada Theater (Sundown)",
-    "impact": "low",
-    "address": "3524 Greenville Ave, Dallas, TX 75206",
-    "subtype": "nightlife",
-    "summary": "Stand-Up/Skits at Sundown • Granada Theater (Sundown) • 2026-02-09 • 19:30",
+    "title": "Jambaloo Festival: Cure for Paranoia, Magna Carda & Rosegarden Funeral Party",
+    "venue": "Deep Ellum Art Company",
+    "impact": "medium",
+    "address": "3203 Commerce St, Dallas, TX 75226",
+    "subtype": "festival",
+    "summary": "Jambaloo Festival: Cure for Paranoia, Magna Carda & Rosegarden Funeral Party • Deep Ellum Art Company • 2026-02-10 • 19:00",
     "latitude": null,
-    "location": "Granada Theater (Sundown), 3524 Greenville Ave, Dallas, TX 75206",
+    "location": "Deep Ellum Art Company, 3203 Commerce St, Dallas, TX 75226",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "festival",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Jambaloo Festival: Meach Pango, Son of Stan & Sam Cormier",
+    "venue": "The Cicada",
+    "impact": "medium",
+    "address": "1002 S Main St, Fort Worth, TX 76104",
+    "subtype": "festival",
+    "summary": "Jambaloo Festival: Meach Pango, Son of Stan & Sam Cormier • The Cicada • 2026-02-10 • 19:00",
+    "latitude": null,
+    "location": "The Cicada, 1002 S Main St, Fort Worth, TX 76104",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "festival",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Mareux",
+    "venue": "The Studio at The Factory",
+    "impact": "medium",
+    "address": "2727 Canton St, Dallas, TX 75226",
+    "subtype": "concert",
+    "summary": "Mareux • The Studio at The Factory • 2026-02-10 • 20:00",
+    "latitude": null,
+    "location": "The Studio at The Factory, 2727 Canton St, Dallas, TX 75226",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Sarper Güven (Comedy)",
+    "venue": "Punch Line Irving",
+    "impact": "low",
+    "address": "322 Las Colinas Blvd E, Irving, TX 75039",
+    "subtype": "nightlife",
+    "summary": "Sarper Güven (Comedy) • Punch Line Irving • 2026-02-10 • 19:30",
+    "latitude": null,
+    "location": "Punch Line Irving, 322 Las Colinas Blvd E, Irving, TX 75039",
     "venue_id": null,
     "longitude": null,
     "event_type": "nightlife",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "22:30",
-    "event_start_date": "2026-02-09",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-02-10",
     "event_start_time": "19:30"
   },
   {
-    "title": "Dallas Open (ATP Tennis)",
-    "venue": "Ford Center at The Star",
-    "impact": "high",
-    "address": "9 Cowboys Way, Frisco, TX 75034, USA",
-    "subtype": "sports",
-    "summary": "Dallas Open (ATP Tennis) • Ford Center at The Star • 2026-02-09 • 12:00",
-    "latitude": 33.1105911,
-    "location": "Ford Center at The Star, 9 Cowboys Way, Frisco, TX 75034, USA",
-    "venue_id": "ab228b55-b3bd-4dfd-84eb-af1193f124c5",
-    "longitude": -96.8283481,
-    "event_type": "sports",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "16:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "12:00"
+    "title": "Cure For Paranoia w/ Magna Carda",
+    "venue": "Deep Ellum Art Company",
+    "impact": "medium",
+    "address": "3200 Commerce St, Dallas, TX 75226",
+    "subtype": "concert",
+    "summary": "Cure For Paranoia w/ Magna Carda • Deep Ellum Art Company • 2026-02-10 • 20:00",
+    "latitude": null,
+    "location": "Deep Ellum Art Company, 3200 Commerce St, Dallas, TX 75226",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "20:00"
   },
   {
-    "title": "Red Beans & Rice Monday Jam Session",
-    "venue": "Revelers Hall",
+    "title": "Sarper Guven",
+    "venue": "Punch Line Dallas",
     "impact": "medium",
+    "address": "310 W Las Colinas Blvd Suite 113, Irving, TX 75039",
+    "subtype": "comedy",
+    "summary": "Sarper Guven • Punch Line Dallas • 2026-02-10 • 19:30",
+    "latitude": null,
+    "location": "Punch Line Dallas, 310 W Las Colinas Blvd Suite 113, Irving, TX 75039",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "comedy",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "Ghost Roper w/ Matthew Walton Band",
+    "venue": "Tulips FTW",
+    "impact": "medium",
+    "address": "112 St Louis Ave, Fort Worth, TX 76104",
+    "subtype": "concert",
+    "summary": "Ghost Roper w/ Matthew Walton Band • Tulips FTW • 2026-02-10 • 20:00",
+    "latitude": null,
+    "location": "Tulips FTW, 112 St Louis Ave, Fort Worth, TX 76104",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Terraplane Rounders (Live Blues)",
+    "venue": "Revelers Hall",
+    "impact": "low",
     "address": "412 N Bishop Ave, Dallas, TX 75208",
     "subtype": "concert",
-    "summary": "Red Beans & Rice Monday Jam Session • Revelers Hall • 2026-02-09 • 19:00",
+    "summary": "Terraplane Rounders (Live Blues) • Revelers Hall • 2026-02-10 • 19:00",
     "latitude": null,
     "location": "Revelers Hall, 412 N Bishop Ave, Dallas, TX 75208",
     "venue_id": null,
     "longitude": null,
     "event_type": "concert",
-    "event_end_date": "2026-02-09",
+    "event_end_date": "2026-02-10",
     "event_end_time": "23:00",
-    "event_start_date": "2026-02-09",
+    "event_start_date": "2026-02-10",
     "event_start_time": "19:00"
   },
   {
-    "title": "The Big Laugh Open Mic",
-    "venue": "Big Laugh Comedy Club",
-    "impact": "medium",
-    "address": "604 Main St, Fort Worth, TX 76102",
-    "subtype": "comedy",
-    "summary": "The Big Laugh Open Mic • Big Laugh Comedy Club • 2026-02-09 • 20:00",
-    "latitude": null,
-    "location": "Big Laugh Comedy Club, 604 Main St, Fort Worth, TX 76102",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "comedy",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Trivia Night at The Ivy Tavern",
-    "venue": "The Ivy Tavern",
+    "title": "Tuesday Trivia Night",
+    "venue": "Chicken N Pickle - Grand Prairie",
     "impact": "low",
-    "address": "5334 Lemmon Ave, Dallas, TX 75209",
+    "address": "2965 S Hwy 161, Grand Prairie, TX 75052",
     "subtype": "nightlife",
-    "summary": "Trivia Night at The Ivy Tavern • The Ivy Tavern • 2026-02-09 • 19:30",
+    "summary": "Tuesday Trivia Night • Chicken N Pickle - Grand Prairie • 2026-02-10 • 18:30",
     "latitude": null,
-    "location": "The Ivy Tavern, 5334 Lemmon Ave, Dallas, TX 75209",
+    "location": "Chicken N Pickle - Grand Prairie, 2965 S Hwy 161, Grand Prairie, TX 75052",
     "venue_id": null,
     "longitude": null,
     "event_type": "nightlife",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Plano City Council Meeting",
-    "venue": "Plano Municipal Center",
-    "impact": "medium",
-    "address": "1520 K Ave, Plano, TX 75074",
-    "subtype": "community",
-    "summary": "Plano City Council Meeting • Plano Municipal Center • 2026-02-09 • 19:00",
-    "latitude": null,
-    "location": "Plano Municipal Center, 1520 K Ave, Plano, TX 75074",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "community",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Dallas Open (ATP Tennis): Session 1",
-    "venue": "Ford Center at The Star",
-    "impact": "high",
-    "address": "9 Cowboys Way, Frisco, TX 75034, USA",
-    "subtype": "sports",
-    "summary": "Dallas Open (ATP Tennis): Session 1 • Ford Center at The Star • 2026-02-09 • 12:00",
-    "latitude": 33.1105911,
-    "location": "Ford Center at The Star, 9 Cowboys Way, Frisco, TX 75034, USA",
-    "venue_id": "ab228b55-b3bd-4dfd-84eb-af1193f124c5",
-    "longitude": -96.8283481,
-    "event_type": "sports",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "16:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "12:00"
-  },
-  {
-    "title": "Dallas Open (ATP Tennis): Session 2",
-    "venue": "Ford Center at The Star",
-    "impact": "high",
-    "address": "9 Cowboys Way, Frisco, TX 75034, USA",
-    "subtype": "sports",
-    "summary": "Dallas Open (ATP Tennis): Session 2 • Ford Center at The Star • 2026-02-09 • 19:00",
-    "latitude": 33.1105911,
-    "location": "Ford Center at The Star, 9 Cowboys Way, Frisco, TX 75034, USA",
-    "venue_id": "ab228b55-b3bd-4dfd-84eb-af1193f124c5",
-    "longitude": -96.8283481,
-    "event_type": "sports",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "St. Olaf Choir",
-    "venue": "Morton H. Meyerson Symphony Center",
-    "impact": "medium",
-    "address": "2301 Flora St, Dallas, TX 75201",
-    "subtype": "concert",
-    "summary": "St. Olaf Choir • Morton H. Meyerson Symphony Center • 2026-02-09 • 19:30",
-    "latitude": null,
-    "location": "Morton H. Meyerson Symphony Center, 2301 Flora St, Dallas, TX 75201",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Seahaven",
-    "venue": "Club Dada",
-    "impact": "medium",
-    "address": "2720 Elm St, Dallas, TX 75226",
-    "subtype": "concert",
-    "summary": "Seahaven • Club Dada • 2026-02-09 • 20:00",
-    "latitude": null,
-    "location": "Club Dada, 2720 Elm St, Dallas, TX 75226",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Trivia Night at River Pig Saloon",
-    "venue": "River Pig Saloon",
-    "impact": "low",
-    "address": "1720 Greenville Ave, Dallas, TX 75206",
-    "subtype": "nightlife",
-    "summary": "Trivia Night at River Pig Saloon • River Pig Saloon • 2026-02-09 • 19:00",
-    "latitude": null,
-    "location": "River Pig Saloon, 1720 Greenville Ave, Dallas, TX 75206",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Music Bingo at The Lakehouse",
-    "venue": "The Lakehouse",
-    "impact": "low",
-    "address": "9307 Boat Club Rd, Fort Worth, TX 76179",
-    "subtype": "nightlife",
-    "summary": "Music Bingo at The Lakehouse • The Lakehouse • 2026-02-09 • 17:00",
-    "latitude": null,
-    "location": "The Lakehouse, 9307 Boat Club Rd, Fort Worth, TX 76179",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-09",
-    "event_end_time": "20:00",
-    "event_start_date": "2026-02-09",
-    "event_start_time": "17:00"
+    "event_end_date": "2026-02-10",
+    "event_end_time": "20:30",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "18:30"
   }
 ]
 
@@ -846,43 +784,43 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor gate hold and taxi delays (approx. 15 minutes or less); Security wait times ~1-5 minutes.",
-      "status": "normal",
-      "busyTimes": [
-        "05:00 AM - 07:00 AM",
-        "08:00 PM - 10:00 PM"
-      ]
-    },
-    {
-      "code": "DAL",
-      "name": "Dallas Love Field",
-      "delays": "Normal operations; Security wait times ~10-15 minutes.",
+      "delays": "Minor delays. Gate hold and taxi delays of 15 minutes or less reported. Airborne delays for arrivals averaging 15 minutes.",
       "status": "normal",
       "busyTimes": [
         "05:00 AM - 08:00 AM",
         "04:00 PM - 07:00 PM"
       ]
+    },
+    {
+      "code": "DAL",
+      "name": "Dallas Love Field",
+      "delays": "Normal operations. General departure and arrival delays of 15 minutes or less.",
+      "status": "normal",
+      "busyTimes": [
+        "07:00 AM - 09:00 AM",
+        "03:00 PM - 06:00 PM"
+      ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-02-09T20:35:41.876Z",
+  "fetchedAt": "2026-02-10T01:04:34.382Z",
   "busyPeriods": [
-    "Monday mornings (5:00-8:00 AM) are peak for business departures.",
-    "Late afternoons and evenings (4:00-7:00 PM) see high arrival volume."
+    "Morning rush (5:00 AM - 9:00 AM) due to business travel departures.",
+    "Late afternoon/evening (4:00 PM - 7:00 PM) for daily peak arrivals and departures."
   ],
-  "recommendations": "For DFW: Rideshare pickups are located at the Upper Level (Departures) curbside of each terminal; follow 'Ride App Pickup' signs. For DAL: Rideshare pickups have moved to the Valet Pavilion and Garage C (Level 1); do not wait at the terminal curbside."
+  "recommendations": "For DFW pickups, drivers must wait in the Terminal B infield lot (or Terminal E infield lot after 6 PM). Passengers are directed to lower-level 'Ride App Pickup' zones. For DAL, the designated pickup area is located in Garage C, Level 1 (Valet Lot); drivers must enter the FIFO queue to receive requests. Expect high demand during the 4-7 PM window."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: 60b6260f-762b-4a6c-b2dd-2eb0b2ad8918
-snapshot_id: 3707835d-e724-4f29-be74-ed0883e35e3f
+id: 5b3328f1-85a6-4c07-94f3-615736fef703
+snapshot_id: 5425f9da-08ce-4fd3-942e-46e06b0c1d3a
 status: pending
 error_message: (none)
-created_at: Mon Feb 09 2026 20:34:46 GMT+0000 (Coordinated Universal Time)
-updated_at: Mon Feb 09 2026 20:35:57 GMT+0000 (Coordinated Universal Time)
+created_at: Tue Feb 10 2026 01:03:58 GMT+0000 (Coordinated Universal Time)
+updated_at: Tue Feb 10 2026 01:05:06 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -913,10 +851,10 @@ School Closures Filter Check:
   (None active today)
 
 Event Count:
-  Total events in briefing: 17
+  Total events in briefing: 13
   High impact: 4
-  Medium impact: 9
-  Low impact: 4
+  Medium impact: 6
+  Low impact: 3
 
 TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in location: 0
@@ -924,8 +862,8 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in time: 0
 
 Events AFTER filterInvalidEvents (what LLM actually receives):
-  Raw events in DB: 17
-  Filtered events (sent to LLM): 17
+  Raw events in DB: 13
+  Filtered events (sent to LLM): 13
   TBD events removed: 0
 
 ════════════════════════════════════════════════════════════════════════════════
