@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, filterInvalidEvents, fetchWeatherConditions, fetchRideshareNews, deduplicateEvents } from '../../lib/briefing/briefing-service.js';
 import { db } from '../../db/drizzle.js';
-import { snapshots, discovered_events, news_deactivations, briefings, us_market_cities } from '../../../shared/schema.js';
+import { snapshots, discovered_events, news_deactivations, briefings, us_market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte, ilike, not, or } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
@@ -620,8 +620,12 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     console.log(`[BriefingRoute] GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
 
     // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-    const events = await db.select()
+    const events = await db.select({
+      event: discovered_events,
+      venue: venue_catalog
+    })
       .from(discovered_events)
+      .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
       .where(and(
         eq(discovered_events.city, snapshot.city),
         eq(discovered_events.state, snapshot.state),
@@ -633,23 +637,35 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       .limit(50);
 
     // Map to briefing events format
-    let allEvents = events.map(e => ({
-      title: e.title,
-      summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
-      impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
-      source: e.source_model,
-      event_type: e.category,
-      subtype: e.category, // For EventsComponent category grouping
-      event_start_date: e.event_start_date,
-      event_end_date: e.event_end_date, // For multi-day events (e.g., holiday lights Dec 1 - Jan 4)
-      event_start_time: e.event_start_time,
-      event_end_time: e.event_end_time,
-      address: e.address,
-      venue: e.venue_name,
-      location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
-      latitude: e.lat,
-      longitude: e.lng
-    }));
+    let allEvents = events.map(({ event: e, venue: v }) => {
+      // Prefer verified venue data if available
+      const venueName = v?.venue_name || e.venue_name;
+      const address = v?.formatted_address || v?.address || e.address;
+      const lat = v?.lat || e.lat;
+      const lng = v?.lng || e.lng;
+      const capacity = v?.capacity_estimate ? `Capacity: ${v.capacity_estimate.toLocaleString()}` : null;
+
+      return {
+        id: e.id,
+        title: e.title,
+        summary: [e.title, venueName, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
+        impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
+        source: e.source_model || (v?.source ? `Venue: ${v.source}` : 'discovered'),
+        event_type: e.category,
+        subtype: e.category, // For EventsComponent category grouping
+        event_start_date: e.event_start_date,
+        event_end_date: e.event_end_date, // For multi-day events (e.g., holiday lights Dec 1 - Jan 4)
+        event_start_time: e.event_start_time,
+        event_end_time: e.event_end_time,
+        address: address,
+        venue: venueName,
+        venue_id: e.venue_id, // Include link for UI
+        location: venueName ? `${venueName}, ${address || ''}`.trim() : address,
+        latitude: lat,
+        longitude: lng,
+        capacity_info: capacity
+      };
+    });
 
     // 2026-01-05: Deduplicate events with similar names, addresses, and times
     // Matches the logic in briefing-service.js fetchEventsForBriefing
