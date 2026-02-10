@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar } from "drizzle-orm/pg-core";
+import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar, serial } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
 // Users table: SESSION TRACKING ONLY (Ephemeral)
@@ -510,7 +510,7 @@ export const eidolon_memory = pgTable("eidolon_memory", {
 }));
 
 export const cross_thread_memory = pgTable("cross_thread_memory", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: serial("id").primaryKey(),
   scope: text("scope").notNull(),
   key: text("key").notNull(),
   user_id: uuid("user_id"),

@@ -1,64 +1,65 @@
-# AI Pipeline Architecture
+Here is the updated documentation. I have added a new section for the **Gemini Adapter** to reflect the logic found in `server/lib/ai/adapters/gemini-adapter.js`, specifically detailing the SDK migration, thinking model support, and the refined output cleanup logic.
 
-## Overview
-
-Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligence and Decision) to balance cost, speed, and reasoning depth across various workflow stages.
+***
 
 ## Model Dispatcher (`server/lib/ai/adapters/index.js`)
 
 The dispatcher acts as the model-agnostic entry point (`callModel`) for the AI pipeline, handling role resolution and provider routing.
 
-*   **Role Naming Convention:** Follows `{TABLE}_{FUNCTION}` (e.g., `BRIEFING_TRAFFIC`, `STRATEGY_TACTICAL`).
+*   **Role Naming Convention:** Follows `{TABLE}_{FUNCTION}`.
+    *   **Categories:** `BRIEFING`, `STRATEGY`, `VENUE`, `COACH`, `UTIL`.
+    *   **Examples:** `BRIEFING_TRAFFIC`, `STRATEGY_TACTICAL`, `UTIL_MARKET_PARSER`.
 *   **Legacy Support:** Automatically maps legacy role names (e.g., `strategist`) to canonical registry roles.
 *   **Provider Support:** Routes requests to OpenAI, Anthropic, Gemini, or Vertex AI based on model configuration.
-*   **Feature Flags:** Checks registry flags (e.g., `roleUsesOpenAIWebSearch`, `roleUsesWebSearch`) to invoke specialized adapter functions for web search.
+*   **Fallback & Availability:**
+    *   Integrates with `FALLBACK_CONFIG` to handle service interruptions.
+    *   Performs availability checks (e.g., `isVertexAIAvailable`) and status monitoring (via `getVertexAIStatus`) to ensure reliable routing.
+*   **Feature Flags:** Checks registry flags (e.g., `roleUsesOpenAIWebSearch`, `roleUsesWebSearch`, `roleUsesGoogleSearch`) to invoke specialized adapter functions for web search.
 *   **Parameter Handling:**
-    *   Detects reasoning models (`gpt-5`, `o1`) to use `reasoning_effort` instead of `temperature`.
+    *   **Reasoning Models:** Detects `gpt-5`/`o1` to use `reasoning_effort` instead of `temperature`.
+    *   **Configuration:** Extracts `thinkingLevel` (for thinking models) and `skipJsonExtraction` (to bypass output parsing) from role configuration.
 *   **Security:** Logs only call metadata (role, model, lengths), explicitly excluding message content.
 
-## Provider Adapters
+## OpenAI Adapter (`server/lib/ai/adapters/openai-adapter.js`)
 
-The system uses specialized adapters to normalize interactions across different AI providers while leveraging their unique capabilities.
+Handles direct interactions with the OpenAI API, managing model-specific parameter requirements and specialized capabilities like web search.
 
-### OpenAI Adapter (`server/lib/ai/adapters/openai-adapter.js`)
+*   **Model Family Handling:**
+    *   **GPT-5 & o1:** Automatically maps `maxTokens` to `max_completion_tokens` and supports `reasoning_effort`. Explicitly disables `temperature` parameters for these families.
+    *   **Legacy (GPT-4):** Uses standard `max_tokens` and `temperature`.
+*   **Web Search Capability:**
+    *   **Function:** `callOpenAIWithWebSearch` (added 2026-01-05).
+    *   **Model:** Uses the dedicated `gpt-5-search-api` model.
+    *   **Configuration:** Implements `web_search_options` (context size, user location) rather than standard tool definitions.
+    *   **Constraints:** Does not support `reasoning_effort`; returns structured citations alongside content.
+*   **Error Handling:** Wraps responses in a standardized `{ ok, output, error }` object.
 
-The OpenAI adapter manages interactions with GPT-4, GPT-5, and o1 model families, automatically adjusting request parameters to match model requirements.
+## Anthropic Adapter (`server/lib/ai/adapters/anthropic-adapter.js`)
 
-#### Model Family Handling
+Handles interactions with the Anthropic API (Claude), providing standard text generation and specialized tool-use scenarios.
 
-*   **GPT-5 (e.g., `gpt-5.2`) and o1 Models:**
-    *   **Token Limit:** Uses `max_completion_tokens` instead of the standard `max_tokens`.
-    *   **Reasoning:** Supports the `reasoning_effort` parameter (defaulting to model defaults if not specified).
-    *   **Temperature:** Automatically excludes the `temperature` parameter, as these reasoning models do not support custom temperature settings.
-*   **Legacy Models (e.g., GPT-4):**
-    *   Uses standard `max_tokens` and `temperature` configurations.
+*   **Standard Execution:**
+    *   **Lazy Initialization:** Initializes the client on demand using `ANTHROPIC_API_KEY`.
+    *   **Flexibility:** Accepts either a simple `user` string or a full `messages` array for chat history context.
+*   **Web Search Capability:**
+    *   **Function:** `callAnthropicWithWebSearch`.
+    *   **Tooling:** Utilizes the `web_search_20250305` tool definition with a usage limit.
+    *   **JSON Enforcement:** Implements an **Assistant Prefill** strategy (injecting `[` as the first assistant message) to force the model to output JSON arrays when `jsonMode` is enabled.
+    *   **Response Parsing:** Reconstructs the JSON output (prepending the missing bracket) and extracts citations from the response blocks.
+    *   **Output:** Returns structured data including `{ ok, output, citations }`.
 
-#### Web Search Integration (New 2026-01)
+## Gemini Adapter (`server/lib/ai/adapters/gemini-adapter.js`)
 
-The adapter includes specialized support for OpenAI's native web search capabilities, primarily used by the `BRIEFING_NEWS_GPT` role.
+Handles interactions with Google's Gemini models via the `@google/genai` SDK, supporting advanced features like thinking models and integrated search.
 
-*   **Function:** `callOpenAIWithWebSearch`
-*   **Model:** Uses the dedicated `gpt-5-search-api` model.
-*   **Configuration:**
-    *   Unlike standard tool calls, this uses `web_search_options` to configure context size (set to "medium") and approximate user location (US).
-    *   **Note:** The search model does *not* support the `reasoning_effort` parameter.
-*   **Output:** Returns generated content alongside structured URL citations.
-
-### Anthropic Adapter (`server/lib/ai/adapters/anthropic-adapter.js`)
-
-The Anthropic adapter handles interactions with Claude models, offering standard generation and specific handling for web search tools and JSON enforcement.
-
-#### Standard Generation
-*   **Function:** `callAnthropic`
-*   **Input:** Supports both simple user strings and full message arrays (for chat history).
-*   **Output:** Returns a normalized `{ ok, output }` object.
-
-#### Web Search Integration
-The adapter implements Anthropic's specific tool-use protocol for web searching.
-
-*   **Function:** `callAnthropicWithWebSearch`
-*   **Tool Definition:** Uses the `web_search_20250305` tool type with a maximum of 5 uses per request.
-*   **JSON Mode Strategy:**
-    *   Uses **Assistant Prefill** to enforce JSON formatting. If `jsonMode` is enabled (default), the adapter injects a prefilled assistant message starting with `[` to force the model to continue the sequence as a JSON array.
-    *   The adapter automatically reconstructs the valid JSON string in the output by prepending the bracket.
-*   **Output:** Parses response blocks to separate text content from citations.
+*   **SDK Migration:** Updated to use the `@google/genai` SDK for compatibility with Gemini 3 features.
+*   **Thinking Models:**
+    *   Supports `thinkingLevel` parameter (`low`, `medium`, `high`) specifically for `gemini-3` models.
+    *   Automatically disables thinking configuration for non-supported models to prevent API errors.
+*   **Google Search:**
+    *   Integrates native Google Search via the `googleSearch` tool when `useSearch` is enabled.
+*   **Output Processing:**
+    *   **Smart Cleanup:** Removes wrapping Markdown code blocks only if they encompass the entire response, preserving embedded code blocks in documentation generation.
+    *   **JSON Extraction:** Automatically detects and extracts JSON objects or arrays from mixed text.
+    *   **Extraction Guard:** Skips JSON extraction if the output appears to be a Markdown document (starts with `#`) to prevent data loss in documentation generation tasks.
+*   **Safety Settings:** Configures all harm categories to `BLOCK_NONE` to ensure uninhibited generation for system tasks.

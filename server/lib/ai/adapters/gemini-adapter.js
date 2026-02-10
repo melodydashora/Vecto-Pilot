@@ -14,7 +14,8 @@ export async function callGemini({
   topP,
   topK,
   useSearch = false,
-  thinkingLevel = null // Gemini 3: "low", "medium" (Flash only), "high" - null = disabled
+  thinkingLevel = null, // Gemini 3: "low", "medium" (Flash only), "high" - null = disabled
+  skipJsonExtraction = false
 }) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -92,7 +93,7 @@ export async function callGemini({
         console.log(`[model/gemini] 🧹 Removed wrapping markdown code block (${rawLength} → ${output.length} chars)`);
       }
 
-      if (user.toLowerCase().includes('json')) {
+      if (user.toLowerCase().includes('json') && !skipJsonExtraction) {
         // 2026-02-09: FIX - Don't extract JSON if output looks like a Markdown doc
         // Prevents data loss for DOCS_GENERATOR requests that mention "json"
         const isMarkdown = output.trim().startsWith('#');
