@@ -6,8 +6,8 @@ This module handles the OAuth 2.0 authentication flow for the Uber Driver integr
 
 ## Database Schema
 The integration interacts with the following database tables:
-- `oauth_states`: Stores temporary CSRF state tokens during the auth flow.
-- `uber_connections`: Stores encrypted access/refresh tokens and connection status.
+- `oauth_states`: Stores temporary CSRF state tokens, user association, and provider details during the auth flow.
+- `uber_connections`: Stores encrypted access/refresh tokens, token expiration, granted scopes, and connection status.
 
 ## Endpoints
 
@@ -20,7 +20,7 @@ Initiates the Uber OAuth flow by redirecting the user to Uber's authorization pa
 - **Flow:**
     1.  Checks if the user is authenticated.
     2.  Generates a secure random `state` string.
-    3.  Stores the state in `oauth_states` with a 10-minute expiration.
+    3.  Stores the state in `oauth_states` with a 10-minute expiration, linking it to the user, provider ('uber'), and redirect URI.
     4.  Redirects the response to the Uber Authorization URL with the generated state.
 
 ### OAuth Callback
@@ -36,10 +36,12 @@ Handles the redirect from Uber after the user has authorized (or denied) the app
 - **Flow:**
     1.  Checks for OAuth errors in query parameters.
     2.  Validates the `state` against the `oauth_states` table (must exist, match provider 'uber', and not be expired).
-    3.  Exchanges the `code` for access and refresh tokens via `exchangeCodeForTokens`.
-    4.  Encrypts the tokens.
-    5.  Upserts the connection record in `uber_connections` with `is_active: true`.
-    6.  Redirects the user to the frontend success page (`/auth/signup?uber_connected=true`) or error page (`/auth/signup?error=...`).
+    3.  Deletes the used state record from `oauth_states` to prevent reuse.
+    4.  Exchanges the `code` for access and refresh tokens via `exchangeCodeForTokens`.
+    5.  Encrypts the tokens and calculates the expiration time.
+    6.  Parses the granted scopes from the token response.
+    7.  Upserts the connection record in `uber_connections` with the encrypted tokens, expiration, scopes, and sets `is_active: true`.
+    8.  Redirects the user to the frontend success page (`/auth/signup?uber_connected=true`) or error page (`/auth/signup?error=...`).
 
 ### Disconnect Integration
 **Route:** `POST /api/auth/uber/disconnect`

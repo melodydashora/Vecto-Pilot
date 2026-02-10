@@ -73,7 +73,7 @@ export async function callModel(role, { system, user, messages }) {
     throw new Error(`Model Role '${role}' not found in registry: ${err.message}`);
   }
 
-  const { model, provider, maxTokens, temperature, reasoningEffort, role: canonicalRole } = config;
+  const { model, provider, maxTokens, temperature, reasoningEffort, role: canonicalRole, thinkingLevel, skipJsonExtraction } = config;
 
   // 2026-01-06: SECURITY - Log only metadata, not message content
   console.log(`🤖 [AI CALL] Role=${canonicalRole} Model=${model} Provider=${provider} SystemLen=${system?.length || 0} UserLen=${user?.length || 0} MsgCount=${messages?.length || 0}`);
@@ -146,6 +146,7 @@ export async function callModel(role, { system, user, messages }) {
           useSearch,
           // Pass thinkingLevel if defined in registry (null = disabled by default)
           thinkingLevel: config.thinkingLevel || null,
+          skipJsonExtraction
         });
       }
 

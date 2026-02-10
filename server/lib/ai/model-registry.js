@@ -257,6 +257,7 @@ export const MODEL_ROLES = {
     maxTokens: 8192,
     temperature: 0.7,
     thinkingLevel: 'HIGH',
+    skipJsonExtraction: true,
   },
 };
 

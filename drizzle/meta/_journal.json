@@ -92,6 +92,20 @@
       "when": 1765290694299,
       "tag": "0012_fantastic_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1770686289855,
+      "tag": "0013_stiff_spyke",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1770686809010,
+      "tag": "0014_bored_master_chief",
+      "breakpoints": true
     }
   ]
 }

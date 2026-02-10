@@ -1,27 +1,27 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 2026-02-10T01:05:06.918Z
-Snapshot ID: 5425f9da-08ce-4fd3-942e-46e06b0c1d3a
+Generated: 2026-02-10T01:29:00.816Z
+Snapshot ID: 346db534-5d32-4c62-a8f8-699c1520aeda
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: 5425f9da-08ce-4fd3-942e-46e06b0c1d3a
+snapshot_id: 346db534-5d32-4c62-a8f8-699c1520aeda
 user_id: 9216b521-6fd7-4b8c-aee4-94f8cfb6fa80
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
-  formatted_address: 1769 Timber Ridge Dr, Frisco, TX 75036, USA
-  lat: 33.12921942563668
-  lng: -96.87550932665366
+  formatted_address: 1735 Timber Ridge Dr, Frisco, TX 75036, USA
+  lat: 33.12921071522682
+  lng: -96.87552780414244
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Tue Feb 10 2026 01:03:57 GMT+0000 (Coordinated Universal Time)
+  local_iso: Tue Feb 10 2026 01:27:18 GMT+0000 (Coordinated Universal Time)
   dow: 1 (Monday)
   day_part_key: early_evening
   is_holiday: false
@@ -38,47 +38,47 @@ WEATHER (from snapshot):
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 32659b7a-4893-483f-89ad-a88a3b525c3e
-snapshot_id: 5425f9da-08ce-4fd3-942e-46e06b0c1d3a
-created_at: Tue Feb 10 2026 01:03:58 GMT+0000 (Coordinated Universal Time)
-updated_at: Tue Feb 10 2026 01:05:06 GMT+0000 (Coordinated Universal Time)
+briefing_id: 5f0f6876-b6ea-4335-ad36-337a264476e2
+snapshot_id: 346db534-5d32-4c62-a8f8-699c1520aeda
+created_at: Tue Feb 10 2026 01:27:19 GMT+0000 (Coordinated Universal Time)
+updated_at: Tue Feb 10 2026 01:29:00 GMT+0000 (Coordinated Universal Time)
 
 NEWS (5 items):
 {
   "items": [
     {
-      "title": "Dallas Open Tennis Tournament in Frisco (High Demand)",
+      "title": "Rain and Storms Return to Forecast",
       "impact": "high",
-      "summary": "The Dallas Open (ATP Tour) is underway at the Ford Center at The Star in Frisco. Matches are scheduled daily through Feb 15, with sessions at 12:00 PM and 7:00 PM today. Expect high demand and potential surge pricing around The Star and nearby hotels/restaurants in Frisco.",
+      "summary": "After the recent winter storm, rain and storms are returning to the North Texas forecast starting today. Drivers should expect wet roads, slower traffic, and potential surge demand during downpours. Watch for slick spots on bridges that may still be recovering from recent stress.",
+      "category": "weather",
+      "published_date": "2026-02-10"
+    },
+    {
+      "title": "Major Event: 'Six' The Musical Opens at Bass Hall",
+      "impact": "medium",
+      "summary": "The Broadway musical 'Six' opens today at Bass Performance Hall in Fort Worth, running through Feb 15. Expect high demand for pickups and dropoffs in downtown Fort Worth around showtimes (evenings).",
       "category": "event",
       "published_date": "2026-02-10"
     },
     {
-      "title": "American Airlines Labor Unrest & DFW Operations",
-      "impact": "high",
-      "summary": "The American Airlines flight attendants union passed a 'no-confidence' vote in the CEO yesterday, citing operational failures and poor working conditions. While no immediate strike is active, tensions are high at DFW Airport. Drivers should expect potential delays or frustrated passengers as the airline deals with ongoing operational scrutiny following recent winter storm disruptions.",
+      "title": "Founders' Plaza Reopens at DFW Airport",
+      "impact": "medium",
+      "summary": "The Founders' Plaza observation area at DFW Airport has reopened as of yesterday after soil remediation. This provides a restored location for drivers to wait or take breaks near the airport terminals.",
       "category": "airport",
       "published_date": "2026-02-09"
     },
     {
-      "title": "Construction Delays on I-20 and I-820",
+      "title": "I-35E Nightly Lane Closures Conclude",
       "impact": "medium",
-      "summary": "TxDOT reports daily lane closures on I-20 (eastbound/westbound) between the I-30 split and Bentley Road. Additionally, the I-820 southbound frontage road is periodically closed between Westpoint Dr and Alemeda St through Feb 14. Expect delays during daytime hours (9 AM - 3 PM).",
+      "summary": "Major nightly lane reductions on Northbound I-35E (between I-635 and President George Bush Turnpike) were scheduled to end yesterday morning (Feb 9). Drivers should see improved flow on this key artery compared to last week.",
       "category": "traffic",
-      "published_date": "2026-02-10"
+      "published_date": "2026-02-09"
     },
     {
-      "title": "Concert at House of Blues Dallas",
-      "impact": "medium",
-      "summary": "Pop artist Ruel performs tonight at the House of Blues (White Swan Building). Doors typically open around 6:00 PM with the show at 7:00 PM. Expect pickup demand in the Victory Park/Downtown area late tonight.",
-      "category": "event",
-      "published_date": "2026-02-10"
-    },
-    {
-      "title": "Mild Weather & Driving Conditions",
+      "title": "Concert Demand: Ruel at House of Blues",
       "impact": "low",
-      "summary": "Forecasts for Tuesday show cloudy skies with a high near 74°F and a 20% chance of rain. Driving conditions are generally good, a significant improvement from the recent winter weather. No ice or severe weather impacts are expected today.",
-      "category": "weather",
+      "summary": "Artist Ruel performs tonight at the House of Blues in Dallas. Expect surge pricing and increased ride requests in the Victory Park/Downtown Dallas area before and after the show.",
+      "category": "event",
       "published_date": "2026-02-10"
     }
   ],
@@ -87,7 +87,7 @@ NEWS (5 items):
 
 WEATHER_CURRENT:
 {
-  "tempC": 21,
+  "tempC": 20,
   "tempF": 69,
   "country": "US",
   "uvIndex": 0,
@@ -98,7 +98,7 @@ WEATHER_CURRENT:
   "conditions": "Cloudy",
   "feelsLikeC": 24,
   "feelsLikeF": 75,
-  "observedAt": "2026-02-10T01:03:58.686741226Z",
+  "observedAt": "2026-02-10T01:27:19.794156718Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
@@ -126,7 +126,7 @@ WEATHER_CURRENT:
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-02-10T01:03:58.707Z",
+    "time": "2026-02-10T01:27:19.808Z",
     "tempC": 21,
     "tempF": 69,
     "tempUnit": "°F",
@@ -139,7 +139,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-02-10T02:03:58.707Z",
+    "time": "2026-02-10T02:27:19.808Z",
     "tempC": 20,
     "tempF": 68,
     "tempUnit": "°F",
@@ -152,7 +152,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-02-10T03:03:58.707Z",
+    "time": "2026-02-10T03:27:19.808Z",
     "tempC": 20,
     "tempF": 67,
     "tempUnit": "°F",
@@ -165,7 +165,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-02-10T04:03:58.707Z",
+    "time": "2026-02-10T04:27:19.808Z",
     "tempC": 19,
     "tempF": 66,
     "tempUnit": "°F",
@@ -178,7 +178,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-02-10T05:03:58.707Z",
+    "time": "2026-02-10T05:27:19.808Z",
     "tempC": 19,
     "tempF": 66,
     "tempUnit": "°F",
@@ -191,7 +191,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-02-10T06:03:58.707Z",
+    "time": "2026-02-10T06:27:19.808Z",
     "tempC": 19,
     "tempF": 66,
     "tempUnit": "°F",
@@ -207,26 +207,26 @@ WEATHER_FORECAST (6 hours):
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 30,
+  "jams": 22,
   "stats": {
-    "jams": 30,
-    "major": 22,
-    "total": 44,
+    "jams": 22,
+    "major": 14,
+    "total": 35,
     "closures": 10,
-    "highways": 28,
+    "highways": 16,
     "accidents": 0,
-    "construction": 4
+    "construction": 3
   },
-  "summary": "Frisco is experiencing heavy congestion, primarily driven by a massive 28-minute delay on I-35E Southbound 9.5 miles away and multiple clusters of jams along the FM-1385/US-380 corridor. Preston Road (TX-289) is also seeing delays near Eldorado Parkway, impacting north-south movement. Drivers should prioritize local Frisco trips or routes heading south toward Plano to avoid the gridlock developing to the west and northwest.",
+  "summary": "Frisco is experiencing heavy congestion with 35 active incidents, most notably a massive 27-minute delay on TX-289 (Preston Rd) 5.7 miles away. Critical closures on FM-720 and the Dallas North Tollway South entrance at Dallas Pkwy will severely hinder north-south transit. Drivers should avoid the US-380 corridor entirely and focus on short-haul trips within central Frisco to maintain efficiency.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion, primarily driven by a massive 28-minute delay on I-35E Southbound 9.5 miles away and multiple clusters of jams along the FM-1385/US-380 corridor. Preston Road (TX-289) is also seeing delays near Eldorado Parkway, impacting north-south movement. Drivers should prioritize local Frisco trips or routes heading south toward Plano to avoid the gridlock developing to the west and northwest.",
+  "briefing": "Frisco is experiencing heavy congestion with 35 active incidents, most notably a massive 27-minute delay on TX-289 (Preston Rd) 5.7 miles away. Critical closures on FM-720 and the Dallas North Tollway South entrance at Dallas Pkwy will severely hinder north-south transit. Drivers should avoid the US-380 corridor entirely and focus on short-haul trips within central Frisco to maintain efficiency.",
   "closures": [
     {
       "road": "",
-      "location": "Lamar Hunt Way to FM-720",
+      "location": "FM-720 to Lamar Hunt Way",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3
+      "distanceFromDriver": 2.9
     },
     {
       "road": "",
@@ -247,7 +247,7 @@ TRAFFIC_CONDITIONS:
       "location": "Dallas Pkwy to Dallas North Tollway S",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 5
+      "distanceFromDriver": 5.1
     },
     {
       "road": "",
@@ -279,7 +279,7 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Main St / N Hook St to Lakewood Dr",
+      "location": "Lakewood Dr to Main St / N Hook St",
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 8.1
@@ -292,151 +292,152 @@ TRAFFIC_CONDITIONS:
       "distanceFromDriver": 6.6
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion, primarily driven by a massive 28-minute delay on I-35E Southbound 9.",
+  "headline": "Frisco is experiencing heavy congestion with 35 active incidents, most notably a massive 27-minute delay on TX-289 (Preston Rd) 5.",
   "provider": "tomtom",
-  "fetchedAt": "2026-02-10T01:03:58.880Z",
+  "fetchedAt": "2026-02-10T01:27:19.957Z",
   "incidents": [
     {
-      "road": "US-77 S, I-35E S, Stemmons Fwy",
+      "road": "TX-289",
       "category": "Jam",
-      "location": "FM-2181/Exit 458 (I-35E) to Copperas Branch Rd/Exit 454B (I-35E)",
-      "priority": 183,
+      "location": "US-380 (Preston Rd/TX-289) to CR-711/Eldorado Pkwy (Preston Rd/TX-289)",
+      "priority": 172,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: US-77 S, I-35E S, Stemmons Fwy (FM-2181/Exit 458 (I-35E) to Copperas Branch Rd/Exit 454B (I-35E)) [9.5 mi]",
-      "lengthMiles": 2.4,
-      "delayMinutes": 28,
-      "distanceFromDriver": 9.5
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Copperas Branch Rd (I-35E Frontage) to N Garden Ridge Blvd (I-35E Frontage)",
-      "priority": 161,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Copperas Branch Rd (I-35E Frontage) to N Garden Ridge Blvd (I-35E Frontage) [9.2 mi]",
-      "lengthMiles": 0.6,
-      "delayMinutes": 6,
-      "distanceFromDriver": 9.2
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Pilot Point-Aubrey to FM-1385",
-      "priority": 160,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Pilot Point-Aubrey to FM-1385 [6.4 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 5,
-      "distanceFromDriver": 6.4
+      "description": "Jam: TX-289 (US-380 (Preston Rd/TX-289) to CR-711/Eldorado Pkwy (Preston Rd/TX-289)) [5.7 mi]",
+      "lengthMiles": 0.7,
+      "delayMinutes": 27,
+      "distanceFromDriver": 5.7
     },
     {
       "road": "",
       "category": "Jam",
       "location": "Denton Way to FM-1385",
-      "priority": 160,
+      "priority": 161,
       "severity": "high",
       "isHighway": true,
       "description": "Jam: Denton Way to FM-1385 [7.7 mi]",
       "lengthMiles": 0.2,
-      "delayMinutes": 5,
+      "delayMinutes": 6,
       "distanceFromDriver": 7.7
     },
     {
-      "road": "FM-1385",
+      "road": "",
       "category": "Jam",
-      "location": "US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)",
+      "location": "Copperas Branch Rd (I-35E Frontage) to N Garden Ridge Blvd (I-35E Frontage)",
       "priority": 159,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: FM-1385 (US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)) [6.7 mi]",
-      "lengthMiles": 0.5,
+      "description": "Jam: Copperas Branch Rd (I-35E Frontage) to N Garden Ridge Blvd (I-35E Frontage) [9.2 mi]",
+      "lengthMiles": 0.6,
       "delayMinutes": 4,
-      "distanceFromDriver": 6.7
+      "distanceFromDriver": 9.2
     },
     {
-      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
+      "road": "",
       "category": "Jam",
-      "location": "FM-2181/Swisher Rd (Texpress Lanes/I-35) to FM-407/Lake Park Rd (Texpress Lanes/I-35)",
-      "priority": 157,
+      "location": "US-380 E to US-380 E",
+      "priority": 148,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: I-35E N, US-77 S, US-77 N, I-35E S (FM-2181/Swisher Rd (Texpress Lanes/I-35) to FM-407/Lake Park Rd (Texpress Lanes/I-35)) [9 mi]",
-      "lengthMiles": 0.4,
-      "delayMinutes": 2,
+      "description": "Jam: US-380 E to US-380 E [9 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 3,
       "distanceFromDriver": 9
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "W College St (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage)",
-      "priority": 157,
+      "location": "E University Dr to US-380 E",
+      "priority": 147,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: W College St (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage) [9.5 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 2,
-      "distanceFromDriver": 9.5
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Lewisville-Flower Mound to S Stemmons Fwy",
-      "priority": 154,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Lewisville-Flower Mound to S Stemmons Fwy [9.5 mi]",
+      "description": "Jam: E University Dr to US-380 E [6.1 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 4,
+      "delayMinutes": 2,
+      "distanceFromDriver": 6.1
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "FM-720 to Lamar Hunt Way",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: FM-720 to Lamar Hunt Way [2.9 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0,
+      "distanceFromDriver": 2.9
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "FM-720 to FM-720",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: FM-720 to FM-720 [3.2 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 0,
+      "distanceFromDriver": 3.2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Lewisville-Flower Mound to S Charles St",
+      "priority": 138,
+      "severity": "medium",
+      "isHighway": true,
+      "description": "Jam: Lewisville-Flower Mound to S Charles St [9.5 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 3,
       "distanceFromDriver": 9.5
     },
     {
-      "road": "",
-      "category": "Jam",
-      "location": "S Stemmons Fwy to Highland Village Rd",
-      "priority": 149,
-      "severity": "high",
+      "road": "FM-1171",
+      "category": "Road Works",
+      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
+      "priority": 135,
+      "severity": "low",
       "isHighway": true,
-      "description": "Jam: S Stemmons Fwy to Highland Village Rd [8.9 mi]",
-      "lengthMiles": 1.1,
-      "delayMinutes": 9,
-      "distanceFromDriver": 8.9
+      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.7
     },
     {
-      "road": "",
-      "category": "Jam",
-      "location": "S Stemmons Fwy to US-77 S",
-      "priority": 148,
-      "severity": "high",
+      "road": "US-380 E",
+      "category": "Road Works",
+      "location": "US-377 (US-380) to FM-2931 (US-380)",
+      "priority": 135,
+      "severity": "low",
       "isHighway": true,
-      "description": "Jam: S Stemmons Fwy to US-77 S [9.1 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 3,
-      "distanceFromDriver": 9.1
+      "description": "Road Works: US-380 E (US-377 (US-380) to FM-2931 (US-380)) [8.9 mi]",
+      "lengthMiles": 0.5,
+      "delayMinutes": 0,
+      "distanceFromDriver": 8.9
     }
   ],
   "keyIssues": [
-    "I-35E S (Stemmons Fwy) jam 9.5mi away - Major 28min delay near Exit 458",
-    "FM-1385/US-380 corridor 6.4mi away - Multiple major jams with 4-5min delays",
-    "TX-289 (Preston Rd) at Eldorado 5.5mi away - 3min delay affecting central Frisco"
+    "TX-289 (Preston Rd) jam 5.7mi away - 27min delay between US-380 and Eldorado Pkwy",
+    "Dallas Pkwy to DNT South closure 5.1mi away - restricted highway access",
+    "US-380 corridor multiple jams/works 6.1-9mi away - significant east-west bottlenecks"
   ],
   "avoidAreas": [
-    "I-35E Southbound corridor: Major bottleneck 9.5mi away causing nearly 30-minute delays",
-    "FM-1385 and US-380 West: Clustered local jams 6-8mi away making westward transit inefficient"
+    "Preston Rd (TX-289) North: Major 27min delay 5.7 miles away",
+    "US-380 Corridor: Multiple roadworks and closures between 6-9 miles out",
+    "FM-720 near Lamar Hunt Way: Road closures 2.9 miles away"
   ],
-  "safetyAlert": "30 active traffic jams in the area",
-  "driverImpact": "Decline long-haul requests toward Lewisville or Denton due to I-35E gridlock; focus on high-frequency short trips within Frisco or south toward the Legacy West/Plano area.",
+  "safetyAlert": "22 active traffic jams in the area",
+  "driverImpact": "Rideshare profitability is threatened by extreme delays on Preston Rd and restricted DNT access; prioritize local pickups in central/east Frisco and decline long-haul trips heading north toward US-380.",
   "surgePricing": true,
   "closuresCount": 10,
   "repositioning": null,
-  "incidentsCount": 44,
-  "totalIncidents": 44,
-  "closuresSummary": "0 closures within 10mi, most critical: None",
+  "incidentsCount": 35,
+  "totalIncidents": 35,
+  "closuresSummary": "4 closures within 10mi, most critical: Dallas Pkwy to DNT South and FM-720 at Lamar Hunt Way.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "No significant construction reported, though heavy congestion on FM-1385 and US-380 suggests high-volume bottlenecks or unreported work zones."
+  "constructionSummary": "Significant roadworks active on US-380 (both directions) and FM-1171, causing unpredictable flow near the 7-9 mile radius."
 }
 
 EVENTS (13 total):
@@ -474,23 +475,6 @@ EVENTS (13 total):
     "event_end_time": "20:30",
     "event_start_date": "2026-02-10",
     "event_start_time": "18:00"
-  },
-  {
-    "title": "SIX the Musical",
-    "venue": "Bass Performance Hall",
-    "impact": "high",
-    "address": "525 Commerce St, Fort Worth, TX 76102",
-    "subtype": "concert",
-    "summary": "SIX the Musical • Bass Performance Hall • 2026-02-10 • 19:30",
-    "latitude": null,
-    "location": "Bass Performance Hall, 525 Commerce St, Fort Worth, TX 76102",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-10",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-10",
-    "event_start_time": "19:30"
   },
   {
     "title": "Ruel - Kicking My Feet Tour",
@@ -574,6 +558,23 @@ EVENTS (13 total):
     "event_type": "nightlife",
     "event_end_date": "2026-02-10",
     "event_end_time": "21:30",
+    "event_start_date": "2026-02-10",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "SIX the Musical",
+    "venue": "Bass Performance Hall",
+    "impact": "high",
+    "address": "525 Commerce St, Fort Worth, TX 76102",
+    "subtype": "concert",
+    "summary": "SIX the Musical • Bass Performance Hall • 2026-02-10 • 19:30",
+    "latitude": null,
+    "location": "Bass Performance Hall, 525 Commerce St, Fort Worth, TX 76102",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-10",
+    "event_end_time": "21:00",
     "event_start_date": "2026-02-10",
     "event_start_time": "19:30"
   },
@@ -784,8 +785,8 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor delays. Gate hold and taxi delays of 15 minutes or less reported. Airborne delays for arrivals averaging 15 minutes.",
-      "status": "normal",
+      "delays": "Gate hold and taxi delays of 15 minutes or less reported. General departure and arrival traffic is flowing, but expect minor congestion during peak windows.",
+      "status": "delays",
       "busyTimes": [
         "05:00 AM - 08:00 AM",
         "04:00 PM - 07:00 PM"
@@ -794,33 +795,33 @@ AIRPORT_CONDITIONS:
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Normal operations. General departure and arrival delays of 15 minutes or less.",
+      "delays": "Normal operations. No significant delays reported; security wait times are approximately 10-20 minutes.",
       "status": "normal",
       "busyTimes": [
-        "07:00 AM - 09:00 AM",
-        "03:00 PM - 06:00 PM"
+        "06:00 AM - 09:00 AM",
+        "03:00 PM - 07:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-02-10T01:04:34.382Z",
+  "fetchedAt": "2026-02-10T01:28:04.849Z",
   "busyPeriods": [
-    "Morning rush (5:00 AM - 9:00 AM) due to business travel departures.",
-    "Late afternoon/evening (4:00 PM - 7:00 PM) for daily peak arrivals and departures."
+    "Tuesday Morning Rush: High volume of business travelers expected at both airports between 5:00 AM and 9:00 AM.",
+    "Evening Peak: Arrivals and departures increase significantly from 4:00 PM to 7:00 PM."
   ],
-  "recommendations": "For DFW pickups, drivers must wait in the Terminal B infield lot (or Terminal E infield lot after 6 PM). Passengers are directed to lower-level 'Ride App Pickup' zones. For DAL, the designated pickup area is located in Garage C, Level 1 (Valet Lot); drivers must enter the FIFO queue to receive requests. Expect high demand during the 4-7 PM window."
+  "recommendations": "For DFW: Drivers should use the specific 'Ride App Pickup' zones located on the lower level (Arrivals) of each terminal. The Uber app now provides walking directions for passengers, so ensure you are at the correct terminal zone (e.g., E15, C20). \n\nFor DAL: All rideshare pickups are consolidated at the Valet Pavilion / Garage C (Level 1). Passengers often find the walk long (approx. 10-15 mins from baggage claim), so be patient. Traffic on Herb Kelleher Way can back up during the evening rush; consider arriving slightly early to secure a spot in the FIFO queue."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: 5b3328f1-85a6-4c07-94f3-615736fef703
-snapshot_id: 5425f9da-08ce-4fd3-942e-46e06b0c1d3a
+id: 6811aa03-eeec-45a1-a06e-50312cda9399
+snapshot_id: 346db534-5d32-4c62-a8f8-699c1520aeda
 status: pending
 error_message: (none)
-created_at: Tue Feb 10 2026 01:03:58 GMT+0000 (Coordinated Universal Time)
-updated_at: Tue Feb 10 2026 01:05:06 GMT+0000 (Coordinated Universal Time)
+created_at: Tue Feb 10 2026 01:27:19 GMT+0000 (Coordinated Universal Time)
+updated_at: Tue Feb 10 2026 01:29:00 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
