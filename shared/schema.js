@@ -911,16 +911,18 @@ export const driver_profiles = pgTable("driver_profiles", {
   last_name: text("last_name").notNull(),
   driver_nickname: text("driver_nickname"), // Custom greeting name (defaults to first_name if null)
   email: text("email").notNull().unique(),
-  phone: text("phone").notNull(),
+  // 2026-02-13: Made nullable for Google OAuth sign-up (user completes profile later)
+  phone: text("phone"),
 
   // 2026-02-13: Google OAuth subject ID (permanent, unique per Google account)
   google_id: text("google_id").unique(),
 
-  // Address
-  address_1: text("address_1").notNull(),
+  // Address - nullable for Google OAuth sign-up (user completes profile later)
+  // 2026-02-13: Made nullable to support OAuth-only registration
+  address_1: text("address_1"),
   address_2: text("address_2"),
-  city: text("city").notNull(),
-  state_territory: text("state_territory").notNull(),
+  city: text("city"),
+  state_territory: text("state_territory"),
   zip_code: text("zip_code"),
   country: text("country").notNull().default('US'),
 
@@ -931,7 +933,8 @@ export const driver_profiles = pgTable("driver_profiles", {
   home_timezone: text("home_timezone"), // IANA timezone for driver's home
 
   // Market selection (rideshare market area)
-  market: text("market").notNull(),
+  // 2026-02-13: Made nullable for Google OAuth sign-up (user selects market later)
+  market: text("market"),
 
   // Rideshare platforms used (jsonb array: ['uber', 'lyft', 'ridehail', 'private'])
   rideshare_platforms: jsonb("rideshare_platforms").notNull().default(sql`'["uber"]'`),
@@ -1024,8 +1027,9 @@ export const auth_credentials = pgTable("auth_credentials", {
   id: uuid("id").primaryKey().defaultRandom(),
   user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'restrict' }),
 
-  // Password (bcrypt hashed)
-  password_hash: text("password_hash").notNull(),
+  // Password (bcrypt hashed) - nullable for OAuth-only users (Google, Apple)
+  // 2026-02-13: Made nullable to support Google OAuth sign-up (no password needed)
+  password_hash: text("password_hash"),
 
   // Security
   failed_login_attempts: integer("failed_login_attempts").default(0),

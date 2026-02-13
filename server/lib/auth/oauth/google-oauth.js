@@ -20,13 +20,20 @@ const SCOPES = ['openid', 'email', 'profile'];
 
 /**
  * Get Google OAuth client credentials from environment
+ * 2026-02-13: Accepts optional baseUrl to derive redirect URI from the request.
+ * Falls back to CLIENT_URL env var, then REPLIT_DEV_DOMAIN.
+ * @param {string} [baseUrl] - Base URL from request (e.g., 'https://vectopilot.com')
  * @returns {{ clientId: string, clientSecret: string, redirectUri: string }}
  */
-function getGoogleConfig() {
+function getGoogleConfig(baseUrl) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const clientUrl = process.env.CLIENT_URL || '';
-  const redirectUri = `${clientUrl}/auth/google/callback`;
+
+  // Derive base URL: explicit param > CLIENT_URL env > REPLIT_DEV_DOMAIN
+  const resolvedBase = baseUrl
+    || process.env.CLIENT_URL
+    || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : '');
+  const redirectUri = `${resolvedBase}/auth/google/callback`;
 
   if (!clientId || !clientSecret) {
     throw new Error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required');
@@ -37,11 +44,11 @@ function getGoogleConfig() {
 
 /**
  * Build the Google OAuth consent URL
- * @param {{ state: string, mode?: string }} options
+ * @param {{ state: string, mode?: string, baseUrl?: string }} options
  * @returns {string} Google consent URL
  */
-export function getGoogleAuthUrl({ state, mode }) {
-  const { clientId, redirectUri } = getGoogleConfig();
+export function getGoogleAuthUrl({ state, mode, baseUrl }) {
+  const { clientId, redirectUri } = getGoogleConfig(baseUrl);
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -62,10 +69,11 @@ export function getGoogleAuthUrl({ state, mode }) {
 /**
  * Exchange authorization code for tokens
  * @param {string} code - Authorization code from Google callback
+ * @param {string} [baseUrl] - Base URL to derive redirect URI (must match what was used in auth URL)
  * @returns {Promise<{ access_token: string, id_token: string, refresh_token?: string, expires_in: number }>}
  */
-export async function exchangeGoogleCode(code) {
-  const { clientId, clientSecret, redirectUri } = getGoogleConfig();
+export async function exchangeGoogleCode(code, baseUrl) {
+  const { clientId, clientSecret, redirectUri } = getGoogleConfig(baseUrl);
 
   const response = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',

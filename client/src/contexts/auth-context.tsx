@@ -13,6 +13,8 @@ import type {
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 // 2026-01-15: Centralized API routes
 import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-02-13: Cancel active queries on logout to prevent 401 race condition
+import { queryClient } from '@/lib/queryClient';
 
 interface AuthContextValue extends AuthState {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
@@ -176,6 +178,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // 2026-02-13: Cancel all active queries FIRST to prevent 401 race condition.
+    // Without this, in-flight queries get 401 after token is cleared,
+    // which triggers setCriticalError (red FAIL HARD screen) during logout.
+    queryClient.cancelQueries();
+    queryClient.clear();
+
     try {
       if (state.token) {
         await fetch(API_ROUTES.AUTH.LOGOUT, {
