@@ -1,4 +1,33 @@
 
+## 2026-02-13: Logout Race Condition — Cancel Queries Before Clearing Auth Token
+
+- **Symptom:** Clicking logout redirected to sign-in page, but immediately showed the red FAIL HARD (CriticalError) screen before the user could log back in.
+- **Root Cause:** React Query keeps background queries running independently of component lifecycle. When `logout()` cleared the auth token, React didn't instantly unmount the protected `CoPilotContext` and `GlobalHeader` components. During that render-cycle delay, in-flight queries (location polling, strategy fetching) fired with the now-invalid token, received 401 responses, and triggered `setCriticalError()` — the blocking error modal.
+- **Fix:** Call `queryClient.cancelQueries()` and `queryClient.clear()` at the **top** of `logout()`, BEFORE clearing the token or calling the server. This aborts all in-flight HTTP requests immediately so no stale 401 callbacks can fire.
+- **File:** `client/src/contexts/auth-context.tsx`
+- **Lesson:** Any app with background polling behind authentication MUST cancel all active queries as the first step of logout. The order matters: cancel queries → call server → clear local state. If you clear the token first, every in-flight request becomes an error.
+
+## 2026-02-13: SPA Route Changes Require Client Rebuild
+
+- **Symptom:** After adding new routes to `routes.tsx` (Google OAuth callback), the app showed a flashing screen and "Cannot GET /co-pilot/strategy" errors.
+- **Root Cause:** In a single-page app served by Express, the server has a catch-all route that serves `index.html` for any non-API path. React Router then handles client-side routing. When new routes were added to `routes.tsx` but the client wasn't rebuilt, the old JavaScript bundle's React Router didn't know about the new paths — causing redirect loops as the SPA and server disagreed about valid routes.
+- **Fix:** Run `npx vite build` after any route changes. The new bundle hash confirms the rebuild took effect.
+- **Lesson:** Route changes in a React SPA are code changes, not config changes. They live in the compiled JavaScript bundle, not in the server. Always rebuild after modifying `routes.tsx`.
+
+## 2026-02-13: GitHub Push Protection — Never Commit .env Files
+
+- **Symptom:** `git push` was rejected with `PUSH_REJECTED` error. The Replit Git panel showed a misleading "remote has commits that aren't in the local repository" message.
+- **Root Cause:** GitHub's Push Protection (secret scanning) detected OpenAI and Anthropic API keys in `.env_override` which was accidentally staged by the Replit Git panel commit. The actual error was `GH013: Repository rule violations — Push cannot contain secrets`.
+- **Fix:** Soft-reset the commit, unstaged `.env_override`, re-committed without it, and added `.env_override` to `.gitignore` to prevent recurrence.
+- **Lesson:** (1) Replit's Git panel `PUSH_REJECTED` message doesn't distinguish between divergence and secret scanning blocks — always check the actual error from the shell. (2) Any file matching `.env*` should be in `.gitignore`. (3) API keys belong in Replit Secrets or environment variables, never in committed files.
+
+## 2026-02-13: OAuth Callbacks Must Be Public Routes
+
+- **Symptom:** Google OAuth redirect URI was initially set to `/co-pilot/strategy` — a `<ProtectedRoute>` page.
+- **Root Cause:** When a user returns from Google's consent screen, they are NOT authenticated in the app yet (the whole point of the OAuth flow is to authenticate them). If the callback URL is a protected route, `ProtectedRoute` detects `isAuthenticated: false` and redirects to `/auth/sign-in`, discarding the OAuth authorization code from the URL.
+- **Fix:** Created a dedicated public route `/auth/google/callback` with `<GoogleCallbackPage />` (no `ProtectedRoute` wrapper). This page extracts the code/state from the URL, exchanges it with the server for an app token, then redirects to the protected area.
+- **Lesson:** OAuth callback routes must ALWAYS be public. The authentication happens DURING the callback, not before it. This applies to all OAuth providers (Google, Apple, Uber, etc.).
+
 ## 2026-02-13: Adapter Pattern Hardening — 8 Direct API Calls Eliminated
 
 - **Symptom:** 8 files called `callGemini()`/`callOpenAI()`/`callAnthropic()` directly instead of `callModel(role)`, bypassing the hedged router and fallback system.

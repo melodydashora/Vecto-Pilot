@@ -530,9 +530,16 @@ const GlobalHeaderComponent: React.FC = () => {
               title="Log out"
               aria-label="Log out"
               data-testid="button-logout"
-              onClick={async () => {
-                await logout();
-                navigate('/auth/sign-in');
+              onClick={() => {
+                // Clear critical error FIRST to prevent flash of red screen during logout
+                setCriticalError(null);
+                logout().then(() => {
+                  navigate('/auth/sign-in');
+                }).catch((err) => {
+                  console.error('[logout] Logout failed:', err);
+                  localStorage.removeItem('auth_token');
+                  navigate('/auth/sign-in');
+                });
               }}
             >
               <LogOut className="h-5 w-5" />

@@ -562,6 +562,15 @@ router.post('/login', async (req, res) => {
 
     authLog.phase(1, `Found credentials for: ${email} (hash length: ${creds.password_hash?.length || 0})`);
 
+    // 2026-02-13: OAuth-only users have null password_hash — cannot log in with password
+    if (!creds.password_hash) {
+      authLog.warn(1, `OAuth-only account attempted password login: ${email}`);
+      return res.status(401).json({
+        error: 'OAUTH_ONLY',
+        message: 'This account uses Google Sign-In. Please use the Google button to log in.'
+      });
+    }
+
     // Check if account is locked
     if (creds.locked_until && new Date(creds.locked_until) > new Date()) {
       return res.status(423).json({
@@ -1285,9 +1294,11 @@ router.get('/google', async (req, res) => {
       expires_at: expiresAt,
     });
 
-    // Build Google consent URL and redirect
-    const authUrl = getGoogleAuthUrl({ state, mode: req.query.mode });
-    authLog.phase(1, `Google OAuth initiated (mode: ${req.query.mode || 'login'})`);
+    // 2026-02-13: Derive base URL for redirect_uri.
+    // Priority: CLIENT_URL env > request origin (handles both dev and prod)
+    const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
+    const authUrl = getGoogleAuthUrl({ state, mode: req.query.mode, baseUrl });
+    authLog.phase(1, `Google OAuth initiated (mode: ${req.query.mode || 'login'}, redirectBase: ${baseUrl})`);
     res.redirect(authUrl);
   } catch (err) {
     authLog.error(1, 'Google OAuth initiation failed', err);
@@ -1335,8 +1346,10 @@ router.post('/google/exchange', async (req, res) => {
     await db.delete(oauth_states).where(eq(oauth_states.id, storedState.id));
 
     // 2. Exchange authorization code for tokens
-    authLog.phase(1, 'Google OAuth: exchanging code for tokens');
-    const tokens = await exchangeGoogleCode(code);
+    // 2026-02-13: baseUrl must match exactly what was used in the auth URL
+    const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
+    authLog.phase(1, `Google OAuth: exchanging code for tokens (redirectBase: ${baseUrl})`);
+    const tokens = await exchangeGoogleCode(code, baseUrl);
 
     if (!tokens.id_token) {
       throw new Error('Google did not return an ID token');
@@ -1355,25 +1368,79 @@ router.post('/google/exchange', async (req, res) => {
       )
     });
 
-    if (!profile) {
-      // No account found - Phase 1 only supports existing users
-      authLog.warn(1, `Google OAuth: no account found for ${googleUser.email}`);
-      return res.status(404).json({
-        ok: false,
-        error: 'NO_ACCOUNT',
-        message: 'No account found with this email. Please sign up first, then you can log in with Google.'
-      });
-    }
+    // 2026-02-13: Google OAuth supports both login AND sign-up
+    let activeProfile = profile;
 
-    // 5. Link Google ID if not already set (first Google login for email/password user)
-    if (!profile.google_id) {
-      await db.update(driver_profiles)
-        .set({
-          google_id: googleUser.sub,
-          updated_at: new Date()
-        })
-        .where(eq(driver_profiles.id, profile.id));
-      authLog.phase(1, `Google OAuth: linked Google ID to existing user ${profile.email}`);
+    if (!profile) {
+      // ═══════════════════════════════════════════════════════════════════
+      // NEW ACCOUNT — Create minimal profile from Google data
+      // profile_complete: false → user can complete address/vehicle later
+      // ═══════════════════════════════════════════════════════════════════
+      authLog.phase(1, `Google OAuth: creating new account for ${googleUser.email}`);
+
+      const newUserId = crypto.randomUUID();
+      const newDeviceId = `web-${crypto.randomUUID().substring(0, 8)}`;
+      const newSessionId = crypto.randomUUID();
+      const now = new Date();
+
+      // Create users row (session)
+      await db.insert(users).values({
+        user_id: newUserId,
+        device_id: newDeviceId,
+        session_id: newSessionId,
+        current_snapshot_id: null,
+        session_start_at: now,
+        last_active_at: now,
+        created_at: now,
+        updated_at: now
+      });
+
+      // Create driver_profiles row (identity) with Google-provided data
+      const [newProfile] = await db.insert(driver_profiles).values({
+        user_id: newUserId,
+        first_name: googleUser.given_name || googleUser.name.split(' ')[0] || 'Driver',
+        last_name: googleUser.family_name || googleUser.name.split(' ').slice(1).join(' ') || '',
+        driver_nickname: googleUser.given_name || googleUser.name.split(' ')[0] || null,
+        email: googleUser.email.toLowerCase(),
+        google_id: googleUser.sub,
+        // Fields user must complete later (nullable since 2026-02-13)
+        phone: null,
+        address_1: null,
+        city: null,
+        state_territory: null,
+        market: null,
+        // Email is verified by Google
+        email_verified: true,
+        profile_complete: false,
+        terms_accepted: true,
+        terms_accepted_at: now,
+        terms_version: '1.0',
+      }).returning();
+
+      // Create auth_credentials row WITHOUT password (Google-only user)
+      await db.insert(auth_credentials).values({
+        user_id: newUserId,
+        password_hash: null, // OAuth-only: no password
+        last_login_at: now,
+      });
+
+      activeProfile = newProfile;
+      authLog.done(1, `Google OAuth: new account created for ${googleUser.email} (profile_complete: false)`);
+    } else {
+      // ═══════════════════════════════════════════════════════════════════
+      // EXISTING ACCOUNT — Link Google ID if needed, update session
+      // ═══════════════════════════════════════════════════════════════════
+
+      // 5. Link Google ID if not already set (first Google login for email/password user)
+      if (!activeProfile.google_id) {
+        await db.update(driver_profiles)
+          .set({
+            google_id: googleUser.sub,
+            updated_at: new Date()
+          })
+          .where(eq(driver_profiles.id, activeProfile.id));
+        authLog.phase(1, `Google OAuth: linked Google ID to existing user ${activeProfile.email}`);
+      }
     }
 
     // 6. Create/update session (same upsert pattern as login endpoint)
@@ -1381,7 +1448,7 @@ router.post('/google/exchange', async (req, res) => {
     const now = new Date();
 
     const existingUser = await db.query.users.findFirst({
-      where: eq(users.user_id, profile.user_id)
+      where: eq(users.user_id, activeProfile.user_id)
     });
 
     if (existingUser) {
@@ -1394,10 +1461,10 @@ router.post('/google/exchange', async (req, res) => {
           last_active_at: now,
           updated_at: now
         })
-        .where(eq(users.user_id, profile.user_id));
+        .where(eq(users.user_id, activeProfile.user_id));
     } else {
       await db.insert(users).values({
-        user_id: profile.user_id,
+        user_id: activeProfile.user_id,
         device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
         session_id: newSessionId,
         current_snapshot_id: null,
@@ -1409,67 +1476,68 @@ router.post('/google/exchange', async (req, res) => {
     }
 
     // 7. Generate app token
-    const token = generateAuthToken(profile.user_id, profile.email);
+    const token = generateAuthToken(activeProfile.user_id, activeProfile.email);
 
-    // 8. Fetch vehicle for response
+    // 8. Fetch vehicle for response (may be null for new Google users)
     const vehicle = await db.query.driver_vehicles.findFirst({
       where: and(
-        eq(driver_vehicles.driver_profile_id, profile.id),
+        eq(driver_vehicles.driver_profile_id, activeProfile.id),
         eq(driver_vehicles.is_primary, true)
       )
     });
 
-    authLog.done(1, `Google OAuth login: ${profile.email}`);
+    authLog.done(1, `Google OAuth: ${activeProfile.email} (${profile ? 'existing' : 'new'} account)`);
 
     // Return same structure as /login for auth context compatibility
     res.json({
       ok: true,
       token,
+      isNewUser: !profile, // Let client know this is a new sign-up
       user: {
-        userId: profile.user_id,
-        email: profile.email
+        userId: activeProfile.user_id,
+        email: activeProfile.email
       },
       profile: {
-        id: profile.id,
-        userId: profile.user_id,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        nickname: profile.driver_nickname || profile.first_name,
-        email: profile.email,
-        phone: profile.phone,
-        address1: profile.address_1,
-        address2: profile.address_2,
-        city: profile.city,
-        stateTerritory: profile.state_territory,
-        zipCode: profile.zip_code,
-        country: profile.country,
-        market: profile.market,
-        ridesharePlatforms: profile.rideshare_platforms || [],
-        homeLat: profile.home_lat,
-        homeLng: profile.home_lng,
-        homeTimezone: profile.home_timezone,
-        homeFormattedAddress: profile.home_formatted_address,
-        eligEconomy: profile.elig_economy ?? true,
-        eligXl: profile.elig_xl || false,
-        eligXxl: profile.elig_xxl || false,
-        eligComfort: profile.elig_comfort || false,
-        eligLuxurySedan: profile.elig_luxury_sedan || false,
-        eligLuxurySuv: profile.elig_luxury_suv || false,
-        attrElectric: profile.attr_electric || false,
-        attrGreen: profile.attr_green || false,
-        attrWav: profile.attr_wav || false,
-        attrSki: profile.attr_ski || false,
-        attrCarSeat: profile.attr_car_seat || false,
-        prefPetFriendly: profile.pref_pet_friendly || false,
-        prefTeen: profile.pref_teen || false,
-        prefAssist: profile.pref_assist || false,
-        prefShared: profile.pref_shared || false,
-        marketingOptIn: profile.marketing_opt_in || false,
-        termsAccepted: profile.terms_accepted || false,
-        emailVerified: profile.email_verified || false,
-        phoneVerified: profile.phone_verified || false,
-        profileComplete: profile.profile_complete || false,
-        createdAt: profile.created_at
+        id: activeProfile.id,
+        userId: activeProfile.user_id,
+        firstName: activeProfile.first_name,
+        lastName: activeProfile.last_name,
+        nickname: activeProfile.driver_nickname || activeProfile.first_name,
+        email: activeProfile.email,
+        phone: activeProfile.phone,
+        address1: activeProfile.address_1,
+        address2: activeProfile.address_2,
+        city: activeProfile.city,
+        stateTerritory: activeProfile.state_territory,
+        zipCode: activeProfile.zip_code,
+        country: activeProfile.country,
+        market: activeProfile.market,
+        ridesharePlatforms: activeProfile.rideshare_platforms || [],
+        homeLat: activeProfile.home_lat,
+        homeLng: activeProfile.home_lng,
+        homeTimezone: activeProfile.home_timezone,
+        homeFormattedAddress: activeProfile.home_formatted_address,
+        eligEconomy: activeProfile.elig_economy ?? true,
+        eligXl: activeProfile.elig_xl || false,
+        eligXxl: activeProfile.elig_xxl || false,
+        eligComfort: activeProfile.elig_comfort || false,
+        eligLuxurySedan: activeProfile.elig_luxury_sedan || false,
+        eligLuxurySuv: activeProfile.elig_luxury_suv || false,
+        attrElectric: activeProfile.attr_electric || false,
+        attrGreen: activeProfile.attr_green || false,
+        attrWav: activeProfile.attr_wav || false,
+        attrSki: activeProfile.attr_ski || false,
+        attrCarSeat: activeProfile.attr_car_seat || false,
+        prefPetFriendly: activeProfile.pref_pet_friendly || false,
+        prefTeen: activeProfile.pref_teen || false,
+        prefAssist: activeProfile.pref_assist || false,
+        prefShared: activeProfile.pref_shared || false,
+        marketingOptIn: activeProfile.marketing_opt_in || false,
+        termsAccepted: activeProfile.terms_accepted || false,
+        emailVerified: activeProfile.email_verified || false,
+        phoneVerified: activeProfile.phone_verified || false,
+        profileComplete: activeProfile.profile_complete || false,
+        createdAt: activeProfile.created_at
       },
       vehicle: vehicle ? {
         id: vehicle.id,
