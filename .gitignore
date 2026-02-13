@@ -43,6 +43,12 @@ node_modules
 .env
 .env.local
 .env.*.local/
+.env_override
+
+# Temp analysis files
+GEMINIANALYSIS.md
+GEMINIMEMORY.md
+all_files.txt
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
