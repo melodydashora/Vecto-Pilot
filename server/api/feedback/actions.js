@@ -5,7 +5,8 @@ import { actions, snapshots, rankings, venue_catalog, venue_metrics } from '../.
 import { desc, eq, sql } from 'drizzle-orm';
 import crypto from 'crypto'; // Ensure crypto is imported
 // 2026-01-09: Added optionalAuth to properly derive user_id from JWT
-import { optionalAuth } from '../../middleware/auth.js';
+// 2026-02-12: Upgraded to requireAuth - anonymous users no longer exist
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
 
@@ -28,7 +29,8 @@ setInterval(cleanExpiredKeys, 60000);
 // POST /api/actions
 // Log user actions (clicks, dwells, views) for ML training
 // 2026-01-09: Added optionalAuth middleware to derive user_id from JWT (not request body)
-router.post('/', optionalAuth, validate(schemas.action), async (req, res) => {
+// 2026-02-12: Upgraded to requireAuth - all users must be authenticated (no anonymous access)
+router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
   try {
     const {
       ranking_id,
@@ -43,7 +45,8 @@ router.post('/', optionalAuth, validate(schemas.action), async (req, res) => {
 
     // 2026-01-09: SECURITY FIX - Always use authenticated user_id from JWT
     // Never trust user_id from request body (auth contract violation)
-    const authUserId = req.auth?.userId || null;
+    // 2026-02-12: requireAuth guarantees userId is always present
+    const authUserId = req.auth.userId;
 
     // Check idempotency key to prevent duplicate actions
     const idempotencyKey = req.header('X-Idempotency-Key');
@@ -91,7 +94,7 @@ router.post('/', optionalAuth, validate(schemas.action), async (req, res) => {
       created_at: new Date(),
       ranking_id: ranking_id || null,
       snapshot_id,
-      // 2026-01-09: Use authenticated user_id (null for anonymous)
+      // 2026-01-09: Use authenticated user_id from JWT (guaranteed by requireAuth)
       user_id: authUserId,
       action,
       block_id: block_id || null,

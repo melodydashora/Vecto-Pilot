@@ -28,6 +28,8 @@ import { snapshots } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+// 2026-02-12: Added requireAuth - tactical plan requires authentication
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
 
@@ -121,7 +123,7 @@ OUTPUT FORMAT (JSON only, no markdown):
  * POST /api/strategy/tactical-plan
  * Generate AI-powered tactical analysis for a specific mission
  */
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const startTime = Date.now();
 
   try {

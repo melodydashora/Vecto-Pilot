@@ -473,13 +473,14 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
           throw error;
         }
 
-        // 2026-01-06: P4-C fix - use real timezone from server or LocationContext
+        // 2026-01-06: P4-C fix - use real timezone from LocationContext (GPS-derived)
         // NEVER use hardcoded timezone (was 'America/Chicago' - violates NO FALLBACKS rule)
+        // 2026-02-13: Removed dead `data.timezone` — blocks-fast.js never returns timezone.
+        // LocationContext.timeZone is the single source of truth (derived from GPS position).
         // 2026-01-10: D-027 - Server now returns camelCase (single contract)
-        // strategy object has strategyForNow, briefing has strategyForNow
         return {
           now: data.generatedAt || new Date().toISOString(),
-          timezone: data.timezone || locationContext?.timeZone || null,
+          timezone: locationContext?.timeZone || null,
           strategy: data.strategy?.strategyForNow || data.briefing?.strategyForNow,
           pathTaken: data.pathTaken,
           refined: data.refined,

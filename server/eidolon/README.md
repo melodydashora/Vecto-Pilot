@@ -26,7 +26,7 @@ eidolon/
 |------|---------|
 | `config.ts` | Eidolon configuration |
 | `index.ts` | Entry point |
-| `enhanced-context.js` | Context enrichment for AI |
+| `enhanced-context.js` | Context enrichment wrapper (uses `../lib/ai/context/enhanced-context-base.js`) |
 | `policy-loader.js` | Load policy configuration |
 | `policy-middleware.js` | Policy enforcement middleware |
 

@@ -49,7 +49,7 @@ These routes require the authenticated user to be in `AGENT_ADMIN_USERS`:
 |------|---------|
 | `embed.js` | Mount agent routes and WebSocket |
 | `routes.js` | Agent API endpoints (context, memory, thread mgmt) |
-| `enhanced-context.js` | Context enrichment for AI |
+| `enhanced-context.js` | Context enrichment wrapper (uses `../lib/ai/context/enhanced-context-base.js`) |
 | `context-awareness.js` | Contextual data gathering |
 | `config-manager.js` | Agent configuration file management |
 | `agent-override-llm.js` | LLM override for agent |

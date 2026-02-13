@@ -14,6 +14,40 @@ function getClient() {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("Missing OPENAI_API_KEY in environment variables");
     }
+    
+    // MOCK FOR DEVELOPMENT/TESTING
+    if (process.env.OPENAI_API_KEY.startsWith('sk-dummy')) {
+        console.log('[OpenAI] Using MOCK client for dummy key');
+        return {
+            chat: {
+                completions: {
+                    create: async (body) => {
+                        console.log('[OpenAI Mock] Received request:', JSON.stringify(body, null, 2));
+                        return {
+                            choices: [{
+                                message: {
+                                    content: JSON.stringify({
+                                        parsed_data: {
+                                            price: 12.50,
+                                            miles: 4.2,
+                                            time_minutes: 15,
+                                            pickup: "123 Main St",
+                                            dropoff: "456 Elm St",
+                                            platform: "uber"
+                                        },
+                                        decision: "ACCEPT",
+                                        reasoning: "Price per mile is ~$3.00 which is excellent. Short pickup.",
+                                        confidence: 95
+                                    })
+                                }
+                            }]
+                        };
+                    }
+                }
+            }
+        };
+    }
+
     client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
   return client;
@@ -23,10 +57,12 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
   try {
     const openai = getClient();
     // Allow passing full messages array OR build from system/user
-    const finalMessages = messages || [
-      { role: "system", content: system },
-      { role: "user", content: user }
-    ];
+    let finalMessages = messages;
+    if (!finalMessages) {
+      finalMessages = [];
+      if (system) finalMessages.push({ role: "system", content: system });
+      if (user) finalMessages.push({ role: "user", content: user });
+    }
 
     const body = {
       model,
@@ -41,7 +77,7 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
     if (useCompletionTokens) {
       body.max_completion_tokens = maxTokens;
     } else {
-      body.max_tokens = maxTokens;
+      body['max_tokens'] = maxTokens;
     }
 
     // GPT-5 family model behavior:
@@ -96,10 +132,9 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
  */
 export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort = 'medium' }) {
   try {
-    const messages = [
-      { role: "system", content: system },
-      { role: "user", content: user }
-    ];
+    const messages = [];
+    if (system) messages.push({ role: "system", content: system });
+    if (user) messages.push({ role: "user", content: user });
 
     // Use gpt-5-search-api for web search (dedicated search model)
     // Regular gpt-5.2 doesn't support web_search tool in Chat Completions

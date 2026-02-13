@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-02-12
 
 # Middleware Module (`server/middleware/`)
 
@@ -68,8 +68,10 @@ req.auth = {
 }
 ```
 
-**Note:** `optionalAuth` exists for legacy support but is no longer used.
+**Note:** `optionalAuth` exists for legacy/agent fallback but should NOT be used for new routes.
 All routes now require authentication (GPS gating enforces sign-in).
+As of 2026-02-12, all data-serving API routes use `requireAuth` — the last `optionalAuth` usage
+(in `actions.js`) was upgraded to `requireAuth`.
 
 ### Validation
 ```javascript

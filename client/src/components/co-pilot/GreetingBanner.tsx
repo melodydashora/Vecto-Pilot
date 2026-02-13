@@ -5,13 +5,17 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PartyPopper, Sun, Moon } from 'lucide-react';
 import { getGreeting } from '@/utils/co-pilot-helpers';
+import { useAuth } from '@/contexts/auth-context';
 
 interface GreetingBannerProps {
   holiday?: string | null;
 }
 
 export function GreetingBanner({ holiday }: GreetingBannerProps) {
+  const { profile } = useAuth();
   const greeting = getGreeting();
+  // 2026-02-12: Use driver's nickname, fall back to firstName, then "driver"
+  const driverName = profile?.nickname || profile?.firstName || 'driver';
 
   // Holiday banner (if holiday detected and not 'none')
   // When holiday is 'none' or falsy, show the default driver greeting
@@ -60,7 +64,7 @@ export function GreetingBanner({ holiday }: GreetingBannerProps) {
           </div>
           <div className="flex-1">
             <p className="font-bold text-gray-900 text-lg">
-              {greeting.icon} {greeting.text}, driver!
+              {greeting.icon} {greeting.text}, {driverName}!
             </p>
             <p className="text-sm text-gray-700">
               Your AI strategy is analyzing real-time conditions to maximize your earnings

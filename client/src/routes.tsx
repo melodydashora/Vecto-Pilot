@@ -21,6 +21,7 @@ import {
   TermsPage,
 } from '@/pages/auth';
 import { UberCallbackPage } from '@/pages/auth/uber/Callback';
+import { GoogleCallbackPage } from '@/pages/auth/google/Callback';
 import AuthRedirect from '@/components/auth/AuthRedirect';
 
 export const router = createBrowserRouter([
@@ -51,6 +52,12 @@ export const router = createBrowserRouter([
         <UberCallbackPage />
       </ProtectedRoute>
     ),
+  },
+
+  // 2026-02-13: Google OAuth Callback (PUBLIC - user is NOT authenticated when arriving from Google)
+  {
+    path: '/auth/google/callback',
+    element: <GoogleCallbackPage />,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

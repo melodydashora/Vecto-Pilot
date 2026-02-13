@@ -10,8 +10,7 @@ import { db } from '../../db/drizzle.js';
 import { venue_catalog } from '../../../shared/schema.js';
 import { eq, and, or } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
-// 2026-01-09: Added callGemini import - was undefined causing /api/venues/traffic to crash
-import { callGemini } from '../ai/adapters/gemini-adapter.js';
+// 2026-02-13: Removed direct callGemini import — traffic call now uses callModel('VENUE_TRAFFIC')
 import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
 import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
 // 2026-01-14: Cache First pattern - check database before calling Google Places API
@@ -613,13 +612,11 @@ Return ONLY valid JSON:
 }`;
 
   try {
-    aiLog.info(`Calling Gemini for traffic intelligence...`);
-    const result = await callGemini({
-      model: 'gemini-3-pro-preview', // Always use 3-pro-preview with google tool
+    // 2026-02-13: Uses VENUE_TRAFFIC role via callModel adapter (hedged router + fallback)
+    aiLog.info(`Calling VENUE_TRAFFIC role for traffic intelligence...`);
+    const result = await callModel('VENUE_TRAFFIC', {
       system: 'You are a traffic intelligence system. Return ONLY valid JSON with no preamble.',
-      user: prompt,
-      maxTokens: 1500,
-      temperature: 0.1
+      user: prompt
     });
 
     if (!result.ok) {

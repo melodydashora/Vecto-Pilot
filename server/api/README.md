@@ -1,3 +1,9 @@
+> **Gemini Analysis (2026-02-11):**
+> **Structure:** The API is structured by domain (`auth`, `briefing`, `strategy`, `location`, etc.) to enforce modularity.
+> **Key Pattern:** Import paths must be strictly relative (`../../lib/` or `../../../shared/`) to avoid alias issues in the server.
+> **Mount Order:** Critical endpoints (Health, Diagnostics) are mounted before authenticated API routes.
+> **Role:** Serves as the interface between the client and the TRIAD pipeline, handling validation (Zod) and request processing.
+
 > **Last Verified:** 2026-01-06
 
 # API Routes (`server/api/`)

@@ -27,12 +27,17 @@ export function normalizeTitle(title) {
  * @param {string|undefined} venue - Raw venue name
  * @returns {string} Normalized venue name
  */
-export function normalizeVenueName(venue) {
+export function cleanVenueName(venue) {
   if (!venue || typeof venue !== 'string') return '';
   // Remove address suffix if present (e.g., "Venue Name, 123 Main St")
   const parts = venue.split(',');
   return parts[0].trim();
 }
+
+/**
+ * Alias for backward compatibility (tests expect normalizeVenueName)
+ */
+export const normalizeVenueName = cleanVenueName;
 
 /**
  * Normalize date to YYYY-MM-DD format
@@ -211,7 +216,7 @@ export function normalizeEvent(rawEvent, context = {}) {
     title: normalizeTitle(rawEvent.title || rawEvent.name),
 
     // Venue - prefer 'venue_name', fallback to 'venue'
-    venue_name: normalizeVenueName(rawEvent.venue_name || rawEvent.venue),
+    venue_name: cleanVenueName(rawEvent.venue_name || rawEvent.venue),
 
     // Address
     address: (rawEvent.address || rawEvent.location || '').trim(),

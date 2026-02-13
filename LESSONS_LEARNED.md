@@ -1,27 +1,46 @@
-### ESLint V9 Migration (2026-02-04)
 
-**Problem:**
-The project was using ESLint v8 with the deprecated "eslintrc" config format. New React ecosystem rules (Hooks v7, Refresh v0.5) required newer dependencies that were incompatible with the old config format or introduced 40+ strict errors.
+## 2026-02-13: Adapter Pattern Hardening — 8 Direct API Calls Eliminated
 
-**Action:**
-1.  **Dependencies Updated:** Migrated to ESLint v9, `eslint-plugin-react-hooks@v7`, and `eslint-plugin-react-refresh@v0.5`.
-2.  **Flat Config:** Migrated from `.eslintrc.cjs` to `eslint.config.js` (Flat Config format).
-3.  **Strict Rules Disabled:** The new Hooks rules (v7) are significantly stricter about dependencies and purity. To maintain the project's "zero-warning" policy without blocking deployment, the new strict rules were explicitly disabled in `eslint.config.js`:
-    - `react-hooks/set-state-in-effect`
-    - `react-hooks/preserve-manual-memoization`
-    - `react-hooks/purity`
-    - `react-hooks/error-boundaries`
-    - `react-hooks/incompatible-library`
+- **Symptom:** 8 files called `callGemini()`/`callOpenAI()`/`callAnthropic()` directly instead of `callModel(role)`, bypassing the hedged router and fallback system.
+- **Root Cause:** These calls pre-dated the model-registry and hedged router. They were never migrated when the adapter pattern was formalized.
+- **Impact:** Zero resilience — if GPT-5.2 went down, tactical planning, venue reasoning, and consolidation all failed with no fallback. With `callModel()`, the hedged router automatically retries with Gemini Flash.
+- **Fix:** Registered 4 new roles (`BRIEFING_HOLIDAY`, `VENUE_EVENTS_SEARCH`, `VENUE_REASONING`, `VENUE_EVENTS_SEARCH`) and migrated all 8 files to use `callModel()`.
+- **Files Changed:** `planner-gpt5.js`, `consolidator.js`, `weather-traffic-validator.js`, `venue-events.js`, `venue-intelligence.js`, `holiday-detector.js`, `closed-venue-reasoning.js`
+- **Lesson:** When introducing a new architectural pattern (like the adapter layer), audit ALL existing callers — not just new code. "It works" doesn't mean "it's using the pattern."
 
-**Key Lesson:**
-Major linting upgrades often introduce new strict rules that can break existing builds. The strategy is:
-1.  Upgrade dependencies and config format first.
-2.  Disable new strict rules to get back to a passing baseline ("green build").
-3.  Document the disabled rules as Technical Debt to be addressed in future sprints.
-4.  Do NOT try to fix 40+ logic errors in a single infrastructure upgrade PR.
+## 2026-02-13: Dead Timezone Fallback — blocks-fast.js Never Returns Timezone
 
-**Status:**
-- Infrastructure is modern (ESLint v9).
-- Build passes (`npm run lint`).
-- Legacy `.eslintrc.cjs` is deleted.
-- Future work: Re-enable strict hooks rules one by one and fix the underlying issues.
+- **Symptom:** Client code had `data.timezone || locationContext?.timeZone || null` which looked like a 3-tier fallback.
+- **Root Cause:** `blocks-fast.js` never includes `timezone` in its response. `data.timezone` was always `undefined`. The "fallback chain" was an illusion — only `locationContext?.timeZone` ever provided the value.
+- **Fix:** Removed dead `data.timezone` reference. Single source of truth is `locationContext?.timeZone` (GPS-derived).
+- **Lesson:** Before adding a fallback, verify the primary source actually exists. Dead fallbacks create false confidence and mislead future developers.
+
+## 2026-02-13: userId Body Fallback — IDOR Vulnerability in Feedback Routes
+
+- **Symptom:** `req.auth?.userId || userId` in two feedback routes allowed request body to override authenticated identity.
+- **Root Cause:** Legacy code from before `requireAuth` was universally applied. The `|| userId` fallback was meant for anonymous users that no longer exist.
+- **Fix:** Changed to `req.auth.userId` (auth middleware guarantees it exists). Removed unused `userId` from body destructuring.
+- **Lesson:** When upgrading auth (adding `requireAuth`), also remove all the anonymous-user fallback code. Leftover fallbacks from the "optional auth" era become security holes.
+
+## 2026-02-12: Shell-Level Env Overwrite — Root Cause of DOCS_GENERATOR Failures
+
+- **Symptom:** All 155 DOCS_GENERATOR calls failed at server startup with "API key not valid" errors from Gemini API. The Gemini API key in Replit Secrets was valid.
+- **Root Cause:** `.replit` uses `set -a && . mono-mode.env && set +a` (shell source with auto-export) BEFORE Node.js starts. `mono-mode.env` had `GEMINI_API_KEY=dummy_key_for_dev` which blindly overwrote the real Replit Secret.
+- **Why CLI tests passed:** Claude Code's terminal inherits Replit Secrets directly without sourcing `mono-mode.env`, so `node -e "callModel('DOCS_GENERATOR')"` worked fine — a misleading positive test.
+- **Fix:** Commented out ALL Google API key entries in `mono-mode.env` (GEMINI_API_KEY, GOOGLE_AI_API_KEY, GOOGLE_MAPS_API_KEY, GOOGLEAQ_API_KEY, VITE_GOOGLE_MAPS_API_KEY). These keys now come exclusively from Replit Secrets.
+- **Lesson:** Node-level env guards (`if (process.env[key]) return;`) are useless when shell-level `set -a && source .env` runs first. The shell overwrites secrets BEFORE Node even starts. Always check the full startup chain: `.replit` → shell source → Node loader.
+
+## 2026-02-12: Auth Middleware Gaps — 9 Unprotected Server Routes
+
+- **Symptom:** Anonymous user access was supposed to be removed, but 9 data-serving API route files had NO auth middleware at all.
+- **Root Cause:** Express has no global auth layer. Each router file must explicitly `import { requireAuth } from '../../middleware/auth.js'`. New route files that forgot to import it were silently public.
+- **Affected Routes:** strategy.js, tactical-plan.js, venue-intelligence.js, intelligence/index.js, vector-search.js, research.js, location/location.js, ml-health.js, actions.js (optionalAuth→requireAuth)
+- **Fix:** Added `router.use(requireAuth)` or per-route `requireAuth` middleware to all 9 files.
+- **Pattern:** Every new route file MUST import requireAuth unless explicitly designed as public (health checks, platform reference data, Siri hooks). The `coach/index.js` pattern (`router.use(requireAuth)` at top) is the gold standard.
+- **SSE Exception:** `strategy-events.js` SSE endpoints remain open because the browser `EventSource` API cannot send custom headers (Authorization). SSE only broadcasts notification events; actual data is fetched via authenticated API calls.
+
+## 2026-02-11: API Key Conflicts & Model Access
+- **Conflict:** The `@google/genai` library emits a warning and prioritizes `GOOGLE_API_KEY` if both `GEMINI_API_KEY` and `GOOGLE_API_KEY` are present in the environment. This can cause authentication failures if `GOOGLE_API_KEY` is intended for a different service (e.g., Google Maps) or is invalid for the Generative AI API.
+- **Resolution:** Ensure `GEMINI_API_KEY` is used for the AI adapter and remove `GOOGLE_API_KEY` from the environment if it conflicts, or ensure the library initialization explicitly selects the correct key.
+- **Gemini 3:** `gemini-3-pro-preview` requires valid authentication on the `v1beta` API. It is not deprecated; 404 errors usually indicate an invalid key or incorrect API version targeting (though the standard adapter handles `v1beta` correctly).
+- **Environment:** Dummy values in `.env_override` (e.g., `dummy_value`) can silently override valid platform secrets if sourced by startup scripts (`start.sh`). Always verify the actual loaded environment values when debugging auth issues.

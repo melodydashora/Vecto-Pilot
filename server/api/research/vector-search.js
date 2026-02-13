@@ -1,8 +1,14 @@
 // Vector search API routes
 import express from 'express';
 import { upsertDoc, knnSearch } from '../../lib/external/semantic-search.js';
+// 2026-02-12: Added requireAuth - vector search requires authentication
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
+
+// 2026-02-12: SECURITY FIX - All vector search routes now require authentication
+// Previously the /upsert endpoint was open, allowing anyone to inject documents
+router.use(requireAuth);
 
 // POST /api/vector/upsert - Add or update a document with embedding
 router.post('/upsert', async (req, res) => {

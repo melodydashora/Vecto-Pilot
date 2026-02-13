@@ -18,6 +18,12 @@ import { parseHoursTextMap, getOpenStatus } from "./hours/index.js";
 import { coordsKey as generateCoordKeyCanonical } from "../location/coords-key.js";
 
 /**
+ * Re-export generateCoordKey for backward compatibility
+ * Consumers should eventually migrate to import from server/lib/location/coords-key.js
+ */
+export const generateCoordKey = generateCoordKeyCanonical;
+
+/**
  * Parse Google addressComponents into granular address fields
  *
  * @param {Array} components - Google Places API addressComponents array
@@ -89,7 +95,7 @@ export function parseAddressComponents(components) {
  * @param {number} lng - Longitude
  * @returns {string|null} Coordinate key or null if invalid
  */
-export const generateCoordKey = generateCoordKeyCanonical;
+// export const generateCoordKey = generateCoordKeyCanonical; // Removed to fix duplicate export
 
 /**
  * Normalize a venue name for deduplication matching

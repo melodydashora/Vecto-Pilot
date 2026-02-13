@@ -37,7 +37,8 @@ export class HedgedRouter {
    * @returns {Promise<{response: any, provider: string, latencyMs: number}>}
    */
   async execute(request, options = {}) {
-    const timeout = options.timeout || this.timeout;
+    // 0 = Disabled timeout (user override)
+    const timeout = options.timeout === 0 ? 0 : (options.timeout || this.timeout);
     const providers = options.providers || this.getAvailableProviders();
 
     if (providers.length === 0) {
@@ -51,15 +52,21 @@ export class HedgedRouter {
     const controllers = new Map();
     providers.forEach(p => controllers.set(p, new AbortController()));
 
-    // Create master timeout controller
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => {
-      timeoutController.abort();
-    }, timeout);
+    // Create master timeout controller (only if timeout > 0)
+    let timeoutController = null;
+    let timeoutId = null;
+
+    if (timeout > 0) {
+      timeoutController = new AbortController();
+      timeoutId = setTimeout(() => {
+        timeoutController.abort();
+      }, timeout);
+    }
 
     try {
       // Race all providers
-      const result = await this._raceProviders(request, providers, controllers, timeoutController.signal);
+      const signal = timeoutController ? timeoutController.signal : null;
+      const result = await this._raceProviders(request, providers, controllers, signal);
 
       // Abort all other in-flight requests
       this._abortOthers(controllers, result.provider);
@@ -85,7 +92,7 @@ export class HedgedRouter {
 
       throw error;
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
@@ -184,7 +191,9 @@ export class HedgedRouter {
       const controller = controllers.get(provider);
 
       // Combine with master signal
-      const combinedSignal = this._combineSignals(controller.signal, masterSignal);
+      const combinedSignal = masterSignal 
+        ? this._combineSignals(controller.signal, masterSignal)
+        : controller.signal;
 
       try {
         await this.concurrencyGate.acquire(provider, combinedSignal);
@@ -197,14 +206,23 @@ export class HedgedRouter {
         if (classified.affectsCircuit) {
           this._recordProviderFailure(provider);
         }
-        throw error;
+        // Enhance error with provider name for debugging
+        const enhancedError = new Error(`${provider}: ${error.message}`);
+        enhancedError.provider = provider;
+        throw enhancedError;
       } finally {
         this.concurrencyGate.release(provider);
       }
     });
 
-    // Return first successful response
-    return Promise.any(promises);
+    try {
+      return await Promise.any(promises);
+    } catch (aggregateError) {
+      // Log individual provider errors for debugging
+      const errors = aggregateError.errors.map(e => e.message);
+      console.error('[HedgedRouter] All providers failed details:', JSON.stringify(errors, null, 2));
+      throw new Error(`All promises were rejected: ${errors.join(' | ')}`);
+    }
   }
 
   async _callProvider(provider, request, signal) {

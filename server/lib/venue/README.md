@@ -202,7 +202,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
 | `event-proximity-boost.js` | Airport proximity scoring | `calculateProximityBoost()` |
 | `venue-cache.js` | Venue deduplication cache | `findOrCreateVenue()`, `lookupVenue()` |
-| `venue-utils.js` | Venue consolidation utilities | `parseAddressComponents()`, `generateCoordKey()`, `calculateIsOpenFromHoursTextMap()` |
+| `venue-utils.js` | Venue consolidation utilities | `parseAddressComponents()`, `calculateIsOpenFromHoursTextMap()` (**Note:** `generateCoordKey` is now imported from `server/lib/location/coords-key.js`) |
 | `district-detection.js` | Entertainment district identification | `detectDistrict()` |
 | `event-matcher.js` | Event-to-venue matching | `matchEventsToVenues()` |
 | `index.js` | Module barrel exports | All venue exports |

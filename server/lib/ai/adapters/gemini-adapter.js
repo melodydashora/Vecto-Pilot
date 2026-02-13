@@ -24,7 +24,20 @@ export async function callGemini({
       return { ok: false, error: 'GEMINI_API_KEY not configured' };
     }
 
+    // WORKAROUND: The @google/genai SDK prioritizes GOOGLE_API_KEY from env over the apiKey passed in constructor
+    // or emits a warning/error if both exist. We temporarily hide GOOGLE_API_KEY if it exists.
+    const conflictingKey = process.env.GOOGLE_API_KEY;
+    if (conflictingKey) {
+      delete process.env.GOOGLE_API_KEY;
+    }
+
     const ai = new GoogleGenAI({ apiKey });
+    
+    // Restore the key immediately for other services (Maps etc)
+    if (conflictingKey) {
+      process.env.GOOGLE_API_KEY = conflictingKey;
+    }
+
     console.log(`[model/gemini] calling ${model} with max_tokens=${maxTokens}`);
 
     // Use lower temperature for JSON responses
@@ -124,7 +137,7 @@ export async function callGemini({
                 output = extracted;
                 console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
               } catch (e) {
-                console.log(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
+                console.warn(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
               }
             }
           }
@@ -156,6 +169,7 @@ export async function callGemini({
  * @param {Object} params - Same as callGemini plus messageHistory
  * @returns {Promise<Response>} - Fetch Response object with readable stream body
  */
+// 2026-02-11: Added thinkingLevel parameter for Gemini 3 Pro streaming support
 export async function callGeminiStream({
   model,
   system,
@@ -163,6 +177,7 @@ export async function callGeminiStream({
   maxTokens,
   temperature,
   useSearch = false,
+  thinkingLevel = null, // Gemini 3: "low", "high" - null = disabled
   timeoutMs = 90000
 }) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -173,14 +188,24 @@ export async function callGeminiStream({
   console.log(`[model/gemini-stream] Calling ${model} with ${messageHistory.length} messages, maxTokens=${maxTokens}`);
 
   // Build the request body
+  const generationConfig = {
+    temperature: temperature || 0.7,
+    topP: 0.95,
+    topK: 40,
+    maxOutputTokens: maxTokens || 8192,
+  };
+
+  // 2026-02-11: Gemini 3 Thinking support for streaming (matches callGemini non-streaming)
+  if (thinkingLevel && model.includes('gemini-3')) {
+    generationConfig.thinkingConfig = {
+      thinkingLevel: thinkingLevel.toUpperCase() // REST API expects uppercase (LOW, HIGH)
+    };
+    console.log(`[model/gemini-stream] 🧠 Thinking enabled: ${thinkingLevel}`);
+  }
+
   const requestBody = {
     contents: messageHistory,
-    generationConfig: {
-      temperature: temperature || 0.7,
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: maxTokens || 8192,
-    },
+    generationConfig,
     safetySettings: [
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },

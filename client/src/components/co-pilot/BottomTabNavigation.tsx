@@ -34,7 +34,7 @@ const tabs: TabConfig[] = [
   {
     id: 'bars',
     path: '/co-pilot/bars',
-    label: 'Bars',
+    label: 'Lounges & Bars',
     icon: Wine,
     activeColor: 'text-purple-600',
     activeBg: 'bg-purple-50',

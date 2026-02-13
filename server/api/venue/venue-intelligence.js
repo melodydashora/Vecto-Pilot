@@ -5,8 +5,14 @@
 import { Router } from 'express';
 import { discoverNearbyVenues, getTrafficIntelligence, getSmartBlocksIntelligence } from '../../lib/venue/venue-intelligence.js';
 import { toApiVenueData } from '../../validation/transformers.js';
+// 2026-02-12: Added requireAuth - venue intelligence requires authentication
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+
+// 2026-02-12: SECURITY FIX - All venue intelligence routes now require authentication
+// Previously these were completely open, allowing queries with arbitrary coordinates
+router.use(requireAuth);
 
 /**
  * GET /api/venues/nearby

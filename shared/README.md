@@ -1,3 +1,9 @@
+> **Gemini Analysis (2026-02-11):**
+> **Core Contract:** This directory defines the shared contract between client and server, especially the `drizzle` schema.
+> **Key Table:** `discovered_events` (multi-model deduplicated events) is the critical data structure for Vecto Pilot.
+> **Role:** Changes here are high-impact as they affect both sides of the full-stack application.
+> **Recent Updates:** `country_code` added to `snapshots` and `markets` tables for internationalization.
+
 > **Last Verified:** 2026-01-15
 
 # Shared (`shared/`)

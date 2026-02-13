@@ -2,8 +2,14 @@
 import express from 'express';
 // @ts-ignore
 import { callModel } from '../../lib/ai/adapters/index.js';
+// 2026-02-12: Added requireAuth - research endpoints require authentication
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
+
+// 2026-02-12: SECURITY FIX - Research routes now require authentication
+// These endpoints call AI models which cost money per request
+router.use(requireAuth);
 
 // Quick research endpoint
 router.get('/search', async (req, res) => {

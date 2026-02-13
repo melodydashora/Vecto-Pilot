@@ -1,3 +1,9 @@
+> **Gemini Analysis (2026-02-11):**
+> **Frontend:** This is the core React (Vite) application logic, optimized for mobile-first rideshare strategy.
+> **Key State:** `CoPilotContext` manages the complex strategy lifecycle and SSE subscriptions.
+> **Structure:** Routes (`/co-pilot/*`) map to page components (`StrategyPage`, `BriefingPage`, etc.).
+> **Components:** Shadcn UI primitives (`ui/`) and domain-specific components (`CoachChat`, `BriefingTab`) handle interactions.
+
 > **Last Verified:** 2026-01-09
 
 # Client Source (`client/src/`)

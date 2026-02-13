@@ -17,8 +17,14 @@ import { makeCircuit } from '../../util/circuit.js';
 import { jobQueue } from '../../lib/infrastructure/job-queue.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
 import { snapshotMinimalSchema, locationResolveSchema, newsBriefingSchema } from '../../validation/schemas.js';
+// 2026-02-12: Added requireAuth - all location routes require authentication
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+
+// 2026-02-12: SECURITY FIX - All location routes now require authentication
+// Previously these were completely open, allowing geocoding, snapshot creation, etc. without auth
+router.use(requireAuth);
 
 // Helper to classify day part from hour
 function getDayPartKey(hour) {

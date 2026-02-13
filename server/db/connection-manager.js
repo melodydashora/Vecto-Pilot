@@ -14,6 +14,7 @@ if (!process.env.DATABASE_URL) {
 // Create a standard Postgres pool using the environment provided URL
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }, // Replit PostgreSQL requires SSL with self-signed certs support
   max: 25, // ISSUE #22 FIX: Increased from 10 to 25 - strategy (2-3) + briefing (4-5) + blocks (2-3) = 8-11 per user, need buffer for concurrent users
   idleTimeoutMillis: 10000, // ISSUE #2 FIX: Reduced to 10s to aggressively release idle connections before Replit terminates them
   connectionTimeoutMillis: 15000, // Slightly increased for safety during connection spikes

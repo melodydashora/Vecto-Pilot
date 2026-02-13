@@ -1,7 +1,7 @@
 // server/lib/planner-gpt5.js
 // STRATEGY_TACTICAL role: Generates tactical execution plans from strategist guidance
-// @ts-ignore
-import { callOpenAI } from '../ai/adapters/openai-adapter.js';
+// 2026-02-13: Migrated from direct callOpenAI to callModel adapter (hedged router + fallback)
+import { callModel } from '../ai/adapters/index.js';
 
 export function plannerSystem() {
   return "You are a rideshare strategy planner. Only use the provided venues and fields; do not invent venues or facts. Output concise, non-hedged tactics tailored to the current clock. Hard caps: strategy ≤120 words, ≤4 bullets per venue, ≤140 chars per bullet. Prefer short paid hops over long unpaid drives. If info is insufficient, say so briefly.";
@@ -9,14 +9,14 @@ export function plannerSystem() {
 
 export function plannerUser({ clock, shortlist, goals, strategistGuidance }) {
   const lines = [];
-  
+
   if (strategistGuidance) {
     lines.push(`STRATEGIC DIRECTION (from strategist):`);
     lines.push(strategistGuidance);
     lines.push(``);
     lines.push(`EXECUTE this strategy tactically:`);
   }
-  
+
   lines.push(`Clock: ${clock}`);
   lines.push(`Driver goal: ${goals || "maximize $/hr, minimize unpaid miles"}`);
   lines.push(`Available venues (DO NOT add venues):`);
@@ -33,7 +33,7 @@ export function plannerUser({ clock, shortlist, goals, strategistGuidance }) {
   lines.push(`}`);
   lines.push(``);
   lines.push(`Include ALL venues. Each gets 1-4 tactical pro_tips for max $/hr.`);
-  
+
   return lines.join("\n");
 }
 
@@ -44,45 +44,19 @@ export async function runPlannerGPT5({
   onPreview
 }) {
   console.log(`🔍 [planner-gpt5] PLANNER_DEADLINE_MS env: ${process.env.PLANNER_DEADLINE_MS}, using timeoutMs: ${timeoutMs}`);
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
   if (!Array.isArray(shortlist) || !shortlist.length) throw new Error("Empty shortlist.");
 
-  const reasoningEffort = process.env.OPENAI_REASONING_EFFORT || "high";
-  console.log(`🔍 [planner-gpt5] Using reasoning_effort: ${reasoningEffort}`);
-  
-  // Note: callOpenAI adapter currently doesn't support streaming output directly in the same way
-  // for now we will disable streaming if using the adapter, or we need to update the adapter to support stream return.
-  // The current callOpenAI returns { ok, output }.
-  // For compatibility with the existing stream logic, we might need to stick to fetch for streaming
-  // OR update the adapter.
-  // However, the instructions were to use the adapter.
-  // I will check if callOpenAI supports streaming... NO, it awaits full response.
-  // BUT the user wants "upgrades". Using the adapter is an upgrade for consistency.
-  // LOSING streaming is a downgrade for UX.
-  
-  // WAIT: I can keep the fetch for streaming if I really want, but to fix the linter error "Direct LLM API URL",
-  // I must change it.
-  // I will modify the adapter later to support streaming if needed, but for now I will use the non-streaming adapter
-  // as it is safer for "verification" and "upgrades" (consistency).
-  // Actually, I can just use the adapter and mock the stream effect or just return result.
-  
-  // Let's use the adapter non-streaming for now to satisfy the "fix linter" requirement.
-  
   const t0 = Date.now();
 
   try {
-    const result = await callOpenAI({
-      model: process.env.OPENAI_MODEL || "gpt-5.2",
-      messages: [
-        { role: "developer", content: plannerSystem() },
-        { role: "user", content: plannerUser({ clock, shortlist, goals, strategistGuidance }) }
-      ],
-      reasoningEffort: reasoningEffort,
-      // maxTokens: ... adapter handles logic
+    // 2026-02-13: Uses STRATEGY_TACTICAL role via adapter (hedged router + fallback)
+    // Registry config: gpt-5.2, medium reasoning_effort, 32000 max_tokens
+    const result = await callModel('STRATEGY_TACTICAL', {
+      system: plannerSystem(),
+      user: plannerUser({ clock, shortlist, goals, strategistGuidance })
     });
 
-    if (!result.ok) throw new Error(`OpenAI error: ${result.error}`);
+    if (!result.ok) throw new Error(`Model error: ${result.error}`);
 
     const raw = stripFences(result.output);
     return { raw, parsed: safeParse(raw), elapsed_ms: Date.now() - t0 };

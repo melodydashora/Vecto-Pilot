@@ -138,7 +138,7 @@ replit_agent: {
       model: 'OPENAI_MODEL',
       reasoning_effort: 'GPT5_REASONING_EFFORT',
       timeout: 'GPT5_TIMEOUT_MS',
-      max_tokens: 'OPENAI_MAX_COMPLETION_TOKENS'
+      max_completion_tokens: 'OPENAI_MAX_COMPLETION_TOKENS'
     }
   },
 
@@ -308,7 +308,7 @@ replit_agent: {
       api_key: 'OPENAI_API_KEY',
       model: 'STRATEGY_CONSOLIDATOR',
       reasoning_effort: 'STRATEGY_CONSOLIDATOR_REASONING_EFFORT',
-      max_tokens: 'STRATEGY_CONSOLIDATOR_MAX_TOKENS'
+      max_completion_tokens: 'STRATEGY_CONSOLIDATOR_MAX_TOKENS'
     }
   },
 
@@ -336,7 +336,7 @@ replit_agent: {
       api_key: 'OPENAI_API_KEY',
       model: 'STRATEGY_VENUE_PLANNER',
       reasoning_effort: 'STRATEGY_VENUE_PLANNER_REASONING_EFFORT',
-      max_tokens: 'STRATEGY_VENUE_PLANNER_MAX_TOKENS'
+      max_completion_tokens: 'STRATEGY_VENUE_PLANNER_MAX_TOKENS'
     }
   }
 };

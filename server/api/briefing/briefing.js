@@ -749,7 +749,12 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
             .from(discovered_events)
             .where(and(
               or(...cityConditions),
-              eq(discovered_events.expected_attendance, 'high'), // Only high-value events
+              or(
+                eq(discovered_events.expected_attendance, 'high'), // High-value events
+                // 2026-02-10: Include major categories regardless of attendance tag (fixes "Dallas Open" visibility)
+                // Aligns with Strategy Generator logic (isLargeEvent) which considers all sports/concerts as market-wide
+                sql`${discovered_events.category} IN ('sports', 'concert', 'festival')`
+              ),
               gte(discovered_events.event_start_date, today),
               lte(discovered_events.event_start_date, endDate),
               eq(discovered_events.is_active, true)

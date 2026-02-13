@@ -14,6 +14,8 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [client-structure.md](client-structure.md) | ~220 | Frontend organization, 16 folder READMEs | Modifying client code |
 | [database-schema.md](database-schema.md) | ~200 | PostgreSQL tables and relationships | Working with DB |
 | [api-reference.md](api-reference.md) | ~150 | Complete API endpoint documentation | Adding/modifying API routes |
+| [api-versioning.md](api-versioning.md) | ~50 | API versioning strategy | Planning API changes |
+| [frontend-optimization.md](frontend-optimization.md) | ~100 | Client performance & standards | Optimizing frontend |
 
 ### AI System
 
@@ -42,6 +44,13 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [authentication.md](authentication.md) | ~650 | Full auth system (JWT, login, register) | Modifying auth |
 | [auth-system.md](auth-system.md) | ~100 | Legacy auth overview (see authentication.md) | Quick reference |
 | [logging.md](logging.md) | ~100 | Workflow logging conventions | Adding logging |
+| [observability.md](observability.md) | ~100 | Monitoring, Error Tracking, Analytics | improving reliability |
+| [scalability.md](scalability.md) | ~100 | Rate limiting, Load Balancing, Caching | Tuning performance |
+| [disaster-recovery.md](disaster-recovery.md) | ~100 | Backup & Recovery procedures | Handling outages |
+| [realtime.md](realtime.md) | ~100 | WebSocket & SSE lifecycle | Working with real-time data |
+| [environment.md](environment.md) | ~100 | SSL/TLS, Env Validation | Configuring deployment |
+| [feature-management.md](feature-management.md) | ~100 | Feature flags & A/B testing | Managing releases |
+| [media-handling.md](media-handling.md) | ~100 | File upload & Image processing | Working with media |
 
 ### Domain-Specific
 

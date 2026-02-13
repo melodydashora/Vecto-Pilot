@@ -4,15 +4,22 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { db } from '../../db/drizzle.js';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, or } from 'drizzle-orm';
 import {
   users,
   driver_profiles,
   driver_vehicles,
   auth_credentials,
   verification_codes,
-  platform_data
+  platform_data,
+  oauth_states
 } from '../../../shared/schema.js';
+import {
+  getGoogleAuthUrl,
+  exchangeGoogleCode,
+  verifyGoogleIdToken,
+  generateState
+} from '../../lib/auth/oauth/google-oauth.js';
 import {
   hashPassword,
   verifyPassword,
@@ -1253,14 +1260,234 @@ router.post('/logout', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/auth/google - Google OAuth (stub - not yet implemented)
-// 2026-01-06: Added stub to prevent 404 when social login buttons clicked
-// TODO: Implement full Google OAuth with Passport.js
+// GET /api/auth/google - Initiate Google OAuth 2.0 Authorization Code flow
+// 2026-02-13: Replaced stub with real Google OAuth implementation
+// Flow: Client clicks Google → this endpoint → redirect to Google consent
 // ═══════════════════════════════════════════════════════════════════════════
-router.get('/google', (req, res) => {
-  authLog.warn(1, 'Google OAuth requested but not yet implemented');
-  const clientUrl = process.env.CLIENT_URL || '';
-  res.redirect(`${clientUrl}/auth/sign-in?error=social_not_implemented&provider=google`);
+router.get('/google', async (req, res) => {
+  try {
+    // Check that Google OAuth is configured
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      authLog.error(1, 'Google OAuth not configured: missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
+      const clientUrl = process.env.CLIENT_URL || '';
+      return res.redirect(`${clientUrl}/auth/sign-in?error=google_not_configured`);
+    }
+
+    // Generate CSRF state and store in oauth_states table
+    const state = generateState();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minute expiry
+
+    await db.insert(oauth_states).values({
+      state,
+      provider: 'google',
+      user_id: '00000000-0000-0000-0000-000000000000', // Nil UUID - user not authenticated yet
+      redirect_uri: req.query.mode === 'signup' ? 'signup' : 'login',
+      expires_at: expiresAt,
+    });
+
+    // Build Google consent URL and redirect
+    const authUrl = getGoogleAuthUrl({ state, mode: req.query.mode });
+    authLog.phase(1, `Google OAuth initiated (mode: ${req.query.mode || 'login'})`);
+    res.redirect(authUrl);
+  } catch (err) {
+    authLog.error(1, 'Google OAuth initiation failed', err);
+    const clientUrl = process.env.CLIENT_URL || '';
+    res.redirect(`${clientUrl}/auth/sign-in?error=google_init_failed`);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/auth/google/exchange - Complete Google OAuth (code → session)
+// 2026-02-13: Client callback page sends code + state, server exchanges
+// for tokens, verifies identity, finds/creates user, returns app token
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/google/exchange', async (req, res) => {
+  try {
+    const { code, state } = req.body;
+
+    if (!code || !state) {
+      return res.status(400).json({
+        error: 'MISSING_PARAMS',
+        message: 'Authorization code and state are required'
+      });
+    }
+
+    // 1. Validate CSRF state (must exist, not expired, one-time use)
+    const [storedState] = await db
+      .select()
+      .from(oauth_states)
+      .where(and(
+        eq(oauth_states.state, state),
+        eq(oauth_states.provider, 'google'),
+        gt(oauth_states.expires_at, new Date())
+      ))
+      .limit(1);
+
+    if (!storedState) {
+      authLog.warn(1, 'Google OAuth: invalid or expired state parameter');
+      return res.status(400).json({
+        error: 'INVALID_STATE',
+        message: 'Invalid or expired OAuth state. Please try again.'
+      });
+    }
+
+    // Delete used state (one-time use prevents replay attacks)
+    await db.delete(oauth_states).where(eq(oauth_states.id, storedState.id));
+
+    // 2. Exchange authorization code for tokens
+    authLog.phase(1, 'Google OAuth: exchanging code for tokens');
+    const tokens = await exchangeGoogleCode(code);
+
+    if (!tokens.id_token) {
+      throw new Error('Google did not return an ID token');
+    }
+
+    // 3. Verify ID token and extract user info
+    authLog.phase(1, 'Google OAuth: verifying ID token');
+    const googleUser = await verifyGoogleIdToken(tokens.id_token);
+    authLog.phase(1, `Google OAuth: verified user ${googleUser.email} (sub: ${googleUser.sub.substring(0, 8)}...)`);
+
+    // 4. Find existing user by google_id OR email
+    const profile = await db.query.driver_profiles.findFirst({
+      where: or(
+        eq(driver_profiles.google_id, googleUser.sub),
+        eq(driver_profiles.email, googleUser.email.toLowerCase())
+      )
+    });
+
+    if (!profile) {
+      // No account found - Phase 1 only supports existing users
+      authLog.warn(1, `Google OAuth: no account found for ${googleUser.email}`);
+      return res.status(404).json({
+        ok: false,
+        error: 'NO_ACCOUNT',
+        message: 'No account found with this email. Please sign up first, then you can log in with Google.'
+      });
+    }
+
+    // 5. Link Google ID if not already set (first Google login for email/password user)
+    if (!profile.google_id) {
+      await db.update(driver_profiles)
+        .set({
+          google_id: googleUser.sub,
+          updated_at: new Date()
+        })
+        .where(eq(driver_profiles.id, profile.id));
+      authLog.phase(1, `Google OAuth: linked Google ID to existing user ${profile.email}`);
+    }
+
+    // 6. Create/update session (same upsert pattern as login endpoint)
+    const newSessionId = crypto.randomUUID();
+    const now = new Date();
+
+    const existingUser = await db.query.users.findFirst({
+      where: eq(users.user_id, profile.user_id)
+    });
+
+    if (existingUser) {
+      await db.update(users)
+        .set({
+          device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
+          session_id: newSessionId,
+          current_snapshot_id: null,
+          session_start_at: now,
+          last_active_at: now,
+          updated_at: now
+        })
+        .where(eq(users.user_id, profile.user_id));
+    } else {
+      await db.insert(users).values({
+        user_id: profile.user_id,
+        device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
+        session_id: newSessionId,
+        current_snapshot_id: null,
+        session_start_at: now,
+        last_active_at: now,
+        created_at: now,
+        updated_at: now
+      });
+    }
+
+    // 7. Generate app token
+    const token = generateAuthToken(profile.user_id, profile.email);
+
+    // 8. Fetch vehicle for response
+    const vehicle = await db.query.driver_vehicles.findFirst({
+      where: and(
+        eq(driver_vehicles.driver_profile_id, profile.id),
+        eq(driver_vehicles.is_primary, true)
+      )
+    });
+
+    authLog.done(1, `Google OAuth login: ${profile.email}`);
+
+    // Return same structure as /login for auth context compatibility
+    res.json({
+      ok: true,
+      token,
+      user: {
+        userId: profile.user_id,
+        email: profile.email
+      },
+      profile: {
+        id: profile.id,
+        userId: profile.user_id,
+        firstName: profile.first_name,
+        lastName: profile.last_name,
+        nickname: profile.driver_nickname || profile.first_name,
+        email: profile.email,
+        phone: profile.phone,
+        address1: profile.address_1,
+        address2: profile.address_2,
+        city: profile.city,
+        stateTerritory: profile.state_territory,
+        zipCode: profile.zip_code,
+        country: profile.country,
+        market: profile.market,
+        ridesharePlatforms: profile.rideshare_platforms || [],
+        homeLat: profile.home_lat,
+        homeLng: profile.home_lng,
+        homeTimezone: profile.home_timezone,
+        homeFormattedAddress: profile.home_formatted_address,
+        eligEconomy: profile.elig_economy ?? true,
+        eligXl: profile.elig_xl || false,
+        eligXxl: profile.elig_xxl || false,
+        eligComfort: profile.elig_comfort || false,
+        eligLuxurySedan: profile.elig_luxury_sedan || false,
+        eligLuxurySuv: profile.elig_luxury_suv || false,
+        attrElectric: profile.attr_electric || false,
+        attrGreen: profile.attr_green || false,
+        attrWav: profile.attr_wav || false,
+        attrSki: profile.attr_ski || false,
+        attrCarSeat: profile.attr_car_seat || false,
+        prefPetFriendly: profile.pref_pet_friendly || false,
+        prefTeen: profile.pref_teen || false,
+        prefAssist: profile.pref_assist || false,
+        prefShared: profile.pref_shared || false,
+        marketingOptIn: profile.marketing_opt_in || false,
+        termsAccepted: profile.terms_accepted || false,
+        emailVerified: profile.email_verified || false,
+        phoneVerified: profile.phone_verified || false,
+        profileComplete: profile.profile_complete || false,
+        createdAt: profile.created_at
+      },
+      vehicle: vehicle ? {
+        id: vehicle.id,
+        driverProfileId: vehicle.driver_profile_id,
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        seatbelts: vehicle.seatbelts,
+        isPrimary: vehicle.is_primary
+      } : null
+    });
+  } catch (err) {
+    authLog.error(1, 'Google OAuth exchange failed', err);
+    res.status(500).json({
+      error: 'GOOGLE_AUTH_FAILED',
+      message: err.message || 'Google authentication failed'
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

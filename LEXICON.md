@@ -529,7 +529,7 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 - `server/lib/venue/venue-intelligence.js` - Discovery engine (Google Places API)
 - `server/lib/venue/enhanced-smart-blocks.js` - Venue scoring and ranking
 - `client/src/components/BarsTable.tsx` - "Late Night Hotspots" UI display
-- `client/src/components/BarTab.tsx` - "Upscale Bars" driver UI
+- `client/src/components/BarsMainTab.tsx` - "Lounges & Bars" driver UI (formerly BarTab.tsx)
 
 **Database Tables:**
 - `ranking_candidates` - Scored venue recommendations linked to a strategy

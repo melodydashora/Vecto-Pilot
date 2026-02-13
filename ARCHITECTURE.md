@@ -64,7 +64,7 @@ This file provides navigation to focused architecture documentation. Each linked
 ## Changes (2026-01-01)
 
 - **Server Reorganization Complete**: Moved from flat lib structure to domain-based organization
-  - `server/lib/ai/` - AI adapters and providers
+  - `server/lib/ai/` - AI adapters, providers, context, and router
   - `server/lib/auth/` - Authentication services
   - `server/lib/briefing/` - Briefing generation
   - `server/lib/strategy/` - Strategy pipeline

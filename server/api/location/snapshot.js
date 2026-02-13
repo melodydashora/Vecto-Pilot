@@ -183,21 +183,24 @@ router.post("/", async (req, res) => {
         snapshotId: snapshot_id,
         snapshot: fullSnapshot
       }).catch(err => {
-        console.warn(`[briefing] generation.failed`, { snapshot_id, err: String(err) });
+        // 2026-02-13: Upgraded from console.warn → console.error (briefing failure cascades to strategy)
+        console.error(`[briefing] generation.failed`, { snapshot_id, err: String(err) });
       });
       console.log(`[briefing] ✅ complete`, { snapshot_id });
     }
 
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
     // CRITICAL: Pass full snapshot to avoid redundant DB fetch - LLMs need formatted_address
+    // 2026-02-13: Strategy errors logged as console.error (was console.warn) —
+    // strategy failure means user gets no recommendations, which is a visible UX impact
     queueMicrotask(() => {
       try {
         console.log(`[triad] enqueue`, { snapshot_id, formatted_address });
         generateStrategyForSnapshot(snapshot_id, { snapshot: dbSnapshot }).catch(err => {
-          console.warn(`[triad] enqueue.failed`, { snapshot_id, err: String(err) });
+          console.error(`[triad] enqueue.failed`, { snapshot_id, err: String(err) });
         });
       } catch (e) {
-        console.warn(`[triad] enqueue.err`, { snapshot_id, err: String(e) });
+        console.error(`[triad] enqueue.err`, { snapshot_id, err: String(e) });
       }
     });
 
