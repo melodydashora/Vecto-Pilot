@@ -15,11 +15,11 @@ import crypto from 'crypto';
 import { db } from '../../../db/drizzle.js';
 import { strategies, briefings, news_deactivations, venue_catalog } from '../../../../shared/schema.js';
 import { eq, inArray, or, ilike, sql } from 'drizzle-orm';
-import { callAnthropic } from '../adapters/anthropic-adapter.js';
+// 2026-02-13: Removed direct callAnthropic import — now uses callModel adapter
 // @ts-ignore
-import { callOpenAI } from '../adapters/openai-adapter.js';
-// @ts-ignore
-import { callGemini } from '../adapters/gemini-adapter.js';
+// 2026-02-13: Removed direct callOpenAI import — now uses callModel adapter
+// 2026-02-11: Route through callModel adapter for registry config (thinkingLevel, tokens, features)
+import { callModel } from '../adapters/index.js';
 import { triadLog, aiLog, dbLog, OP } from '../../../logger/workflow.js';
 import { isOpenNow } from '../../venue/venue-hours.js';
 // 2026-01-09: Use canonical validation module
@@ -225,16 +225,10 @@ RULES:
 - Do NOT list specific venues (venue cards handle that separately)`;
 
 
-    // STRATEGY_TACTICAL role with medium reasoning for strategic analysis
-    // Using callOpenAI adapter instead of direct fetch
-    const response = await callOpenAI({
-      model: 'gpt-5.2',
-      messages: [
-        { role: 'developer', content: 'You are a rideshare strategy expert. Provide concise, actionable guidance.' },
-        { role: 'user', content: prompt }
-      ],
-      reasoningEffort: 'medium',
-      maxTokens: 2000
+    // 2026-02-13: Uses STRATEGY_TACTICAL role via callModel adapter (hedged router + fallback)
+    const response = await callModel('STRATEGY_TACTICAL', {
+      system: 'You are a rideshare strategy expert. Provide concise, actionable guidance.',
+      user: prompt
     });
 
     if (!response.ok) {
@@ -258,20 +252,18 @@ RULES:
 }
 
 /**
- * Call STRATEGY_DAILY role with Google Search tool and Retry Logic
- * Handles 503/429 overload errors with exponential backoff
+ * Call STRATEGY_DAILY role via callModel adapter with Retry Logic
+ * 2026-02-11: Migrated from direct callGemini to callModel('STRATEGY_DAILY')
+ * - Picks up thinkingLevel HIGH, maxTokens 16000, google_search from registry
+ * - Handles 503/429 overload errors with exponential backoff
  */
 async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 0.2 }) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    aiLog.error(1, `GEMINI_API_KEY not configured for consolidator`);
-    return { ok: false, error: 'GEMINI_API_KEY not configured' };
-  }
-
   // RETRY CONFIGURATION: 2 attempts with 1s, 2s delays (faster failure, rely on circuit breaker)
   const MAX_RETRIES = 2;
   const BASE_DELAY_MS = 1000;
   const callStart = Date.now();
+
+  const system = 'You are a strategic advisor for rideshare drivers. Create comprehensive daily strategies with specific times, locations, and actionable advice.';
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
@@ -279,48 +271,38 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
         aiLog.info(`Consolidator retry attempt ${attempt-1}/${MAX_RETRIES} due to overload...`);
       }
 
-      // Using callGemini adapter
-      // Adapter handles thinkingConfig, tools, safetySettings, etc.
-      // But we need to ensure thinkingLevel is passed if supported
-      const response = await callGemini({
-        model: 'gemini-3-pro-preview',
-        user: prompt,
-        maxTokens,
-        temperature,
-        useSearch: true,
-        thinkingLevel: "LOW" // Explicitly request low thinking
-      });
+      // 2026-02-11: Use callModel adapter - picks up thinkingLevel HIGH + google_search from registry
+      const response = await callModel('STRATEGY_DAILY', { system, user: prompt });
 
-      // Handle Overloaded (503) or Rate Limited (429) emulation
-      // The adapter generally catches errors, but if it returns specific error strings we might retry
+      // Handle Overloaded (503) or Rate Limited (429) from adapter
       if (!response.ok) {
-        if (response.error.includes('503') || response.error.includes('429')) {
-           aiLog.warn(1, `Gemini consolidator busy: ${response.error.substring(0, 100)}`);
+        if (response.error?.includes('503') || response.error?.includes('429')) {
+           aiLog.warn(1, `STRATEGY_DAILY busy: ${response.error.substring(0, 100)}`);
            if (attempt <= MAX_RETRIES) {
              const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
              aiLog.info(`Waiting ${delay}ms before retry...`);
              await new Promise(resolve => setTimeout(resolve, delay));
              continue;
            }
-           return { ok: false, error: `Gemini Overloaded after ${MAX_RETRIES} retries` };
+           return { ok: false, error: `STRATEGY_DAILY Overloaded after ${MAX_RETRIES} retries` };
         }
-        
-        if (response.error.includes('API key expired')) {
+
+        if (response.error?.includes('API key expired')) {
           return { ok: false, error: 'GEMINI_API_KEY expired - update in Secrets' };
         }
-        
+
         return { ok: false, error: response.error };
       }
 
-      const text = response.output;
+      const text = response.output || response.text;
 
       if (!text) {
-        aiLog.warn(1, `Gemini consolidator returned empty response`);
+        aiLog.warn(1, `STRATEGY_DAILY returned empty response`);
         return { ok: false, error: 'Empty response' };
       }
 
       const elapsed = Date.now() - callStart;
-      aiLog.info(`Gemini consolidator: ${text.length} chars in ${elapsed}ms`);
+      aiLog.info(`STRATEGY_DAILY consolidator: ${text.length} chars in ${elapsed}ms`);
       return { ok: true, output: text.trim(), durationMs: elapsed };
 
     } catch (error) {
@@ -331,7 +313,7 @@ async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 
         continue;
       }
       const elapsed = Date.now() - callStart;
-      aiLog.error(1, `Consolidator failed after ${elapsed}ms and ${MAX_RETRIES} retries: ${error.message}`);
+      aiLog.error(1, `STRATEGY_DAILY failed after ${elapsed}ms and ${MAX_RETRIES} retries: ${error.message}`);
       return { ok: false, error: error.message };
     }
   }
@@ -889,12 +871,11 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
       aiLog.warn(1, `STRATEGY_DAILY role failed: ${result.error}`);
       aiLog.info(`Trying BRIEFING_FALLBACK role...`);
 
-      const fallbackResult = await callAnthropic({
-        model: FALLBACK_MODEL,
+      // 2026-02-13: Uses BRIEFING_FALLBACK role via callModel adapter (hedged router)
+      // Previously called Claude Opus directly; now uses registry-configured model
+      const fallbackResult = await callModel('BRIEFING_FALLBACK', {
         system: 'You are a strategic advisor for rideshare drivers. Create comprehensive daily strategies.',
-        user: prompt,
-        maxTokens: FALLBACK_MAX_TOKENS,
-        temperature: FALLBACK_TEMPERATURE
+        user: prompt
       });
 
       if (fallbackResult.ok) {

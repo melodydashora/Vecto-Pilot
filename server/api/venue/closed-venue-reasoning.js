@@ -1,11 +1,11 @@
 // server/api/venue/closed-venue-reasoning.js
 // Parallel enrichment: VENUE_REASONING role explains why closed venues are still worth visiting
+// 2026-02-13: Refactored to use callModel adapter (was direct OpenAI instantiation)
 import express from 'express';
-import { OpenAI } from 'openai';
+import { callModel } from '../../lib/ai/adapters/index.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // SECURITY: Require authentication
 // POST /api/closed-venue-reasoning
@@ -20,34 +20,26 @@ router.post('/', requireAuth, async (req, res) => {
 
     console.log(`[Closed Venue Reasoning] Generating reasoning for: ${venueName}`);
 
-    // Build a concise prompt for GPT-5
-    const messages = [
-      {
-        role: 'system',
-        content: 
-          'You are a rideshare strategy expert. Explain in 1-2 sentences why a closed venue is still worth staging near. ' +
-          'Focus on: spillover demand, nearby venues, post-hours pickups, or strategic positioning. Be concrete and tactical.'
-      },
-      {
-        role: 'user',
-        content: 
-          `Venue: ${venueName}\n` +
-          `Category: ${category || 'unknown'}\n` +
-          `Address: ${address || 'unknown'}\n` +
-          `Business Hours: ${businessHours || 'unknown'}\n` +
-          `Strategy Context: ${strategyContext || 'none'}\n\n` +
-          `Why should I stage near this closed venue?`
-      }
-    ];
+    const system =
+      'You are a rideshare strategy expert. Explain in 1-2 sentences why a closed venue is still worth staging near. ' +
+      'Focus on: spillover demand, nearby venues, post-hours pickups, or strategic positioning. Be concrete and tactical.';
 
-    // Call VENUE_REASONING role (model configured via env var)
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-5.2',
-      max_completion_tokens: 200,
-      messages,
-    });
+    const user =
+      `Venue: ${venueName}\n` +
+      `Category: ${category || 'unknown'}\n` +
+      `Address: ${address || 'unknown'}\n` +
+      `Business Hours: ${businessHours || 'unknown'}\n` +
+      `Strategy Context: ${strategyContext || 'none'}\n\n` +
+      `Why should I stage near this closed venue?`;
 
-    const reasoning = completion.choices?.[0]?.message?.content?.trim() || '';
+    // 2026-02-13: Uses registered VENUE_REASONING role via adapter (hedged router + fallback)
+    const result = await callModel('VENUE_REASONING', { system, user });
+
+    if (!result.ok) {
+      throw new Error(result.error || 'Empty response from model');
+    }
+
+    const reasoning = result.output;
 
     console.log(`[Closed Venue Reasoning] ✅ Generated: "${reasoning.slice(0, 80)}..."`);
 
@@ -60,9 +52,9 @@ router.post('/', requireAuth, async (req, res) => {
 
   } catch (err) {
     console.error('[Closed Venue Reasoning] Error:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to generate reasoning',
-      message: err.message 
+      message: err.message
     });
   }
 });

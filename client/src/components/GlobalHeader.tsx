@@ -12,6 +12,7 @@ import {
   CloudSnow,
   CheckCircle2,
   Trash2,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
@@ -22,6 +23,8 @@ import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Access critical error setter from CoPilotContext
 import { useCoPilot } from '@/contexts/co-pilot-context';
+// 2026-02-13: Logout button in header
+import { useAuth } from '@/contexts/auth-context';
 
 // helpers (add these files from sections 2 and 3 below)
 import { classifyDayPart } from "@/lib/daypart";
@@ -85,6 +88,8 @@ const GlobalHeaderComponent: React.FC = () => {
   // 2026-01-15: FAIL HARD - Get setCriticalError from CoPilotContext
   // GlobalHeader is always used inside CoPilotProvider (via CoPilotLayout)
   const { setCriticalError } = useCoPilot();
+  // 2026-02-13: Logout from global header
+  const { logout } = useAuth();
 
   // state for display
   const [now, setNow] = useState<Date>(new Date());
@@ -515,6 +520,22 @@ const GlobalHeaderComponent: React.FC = () => {
               onClick={() => navigate('/co-pilot/settings')}
             >
               <Settings className="h-5 w-5" />
+            </Button>
+
+            {/* 2026-02-13: Logout button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-red-500/30 p-2"
+              title="Log out"
+              aria-label="Log out"
+              data-testid="button-logout"
+              onClick={async () => {
+                await logout();
+                navigate('/auth/sign-in');
+              }}
+            >
+              <LogOut className="h-5 w-5" />
             </Button>
           </div>
         </div>

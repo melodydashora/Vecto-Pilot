@@ -43,12 +43,14 @@ export const MODEL_ROLES = {
   // 2026-01-15: Upgraded from Flash to Pro per "Single Briefer Model" architecture
   // Rationale: Traffic requires complex synthesis of TomTom JSON (incidents, flow segments)
   // into actionable "Driver Advice". Pro's reasoning is needed for accurate spatial analysis.
+  // 2026-02-11: Added thinkingLevel HIGH + bumped tokens 4096→8192 (thinking consumes output tokens)
   BRIEFING_TRAFFIC: {
     envKey: 'BRIEFING_TRAFFIC_MODEL',
     default: 'gemini-3-pro-preview',
     purpose: 'Traffic conditions analysis (TomTom JSON → Driver Advice)',
-    maxTokens: 4096,
+    maxTokens: 8192,
     temperature: 0.2,
+    thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
   // 2026-01-10: Added thinkingLevel HIGH for news analysis
@@ -83,20 +85,24 @@ export const MODEL_ROLES = {
     temperature: 0.3,
     features: ['google_search'],
   },
+  // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_FALLBACK: {
     envKey: 'BRIEFING_FALLBACK_MODEL',
     default: 'gemini-3-pro-preview',
     purpose: 'General fallback for failed briefing calls',
     maxTokens: 8192,
     temperature: 0.3,
+    thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
+  // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_SCHOOLS: {
     envKey: 'BRIEFING_SCHOOLS_MODEL',
     default: 'gemini-3-pro-preview',
     purpose: 'School closures and calendar lookup',
     maxTokens: 8192,
     temperature: 0.2,
+    thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
   BRIEFING_AIRPORT: {
@@ -105,6 +111,16 @@ export const MODEL_ROLES = {
     purpose: 'Airport conditions and flight status',
     maxTokens: 4096,
     temperature: 0.1,
+    features: ['google_search'],
+  },
+  // 2026-02-13: Registered — was previously a direct callGemini in holiday-detector.js
+  BRIEFING_HOLIDAY: {
+    envKey: 'BRIEFING_HOLIDAY_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Holiday detection with real-time search verification',
+    maxTokens: 1024,
+    temperature: 0.1,
+    thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
 
@@ -182,13 +198,29 @@ export const MODEL_ROLES = {
     temperature: 0.1,
     // No search needed - just validation of existing data
   },
+  // 2026-02-13: Registered — was previously a direct OpenAI call in closed-venue-reasoning.js
+  VENUE_REASONING: {
+    envKey: 'VENUE_REASONING_MODEL',
+    default: 'gpt-5.2',
+    purpose: 'Explain why closed venues are still worth staging near',
+    maxTokens: 200,
+    temperature: 0.3,
+  },
+  // 2026-02-13: Registered — was previously a direct callGemini in venue-events.js
+  VENUE_EVENTS_SEARCH: {
+    envKey: 'VENUE_EVENTS_SEARCH_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Search for upcoming events at a specific venue',
+    maxTokens: 512,
+    temperature: 0.1,
+  },
 
   // ==========================
   // 4. COACH_CONVERSATIONS
   // ==========================
   COACH_CHAT: {
     envKey: 'COACH_CHAT_MODEL',
-    default: 'gemini-3-pro-preview',
+    default: 'gpt-5.2',
     purpose: 'AI Strategy Coach conversation (streaming)',
     maxTokens: 8192,
     temperature: 0.7,

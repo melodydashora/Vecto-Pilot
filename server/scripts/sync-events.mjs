@@ -211,6 +211,11 @@ async function processEventsWithVenueCache(events) {
           event.lng = venue.lng;
         }
 
+        // 2026-02-10: FIX - Update city/state to match physical venue location
+        // Fixes "Dallas Open" issue where event is named "Dallas" but located in "Frisco"
+        if (venue.city) event.city = venue.city;
+        if (venue.state) event.state = venue.state;
+
         // 2026-01-09: FIX - venue_catalog PK is venue_id, not id
         // Only link to venues with quality IDs; mark synthetic for later cleanup
         if (isChIJId) {

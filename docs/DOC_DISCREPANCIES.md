@@ -189,8 +189,31 @@ if (strategyAge > 30*60*1000 && (isStuckPendingBlocks || isStuckInProgress)) {
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
-| D-059 | `CLAUDE.md` | Intel components folder not mentioned in component overview | `/client/src/components/intel/` has 7 components but not listed in CLAUDE.md Client Structure | PENDING |
-| D-060 | `docs/architecture/database-schema.md` | FK onDelete behaviors not documented | Relationships like `discovered_events.venue_id` have `onDelete: 'set null'` but docs don't specify | PENDING |
+| D-059 | `CLAUDE.md` | Intel components folder not mentioned in component overview | `/client/src/components/intel/` has 7 components but not listed in CLAUDE.md Client Structure | ✅ FIXED 2026-02-13 |
+| D-060 | `docs/architecture/database-schema.md` | FK onDelete behaviors not documented | Relationships like `discovered_events.venue_id` have `onDelete: 'set null'` but docs don't specify | DEFERRED (requires full schema audit pass) |
+
+### SECURITY (P0 - Auth Gaps Fixed 2026-02-12)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-061 | `server/api/strategy/strategy.js` | No auth middleware | Added `router.use(requireAuth)` - all strategy routes now protected | ✅ FIXED 2026-02-12 |
+| D-062 | `server/api/strategy/tactical-plan.js` | No auth middleware | Added `requireAuth` to POST route | ✅ FIXED 2026-02-12 |
+| D-063 | `server/api/venue/venue-intelligence.js` | No auth middleware | Added `router.use(requireAuth)` - all venue routes now protected | ✅ FIXED 2026-02-12 |
+| D-064 | `server/api/intelligence/index.js` | No auth middleware, POST/PUT/DELETE open | Added `router.use(requireAuth)` - all intelligence routes now protected | ✅ FIXED 2026-02-12 |
+| D-065 | `server/api/research/vector-search.js` | No auth middleware, /upsert open for injection | Added `router.use(requireAuth)` - vector search now protected | ✅ FIXED 2026-02-12 |
+| D-066 | `server/api/research/research.js` | No auth middleware, AI calls cost money | Added `router.use(requireAuth)` - research routes now protected | ✅ FIXED 2026-02-12 |
+| D-067 | `server/api/location/location.js` | No auth middleware, 13 routes open | Added `router.use(requireAuth)` - all location routes now protected | ✅ FIXED 2026-02-12 |
+| D-068 | `server/api/health/ml-health.js` | No auth middleware, exposes ML metrics and memory | Added `router.use(requireAuth)` - ML health now protected | ✅ FIXED 2026-02-12 |
+| D-069 | `server/api/feedback/actions.js:31` | Used `optionalAuth` allowing anonymous access | Upgraded to `requireAuth` - anonymous users no longer exist | ✅ FIXED 2026-02-12 |
+| D-070 | `server/middleware/README.md:71` | Says optionalAuth "is no longer used" | Updated to reflect optionalAuth exists but should not be used for new routes | ✅ FIXED 2026-02-12 |
+| D-071 | `server/api/strategy/strategy-events.js` | SSE endpoints have no auth | Left open: EventSource API can't send auth headers; SSE only broadcasts notifications, not data | DEFERRED (by design) |
+| D-072 | `server/api/health/health.js` | No auth middleware | Left open: standard for monitoring/health check endpoints | DEFERRED (by design) |
+| D-073 | `server/api/health/job-metrics.js` | No auth middleware | Left open: standard for monitoring endpoints | DEFERRED (by design) |
+| D-074 | `server/api/platform/index.js` | No auth middleware | Left open: public reference data (markets, cities, countries) | DEFERRED (by design) |
+| D-075 | `server/api/vehicle/vehicle.js` | No auth middleware | Left open: public reference data (vehicle makes/models from NHTSA) | DEFERRED (by design) |
+| D-076 | `server/api/hooks/analyze-offer.js` | No auth middleware | Left open: intentionally public for Siri Shortcuts integration | DEFERRED (by design) |
+
+**Root Cause:** Express applies NO global auth middleware. Each route file must explicitly import and use `requireAuth`. 9 data-serving route files were missing auth entirely. The pattern should be: every new route file imports `requireAuth` unless explicitly designed as public.
 
 ---
 
@@ -333,6 +356,27 @@ UPDATE venue_catalog SET country = 'US' WHERE country IN ('USA', 'United States'
 | D-034 | 2026-01-15 | `server/api/coach/schema.js:38` | Fixed key_columns array: `event_date`→`event_start_date`, `event_time`→`event_start_time` |
 | D-035 | 2026-01-15 | `shared/README.md:49-50` | Updated discovered_events schema documentation to show current columns after D-030 migration |
 | D-036 | 2026-01-15 | Multiple architecture docs | Updated `event_date`/`event_time` → `event_start_date`/`event_start_time` in: `ai-coach.md:82`, `Briefing.md:123-124`, `event-discovery.md:97-98,174-175`, `server/api/briefing/README.md:118-119` |
+| D-061 | 2026-02-10 | `docs/DATABASE_SCHEMA.md` | Regenerated schema docs to include `uber_connections` and `oauth_states` (53 tables total) |
+| D-062 | 2026-02-10 | `server/lib/ai/context/enhanced-context-base.js` | Fixed incorrect relative import paths causing Snapshot table failures |
+| D-063 | 2026-02-10 | `server/lib/ai/adapters/index.js` | Integrated `HedgedRouter` for fallback execution (previously unused code) |
+| D-077 | 2026-02-13 | `server/api/feedback/feedback.js:178` | Added `requireAuth` to GET /venue/summary — was previously unprotected |
+| D-078 | 2026-02-13 | `server/api/venue/closed-venue-reasoning.js` | Refactored from direct `new OpenAI()` to `callModel('VENUE_REASONING')` via adapter |
+| D-079 | 2026-02-13 | `server/api/feedback/feedback.js:64,235` | Removed `userId` body fallback — now uses `req.auth.userId` exclusively (IDOR fix) |
+| D-059 | 2026-02-13 | `CLAUDE.md` | Added `intel/` components folder to Client Structure tree |
+| D-080 | 2026-02-13 | `server/lib/strategy/planner-gpt5.js` | Migrated from direct `callOpenAI()` to `callModel('STRATEGY_TACTICAL')` |
+| D-081 | 2026-02-13 | `server/lib/ai/providers/consolidator.js:230` | Migrated from direct `callOpenAI()` to `callModel('STRATEGY_TACTICAL')` |
+| D-082 | 2026-02-13 | `server/lib/ai/providers/consolidator.js:880` | Migrated from direct `callAnthropic()` to `callModel('BRIEFING_FALLBACK')` |
+| D-083 | 2026-02-13 | `server/lib/location/weather-traffic-validator.js` | Migrated both `callGemini()` calls to `callModel('UTIL_WEATHER_VALIDATOR')` and `callModel('UTIL_TRAFFIC_VALIDATOR')` |
+| D-084 | 2026-02-13 | `server/api/venue/venue-events.js` | Migrated from direct `callGemini()` to `callModel('VENUE_EVENTS_SEARCH')` |
+| D-085 | 2026-02-13 | `server/lib/venue/venue-intelligence.js:617` | Migrated from direct `callGemini()` to `callModel('VENUE_TRAFFIC')` |
+| D-086 | 2026-02-13 | `server/lib/location/holiday-detector.js:215` | Migrated from direct `callGemini()` to `callModel('BRIEFING_HOLIDAY')` |
+| D-087 | 2026-02-13 | `client/src/contexts/co-pilot-context.tsx:482` | Removed dead `data.timezone` fallback — blocks-fast never returns timezone |
+| D-088 | 2026-02-13 | `server/api/location/snapshot.js:186,197` | Upgraded `console.warn` to `console.error` for briefing/strategy pipeline failures |
+| D-089 | 2026-02-13 | `scripts/test-news-fetch.js:13` | Removed hardcoded Frisco/TX/America_Chicago defaults (NO FALLBACKS rule) |
+| D-090 | 2026-02-13 | `server/api/auth/auth.js:1260` | Google OAuth stub replaced with real OAuth 2.0 Authorization Code flow |
+| D-091 | 2026-02-13 | `server/api/auth/README.md:26-34` | Updated README: social login stubs → Google OAuth documentation |
+| D-092 | 2026-02-13 | `CLAUDE.md:860-866` | Added Google/Uber callback routes to Auth Route Structure |
+| D-093 | 2026-02-13 | `shared/schema.js:916` | Added `google_id` column to `driver_profiles` for Google OAuth identity linking |
 
 ---
 

@@ -17,7 +17,7 @@ import {
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 
 // Re-export utils for backward compatibility
-export { normalizeVenueName, generateCoordKey };
+export { normalizeVenueName };
 
 /**
  * Look up a venue in the catalog.
@@ -106,6 +106,9 @@ export async function lookupVenueFuzzy(criteria) {
   if (!normalized) return null;
 
   // Fuzzy: look for venues where name contains the search term or vice versa
+  // 2026-02-09: RELAXED - Search by State only, not City.
+  // This fixes linking errors where "Dallas" venues aren't found when searching from "Frisco".
+  // The normalized_name match is strong enough to prevent collisions within a state.
   const results = await db
     .select()
     .from(venue_catalog)
@@ -114,7 +117,7 @@ export async function lookupVenueFuzzy(criteria) {
         ilike(venue_catalog.normalized_name, `%${normalized}%`),
         sql`${normalized} LIKE '%' || ${venue_catalog.normalized_name} || '%'`
       ),
-      ilike(venue_catalog.city, city),
+      // ilike(venue_catalog.city, city), // Removed to allow cross-city matches in same metro
       eq(venue_catalog.state, state.toUpperCase())
     ))
     .limit(5);

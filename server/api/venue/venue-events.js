@@ -1,9 +1,9 @@
 // server/api/venue/venue-events.js
-// Check for events at a venue using Gemini 3 Pro Preview
+// Check for events at a venue using registered VENUE_EVENTS_SEARCH role
+// 2026-02-13: Migrated from direct callGemini to callModel adapter (hedged router + fallback)
 
 import express from 'express';
-// @ts-ignore
-import { callGemini } from '../../lib/ai/adapters/gemini-adapter.js';
+import { callModel } from '../../lib/ai/adapters/index.js';
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ const venueResearchLocks = new Map(); // venue_id/key → Promise
 router.post('/events', async (req, res) => {
   try {
     const { venueName, venueAddress, date } = req.body;
-    
+
     if (!venueName) {
       return res.status(400).json({ error: 'Venue name required' });
     }
@@ -38,17 +38,10 @@ router.post('/events', async (req, res) => {
     const searchDate = date || 'today';
     const query = `What events are happening at ${venueName} (${venueAddress}) ${searchDate}? Include event name, time, and expected crowd size.`;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
-    }
-
     // Create promise for this research task
     const researchPromise = (async () => {
-      const response = await callGemini({
-        model: 'gemini-3-pro-preview',
-        maxTokens: 500,
-        temperature: 0.0,
+      // 2026-02-13: Uses VENUE_EVENTS_SEARCH role via adapter (hedged router + fallback)
+      const response = await callModel('VENUE_EVENTS_SEARCH', {
         user: query
       });
 
@@ -59,14 +52,14 @@ router.post('/events', async (req, res) => {
       const eventInfo = response.output || 'No events found';
 
       // Parse eventInfo (simple extraction - unchanged logic)
-      const hasEvents = !eventInfo.toLowerCase().includes('no events') && 
+      const hasEvents = !eventInfo.toLowerCase().includes('no events') &&
                        !eventInfo.toLowerCase().includes('no scheduled');
 
       return {
         venue: venueName,
         hasEvents,
         eventInfo,
-        sources: [] // callGemini doesn't return citations in same format, defaulting to empty
+        sources: []
       };
     })();
 
@@ -83,7 +76,7 @@ router.post('/events', async (req, res) => {
 
   } catch (error) {
     console.error('[Venue Events] Error:', error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to check events',
       hasEvents: false,
       eventInfo: null

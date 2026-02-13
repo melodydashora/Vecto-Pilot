@@ -1,55 +1,95 @@
-# Uber OAuth API
+# Authentication API
 
-This module handles the OAuth 2.0 authentication flow for the Uber Driver integration. It manages the lifecycle of connecting a user's Uber account, including the initial redirect, callback handling, token storage, and disconnection.
+This module handles the core authentication API routes, serving as the primary entry point for user registration and session management. It manages the creation of driver profiles, vehicles, and the normalization of service capabilities.
 
-**File:** `server/api/auth/uber.js`
+**File:** `server/api/auth/auth.js`
 
-## Database Schema
-The integration interacts with the following database tables:
-- `oauth_states`: Stores temporary CSRF state tokens, user association, and provider details during the auth flow.
-- `uber_connections`: Stores encrypted access/refresh tokens, token expiration, granted scopes, and connection status.
+## Dependencies
+The module relies on several shared libraries and schema definitions:
+- **Schema:** `users`, `driver_profiles`, `driver_vehicles`, `platform_data`, `auth_credentials`, `verification_codes`, `oauth_states`.
+- **Libraries:** `google-oauth.js`, `password.js`, `email.js`, `sms.js`, `geocode.js`, `address-validation.js`.
 
 ## Endpoints
 
-### Initiate OAuth Flow
+### Register Driver
+**Route:** `POST /api/auth/register`
+
+Creates a new driver account. This endpoint processes personal details, address, and vehicle information. It specifically handles the normalization of vehicle eligibility, attributes, and service preferences into a standardized, platform-agnostic taxonomy.
+
+- **Authentication:** Public
+- **Request Body:**
+    - **Account:** `firstName`, `lastName`, `email`, `phone`, `password`, `nickname`.
+    - **Address:** `address1`, `address2`, `city`, `stateTerritory`, `zipCode`, `country`, `market`.
+    - **Vehicle:** Accepts flat fields (`vehicleYear`, `vehicleMake`, `vehicleModel`, `seatbelts`) or a nested `vehicle` object.
+    - **Platform:** `ridesharePlatforms` (Array, default: `['uber']`).
+    - **Driver Eligibility (Platform-Agnostic):**
+        - `eligEconomy` (Boolean, default: true)
+        - `eligXl`, `eligXxl` (Boolean)
+        - `eligComfort` (Boolean)
+        - `eligLuxurySedan`, `eligLuxurySuv` (Boolean)
+    - **Vehicle Attributes:**
+        - `attrElectric`, `attrGreen`
+        - `attrWav` (Wheelchair Accessible Vehicle)
+        - `attrSki`, `attrCarSeat`
+    - **Service Preferences:**
+        - `prefPetFriendly`, `prefTeen`, `prefAssist`, `prefShared`
+    - **Agreements:** `marketingOptIn`, `termsAccepted` (Boolean).
+    - **Legacy Support:** Accepts legacy fields (e.g., `uberTiers`, `tierBlack`, `uberXxl`) and automatically maps them to the new eligibility taxonomy.
+
+- **Flow:**
+    1.  **Normalization:**
+        -   Consolidates vehicle data from nested or flat structures.
+        -   Maps incoming legacy tier flags to the new standardized boolean flags (e.g., mapping `tierBlack` to `eligLuxurySedan`).
+        -   Sets defaults for attributes and preferences.
+    2.  **Validation:** Validates password strength, phone number, and address (via helper libraries).
+    3.  **Creation:** Hashes the password and creates related database records for the user and driver profile.
+    4.  **Response:** Returns the created user object and a JWT authentication token.
+
+---
+
+# Uber OAuth Integration
+
+This module handles the OAuth 2.0 flow for connecting a user's Uber Driver account. It manages state generation, token exchange, encryption, and storage.
+
+**File:** `server/api/auth/uber.js`
+
+## Dependencies
+The module relies on shared schema definitions and specific OAuth helpers:
+- **Schema:** `uber_connections`, `oauth_states`.
+- **Libraries:** `uber-oauth.js`, `drizzle-orm`.
+
+## Endpoints
+
+### Initiate Uber OAuth
 **Route:** `GET /api/auth/uber`
 
-Initiates the Uber OAuth flow by redirecting the user to Uber's authorization page.
+Initiates the OAuth flow by generating a CSRF state, storing it, and redirecting the user to Uber's authorization page.
 
-- **Authentication:** Required
+- **Authentication:** Required (Authenticated User)
 - **Flow:**
-    1.  Checks if the user is authenticated.
-    2.  Generates a secure random `state` string.
-    3.  Stores the state in `oauth_states` with a 10-minute expiration, linking it to the user, provider ('uber'), and redirect URI.
-    4.  Redirects the response to the Uber Authorization URL with the generated state.
+    1.  **State Generation:** Generates a random state string and stores it in `oauth_states` with a 10-minute expiration.
+    2.  **Redirect:** Redirects the client to the Uber authorization URL.
 
-### OAuth Callback
+### Uber OAuth Callback
 **Route:** `GET /api/auth/uber/callback`
 
-Handles the redirect from Uber after the user has authorized (or denied) the application.
+Handles the redirect from Uber after user authorization.
 
-- **Query Parameters:**
-    - `code`: The authorization code provided by Uber (if successful).
-    - `state`: The CSRF state token returned by Uber.
-    - `error`: Error code (e.g., `access_denied`) if the flow failed.
-    - `error_description`: Description of the error.
+- **Authentication:** Public (Handled via State validation)
+- **Query Parameters:** `code`, `state`, `error`, `error_description`.
 - **Flow:**
-    1.  Checks for OAuth errors in query parameters.
-    2.  Validates the `state` against the `oauth_states` table (must exist, match provider 'uber', and not be expired).
-    3.  Deletes the used state record from `oauth_states` to prevent reuse.
-    4.  Exchanges the `code` for access and refresh tokens via `exchangeCodeForTokens`.
-    5.  Encrypts the tokens and calculates the expiration time.
-    6.  Parses the granted scopes from the token response.
-    7.  Upserts the connection record in `uber_connections` with the encrypted tokens, expiration, scopes, and sets `is_active: true`.
-    8.  Redirects the user to the frontend success page (`/auth/signup?uber_connected=true`) or error page (`/auth/signup?error=...`).
+    1.  **Validation:** Verifies the `state` parameter against the database to prevent CSRF.
+    2.  **Token Exchange:** Exchanges the authorization `code` for access and refresh tokens.
+    3.  **Storage:** Encrypts tokens and upserts a record in `uber_connections`.
+    4.  **Response:** Redirects to the frontend success page (`/auth/signup?uber_connected=true`) or handles errors.
 
-### Disconnect Integration
+### Disconnect Uber
 **Route:** `POST /api/auth/uber/disconnect`
 
-Disconnects the Uber integration for the authenticated user.
+Revokes the Uber access token and marks the connection as inactive.
 
-- **Authentication:** Required
+- **Authentication:** Required (Authenticated User)
 - **Flow:**
-    1.  Retrieves the active Uber connection for the user from `uber_connections`.
-    2.  Attempts to revoke the access token via the Uber API (best effort).
-    3.  Updates the database record to set `is_active` to `false`.
+    1.  **Retrieval:** Finds the active Uber connection for the user.
+    2.  **Revocation:** Decrypts the access token and attempts to revoke it via the Uber API.
+    3.  **Update:** Sets `is_active` to `false` in the `uber_connections` table.

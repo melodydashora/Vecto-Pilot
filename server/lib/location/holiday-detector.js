@@ -135,8 +135,8 @@ function getHolidayOverride(date) {
   }
 }
 
-// @ts-ignore
-import { callGemini } from '../ai/adapters/gemini-adapter.js';
+// 2026-02-13: Migrated from direct callGemini to callModel adapter (hedged router + fallback)
+import { callModel } from '../ai/adapters/index.js';
 
 /**
  * Detect holiday for a given date/location using BRIEFING_HOLIDAY role
@@ -211,14 +211,10 @@ export async function detectHoliday(context) {
   }`;
 
   try {
-    // 3. Call Gemini via Adapter
-    const response = await callGemini({
-      model: 'gemini-3-pro-preview',
-      user: prompt,
-      maxTokens: 1024,
-      temperature: 0.1,
-      useSearch: true,
-      thinkingLevel: "HIGH"
+    // 2026-02-13: Uses BRIEFING_HOLIDAY role via callModel adapter (hedged router + fallback)
+    // Registry config: gemini-3-pro-preview, thinkingLevel HIGH, google_search enabled
+    const response = await callModel('BRIEFING_HOLIDAY', {
+      user: prompt
     });
 
     if (!response.ok) {

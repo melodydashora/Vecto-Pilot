@@ -3,15 +3,23 @@
  * Test script for dual-model news fetch
  * 2026-01-05: Tests fetchRideshareNews with Gemini + GPT-5.2 parallel fetch
  *
- * Usage: node scripts/test-news-fetch.js [city] [state]
- * Example: node scripts/test-news-fetch.js "Frisco" "TX"
+ * Usage: node scripts/test-news-fetch.js <city> <state> <timezone>
+ * Example: node scripts/test-news-fetch.js "Dallas" "TX" "America/Chicago"
  */
 
 import { fetchRideshareNews } from '../server/lib/briefing/briefing-service.js';
 
 async function main() {
-  const city = process.argv[2] || 'Frisco';
-  const state = process.argv[3] || 'TX';
+  // 2026-02-13: Removed hardcoded Frisco/TX/America_Chicago defaults (NO FALLBACKS rule)
+  const city = process.argv[2];
+  const state = process.argv[3];
+  const timezone = process.argv[4];
+
+  if (!city || !state || !timezone) {
+    console.error('Usage: node scripts/test-news-fetch.js <city> <state> <timezone>');
+    console.error('Example: node scripts/test-news-fetch.js "Dallas" "TX" "America/Chicago"');
+    process.exit(1);
+  }
 
   console.log(`\n🔍 Testing dual-model news fetch for ${city}, ${state}\n`);
   console.log('═'.repeat(60));
@@ -20,7 +28,7 @@ async function main() {
   const mockSnapshot = {
     city,
     state,
-    timezone: 'America/Chicago',
+    timezone,
     local_iso: new Date().toISOString()
   };
 

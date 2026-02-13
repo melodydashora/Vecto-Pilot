@@ -913,6 +913,9 @@ export const driver_profiles = pgTable("driver_profiles", {
   email: text("email").notNull().unique(),
   phone: text("phone").notNull(),
 
+  // 2026-02-13: Google OAuth subject ID (permanent, unique per Google account)
+  google_id: text("google_id").unique(),
+
   // Address
   address_1: text("address_1").notNull(),
   address_2: text("address_2"),

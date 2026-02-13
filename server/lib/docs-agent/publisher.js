@@ -48,7 +48,10 @@ export class DocPublisher {
       // 4. Cleanup backup
       try {
         await fs.unlink(backupPath);
-      } catch (e) {}
+      } catch (e) {
+        // 2026-02-12: Log backup cleanup failures (previously silent)
+        console.warn(`[DocPublisher] Failed to cleanup backup ${backupPath}: ${e.message}`);
+      }
 
       return { success: true, action: 'updated', commitHash };
 

@@ -1,3 +1,6 @@
+> **Gemini Analysis (2026-02-11):**
+> This file is the index for all documentation. It organizes docs by domain (Architecture, AI Tools, Memory, etc.) and provides quick links to key references like `ARCHITECTURE.md` and `CLAUDE.md`.
+
 > **Last Verified:** 2026-01-06
 
 # Documentation

@@ -1,3 +1,6 @@
+> **Gemini Analysis (2026-02-11):**
+> This is the root documentation for the Vecto Pilot application. It outlines the project's purpose (AI-powered rideshare intelligence), key features (Triad pipeline, Smart Blocks, AI Coach), technical stack (React/Node/Postgres/Drizzle/Multiple LLMs), and setup instructions. It serves as the primary entry point for understanding the system's high-level architecture and capabilities.
+
 # Vecto Pilot - AI-Powered Rideshare Intelligence Platform
 
 **Built by AI, For AI-Assisted Drivers.**
@@ -184,8 +187,10 @@ This project is licensed under the **MIT License**.
 ## Changelog
 
 ### v4.1.0 - The "AI-Native" Update (Feb 2026)
+*   **Integration**: Merged "Vecto-Pilot-Ultimate" features including Hedged Routing and Uber Auth foundations.
 *   **Infrastructure**: Migrated to ESLint v9 Flat Config for modern React support.
 *   **Architecture**: Implemented "TRIAD" parallel waterfall pipeline for faster strategy generation (35s avg).
+*   **Refactor**: Consolidated AI context gathering into `server/lib/ai/context/` and unified coordinate handling.
 *   **Feature**: Added **Voice AI Coach** using OpenAI Realtime API.
 *   **Reliability**: Added "Fail Hard" pattern for critical data dependencies (Location/Auth).
 *   **Data**: Transitioned to 6-decimal GPS precision for ~11cm accuracy in venue matching.

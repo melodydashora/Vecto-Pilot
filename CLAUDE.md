@@ -704,6 +704,14 @@ ANTHROPIC_API_KEY=...      # Claude Opus 4.6
 GOOGLE_MAPS_API_KEY=...    # Places, Routes, Weather
 ```
 
+### OAuth (Google, Uber)
+```bash
+GOOGLE_CLIENT_ID=...       # Google Cloud Console OAuth 2.0 Client ID
+GOOGLE_CLIENT_SECRET=...   # Google Cloud Console OAuth 2.0 Client Secret
+UBER_CLIENT_ID=...         # Uber Developer Dashboard
+UBER_CLIENT_SECRET=...     # Uber Developer Dashboard
+```
+
 ### Model Configuration
 ```bash
 STRATEGY_STRATEGIST=claude-opus-4-6-20260201
@@ -816,6 +824,7 @@ client/src/
 │       └── index.tsx           # Barrel export
 ├── components/             # UI components
 │   ├── co-pilot/           # Co-pilot specific (BottomTabNavigation, greeting)
+│   ├── intel/              # Rideshare intelligence display (7 components)
 │   ├── strategy/           # Strategy display components
 │   ├── ui/                 # shadcn/ui primitives (46 components)
 │   └── _future/            # Staged components
@@ -862,6 +871,8 @@ client/src/
 /auth/forgot-password     → ForgotPasswordPage (request reset)
 /auth/reset-password      → ResetPasswordPage (reset with token)
 /auth/terms               → TermsPage (terms of service)
+/auth/google/callback     → GoogleCallbackPage (Google OAuth code exchange)
+/auth/uber/callback       → UberCallbackPage (Uber OAuth code exchange)
 ```
 
 ### Root Structure

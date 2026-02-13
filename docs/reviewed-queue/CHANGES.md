@@ -4,6 +4,41 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
+## 2026-02-10 (Vecto-Pilot-Ultimate Integration & Hardening)
+
+### Critical Stability Fixes
+
+| ID | Issue | Fix | File |
+|----|-------|-----|------|
+| D-062 | **Snapshot Startup Crash** | Fixed incorrect relative imports in `enhanced-context-base.js` that caused module loading failures for `db` and `schema`. | `server/lib/ai/context/enhanced-context-base.js` |
+| N/A | **Pipeline Test Crash** | Restored `normalizeVenueName` export alias to fix `SyntaxError` in test suite. | `server/lib/events/pipeline/normalizeEvent.js` |
+| N/A | **Venue Utils Crash** | Restored `generateCoordKey` export to fix runtime crash in consumers relying on old import path. | `server/lib/venue/venue-utils.js` |
+| N/A | **DB Connection Refusal** | Added SSL configuration (`rejectUnauthorized: false`) for Replit/Neon PostgreSQL compatibility. | `server/db/connection-manager.js` |
+
+### Feature Integration
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Hedged Router** | Integrated `HedgedRouter` into AI adapter layer. Enables concurrent model execution and fallback. | ✅ Active in `server/lib/ai/adapters/index.js` |
+| **Uber Auth** | Verified `uber_connections` table and OAuth flow logic. | ✅ Active in `server/api/auth/uber.js` |
+
+### Documentation Alignment
+
+| ID | Change |
+|----|--------|
+| D-061 | Regenerated `docs/DATABASE_SCHEMA.md` to match actual schema (53 tables). |
+| D-063 | Documented Hedged Router integration in `docs/DOC_DISCREPANCIES.md`. |
+| N/A | Updated `README.md` and `ARCHITECTURE.md` to reflect new folder structure (`server/lib/ai/context/`, `server/lib/ai/router/`). |
+
+### Verification Status
+
+- **Build:** `npm run build:client` ✅ SUCCESS (9.5s)
+- **Startup:** `node scripts/start-replit.js` ✅ SUCCESS (Server boots, routes mount)
+- **Tests:** `tests/blocksApi.test.js` ✅ PASSED (Core strategy API contract verified)
+- **Data:** `verify-integration.js` script ✅ PASSED (Real DB connection and snapshot insertion verified)
+
+---
+
 ## 2026-01-15 (Schema↔Code Drift Audit Fix)
 
 ### Schema Column Name Synchronization

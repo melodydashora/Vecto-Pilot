@@ -97,6 +97,9 @@ export async function mountRoutes(app, server) {
     // Vehicle Data (server/api/vehicle/)
     { path: '/api/vehicle', module: './server/api/vehicle/vehicle.js', desc: 'Vehicle Data' },
 
+    // External Hooks (server/api/hooks/)
+    { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
+
     // 2026-01-09: Removed EventEmitter SSE - DB NOTIFY SSE is canonical (mountSSE)
     // The /events mount was duplicating /events/strategy, /events/blocks with EventEmitter
     // while mountSSE() mounts DB-backed versions at same paths. See LESSONS_LEARNED.md.

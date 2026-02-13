@@ -4,7 +4,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-export function loadAssistantPolicy(path) {
+export function loadEidolonPolicy(path) {
   try {
     const configPath = join(process.cwd(), path);
     const raw = readFileSync(configPath, 'utf-8');

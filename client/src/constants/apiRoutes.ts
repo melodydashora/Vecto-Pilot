@@ -23,6 +23,7 @@ export const API_ROUTES = {
     RESET_PASSWORD: '/api/auth/reset-password',
     GOOGLE: '/api/auth/google',
     GOOGLE_SIGNUP: '/api/auth/google?mode=signup',
+    GOOGLE_CALLBACK: '/api/auth/google/exchange',
     APPLE: '/api/auth/apple',
     APPLE_SIGNUP: '/api/auth/apple?mode=signup',
   },

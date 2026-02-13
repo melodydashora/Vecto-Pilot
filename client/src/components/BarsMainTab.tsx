@@ -316,7 +316,7 @@ export default function BarTab({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wine className="w-5 h-5 text-purple-600" />
-          <h2 className="text-lg font-semibold text-gray-800">Upscale Bars</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Lounges & Bars</h2>
           <Badge variant="outline" className="border-green-500 text-green-600">
             <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
             {venues.filter(v => v.isOpen).length} open

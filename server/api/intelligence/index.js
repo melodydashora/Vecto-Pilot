@@ -29,8 +29,14 @@ import express from 'express';
 import { db } from '../../db/drizzle.js';
 import { market_intelligence, platform_data, ranking_candidates, us_market_cities, market_intel } from '../../../shared/schema.js';
 import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
+// 2026-02-12: Added requireAuth - intelligence routes require authentication
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
+
+// 2026-02-12: SECURITY FIX - All intelligence routes now require authentication
+// Previously POST/PUT/DELETE were completely open, allowing anyone to create/modify intel
+router.use(requireAuth);
 
 // Valid intel types
 const INTEL_TYPES = ['regulatory', 'strategy', 'zone', 'timing', 'airport', 'safety', 'algorithm', 'vehicle', 'general'];

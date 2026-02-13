@@ -69,6 +69,11 @@ function BriefingPage() {
     [airportData]
   );
 
+  // 2026-02-10: Check if critical briefing data is still loading
+  // Weather and events are usually fast/local, so we gate on traffic, news, and airport
+  // This prevents the strategy from appearing before the supporting data is populated
+  const areCriticalBriefingsLoading = isLoading.traffic || isLoading.news || isLoading.airport;
+
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="briefing-page">
       <BriefingTab
@@ -79,6 +84,10 @@ function BriefingPage() {
         newsData={wrappedNewsData}
         eventsData={wrappedEventsData}
         isEventsLoading={isLoading.events}
+        isTrafficLoading={isLoading.traffic}
+        isNewsLoading={isLoading.news}
+        isAirportLoading={isLoading.airport}
+        areCriticalBriefingsLoading={areCriticalBriefingsLoading}
         schoolClosuresData={wrappedSchoolClosuresData}
         airportData={wrappedAirportData}
         consolidatedStrategy={persistentStrategy || undefined}

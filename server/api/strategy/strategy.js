@@ -14,8 +14,14 @@ import { safeElapsedMs } from '../utils/safeElapsedMs.js';
 import crypto from 'crypto';
 import { validateBody } from '../../middleware/validate.js';
 import { strategyRequestSchema } from '../../validation/schemas.js';
+// 2026-02-12: Added requireAuth - all strategy routes require authentication
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+
+// 2026-02-12: SECURITY FIX - All strategy routes now require authentication
+// Previously these were completely open, allowing anyone to fetch/run strategies for any snapshotId
+router.use(requireAuth);
 
 /** GET /api/strategy/:snapshotId */
 router.get('/:snapshotId', async (req, res) => {

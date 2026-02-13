@@ -1,3 +1,6 @@
+> **Gemini Analysis (2026-02-11):**
+> This file documents the frontend React application structure, including routing, layouts, and configuration. It points to `src/README.md` for more detailed component architecture.
+
 > **Last Verified:** 2026-01-06
 
 # Client (`client/`)

@@ -21,7 +21,7 @@ BriefingEvent ← (DB read) ← discovered_events ← (DB write)
 | File | Purpose | Key Functions |
 |------|---------|---------------|
 | `types.js` | JSDoc type definitions | RawEvent, NormalizedEvent, ValidatedEvent, StoredEvent, BriefingEvent |
-| `normalizeEvent.js` | Raw → Normalized transformation | normalizeEvent, normalizeEvents, normalizeTitle, normalizeDate, normalizeTime |
+| `normalizeEvent.js` | Raw → Normalized transformation | normalizeEvent, normalizeEvents, normalizeTitle, normalizeDate, normalizeTime, cleanVenueName |
 | `validateEvent.js` | Hard filter validation | validateEvent, validateEventsHard, needsReadTimeValidation |
 | `hashEvent.js` | MD5 hash for deduplication | generateEventHash, buildHashInput, eventsHaveSameHash |
 

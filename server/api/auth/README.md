@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-03
+> **Last Verified:** 2026-02-13
 
 # Auth API (`server/api/auth/`)
 
@@ -23,15 +23,37 @@ POST /api/auth/logout           - End session (clear session_id, preserves data)
 POST /api/auth/token            - Generate JWT (DEV ONLY, disabled in prod)
 ```
 
-### Social Login (Stubs - Not Yet Implemented)
+### Google OAuth (2026-02-13)
 ```
-GET  /api/auth/google           - Google OAuth redirect (stub → returns error)
+GET  /api/auth/google           - Initiates Google OAuth consent flow
+POST /api/auth/google/exchange  - Exchanges Google auth code for app session token
+```
+
+**Flow:**
+1. User clicks "Sign in with Google" → `GET /api/auth/google`
+2. Server generates CSRF state, stores in `oauth_states`, redirects to Google consent
+3. User consents → Google redirects to `/auth/google/callback?code=XXX&state=YYY`
+4. Client callback page POSTs `{ code, state }` to `POST /api/auth/google/exchange`
+5. Server validates state, exchanges code for tokens, verifies Google ID token
+6. Server finds user by `google_id` or `email`, creates session, returns app token
+
+**Scope:** Login only (Phase 1). Requires existing account. Sign-up via Google is Phase 2.
+
+#### Environment Variables
+```bash
+GOOGLE_CLIENT_ID=...            # From Google Cloud Console
+GOOGLE_CLIENT_SECRET=...        # From Google Cloud Console
+# Redirect URI: ${CLIENT_URL}/auth/google/callback (must match Google Console config)
+```
+
+### Apple Sign In (Stub - Not Yet Implemented)
+```
 GET  /api/auth/apple            - Apple Sign In redirect (stub → returns error)
 ```
 
-> **Note (2026-01-06):** Social login routes are stubs that redirect back to
-> `/auth/sign-in?error=social_not_implemented&provider={google|apple}`.
-> The frontend displays "Coming soon!" message. TODO: Implement full OAuth.
+> **Note (2026-01-06):** Apple Sign In is a stub that redirects back to
+> `/auth/sign-in?error=social_not_implemented&provider=apple`.
+> TODO: Implement full Apple Sign In with passport-apple.
 
 ### Uber OAuth (2026-02-03)
 ```
@@ -157,6 +179,7 @@ Three-table architecture for clean separation of concerns:
 - **Uses:** `../../lib/auth/password.js` for password hashing
 - **Uses:** `../../lib/auth/email.js` for transactional emails
 - **Uses:** `../../lib/auth/sms.js` for SMS verification
+- **Uses:** `../../lib/auth/oauth/google-oauth.js` for Google OAuth (2026-02-13)
 - **Uses:** `../../middleware/auth.js` for `requireAuth` middleware
 - **Creates:** `users` rows for session management
 - **Creates:** `driver_profiles` rows for identity

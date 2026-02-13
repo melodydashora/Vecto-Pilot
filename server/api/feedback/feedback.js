@@ -58,10 +58,10 @@ router.post('/venue', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
-    const { userId, snapshot_id, ranking_id, place_id, venue_name, sentiment, comment } = req.body;
-    
-    // SECURITY: Use authenticated user_id, not from request body
-    const authUserId = req.auth?.userId || userId;
+    const { snapshot_id, ranking_id, place_id, venue_name, sentiment, comment } = req.body;
+
+    // 2026-02-13: Use only authenticated user_id — body userId removed (spoofing risk)
+    const authUserId = req.auth.userId;
     
     // Validate required fields
     if (!snapshot_id || !ranking_id || !venue_name || !sentiment) {
@@ -174,8 +174,10 @@ router.post('/venue', requireAuth, async (req, res) => {
   }
 });
 
+// SECURITY: Require authentication
 // GET /api/feedback/venue/summary?ranking_id=<UUID>
-router.get('/venue/summary', async (req, res) => {
+// 2026-02-13: Added requireAuth — was previously unprotected (D-077)
+router.get('/venue/summary', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
@@ -229,10 +231,10 @@ router.post('/strategy', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
-    const { userId, snapshot_id, ranking_id, sentiment, comment } = req.body;
-    
-    // SECURITY: Use authenticated user_id, not from request body
-    const authUserId = req.auth?.userId || userId;
+    const { snapshot_id, ranking_id, sentiment, comment } = req.body;
+
+    // 2026-02-13: Use only authenticated user_id — body userId removed (spoofing risk)
+    const authUserId = req.auth.userId;
     
     // Validate required fields
     if (!snapshot_id || !ranking_id || !sentiment) {

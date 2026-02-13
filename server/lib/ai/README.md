@@ -1,3 +1,9 @@
+> **Gemini Analysis (2026-02-11):**
+> **Core Function:** This directory manages all AI interactions, enforcing the "Adapter Pattern" to decouple application logic from specific providers (OpenAI, Anthropic, Google).
+> **Key Architecture:** It houses the **TRIAD Pipeline** (Strategist -> Planner -> Validator), which orchestrates multi-model strategy generation.
+> **Critical Rule:** Direct LLM API calls are forbidden here; all calls must route through `adapters/index.js` using semantic roles (e.g., `STRATEGY_CORE`).
+> **Recent Updates:** Integrated `Gemini 3.0 Pro` for high-volume data synthesis and `Claude Opus 4.6` as the primary strategist.
+
 > **Last Verified:** 2026-01-10
 
 # AI Module (`server/lib/ai/`)
@@ -12,15 +18,23 @@ Centralized AI model management: adapters for different providers (Anthropic, Op
 ai/
 ├── adapters/           # Model API adapters (call these, not providers directly)
 │   └── index.js        # Main dispatcher: callModel(role, {system, user})
+├── context/            # Shared context gathering logic (Agent, Assistant, Eidolon)
 ├── providers/          # Strategy generation providers
 │   ├── briefing.js     # Events, traffic, news (Gemini + Search)
 │   └── consolidator.js # Strategy generation (GPT-5.2 + Gemini)
+├── router/             # Hedged routing and fallback logic
 ├── coach-dal.js        # Data access layer for AI Coach chat
 ├── index.js            # Barrel exports for ai module
 ├── model-registry.js   # Model configuration registry (+ LLM diagnostics)
 ├── models-dictionary.js # Model metadata registry
 └── unified-ai-capabilities.js # AI capability manager
 ```
+
+## Key Updates (2026-02-10)
+
+- **Context Refactor:** Consolidated `enhanced-context.js` logic into `context/enhanced-context-base.js` to reduce duplication across Agent, Assistant, and Eidolon.
+- **Model Parameters:** Updated OpenAI models (GPT-5.2, o1) to use `max_completion_tokens` instead of the deprecated `max_tokens`.
+- **Hedged Routing:** Added `server/lib/ai/router/` for advanced model fallback and concurrency management.
 
 ## Key Pattern: Use Adapters, Not Direct API Calls
 
@@ -66,19 +80,27 @@ Roles follow the `{TABLE}_{FUNCTION}` naming convention where the prefix indicat
 - `COACH_*` → `coach_conversations` table
 - `UTIL_*` → Validation/parsing (no direct DB write)
 
-**Key Roles:**
+**Key Roles (updated 2026-02-13):**
 
 | Role | Env Variable | Default Model | Purpose |
 |------|--------------|---------------|---------|
-| `STRATEGY_CORE` | `STRATEGY_CORE_MODEL` | Claude Opus 4.6 | Core strategic plan generation |
+| `STRATEGY_CORE` | `STRATEGY_CORE_MODEL` | Gemini 3 Pro | Core strategic plan generation |
 | `STRATEGY_CONTEXT` | `STRATEGY_CONTEXT_MODEL` | Gemini 3 Pro | Real-time context gathering |
 | `STRATEGY_TACTICAL` | `STRATEGY_TACTICAL_MODEL` | GPT-5.2 | Immediate 1hr tactical strategy |
 | `STRATEGY_DAILY` | `STRATEGY_DAILY_MODEL` | Gemini 3 Pro | Long-term 8-12hr daily strategy |
 | `BRIEFING_EVENTS_VALIDATOR` | `BRIEFING_VALIDATOR_MODEL` | Claude Opus 4.6 | Event schedule verification |
+| `BRIEFING_HOLIDAY` | `BRIEFING_HOLIDAY_MODEL` | Gemini 3 Pro | Holiday detection with search |
 | `VENUE_SCORER` | `VENUE_SCORER_MODEL` | GPT-5.2 | Smart Blocks venue scoring |
 | `VENUE_FILTER` | `VENUE_FILTER_MODEL` | Claude Haiku | Fast venue filtering |
+| `VENUE_TRAFFIC` | `VENUE_TRAFFIC_MODEL` | Gemini 3 Pro | Venue-specific traffic intelligence |
+| `VENUE_REASONING` | `VENUE_REASONING_MODEL` | GPT-5.2 | Closed venue staging reasoning |
+| `VENUE_EVENTS_SEARCH` | `VENUE_EVENTS_SEARCH_MODEL` | Gemini 3 Pro | Venue event search |
+| `UTIL_WEATHER_VALIDATOR` | `UTIL_WEATHER_VALIDATOR_MODEL` | Gemini 3 Pro | Weather safety validation |
+| `UTIL_TRAFFIC_VALIDATOR` | `UTIL_TRAFFIC_VALIDATOR_MODEL` | Gemini 3 Pro | Traffic condition validation |
 
 **Legacy Support:** Old role names (`strategist`, `briefer`, `consolidator`) are automatically mapped to new names. See `model-registry.js` for the complete mapping.
+
+**Adapter Compliance (2026-02-13):** All production AI calls now route through `callModel()`. Zero direct `callGemini/callOpenAI/callAnthropic` calls exist outside the adapter layer (except `enhanced-context-base.js` which uses `callAnthropicWithWebSearch` for the isolated agent system).
 
 ## TRIAD Pipeline (Strategy Generation)
 

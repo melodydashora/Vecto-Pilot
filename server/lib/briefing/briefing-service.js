@@ -6,8 +6,8 @@ import { z } from 'zod';
 // Event validation disabled - Gemini handles event discovery, Claude is fallback only
 // import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
 // 2026-01-10: Removed direct Anthropic import - use callModel adapter instead (D-016)
-import OpenAI from "openai";
-import { GoogleGenAI } from "@google/genai";
+// 2026-02-11: Removed direct OpenAI and GoogleGenAI imports - all AI calls go through callModel adapter
+// This ensures thinkingLevel, safety settings, and JSON cleanup are consistently applied
 import { briefingLog, OP } from '../../logger/workflow.js';
 // Centralized AI adapter - use for all model calls
 import { callModel } from '../ai/adapters/index.js';
@@ -272,8 +272,7 @@ export function filterInvalidEvents(events) {
   return result.valid;
 }
 
-// Initialize OpenAI client for GPT-5.2 fallback
-const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+// 2026-02-11: Removed direct OpenAI client - all calls now use callModel adapter
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -394,25 +393,17 @@ DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
  * Analyze TomTom traffic data with AI for strategic, driver-focused summary
  * 2026-01-15: Single Briefer Model Architecture - all briefing roles use Gemini Pro
  * Uses BRIEFING_TRAFFIC_MODEL env var or defaults to Gemini 3 Pro Preview
- * @param {Object} params - { tomtomData, city, state, formattedAddress, driverLat, driverLon }
+ * @param {Object} params - { tomtomData, rawTraffic, city, state, formattedAddress, driverLat, driverLon }
  */
-async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress, driverLat, driverLon }) {
-  // 2026-01-15: Single Briefer Model - Gemini 3 Pro for consistent quality across briefings
-  // NOTE: Model ID must include "-preview" suffix (gemini-3-pro is not valid)
-  const trafficModel = process.env.BRIEFING_TRAFFIC_MODEL || 'gemini-3-pro-preview';
-
-  if (!process.env.GEMINI_API_KEY && trafficModel.startsWith('gemini')) {
-    briefingLog.warn(1, `Traffic analyzer unavailable - no GEMINI_API_KEY`, OP.FALLBACK);
-    return null;
-  }
+async function analyzeTrafficWithAI({ tomtomData, rawTraffic, city, state, formattedAddress, driverLat, driverLon }) {
+  // 2026-02-11: FIX - Route through callModel adapter (was direct GoogleGenAI SDK call)
+  // This ensures thinkingLevel HIGH, safety settings, and JSON cleanup are applied
+  // Model is resolved from BRIEFING_TRAFFIC registry role (gemini-3-pro-preview)
 
   const startTime = Date.now();
-  const modelLabel = trafficModel.includes('flash') ? 'Gemini Flash' : 'Gemini Pro';
-  briefingLog.ai(1, modelLabel, `analyzing traffic for ${city}, ${state}`);
+  briefingLog.ai(1, 'Gemini Pro', `analyzing traffic for ${city}, ${state}`);
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
     // Prepare incident data with distance information
     const stats = tomtomData.stats || {};
     const incidents = tomtomData.incidents || [];
@@ -424,7 +415,7 @@ async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress,
     const jams = incidents.filter(i => i.category === 'Jam');
 
     // Build a strategic prompt focused on driver impact
-    const prompt = `You are a traffic strategist for rideshare drivers. Analyze this traffic data and provide a STRATEGIC briefing.
+    let prompt = `You are a traffic strategist for rideshare drivers. Analyze this traffic data and provide a STRATEGIC briefing.
 
 DRIVER POSITION: ${city}, ${state} (${driverLat ? parseFloat(driverLat).toFixed(6) : 'N/A'},${driverLon ? parseFloat(driverLon).toFixed(6) : 'N/A'})
 AREA: ${city}, ${state}
@@ -446,9 +437,17 @@ ${incidents.slice(0, 15).map((inc, i) => {
 HIGHWAY CLOSURES & ACCIDENTS (CRITICAL):
 ${[...closures.filter(c => c.isHighway), ...accidents.filter(a => a.isHighway)].slice(0, 8).map(c =>
   `- ${c.road}: ${c.location} [${c.distanceFromDriver !== null ? c.distanceFromDriver + 'mi' : '?'}] - ${c.category}`
-).join('\n') || 'None on major highways'}
+).join('\n') || 'None on major highways'}`;
 
-Return ONLY a JSON object with this structure:
+    // 2026-02-10: PHASE 3 INTELLIGENCE - Add Raw Telemetry
+    if (rawTraffic) {
+      prompt += `\n\n[PHASE 3 INTELLIGENCE - RAW TELEMETRY]
+Use this raw data to find patterns invisible to standard aggregation:
+FLOW DATA SAMPLE: ${JSON.stringify(rawTraffic.flow || {}, null, 2).slice(0, 1000)}...
+RAW INCIDENT COUNT: ${rawTraffic.incidents?.length || 0}`;
+    }
+
+    prompt += `\n\nReturn ONLY a JSON object with this structure:
 {
   "briefing": "2-3 sentences: (1) Overall traffic status with congestion level. (2) SPECIFIC highway/road issues that affect strategy with distances. (3) Recommended action or route adjustments. Be CONCISE and STRATEGIC.",
   "keyIssues": [
@@ -467,21 +466,21 @@ Return ONLY a JSON object with this structure:
 
 Focus on ACTIONABLE intelligence: what should the driver DO based on this traffic?`;
 
-    const result = await ai.models.generateContent({
-      model: trafficModel,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        maxOutputTokens: 2048,
-        temperature: 0.2,
-      }
-    });
+    const system = 'You are a traffic strategist for rideshare drivers. Return ONLY valid JSON with no preamble.';
 
-    const content = (result?.text || result?.response?.text?.() || '').trim();
+    // 2026-02-11: Use callModel adapter - picks up thinkingLevel HIGH + safety settings from registry
+    const result = await callModel('BRIEFING_TRAFFIC', { system, user: prompt });
 
-    // Parse JSON from response
+    if (!result.ok) {
+      briefingLog.warn(1, `BRIEFING_TRAFFIC callModel failed: ${result.error}`, OP.AI);
+      return null;
+    }
+
+    const content = (result.output || result.text || '').trim();
+
+    // Parse JSON from response (adapter handles code block cleanup, but double-check)
     let jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      // Try extracting from code block
       const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (codeBlockMatch) {
         jsonMatch = codeBlockMatch[1].match(/\{[\s\S]*\}/);
@@ -489,13 +488,13 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
     }
 
     if (!jsonMatch) {
-      briefingLog.warn(1, `Gemini Flash traffic analysis returned non-JSON`, OP.AI);
+      briefingLog.warn(1, `BRIEFING_TRAFFIC returned non-JSON (${content.length} chars)`, OP.AI);
       return null;
     }
 
     const analysis = JSON.parse(jsonMatch[0]);
     const elapsedMs = Date.now() - startTime;
-    briefingLog.done(1, `${modelLabel} traffic analysis (${elapsedMs}ms)`, OP.AI);
+    briefingLog.done(1, `Gemini Pro traffic analysis (${elapsedMs}ms)`, OP.AI);
 
     return {
       briefing: analysis.briefing,
@@ -506,10 +505,10 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
       closuresSummary: analysis.closuresSummary,
       constructionSummary: analysis.constructionSummary,
       analyzedAt: new Date().toISOString(),
-      provider: trafficModel
+      provider: 'BRIEFING_TRAFFIC'
     };
   } catch (err) {
-    briefingLog.warn(1, `${modelLabel} traffic analysis failed: ${err.message}`, OP.AI);
+    briefingLog.warn(1, `BRIEFING_TRAFFIC analysis failed: ${err.message}`, OP.AI);
     return null;
   }
 }
@@ -1535,6 +1534,10 @@ export async function fetchTrafficConditions({ snapshot }) {
   // TRY TOMTOM FIRST (if configured + has coordinates) - real-time traffic data
   if (process.env.TOMTOM_API_KEY && lat && lng) {
     try {
+      // 2026-02-10: PHASE 3 HARDENING - Fetch RAW traffic for AI analysis
+      // This enables the "Briefer Model" to see patterns invisible to standard aggregation
+      const rawTraffic = await fetchRawTraffic(lat, lng, 10 * 1609); // 10 miles in meters
+
       const tomtomResult = await getTomTomTraffic({
         lat,
         lon: lng,
@@ -1558,8 +1561,10 @@ export async function fetchTrafficConditions({ snapshot }) {
 
         // Analyze traffic with AI for strategic, driver-focused briefing
         // Uses configured model (default: Gemini Flash - fast & cost-effective)
+        // 2026-02-10: Pass rawTraffic for Phase 3 analysis
         const analysis = await analyzeTrafficWithAI({
           tomtomData: traffic,
+          rawTraffic,
           city,
           state,
           formattedAddress,
