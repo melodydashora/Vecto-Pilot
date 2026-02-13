@@ -48,8 +48,13 @@
 | `formatted_address` | TEXT | **LEGACY** Full address |
 | `timezone` | TEXT | **LEGACY** Timezone string |
 | `local_iso` | TIMESTAMP | Authoritative local time |
+| `dow` | INTEGER | Day of week (0=Sunday, 1=Monday, etc.) |
+| `hour` | INTEGER | Hour of day |
+| `day_part_key` | TEXT | Time of day (e.g., 'morning', 'evening') |
+| `h3_r8` | TEXT | H3 geohash for density analysis |
 | `weather` | JSONB | Weather data |
 | `air` | JSONB | Air quality data |
+| `permissions` | JSONB | User permissions at snapshot time |
 | `holiday` | TEXT | Holiday name or 'none' |
 | `is_holiday` | BOOLEAN | True if today is a holiday |
 
