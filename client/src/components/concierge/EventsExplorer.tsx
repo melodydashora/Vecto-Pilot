@@ -20,6 +20,9 @@ export interface VenueItem {
   distance_hint?: string;
   description?: string;
   time?: string;
+  // 2026-02-13: Coords for ConciergeMap markers
+  lat?: number;
+  lng?: number;
 }
 
 export interface EventItem {
@@ -30,6 +33,9 @@ export interface EventItem {
   time?: string;
   description?: string;
   distance_hint?: string;
+  // 2026-02-13: Coords for ConciergeMap markers
+  lat?: number;
+  lng?: number;
 }
 
 interface EventsExplorerProps {
