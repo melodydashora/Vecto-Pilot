@@ -197,7 +197,11 @@
       "Bash(source .env)",
       "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node:*)",
       "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node scripts/test-uber-webhook.js:*)",
-      "Bash(gh api:*)"
+      "Bash(gh api:*)",
+      "Bash(bash:*)",
+      "Bash(__NEW_LINE_516c85416dc63afe__ wc -l /tmp/env_vars.txt)",
+      "Bash(gh auth:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

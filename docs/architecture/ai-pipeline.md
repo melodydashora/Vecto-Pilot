@@ -1,15 +1,75 @@
-## Model Dispatcher (`server/lib/ai/adapters/index.js`)
+# OpenAI Adapter
 
-The central entry point for all AI model interactions, implementing a model-agnostic routing layer.
+**File:** `server/lib/ai/adapters/openai-adapter.js`
 
-*   **Core Function:** `callModel(role, params)`
-    *   **Role Resolution:** Looks up model configuration (provider, model name, parameters) using the `role` key from the registry.
-    *   **Feature Flags:** Dynamically enables capabilities like `useWebSearch`, `useSearch` (Google Grounding), `thinkingLevel`, `reasoningEffort`, or `skipJsonExtraction` based on the role definition.
-*   **Hedged Router:**
-    *   **Reliability:** Uses a static `HedgedRouter` instance initialized with provider-specific adapters to manage timeouts and request lifecycles.
-    *   **Fallback Logic:** If `isFallbackEnabled(role)` is true, it automatically configures a secondary provider (defined in `FALLBACK_CONFIG`) to ensure request completion if the primary provider fails.
-*   **Supported Providers:**
-    *   **OpenAI:** Routes standard and web-search requests (utilizing `gpt-5-search-api`); supports `reasoningEffort` and handles parameter mapping for GPT-5/o1 models (e.g., `max_completion_tokens`, temperature exclusion). Includes a mock client for development/testing when the API key starts with `sk-dummy`.
-    *   **Anthropic:** Routes standard and web-search requests (utilizing the `web_search_20250305` tool); extracts citations from response blocks and implements assistant prefill strategies to enforce JSON formatting.
-    *   **Google:** Routes to the Gemini adapter (via `@google/genai`); supports `thinkingLevel` (Gemini 3), `useSearch` (Grounding), `skipJsonExtraction`, and streaming. Resolves SDK environment variable conflicts to prioritize `GEMINI_API_KEY`. Implements intelligent output cleaning to preserve embedded code blocks and bypasses JSON extraction for Markdown-formatted responses.
-    *   **Vertex:** Routes to the Vertex AI adapter (Google Cloud); supports `thinkingLevel` and `useSearch` (Grounding).
+The OpenAI adapter provides a unified interface for interacting with OpenAI's Chat Completions API, handling model-specific nuances for GPT-4, GPT-5, and o1 model families.
+
+## Configuration
+
+The adapter initializes the OpenAI client using `process.env.OPENAI_API_KEY`.
+
+### Mock Client
+For development and testing, if the API key starts with `sk-dummy`, a mock client is returned. This mock client returns static responses (e.g., for ride-sharing pricing) to avoid incurring API costs during local development.
+
+## Core Functions
+
+### `callOpenAI`
+
+The primary entry point for text generation. It abstracts differences in parameter requirements between model generations.
+
+```javascript
+export async function callOpenAI({ 
+  model, 
+  system, 
+  user, 
+  messages, 
+  maxTokens, 
+  temperature, 
+  reasoningEffort 
+})
+```
+
+#### Model Compatibility Handling
+
+The adapter dynamically adjusts API parameters based on the `model` string:
+
+| Feature | GPT-4 / Legacy | GPT-5 Family (`gpt-5*`) | o1 Family (`o1-*`) |
+| :--- | :--- | :--- | :--- |
+| **Token Limit** | `max_tokens` | `max_completion_tokens` | `max_completion_tokens` |
+| **Temperature** | Supported | **Ignored** (Not supported) | **Ignored** (Not supported) |
+| **Reasoning Effort** | Not Supported | Supported | Supported |
+
+*Note: The adapter automatically suppresses `temperature` for GPT-5 and o1 models to prevent API errors.*
+
+### `callOpenAIWithWebSearch`
+
+*Added: 2026-01-05*
+
+A specialized function for performing web searches using OpenAI's dedicated search models.
+
+- **Target Model:** Always uses `gpt-5-search-api`.
+- **Use Case:** Used by the `BRIEFING_NEWS_GPT` role for parallel news fetching.
+- **Output:** Returns standard output plus citations if available.
+
+```javascript
+export async function callOpenAIWithWebSearch({ 
+  system, 
+  user, 
+  maxTokens, 
+  reasoningEffort 
+})
+```
+
+## Usage Example
+
+```javascript
+import { callOpenAI } from "../adapters/openai-adapter.js";
+
+const response = await callOpenAI({
+  model: "gpt-5.2-preview",
+  system: "You are a helpful assistant.",
+  user: "Explain quantum computing.",
+  maxTokens: 1000,
+  reasoningEffort: "high" // Supported by GPT-5
+});
+```
