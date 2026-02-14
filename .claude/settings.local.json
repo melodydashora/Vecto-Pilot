@@ -201,7 +201,10 @@
       "Bash(bash:*)",
       "Bash(__NEW_LINE_516c85416dc63afe__ wc -l /tmp/env_vars.txt)",
       "Bash(gh auth:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(ss:*)",
+      "Bash(netstat:*)",
+      "Bash(npx vite build:*)"
     ],
     "deny": [],
     "ask": []
