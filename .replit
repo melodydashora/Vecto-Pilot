@@ -45,6 +45,135 @@ author = 43532959
 task = "shell.exec"
 args = "set -a && . mono-mode.env && set +a && npm run start:replit"
 
+# ===== Code Quality Workflows =====
+
+[[workflows.workflow]]
+name = "TypeCheck"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run typecheck"
+
+[[workflows.workflow]]
+name = "Lint"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run lint"
+
+[[workflows.workflow]]
+name = "Format"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run format"
+
+# ===== Testing Workflows =====
+
+[[workflows.workflow]]
+name = "Test: Unit"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run test:unit"
+
+[[workflows.workflow]]
+name = "Test: E2E"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run test:e2e"
+
+[[workflows.workflow]]
+name = "Test: All"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run test"
+
+# ===== Build Workflows =====
+
+[[workflows.workflow]]
+name = "Build: Client"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build:client"
+
+[[workflows.workflow]]
+name = "Build: Production"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
+
+# ===== Database Workflows =====
+
+[[workflows.workflow]]
+name = "DB: Push Schema"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run db:push"
+
+[[workflows.workflow]]
+name = "DB: Migrate"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run db:migrate"
+
+[[workflows.workflow]]
+name = "DB: Studio"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx drizzle-kit studio"
+
+# ===== Pre-PR Validation =====
+
+[[workflows.workflow]]
+name = "Pre-PR: Full Validation"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run lint && npm run typecheck && npm run build"
+
+# ===== Doctor / Health Check =====
+
+[[workflows.workflow]]
+name = "Doctor"
+mode = "sequential"
+author = 43532959
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run doctor"
+
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
 expertMode = true
