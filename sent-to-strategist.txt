@@ -1,29 +1,29 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 2026-02-13T20:30:57.618Z
-Snapshot ID: 45ed0a7f-a323-478c-8dcf-cba4c7d51e36
+Generated: 2026-02-14T00:05:53.885Z
+Snapshot ID: ea83ffd4-775e-4223-abf9-b1a8676042e5
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: 45ed0a7f-a323-478c-8dcf-cba4c7d51e36
-user_id: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
+snapshot_id: ea83ffd4-775e-4223-abf9-b1a8676042e5
+user_id: f52625ff-9287-4e2b-ac92-cfbfb7612776
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
-  formatted_address: 1701 Timber Ridge Dr, Frisco, TX 75036, USA
-  lat: 33.1292255343068
-  lng: -96.87560546259225
+  formatted_address: 1735 Timber Ridge Dr, Frisco, TX 75036, USA
+  lat: 33.12922003166342
+  lng: -96.87556099161992
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Fri Feb 13 2026 20:29:24 GMT+0000 (Coordinated Universal Time)
+  local_iso: Sat Feb 14 2026 00:04:33 GMT+0000 (Coordinated Universal Time)
   dow: 5 (Friday)
-  day_part_key: late_morning_noon
+  day_part_key: early_evening
   is_holiday: false
   holiday: none
 
@@ -34,54 +34,47 @@ WEATHER (from snapshot):
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 7c3fbc38-0c74-411b-8b2b-e53763ae390e
-snapshot_id: 45ed0a7f-a323-478c-8dcf-cba4c7d51e36
-created_at: Fri Feb 13 2026 20:29:25 GMT+0000 (Coordinated Universal Time)
-updated_at: Fri Feb 13 2026 20:30:57 GMT+0000 (Coordinated Universal Time)
+briefing_id: 81ad545e-14d1-4a37-bae9-da8bba72fcb0
+snapshot_id: ea83ffd4-775e-4223-abf9-b1a8676042e5
+created_at: Sat Feb 14 2026 00:04:34 GMT+0000 (Coordinated Universal Time)
+updated_at: Sat Feb 14 2026 00:05:53 GMT+0000 (Coordinated Universal Time)
 
-NEWS (6 items):
+NEWS (5 items):
 {
   "items": [
     {
-      "title": "Severe Weather Alert: Heavy Rain & Storms Tonight",
+      "title": "Valentine's Day Demand & Weather Alert: Rain + Holiday Surge",
       "impact": "high",
-      "summary": "A cold front brings a high chance of rain (92%) and thunderstorms starting Friday night into Saturday morning. Expect wet roads, slower traffic, and potential localized flooding, especially east of the Metroplex. Highs near 80°F today before dropping. Surge pricing is likely during downpours, but drive carefully.",
+      "summary": "Widespread rain is expected across North Texas today, coinciding with high Valentine's Day demand. Drivers should anticipate slower traffic flow, increased accident risks, and high surge pricing as dining and nightlife crowds seek rides to avoid walking in the rain. Peak demand is expected this evening in entertainment districts like Deep Ellum, Uptown, and Legacy West.",
       "category": "weather",
-      "published_date": "2026-02-13"
+      "published_date": "2026-02-14"
     },
     {
-      "title": "Major Event: WWE Friday Night SmackDown at AAC",
-      "impact": "high",
-      "summary": "High ride demand expected around the American Airlines Center in downtown Dallas tonight. The event starts at 6:30 PM. Expect heavy congestion for drop-offs pre-show and a sharp demand spike for pickups after the event concludes (approx. 10:00-10:30 PM).",
+      "title": "DFW Airport: Skylink Reduced Hours & Terminal Construction",
+      "impact": "medium",
+      "summary": "DFW Airport has scheduled reduced overnight operations for the Skylink train to support Terminal F construction. Drivers dropping off passengers late at night should advise them to allow extra time for inter-terminal transfers. Additionally, ongoing construction at Terminal C continues to impact access; ensure you follow the latest detour signage for drop-offs.",
+      "category": "airport",
+      "published_date": "2026-02-14"
+    },
+    {
+      "title": "Major Events: Fair Park, Design District & Arboretum",
+      "impact": "medium",
+      "summary": "High ride demand expected for multiple events today: 'Rickey Smiley Valentine's Day Comedy Show' at Music Hall at Fair Park, 'Neil Frances' at SILO Dallas (Design District), and 'Orchid Enchantment' date nights at the Dallas Arboretum (6-9 PM). Expect congestion around these venues during ingress and egress.",
       "category": "event",
-      "published_date": "2026-02-13"
+      "published_date": "2026-02-14"
     },
     {
-      "title": "I-35 & I-635 Weekend Construction Closures",
-      "impact": "high",
-      "summary": "Major lane closures begin tonight for the I-35 expansion project. Southbound I-35 lanes between PGBT and I-635 will be reduced to one lane nightly (8 PM - 6 AM). Various ramps and managed lanes at the I-635 interchange are also closed. Avoid this corridor for airport runs if possible.",
+      "title": "Safety Alert: Recent Violent Incidents in Dallas",
+      "impact": "medium",
+      "summary": "Police are investigating a fatal shooting where a female driver was killed in a vehicle riddled with bullets, with the suspect still at large. Separately, a random attack involving a throat slashing was reported in broad daylight yesterday. Drivers are urged to exercise extreme caution, lock doors, and stay aware of surroundings, especially when parked.",
       "category": "traffic",
       "published_date": "2026-02-13"
     },
     {
-      "title": "Valentine's & Presidents' Day Weekend Demand",
-      "impact": "medium",
-      "summary": "Expect elevated demand throughout the weekend due to the double holiday (Valentine's Day on Saturday, Presidents' Day Monday). Friday night dining and nightlife traffic will be heavier than usual in Uptown, Deep Ellum, and Legacy West (Frisco/Plano).",
-      "category": "event",
-      "published_date": "2026-02-13"
-    },
-    {
-      "title": "DFW Airport: Skylink Delays & Terminal Updates",
-      "impact": "medium",
-      "summary": "DFW Airport has scheduled reduced overnight operations for the Skylink train to support construction, which may delay passengers moving between terminals. Additionally, the Grand Hyatt in Terminal D has just completed a major renovation, potentially increasing pickup volume at that specific hotel entrance.",
-      "category": "airport",
-      "published_date": "2026-02-12"
-    },
-    {
-      "title": "Fort Worth Concerts: Fantasia & Ray Wylie Hubbard",
-      "impact": "medium",
-      "summary": "Two major events in Fort Worth tonight: Fantasia performs at Dickies Arena (8:00 PM) and Ray Wylie Hubbard is at Billy Bob's Texas (7:30 PM). Drivers in the western metroplex should position for post-concert surges in the Cultural District and Stockyards.",
-      "category": "event",
+      "title": "Police Activity: Harry Hines Blvd Raid",
+      "impact": "low",
+      "summary": "Local and federal authorities conducted a raid on an adult bookstore on Harry Hines Boulevard yesterday. Drivers should be aware of potential lingering police presence or heightened scrutiny in this area.",
+      "category": "traffic",
       "published_date": "2026-02-13"
     }
   ],
@@ -90,23 +83,23 @@ NEWS (6 items):
 
 WEATHER_CURRENT:
 {
-  "tempC": 26,
-  "tempF": 78,
+  "tempC": 23,
+  "tempF": 73,
   "country": "US",
   "uvIndex": 0,
-  "humidity": 48,
+  "humidity": 57,
   "tempUnit": "°F",
-  "feelsLike": 79,
+  "feelsLike": 76,
   "isDaytime": true,
   "conditions": "Cloudy",
-  "feelsLikeC": 26,
-  "feelsLikeF": 79,
-  "observedAt": "2026-02-13T20:29:25.843946976Z",
+  "feelsLikeC": 25,
+  "feelsLikeF": 76,
+  "observedAt": "2026-02-14T00:04:35.038013134Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 78,
+  "temperature": 73,
   "conditionType": "CLOUDY",
   "precipitation": {
     "qpf": {
@@ -122,86 +115,86 @@ WEATHER_CURRENT:
       "percent": 10
     }
   },
-  "windDirection": "SOUTH",
+  "windDirection": "SOUTH_SOUTHEAST",
   "windSpeedUnit": "mph"
 }
 
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-02-13T20:29:25.871Z",
-    "tempC": 25,
-    "tempF": 78,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 78,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-13T21:29:25.871Z",
-    "tempC": 26,
-    "tempF": 78,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 78,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-13T22:29:25.871Z",
-    "tempC": 26,
-    "tempF": 78,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 78,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-13T23:29:25.871Z",
-    "tempC": 25,
-    "tempF": 76,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 76,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-14T00:29:25.871Z",
+    "time": "2026-02-14T00:04:35.053Z",
     "tempC": 23,
-    "tempF": 74,
+    "tempF": 73,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Cloudy",
-    "temperature": 74,
+    "temperature": 73,
     "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
   },
   {
-    "time": "2026-02-14T01:29:25.871Z",
-    "tempC": 22,
-    "tempF": 71,
+    "time": "2026-02-14T01:04:35.053Z",
+    "tempC": 21,
+    "tempF": 70,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
     "conditions": "Cloudy",
-    "temperature": 71,
+    "temperature": 70,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-14T02:04:35.053Z",
+    "tempC": 21,
+    "tempF": 69,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 69,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-14T03:04:35.053Z",
+    "tempC": 21,
+    "tempF": 69,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 69,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-14T04:04:35.053Z",
+    "tempC": 20,
+    "tempF": 68,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 68,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-14T05:04:35.053Z",
+    "tempC": 20,
+    "tempF": 67,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 67,
     "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
@@ -210,19 +203,19 @@ WEATHER_FORECAST (6 hours):
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 28,
+  "jams": 46,
   "stats": {
-    "jams": 28,
-    "major": 15,
-    "total": 49,
+    "jams": 46,
+    "major": 31,
+    "total": 67,
     "closures": 17,
-    "highways": 27,
+    "highways": 45,
     "accidents": 0,
     "construction": 4
   },
-  "summary": "Frisco is experiencing heavy congestion, particularly on major arteries like US-380 and Preston Rd (TX-289). A cluster of road closures on FM-720 (Main St) within 3.3 miles and a 6-minute delay on US-380 E are the primary bottlenecks. Drivers should prioritize the Dallas North Tollway for north-south travel to bypass Preston Rd delays.",
+  "summary": "Heavy regional congestion is concentrated northwest and west of Frisco, specifically impacting the US-380 and I-35E corridors. While local Frisco flow remains stable, major jams on FM-1385 (6.7mi) and US-380 (6.4mi) will significantly delay trips heading toward Denton or Aubrey. Drivers should prioritize local Frisco pickups or southern routes via the Dallas North Tollway to maintain high trip turnover.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion, particularly on major arteries like US-380 and Preston Rd (TX-289). A cluster of road closures on FM-720 (Main St) within 3.3 miles and a 6-minute delay on US-380 E are the primary bottlenecks. Drivers should prioritize the Dallas North Tollway for north-south travel to bypass Preston Rd delays.",
+  "briefing": "Heavy regional congestion is concentrated northwest and west of Frisco, specifically impacting the US-380 and I-35E corridors. While local Frisco flow remains stable, major jams on FM-1385 (6.7mi) and US-380 (6.4mi) will significantly delay trips heading toward Denton or Aubrey. Drivers should prioritize local Frisco pickups or southern routes via the Dallas North Tollway to maintain high trip turnover.",
   "closures": [
     {
       "road": "",
@@ -344,614 +337,290 @@ TRAFFIC_CONDITIONS:
       "distanceFromDriver": 6.6
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion, particularly on major arteries like US-380 and Preston Rd (TX-289).",
+  "headline": "Heavy regional congestion is concentrated northwest and west of Frisco, specifically impacting the US-380 and I-35E corridors.",
   "provider": "tomtom",
-  "fetchedAt": "2026-02-13T20:29:26.153Z",
+  "fetchedAt": "2026-02-14T00:04:35.341Z",
   "incidents": [
     {
-      "road": "US-380 E",
+      "road": "",
       "category": "Jam",
-      "location": "FM-2931 (US-380) to FM-1385 (US-380)",
+      "location": "Valley Ridge Blvd (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage)",
       "priority": 161,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: US-380 E (FM-2931 (US-380) to FM-1385 (US-380)) [7 mi]",
-      "lengthMiles": 0.8,
+      "description": "Jam: Valley Ridge Blvd (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage) [9.5 mi]",
+      "lengthMiles": 0.4,
       "delayMinutes": 6,
-      "distanceFromDriver": 7
+      "distanceFromDriver": 9.5
+    },
+    {
+      "road": "FM-720",
+      "category": "Jam",
+      "location": "US-380 W to Fishtrap Rd",
+      "priority": 161,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-720 (US-380 W to Fishtrap Rd) [8.9 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 6,
+      "distanceFromDriver": 8.9
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "Fox Ave (S Edmonds Ln) to FM-1171/W Main St (S Edmonds Ln)",
-      "priority": 157,
+      "location": "N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd)",
+      "priority": 160,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Fox Ave (S Edmonds Ln) to FM-1171/W Main St (S Edmonds Ln) [9.7 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 2,
-      "distanceFromDriver": 9.7
+      "description": "Jam: N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd) [9.1 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 5,
+      "distanceFromDriver": 9.1
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "Blue Azalea to FM-1385",
-      "priority": 157,
+      "location": "Pilot Point-Aubrey to FM-1385",
+      "priority": 160,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Blue Azalea to FM-1385 [7.2 mi]",
+      "description": "Jam: Pilot Point-Aubrey to FM-1385 [8.4 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 2,
-      "distanceFromDriver": 7.2
+      "delayMinutes": 5,
+      "distanceFromDriver": 8.4
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "Emerald View Dr to FM-423",
-      "priority": 157,
+      "location": "Lake Way to FM-720",
+      "priority": 159,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: Emerald View Dr to FM-423 [1.3 mi]",
+      "description": "Jam: Lake Way to FM-720 [9.4 mi]",
       "lengthMiles": 0.2,
-      "delayMinutes": 2,
-      "distanceFromDriver": 1.3
+      "delayMinutes": 4,
+      "distanceFromDriver": 9.4
     },
     {
-      "road": "TX-289",
+      "road": "FM-2931",
       "category": "Jam",
-      "location": "Rolater Rd/Stonebrook Pkwy (Preston Rd/TX-289) to FM-720/W Main St (Preston Rd/TX-289)",
-      "priority": 157,
+      "location": "US-380 (FM-2931) to FM-428 (FM-2931)",
+      "priority": 159,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: TX-289 (Rolater Rd/Stonebrook Pkwy (Preston Rd/TX-289) to FM-720/W Main St (Preston Rd/TX-289)) [4.3 mi]",
-      "lengthMiles": 0.3,
-      "delayMinutes": 2,
-      "distanceFromDriver": 4.3
-    },
-    {
-      "road": "US-380 E",
-      "category": "Jam",
-      "location": "US-377 (US-380) to FM-1385 (US-380)",
-      "priority": 143,
-      "severity": "medium",
-      "isHighway": true,
-      "description": "Jam: US-380 E (US-377 (US-380) to FM-1385 (US-380)) [8.6 mi]",
-      "lengthMiles": 0.7,
-      "delayMinutes": 3,
-      "distanceFromDriver": 8.6
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "S Stemmons Fwy to E Corporate Dr",
-      "priority": 142,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: S Stemmons Fwy to E Corporate Dr [9.9 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 2,
-      "distanceFromDriver": 9.9
+      "description": "Jam: FM-2931 (US-380 (FM-2931) to FM-428 (FM-2931)) [8.8 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 4,
+      "distanceFromDriver": 8.8
     },
     {
       "road": "",
       "category": "Jam",
       "location": "FM-720 to Independence Pkwy",
-      "priority": 141,
-      "severity": "medium",
+      "priority": 159,
+      "severity": "high",
       "isHighway": true,
-      "description": "Jam: FM-720 to Independence Pkwy [7.3 mi]",
+      "description": "Jam: FM-720 to Independence Pkwy [7.5 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 1,
-      "distanceFromDriver": 7.3
+      "delayMinutes": 4,
+      "distanceFromDriver": 7.5
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "Lamar Hunt Way to FM-720",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "I-35E/US-77/Fox Ave/Exit 451 (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage)",
+      "priority": 158,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: Lamar Hunt Way to FM-720 [3 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 0,
-      "distanceFromDriver": 3
+      "description": "Jam: I-35E/US-77/Fox Ave/Exit 451 (I-35E Frontage) to I-35E/FM-1171/W Main St/Exit 452 (I-35E Frontage) [9.6 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3,
+      "distanceFromDriver": 9.6
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "FM-720 to FM-720",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "FM-3040 to Marchant Blvd",
+      "priority": 158,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: FM-720 to FM-720 [3.2 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 0,
-      "distanceFromDriver": 3.2
+      "description": "Jam: FM-3040 to Marchant Blvd [8.8 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 3,
+      "distanceFromDriver": 8.8
+    },
+    {
+      "road": "US-380 W",
+      "category": "Jam",
+      "location": "FM-1385 (US-380) to FM-2931 (US-380)",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [6.4 mi]",
+      "lengthMiles": 0.7,
+      "delayMinutes": 3,
+      "distanceFromDriver": 6.4
     }
   ],
   "keyIssues": [
-    "US-380 E: Major jam 7mi away - 6min delay between FM-2931 and FM-1385",
-    "FM-720 (Main St): Multiple road closures 3.0-3.3mi away - total blockage near Lamar Hunt Way",
-    "TX-289 (Preston Rd): Major jam 4.3mi away - 2min delay near Stonebrook Pkwy",
-    "Emerald View Dr to FM-423: Major jam 1.3mi away - immediate local impact"
+    "US-380 W at FM-1385: Major jam 6.4mi NW - 3min delay affecting cross-county transit",
+    "FM-720 near Independence Pkwy: Major jam 7.5mi W - 4min delay impacting Little Elm access",
+    "I-35E Frontage at Valley Ridge Blvd: Major jam 9.5mi W - 6min delay causing significant bottlenecks for Lewisville-bound trips"
   ],
   "avoidAreas": [
-    "FM-720 Corridor: Multiple closures between Lamar Hunt Way and Elm St (3mi away)",
-    "US-380 Eastbound: Heavy congestion and road works starting 7mi away"
+    "US-380 Corridor (West of FM-423): Heavy clustering of major jams between 6-9 miles away",
+    "I-35E Lewisville/Lake Dallas area: Multiple high-severity jams impacting both frontage and main lanes"
   ],
-  "safetyAlert": "28 active traffic jams in the area",
-  "driverImpact": "Heavy congestion on Preston Rd and closures on Main St (FM-720) will significantly slow down local pickups; use the Dallas North Tollway for long-distance trips to maintain efficiency.",
+  "safetyAlert": "46 active traffic jams in the area",
+  "driverImpact": "Stay east of FM-423 and prioritize short-distance local Frisco/Plano trips to avoid the heavy congestion clusters building on the western and northern perimeters.",
   "surgePricing": true,
   "closuresCount": 17,
   "repositioning": null,
-  "incidentsCount": 49,
-  "totalIncidents": 49,
-  "closuresSummary": "4 closures within 10mi, most critical: FM-720 at Lamar Hunt Way and FM-720 to Elm St.",
+  "incidentsCount": 67,
+  "totalIncidents": 67,
+  "closuresSummary": "0 closures within 10mi; traffic is driven entirely by high-volume jams and heavy congestion levels.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Active road works on US-380 W (7mi away) and FM-1171 (9.7mi away) are contributing to regional slowdowns."
+  "constructionSummary": "No specific construction reported; delays are currently attributed to major traffic jams on secondary highways like FM-2931 and FM-1385."
 }
 
-EVENTS (27 total):
+EVENTS (8 total):
 [
   {
-    "title": "Dallas Open (ATP Tennis): Quarterfinals",
+    "title": "Dallas Open Tennis: Semifinals",
     "venue": "Ford Center at The Star",
     "impact": "medium",
     "address": "9 Cowboys Way, Frisco, TX 75034, USA",
     "subtype": "sports",
-    "summary": "Dallas Open (ATP Tennis): Quarterfinals • Ford Center at The Star • 2026-02-13 • 12:00",
+    "summary": "Dallas Open Tennis: Semifinals • Ford Center at The Star • 2026-02-14 • 12:00",
     "latitude": 33.1105911,
     "location": "Ford Center at The Star, 9 Cowboys Way, Frisco, TX 75034, USA",
     "venue_id": "83cffd5e-f0de-4fa2-b1ac-5a04b0026f2b",
     "longitude": -96.8283481,
     "event_type": "sports",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-13",
+    "event_end_date": "2026-02-14",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-02-14",
     "event_start_time": "12:00"
   },
   {
-    "title": "Dallas Open (ATP Tennis Quarterfinals)",
-    "venue": "Ford Center at The Star",
+    "title": "Men's College Basketball: Louisville vs. Baylor",
+    "venue": "Dickies Arena",
     "impact": "medium",
-    "address": "9 Cowboys Way, Frisco, TX 75034, USA",
+    "address": "1911 Montgomery St, Fort Worth, TX 76107",
     "subtype": "sports",
-    "summary": "Dallas Open (ATP Tennis Quarterfinals) • Ford Center at The Star • 2026-02-13 • 19:00",
-    "latitude": 33.1105911,
-    "location": "Ford Center at The Star, 9 Cowboys Way, Frisco, TX 75034, USA",
-    "venue_id": "83cffd5e-f0de-4fa2-b1ac-5a04b0026f2b",
-    "longitude": -96.8283481,
-    "event_type": "sports",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Dallas Open: Evening Session (Quarterfinals)",
-    "venue": "Ford Center at The Star",
-    "impact": "high",
-    "address": "9 Cowboys Way, Frisco, TX 75034, USA",
-    "subtype": "sports",
-    "summary": "Dallas Open: Evening Session (Quarterfinals) • Ford Center at The Star • 2026-02-13 • 19:00",
-    "latitude": 33.1105911,
-    "location": "Ford Center at The Star, 9 Cowboys Way, Frisco, TX 75034, USA",
-    "venue_id": "83cffd5e-f0de-4fa2-b1ac-5a04b0026f2b",
-    "longitude": -96.8283481,
-    "event_type": "sports",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Mardi Gras Lifestyle Party",
-    "venue": "Rokwood Nightclub",
-    "impact": "medium",
-    "address": "600 N Pearl St, Dallas, TX 75201",
-    "subtype": "nightlife",
-    "summary": "Mardi Gras Lifestyle Party • Rokwood Nightclub • 2026-02-13 • 21:00",
+    "summary": "Men's College Basketball: Louisville vs. Baylor • Dickies Arena • 2026-02-14 • 15:00",
     "latitude": null,
-    "location": "Rokwood Nightclub, 600 N Pearl St, Dallas, TX 75201",
+    "location": "Dickies Arena, 1911 Montgomery St, Fort Worth, TX 76107",
     "venue_id": null,
     "longitude": null,
-    "event_type": "nightlife",
+    "event_type": "sports",
     "event_end_date": "2026-02-14",
-    "event_end_time": "02:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "21:00"
+    "event_end_time": "17:30",
+    "event_start_date": "2026-02-14",
+    "event_start_time": "15:00"
   },
   {
-    "title": "Big Jay Oakerson",
-    "venue": "Hyena's Comedy Nightclub",
+    "title": "The Definition of Love: SWV & The Teddy Riley Experience",
+    "venue": "Texas Trust CU Theatre",
     "impact": "medium",
-    "address": "425 Commerce St, Fort Worth, TX 76102",
-    "subtype": "comedy",
-    "summary": "Big Jay Oakerson • Hyena's Comedy Nightclub • 2026-02-13 • 20:00",
-    "latitude": null,
-    "location": "Hyena's Comedy Nightclub, 425 Commerce St, Fort Worth, TX 76102",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "comedy",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Aleman & Gera MX",
-    "venue": "South Side Ballroom",
-    "impact": "medium",
-    "address": "1135 S Lamar St, Dallas, TX 75215",
+    "address": "1001 Trust Way, Grand Prairie, TX 75050",
     "subtype": "concert",
-    "summary": "Aleman & Gera MX • South Side Ballroom • 2026-02-13 • 20:00",
+    "summary": "The Definition of Love: SWV & The Teddy Riley Experience • Texas Trust CU Theatre • 2026-02-14 • 19:30",
     "latitude": null,
-    "location": "South Side Ballroom, 1135 S Lamar St, Dallas, TX 75215",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Mike Ryan",
-    "venue": "Billy Bob's Texas",
-    "impact": "medium",
-    "address": "2520 Rodeo Plaza Dr, Fort Worth, TX 76106",
-    "subtype": "concert",
-    "summary": "Mike Ryan • Billy Bob's Texas • 2026-02-13 • 22:00",
-    "latitude": null,
-    "location": "Billy Bob's Texas, 2520 Rodeo Plaza Dr, Fort Worth, TX 76106",
+    "location": "Texas Trust CU Theatre, 1001 Trust Way, Grand Prairie, TX 75050",
     "venue_id": null,
     "longitude": null,
     "event_type": "concert",
     "event_end_date": "2026-02-14",
-    "event_end_time": "01:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "22:00"
-  },
-  {
-    "title": "Dallas Black Dance Theatre: KALEIDOSCOPE",
-    "venue": "Dee and Charles Wyly Theatre",
-    "impact": "medium",
-    "address": "2400 Flora St, Dallas, TX 75201",
-    "subtype": "concert",
-    "summary": "Dallas Black Dance Theatre: KALEIDOSCOPE • Dee and Charles Wyly Theatre • 2026-02-13 • 19:30",
-    "latitude": null,
-    "location": "Dee and Charles Wyly Theatre, 2400 Flora St, Dallas, TX 75201",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-13",
+    "event_end_time": "22:30",
+    "event_start_date": "2026-02-14",
     "event_start_time": "19:30"
   },
   {
-    "title": "Stockyards Championship Rodeo",
-    "venue": "Cowtown Coliseum",
-    "impact": "medium",
-    "address": "121 E Exchange Ave, Fort Worth, TX 76164",
-    "subtype": "sports",
-    "summary": "Stockyards Championship Rodeo • Cowtown Coliseum • 2026-02-13 • 19:30",
-    "latitude": null,
-    "location": "Cowtown Coliseum, 121 E Exchange Ave, Fort Worth, TX 76164",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "sports",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Violet Evergarden: Live in Concert",
+    "title": "Rickey Smiley Valentine's Day Comedy Show",
     "venue": "Music Hall at Fair Park",
     "impact": "medium",
     "address": "909 1st Ave, Dallas, TX 75210",
     "subtype": "concert",
-    "summary": "Violet Evergarden: Live in Concert • Music Hall at Fair Park • 2026-02-13 • 20:00",
+    "summary": "Rickey Smiley Valentine's Day Comedy Show • Music Hall at Fair Park • 2026-02-14 • 19:30",
     "latitude": null,
     "location": "Music Hall at Fair Park, 909 1st Ave, Dallas, TX 75210",
     "venue_id": null,
     "longitude": null,
     "event_type": "concert",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "22:30",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Shriners Children's College Showdown - Day 1",
-    "venue": "Globe Life Field",
-    "impact": "high",
-    "address": "734 Stadium Dr, Arlington, TX 76011",
-    "subtype": "sports",
-    "summary": "Shriners Children's College Showdown - Day 1 • Globe Life Field • 2026-02-13 • 11:00",
-    "latitude": null,
-    "location": "Globe Life Field, 734 Stadium Dr, Arlington, TX 76011",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "sports",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "11:00"
-  },
-  {
-    "title": "Buckin' Birthday",
-    "venue": "PBR Texas",
-    "impact": "low",
-    "address": "1650 E Randol Mill Rd, Arlington, TX 76011",
-    "subtype": "nightlife",
-    "summary": "Buckin' Birthday • PBR Texas • 2026-02-13 • 20:00",
-    "latitude": null,
-    "location": "PBR Texas, 1650 E Randol Mill Rd, Arlington, TX 76011",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
     "event_end_date": "2026-02-14",
-    "event_end_time": "02:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Big Jay Oakerson",
-    "venue": "Hyena's Comedy Night Club",
-    "impact": "medium",
-    "address": "425 Commerce St, Fort Worth, TX 76102",
-    "subtype": "comedy",
-    "summary": "Big Jay Oakerson • Hyena's Comedy Night Club • 2026-02-13 • 22:00",
-    "latitude": null,
-    "location": "Hyena's Comedy Night Club, 425 Commerce St, Fort Worth, TX 76102",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "comedy",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "23:30",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "22:00"
-  },
-  {
-    "title": "George Lopez: Live",
-    "venue": "Majestic Theatre",
-    "impact": "high",
-    "address": "1925 Elm St, Dallas, TX 75201",
-    "subtype": "comedy",
-    "summary": "George Lopez: Live • Majestic Theatre • 2026-02-13 • 19:00",
-    "latitude": null,
-    "location": "Majestic Theatre, 1925 Elm St, Dallas, TX 75201",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "comedy",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Six: The Musical",
-    "venue": "Bass Performance Hall",
-    "impact": "medium",
-    "address": "525 Commerce St, Fort Worth, TX 76102",
-    "subtype": "concert",
-    "summary": "Six: The Musical • Bass Performance Hall • 2026-02-13 • 19:30",
-    "latitude": null,
-    "location": "Bass Performance Hall, 525 Commerce St, Fort Worth, TX 76102",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-13",
     "event_end_time": "22:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "WWE Friday Night SmackDown",
-    "venue": "American Airlines Center",
-    "impact": "high",
-    "address": "2500 Victory Ave, Dallas, TX 75219",
-    "subtype": "sports",
-    "summary": "WWE Friday Night SmackDown • American Airlines Center • 2026-02-13 • 18:30",
-    "latitude": null,
-    "location": "American Airlines Center, 2500 Victory Ave, Dallas, TX 75219",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "sports",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "18:30"
-  },
-  {
-    "title": "Cassian",
-    "venue": "Silo Dallas",
-    "impact": "medium",
-    "address": "1340 Manufacturing St, Dallas, TX 75207",
-    "subtype": "nightlife",
-    "summary": "Cassian • Silo Dallas • 2026-02-13 • 21:00",
-    "latitude": null,
-    "location": "Silo Dallas, 1340 Manufacturing St, Dallas, TX 75207",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "02:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "21:00"
-  },
-  {
-    "title": "Valentines Day Market",
-    "venue": "Three Links Deep Ellum",
-    "impact": "low",
-    "address": "2704 Elm St, Dallas, TX 75226",
-    "subtype": "community",
-    "summary": "Valentines Day Market • Three Links Deep Ellum • 2026-02-13 • 17:00",
-    "latitude": null,
-    "location": "Three Links Deep Ellum, 2704 Elm St, Dallas, TX 75226",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "community",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Ray Wylie Hubbard",
-    "venue": "Arlington Music Hall",
-    "impact": "medium",
-    "address": "224 N Center St, Arlington, TX 76011",
-    "subtype": "concert",
-    "summary": "Ray Wylie Hubbard • Arlington Music Hall • 2026-02-13 • 19:30",
-    "latitude": null,
-    "location": "Arlington Music Hall, 224 N Center St, Arlington, TX 76011",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "22:30",
-    "event_start_date": "2026-02-13",
+    "event_start_date": "2026-02-14",
     "event_start_time": "19:30"
   },
   {
     "title": "Subtronics: Fibonacci Tour 2026",
     "venue": "The Pavilion at Toyota Music Factory",
-    "impact": "high",
+    "impact": "medium",
     "address": "300 W Las Colinas Blvd, Irving, TX 75039",
     "subtype": "concert",
-    "summary": "Subtronics: Fibonacci Tour 2026 • The Pavilion at Toyota Music Factory • 2026-02-13 • 19:00",
+    "summary": "Subtronics: Fibonacci Tour 2026 • The Pavilion at Toyota Music Factory • 2026-02-14 • 19:00",
     "latitude": null,
     "location": "The Pavilion at Toyota Music Factory, 300 W Las Colinas Blvd, Irving, TX 75039",
     "venue_id": null,
     "longitude": null,
     "event_type": "concert",
-    "event_end_date": "2026-02-13",
+    "event_end_date": "2026-02-14",
     "event_end_time": "23:00",
-    "event_start_date": "2026-02-13",
+    "event_start_date": "2026-02-14",
     "event_start_time": "19:00"
   },
   {
-    "title": "Fantasia & Anthony Hamilton",
-    "venue": "Dickies Arena",
-    "impact": "high",
-    "address": "1911 Montgomery St, Fort Worth, TX 76107",
-    "subtype": "concert",
-    "summary": "Fantasia & Anthony Hamilton • Dickies Arena • 2026-02-13 • 20:00",
-    "latitude": null,
-    "location": "Dickies Arena, 1911 Montgomery St, Fort Worth, TX 76107",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Valentine's Weekend with Stefan Karlsson & Friends",
-    "venue": "Scat Jazz Lounge",
-    "impact": "medium",
-    "address": "111 W 4th St, Fort Worth, TX 76102",
-    "subtype": "concert",
-    "summary": "Valentine's Weekend with Stefan Karlsson & Friends • Scat Jazz Lounge • 2026-02-13 • 20:00",
-    "latitude": null,
-    "location": "Scat Jazz Lounge, 111 W 4th St, Fort Worth, TX 76102",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Flo Hernandez Presents: Hand-Picked Comedy",
-    "venue": "Big Laugh Comedy Club - Fort Worth",
-    "impact": "medium",
-    "address": "604 Main St, Fort Worth, TX 76102",
-    "subtype": "comedy",
-    "summary": "Flo Hernandez Presents: Hand-Picked Comedy • Big Laugh Comedy Club - Fort Worth • 2026-02-13 • 20:00",
-    "latitude": null,
-    "location": "Big Laugh Comedy Club - Fort Worth, 604 Main St, Fort Worth, TX 76102",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "comedy",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Adam Mamawala",
-    "venue": "Dallas Comedy Club",
-    "impact": "medium",
-    "address": "3036 Elm St, Dallas, TX 75226",
-    "subtype": "comedy",
-    "summary": "Adam Mamawala • Dallas Comedy Club • 2026-02-13 • 19:30",
-    "latitude": null,
-    "location": "Dallas Comedy Club, 3036 Elm St, Dallas, TX 75226",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "comedy",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Dallas Symphony Orchestra: Tchaikovsky & Rachmaninoff",
-    "venue": "Meyerson Symphony Center",
-    "impact": "medium",
-    "address": "2301 Flora St, Dallas, TX 75201",
-    "subtype": "concert",
-    "summary": "Dallas Symphony Orchestra: Tchaikovsky & Rachmaninoff • Meyerson Symphony Center • 2026-02-13 • 19:30",
-    "latitude": null,
-    "location": "Meyerson Symphony Center, 2301 Flora St, Dallas, TX 75201",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "George Lopez",
-    "venue": "Majestic Theatre",
-    "impact": "medium",
-    "address": "1925 Elm St, Dallas, TX 75201",
-    "subtype": "concert",
-    "summary": "George Lopez • Majestic Theatre • 2026-02-13 • 19:00",
-    "latitude": null,
-    "location": "Majestic Theatre, 1925 Elm St, Dallas, TX 75201",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-13",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-13",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Shriners Children's College Showdown: Oklahoma State vs. Arkansas",
+    "title": "Shriners Children's College Showdown (Day 2)",
     "venue": "Globe Life Field",
     "impact": "high",
     "address": "734 Stadium Dr, Arlington, TX 76011",
     "subtype": "sports",
-    "summary": "Shriners Children's College Showdown: Oklahoma State vs. Arkansas • Globe Life Field • 2026-02-13 • 20:00",
+    "summary": "Shriners Children's College Showdown (Day 2) • Globe Life Field • 2026-02-14 • 11:00",
     "latitude": null,
     "location": "Globe Life Field, 734 Stadium Dr, Arlington, TX 76011",
     "venue_id": null,
     "longitude": null,
     "event_type": "sports",
-    "event_end_date": "2026-02-13",
+    "event_end_date": "2026-02-14",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-02-14",
+    "event_start_time": "11:00"
+  },
+  {
+    "title": "Los Tigres del Norte: La Loteria Tour",
+    "venue": "American Airlines Center",
+    "impact": "high",
+    "address": "2500 Victory Ave, Dallas, TX 75219",
+    "subtype": "concert",
+    "summary": "Los Tigres del Norte: La Loteria Tour • American Airlines Center • 2026-02-14 • 20:00",
+    "latitude": null,
+    "location": "American Airlines Center, 2500 Victory Ave, Dallas, TX 75219",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-14",
     "event_end_time": "23:00",
-    "event_start_date": "2026-02-13",
+    "event_start_date": "2026-02-14",
     "event_start_time": "20:00"
+  },
+  {
+    "title": "Monster Jam",
+    "venue": "AT&T Stadium",
+    "impact": "high",
+    "address": "1 AT&T Way, Arlington, TX 76011",
+    "subtype": "sports",
+    "summary": "Monster Jam • AT&T Stadium • 2026-02-14 • 19:00",
+    "latitude": null,
+    "location": "AT&T Stadium, 1 AT&T Way, Arlington, TX 76011",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "sports",
+    "event_end_date": "2026-02-14",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-02-14",
+    "event_start_time": "19:00"
   }
 ]
 
@@ -1086,43 +755,43 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor delays reported. Gate hold and taxi delays of 15 minutes or less. Airborne arrival delays of 15 minutes or less.",
+      "delays": "General departure and taxi delays of 15 minutes or less. No destination-specific holds reported.",
       "status": "normal",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "04:00 PM - 07:00 PM"
+        "10:00 AM - 2:00 PM",
+        "5:00 PM - 8:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Normal operations. No significant delays reported.",
+      "delays": "No significant delays reported. Standard security wait times of 10-20 minutes.",
       "status": "normal",
       "busyTimes": [
-        "06:00 AM - 09:00 AM",
-        "03:00 PM - 06:00 PM"
+        "5:00 AM - 8:00 AM",
+        "11:00 AM - 1:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-02-13T20:30:22.264Z",
+  "fetchedAt": "2026-02-14T00:05:26.826Z",
   "busyPeriods": [
-    "Friday afternoon rush hour (4:00 PM - 7:00 PM) is currently the busiest period for both arrivals and departures.",
-    "Expect increased traffic due to Valentine's Day weekend travel."
+    "Saturday morning departures (6:00 AM - 9:00 AM) at Love Field are typically busy with leisure travelers.",
+    "Mid-day arrivals at DFW often see congestion at curbside pickup zones."
   ],
-  "recommendations": "For DFW, pickups are at the Upper Level (Departures/Ticketing) of each terminal; wait in the designated cell phone lots until your passenger is curbside. For DAL, the rideshare pickup location has moved to Garage C, Level 1 (near the Valet Pavilion); do not go to the old Garage B location. Weather is cloudy with a high of 76°F, but light rain is expected tonight (20-35% chance), which may slow down evening pickups."
+  "recommendations": "For **DFW**: Drivers must use the **Terminal B Infield** staging lot to enter the FIFO queue. Pickups are at the lower-level curbside (look for Green 'Passenger Pickup' signs). \n\nFor **DAL (Love Field)**: The rideshare pickup location is in **Garage C, Level 1** (near the Valet Pavilion). Passengers must walk ~15 minutes from the terminal to this spot, so be patient as they may arrive frustrated. Staging is in the designated geofenced area near the airport entrance."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: 8e9bc993-3da4-4dcb-b33e-f4c0a7186cf3
-snapshot_id: 45ed0a7f-a323-478c-8dcf-cba4c7d51e36
+id: 2fe76047-6e84-4592-86eb-00b146958644
+snapshot_id: ea83ffd4-775e-4223-abf9-b1a8676042e5
 status: pending
 error_message: (none)
-created_at: Fri Feb 13 2026 20:29:25 GMT+0000 (Coordinated Universal Time)
-updated_at: Fri Feb 13 2026 20:29:25 GMT+0000 (Coordinated Universal Time)
+created_at: Sat Feb 14 2026 00:04:34 GMT+0000 (Coordinated Universal Time)
+updated_at: Sat Feb 14 2026 00:04:34 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -1153,10 +822,10 @@ School Closures Filter Check:
   Active: Frisco ISD, Legacy Christian Academy
 
 Event Count:
-  Total events in briefing: 27
-  High impact: 7
-  Medium impact: 18
-  Low impact: 2
+  Total events in briefing: 8
+  High impact: 3
+  Medium impact: 5
+  Low impact: 0
 
 TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in location: 0
@@ -1164,8 +833,8 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in time: 0
 
 Events AFTER filterInvalidEvents (what LLM actually receives):
-  Raw events in DB: 27
-  Filtered events (sent to LLM): 27
+  Raw events in DB: 8
+  Filtered events (sent to LLM): 8
   TBD events removed: 0
 
 ════════════════════════════════════════════════════════════════════════════════
