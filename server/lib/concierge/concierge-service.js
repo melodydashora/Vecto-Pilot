@@ -287,6 +287,9 @@ async function queryNearbyVenues({ lat, lng, filter }) {
         expense_rank: v.expense_rank || null,
         venue_types: v.venue_types || [],
         distance_hint: `${v.distance_miles.toFixed(1)} mi`,
+        // 2026-02-13: Include coords so ConciergeMap can plot markers
+        lat: v.lat,
+        lng: v.lng,
         city: v.city,
         state: v.state,
         source: 'db',
@@ -362,6 +365,9 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       time: formatEventTime(e.event_start_time, e.event_end_time),
       description: e.expected_attendance ? `Expected attendance: ${e.expected_attendance}` : null,
       distance_hint: `${e.distance_miles.toFixed(1)} mi`,
+      // 2026-02-13: Include coords so ConciergeMap can plot markers
+      lat: e.lat,
+      lng: e.lng,
       city: e.city,
       state: e.state,
       source: 'db',
@@ -506,12 +512,17 @@ Return ONLY a valid JSON object with "venues" and "events" arrays. No explanatio
     });
 
     // Format for response
+    // 2026-02-13: Gemini results may lack coords — map markers only appear for items with lat/lng.
+    // We don't trust AI-generated coordinates (CLAUDE.md rule), but if Gemini provides them
+    // they'll show on the map. DB-sourced results are always authoritative.
     const formattedVenues = geminiVenues.filter(v => v.name).map(v => ({
       title: v.name,
       address: v.address || '',
       type: v.type || 'venue',
       description: v.description || null,
       time: v.hours || null,
+      lat: v.lat || null,
+      lng: v.lng || null,
       city: v.city,
       state: v.state,
       source: 'gemini',
@@ -524,6 +535,8 @@ Return ONLY a valid JSON object with "venues" and "events" arrays. No explanatio
       type: e.category || 'event',
       time: formatEventTime(e.start_time, e.end_time),
       description: e.description || null,
+      lat: e.lat || null,
+      lng: e.lng || null,
       city: e.city,
       state: e.state,
       source: 'gemini',
