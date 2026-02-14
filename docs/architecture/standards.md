@@ -157,7 +157,7 @@ Every LLM call MUST log effective configuration:
 ```javascript
 console.log({
   phase: 'llm_call',
-  model_id: 'claude-opus-4-6-20260201',
+  model_id: 'claude-opus-4-6',
   role: 'STRATEGY_CORE',
   reasoning_effort: 'high',  // or thinking_level for Gemini
   temperature: 0,            // if applicable

@@ -211,7 +211,7 @@ Every LLM call MUST log effective configuration to prove compliance:
 // Required log fields for every AI call
 console.log(JSON.stringify({
   phase: 'llm_call',
-  model_id: 'claude-opus-4-6-20260201',  // Actual model ID used
+  model_id: 'claude-opus-4-6',  // Actual model ID used
   role: 'STRATEGY_CORE',                  // Role from model-registry
   reasoning_effort: 'high',               // GPT-5 specific
   thinking_level: 'HIGH',                 // Gemini specific

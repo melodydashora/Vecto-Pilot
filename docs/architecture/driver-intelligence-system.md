@@ -554,7 +554,7 @@ async function capturePingScreenshot() {
 // Server-side: Claude 4.5 Vision
 async function extractPingData(imageBase64) {
   const response = await anthropic.messages.create({
-    model: "claude-opus-4-6-20260201",
+    model: "claude-opus-4-6",
     max_tokens: 1000,
     messages: [{
       role: "user",

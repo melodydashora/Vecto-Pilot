@@ -35,7 +35,7 @@ export class LLMClient {
 
   async chat(messages: LLMMessage[], systemPrompt?: string): Promise<LLMResponse> {
     try {
-      const model = this.config.model || process.env.ANTHROPIC_MODEL || 'claude-opus-4-6-20260201';
+      const model = this.config.model || process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
       
       // Claude Sonnet 4.5-20250929 - Verified API configuration
       const result = await this.client.messages.create({

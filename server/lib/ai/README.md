@@ -136,7 +136,7 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 
 When primary model fails, certain roles automatically fall back to Claude Opus:
 - Roles with fallback: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY`, `BRIEFING_EVENTS_DISCOVERY`, `BRIEFING_NEWS`
-- Fallback model: `claude-opus-4-6-20260201`
+- Fallback model: `claude-opus-4-6`
 - Configured in: `model-registry.js` → `FALLBACK_ENABLED_ROLES`
 
 ## LLM Settings Optimization (D-028)

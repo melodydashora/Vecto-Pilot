@@ -7,7 +7,7 @@
 
 export const UNIFIED_CAPABILITIES = {
   // Model Configuration - All systems use Claude Opus 4.6
-  model: "claude-opus-4-6-20260201",
+  model: "claude-opus-4-6",
   context_window: 200000,
   thinking_mode: "ultra-deep",
   

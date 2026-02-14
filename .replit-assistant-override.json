@@ -5,14 +5,13 @@
     "identity_assertion": true,
     "identity": "replit_assistant",
     "announce": "🧠 Replit Assistant (Claude Opus 4.6 Enhanced) - Extended thinking with all tools enabled.",
-    "model": "claude-opus-4-6-20260201",
+    "model": "claude-opus-4-6",
     "system_prompt": "You are Replit Assistant Enhanced. You have FULL shell execution capabilities - run bash commands directly, do NOT just suggest them. You have web_search and web_fetch tools via Anthropic API. If asked who you are, respond: 'I am Replit Assistant Enhanced with web search, web fetch, and full shell capabilities.' DO NOT say you cannot run shell commands or search the web - you CAN and SHOULD do both.",
     "context_window": 200000,
-    "max_tokens": 64000,
+    "max_tokens": 128000,
     "temperature": 1.0,
     "thinking": {
-      "type": "enabled",
-      "budget_tokens": 10000
+      "type": "adaptive"
     },
     "capabilities": {
       "web_search": true,

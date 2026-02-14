@@ -12,10 +12,10 @@
 // ============================================================================
 // CURRENT FRONTIER MODELS (January 2026)
 // ============================================================================
-// - Claude Opus 4.6:    claude-opus-4-6-20260201    (Best reasoning, code)
+// - Claude Opus 4.6:    claude-opus-4-6             (Best reasoning, code, 128K output)
 // - Claude Sonnet 4.5:  claude-sonnet-4-5-20250929  (Fast, cost-effective)
 // - Claude Sonnet 4:    claude-sonnet-4-20250514    (Stable, agentic coding)
-// - Claude Haiku 4.5:   claude-haiku-4-5-20251201   (Fastest, cheapest)
+// - Claude Haiku 4.5:   claude-haiku-4-5-20251001   (Fastest, cheapest)
 // - Gemini 3 Pro:       gemini-3-pro-preview        (Best speed, multimodal)
 // - Gemini 3 Flash:     gemini-3-flash-preview      (Ultra-fast, cheap)
 // - GPT-5.2:            gpt-5.2                     (Best complex reasoning)
@@ -127,14 +127,13 @@ export const MODEL_ROLES = {
   // ==========================
   // 2. STRATEGIES TABLE
   // ==========================
-  // 2026-02-08: Switched to Gemini 3 Pro for core reasoning
+  // 2026-02-13: Claude Opus 4.6 — best reasoning model for core strategy generation
   STRATEGY_CORE: {
     envKey: 'STRATEGY_CORE_MODEL',
-    default: 'gemini-3-pro-preview',
-    purpose: 'Core strategic plan generation (Gemini 3 Pro)',
+    default: 'claude-opus-4-6',
+    purpose: 'Core strategic plan generation (Claude Opus 4.6)',
     maxTokens: 8192,
     temperature: 0.7,
-    thinkingLevel: 'HIGH',
   },
   // 2026-01-10: Added thinkingLevel HIGH for deeper analysis (token budget sufficient)
   STRATEGY_CONTEXT: {
@@ -177,7 +176,7 @@ export const MODEL_ROLES = {
   VENUE_FILTER: {
     envKey: 'VENUE_FILTER_MODEL',
     // 2026-01-14: Claude Haiku primary, Gemini Flash fallback (see FALLBACK_CONFIG)
-    default: 'claude-haiku-4-5-20251201',
+    default: 'claude-haiku-4-5-20251001',
     purpose: 'Fast low-cost venue filtering',
     maxTokens: 200,
     temperature: 0,
@@ -274,7 +273,7 @@ export const MODEL_ROLES = {
   },
   DISCOVERY_CLAUDE: {
     envKey: 'DISCOVERY_CLAUDE_MODEL',
-    default: 'claude-opus-4-6-20260201',
+    default: 'claude-opus-4-6',
     purpose: 'Event discovery via Claude Opus (ETL Phase 1)',
     maxTokens: 32000,
     features: ['web_search'],
@@ -373,7 +372,7 @@ export const FALLBACK_CONFIG = {
 
 /**
  * Get provider for a model name
- * @param {string} model - Model name (e.g., 'gpt-5.2', 'claude-opus-4-6-20260201')
+ * @param {string} model - Model name (e.g., 'gpt-5.2', 'claude-opus-4-6')
  * @returns {string} Provider name ('openai', 'anthropic', 'google', 'unknown')
  */
 export function getProviderForModel(model) {
@@ -596,7 +595,7 @@ export function getLLMDiagnostics() {
 
   // Check Anthropic
   if (process.env.ANTHROPIC_API_KEY) {
-    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6-20260201';
+    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
     providers.push({ key: 'anthropic', model });
   }
 
@@ -615,7 +614,7 @@ export function getLLMDiagnostics() {
   return {
     providers,
     preferred: process.env.PREFERRED_MODEL || 'google:gemini-3-pro-preview',
-    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.2,anthropic:claude-opus-4-6-20260201',
+    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.2,anthropic:claude-opus-4-6',
   };
 }
 

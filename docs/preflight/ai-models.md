@@ -10,10 +10,10 @@ Quick reference for AI model usage. Read before modifying any AI code.
 
 | Provider | Model ID | Strengths | Cost |
 |----------|----------|-----------|------|
-| **Anthropic** | `claude-opus-4-6-20260201` | Best reasoning, code quality | $$$$ |
+| **Anthropic** | `claude-opus-4-6` | Best reasoning, code quality | $$$$ |
 | **Anthropic** | `claude-sonnet-4-5-20250929` | Fast, cost-effective | $$ |
 | **Anthropic** | `claude-sonnet-4-20250514` | Stable, agentic coding | $$ |
-| **Anthropic** | `claude-haiku-4-5-20251201` | Fastest Claude, cheapest | $ |
+| **Anthropic** | `claude-haiku-4-5-20251001` | Fastest Claude, cheapest | $ |
 | **Google** | `gemini-3-pro-preview` | Best speed (180 tok/s), multimodal, 2M context | $$ |
 | **Google** | `gemini-3-flash-preview` | Ultra-fast, cheapest Google | $ |
 | **OpenAI** | `gpt-5.2` | Best complex reasoning (AIME 100%) | $$$ |
@@ -33,15 +33,15 @@ Quick reference for AI model usage. Read before modifying any AI code.
 | `BRIEFING_NEWS` | `gemini-3-pro-preview` | Local news (7 days) | google_search, thinkingLevel: HIGH |
 | `BRIEFING_NEWS_GPT` | `gpt-5.2` | News (parallel) | openai_web_search |
 | `BRIEFING_EVENTS_DISCOVERY` | `gemini-3-pro-preview` | Event discovery | google_search, thinkingLevel: HIGH |
-| `BRIEFING_EVENTS_VALIDATOR` | `claude-opus-4-6-20260201` | Event verification | web_search |
-| `BRIEFING_FALLBACK` | `claude-opus-4-6-20260201` | General fallback | web_search |
+| `BRIEFING_EVENTS_VALIDATOR` | `claude-opus-4-6` | Event verification | web_search |
+| `BRIEFING_FALLBACK` | `claude-opus-4-6` | General fallback | web_search |
 | `BRIEFING_SCHOOLS` | `gemini-3-pro-preview` | School calendars | google_search |
 | `BRIEFING_AIRPORT` | `gemini-3-pro-preview` | Airport conditions | google_search |
 
 ### Strategies Table
 | Role | Default Model | Purpose | Features |
 |------|---------------|---------|----------|
-| `STRATEGY_CORE` | `claude-opus-4-6-20260201` | Core strategy (pure reasoning) | - |
+| `STRATEGY_CORE` | `claude-opus-4-6` | Core strategy (pure reasoning) | - |
 | `STRATEGY_CONTEXT` | `gemini-3-pro-preview` | Real-time context | google_search, thinkingLevel: HIGH |
 | `STRATEGY_TACTICAL` | `gpt-5.2` | 1-hour tactics | reasoningEffort: medium |
 | `STRATEGY_DAILY` | `gemini-3-pro-preview` | 8-12hr daily strategy | google_search, thinkingLevel: HIGH |
@@ -203,10 +203,10 @@ Override any role's model via environment variable:
 BRIEFING_WEATHER_MODEL=gemini-3-flash-preview
 BRIEFING_TRAFFIC_MODEL=gemini-3-pro-preview  # 2026-01-15: Single Briefer Model default
 STRATEGY_CORE_MODEL=claude-sonnet-4-5-20250929
-VENUE_FILTER_MODEL=claude-haiku-4-5-20251201
+VENUE_FILTER_MODEL=claude-haiku-4-5-20251001
 
 # Global defaults (used by diagnostics)
-ANTHROPIC_MODEL=claude-opus-4-6-20260201
+ANTHROPIC_MODEL=claude-opus-4-6
 OPENAI_MODEL=gpt-5.2
 GEMINI_MODEL=gemini-3-pro-preview
 ```

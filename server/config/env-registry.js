@@ -74,7 +74,7 @@ export const ENV_VARS = {
   // === Strategy Model Configuration ===
   STRATEGY_STRATEGIST: {
     required: false,
-    default: 'claude-opus-4-6-20260201',
+    default: 'claude-opus-4-6',
     description: 'Model for minstrategy generation',
   },
   STRATEGY_BRIEFER: {
@@ -89,7 +89,7 @@ export const ENV_VARS = {
   },
   STRATEGY_EVENT_VALIDATOR: {
     required: false,
-    default: 'claude-opus-4-6-20260201',
+    default: 'claude-opus-4-6',
     description: 'Model for event validation (with web search)',
   },
   STRATEGY_VENUE_PLANNER: {
