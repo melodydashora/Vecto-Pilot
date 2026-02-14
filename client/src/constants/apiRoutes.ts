@@ -177,6 +177,21 @@ export const API_ROUTES = {
   ACTIONS: '/api/actions',
 
   // =========================================================================
+  // Concierge (QR code sharing + public event discovery)
+  // =========================================================================
+  CONCIERGE: {
+    TOKEN: '/api/concierge/token',
+    PREVIEW: '/api/concierge/preview',
+    PUBLIC_PROFILE: (token: string) => `/api/concierge/p/${token}`,
+    PUBLIC_WEATHER: (token: string, lat: number, lng: number) =>
+      `/api/concierge/p/${token}/weather?lat=${lat}&lng=${lng}`,
+    PUBLIC_EXPLORE: (token: string) => `/api/concierge/p/${token}/explore`,
+    PUBLIC_ASK: (token: string) => `/api/concierge/p/${token}/ask`,
+    PUBLIC_FEEDBACK: (token: string) => `/api/concierge/p/${token}/feedback`,
+    FEEDBACK_SUMMARY: '/api/concierge/feedback',
+  },
+
+  // =========================================================================
   // Diagnostic
   // =========================================================================
   DIAGNOSTIC: {

@@ -280,7 +280,31 @@ export const MODEL_ROLES = {
   },
 
   // ==========================
-  // 7. INTERNAL AGENTS
+  // 7. CONCIERGE (public event/venue discovery)
+  // ==========================
+  // 2026-02-13: Public-facing event search for Concierge QR code page
+  CONCIERGE_SEARCH: {
+    envKey: 'CONCIERGE_SEARCH_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Public concierge event/venue discovery (no auth required)',
+    maxTokens: 4096,
+    temperature: 0.3,
+    thinkingLevel: 'LOW',
+    features: ['google_search'],
+  },
+  // 2026-02-13: Public-facing AI Q&A for passenger concierge page
+  CONCIERGE_CHAT: {
+    envKey: 'CONCIERGE_CHAT_MODEL',
+    default: 'gemini-3-pro-preview',
+    purpose: 'Public concierge Q&A — passengers ask about local area',
+    maxTokens: 2048,
+    temperature: 0.5,
+    thinkingLevel: 'LOW',
+    features: ['google_search'],
+  },
+
+  // ==========================
+  // 8. INTERNAL AGENTS
   // ==========================
   DOCS_GENERATOR: {
     envKey: 'DOCS_GENERATOR_MODEL',
@@ -505,6 +529,9 @@ export function getRolesByTable() {
     VENUE: [],
     COACH: [],
     UTIL: [],
+    CONCIERGE: [],
+    DISCOVERY: [],
+    DOCS: [],
   };
 
   for (const role of Object.keys(MODEL_ROLES)) {

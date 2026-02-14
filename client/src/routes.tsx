@@ -23,6 +23,8 @@ import {
 import { UberCallbackPage } from '@/pages/auth/uber/Callback';
 import { GoogleCallbackPage } from '@/pages/auth/google/Callback';
 import AuthRedirect from '@/components/auth/AuthRedirect';
+import ConciergePage from '@/pages/co-pilot/ConciergePage';
+import PublicConciergePage from '@/pages/concierge/PublicConciergePage';
 
 export const router = createBrowserRouter([
   // ═══════════════════════════════════════════════════════════════════════════
@@ -58,6 +60,12 @@ export const router = createBrowserRouter([
   {
     path: '/auth/google/callback',
     element: <GoogleCallbackPage />,
+  },
+
+  // 2026-02-13: Public Concierge page (passengers scan driver's QR code)
+  {
+    path: '/c/:token',
+    element: <PublicConciergePage />,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -127,6 +135,10 @@ export const router = createBrowserRouter([
       {
         path: 'policy',
         element: <PolicyPage />,
+      },
+      {
+        path: 'concierge',
+        element: <ConciergePage />,
       },
       {
         path: 'settings',

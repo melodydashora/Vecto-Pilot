@@ -8,7 +8,7 @@ import {
   Wine,
   MessageSquare,
   Map as MapIcon,
-  Heart,
+  QrCode,
   Target
 } from 'lucide-react';
 
@@ -65,12 +65,12 @@ const tabs: TabConfig[] = [
     activeBg: 'bg-amber-50'
   },
   {
-    id: 'about',
-    path: '/co-pilot/about',
-    label: 'About',
-    icon: Heart,
-    activeColor: 'text-rose-600',
-    activeBg: 'bg-rose-50'
+    id: 'concierge',
+    path: '/co-pilot/concierge',
+    label: 'Concierge',
+    icon: QrCode,
+    activeColor: 'text-teal-600',
+    activeBg: 'bg-teal-50'
   }
 ];
 
