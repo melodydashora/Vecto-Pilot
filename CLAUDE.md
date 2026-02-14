@@ -714,10 +714,10 @@ UBER_CLIENT_SECRET=...     # Uber Developer Dashboard
 
 ### Model Configuration
 ```bash
-STRATEGY_STRATEGIST=claude-opus-4-6-20260201
+STRATEGY_STRATEGIST=claude-opus-4-6
 STRATEGY_BRIEFER=gemini-3-pro-preview
 STRATEGY_CONSOLIDATOR=gpt-5.2
-STRATEGY_EVENT_VALIDATOR=claude-opus-4-6-20260201
+STRATEGY_EVENT_VALIDATOR=claude-opus-4-6
 ```
 
 ## Key Files

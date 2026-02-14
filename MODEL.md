@@ -16,7 +16,7 @@ Auto-generated from live web search research verifying post-2025 model releases.
 - **Model Upgrades:**
     - **Coach:** Upgraded to `gemini-3-pro-preview` with streaming support.
     - **Planner:** Upgraded to `gpt-5.2` (via adapter).
-    - **Strategist:** Upgraded to `claude-opus-4-6-20260201` (via adapter).
+    - **Strategist:** Upgraded to `claude-opus-4-6` (via adapter).
 - **Security:** Replaced direct API calls with centralized adapters to prevent credential leaks and ensure consistent parameter handling.
 - **Agent Capabilities:** Implemented "Super User" mode for `melodydashora@gmail.com` in AI Coach, unlocking deep memory and system-level context.
 
@@ -60,7 +60,7 @@ Auto-generated from live web search research verifying post-2025 model releases.
 | Provider | Flagship Model | Model ID | Context Window | Max Output |
 |----------|----------------|----------|----------------|------------|
 | OpenAI | GPT-5.2 | `gpt-5.2` | 400,000 | 128,000 |
-| Anthropic | Claude 4.6 Opus | `claude-opus-4-6-20260201` | 1,000,000 | 128,000 |
+| Anthropic | Claude 4.6 Opus | `claude-opus-4-6` | 1,000,000 | 128,000 |
 | Google | Gemini 3.0 Pro | `gemini-3-pro-preview` | 1,000,000 | 65,536 |
 | Perplexity | Sonar Pro | `sonar-pro` | 200,000 | 8,000 |
 
@@ -108,7 +108,7 @@ Anthropic has moved beyond the Claude 3 series with the release of the **Claude 
 
 | Model | ID | Release Date | Context | Description |
 |-------|----|--------------|---------|-------------|
-| **Claude 4.6 Opus** | `claude-opus-4-6-20260201` | Nov 24, 2025 | **1 Million** | The most intelligent model. Features adaptive thinking and massive context. Ideal for complex software engineering and deep research. |
+| **Claude 4.6 Opus** | `claude-opus-4-6` | Nov 24, 2025 | **1 Million** | The most intelligent model. Features adaptive thinking and massive context. Ideal for complex software engineering and deep research. |
 | **Claude 4.5 Sonnet** | `claude-sonnet-4-5-20250929`* | Sep 29, 2025 | 200k | Balanced intelligence and speed. Replaces 3.5 Sonnet. (*Verify specific ID in console). |
 
 ### Technical Capabilities

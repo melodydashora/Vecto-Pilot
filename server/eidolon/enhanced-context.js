@@ -41,7 +41,7 @@ When making API calls to Claude, you have access to real-time web capabilities:
 - max_uses: 5
 
 **Supported Models for Web Tools:**
-- claude-opus-4-6-20260201 (Claude Opus 4.6)
+- claude-opus-4-6 (Claude Opus 4.6)
 - claude-sonnet-4-5-20250929 (Claude Sonnet 4.5)
 - claude-haiku-4-5-20251001 (Claude Haiku 4.5)
 

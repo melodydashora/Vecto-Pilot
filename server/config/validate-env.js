@@ -50,7 +50,7 @@ export function validateEnvironment() {
   }
   
   // Model configuration validation
-  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-6-20260201';
+  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-6';
   const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro-preview';
   const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.2';
   

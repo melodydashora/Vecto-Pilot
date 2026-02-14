@@ -3,7 +3,7 @@
   "trigger_events": ["server_start", "git_commit"],
   "agents": {
     "generator": {
-      "model": "claude-opus-4-6-20260201",
+      "model": "claude-opus-4-6",
       "temperature": 0.2,
       "allowed_paths": ["docs/architecture/", "docs/preflight/", "server/api/"]
     },

@@ -230,7 +230,7 @@ eventSource.addEventListener('strategy_ready', (event) => {
 ### Claude Opus 4.6 (Strategist, Validator)
 ```javascript
 {
-  model: "claude-opus-4-6-20260201",
+  model: "claude-opus-4-6",
   max_tokens: 16000
 }
 ```

@@ -87,7 +87,7 @@ import { LLMClient } from './core/llm';
 
 const client = new LLMClient({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  model: 'claude-opus-4-6-20260201',
+  model: 'claude-opus-4-6',
   maxTokens: 8192,
   temperature: 0.1
 });

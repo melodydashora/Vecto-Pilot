@@ -27,7 +27,7 @@ export const MODELS_DICTIONARY = {
 // ===== REPLIT AGENT ASSISTANT (Claude Sonnet 4.5) =====
 replit_agent: {
   provider: 'anthropic',
-  model_id: 'claude-opus-4-6-20260201',
+  model_id: 'claude-opus-4-6',
   model_name: 'Claude Sonnet 4.5',
   // 200k standard; 1M available via beta header (see notes below)
   context_window: 200_000,
@@ -77,7 +77,7 @@ replit_agent: {
   // ==========================================
   triad_strategist: {
     provider: 'anthropic',
-    model_id: 'claude-opus-4-6-20260201', // Updated to match Replit Agent
+    model_id: 'claude-opus-4-6', // Updated to match Replit Agent
     model_name: 'Claude Sonnet 4.5 (Strategist)',
     context_window: 200000,
     max_output_tokens: 64000,
@@ -150,7 +150,7 @@ replit_agent: {
   // See: server/lib/briefing/event-schedule-validator.js for implementation
   triad_validator: {
     provider: 'anthropic',
-    model_id: 'claude-opus-4-6-20260201',
+    model_id: 'claude-opus-4-6',
     model_name: 'Claude Opus 4.6 (Event Validator)',
     context_window: 200000,
     max_output_tokens: 4096,
@@ -182,7 +182,7 @@ replit_agent: {
   // ==========================================
   agent_override_primary: {
     provider: 'anthropic',
-    model_id: 'claude-opus-4-6-20260201', // Matching Eidolon's model
+    model_id: 'claude-opus-4-6', // Matching Eidolon's model
     model_name: 'Claude Sonnet 4.5 (Atlas - Eidolon Unified)',
     context_window: 200000,
     max_output_tokens: 200000,
@@ -235,7 +235,7 @@ replit_agent: {
   // STRATEGIST - Strategic overview generation
   strategist: {
     provider: 'anthropic',
-    model_id: 'claude-opus-4-6-20260201',
+    model_id: 'claude-opus-4-6',
     model_name: 'Claude OPUS 4.5 (Strategist)',
     context_window: 200000,
     max_output_tokens: 4000,

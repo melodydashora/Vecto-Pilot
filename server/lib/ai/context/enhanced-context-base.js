@@ -254,7 +254,7 @@ export async function performInternetSearchBase(query, userId, identity, memoryT
 
   try {
     const response = await callAnthropicWithWebSearch({
-      model: "claude-opus-4-6-20260201",
+      model: "claude-opus-4-6",
       maxTokens: 4096,
       system: systemPrompt,
       user: query
@@ -274,7 +274,7 @@ export async function performInternetSearchBase(query, userId, identity, memoryT
         query,
         result,
         timestamp: new Date().toISOString(),
-        model: "claude-opus-4-6-20260201",
+        model: "claude-opus-4-6",
         tool_used: "web_search",
         identity: identity
       },
@@ -286,7 +286,7 @@ export async function performInternetSearchBase(query, userId, identity, memoryT
       query,
       result,
       timestamp: new Date().toISOString(),
-      model: "claude-opus-4-6-20260201",
+      model: "claude-opus-4-6",
       identity: identity
     };
   } catch (err) {

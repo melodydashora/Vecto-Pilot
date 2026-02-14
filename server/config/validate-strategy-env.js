@@ -78,7 +78,7 @@ export function validateStrategyEnv() {
       console.error(`   - ${varName} is not set`);
     });
     console.error('\nPlease configure these environment variables in your .env file:');
-    console.error('   STRATEGY_STRATEGIST=claude-opus-4-6-20260201');
+    console.error('   STRATEGY_STRATEGIST=claude-opus-4-6');
     console.error('   STRATEGY_BRIEFER=gemini-3-pro-preview');
     console.error('   STRATEGY_CONSOLIDATOR=gpt-5.2');
     console.error('\nExiting due to missing configuration...\n');

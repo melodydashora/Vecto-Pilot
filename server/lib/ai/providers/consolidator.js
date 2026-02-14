@@ -137,7 +137,7 @@ async function filterDeactivatedNews(newsData, userId) {
 }
 
 // BRIEFING_FALLBACK role configuration
-const FALLBACK_MODEL = 'claude-opus-4-6-20260201';
+const FALLBACK_MODEL = 'claude-opus-4-6';
 const FALLBACK_MAX_TOKENS = 8000;
 const FALLBACK_TEMPERATURE = 0.3;
 
