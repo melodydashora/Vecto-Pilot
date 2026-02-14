@@ -1064,6 +1064,16 @@ export default function SettingsPage() {
           </div>
         </form>
       </Form>
+
+      {/* About link (moved from bottom nav 2026-02-13) */}
+      <div className="text-center mt-6 pb-4">
+        <a
+          href="/co-pilot/about"
+          className="text-sm text-gray-400 hover:text-gray-600 hover:underline"
+        >
+          About Vecto Pilot
+        </a>
+      </div>
     </div>
   );
 }

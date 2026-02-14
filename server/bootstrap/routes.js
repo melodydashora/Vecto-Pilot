@@ -97,6 +97,9 @@ export async function mountRoutes(app, server) {
     // Vehicle Data (server/api/vehicle/)
     { path: '/api/vehicle', module: './server/api/vehicle/vehicle.js', desc: 'Vehicle Data' },
 
+    // Concierge (server/api/concierge/) - 2026-02-13: QR code sharing + public event discovery
+    { path: '/api/concierge', module: './server/api/concierge/concierge.js', desc: 'Concierge' },
+
     // External Hooks (server/api/hooks/)
     { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
 

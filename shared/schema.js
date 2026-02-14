@@ -917,6 +917,9 @@ export const driver_profiles = pgTable("driver_profiles", {
   // 2026-02-13: Google OAuth subject ID (permanent, unique per Google account)
   google_id: text("google_id").unique(),
 
+  // 2026-02-13: Concierge share token for public QR code link
+  concierge_share_token: varchar("concierge_share_token", { length: 12 }).unique(),
+
   // Address - nullable for Google OAuth sign-up (user completes profile later)
   // 2026-02-13: Made nullable to support OAuth-only registration
   address_1: text("address_1"),
@@ -1799,4 +1802,22 @@ export const uber_connections = pgTable("uber_connections", {
   updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
   idxUserId: sql`create index if not exists idx_uber_connections_user_id on ${table} (user_id)`,
+}));
+
+// ============================================================================
+// CONCIERGE FEEDBACK — Passenger ratings from QR code scans
+// ============================================================================
+// 2026-02-13: Direct passenger feedback that rideshare platforms never share.
+// No auth required (passengers are anonymous). Linked to driver via share_token.
+// Rate limited on the API side to prevent spam.
+export const concierge_feedback = pgTable("concierge_feedback", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  driver_profile_id: uuid("driver_profile_id").notNull().references(() => driver_profiles.id, { onDelete: 'cascade' }),
+  share_token: varchar("share_token", { length: 12 }).notNull(),
+  rating: integer("rating").notNull(), // 1-5 stars
+  comment: text("comment"), // Optional free text from passenger
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxDriverProfile: sql`create index if not exists idx_concierge_feedback_driver on ${table} (driver_profile_id)`,
+  idxCreatedAt: sql`create index if not exists idx_concierge_feedback_created on ${table} (created_at)`,
 }));
