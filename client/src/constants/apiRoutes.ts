@@ -131,6 +131,9 @@ export const API_ROUTES = {
   // =========================================================================
   VEHICLE: {
     YEARS: '/api/vehicle/years',
+    MAKES: '/api/vehicle/makes',
+    MODELS: (make: string, year?: number) =>
+      `/api/vehicle/models?make=${encodeURIComponent(make)}${year ? `&year=${year}` : ''}`,
   },
 
   // =========================================================================

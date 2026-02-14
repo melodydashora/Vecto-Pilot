@@ -5,19 +5,27 @@
 // Flow: Google redirects here with ?code=XXX&state=YYY
 // This page sends code+state to the server for token exchange,
 // then stores the app token and redirects to the strategy page.
+//
+// 2026-02-13: New users must accept Terms & Conditions before proceeding.
+// The server sets terms_accepted: false for new Google sign-ups.
 
 import React, { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 export const GoogleCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
+  const [status, setStatus] = useState<'processing' | 'terms' | 'success' | 'error'>('processing');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isAccepting, setIsAccepting] = useState(false);
 
   useEffect(() => {
     const code = searchParams.get('code');
@@ -62,11 +70,19 @@ export const GoogleCallbackPage: React.FC = () => {
         }
 
         if (data.token) {
-          // Store token and update auth state
-          localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-          setStatus('success');
-          // Short delay so user sees success before redirect
-          setTimeout(() => navigate('/co-pilot/strategy'), 1500);
+          // Store token for later use
+          setAuthToken(data.token);
+
+          // 2026-02-13: New users must accept terms before proceeding
+          if (data.isNewUser) {
+            localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
+            setStatus('terms');
+          } else {
+            // Existing user — store token and redirect
+            localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
+            setStatus('success');
+            setTimeout(() => navigate('/co-pilot/strategy'), 1500);
+          }
         } else {
           throw new Error('No token received from server');
         }
@@ -84,6 +100,36 @@ export const GoogleCallbackPage: React.FC = () => {
     handleExchange();
   }, [searchParams, navigate]);
 
+  // 2026-02-13: Handle terms acceptance for new Google users
+  const handleAcceptTerms = async () => {
+    if (!termsAccepted || !authToken) return;
+
+    setIsAccepting(true);
+    try {
+      const response = await fetch(API_ROUTES.AUTH.PROFILE, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ termsAccepted: true }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save terms acceptance');
+      }
+
+      setStatus('success');
+      setTimeout(() => navigate('/co-pilot/strategy'), 1500);
+    } catch (err) {
+      console.error('[google-auth] Terms acceptance error:', err);
+      setErrorMsg('Failed to save terms acceptance. Please try again.');
+      setStatus('error');
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
       <Card className="w-full max-w-md">
@@ -95,6 +141,60 @@ export const GoogleCallbackPage: React.FC = () => {
             <>
               <Loader2 className="w-12 h-12 animate-spin text-blue-500" />
               <p className="text-gray-600">Completing sign-in...</p>
+            </>
+          )}
+
+          {/* 2026-02-13: Terms acceptance step for new Google users */}
+          {status === 'terms' && (
+            <>
+              <FileText className="w-12 h-12 text-blue-500" />
+              <div className="text-center space-y-4 w-full">
+                <p className="font-medium text-lg">Welcome to Vecto Pilot!</p>
+                <p className="text-sm text-gray-500">
+                  Your account has been created. Please accept our terms to continue.
+                </p>
+
+                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg text-left">
+                  <Checkbox
+                    id="google-terms"
+                    checked={termsAccepted}
+                    onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                  />
+                  <label htmlFor="google-terms" className="text-sm text-gray-700 cursor-pointer leading-relaxed">
+                    I agree to the{' '}
+                    <Link
+                      to="/auth/terms"
+                      target="_blank"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Terms and Conditions
+                    </Link>
+                    {' '}and{' '}
+                    <Link
+                      to="/co-pilot/policy"
+                      target="_blank"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Privacy Policy
+                    </Link>
+                  </label>
+                </div>
+
+                <Button
+                  onClick={handleAcceptTerms}
+                  disabled={!termsAccepted || isAccepting}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  {isAccepting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Accept & Continue'
+                  )}
+                </Button>
+              </div>
             </>
           )}
 
