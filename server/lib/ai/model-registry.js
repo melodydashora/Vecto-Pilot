@@ -218,13 +218,14 @@ export const MODEL_ROLES = {
   // ==========================
   // 4. COACH_CONVERSATIONS
   // ==========================
+  // 2026-02-13: Gemini 3 Pro Preview — vision, OCR, Google Search, multimodal
   COACH_CHAT: {
     envKey: 'COACH_CHAT_MODEL',
-    default: 'gpt-5.2',
-    purpose: 'AI Strategy Coach conversation (streaming)',
+    default: 'gemini-3-pro-preview',
+    purpose: 'AI Strategy Coach conversation (streaming, multimodal)',
     maxTokens: 8192,
     temperature: 0.7,
-    features: ['google_search'],
+    features: ['google_search', 'vision', 'ocr'],
   },
 
   // ==========================
