@@ -201,23 +201,47 @@ router.get('/markets', async (_req, res) => {
 
 /**
  * GET /api/intelligence/markets-dropdown
- * Get list of all US markets for signup dropdown
+ * Get list of US markets for signup/settings dropdown
  *
  * 2026-01-05: Returns unique market names from us_market_cities table
+ * 2026-02-13: Added optional `state` query param to filter markets by state.
+ *   Matches against both full state name (e.g., "Texas") and abbreviation (e.g., "TX").
+ *   When no state is provided, returns all markets.
+ *
+ * Query params:
+ *   state (optional) - Filter markets by state name or abbreviation
  *
  * Returns array of markets sorted alphabetically, with "Other" option hint
  * Client should add "Other" as final option and show free-text input if selected
  */
-router.get('/markets-dropdown', async (_req, res) => {
+router.get('/markets-dropdown', async (req, res) => {
   try {
-    const result = await db
-      .selectDistinct({ market_name: us_market_cities.market_name })
-      .from(us_market_cities)
-      .orderBy(asc(us_market_cities.market_name));
+    const { state } = req.query;
+
+    let result;
+
+    // 2026-02-13: Filter by state if provided (matches full name or abbreviation)
+    if (state && typeof state === 'string' && state.trim()) {
+      const trimmed = state.trim();
+      result = await db.execute(sql`
+        SELECT DISTINCT market_name
+        FROM us_market_cities
+        WHERE state ILIKE ${trimmed} OR state_abbr ILIKE ${trimmed}
+        ORDER BY market_name
+      `);
+    } else {
+      result = await db.execute(sql`
+        SELECT DISTINCT market_name
+        FROM us_market_cities
+        ORDER BY market_name
+      `);
+    }
+
+    const markets = result.rows.map(r => r.market_name);
 
     res.json({
-      markets: result.map(r => r.market_name),
-      total: result.length,
+      markets,
+      total: markets.length,
       hint: 'Add "Other" as final option in dropdown. If selected, show free-text input for new market.'
     });
   } catch (error) {

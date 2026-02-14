@@ -1147,6 +1147,13 @@ router.put('/profile', requireAuth, async (req, res) => {
     if (updates.marketingOptIn !== undefined) profileUpdates.marketing_opt_in = updates.marketingOptIn;
     if (updates.country) profileUpdates.country = updates.country.trim();
 
+    // 2026-02-13: Terms acceptance (for Google OAuth users who didn't accept during sign-up)
+    if (updates.termsAccepted === true) {
+      profileUpdates.terms_accepted = true;
+      profileUpdates.terms_accepted_at = new Date();
+      profileUpdates.terms_version = '1.0';
+    }
+
     profileUpdates.updated_at = new Date();
 
     // Check if any address fields changed - if so, re-geocode
@@ -1210,22 +1217,42 @@ router.put('/profile', requireAuth, async (req, res) => {
       .set(profileUpdates)
       .where(eq(driver_profiles.user_id, userId));
 
-    // Update vehicle if provided
+    // 2026-02-13: Update or INSERT vehicle if provided
+    // Google OAuth users may not have a vehicle record yet, so check first
     if (updates.vehicle) {
-      const vehicleUpdates = {};
-      if (updates.vehicle.year) vehicleUpdates.year = updates.vehicle.year;
-      if (updates.vehicle.make) vehicleUpdates.make = updates.vehicle.make.trim();
-      if (updates.vehicle.model) vehicleUpdates.model = updates.vehicle.model.trim();
-      if (updates.vehicle.color !== undefined) vehicleUpdates.color = updates.vehicle.color?.trim() || null;
-      if (updates.vehicle.seatbelts) vehicleUpdates.seatbelts = updates.vehicle.seatbelts;
-      vehicleUpdates.updated_at = new Date();
-
-      await db.update(driver_vehicles)
-        .set(vehicleUpdates)
-        .where(and(
+      const existingVehicle = await db.query.driver_vehicles.findFirst({
+        where: and(
           eq(driver_vehicles.driver_profile_id, profile.id),
           eq(driver_vehicles.is_primary, true)
-        ));
+        )
+      });
+
+      if (existingVehicle) {
+        // Update existing vehicle record
+        const vehicleUpdates = {};
+        if (updates.vehicle.year) vehicleUpdates.year = updates.vehicle.year;
+        if (updates.vehicle.make) vehicleUpdates.make = updates.vehicle.make.trim();
+        if (updates.vehicle.model) vehicleUpdates.model = updates.vehicle.model.trim();
+        if (updates.vehicle.color !== undefined) vehicleUpdates.color = updates.vehicle.color?.trim() || null;
+        if (updates.vehicle.seatbelts) vehicleUpdates.seatbelts = updates.vehicle.seatbelts;
+        vehicleUpdates.updated_at = new Date();
+
+        await db.update(driver_vehicles)
+          .set(vehicleUpdates)
+          .where(eq(driver_vehicles.id, existingVehicle.id));
+      } else {
+        // No vehicle record exists — create one (e.g., Google OAuth user completing profile)
+        await db.insert(driver_vehicles).values({
+          driver_profile_id: profile.id,
+          year: updates.vehicle.year || new Date().getFullYear(),
+          make: updates.vehicle.make?.trim() || '',
+          model: updates.vehicle.model?.trim() || '',
+          color: updates.vehicle.color?.trim() || null,
+          seatbelts: updates.vehicle.seatbelts || 4,
+          is_primary: true
+        });
+        authLog.phase(1, `Created new vehicle record for: ${profile.email}`);
+      }
     }
 
     authLog.done(1, `Profile updated for: ${profile.email}`);
@@ -1412,9 +1439,10 @@ router.post('/google/exchange', async (req, res) => {
         // Email is verified by Google
         email_verified: true,
         profile_complete: false,
-        terms_accepted: true,
-        terms_accepted_at: now,
-        terms_version: '1.0',
+        // 2026-02-13: Do NOT auto-accept terms — user must explicitly accept
+        terms_accepted: false,
+        terms_accepted_at: null,
+        terms_version: null,
       }).returning();
 
       // Create auth_credentials row WITHOUT password (Google-only user)
