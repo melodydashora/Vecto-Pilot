@@ -304,7 +304,22 @@ export const MODEL_ROLES = {
   },
 
   // ==========================
-  // 8. INTERNAL AGENTS
+  // 8. SIRI HOOKS (intercepted_signals)
+  // ==========================
+  // 2026-02-15: Dedicated role for real-time ride offer analysis via Siri Shortcuts.
+  // Uses Flash (not Pro) because speed is CRITICAL — driver has ~15 seconds to decide.
+  // Flash is 3-5x faster than Pro; LOW thinking minimizes latency further.
+  OFFER_ANALYZER: {
+    envKey: 'OFFER_ANALYZER_MODEL',
+    default: 'gemini-3-flash-preview',
+    purpose: 'Real-time ride offer analysis from Siri Shortcuts (ACCEPT/REJECT)',
+    maxTokens: 1024, // Minimal — just JSON decision + short reasoning
+    temperature: 0.1, // Near-deterministic for consistent decisions
+    thinkingLevel: 'LOW', // Speed over depth — this is a time-critical decision
+  },
+
+  // ==========================
+  // 9. INTERNAL AGENTS
   // ==========================
   DOCS_GENERATOR: {
     envKey: 'DOCS_GENERATOR_MODEL',
@@ -356,6 +371,7 @@ export const FALLBACK_ENABLED_ROLES = [
   'STRATEGY_CORE',          // 2026-01-14: Added for Anthropic credit fallback
   'BRIEFING_EVENTS_VALIDATOR', // 2026-01-14: Added for Anthropic credit fallback
   'BRIEFING_FALLBACK',      // 2026-01-14: Added for Anthropic credit fallback
+  'OFFER_ANALYZER',         // 2026-02-15: Time-critical — must have fallback
 ];
 
 /**
@@ -546,6 +562,10 @@ export function getRolesByTable() {
 
 /**
  * Model-specific quirks and limitations
+ * 2026-02-15: Added Pro-specific quirks (F-002). Enforced by gemini-adapter.js validateThinkingLevel().
+ *
+ * Prefix matching: hasQuirk() checks model.startsWith(prefix) || model.includes(prefix).
+ * More specific prefixes (e.g. 'gemini-3-pro') are checked alongside broader ones ('gemini-').
  */
 export const MODEL_QUIRKS = {
   'gpt-5.2': {
@@ -561,6 +581,15 @@ export const MODEL_QUIRKS = {
   'gemini-': {
     useThinkingConfig: true,
     safetySettingsRequired: true,
+  },
+  // 2026-02-15: F-002 — Pro models only support LOW and HIGH thinking levels.
+  // MEDIUM is Flash-only. Enforced at runtime by gemini-adapter.js validateThinkingLevel().
+  'gemini-3-pro': {
+    noMediumThinking: true,
+    validThinkingLevels: ['LOW', 'HIGH'],
+  },
+  'gemini-3-flash': {
+    validThinkingLevels: ['LOW', 'MEDIUM', 'HIGH'],
   },
 };
 

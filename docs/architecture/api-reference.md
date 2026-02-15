@@ -1,3 +1,6 @@
+Here is the updated documentation including the new **Automation & Hooks** section for the `analyze-offer` endpoint.
+
+
 # API Reference
 
 Complete frontend → backend API endpoint reference.
@@ -210,28 +213,62 @@ Platform statistics and market data endpoints.
 | `/api/platform/search` | GET | `server/api/platform/platform.js` | Search markets/cities |
 | `/api/platform/city/:city` | GET | `server/api/platform/platform.js` | City details |
 
+### Automation & Hooks (Added 2026-02-15)
+
+Endpoints designed for external automation tools (Siri Shortcuts, Mobile Automation).
+
+| Endpoint | Method | Handler | Purpose |
+|----------|--------|---------|---------|
+| `/api/hooks/analyze-offer` | POST | `server/api/hooks/analyze-offer.js` | Real-time ride offer analysis |
+
+#### Offer Analysis Details
+
+**POST /api/hooks/analyze-offer**
+
+High-speed endpoint for analyzing rideshare offers via Siri Shortcuts.
+
+- **Authentication:** Public (No JWT required) to accommodate Siri limitations.
+- **Performance:** Uses `OFFER_ANALYZER` (Gemini 3 Flash) for 1-3s response times.
+- **Real-time:** Broadcasts analysis results via `pg_notify` to the web frontend (SSE).
+- **Location:** Captures driver coordinates (rounded to 3 decimals) to derive market context.
+
+**Request Body:**
+json
+{
+  "text": "OCR text content...",
+  "image": "base64...",
+  "device_id": "user_device_uuid",
+  "latitude": 30.267,
+  "longitude": -97.743,
+  "source": "siri_shortcut"
+}
+
+
+**Response:**
+Returns `decision` (ACCEPT/REJECT), `reasoning`, and parsed data optimized for notification display.
+
 ## Authentication
 
 All API calls should include the JWT token:
 
-```javascript
+javascript
 const headers = {
   'Authorization': `Bearer ${localStorage.getItem('vectopilot_auth_token')}`,
   'Content-Type': 'application/json'
 };
-```
+
 
 ## Error Responses
 
 Standard error format:
 
-```json
+json
 {
   "error": "Error message",
   "code": "ERROR_CODE",
   "details": {}
 }
-```
+
 
 Common HTTP codes:
 - `400` - Bad request / validation error
@@ -247,10 +284,10 @@ Common HTTP codes:
 
 When querying events by date, the API uses the user's timezone from `snapshot.timezone` to calculate "today":
 
-```javascript
+javascript
 // Uses user's timezone to avoid events "disappearing" at night
 const today = new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone });
-```
+
 
 **Why?** At 8:20 PM CST, UTC is already the next day. Using UTC would cause events dated "today" (local) to not match the UTC "tomorrow" filter.
 

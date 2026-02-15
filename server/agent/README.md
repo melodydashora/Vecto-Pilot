@@ -1,3 +1,6 @@
+Here is the updated documentation. I have refined the **LLM Configuration** section to accurately reflect the environment variable precedence and fallbacks defined in `server/agent/agent-override-llm.js`.
+
+
 > **Last Verified:** 2026-01-07
 
 # Agent (`server/agent/`)
@@ -52,16 +55,45 @@ These routes require the authenticated user to be in `AGENT_ADMIN_USERS`:
 | `enhanced-context.js` | Context enrichment wrapper (uses `../lib/ai/context/enhanced-context-base.js`) |
 | `context-awareness.js` | Contextual data gathering |
 | `config-manager.js` | Agent configuration file management |
-| `agent-override-llm.js` | LLM override for agent |
+| `agent-override-llm.js` | Unified Claude Opus 4.6 provider with self-healing circuit breaker |
 | `thread-context.js` | Thread context management |
 | `index.ts` | TypeScript entry point |
+
+## LLM Configuration (Updated 2026-01-07)
+
+The agent uses a **Unified Configuration** centered on **Claude Opus 4.6** defined in `agent-override-llm.js`.
+
+### Provider Strategy
+- **Primary:** Anthropic (Claude Opus 4.6)
+- **Fallback:** None (Single provider architecture)
+- **Context Window:** 200k tokens (default)
+- **Temperature:** 1.0 (High creativity/reasoning)
+
+### Configuration Variables
+The system uses specific overrides with fallbacks to standard agent variables.
+
+| Variable | Fallback Chain | Description |
+|----------|----------------|-------------|
+| `AGENT_OVERRIDE_API_KEY_C` | `ANTHROPIC_API_KEY` | API Key for Anthropic |
+| `AGENT_OVERRIDE_CLAUDE_MODEL` | `AGENT_MODEL` → `"claude-opus-4-6"` | The specific model identifier |
+| `CLAUDE_MAX_TOKENS` | `AGENT_MAX_TOKENS` → `200000` | Max output tokens |
+| `CLAUDE_TEMPERATURE` | `AGENT_TEMPERATURE` → `1.0` | Sampling temperature |
+
+### Self-Healing Circuit Breaker
+To prevent cascading failures and API quota exhaustion, the agent implements a circuit breaker mechanism:
+1. **Trigger:** 3 consecutive failures.
+2. **Action:** Circuit opens, rejecting requests immediately.
+3. **Cooldown:** 60 seconds (1 minute).
+4. **Recovery:** Automatically resets after cooldown on the next request.
+
+The circuit state is exposed via the `/agent/health` endpoint.
 
 ## API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/agent/context` | GET | Get enhanced project context |
-| `/agent/health` | GET | Agent health check |
+| `/agent/health` | GET | Agent health check (includes circuit breaker status) |
 | `/agent/capabilities` | GET | Agent capabilities list |
 | `/agent/memory/preference` | POST | Store user preference |
 | `/agent/memory/session` | POST | Store session state |
@@ -76,7 +108,7 @@ These routes require the authenticated user to be in `AGENT_ADMIN_USERS`:
 
 Agent is mounted in `server/bootstrap/routes.js` via `embed.js`:
 
-```javascript
+javascript
 const { mountAgent } = await import('./server/agent/embed.js');
 mountAgent({
   app,
@@ -84,7 +116,7 @@ mountAgent({
   wsPath: '/agent/ws',
   server,
 });
-```
+
 
 **2026-01-06 Fix:** `embed.js` now imports and mounts `routes.js`. Previously, the routes were orphaned and `/agent/context` returned 404 (useMemory hook failed).
 

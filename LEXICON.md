@@ -208,10 +208,10 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 | `BRIEFING_TRAFFIC` | Traffic conditions analysis | `BRIEFING_TRAFFIC_MODEL` | gemini-3-flash |
 | `BRIEFING_NEWS` | Local news research | `BRIEFING_NEWS_MODEL` | gemini-3-pro |
 | `BRIEFING_EVENTS_DISCOVERY` | Event discovery (parallel category search) | `BRIEFING_EVENTS_MODEL` | gemini-3-pro |
-| `BRIEFING_EVENTS_VALIDATOR` | Event schedule verification | `BRIEFING_VALIDATOR_MODEL` | claude-opus-4.5 |
-| `BRIEFING_FALLBACK` | General fallback for failed briefing calls | `BRIEFING_FALLBACK_MODEL` | claude-opus-4.5 |
+| `BRIEFING_EVENTS_VALIDATOR` | Event schedule verification | `BRIEFING_VALIDATOR_MODEL` | claude-opus-4-6 |
+| `BRIEFING_FALLBACK` | General fallback for failed briefing calls | `BRIEFING_FALLBACK_MODEL` | claude-opus-4-6 |
 | **STRATEGIES TABLE** ||||
-| `STRATEGY_CORE` | Core strategic plan generation | `STRATEGY_CORE_MODEL` | claude-opus-4.5 |
+| `STRATEGY_CORE` | Core strategic plan generation | `STRATEGY_CORE_MODEL` | claude-opus-4-6 |
 | `STRATEGY_CONTEXT` | Real-time context gathering | `STRATEGY_CONTEXT_MODEL` | gemini-3-pro |
 | `STRATEGY_TACTICAL` | Immediate 1-hour tactical strategy | `STRATEGY_TACTICAL_MODEL` | gpt-5.2 |
 | `STRATEGY_DAILY` | Long-term 8-12hr daily strategy | `STRATEGY_DAILY_MODEL` | gemini-3-pro |
@@ -661,9 +661,9 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 
 ---
 
-**Version:** 1.2.0
-**Last Updated:** January 5, 2026
-**Maintainer:** Vecto Pilot Development Team
+**Version:** 1.3.0
+**Last Updated:** February 15, 2026
+**Maintainer:** Vecto Pilot Development Team (Melody Dashora, architect)
 
 ---
 

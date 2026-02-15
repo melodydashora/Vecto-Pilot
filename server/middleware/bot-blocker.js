@@ -138,6 +138,13 @@ export function botBlocker(req, res, next) {
     return next();
   }
 
+  // 2026-02-15: Allow hooks (Siri Shortcuts, Android Automations)
+  // These endpoints are explicitly public and designed for automated clients.
+  // Siri sends a valid UA (Shortcuts/x.x) but other automation tools may not.
+  if (path.startsWith('/api/hooks/') || path.startsWith('/api/hooks')) {
+    return next();
+  }
+
   // Block suspicious paths immediately
   if (isSuspiciousPath(path)) {
     console.log(`[bot-blocker] Blocked suspicious path: ${path} from ${req.ip}`);

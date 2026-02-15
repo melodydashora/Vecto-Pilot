@@ -184,4 +184,47 @@ router.get('/events/phase', (req, res) => {
   phaseEmitter.on('change', onChange);
 });
 
+// 2026-02-15: SSE channel for real-time offer analysis notifications
+// When a Siri Shortcut triggers an offer analysis, the web app receives the result here.
+// This allows the dashboard to show "ACCEPT: $15 / 4.2mi" even while the driver
+// is in the Uber app — the notification appears when they return to Vecto.
+let offerConnections = 0;
+
+router.get('/events/offers', async (req, res) => {
+  offerConnections++;
+  sseLog.phase(1, `SSE /events/offers connected (${offerConnections} active)`, OP.SSE);
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+
+  res.write(': connected\n\n');
+
+  let unsubscribe = null;
+  let cleanedUp = false;
+
+  req.on('close', async () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    offerConnections--;
+    sseLog.info(`SSE /events/offers closed (${offerConnections} remaining)`, OP.SSE);
+    if (unsubscribe) {
+      await unsubscribe();
+    }
+  });
+
+  try {
+    unsubscribe = await subscribeToChannel('offer_analyzed', (payload) => {
+      if (cleanedUp) return;
+      res.write(`event: offer_analyzed\n`);
+      res.write(`data: ${payload}\n\n`);
+    });
+  } catch (err) {
+    sseLog.error(1, `Offer listener failed`, err, OP.SSE);
+    res.write(`event: error\ndata: ${JSON.stringify({ error: 'Failed to connect to database' })}\n\n`);
+  }
+});
+
 export default router;

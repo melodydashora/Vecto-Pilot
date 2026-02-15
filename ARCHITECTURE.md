@@ -1,27 +1,46 @@
 
 # Vecto Pilot - Architecture Reference
 
-**Last Updated:** 2026-01-14 UTC
+**Last Updated:** 2026-02-15 UTC
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
-## Recent Changes (2026-01-14)
+## Recent Changes (2026-02-15)
+
+- **Docs Agent Orchestrator Fixed (2026-02-15)**
+  - Fixed 4 critical bugs: hardcoded mapping (now 30+ entries via file-doc-mapping.js), policy loading, absolute paths, deduplication
+  - Autonomous doc updates now function correctly on server startup
+
+- **Security Hardening (2026-02-13)**
+  - 9 unprotected API routes secured with `requireAuth` middleware
+  - IDOR vulnerability patched in feedback routes (removed `req.body.userId` fallback)
+  - 8 direct AI API calls migrated to adapter pattern with hedged fallback
+
+- **Google OAuth Integration (2026-02-13)**
+  - Added `/auth/google/callback` public route for OAuth code exchange
+  - Added `/auth/uber/callback` route for Uber OAuth flow
+
+- **AI Coach Upgrade (2026-02-14)**
+  - Full model identity (knows it's Gemini 3 Pro), vision/OCR capabilities
+  - Agent write access to 8 database tables for cross-session learning
+
+- **Model Identity Update (2026-02-15)**
+  - All Anthropic model IDs corrected from `claude-sonnet-4-5` to `claude-opus-4-6`
+  - Model registry now has 31 roles using `{TABLE}_{FUNCTION}` convention
+
+## Changes (2026-01-14)
 
 - **Canonical Event Field Names (2026-01-10)**
   - Renamed `event_date` to `event_start_date`, `event_time` to `event_start_time`
   - Schema migration: `migrations/20260110_rename_event_columns.sql`
   - All pipeline modules updated: normalizeEvent.js accepts both old and new names
-  - Fixes S-006 (staleness detection) and D-031 (field name consistency)
 
 - **Staleness Detection (2026-01-10)**
   - Added 30-minute staleness threshold in blocks-fast.js
-  - Detects stuck `pending_blocks` states and resets for fresh pipeline run
-  - Fixes bug where stale data was served instead of fresh briefing
 
 - **Coordinate Key Consolidation (2026-01-10)**
-  - New canonical module: `server/lib/location/coords-key.js`
-  - Provides `makeCoordsKey()`, `coordsKey()`, `parseCoordKey()` for 6-decimal precision
-  - Consolidated 4 duplicate implementations into single source of truth
+  - Canonical module: `server/lib/location/coords-key.js`
+  - `makeCoordsKey()`, `coordsKey()`, `parseCoordKey()` for 6-decimal precision
 
 ## Changes (2026-01-10)
 
@@ -131,15 +150,15 @@ This file provides navigation to focused architecture documentation. Each linked
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │           React Client (Vite + React Router v6)             │ │
 │  │  ┌──────────────────────────────────────────────────────┐  │ │
-│  │  │ routes.tsx → CoPilotLayout → 8 Route Pages           │  │ │
+│  │  │ routes.tsx → CoPilotLayout → 9 Co-Pilot + 7 Auth     │  │ │
 │  │  │   /co-pilot/strategy   → StrategyPage                │  │ │
-│  │  │   /co-pilot/bars       → BarsPage                    │  │ │
+│  │  │   /co-pilot/bars       → VenueManagerPage             │  │ │
 │  │  │   /co-pilot/briefing   → BriefingPage                │  │ │
 │  │  │   /co-pilot/map        → MapPage                     │  │ │
 │  │  │   /co-pilot/intel      → IntelPage                   │  │ │
 │  │  │   /co-pilot/about      → AboutPage                   │  │ │
 │  │  │   /co-pilot/settings   → SettingsPage                │  │ │
-│  │  │   /privacy-policy      → PolicyPage                  │  │ │
+│  │  │   /co-pilot/policy     → PolicyPage                  │  │ │
 │  │  └──────────────────────────────────────────────────────┘  │ │
 │  └────────────────────────────────────────────────────────────┘ │
 │                              ↓                                   │
@@ -159,9 +178,12 @@ This file provides navigation to focused architecture documentation. Each linked
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EXTERNAL AI/API SERVICES                      │
-│  • Anthropic (Claude Opus 4.6)                                  │
-│  • OpenAI (GPT-5.2, Realtime API)                               │
-│  • Google (Gemini 3.0 Pro, Places, Routes, Weather, AQ)         │
+│  • Anthropic (Claude Opus 4.6) — Strategy, Validation           │
+│  • OpenAI (GPT-5.2, Realtime API) — Tactical, Voice             │
+│  • Google (Gemini 3 Pro, Places, Routes, Weather, AQ)           │
+│  • Perplexity (Sonar Pro) — Real-time web research              │
+│  • TomTom — Traffic incidents                                    │
+│  • FAA ASWS — Airport delays                                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -272,15 +294,19 @@ Every folder has a README.md. Total: **95 README files**.
 | `server/` | [README](server/README.md) | Server overview |
 | `server/agent/` | [README](server/agent/README.md) | Workspace agent |
 | `server/api/` | [README](server/api/README.md) | API routes index |
-| `server/api/auth/` | [README](server/api/auth/README.md) | JWT authentication |
+| `server/api/auth/` | [README](server/api/auth/README.md) | JWT + Google/Uber OAuth |
 | `server/api/briefing/` | [README](server/api/briefing/README.md) | Events, traffic, news |
 | `server/api/chat/` | [README](server/api/chat/README.md) | AI Coach, voice, TTS |
+| `server/api/coach/` | [README](server/api/coach/README.md) | Coach notes, schema, validation |
 | `server/api/feedback/` | [README](server/api/feedback/README.md) | User feedback |
-| `server/api/health/` | [README](server/api/health/README.md) | Health checks |
+| `server/api/health/` | [README](server/api/health/README.md) | Health checks, diagnostics |
+| `server/api/intelligence/` | [README](server/api/intelligence/README.md) | Market intelligence |
 | `server/api/location/` | [README](server/api/location/README.md) | GPS, geocoding |
+| `server/api/platform/` | [README](server/api/platform/README.md) | Markets, countries, regions |
 | `server/api/research/` | [README](server/api/research/README.md) | Vector search |
-| `server/api/strategy/` | [README](server/api/strategy/README.md) | Strategy generation |
+| `server/api/strategy/` | [README](server/api/strategy/README.md) | Strategy generation, SSE |
 | `server/api/utils/` | [README](server/api/utils/README.md) | HTTP helpers |
+| `server/api/vehicle/` | [README](server/api/vehicle/README.md) | Vehicle management |
 | `server/api/venue/` | [README](server/api/venue/README.md) | Venue intelligence |
 | `server/assistant/` | [README](server/assistant/README.md) | Assistant proxy |
 | `server/bootstrap/` | [README](server/bootstrap/README.md) | Server startup |
@@ -371,19 +397,30 @@ Every folder has a README.md. Total: **95 README files**.
 | `client/src/layouts/CoPilotLayout.tsx` | Shared layout with bottom nav |
 | `client/src/contexts/co-pilot-context.tsx` | Shared state across pages |
 
-### Route Pages
+### Co-Pilot Route Pages (Protected)
 
 | Route | Page | Purpose |
 |-------|------|---------|
 | `/co-pilot/strategy` | StrategyPage.tsx | AI strategy + Smart Blocks + Coach |
-| `/co-pilot/bars` | BarsPage.tsx | Premium venue listings |
+| `/co-pilot/bars` | VenueManagerPage.tsx | Premium venue listings |
 | `/co-pilot/briefing` | BriefingPage.tsx | Weather, traffic, news, events |
 | `/co-pilot/map` | MapPage.tsx | Venue + event map |
 | `/co-pilot/intel` | IntelPage.tsx | Rideshare intelligence |
-| `/co-pilot/omni` | OmniPage.tsx | Omni-Presence signal terminal [Level 4] |
 | `/co-pilot/about` | AboutPage.tsx | About + donation |
 | `/co-pilot/settings` | SettingsPage.tsx | User settings |
-| `/privacy-policy` | PolicyPage.tsx | Privacy policy |
+| `/co-pilot/policy` | PolicyPage.tsx | Privacy policy |
+
+### Auth Route Pages (Public)
+
+| Route | Page | Purpose |
+|-------|------|---------|
+| `/auth/sign-in` | SignInPage.tsx | Email/password login |
+| `/auth/sign-up` | SignUpPage.tsx | Multi-step registration |
+| `/auth/google/callback` | GoogleCallbackPage.tsx | Google OAuth code exchange |
+| `/auth/uber/callback` | UberCallbackPage.tsx | Uber OAuth code exchange |
+| `/auth/forgot-password` | ForgotPasswordPage.tsx | Password reset request |
+| `/auth/reset-password` | ResetPasswordPage.tsx | Reset with token |
+| `/auth/terms` | TermsPage.tsx | Terms of service |
 
 ## Application Workflow
 
@@ -461,19 +498,19 @@ Tracked in [docs/DOC_DISCREPANCIES.md](docs/DOC_DISCREPANCIES.md) and [docs/revi
 
 ### Critical (Must Fix)
 
-*None currently - all critical issues resolved on 2026-01-01*
+*None currently — all 32/32 doc discrepancies resolved as of 2026-02-15*
 
-### Medium Priority
+### In Progress
 
 | Issue | Status |
 |-------|--------|
-| MCP memory tools verification | Unknown if configured |
-| Legacy Replit docs review | In `docs/melswork/needs-updating/` |
-| Component redundancy check | BarTab vs BarsTable unclear |
+| Uber Driver API integration | OAuth callbacks ready, data sync pending |
+| Concierge chat system | Routes and context built, refinement ongoing |
+| pending.md bloat (257KB) | Needs archiving strategy for entries > 2 weeks |
 
-### Documentation Backlog
+### Low Priority (See findings)
 
-See [docs/melswork/needs-updating/](docs/melswork/needs-updating/) for documents requiring review.
+See [docs/review-queue/2026-02-15-findings.md](docs/review-queue/2026-02-15-findings.md) for 12 refinement opportunities identified during the Feb 15 audit.
 
 ## Related Files
 
@@ -485,4 +522,4 @@ See [docs/melswork/needs-updating/](docs/melswork/needs-updating/) for documents
 
 ---
 
-**Note:** This file was restructured on 2025-12-15 and updated on 2026-01-01 with current structure. Detailed content is in `docs/architecture/` for better readability. Complete folder README index includes 95 files. Missing documentation areas identified above require attention.
+**Note:** This file was restructured on 2025-12-15 and updated on 2026-02-15 with current architecture state. Detailed content is in `docs/architecture/` for better readability. Complete folder README index includes 95+ files. All 32 doc discrepancies resolved.

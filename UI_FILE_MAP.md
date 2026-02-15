@@ -1,7 +1,7 @@
 
 # UI_FILE_MAP.md - Component, API, and Event Mapping
 
-**Last Updated:** 2026-01-08 UTC
+**Last Updated:** 2026-02-15 UTC
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
 
@@ -26,7 +26,7 @@ This document provides a complete mapping of UI components to their source files
 |------|---------|--------|
 | `client/src/main.tsx` | React app entry point | ✅ Active |
 | `client/src/App.tsx` | Root component with AuthProvider, CoPilotProvider, RouterProvider | ✅ Active |
-| `client/src/routes.tsx` | React Router configuration (13 routes) | ✅ Active |
+| `client/src/routes.tsx` | React Router configuration (20 routes) | ✅ Active |
 
 ### Providers & Contexts
 
@@ -66,6 +66,8 @@ This document provides a complete mapping of UI components to their source files
 | `client/src/pages/auth/ForgotPasswordPage.tsx` | Password reset request | `/auth/forgot-password` | ✅ Active |
 | `client/src/pages/auth/ResetPasswordPage.tsx` | Password reset with code | `/auth/reset-password` | ✅ Active |
 | `client/src/pages/auth/TermsPage.tsx` | Terms of service | `/auth/terms` | ✅ Active |
+| `client/src/pages/auth/GoogleCallbackPage.tsx` | Google OAuth code exchange | `/auth/google/callback` | ✅ Active |
+| `client/src/pages/auth/UberCallbackPage.tsx` | Uber OAuth code exchange | `/auth/uber/callback` | ✅ Active |
 | `client/src/pages/auth/index.ts` | Barrel export | N/A | ✅ Active |
 
 ### Auth Components
@@ -516,7 +518,7 @@ main.tsx
 - **Utilities**: 1
 - **Future/Staged**: 10+ files in `_future/`
 
-### Cleanup Status (Jan 2026)
+### Cleanup Status (Feb 2026)
 
 **Completed:**
 - ✅ Auth system fully integrated

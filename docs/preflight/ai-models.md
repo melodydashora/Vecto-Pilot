@@ -2,7 +2,7 @@
 
 Quick reference for AI model usage. Read before modifying any AI code.
 
-**Last Updated:** 2026-01-14
+**Last Updated:** 2026-02-15
 
 ---
 
@@ -140,94 +140,28 @@ model: "gemini-3-flash-preview"
 
 ### Gemini 3 thinkingLevel Parameters
 
+The adapter enforces validation on `thinkingLevel` to prevent API errors.
+
 ```javascript
 // CORRECT for Gemini 3 Pro (only LOW or HIGH)
-{ generationConfig: { thinkingConfig: { thinkingLevel: "HIGH" } } }
-{ generationConfig: { thinkingConfig: { thinkingLevel: "LOW" } } }
+{ thinkingLevel: "HIGH" }
+{ thinkingLevel: "LOW" }
 
-// WRONG - causes error on Gemini 3 Pro
-{ generationConfig: { thinkingConfig: { thinkingLevel: "MEDIUM" } } }
+// WARNING - Not supported on Gemini 3 Pro
+{ thinkingLevel: "MEDIUM" }
 // MEDIUM only works on Gemini 3 Flash!
+// Adapter auto-corrects Pro/MEDIUM to HIGH (with warning).
 
 // WRONG - deprecated format
 { thinking_budget: 8000 }
 ```
 
 **Valid thinkingLevel by model:**
-| Model | Valid Levels |
-|-------|--------------|
-| Gemini 3 Pro | `LOW`, `HIGH` |
-| Gemini 3 Flash | `MINIMAL`, `LOW`, `MEDIUM`, `HIGH` |
+| Model | Valid Levels | Behavior on Invalid |
+|-------|--------------|---------------------|
+| Gemini 3 Pro | `LOW`, `HIGH` | Auto-corrects to `HIGH` |
+| Gemini 3 Flash | `LOW`, `MEDIUM`, `HIGH` | Defaults to `LOW` |
 
 ### Gemini 3 Token Budget (Critical)
 
-> **Thinking consumes tokens from `maxOutputTokens`!**
-
-| thinkingLevel | Min maxOutputTokens | Risk if too low |
-|---------------|---------------------|-----------------|
-| `LOW` | 2048 | Usually OK |
-| `MEDIUM` | 4096 | May truncate |
-| `HIGH` | **8192+** | `MAX_TOKENS, parts: 0` error |
-
-```javascript
-// WRONG - thinking uses all tokens, 0 left for response
-{ thinkingConfig: { thinkingLevel: "HIGH" }, maxOutputTokens: 2048 }
-
-// CORRECT
-{ thinkingConfig: { thinkingLevel: "HIGH" }, maxOutputTokens: 8192 }
-```
-
-### Claude Extended Thinking
-
-Extended thinking is now available on Claude Opus 4.6, Sonnet 4.5, and Haiku 4.5:
-
-```javascript
-// Enable extended thinking
-{
-  thinking: {
-    type: "enabled",
-    budget_tokens: 10000  // Reserve for thinking
-  },
-  max_tokens: 16000  // Total output including thinking
-}
-```
-
----
-
-## Environment Overrides
-
-Override any role's model via environment variable:
-
-```bash
-# Override specific roles
-BRIEFING_WEATHER_MODEL=gemini-3-flash-preview
-BRIEFING_TRAFFIC_MODEL=gemini-3-pro-preview  # 2026-01-15: Single Briefer Model default
-STRATEGY_CORE_MODEL=claude-sonnet-4-5-20250929
-VENUE_FILTER_MODEL=claude-haiku-4-5-20251001
-
-# Global defaults (used by diagnostics)
-ANTHROPIC_MODEL=claude-opus-4-6
-OPENAI_MODEL=gpt-5.2
-GEMINI_MODEL=gemini-3-pro-preview
-```
-
----
-
-## Check Before Editing
-
-- [ ] Am I using `callModel()` not direct API calls?
-- [ ] Are model parameters in the correct format?
-- [ ] Is the role name correct? (Use `{TABLE}_{FUNCTION}` format or legacy names)
-- [ ] Did I check `server/lib/ai/model-registry.js` for current config?
-- [ ] For Gemini: Is thinkingLevel valid for the model? (Pro: LOW/HIGH only)
-- [ ] For Gemini: Is maxOutputTokens high enough for thinkingLevel?
-- [ ] For GPT-5.2: Using `reasoning_effort` not `temperature`?
-
----
-
-## Sources
-
-- [Best AI Models January 2026](https://felloai.com/best-ai-of-january-2026/)
-- [Claude API Documentation](https://docs.anthropic.com/en/api/models-list)
-- [Gemini API Documentation](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude)
-- [OpenAI API Reference](https://platform.openai.com/docs)
+> **Thinking consumes tokens from `maxTokens`.**

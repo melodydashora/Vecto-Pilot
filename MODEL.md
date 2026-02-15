@@ -1,17 +1,17 @@
 # AI Model Reference Guide
 
-> **Last Updated:** February 7, 2026
+> **Last Updated:** February 15, 2026
 > **Research Tool:** Google Web Search (Gemini 3.0 Pro Agent)
-> **Status:** **Verified & Current (v2.1)**
+> **Status:** **Verified & Current (v2.2)**
 
 This document contains up-to-date information about AI models and APIs used in this project.
 Auto-generated from live web search research verifying post-2025 model releases.
 
 ---
 
-## Project Status (2026-02-07)
+## Project Status (2026-02-15)
 
-### Upgrade Log (v2.1)
+### Upgrade Log (v2.2)
 - **AI Pipeline:** Unified under `server/lib/ai/adapters/` using standardized `callModel` interface.
 - **Model Upgrades:**
     - **Coach:** Upgraded to `gemini-3-pro-preview` with streaming support.
@@ -19,9 +19,13 @@ Auto-generated from live web search research verifying post-2025 model releases.
     - **Strategist:** Upgraded to `claude-opus-4-6` (via adapter).
 - **Security:** Replaced direct API calls with centralized adapters to prevent credential leaks and ensure consistent parameter handling.
 - **Agent Capabilities:** Implemented "Super User" mode for `melodydashora@gmail.com` in AI Coach, unlocking deep memory and system-level context.
+- **Docs Agent:** Fixed autonomous documentation orchestrator (4 bugs) — now auto-syncs docs with code on server startup.
+- **Auth Hardening (v2.2):** 9 unprotected routes secured, IDOR vulnerability patched, Google OAuth + Uber OAuth callbacks integrated.
+- **Model Identity (v2.2):** All Anthropic model IDs corrected from `claude-sonnet-4-5` to `claude-opus-4-6` across all adapters and registry entries.
 
 ### Versioning Schema
-- **v2.1 (Current):** Centralized Adapters + Gemini 3 Pro / GPT-5.2 / Claude Opus 4.6.
+- **v2.2 (Current):** Full auth audit + Docs Agent fix + 31 AI roles + model identity correction.
+- **v2.1:** Centralized Adapters + Gemini 3 Pro / GPT-5.2 / Claude Opus 4.6.
 - **v2.0:** Direct API calls to legacy models (Claude 3.5, GPT-4o).
 - **v1.x:** Initial prototype.
 

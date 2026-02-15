@@ -1,90 +1,16 @@
-# Eidolon Enhanced SDK
+Based on the code changes in `server/eidolon/core/llm.ts`, the `LLMClient` class exposes a `generate` convenience method and returns a structured `LLMResponse` containing usage data. The documentation should be updated to reflect these capabilities. The `llmPlan` tools and configuration in the documentation already match the code.
 
-Advanced AI orchestration framework with deep thinking, context awareness, and enhanced memory.
+Here is the updated section for `LLM Client & Planning`:
 
-## Location
 
-`server/eidolon/` - Framework integration for advanced AI capabilities.
+### LLM Client & Planning
 
-## Purpose
+Claude API wrapper with token tracking and autonomous planning capabilities (Atlas):
 
-Eidolon provides:
-- Context awareness engine for workspace snapshots
-- Deep thinking engine for multi-step reasoning
-- Enhanced memory with PostgreSQL persistence
-- Policy-based access control
-- Diagnostic tools
+typescript
+import { LLMClient, llmPlan } from './core/llm';
 
-## Structure
-
-```
-eidolon/
-├── core/              # Core engines
-│   ├── llm.ts                   # Claude API wrapper
-│   ├── context-awareness.ts     # Workspace snapshots
-│   ├── deep-thinking-engine.ts  # Multi-step reasoning
-│   ├── memory-enhanced.ts       # Enhanced memory
-│   ├── memory-store.ts          # JSON memory storage
-│   ├── code-map.ts              # Codebase mapping
-│   └── deployment-tracker.ts    # Deployment state
-├── memory/            # PostgreSQL persistence
-│   ├── pg.js          # Memory adapter
-│   └── compactor.js   # Cleanup job
-├── tools/             # Diagnostic tools
-│   ├── mcp-diagnostics.js  # MCP server diagnostics
-│   └── sql-client.ts       # SQL query client
-├── config.ts          # Configuration
-├── enhanced-context.js # Context enrichment
-├── policy-loader.js   # Policy loading
-└── policy-middleware.js # Policy enforcement
-```
-
-## Core Components
-
-### Context Awareness Engine
-
-Captures workspace state snapshots:
-
-```typescript
-import { ContextAwarenessEngine } from './core/context-awareness';
-
-const engine = new ContextAwarenessEngine(projectRoot);
-const snapshot = await engine.captureSnapshot();
-
-// Returns:
-{
-  timestamp: '2025-12-15T...',
-  codeMap: [...],
-  activeComponents: ['StrategyPage.tsx', 'BarsTable.tsx'],
-  deploymentState: 'prod',
-  componentLocations: { 'BarsTable': 'client/src/components/BarsTable.tsx' },
-  recentChanges: ['Modified BarsTable.tsx'],
-  memoryCheckpoints: ['session_2024_12_14'],
-  insights: [...],
-  recommendations: [...]
-}
-```
-
-### Deep Thinking Engine
-
-Multi-step reasoning for complex analysis:
-
-```typescript
-import { DeepThinkingEngine } from './core/deep-thinking-engine';
-
-const engine = new DeepThinkingEngine(llmClient);
-const result = await engine.analyze(problem, context);
-
-// Returns insights, recommendations, confidence scores
-```
-
-### LLM Client
-
-Claude API wrapper with token tracking:
-
-```typescript
-import { LLMClient } from './core/llm';
-
+// Basic Chat
 const client = new LLMClient({
   apiKey: process.env.ANTHROPIC_API_KEY,
   model: 'claude-opus-4-6',
@@ -92,69 +18,19 @@ const client = new LLMClient({
   temperature: 0.1
 });
 
+// Chat with full response (content + usage)
 const response = await client.chat([
   { role: 'user', content: 'Analyze this code...' }
 ], systemPrompt);
-```
 
-## Memory Persistence
+console.log(response.content);
+console.log(response.usage); // { inputTokens: ..., outputTokens: ... }
 
-PostgreSQL-backed memory storage:
+// Simple Generation (returns string content directly)
+const text = await client.generate('Explain quantum computing');
 
-```javascript
-import { memoryPut, memoryGet, memoryList, memoryCompact } from './memory/pg.js';
-
-// Store memory
-await memoryPut({
-  table: 'eidolon_memory',
-  scope: 'project',
-  key: 'analysis_result',
-  userId: 'uuid',
-  content: { data: '...' },
-  ttlDays: 30
-});
-
-// Retrieve
-const entry = await memoryGet({ table, scope, key, userId });
-
-// List by scope
-const entries = await memoryList({ table, scope, userId });
-
-// Cleanup expired
-await memoryCompact({ table });
-```
-
-## Diagnostic Tools
-
-### MCP Diagnostics
-
-```javascript
-import MCPDiagnostics from './tools/mcp-diagnostics.js';
-
-const diagnostics = new MCPDiagnostics(projectRoot);
-await diagnostics.scanMCPConfiguration();
-// Checks: .replit-assistant-override.json, mcp-config.json, server-config.json
-```
-
-### SQL Client
-
-```typescript
-import { SQLClient } from './tools/sql-client';
-
-const client = new SQLClient();
-const result = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
-```
-
-## When to Use
-
-- **Deep analysis** - Complex multi-step reasoning tasks
-- **Context snapshots** - Understanding workspace state
-- **Policy enforcement** - Access control for AI operations
-- **Memory persistence** - Long-term storage with TTL
-
-## See Also
-
-- [server/eidolon/README.md](../../server/eidolon/README.md) - Detailed documentation
-- [server/eidolon/core/README.md](../../server/eidolon/core/README.md) - Core components
-- [memory.md](memory.md) - Memory system guide
-- [README.md](README.md) - AI tools index
+// Autonomous Planning
+// Generates execution plans using tools: 
+// - file_read, file_write
+// - run_shell
+// - sql_query, sql_
