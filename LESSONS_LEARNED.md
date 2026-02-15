@@ -1,4 +1,16 @@
 
+## 2026-02-15: Docs Agent Orchestrator — 4 Bugs Masking Total Failure
+
+- **Symptom:** Docs Agent never updated any documentation despite running on every server startup. 155 DOCS_GENERATOR calls failed silently.
+- **Root Cause (4 bugs):**
+  1. `mapFileToDoc()` only had 4 hardcoded entries — the comprehensive `FILE_TO_DOC_MAP` (30+ entries) in `file-doc-mapping.js` was never used
+  2. `config/docs-policy.json` was imported but never loaded — policy rules were ignored
+  3. File paths were relative strings but `fs.readFile()` needs absolute paths — every read silently returned null
+  4. No deduplication — if 5 files mapped to the same doc, it was processed 5 times
+- **Fix:** Rewrote orchestrator to use `findAffectedDocs()` from the change-analyzer's shared mapping, `loadPolicy()` with lazy init, `path.resolve(REPO_ROOT, filePath)` for absolute paths, and `Map` for deduplication.
+- **File:** `server/lib/docs-agent/orchestrator.js`
+- **Lesson:** When a subsystem "runs without errors" but produces no output, it's not working — it's silently failing. The orchestrator caught all errors and returned empty results, making it look operational. Always verify that autonomous systems produce actual output, not just absence of errors.
+
 ## 2026-02-13: Logout Race Condition — Cancel Queries Before Clearing Auth Token
 
 - **Symptom:** Clicking logout redirected to sign-in page, but immediately showed the red FAIL HARD (CriticalError) screen before the user could log back in.

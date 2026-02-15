@@ -18,9 +18,10 @@ client/
 │   │       ├── MapPage.tsx
 │   │       ├── IntelPage.tsx
 │   │       ├── AboutPage.tsx
-│   │       └── PolicyPage.tsx
+│   │       ├── PolicyPage.tsx
 │   ├── components/             # UI components
 │   │   ├── co-pilot/           # Co-pilot specific (BottomTabNavigation)
+│   │   ├── concierge/          # Concierge feature components
 │   │   ├── strategy/           # Strategy display
 │   │   └── ui/                 # shadcn/ui primitives (46 components)
 │   ├── contexts/               # React contexts
@@ -54,6 +55,7 @@ Every folder has a README.md explaining its purpose.
 |--------|--------|---------|
 | `components/` | [README](../../client/src/components/README.md) | Components index |
 | `components/co-pilot/` | [README](../../client/src/components/co-pilot/README.md) | Co-pilot specific |
+| `components/concierge/` | [README](../../client/src/components/concierge/README.md) | Concierge feature |
 | `components/strategy/` | [README](../../client/src/components/strategy/README.md) | Strategy display |
 | `components/ui/` | [README](../../client/src/components/ui/README.md) | shadcn/ui primitives |
 
@@ -115,6 +117,12 @@ The co-pilot pages use React Router with a shared layout (`CoPilotLayout.tsx`).
 | `CoachChat.tsx` | AI Chat interface with file upload |
 | `BriefingTab.tsx` | Weather, traffic, news, events display |
 | `StrategyHistoryPanel.tsx` | Strategy history sidebar |
+
+### Concierge Components (`components/concierge/`)
+
+| Component | Purpose |
+|-----------|---------|
+| `EventsExplorer.tsx` | Venue/Event search (DB-first) with quick filters. Splits results for list & map. |
 
 ### Strategy Components (`components/strategy/`)
 
@@ -191,6 +199,15 @@ LocationContext (snapshotId)
         → /api/briefing/events/:snapshotId
         → /api/briefing/news/:snapshotId
     → BriefingTab displays data
+```
+
+### Concierge Search
+```
+EventsExplorer
+    → POST /api/concierge/explore
+    → Returns { venues: [], events: [] }
+    → onDataLoaded callback
+    → Updates parent state (Map markers + Chat context)
 ```
 
 ## Venue Open/Closed Logic

@@ -2,8 +2,45 @@
 // Generic Gemini adapter - returns { ok, output } shape
 // Updated 2026-01-05: Migrated to @google/genai SDK for Gemini 3 thinkingLevel support
 // Updated 2026-01-06: Added streaming support via callGeminiStream()
+// Updated 2026-02-15: F-002 fix — Enforce MODEL_QUIRKS thinkingLevel validation
 
 import { GoogleGenAI } from "@google/genai";
+
+/**
+ * 2026-02-15: F-002 fix — Validate and normalize thinkingLevel for Gemini 3 models.
+ * Gemini 3 Pro only supports LOW and HIGH (MEDIUM causes 400 errors).
+ * Gemini 3 Flash supports LOW, MEDIUM, and HIGH.
+ * Returns the validated level in UPPERCASE for consistency; callers
+ * convert to lowercase for the SDK or keep uppercase for REST API.
+ *
+ * @param {string} model - The Gemini model name (e.g. "gemini-3-pro-preview")
+ * @param {string|null} thinkingLevel - Requested thinking level
+ * @returns {string|null} Validated thinking level (UPPERCASE) or null if disabled
+ */
+function validateThinkingLevel(model, thinkingLevel) {
+  if (!thinkingLevel || !model.includes('gemini-3')) return null;
+
+  const normalized = thinkingLevel.toUpperCase();
+
+  // Flash models support all three levels
+  if (model.includes('flash')) {
+    const flashLevels = ['LOW', 'MEDIUM', 'HIGH'];
+    if (!flashLevels.includes(normalized)) {
+      console.warn(`[model/gemini] ⚠️ Invalid thinkingLevel "${thinkingLevel}" for ${model}. Valid: ${flashLevels.join(', ')}. Defaulting to LOW.`);
+      return 'LOW';
+    }
+    return normalized;
+  }
+
+  // Pro models only support LOW and HIGH — MEDIUM is not valid
+  const proLevels = ['LOW', 'HIGH'];
+  if (!proLevels.includes(normalized)) {
+    console.warn(`[model/gemini] ⚠️ thinkingLevel "${thinkingLevel}" is NOT supported on ${model} (Pro only supports LOW, HIGH). Auto-correcting to HIGH.`);
+    return 'HIGH';
+  }
+
+  return normalized;
+}
 
 export async function callGemini({
   model,
@@ -60,14 +97,14 @@ export async function callGemini({
       ]
     };
 
-    // Gemini 3 Thinking support - ONLY if explicitly requested
-    // thinkingLevel: "low", "medium" (Flash only), "high"
-    // Note: Applying thinkingConfig to models that don't support it causes 400 errors
-    if (thinkingLevel && model.includes('gemini-3')) {
+    // 2026-02-15: F-002 fix — Validate thinkingLevel before applying.
+    // Pro models only support LOW/HIGH; MEDIUM is Flash-only.
+    const validatedLevel = validateThinkingLevel(model, thinkingLevel);
+    if (validatedLevel) {
       config.thinkingConfig = {
-        thinkingLevel: thinkingLevel.toLowerCase() // SDK expects lowercase
+        thinkingLevel: validatedLevel.toLowerCase() // SDK expects lowercase
       };
-      console.log(`[model/gemini] 🧠 Thinking enabled: ${thinkingLevel}`);
+      console.log(`[model/gemini] 🧠 Thinking enabled: ${validatedLevel}`);
     }
 
     // Add Google Search if requested
@@ -195,12 +232,14 @@ export async function callGeminiStream({
     maxOutputTokens: maxTokens || 8192,
   };
 
-  // 2026-02-11: Gemini 3 Thinking support for streaming (matches callGemini non-streaming)
-  if (thinkingLevel && model.includes('gemini-3')) {
+  // 2026-02-15: F-002 fix — Validate thinkingLevel before applying (matches callGemini).
+  // Pro models only support LOW/HIGH; MEDIUM is Flash-only.
+  const validatedStreamLevel = validateThinkingLevel(model, thinkingLevel);
+  if (validatedStreamLevel) {
     generationConfig.thinkingConfig = {
-      thinkingLevel: thinkingLevel.toUpperCase() // REST API expects uppercase (LOW, HIGH)
+      thinkingLevel: validatedStreamLevel // Already uppercase from validator; REST API expects uppercase
     };
-    console.log(`[model/gemini-stream] 🧠 Thinking enabled: ${thinkingLevel}`);
+    console.log(`[model/gemini-stream] 🧠 Thinking enabled: ${validatedStreamLevel}`);
   }
 
   const requestBody = {

@@ -1417,11 +1417,15 @@ export const coach_system_notes = pgTable("coach_system_notes", {
  * user sessions. We rely on device_id for tracking instead.
  *
  * Data Flow:
- *   iOS Shortcut → OCR extracts text → POST /api/hooks/analyze-offer
- *   → Parse price/miles/time → AI decision → INSERT intercepted_signals
- *   → SSE push to SignalTerminal UI (if app is open)
+ *   iOS Shortcut → "Vecto Analyze" → OCR extracts text → POST /api/hooks/analyze-offer
+ *   → Parse price/miles/time + driver location → AI decision (Flash for speed)
+ *   → INSERT intercepted_signals → pg NOTIFY offer_analyzed → SSE to web app
+ *   → HTTP response to Siri → iOS "Show Notification" displays ACCEPT/REJECT
  *
- * Security: Endpoint uses API key or device registration, not JWT auth.
+ * Security: Endpoint uses device_id identification, not JWT auth.
+ * Location: 3-decimal precision (~110m) — driver is moving, exact GPS not needed.
+ *
+ * 2026-02-15: Added location, market, platform, response_time_ms for algorithm learning.
  */
 export const intercepted_signals = pgTable("intercepted_signals", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1434,17 +1438,31 @@ export const intercepted_signals = pgTable("intercepted_signals", {
   // Can be linked later if user logs in on same device.
   user_id: uuid("user_id"), // Intentionally NO .references() - headless ingestion
 
+  // 2026-02-15: Driver location at time of offer (3-decimal precision ~110m)
+  // This is the ONLY place we use 3-decimal coords — driver is moving, exact GPS unnecessary.
+  // Critical for algorithm learning: where do offers appear, what prices per location?
+  latitude: doublePrecision("latitude"),     // nullable — Siri may not provide location
+  longitude: doublePrecision("longitude"),   // nullable — same
+  market: varchar("market", { length: 100 }), // e.g. "dallas-tx", derived from coords
+
   // Raw input from OCR
   raw_text: text("raw_text").notNull(),
 
   // Parsed offer data
-  // Schema: { price, miles, time, pickup, dropoff, platform, surge, per_mile }
+  // Schema: { price, miles, time_minutes, pickup, dropoff, platform, surge, per_mile, per_minute }
   parsed_data: jsonb("parsed_data"),
+
+  // 2026-02-15: Platform detection (extracted by AI from OCR text)
+  platform: varchar("platform", { length: 20 }), // 'uber' | 'lyft' | 'unknown'
 
   // AI decision
   decision: text("decision").notNull(), // 'ACCEPT' | 'REJECT'
   decision_reasoning: text("decision_reasoning"), // AI explanation
   confidence_score: doublePrecision("confidence_score"), // 0.0 - 1.0
+
+  // 2026-02-15: Response time tracking — how fast did we analyze?
+  // Critical for UX: driver has ~15 seconds to decide on an Uber offer.
+  response_time_ms: integer("response_time_ms"), // AI analysis + DB write time
 
   // User override (if driver disagreed with AI)
   user_override: text("user_override"), // null | 'ACCEPT' | 'REJECT'
@@ -1458,6 +1476,8 @@ export const intercepted_signals = pgTable("intercepted_signals", {
   idxDeviceId: sql`create index if not exists idx_intercepted_signals_device_id on ${table} (device_id)`,
   idxUserId: sql`create index if not exists idx_intercepted_signals_user_id on ${table} (user_id) where user_id is not null`,
   idxCreatedAt: sql`create index if not exists idx_intercepted_signals_created on ${table} (device_id, created_at desc)`,
+  // 2026-02-15: Market index for algorithm learning queries (e.g., "avg price in dallas-tx at 9pm")
+  idxMarket: sql`create index if not exists idx_intercepted_signals_market on ${table} (market, created_at desc) where market is not null`,
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -70,6 +70,23 @@ This security policy covers:
 
 ## Security Changelog
 
+### 2026-02-15
+- Full codebase security audit by Claude Opus 4.6
+- All 21 root documents reviewed for accuracy
+
+### 2026-02-13
+- **Auth Middleware Audit**: 9 unprotected API routes discovered and secured with `requireAuth`
+  - Affected: strategy.js, tactical-plan.js, venue-intelligence.js, intelligence/index.js, vector-search.js, research.js, location.js, ml-health.js, actions.js
+  - SSE endpoints remain open (browser EventSource cannot send Authorization headers; data fetched via authenticated calls)
+- **IDOR Vulnerability**: Feedback routes had `req.auth?.userId || userId` pattern allowing body to override authenticated identity. Fixed to use `req.auth.userId` only.
+- **Adapter Pattern Hardening**: 8 direct AI API calls migrated to centralized adapter with hedged routing, preventing credential leaks from scattered API keys.
+- **Shell-Level Env Overwrite**: `mono-mode.env` blindly overwrote Replit Secrets via `set -a && source`. Commented out all Google API key entries — keys now come exclusively from Replit Secrets.
+- **Push Protection**: `.env_override` added to `.gitignore` after GitHub Push Protection blocked a push containing API keys.
+
+### 2026-02-12
+- OAuth callback routes (`/auth/google/callback`, `/auth/uber/callback`) configured as public routes — auth happens during callback, not before.
+- Logout race condition fixed — `queryClient.cancelQueries()` called before clearing auth token to prevent stale 401 callbacks triggering FAIL HARD modal.
+
 ### 2026-01-05
 - Fixed destructive cascade deletes on user data tables
 - Changed `driver_profiles`, `auth_credentials` FK from CASCADE to RESTRICT
@@ -77,4 +94,4 @@ This security policy covers:
 
 ---
 
-Last updated: 2026-01-05
+Last updated: 2026-02-15

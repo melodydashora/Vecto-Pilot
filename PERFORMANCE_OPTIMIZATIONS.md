@@ -1,13 +1,19 @@
 # Performance Optimizations
 
+**Last Updated:** 2026-02-15
+
 This document describes the performance optimizations implemented in the Vecto Pilot application to improve response times, reduce API costs, and minimize database load.
 
 ## Overview
 
 Performance improvements target three main areas:
-1. **Database Operations** - Reducing query count and improving connection pooling
-2. **External API Calls** - Caching to prevent redundant requests
-3. **Algorithm Efficiency** - Optimizing data structures and operations
+1. **Database Operations** - Reducing query count and improving connection pooling (Note from Melody - how can we do this? Does it reduce functionality?
+2. **External API Calls** - Caching to prevent redundant requests (I thought we were caching coords from base and user (reusing data is a problem when driver conditions change quickly - I'm not a fan of caching because we end up forgetting, not clearing, not considering driver movement and auth requirements - what would you like to cache?)
+3. 
+4. **Algorithm Efficiency** - Optimizing data structures and operations (I feel like ML is not even implemented. When we are ever able to get the scopes for UBER or make the SIRI shortcut where the user creates a shortcut that we would need to process without the driver needing to login (we have a proxy service through Eidolon we aren't using, here is what is easiest:
+   4. a) User creates shortcut "Vecto Analyze"
+   4. b) Shortcut -> Take screenshot, pull text from screenshot, push data to clipboard
+        (I don't know how we can do the rest but this is a game changer and we can start learning the Uber algorithm)
 
 ## Database Optimizations
 
@@ -61,7 +67,7 @@ PG_USE_SHARED_POOL=true
 **Problem:** Repeated reverse geocoding API calls for venues in similar locations.
 
 **Solution:** In-memory cache with spatial precision and TTL:
-- Cache key: "lat,lng" rounded to 3 decimals (~110m precision)
+- Cache key: "lat,lng" rounded to 3 decimals (~110m precision) (nope always 6 - precision is the backbone)
 - TTL: 1 hour (addresses don't change frequently)
 - LRU eviction when cache exceeds 1000 entries
 
@@ -210,6 +216,12 @@ Performance optimizations include helpful log messages:
 3. **API Costs:** Monitor billing for Routes API and Geocoding API usage
 4. **Response Times:** Measure snapshot endpoint latency
 
+## Recent Additions (Feb 2026)
+
+- **Adapter Pattern with Hedged Routing**: AI calls now use hedged routing — primary model + fallback fires after timeout. Reduces total latency for degraded providers.
+- **Market Timezone Fast-Path**: 140+ markets with pre-stored timezones skip Google Timezone API entirely (~200-300ms savings per request).
+- **SSE Singleton Connection Manager**: Client-side SSE connections are pooled via singleton to prevent duplicate connections on route navigation.
+
 ## Future Optimization Opportunities
 
 1. **Redis Caching:** Move in-memory caches to Redis for multi-instance deployments
@@ -217,6 +229,7 @@ Performance optimizations include helpful log messages:
 3. **Query Optimization:** Analyze slow query logs for further improvements
 4. **CDN Integration:** Cache static venue data at edge locations
 5. **Worker Queues:** Offload heavy processing to background workers
+6. **pending.md Archival:** Truncate entries older than 2 weeks (currently 257KB and growing)
 
 ## Testing
 

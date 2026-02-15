@@ -1,103 +1,27 @@
-# Workspace Agent
+# Agent Override LLM (`server/agent/agent-override-llm.js`)
 
-WebSocket-based agent for real-time workspace access and AI-enhanced operations.
+This module configures the primary AI agent interface, currently unified on **Claude Opus 4.6** via Anthropic.
 
-## Location
+## Configuration
 
-`server/agent/` - Mounted at `/agent` path in main server.
+The system is configured as a single-provider instance to match Eidolon's ultra-enhanced parameters.
 
-## Purpose
+- **Provider**: Anthropic
+- **Model**: `claude-opus-4-6` (Default). Configurable via `AGENT_OVERRIDE_CLAUDE_MODEL` or `AGENT_MODEL`.
+- **API Key**: `AGENT_OVERRIDE_API_KEY_C` or `ANTHROPIC_API_KEY`
 
-Provides WebSocket-based bidirectional communication for:
-- Real-time file operations
-- Context-aware AI assistance
-- Thread context management
-- Enhanced LLM integration
+### Tuning Parameters
 
-## Mounting
+| Parameter | Environment Variable | Default |
+|-----------|---------------------|---------|
+| Max Tokens | `CLAUDE_MAX_TOKENS` / `AGENT_MAX_TOKENS` | `200000` |
+| Temperature | `CLAUDE_TEMPERATURE` / `AGENT_TEMPERATURE` | `1.0` |
 
-```javascript
-// In server/bootstrap/routes.js
-const { mountAgent } = await import('./server/agent/embed.js');
-mountAgent({
-  app,
-  basePath: '/agent',
-  wsPath: '/agent/ws',
-  server,
-});
-```
+## Self-Healing & Reliability
 
-## Files
+The agent implements a circuit breaker pattern to manage API stability:
 
-| File | Purpose |
-|------|---------|
-| `embed.js` | Mount agent routes and WebSocket |
-| `routes.js` | Agent API endpoints |
-| `enhanced-context.js` | Context enrichment for AI |
-| `context-awareness.js` | Contextual data gathering |
-| `config-manager.js` | Agent configuration |
-| `agent-override-llm.js` | LLM override for agent |
-| `thread-context.js` | Thread context management |
-
-## WebSocket Connection
-
-```javascript
-// Client connection
-const ws = new WebSocket('wss://your-domain/agent/ws');
-
-ws.on('message', (data) => {
-  const message = JSON.parse(data);
-  // Handle response
-});
-
-ws.send(JSON.stringify({
-  type: 'read_file',
-  path: 'src/index.js'
-}));
-```
-
-## Supported Operations
-
-### File Operations
-- Read files
-- Write files
-- List directories
-- Search content
-
-### Context Operations
-- Get project context
-- Get thread context
-- Update context
-
-### AI Operations
-- Enhanced LLM calls with context
-- Context-aware suggestions
-
-## Thread Context
-
-The agent maintains thread context for conversation continuity:
-
-```javascript
-import { getThreadContext, updateThreadContext } from './thread-context.js';
-
-// Get context for a thread
-const context = await getThreadContext(threadId);
-
-// Update thread context
-await updateThreadContext(threadId, {
-  lastFile: 'src/index.js',
-  lastAction: 'read'
-});
-```
-
-## When to Use
-
-- **Real-time updates** - WebSocket provides instant bidirectional communication
-- **Conversation context** - Thread context maintains state across messages
-- **AI-enhanced ops** - LLM integration for intelligent assistance
-
-## See Also
-
-- [server/agent/README.md](../../server/agent/README.md) - Detailed agent documentation
-- [eidolon.md](eidolon.md) - Eidolon SDK (enhanced features)
-- [README.md](README.md) - AI tools index
+- **Threshold**: 3 consecutive failures trigger the circuit breaker.
+- **Cooldown**: 60 seconds (60,000ms) lockout period.
+- **Recovery**: Automatic reset on the next successful call after cooldown.
+- **Health Check**: `getAgentHealth()` exposes circuit status and failure metrics.

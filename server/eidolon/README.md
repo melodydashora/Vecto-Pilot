@@ -1,60 +1,14 @@
-> **Last Verified:** 2026-01-06
+Based on the analysis of the code changes in `server/eidolon/core/llm.ts` and the provided documentation, the documentation appears to be **already up to date**.
 
-# Eidolon (`server/eidolon/`)
+The provided documentation snippet for `llm.ts` reads:
+> `llm.ts` | LLM client (Anthropic) and Atlas planning engine with SQL, shell, and file system tools (uses `../../lib/anthropic-extended.js`)
 
-## Purpose
+This accurately reflects the code which:
+1.  Exports an `LLMClient` using Anthropic.
+2.  Exports an `llmPlan` function (Atlas planning engine).
+3.  Defines tools for SQL (`sql_query`, `sql_execute`, etc.), Shell (`run_shell`), and File System (`file_read`, `file_write`).
+4.  Imports from `../../lib/anthropic-extended.js`.
 
-Eidolon framework integration for AI agent orchestration and enhanced context management.
+The preamble in the provided "Current Documentation" also explicitly states that the documentation was updated to reflect these specific tools.
 
-## Structure
-
-```
-eidolon/
-├── core/           # Core Eidolon components
-├── memory/         # Memory management (PostgreSQL, compaction)
-├── tools/          # Eidolon tools (SQL client)
-├── config.ts       # Eidolon configuration
-├── index.ts        # Entry point
-├── enhanced-context.js  # Context enrichment
-├── policy-loader.js     # Policy loading utilities
-└── policy-middleware.js # Policy enforcement middleware
-```
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `config.ts` | Eidolon configuration |
-| `index.ts` | Entry point |
-| `enhanced-context.js` | Context enrichment wrapper (uses `../lib/ai/context/enhanced-context-base.js`) |
-| `policy-loader.js` | Load policy configuration |
-| `policy-middleware.js` | Policy enforcement middleware |
-
-## Subfolders
-
-### core/
-| File | Purpose |
-|------|---------|
-| `llm.ts` | LLM integration |
-| `context-awareness.ts` | Context awareness engine |
-| `deep-thinking-engine.ts` | Deep thinking capabilities |
-| `memory-enhanced.ts` | Enhanced memory management |
-| `memory-store.ts` | Memory storage |
-| `code-map.ts` | Code mapping utilities |
-| `deployment-tracker.ts` | Deployment tracking |
-
-### memory/
-| File | Purpose |
-|------|---------|
-| `pg.js` | PostgreSQL memory storage |
-| `compactor.js` | Memory compaction utilities |
-
-### tools/
-| File | Purpose |
-|------|---------|
-| `sql-client.ts` | SQL client for database operations |
-
-## Connections
-
-- **Related:** `../agent/` for base agent infrastructure
-- **Tests:** `../../tests/eidolon/`
+NO_CHANGE
