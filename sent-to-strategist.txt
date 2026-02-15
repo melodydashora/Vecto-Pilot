@@ -1,29 +1,29 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 2026-02-15T18:24:10.783Z
-Snapshot ID: 138624c7-fb46-454e-a22b-e8b5fa93d802
+Generated: 2026-02-15T23:38:45.660Z
+Snapshot ID: e8c24a31-cd41-4490-b8f2-1d5234582d34
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: 138624c7-fb46-454e-a22b-e8b5fa93d802
+snapshot_id: e8c24a31-cd41-4490-b8f2-1d5234582d34
 user_id: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
-  formatted_address: 1769 Timber Ridge Dr, Frisco, TX 75036, USA
-  lat: 33.12921942563668
-  lng: -96.87550749704471
+  formatted_address: 1701 Timber Ridge Dr, Frisco, TX 75036, USA
+  lat: 33.12933025668407
+  lng: -96.87565979361668
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Sun Feb 15 2026 18:21:58 GMT+0000 (Coordinated Universal Time)
+  local_iso: Sun Feb 15 2026 23:37:50 GMT+0000 (Coordinated Universal Time)
   dow: 0 (Sunday)
-  day_part_key: late_morning_noon
+  day_part_key: early_evening
   is_holiday: false
   holiday: none
 
@@ -34,54 +34,54 @@ WEATHER (from snapshot):
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 3ff0e4f9-62b8-4844-90a3-3505c4db2fe8
-snapshot_id: 138624c7-fb46-454e-a22b-e8b5fa93d802
-created_at: Sun Feb 15 2026 18:21:59 GMT+0000 (Coordinated Universal Time)
-updated_at: Sun Feb 15 2026 18:24:10 GMT+0000 (Coordinated Universal Time)
+briefing_id: 3d9f13e6-06bc-48a7-b72a-c375c7bb55db
+snapshot_id: e8c24a31-cd41-4490-b8f2-1d5234582d34
+created_at: Sun Feb 15 2026 23:37:51 GMT+0000 (Coordinated Universal Time)
+updated_at: Sun Feb 15 2026 23:38:45 GMT+0000 (Coordinated Universal Time)
 
 NEWS (6 items):
 {
   "items": [
     {
-      "title": "DFW Airport: 200+ Flight Cancellations & Lingering Delays",
+      "title": "⚠️ AIRPORT ALERT: TSA Delays Likely Due to Partial Gov Shutdown",
       "impact": "high",
-      "summary": "Severe weather aftermath has caused over 200 cancellations and hundreds of delays at DFW International Airport. Expect high demand for rides from stranded passengers needing transport to local hotels or rebooking. Delays may push arrival pickups late into the night. Terminal C and A bridge construction continues to alter traffic patterns; watch for detour signs.",
+      "summary": "A partial federal government shutdown affecting the Department of Homeland Security (TSA & CBP) is reported to have started this weekend. Expect significantly longer wait times at DFW and Love Field security checkpoints as agents may be working without pay, leading to call-outs. Arriving passengers may also face delays at customs. Drivers should anticipate stressed passengers and potential \"rematch\" delays if riders are stuck inside terminals.",
       "category": "airport",
-      "published_date": "2026-02-14"
+      "published_date": "2026-02-15"
     },
     {
-      "title": "Dallas Open Tennis Finals at The Star (Frisco)",
+      "title": "Major Event: Harlem Globetrotters at AAC (No Mavs/Stars)",
       "impact": "high",
-      "summary": "The ATP Dallas Open concludes today at the Ford Center at The Star in Frisco. Expect high surge pricing and heavy traffic in Frisco around The Star complex as the final matches finish. This is a major demand generator specifically for the Frisco/Plano market.",
+      "summary": "With the NBA on All-Star break and NHL paused for the Winter Olympics, the usual sports demand is replaced by the Harlem Globetrotters at the American Airlines Center today at 3:00 PM. Expect a surge of families needing rides before 3 PM and a large egress around 5:30-6:00 PM. This is the primary downtown demand anchor for Sunday.",
       "category": "event",
       "published_date": "2026-02-15"
     },
     {
-      "title": "Dallas Autorama at Market Hall (Final Day)",
+      "title": "Frisco Demand: Dallas Open Tennis Finals at The Star",
+      "impact": "high",
+      "summary": "The Dallas Open tennis tournament concludes today at the Ford Center at The Star in Frisco. This is a major demand generator for Frisco/Plano drivers. Expect high volume for pickups after the final matches conclude in the late afternoon/early evening. Surge pricing is likely in the Star District.",
+      "category": "event",
+      "published_date": "2026-02-15"
+    },
+    {
+      "title": "Weather Update: Clearing Skies but Cooler Temps",
       "impact": "medium",
-      "summary": "The 66th Annual Dallas Autorama car show wraps up today at Dallas Market Hall (10 AM - 6 PM). Expect increased ride volume along Stemmons Freeway (I-35E) and potential congestion near the venue during load-out and closing hours.",
-      "category": "event",
-      "published_date": "2026-02-15"
-    },
-    {
-      "title": "Sunday Night Concerts: House of Blues & Vice Park",
-      "impact": "medium",
-      "summary": "Sunday night demand will be driven by 'Club 90s Presents Heated RivalRave' at House of Blues (8:30 PM) and CLANTZ at Vice Park (9:30 PM). Position for pickups in the Victory Park and Deep Ellum areas late evening.",
-      "category": "event",
-      "published_date": "2026-02-15"
-    },
-    {
-      "title": "Weather Update: Rain Clearing, Cool Conditions",
-      "impact": "low",
-      "summary": "Rain has moved out of the DFW area leaving dry and cool conditions for Sunday driving. Highs in the 60s with clear skies expected, improving road safety compared to yesterday's slick conditions. Good visibility for evening shifts.",
+      "summary": "After record-breaking rain and storms on Valentine's Day, conditions are clearing today with highs in the upper 60s. Roads may still be slick in spots from yesterday's heavy saturation. The drying trend is good for driving, but the cooler temps (dropping to 40s tonight) may encourage more short-trip rides for evening diners.",
       "category": "weather",
       "published_date": "2026-02-15"
     },
     {
-      "title": "Traffic Alert: Fatal Crashes & Investigation Closures",
-      "impact": "low",
-      "summary": "Recent fatal accidents, including a crash sending a vehicle onto a Dallas sidewalk and a double fatal in Springtown, have led to intermittent lane closures for investigations. Stay alert for sudden slowdowns and emergency vehicles, particularly on surface streets in Dallas.",
+      "title": "Weekend Road Closures: I-35E & I-635 Construction",
+      "impact": "medium",
+      "summary": "Ongoing weekend closures continue to impact major arteries. Watch for delays on I-35E (managed lanes closed nightly) and the I-635 interchange. Specifically, the westbound I-635 TEXpress ramp to northbound I-35 is scheduled to be closed overnight into Monday morning. Plan alternate routes for airport runs involving these highways.",
       "category": "traffic",
+      "published_date": "2026-02-15"
+    },
+    {
+      "title": "Gas Price Update: DFW Average ~$2.50/Gallon",
+      "impact": "low",
+      "summary": "Fuel prices remain relatively stable for the region, with the AAA average for Dallas-Fort Worth hovering around $2.50-$2.53 for regular unleaded. This is slightly down from last month, helping preserve margins on longer airport trips.",
+      "category": "cost",
       "published_date": "2026-02-15"
     }
   ],
@@ -90,28 +90,28 @@ NEWS (6 items):
 
 WEATHER_CURRENT:
 {
-  "tempC": 15,
-  "tempF": 59,
+  "tempC": 17,
+  "tempF": 63,
   "country": "US",
-  "uvIndex": 3,
-  "humidity": 65,
+  "uvIndex": 0,
+  "humidity": 61,
   "tempUnit": "°F",
-  "feelsLike": 57,
+  "feelsLike": 62,
   "isDaytime": true,
-  "conditions": "Partly sunny",
-  "feelsLikeC": 14,
-  "feelsLikeF": 57,
-  "observedAt": "2026-02-15T18:22:00.063685235Z",
+  "conditions": "Sunny",
+  "feelsLikeC": 17,
+  "feelsLikeF": 62,
+  "observedAt": "2026-02-15T23:37:51.840932267Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 59,
-  "conditionType": "PARTLY_CLOUDY",
+  "temperature": 63,
+  "conditionType": "CLEAR",
   "precipitation": {
     "qpf": {
       "unit": "MILLIMETERS",
-      "quantity": 0.04
+      "quantity": 0
     },
     "snowQpf": {
       "unit": "MILLIMETERS",
@@ -119,89 +119,89 @@ WEATHER_CURRENT:
     },
     "probability": {
       "type": "RAIN",
-      "percent": 3
+      "percent": 0
     }
   },
-  "windDirection": "NORTH_NORTHWEST",
+  "windDirection": "NORTH",
   "windSpeedUnit": "mph"
 }
 
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-02-15T18:22:00.079Z",
+    "time": "2026-02-15T23:37:51.853Z",
+    "tempC": 18,
+    "tempF": 65,
+    "tempUnit": "°F",
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Sunny",
+    "temperature": 65,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-02-16T00:37:51.853Z",
+    "tempC": 16,
+    "tempF": 62,
+    "tempUnit": "°F",
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Sunny",
+    "temperature": 62,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-02-16T01:37:51.853Z",
     "tempC": 15,
     "tempF": 58,
     "tempUnit": "°F",
-    "isDaytime": true,
+    "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Partly sunny",
+    "conditions": "Clear",
     "temperature": 58,
-    "conditionType": "PARTLY_CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 5
-  },
-  {
-    "time": "2026-02-15T19:22:00.079Z",
-    "tempC": 16,
-    "tempF": 61,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Sunny",
-    "temperature": 61,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-02-15T20:22:00.079Z",
-    "tempC": 17,
-    "tempF": 62,
+    "time": "2026-02-16T02:37:51.853Z",
+    "tempC": 13,
+    "tempF": 56,
     "tempUnit": "°F",
-    "isDaytime": true,
+    "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Sunny",
-    "temperature": 62,
+    "conditions": "Clear",
+    "temperature": 56,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-02-15T21:22:00.079Z",
-    "tempC": 17,
-    "tempF": 63,
+    "time": "2026-02-16T03:37:51.853Z",
+    "tempC": 12,
+    "tempF": 54,
     "tempUnit": "°F",
-    "isDaytime": true,
+    "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Sunny",
-    "temperature": 63,
+    "conditions": "Clear",
+    "temperature": 54,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
   },
   {
-    "time": "2026-02-15T22:22:00.079Z",
-    "tempC": 17,
-    "tempF": 63,
+    "time": "2026-02-16T04:37:51.853Z",
+    "tempC": 12,
+    "tempF": 53,
     "tempUnit": "°F",
-    "isDaytime": true,
+    "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Sunny",
-    "temperature": 63,
-    "conditionType": "CLEAR",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 0
-  },
-  {
-    "time": "2026-02-15T23:22:00.079Z",
-    "tempC": 17,
-    "tempF": 62,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Sunny",
-    "temperature": 62,
+    "conditions": "Clear",
+    "temperature": 53,
     "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
     "precipitationProbability": 0
@@ -210,27 +210,20 @@ WEATHER_FORECAST (6 hours):
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 9,
+  "jams": 19,
   "stats": {
-    "jams": 9,
-    "major": 6,
-    "total": 31,
-    "closures": 17,
-    "highways": 20,
+    "jams": 19,
+    "major": 10,
+    "total": 38,
+    "closures": 15,
+    "highways": 22,
     "accidents": 0,
-    "construction": 5
+    "construction": 4
   },
-  "summary": "Frisco is experiencing heavy congestion with a high density of road closures concentrated on the western side near FM-423 and FM-720. Major jams on International Pkwy and Eldorado Pkwy are creating significant bottlenecks for cross-town transit. Drivers should utilize the Dallas North Tollway for north-south movement and avoid the Little Elm border area entirely.",
+  "summary": "Frisco is experiencing heavy congestion with significant disruptions concentrated along the FM-720 corridor and US-380. Multiple road closures on FM-720 (2.9-3.3mi) and a major jam on TX-121 Bus (6.9mi) will severely impact short-range pickup efficiency. Drivers should avoid the western Frisco/Little Elm border and prioritize north-south movement via the Dallas North Tollway to bypass local gridlock.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion with a high density of road closures concentrated on the western side near FM-423 and FM-720. Major jams on International Pkwy and Eldorado Pkwy are creating significant bottlenecks for cross-town transit. Drivers should utilize the Dallas North Tollway for north-south movement and avoid the Little Elm border area entirely.",
+  "briefing": "Frisco is experiencing heavy congestion with significant disruptions concentrated along the FM-720 corridor and US-380. Multiple road closures on FM-720 (2.9-3.3mi) and a major jam on TX-121 Bus (6.9mi) will severely impact short-range pickup efficiency. Drivers should avoid the western Frisco/Little Elm border and prioritize north-south movement via the Dallas North Tollway to bypass local gridlock.",
   "closures": [
-    {
-      "road": "",
-      "location": "FM-423 / Lone Star Ranch Pkwy to FM-423 / Lone Star Ranch Pkwy",
-      "severity": "low",
-      "isHighway": true,
-      "distanceFromDriver": 1.4
-    },
     {
       "road": "",
       "location": "FM-720 to Lamar Hunt Way",
@@ -306,7 +299,7 @@ TRAFFIC_CONDITIONS:
       "location": "Navo Rd to Paloma Creek Blvd",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 7.3
+      "distanceFromDriver": 7.2
     },
     {
       "road": "",
@@ -324,13 +317,6 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "N County Rd to 4th St",
-      "severity": "low",
-      "isHighway": false,
-      "distanceFromDriver": 3.7
-    },
-    {
-      "road": "",
       "location": "Lakewood Dr to Main St / N Hook St",
       "severity": "low",
       "isHighway": false,
@@ -344,33 +330,69 @@ TRAFFIC_CONDITIONS:
       "distanceFromDriver": 6.6
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion with a high density of road closures concentrated on the western side near FM-423 and FM-720.",
+  "headline": "Frisco is experiencing heavy congestion with significant disruptions concentrated along the FM-720 corridor and US-380.",
   "provider": "tomtom",
-  "fetchedAt": "2026-02-15T18:22:00.344Z",
+  "fetchedAt": "2026-02-15T23:37:52.145Z",
   "incidents": [
     {
-      "road": "",
+      "road": "TX-121 Bus",
       "category": "Jam",
-      "location": "International Pkwy to FM-544",
-      "priority": 159,
+      "location": "FM-1171/E Main St (TX-121) to FM-544 (TX-121)",
+      "priority": 161,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: International Pkwy to FM-544 [7.4 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 4,
-      "distanceFromDriver": 7.4
+      "description": "Jam: TX-121 Bus (FM-1171/E Main St (TX-121) to FM-544 (TX-121)) [6.9 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 6,
+      "distanceFromDriver": 6.9
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "FM-423 / Lone Star Ranch Pkwy to FM-423 / Lone Star Ranch Pkwy",
-      "priority": 140,
-      "severity": "low",
+      "category": "Jam",
+      "location": "N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd)",
+      "priority": 158,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: FM-423 / Lone Star Ranch Pkwy to FM-423 / Lone Star Ranch Pkwy [1.4 mi]",
+      "description": "Jam: N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd) [9.3 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 3,
+      "distanceFromDriver": 9.3
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Candler Club Way to FM-720 / Woodlake Pkwy",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Candler Club Way to FM-720 / Woodlake Pkwy [2.9 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 3,
+      "distanceFromDriver": 2.9
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "FM-2478 to Twin Cities Ln",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-2478 to Twin Cities Ln [8.4 mi]",
       "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 1.4
+      "delayMinutes": 3,
+      "distanceFromDriver": 8.4
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Delford Dr to FM-720",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Delford Dr to FM-720 [1.9 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 2,
+      "distanceFromDriver": 1.9
     },
     {
       "road": "",
@@ -431,69 +453,50 @@ TRAFFIC_CONDITIONS:
       "lengthMiles": 1.5,
       "delayMinutes": 0,
       "distanceFromDriver": 9.2
-    },
-    {
-      "road": "FM-1171",
-      "category": "Road Works",
-      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.7 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 9.7
-    },
-    {
-      "road": "US-380 W",
-      "category": "Road Works",
-      "location": "FM-1385 (US-380) to FM-2931 (US-380)",
-      "priority": 135,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [7 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 0,
-      "distanceFromDriver": 7
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "US-380 E to PGA Pkwy",
-      "priority": 130,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: US-380 E to PGA Pkwy [6.3 mi]",
-      "lengthMiles": 0.3,
-      "delayMinutes": 0,
-      "distanceFromDriver": 6.3
     }
   ],
   "keyIssues": [
-    "FM-423 / Lone Star Ranch Pkwy road closure 1.4mi away - immediate local access restriction",
-    "FM-720 multiple closures 2.9mi-3.3mi away - severe disruption to Little Elm/Frisco border traffic",
-    "International Pkwy jam 7.4mi away - 4min delay with major severity impacting southern transit"
+    "FM-720 multiple closures 2.9mi-3.3mi - Total blockage of local artery near Lamar Hunt Way",
+    "TX-121 Bus jam 6.9mi - Major severity with 6min delay affecting regional transit",
+    "US-380 E to PGA Pkwy closure 6.3mi - Restricted access to a high-demand destination area",
+    "I-35E N/S lane closures 9.6mi - Construction-related bottlenecks affecting long-distance trips"
   ],
   "avoidAreas": [
-    "FM-720 corridor: Multiple road closures between 2.9mi and 3.3mi causing total blockages",
-    "FM-423 near Lone Star Ranch: Road closure 1.4mi away requiring significant local detours",
-    "US-380 East near PGA Pkwy: Road closure 6.3mi away impacting northern Frisco/Prosper routes"
+    "FM-720 Corridor (1.9mi - 3.3mi): Cluster of 3 closures and 2 major jams making local navigation nearly impossible",
+    "US-380 Westbound (6.9mi): Active road works and closures near PGA Pkwy causing unpredictable flow"
   ],
-  "safetyAlert": "9 active traffic jams in the area",
-  "driverImpact": "Rideshare efficiency is highest in central and eastern Frisco; avoid the western FM-720/FM-423 cluster to prevent getting trapped in dead-end detour loops.",
+  "safetyAlert": "19 active traffic jams in the area",
+  "driverImpact": "Rideshare efficiency is highest in central and eastern Frisco; avoid the western FM-720/Little Elm border where closures will likely lead to cancelled pickups or dead-end routing.",
   "surgePricing": true,
-  "closuresCount": 17,
+  "closuresCount": 15,
   "repositioning": null,
-  "incidentsCount": 31,
-  "totalIncidents": 31,
-  "closuresSummary": "9 closures within 10mi, most critical: FM-423 at Lone Star Ranch and the FM-720 corridor to Lamar Hunt Way.",
+  "incidentsCount": 38,
+  "totalIncidents": 38,
+  "closuresSummary": "7 closures within 10mi, most critical: FM-720 (multiple segments) and US-380 E at PGA Pkwy.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Active road works on US-380 West (7mi) and I-35E (9.2mi) are restricting peripheral highway capacity."
+  "constructionSummary": "Significant road works on I-35E (9.2mi), FM-1171 (9.7mi), and US-380 W (6.9mi) are creating lane restrictions for airport and cross-county transit."
 }
 
-EVENTS (15 total):
+EVENTS (26 total):
 [
+  {
+    "title": "Sweetheart's Market",
+    "venue": "Grandscape",
+    "impact": "high",
+    "address": "5740 Grandscape Blvd Ste. 100, The Colony, TX 75056, USA",
+    "subtype": "community",
+    "summary": "Sweetheart's Market • Grandscape • 2026-02-15 • 12:00",
+    "latitude": 33.073444099999996,
+    "location": "Grandscape, 5740 Grandscape Blvd Ste. 100, The Colony, TX 75056, USA",
+    "venue_id": "50ac363e-da31-41f1-9be8-2c60dba223d6",
+    "longitude": -96.8611423,
+    "event_type": "community",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "18:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "12:00"
+  },
   {
     "title": "Dallas Open: Singles & Doubles Finals",
     "venue": "Ford Center at The Star",
@@ -529,23 +532,6 @@ EVENTS (15 total):
     "event_start_time": "13:00"
   },
   {
-    "title": "Harlem Globetrotters 2026 World Tour",
-    "venue": "American Airlines Center",
-    "impact": "high",
-    "address": "2500 Victory Ave, Dallas, TX 75219, USA",
-    "subtype": "sports",
-    "summary": "Harlem Globetrotters 2026 World Tour • American Airlines Center • 2026-02-15 • 15:00",
-    "latitude": 32.7903908,
-    "location": "American Airlines Center, 2500 Victory Ave, Dallas, TX 75219, USA",
-    "venue_id": "ca6f9618-0cc6-4b93-a711-f9dba9ad2192",
-    "longitude": -96.8102547,
-    "event_type": "sports",
-    "event_end_date": "2026-02-15",
-    "event_end_time": "17:30",
-    "event_start_date": "2026-02-15",
-    "event_start_time": "15:00"
-  },
-  {
     "title": "Harlem Globetrotters: 100 Year Tour",
     "venue": "American Airlines Center",
     "impact": "high",
@@ -563,6 +549,40 @@ EVENTS (15 total):
     "event_start_time": "15:00"
   },
   {
+    "title": "Harlem Globetrotters 2026 World Tour",
+    "venue": "American Airlines Center",
+    "impact": "high",
+    "address": "2500 Victory Ave, Dallas, TX 75219, USA",
+    "subtype": "sports",
+    "summary": "Harlem Globetrotters 2026 World Tour • American Airlines Center • 2026-02-15 • 15:00",
+    "latitude": 32.7903908,
+    "location": "American Airlines Center, 2500 Victory Ave, Dallas, TX 75219, USA",
+    "venue_id": "ca6f9618-0cc6-4b93-a711-f9dba9ad2192",
+    "longitude": -96.8102547,
+    "event_type": "sports",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "17:30",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "15:00"
+  },
+  {
+    "title": "The Warped Band (Tribute to Warped Tour)",
+    "venue": "House of Blues Dallas",
+    "impact": "medium",
+    "address": "2200 N Lamar St, Dallas, TX 75202, USA",
+    "subtype": "concert",
+    "summary": "The Warped Band (Tribute to Warped Tour) • House of Blues Dallas • 2026-02-15 • 18:00",
+    "latitude": 32.7850629,
+    "location": "House of Blues Dallas, 2200 N Lamar St, Dallas, TX 75202, USA",
+    "venue_id": "39ae2568-2b81-4b7c-be61-5e383996271e",
+    "longitude": -96.80819319999999,
+    "event_type": "concert",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "18:00"
+  },
+  {
     "title": "Club 90s Presents: Heated RivalRave",
     "venue": "House of Blues Dallas",
     "impact": "medium",
@@ -578,6 +598,193 @@ EVENTS (15 total):
     "event_end_time": "23:30",
     "event_start_date": "2026-02-15",
     "event_start_time": "20:30"
+  },
+  {
+    "title": "Bingo at the Hall",
+    "venue": "Harvest Hall",
+    "impact": "low",
+    "address": "815 S Main St, Grapevine, TX 76051",
+    "subtype": "nightlife",
+    "summary": "Bingo at the Hall • Harvest Hall • 2026-02-15 • 16:00",
+    "latitude": null,
+    "location": "Harvest Hall, 815 S Main St, Grapevine, TX 76051",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "nightlife",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "18:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "16:00"
+  },
+  {
+    "title": "Rising Voices Open Mic",
+    "venue": "Horus Hall (Stockyards)",
+    "impact": "low",
+    "address": "208 NW 24th St, Fort Worth, TX 76164",
+    "subtype": "concert",
+    "summary": "Rising Voices Open Mic • Horus Hall (Stockyards) • 2026-02-15 • 19:00",
+    "latitude": null,
+    "location": "Horus Hall (Stockyards), 208 NW 24th St, Fort Worth, TX 76164",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Skip Pullig Live",
+    "venue": "White Elephant Saloon",
+    "impact": "low",
+    "address": "106 E Exchange Ave, Fort Worth, TX 76164",
+    "subtype": "concert",
+    "summary": "Skip Pullig Live • White Elephant Saloon • 2026-02-15 • 20:00",
+    "latitude": null,
+    "location": "White Elephant Saloon, 106 E Exchange Ave, Fort Worth, TX 76164",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Sunday Funday Comedy Jam",
+    "venue": "Big Laugh Comedy Club",
+    "impact": "medium",
+    "address": "604 Main St, Fort Worth, TX 76102",
+    "subtype": "comedy",
+    "summary": "Sunday Funday Comedy Jam • Big Laugh Comedy Club • 2026-02-15 • 18:00",
+    "latitude": null,
+    "location": "Big Laugh Comedy Club, 604 Main St, Fort Worth, TX 76102",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "comedy",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "20:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "18:00"
+  },
+  {
+    "title": "Trio Los Panchos",
+    "venue": "Arlington Music Hall",
+    "impact": "low",
+    "address": "224 N Center St, Arlington, TX 76011",
+    "subtype": "concert",
+    "summary": "Trio Los Panchos • Arlington Music Hall • 2026-02-15 • 18:00",
+    "latitude": null,
+    "location": "Arlington Music Hall, 224 N Center St, Arlington, TX 76011",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "20:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "18:00"
+  },
+  {
+    "title": "Ultimate Bullfighters",
+    "venue": "Cowtown Coliseum",
+    "impact": "medium",
+    "address": "121 E Exchange Ave, Fort Worth, TX 76164",
+    "subtype": "sports",
+    "summary": "Ultimate Bullfighters • Cowtown Coliseum • 2026-02-15 • 13:30",
+    "latitude": null,
+    "location": "Cowtown Coliseum, 121 E Exchange Ave, Fort Worth, TX 76164",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "sports",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "15:30",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "13:30"
+  },
+  {
+    "title": "Aretha: One Night With The Queen",
+    "venue": "Casa Mañana",
+    "impact": "medium",
+    "address": "3101 W Lancaster Ave, Fort Worth, TX 76107",
+    "subtype": "concert",
+    "summary": "Aretha: One Night With The Queen • Casa Mañana • 2026-02-15 • 19:00",
+    "latitude": null,
+    "location": "Casa Mañana, 3101 W Lancaster Ave, Fort Worth, TX 76107",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "SMU Women's Basketball vs. Pittsburgh",
+    "venue": "Moody Coliseum",
+    "impact": "medium",
+    "address": "3009 Binkley Ave, Dallas, TX 75205",
+    "subtype": "sports",
+    "summary": "SMU Women's Basketball vs. Pittsburgh • Moody Coliseum • 2026-02-15 • 11:00",
+    "latitude": null,
+    "location": "Moody Coliseum, 3009 Binkley Ave, Dallas, TX 75205",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "sports",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "13:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "11:00"
+  },
+  {
+    "title": "TCU Women's Basketball vs. West Virginia",
+    "venue": "Schollmaier Arena",
+    "impact": "medium",
+    "address": "2900 Stadium Dr, Fort Worth, TX 76129",
+    "subtype": "sports",
+    "summary": "TCU Women's Basketball vs. West Virginia • Schollmaier Arena • 2026-02-15 • 19:00",
+    "latitude": null,
+    "location": "Schollmaier Arena, 2900 Stadium Dr, Fort Worth, TX 76129",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "sports",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Trevor Wallace: The Alpha Beta Male Tour",
+    "venue": "Texas Trust CU Theatre",
+    "impact": "medium",
+    "address": "1001 Performance Pl, Grand Prairie, TX 75050",
+    "subtype": "concert",
+    "summary": "Trevor Wallace: The Alpha Beta Male Tour • Texas Trust CU Theatre • 2026-02-15 • 19:00",
+    "latitude": null,
+    "location": "Texas Trust CU Theatre, 1001 Performance Pl, Grand Prairie, TX 75050",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "concert",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Shriners Children's College Showdown: Day 3 (TCU, Oklahoma, Texas Tech, Arkansas)",
+    "venue": "Globe Life Field",
+    "impact": "high",
+    "address": "734 Stadium Dr, Arlington, TX 76011",
+    "subtype": "sports",
+    "summary": "Shriners Children's College Showdown: Day 3 (TCU, Oklahoma, Texas Tech, Arkansas) • Globe Life Field • 2026-02-15 • 10:30",
+    "latitude": null,
+    "location": "Globe Life Field, 734 Stadium Dr, Arlington, TX 76011",
+    "venue_id": null,
+    "longitude": null,
+    "event_type": "sports",
+    "event_end_date": "2026-02-15",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-02-15",
+    "event_start_time": "10:30"
   },
   {
     "title": "A Taste of Jazz",
@@ -648,23 +855,6 @@ EVENTS (15 total):
     "event_start_time": "18:00"
   },
   {
-    "title": "Trio Los Panchos",
-    "venue": "Arlington Music Hall",
-    "impact": "low",
-    "address": "224 N Center St, Arlington, TX 76011",
-    "subtype": "concert",
-    "summary": "Trio Los Panchos • Arlington Music Hall • 2026-02-15 • 18:00",
-    "latitude": null,
-    "location": "Arlington Music Hall, 224 N Center St, Arlington, TX 76011",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-15",
-    "event_end_time": "20:00",
-    "event_start_date": "2026-02-15",
-    "event_start_time": "18:00"
-  },
-  {
     "title": "The Little Prince (Opera)",
     "venue": "Winspear Opera House",
     "impact": "medium",
@@ -697,23 +887,6 @@ EVENTS (15 total):
     "event_end_time": "18:00",
     "event_start_date": "2026-02-15",
     "event_start_time": "10:00"
-  },
-  {
-    "title": "Trevor Wallace: The Alpha Beta Male Tour",
-    "venue": "Texas Trust CU Theatre",
-    "impact": "medium",
-    "address": "1001 Performance Pl, Grand Prairie, TX 75050",
-    "subtype": "concert",
-    "summary": "Trevor Wallace: The Alpha Beta Male Tour • Texas Trust CU Theatre • 2026-02-15 • 19:00",
-    "latitude": null,
-    "location": "Texas Trust CU Theatre, 1001 Performance Pl, Grand Prairie, TX 75050",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-15",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-15",
-    "event_start_time": "19:00"
   },
   {
     "title": "Six: The Musical",
@@ -926,43 +1099,44 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Moderate to severe delays reported. American Airlines has scheduled ~35 cancellations for today following heavy rain and staffing shortages. FAA reports gate hold and taxi delays of ~15 minutes, but news outlets report wider disruptions.",
-      "status": "delays",
+      "delays": "Significant disruptions due to lingering weather impacts. Over 765 flights delayed and 205+ cancellations reported (majority American Airlines).",
+      "status": "severe_delays",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "04:00 PM - 07:00 PM"
+        "All Day (Recovery from storm)",
+        "Evening (Peak rebooking/departures)"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Significant delays reported (approx. 30% of flights delayed) and cancellations (~10%) due to weather and staffing constraints.",
+      "delays": "Moderate to severe disruption with 122+ delays and 49 cancellations reported following regional storms.",
       "status": "delays",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "04:00 PM - 07:00 PM"
+        "Afternoon",
+        "Evening"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-02-15T18:22:28.309Z",
+  "fetchedAt": "2026-02-15T23:38:35.910Z",
   "busyPeriods": [
-    "High congestion expected during late afternoon (4 PM - 7 PM) due to weather-related backlog.",
-    "Security and customs processing times are longer than usual due to TSA/CBP staffing shortages."
+    "High congestion expected all day due to recovery from previous storms.",
+    "Dallas Open (ATP Tennis) finals at The Star in Frisco today (Feb 15) will drive high demand for rideshare from Frisco to airports in the late afternoon/evening.",
+    "SMU Women's Basketball game at 11:00 AM and evening concerts (Los Lonely Boys) will add to general city traffic."
   ],
-  "recommendations": "Drivers should expect longer wait times for passengers clearing customs/baggage. \n\n**DFW:** \n- **Pickup:** Terminal curbs (green signs). \n- **Staging:** Terminal B infield lot is the primary FIFO queue area. \n\n**DAL:** \n- **Pickup:** **Valet Pavilion** (Southeast side of terminal). Note: The pickup spot moved here in 2025; do not go to Garage B. \n- **Staging:** Wait in the designated geofenced Ground Transportation area near the entrance."
+  "recommendations": "Drivers should expect longer wait times at staging lots due to delayed flights. For DFW, use the Terminal B infield lot (main) or Terminal E infield lot (overflow after 6 PM). For DAL, note the pickup location is at the Valet Pavilion (near Garage C), a ~6 min walk for passengers. Surge pricing likely in Frisco after the Tennis finals."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: 2973f9a6-1ec5-4055-8de9-ccaaa1c226d8
-snapshot_id: 138624c7-fb46-454e-a22b-e8b5fa93d802
+id: 865e7222-1fce-4837-ad86-4a411952e06a
+snapshot_id: e8c24a31-cd41-4490-b8f2-1d5234582d34
 status: pending
 error_message: (none)
-created_at: Sun Feb 15 2026 18:21:59 GMT+0000 (Coordinated Universal Time)
-updated_at: Sun Feb 15 2026 18:21:59 GMT+0000 (Coordinated Universal Time)
+created_at: Sun Feb 15 2026 23:37:51 GMT+0000 (Coordinated Universal Time)
+updated_at: Sun Feb 15 2026 23:38:45 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -993,10 +1167,10 @@ School Closures Filter Check:
   (None active today)
 
 Event Count:
-  Total events in briefing: 15
-  High impact: 7
-  Medium impact: 6
-  Low impact: 2
+  Total events in briefing: 26
+  High impact: 9
+  Medium impact: 12
+  Low impact: 5
 
 TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in location: 0
@@ -1004,8 +1178,8 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in time: 0
 
 Events AFTER filterInvalidEvents (what LLM actually receives):
-  Raw events in DB: 15
-  Filtered events (sent to LLM): 15
+  Raw events in DB: 26
+  Filtered events (sent to LLM): 26
   TBD events removed: 0
 
 ════════════════════════════════════════════════════════════════════════════════
