@@ -1,6 +1,3 @@
-Here is the updated documentation including the new **Automation & Hooks** section for the `analyze-offer` endpoint.
-
-
 # API Reference
 
 Complete frontend → backend API endpoint reference.
@@ -92,7 +89,24 @@ Strategy-first gating ensures blocks are not generated until strategy_for_now ex
 
 #### AI Coach Action Parsing
 
-The `/api/chat` POST endpoint parses special action tags from AI responses and executes them:
+The `/api/chat` POST endpoint parses special action tags from AI responses and executes them.
+
+**Supported Formats (Updated 2026-01-06):**
+
+1.  **JSON Envelope (Preferred):**
+    The AI returns a JSON block wrapping actions and the response text. This handles nested JSON more reliably.
+    ```json
+    {
+      "actions": [
+        { "type": "SAVE_NOTE", "data": { ... } },
+        { "type": "DEACTIVATE_EVENT", "data": { ... } }
+      ],
+      "response": "Chat response text..."
+    }
+    ```
+
+2.  **Legacy Inline Tags:**
+    Actions embedded directly in the text response (supported for backward compatibility).
 
 | Action Tag | Purpose | Example |
 |------------|---------|---------|
@@ -233,7 +247,7 @@ High-speed endpoint for analyzing rideshare offers via Siri Shortcuts.
 - **Location:** Captures driver coordinates (rounded to 3 decimals) to derive market context.
 
 **Request Body:**
-json
+```json
 {
   "text": "OCR text content...",
   "image": "base64...",
@@ -242,7 +256,7 @@ json
   "longitude": -97.743,
   "source": "siri_shortcut"
 }
-
+```
 
 **Response:**
 Returns `decision` (ACCEPT/REJECT), `reasoning`, and parsed data optimized for notification display.
@@ -251,24 +265,24 @@ Returns `decision` (ACCEPT/REJECT), `reasoning`, and parsed data optimized for n
 
 All API calls should include the JWT token:
 
-javascript
+```javascript
 const headers = {
   'Authorization': `Bearer ${localStorage.getItem('vectopilot_auth_token')}`,
   'Content-Type': 'application/json'
 };
-
+```
 
 ## Error Responses
 
 Standard error format:
 
-json
+```json
 {
   "error": "Error message",
   "code": "ERROR_CODE",
   "details": {}
 }
-
+```
 
 Common HTTP codes:
 - `400` - Bad request / validation error
@@ -284,10 +298,10 @@ Common HTTP codes:
 
 When querying events by date, the API uses the user's timezone from `snapshot.timezone` to calculate "today":
 
-javascript
+```javascript
 // Uses user's timezone to avoid events "disappearing" at night
 const today = new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone });
-
+```
 
 **Why?** At 8:20 PM CST, UTC is already the next day. Using UTC would cause events dated "today" (local) to not match the UTC "tomorrow" filter.
 

@@ -1,13 +1,8 @@
-Based on the code changes in `server/eidolon/core/llm.ts`, the `LLMClient` class exposes a `generate` convenience method and returns a structured `LLMResponse` containing usage data. The documentation should be updated to reflect these capabilities. The `llmPlan` tools and configuration in the documentation already match the code.
-
-Here is the updated section for `LLM Client & Planning`:
-
-
 ### LLM Client & Planning
 
 Claude API wrapper with token tracking and autonomous planning capabilities (Atlas):
 
-typescript
+```typescript
 import { LLMClient, llmPlan } from './core/llm';
 
 // Basic Chat
@@ -33,4 +28,6 @@ const text = await client.generate('Explain quantum computing');
 // Generates execution plans using tools: 
 // - file_read, file_write
 // - run_shell
-// - sql_query, sql_
+// - sql_query, sql_execute
+// - sql_tables, sql_schema
+```
