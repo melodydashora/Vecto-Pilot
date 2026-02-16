@@ -1,4 +1,5 @@
-Here is the updated documentation. I have removed the conversational preamble to ensure the file starts with the correct markdown header.
+Here is the updated documentation reflecting the schema changes, specifically the addition of the `market` column to snapshots and the definition of the lean strategies architecture.
+
 
 # Pre-flight: Database
 
@@ -8,7 +9,7 @@ Quick reference for database operations. Read before modifying any DB code.
 
 **All data links to `snapshot_id`.** This is the moment-in-time anchor.
 
-```javascript
+javascript
 // CORRECT - Always include snapshot_id
 await db.insert(rankings).values({
   snapshot_id: snapshotId,  // Required
@@ -20,7 +21,7 @@ await db.insert(rankings).values({
 await db.insert(rankings).values({
   ranking_id: rankingId,  // Where's snapshot_id?
 });
-```
+
 
 ## Identity & Session Architecture (2026-01-05)
 
@@ -35,4 +36,18 @@ await db.insert(rankings).values({
 - `users` rows are deleted on logout or inactivity.
 - `snapshots` contain all location data. `users` contains **NO** location data.
 
-## Lean Strategies & Data Separation (202
+## Snapshot Context & Market Data (2026-02-01)
+
+The `snapshots` table captures the context at the moment of creation.
+
+- **Market Data**: `market` is captured from `driver_profiles.market` at snapshot creation. This is used for market-wide event discovery (e.g., "Dallas-Fort Worth") rather than specific city location.
+- **Location**: `lat`, `lng`, and `coord_key` are authoritative. Legacy fields (`city`, `state`, etc.) are kept for backward compatibility.
+- **Airport Data**: Removed from snapshots. Now lives in `briefings.airport_conditions`.
+
+## Lean Strategies & Data Separation (2026-01-14)
+
+The `strategies` table stores **ONLY** the AI's strategic output linked to a snapshot.
+
+- **No Context**: Location, time, and weather live in the `snapshots` table.
+- **No Briefing Data**: Briefing content lives in the `briefings` table.
+- **Dropped Columns**: Legacy columns (`strategy`, `trigger_reason`, `model_name`, `airport_context`) have been removed or moved to their respective tables.
