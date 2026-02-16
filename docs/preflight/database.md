@@ -1,4 +1,4 @@
-Here is the updated documentation reflecting the schema changes, specifically the addition of the `market` column to snapshots and the definition of the lean strategies architecture.
+Here is the updated documentation reflecting the schema changes, specifically the addition of holiday context fields to the snapshots table.
 
 
 # Pre-flight: Database
@@ -42,6 +42,7 @@ The `snapshots` table captures the context at the moment of creation.
 
 - **Market Data**: `market` is captured from `driver_profiles.market` at snapshot creation. This is used for market-wide event discovery (e.g., "Dallas-Fort Worth") rather than specific city location.
 - **Location**: `lat`, `lng`, and `coord_key` are authoritative. Legacy fields (`city`, `state`, etc.) are kept for backward compatibility.
+- **Holiday Context**: `holiday` (name) and `is_holiday` (boolean) are captured at snapshot creation to identify special days (e.g., "Thanksgiving") and adjust strategies accordingly.
 - **Airport Data**: Removed from snapshots. Now lives in `briefings.airport_conditions`.
 
 ## Lean Strategies & Data Separation (2026-01-14)

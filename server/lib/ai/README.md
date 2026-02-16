@@ -1,10 +1,10 @@
-> **Gemini Analysis (2026-02-15):**
+> **Gemini Analysis (2026-02-16):**
 > **Core Function:** This directory manages all AI interactions, enforcing the "Adapter Pattern" to decouple application logic from specific providers (OpenAI, Anthropic, Google).
 > **Key Architecture:** It houses the **TRIAD Pipeline** (Strategist -> Planner -> Validator), which orchestrates multi-model strategy generation.
 > **Critical Rule:** Direct LLM API calls are forbidden here; all calls must route through `adapters/index.js` using semantic roles (e.g., `STRATEGY_CORE`).
-> **Recent Updates:** Enforced strict `thinkingLevel` validation for Gemini 3 models (Pro vs. Flash) and added SDK key conflict resolution.
+> **Recent Updates:** Enforced strict `thinkingLevel` validation for Gemini 3 models (Pro vs. Flash), added SDK key conflict resolution, and enabled multimodal image support (Vision).
 
-> **Last Verified:** 2026-02-15
+> **Last Verified:** 2026-02-16
 
 # AI Module (`server/lib/ai/`)
 

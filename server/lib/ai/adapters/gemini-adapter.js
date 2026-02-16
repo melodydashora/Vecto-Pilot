@@ -46,6 +46,7 @@ export async function callGemini({
   model,
   system,
   user,
+  images = [],  // 2026-02-16: Optional multimodal images [{mimeType: "image/jpeg", data: "base64..."}]
   maxTokens,
   temperature,
   topP,
@@ -112,14 +113,25 @@ export async function callGemini({
       config.tools = [{ googleSearch: {} }];
     }
 
-    // Build contents with system instruction
-    const contents = system
-      ? [
-          { role: "user", parts: [{ text: `${system}\n\n${user}` }] }
-        ]
-      : [
-          { role: "user", parts: [{ text: user }] }
-        ];
+    // Build contents with system instruction + optional images
+    // 2026-02-16: Support multimodal vision via inlineData parts (Siri Vision shortcut)
+    const parts = [];
+    const textContent = system ? `${system}\n\n${user}` : user;
+    parts.push({ text: textContent });
+
+    if (images && images.length > 0) {
+      for (const img of images) {
+        parts.push({
+          inlineData: {
+            mimeType: img.mimeType,
+            data: img.data,
+          }
+        });
+      }
+      console.log(`[model/gemini] 🖼️ Attached ${images.length} image(s) for vision analysis`);
+    }
+
+    const contents = [{ role: "user", parts }];
 
     const result = await ai.models.generateContent({
       model,

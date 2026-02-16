@@ -5346,4 +5346,67 @@ Items are prioritized by impact on system architecture and developer onboarding.
 
 ---
 
+## 2026-02-16 Analysis
+
+**Generated:** 2026-02-16T19:41:53.470Z
+**Branch:** main
+**Last Commit:** 4568bf1f Published your App
+
+### Uncommitted Changes (10)
+| File | Status |
+|------|--------|
+| `erver/api/coach/schema.js` | Modified |
+| `server/api/hooks/README.md` | Modified |
+| `server/api/hooks/analyze-offer.js` | Modified |
+| `server/bootstrap/middleware.js` | Modified |
+| `server/lib/README.md` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/ai/adapters/index.js` | Modified |
+| `server/lib/ai/coach-dal.js` | Modified |
+| `shared/schema.js` | Modified |
+| `server/lib/offers/` | Untracked |
+
+### Recent Commit Changes (40)
+| File | Status |
+|------|--------|
+| `APICALL.md` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE-OPUS-4.5-FULL-ANALYSIS.md` | Deleted |
+| `CLAUDE-OPUS-4.6-FULL-ANALYSIS.md` | Added |
+| `FEATURESANDNOTES.md` | Modified |
+| `GEMINI.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `MODEL.md` | Modified |
+| `PERFORMANCE_OPTIMIZATIONS.md` | Modified |
+| `README.md` | Modified |
+| `SECURITY.md` | Modified |
+| `SYSTEM_MAP.md` | Modified |
+| `UBER_INTEGRATION_TODO.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `docs/ai-tools/agent.md` | Modified |
+| `docs/ai-tools/eidolon.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| `docs/architecture/api-reference.md` | Modified |
+| `docs/architecture/client-structure.md` | Modified |
+| ... and 20 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/hooks/analyze-offer.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/strategy-events.js)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/database/2026-02-15-intercepted-signals-location.sql)
+
+### Status: PENDING
+
+---
+
 ---

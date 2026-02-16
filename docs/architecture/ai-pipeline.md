@@ -7,6 +7,7 @@ export async function callGemini({
   model,
   system,
   user,
+  images = [], // Optional multimodal images [{mimeType, data}]
   maxTokens,
   temperature,
   topP,
@@ -32,6 +33,7 @@ For Gemini 3 models, the adapter validates and normalizes the `thinkingLevel` pa
 
 #### Features
 
+- **Multimodal Support:** Accepts an array of images (`{ mimeType, data }`) to support vision capabilities (e.g., analyzing images passed via Siri shortcuts).
 - **JSON Optimization:** Automatically lowers temperature to `0.2` if the prompt context implies JSON output.
 - **Google Search:** Enables the `googleSearch` tool if `useSearch` is set to `true`.
 - **Safety Settings:** Configured to `BLOCK_NONE` for all categories to ensure uninhibited system operation.

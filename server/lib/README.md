@@ -18,6 +18,7 @@ lib/
 ├── external/        # Third-party API integrations
 ├── infrastructure/  # Logging, job queues
 ├── location/        # Location services (geocoding, holidays)
+├── offers/          # Ride offer OCR pre-parser for Siri Shortcuts
 ├── notifications/   # Alert and notification system
 ├── strategy/        # Strategy generation pipeline
 ├── subagents/       # Specialized AI subagents
@@ -41,6 +42,7 @@ lib/
 | `external/` | FAA, TTS, semantic search | `fetchFAAStatus()`, `synthesizeSpeech()` |
 | `infrastructure/` | Cross-cutting concerns | `enqueue()`, logging |
 | `location/` | Geocoding, holidays, validation | `detectHoliday()`, `validateConditions()` |
+| `offers/` | Ride offer OCR pre-parser | `parseOfferText()`, `formatPerMileForVoice()` |
 | `notifications/` | Email alerts, notifications | `sendAlert()` |
 | `strategy/` | Strategy waterfall orchestration | `generateStrategyParallel()` |
 | `subagents/` | Specialized AI subagents | `verifyEvent()` |

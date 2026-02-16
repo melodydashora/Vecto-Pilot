@@ -22,7 +22,8 @@ import {
   coach_conversations,
   coach_system_notes,
   news_deactivations,
-  zone_intelligence
+  zone_intelligence,
+  intercepted_signals   // 2026-02-16: Offer analysis history for coach context
 } from '../../../shared/schema.js';
 import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
 import crypto from 'crypto';
@@ -816,10 +817,11 @@ export class CoachDAL {
         const effectiveUserId = authenticatedUserId || snapshot.user_id;
         console.log(`[CoachDAL] getCompleteContext: Snapshot user_id = ${snapshot.user_id || 'NULL'}, authenticated = ${authenticatedUserId || 'NULL'}, effective = ${effectiveUserId || 'NULL'}, city = ${snapshot.city}`);
 
-        const [intel, notes, driver] = await Promise.all([
+        const [intel, notes, driver, offerData] = await Promise.all([
           this.getMarketIntelligence(snapshot.city, snapshot.state),
           effectiveUserId ? this.getUserNotes(effectiveUserId) : Promise.resolve([]),
-          effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null })
+          effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null }),
+          this.getOfferHistory(20)  // 2026-02-16: Include offer analysis history
         ]);
         marketIntelligence = intel;
         userNotes = notes;
@@ -838,6 +840,7 @@ export class CoachDAL {
         userNotes,
         driverProfile: driverData.profile,
         driverVehicle: driverData.vehicle,
+        offerHistory: offerData || { offers: [], stats: null },  // 2026-02-16: Offer log for coach
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
     } catch (error) {
@@ -854,6 +857,7 @@ export class CoachDAL {
         userNotes: [],
         driverProfile: null,
         driverVehicle: null,
+        offerHistory: { offers: [], stats: null },
         status: 'error',
       };
     }
@@ -1180,6 +1184,34 @@ export class CoachDAL {
       prompt += `\n\n   Use these notes to personalize your advice. You can reference them naturally.`;
     }
 
+    // ========== OFFER ANALYSIS HISTORY (Siri Shortcuts) ==========
+    // 2026-02-16: Ride offer analysis log for pattern-aware coaching
+    const { offerHistory } = context;
+    if (offerHistory?.stats && offerHistory.stats.total > 0) {
+      const s = offerHistory.stats;
+      prompt += `\n\n=== RIDE OFFER ANALYSIS LOG ===`;
+      prompt += `\nStats (last ${s.total} offers):`;
+      prompt += `\n   Accept rate: ${s.accept_rate_pct}% (${s.accepted} accepted, ${s.rejected} rejected)`;
+      if (s.avg_per_mile) prompt += `\n   Avg $/mile: $${s.avg_per_mile}`;
+      prompt += `\n   Avg response time: ${s.avg_response_ms}ms`;
+      if (s.overrides > 0) {
+        prompt += `\n   Driver overrides: ${s.overrides} (driver disagreed with AI ${s.overrides} time${s.overrides > 1 ? 's' : ''})`;
+      }
+
+      prompt += `\n\n   Recent offers:`;
+      offerHistory.offers.slice(0, 5).forEach((offer, i) => {
+        const pd = offer.parsed_data || {};
+        const price = pd.price ? `$${pd.price}` : '?';
+        const miles = pd.miles || pd.total_miles ? `${(pd.miles || pd.total_miles).toFixed(1)}mi` : '?';
+        const pm = pd.per_mile ? `$${pd.per_mile.toFixed(2)}/mi` : '';
+        const override = offer.user_override ? ` [DRIVER OVERRIDE: ${offer.user_override}]` : '';
+        const time = new Date(offer.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        prompt += `\n   ${i + 1}. ${offer.decision} ${price}/${miles} ${pm} (${time})${override}`;
+      });
+
+      prompt += `\n\n   Use offer patterns to advise on positioning, timing, and offer strategy.`;
+    }
+
     // ========== DATA AVAILABILITY SUMMARY ==========
     prompt += `\n\n📋 DATA ACCESS SUMMARY`;
     prompt += `\n   ✓ Driver Profile: ${driverProfile ? `${driverProfile.first_name} ${driverProfile.last_name}` : 'Not registered'}`;
@@ -1192,9 +1224,75 @@ export class CoachDAL {
     prompt += `\n   ✓ Actions: ${actions?.length || 0} recorded`;
     prompt += `\n   ✓ Market Intel: ${marketIntelligence?.intelligence?.length || 0} items`;
     prompt += `\n   ✓ User Notes: ${userNotes?.length || 0} notes`;
+    prompt += `\n   ✓ Offer Log: ${offerHistory?.stats?.total || 0} analyzed`;
     prompt += `\n   Status: ${status}`;
 
     return prompt;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // OFFER HISTORY - Siri Shortcuts ride offer analysis log
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get offer analysis history for AI Coach context.
+   * 2026-02-16: intercepted_signals uses device_id, NOT user_id (Siri headless).
+   * Queries ALL recent offers (single-user system for now).
+   * Future: link device_id → user_id for multi-user support.
+   *
+   * @param {number} limit - Max offers to retrieve (default 20)
+   * @returns {Promise<Object>} { offers: Array, stats: Object }
+   */
+  async getOfferHistory(limit = 20) {
+    try {
+      const history = await db
+        .select({
+          id: intercepted_signals.id,
+          decision: intercepted_signals.decision,
+          decision_reasoning: intercepted_signals.decision_reasoning,
+          parsed_data: intercepted_signals.parsed_data,
+          confidence_score: intercepted_signals.confidence_score,
+          user_override: intercepted_signals.user_override,
+          platform: intercepted_signals.platform,
+          market: intercepted_signals.market,
+          response_time_ms: intercepted_signals.response_time_ms,
+          created_at: intercepted_signals.created_at,
+        })
+        .from(intercepted_signals)
+        .orderBy(desc(intercepted_signals.created_at))
+        .limit(limit);
+
+      if (history.length === 0) {
+        return { offers: [], stats: null };
+      }
+
+      const accepted = history.filter(h => h.decision === 'ACCEPT');
+      const rejected = history.filter(h => h.decision === 'REJECT');
+      const overrides = history.filter(h => h.user_override !== null);
+      const perMileValues = history
+        .map(h => h.parsed_data?.per_mile)
+        .filter(v => v != null && v > 0);
+
+      const stats = {
+        total: history.length,
+        accepted: accepted.length,
+        rejected: rejected.length,
+        accept_rate_pct: Math.round((accepted.length / history.length) * 100),
+        overrides: overrides.length,
+        avg_per_mile: perMileValues.length > 0
+          ? (perMileValues.reduce((a, b) => a + b, 0) / perMileValues.length).toFixed(2)
+          : null,
+        avg_response_ms: Math.round(
+          history.reduce((sum, h) => sum + (h.response_time_ms || 0), 0) / history.length
+        ),
+      };
+
+      console.log(`[CoachDAL] getOfferHistory: ${history.length} offers, ${stats.accept_rate_pct}% accept rate`);
+      return { offers: history, stats };
+    } catch (error) {
+      console.error('[CoachDAL] getOfferHistory error:', error);
+      return { offers: [], stats: null };
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
