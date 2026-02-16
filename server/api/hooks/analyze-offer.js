@@ -131,35 +131,39 @@ Rules:
     const platform = result.parsed_data?.platform || 'unknown';
     const deviceId = device_id || 'anonymous_device';
 
-    db.insert(intercepted_signals).values({
-      device_id: deviceId,
-      raw_text: text || '[Image Data]',
-      parsed_data: result.parsed_data,
-      decision: result.decision,
-      decision_reasoning: result.reasoning,
-      confidence_score: result.confidence,
-      latitude: lat,
-      longitude: lng,
-      market,
-      platform,
-      response_time_ms: responseTimeMs,
-      source,
-    }).then((saved) => {
-      console.log(`[hooks/analyze-offer] ✅ ${result.decision} (${responseTimeMs}ms) — $${result.parsed_data?.price || '?'} / ${result.parsed_data?.miles || '?'}mi [saved]`);
-      // SSE broadcast for web app
-      const notifyPayload = JSON.stringify({
-        device_id: deviceId,
-        decision: result.decision,
-        reasoning: result.reasoning,
-        price: result.parsed_data?.price,
-        platform,
-        response_time_ms: responseTimeMs,
-      });
-      db.execute(sql`SELECT pg_notify('offer_analyzed', ${notifyPayload})`)
-        .catch(err => console.warn(`[hooks/analyze-offer] ⚠️ NOTIFY failed: ${err.message}`));
-    }).catch(err => {
-      console.error(`[hooks/analyze-offer] ⚠️ Background save failed: ${err.message}`);
-    });
+    // 2026-02-16: Use async IIFE — Drizzle requires .execute() or await to run queries.
+    // Plain .then() on the query builder doesn't trigger execution.
+    (async () => {
+      try {
+        await db.insert(intercepted_signals).values({
+          device_id: deviceId,
+          raw_text: text || '[Image Data]',
+          parsed_data: result.parsed_data,
+          decision: result.decision,
+          decision_reasoning: result.reasoning,
+          confidence_score: result.confidence,
+          latitude: lat,
+          longitude: lng,
+          market,
+          platform,
+          response_time_ms: responseTimeMs,
+          source,
+        });
+        console.log(`[hooks/analyze-offer] ✅ ${result.decision} (${responseTimeMs}ms) — $${result.parsed_data?.price || '?'} / ${result.parsed_data?.miles || '?'}mi [saved]`);
+        // SSE broadcast for web app
+        const notifyPayload = JSON.stringify({
+          device_id: deviceId,
+          decision: result.decision,
+          reasoning: result.reasoning,
+          price: result.parsed_data?.price,
+          platform,
+          response_time_ms: responseTimeMs,
+        });
+        await db.execute(sql`SELECT pg_notify('offer_analyzed', ${notifyPayload})`);
+      } catch (err) {
+        console.error(`[hooks/analyze-offer] ⚠️ Background save failed: ${err.message}`);
+      }
+    })();
 
   } catch (error) {
     const responseTimeMs = Date.now() - startTime;
