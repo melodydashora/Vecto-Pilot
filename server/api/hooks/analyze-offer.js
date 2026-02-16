@@ -133,9 +133,21 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
     // 2026-02-16: Build images array for vision path (Siri Vision shortcut sends base64 screenshot)
     const images = [];
     if (image && !text) {
-      const mimeType = image_type || 'image/jpeg';
-      images.push({ mimeType, data: image });
-      console.log(`[hooks/analyze-offer] 🖼️ Vision mode: ${Math.round(image.length / 1024)}KB base64 (${mimeType})`);
+      // Strip data URL prefix if present (Siri Shortcuts may send "data:image/jpeg;base64,...")
+      let imageData = image;
+      let mimeType = image_type || 'image/jpeg';
+      if (typeof imageData === 'string' && imageData.startsWith('data:')) {
+        const match = imageData.match(/^data:([^;]+);base64,(.+)$/s);
+        if (match) {
+          mimeType = match[1];
+          imageData = match[2];
+          console.log(`[hooks/analyze-offer] 🖼️ Stripped data URL prefix, detected ${mimeType}`);
+        }
+      }
+      // Remove any whitespace/newlines that break base64 decoding
+      imageData = imageData.replace(/\s/g, '');
+      images.push({ mimeType, data: imageData });
+      console.log(`[hooks/analyze-offer] 🖼️ Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})`);
     }
 
     console.log(`[hooks/analyze-offer] 🧠 Calling OFFER_ANALYZER${images.length ? ' (vision)' : ''}...`);
@@ -168,20 +180,30 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
     const responseTimeMs = Date.now() - startTime;
 
     // 4. RESPOND IMMEDIATELY — driver is waiting, every ms counts
-    // 2026-02-16: Voice includes $/mile in spoken English for immediate driver context.
-    // Prefer server-calculated per_mile (regex, deterministic) over LLM-calculated.
+    // 2026-02-16: Prefer server-calculated per_mile (regex, deterministic) over LLM-calculated.
     const perMileValue = preParsed?.per_mile ?? result.parsed_data?.per_mile ?? null;
     const perMileVoice = perMileValue !== null ? formatPerMileForVoice(perMileValue) : '';
     const perMileDisplay = perMileValue !== null ? `$${perMileValue.toFixed(2)}/mi` : '';
 
+    // 2026-02-16: Voice = decision + spoken $/mile for Siri TTS
     const voiceText = perMileVoice
       ? `${result.decision === 'ACCEPT' ? 'Accept' : 'Reject'}. ${perMileVoice}.`
       : (result.decision === 'ACCEPT' ? 'Accept' : 'Reject');
 
+    // 2026-02-16: Notification = scannable line with $/mi, pickup time, total miles
+    // Format: "REJECT $0.86/mi · 11min · 10.3mi" — all 3 key numbers at a glance
+    const pickupMin = preParsed?.pickup_minutes ?? result.parsed_data?.pickup_minutes ?? null;
+    const totalMiles = preParsed?.total_miles ?? result.parsed_data?.miles ?? null;
+    const notifParts = [result.decision];
+    if (perMileDisplay) notifParts.push(perMileDisplay);
+    if (pickupMin !== null) notifParts.push(`${pickupMin}min`);
+    if (totalMiles !== null) notifParts.push(`${totalMiles}mi`);
+    const notification = notifParts.join(' · ');
+
     res.json({
       success: true,
       voice: voiceText,
-      notification: perMileDisplay ? `${result.decision} ${perMileDisplay}` : result.decision,
+      notification,
       decision: result.decision,
       response_time_ms: responseTimeMs,
     });
