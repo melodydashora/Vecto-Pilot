@@ -5290,4 +5290,60 @@ Items are prioritized by impact on system architecture and developer onboarding.
 
 ---
 
+## 2026-02-15 Analysis
+
+**Generated:** 2026-02-15T23:48:59.555Z
+**Branch:** main
+**Last Commit:** efdeff8a Claude full analysis
+
+### Recent Commit Changes (73)
+| File | Status |
+|------|--------|
+| `.replit` | Modified |
+| `.replit-assistant-override.json` | Modified |
+| `APICALL.md` | Modified |
+| `ARCHITECTURE.md` | Modified |
+| `CLAUDE-OPUS-4.5-FULL-ANALYSIS.md` | Deleted |
+| `CLAUDE-OPUS-4.6-FULL-ANALYSIS.md` | Added |
+| `CLAUDE.md` | Modified |
+| `FEATURESANDNOTES.md` | Modified |
+| `GEMINI.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `MODEL.md` | Modified |
+| `PERFORMANCE_OPTIMIZATIONS.md` | Modified |
+| `README.md` | Modified |
+| `SECURITY.md` | Modified |
+| `SYSTEM_MAP.md` | Modified |
+| `UBER_INTEGRATION_TODO.md` | Modified |
+| `UI_FILE_MAP.md` | Modified |
+| `config/agent-policy.json` | Modified |
+| `config/assistant-policy.json` | Modified |
+| ... and 53 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/strategy-events.js)
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/agent-override-llm.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/core/llm.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/core/llm.ts)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/database/2026-02-15-intercepted-signals-location.sql)
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+
+### Status: PENDING
+
+---
+
 ---
