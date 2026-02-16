@@ -1423,7 +1423,7 @@ export const coach_system_notes = pgTable("coach_system_notes", {
  *   → HTTP response to Siri → iOS "Show Notification" displays ACCEPT/REJECT
  *
  * Security: Endpoint uses device_id identification, not JWT auth.
- * Location: 3-decimal precision (~110m) — driver is moving, exact GPS not needed.
+ * Location: 6-decimal precision (~11cm) per codebase standard. Market slug uses 1-decimal buckets.
  *
  * 2026-02-15: Added location, market, platform, response_time_ms for algorithm learning.
  */
@@ -1438,8 +1438,8 @@ export const intercepted_signals = pgTable("intercepted_signals", {
   // Can be linked later if user logs in on same device.
   user_id: uuid("user_id"), // Intentionally NO .references() - headless ingestion
 
-  // 2026-02-15: Driver location at time of offer (3-decimal precision ~110m)
-  // This is the ONLY place we use 3-decimal coords — driver is moving, exact GPS unnecessary.
+  // 2026-02-16: Driver location at time of offer (6-decimal precision ~11cm, codebase standard)
+  // Previously 3-decimal (~110m), upgraded for better algorithm learning.
   // Critical for algorithm learning: where do offers appear, what prices per location?
   latitude: doublePrecision("latitude"),     // nullable — Siri may not provide location
   longitude: doublePrecision("longitude"),   // nullable — same

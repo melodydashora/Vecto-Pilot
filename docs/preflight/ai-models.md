@@ -1,8 +1,15 @@
+Here is the updated documentation.
+
+**Changes:**
+1.  Updated **Last Updated** date to `2026-02-16`.
+2.  Added a new section **Gemini Multimodal Inputs** under *Model-Specific Parameters* to document the new image support found in `gemini-adapter.js`.
+
+
 # Pre-flight: AI Models
 
 Quick reference for AI model usage. Read before modifying any AI code.
 
-**Last Updated:** 2026-02-15
+**Last Updated:** 2026-02-16
 
 ---
 
@@ -87,20 +94,20 @@ These still work via automatic mapping:
 
 ## DO: Use the Adapter Pattern
 
-```javascript
+javascript
 import { callModel } from './lib/ai/adapters/index.js';
 const result = await callModel('STRATEGY_CORE', { system, user });
 // or legacy:
 const result = await callModel('strategist', { system, user });
-```
+
 
 ## DON'T: Call APIs Directly
 
-```javascript
+javascript
 // WRONG - Never do this
 import Anthropic from '@anthropic-ai/sdk';
 const client = new Anthropic();
-```
+
 
 ---
 
@@ -108,7 +115,7 @@ const client = new Anthropic();
 
 ### GPT-5.2 Parameters (Critical)
 
-```javascript
+javascript
 // CORRECT
 {
   model: "gpt-5.2",
@@ -119,7 +126,7 @@ const client = new Anthropic();
 // WRONG - causes 400 errors
 { reasoning: { effort: "medium" } }  // Nested format INVALID
 { temperature: 0.7 }                  // Not supported on reasoning models
-```
+
 
 **reasoning_effort values:**
 - `low`: Fast, minimal chain-of-thought
@@ -128,7 +135,7 @@ const client = new Anthropic();
 
 ### Gemini 3 Model IDs (Critical)
 
-```javascript
+javascript
 // WRONG - causes 404 "model not found" error
 model: "gemini-3-pro"      // INVALID!
 model: "gemini-3-flash"    // INVALID!
@@ -136,13 +143,13 @@ model: "gemini-3-flash"    // INVALID!
 // CORRECT - must include -preview suffix
 model: "gemini-3-pro-preview"
 model: "gemini-3-flash-preview"
-```
+
 
 ### Gemini 3 thinkingLevel Parameters
 
 The adapter enforces validation on `thinkingLevel` to prevent API errors.
 
-```javascript
+javascript
 // CORRECT for Gemini 3 Pro (only LOW or HIGH)
 { thinkingLevel: "HIGH" }
 { thinkingLevel: "LOW" }
@@ -154,7 +161,7 @@ The adapter enforces validation on `thinkingLevel` to prevent API errors.
 
 // WRONG - deprecated format
 { thinking_budget: 8000 }
-```
+
 
 **Valid thinkingLevel by model:**
 | Model | Valid Levels | Behavior on Invalid |
@@ -165,3 +172,19 @@ The adapter enforces validation on `thinkingLevel` to prevent API errors.
 ### Gemini 3 Token Budget (Critical)
 
 > **Thinking consumes tokens from `maxTokens`.**
+
+### Gemini Multimodal Inputs
+
+Gemini adapters now support passing images for vision tasks (e.g., analyzing charts or photos).
+
+javascript
+await callModel('BRIEFING_WEATHER', {
+  system: "Analyze this weather chart.",
+  user: "What is the precipitation forecast?",
+  images: [
+    {
+      mimeType: "image/jpeg",
+      data: "..." // Base64 encoded string
+    }
+  ]
+});

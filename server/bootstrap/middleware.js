@@ -47,6 +47,9 @@ export async function configureMiddleware(app) {
   }
 
   // JSON body parsing for API and agent routes
+  // 2026-02-16: /api/hooks needs larger limit for base64 image payloads (Siri Vision shortcut)
+  // Must come BEFORE the general /api rule — Express matches first matching middleware
+  app.use('/api/hooks', express.json({ limit: '5mb' }));
   app.use('/api', express.json({ limit: '1mb' }));
   app.use('/agent', express.json({ limit: '1mb' }));
 

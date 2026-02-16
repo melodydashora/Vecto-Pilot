@@ -74,6 +74,13 @@ export const coachSchemaMetadata = {
       description: "Coach's saved notes about this driver (memory)",
       key_columns: ["id", "user_id", "note_type", "title", "content", "importance", "is_pinned"],
       sample_query: "Retrieve saved preferences and insights about driver"
+    },
+    // 2026-02-16: Offer analysis history for pattern analysis and coaching
+    intercepted_signals: {
+      description: "Ride offer analysis history from Siri Shortcuts (ACCEPT/REJECT decisions with parsed offer data, $/mile, locations)",
+      key_columns: ["id", "device_id", "parsed_data", "decision", "decision_reasoning", "confidence_score", "latitude", "longitude", "market", "platform", "response_time_ms", "user_override", "created_at"],
+      sample_query: "Get recent offer analyses to review $/mile patterns and decision accuracy",
+      notes: "No user_id FK — uses device_id (Siri headless). user_override indicates driver disagreed with AI. parsed_data JSONB contains price, miles, per_mile, pickup, dropoff, surge."
     }
   },
 

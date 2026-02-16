@@ -242,24 +242,28 @@ Endpoints designed for external automation tools (Siri Shortcuts, Mobile Automat
 High-speed endpoint for analyzing rideshare offers via Siri Shortcuts.
 
 - **Authentication:** Public (No JWT required) to accommodate Siri limitations.
-- **Performance:** Uses `OFFER_ANALYZER` (Gemini 3 Flash) for 1-3s response times.
+- **Modes:**
+  - **Text Mode:** Accepts OCR text, uses server-side regex pre-parsing for speed + AI for decision.
+  - **Vision Mode (New):** Accepts base64 screenshots, uses Gemini Flash Vision to extract data directly.
+- **Performance:** Uses `OFFER_ANALYZER` (Gemini 3 Flash) with server-side pre-parsing for maximum speed.
 - **Real-time:** Broadcasts analysis results via `pg_notify` to the web frontend (SSE).
-- **Location:** Captures driver coordinates (rounded to 3 decimals) to derive market context.
+- **Location:** Captures driver coordinates (rounded to 6 decimals) for precise algorithm learning.
 
 **Request Body:**
 ```json
 {
   "text": "OCR text content...",
-  "image": "base64...",
+  "image": "base64_image_string...",
+  "image_type": "image/jpeg",
   "device_id": "user_device_uuid",
-  "latitude": 30.267,
-  "longitude": -97.743,
+  "latitude": 30.267123,
+  "longitude": -97.743123,
   "source": "siri_shortcut"
 }
 ```
 
 **Response:**
-Returns `decision` (ACCEPT/REJECT), `reasoning`, and parsed data optimized for notification display.
+Returns `decision` (ACCEPT/REJECT), `reasoning`, spoken voice response (including $/mile), and parsed data optimized for notification display.
 
 ## Authentication
 
