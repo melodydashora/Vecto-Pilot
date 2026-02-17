@@ -1,6 +1,6 @@
 ### `callModel`
 
-*Updated: 2026-02-13*
+*Updated: 2026-02-17*
 
 The central dispatcher for all AI model interactions. It abstracts the underlying provider (OpenAI, Anthropic, Google, Vertex) based on the requested **role**. It leverages a **Hedged Router** to ensure reliability and performance, supporting fallback providers and concurrent requests.
 
@@ -21,5 +21,6 @@ export async function callModel(role, params)
 
 **Features:**
 
-- **Hedged Routing:** Uses `HedgedRouter` to manage primary and fallback provider calls. If the primary provider is slow or fails, a fallback provider (if configured) is triggered to ensure a timely response.
-- **Provider Abstraction:** Automatically routes to the correct adapter (`openai`, `anthropic`, `google`, `vertex`) based on
+- **Hedged Routing:** Uses `HedgedRouter` to manage primary and fallback provider calls. If the primary provider is slow or fails, a fallback provider is triggered to ensure a timely response.
+- **Cross-Provider Redundancy:** Fallback configurations are dynamically selected to ensure they belong to a different provider family than the primary (e.g., if Primary is Google, Fallback will be OpenAI or Anthropic) to prevent single-point-of-failure scenarios.
+- **Provider Abstraction:** Automatically routes to the correct adapter (`openai`, `anthropic`, `google`, `vertex`) based on the role configuration.

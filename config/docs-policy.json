@@ -5,7 +5,15 @@
     "generator": {
       "model": "claude-opus-4-6",
       "temperature": 0.2,
-      "allowed_paths": ["docs/architecture/", "docs/preflight/", "server/api/"]
+      "allowed_paths": [
+        "docs/architecture/",
+        "docs/preflight/",
+        "docs/ai-tools/",
+        "server/lib/ai/README.md",
+        "server/agent/README.md",
+        "server/eidolon/README.md",
+        "server/assistant/README.md"
+      ]
     },
     "validator": {
       "enforce_links": true,

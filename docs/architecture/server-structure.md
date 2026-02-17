@@ -1,6 +1,3 @@
-Based on the code changes in `gateway-server.js`, the documentation needs to be updated to reflect the removal of the standalone event synchronization job and the integration of Unified AI capabilities. The provided "Current Documentation" contained a meta-summary paragraph which has been removed to leave only the persistent documentation content. The tables have been verified against the code to ensure accuracy (specifically `gateway-server.js` handling Unified AI bootstrap and `workers.js` only handling the Strategy worker).
-
-
 ## Key Files
 
 | File | Purpose |

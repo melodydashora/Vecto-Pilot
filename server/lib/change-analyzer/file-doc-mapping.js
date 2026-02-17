@@ -129,8 +129,11 @@ export const FILE_TO_DOC_MAP = {
   },
 
   // Core Files
+  // 2026-02-17: FIX - Removed CLAUDE.md from gateway-server.js mapping.
+  // CLAUDE.md is project instructions (not generated docs) and must never be auto-updated.
+  // The Docs Agent was overwriting it with AI-generated content, corrupting the file.
   'gateway-server.js': {
-    docs: ['docs/architecture/server-structure.md', 'CLAUDE.md'],
+    docs: ['docs/architecture/server-structure.md'],
     priority: 'high',
     reason: 'Main server changes'
   },
