@@ -1,8 +1,3 @@
-Based on the provided code snippet and file changes, the documentation content is largely accurate, but the provided "Current Documentation" text includes a conversational preamble ("Based on the code changes...") which should not be part of the actual documentation file.
-
-I will return the **cleaned** markdown content, ensuring the `BriefingTab` description accurately reflects the inclusion of "School Closures" and the list of components is correct.
-
-
 ## Components (`client/src/components/`)
 
 ### Core Components
