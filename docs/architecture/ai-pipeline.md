@@ -1,13 +1,8 @@
-Based on the provided code changes and the current documentation state, the documentation is technically up-to-date regarding the content (it mentions the `intercepted_signals` update from 2026-02-16). However, the provided documentation content contains conversational preamble text ("Based on the provided code changes...") which should be removed to maintain a clean documentation file.
-
-Here is the cleaned and verified documentation.
-
-
 ### `callGemini`
 
 The primary entry point for text generation. It handles parameter normalization, safety settings, and specific configurations for Gemini 3 models.
 
-javascript
+```javascript
 export async function callGemini({
   model,
   system,
@@ -21,7 +16,7 @@ export async function callGemini({
   thinkingLevel = null, // Gemini 3: "low", "medium" (Flash only), "high" - null = disabled
   skipJsonExtraction = false
 })
-
+```
 
 #### Thinking Level Validation (F-002)
 
@@ -48,9 +43,9 @@ For Gemini 3 models, the adapter validates and normalizes the `thinkingLevel` pa
 
 ### `CoachDAL`
 
-*Updated: 2026-02-16*
+*Updated: 2026-02-17*
 
-The `CoachDAL` class provides full schema read access for the AI Coach. It acts as the data access layer, scoping reads by user and snapshot to ensure temporal consistency. It now includes access to `intercepted_signals` for offer analysis history.
+The `CoachDAL` class provides full schema read access for the AI Coach. It acts as the data access layer, scoping reads by user and snapshot to ensure temporal consistency. It now includes access to `offer_intelligence` for structured offer analytics (replacing the deprecated `intercepted_signals`).
 
 **Access Pattern:** `strategy_id` → `snapshot_id` → `user_id` + `session_id` → ALL tables
 
@@ -58,9 +53,9 @@ The `CoachDAL` class provides full schema read access for the AI Coach. It acts 
 
 Resolves a UI-visible `strategy_id` to the internal `snapshot_id` and `user_id`.
 
-javascript
+```javascript
 async resolveStrategyToSnapshot(strategyId)
-
+```
 
 **Returns:** `Promise<Object|null>`
 - Returns `{ snapshot_id, user_id, session_id, strategy_id }`.
@@ -70,9 +65,9 @@ async resolveStrategyToSnapshot(strategyId)
 
 Retrieves the header snapshot context, including timezone, day-of-week, and location data.
 
-javascript
+```javascript
 async getHeaderSnapshot(snapshotId)
-
+```
 
 **Features:**
 - **Authoritative Time/Location:** Pulls `dow`, `hour`, `timezone`, and location (`lat`, `lng`, `city`, `state`) directly from the `snapshots` table. This ensures the coach context matches the historical snapshot data rather than the user's current state.

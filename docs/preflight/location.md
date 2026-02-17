@@ -142,6 +142,30 @@ const today = snapshot.local_iso
   : new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone });
 ```
 
+## Daypart Classification (2026-02-17)
+
+**Shared utility for classifying hours into dayparts.**
+
+Used for offer intelligence, snapshots, and temporal analysis. Ensure the input hour is correct for the target timezone.
+
+**Canonical function:** `getDayPartKey(hour)` from `server/lib/location/daypart.js`
+
+| Key | Hours |
+|-----|-------|
+| overnight | 0:00-4:59 |
+| morning | 5:00-11:59 |
+| late_morning_noon | 12:00-14:59 |
+| afternoon | 15:00-16:59 |
+| early_evening | 17:00-20:59 |
+| evening | 21:00-23:59 |
+
+```javascript
+import { getDayPartKey } from '../../lib/location/daypart.js';
+
+// Input: Hour 0-23
+const part = getDayPartKey(14); // Returns 'late_morning_noon'
+```
+
 ## Check Before Editing
 
 - [ ] Am I using browser GPS, not IP geolocation?
@@ -154,3 +178,4 @@ const today = snapshot.local_iso
 - [ ] **ROOT CAUSE**: If I'm catching coordinate errors, should they be architecturally possible?
 - [ ] **VENUE HOURS**: Am I using the canonical `hours/` module for open/closed checks?
 - [ ] **TIMEZONE DATES**: Am I using `snapshot.timezone` when filtering by date? (Not UTC!)
+- [ ] **DAYPARTS**: Am I using `getDayPartKey` for time-of-day logic?
