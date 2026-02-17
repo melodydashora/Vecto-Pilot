@@ -17,6 +17,7 @@ import {
   roleUsesOpenAIWebSearch,
   isFallbackEnabled,
   FALLBACK_CONFIG,
+  getFallbackConfig,
   getProviderForModel
 } from "../model-registry.js";
 import { OP } from "../../../logger/workflow.js";
@@ -120,16 +121,22 @@ export async function callModel(role, params) {
     [primaryConfig.provider]: primaryConfig
   };
 
-  // Determine fallback
+  // 2026-02-17: FIX - Cross-provider fallback (was same-provider for all Gemini roles)
+  // Previous bug: FALLBACK_CONFIG always used gemini-3-flash → same provider as primary
+  // for all 18 Gemini roles → fallback was silently skipped → zero redundancy.
+  // Now: getFallbackConfig() returns a model from a DIFFERENT provider family.
   if (isFallbackEnabled(role)) {
-    const fallbackProvider = getProviderForModel(FALLBACK_CONFIG.model);
+    const fallback = getFallbackConfig(primaryConfig.provider);
+    const fallbackProvider = getProviderForModel(fallback.model);
     if (fallbackProvider !== 'unknown' && fallbackProvider !== primaryConfig.provider) {
       providers.push(fallbackProvider);
+      // Map search features to the correct provider-specific flags
+      const needsSearch = roleUsesGoogleSearch(role);
       configs[fallbackProvider] = {
-        ...FALLBACK_CONFIG,
+        ...fallback,
         provider: fallbackProvider,
-        // Fallback features? Assume minimal or derived from role
-        useSearch: roleUsesGoogleSearch(role) || FALLBACK_CONFIG.features?.includes('google_search'),
+        useSearch: needsSearch && fallbackProvider === 'google',
+        useWebSearch: needsSearch && (fallbackProvider === 'openai' || fallbackProvider === 'anthropic'),
       };
     }
   }

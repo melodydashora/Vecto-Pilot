@@ -341,6 +341,11 @@ export const FALLBACK_ENABLED_ROLES = [
   'BRIEFING_EVENTS_VALIDATOR', // 2026-01-14: Added for Anthropic credit fallback
   'BRIEFING_FALLBACK',      // 2026-01-14: Added for Anthropic credit fallback
   'OFFER_ANALYZER',         // 2026-02-15: Time-critical — must have fallback
+  'BRIEFING_WEATHER',       // 2026-02-17: All Gemini-primary briefing roles need cross-provider fallback
+  'BRIEFING_TRAFFIC',       // 2026-02-17: Critical for driver advice — must survive Gemini outages
+  'BRIEFING_SCHOOLS',       // 2026-02-17: Added for cross-provider redundancy
+  'BRIEFING_AIRPORT',       // 2026-02-17: Added for cross-provider redundancy
+  'BRIEFING_HOLIDAY',       // 2026-02-17: Added for cross-provider redundancy
 ];
 
 /**
@@ -354,6 +359,32 @@ export const FALLBACK_CONFIG = {
   temperature: 0.2,
   features: ['google_search'], // Gemini tool for web search if needed
 };
+
+/**
+ * Get cross-provider fallback configuration based on primary provider.
+ * 2026-02-17: FIX - Ensures fallback is ALWAYS a different provider than primary.
+ *
+ * Previous bug: FALLBACK_CONFIG used gemini-3-flash-preview for ALL roles.
+ * When the primary was also Google (Gemini 3 Pro), the fallback was filtered out
+ * because same-provider fallback is skipped. Result: 18 Gemini-primary roles
+ * had ZERO redundancy — a single Google outage killed the entire briefing pipeline.
+ *
+ * @param {string} primaryProvider - The primary provider ('google', 'anthropic', 'openai')
+ * @returns {Object} Fallback config with model from a different provider
+ */
+export function getFallbackConfig(primaryProvider) {
+  if (primaryProvider === 'google') {
+    // Google primary → OpenAI fallback (cross-provider redundancy)
+    // Uses gpt-5-search-api via callOpenAIWithWebSearch for roles needing web search
+    return {
+      model: 'gpt-5.2',
+      maxTokens: 8192,
+      reasoningEffort: 'low',
+    };
+  }
+  // Anthropic/OpenAI primary → Gemini Flash fallback (existing behavior)
+  return { ...FALLBACK_CONFIG };
+}
 
 /**
  * Get provider for a model name
