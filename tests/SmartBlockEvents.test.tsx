@@ -8,7 +8,7 @@ import StrategyPage from '../client/src/pages/co-pilot/StrategyPage';
 
 // Mock dependencies
 jest.mock('../client/src/components/GlobalHeader', () => () => <div data-testid="global-header" />);
-jest.mock('../client/src/components/CoachChat', () => () => <div data-testid="coach-chat" />);
+jest.mock('../client/src/components/AICoach', () => () => <div data-testid="ai-coach" />);
 jest.mock('../client/src/components/BarsDataGrid', () => () => <div data-testid="bars-data-grid" />);
 jest.mock('../client/src/components/SmartBlocksStatus', () => ({
   SmartBlocksStatus: () => <div data-testid="smart-blocks-status" />

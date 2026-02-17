@@ -190,7 +190,7 @@ export async function callModel(role, params) {
  * Streaming version of callModel for SSE/chat use cases.
  * Currently bypasses HedgedRouter (streaming is complex to hedge).
  *
- * @param {string} role - Role key from model-registry (e.g., 'COACH_CHAT')
+ * @param {string} role - Role key from model-registry (e.g., 'AI_COACH')
  * @param {Object} params - { system, messageHistory }
  * @returns {Promise<Response>} - Fetch Response with readable stream body
  */

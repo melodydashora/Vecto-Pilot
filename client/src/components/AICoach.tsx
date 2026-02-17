@@ -47,7 +47,7 @@ interface SnapshotData {
   lng?: number;
 }
 
-interface CoachChatProps {
+interface AICoachProps {
   userId: string;
   snapshotId?: string;
   strategyId?: string;
@@ -57,7 +57,7 @@ interface CoachChatProps {
   strategyReady?: boolean; // Indicates if strategy is still generating or complete
 }
 
-export default function CoachChat({
+export default function AICoach({
   userId,
   snapshotId,
   strategyId,
@@ -65,7 +65,7 @@ export default function CoachChat({
   snapshot,
   blocks: _blocks = [],
   strategyReady = false
-}: CoachChatProps) {
+}: AICoachProps) {
   // Use persistent state hook
   const { messages: msgs, setMessages: setMsgs, isLoaded: _isChatLoaded } = useChatPersistence(userId, snapshotId);
   
@@ -108,7 +108,7 @@ export default function CoachChat({
         setNotes(data.notes || []);
       }
     } catch (err) {
-      console.error('[CoachChat] Failed to fetch notes:', err);
+      console.error('[AICoach] Failed to fetch notes:', err);
     } finally {
       setNotesLoading(false);
     }
@@ -133,9 +133,9 @@ export default function CoachChat({
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Delete failed');
-      console.log('[CoachChat] Note deleted:', noteId);
+      console.log('[AICoach] Note deleted:', noteId);
     } catch (err) {
-      console.error('[CoachChat] Delete failed, rolling back:', err);
+      console.error('[AICoach] Delete failed, rolling back:', err);
       setNotes(original); // Rollback on error
     }
   }, [notes]);
@@ -154,9 +154,9 @@ export default function CoachChat({
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Pin toggle failed');
-      console.log('[CoachChat] Note pin toggled:', noteId);
+      console.log('[AICoach] Note pin toggled:', noteId);
     } catch (err) {
-      console.error('[CoachChat] Pin toggle failed, rolling back:', err);
+      console.error('[AICoach] Pin toggle failed, rolling back:', err);
       setNotes(original);
     }
   }, [notes]);
@@ -182,9 +182,9 @@ export default function CoachChat({
         body: JSON.stringify({ content: editContent })
       });
       if (!res.ok) throw new Error('Update failed');
-      console.log('[CoachChat] Note updated:', noteId);
+      console.log('[AICoach] Note updated:', noteId);
     } catch (err) {
-      console.error('[CoachChat] Update failed, rolling back:', err);
+      console.error('[AICoach] Update failed, rolling back:', err);
       setNotes(original);
     }
     setEditContent("");
@@ -208,11 +208,11 @@ export default function CoachChat({
         const { event_title, reason, notes } = data;
 
         if (!event_title || !reason) {
-          console.warn('[CoachChat] Invalid deactivation command:', data);
+          console.warn('[AICoach] Invalid deactivation command:', data);
           continue;
         }
 
-        console.log('[CoachChat] Processing event deactivation:', event_title, reason);
+        console.log('[AICoach] Processing event deactivation:', event_title, reason);
 
         // First, find the event by title (search in discovered events)
         const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -221,7 +221,7 @@ export default function CoachChat({
         });
 
         if (!searchRes.ok) {
-          console.error('[CoachChat] Failed to search for events');
+          console.error('[AICoach] Failed to search for events');
           continue;
         }
 
@@ -231,7 +231,7 @@ export default function CoachChat({
         );
 
         if (!eventToDeactivate) {
-          console.warn('[CoachChat] Event not found:', event_title);
+          console.warn('[AICoach] Event not found:', event_title);
           continue;
         }
 
@@ -247,12 +247,12 @@ export default function CoachChat({
 
         if (deactivateRes.ok) {
           const result = await deactivateRes.json();
-          console.log('[CoachChat] ✅ Event deactivated:', result.title);
+          console.log('[AICoach] ✅ Event deactivated:', result.title);
         } else {
-          console.error('[CoachChat] Failed to deactivate event:', await deactivateRes.text());
+          console.error('[AICoach] Failed to deactivate event:', await deactivateRes.text());
         }
       } catch (err) {
-        console.error('[CoachChat] Error processing deactivation:', err);
+        console.error('[AICoach] Error processing deactivation:', err);
       }
     }
   }, [snapshotId]);
@@ -264,7 +264,7 @@ export default function CoachChat({
     const { topic, summary } = summarizeConversation(msgs);
     if (topic && summary) {
       await logConversation(topic, summary);
-      console.log('[CoachChat] Conversation logged to memory');
+      console.log('[AICoach] Conversation logged to memory');
     }
   }, [msgs, logConversation, summarizeConversation]);
 
