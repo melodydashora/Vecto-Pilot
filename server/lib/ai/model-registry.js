@@ -225,6 +225,9 @@ export const MODEL_ROLES = {
     maxTokens: 8192,
     temperature: 0.7,
     features: ['google_search', 'vision', 'ocr'],
+    // 2026-02-17: COACH_CHAT uses callModelStream() which only supports Gemini.
+    // Non-Gemini overrides (e.g., ASSISTANT_OVERRIDE_MODEL=claude-opus-4-6) are rejected.
+    requiresStreaming: true,
   },
 
   // ==========================
@@ -463,6 +466,15 @@ export function getRoleConfig(role) {
   if (!model) {
     model = roleConfig.default;
     sourceInfo = 'default';
+  }
+
+  // 2026-02-17: Streaming guard — roles with requiresStreaming MUST use Gemini.
+  // If an env override resolved to a non-Gemini model, reject it and use the default.
+  // This prevents ASSISTANT_OVERRIDE_MODEL=claude-opus-4-6 from breaking COACH_CHAT streaming.
+  if (roleConfig.requiresStreaming && !model.startsWith('gemini-')) {
+    console.warn(`📋 [REGISTRY] ⚠️ ${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
+    model = roleConfig.default;
+    sourceInfo = 'default (streaming fallback)';
   }
 
   const provider = getProviderForModel(model);
