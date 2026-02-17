@@ -21,7 +21,7 @@ router.get('/identity', requireAuth, (req, res) => {
     authentication: {
       eidolon_token: !!process.env.EIDOLON_TOKEN,
       agent_token: !!process.env.AGENT_TOKEN,
-      assistant_override: !!process.env.ASSISTANT_OVERRIDE_TOKEN,
+      ai_coach_token: !!process.env.AI_COACH_TOKEN,
     },
     
     // Check which AI models are configured
@@ -41,7 +41,7 @@ router.get('/identity', requireAuth, (req, res) => {
     
     // Check override status
     overrides: {
-      assistant_override_active: process.env.ASSISTANT_OVERRIDE_TOKEN ? 'ENABLED' : 'DISABLED',
+      ai_coach_active: process.env.AI_COACH_TOKEN ? 'ENABLED' : 'DISABLED',
       agent_shell_whitelist: process.env.AGENT_SHELL_WHITELIST || 'restricted',
       disable_spawn_sdk: process.env.DISABLE_SPAWN_SDK === '1',
       disable_spawn_agent: process.env.DISABLE_SPAWN_AGENT === '1',
@@ -88,11 +88,11 @@ function determineLikelySystem(env) {
   }
   
   // Check if Replit native agent might be interfering
-  if (!env.ASSISTANT_OVERRIDE_TOKEN) {
+  if (!env.AI_COACH_TOKEN) {
     systems.push({
       name: 'Replit Native Agent (possible interference)',
       confidence: 'MEDIUM',
-      note: 'No override token set - Replit may be routing some requests'
+      note: 'No AI Coach token set - Replit may be routing some requests'
     });
   }
   
