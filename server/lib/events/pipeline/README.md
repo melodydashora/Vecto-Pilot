@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-10
+> **Last Verified:** 2026-02-17
 
 # Event Pipeline (`server/lib/events/pipeline/`)
 
@@ -9,7 +9,7 @@ Canonical modules for the ETL (Extract → Transform → Load) pipeline that pro
 ## Architecture
 
 ```
-RawEvent (providers) → NormalizedEvent → ValidatedEvent → StoredEvent (DB)
+RawEvent (providers) → NormalizedEvent → ValidatedEvent → GeocodedEvent → StoredEvent (DB)
                                                               ↓
 BriefingEvent ← (DB read) ← discovered_events ← (DB write)
 ```
@@ -24,6 +24,7 @@ BriefingEvent ← (DB read) ← discovered_events ← (DB write)
 | `normalizeEvent.js` | Raw → Normalized transformation | normalizeEvent, normalizeEvents, normalizeTitle, normalizeDate, normalizeTime, cleanVenueName |
 | `validateEvent.js` | Hard filter validation | validateEvent, validateEventsHard, needsReadTimeValidation |
 | `hashEvent.js` | MD5 hash for deduplication | generateEventHash, buildHashInput, eventsHaveSameHash |
+| `geocodeEvent.js` | Google Geocoding for events | geocodeEventAddress, geocodeMissingCoordinates |
 
 ## Usage
 
@@ -69,6 +70,22 @@ if (eventsHaveSameHash(event1, event2)) {
   // These are duplicates
 }
 ```
+
+### Geocoding (2026-02-17)
+
+```javascript
+import { geocodeEventAddress, geocodeMissingCoordinates } from '../events/pipeline/geocodeEvent.js';
+
+// Single event geocode (returns { lat, lng, place_id, formatted_address } or null)
+const result = await geocodeEventAddress('AT&T Stadium', 'Arlington', 'TX');
+
+// Batch geocode events missing coordinates (mutates in-place)
+const eventsWithCoords = await geocodeMissingCoordinates(validatedEvents);
+// Events now have: lat, lng, _geocoded_place_id, _geocoded_formatted_address
+```
+
+**Used by:**
+- `briefing-service.js` — per-event geocode before `findOrCreateVenue()`
 
 ## Hash Contract (2026-01-09)
 
@@ -118,7 +135,7 @@ Events where end time cannot be determined should NOT be returned by the LLM.
 
 ## When to Call Validation
 
-1. **At STORE time** (sync-events.mjs) - PRIMARY, canonical location
+1. **At STORE time** (briefing-service.js) - PRIMARY, canonical location
 2. **At READ time** ONLY for legacy rows with `schema_version < VALIDATION_SCHEMA_VERSION`
 
 This prevents redundant validation of already-clean data while ensuring legacy data is filtered.
@@ -127,8 +144,8 @@ This prevents redundant validation of already-clean data while ensuring legacy d
 
 | File | Relationship |
 |------|--------------|
-| `server/scripts/sync-events.mjs` | Primary consumer of all modules |
-| `server/lib/briefing/briefing-service.js` | Uses validateEventsHard for legacy compat |
+| `server/lib/briefing/briefing-service.js` | Consumer: normalize, validate, hash, geocode + findOrCreateVenue + deactivatePastEvents |
+| `server/lib/briefing/cleanup-events.js` | Event lifecycle: soft-deactivates past events (called per-snapshot) |
 | `server/lib/ai/providers/consolidator.js` | Uses validateEventsHard for read-time validation |
 | `server/logger/workflow.js` | Provides eventsLog for ETL phase logging |
 

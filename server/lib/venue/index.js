@@ -7,7 +7,6 @@ export { venueIntelligence, getVenueRecommendations } from './venue-intelligence
 export { enrichVenues, enrichVenueWithGoogleData } from './venue-enrichment.js';
 
 // Event integration
-export { boostFromEvents } from './event-proximity-boost.js';
 export { validateVenueEvent } from './venue-event-verifier.js';
 
 // Address resolution
@@ -30,7 +29,6 @@ export {
 // - enhanced-smart-blocks.js: Main Smart Blocks generator (VENUE_SCORER role + Google APIs)
 // - venue-intelligence.js: Venue recommendations and analysis
 // - venue-enrichment.js: Google Places/Routes enrichment
-// - event-proximity-boost.js: Boost venues near active events
 // - venue-event-verifier.js: Validate venue-specific events
 // - venue-address-resolver.js: Address normalization and lookup
 // - venue-cache.js: Venue deduplication cache with precise coordinates

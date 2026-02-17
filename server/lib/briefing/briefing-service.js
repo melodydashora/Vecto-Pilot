@@ -1,18 +1,16 @@
 
 import { db } from '../../db/drizzle.js';
-import { briefings, snapshots, discovered_events, us_market_cities, venue_catalog } from '../../../shared/schema.js';
+// 2026-02-17: Renamed market_cities → market_cities (market consolidation)
+import { briefings, snapshots, discovered_events, market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, and, desc, sql, gte, lte, ilike, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
-// Event validation disabled - Gemini handles event discovery, Claude is fallback only
-// import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
+// 2026-02-17: Removed event-schedule-validator.js (dead code — Gemini handles all event discovery)
 // 2026-01-10: Removed direct Anthropic import - use callModel adapter instead (D-016)
 // 2026-02-11: Removed direct OpenAI and GoogleGenAI imports - all AI calls go through callModel adapter
 // This ensures thinkingLevel, safety settings, and JSON cleanup are consistently applied
 import { briefingLog, OP } from '../../logger/workflow.js';
 // Centralized AI adapter - use for all model calls
 import { callModel } from '../ai/adapters/index.js';
-// 2026-01-14: REMOVED dead import - syncEventsForLocation (SerpAPI + GPT-5.2) is no longer used
-// Briefer Model now uses Gemini 3 Pro with Google Search tools for ALL discovery (events, news, school closures)
 // Dump last briefing row to file for debugging
 import { dumpLastBriefingRow } from './dump-last-briefing.js';
 
@@ -23,12 +21,20 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
 import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
 import { generateEventHash } from '../events/pipeline/hashEvent.js';
 
-// 2026-01-14: FIX - Import venue lookup for event-venue linking at discovery time
+// 2026-02-17: FIX Issue 1 (Venue Creation Gap) — geocode + findOrCreateVenue
+// Was: lookupVenueFuzzy (read-only, never created venues for new event locations)
+// Now: geocode to get place_id, then findOrCreateVenue (creates venue if new)
 // This ensures discovered_events.venue_id is populated, enabling:
 // - Events on map (coordinates from venue)
 // - Event badges on venue cards
 // - Precise location data in strategies
-import { lookupVenueFuzzy } from '../venue/venue-cache.js';
+import { findOrCreateVenue } from '../venue/venue-cache.js';
+import { geocodeEventAddress } from '../events/pipeline/geocodeEvent.js';
+
+// 2026-02-17: FIX Issue 3 (Past Event Cleanup)
+// Soft-deactivates ended events (is_active = false) before each discovery cycle
+// Prevents stale events from appearing in briefings and AI Coach queries
+import { deactivatePastEvents } from './cleanup-events.js';
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 // 2026-01-14: Moved TomTom to server/lib/traffic/ for architecture cleanup
@@ -82,11 +88,11 @@ async function getMarketForLocation(city, state) {
   try {
     // 2026-02-01: FIX - Use state_abbr (not state) since snapshot has "TX" not "Texas"
     const [marketResult] = await db
-      .select({ market_name: us_market_cities.market_name })
-      .from(us_market_cities)
+      .select({ market_name: market_cities.market_name })
+      .from(market_cities)
       .where(and(
-        ilike(us_market_cities.city, city),
-        eq(us_market_cities.state_abbr, state)
+        ilike(market_cities.city, city),
+        eq(market_cities.state_abbr, state)
       ))
       .limit(1);
 
@@ -1050,6 +1056,17 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
   const { city, state, lat, lng, timezone } = snapshot;
 
+  // 2026-02-17: FIX Issue 3 — Deactivate past events before discovery
+  // Soft-deactivates events that have ended (is_active = false, deactivated_at = NOW())
+  // Uses snapshot timezone for accurate "now" calculation — NO FALLBACKS
+  // Non-fatal: cleanup failure doesn't block event discovery
+  if (timezone) {
+    const deactivated = await deactivatePastEvents(timezone);
+    if (deactivated > 0) {
+      briefingLog.phase(2, `Cleaned up ${deactivated} past events`, OP.DB);
+    }
+  }
+
   // Get date range: today to 7 days out
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
@@ -1078,23 +1095,38 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         try {
           const hash = generateEventHash(event);
 
-          // 2026-01-14: FIX - Link event to venue at discovery time
-          // This populates venue_id, enabling map pins and event badges
+          // 2026-02-17: FIX Issue 1 (Venue Creation Gap)
+          // Was: lookupVenueFuzzy (read-only, never created venues for new event locations)
+          // Now: geocode event address → findOrCreateVenue (creates venue if new)
+          // Resolves: events at new venues stored with venue_id = NULL
           let venueId = null;
           if (event.venue_name) {
             try {
-              const matchedVenue = await lookupVenueFuzzy({
-                venueName: event.venue_name,
+              // Step 1: Geocode to get Google-verified coords + place_id
+              const geocodeResult = await geocodeEventAddress(
+                event.venue_name, city, state
+              );
+
+              // Step 2: Find existing venue or create new one
+              // Lookup order: place_id → coord_key → fuzzy name → CREATE
+              const venue = await findOrCreateVenue({
+                venue: event.venue_name,
+                address: event.address,
+                latitude: geocodeResult?.lat || null,
+                longitude: geocodeResult?.lng || null,
                 city: city,
-                state: state
-              });
-              if (matchedVenue) {
-                venueId = matchedVenue.venue_id;
-                briefingLog.info(`🔗 Linked "${event.title}" → "${matchedVenue.venue_name}"`);
+                state: state,
+                placeId: geocodeResult?.place_id || null,
+                formattedAddress: geocodeResult?.formatted_address || null
+              }, 'briefing_discovery');
+
+              if (venue) {
+                venueId = venue.venue_id;
+                briefingLog.info(`Linked "${event.title}" → "${venue.venue_name}" (${venue.venue_id?.slice(0, 8)})`);
               }
-            } catch (lookupErr) {
+            } catch (venueErr) {
               // Non-fatal - continue without link
-              briefingLog.warn(2, `Venue lookup failed for "${event.venue_name}": ${lookupErr.message}`, OP.DB);
+              briefingLog.warn(2, `Venue link failed for "${event.venue_name}": ${venueErr.message}`, OP.DB);
             }
           }
 
@@ -2597,7 +2629,7 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
   // 2026-01-09: REMOVED "FINAL SAFETY NET"
   // Trust the "No Cached Data" architecture:
   // - If DB read returns empty, accept it (location may genuinely have no events)
-  // - Events are stored in discovered_events table by sync-events.mjs
+  // - Events are stored in discovered_events table by the Gemini pipeline
   // - Multiple re-fetch attempts mask upstream bugs instead of surfacing them
 
   return briefing;

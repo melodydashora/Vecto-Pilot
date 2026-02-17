@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-01
+> **Last Verified:** 2026-02-17
 
 # Briefing Module (`server/lib/briefing/`)
 
@@ -34,8 +34,14 @@ Real-time briefing service for events, traffic, weather, news, airport condition
 | File | Purpose | Key Export |
 |------|---------|------------|
 | `briefing-service.js` | Main briefing orchestrator | `getOrGenerateBriefing(snapshotId)` |
+| `cleanup-events.js` | Soft-deactivate past events per-snapshot (2026-02-17) | `deactivatePastEvents(timezone)` |
 | `filter-for-planner.js` | Filter briefing for venue planner (2026-01-31) | `filterBriefingForPlanner(briefing, snapshot)` |
-| `event-schedule-validator.js` | Event verification (DISABLED) | `validateEventSchedules(events)` |
+| `event-schedule-validator.js` | Event verification (DISABLED — dead code) | `validateEventSchedules(events)` |
+| `event-matcher.js` | Match events ↔ venues for SmartBlocks | `matchEventsToVenues(events, venues)` |
+| `venue-event-verifier.js` | Verify event-venue matches (hours + proximity) | `verifyEventVenueMatch()` |
+| `enhanced-smart-blocks.js` | Generate SmartBlocks with event context | `generateEnhancedSmartBlocks()` |
+| `district-detection.js` | Detect entertainment districts | `detectDistrict()` |
+| `phase-emitter.js` | SSE phase progress to client | `emitPhase()` |
 | `index.js` | Module barrel exports | All briefing exports |
 | `dump-last-briefing.js` | Debug utility: dump last briefing | CLI script |
 | `dump-latest.js` | Debug utility: dump latest briefing | CLI script |
@@ -59,17 +65,27 @@ All discovery uses the centralized `callModel()` adapter with these roles:
 Events are discovered by Gemini and stored in `discovered_events` table:
 
 ```javascript
-// fetchEventsForBriefing() calls:
+// fetchEventsForBriefing() steps:
+
+// Step 0: Deactivate past events (2026-02-17)
+await deactivatePastEvents(timezone); // is_active = false for ended events
+
+// Step 1: Discover events
 const discoveryResult = await fetchEventsWithGemini3ProPreview({ snapshot });
 
-// Events are normalized, validated, and stored
+// Step 2: Normalize + validate
 const normalized = discoveryResult.items.map(e => normalizeEvent(e));
 const { valid: validatedEvents } = validateEventsHard(normalized);
 
-// Stored in discovered_events with canonical field names
+// Step 3: Geocode + venue creation (2026-02-17)
+const geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
+const venue = await findOrCreateVenue({ ... }, 'briefing_discovery');
+
+// Step 4: Store with canonical field names
 await db.insert(discovered_events).values({
   title: event.title,
   venue_name: event.venue_name,
+  venue_id: venue?.venue_id,            // linked to venue_catalog
   event_start_date: event.event_start_date,  // YYYY-MM-DD
   event_start_time: event.event_start_time,  // "7:00 PM"
   event_end_time: event.event_end_time,
@@ -103,7 +119,7 @@ Event and news searches use the **market** (e.g., "Dallas-Fort Worth") instead o
 
 **Market Source Priority:**
 1. `snapshot.market` - From `driver_profiles.market` (set at user signup)
-2. `getMarketForLocation()` fallback - Looks up `us_market_cities` table for older snapshots
+2. `getMarketForLocation()` fallback - Looks up `market_cities` table for older snapshots
 
 ```javascript
 // In fetchEventsWithGemini3ProPreview and fetchRideshareNews:

@@ -20,14 +20,15 @@
  *   PUT /api/intelligence/:id                - Update intelligence item
  *
  * City → Market Lookup (2026-01-05):
- *   - Uses us_market_cities table to map cities to their market anchor
- *   - Example: Frisco, TX → Dallas market
+ *   - Uses market_cities table to map cities to their market anchor
+ *   - Example: Frisco, TX → Dallas-Fort Worth market
  *   - Supports both full state names ("Texas") and abbreviations ("TX")
  */
 
 import express from 'express';
 import { db } from '../../db/drizzle.js';
-import { market_intelligence, platform_data, ranking_candidates, us_market_cities, market_intel } from '../../../shared/schema.js';
+// 2026-02-17: Renamed us_market_cities → market_cities (market consolidation)
+import { market_intelligence, platform_data, ranking_candidates, market_cities, market_intel, markets } from '../../../shared/schema.js';
 import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
 // 2026-02-12: Added requireAuth - intelligence routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
@@ -56,14 +57,14 @@ router.get('/markets-dropdown', async (req, res) => {
       const trimmed = state.trim();
       result = await db.execute(sql`
         SELECT DISTINCT market_name
-        FROM us_market_cities
+        FROM market_cities
         WHERE state ILIKE ${trimmed} OR state_abbr ILIKE ${trimmed}
         ORDER BY market_name
       `);
     } else {
       result = await db.execute(sql`
         SELECT DISTINCT market_name
-        FROM us_market_cities
+        FROM market_cities
         ORDER BY market_name
       `);
     }
@@ -275,8 +276,8 @@ router.post('/add-market', async (req, res) => {
     // Check if market already exists
     const existing = await db
       .select()
-      .from(us_market_cities)
-      .where(ilike(us_market_cities.market_name, trimmedMarket))
+      .from(market_cities)
+      .where(ilike(market_cities.market_name, trimmedMarket))
       .limit(1);
 
     if (existing.length > 0) {
@@ -288,22 +289,46 @@ router.post('/add-market', async (req, res) => {
       });
     }
 
-    // Add new market with optional city mapping
-    const newEntry = {
-      market_name: trimmedMarket,
-      city: city?.trim() || trimmedMarket, // Default city to market name
-      state: state?.trim() || 'Unknown',
-      state_abbr: state_abbr?.trim() || null,
-      region_type: 'Core', // New market, user's city is the core
-      source_ref: 'user_signup'
-    };
+    // 2026-02-17: Create both markets + market_cities entries (FK integrity)
+    const cityName = city?.trim() || trimmedMarket;
+    const stateName = state?.trim() || 'Unknown';
+    const stateAbbr = state_abbr?.trim() || null;
 
-    await db.insert(us_market_cities).values(newEntry);
+    // Generate slug: "Dallas-Fort Worth" + "TX" → "dallas-fort-worth-tx"
+    const slug = (trimmedMarket.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      + (stateAbbr ? `-${stateAbbr.toLowerCase()}` : ''));
+
+    // Create the market definition first (source of truth)
+    await db.insert(markets).values({
+      market_slug: slug,
+      market_name: trimmedMarket,
+      primary_city: cityName,
+      state: stateName,
+      state_abbr: stateAbbr,
+      country_code: 'US',
+      timezone: 'America/Chicago', // Placeholder — will be resolved on first snapshot
+      has_uber: true,
+      has_lyft: true,
+      is_active: true,
+    }).onConflictDoNothing();
+
+    // Then create the city → market mapping with FK
+    await db.insert(market_cities).values({
+      market_slug: slug,
+      market_name: trimmedMarket,
+      city: cityName,
+      state: stateName,
+      state_abbr: stateAbbr,
+      country_code: 'US',
+      region_type: 'Core',
+      source_ref: 'user_signup'
+    });
 
     res.json({
       success: true,
       message: 'New market added',
       market_name: trimmedMarket,
+      market_slug: slug,
       already_existed: false
     });
   } catch (error) {
@@ -316,7 +341,7 @@ router.post('/add-market', async (req, res) => {
  * GET /api/intelligence/for-location
  * Get market intelligence for a specific city/state
  *
- * 2026-01-05: New endpoint that uses us_market_cities lookup
+ * 2026-01-05: New endpoint that uses market_cities lookup
  *
  * Query params:
  *   city     - City name (e.g., "Frisco")
@@ -347,17 +372,17 @@ router.get('/for-location', async (req, res) => {
     }
 
     // Normalize state: could be "Texas" or "TX"
-    // We store both state (full name) and state_abbr (abbreviation) in us_market_cities
+    // We store both state (full name) and state_abbr (abbreviation) in market_cities
     const stateCondition = state.length === 2
-      ? eq(us_market_cities.state_abbr, state.toUpperCase())
-      : ilike(us_market_cities.state, state);
+      ? eq(market_cities.state_abbr, state.toUpperCase())
+      : ilike(market_cities.state, state);
 
     // Look up the market for this city
     const [marketMapping] = await db
       .select()
-      .from(us_market_cities)
+      .from(market_cities)
       .where(and(
-        ilike(us_market_cities.city, city),
+        ilike(market_cities.city, city),
         stateCondition
       ))
       .limit(1);
@@ -376,7 +401,7 @@ router.get('/for-location', async (req, res) => {
 
     // Now look up intel for this market
     // IMPORTANT: market_intelligence uses different naming conventions:
-    //   - "Dallas-Fort Worth" (combined) vs us_market_cities "Dallas" or "Fort Worth" (separate)
+    //   - "Dallas-Fort Worth" (combined) vs market_cities "Dallas" or "Fort Worth" (separate)
     //   - market_slug: "dallas-fort-worth"
     //
     // 2026-01-05: Use flexible matching to handle naming mismatches:
@@ -434,12 +459,12 @@ router.get('/for-location', async (req, res) => {
     // Get all cities in this market (for context)
     const marketCities = await db
       .select({
-        city: us_market_cities.city,
-        region_type: us_market_cities.region_type
+        city: market_cities.city,
+        region_type: market_cities.region_type
       })
-      .from(us_market_cities)
-      .where(eq(us_market_cities.market_name, market_name))
-      .orderBy(desc(sql`CASE WHEN region_type = 'Core' THEN 1 ELSE 2 END`), asc(us_market_cities.city));
+      .from(market_cities)
+      .where(eq(market_cities.market_name, market_name))
+      .orderBy(desc(sql`CASE WHEN region_type = 'Core' THEN 1 ELSE 2 END`), asc(market_cities.city));
 
     // Group intelligence by type
     const byType = {};

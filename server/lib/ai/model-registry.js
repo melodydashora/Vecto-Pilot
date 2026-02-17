@@ -197,23 +197,6 @@ export const MODEL_ROLES = {
     temperature: 0.1,
     // No search needed - just validation of existing data
   },
-  // 2026-02-13: Registered — was previously a direct OpenAI call in closed-venue-reasoning.js
-  VENUE_REASONING: {
-    envKey: 'VENUE_REASONING_MODEL',
-    default: 'gpt-5.2',
-    purpose: 'Explain why closed venues are still worth staging near',
-    maxTokens: 200,
-    temperature: 0.3,
-  },
-  // 2026-02-13: Registered — was previously a direct callGemini in venue-events.js
-  VENUE_EVENTS_SEARCH: {
-    envKey: 'VENUE_EVENTS_SEARCH_MODEL',
-    default: 'gemini-3-pro-preview',
-    purpose: 'Search for upcoming events at a specific venue',
-    maxTokens: 512,
-    temperature: 0.1,
-  },
-
   // ==========================
   // 4. COACH_CONVERSATIONS
   // ==========================
@@ -262,25 +245,6 @@ export const MODEL_ROLES = {
     purpose: 'Parsing unstructured market research data',
     maxTokens: 16000,
     reasoningEffort: 'low',
-  },
-
-  // ==========================
-  // 6. EVENT DISCOVERY (ETL Pipeline)
-  // ==========================
-  DISCOVERY_GPT: {
-    envKey: 'DISCOVERY_GPT_MODEL',
-    default: 'gpt-5.2',
-    purpose: 'Event discovery via GPT-5.2 (ETL Phase 1)',
-    maxTokens: 16000,
-    reasoningEffort: 'medium',
-    features: ['openai_web_search'],
-  },
-  DISCOVERY_CLAUDE: {
-    envKey: 'DISCOVERY_CLAUDE_MODEL',
-    default: 'claude-opus-4-6',
-    purpose: 'Event discovery via Claude Opus (ETL Phase 1)',
-    maxTokens: 32000,
-    features: ['web_search'],
   },
 
   // ==========================
@@ -561,7 +525,6 @@ export function getRolesByTable() {
     COACH: [],
     UTIL: [],
     CONCIERGE: [],
-    DISCOVERY: [],
     DOCS: [],
   };
 

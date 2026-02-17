@@ -1,42 +1,27 @@
-# AI Coach Data Access Layer (DAL)
+# Model Registry
 
-**File:** `server/lib/ai/coach-dal.js`
+**File:** `server/lib/ai/model-registry.js`
 
-The `CoachDAL` class serves as the central data access point for the AI Coach, providing read/write access to the full application schema. It ensures all data retrieval is scoped to a specific user and snapshot for temporal consistency.
+The **Model Registry** serves as the centralized configuration hub for all AI model interactions within the application. It acts as the single source of truth for model selection, parameter tuning, and capability assignment (e.g., Google Search, Thinking levels).
 
-## Schema Imports
+## Naming Convention
 
-The DAL imports the following schema definitions from `shared/schema.js` to build context:
+Roles are defined using the `{TABLE}_{FUNCTION}` convention, mapping directly to their downstream data consumption:
 
-*   **Core:** `snapshots`, `strategies`, `rankings`, `ranking_candidates`, `users`, `actions`
-*   **Feedback:** `venue_feedback`, `strategy_feedback`
-*   **Intelligence:** `market_intelligence`, `user_intel_notes`, `zone_intelligence`
-*   **Offer Analytics:** `offer_intelligence` (Replaced `intercepted_signals` on 2026-02-17 for structured offer analytics)
-*   **Context:** `briefings`, `venue_catalog`, `venue_metrics`, `discovered_events`
-*   **System:** `coach_conversations`, `coach_system_notes`, `news_deactivations`
-*   **Platform:** `platform_data`, `driver_profiles`, `driver_vehicles`
+*   **BRIEFING_***: Roles that populate the `briefings` table.
+*   **STRATEGY_***: Roles that populate the `strategies` table.
+*   **VENUE_***: Roles that populate `ranking_candidates` (Smart Blocks).
+*   **COACH_***: Roles that populate `coach_conversations`.
+*   **UTIL_***: Utility roles for validation or parsing (no direct DB write).
 
-## Core Methods
+## Configuration Structure
 
-### `resolveStrategyToSnapshot(strategyId)`
+Each role in `MODEL_ROLES` defines the following properties:
 
-Resolves a UI-facing `strategy_id` to the internal `snapshot_id` and `user_id`.
-
-*   **Query:** Selects from `strategies` table using `id`.
-*   **Changes:**
-    *   *2026-01-14:* Updated to query `id` column (primary key) as the legacy `strategy_id` column was dropped.
-*   **Returns:** Object `{ snapshot_id, user_id, session_id, strategy_id }` or `null`.
-
-### `getHeaderSnapshot(snapshotId)`
-
-Retrieves the "header" context for a session, establishing the ground truth for time, location, and environmental conditions.
-
-*   **Source:** `snapshots` table (Authoritative).
-*   **Fields:**
-    *   **Time:** `dow`, `hour`, `day_part_key`, `timezone`.
-    *   **Location:** `lat`, `lng`, `city`, `state`, `formatted_address`.
-    *   **Conditions:** `weather`, `air`.
-*   **Changes:**
-    *   *2026-01-14:* `airport_context` removed (data now located in `briefings.airport_conditions`).
-    *   *2026-01-10:* Clarified that location data is pulled from `snapshots`, not `users`, to ensure historical accuracy.
-*   **Note:** `timezone` is strictly required for accurate Coach context; no fallback is provided if missing.
+*   **envKey**: Environment variable for overriding the default model ID.
+*   **default**: The specific model version (e.g., `gemini-3-pro-preview`).
+*   **purpose**: Description of the role's specific task and output goals.
+*   **maxTokens**: Maximum output token limit (e.g., 4096, 8192).
+*   **temperature**: Creativity setting (0.0 - 1.0).
+*   **thinkingLevel**: (Optional) Enables extended reasoning capabilities (e.g., `'HIGH'`).
+*   **features**: (Optional) Array of enabled capabilities (e.g., `['google_search']`).

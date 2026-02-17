@@ -1,3 +1,8 @@
+Based on the code changes in `server/lib/location/getSnapshotTimeContext.js`, I will update the **Holiday Detector** section of the documentation. The code explicitly enforces strict validation for `city` and `state` (throwing `MissingLocationError` if absent), so I will clarify the "Location Context" requirement to specifically mention "City, State".
+
+Here is the updated documentation:
+
+
 ## Model Parameters
 
 ### Claude Opus 4.6 (Agent Identity)
@@ -29,3 +34,15 @@
 
 **Research (Gemini):**
 - **Model:** `gemini-3-pro-preview`
+
+### Holiday Detector
+
+**Configuration:**
+- **Model:** `callModel` Adapter (Hedged Router + Fallback)
+- **Role:** `BRIEFING_HOLIDAY`
+- **Tools:** Google Search
+- **Overrides:** `holiday-override.json`
+
+**Caching:**
+- **Type:** L1 In-memory (24h TTL)
+- **Key Strategy:** Strict Timezone-aware local date (YYYY-MM-DD) & Location Context (City, State) - No Fallbacks

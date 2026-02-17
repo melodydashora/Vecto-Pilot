@@ -93,7 +93,7 @@ export interface MarketLookupResponse {
 }
 
 // 2026-01-05: New response from /api/intelligence/for-location
-// Uses us_market_cities table (723 cities mapped to markets)
+// Uses market_cities table (723 cities mapped to markets)
 // Resolves suburbs to their market anchor (e.g., Frisco → Dallas)
 export interface ForLocationResponse {
   location: {
@@ -419,7 +419,7 @@ async function _fetchMarketLookup(city: string, state: string): Promise<MarketLo
 
 /**
  * 2026-01-05: Fetches market intel using city→market resolution
- * Uses us_market_cities table (723 cities) for better suburb coverage
+ * Uses market_cities table (723 cities) for better suburb coverage
  * Example: Frisco, TX → Dallas market → Dallas-Fort Worth intel
  */
 async function fetchForLocation(city: string, state: string): Promise<ForLocationResponse | null> {
@@ -438,7 +438,7 @@ async function fetchForLocation(city: string, state: string): Promise<ForLocatio
  * Main hook for fetching market intelligence
  *
  * 2026-01-05: Updated to use /api/intelligence/for-location endpoint
- * This uses us_market_cities table (723 cities) for better suburb coverage.
+ * This uses market_cities table (723 cities) for better suburb coverage.
  * Example: Frisco, TX → resolves to Dallas market → shows Dallas-Fort Worth intel
  */
 export function useMarketIntelligence() {
@@ -451,7 +451,7 @@ export function useMarketIntelligence() {
 
   // 2026-01-05: Single query using /api/intelligence/for-location
   // This endpoint:
-  // 1. Maps city → market using us_market_cities table (723 cities)
+  // 1. Maps city → market using market_cities table (723 cities)
   // 2. Returns market info + intelligence in one response
   // 3. Handles suburbs properly (Frisco → Dallas market)
   const forLocationQuery = useQuery({

@@ -1,16 +1,16 @@
-> **Last Verified:** 2026-01-15
+> **Last Verified:** 2026-02-17
 
 # Briefing API (`server/api/briefing/`)
 
 ## Purpose
 
-Real-time intelligence: events, traffic, news, weather summaries. Includes event discovery system with multi-model AI search.
+Real-time intelligence: events, traffic, news, weather summaries.
 
 ## Files
 
 | File | Route | Purpose |
 |------|-------|---------|
-| `briefing.js` | `/api/briefing/*` | Briefing data endpoints + event discovery |
+| `briefing.js` | `/api/briefing/*` | Briefing data endpoints |
 
 > **Note (2026-01-09):** `events.js` was deleted. SSE endpoints consolidated to `server/api/strategy/strategy-events.js`.
 
@@ -34,10 +34,8 @@ GET  /api/briefing/airport/:snapshotId        - Airport conditions
 GET  /api/briefing/weather/:snapshotId        - Fresh weather data
 ```
 
-### Daily Data Refresh
+### Discovered Events
 ```
-POST /api/briefing/refresh-daily/:snapshotId    - Refresh events + news (recommended)
-POST /api/briefing/discover-events/:snapshotId  - DEPRECATED: Events only (use refresh-daily)
 GET  /api/briefing/discovered-events/:snapshotId - Raw discovered_events data
 POST /api/briefing/confirm-event-details        - Confirm TBD event details
 ```
@@ -59,49 +57,6 @@ GET  /api/briefing/weather/realtime   - Fresh weather (requires lat, lng)
 > - `/events/briefing` - Briefing ready (DB NOTIFY)
 > - `/events/blocks` - Blocks ready (DB NOTIFY)
 > - `/events/phase` - Phase updates (EventEmitter)
-
-## Daily Data Refresh System
-
-### POST /api/briefing/refresh-daily/:snapshotId (Recommended)
-Refreshes events AND news in a single call. Called when user clicks "Refresh Daily Data" in BriefingTab.
-
-**Query Parameters:**
-- `daily=true` (default) - Use all 6 models for events (comprehensive)
-- `daily=false` - Use only SerpAPI + GPT-5.2 for events (fast)
-
-**Response:**
-```json
-{
-  "ok": true,
-  "snapshot_id": "uuid",
-  "mode": "daily",
-  "events": {
-    "total_discovered": 45,
-    "inserted": 12,
-    "skipped": 33
-  },
-  "news": {
-    "count": 5,
-    "items": [...]
-  }
-}
-```
-
-### POST /api/briefing/discover-events/:snapshotId (Deprecated)
-**DEPRECATED:** Use `/refresh-daily` instead. Events-only discovery.
-
-**Response:**
-```json
-{
-  "ok": true,
-  "snapshot_id": "uuid",
-  "mode": "daily",
-  "total_discovered": 45,
-  "inserted": 12,
-  "skipped": 33,
-  "events": [...]
-}
-```
 
 ### GET /api/briefing/events/:snapshotId
 Reads events from `discovered_events` table for snapshot's city/state, next 7 days.
@@ -210,17 +165,9 @@ The chat API parses these formats and calls the corresponding DAL functions auto
 
 ### Normal Snapshot Run
 1. Client triggers snapshot creation
-2. `fetchEventsForBriefing()` calls `syncEventsForLocation(location, false)`
-3. SerpAPI + GPT-5.2 search for events
-4. Results stored in `discovered_events` table (with dedup)
-5. Events read back and stored in `briefings.events`
-
-### On-Demand Discovery (Discover Button)
-1. User clicks "Discover Events" button
-2. POST `/api/briefing/discover-events/:snapshotId?daily=true`
-3. All 6 models run in parallel
-4. Results deduplicated and stored in `discovered_events`
-5. UI refreshes to show new events
+2. `briefing-service.js` discovers events per-snapshot using Gemini Search grounding
+3. Results normalized, validated, geocoded, and stored in `discovered_events` table (with dedup)
+4. Events read back and stored in `briefings.events`
 
 ### Event Display
 1. GET `/api/briefing/events/:snapshotId`
@@ -239,26 +186,24 @@ During event discovery, venues are automatically cached for:
 
 ```
 Event Discovery Flow (with Venue Cache):
-syncEventsForLocation()
+briefing-service.js per-snapshot discovery
     ↓
-1. LLM search (SerpAPI, GPT-5.2, Gemini, Claude, Perplexity)
+1. Gemini Search grounding discovers events
     ↓
-2. geocodeMissingCoordinates() - fill in missing lat/lng
+2. normalizeEvent() + validateEventsHard() — pipeline modules
     ↓
-3. processEventsWithVenueCache() - NEW
-   ├── lookupVenueFuzzy() - find existing venue
-   ├── findOrCreateVenue() - create if new
-   └── Update event with precise coords + venue_id
+3. geocodeMissingCoordinates() — fill in missing lat/lng
     ↓
-4. storeEvents() - insert with venue_id FK
+4. findOrCreateVenue() — link to venue_catalog
+    ↓
+5. storeEvents() — insert with venue_id FK
 ```
 
 ## Connections
 
 - **Uses:** `../../lib/briefing/briefing-service.js`
-- **Uses:** `../../scripts/sync-events.mjs` (event discovery)
 - **Schema:** `../../../shared/schema.js` (briefings, discovered_events)
-- **Called by:** Client BriefingTab, MapTab, background refresh
+- **Called by:** Client BriefingTab, MapTab
 
 ## Import Paths
 
@@ -275,10 +220,7 @@ import {
   fetchWeatherConditions
 } from '../../lib/briefing/briefing-service.js';
 
-// Event discovery
-import { syncEventsForLocation } from '../../scripts/sync-events.mjs';
-
-// Venue cache (integrated into sync-events.mjs)
+// Venue cache
 import { findOrCreateVenue, lookupVenue, getEventsForVenue } from '../../lib/venue/venue-cache.js';
 
 // Middleware

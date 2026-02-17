@@ -44,7 +44,7 @@
 | `platform_data` | `platform_data` | 14 | - |
 | `countries` | `countries` | 0 | - |
 | `markets` | `markets` | 4 | - |
-| `us_market_cities` | `us_market_cities` | 7 | - |
+| `market_cities` | `market_cities` | 7 | 2026-02-17: Renamed from `us_market_cities` → `market_cities` with `market_slug` FK to `markets` |
 | `market_intel` | `market_intel` | 6 | - |
 | `driver_profiles` | `driver_profiles` | 2 | - |
 | `driver_vehicles` | `driver_vehicles` | 2 | - |
@@ -498,9 +498,11 @@
 
 ---
 
-## `us_market_cities`
+## `market_cities`
 
-**Export:** `us_market_cities`
+> **2026-02-17:** Renamed from `us_market_cities` → `market_cities` with `market_slug` FK to `markets` table.
+
+**Export:** `market_cities`
 
 | Column | Type | Nullable | Default | References |
 |--------|------|----------|---------|------------|
@@ -509,6 +511,7 @@
 | `state_abbr` | TEXT | YES | - | - |
 | `city` | TEXT | NO | - | - |
 | `market_name` | TEXT | NO | - | - |
+| `market_slug` | TEXT | YES | - | `markets.slug` |
 | `region_type` | TEXT | NO | 'Satellite' | - |
 | `source_ref` | TEXT | YES | - | - |
 

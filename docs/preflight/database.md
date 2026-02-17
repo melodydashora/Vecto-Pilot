@@ -1,6 +1,3 @@
-Here is the updated documentation. I have completed the Session Rules section based on the code comments, added the `current_snapshot_id` field, and included the new sections for Snapshots and Lean Strategies to reflect the schema changes.
-
-
 # Pre-flight: Database
 
 Quick reference for database operations. Read before modifying any DB code.
@@ -9,7 +6,7 @@ Quick reference for database operations. Read before modifying any DB code.
 
 **All data links to `snapshot_id`.** This is the moment-in-time anchor.
 
-javascript
+```javascript
 // CORRECT - Always include snapshot_id
 await db.insert(rankings).values({
   snapshot_id: snapshotId,  // Required
@@ -21,7 +18,7 @@ await db.insert(rankings).values({
 await db.insert(rankings).values({
   ranking_id: rankingId,  // Where's snapshot_id?
 });
-
+```
 
 ## Identity & Session Architecture (2026-01-05)
 
@@ -33,6 +30,7 @@ await db.insert(rankings).values({
 
 **Session Rules:**
 - **Ephemeral**: `users` rows are deleted on logout or inactivity (60 min TTL). Do not store permanent settings here.
+- **No Location Data**: All location data goes to the `snapshots` table.
 - **Sliding Window**: `last_active_at` updates on every request.
 - **Highlander Rule**: One device per user (login on new device kills old session).
 - **Lazy Cleanup**: Expired sessions deleted on next `requireAuth` check.
@@ -44,9 +42,12 @@ await db.insert(rankings).values({
 
 The `snapshots` table is the authoritative source for location and time context.
 
+- **Ownership**: Includes `user_id` for ownership verification (required for `requireSnapshotOwnership` middleware).
 - **Market Data**: Now captures `market` from `driver_profiles.market` at creation time.
 - **Holiday Data**: Now captures `holiday` and `is_holiday` flags at creation time.
+- **Density Analysis**: Includes `h3_r8` (H3 geohash) for density analysis.
 - **Location**: Uses `coord_key` to link to `coords_cache`. Legacy fields (`city`, `state`, etc.) are deprecated.
+- **Airport Data**: `airport_context` dropped (2026-01-14). Airport data now lives in `briefings`.
 
 ## Lean Strategies (2026-01-14)
 

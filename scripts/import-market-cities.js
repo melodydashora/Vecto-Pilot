@@ -14,7 +14,8 @@
 //   --upsert     Update existing entries (default: skip existing)
 
 import { db } from '../server/db/drizzle.js';
-import { us_market_cities } from '../shared/schema.js';
+// 2026-02-17: Renamed market_cities → market_cities (market consolidation)
+import { market_cities } from '../shared/schema.js';
 import { eq, and, ilike } from 'drizzle-orm';
 import fs from 'fs';
 
@@ -124,10 +125,10 @@ async function importMarkets() {
       // Check for existing entry
       const [existing] = await db
         .select()
-        .from(us_market_cities)
+        .from(market_cities)
         .where(and(
-          ilike(us_market_cities.city, entry.city),
-          ilike(us_market_cities.state_abbr, entry.state_abbr || '')
+          ilike(market_cities.city, entry.city),
+          ilike(market_cities.state_abbr, entry.state_abbr || '')
         ))
         .limit(1);
 
@@ -140,9 +141,9 @@ async function importMarkets() {
         if (needsUpdate) {
           if (!dryRun) {
             await db
-              .update(us_market_cities)
+              .update(market_cities)
               .set({ market_name: entry.market_name, region_type: entry.region_type })
-              .where(eq(us_market_cities.id, existing.id));
+              .where(eq(market_cities.id, existing.id));
           }
           const changes = [];
           if (existing.market_name !== entry.market_name) changes.push(`market: "${existing.market_name}" → "${entry.market_name}"`);
@@ -154,7 +155,7 @@ async function importMarkets() {
         }
       } else {
         if (!dryRun) {
-          await db.insert(us_market_cities).values(entry);
+          await db.insert(market_cities).values(entry);
         }
         console.log(`  ➕ ADD: ${entry.city}, ${entry.state_abbr} → ${entry.market_name} (${entry.region_type})`);
         added++;

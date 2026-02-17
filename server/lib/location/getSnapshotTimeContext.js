@@ -62,25 +62,12 @@ export function getSnapshotTimeContext(snapshot) {
   const now = new Date();
   const localISODate = now.toLocaleDateString('en-CA', { timeZone: snapshot.timezone });
 
-  // Get day of week (0=Sunday, 6=Saturday)
-  const dayOfWeek = parseInt(
-    now.toLocaleDateString('en-US', { timeZone: snapshot.timezone, weekday: 'numeric' })
-      .replace(/\D/g, ''),
-    10
-  ) || snapshot.dow;
+  // Get day of week (0=Sunday, 6=Saturday) — already resolved in snapshot
+  const dayOfWeek = snapshot.dow;
 
-  // Get hour (0-23)
-  const hour = parseInt(
-    now.toLocaleTimeString('en-US', { timeZone: snapshot.timezone, hour: 'numeric', hour12: false }),
-    10
-  ) || snapshot.hour;
-
-  // Day part calculation
-  let dayPart;
-  if (hour >= 5 && hour < 12) dayPart = 'morning';
-  else if (hour >= 12 && hour < 17) dayPart = 'afternoon';
-  else if (hour >= 17 && hour < 21) dayPart = 'evening';
-  else dayPart = 'night';
+  // Hour and day part — already resolved in snapshot
+  const hour = snapshot.hour;
+  const dayPart = snapshot.day_part_key || 'night';
 
   // Weekend check
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
@@ -148,10 +135,12 @@ export function formatLocalTime(snapshot) {
   const context = getSnapshotTimeContext(snapshot);
 
   // Use local_iso if available for precision
+  // 2026-02-17: FIX - local_iso stores wall-clock time as fake UTC (timestamp without timezone).
+  // Use timeZone: 'UTC' to prevent double-conversion.
   const baseTime = snapshot.local_iso ? new Date(snapshot.local_iso) : new Date();
 
   return baseTime.toLocaleString('en-US', {
-    timeZone: context.timeZone,
+    timeZone: 'UTC',
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -186,4 +175,34 @@ export function isToday(dateStr, snapshot) {
   }
 
   return normalizedDate === context.localISODate;
+}
+
+/**
+ * 2026-02-17: Convert a UTC ISO timestamp to a local time string.
+ * Used when briefing data (weather observedAt, traffic fetchedAt, etc.) has
+ * UTC timestamps that need to be shown in the driver's local time for LLM prompts.
+ *
+ * NOTE: This is for REAL UTC timestamps (e.g., from Google Weather API).
+ * Do NOT use this for local_iso values — those are already local time stored as fake UTC.
+ * For local_iso, use formatLocalTime() instead.
+ *
+ * @param {string} isoString - UTC ISO timestamp (e.g., "2026-02-17T09:08:36.565Z")
+ * @param {string} timezone - IANA timezone (e.g., "America/Chicago")
+ * @returns {string} Local time string (e.g., "3:08 AM CST")
+ */
+export function toLocalTimeString(isoString, timezone) {
+  if (!isoString || !timezone) return isoString;
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleString('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZoneName: 'short'
+    });
+  } catch {
+    return isoString;
+  }
 }

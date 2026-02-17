@@ -9,7 +9,6 @@ import { TrafficCard } from "./briefing/TrafficCard";
 import { NewsCard } from "./briefing/NewsCard";
 import { AirportCard } from "./briefing/AirportCard";
 import { SchoolClosuresCard } from "./briefing/SchoolClosuresCard";
-import { DailyRefreshCard } from "./briefing/DailyRefreshCard";
 
 interface BriefingEvent {
   title?: string;
@@ -144,8 +143,6 @@ const BriefingTab = memo(function BriefingTab({
         consolidatedStrategy={consolidatedStrategy}
         areCriticalBriefingsLoading={!!areCriticalBriefingsLoading}
       />
-
-      <DailyRefreshCard snapshotId={snapshotId} />
 
       <WeatherCard weatherData={weatherData} />
 

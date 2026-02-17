@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-10
+> **Last Verified:** 2026-02-17
 
 # Venue Module (`server/lib/venue/`)
 
@@ -200,8 +200,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | `venue-enrichment.js` | Google Places/Routes data | `enrichVenue()`, `getBatchDriveTimes()` |
 | `venue-address-resolver.js` | Batch geocoding | `resolveAddresses()` |
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
-| `event-proximity-boost.js` | Airport proximity scoring | `calculateProximityBoost()` |
-| `venue-cache.js` | Venue deduplication cache | `findOrCreateVenue()`, `lookupVenue()` |
+| `venue-cache.js` | Venue deduplication cache + timezone | `findOrCreateVenue()`, `lookupVenue()` |
 | `venue-utils.js` | Venue consolidation utilities | `parseAddressComponents()`, `calculateIsOpenFromHoursTextMap()` (**Note:** `generateCoordKey` is now imported from `server/lib/location/coords-key.js`) |
 | `district-detection.js` | Entertainment district identification | `detectDistrict()` |
 | `event-matcher.js` | Event-to-venue matching | `matchEventsToVenues()` |
@@ -224,10 +223,7 @@ generateEnhancedSmartBlocks(snapshotId)
 4. venue-event-verifier.js
    └── Verify events with Gemini (optional)
     ↓
-5. event-proximity-boost.js
-   └── Apply airport proximity scores
-    ↓
-6. Write to rankings + ranking_candidates tables
+5. Write to rankings + ranking_candidates tables
 ```
 
 ## Usage
