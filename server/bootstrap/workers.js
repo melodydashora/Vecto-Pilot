@@ -9,8 +9,7 @@ import path from 'node:path';
 // Track spawned child processes for graceful shutdown
 const children = new Map();
 
-// Track in-process jobs
-let eventSyncJob = null;
+// 2026-02-17: eventSyncJob removed — events sync per-snapshot via briefing pipeline
 let isShuttingDown = false;
 const workerLogPath = path.join(os.tmpdir(), 'worker.log');
 
@@ -183,27 +182,7 @@ export function killAllChildren(signal = 'SIGTERM') {
     child.kill(signal);
   });
 
-  // Stop in-process jobs
-  if (eventSyncJob) {
-    eventSyncJob.stop();
-    eventSyncJob = null;
-  }
-}
-
-/**
- * Start the daily event sync job
- * Runs in-process (not spawned) for simplicity
- */
-export async function startEventSyncJob() {
-  try {
-    const { startEventSyncJob: startJob } = await import('../jobs/event-sync-job.js');
-    eventSyncJob = startJob();
-    console.log('[gateway] ✅ Event sync job started');
-    return eventSyncJob;
-  } catch (err) {
-    console.error('[gateway] ❌ Failed to start event sync job:', err.message);
-    return null;
-  }
+  // 2026-02-17: eventSyncJob cleanup removed — no longer runs on server start
 }
 
 

@@ -1,10 +1,10 @@
-> **Last Verified:** 2026-01-10
+> **Last Verified:** 2026-02-17
 
 # Location Module (`server/lib/location/`)
 
 ## Purpose
 
-Location services including geocoding utilities, holiday detection, snapshot context, coordinate key generation, and data validation.
+Location services including geocoding utilities, timezone resolution, holiday detection, snapshot context, coordinate key generation, and data validation.
 
 ## Structure
 
@@ -18,6 +18,7 @@ location/
 ├── getSnapshotTimeContext.js   # Time context extraction from snapshots
 ├── holiday-detector.js         # Holiday detection + overrides
 ├── index.js                    # Module barrel exports
+├── resolveTimezone.js          # Shared timezone resolution (NEW 2026-02-17)
 ├── validation-gates.js         # Location freshness checks
 └── weather-traffic-validator.js # Weather/traffic validation
 ```
@@ -34,6 +35,7 @@ location/
 | `getSnapshotTimeContext.js` | Time context extraction | `getSnapshotTimeContext()` |
 | `holiday-detector.js` | Holiday detection | `detectHoliday(city, state, date)` |
 | `index.js` | Module barrel exports | All location exports |
+| `resolveTimezone.js` | Shared timezone resolution | `resolveTimezone()`, `resolveTimezoneFromMarket()`, `resolveTimezoneFromCoords()` |
 | `validation-gates.js` | Freshness checks | `isLocationFresh()`, `isSnapshotValid()` |
 | `weather-traffic-validator.js` | Data validation | `validateConditions()` |
 
@@ -85,6 +87,36 @@ For backward compatibility, these aliases are exported but deprecated:
 - `server/lib/venue/venue-enrichment.js` - places_cache.coords_key
 - `server/lib/venue/venue-utils.js` - venue deduplication
 
+## resolveTimezone.js - Shared Timezone Resolution (NEW 2026-02-17)
+
+**Single source of truth** for timezone resolution, extracted from:
+- `lookupMarketTimezone()` — was private in `location.js:49-112`
+- `getTimezoneForCoords()` — from `geocode.js:86-111`
+
+### Exports
+
+```javascript
+import { resolveTimezoneFromMarket, resolveTimezoneFromCoords, resolveTimezone } from './resolveTimezone.js';
+
+// Fast path: Market lookup (~5ms, no API call)
+// 4 progressive strategies: city+state → alias+state → city-only → alias-only
+const result = await resolveTimezoneFromMarket('Dallas', 'TX');
+// → { timezone: 'America/Chicago', market_slug: 'dfw', market_name: 'DFW Metro' } | null
+
+// Slow path: Google Timezone API fallback (~200-300ms)
+const tz = await resolveTimezoneFromCoords(32.7767, -96.7970);
+// → 'America/Chicago' | null
+
+// Combined: market-first, Google API fallback, throws on failure
+const full = await resolveTimezone({ city: 'Dallas', state: 'TX', lat: 32.7767, lng: -96.7970 });
+// → { timezone, market_slug?, market_name?, source: 'market' | 'google_api' }
+```
+
+**Consumers:**
+- `server/api/location/location.js` — snapshot timezone resolution + Google OAuth backfill
+- `server/lib/venue/venue-cache.js` — timezone on venue creation
+- `server/scripts/backfill-timezone.js` — one-time migration
+
 ## geo.js - Distance Functions
 
 The haversine functions calculate great-circle distance between coordinates:
@@ -108,7 +140,7 @@ if (distance < 100) {
 **Used By:**
 - `server/api/location/location.js` - 100m threshold for users table reuse
 - `server/lib/strategy/strategy-triggers.js` - Distance-based strategy triggers
-- `server/lib/venue/event-proximity-boost.js` - Event proximity scoring
+- `server/lib/venue/venue-enrichment.js` - Venue distance scoring
 - `server/lib/external/faa-asws.js` - Airport distance calculation
 
 ## Usage

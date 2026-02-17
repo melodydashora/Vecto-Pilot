@@ -8,7 +8,7 @@
  * All callers must use this module - no duplicate implementations allowed.
  *
  * WHEN TO CALL:
- * - At STORE time (sync-events.mjs) - PRIMARY, canonical location
+ * - At STORE time (briefing-service.js) - PRIMARY, canonical location
  * - At READ time ONLY for legacy rows with schema_version < current
  *
  * @module server/lib/events/pipeline/validateEvent

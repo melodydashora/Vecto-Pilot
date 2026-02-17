@@ -2,7 +2,7 @@
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/chat` | POST | `server/api/chat/chat.js` | AI Coach chat with SSE streaming + action parsing (Notes, Events (Add/Edit/Status), Memos) & validation |
+| `/api/chat` | POST | `server/api/chat/chat.js` | AI Coach chat with SSE streaming + action parsing (Notes, Events (Add/Edit/Status), Memos, News, Zone Intel) & validation |
 | `/api/chat/notes` | POST | `server/api/chat/chat.js` | Save a coach note about the user |
 | `/api/chat/notes` | GET | `server/api/chat/chat.js` | Get user's coach notes |
 | `/api/chat/notes/:noteId` | DELETE | `server/api/chat/chat.js` | Delete a coach note (soft delete) |

@@ -25,13 +25,19 @@ const holidayCache = new Map();
 
 /**
  * Generate cache key for holiday detection
- * @param {Date} date - The date to check
+ * 2026-02-17: FIX - Uses timezone-aware local date, NOT UTC date
+ * UTC date can be a day ahead of driver's local date (e.g., 10 PM CST = Feb 16, but UTC = Feb 17)
+ * @param {Date} date - The date to check (UTC)
  * @param {string} city - City name
  * @param {string} country - Country code
+ * @param {string} timezone - IANA timezone (e.g., 'America/Chicago')
  * @returns {string} Cache key
  */
-function getHolidayCacheKey(date, city, country) {
-  const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+function getHolidayCacheKey(date, city, country, timezone) {
+  // Use timezone-aware date to avoid UTC date mismatch
+  const dateStr = timezone
+    ? new Date(date.toLocaleString('en-US', { timeZone: timezone })).toLocaleDateString('en-CA') // YYYY-MM-DD
+    : date.toISOString().split('T')[0]; // Fallback to UTC if no timezone
   return `${dateStr}|${city?.toLowerCase() || 'unknown'}|${country?.toLowerCase() || 'us'}`;
 }
 
@@ -148,7 +154,8 @@ export async function detectHoliday(context) {
 
   // L1 Cache Check - before any API calls
   // Updated 2026-01-05: Reduces redundant Gemini API calls
-  const cacheKey = getHolidayCacheKey(checkDate, context.city, context.country || 'us');
+  // 2026-02-17: FIX - Pass timezone for local-date-aware cache key
+  const cacheKey = getHolidayCacheKey(checkDate, context.city, context.country || 'us', context.timezone);
   const cached = getFromHolidayCache(cacheKey);
   if (cached) {
     return cached;

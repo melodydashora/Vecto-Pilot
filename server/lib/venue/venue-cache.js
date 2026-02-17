@@ -15,6 +15,8 @@ import {
   mergeVenueTypes
 } from './venue-utils.js';
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
+// 2026-02-17: Shared timezone resolution — set timezone + market_slug on venue creation
+import { resolveTimezoneFromMarket } from '../location/resolveTimezone.js';
 
 // Re-export utils for backward compatibility
 export { normalizeVenueName };
@@ -215,7 +217,10 @@ export async function insertVenue(venue) {
     // 2026-01-14: Progressive Enrichment fields
     is_bar: venue.isBar || false,
     is_event_venue: venue.isEventVenue || false,
-    record_status: venue.recordStatus || 'stub'
+    record_status: venue.recordStatus || 'stub',
+    // 2026-02-17: Market linkage + timezone (from resolveTimezoneFromMarket)
+    market_slug: venue.marketSlug || null,
+    timezone: venue.timezone || null
   };
 
   // 2026-01-10: AUDIT FIX - Use onConflictDoUpdate to always return a record
@@ -500,6 +505,20 @@ export async function findOrCreateVenue(eventData, source) {
   // Create new venue with District Tagging
   const district = extractDistrictFromVenueName(venueName);
 
+  // 2026-02-17: Resolve timezone + market_slug from market lookup
+  // Non-blocking: venue creation succeeds even if timezone resolution fails
+  let venueTimezone = null;
+  let venueMarketSlug = null;
+  try {
+    const tzResult = await resolveTimezoneFromMarket(city, state);
+    if (tzResult) {
+      venueTimezone = tzResult.timezone;
+      venueMarketSlug = tzResult.market_slug;
+    }
+  } catch (_err) {
+    // Non-fatal — timezone is a nice-to-have, not required for venue creation
+  }
+
   // 2026-01-10: AUDIT FIX - Include place_id and formatted_address in new venue
   // 2026-01-14: Progressive Enrichment - Set isEventVenue flag for event-discovered venues
   const created = await insertVenue({
@@ -517,7 +536,10 @@ export async function findOrCreateVenue(eventData, source) {
     district: district,
     // 2026-01-14: Progressive Enrichment - Mark as event venue
     isEventVenue: true,
-    recordStatus: 'enriched' // Events have geocoded addresses but not full bar details
+    recordStatus: 'enriched', // Events have geocoded addresses but not full bar details
+    // 2026-02-17: Market linkage + timezone
+    timezone: venueTimezone,
+    marketSlug: venueMarketSlug
   });
 
   return created;

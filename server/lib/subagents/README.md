@@ -1,36 +1,14 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-02-17
 
 # Subagents
 
 Specialized AI subagents for specific tasks.
 
-## Files
+## Status
 
-| File | Purpose |
-|------|---------|
-| `event-verifier.js` | Verifies events discovered by AI |
+**Empty** — All subagent files have been removed as dead code (2026-02-17).
 
-## Event Verifier
-
-Validates events found during briefing generation:
-- Confirms event exists via web search
-- Verifies date/time accuracy
-- Checks venue/location details
-- Returns confidence score
-
-### Usage
-
-```javascript
-import { verifyEvent } from './subagents/event-verifier.js';
-
-const result = await verifyEvent({
-  title: 'Taylor Swift Concert',
-  venue: 'AT&T Stadium',
-  date: '2025-01-15',
-  city: 'Arlington, TX'
-});
-// { verified: true, confidence: 0.95, source: 'ticketmaster.com' }
-```
+- `event-verifier.js` — DELETED. Was never integrated into the pipeline. Event validation is handled by rule-based `validateEventsHard()` in `server/lib/events/pipeline/validateEvent.js` (faster, cheaper, no LLM call needed).
 
 ## Adding New Subagents
 
@@ -39,6 +17,7 @@ Subagents should:
 2. Return structured results with confidence scores
 3. Handle failures gracefully
 4. Log operations for debugging
+5. **Be imported and called from at least one active pipeline** (avoid dead code)
 
 ## See Also
 

@@ -1,7 +1,4 @@
-Here is the updated documentation reflecting the changes in `server/agent/config-manager.js`, specifically updating the **File Access Control** section to include the expanded scope of allowed configuration files (such as assistant policies and testing configs) found in the code.
-
-
-## ⚠️ Security Notice (Updated 2026-01-07)
+## ⚠️ Security Notice (Updated 2026-02-17)
 
 **This module exposes powerful admin operations and MUST be protected.**
 
@@ -18,10 +15,11 @@ Here is the updated documentation reflecting the changes in `server/agent/config
 1. **Env Gate:** Agent routes return 503 unless `AGENT_ENABLED=true`
 2. **IP Allowlist:** Requests blocked unless from allowed IPs
    - ⚠️ **2026-01-07:** Wildcard `*` is now blocked in production
+   - ℹ️ **2026-02-17:** `/memory` routes are exempt from IP restrictions (safe for browser clients)
 3. **Auth Required:** All routes (except `/health`) require valid JWT token
 4. **Admin Required:** Dangerous operations (`/agent/config/env/update`, `/agent/config/backup`) require admin user
 5. **WebSocket Auth:** WS connections require `?token=` query parameter
-6. **File Access Control:** Configuration operations are restricted to a strict allowlist of files (e.g., `.env`, `package.json`, build/test configs, documentation, root server files, and assistant policies) defined in `config-manager.js`.
+6. **File Access Control:** Configuration operations are restricted to a strict allowlist of files (e.g., `.env`, `package.json`, build/test/linting configs, Docker/Replit files, monorepo tools, root server files, and assistant policies) defined in `config-manager.js`.
 
 ### Admin-Only Routes (2026-01-07)
 

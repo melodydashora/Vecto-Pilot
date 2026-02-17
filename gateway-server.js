@@ -52,7 +52,8 @@ process.on('unhandledRejection', (reason, promise) => {
     const { configureHealthEndpoints, mountHealthRouter } = await import('./server/bootstrap/health.js');
     const { configureMiddleware, configureErrorHandler } = await import('./server/bootstrap/middleware.js');
     const { mountRoutes, mountSSE, mountUnifiedCapabilities } = await import('./server/bootstrap/routes.js');
-    const { startStrategyWorker, shouldStartWorker, killAllChildren, startEventSyncJob } = await import('./server/bootstrap/workers.js');
+    // 2026-02-17: Removed startEventSyncJob — events sync per-snapshot via briefing pipeline
+    const { startStrategyWorker, shouldStartWorker, killAllChildren } = await import('./server/bootstrap/workers.js');
 
     // Health endpoints FIRST (before any heavy imports)
     configureHealthEndpoints(app, distDir, MODE);
@@ -162,10 +163,7 @@ process.on('unhandledRejection', (reason, promise) => {
         console.log(`[gateway] ⏸️ Worker not started: ${workerConfig.reason}`);
       }
 
-      // Start daily event sync job (runs at 6 AM daily)
-      if (!isAutoscaleMode) {
-        startEventSyncJob();
-      }
+      // 2026-02-17: Event sync removed from server start — events sync per-snapshot via briefing pipeline
 
       // Start change analyzer job (runs on startup, flags doc updates needed)
       if (!isAutoscaleMode) {

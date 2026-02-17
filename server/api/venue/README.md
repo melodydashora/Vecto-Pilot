@@ -1,18 +1,24 @@
-> **Last Verified:** 2026-02-01
+> **Last Verified:** 2026-02-17
 
 # Venue API (`server/api/venue/`)
 
 ## Purpose
 
-Venue intelligence, events, and closed venue reasoning.
+Venue intelligence and recommendations for rideshare drivers.
 
 ## Files
 
 | File | Route | Purpose |
 |------|-------|---------|
 | `venue-intelligence.js` | `/api/venues/*` | Venue recommendations |
-| `venue-events.js` | `/api/venue/events/*` | Venue-specific events |
-| `closed-venue-reasoning.js` | `/api/closed-venue-reasoning` | GPT-5 reasoning |
+| `index.js` | — | Barrel exports |
+
+### Removed Files (2026-02-17)
+
+| File | Reason |
+|------|--------|
+| `venue-events.js` | Fully duplicated by `event-matcher.js` + `venue-event-verifier.js` in SmartBlocks pipeline |
+| `closed-venue-reasoning.js` | Fully duplicated by `tactical-planner.js` (`strategic_timing` field in `ranking_candidates`) |
 
 ## Endpoints
 
@@ -26,29 +32,20 @@ GET  /api/venues/smart-blocks     - Get smart blocks for venues
 GET  /api/venues/last-call        - Venues near closing time
 ```
 
-### Venue Events
-```
-GET  /api/venue/events/:placeId   - Events at specific venue
-POST /api/venue/events            - Add event to venue
-```
-
-### Closed Venue Reasoning
-```
-POST /api/closed-venue-reasoning  - Why venue is closed + alternatives
-```
-
 ## Data Enrichment
 
 Venues are enriched with:
 - Business hours (Google Places API)
-- Events (Gemini + Google Search)
+- Events (SmartBlocks event-matcher.js + venue-event-verifier.js)
 - Drive time (Google Routes API)
 - Address verification
+- Timezone (resolved from markets table via `resolveTimezoneFromMarket`)
 
 ## Connections
 
 - **Uses:** `../../lib/venue/venue-enrichment.js`
 - **Uses:** `../../lib/venue/venue-intelligence.js`
+- **Uses:** `../../lib/location/resolveTimezone.js` (timezone on venue creation)
 - **Uses:** Google Places API, Routes API
 - **Called by:** Strategy pipeline, venue cards
 

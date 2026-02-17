@@ -22,10 +22,9 @@ import { eq, inArray, or, ilike, sql } from 'drizzle-orm';
 import { callModel } from '../adapters/index.js';
 import { triadLog, aiLog, dbLog, OP } from '../../../logger/workflow.js';
 import { isOpenNow } from '../../venue/venue-hours.js';
+// 2026-02-17: Use canonical timezone module for ALL time resolution (single source of truth)
+import { formatLocalTime } from '../../location/getSnapshotTimeContext.js';
 // 2026-01-09: Use canonical validation module
-// 2026-01-10: READ-time validation runs on ALL events (no schema_version tracking in DB)
-// This is safe but redundant for new briefings that were validated at STORE time
-// Future optimization: add schema_version to discovered_events to skip re-validation
 import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../../events/pipeline/validateEvent.js';
 
 /**
@@ -35,7 +34,7 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
  * Uses canonical validateEventsHard module.
  *
  * NOTE: This is safe but potentially redundant for new briefings that were
- * already validated at STORE time in sync-events.mjs. Without schema_version
+ * already validated at STORE time in briefing-service.js. Without schema_version
  * tracking in discovered_events table, we cannot skip re-validation.
  *
  * Future optimization: Add schema_version column to discovered_events
@@ -154,27 +153,8 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
     return { strategy: '' };
   }
 
-  // Format time from snapshot - NO FALLBACK for timezone
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const dayOfWeek = snapshot.dow != null ? dayNames[snapshot.dow] : 'Unknown';
-  const isWeekend = snapshot.dow === 0 || snapshot.dow === 6;
-  // Only format localTime if we have timezone, otherwise show raw ISO or Unknown
-  let localTime = 'Unknown time';
-  if (snapshot.local_iso && snapshot.timezone) {
-    localTime = new Date(snapshot.local_iso).toLocaleString('en-US', {
-      timeZone: snapshot.timezone,
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-  } else if (snapshot.local_iso) {
-    // No timezone - show ISO without formatting
-    localTime = `${snapshot.local_iso} (timezone unknown)`;
-  }
+  // 2026-02-17: Use snapshot directly — it has everything resolved from GlobalHeader
+  const localTime = formatLocalTime(snapshot);
 
   try {
     // 2026-01-08: Pre-format events (now async to lookup venue hours from venue_catalog)
@@ -199,7 +179,7 @@ TRAFFIC IMPACT: ${briefing.traffic?.driverImpact || briefing.traffic?.headline |
 EVENTS (next 6 hours):
 ${formattedEvents}
 
-WEATHER: ${JSON.stringify(snapshot.weather)}
+WEATHER: ${JSON.stringify(optimizeWeatherForLLM(snapshot.weather))}
 
 NEWS (today):
 ${JSON.stringify(optimizeNewsForLLM(briefing.news), null, 1)}
@@ -458,6 +438,27 @@ function formatTime12h(timeStr) {
   const standardHour = hours % 12 || 12;
 
   return `${standardHour}:${minutes} ${suffix}`;
+}
+
+/**
+ * 2026-02-17: Optimize weather data for LLM.
+ * Strips metadata timestamps — the snapshot already tells the LLM what time it is.
+ * observedAt is just "when we fetched" noise that confuses the model.
+ */
+function optimizeWeatherForLLM(weather) {
+  if (!weather) return null;
+  const { observedAt, ...rest } = weather;
+  return rest;
+}
+
+/**
+ * 2026-02-17: Optimize traffic data for LLM.
+ * Strips fetchedAt — the snapshot already tells the LLM what time it is.
+ */
+function optimizeTrafficForLLM(traffic) {
+  if (!traffic) return null;
+  const { fetchedAt, ...rest } = traffic;
+  return rest;
 }
 
 /**
@@ -749,8 +750,8 @@ export async function runConsolidator(snapshotId, options = {}) {
     const closuresData = parseJsonField(briefingRow.school_closures);
     const airportData = parseJsonField(briefingRow.airport_conditions);
 
-    // 2026-01-09: Apply canonical validation at READ time for legacy briefings
-    // New briefings are validated at STORE time in sync-events.mjs
+    // Apply canonical validation at READ time for legacy briefings
+    // New briefings are validated at STORE time in briefing-service.js
     const eventsData = filterEventsReadTime(rawEventsData);
 
     // Filter out deactivated news for this user
@@ -778,33 +779,14 @@ export async function runConsolidator(snapshotId, options = {}) {
     const lat = snapshot.lat;
     const lng = snapshot.lng;
 
-    // Format time context from snapshot - NO FALLBACK for timezone
+    // 2026-02-17: Use snapshot directly — it has everything resolved from GlobalHeader
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dow = snapshot.dow;
-    const dayOfWeek = dow != null ? dayNames[dow] : 'Unknown';
-    const isWeekend = dow === 0 || dow === 6;
-    // Only format localTime if we have timezone
-    let localTime = 'Unknown time';
-    if (snapshot.local_iso && snapshot.timezone) {
-      localTime = new Date(snapshot.local_iso).toLocaleString('en-US', {
-        timeZone: snapshot.timezone,
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
-    } else if (snapshot.local_iso) {
-      localTime = `${snapshot.local_iso} (timezone unknown)`;
-    }
-    const dayPart = snapshot.day_part_key || 'unknown';
-    const isHoliday = snapshot.is_holiday || false;
-    const holiday = snapshot.holiday || null;
+    const dayOfWeek = dayNames[snapshot.dow] || 'Unknown';
+    const isWeekend = snapshot.dow === 0 || snapshot.dow === 6;
+    const localTime = formatLocalTime(snapshot);
 
     triadLog.phase(3, `Location: ${userAddress}`);
-    triadLog.phase(3, `Time: ${localTime} (${dayPart})`);
+    triadLog.phase(3, `Time: ${localTime} (${snapshot.day_part_key})`);
 
     // Step 4: Build Daily Strategy prompt with RAW briefing JSON
     // This is the DAILY STRATEGY (8-12 hours) that goes to the Briefing Tab
@@ -818,11 +800,11 @@ Coordinates: ${lat}, ${lng}
 Timezone: ${snapshot.timezone}
 Current Time: ${localTime}
 Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
-Day Part: ${dayPart}
-${isHoliday ? `HOLIDAY: ${holiday}` : ''}
+Day Part: ${snapshot.day_part_key}
+${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
 === CURRENT_TRAFFIC_DATA ===
-${JSON.stringify(trafficData, null, 2)}
+${JSON.stringify(optimizeTrafficForLLM(trafficData), null, 2)}
 
 === CURRENT_EVENTS_DATA (optimized - today's events with venue status) ===
 ${JSON.stringify(optimizeEventsForLLM(eventsData, venueStatusMap).slice(0, 20), null, 1)}
@@ -831,7 +813,7 @@ ${JSON.stringify(optimizeEventsForLLM(eventsData, venueStatusMap).slice(0, 20), 
 ${JSON.stringify(optimizeNewsForLLM(newsData), null, 1)}
 
 === CURRENT_WEATHER_DATA ===
-${JSON.stringify(weatherData, null, 2)}
+${JSON.stringify(optimizeWeatherForLLM(weatherData), null, 2)}
 
 === SCHOOL_CLOSURES_DATA (within 10mi of driver - TODAY ONLY) ===
 ${formatSchoolClosuresSummary(closuresData, snapshot.timezone)}

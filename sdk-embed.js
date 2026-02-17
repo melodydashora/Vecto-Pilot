@@ -7,13 +7,13 @@ import actionsRoutes from "./server/api/feedback/actions.js";
 import researchRoutes from "./server/api/research/research.js";
 import feedbackRoutes from "./server/api/feedback/feedback.js";
 import diagnosticsRoutes from "./server/api/health/diagnostics.js";
-import venueEventsRoutes from "./server/api/venue/venue-events.js";
+// 2026-02-17: Removed venue-events.js (duplicated by SmartBlocks event-matcher.js)
 import snapshotRoutes from "./server/api/location/snapshot.js";
 import jobMetricsRoutes from "./server/api/health/job-metrics.js";
 import mlHealthRoutes from "./server/api/health/ml-health.js";
 import chatRoutes from "./server/api/chat/chat.js";
 import chatContextRoutes from "./server/api/chat/chat-context.js";
-import closedVenueReasoningRoutes from "./server/api/venue/closed-venue-reasoning.js";
+// 2026-02-17: Removed closed-venue-reasoning.js (duplicated by tactical-planner.js)
 import strategyRoutes from "./server/api/strategy/strategy.js";
 import diagnosticsStrategyRoutes from "./server/api/health/diagnostics-strategy.js";
 import contentBlocksRoutes from "./server/api/strategy/content-blocks.js";
@@ -77,13 +77,13 @@ export default function createSdkRouter(opts = {}) {
   r.use('/research', researchRoutes);
   r.use('/feedback', feedbackRoutes);
   r.use('/diagnostics', diagnosticsRoutes);
-  r.use('/venue/events', venueEventsRoutes);
+  // 2026-02-17: Removed venue/events route (duplicated by SmartBlocks pipeline)
   r.use('/snapshot', snapshotRoutes);
   r.use('/metrics/jobs', jobMetricsRoutes);
   r.use('/ml', mlHealthRoutes);
   r.use('/chat', chatRoutes); // AI Coach
   r.use('/chat', chatContextRoutes); // Read-only context for AI Coach
-  r.use('/closed-venue-reasoning', closedVenueReasoningRoutes); // Closed venue reasoning (GPT-5)
+  // 2026-02-17: Removed closed-venue-reasoning route (duplicated by tactical-planner.js)
   r.use('/strategy', strategyRoutes); // Model-agnostic strategy API (minstrategy + briefing + consolidation)
   r.use('/diagnostics', diagnosticsStrategyRoutes); // Strategy pipeline test routes
   

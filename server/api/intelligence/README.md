@@ -89,7 +89,7 @@ Response:
 
 ## City → Market Lookup (2026-01-05)
 
-The `/api/intelligence/for-location` endpoint uses the `us_market_cities` table to map any US city to its rideshare market. This enables:
+The `/api/intelligence/for-location` endpoint uses the `market_cities` table to map any city to its rideshare market. This enables:
 
 - **"Frisco, TX → Dallas market"** - Suburbs resolve to their metro market
 - **Market-level intel aggregation** - Intel written for "Dallas" applies to all 21 cities in the Dallas market
@@ -132,7 +132,7 @@ GET /api/intelligence/for-location?city=Frisco&state=Texas
 
 | Table | Purpose |
 |-------|---------|
-| `us_market_cities` | Maps 700+ US cities to their market anchors |
+| `market_cities` | Maps 700+ cities to their market anchors (2026-02-17: renamed from `us_market_cities` with FK to `markets`) |
 | `market_intel` | Simplified market-level insights (new) |
 | `market_intelligence` | Rich intel with zones, neighborhoods, tags |
 

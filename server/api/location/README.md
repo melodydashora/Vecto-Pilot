@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-01
+> **Last Verified:** 2026-02-17
 
 # Location API (`server/api/location/`)
 
@@ -85,13 +85,14 @@ GPS coords → /api/location/resolve
 2. Server can also pull from users table if client data missing (fallback)
 3. Enriches with airport proximity, holiday detection
 4. **2026-02-01:** Copies `market` from `driver_profiles.market` (for market-wide event discovery)
-5. Stores complete context in snapshots table
+5. **2026-02-17:** Google OAuth backfill — if `driver_profiles.market` is NULL, resolves from GPS city/state and sets `market` + `home_timezone` on first snapshot
+6. Stores complete context in snapshots table
 
 **Market Field (2026-02-01):**
 - Snapshots now include a `market` column (e.g., "Dallas-Fort Worth")
 - Copied from `driver_profiles.market` at snapshot creation time
 - Used by briefing service for market-wide event/news discovery
-- Avoids repeated `us_market_cities` lookups during briefing generation
+- Avoids repeated `market_cities` lookups during briefing generation
 
 ## Caching (Four-Tier)
 
@@ -102,11 +103,12 @@ GPS coords → /api/location/resolve
 | 3 | `markets` | City/suburb | Known market → pre-stored timezone |
 | 4 | Google API | Exact | Cache miss, new location |
 
-**Market Timezone Fast-Path (New Jan 2026):**
-- 102 global markets with pre-stored timezones
-- 3,333 city aliases for suburb/neighborhood matching
+**Market Timezone Fast-Path (Updated 2026-02-17):**
+- 140 global markets with pre-stored timezones
+- City aliases for suburb/neighborhood matching
+- Uses shared `resolveTimezoneFromMarket()` from `server/lib/location/resolveTimezone.js`
 - Skips Google Timezone API for known markets (~200-300ms savings)
-- Progressive matching: city+state → city-only → alias
+- Progressive matching: city+state → alias+state → city-only → alias-only
 
 **Benefits:**
 - Users table lookup = fastest (device-specific, no API call)
@@ -169,6 +171,7 @@ import { snapshots, users, coords_cache, markets } from '../../../shared/schema.
 // Location lib
 import { haversineDistanceMeters } from '../../lib/location/geo.js';  // For 100m threshold check
 import { geocodeAddress, getTimezoneForCoords } from '../../lib/location/geocode.js';
+import { resolveTimezoneFromMarket, resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
 import { getSnapshotContext } from '../../lib/location/get-snapshot-context.js';
 // Note: reverseGeocode is in server/lib/venue/venue-address-resolver.js (venue-specific)
 

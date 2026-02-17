@@ -75,7 +75,6 @@ export const API_ROUTES = {
     RIDESHARE_NEWS: (snapshotId: string) => `/api/briefing/rideshare-news/${snapshotId}`,
     SCHOOL_CLOSURES: (snapshotId: string) => `/api/briefing/school-closures/${snapshotId}`,
     AIRPORT: (snapshotId: string) => `/api/briefing/airport/${snapshotId}`,
-    REFRESH_DAILY: (snapshotId: string) => `/api/briefing/refresh-daily/${snapshotId}`,
     DISCOVERED_EVENTS: (snapshotId: string) => `/api/briefing/discovered-events/${snapshotId}`,
     EVENT_DEACTIVATE: (eventId: string) => `/api/briefing/event/${eventId}/deactivate`,
   },

@@ -21,6 +21,8 @@ import { validateBody, validateQuery } from '../../middleware/validate.js';
 import { snapshotMinimalSchema, locationResolveSchema, newsBriefingSchema } from '../../validation/schemas.js';
 // 2026-02-12: Added requireAuth - all location routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
+// 2026-02-17: Shared timezone resolution (extracted from private lookupMarketTimezone)
+import { resolveTimezoneFromMarket, resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
 
 const router = Router();
 
@@ -30,79 +32,18 @@ router.use(requireAuth);
 
 // 2026-02-17: getDayPartKey moved to server/lib/location/daypart.js (shared module)
 
+// 2026-02-17: FIX - local_iso must store driver's wall-clock time, NOT UTC
+// For `timestamp without timezone` columns, Drizzle serializes Date via .toISOString() (UTC).
+// We create a Date whose UTC value matches the local wall-clock time so Postgres stores local time.
+function toLocalTimestamp(utcDate, timezone) {
+  return new Date(utcDate.toLocaleString('en-US', { timeZone: timezone }));
+}
+
 // 2026-01-14: validateSnapshotFields moved to shared module (server/util/validate-snapshot.js)
 // Import above: import { validateSnapshotFields } from '../../util/validate-snapshot.js';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MARKET TIMEZONE LOOKUP: Skip Google Timezone API for known global markets
-// Matches city against primary_city or city_aliases in markets table
-// Uses progressive matching: state→city-only→alias for international flexibility
-// Returns timezone if found, null if not in a known market
-// ═══════════════════════════════════════════════════════════════════════════
-async function lookupMarketTimezone(city, state, country) {
-  if (!city) return null;
-
-  try {
-    // Strategy 1: Exact match on primary_city + state (best for US markets)
-    if (state) {
-      const market = await db.query.markets.findFirst({
-        where: (m, { eq, and }) => and(
-          eq(m.primary_city, city),
-          eq(m.state, state),
-          eq(m.is_active, true)
-        ),
-      });
-
-      if (market) {
-        locationLog.done(2, `Market timezone hit: ${market.market_name} → ${market.timezone}`, OP.DB);
-        return market.timezone;
-      }
-
-      // Strategy 2: City aliases + state
-      const aliasResult = await db
-        .select({ timezone: markets.timezone, market_name: markets.market_name })
-        .from(markets)
-        .where(sql`${markets.city_aliases} @> ${JSON.stringify([city])}::jsonb AND ${markets.state} = ${state} AND ${markets.is_active} = true`)
-        .limit(1);
-
-      if (aliasResult.length > 0) {
-        locationLog.done(2, `Market timezone hit (alias): ${aliasResult[0].market_name} → ${aliasResult[0].timezone}`, OP.DB);
-        return aliasResult[0].timezone;
-      }
-    }
-
-    // Strategy 3: Match by primary_city only (for international city-states like Singapore, Hong Kong)
-    // Also handles cases where state naming differs between Google and our data
-    const cityOnlyMarket = await db.query.markets.findFirst({
-      where: (m, { eq, and }) => and(
-        eq(m.primary_city, city),
-        eq(m.is_active, true)
-      ),
-    });
-
-    if (cityOnlyMarket) {
-      locationLog.done(2, `Market timezone hit (city-only): ${cityOnlyMarket.market_name} → ${cityOnlyMarket.timezone}`, OP.DB);
-      return cityOnlyMarket.timezone;
-    }
-
-    // Strategy 4: City aliases without state requirement (for international suburbs)
-    const aliasOnlyResult = await db
-      .select({ timezone: markets.timezone, market_name: markets.market_name })
-      .from(markets)
-      .where(sql`${markets.city_aliases} @> ${JSON.stringify([city])}::jsonb AND ${markets.is_active} = true`)
-      .limit(1);
-
-    if (aliasOnlyResult.length > 0) {
-      locationLog.done(2, `Market timezone hit (alias-only): ${aliasOnlyResult[0].market_name} → ${aliasOnlyResult[0].timezone}`, OP.DB);
-      return aliasOnlyResult[0].timezone;
-    }
-
-    return null;
-  } catch (err) {
-    console.warn('[location] Market timezone lookup failed:', err.message);
-    return null;
-  }
-}
+// 2026-02-17: lookupMarketTimezone extracted to shared module
+// import { resolveTimezoneFromMarket } from '../../lib/location/resolveTimezone.js';
 
 // Circuit breakers for external APIs (fail-fast, no fallbacks)
 const googleMapsCircuit = makeCircuit({
@@ -735,19 +676,20 @@ router.get('/resolve', async (req, res) => {
         });
       }
 
-      // Step 2: Try market timezone lookup FIRST (saves ~200-300ms for known markets)
-      // This skips the Google Timezone API call for 102 global markets with 3,300+ city aliases
-      let marketTimezone = null;
+      // Step 2: Timezone resolution via shared module (2026-02-17)
+      // Fast path: market lookup (~5ms, 102 markets + 3,300 city aliases)
+      // Slow path: Google Timezone API (~200-300ms, for unknown locations)
+      let marketResult = null;
       if (city) {
-        marketTimezone = await lookupMarketTimezone(city, state, country);
+        marketResult = await resolveTimezoneFromMarket(city, state, country);
       }
 
-      if (marketTimezone) {
+      if (marketResult) {
         // FAST PATH: Use pre-stored timezone from markets table
-        timeZone = marketTimezone;
-        locationLog.done(2, `Timezone from market (skipped Google API)`, OP.DB);
+        timeZone = marketResult.timezone;
+        locationLog.done(2, `Timezone from market: ${marketResult.market_name} (skipped Google API)`, OP.DB);
       } else {
-        // SLOW PATH: Call Google Timezone API for unknown locations
+        // SLOW PATH: Call Google Timezone API via circuit breaker
         locationLog.phase(2, `Market not found, calling Google Timezone API`, OP.API);
         const timezoneData = await googleMapsCircuit(async (signal) => {
           const response = await fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
@@ -943,7 +885,8 @@ router.get('/resolve', async (req, res) => {
                 country,
                 timezone: tz,
                 coord_source: coordSource,
-                local_iso: now,
+                // 2026-02-17: FIX - was storing UTC (new Date()), must store driver's local time
+                local_iso: toLocalTimestamp(now, tz),
                 dow,
                 hour,
                 day_part_key: dayPartKey,
@@ -992,7 +935,8 @@ router.get('/resolve', async (req, res) => {
             state,
             country,
             timezone: tz,
-            local_iso: now,
+            // 2026-02-17: FIX - was storing UTC, must store driver's local time
+            local_iso: toLocalTimestamp(now, tz),
             dow,
             hour,
             day_part_key: dayPartKey,
@@ -1106,7 +1050,7 @@ router.get('/resolve', async (req, res) => {
           if (userId) {
             try {
               const [profileResult] = await db
-                .select({ market: driver_profiles.market })
+                .select({ market: driver_profiles.market, home_timezone: driver_profiles.home_timezone })
                 .from(driver_profiles)
                 .where(eq(driver_profiles.user_id, userId))
                 .limit(1);
@@ -1114,9 +1058,30 @@ router.get('/resolve', async (req, res) => {
               if (userMarket) {
                 console.log(`📸 [SNAPSHOT] 🌆 User market from profile: ${userMarket}`);
               }
+
+              // 2026-02-17: Google OAuth backfill — set market + timezone on first GPS use
+              // Google OAuth users have market=null until profile completion.
+              // On first GPS snapshot, we already resolved timezone + city/state,
+              // so we can backfill both market and home_timezone from the market lookup.
+              if (!userMarket && city && state) {
+                // Use marketResult from Step 2 timezone resolution if available
+                const backfillMarket = marketResult || await resolveTimezoneFromMarket(city, state, country);
+                if (backfillMarket) {
+                  await db.update(driver_profiles)
+                    .set({
+                      market: backfillMarket.market_name,
+                      home_timezone: backfillMarket.timezone,
+                      updated_at: new Date()
+                    })
+                    .where(eq(driver_profiles.user_id, userId));
+
+                  userMarket = backfillMarket.market_name;
+                  console.log(`📸 [SNAPSHOT] 🔗 Backfilled market+timezone on profile: ${backfillMarket.market_name} (${backfillMarket.timezone})`);
+                }
+              }
             } catch (err) {
               // Non-fatal: market is optional enhancement for event discovery
-              console.warn(`📸 [SNAPSHOT] ⚠️ Could not lookup user market: ${err.message}`);
+              console.warn(`📸 [SNAPSHOT] ⚠️ Could not lookup/backfill user market: ${err.message}`);
             }
           }
 
@@ -1142,7 +1107,8 @@ router.get('/resolve', async (req, res) => {
             // 2026-02-01: Market from driver_profiles (for market-wide event discovery)
             market: userMarket,
             // Time context (calculated fresh)
-            local_iso: now,
+            // 2026-02-17: FIX - was storing UTC, must store driver's local time
+            local_iso: toLocalTimestamp(now, timeZone),
             dow,
             hour,
             day_part_key: dayPartKey,
@@ -1644,7 +1610,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       const localDow = dayNames.indexOf(dayName);
       
       snapshotV1.time_context = {
-        local_iso: now.toISOString(),
+        // 2026-02-17: FIX - was storing UTC ISO, must store driver's local time
+        local_iso: toLocalTimestamp(now, resolved.timeZone).toISOString(),
         dow: localDow >= 0 ? localDow : now.getDay(), // Fallback to UTC day if parse fails
         hour: hour,
         day_part_key: getDayPartKey(hour)

@@ -190,17 +190,6 @@ events={eventsData?.events?.map(e => ({
 }))}
 ```
 
-### BriefingTab.tsx - Discover Events Button
-
-On-demand event discovery button:
-
-```typescript
-// Triggers comprehensive event discovery (all 6 AI models)
-const discoverEvents = async () => {
-  await fetch(`/api/briefing/discover-events/${snapshotId}?daily=true`, { method: 'POST' });
-};
-```
-
 ## See Also
 
 - [co-pilot/README.md](co-pilot/README.md) - Sub-component details

@@ -166,7 +166,7 @@ const {
 ```
 
 **2026-01-05 Update:** Now uses `/api/intelligence/for-location` endpoint which:
-- Maps **723 cities** to their markets via `us_market_cities` table
+- Maps **723 cities** to their markets via `market_cities` table
 - Properly resolves suburbs (Frisco, TX → Dallas market)
 - Returns market info + intelligence in a single API call
 

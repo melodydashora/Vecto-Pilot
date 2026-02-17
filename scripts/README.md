@@ -34,7 +34,7 @@ Build, development, and operational utility scripts.
 
 ### import-market-cities.js (2026-02-01)
 
-Import/update `us_market_cities` table from JSON or CSV files with field names that match the schema exactly.
+Import/update `market_cities` table (2026-02-17: renamed from `us_market_cities`, now with `market_slug` FK to `markets`) from JSON or CSV files with field names that match the schema exactly.
 
 ```bash
 # Preview changes (dry run)

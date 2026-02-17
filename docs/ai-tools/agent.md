@@ -1,68 +1,26 @@
-# Agent Override LLM (`server/agent/agent-override-llm.js`)
+# Agent Embedding & Security (`server/agent/embed.js`)
 
-This module configures the primary AI agent interface, currently unified on **Claude Opus 4.6** via Anthropic.
+This module manages the integration of the agent into the Express application, handling route mounting, WebSocket initialization, and enforcing security policies.
 
-## Configuration
+## Security Middleware
 
-The system is configured as a single-provider instance to match Eidolon's ultra-enhanced parameters.
+### `checkAgentAllowlist`
+Restricts access to agent routes based on the client's IP address.
+- **Configuration**: `AGENT_ALLOWED_IPS` (Default: `127.0.0.1,::1,localhost`).
+- **Production Safety**: Explicitly blocks wildcard (`*`) allowlists in production to prevent accidental security bypass.
+- **Development Behavior**: In development mode, local connections (`localhost`, `127.0.0.1`, `::1`) are always allowed regardless of configuration.
+- **Exceptions**: Routes starting with `/memory/` (e.g., conversation history, preferences) are **exempt** from IP restrictions. These endpoints rely on `requireAuth` for security, allowing browser-based clients to access them without 403 errors.
 
-- **Provider**: Anthropic
-- **Model**: `claude-opus-4-6` (Default). Configurable via `AGENT_OVERRIDE_CLAUDE_MODEL` or `AGENT_MODEL`.
-- **API Key**: `AGENT_OVERRIDE_API_KEY_C` or `ANTHROPIC_API_KEY`
+### `requireAgentAdmin`
+Enforces strict access control for sensitive administrative operations.
+- **Configuration**: `AGENT_ADMIN_USERS` (Comma-separated User IDs).
+- **Production Behavior**: If no admins are configured, all admin routes are blocked (Fail-Secure).
+- **Development Behavior**: If no admins are configured, allows any authenticated user for testing purposes.
+- **Enforcement**: Verifies that `req.auth.userId` is present in the configured admin list.
 
-### Tuning Parameters
+## Server Integration
 
-| Parameter | Environment Variable | Default |
-|-----------|---------------------|---------|
-| Max Tokens | `CLAUDE_MAX_TOKENS` / `AGENT_MAX_TOKENS` | `200000` |
-| Temperature | `CLAUDE_TEMPERATURE` / `AGENT_TEMPERATURE` | `1.0` |
-
-## Self-Healing & Reliability
-
-The agent implements a circuit breaker pattern to manage API stability:
-
-- **Threshold**: 3 consecutive failures trigger the circuit breaker.
-- **Cooldown**: 60 seconds (60,000ms) lockout period.
-- **Recovery**: Automatic reset on the next successful call after cooldown.
-- **Health Check**: `getAgentHealth()` exposes circuit status and failure metrics.
-
----
-
-# Config Manager (`server/agent/config-manager.js`)
-
-This module manages configuration file access, environment variable updates, and file backups. It enforces a strict allowlist of files to ensure security.
-
-## Allowed Configuration Files
-
-The manager restricts access to specific configuration files, including:
-- **Environment**: `.env`, `.env.local`, `.env.example`, etc.
-- **Build & Bundler**: `package.json`, `vite.config.*`, `drizzle.config.*`, `tailwind.config.*`, `postcss.config.*`.
-- **TypeScript & Linting**: `tsconfig.*`, `eslint.config.js`, `.prettierrc.*`.
-- **Infrastructure**: `Dockerfile`, `docker-compose.yml`, `replit.nix`.
-- **Monorepo & Testing**: `nx.json`, `turbo.json`, `lerna.json`, `jest.config.js`, `vitest.config.ts`, `playwright.config.ts`.
-- **Server & App Config**: `gateway-server.js`, `agent-server.js`, `index.js`, `config/assistant-policy.json`, `server/config/assistant-policy.json`.
-- **Documentation**: `README.md`, `ARCHITECTURE.md`, `ISSUES.md`, `replit.md`.
-
-## API Reference
-
-### `readConfigFile(filename)`
-Reads the content of an allowed configuration file.
-- **Returns**: Object containing `ok` status, `content`, and absolute `path`. Returns `{ ok: false, error: "file_not_found" }` if the file is missing.
-- **Throws**: Error if the file is not in the allowed list.
-
-### `updateEnvFile(updates)`
-Updates the `.env` file with new values.
-- **Features**: Preserves existing comments and formatting. Appends new keys if they do not exist.
-- **Returns**: Object with `updated` keys list.
-
-### `getEnvValue(key)`
-Retrieves a specific value from the `.env` file.
-- **Returns**: The value string (with quotes removed) or `null` if not found.
-
-### `listConfigFiles()`
-Scans for all allowed configuration files.
-- **Returns**: List of file objects containing `size`, `modified` date, and `exists` status.
-
-### `backupConfigFile(filename)`
-Creates a backup of the specified file.
-- **Format**: `<filename>.backup-<timestamp>-<random_suffix>`
+### `mountAgent({ app, basePath, wsPath, server })`
+Initializes the agent subsystem within the Express app.
+- **Enable Switch**: Controlled by `AGENT_ENABLED=true`. If disabled, mounts a stub that returns `503 Service Unavailable` for all agent routes.
+- **Middleware Stack**: Applies `checkAgentAllowlist` → `requireAuth` → `agentRoutes`.

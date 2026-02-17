@@ -278,6 +278,9 @@ export const venue_catalog = pgTable("venue_catalog", {
 
   // Market Linkage
   market_slug: text("market_slug"),  // References markets(market_slug) - FK added via ALTER
+  // 2026-02-17: IANA timezone for venue (from market lookup at creation time)
+  // Used for isOpen calculation without requiring snapshot context
+  timezone: text("timezone"),
 
   // Bar Marker Fields (FROM nearby_venues - CRITICAL for Map Features)
   expense_rank: integer("expense_rank"),     // 1-4 for $/$$/$$$/$$$$ filtering
@@ -766,12 +769,13 @@ export const markets = pgTable("markets", {
   // Market identifier (slug format for URL-safety)
   market_slug: text("market_slug").primaryKey(), // e.g., 'dfw', 'los-angeles', 'chicago'
 
-  // Display name
-  market_name: text("market_name").notNull(), // e.g., 'DFW Metro', 'Los Angeles', 'Chicago'
+  // Display name (Uber canonical name, e.g., "Dallas-Fort Worth", "Los Angeles")
+  market_name: text("market_name").notNull(),
 
   // Location identity (for matching resolved coords to market)
   primary_city: text("primary_city").notNull(), // e.g., 'Dallas', 'Los Angeles', 'Chicago'
   state: text("state").notNull(), // e.g., 'Texas', 'California', 'Illinois'
+  state_abbr: varchar("state_abbr", { length: 5 }), // e.g., 'TX', 'CA', 'IL' — normalized abbreviation
   country_code: varchar("country_code", { length: 2 }).notNull().default('US'),
 
   // Pre-resolved timezone (eliminates Google Timezone API calls for known markets)
@@ -796,23 +800,29 @@ export const markets = pgTable("markets", {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// US MARKET CITIES (City → Market Lookup Table)
+// MARKET CITIES (City → Market Lookup Table)
+// 2026-02-17: Renamed from us_market_cities → market_cities with FK to markets
 // Enables efficient: "User is in Frisco, TX → Show Dallas market intel"
 // ═══════════════════════════════════════════════════════════════════════════
 
-// US Market Cities: Maps every US city to its Uber/Lyft market anchor
-// This replaces the need to scan city_aliases JSONB arrays
+// Market Cities: Maps every city to its rideshare market anchor
+// FK to markets table via market_slug — one source of truth for market definitions
 // Source: Official Uber market listings + GPT analysis (Jan 2026)
-export const us_market_cities = pgTable("us_market_cities", {
+export const market_cities = pgTable("market_cities", {
   id: uuid("id").primaryKey().defaultRandom(),
+
+  // FK to markets table — the source of truth for market definitions
+  // 2026-02-17: Added during market consolidation (replaces brittle text matching)
+  market_slug: text("market_slug").notNull(), // e.g., 'dfw', 'los-angeles-ca'
 
   // Location identity
   state: text("state").notNull(),           // Full state name: "Texas", "California"
   state_abbr: text("state_abbr"),           // Abbreviation: "TX", "CA" (computed on insert)
   city: text("city").notNull(),             // City name: "Frisco", "Plano", "Dallas"
+  country_code: varchar("country_code", { length: 2 }).notNull().default('US'),
 
-  // Market mapping
-  market_name: text("market_name").notNull(), // Uber market name: "Dallas", "Houston", "Phoenix"
+  // Market mapping (display name, denormalized from markets.market_name)
+  market_name: text("market_name").notNull(), // Uber market name: "Dallas-Fort Worth", "Houston"
 
   // Region classification (based on market gravity model)
   region_type: text("region_type").notNull().default('Satellite'), // 'Core' | 'Satellite' | 'Rural'
@@ -823,17 +833,27 @@ export const us_market_cities = pgTable("us_market_cities", {
   // Data provenance
   source_ref: text("source_ref"),           // 'uber.com', 'ridester.com', 'gpt-analysis'
 
+  // IANA timezone denormalized from markets table for fast city→timezone lookups
+  // 2026-02-17: Populated via FK join from markets.timezone (100% coverage)
+  timezone: text("timezone"),
+
   // Metadata
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
-  // Fast city lookup: WHERE state = 'TX' AND city = 'Frisco'
-  idxStateCity: sql`create unique index if not exists idx_us_market_cities_state_city on ${table} (state, city)`,
-  // Market grouping: Find all cities in a market
-  idxMarketName: sql`create index if not exists idx_us_market_cities_market_name on ${table} (market_name)`,
+  // Fast city lookup: WHERE country_code = 'US' AND state = 'TX' AND city = 'Frisco'
+  idxCountryCityState: sql`create unique index if not exists idx_market_cities_country_city_state on ${table} (country_code, state, city)`,
+  // Market grouping: Find all cities in a market via FK
+  idxMarketSlug: sql`create index if not exists idx_umc_market_slug on ${table} (market_slug)`,
+  // Market name lookup (display purposes)
+  idxMarketName: sql`create index if not exists idx_market_cities_market_name on ${table} (market_name)`,
   // Region filtering
-  idxRegionType: sql`create index if not exists idx_us_market_cities_region_type on ${table} (region_type)`,
+  idxRegionType: sql`create index if not exists idx_market_cities_region_type on ${table} (region_type)`,
 }));
+
+// Backward compatibility alias (deprecated — use market_cities directly)
+// 2026-02-17: Alias for code that still imports us_market_cities during transition
+export const us_market_cities = market_cities;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MARKET INTEL (Market-Level Intelligence & Insights)

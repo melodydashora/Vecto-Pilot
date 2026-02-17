@@ -258,7 +258,7 @@ if (isNewsFromToday(newsItem, new Date(), 'America/Chicago')) {
 - **Handles multiple field names** - Supports `published_date`, `publishedDate`, `pubDate`, `pub_date`, etc.
 
 **Applied in:**
-- `server/api/briefing/briefing.js` - All endpoints returning news (`/current`, `/generate`, `/snapshot/:snapshotId`, `/refresh`, `/rideshare-news/:snapshotId`, `/refresh-daily/:snapshotId`)
+- `server/api/briefing/briefing.js` - All endpoints returning news (`/current`, `/generate`, `/snapshot/:snapshotId`, `/refresh`, `/rideshare-news/:snapshotId`)
 
 ## Import Paths
 
