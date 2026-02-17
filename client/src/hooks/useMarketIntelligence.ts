@@ -9,6 +9,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from '@/contexts/location-context-clean';
+import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import { API_ROUTES } from '@/constants/apiRoutes';
 
 // Intelligence types from the API
@@ -369,7 +370,7 @@ export function detectMarketArchetype(city: string | null): MarketArchetype {
  * Fetches all intelligence for a specific market
  */
 async function _fetchMarketIntelligence(marketSlug: string): Promise<MarketIntelligenceResponse> {
-  const response = await fetch(API_ROUTES.INTELLIGENCE.MARKET(marketSlug));
+  const response = await fetch(API_ROUTES.INTELLIGENCE.MARKET(marketSlug), { headers: getAuthHeader() });
 
   if (!response.ok) {
     if (response.status === 404) {
@@ -392,7 +393,7 @@ async function _fetchMarketIntelligence(marketSlug: string): Promise<MarketIntel
  * Fetches list of all markets with intelligence
  */
 async function fetchIntelligenceMarkets(): Promise<IntelligenceMarketsResponse> {
-  const response = await fetch(API_ROUTES.INTELLIGENCE.MARKETS);
+  const response = await fetch(API_ROUTES.INTELLIGENCE.MARKETS, { headers: getAuthHeader() });
 
   if (!response.ok) {
     throw new Error('Failed to fetch intelligence markets');
@@ -406,7 +407,7 @@ async function fetchIntelligenceMarkets(): Promise<IntelligenceMarketsResponse> 
  */
 async function _fetchMarketLookup(city: string, state: string): Promise<MarketLookupResponse> {
   const params = new URLSearchParams({ city, state });
-  const response = await fetch(API_ROUTES.INTELLIGENCE.LOOKUP_WITH_PARAMS(params));
+  const response = await fetch(API_ROUTES.INTELLIGENCE.LOOKUP_WITH_PARAMS(params), { headers: getAuthHeader() });
 
   if (!response.ok) {
     // Return not found response
@@ -423,7 +424,7 @@ async function _fetchMarketLookup(city: string, state: string): Promise<MarketLo
  */
 async function fetchForLocation(city: string, state: string): Promise<ForLocationResponse | null> {
   const params = new URLSearchParams({ city, state });
-  const response = await fetch(API_ROUTES.INTELLIGENCE.FOR_LOCATION_WITH_PARAMS(params));
+  const response = await fetch(API_ROUTES.INTELLIGENCE.FOR_LOCATION_WITH_PARAMS(params), { headers: getAuthHeader() });
 
   if (!response.ok) {
     console.warn(`[useMarketIntelligence] No market data for ${city}, ${state}`);

@@ -34,6 +34,56 @@ import { requireAuth } from '../../middleware/auth.js';
 
 const router = express.Router();
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PUBLIC ROUTES (no auth required) — must be registered BEFORE requireAuth
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/intelligence/markets-dropdown
+ * Get list of US markets for signup/settings dropdown
+ *
+ * 2026-02-17: PUBLIC — Used by SignUpPage before user is authenticated.
+ * Only returns market names (no sensitive intelligence data).
+ */
+router.get('/markets-dropdown', async (req, res) => {
+  try {
+    const { state } = req.query;
+
+    let result;
+
+    // 2026-02-13: Filter by state if provided (matches full name or abbreviation)
+    if (state && typeof state === 'string' && state.trim()) {
+      const trimmed = state.trim();
+      result = await db.execute(sql`
+        SELECT DISTINCT market_name
+        FROM us_market_cities
+        WHERE state ILIKE ${trimmed} OR state_abbr ILIKE ${trimmed}
+        ORDER BY market_name
+      `);
+    } else {
+      result = await db.execute(sql`
+        SELECT DISTINCT market_name
+        FROM us_market_cities
+        ORDER BY market_name
+      `);
+    }
+
+    const markets = result.rows.map(r => r.market_name);
+
+    res.json({
+      markets,
+      total: markets.length,
+      hint: 'Add "Other" as final option in dropdown. If selected, show free-text input for new market.'
+    });
+  } catch (error) {
+    console.error('Error fetching markets dropdown:', error);
+    res.status(500).json({ error: 'Failed to fetch markets' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTHENTICATED ROUTES — all routes below require valid session
+// ═══════════════════════════════════════════════════════════════════════════
 // 2026-02-12: SECURITY FIX - All intelligence routes now require authentication
 // Previously POST/PUT/DELETE were completely open, allowing anyone to create/modify intel
 router.use(requireAuth);
@@ -199,56 +249,7 @@ router.get('/markets', async (_req, res) => {
   }
 });
 
-/**
- * GET /api/intelligence/markets-dropdown
- * Get list of US markets for signup/settings dropdown
- *
- * 2026-01-05: Returns unique market names from us_market_cities table
- * 2026-02-13: Added optional `state` query param to filter markets by state.
- *   Matches against both full state name (e.g., "Texas") and abbreviation (e.g., "TX").
- *   When no state is provided, returns all markets.
- *
- * Query params:
- *   state (optional) - Filter markets by state name or abbreviation
- *
- * Returns array of markets sorted alphabetically, with "Other" option hint
- * Client should add "Other" as final option and show free-text input if selected
- */
-router.get('/markets-dropdown', async (req, res) => {
-  try {
-    const { state } = req.query;
-
-    let result;
-
-    // 2026-02-13: Filter by state if provided (matches full name or abbreviation)
-    if (state && typeof state === 'string' && state.trim()) {
-      const trimmed = state.trim();
-      result = await db.execute(sql`
-        SELECT DISTINCT market_name
-        FROM us_market_cities
-        WHERE state ILIKE ${trimmed} OR state_abbr ILIKE ${trimmed}
-        ORDER BY market_name
-      `);
-    } else {
-      result = await db.execute(sql`
-        SELECT DISTINCT market_name
-        FROM us_market_cities
-        ORDER BY market_name
-      `);
-    }
-
-    const markets = result.rows.map(r => r.market_name);
-
-    res.json({
-      markets,
-      total: markets.length,
-      hint: 'Add "Other" as final option in dropdown. If selected, show free-text input for new market.'
-    });
-  } catch (error) {
-    console.error('Error fetching markets dropdown:', error);
-    res.status(500).json({ error: 'Failed to fetch markets' });
-  }
-});
+// 2026-02-17: markets-dropdown moved above requireAuth (public route for SignUpPage)
 
 /**
  * POST /api/intelligence/add-market
