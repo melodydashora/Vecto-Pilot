@@ -66,3 +66,14 @@ Format a human-readable local time string from snapshot.
 
 **Implementation Note:**
 This function handles `snapshot.local_iso` as "fake UTC" (wall-clock time stored as a timestamp without timezone offset). It uses `timeZone: 'UTC'` during formatting to prevent double-conversion errors.
+
+### `isDateToday(dateStr, snapshot)`
+
+Check if a date is "today" in the snapshot's timezone.
+
+**Parameters**
+- `dateStr` (String): Date string (YYYY-MM-DD or parseable format).
+- `snapshot` (Object): Snapshot row.
+
+**Returns**
+- `Boolean`: True if the date matches today's date in the snapshot's timezone.

@@ -1,8 +1,3 @@
-Based on the code changes in `server/lib/location/getSnapshotTimeContext.js`, I will update the **Holiday Detector** section of the documentation. The code explicitly enforces strict validation for `city` and `state` (throwing `MissingLocationError` if absent), so I will clarify the "Location Context" requirement to specifically mention "City, State".
-
-Here is the updated documentation:
-
-
 ## Model Parameters
 
 ### Claude Opus 4.6 (Agent Identity)

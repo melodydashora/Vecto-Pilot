@@ -16,6 +16,22 @@ import path from 'path';
 
 const REPO_ROOT = process.env.REPO_ROOT || process.cwd();
 
+// 2026-02-17: FIX - Protected files that must NEVER be auto-updated by the Docs Agent.
+// These are project instruction/config files, not generated documentation.
+// The generator previously overwrote CLAUDE.md with AI-generated content, corrupting it.
+const PROTECTED_FILES = new Set([
+  'CLAUDE.md',
+  'GEMINI.md',
+  'GEMINIMEMORY.md',
+  'GEMINIANALYSIS.md',
+  'ARCHITECTURE.md',
+  'LESSONS_LEARNED.md',
+  '.claude/agents/docs-sync.md',
+  'package.json',
+  'package-lock.json',
+  'config/docs-policy.json',
+]);
+
 /**
  * Load policy config from config/docs-policy.json
  * Falls back to safe defaults if file is missing
@@ -32,7 +48,8 @@ async function loadPolicy() {
       git_user: policy.agents?.publisher?.git_user || 'Gemini Docs Agent',
       git_email: policy.agents?.publisher?.git_email || 'agent@internal',
       confidence_threshold: 0.85,
-      rules: policy.rules || []
+      rules: policy.rules || [],
+      agents: policy.agents || {},  // 2026-02-17: Preserve full agents config for allowed_paths enforcement
     };
   } catch (e) {
     console.warn('[DocsOrchestrator] Could not load docs-policy.json, using defaults:', e.message);
@@ -40,7 +57,8 @@ async function loadPolicy() {
       auto_update_enabled: true,
       auto_commit: false,
       confidence_threshold: 0.85,
-      rules: []
+      rules: [],
+      agents: {},  // 2026-02-17: Include empty agents for consistent shape
     };
   }
 }
@@ -63,6 +81,7 @@ export class DocsOrchestrator {
   async _ensureInitialized() {
     if (this._initialized) return;
     const policy = await loadPolicy();
+    this.policy = policy; // 2026-02-17: Store policy for allowed_paths enforcement
     this.validator = new DocValidator(policy);
     this.publisher = new DocPublisher(policy);
     this._initialized = true;
@@ -96,6 +115,27 @@ export class DocsOrchestrator {
 
     for (const [targetDoc, meta] of docTargets) {
       console.log(`[DocsOrchestrator] Processing ${targetDoc} (triggered by ${meta.triggeredBy.length} files)`);
+
+      // 2026-02-17: FIX - Skip protected files (project instructions, not docs)
+      const normalizedTarget = targetDoc.replace(/\\/g, '/');
+      if (PROTECTED_FILES.has(normalizedTarget)) {
+        console.warn(`[DocsOrchestrator] ⛔ SKIPPED ${targetDoc} — protected file (not auto-updatable)`);
+        results.push({ file: targetDoc, status: 'skipped (protected file)' });
+        continue;
+      }
+
+      // 2026-02-17: FIX - Enforce allowed_paths from docs-policy.json
+      // The policy defines which directories the agent can write to.
+      // Previously this was defined but never enforced — any file could be overwritten.
+      const allowedPaths = this.policy?.agents?.generator?.allowed_paths || [];
+      if (allowedPaths.length > 0) {
+        const isAllowed = allowedPaths.some(p => normalizedTarget.startsWith(p));
+        if (!isAllowed) {
+          console.warn(`[DocsOrchestrator] ⛔ SKIPPED ${targetDoc} — outside allowed_paths: [${allowedPaths.join(', ')}]`);
+          results.push({ file: targetDoc, status: 'skipped (outside allowed_paths)' });
+          continue;
+        }
+      }
 
       try {
         // 1. Read the first triggering code file + the doc (use absolute paths)
@@ -132,9 +172,9 @@ export class DocsOrchestrator {
           continue;
         }
 
-        // 3. Validate
+        // 3. Validate (pass original content for size comparison)
         console.log(`[DocsOrchestrator] Validating update for ${targetDoc}...`);
-        const validation = await this.validator.validate(newContent);
+        const validation = await this.validator.validate(newContent, docContent);
         if (!validation.valid) {
           console.error(`[DocsOrchestrator] Validation failed for ${targetDoc}:`, validation.errors);
           results.push({ file: targetDoc, status: 'failed validation', errors: validation.errors });

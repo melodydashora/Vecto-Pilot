@@ -18,6 +18,7 @@ Roles are defined using the `{TABLE}_{FUNCTION}` convention, mapping directly to
 
 Each role in `MODEL_ROLES` defines the following properties:
 
+*   **provider**: The AI provider backend (e.g., `'google'`, `'openai'`, `'anthropic'`, `'vertex'`).
 *   **envKey**: Environment variable for overriding the default model ID.
 *   **default**: The specific model version (e.g., `gemini-3-pro-preview`).
 *   **purpose**: Description of the role's specific task and output goals.
@@ -25,3 +26,10 @@ Each role in `MODEL_ROLES` defines the following properties:
 *   **temperature**: Creativity setting (0.0 - 1.0).
 *   **thinkingLevel**: (Optional) Enables extended reasoning capabilities (e.g., `'HIGH'`).
 *   **features**: (Optional) Array of enabled capabilities (e.g., `['google_search']`).
+
+## Reliability & Fallback
+
+The registry supports high-availability execution through integration with the **Hedged Router**:
+
+*   **Cross-Provider Fallback**: The registry defines fallback configurations (`FALLBACK_CONFIG`) to ensure redundancy. If a primary provider fails, the system automatically falls back to a model from a **different** provider family (e.g., switching from Google to OpenAI) to avoid single-provider outages.
+*   **Router Integration**: Helper functions like `getFallbackConfig` and `isFallbackEnabled` expose these redundancy settings to the execution adapters.

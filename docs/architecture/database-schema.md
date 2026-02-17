@@ -1,11 +1,3 @@
-Based on the code changes in `shared/schema.js`, here is the updated documentation.
-
-The updates include:
-1.  **Users Table**: Completed the table definition which was cut off in the previous docs.
-2.  **Snapshots Table**: Added the new `market`, `coord_key`, `holiday`, and `is_holiday` columns. Marked legacy location columns.
-3.  **Strategies Table**: Updated to reflect the "Lean Strategies" architecture (2026-01-14), noting the removal of context/briefing columns and the strict focus on AI output.
-
-
 # Database Schema Reference
 
 This document details the database schema definitions found in `shared/schema.js`.
