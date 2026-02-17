@@ -377,8 +377,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Updated 2026-01-05: Added signal for request cancellation
       // 2026-01-15: Using centralized API_ROUTES constants
       const locationPromise = fetch(resolveUrl, { headers, signal: controller.signal });
-      const weatherPromise = fetch(API_ROUTES.LOCATION.WEATHER_WITH_COORDS(lat, lng), { signal: controller.signal });
-      const airPromise = fetch(API_ROUTES.LOCATION.AIR_QUALITY_WITH_COORDS(lat, lng), { signal: controller.signal });
+      // 2026-02-17: Added auth headers — location routes require auth since 2026-02-12
+      const weatherPromise = fetch(API_ROUTES.LOCATION.WEATHER_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
+      const airPromise = fetch(API_ROUTES.LOCATION.AIR_QUALITY_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
 
       // Track weather/air data for snapshot enrichment later
       let weatherData: { available: boolean; temperature: number; conditions: string; description?: string } | null = null;
@@ -527,7 +528,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           try {
             await fetch(API_ROUTES.LOCATION.SNAPSHOT_ENRICH(snapshotId), {
               method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...headers },
               body: JSON.stringify({
                 weather: weatherData?.available ? {
                   tempF: weatherData.temperature,
@@ -606,7 +607,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // 2026-01-15: Using centralized API_ROUTES constant
         const snapshotRes = await fetch(API_ROUTES.LOCATION.SNAPSHOT, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...headers },
           body: JSON.stringify(snapshot),
           signal: controller.signal
         });
