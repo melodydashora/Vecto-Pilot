@@ -25,3 +25,41 @@ The agent implements a circuit breaker pattern to manage API stability:
 - **Cooldown**: 60 seconds (60,000ms) lockout period.
 - **Recovery**: Automatic reset on the next successful call after cooldown.
 - **Health Check**: `getAgentHealth()` exposes circuit status and failure metrics.
+
+---
+
+# Config Manager (`server/agent/config-manager.js`)
+
+This module manages configuration file access, environment variable updates, and file backups. It enforces a strict allowlist of files to ensure security.
+
+## Allowed Configuration Files
+
+The manager restricts access to specific configuration files, including:
+- **Environment**: `.env`, `.env.local`, `.env.example`, etc.
+- **Build & Tools**: `package.json`, `vite.config.*`, `tsconfig.*`, `eslint.config.js`, etc.
+- **Infrastructure**: `Dockerfile`, `docker-compose.yml`, `replit.nix`.
+- **Documentation**: `README.md`, `ARCHITECTURE.md`, etc.
+
+## API Reference
+
+### `readConfigFile(filename)`
+Reads the content of an allowed configuration file.
+- **Returns**: Object containing `ok` status, `content`, and absolute `path`.
+- **Throws**: Error if the file is not in the allowed list.
+
+### `updateEnvFile(updates)`
+Updates the `.env` file with new values.
+- **Features**: Preserves existing comments and formatting. Appends new keys if they do not exist.
+- **Returns**: Object with `updated` keys list.
+
+### `getEnvValue(key)`
+Retrieves a specific value from the `.env` file.
+- **Returns**: The value string (with quotes removed) or `null` if not found.
+
+### `listConfigFiles()`
+Scans for all allowed configuration files.
+- **Returns**: List of file objects containing `size`, `modified` date, and `exists` status.
+
+### `backupConfigFile(filename)`
+Creates a backup of the specified file.
+- **Format**: `<filename>.backup-<timestamp>-<random_suffix>`

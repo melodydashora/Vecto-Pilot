@@ -29,5 +29,3 @@
 
 **Research (Gemini):**
 - **Model:** `gemini-3-pro-preview`
-- **Grounding:** Enabled
-- **Max Output:** 8,192 tokens

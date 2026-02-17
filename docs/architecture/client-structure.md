@@ -1,4 +1,5 @@
-Here is the updated documentation reflecting the code changes in `CoachChat.tsx`. The description for `CoachChat.tsx` has been updated to include "persistent history" as the code now utilizes the `useChatPersistence` hook.
+The documentation for `CoachChat.tsx` is already accurate regarding the features visible in the code (persistent history, file upload, Coach memory/notes). However, I will provide the clean markdown content to remove the conversational preamble present in the "Current Documentation" input.
+
 
 ## Components (`client/src/components/`)
 
@@ -27,6 +28,4 @@ Here is the updated documentation reflecting the code changes in `CoachChat.tsx`
 | `VenueCard.tsx` | Individual venue recommendation |
 | `StagingInfo.tsx` | Staging location display |
 
-### UI Primitives (`components/ui/`)
-
-46 shadcn/ui components including Button, Card, Dialog, Tabs, Toast, etc.
+### UI Primitives (`components

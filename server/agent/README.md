@@ -1,5 +1,4 @@
-Here is the updated documentation. I have refined the **LLM Configuration** section to accurately reflect the environment variable precedence and fallbacks defined in `server/agent/agent-override-llm.js`.
-
+Here is the updated documentation. I have updated the **Security Layers** and **Files** sections to reflect the strict file access control logic implemented in `server/agent/config-manager.js`.
 
 > **Last Verified:** 2026-01-07
 
@@ -29,6 +28,7 @@ AI agent infrastructure for enhanced context and WebSocket communication.
 3. **Auth Required:** All routes (except `/health`) require valid JWT token
 4. **Admin Required:** Dangerous operations (`/config/env/update`, `/config/backup`) require admin user
 5. **WebSocket Auth:** WS connections require `?token=` query parameter
+6. **File Access Control:** Configuration operations are restricted to a strict allowlist of files (e.g., `.env`, `package.json`, build configs) defined in `config-manager.js`.
 
 ### Admin-Only Routes (2026-01-07)
 
@@ -54,7 +54,7 @@ These routes require the authenticated user to be in `AGENT_ADMIN_USERS`:
 | `routes.js` | Agent API endpoints (context, memory, thread mgmt) |
 | `enhanced-context.js` | Context enrichment wrapper (uses `../lib/ai/context/enhanced-context-base.js`) |
 | `context-awareness.js` | Contextual data gathering |
-| `config-manager.js` | Agent configuration file management |
+| `config-manager.js` | Configuration file utilities (read, update, backup) with strict allowlist enforcement |
 | `agent-override-llm.js` | Unified Claude Opus 4.6 provider with self-healing circuit breaker |
 | `thread-context.js` | Thread context management |
 | `index.ts` | TypeScript entry point |
@@ -108,7 +108,7 @@ The circuit state is exposed via the `/agent/health` endpoint.
 
 Agent is mounted in `server/bootstrap/routes.js` via `embed.js`:
 
-javascript
+```javascript
 const { mountAgent } = await import('./server/agent/embed.js');
 mountAgent({
   app,
@@ -116,7 +116,7 @@ mountAgent({
   wsPath: '/agent/ws',
   server,
 });
-
+```
 
 **2026-01-06 Fix:** `embed.js` now imports and mounts `routes.js`. Previously, the routes were orphaned and `/agent/context` returned 404 (useMemory hook failed).
 
