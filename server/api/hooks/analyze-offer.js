@@ -4,6 +4,8 @@
 // 2026-02-15: REWRITTEN for speed, location capture, and SSE notification.
 // 2026-02-16: Added server-side OCR pre-parser, 6-decimal GPS, clearer decision rules,
 //             voice $/mile, merged pre-parsed data into DB save, and VISION MODE.
+// 2026-02-17: Migrated to offer_intelligence table — structured columns replace JSONB blob.
+//             Added H3 geohashing, daypart classification, session tracking for analytics.
 //
 // - Uses OFFER_ANALYZER role (Gemini 3 Flash) — 3-5x faster than Pro
 // - Pre-parses OCR text server-side (regex) before LLM for reliable numeric extraction
@@ -18,11 +20,16 @@
 // Auth: Explicitly public — Siri Shortcuts cannot send JWT tokens
 
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
-import { intercepted_signals } from '../../../shared/schema.js';
+import { offer_intelligence } from '../../../shared/schema.js';
 import { callModel } from '../../lib/ai/adapters/index.js';
 import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-offer-text.js';
+// 2026-02-17: Shared utilities for structured analytics columns
+import { getDayPartKey } from '../../lib/location/daypart.js';
+import { coordsKey } from '../../lib/location/coords-key.js';
+import { latLngToCell } from 'h3-js';
 
 const router = Router();
 
@@ -208,13 +215,12 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
       response_time_ms: responseTimeMs,
     });
 
-    // 5. BACKGROUND — Save to DB + broadcast SSE (fire-and-forget after response sent)
-    // Full analysis is preserved for ML/algorithm learning, driver doesn't wait for it
+    // 5. BACKGROUND — Save to offer_intelligence + broadcast SSE (fire-and-forget after response sent)
+    // 2026-02-17: All structured columns populated for SQL analytics — no more JSONB-only storage
     const platform = preParsed?.platform_hint || result.parsed_data?.platform || 'unknown';
     const deviceId = device_id || 'anonymous_device';
 
     // 2026-02-16: Merge pre-parsed server data with AI-parsed data for complete record.
-    // Server-side numeric values (regex) are more reliable than LLM math.
     const mergedParsedData = {
       ...(preParsed || {}),
       ...result.parsed_data,
@@ -222,31 +228,115 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
       per_minute: preParsed?.per_minute ?? result.parsed_data?.per_minute,
     };
 
-    // 2026-02-16: Use async IIFE — Drizzle requires .execute() or await to run queries.
-    // Plain .then() on the query builder doesn't trigger execution.
     (async () => {
       try {
-        await db.insert(intercepted_signals).values({
+        // 2026-02-17: Compute geographic columns
+        const coordKeyValue = (lat && lng) ? coordsKey(lat, lng) : null;
+        const h3Index = (lat && lng) ? latLngToCell(lat, lng, 8) : null;
+
+        // 2026-02-17: Compute temporal columns from current time
+        // Uses UTC as base — timezone resolved from coords_cache if available
+        const now = new Date();
+        const localHour = now.getUTCHours(); // Will be refined when timezone is known
+        const dayOfWeek = now.getUTCDay();   // 0=Sunday
+        const dayPart = getDayPartKey(localHour);
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        const localDate = now.toISOString().split('T')[0]; // YYYY-MM-DD UTC
+
+        // 2026-02-17: Session tracking — group offers within 30-min windows
+        let offerSessionId = crypto.randomUUID();
+        let offerSequenceNum = 1;
+        let secondsSinceLast = null;
+
+        try {
+          const lastOfferResult = await db.execute(
+            sql`SELECT offer_session_id, offer_sequence_num, created_at
+                FROM offer_intelligence
+                WHERE device_id = ${deviceId}
+                ORDER BY created_at DESC LIMIT 1`
+          );
+          const lastOffer = lastOfferResult.rows?.[0];
+          if (lastOffer) {
+            secondsSinceLast = Math.round((Date.now() - new Date(lastOffer.created_at).getTime()) / 1000);
+            if (secondsSinceLast <= 1800 && lastOffer.offer_session_id) { // 30 min = same session
+              offerSessionId = lastOffer.offer_session_id;
+              offerSequenceNum = (lastOffer.offer_sequence_num || 0) + 1;
+            }
+          }
+        } catch (seqErr) {
+          console.warn(`[hooks/analyze-offer] Session tracking failed (non-fatal): ${seqErr.message}`);
+        }
+
+        // 2026-02-17: INSERT into offer_intelligence with all structured columns
+        await db.insert(offer_intelligence).values({
           device_id: deviceId,
-          raw_text: text || `[Vision: ${Math.round((image?.length || 0) / 1024)}KB image]`,
-          parsed_data: mergedParsedData,
+
+          // Offer metrics — prefer server pre-parsed (regex) over AI-parsed (LLM math)
+          price: preParsed?.price ?? result.parsed_data?.price ?? null,
+          per_mile: perMileValue,
+          per_minute: preParsed?.per_minute ?? result.parsed_data?.per_minute ?? null,
+          hourly_rate: preParsed?.hourly_rate ?? null,
+          surge: preParsed?.surge ?? result.parsed_data?.surge ?? null,
+          advantage_pct: preParsed?.advantage_pct ?? null,
+          pickup_minutes: preParsed?.pickup_minutes ?? result.parsed_data?.pickup_minutes ?? null,
+          pickup_miles: preParsed?.pickup_miles ?? null,
+          ride_minutes: preParsed?.ride_minutes ?? result.parsed_data?.ride_minutes ?? null,
+          ride_miles: preParsed?.ride_miles ?? null,
+          total_miles: preParsed?.total_miles ?? result.parsed_data?.miles ?? null,
+          total_minutes: preParsed?.total_minutes ?? null,
+          product_type: preParsed?.product_type ?? result.parsed_data?.product_type ?? null,
+          platform,
+
+          // Addresses (from AI parsing — regex doesn't extract these)
+          pickup_address: result.parsed_data?.pickup ?? null,
+          dropoff_address: result.parsed_data?.dropoff ?? null,
+
+          // Driver location (6-decimal precision)
+          driver_lat: lat,
+          driver_lng: lng,
+          coord_key: coordKeyValue,
+          h3_index: h3Index,
+          market,
+
+          // Temporal
+          local_date: localDate,
+          local_hour: localHour,
+          day_of_week: dayOfWeek,
+          day_part: dayPart,
+          is_weekend: isWeekend,
+
+          // AI analysis
           decision: result.decision,
           decision_reasoning: result.reasoning,
           confidence_score: result.confidence,
-          latitude: lat,
-          longitude: lng,
-          market,
-          platform,
+          ai_model: 'gemini-3-flash',
           response_time_ms: responseTimeMs,
+
+          // Sequence tracking
+          offer_session_id: offerSessionId,
+          offer_sequence_num: offerSequenceNum,
+          seconds_since_last: secondsSinceLast,
+
+          // Parse quality
+          parse_confidence: preParsed?.parse_confidence ?? 'minimal',
           source,
+          input_mode: image ? 'vision' : 'text',
+
+          // Raw data preservation
+          raw_text: text || `[Vision: ${Math.round((image?.length || 0) / 1024)}KB image]`,
+          raw_ai_response: aiResponse.text || null,
+          parsed_data_json: mergedParsedData,
         });
-        console.log(`[hooks/analyze-offer] ✅ ${result.decision} (${responseTimeMs}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [saved]`);
+
+        console.log(`[hooks/analyze-offer] ✅ ${result.decision} (${responseTimeMs}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [saved to offer_intelligence]`);
+
         // SSE broadcast for web app
         const notifyPayload = JSON.stringify({
           device_id: deviceId,
           decision: result.decision,
           reasoning: result.reasoning,
           price: result.parsed_data?.price,
+          per_mile: perMileValue,
           platform,
           response_time_ms: responseTimeMs,
         });
@@ -270,7 +360,7 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
 
 // GET /api/hooks/offer-history
 // Returns recent offer analyses for a device — no auth required (device_id based)
-// Used by the web app to show past analyses when driver returns
+// 2026-02-17: Updated to use offer_intelligence with structured columns
 router.get('/offer-history', async (req, res) => {
   try {
     const { device_id, limit = 20 } = req.query;
@@ -282,8 +372,34 @@ router.get('/offer-history', async (req, res) => {
     const maxLimit = Math.min(parseInt(limit, 10) || 20, 100);
 
     const history = await db
-      .select()
-      .from(intercepted_signals)
+      .select({
+        id: offer_intelligence.id,
+        price: offer_intelligence.price,
+        per_mile: offer_intelligence.per_mile,
+        total_miles: offer_intelligence.total_miles,
+        total_minutes: offer_intelligence.total_minutes,
+        pickup_minutes: offer_intelligence.pickup_minutes,
+        pickup_miles: offer_intelligence.pickup_miles,
+        ride_minutes: offer_intelligence.ride_minutes,
+        ride_miles: offer_intelligence.ride_miles,
+        pickup_address: offer_intelligence.pickup_address,
+        dropoff_address: offer_intelligence.dropoff_address,
+        product_type: offer_intelligence.product_type,
+        platform: offer_intelligence.platform,
+        surge: offer_intelligence.surge,
+        decision: offer_intelligence.decision,
+        decision_reasoning: offer_intelligence.decision_reasoning,
+        confidence_score: offer_intelligence.confidence_score,
+        user_override: offer_intelligence.user_override,
+        response_time_ms: offer_intelligence.response_time_ms,
+        local_date: offer_intelligence.local_date,
+        day_part: offer_intelligence.day_part,
+        h3_index: offer_intelligence.h3_index,
+        offer_session_id: offer_intelligence.offer_session_id,
+        offer_sequence_num: offer_intelligence.offer_sequence_num,
+        created_at: offer_intelligence.created_at,
+      })
+      .from(offer_intelligence)
       .where(sql`device_id = ${device_id}`)
       .orderBy(sql`created_at DESC`)
       .limit(maxLimit);
@@ -296,8 +412,8 @@ router.get('/offer-history', async (req, res) => {
       avg_response_ms: history.length > 0
         ? Math.round(history.reduce((sum, h) => sum + (h.response_time_ms || 0), 0) / history.length)
         : 0,
-      avg_confidence: history.length > 0
-        ? Math.round(history.reduce((sum, h) => sum + (h.confidence_score || 0), 0) / history.length)
+      avg_per_mile: history.length > 0
+        ? Math.round(history.reduce((sum, h) => sum + (h.per_mile || 0), 0) / history.length * 100) / 100
         : 0,
     };
 
@@ -316,6 +432,7 @@ router.get('/offer-history', async (req, res) => {
 
 // POST /api/hooks/offer-override
 // Driver disagreed with AI decision — record the override for training data
+// 2026-02-17: Updated to use offer_intelligence table
 router.post('/offer-override', async (req, res) => {
   try {
     const { id, user_override, device_id } = req.body;
@@ -326,8 +443,8 @@ router.post('/offer-override', async (req, res) => {
 
     // 2026-02-15: Only allow the same device to override its own analyses
     const updated = await db.execute(
-      sql`UPDATE intercepted_signals
-          SET user_override = ${user_override}
+      sql`UPDATE offer_intelligence
+          SET user_override = ${user_override}, updated_at = NOW()
           WHERE id = ${id} AND device_id = ${device_id}
           RETURNING id, decision, user_override`
     );
@@ -351,9 +468,9 @@ router.post('/offer-override', async (req, res) => {
   }
 });
 
-// DELETE /api/hooks/offer-cleanup
-// Batch delete test/duplicate entries from intercepted_signals
-// 2026-02-16: Added for cleaning up test data during development
+// POST /api/hooks/offer-cleanup
+// Batch delete test/duplicate entries from offer_intelligence
+// 2026-02-17: Updated to use offer_intelligence table
 router.post('/offer-cleanup', async (req, res) => {
   try {
     const { ids } = req.body;
@@ -367,7 +484,7 @@ router.post('/offer-cleanup', async (req, res) => {
     }
 
     const result = await db.execute(
-      sql`DELETE FROM intercepted_signals WHERE id = ANY(${ids}) RETURNING id`
+      sql`DELETE FROM offer_intelligence WHERE id = ANY(${ids}) RETURNING id`
     );
 
     console.log(`[hooks/offer-cleanup] 🗑️ Deleted ${result.rows?.length || 0} of ${ids.length} requested`);

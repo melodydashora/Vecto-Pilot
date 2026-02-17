@@ -75,12 +75,12 @@ export const coachSchemaMetadata = {
       key_columns: ["id", "user_id", "note_type", "title", "content", "importance", "is_pinned"],
       sample_query: "Retrieve saved preferences and insights about driver"
     },
-    // 2026-02-16: Offer analysis history for pattern analysis and coaching
-    intercepted_signals: {
-      description: "Ride offer analysis history from Siri Shortcuts (ACCEPT/REJECT decisions with parsed offer data, $/mile, locations)",
-      key_columns: ["id", "device_id", "parsed_data", "decision", "decision_reasoning", "confidence_score", "latitude", "longitude", "market", "platform", "response_time_ms", "user_override", "created_at"],
-      sample_query: "Get recent offer analyses to review $/mile patterns and decision accuracy",
-      notes: "No user_id FK — uses device_id (Siri headless). user_override indicates driver disagreed with AI. parsed_data JSONB contains price, miles, per_mile, pickup, dropoff, surge."
+    // 2026-02-17: Structured offer intelligence (replaces intercepted_signals JSONB)
+    offer_intelligence: {
+      description: "Analyst-grade structured ride offer data — every metric is a real indexed column (no JSONB unpacking needed)",
+      key_columns: ["id", "device_id", "price", "per_mile", "total_miles", "pickup_minutes", "pickup_address", "dropoff_address", "product_type", "platform", "decision", "decision_reasoning", "confidence_score", "user_override", "driver_lat", "driver_lng", "h3_index", "market", "local_date", "local_hour", "day_part", "is_weekend", "offer_session_id", "offer_sequence_num", "response_time_ms", "created_at"],
+      sample_query: "SELECT day_part, AVG(per_mile), COUNT(*) FROM offer_intelligence WHERE platform = 'uber' GROUP BY day_part",
+      notes: "No user_id FK — uses device_id (Siri headless). H3 res-8 for geographic clustering. Session tracking (30-min windows) for sequence analysis. offer_override indicates driver disagreed with AI."
     }
   },
 

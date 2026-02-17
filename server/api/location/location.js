@@ -8,6 +8,8 @@ import { sql, eq, or, ilike } from 'drizzle-orm';
 import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
+// 2026-02-17: Daypart extracted to shared module for reuse in offer_intelligence
+import { getDayPartKey } from '../../lib/location/daypart.js';
 import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
@@ -26,15 +28,7 @@ const router = Router();
 // Previously these were completely open, allowing geocoding, snapshot creation, etc. without auth
 router.use(requireAuth);
 
-// Helper to classify day part from hour
-function getDayPartKey(hour) {
-  if (hour >= 0 && hour < 5) return 'overnight';
-  if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 15) return 'late_morning_noon';
-  if (hour >= 15 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 21) return 'early_evening';
-  return 'evening';
-}
+// 2026-02-17: getDayPartKey moved to server/lib/location/daypart.js (shared module)
 
 // 2026-01-14: validateSnapshotFields moved to shared module (server/util/validate-snapshot.js)
 // Import above: import { validateSnapshotFields } from '../../util/validate-snapshot.js';
