@@ -8,7 +8,7 @@ The `CoachDAL` class serves as the central data access point for the AI Coach, p
 
 The DAL imports the following schema definitions from `shared/schema.js` to build context:
 
-*   **Core:** `snapshots`, `strategies`, `users`, `actions`
+*   **Core:** `snapshots`, `strategies`, `rankings`, `ranking_candidates`, `users`, `actions`
 *   **Feedback:** `venue_feedback`, `strategy_feedback`
 *   **Intelligence:** `market_intelligence`, `user_intel_notes`, `zone_intelligence`
 *   **Offer Analytics:** `offer_intelligence` (Replaced `intercepted_signals` on 2026-02-17 for structured offer analytics)
