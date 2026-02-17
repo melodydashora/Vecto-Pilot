@@ -1461,7 +1461,7 @@ export const intercepted_signals = pgTable("intercepted_signals", {
   confidence_score: doublePrecision("confidence_score"), // 0.0 - 1.0
 
   // 2026-02-15: Response time tracking — how fast did we analyze?
-  // Critical for UX: driver has ~9 seconds to decide on an Uber offer.
+  // Critical for UX: regular Uber offers give ~9 seconds; Trip Radar offers give only ~5 seconds.
   response_time_ms: integer("response_time_ms"), // AI analysis + DB write time
 
   // User override (if driver disagreed with AI)

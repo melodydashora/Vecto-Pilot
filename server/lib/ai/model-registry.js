@@ -307,7 +307,7 @@ export const MODEL_ROLES = {
   // 8. SIRI HOOKS (offer_intelligence)
   // ==========================
   // 2026-02-15: Dedicated role for real-time ride offer analysis via Siri Shortcuts.
-  // Uses Flash (not Pro) because speed is CRITICAL — driver has ~15 seconds to decide.
+  // Uses Flash (not Pro) because speed is CRITICAL — Trip Radar gives only ~5 seconds; regular offers ~9s.
   // Flash is 3-5x faster than Pro; LOW thinking minimizes latency further.
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
