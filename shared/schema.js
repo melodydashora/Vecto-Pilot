@@ -1461,7 +1461,7 @@ export const intercepted_signals = pgTable("intercepted_signals", {
   confidence_score: doublePrecision("confidence_score"), // 0.0 - 1.0
 
   // 2026-02-15: Response time tracking — how fast did we analyze?
-  // Critical for UX: driver has ~15 seconds to decide on an Uber offer.
+  // Critical for UX: driver has ~9 seconds to decide on an Uber offer.
   response_time_ms: integer("response_time_ms"), // AI analysis + DB write time
 
   // User override (if driver disagreed with AI)
@@ -1478,6 +1478,209 @@ export const intercepted_signals = pgTable("intercepted_signals", {
   idxCreatedAt: sql`create index if not exists idx_intercepted_signals_created on ${table} (device_id, created_at desc)`,
   // 2026-02-15: Market index for algorithm learning queries (e.g., "avg price in dallas-tx at 9pm")
   idxMarket: sql`create index if not exists idx_intercepted_signals_market on ${table} (market, created_at desc) where market is not null`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OFFER INTELLIGENCE (2026-02-17)
+// Analyst-grade structured storage replacing intercepted_signals JSONB blob.
+// Every metric promoted to an indexed column for SQL analytics and Excel export.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Offer Intelligence Table
+ *
+ * Structured, indexed storage for every ride offer intercepted from
+ * Uber/Lyft via iOS Siri Shortcuts (OCR text or screenshot vision).
+ *
+ * WHY THIS EXISTS:
+ * intercepted_signals stores parsed offer data in a JSONB blob (parsed_data),
+ * making SQL analytics impossible. This table promotes every metric to a
+ * proper indexed column for:
+ *   - Daypart analysis: "What are average $/mile during early_evening?"
+ *   - Geographic clustering: "Where do the best offers appear?" (H3 hex grid)
+ *   - Platform comparison: "Does Uber or Lyft pay more per mile here?"
+ *   - Sequence analysis: "Do rejected offers lead to better ones?"
+ *   - Excel export: Every column is a real SQL type, not JSON to unpack
+ *
+ * Data Flow:
+ *   Siri Shortcut → POST /api/hooks/analyze-offer
+ *   → parse-offer-text.js (regex pre-parser, <1ms)
+ *   → AI (Gemini Flash via OFFER_ANALYZER role, ~1-3s)
+ *   → INSERT offer_intelligence (structured columns)
+ *   → pg NOTIFY offer_analyzed → SSE to web app
+ *
+ * Auth: device_id based (Siri Shortcuts cannot send JWT tokens).
+ * GPS: 6-decimal precision (~11cm) per codebase standard.
+ * H3: Resolution 8 (~0.7km² hexagons) for density clustering.
+ * Daypart: Uses getDayPartKey(hour) from server/lib/location/daypart.js.
+ *
+ * 2026-02-17: Created to replace intercepted_signals JSONB blob with structured columns.
+ */
+export const offer_intelligence = pgTable("offer_intelligence", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DEVICE & USER IDENTIFICATION
+  // ═══════════════════════════════════════════════════════════════════
+
+  // PRIMARY identifier — Siri Shortcuts run without authenticated sessions
+  device_id: varchar("device_id", { length: 255 }).notNull(),
+
+  // OPTIONAL user link — NO FK constraint (headless ingestion)
+  user_id: uuid("user_id"), // Intentionally NO .references() — headless ingestion
+
+  // ═══════════════════════════════════════════════════════════════════
+  // OFFER METRICS (structured numeric columns — the whole point)
+  // All values from parse-offer-text.js regex extraction or AI parsing
+  // ═══════════════════════════════════════════════════════════════════
+
+  price: doublePrecision("price"),                     // Ride price in dollars (e.g., 9.43)
+  per_mile: doublePrecision("per_mile"),               // $/mile = price / total_miles (THE key metric)
+  per_minute: doublePrecision("per_minute"),           // $/minute = price / total_minutes
+  hourly_rate: doublePrecision("hourly_rate"),         // Platform estimated $/active hr (e.g., 23.58)
+  surge: doublePrecision("surge"),                     // Surge/priority amount in dollars
+  advantage_pct: integer("advantage_pct"),             // Uber Pro advantage percentage (e.g., 5)
+
+  pickup_minutes: integer("pickup_minutes"),           // Minutes to reach passenger
+  pickup_miles: doublePrecision("pickup_miles"),       // Miles to reach passenger
+  ride_minutes: integer("ride_minutes"),               // Minutes of actual trip
+  ride_miles: doublePrecision("ride_miles"),           // Miles of actual trip
+  total_miles: doublePrecision("total_miles"),         // pickup_miles + ride_miles
+  total_minutes: integer("total_minutes"),             // pickup_minutes + ride_minutes
+
+  product_type: varchar("product_type", { length: 50 }), // "UberX", "UberX Priority", "Lyft XL", etc.
+  platform: varchar("platform", { length: 20 }).notNull().default('unknown'), // 'uber' | 'lyft' | 'unknown'
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ADDRESSES (pickup and dropoff — for area analysis)
+  // Extracted by AI from OCR text (street/intersection level)
+  // ═══════════════════════════════════════════════════════════════════
+
+  pickup_address: text("pickup_address"),
+  dropoff_address: text("dropoff_address"),
+
+  // Geocoded coordinates (populated async by background geocoder — future)
+  pickup_lat: doublePrecision("pickup_lat"),
+  pickup_lng: doublePrecision("pickup_lng"),
+  dropoff_lat: doublePrecision("dropoff_lat"),
+  dropoff_lng: doublePrecision("dropoff_lng"),
+  geocoded_at: timestamp("geocoded_at", { withTimezone: true }),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DRIVER LOCATION at time of offer (6-decimal GPS, ~11cm precision)
+  // Critical for "where do offers appear" analysis
+  // ═══════════════════════════════════════════════════════════════════
+
+  driver_lat: doublePrecision("driver_lat"),
+  driver_lng: doublePrecision("driver_lng"),
+  coord_key: text("coord_key"),                        // "33.081234_-96.812345" from coordsKey()
+  h3_index: text("h3_index"),                          // H3 resolution 8 hex cell (~0.7km²)
+
+  // ═══════════════════════════════════════════════════════════════════
+  // GEOGRAPHIC & MARKET CONTEXT
+  // ═══════════════════════════════════════════════════════════════════
+
+  market: varchar("market", { length: 100 }),          // Coarse bucket: "33.1_-96.8" (1-decimal GPS)
+
+  // ═══════════════════════════════════════════════════════════════════
+  // TEMPORAL COLUMNS for daypart/time-of-day analysis
+  // Enables: "best offers by daypart", "weekend vs weekday pricing"
+  // ═══════════════════════════════════════════════════════════════════
+
+  local_date: text("local_date"),                      // YYYY-MM-DD in driver's local timezone
+  local_hour: integer("local_hour"),                   // 0-23 in driver's local timezone
+  day_of_week: integer("day_of_week"),                 // 0=Sunday, 6=Saturday (matches snapshots.dow)
+  day_part: text("day_part"),                          // getDayPartKey(hour): overnight|morning|etc.
+  is_weekend: boolean("is_weekend"),                   // true for Saturday (6) and Sunday (0)
+  timezone: text("timezone"),                          // IANA timezone (e.g., "America/Chicago")
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AI ANALYSIS — decision, reasoning, model metadata
+  // ═══════════════════════════════════════════════════════════════════
+
+  decision: text("decision").notNull(),                // 'ACCEPT' | 'REJECT' | 'UNKNOWN'
+  decision_reasoning: text("decision_reasoning"),
+  confidence_score: integer("confidence_score"),       // 0-100
+  ai_model: text("ai_model"),                         // e.g., "gemini-3-flash"
+  response_time_ms: integer("response_time_ms"),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DRIVER FEEDBACK — human override of AI decision
+  // ═══════════════════════════════════════════════════════════════════
+
+  user_override: text("user_override"),                // null | 'ACCEPT' | 'REJECT'
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SEQUENCE TRACKING — for accept/reject pattern analysis
+  // "Do rejections lead to better subsequent offers?"
+  // ═══════════════════════════════════════════════════════════════════
+
+  offer_session_id: uuid("offer_session_id"),          // Groups offers into 30-min driving sessions
+  offer_sequence_num: integer("offer_sequence_num"),   // 1, 2, 3... within a session
+  seconds_since_last: integer("seconds_since_last"),   // Seconds since previous offer on this device
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PARSE QUALITY & DATA PROVENANCE
+  // ═══════════════════════════════════════════════════════════════════
+
+  parse_confidence: varchar("parse_confidence", { length: 20 }), // 'full' | 'partial' | 'minimal'
+  source: varchar("source", { length: 50 }).notNull().default('siri_shortcut'),
+  input_mode: varchar("input_mode", { length: 20 }).notNull().default('text'), // 'text' | 'vision'
+
+  // ═══════════════════════════════════════════════════════════════════
+  // RAW DATA PRESERVATION (debugging, reprocessing, audit trail)
+  // ═══════════════════════════════════════════════════════════════════
+
+  raw_text: text("raw_text"),
+  raw_ai_response: text("raw_ai_response"),            // Full AI JSON output
+  parsed_data_json: jsonb("parsed_data_json"),         // Legacy JSONB fallback
+
+  // ═══════════════════════════════════════════════════════════════════
+  // TIMESTAMPS
+  // ═══════════════════════════════════════════════════════════════════
+
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  // ═══════════════════════════════════════════════════════════════════
+  // INDEXES — optimized for analyst query patterns
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Device offer history
+  idxDeviceCreated: sql`create index if not exists idx_oi_device_created on ${table} (device_id, created_at desc)`,
+
+  // Avg $/mile by daypart + market + platform
+  idxMarketDaypart: sql`create index if not exists idx_oi_market_daypart on ${table} (market, day_part, platform) where market is not null`,
+
+  // Best offer areas (H3 geographic clustering)
+  idxH3Decision: sql`create index if not exists idx_oi_h3_decision on ${table} (h3_index, decision) where h3_index is not null`,
+
+  // Daily pricing floor by platform
+  idxDatePlatform: sql`create index if not exists idx_oi_date_platform on ${table} (local_date, platform, per_mile) where local_date is not null`,
+
+  // Weekend vs weekday pricing patterns
+  idxWeekendHour: sql`create index if not exists idx_oi_weekend_hour on ${table} (is_weekend, local_hour, platform) where is_weekend is not null`,
+
+  // Sequence analysis within sessions
+  idxSessionSeq: sql`create index if not exists idx_oi_session_seq on ${table} (offer_session_id, offer_sequence_num) where offer_session_id is not null`,
+
+  // Spatial lookup by driver location
+  idxDriverLocation: sql`create index if not exists idx_oi_driver_location on ${table} (driver_lat, driver_lng) where driver_lat is not null`,
+
+  // Override rate (driver disagreement)
+  idxOverride: sql`create index if not exists idx_oi_override on ${table} (device_id, user_override) where user_override is not null`,
+
+  // User linkage
+  idxUserId: sql`create index if not exists idx_oi_user_id on ${table} (user_id) where user_id is not null`,
+
+  // Best offers ranking
+  idxPerMile: sql`create index if not exists idx_oi_per_mile on ${table} (per_mile desc) where per_mile is not null`,
+
+  // General time-series queries
+  idxCreatedAt: sql`create index if not exists idx_oi_created_at on ${table} (created_at desc)`,
+
+  // Geocoding backfill job — find rows needing geocoding
+  idxNeedGeocode: sql`create index if not exists idx_oi_need_geocode on ${table} (id) where geocoded_at is null and pickup_address is not null`,
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -23,7 +23,7 @@ import {
   coach_system_notes,
   news_deactivations,
   zone_intelligence,
-  intercepted_signals   // 2026-02-16: Offer analysis history for coach context
+  offer_intelligence    // 2026-02-17: Structured offer analytics (replaces intercepted_signals)
 } from '../../../shared/schema.js';
 import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
 import crypto from 'crypto';
@@ -1239,7 +1239,7 @@ export class CoachDAL {
 
   /**
    * Get offer analysis history for AI Coach context.
-   * 2026-02-16: intercepted_signals uses device_id, NOT user_id (Siri headless).
+   * 2026-02-17: Migrated to offer_intelligence — structured columns, no more JSONB unpacking.
    * Queries ALL recent offers (single-user system for now).
    * Future: link device_id → user_id for multi-user support.
    *
@@ -1250,19 +1250,27 @@ export class CoachDAL {
     try {
       const history = await db
         .select({
-          id: intercepted_signals.id,
-          decision: intercepted_signals.decision,
-          decision_reasoning: intercepted_signals.decision_reasoning,
-          parsed_data: intercepted_signals.parsed_data,
-          confidence_score: intercepted_signals.confidence_score,
-          user_override: intercepted_signals.user_override,
-          platform: intercepted_signals.platform,
-          market: intercepted_signals.market,
-          response_time_ms: intercepted_signals.response_time_ms,
-          created_at: intercepted_signals.created_at,
+          id: offer_intelligence.id,
+          decision: offer_intelligence.decision,
+          decision_reasoning: offer_intelligence.decision_reasoning,
+          price: offer_intelligence.price,
+          per_mile: offer_intelligence.per_mile,
+          total_miles: offer_intelligence.total_miles,
+          pickup_minutes: offer_intelligence.pickup_minutes,
+          pickup_address: offer_intelligence.pickup_address,
+          dropoff_address: offer_intelligence.dropoff_address,
+          product_type: offer_intelligence.product_type,
+          confidence_score: offer_intelligence.confidence_score,
+          user_override: offer_intelligence.user_override,
+          platform: offer_intelligence.platform,
+          market: offer_intelligence.market,
+          day_part: offer_intelligence.day_part,
+          h3_index: offer_intelligence.h3_index,
+          response_time_ms: offer_intelligence.response_time_ms,
+          created_at: offer_intelligence.created_at,
         })
-        .from(intercepted_signals)
-        .orderBy(desc(intercepted_signals.created_at))
+        .from(offer_intelligence)
+        .orderBy(desc(offer_intelligence.created_at))
         .limit(limit);
 
       if (history.length === 0) {

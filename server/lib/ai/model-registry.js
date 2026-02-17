@@ -304,7 +304,7 @@ export const MODEL_ROLES = {
   },
 
   // ==========================
-  // 8. SIRI HOOKS (intercepted_signals)
+  // 8. SIRI HOOKS (offer_intelligence)
   // ==========================
   // 2026-02-15: Dedicated role for real-time ride offer analysis via Siri Shortcuts.
   // Uses Flash (not Pro) because speed is CRITICAL — driver has ~15 seconds to decide.

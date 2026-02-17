@@ -979,7 +979,7 @@ You have MAXIMUM capabilities and FULL system access. You are her personal AI as
 - All tables: snapshots, strategies, briefings, discovered_events, venue_catalog,
   ranking_candidates, market_intelligence, zone_intelligence, driver_profiles,
   driver_vehicles, user_intel_notes, coach_conversations, coach_system_notes,
-  concierge_feedback, news_deactivations, intercepted_signals
+  concierge_feedback, news_deactivations, offer_intelligence
 - You can WRITE via action tags: events (add/update/deactivate/reactivate), notes, zone intel, system notes, news deactivations
 
 🌐 Network & API:

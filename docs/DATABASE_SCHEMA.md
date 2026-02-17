@@ -56,7 +56,8 @@
 | `user_intel_notes` | `user_intel_notes` | 2 | - |
 | `coach_conversations` | `coach_conversations` | 2 | - |
 | `coach_system_notes` | `coach_system_notes` | 8 | Market Intelligence Table Stores structured intell... |
-| `intercepted_signals` | `intercepted_signals` | 1 | Market Intelligence Table Stores structured intell... |
+| `intercepted_signals` | `intercepted_signals` | 1 | (ARCHIVED) Original offer storage with JSONB blob |
+| `offer_intelligence` | `offer_intelligence` | 12 | Analyst-grade structured offer data — 43 columns, all metrics indexed |
 | `driver_goals` | `driver_goals` | 2 | Market Intelligence Table Stores structured intell... |
 | `driver_tasks` | `driver_tasks` | 2 | Market Intelligence Table Stores structured intell... |
 | `safe_zones` | `safe_zones` | 2 | Market Intelligence Table Stores structured intell... |
