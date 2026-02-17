@@ -213,7 +213,6 @@ export async function getEnhancedProjectContextBase(identity, memoryTable, optio
     const configFilesToRead = [
       ".env.example",
       ".replit",
-      ".replit-assistant-override.json",
       "package.json",
       "tsconfig.json",
       "drizzle.config.ts",

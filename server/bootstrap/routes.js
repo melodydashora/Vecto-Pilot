@@ -51,7 +51,7 @@ export async function mountRoutes(app, server) {
     { path: '/api/job-metrics', module: './server/api/health/job-metrics.js', desc: 'Job Metrics' },
 
     // Chat & Voice (server/api/chat/)
-    { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Strategy Coach' },
+    { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Coach' },
     { path: '/api/tts', module: './server/api/chat/tts.js', desc: 'TTS endpoint' },
     { path: '/api/realtime', module: './server/api/chat/realtime.js', desc: 'OpenAI Realtime voice' },
 

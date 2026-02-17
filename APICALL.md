@@ -154,7 +154,7 @@
 
 ### Chat & Coach Routes
 
-#### `/api/chat` - AI Strategy Coach
+#### `/api/chat` - AI Coach
 - **File**: [server/api/chat/chat.js](/server/api/chat/chat.js)
 - **DAL**: [server/lib/ai/coach-dal.js](/server/lib/ai/coach-dal.js)
 - **Endpoints**:

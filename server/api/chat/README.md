@@ -9,7 +9,7 @@ Full UUIDs are PII and should not appear in server logs.
 
 ## Purpose
 
-AI Strategy Coach with streaming and voice capabilities.
+AI Coach with streaming and voice capabilities.
 
 ## Files
 

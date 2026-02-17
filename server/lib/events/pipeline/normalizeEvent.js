@@ -198,8 +198,36 @@ export function normalizeEvent(rawEvent, context = {}) {
 
   // Date/Time Normalization
   const event_start_date = normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date);
-  const event_start_time = normalizeTime(rawEvent.event_time || rawEvent.event_start_time || rawEvent.time);
-  let event_end_time = normalizeTime(rawEvent.event_end_time || rawEvent.end_time);
+
+  // 2026-02-17: Detect "All Day" events BEFORE normalizeTime (which returns null for non-time strings)
+  const rawStartTime = rawEvent.event_time || rawEvent.event_start_time || rawEvent.time || '';
+  const rawEndTime = rawEvent.event_end_time || rawEvent.end_time || '';
+  const isAllDay = /all\s*day/i.test(rawStartTime) || /all\s*day/i.test(rawEndTime);
+
+  let event_start_time = normalizeTime(rawStartTime);
+  let event_end_time = normalizeTime(rawEndTime);
+
+  // 2026-02-17: Handle "All Day" events — assign full-day window instead of rejecting
+  // Rideshare impact: All-day events (festivals, fairs, conventions) generate demand throughout the day
+  if (isAllDay && !event_start_time && !event_end_time) {
+    event_start_time = '08:00';
+    event_end_time = '22:00';
+  }
+
+  // 2026-02-17: Last resort — if BOTH times are still null, assign category-based defaults
+  // This prevents rejection of events where Gemini returned no time info at all
+  if (!event_start_time && !event_end_time && event_start_date) {
+    if (category === 'nightlife') {
+      event_start_time = '20:00';
+      event_end_time = '02:00';
+    } else if (category === 'festival' || category === 'convention' || category === 'community') {
+      event_start_time = '09:00';
+      event_end_time = '21:00';
+    } else {
+      event_start_time = '18:00'; // Default evening event
+      event_end_time = '22:00';
+    }
+  }
 
   // 2026-02-05: Auto-estimate end time if missing (Requirement: End time MUST be resolved)
   if (event_start_time && !event_end_time) {
@@ -207,7 +235,7 @@ export function normalizeEvent(rawEvent, context = {}) {
     if (category === 'festival' || category === 'convention') duration = 4;
     else if (category === 'comedy' || category === 'theater') duration = 2;
     else if (category === 'sports' || category === 'concert') duration = 3;
-    
+
     event_end_time = addDuration(event_start_time, duration);
   }
 

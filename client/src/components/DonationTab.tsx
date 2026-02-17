@@ -107,7 +107,7 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => 
                 <Badge variant="secondary">$1,200+</Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-700">Anthropic Claude (Strategic Analysis)</span>
+                <span className="text-gray-700">Claude Opus 4.6 (Strategic Analysis)</span>
                 <Badge variant="secondary">$800+</Badge>
               </div>
               <div className="flex justify-between items-center">
@@ -217,7 +217,7 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => 
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-gray-600 space-y-2">
-              <p>✓ Claude Sonnet 4.5 (Strategic Analysis)</p>
+              <p>✓ Claude Opus 4.6 (Strategic Analysis)</p>
               <p>✓ Perplexity Sonar Pro (Real-time Research)</p>
               <p>✓ GPT-5.2 (Tactical Consolidation)</p>
               <p>✓ OpenAI Realtime (Voice Chat)</p>

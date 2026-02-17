@@ -62,7 +62,7 @@ co-pilot/
 The main page - displays:
 - AI-generated driving strategy (immediate + daily)
 - Smart Blocks (venue recommendations)
-- AI Strategy Coach chat interface
+- AI Coach chat interface
 - Loading states with progress indicators
 
 Uses:

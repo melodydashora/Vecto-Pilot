@@ -118,7 +118,7 @@ export const InstructionsTab: React.FC = () => {
                 <ul className="space-y-2 text-sm text-gray-700">
                   <li className="flex items-start gap-2">
                     <span className="text-blue-600 font-bold">•</span>
-                    <span><strong>AI-Generated Strategy</strong> - Claude Sonnet 4.5 analyzes your location, weather, events, and traffic to give you a strategic briefing</span>
+                    <span><strong>AI-Generated Strategy</strong> - Claude Opus 4.6 analyzes your location, weather, events, and traffic to give you a strategic briefing</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-blue-600 font-bold">•</span>
@@ -130,7 +130,7 @@ export const InstructionsTab: React.FC = () => {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-blue-600 font-bold">•</span>
-                    <span><strong>AI Coach Chat</strong> - Talk to the AI coach (voice or text) to ask questions about your strategy</span>
+                    <span><strong>AI Coach</strong> - Talk to the AI Coach (voice or text) to ask questions about your strategy</span>
                   </li>
                 </ul>
                 <p className="text-xs text-gray-600 italic pt-2">
@@ -385,7 +385,7 @@ export const InstructionsTab: React.FC = () => {
         <CardContent className="space-y-4">
           {[
             { step: 1, title: 'Enable Location', desc: 'Click "Allow" when the app asks for your location. This is required for all features.' },
-            { step: 2, title: 'Check the Strategy Tab', desc: 'Watch the progress bar (1-2 min) as Claude, Perplexity, and GPT-5.2 generate your personalized recommendation.' },
+            { step: 2, title: 'Check the Strategy Tab', desc: 'Watch the progress bar (1-2 min) as Claude Opus, Gemini 3, and GPT-5.2 generate your personalized recommendation.' },
             { step: 3, title: 'Explore Smart Blocks', desc: 'Scroll down to see specific venues with earnings estimates, drive times, and ratings.' },
             { step: 4, title: 'Use the Map', desc: 'Switch to the Map tab to see all venues at a glance with live traffic overlays.' },
             { step: 5, title: 'Read the Briefing', desc: 'Check news/events and weather to understand what\'s driving demand in your area.' },

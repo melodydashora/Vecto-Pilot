@@ -81,8 +81,8 @@ export default function createSdkRouter(opts = {}) {
   r.use('/snapshot', snapshotRoutes);
   r.use('/metrics/jobs', jobMetricsRoutes);
   r.use('/ml', mlHealthRoutes);
-  r.use('/chat', chatRoutes); // AI Strategy Coach
-  r.use('/chat', chatContextRoutes); // Read-only context for AI Coach (no external API calls - to do list this is not correct logic AI Strategy Coach should have web search access)
+  r.use('/chat', chatRoutes); // AI Coach
+  r.use('/chat', chatContextRoutes); // Read-only context for AI Coach
   r.use('/closed-venue-reasoning', closedVenueReasoningRoutes); // Closed venue reasoning (GPT-5)
   r.use('/strategy', strategyRoutes); // Model-agnostic strategy API (minstrategy + briefing + consolidation)
   r.use('/diagnostics', diagnosticsStrategyRoutes); // Strategy pipeline test routes

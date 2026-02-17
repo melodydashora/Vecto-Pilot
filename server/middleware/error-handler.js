@@ -25,11 +25,22 @@ export function errorTo503(err, req, res, next) {
   if (res.headersSent) {
     return next(err);
   }
-  
+
+  // 2026-02-17: Surface payload-too-large errors clearly instead of masking as 500
+  if (err.type === 'entity.too.large') {
+    console.warn(`[error-handler] Payload too large: ${err.message}`);
+    ndjson('http.413', { cid, error: String(err.message || err) });
+    return res.status(413).json({
+      cid,
+      error: 'Payload too large. Try reducing image size or removing attachments.',
+      code: 'payload_too_large'
+    });
+  }
+
   console.error('[error-handler] Unhandled error:', err);
   ndjson('http.500', { cid, error: String(err.message || err), stack: err.stack });
-  return res.status(500).json({ 
+  return res.status(500).json({
     cid,
-    error: 'Internal server error' 
+    error: 'Internal server error'
   });
 }

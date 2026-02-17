@@ -50,7 +50,7 @@ api/
 ### chat/
 | File | Route | Purpose |
 |------|-------|---------|
-| `chat.js` | `/api/chat` | AI Strategy Coach (SSE streaming) |
+| `chat.js` | `/api/chat` | AI Coach (SSE streaming) |
 | `chat-context.js` | `/coach/context/*` | Read-only chat context |
 | `realtime.js` | `/api/realtime` | OpenAI Realtime voice API |
 | `tts.js` | `/api/tts` | Text-to-speech |

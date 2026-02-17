@@ -351,4 +351,37 @@ router.post('/offer-override', async (req, res) => {
   }
 });
 
+// DELETE /api/hooks/offer-cleanup
+// Batch delete test/duplicate entries from intercepted_signals
+// 2026-02-16: Added for cleaning up test data during development
+router.post('/offer-cleanup', async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Missing ids array' });
+    }
+
+    if (ids.length > 50) {
+      return res.status(400).json({ error: 'Max 50 IDs per request' });
+    }
+
+    const result = await db.execute(
+      sql`DELETE FROM intercepted_signals WHERE id = ANY(${ids}) RETURNING id`
+    );
+
+    console.log(`[hooks/offer-cleanup] 🗑️ Deleted ${result.rows?.length || 0} of ${ids.length} requested`);
+
+    res.json({
+      success: true,
+      deleted: result.rows?.length || 0,
+      requested: ids.length,
+    });
+
+  } catch (error) {
+    console.error('[hooks/offer-cleanup] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;

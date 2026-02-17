@@ -401,7 +401,7 @@ This project is licensed under the **MIT License**.
 
 ### v4.2.0 - AI Coach & Identity (Feb 2026)
 - **Feature**: AI Coach upgraded with full model identity, vision/OCR capabilities, and agent write access
-- **Feature**: Concierge Chat system with venue/event exploration context
+- **Feature**: AI Concierge Assistant with venue/event exploration context
 - **Auth**: Uber OAuth callback route and flow foundations
 - **Fix**: Corrected all Anthropic model IDs from Claude 4.5 to Claude Opus 4.6 across adapters
 

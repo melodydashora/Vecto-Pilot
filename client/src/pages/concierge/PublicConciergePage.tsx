@@ -2,7 +2,7 @@
 // 2026-02-13: Public page for passengers who scan a driver's QR code
 // Shows driver's business card, location header, event discovery, map, and concierge chat
 // NO authentication required — uses browser GPS for location
-// 2026-02-13: Added ConciergeMap + AskConcierge (Concierge Chat)
+// 2026-02-13: Added ConciergeMap + AskConcierge (AI Concierge Assistant)
 //             Map and chat appear after first search, both are independently viewable
 
 import { useEffect, useState, useCallback } from 'react';
@@ -250,7 +250,7 @@ export default function PublicConciergePage() {
               }`}
             >
               <MessageCircle className="h-3.5 w-3.5" />
-              {showChat ? 'Hide Chat' : 'Concierge Chat'}
+              {showChat ? 'Hide Chat' : 'AI Concierge Assistant'}
             </Button>
           </div>
         )}

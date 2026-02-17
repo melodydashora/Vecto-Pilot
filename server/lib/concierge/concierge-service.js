@@ -737,7 +737,7 @@ export async function askConcierge({ question, lat, lng, timezone, venueContext,
   });
 
   // 2026-02-13: System prompt tells Gemini its identity, capabilities, and context
-  const system = `You are the Vecto Pilot Concierge — a powerful AI assistant powered by Gemini 3 Pro.
+  const system = `You are the AI Concierge Assistant — a powerful AI assistant powered by Gemini 3 Pro.
 You are helping a passenger in a rideshare discover the local area.
 
 YOUR CAPABILITIES:

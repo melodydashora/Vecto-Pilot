@@ -10,7 +10,7 @@ Preferred communication style: Simple, everyday language. Do not say "done" unti
 Vecto Pilot is a full-stack Node.js application with a multi-service architecture (Gateway, SDK, Agent servers), supporting both monolithic and split deployments.
 
 **UI/UX Decisions**:
-The frontend is a React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include a Strategy Section, Smart Blocks for venue recommendations, an AI Strategy Coach with hands-free voice chat, and a Rideshare Briefing Tab with immutable strategy history. A new ML-focused bars and premium venues table has been added to the Venues tab for structured data capture.
+The frontend is a React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include a Strategy Section, Smart Blocks for venue recommendations, an AI Coach with hands-free voice chat, and a Rideshare Briefing Tab with immutable strategy history. A new ML-focused bars and premium venues table has been added to the Venues tab for structured data capture.
 
 **Technical Implementations**:
 - **Briefing Generation**: All AI calls now use `gemini-3-pro-preview` with Google tools for consistent web search reliability. Briefing data sources populate with real Gemini API data using **split cache strategy**:
@@ -23,7 +23,7 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
   - Both stored in `strategies` table: `consolidated_strategy` (daily) and `strategy_for_now` (immediate)
 - **SmartBlocks**: SmartBlocks race condition (limbo state) fixed with Just-In-Time generation in GET endpoint Gate 2. System now detects "strategy complete but rankings missing" and auto-triggers block generation during polling.
 - **Strategy Loader**: Dynamic progress bar with real-time strategy steps. Shows Phase 1 (Strategy Analysis: 0-30%) and Phase 2 (Venue Discovery: 30-100%) with granular sub-steps during block generation (fetching, calculating distance/drive time, finalizing).
-- **AI Coach**: The AI Strategy Coach uses `gemini-3-pro-preview` for conversational assistance with rideshare strategy, venue interpretation, and file analysis. Note: Web search tool was attempted but causes API timeouts - coach uses Vecto Pilot's data sources (briefing, events, traffic) for instant responses instead. Coach timeout increased to 90 seconds for any future web search attempts.
+- **AI Coach**: The AI Coach uses `gemini-3-pro-preview` for conversational assistance with rideshare strategy, venue interpretation, and file analysis. Note: Web search tool was attempted but causes API timeouts - coach uses Vecto Pilot's data sources (briefing, events, traffic) for instant responses instead. Coach timeout increased to 90 seconds for any future web search attempts.
 - **Data Flow Consistency**: All data flows follow a three-phase pattern: Fetch, Resolve, and Return, ensuring data consistency, validation, and proper formatting.
 - **GPS Location Behavior**: Location refresh is manual only, requesting fresh permissions (`maximumAge: 0`) upon opening or manual trigger.
 - **localStorage Behavior**: Strategy data clears on app mount to show fresh loading states for both consolidated and immediate strategies. Both states reset on new snapshot detection.
@@ -43,7 +43,7 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 - **Core Services**: Gateway Server, SDK Server, Agent Server.
 - **Memory Systems & Data Isolation**: Assistant (user preferences), Eidolon (project/session state with snapshots), Agent Memory (agent service state). All are scoped by `user_id` and secured with JWT.
 - **AI Configuration**: Role-based architecture using configurable AI models for event-driven strategy generation:
-  - **Strategist**: Claude Sonnet 4.5 for strategic overview (minstrategy)
+  - **Strategist**: Claude Opus 4.6 for strategic overview (minstrategy)
   - **Briefer**: Gemini 3 Pro Preview for Type A briefing data (news, events, traffic, weather, closures)
   - **Consolidator**: Gemini 3 Pro Preview as "Tactical Dispatcher" - receives RAW JSON from briefings table (traffic_conditions, events, news, weather_current, school_closures) + full snapshot + minstrategy. Passes labeled JSON sections directly to Gemini (CURRENT_TRAFFIC_DATA, CURRENT_EVENTS_DATA, etc.) so strategy can reference specific details like "Eastbound Main St closed". Also calls GPT-5.2 post-consolidation for immediate strategy.
   - **Immediate Strategy Generator**: GPT-5.2 generates "right now" tactical guidance (next 1 hour) using consolidated strategy output + formatted location + timestamp. Uses `reasoning: {effort: "medium"}` and `max_completion_tokens: 500`.
@@ -57,7 +57,7 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 ## External Dependencies
 
 ### Third-Party APIs
--   **AI & Research**: Anthropic (Claude Sonnet 4.5), OpenAI (GPT-5.2 for immediate strategy generation, Realtime API for voice), Google (Gemini 3.0 Pro Preview with Web Search for briefing + consolidation), Perplexity (holiday detection).
+-   **AI & Research**: Anthropic (Claude Opus 4.6), OpenAI (GPT-5.2 for immediate strategy generation, Realtime API for voice), Google (Gemini 3.0 Pro Preview with Web Search for briefing + consolidation), Perplexity (holiday detection).
 -   **DEPRECATED**: GPT-5.2 consolidation removed - replaced by Gemini 3 Pro Preview Tactical Dispatcher. GPT-5.2 now used only for immediate "right now" strategy generation.
 -   **Voice Chat**: OpenAI Realtime API.
 -   **Location & Mapping**: Google Places API, Google Routes API, Google Geocoding API, Google Timezone API.

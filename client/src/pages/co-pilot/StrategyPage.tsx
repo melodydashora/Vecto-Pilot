@@ -836,13 +836,13 @@ export default function StrategyPage() {
         </Card>
       )}
 
-      {/* AI Strategy Coach */}
+      {/* AI Coach */}
       {coords && (
         <div className="mb-6" data-testid="ai-coach-section">
           <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">AI Strategy Coach</h2>
+              <h2 className="text-lg font-semibold text-gray-800">AI Coach</h2>
               {!persistentStrategy && (
                 <Badge variant="secondary" className="text-xs">Strategy Generating...</Badge>
               )}
