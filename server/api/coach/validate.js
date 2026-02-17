@@ -106,11 +106,61 @@ export const newsDeactivationSchema = z.object({
   reason: z.string().min(1, 'reason is required').max(500)
 });
 
+/**
+ * 2026-02-17: Add event validation (for ADD_EVENT action)
+ * Allows AI Coach to create new events from driver-reported intel
+ */
+export const addEventSchema = z.object({
+  title: z.string().min(1, 'title is required').max(500),
+  venue_name: z.string().max(500).optional(),
+  address: z.string().max(500).optional(),
+  event_start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'event_start_date must be YYYY-MM-DD format'),
+  event_start_time: z.string().max(50).optional(),
+  event_end_time: z.string().min(1, 'event_end_time is required').max(50),
+  category: z.enum(['concert', 'sports', 'theater', 'conference', 'festival', 'nightlife', 'civic', 'academic', 'airport', 'other']).default('other'),
+  expected_attendance: z.enum(['high', 'medium', 'low']).default('medium'),
+  notes: z.string().max(1000).optional()
+});
+
+/**
+ * 2026-02-17: Update event validation (for UPDATE_EVENT action)
+ * Allows AI Coach to correct event details from driver feedback
+ */
+export const updateEventSchema = z.object({
+  event_title: z.string().min(1, 'event_title is required').max(500),
+  event_id: z.string().uuid('event_id must be a valid UUID').optional(),
+  event_start_time: z.string().max(50).optional(),
+  event_end_time: z.string().max(50).optional(),
+  event_start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').optional(),
+  venue_name: z.string().max(500).optional(),
+  address: z.string().max(500).optional(),
+  category: z.enum(['concert', 'sports', 'theater', 'conference', 'festival', 'nightlife', 'civic', 'academic', 'airport', 'other']).optional(),
+  expected_attendance: z.enum(['high', 'medium', 'low']).optional(),
+  notes: z.string().max(1000).optional()
+});
+
+/**
+ * 2026-02-17: Coach memo validation (for COACH_MEMO action)
+ * Persists to docs/coach-inbox.md — bridge between AI Coach and Claude Code sessions
+ */
+export const coachMemoSchema = z.object({
+  type: z.enum(['feature_request', 'remember', 'bug', 'code_suggestion', 'observation', 'todo'], {
+    errorMap: () => ({ message: 'type must be one of: feature_request, remember, bug, code_suggestion, observation, todo' })
+  }),
+  title: z.string().min(1, 'title is required').max(200),
+  detail: z.string().min(1, 'detail is required').max(5000),
+  priority: z.enum(['high', 'medium', 'low']).default('medium'),
+  related_files: z.array(z.string()).optional()
+});
+
 // Action type to schema mapping
 const ACTION_SCHEMAS = {
   SAVE_NOTE: noteSchema,
   DEACTIVATE_EVENT: eventDeactivationSchema,
   REACTIVATE_EVENT: eventReactivationSchema,
+  ADD_EVENT: addEventSchema,         // 2026-02-17: Coach can add new events
+  UPDATE_EVENT: updateEventSchema,   // 2026-02-17: Coach can update event details
+  COACH_MEMO: coachMemoSchema,       // 2026-02-17: Coach-to-Claude Code bridge (writes to file)
   ZONE_INTEL: zoneIntelSchema,
   SYSTEM_NOTE: systemNoteSchema,
   DEACTIVATE_NEWS: newsDeactivationSchema
@@ -272,6 +322,9 @@ function getSchemaDescription(action) {
     SAVE_NOTE: 'Save a note about driver preferences, tips, or insights',
     DEACTIVATE_EVENT: 'Mark an event as inactive (ended, cancelled, etc.)',
     REACTIVATE_EVENT: 'Restore a previously deactivated event',
+    ADD_EVENT: 'Add a new event from driver-reported intel',
+    UPDATE_EVENT: 'Update details of an existing event',
+    COACH_MEMO: 'Save a memo to docs/coach-inbox.md for Claude Code to pick up',
     ZONE_INTEL: 'Capture crowd-sourced zone knowledge',
     SYSTEM_NOTE: 'Log a system observation for developers',
     DEACTIVATE_NEWS: 'Hide a news item from the user'

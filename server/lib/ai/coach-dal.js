@@ -1,5 +1,5 @@
 // server/lib/coach-dal.js
-// AI Strategy Coach Data Access Layer - Full Schema Read/Write Access
+// AI Coach Data Access Layer - Full Schema Read/Write Access
 import { db } from '../../db/drizzle.js';
 import {
   snapshots,
@@ -29,7 +29,7 @@ import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-
 import crypto from 'crypto';
 
 /**
- * CoachDAL - Full schema read access for AI Strategy Coach
+ * CoachDAL - Full schema read access for AI Coach
  * 
  * Entry Point: strategy_id (visible on UI)
  * Access Pattern: strategy_id → snapshot_id → user_id + session_id → ALL tables
@@ -811,13 +811,15 @@ export class CoachDAL {
       let marketIntelligence = { marketPosition: null, intelligence: [] };
       let userNotes = [];
       let driverData = { profile: null, vehicle: null };
+      // 2026-02-17: FIX — offerData must be declared in outer scope (was const inside if block, causing ReferenceError)
+      let offerData = { offers: [], stats: null };
 
       if (snapshot) {
         // Use authenticated user ID if provided, otherwise fall back to snapshot's user_id
         const effectiveUserId = authenticatedUserId || snapshot.user_id;
         console.log(`[CoachDAL] getCompleteContext: Snapshot user_id = ${snapshot.user_id || 'NULL'}, authenticated = ${authenticatedUserId || 'NULL'}, effective = ${effectiveUserId || 'NULL'}, city = ${snapshot.city}`);
 
-        const [intel, notes, driver, offerData] = await Promise.all([
+        const [intel, notes, driver, offers] = await Promise.all([
           this.getMarketIntelligence(snapshot.city, snapshot.state),
           effectiveUserId ? this.getUserNotes(effectiveUserId) : Promise.resolve([]),
           effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null }),
@@ -826,6 +828,7 @@ export class CoachDAL {
         marketIntelligence = intel;
         userNotes = notes;
         driverData = driver;
+        offerData = offers || { offers: [], stats: null };
       }
 
       return {
@@ -840,7 +843,7 @@ export class CoachDAL {
         userNotes,
         driverProfile: driverData.profile,
         driverVehicle: driverData.vehicle,
-        offerHistory: offerData || { offers: [], stats: null },  // 2026-02-16: Offer log for coach
+        offerHistory: offerData,  // 2026-02-16: Offer log for coach
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
     } catch (error) {
@@ -1921,6 +1924,164 @@ export class CoachDAL {
       return event;
     } catch (error) {
       console.error('[CoachDAL] reactivateEvent error:', error);
+      return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ADD EVENT - Coach creates new events from driver-reported intel
+  // 2026-02-17: Added per user request for full event management capability
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Add a new event to discovered_events from driver-reported intel
+   * @param {Object} eventData - Event data from coach action tag
+   * @returns {Promise<Object|null>} Created event or null
+   */
+  async addEvent(eventData) {
+    try {
+      const {
+        title, venue_name, address, city, state,
+        event_start_date, event_start_time, event_end_time,
+        category = 'other', expected_attendance = 'medium',
+        notes, user_id
+      } = eventData;
+
+      if (!title || !event_start_date || !city || !state) {
+        console.warn('[CoachDAL] addEvent: missing required fields (title, event_start_date, city, state)');
+        return null;
+      }
+
+      // Generate event hash for deduplication using the canonical pipeline function
+      const { generateEventHash } = await import('../../lib/events/pipeline/hashEvent.js');
+      const eventHash = generateEventHash({
+        title,
+        venue_name,
+        address,
+        event_start_date,
+        event_start_time
+      });
+
+      // Upsert — if event already exists (same hash), update it instead of failing
+      const [event] = await db
+        .insert(discovered_events)
+        .values({
+          title,
+          venue_name: venue_name || null,
+          address: address || null,
+          city,
+          state,
+          event_start_date,
+          event_start_time: event_start_time || null,
+          event_end_date: event_start_date, // Default end date = start date
+          event_end_time: event_end_time || '11:59 PM',
+          category,
+          expected_attendance,
+          event_hash: eventHash,
+          is_active: true,
+          is_verified: false, // Coach-added events are unverified until confirmed
+          deactivation_reason: null,
+          deactivated_at: null,
+          deactivated_by: null,
+        })
+        .onConflictDoUpdate({
+          target: discovered_events.event_hash,
+          set: {
+            title,
+            venue_name: venue_name || null,
+            address: address || null,
+            event_start_time: event_start_time || null,
+            event_end_time: event_end_time || '11:59 PM',
+            category,
+            expected_attendance,
+            is_active: true,
+            updated_at: new Date(),
+          }
+        })
+        .returning();
+
+      console.log(`[CoachDAL] ✅ addEvent: "${title}" on ${event_start_date} in ${city}, ${state} (hash: ${eventHash.slice(0, 8)})`);
+      return event;
+    } catch (error) {
+      console.error('[CoachDAL] addEvent error:', error);
+      return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UPDATE EVENT - Coach corrects event details from driver feedback
+  // 2026-02-17: Added per user request for full event management capability
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Update an existing event's details (time, venue, category, etc.)
+   * @param {Object} updateData - Update data from coach action tag
+   * @returns {Promise<Object|null>} Updated event or null
+   */
+  async updateEvent(updateData) {
+    try {
+      const {
+        event_title, event_id, event_start_time, event_end_time,
+        event_start_date, venue_name, address, category,
+        expected_attendance, notes, snapshot_id
+      } = updateData;
+
+      if (!event_title && !event_id) {
+        console.warn('[CoachDAL] updateEvent: need event_title or event_id');
+        return null;
+      }
+
+      // Find the event
+      let event;
+      if (event_id) {
+        [event] = await db.select().from(discovered_events)
+          .where(eq(discovered_events.id, event_id)).limit(1);
+      }
+      if (!event && event_title) {
+        // Fuzzy title search: case-insensitive LIKE
+        [event] = await db.select().from(discovered_events)
+          .where(
+            and(
+              sql`lower(${discovered_events.title}) LIKE lower(${'%' + event_title + '%'})`,
+              eq(discovered_events.is_active, true)
+            )
+          )
+          .orderBy(desc(discovered_events.discovered_at))
+          .limit(1);
+      }
+
+      if (!event) {
+        console.warn(`[CoachDAL] updateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
+        return null;
+      }
+
+      // Build update set (only include fields that were provided)
+      const updates = { updated_at: new Date() };
+      if (event_start_time !== undefined) updates.event_start_time = event_start_time;
+      if (event_end_time !== undefined) updates.event_end_time = event_end_time;
+      if (event_start_date !== undefined) updates.event_start_date = event_start_date;
+      if (venue_name !== undefined) updates.venue_name = venue_name;
+      if (address !== undefined) updates.address = address;
+      if (category !== undefined) updates.category = category;
+      if (expected_attendance !== undefined) updates.expected_attendance = expected_attendance;
+
+      const [updated] = await db
+        .update(discovered_events)
+        .set(updates)
+        .where(eq(discovered_events.id, event.id))
+        .returning();
+
+      console.log(`[CoachDAL] ✅ updateEvent: "${event.title}" updated (${Object.keys(updates).filter(k => k !== 'updated_at').join(', ')})`);
+
+      // Send real-time notification if snapshot_id available
+      if (snapshot_id) {
+        const payload = JSON.stringify({ snapshot_id, reason: 'event_updated', event_title: event.title });
+        await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
+      }
+
+      return updated;
+    } catch (error) {
+      console.error('[CoachDAL] updateEvent error:', error);
       return null;
     }
   }

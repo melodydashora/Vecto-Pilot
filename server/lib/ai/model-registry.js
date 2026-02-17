@@ -221,7 +221,7 @@ export const MODEL_ROLES = {
   COACH_CHAT: {
     envKey: 'COACH_CHAT_MODEL',
     default: 'gemini-3-pro-preview',
-    purpose: 'AI Strategy Coach conversation (streaming, multimodal)',
+    purpose: 'AI Coach conversation (streaming, multimodal)',
     maxTokens: 8192,
     temperature: 0.7,
     features: ['google_search', 'vision', 'ocr'],

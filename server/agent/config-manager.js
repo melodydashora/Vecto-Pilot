@@ -15,7 +15,6 @@ const ALLOWED_CONFIG_FILES = [
   ".replit",
   "replit.nix",
   ".replit.nix",
-  ".replit-assistant-override.json",
   
   // Package management
   "package.json",

@@ -114,7 +114,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 ---
 
-### AI Strategy Coach (Multi-Model System)
+### AI Coach (Multi-Model System)
 **What it is:** Real-time strategic analysis system using multiple AI models in a waterfall pipeline.
 
 **Key Characteristics:**
@@ -220,7 +220,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 | `VENUE_FILTER` | Fast low-cost venue filtering | `VENUE_FILTER_MODEL` | claude-haiku |
 | `VENUE_TRAFFIC` | Venue-specific traffic intelligence | `VENUE_TRAFFIC_MODEL` | gemini-3-pro |
 | **COACH_CONVERSATIONS TABLE** ||||
-| `COACH_CHAT` | AI Strategy Coach conversation | `COACH_CHAT_MODEL` | gemini-3-pro |
+| `COACH_CHAT` | AI Coach conversation | `COACH_CHAT_MODEL` | gemini-3-pro |
 | **UTILITIES** ||||
 | `UTIL_WEATHER_VALIDATOR` | Validate weather data structure | `UTIL_WEATHER_VALIDATOR_MODEL` | gemini-3-pro |
 | `UTIL_TRAFFIC_VALIDATOR` | Validate traffic data structure | `UTIL_TRAFFIC_VALIDATOR_MODEL` | gemini-3-pro |

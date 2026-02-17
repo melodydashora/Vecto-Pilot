@@ -1,5 +1,5 @@
 // client/src/components/concierge/AskConcierge.tsx
-// 2026-02-13: Concierge Chat — public AI Q&A for passengers on the concierge page
+// 2026-02-13: AI Concierge Assistant — public AI Q&A for passengers on the concierge page
 // Passengers can ask about local restaurants, events, directions, etc.
 // Uses CONCIERGE_CHAT model role (Gemini 3 Pro with Google Search)
 // Rate limited: 3 questions per minute on server, 5 per session on client
@@ -108,7 +108,7 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
       {/* Section header */}
       <div className="flex items-center gap-2">
         <MessageCircle className="h-4 w-4 text-indigo-500" />
-        <h3 className="text-sm font-semibold text-gray-700">Concierge Chat</h3>
+        <h3 className="text-sm font-semibold text-gray-700">AI Concierge Assistant</h3>
         {questionCount > 0 && (
           <span className="text-xs text-gray-400">({remainingQuestions} left)</span>
         )}

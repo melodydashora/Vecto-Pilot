@@ -12,7 +12,7 @@ React UI components organized by feature area.
 components/
 ├── GlobalHeader.tsx       # Header: location, weather, time
 ├── CriticalError.tsx      # Blocking error modal (FAIL HARD pattern)
-├── CoachChat.tsx          # AI Strategy Coach with voice
+├── CoachChat.tsx          # AI Coach with voice
 ├── BriefingTab.tsx        # Events, traffic, news, weather
 ├── BarsDataGrid.tsx       # Venue table display (renamed from BarsTable.tsx 2026-01-09)
 ├── BarsMainTab.tsx        # Premium bars sidebar (renamed from BarTab.tsx 2026-01-09)

@@ -14,10 +14,10 @@ Centralized AI model management: adapters for different providers (Anthropic, Op
 
 ## Structure
 
-
 ai/
 ├── adapters/           # Model API adapters (call these, not providers directly)
-│   └── index.js        # Main dispatcher: callModel(role, {system, user})
+│   ├── gemini-adapter.js # Google GenAI adapter (Gemini 3, Vision, Thinking)
+│   └── index.js        # Main dispatcher: callModel(role, {system, user, images})
 ├── context/            # Shared context gathering logic (Agent, Assistant, Eidolon)
 ├── providers/          # Strategy generation providers
 │   ├── briefing.js     # Events, traffic, news (Gemini + Search)

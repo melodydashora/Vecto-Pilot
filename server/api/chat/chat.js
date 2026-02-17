@@ -1,8 +1,11 @@
 // server/api/chat/chat.js
-// AI Strategy Coach - Conversational assistant for drivers with web search
+// AI Coach - Conversational assistant for drivers with web search
 // Updated 2026-01-05: Added schema awareness and action validation
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
+import { appendFile } from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { db } from '../../db/drizzle.js';
 import { snapshots, strategies, driver_profiles } from '../../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
@@ -34,7 +37,10 @@ function parseActions(responseText) {
     news: [],
     systemNotes: [],
     zoneIntel: [],
-    eventReactivations: []
+    eventReactivations: [],
+    addEvents: [],       // 2026-02-17: Coach-created events from driver intel
+    updateEvents: [],    // 2026-02-17: Coach-corrected event details
+    coachMemos: []       // 2026-02-17: Coach-to-Claude Code bridge memos (writes to file)
   };
 
   let cleanedText = responseText;
@@ -52,6 +58,9 @@ function parseActions(responseText) {
           if (actionType === 'SAVE_NOTE') actions.notes.push(actionData);
           else if (actionType === 'DEACTIVATE_EVENT') actions.events.push(actionData);
           else if (actionType === 'REACTIVATE_EVENT') actions.eventReactivations.push(actionData);
+          else if (actionType === 'ADD_EVENT') actions.addEvents.push(actionData);
+          else if (actionType === 'UPDATE_EVENT') actions.updateEvents.push(actionData);
+          else if (actionType === 'COACH_MEMO') actions.coachMemos.push(actionData);
           else if (actionType === 'DEACTIVATE_NEWS') actions.news.push(actionData);
           else if (actionType === 'SYSTEM_NOTE') actions.systemNotes.push(actionData);
           else if (actionType === 'ZONE_INTEL') actions.zoneIntel.push(actionData);
@@ -72,6 +81,9 @@ function parseActions(responseText) {
     { prefix: 'SAVE_NOTE', key: 'notes' },
     { prefix: 'DEACTIVATE_EVENT', key: 'events' },
     { prefix: 'REACTIVATE_EVENT', key: 'eventReactivations' },
+    { prefix: 'ADD_EVENT', key: 'addEvents' },
+    { prefix: 'UPDATE_EVENT', key: 'updateEvents' },
+    { prefix: 'COACH_MEMO', key: 'coachMemos' },
     { prefix: 'DEACTIVATE_NEWS', key: 'news' },
     { prefix: 'SYSTEM_NOTE', key: 'systemNotes' },
     { prefix: 'ZONE_INTEL', key: 'zoneIntel' }
@@ -280,6 +292,109 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
     }
   }
 
+  // 2026-02-17: Add new events (driver-reported intel)
+  for (const event of actions.addEvents) {
+    try {
+      const validation = validateAction('ADD_EVENT', {
+        title: event.title,
+        venue_name: event.venue_name,
+        address: event.address,
+        event_start_date: event.event_start_date,
+        event_start_time: event.event_start_time,
+        event_end_time: event.event_end_time,
+        category: event.category,
+        expected_attendance: event.expected_attendance,
+        notes: event.notes
+      });
+      if (!validation.ok) {
+        results.errors.push(`AddEvent validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      // Get city/state from snapshot context (events need location)
+      const snapshot = snapshotId ? await coachDAL.getHeaderSnapshot(snapshotId) : null;
+      const city = event.city || snapshot?.city;
+      const state = event.state || snapshot?.state;
+      if (!city || !state) {
+        results.errors.push('AddEvent: Cannot determine city/state from context');
+        continue;
+      }
+
+      await coachDAL.addEvent({
+        ...validation.data,
+        city,
+        state,
+        user_id: userId
+      });
+      results.saved++;
+      console.log(`[chat/actions] Added event: ${validation.data.title}`);
+    } catch (e) {
+      results.errors.push(`AddEvent: ${e.message}`);
+    }
+  }
+
+  // 2026-02-17: Update existing events (driver-corrected details)
+  for (const event of actions.updateEvents) {
+    try {
+      const validation = validateAction('UPDATE_EVENT', {
+        event_title: event.event_title,
+        event_id: event.event_id,
+        event_start_time: event.event_start_time,
+        event_end_time: event.event_end_time,
+        event_start_date: event.event_start_date,
+        venue_name: event.venue_name,
+        address: event.address,
+        category: event.category,
+        expected_attendance: event.expected_attendance,
+        notes: event.notes
+      });
+      if (!validation.ok) {
+        results.errors.push(`UpdateEvent validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      await coachDAL.updateEvent({
+        ...validation.data,
+        snapshot_id: snapshotId
+      });
+      results.saved++;
+      console.log(`[chat/actions] Updated event: ${validation.data.event_title}`);
+    } catch (e) {
+      results.errors.push(`UpdateEvent: ${e.message}`);
+    }
+  }
+
+  // 2026-02-17: Coach memos — write to docs/coach-inbox.md for Claude Code to pick up
+  const __dirname_chat = path.dirname(fileURLToPath(import.meta.url));
+  const coachInboxPath = path.join(__dirname_chat, '..', '..', '..', 'docs', 'coach-inbox.md');
+
+  for (const memo of actions.coachMemos) {
+    try {
+      const validation = validateAction('COACH_MEMO', {
+        type: memo.type || 'observation',
+        title: memo.title,
+        detail: memo.detail,
+        priority: memo.priority || 'medium',
+        related_files: memo.related_files
+      });
+      if (!validation.ok) {
+        results.errors.push(`CoachMemo validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      const { type, title, detail, priority, related_files } = validation.data;
+      const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      const filesLine = related_files?.length ? `\n  - Files: ${related_files.join(', ')}` : '';
+      const entry = `\n### [${type.toUpperCase()}] ${title}\n- **Priority:** ${priority} | **Date:** ${timestamp}\n- ${detail}${filesLine}\n`;
+
+      await appendFile(coachInboxPath, entry, 'utf-8');
+      results.saved++;
+      console.log(`[chat/actions] 📝 Coach memo saved to inbox: "${title}" (${type})`);
+    } catch (e) {
+      results.errors.push(`CoachMemo: ${e.message}`);
+    }
+  }
+
   // Save zone intelligence (crowd-sourced market knowledge) - with validation
   for (const zone of actions.zoneIntel) {
     try {
@@ -438,7 +553,7 @@ router.get('/context/:snapshotId', requireAuth, async (req, res) => {
 });
 
 
-// POST /api/chat - AI Strategy Coach with Full Schema Access & Thread Context & File Support
+// POST /api/chat - AI Coach with Full Schema Access & Thread Context & File Support
 // SECURITY: requireAuth enforces user must be signed in
 router.post('/', requireAuth, async (req, res) => {
   const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = req.body;
@@ -630,7 +745,7 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     // 2026-02-13: Enhanced system prompt — model identity, vision/OCR, Google Search, full capabilities
-    let systemPrompt = `You are the Vecto Pilot AI Coach — a powerful AI assistant powered by Gemini 3 Pro Preview.
+    let systemPrompt = `You are the AI Coach — a powerful AI assistant powered by Gemini 3 Pro Preview.
 You are much more than just a rideshare assistant. You're a frontier AI model with advanced capabilities.
 
 **YOUR IDENTITY & MODEL:**
@@ -725,20 +840,37 @@ ${snapshotHistoryInfo}
 - Be precise with venue data (exact names, addresses, times)
 - Reference market intelligence naturally (e.g., "Since you're in a Satellite market...")
 
-📋 **Event Verification & Deactivation:**
-- When a driver reports an event is over, cancelled, or has incorrect times, you can mark it for removal
-- To deactivate an event, format your response with:
-  \`[DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "your reason here", "notes": "Optional explanation"}]\`
-- Suggested reasons: event_ended, incorrect_time, cancelled, no_longer_relevant, duplicate
-- You can also use your own reason if none of these fit
-- If times are wrong, include the correct times in notes (e.g., "Actually starts at 8pm not 7pm")
+📋 **Event Management (Full CRUD):**
+You have FULL event management capabilities — add, update, deactivate, and reactivate events.
 
-🔄 **Event Reactivation (Undo Deactivation):**
-- If you mistakenly deactivated an event (e.g., wrong date assumption), you can REACTIVATE it
-- To reactivate an event, format your response with:
-  \`[REACTIVATE_EVENT: {"event_title": "Event Name", "reason": "why you're reactivating", "notes": "Optional correction"}]\`
-- ALWAYS check the current date/time shown above before deactivating events!
-- If a driver corrects you about the date/time, reactivate the event immediately
+➕ **Add New Event** (driver-reported intel):
+- When a driver tells you about an event not in your data, ADD it!
+- Format: \`[ADD_EVENT: {"title": "Event Name", "venue_name": "Venue", "address": "123 Main St", "event_start_date": "YYYY-MM-DD", "event_start_time": "7:00 PM", "event_end_time": "10:00 PM", "category": "concert", "expected_attendance": "high"}]\`
+- Categories: concert, sports, theater, conference, festival, nightlife, civic, academic, airport, other
+- Attendance: high, medium, low
+- City/state auto-detected from driver's current location
+
+✏️ **Update Event** (correct details):
+- When a driver says times or details are wrong, UPDATE the event
+- Format: \`[UPDATE_EVENT: {"event_title": "Event Name", "event_start_time": "8:00 PM", "event_end_time": "11:00 PM", "notes": "Driver corrected the time"}]\`
+- Only include fields you want to change (event_start_time, event_end_time, venue_name, address, category, expected_attendance)
+
+❌ **Deactivate Event** (remove):
+- Format: \`[DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "event_ended", "notes": "Optional"}]\`
+- Reasons: event_ended, incorrect_time, cancelled, no_longer_relevant, duplicate
+
+🔄 **Reactivate Event** (undo removal):
+- Format: \`[REACTIVATE_EVENT: {"event_title": "Event Name", "reason": "why reactivating", "notes": "Optional correction"}]\`
+- ALWAYS check current date/time before deactivating — if a driver corrects you, reactivate immediately
+
+📝 **Coach Inbox (Remember & Suggest):**
+- When a user asks you to REMEMBER something, save a feature idea, or you want to suggest code changes — use COACH_MEMO
+- This writes to \`docs/coach-inbox.md\` which Claude Code checks at session start
+- Format: \`[COACH_MEMO: {"type": "feature_request", "title": "Add donate link to concierge page", "detail": "Melody wants a link on the public concierge page that allows passengers to donate/tip to support the app", "priority": "medium", "related_files": ["client/src/pages/concierge/PublicConciergePage.tsx"]}]\`
+- Types: feature_request, remember, bug, code_suggestion, observation, todo
+- Priority: high, medium, low
+- related_files: optional array of file paths this relates to
+- USE THIS whenever Melody says "remember this", "we should add...", "don't forget...", or you notice something worth flagging for development
 
 📰 **News Article Deactivation:**
 - When a driver reports news is outdated, irrelevant, or incorrect, you can hide it for them
@@ -766,25 +898,29 @@ ${snapshotHistoryInfo}
 - ALWAYS include the reason in the driver's words
 - Time constraints are optional but very valuable (e.g., "dead after 10pm", "busy during Cowboys games")
 
-📊 **Database Schema Access:**
-You have full READ access to all driver-related data:
-- snapshots: User location sessions with GPS, weather, context
-- strategies: AI-generated strategies for each session
-- briefings: Events, traffic, news briefings
-- discovered_events: Local events (concerts, sports, etc.) - use discovered_at for sorting
-- venue_catalog: Venue database with ratings, hours, pricing
-- ranking_candidates: Ranked venue recommendations
-- market_intelligence: Research-backed market insights
-- zone_intelligence: Crowd-sourced zone knowledge (dead zones, honey holes)
-- driver_profiles/driver_vehicles: Driver info and vehicle
-- user_intel_notes: YOUR saved notes about this driver (your memory!)
+📊 **Your Data (Pre-loaded Context):**
+All available data is included in this prompt below. You do NOT have live SQL query access.
+Your data comes from these sources (pre-fetched for you):
+- Driver Profile & Vehicle: Name, platforms, eligibility tiers, vehicle details
+- Current Snapshot: GPS location, weather, air quality, time context
+- Strategy: The current AI-generated strategy for this session
+- Briefing: Events, traffic conditions, news, airport conditions, school closures
+- Smart Blocks: Top ranked venue recommendations with hours, distance, ratings
+- Market Intelligence: Research-backed market insights for this area
+- Zone Intelligence: Crowd-sourced zone knowledge (dead zones, honey holes, staging spots)
+- Your Notes: Previous notes you saved about this driver
+- Offer Analysis Log: Recent Siri Shortcut ride offer analyses with accept/reject stats
+- Session History: Recent driving sessions for pattern analysis
 
-You can WRITE to these tables via action tags:
+**CRITICAL: Do NOT hallucinate or invent data.** If information is not in the context below, say "I don't have that data in my current context" — do NOT make up table names, features, or statistics.
+
+You can WRITE to these tables and files via action tags:
 - user_intel_notes → [SAVE_NOTE: {...}]
-- discovered_events → [DEACTIVATE_EVENT/REACTIVATE_EVENT: {...}]
+- discovered_events → [ADD_EVENT: {...}] / [UPDATE_EVENT: {...}] / [DEACTIVATE_EVENT: {...}] / [REACTIVATE_EVENT: {...}]
 - zone_intelligence → [ZONE_INTEL: {...}]
 - coach_system_notes → [SYSTEM_NOTE: {...}]
 - news_deactivations → [DEACTIVATE_NEWS: {...}]
+- **docs/coach-inbox.md** → [COACH_MEMO: {...}] ← Feature ideas, things to remember, code suggestions for Claude Code
 
 **Important:**
 - You understand context from conversation history
@@ -796,7 +932,9 @@ You can WRITE to these tables via action tags:
 
 ${contextInfo}
 
-You're a powerful AI companion with research-backed market intelligence and persistent memory. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.`;
+You're a powerful AI companion with research-backed market intelligence and persistent memory. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.
+
+**CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.`;
 
     // 🚀 SUPER USER ENHANCEMENT: Inject Agent Capabilities & Memory
     if (isSuperUser) {
@@ -821,35 +959,40 @@ You have MAXIMUM capabilities and FULL system access. You are her personal AI as
 **FULL SYSTEM ACCESS (Agent + Eidolon Combined):**
 
 🖥️ Shell & System:
-- Full bash/shell execution in this Replit environment
+- Full bash/shell execution in this Replit environment (unrestricted)
 - Run Node.js scripts, install packages, manage processes
+- Process spawn, kill, and signal management
 - Environment variable access (API keys, config)
-- Process management and system diagnostics
+- System diagnostics, monitoring, and configuration
 
 📂 File System (IDE-Level):
-- Full read/write/create/delete access to entire repository
+- Full read/write/create/delete/rename access to entire repository
 - Browse project structure, read any source file
 - Modify configuration files and dependencies
+- Code analysis, linting, and sandboxed execution
 
 🗄️ Database (Full DBA Access):
 - Direct SQL query and execution (SELECT, INSERT, UPDATE, DELETE)
 - Schema introspection — see all tables, columns, relationships
 - DDL access — ALTER TABLE, CREATE INDEX, etc.
+- Transaction support and schema migration
 - All tables: snapshots, strategies, briefings, discovered_events, venue_catalog,
   ranking_candidates, market_intelligence, zone_intelligence, driver_profiles,
   driver_vehicles, user_intel_notes, coach_conversations, coach_system_notes,
-  concierge_feedback, news_deactivations
+  concierge_feedback, news_deactivations, intercepted_signals
+- You can WRITE via action tags: events (add/update/deactivate/reactivate), notes, zone intel, system notes, news deactivations
 
 🌐 Network & API:
 - HTTP fetch to any URL
 - WebSocket access
-- API integration with Google, OpenAI, Anthropic, TomTom
+- API integration with Google, OpenAI, TomTom, and other services
 - MCP server tool calls
 
 🧠 Memory & Context:
-- Agent memory (persistent cross-session storage)
+- Agent memory (persistent cross-session storage, 730-day TTL, postgres-backed)
 - Eidolon memory (deep research memory)
-- Cross-thread memory sharing
+- Cross-thread memory sharing and cross-chat awareness
+- Memory write, persist, query, and delete operations
 - Semantic search across all stored knowledge
 - Pattern recognition across driver sessions
 
@@ -865,8 +1008,19 @@ You have MAXIMUM capabilities and FULL system access. You are her personal AI as
 🤖 Autonomous Capabilities:
 - Self-healing: detect and auto-recover from errors
 - Health monitoring: track system health scores
+- Circuit breaker: automatic fault isolation and recovery
 - Error prediction and auto-remediation
 - Autonomous investigation of bugs and issues
+
+📝 Coach Inbox (docs/coach-inbox.md):
+- Write feature requests, TODOs, bugs, code suggestions to a file Claude Code reads at session start
+- Use [COACH_MEMO: {...}] to persist anything Melody asks you to remember
+- This is your bridge to the development workflow — items you write here get implemented
+
+📊 Enhanced Context:
+- Full project state and agent memory are loaded below
+- Cross-session memory via saved notes and conversation history
+- Pattern recognition across driver sessions via snapshot history
 
 **When Melody sends a screenshot or image:**
 - Analyze it with full vision/OCR capabilities
@@ -892,6 +1046,8 @@ ${JSON.stringify(agentContext.projectState, null, 2)}
 You are Melody's most powerful tool. Help with ANYTHING — code debugging, system issues,
 architecture decisions, data analysis, research, personal tasks, rideshare strategy.
 No restrictions. Full transparency. Maximum capability.
+
+**CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.
 ══════════════════════════════════════════════════════════════════════════`;
       } catch (err) {
         console.warn('[chat] Failed to inject Super User context:', err.message);
@@ -1035,7 +1191,7 @@ No restrictions. Full transparency. Maximum capability.
         const hasActions = Object.values(actions).some(arr => arr.length > 0);
 
         if (hasActions) {
-          console.log(`[chat] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}`);
+          console.log(`[chat] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, addEvents=${actions.addEvents.length}, updateEvents=${actions.updateEvents.length}, memos=${actions.coachMemos.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}`);
 
           // Execute actions asynchronously (don't wait for completion)
           executeActions(actions, authUserId, activeSnapshotId, conversationId)

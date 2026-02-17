@@ -1427,7 +1427,7 @@ Return ONLY a valid JSON array with institutions that are CLOSED or closing soon
     "schoolName": "Name of district or institution",
     "type": "public" | "private" | "college",
     "closureStart": "YYYY-MM-DD",
-    "reopeningDate": "YYYY-MM-DD",
+    "reopeningDate": "YYYY-MM-DD (MUST be the FIRST DAY students return to class, NOT the last day of closure. Example: if closed Mon Feb 16, reopeningDate is Tue Feb 17)",
     "reason": "Holiday Name / Break / Professional Development",
     "impact": "high" | "medium" | "low",
     "lat": 32.xxx,
@@ -1438,6 +1438,7 @@ Return ONLY a valid JSON array with institutions that are CLOSED or closing soon
 NOTES:
 - Include approximate lat/lng coordinates for each institution (for distance calculation)
 - "impact" should be "high" for large districts/universities, "medium" for mid-size, "low" for small private schools
+- CRITICAL: "reopeningDate" = first day students are BACK in school (end of closure + 1 day). If Presidents' Day is Feb 16 (Monday), reopeningDate is Feb 17 (Tuesday).
 - If no closures are found, return an empty array []`;
 
   const system = `You are a school calendar research assistant. Search for school closures, holidays, and academic schedules. Return structured JSON data.`;

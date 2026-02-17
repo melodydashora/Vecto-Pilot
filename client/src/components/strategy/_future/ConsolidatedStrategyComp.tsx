@@ -39,7 +39,7 @@ export function ConsolidatedStrategyComp({ snapshotId }: { snapshotId?: string }
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="font-semibold text-sm text-purple-900">AI Strategy Coach</h3>
+              <h3 className="font-semibold text-sm text-purple-900">AI Coach</h3>
               <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 bg-white">
                 {isPartial ? 'Partial Analysis' : 'Live Analysis'}
               </Badge>

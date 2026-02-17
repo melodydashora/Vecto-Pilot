@@ -632,8 +632,8 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
           <Zap className="h-4 w-4" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-sm">Rideshare Coach</h3>
-          <p className="text-xs text-white/80">AI Strategy Assistant</p>
+          <h3 className="font-semibold text-sm">AI Coach</h3>
+          <p className="text-xs text-white/80">Powered by Gemini 3 Pro</p>
         </div>
         {/* 2026-01-05: Notes Panel Toggle */}
         <Button
@@ -798,7 +798,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
               <MessageSquare className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your AI Companion</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your AI Coach</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300 max-w-sm mx-auto leading-relaxed">
                 Ask me anything - rideshare strategy, life advice, or just chat. I can search the web too!
               </p>
