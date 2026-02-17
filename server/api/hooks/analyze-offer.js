@@ -15,12 +15,15 @@
 // - Voice response includes $/mile in spoken English for Siri TTS
 // - VISION MODE: Accepts base64 screenshot — Gemini Flash extracts data directly from image
 //
-// Flow A (text): Siri "Vecto Analyze" → OCR → POST here → pre-parse → AI decision → Siri voice
-// Flow B (vision): Siri "Vecto Vision" → screenshot → base64 → POST here → AI vision → Siri voice
+// Flow A (text):   Siri "Vecto Analyze" → OCR → POST here → pre-parse → AI decision → Siri voice
+// Flow B (vision): Siri "Vecto Vision" → screenshot → base64 JSON → POST here → AI vision → Siri voice
+// Flow C (fast):   Siri "Vecto Vision" → screenshot → multipart upload → POST here → server encodes → AI vision → Siri voice
+//                  (2026-02-17: Eliminates base64 encoding on Siri side — server handles it in <1ms)
 // Auth: Explicitly public — Siri Shortcuts cannot send JWT tokens
 
 import { Router } from 'express';
 import crypto from 'node:crypto';
+import multer from 'multer';
 import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
 import { offer_intelligence } from '../../../shared/schema.js';
@@ -33,22 +36,47 @@ import { latLngToCell } from 'h3-js';
 
 const router = Router();
 
+// 2026-02-17: Multer for multipart form-data uploads (Siri sends raw image, no base64)
+// Memory storage — no disk writes, image stays in RAM as Buffer
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max (matches express.json limit)
+});
+
 // POST /api/hooks/analyze-offer
-// Accepts OCR text from Siri Shortcuts with optional GPS location
-// Returns ACCEPT/REJECT decision optimized for iOS notification display
-router.post('/analyze-offer', async (req, res) => {
+// Accepts THREE input modes:
+//   1. JSON with text (OCR):       { text, device_id, latitude, longitude }
+//   2. JSON with base64 image:     { image, image_type, device_id, latitude, longitude }
+//   3. Multipart form-data:        image file + device_id/latitude/longitude form fields
+//      (2026-02-17: Fastest — Siri skips base64 encoding, server handles it in <1ms)
+//
+// Multipart detection: multer runs first. If no file uploaded, falls through to JSON body.
+router.post('/analyze-offer', upload.single('image'), async (req, res) => {
   const startTime = Date.now();
 
   try {
-    const {
-      text,
-      image,
-      image_type,
-      device_id,
-      latitude,
-      longitude,
-      source = 'siri_shortcut'
-    } = req.body;
+    // 2026-02-17: Normalize input from either JSON body or multipart form fields
+    // Multipart: req.file has the image buffer, req.body has text fields
+    // JSON: req.body has everything including base64 image string
+    let text, image, image_type, device_id, latitude, longitude, source;
+
+    if (req.file) {
+      // MULTIPART PATH — image came as file upload (raw bytes, no base64 from Siri)
+      // Server encodes to base64 here — <1ms on server vs ~200ms on iOS
+      image = req.file.buffer.toString('base64');
+      image_type = req.file.mimetype || 'image/jpeg';
+      // Form fields come through req.body even with multer
+      text = req.body.text || null;
+      device_id = req.body.device_id;
+      latitude = req.body.latitude ? parseFloat(req.body.latitude) : undefined;
+      longitude = req.body.longitude ? parseFloat(req.body.longitude) : undefined;
+      source = req.body.source || 'siri_vision';
+      const sizeKB = Math.round(req.file.size / 1024);
+      console.log(`[hooks/analyze-offer] 📸 Multipart upload: ${sizeKB}KB ${image_type} (server-encoded base64 in <1ms)`);
+    } else {
+      // JSON PATH — existing flow (base64 image or OCR text in JSON body)
+      ({ text, image, image_type, device_id, latitude, longitude, source = 'siri_shortcut' } = req.body);
+    }
 
     if (!text && !image) {
       return res.status(400).json({ error: 'Missing text or image payload' });

@@ -5691,4 +5691,62 @@ Items are prioritized by impact on system architecture and developer onboarding.
 
 ---
 
+## 2026-02-17 Analysis
+
+**Generated:** 2026-02-17T02:08:36.883Z
+**Branch:** main
+**Last Commit:** 926b3118 Published your App
+
+### Uncommitted Changes (3)
+| File | Status |
+|------|--------|
+| `ackage-lock.json` | Modified |
+| `package.json` | Modified |
+| `server/api/hooks/analyze-offer.js` | Modified |
+
+### Recent Commit Changes (52)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.replit-assistant-override.json` | Deleted |
+| `APICALL.md` | Modified |
+| `LEXICON.md` | Modified |
+| `README.md` | Modified |
+| `client/src/components/CoachChat.tsx` | Modified |
+| `client/src/components/DonationTab.tsx` | Modified |
+| `client/src/components/InstructionsTab.tsx` | Modified |
+| `client/src/components/README.md` | Modified |
+| `client/src/components/concierge/AskConcierge.tsx` | Modified |
+| `client/src/components/strategy/_future/ConsolidatedStrategyComp.tsx` | Modified |
+| `client/src/components/strategy/_future/StrategyCoach.tsx` | Modified |
+| `client/src/pages/co-pilot/README.md` | Modified |
+| `client/src/pages/co-pilot/StrategyPage.tsx` | Modified |
+| `client/src/pages/concierge/PublicConciergePage.tsx` | Modified |
+| `docs/DATABASE_SCHEMA.md` | Modified |
+| `docs/ai-tools/agent.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| `docs/architecture/api-reference.md` | Modified |
+| `docs/architecture/client-structure.md` | Modified |
+| ... and 32 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/hooks/analyze-offer.js)
+- [ ] `docs/preflight/ai-models.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/architecture/ai-pipeline.md` - AI model/adapter changes (server/lib/ai/coach-dal.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/daypart.js)
+- [ ] `docs/architecture/constraints.md` - Location/GPS changes (server/lib/location/daypart.js)
+- [ ] `docs/architecture/database-schema.md` - Database schema changes (shared/schema.js)
+- [ ] `docs/preflight/database.md` - Database schema changes (shared/schema.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/CoachChat.tsx)
+- [ ] `docs/ai-tools/agent.md` - Workspace agent changes (server/agent/config-manager.js)
+- [ ] `server/agent/README.md` - Workspace agent changes (server/agent/config-manager.js)
+
+### Status: PENDING
+
+---
+
 ---

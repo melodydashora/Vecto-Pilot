@@ -10,3 +10,4 @@
 | `/api/chat/conversations` | GET | `server/api/chat/chat.js` | List all conversations for user |
 | `/api/chat/conversations/:conversationId` | GET | `server/api/chat/chat.js` | Get messages for a conversation |
 | `/api/chat/conversations/:messageId/star` | POST | `server/api/chat/chat.js` | Star a message to mark as important |
+| `/api/hooks/analyze-offer` | POST | `server/api/hooks/analyze-offer.js` | Real-time ride offer analysis (Text/Vision/Multipart) for Siri Shortcuts with voice response & analytics |

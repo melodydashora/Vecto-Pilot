@@ -36,15 +36,18 @@ This module manages configuration file access, environment variable updates, and
 
 The manager restricts access to specific configuration files, including:
 - **Environment**: `.env`, `.env.local`, `.env.example`, etc.
-- **Build & Tools**: `package.json`, `vite.config.*`, `tsconfig.*`, `eslint.config.js`, etc.
+- **Build & Bundler**: `package.json`, `vite.config.*`, `drizzle.config.*`, `tailwind.config.*`, `postcss.config.*`.
+- **TypeScript & Linting**: `tsconfig.*`, `eslint.config.js`, `.prettierrc.*`.
 - **Infrastructure**: `Dockerfile`, `docker-compose.yml`, `replit.nix`.
-- **Documentation**: `README.md`, `ARCHITECTURE.md`, etc.
+- **Monorepo & Testing**: `nx.json`, `turbo.json`, `lerna.json`, `jest.config.js`, `vitest.config.ts`, `playwright.config.ts`.
+- **Server & App Config**: `gateway-server.js`, `agent-server.js`, `index.js`, `config/assistant-policy.json`, `server/config/assistant-policy.json`.
+- **Documentation**: `README.md`, `ARCHITECTURE.md`, `ISSUES.md`, `replit.md`.
 
 ## API Reference
 
 ### `readConfigFile(filename)`
 Reads the content of an allowed configuration file.
-- **Returns**: Object containing `ok` status, `content`, and absolute `path`.
+- **Returns**: Object containing `ok` status, `content`, and absolute `path`. Returns `{ ok: false, error: "file_not_found" }` if the file is missing.
 - **Throws**: Error if the file is not in the allowed list.
 
 ### `updateEnvFile(updates)`
