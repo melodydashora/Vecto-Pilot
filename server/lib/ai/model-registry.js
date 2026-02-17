@@ -218,14 +218,15 @@ export const MODEL_ROLES = {
   // 4. COACH_CONVERSATIONS
   // ==========================
   // 2026-02-13: Gemini 3 Pro Preview — vision, OCR, Google Search, multimodal
-  COACH_CHAT: {
-    envKey: 'COACH_CHAT_MODEL',
+  // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing "AI Coach" branding
+  AI_COACH: {
+    envKey: 'AI_COACH_MODEL',
     default: 'gemini-3-pro-preview',
     purpose: 'AI Coach conversation (streaming, multimodal)',
     maxTokens: 8192,
     temperature: 0.7,
     features: ['google_search', 'vision', 'ocr'],
-    // 2026-02-17: COACH_CHAT uses callModelStream() which only supports Gemini.
+    // 2026-02-17: AI_COACH uses callModelStream() which only supports Gemini.
     // Non-Gemini overrides (e.g., ASSISTANT_OVERRIDE_MODEL=claude-opus-4-6) are rejected.
     requiresStreaming: true,
   },
@@ -348,7 +349,8 @@ export const LEGACY_ROLE_MAP = {
   'venue_planner': 'VENUE_SCORER',
   'venue_filter': 'VENUE_FILTER',
   'haiku': 'VENUE_FILTER',  // Legacy name for fast venue filtering
-  'coach': 'COACH_CHAT',
+  'coach': 'AI_COACH',
+  'COACH_CHAT': 'AI_COACH',  // 2026-02-17: Backward compat for old role name
 };
 
 /**
@@ -449,8 +451,9 @@ export function getRoleConfig(role) {
         sourceInfo = 'env:AGENT_OVERRIDE_MODEL';
       }
     }
-    // Assistant roles (Coach)
-    else if (canonicalRole.startsWith('COACH_')) {
+    // Assistant roles (AI Coach)
+    // 2026-02-17: Matches AI_COACH and any legacy COACH_ roles
+    else if (canonicalRole === 'AI_COACH' || canonicalRole.startsWith('COACH_')) {
       if (process.env.ASSISTANT_OVERRIDE_MODEL) {
         model = process.env.ASSISTANT_OVERRIDE_MODEL;
         sourceInfo = 'env:ASSISTANT_OVERRIDE_MODEL';
@@ -470,7 +473,7 @@ export function getRoleConfig(role) {
 
   // 2026-02-17: Streaming guard — roles with requiresStreaming MUST use Gemini.
   // If an env override resolved to a non-Gemini model, reject it and use the default.
-  // This prevents ASSISTANT_OVERRIDE_MODEL=claude-opus-4-6 from breaking COACH_CHAT streaming.
+  // This prevents ASSISTANT_OVERRIDE_MODEL=claude-opus-4-6 from breaking AI_COACH streaming.
   if (roleConfig.requiresStreaming && !model.startsWith('gemini-')) {
     console.warn(`📋 [REGISTRY] ⚠️ ${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
     model = roleConfig.default;

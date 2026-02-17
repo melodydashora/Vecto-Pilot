@@ -1118,15 +1118,16 @@ No restrictions. Full transparency. Maximum capability.
 
     console.log(`[chat] Sending ${messageHistory.length} messages to Gemini...`);
 
-    // 2026-01-06: Use adapter pattern for COACH_CHAT role (P1-A fix)
+    // 2026-01-06: Use adapter pattern for AI_COACH role (P1-A fix)
+    // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing branding
     // Model config (gemini-3-pro-preview, temp=0.7, google_search) is now in model-registry.js
     try {
-      console.log(`[chat] Calling COACH_CHAT role via adapter with streaming...`);
+      console.log(`[chat] Calling AI_COACH role via adapter with streaming...`);
 
       // Import adapter at runtime to avoid circular dependencies
       const { callModelStream } = await import('../../lib/ai/adapters/index.js');
 
-      const response = await callModelStream('COACH_CHAT', {
+      const response = await callModelStream('AI_COACH', {
         system: systemPrompt,
         messageHistory
       });
