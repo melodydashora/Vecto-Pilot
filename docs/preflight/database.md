@@ -56,3 +56,30 @@ The `strategies` table stores **ONLY** the AI's strategic output linked to a sna
 - **Context**: All location/time context lives in `snapshots`.
 - **Briefings**: All briefing data lives in `briefings`.
 - **Dropped Columns**: `strategy_id`, `correlation_id`, `strategy` (legacy), `error_code`, `attempt`, `latency_ms`, `tokens`, `next_retry_at`, `model_name`, `trigger_reason`, `valid_window_start`, `valid_window_end`, `strategy_timestamp`.
+
+## Database Client & Real-time (2026-02-17)
+
+The `db-client.js` module manages the persistent `LISTEN` connection for Real-time/SSE.
+
+- **Race Condition Prevention**: Uses a `connectPromise` to ensure only one connection attempt occurs during concurrent `getListenClient()` calls (2026-01-09).
+- **Reconnection Logic**:
+  - **Backoff**: Implements exponential backoff (up to 10s) on connection loss.
+  - **Handler Reset**: Resets `notificationHandlerAttached` flag so listeners are properly re-bound on the new client.
+  - **Resubscription**: Automatically calls `resubscribeChannels()` to re-issue `LISTEN` commands after a reconnect, preventing orphaned SSE subscribers.
+- **Keepalive**: Sends `SELECT 1` every 4 minutes to prevent connection timeouts.
+
+## Connection Manager & Pooling (2026-02-17)
+
+The `connection-manager.js` module handles the standard query pool configuration, optimized for Replit/Neon.
+
+- **Pool Configuration**:
+  - **Max Connections**: Increased to **25** (Issue #22). Accounts for high concurrency (Strategy + Briefing + Blocks = ~8-11 connections per user).
+  - **Idle Timeout**: Reduced to **3000ms** (3s). Aggressively closes idle connections before Neon's proxy terminates them to prevent `57P01` errors.
+  - **Connection Timeout**: **15s**. Slightly increased to handle connection spikes safely.
+  - **Statement Timeout**: **30s** global timeout to prevent long-running queries from blocking.
+  - **TCP Keepalive**: Enabled (10s delay) to maintain stable connections through the proxy.
+- **Monitoring & Health**:
+  - **Capacity Warning**: Monitors pool usage every 30s. Logs a warning if usage exceeds **80%** (20 connections).
+  - **Health Check**: `getAgentState()` statically reports healthy (`degraded: false`) as Replit manages the underlying Postgres availability.
+- **Error Handling**:
+  - **Neon 57P01**: "Admin Shutdown" errors on idle connections are treated as warnings (not fatal errors). The pool auto-recovers by evicting the dead client.

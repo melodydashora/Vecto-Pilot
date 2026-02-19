@@ -1,0 +1,55 @@
+SNAPSHOT WORKFLOW OBSERVER — 2026-02-19T12:29:13.194Z
+════════════════════════════════════════════════════════════
+
+BEFORE (server boot)
+────────────────────────────────────────────────────────────
+  user_id                 2f22004b-c5cc-43c9-a5a6-02f50ccff571
+  current_snapshot_id     bfad8471-53f9-4b00-bb4d-4b1d8909f660
+  session_id              d9d824be-933d-4689-8af2-d6acd2f217d7
+  last_active_at          2026-02-19T00:38:28.833Z
+  old snapshot city       Frisco, TX
+  old snapshot age        713.2 min
+
+Waiting for snapshot change...
+  (log in → GPS resolves → new snapshot created)
+[12:29:36.149] OLD SNAPSHOT RELEASED (current_snapshot_id → null)
+[12:29:46.131] NEW SNAPSHOT DETECTED: a0f7fe85-51c0-4716-b9d5-d6cb74793d2e
+
+NEW SNAPSHOT
+════════════════════════════════════════════════════════════
+  snapshot_id        a0f7fe85-51c0-4716-b9d5-d6cb74793d2e
+  created_at         2026-02-19T12:29:45.807Z
+  device_id          ba9e8e6e-bd59-4008-8c77-8f3194db83a6
+  session_id         250d9fdd-7217-4c5c-b024-325d5b106be8
+  h3_r8              8826c87297fffff
+  weather            null
+  air                null
+  permissions        ┐
+                     │ {
+                     │   "geolocation": "granted"
+                     │ }
+  holiday            none
+  is_holiday         false
+  lat                33.12888831291211
+  lng                -96.87556937405208
+  city               Frisco
+  state              TX
+  country            US
+  formatted_address  1735 Timber Ridge Dr, Frisco, TX 75036, USA
+  timezone           America/Chicago
+  local_iso          2026-02-19T06:29:45.000Z
+  dow                4
+  hour               6
+  day_part_key       morning
+  date               2026-02-19
+  coord_key          33.128888_-96.875569
+  user_id            2f22004b-c5cc-43c9-a5a6-02f50ccff571
+  market             Dallas-Fort Worth
+
+TIMING
+────────────────────────────────────────────────────────────
+  Old snapshot created:   2026-02-19T00:36:02.769Z
+  Old snapshot released:  2026-02-19T12:29:36.149Z
+  New snapshot created:   2026-02-19T12:29:45.807Z
+  Release → Create gap:   9.7s
+  Old snapshot row:       STILL IN DB (not deleted, just dereferenced)

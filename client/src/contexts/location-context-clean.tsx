@@ -3,6 +3,8 @@ import React, { createContext, useState, useEffect, useCallback, useRef, useMemo
 import { useAuth } from './auth-context';
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-02-17: Import queryClient for full cache reset on manual refresh (matches logout behavior)
+import { queryClient } from '@/lib/queryClient';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
@@ -646,6 +648,26 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Only clear storage when user explicitly requests fresh data
     if (forceNewSnapshot) {
+      // 2026-02-17: Full waterfall reset — matches logout behavior (minus auth teardown).
+      // 1. Null snapshot on server IMMEDIATELY (before GPS fetch)
+      // 2. Cancel/clear all query cache
+      // 3. Clear all client-side snapshot + strategy storage
+      // This ensures no stale data survives. Fresh GPS coords will trigger a clean pipeline.
+      const authToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      if (authToken) {
+        try {
+          await fetch(API_ROUTES.LOCATION.RELEASE_SNAPSHOT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
+        } catch {
+          // Best-effort — enrichLocation with force=true will also null it
+        }
+      }
+
+      queryClient.cancelQueries();
+      queryClient.clear();
+
       // Clear sessionStorage - driver clicked refresh to get fresh data at staging area
       clearSnapshotStorage();
 

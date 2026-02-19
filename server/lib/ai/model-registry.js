@@ -177,8 +177,9 @@ export const MODEL_ROLES = {
     envKey: 'VENUE_FILTER_MODEL',
     // 2026-01-14: Claude Haiku primary, Gemini Flash fallback (see FALLBACK_CONFIG)
     default: 'claude-haiku-4-5-20251001',
-    purpose: 'Fast low-cost venue filtering',
-    maxTokens: 200,
+    // 2026-02-18: Enhanced from binary keep/remove to quality classification (P/S/X)
+    purpose: 'Fast low-cost venue classification (premium/standard/remove)',
+    maxTokens: 300,
     temperature: 0,
   },
   VENUE_TRAFFIC: {

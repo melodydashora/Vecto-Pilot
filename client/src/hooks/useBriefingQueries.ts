@@ -564,11 +564,14 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     eventsData: eventsQuery.data,
     schoolClosuresData: schoolClosuresQuery.data,
     airportData: airportQuery.data,
+    // 2026-02-18: FIX - Added news + schoolClosures (were missing → undefined → no loading spinners)
     isLoading: {
       weather: weatherQuery.isLoading,
       traffic: trafficQuery.isLoading || isTrafficLoading(trafficQuery.data),
       events: eventsQuery.isLoading,
+      news: newsQuery.isLoading || isNewsLoading(newsQuery.data),
       airport: airportQuery.isLoading || isAirportLoading(airportQuery.data),
+      schoolClosures: schoolClosuresQuery.isLoading,
     }
   };
 }

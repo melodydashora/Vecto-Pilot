@@ -36,12 +36,14 @@ import { formatBriefingForPrompt } from "../briefing/filter-for-planner.js";
 // VENUE_SCORER response schema: venue coords + staging coords + category + district + pro tips
 // Addresses, distances, and place details resolved via Google Places API (New) + Routes API (New)
 // District field enables text search fallback when coord-based matching fails
+// 2026-02-19: lat/lng made nullable — GPT-5.2 sometimes returns null for all coords.
+// Post-validation filtering removes venues without required coords (see below).
 const VenueRecommendationSchema = z.object({
   name: z.string().min(1).max(200),
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-  staging_lat: z.number().min(-90).max(90).optional(),  // Where to park/wait for this venue
-  staging_lng: z.number().min(-180).max(180).optional(),
+  lat: z.number().min(-90).max(90).nullable(),
+  lng: z.number().min(-180).max(180).nullable(),
+  staging_lat: z.number().min(-90).max(90).nullable().optional(),  // Where to park/wait for this venue
+  staging_lng: z.number().min(-180).max(180).nullable().optional(),
   staging_name: z.string().max(200).optional(),          // Name of staging location
   district: z.string().max(100).optional(),              // Shopping center, neighborhood, or area name (e.g., "Legacy West", "Deep Ellum")
   category: z.enum(['airport', 'entertainment', 'shopping', 'dining', 'sports_venue', 'transit_hub', 'hotel', 'nightlife', 'event_venue', 'other']).or(z.string()),
@@ -51,13 +53,14 @@ const VenueRecommendationSchema = z.object({
 
 const StagingLocationSchema = z.object({
   name: z.string().min(1).max(200),
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
+  lat: z.number().min(-90).max(90).nullable(),
+  lng: z.number().min(-180).max(180).nullable(),
   reason: z.string().max(500)
 });
 
+// 2026-02-19: min(0) allows empty array — post-validation filters out null-coord venues
 const GPT5ResponseSchema = z.object({
-  recommended_venues: z.array(VenueRecommendationSchema).min(1).max(8),
+  recommended_venues: z.array(VenueRecommendationSchema).min(0).max(8),
   best_staging_location: StagingLocationSchema.optional(),
   tactical_summary: z.string().min(10).max(1500)
 });
@@ -255,25 +258,43 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
     const validated = validation.data;
 
+    // 2026-02-19: Filter out venues with null lat/lng (GPT-5.2 sometimes omits coords)
+    const allVenues = validated.recommended_venues;
+    const validVenues = allVenues.filter(v => v.lat != null && v.lng != null);
+    if (validVenues.length < allVenues.length) {
+      const dropped = allVenues.filter(v => v.lat == null || v.lng == null).map(v => v.name);
+      console.warn(`🏢 [VENUES 1/4 - Tactical Planner] ⚠️ Dropped ${dropped.length} venues with null coords: ${dropped.join(', ')}`);
+    }
+
+    if (validVenues.length === 0) {
+      console.error('🏢 [VENUES 1/4 - Tactical Planner] ❌ All venues had null coordinates');
+      throw new Error('AI returned venues but all had null coordinates');
+    }
+
+    // Also filter staging location if coords are null
+    const stagingLoc = validated.best_staging_location;
+    const validStaging = (stagingLoc && stagingLoc.lat != null && stagingLoc.lng != null)
+      ? stagingLoc : null;
+
     // Log each venue individually for clear tracing
-    console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ ${validated.recommended_venues.length} venues in ${duration}ms:`);
-    validated.recommended_venues.forEach((v, i) => {
+    console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ ${validVenues.length} venues in ${duration}ms:`);
+    validVenues.forEach((v, i) => {
       const districtInfo = v.district ? ` @ ${v.district}` : '';
       console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category}) at ${v.lat.toFixed(6)},${v.lng.toFixed(6)}`);
     });
 
     // Add rank to each venue and prepare final response
     const normalized = {
-      recommended_venues: validated.recommended_venues.map((v, i) => ({
+      recommended_venues: validVenues.map((v, i) => ({
         ...v,
         rank: i + 1
       })),
-      best_staging_location: validated.best_staging_location || null,
+      best_staging_location: validStaging,
       tactical_summary: validated.tactical_summary,
       metadata: {
         model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.2",
         duration_ms: duration,
-        venues_recommended: validated.recommended_venues.length,
+        venues_recommended: validVenues.length,
         validation_passed: true
       }
     };

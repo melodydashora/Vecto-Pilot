@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Cloud, CloudRain, Sun } from "lucide-react";
+import { Cloud, CloudRain, Sun, Loader } from "lucide-react";
 
 interface ForecastItem {
   day?: string;
@@ -34,7 +34,22 @@ interface WeatherCardProps {
 export function WeatherCard({ weatherData }: WeatherCardProps) {
   const weather = weatherData?.weather;
 
-  if (!weather?.forecast || weather.forecast.length === 0) return null;
+  // 2026-02-18: FIX - Show loading state instead of silent null when data hasn't arrived yet
+  if (!weather?.forecast || weather.forecast.length === 0) {
+    if (!weatherData) {
+      return (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center py-4">
+              <Loader className="w-5 h-5 animate-spin text-blue-600 mr-2" />
+              <span className="text-gray-600">Loading forecast...</span>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+    return null; // Data loaded but no forecast available — hide card
+  }
 
   const getWeatherIcon = (conditionType?: string | null, isDaytime?: boolean | null) => {
     if (!conditionType) return <Cloud className="w-6 h-6 text-gray-500" />;

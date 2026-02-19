@@ -158,6 +158,27 @@ function pickBestGeocodeResult(results) {
   return best;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/location/release-snapshot - Null current_snapshot_id immediately
+// 2026-02-17: Called by refresh spindle BEFORE fetching GPS.
+// Ensures the old snapshot is fully released so the waterfall resets cleanly.
+// Matches logout behavior (session_id stays intact, only snapshot is released).
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/release-snapshot', async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    await db.update(users)
+      .set({ current_snapshot_id: null, updated_at: new Date() })
+      .where(eq(users.user_id, userId));
+
+    snapshotLog.info(`🔄 Snapshot released for user ${userId.substring(0, 8)} (manual refresh)`, OP.DB);
+    res.json({ ok: true, message: 'Snapshot released' });
+  } catch (err) {
+    snapshotLog.error(1, `Failed to release snapshot`, err, OP.DB);
+    res.status(500).json({ error: 'RELEASE_FAILED', message: err.message });
+  }
+});
+
 // GET /api/location/geocode/reverse?lat=&lng=
 // Reverse geocode coordinates to city/state/country + place_id
 // Enhanced: Plus Code filtering, rate limiting, place_id return
@@ -976,6 +997,17 @@ router.get('/resolve', async (req, res) => {
         //   - Session expires (60 min)
         // ═══════════════════════════════════════════════════════════════════════════
         const forceRefresh = req.query.force === 'true';
+        console.log(`📸 [SNAPSHOT] Force refresh: ${forceRefresh}, current_snapshot_id: ${existingUser?.current_snapshot_id?.slice(0, 8) || 'null'}`);
+
+        // 2026-02-17: FIX - On force refresh, release old snapshot FIRST
+        // This triggers a clean waterfall: null → new snapshot → new briefing → new strategy
+        // Previous behavior was atomic swap (old → new) which skipped the release step
+        if (forceRefresh && existingUser?.current_snapshot_id) {
+          console.log(`📸 [SNAPSHOT] 🔄 Force refresh: releasing old snapshot ${existingUser.current_snapshot_id.slice(0, 8)}`);
+          await db.update(users)
+            .set({ current_snapshot_id: null })
+            .where(eq(users.user_id, userId));
+        }
 
         // If user already has a snapshot and this isn't a forced refresh → check age and maybe reuse
         // 2026-01-14: FIX - Must check snapshot age! Previous code reused 6-day-old snapshots!

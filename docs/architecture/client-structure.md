@@ -4,7 +4,7 @@
 
 | Component | Purpose |
 |-----------|---------|
-| `GlobalHeader.tsx` | GPS status, refresh button |
+| `GlobalHeader.tsx` | Real-time location & context (weather, time), snapshot status, refresh controls, and logout |
 | `CoachChat.tsx` | AI Chat interface with persistent history, file upload, strategy context, and Coach memory (notes/preferences) |
 | `BriefingTab.tsx` | Dashboard for driver intelligence including Strategy, Weather, Traffic, Airports, News, School Closures, and Events |
 | `DonationTab.tsx` | About/Donation view with development stats & instructions |

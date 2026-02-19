@@ -1,79 +1,57 @@
-# Snapshot Time Context
+# Venue Intelligence
 
-`server/lib/location/getSnapshotTimeContext.js`
+`server/lib/venue/venue-intelligence.js`
 
-Canonical timezone and date utility for the ETL pipeline.
+Real-time venue intelligence using Google Places API for bar discovery. Provides upscale bars/lounges sorted by expense, filtered by operating hours, and enriched with AI analysis.
 
-> **Invariant:** This is the **ONLY** place where "today's date" and timezone should be resolved.  
-> **No Fallbacks:** Missing timezone is a bug that should surface immediately.
+> **Architecture Note:** Uses a **Cache First** pattern (via `venue-cache.js`) and relies on `venue_catalog` (Schema).
+> **AI Adapter:** Traffic analysis uses the unified `callModel` adapter.
 
-## Error Handling
+## Dependencies
 
-The module defines custom errors to ensure data integrity issues are not silently ignored.
+- **Database**: `drizzle-orm`, `venue_catalog` schema.
+- **AI**: `callModel` from `../ai/adapters/index.js`.
+- **Utils**: `venue-utils.js`, `district-detection.js`.
+- **Hours**: `hours/index.js` (Canonical hours parsing).
 
-### `MissingTimezoneError`
-Thrown when a snapshot is missing required timezone data.
+## Core Functions
 
-### `MissingLocationError`
-Thrown when a snapshot is missing required location data (`city` or `state`).
+### `getPriceDisplay(priceLevel)`
 
-## API
-
-### `getSnapshotTimeContext(snapshot)`
-
-Get time context from snapshot with strict validation. This is the primary function for resolving "today's date" for pipeline operations.
+Converts Google Places API price levels to application display format.
 
 **Parameters**
-- `snapshot` (Object): Snapshot row from database.
+- `priceLevel` (String): Google price constant (e.g., `PRICE_LEVEL_VERY_EXPENSIVE`).
 
 **Returns**
-- `Object`: Time context object.
-  - `timeZone` (String): Validated timezone (from `snapshot.timezone`).
-  - `localISODate` (String): Current date in snapshot's timezone (YYYY-MM-DD).
-  - `dayOfWeek` (Number): 0=Sunday, 6=Saturday.
-  - `hour` (Number): Current hour.
-  - `dayPart` (String): Time of day key (e.g., 'night').
-  - `isWeekend` (Boolean): True if Saturday or Sunday.
-  - `city`, `state`, `country` (String): Location details.
-  - `lat`, `lng` (Number): Coordinates.
-  - `isHoliday`, `holiday` (Boolean/Object): Holiday status.
-  - `snapshotId` (String): Reference ID.
+- `Object`: `{ level: String, rank: Number }`
+  - Example: `{ level: '$$$$', rank: 4 }`
+  - Default: `{ level: '$$', rank: 2 }`
 
-**Throws**
-- `MissingTimezoneError`: If `snapshot.timezone` is missing.
-- `MissingLocationError`: If `snapshot.city` or `snapshot.state` is missing.
+### `calculateOpenStatus(place, timezone)`
 
-### `getEventDateRange(snapshot, daysAhead = 7)`
-
-Get date range for event queries (today to N days out). Uses `getSnapshotTimeContext` internally.
+Calculates the current operating status of a venue based on its hours and timezone.
 
 **Parameters**
-- `snapshot` (Object): Snapshot row.
-- `daysAhead` (Number): Number of days to look ahead. Default `7`.
+- `place` (Object): Venue object from Google Places (must contain `regularOpeningHours` or `currentOpeningHours`).
+- `timezone` (String): IANA timezone string for the venue.
 
 **Returns**
-- `Object`: `{ startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }`
+- `Object`: Status object containing:
+  - `is_open` (Boolean): True if currently open.
+  - `hours_today` (String): Human-readable hours for the current day.
+  - `closing_soon` (Boolean): Indicator if closing within threshold.
+  - `minutes_until_close` (Number): Minutes remaining until close.
+  - `opens_in_minutes` (Number): Minutes until opening (if closed).
 
-### `formatLocalTime(snapshot)`
+**Logic:**
+1.  **Canonical Parsing**: Uses `parseGoogleWeekdayText` and `getOpenStatus` from the `hours` module as the source of truth.
+2.  **Discrepancy Logging**: Compares calculated status with Google's `openNow` flag. Discrepancies are logged but `openNow` is **never** used as the source of truth.
+3.  **Timezone Dependency**: Requires valid timezone to resolve "today" correctly.
 
-Format a human-readable local time string from snapshot.
+## AI Integration
 
-**Parameters**
-- `snapshot` (Object): Snapshot row.
+### Traffic/Vibe Analysis
+*(Internal usage via `callModel`)*
 
-**Returns**
-- `String`: Formatted local time (e.g., "Friday, January 10, 2026, 3:30 PM").
-
-**Implementation Note:**
-This function handles `snapshot.local_iso` as "fake UTC" (wall-clock time stored as a timestamp without timezone offset). It uses `timeZone: 'UTC'` during formatting to prevent double-conversion errors.
-
-### `isDateToday(dateStr, snapshot)`
-
-Check if a date is "today" in the snapshot's timezone.
-
-**Parameters**
-- `dateStr` (String): Date string (YYYY-MM-DD or parseable format).
-- `snapshot` (Object): Snapshot row.
-
-**Returns**
-- `Boolean`: True if the date matches today's date in the snapshot's timezone.
+The module uses `callModel('VENUE_TRAFFIC')` to analyze venue metadata and determine current vibe or traffic levels. Direct dependencies on specific providers (e.g., Gemini) have been abstracted away.

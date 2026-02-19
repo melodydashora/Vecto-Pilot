@@ -1,78 +1,86 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 02/17/2026, 4:10:39 AM CST
-Snapshot ID: fec5777b-4d2b-41b0-a13d-2e9dfa73d47f
+Generated: 02/19/2026, 6:30:12 AM CST
+Snapshot ID: a0f7fe85-51c0-4716-b9d5-d6cb74793d2e
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: fec5777b-4d2b-41b0-a13d-2e9dfa73d47f
+snapshot_id: a0f7fe85-51c0-4716-b9d5-d6cb74793d2e
 user_id: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
-  formatted_address: 1701 Timber Ridge Dr, Frisco, TX 75036, USA
-  lat: 33.12916316646143
-  lng: -96.87588319517987
+  formatted_address: 1735 Timber Ridge Dr, Frisco, TX 75036, USA
+  lat: 33.12888831291211
+  lng: -96.87556937405208
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Tue Feb 17 2026 04:08:54 GMT+0000 (Coordinated Universal Time)
-  formatted_local_time: Tuesday, February 17, 2026 at 4:08 AM
-  dow: 2 (Tuesday)
-  hour: 4
-  day_part_key: overnight
+  local_iso: Thu Feb 19 2026 06:29:45 GMT+0000 (Coordinated Universal Time)
+  formatted_local_time: Thursday, February 19, 2026 at 6:29 AM
+  dow: 4 (Thursday)
+  hour: 6
+  day_part_key: morning
   is_holiday: false
   holiday: none
 
 WEATHER (from snapshot):
 {
-  "tempF": 57,
-  "conditions": "Mostly cloudy",
-  "description": "Mostly cloudy"
+  "tempF": 61,
+  "conditions": "Clear",
+  "description": "Clear"
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 7fc83b19-ed41-4daa-9410-ea734dcc8422
-snapshot_id: fec5777b-4d2b-41b0-a13d-2e9dfa73d47f
-created_at (UTC): Tue Feb 17 2026 10:08:56 GMT+0000 (Coordinated Universal Time)
-created_at (local): Tue, Feb 17, 4:08 AM
-updated_at (UTC): Tue Feb 17 2026 10:10:39 GMT+0000 (Coordinated Universal Time)
-updated_at (local): Tue, Feb 17, 4:10 AM
+briefing_id: e7ac9257-2ec0-47d0-80e1-3ec39372bd13
+snapshot_id: a0f7fe85-51c0-4716-b9d5-d6cb74793d2e
+created_at (UTC): Thu Feb 19 2026 12:29:47 GMT+0000 (Coordinated Universal Time)
+created_at (local): Thu, Feb 19, 6:29 AM
+updated_at (UTC): Thu Feb 19 2026 12:30:12 GMT+0000 (Coordinated Universal Time)
+updated_at (local): Thu, Feb 19, 6:30 AM
 
-NEWS (0 items):
+NEWS (1 items):
 {
-  "items": [],
-  "reason": "News fetch failed: All promises were rejected: google: {\"error\":{\"code\":503,\"message\":\"Deadline expired before operation could complete.\",\"status\":\"UNAVAILABLE\"}}"
+  "items": [
+    {
+      "title": "Uber to Invest Over $100M in Fast-Charging Hubs in Dallas to Support Robotaxi Fleet",
+      "impact": "high",
+      "summary": "Uber is spending more than $100 million to build fast-charging hubs in Dallas (along with LA and the Bay Area) to support its growing robotaxi and electric vehicle operations. For drivers, this means improved access to EV charging infrastructure, which lowers downtime and charging costs—particularly helpful if you’re already driving electric or considering an EV.",
+      "category": "platform",
+      "published_date": "2026-02-18"
+    }
+  ],
+  "reason": null
 }
 
 WEATHER_CURRENT:
 {
-  "tempC": 14,
-  "tempF": 57,
+  "tempC": 16,
+  "tempF": 61,
   "country": "US",
   "uvIndex": 0,
-  "humidity": 82,
+  "humidity": 77,
   "tempUnit": "°F",
-  "feelsLike": 54,
+  "feelsLike": 60,
   "isDaytime": false,
-  "conditions": "Mostly cloudy",
-  "feelsLikeC": 12,
-  "feelsLikeF": 54,
-  "observedAt": "2026-02-17T10:08:56.408155297Z",
+  "conditions": "Clear",
+  "feelsLikeC": 16,
+  "feelsLikeF": 60,
+  "observedAt": "2026-02-19T12:29:47.626974910Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 57,
-  "conditionType": "MOSTLY_CLOUDY",
+  "temperature": 61,
+  "conditionType": "CLEAR",
   "precipitation": {
     "qpf": {
       "unit": "MILLIMETERS",
@@ -84,90 +92,90 @@ WEATHER_CURRENT:
     },
     "probability": {
       "type": "RAIN",
-      "percent": 9
+      "percent": 0
     }
   },
-  "windDirection": "SOUTH",
+  "windDirection": "SOUTH_SOUTHWEST",
   "windSpeedUnit": "mph"
 }
 
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-02-17T10:08:56.420Z",
-    "tempC": 14,
-    "tempF": 57,
+    "time": "2026-02-19T12:29:47.641Z",
+    "tempC": 16,
+    "tempF": 62,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Mostly cloudy",
-    "temperature": 57,
-    "conditionType": "MOSTLY_CLOUDY",
+    "conditions": "Clear",
+    "temperature": 62,
+    "conditionType": "CLEAR",
     "windSpeedUnit": "mph",
-    "precipitationProbability": 10
+    "precipitationProbability": 0
   },
   {
-    "time": "2026-02-17T11:08:56.420Z",
-    "tempC": 13,
-    "tempF": 56,
+    "time": "2026-02-19T13:29:47.641Z",
+    "tempC": 15,
+    "tempF": 60,
     "tempUnit": "°F",
     "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Partly cloudy",
-    "temperature": 56,
-    "conditionType": "PARTLY_CLOUDY",
+    "conditions": "Clear",
+    "temperature": 60,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-02-19T14:29:47.641Z",
+    "tempC": 16,
+    "tempF": 61,
+    "tempUnit": "°F",
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Sunny",
+    "temperature": 61,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-02-19T15:29:47.641Z",
+    "tempC": 19,
+    "tempF": 65,
+    "tempUnit": "°F",
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 65,
+    "conditionType": "MOSTLY_CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 5
   },
   {
-    "time": "2026-02-17T12:08:56.420Z",
-    "tempC": 13,
-    "tempF": 56,
+    "time": "2026-02-19T16:29:47.641Z",
+    "tempC": 21,
+    "tempF": 69,
     "tempUnit": "°F",
-    "isDaytime": false,
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 69,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-19T17:29:47.641Z",
+    "tempC": 22,
+    "tempF": 71,
+    "tempUnit": "°F",
+    "isDaytime": true,
     "windSpeed": null,
     "conditions": "Mostly cloudy",
-    "temperature": 56,
+    "temperature": 71,
     "conditionType": "MOSTLY_CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-17T13:08:56.420Z",
-    "tempC": 13,
-    "tempF": 55,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 55,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-17T14:08:56.420Z",
-    "tempC": 14,
-    "tempF": 56,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 56,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-02-17T15:08:56.420Z",
-    "tempC": 15,
-    "tempF": 59,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 59,
-    "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
   }
@@ -175,26 +183,26 @@ WEATHER_FORECAST (6 hours):
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 0,
+  "jams": 4,
   "stats": {
-    "jams": 0,
-    "major": 0,
-    "total": 14,
-    "closures": 11,
-    "highways": 9,
+    "jams": 4,
+    "major": 3,
+    "total": 23,
+    "closures": 14,
+    "highways": 12,
     "accidents": 0,
-    "construction": 3
+    "construction": 5
   },
-  "summary": "Frisco is experiencing heavy congestion with 11 active road closures, primarily impacting key local corridors like Lamar Hunt Way and Warren Pkwy within 4 miles of your position. Major northern routes including US-380 and PGA Pkwy are restricted, necessitating a shift toward the Dallas North Tollway for efficient north-south movement. Avoid the Toyota Stadium and 'The Star' districts due to immediate local closures.",
+  "summary": "Traffic is heavy across Frisco, with multiple road closures and jams creating local bottlenecks, especially on feeder roads into major highways. The most impactful issues are a major jam on N Shady Shores Dr → I-35E (~9.1 mi away causing 4-min delay) and the closure of FM-720 at Lamar Hunt Way (~2.9 mi away) disrupting access routes. Strategy: avoid closed routes near FM-720, shift toward highways with no incidents, and reposition closer to clear corridors east or south to reduce idle time and maximize trip yield.",
   "analyzed": true,
-  "briefing": "Frisco is experiencing heavy congestion with 11 active road closures, primarily impacting key local corridors like Lamar Hunt Way and Warren Pkwy within 4 miles of your position. Major northern routes including US-380 and PGA Pkwy are restricted, necessitating a shift toward the Dallas North Tollway for efficient north-south movement. Avoid the Toyota Stadium and 'The Star' districts due to immediate local closures.",
+  "briefing": "Traffic is heavy across Frisco, with multiple road closures and jams creating local bottlenecks, especially on feeder roads into major highways. The most impactful issues are a major jam on N Shady Shores Dr → I-35E (~9.1 mi away causing 4-min delay) and the closure of FM-720 at Lamar Hunt Way (~2.9 mi away) disrupting access routes. Strategy: avoid closed routes near FM-720, shift toward highways with no incidents, and reposition closer to clear corridors east or south to reduce idle time and maximize trip yield.",
   "closures": [
     {
       "road": "",
-      "location": "Lamar Hunt Way to FM-720",
+      "location": "FM-720 to Lamar Hunt Way",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3
+      "distanceFromDriver": 2.9
     },
     {
       "road": "",
@@ -226,14 +234,21 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Warren Pkwy to Warren Pkwy",
+      "location": "Dallas Pkwy to Dallas North Tollway S",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3.6
+      "distanceFromDriver": 5.1
     },
     {
       "road": "",
-      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
+      "location": "Warren Pkwy to Warren Pkwy",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 3.5
+    },
+    {
+      "road": "",
+      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
       "severity": "low",
       "isHighway": true,
       "distanceFromDriver": 7.7
@@ -261,27 +276,53 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Lakewood Dr to Main St / N Hook St",
+      "location": "Henrietta St to Leonard St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.6
+    },
+    {
+      "road": "",
+      "location": "Main St / N Hook St to Lakewood Dr",
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 8.1
+    },
+    {
+      "road": "",
+      "location": "N Mill St / W College St to Henrietta St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.7
     }
   ],
-  "headline": "Frisco is experiencing heavy congestion with 11 active road closures, primarily impacting key local corridors like Lamar Hunt Way and Warren Pkwy within 4 miles of your position.",
+  "headline": "Traffic is heavy across Frisco, with multiple road closures and jams creating local bottlenecks, especially on feeder roads into major highways.",
   "provider": "tomtom",
-  "fetchedAt": "2026-02-17T10:08:56.826Z",
+  "fetchedAt": "2026-02-19T12:29:47.932Z",
   "incidents": [
     {
       "road": "",
+      "category": "Jam",
+      "location": "N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd)",
+      "priority": 159,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd) [9.1 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 4,
+      "distanceFromDriver": 9.1
+    },
+    {
+      "road": "",
       "category": "Road Closed",
-      "location": "Lamar Hunt Way to FM-720",
+      "location": "FM-720 to Lamar Hunt Way",
       "priority": 140,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Lamar Hunt Way to FM-720 [3 mi]",
+      "description": "Road Closed: FM-720 to Lamar Hunt Way [2.9 mi]",
       "lengthMiles": 0.2,
       "delayMinutes": 0,
-      "distanceFromDriver": 3
+      "distanceFromDriver": 2.9
     },
     {
       "road": "",
@@ -326,10 +367,10 @@ TRAFFIC_CONDITIONS:
       "priority": 135,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [6.9 mi]",
+      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [7 mi]",
       "lengthMiles": 0.2,
       "delayMinutes": 0,
-      "distanceFromDriver": 6.9
+      "distanceFromDriver": 7
     },
     {
       "road": "",
@@ -342,6 +383,18 @@ TRAFFIC_CONDITIONS:
       "lengthMiles": 0.3,
       "delayMinutes": 0,
       "distanceFromDriver": 6.1
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Holland Rd to FM-2478",
+      "priority": 126,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Jam: Holland Rd to FM-2478 [8.2 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 1,
+      "distanceFromDriver": 8.2
     },
     {
       "road": "",
@@ -358,961 +411,64 @@ TRAFFIC_CONDITIONS:
     {
       "road": "",
       "category": "Road Closed",
-      "location": "Warren Pkwy to Warren Pkwy",
-      "priority": 105,
+      "location": "Dallas Pkwy to Dallas North Tollway S",
+      "priority": 125,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Warren Pkwy to Warren Pkwy [3.6 mi]",
-      "lengthMiles": 0.1,
+      "description": "Road Closed: Dallas Pkwy to Dallas North Tollway S [5.1 mi]",
+      "lengthMiles": 0.3,
       "delayMinutes": 0,
-      "distanceFromDriver": 3.6
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
-      "priority": 105,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl [7.7 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 7.7
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Navo Rd to Paloma Creek Blvd",
-      "priority": 90,
-      "severity": "low",
-      "isHighway": false,
-      "description": "Road Closed: Navo Rd to Paloma Creek Blvd [7.2 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 7.2
+      "distanceFromDriver": 5.1
     }
   ],
   "keyIssues": [
-    "Lamar Hunt Way/FM-720 road closure 3.0mi away - complete blockage of stadium district access",
-    "Warren Pkwy road closure 3.6mi away - major disruption to east-west transit near the business corridor",
-    "US-380 W road works 6.9mi away - significant delays for northern perimeter trips toward Denton County"
+    "N Shady Shores Dr → I-35E (E Swisher Rd) jam, 9.1 mi away – major severity, ~4 min delay",
+    "FM-720 → Lamar Hunt Way closure, 2.9 mi away – blocks a key connector near your position",
+    "Dallas Pkwy → Dallas North Tollway S closure, 5.1 mi away – eliminates one highway ingress/egress path"
   ],
   "avoidAreas": [
-    "Toyota Stadium Perimeter: Lamar Hunt Way and FM-720 closures within 3.2mi",
-    "North Frisco/PGA District: PGA Pkwy and Rockhill Pkwy closures within 6-8mi"
+    "FM-720 corridor around Lamar Hunt Way: closure blocks this local-highway link (≈2-3 mi) → avoid deployments through here",
+    "Dallas Pkwy / Dallas North Tollway S intersection around 5 mi: closed → avoid routing clients through this node"
   ],
-  "safetyAlert": null,
-  "driverImpact": "High-traffic entertainment and business hubs are currently restricted by closures; prioritize residential pickups in West Frisco where telemetry shows free-flow speeds (40mph).",
+  "safetyAlert": "4 active traffic jams in the area",
+  "driverImpact": "Right now, rideshare demand may drop in closed/blocked zones, causing extra drive time for pick-ups or long detours; better to stay around open corridors (south or east Frisco) to reduce wasted time and increase trip completions.",
   "surgePricing": true,
-  "closuresCount": 11,
+  "closuresCount": 14,
   "repositioning": null,
-  "incidentsCount": 14,
-  "totalIncidents": 14,
-  "closuresSummary": "11 closures within 10mi, most critical: Lamar Hunt Way and Warren Pkwy.",
+  "incidentsCount": 23,
+  "totalIncidents": 23,
+  "closuresSummary": "There are 9 road closures within 10 mi; most critical: FM-720 at Lamar Hunt Way (2.9 mi) and Dallas Pkwy to Dallas North Tollway S (5.1 mi).",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Significant road works active on US-380 W and FM-1171, impacting long-distance airport or cross-county runs."
+  "constructionSummary": "2 active road-works zones: FM-1171 near Cross Timbers (≈9.6 mi) and US-380 W between FM-1385 and FM-2931 (≈7 mi) – moderate impact unless traversing those stretches."
 }
 
-EVENTS (46 total):
+EVENTS (1 total):
 [
   {
-    "title": "Mardi Pardi Celebration",
-    "venue": "Grandscape",
-    "impact": "medium",
-    "address": "5740 Grandscape Blvd Ste. 100, The Colony, TX 75056, USA",
-    "subtype": "community",
-    "summary": "Mardi Pardi Celebration • Grandscape • 2026-02-17 • 18:00",
-    "latitude": 33.073444099999996,
-    "location": "Grandscape, 5740 Grandscape Blvd Ste. 100, The Colony, TX 75056, USA",
-    "venue_id": "50ac363e-da31-41f1-9be8-2c60dba223d6",
-    "longitude": -96.8611423,
-    "event_type": "community",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "18:00"
-  },
-  {
-    "title": "Legacy West 5th Annual Fat Tuesday Parade & Party",
-    "venue": "Legacy West",
+    "title": "Texas Legends vs. South Bay Lakers",
+    "venue": "Comerica Center",
     "impact": "high",
-    "address": "5908 Headquarters Dr, Plano, TX 75024, USA",
-    "subtype": "community",
-    "summary": "Legacy West 5th Annual Fat Tuesday Parade & Party • Legacy West • 2026-02-17 • 17:00",
-    "latitude": 33.0810576,
-    "location": "Legacy West, 5908 Headquarters Dr, Plano, TX 75024, USA",
-    "venue_id": "7e58bc2a-195c-48e0-bdfd-952b15a24066",
-    "longitude": -96.8263461,
-    "event_type": "community",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Legacy West 5th Annual Fat Tuesday Parade",
-    "venue": "Legacy West",
-    "impact": "medium",
-    "address": "5908 Headquarters Dr, Plano, TX 75024, USA",
-    "subtype": "community",
-    "summary": "Legacy West 5th Annual Fat Tuesday Parade • Legacy West • 2026-02-17 • 18:00",
-    "latitude": 33.0810576,
-    "location": "Legacy West, 5908 Headquarters Dr, Plano, TX 75024, USA",
-    "venue_id": "7e58bc2a-195c-48e0-bdfd-952b15a24066",
-    "longitude": -96.8263461,
-    "event_type": "community",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "18:00"
-  },
-  {
-    "title": "Legacy West 5th Annual Fat Tuesday Parade",
-    "venue": "Legacy West",
-    "impact": "high",
-    "address": "5908 Headquarters Dr, Plano, TX 75024, USA",
-    "subtype": "community",
-    "summary": "Legacy West 5th Annual Fat Tuesday Parade • Legacy West • 2026-02-17 • 17:00",
-    "latitude": 33.0810576,
-    "location": "Legacy West, 5908 Headquarters Dr, Plano, TX 75024, USA",
-    "venue_id": "7e58bc2a-195c-48e0-bdfd-952b15a24066",
-    "longitude": -96.8263461,
-    "event_type": "community",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Mardi Gras & Fat Tuesday Celebration",
-    "venue": "The Revel Patio Grill",
-    "impact": "medium",
-    "address": "9305 Preston Rd, Frisco, TX 75033, USA",
-    "subtype": "nightlife",
-    "summary": "Mardi Gras & Fat Tuesday Celebration • The Revel Patio Grill • 2026-02-17 • 17:00",
-    "latitude": 33.1552065,
-    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033, USA",
-    "venue_id": "67d63cb6-8d35-42f1-b4ae-f88ee7dab124",
-    "longitude": -96.8044103,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Fat Tuesday Celebration at The Revel",
-    "venue": "The Revel Patio Grill",
-    "impact": "medium",
-    "address": "9305 Preston Rd, Frisco, TX 75033, USA",
-    "subtype": "nightlife",
-    "summary": "Fat Tuesday Celebration at The Revel • The Revel Patio Grill • 2026-02-17 • 17:00",
-    "latitude": 33.1552065,
-    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033, USA",
-    "venue_id": "67d63cb6-8d35-42f1-b4ae-f88ee7dab124",
-    "longitude": -96.8044103,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Trivia Night at The Celt",
-    "venue": "The Celt Irish Pub",
-    "impact": "low",
-    "address": "100 N Tennessee St, McKinney, TX 75069, USA",
-    "subtype": "nightlife",
-    "summary": "Trivia Night at The Celt • The Celt Irish Pub • 2026-02-17 • 19:00",
-    "latitude": 33.197404,
-    "location": "The Celt Irish Pub, 100 N Tennessee St, McKinney, TX 75069, USA",
-    "venue_id": "f22ff7a4-7960-4d96-8630-1254056ef146",
-    "longitude": -96.614847,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Open Mic Night",
-    "venue": "The Celt Irish Pub",
-    "impact": "low",
-    "address": "100 N Tennessee St, McKinney, TX 75069, USA",
-    "subtype": "nightlife",
-    "summary": "Open Mic Night • The Celt Irish Pub • 2026-02-17 • 20:30",
-    "latitude": 33.197404,
-    "location": "The Celt Irish Pub, 100 N Tennessee St, McKinney, TX 75069, USA",
-    "venue_id": "f22ff7a4-7960-4d96-8630-1254056ef146",
-    "longitude": -96.614847,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "20:30"
-  },
-  {
-    "title": "Chris Botti",
-    "venue": "Majestic Theatre",
-    "impact": "medium",
-    "address": "Theatre, Frisco, TX 75034, USA",
-    "subtype": "concert",
-    "summary": "Chris Botti • Majestic Theatre • 2026-02-17 • 19:30",
-    "latitude": 33.0990458,
-    "location": "Majestic Theatre, Theatre, Frisco, TX 75034, USA",
-    "venue_id": "4967def6-ac2a-4524-8216-6e11f1201c4e",
-    "longitude": -96.81372689999999,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Fat Tuesday Live Jazz & Brass",
-    "venue": "Rollertown Beerworks",
-    "impact": "medium",
-    "address": "6450 Main St, Frisco, TX 75033, USA",
-    "subtype": "concert",
-    "summary": "Fat Tuesday Live Jazz & Brass • Rollertown Beerworks • 2026-02-17 • 17:30",
-    "latitude": 33.1529524,
-    "location": "Rollertown Beerworks, 6450 Main St, Frisco, TX 75033, USA",
-    "venue_id": "1c81d341-c2c1-4a7c-bcc0-8d7af08d0a88",
-    "longitude": -96.8302777,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:30"
-  },
-  {
-    "title": "Fat Tuesday at Rollertown (Live Brass Band)",
-    "venue": "Rollertown Beerworks",
-    "impact": "medium",
-    "address": "6450 Main St, Frisco, TX 75033, USA",
-    "subtype": "concert",
-    "summary": "Fat Tuesday at Rollertown (Live Brass Band) • Rollertown Beerworks • 2026-02-17 • 17:00",
-    "latitude": 33.1529524,
-    "location": "Rollertown Beerworks, 6450 Main St, Frisco, TX 75033, USA",
-    "venue_id": "1c81d341-c2c1-4a7c-bcc0-8d7af08d0a88",
-    "longitude": -96.8302777,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Fat Tuesday Celebration with Live Music",
-    "venue": "Ida Claire",
-    "impact": "low",
-    "address": "Ida Dr, Frisco, TX 75033, USA",
-    "subtype": "concert",
-    "summary": "Fat Tuesday Celebration with Live Music • Ida Claire • 2026-02-17 • 17:00",
-    "latitude": 33.1790256,
-    "location": "Ida Claire, Ida Dr, Frisco, TX 75033, USA",
-    "venue_id": "157bd28f-21e5-4681-883a-0675c982ddc9",
-    "longitude": -96.8614617,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Fat Tuesday with Revelers Hall All-Stars",
-    "venue": "Revelers Hall",
-    "impact": "medium",
-    "address": "412 N Bishop Ave, Dallas, TX 75208, USA",
-    "subtype": "concert",
-    "summary": "Fat Tuesday with Revelers Hall All-Stars • Revelers Hall • 2026-02-17 • 17:00",
-    "latitude": 32.7486675,
-    "location": "Revelers Hall, 412 N Bishop Ave, Dallas, TX 75208, USA",
-    "venue_id": "430eaaf1-bf73-41ae-886f-fce8ceaf50da",
-    "longitude": -96.8281612,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Fat Tuesday with Revelers Hall All-Stars",
-    "venue": "Revelers Hall",
-    "impact": "medium",
-    "address": "412 N Bishop Ave, Dallas, TX 75208, USA",
-    "subtype": "concert",
-    "summary": "Fat Tuesday with Revelers Hall All-Stars • Revelers Hall • 2026-02-17 • 20:00",
-    "latitude": 32.7486675,
-    "location": "Revelers Hall, 412 N Bishop Ave, Dallas, TX 75208, USA",
-    "venue_id": "430eaaf1-bf73-41ae-886f-fce8ceaf50da",
-    "longitude": -96.8281612,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "College Baseball: Abilene Christian at Dallas Baptist",
-    "venue": "Horner Ballpark",
-    "impact": "low",
-    "address": "Frisco, TX, USA",
+    "address": "2601 Avenue of the Stars, Frisco, TX 75034, USA",
     "subtype": "sports",
-    "summary": "College Baseball: Abilene Christian at Dallas Baptist • Horner Ballpark • 2026-02-17 • 18:35",
-    "latitude": 33.1496718,
-    "location": "Horner Ballpark, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
+    "summary": "Texas Legends vs. South Bay Lakers • Comerica Center • 2026-02-19 • 18:00",
+    "latitude": 33.1005264,
+    "location": "Comerica Center, 2601 Avenue of the Stars, Frisco, TX 75034, USA",
+    "venue_id": "3c506624-7eaa-465b-adce-56f4ea7fe521",
+    "longitude": -96.8191214,
     "event_type": "sports",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:35",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "18:35"
-  },
-  {
-    "title": "Dropkick Murphys: St. Patrick's Day Tour",
-    "venue": "House of Blues Dallas",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Dropkick Murphys: St. Patrick's Day Tour • House of Blues Dallas • 2026-02-17 • 18:00",
-    "latitude": 33.1496718,
-    "location": "House of Blues Dallas, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "18:00"
-  },
-  {
-    "title": "Clipping.",
-    "venue": "Ferris Wheelers Backyard and BBQ",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Clipping. • Ferris Wheelers Backyard and BBQ • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "Ferris Wheelers Backyard and BBQ, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "The Great Gatsby (Musical)",
-    "venue": "Music Hall at Fair Park",
-    "impact": "high",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "The Great Gatsby (Musical) • Music Hall at Fair Park • 2026-02-17 • 19:30",
-    "latitude": 33.1496718,
-    "location": "Music Hall at Fair Park, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Ralph Barbosa (Comedy)",
-    "venue": "Hyena's Comedy Night Club",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "nightlife",
-    "summary": "Ralph Barbosa (Comedy) • Hyena's Comedy Night Club • 2026-02-17 • 21:30",
-    "latitude": 33.1496718,
-    "location": "Hyena's Comedy Night Club, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "21:30"
-  },
-  {
-    "title": "Storytellers: David Marquis",
-    "venue": "The Kessler Theater",
-    "impact": "low",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Storytellers: David Marquis • The Kessler Theater • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "The Kessler Theater, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "College Baseball: Abilene Christian Wildcats at Dallas Baptist Patriots",
-    "venue": "Horner Ballpark",
-    "impact": "low",
-    "address": "Frisco, TX, USA",
-    "subtype": "sports",
-    "summary": "College Baseball: Abilene Christian Wildcats at Dallas Baptist Patriots • Horner Ballpark • 2026-02-17 • 18:35",
-    "latitude": 33.1496718,
-    "location": "Horner Ballpark, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "sports",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:35",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "18:35"
-  },
-  {
-    "title": "Dropkick Murphys: For The People In The Pit Tour",
-    "venue": "House of Blues Dallas",
-    "impact": "high",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Dropkick Murphys: For The People In The Pit Tour • House of Blues Dallas • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "House of Blues Dallas, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Storytellers: David Marquis with Eric Nadel",
-    "venue": "The Kessler Theater",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Storytellers: David Marquis with Eric Nadel • The Kessler Theater • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "The Kessler Theater, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Krewe of Kowtown Mardi Gras Party",
-    "venue": "Billy Bob's Texas",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Krewe of Kowtown Mardi Gras Party • Billy Bob's Texas • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "Billy Bob's Texas, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Broadway Dallas: The Great Gatsby",
-    "venue": "Music Hall at Fair Park",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Broadway Dallas: The Great Gatsby • Music Hall at Fair Park • 2026-02-17 • 19:30",
-    "latitude": 33.1496718,
-    "location": "Music Hall at Fair Park, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Live Music: Justin Tipton",
-    "venue": "The Ranch at Las Colinas",
-    "impact": "low",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Live Music: Justin Tipton • The Ranch at Las Colinas • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "The Ranch at Las Colinas, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "That Mexican OT",
-    "venue": "Tannahill's Tavern and Music Hall",
-    "impact": "high",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "That Mexican OT • Tannahill's Tavern and Music Hall • 2026-02-17 • 19:30",
-    "latitude": 33.1496718,
-    "location": "Tannahill's Tavern and Music Hall, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "College Baseball: UT Arlington Mavericks vs. TCU Horned Frogs",
-    "venue": "Globe Life Field",
-    "impact": "high",
-    "address": "Frisco, TX, USA",
-    "subtype": "sports",
-    "summary": "College Baseball: UT Arlington Mavericks vs. TCU Horned Frogs • Globe Life Field • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "Globe Life Field, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "sports",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Ralph Barbosa: Stand-Up Comedy",
-    "venue": "Hyena's Comedy Night Club",
-    "impact": "high",
-    "address": "Frisco, TX, USA",
-    "subtype": "comedy",
-    "summary": "Ralph Barbosa: Stand-Up Comedy • Hyena's Comedy Night Club • 2026-02-17 • 19:30",
-    "latitude": 33.1496718,
-    "location": "Hyena's Comedy Night Club, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "comedy",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Dropkick Murphys: St. Patrick's Day 2026 Tour",
-    "venue": "House of Blues Dallas",
-    "impact": "high",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Dropkick Murphys: St. Patrick's Day 2026 Tour • House of Blues Dallas • 2026-02-17 • 18:00",
-    "latitude": 33.1496718,
-    "location": "House of Blues Dallas, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "18:00"
-  },
-  {
-    "title": "Trivia Night at Flying Saucer",
-    "venue": "Flying Saucer Draught Emporium",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "nightlife",
-    "summary": "Trivia Night at Flying Saucer • Flying Saucer Draught Emporium • 2026-02-17 • 20:00",
-    "latitude": 33.1496718,
-    "location": "Flying Saucer Draught Emporium, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Pub Trivia Tuesday",
-    "venue": "On Rotation Brewery & Kitchen",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "nightlife",
-    "summary": "Pub Trivia Tuesday • On Rotation Brewery & Kitchen • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "On Rotation Brewery & Kitchen, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Ralph Barbosa",
-    "venue": "Hyena's Comedy Night Club",
-    "impact": "low",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Ralph Barbosa • Hyena's Comedy Night Club • 2026-02-17 • 19:30",
-    "latitude": 33.1496718,
-    "location": "Hyena's Comedy Night Club, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "College Baseball: TCU Horned Frogs vs. UT Arlington Mavericks",
-    "venue": "Globe Life Field",
-    "impact": "high",
-    "address": "Frisco, TX, USA",
-    "subtype": "sports",
-    "summary": "College Baseball: TCU Horned Frogs vs. UT Arlington Mavericks • Globe Life Field • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "Globe Life Field, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "sports",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Dropkick Murphys: St. Patrick's Day 2026 Tour",
-    "venue": "House of Blues Dallas",
-    "impact": "medium",
-    "address": "Frisco, TX, USA",
-    "subtype": "concert",
-    "summary": "Dropkick Murphys: St. Patrick's Day 2026 Tour • House of Blues Dallas • 2026-02-17 • 19:00",
-    "latitude": 33.1496718,
-    "location": "House of Blues Dallas, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:30",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "College Baseball: Dallas Baptist Patriots vs. Abilene Christian Wildcats",
-    "venue": "Horner Ballpark",
-    "impact": "low",
-    "address": "Frisco, TX, USA",
-    "subtype": "sports",
-    "summary": "College Baseball: Dallas Baptist Patriots vs. Abilene Christian Wildcats • Horner Ballpark • 2026-02-17 • 18:35",
-    "latitude": 33.1496718,
-    "location": "Horner Ballpark, Frisco, TX, USA",
-    "venue_id": "0f9be83a-eb7b-4847-906b-fe780d6895c6",
-    "longitude": -96.835567,
-    "event_type": "sports",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:35",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "18:35"
-  },
-  {
-    "title": "Talk-O-Tuesday Community Mixer",
-    "venue": "Sue Ellen's",
-    "impact": "low",
-    "address": "3014 Throckmorton St, Dallas, TX 75219",
-    "subtype": "community",
-    "summary": "Talk-O-Tuesday Community Mixer • Sue Ellen's • 2026-02-17 • 19:00",
-    "latitude": null,
-    "location": "Sue Ellen's, 3014 Throckmorton St, Dallas, TX 75219",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "community",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Fat Tuesday at Rollertown: Bobby Falk Brass Edition",
-    "venue": "Rollertown Beerworks",
-    "impact": "medium",
-    "address": "6450 Main St, Frisco, TX 75033",
-    "subtype": "concert",
-    "summary": "Fat Tuesday at Rollertown: Bobby Falk Brass Edition • Rollertown Beerworks • 2026-02-17 • 17:30",
-    "latitude": null,
-    "location": "Rollertown Beerworks, 6450 Main St, Frisco, TX 75033",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:30"
-  },
-  {
-    "title": "Fat Tuesday at Scout",
-    "venue": "Scout at The Statler",
-    "impact": "low",
-    "address": "1914 Commerce St, Dallas, TX 75201",
-    "subtype": "nightlife",
-    "summary": "Fat Tuesday at Scout • Scout at The Statler • 2026-02-17 • 14:00",
-    "latitude": null,
-    "location": "Scout at The Statler, 1914 Commerce St, Dallas, TX 75201",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "14:00"
-  },
-  {
-    "title": "Fort Worth's Fat Tuesday Celebration",
-    "venue": "Landmark Bar & Kitchen",
-    "impact": "low",
-    "address": "3008 Bledsoe St, Fort Worth, TX 76107",
-    "subtype": "nightlife",
-    "summary": "Fort Worth's Fat Tuesday Celebration • Landmark Bar & Kitchen • 2026-02-17 • 17:00",
-    "latitude": null,
-    "location": "Landmark Bar & Kitchen, 3008 Bledsoe St, Fort Worth, TX 76107",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:59",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Krewe of Kowtown: Mardi Gras Party",
-    "venue": "Billy Bob's Texas",
-    "impact": "medium",
-    "address": "2520 Rodeo Plaza, Fort Worth, TX 76106",
-    "subtype": "nightlife",
-    "summary": "Krewe of Kowtown: Mardi Gras Party • Billy Bob's Texas • 2026-02-17 • 19:00",
-    "latitude": null,
-    "location": "Billy Bob's Texas, 2520 Rodeo Plaza, Fort Worth, TX 76106",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:59",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Chris Botti",
-    "venue": "Majestic Theatre",
-    "impact": "medium",
-    "address": "1925 Elm St, Dallas, TX 75201",
-    "subtype": "concert",
-    "summary": "Chris Botti • Majestic Theatre • 2026-02-17 • 18:30",
-    "latitude": null,
-    "location": "Majestic Theatre, 1925 Elm St, Dallas, TX 75201",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "18:30"
-  },
-  {
-    "title": "TCU Horned Frogs vs. UT Arlington Mavericks (College Baseball)",
-    "venue": "Globe Life Field",
-    "impact": "medium",
-    "address": "734 Stadium Dr, Arlington, TX 76011",
-    "subtype": "sports",
-    "summary": "TCU Horned Frogs vs. UT Arlington Mavericks (College Baseball) • Globe Life Field • 2026-02-17 • 19:00",
-    "latitude": null,
-    "location": "Globe Life Field, 734 Stadium Dr, Arlington, TX 76011",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "sports",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "SMU Mustangs vs. Louisville Cardinals",
-    "venue": "Moody Coliseum",
-    "impact": "high",
-    "address": "3009 Binkley Ave, Dallas, TX 75205",
-    "subtype": "sports",
-    "summary": "SMU Mustangs vs. Louisville Cardinals • Moody Coliseum • 2026-02-17 • 18:00",
-    "latitude": null,
-    "location": "Moody Coliseum, 3009 Binkley Ave, Dallas, TX 75205",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "sports",
-    "event_end_date": "2026-02-17",
+    "event_end_date": "2026-02-19",
     "event_end_time": "20:30",
-    "event_start_date": "2026-02-17",
+    "event_start_date": "2026-02-19",
     "event_start_time": "18:00"
-  },
-  {
-    "title": "Weekly Live Trivia",
-    "venue": "Lake House Bar and Grill",
-    "impact": "medium",
-    "address": "7510 E Northwest Hwy, Dallas, TX 75238",
-    "subtype": "nightlife",
-    "summary": "Weekly Live Trivia • Lake House Bar and Grill • 2026-02-17 • 19:00",
-    "latitude": null,
-    "location": "Lake House Bar and Grill, 7510 E Northwest Hwy, Dallas, TX 75238",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "nightlife",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Mardi Gras Celebration",
-    "venue": "The Revel Patio Grill",
-    "impact": "medium",
-    "address": "9305 Preston Rd, Frisco, TX 75033",
-    "subtype": "concert",
-    "summary": "Mardi Gras Celebration • The Revel Patio Grill • 2026-02-17 • 17:00",
-    "latitude": null,
-    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033",
-    "venue_id": null,
-    "longitude": null,
-    "event_type": "concert",
-    "event_end_date": "2026-02-17",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-02-17",
-    "event_start_time": "17:00"
   }
 ]
 
-SCHOOL_CLOSURES (10 total, 1 active today):
-[
-  {
-    "lat": 33.0198,
-    "lng": -96.6989,
-    "type": "public",
-    "impact": "high",
-    "reason": "Student Holiday / Staff Development",
-    "schoolName": "Plano ISD",
-    "closureStart": "2026-02-17",
-    "reopeningDate": "2026-02-18",
-    "distanceFromDriver": 12.7
-  },
-  {
-    "lat": 33.1765,
-    "lng": -96.8222,
-    "type": "private",
-    "impact": "low",
-    "reason": "Spring Break",
-    "schoolName": "Legacy Christian Academy",
-    "closureStart": "2026-03-02",
-    "reopeningDate": "2026-03-09",
-    "distanceFromDriver": 4.5
-  },
-  {
-    "lat": 33.1507,
-    "lng": -96.8236,
-    "type": "public",
-    "impact": "high",
-    "reason": "Spring Break",
-    "schoolName": "Frisco ISD",
-    "closureStart": "2026-03-09",
-    "reopeningDate": "2026-03-16",
-    "distanceFromDriver": 3.3
-  },
-  {
-    "lat": 33.1626,
-    "lng": -96.9375,
-    "type": "public",
-    "impact": "medium",
-    "reason": "Spring Break",
-    "schoolName": "Little Elm ISD",
-    "closureStart": "2026-03-09",
-    "reopeningDate": "2026-03-16",
-    "distanceFromDriver": 4.3
-  },
-  {
-    "lat": 33.1058,
-    "lng": -96.8053,
-    "type": "college",
-    "impact": "medium",
-    "reason": "Spring Break",
-    "schoolName": "University of North Texas (Frisco Campus)",
-    "closureStart": "2026-03-09",
-    "reopeningDate": "2026-03-16",
-    "distanceFromDriver": 4.4
-  },
-  {
-    "lat": 33.0198,
-    "lng": -96.6989,
-    "type": "public",
-    "impact": "high",
-    "reason": "Spring Break",
-    "schoolName": "Plano ISD",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-23",
-    "distanceFromDriver": 12.7
-  },
-  {
-    "lat": 33.2362,
-    "lng": -96.8003,
-    "type": "public",
-    "impact": "medium",
-    "reason": "Spring Break & Staff Development",
-    "schoolName": "Prosper ISD",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-24",
-    "distanceFromDriver": 8.6
-  },
-  {
-    "lat": 33.1032,
-    "lng": -96.6706,
-    "type": "public",
-    "impact": "medium",
-    "reason": "Spring Break",
-    "schoolName": "Allen ISD",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-23",
-    "distanceFromDriver": 12
-  },
-  {
-    "lat": 33.0462,
-    "lng": -96.9942,
-    "type": "public",
-    "impact": "medium",
-    "reason": "Spring Break",
-    "schoolName": "Lewisville ISD",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-23",
-    "distanceFromDriver": 9
-  },
-  {
-    "lat": 33.1611,
-    "lng": -96.8067,
-    "type": "college",
-    "impact": "high",
-    "reason": "Spring Break",
-    "schoolName": "Collin College (All Campuses)",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-23",
-    "distanceFromDriver": 4.5
-  }
-]
+SCHOOL_CLOSURES (0 total, 0 active today):
+{
+  "items": [],
+  "reason": "No school closures found"
+}
 
 AIRPORT_CONDITIONS:
 {
@@ -1320,44 +476,44 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Normal operations. Minor congestion expected due to Mardi Gras travel volume.",
-      "status": "normal",
+      "delays": "Approximately 28% of departing flights are delayed with an average departure delay of ~44 minutes; about 25% of arrivals are delayed with arrival delays averaging ~93 minutes. No major cancellations reported. ([flightera.net](https://www.flightera.net/en/airport/Dallas/KDFW?utm_source=openai))",
+      "status": "delays",
       "busyTimes": [
-        "05:00 AM - 08:00 AM",
-        "04:00 PM - 07:00 PM"
+        "05:00-08:00",
+        "15:00-19:00"
       ]
     },
     {
       "code": "DAL",
-      "name": "Dallas Love Field",
-      "delays": "No significant delays reported. High passenger volume expected for Fat Tuesday.",
+      "name": "Dallas Love Field Airport",
+      "delays": "Less specific current delay data found; minor delays likely in line with DFW trends but fewer flights overall. Security wait times generally shorter in off-peak; PreCheck/CLEAR+ lanes help. ([ifly.com](https://www.ifly.com/airports/dallas-love-field-airport/wait-times?utm_source=openai))",
       "status": "normal",
       "busyTimes": [
-        "06:00 AM - 08:30 AM",
-        "03:30 PM - 06:30 PM"
+        "06:00-10:00",
+        "16:00-20:00"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-02-17T10:09:51.888Z",
+  "fetchedAt": "2026-02-19T12:29:55.852Z",
   "busyPeriods": [
-    "Morning rush (6-8 AM) is peak for business travelers.",
-    "Evening rush (4-7 PM) will see increased activity.",
-    "Mardi Gras (Fat Tuesday) may cause higher than average volume for travelers heading to/from New Orleans."
+    "Early morning (5 AM to 8 AM) sees high departure volume and higher delay risk at DFW.",
+    "Late afternoon to early evening (3 PM to 7 PM) is another peak period for both arrivals and departures at DFW.",
+    "Mid-morning (around 9 AM-12 PM) has moderate activity but fewer severe delays compared to other peaks."
   ],
-  "recommendations": "For DFW: Rideshare pickups are at the lower level 'Arrivals' curb; look for 'Passenger Pickup' signs (Green zones). For DAL: Pickups are located at the Valet Pavilion and Garage C Level 1 (approx. 6-10 min walk from terminal). Drivers should anticipate surge pricing during the evening rush."
+  "recommendations": "For rideshare drivers: At DFW, avoid picks at Terminal C upper levels during midday due to heavy traffic and current construction-related congestion. Best pickup spots are lower level rideshare zones in Terminals A & D. Expect busiest hours for pickups around early morning (5-8 AM) and late afternoon (4-7 PM). At DAL, the main terminal lower level rideshare zones are less crowded except during the morning rush (6-10 AM) and evening (4-8 PM). Use airline apps and airport websites/apps to monitor if flights are delayed to time your arrival accordingly—arriving too early just adds wait time in queue. Bring backup water and phone charger for delays. Arrive at the airport for pickups about 15-20 minutes before peak traffic during heavy periods to stall buffer time."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: 133f5707-525e-40a1-9391-b47f65e7d45b
-snapshot_id: fec5777b-4d2b-41b0-a13d-2e9dfa73d47f
+id: e59e354d-7588-405c-887d-a44975284369
+snapshot_id: a0f7fe85-51c0-4716-b9d5-d6cb74793d2e
 status: pending
 error_message: (none)
-created_at: Tue Feb 17 2026 10:08:55 GMT+0000 (Coordinated Universal Time)
-updated_at: Tue Feb 17 2026 10:10:39 GMT+0000 (Coordinated Universal Time)
+created_at: Thu Feb 19 2026 12:29:47 GMT+0000 (Coordinated Universal Time)
+updated_at: Thu Feb 19 2026 12:30:12 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -1383,15 +539,15 @@ Data Integrity:
   ✓ IDs match: YES
 
 School Closures Filter Check:
-  Today's date (America/Chicago): 2026-02-17
-  Active closures (start_date <= today <= end_date): 1 / 10
-  Active: Plano ISD
+  Today's date (America/Chicago): 2026-02-19
+  Active closures (start_date <= today <= end_date): 0 / 0
+  (None active today)
 
 Event Count:
-  Total events in briefing: 46
-  High impact: 10
-  Medium impact: 24
-  Low impact: 12
+  Total events in briefing: 1
+  High impact: 1
+  Medium impact: 0
+  Low impact: 0
 
 TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in location: 0
@@ -1399,8 +555,8 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in time: 0
 
 Events AFTER filterInvalidEvents (what LLM actually receives):
-  Raw events in DB: 46
-  Filtered events (sent to LLM): 46
+  Raw events in DB: 1
+  Filtered events (sent to LLM): 1
   TBD events removed: 0
 
 ════════════════════════════════════════════════════════════════════════════════

@@ -135,9 +135,8 @@ export async function getListenClient() {
     return connectPromise;
   }
 
-  // PostgreSQL via Replit MANAGED DATABASE ONLY
+  // PostgreSQL via Replit (Neon-backed serverless)
   // Replit automatically injects DATABASE_URL for all environments (dev + production)
-  // No external databases (Neon, Vercel, Railway) are used
   const connectionString = process.env.DATABASE_URL;
 
   dbLog.phase(1, `LISTEN client connecting to Replit PostgreSQL`, OP.DB);

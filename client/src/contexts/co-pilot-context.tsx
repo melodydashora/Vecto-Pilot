@@ -65,7 +65,9 @@ interface CoPilotContextValue {
       weather: boolean;
       traffic: boolean;
       events: boolean;
+      news: boolean;
       airport: boolean;
+      schoolClosures: boolean;
     };
   };
 
