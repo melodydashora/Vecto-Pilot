@@ -11,6 +11,7 @@ Real-time venue intelligence using Google Places API for bar discovery. Provides
 
 - **Database**: `drizzle-orm`, `venue_catalog` schema.
 - **AI**: `callModel` from `../ai/adapters/index.js`.
+- **Cache**: `venue-cache.js` (Cache First pattern).
 - **Utils**: `venue-utils.js`, `district-detection.js`.
 - **Hours**: `hours/index.js` (Canonical hours parsing).
 
@@ -43,6 +44,7 @@ Calculates the current operating status of a venue based on its hours and timezo
   - `closing_soon` (Boolean): Indicator if closing within threshold.
   - `minutes_until_close` (Number): Minutes remaining until close.
   - `opens_in_minutes` (Number): Minutes until opening (if closed).
+  - `weekday_descriptions` (Array): List of formatted weekly hours strings.
 
 **Logic:**
 1.  **Canonical Parsing**: Uses `parseGoogleWeekdayText` and `getOpenStatus` from the `hours` module as the source of truth.

@@ -9,6 +9,17 @@ import { loadEnvironment } from './server/config/load-env.js';
 import { validateOrExit } from './server/config/validate-env.js';
 import { unifiedAI, UNIFIED_CAPABILITIES } from './server/lib/ai/unified-ai-capabilities.js';
 
+// 2026-02-19: Suppress pg-connection-string SSL mode deprecation warning.
+// Our pool config explicitly sets ssl: { rejectUnauthorized: false } which is correct
+// for Replit's self-signed certs. The warning is about future pg v9.0 behavior only.
+const originalEmitWarning = process.emitWarning;
+process.emitWarning = function(warning, ...args) {
+  if (typeof warning === 'string' && warning.includes("SSL modes 'prefer', 'require', and 'verify-ca'")) {
+    return; // Suppress this specific informational warning
+  }
+  return originalEmitWarning.call(this, warning, ...args);
+};
+
 // Load and validate environment
 loadEnvironment();
 validateOrExit();
