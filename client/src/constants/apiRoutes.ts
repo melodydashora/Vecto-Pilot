@@ -32,6 +32,7 @@ export const API_ROUTES = {
   // Location
   // =========================================================================
   LOCATION: {
+    RELEASE_SNAPSHOT: '/api/location/release-snapshot',
     RESOLVE: '/api/location/resolve',
     RESOLVE_WITH_PARAMS: (lat: number, lng: number, deviceId: string, accuracy: number) =>
       `/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`,

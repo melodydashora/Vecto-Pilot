@@ -44,6 +44,7 @@ interface BriefingTabProps {
   isTrafficLoading?: boolean;
   isNewsLoading?: boolean;
   isAirportLoading?: boolean;
+  isSchoolClosuresLoading?: boolean;
   areCriticalBriefingsLoading?: boolean;
   schoolClosuresData?: any;
   airportData?: any;
@@ -60,6 +61,7 @@ const BriefingTab = memo(function BriefingTab({
   isTrafficLoading,
   isNewsLoading,
   isAirportLoading,
+  isSchoolClosuresLoading,
   areCriticalBriefingsLoading,
   schoolClosuresData,
   airportData,
@@ -209,7 +211,7 @@ const BriefingTab = memo(function BriefingTab({
         </Card>
       )}
 
-      <SchoolClosuresCard schoolClosuresData={schoolClosuresData} />
+      <SchoolClosuresCard schoolClosuresData={schoolClosuresData} isSchoolClosuresLoading={!!isSchoolClosuresLoading} />
     </div>
   );
 });

@@ -87,6 +87,7 @@ function BriefingPage() {
         isTrafficLoading={isLoading.traffic}
         isNewsLoading={isLoading.news}
         isAirportLoading={isLoading.airport}
+        isSchoolClosuresLoading={isLoading.schoolClosures}
         areCriticalBriefingsLoading={areCriticalBriefingsLoading}
         schoolClosuresData={wrappedSchoolClosuresData}
         airportData={wrappedAirportData}

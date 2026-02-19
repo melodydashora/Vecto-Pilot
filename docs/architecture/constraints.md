@@ -41,3 +41,12 @@
 **Caching:**
 - **Type:** L1 In-memory (24h TTL)
 - **Key Strategy:** Strict Timezone-aware local date (YYYY-MM-DD) & Location Context (City, State) - No Fallbacks
+
+### Location & Time Standards
+
+**Canonical Utility:** `getSnapshotTimeContext`
+- **Invariant:** Single source of truth for "today's date" and timezone.
+- **Validation:** Strict (No Fallbacks).
+  - **Timezone:** Throws `MissingTimezoneError` on failure.
+  - **Location:** Throws `MissingLocationError` (requires City/State).
+- **Local Time:** Derived from `local_iso` (Wall-clock UTC) to prevent double-conversion.

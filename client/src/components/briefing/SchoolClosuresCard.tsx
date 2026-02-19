@@ -19,9 +19,11 @@ interface SchoolClosuresData {
 
 interface SchoolClosuresCardProps {
   schoolClosuresData?: SchoolClosuresData;
+  isSchoolClosuresLoading: boolean;
 }
 
-export function SchoolClosuresCard({ schoolClosuresData }: SchoolClosuresCardProps) {
+// 2026-02-18: FIX - Added isSchoolClosuresLoading prop to match Traffic/Airport/News loading pattern
+export function SchoolClosuresCard({ schoolClosuresData, isSchoolClosuresLoading }: SchoolClosuresCardProps) {
   const [expandedClosures, setExpandedClosures] = useState(true);
 
   const allClosures = schoolClosuresData?.school_closures || [];
@@ -51,20 +53,33 @@ export function SchoolClosuresCard({ schoolClosuresData }: SchoolClosuresCardPro
   };
 
   return (
-    <Card data-testid="school-closures-card">
-      <CardHeader>
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedClosures(!expandedClosures)}>
-          <BookOpen className="w-5 h-5 text-purple-600" />
-          <CardTitle className="text-base">School Closures ({schoolClosures.length})</CardTitle>
-          {expandedClosures ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+    <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200" data-testid="school-closures-card">
+      <CardHeader className="pb-2 cursor-pointer hover:bg-purple-100/50 transition-colors" onClick={() => setExpandedClosures(!expandedClosures)}>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            {!schoolClosuresData ? (
+              <Loader className="w-5 h-5 animate-spin text-purple-600" />
+            ) : (
+              <>
+                <BookOpen className="w-5 h-5 text-purple-600" />
+                School Closures
+                {schoolClosures.length > 0 && (
+                  <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300 ml-2">
+                    {schoolClosures.length}
+                  </Badge>
+                )}
+              </>
+            )}
+          </CardTitle>
+          {expandedClosures ? <ChevronUp className="w-4 h-4 text-purple-600" /> : <ChevronDown className="w-4 h-4 text-purple-600" />}
         </div>
       </CardHeader>
       {expandedClosures && (
         <CardContent>
-          {!schoolClosuresData ? (
+          {isSchoolClosuresLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader className="w-5 h-5 animate-spin text-purple-600 mr-2" />
-              <span className="text-gray-600">Loading...</span>
+              <span className="text-gray-600">Loading school closures...</span>
             </div>
           ) : schoolClosures.length > 0 ? (
             <div className="space-y-3">

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
-import { STORAGE_KEYS } from '@/constants/storageKeys';
+import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 
 export const GoogleCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -72,6 +72,11 @@ export const GoogleCallbackPage: React.FC = () => {
         if (data.token) {
           // Store token for later use
           setAuthToken(data.token);
+
+          // 2026-02-17: FIX - Clear stale snapshot from previous session on login
+          sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
+          localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+          localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
 
           // 2026-02-13: New users must accept terms before proceeding
           if (data.isNewUser) {

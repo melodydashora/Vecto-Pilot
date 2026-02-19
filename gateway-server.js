@@ -165,6 +165,18 @@ process.on('unhandledRejection', (reason, promise) => {
 
       // 2026-02-17: Event sync removed from server start — events sync per-snapshot via briefing pipeline
 
+      // 2026-02-17: Snapshot workflow observer — captures full pipeline timing to snapshot.txt
+      // Runs in background, waits for next real snapshot, logs all table data + NOTIFY events
+      if (!isAutoscaleMode) {
+        import('./scripts/test-snapshot-workflow.js')
+          .then(({ observeSnapshotWorkflow }) => {
+            observeSnapshotWorkflow().catch(err =>
+              console.warn(`[gateway] snapshot-observer error: ${err.message}`)
+            );
+          })
+          .catch(err => console.warn(`[gateway] snapshot-observer load failed: ${err.message}`));
+      }
+
       // Start change analyzer job (runs on startup, flags doc updates needed)
       if (!isAutoscaleMode) {
         const { startChangeAnalyzerJob } = await import('./server/jobs/change-analyzer-job.js');

@@ -288,6 +288,11 @@ export const venue_catalog = pgTable("venue_catalog", {
   crowd_level: text("crowd_level"),          // 'low' | 'medium' | 'high'
   rideshare_potential: text("rideshare_potential"), // 'low' | 'medium' | 'high'
 
+  // 2026-02-18: Venue Quality Enhancement - store Google Places data + Haiku classification
+  google_rating: doublePrecision("google_rating"),      // Raw Google rating (e.g., 4.7) — previously discarded
+  phone_number: text("phone_number"),                   // National phone from Google Places — previously null'd
+  venue_quality_tier: text("venue_quality_tier"),        // 'premium' | 'standard' | null — Haiku-assessed, cached forever
+
   // Cache Metadata (FROM venue_cache)
   hours_source: text("hours_source"),        // 'google_places', 'manual', 'inferred'
   capacity_estimate: integer("capacity_estimate"), // Venue capacity for surge prediction

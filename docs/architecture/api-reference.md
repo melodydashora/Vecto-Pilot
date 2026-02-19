@@ -11,3 +11,11 @@
 | `/api/chat/conversations/:conversationId` | GET | `server/api/chat/chat.js` | Get messages for a conversation |
 | `/api/chat/conversations/:messageId/star` | POST | `server/api/chat/chat.js` | Star a message to mark as important |
 | `/api/hooks/analyze-offer` | POST | `server/api/hooks/analyze-offer.js` | Real-time ride offer analysis (Text/Vision/Multipart) for Siri Shortcuts with voice response & analytics |
+
+### Location
+
+| Endpoint | Method | Handler | Purpose |
+|----------|--------|---------|---------|
+| `/api/location/resolve` | POST | `server/api/location/location.js` | Resolve GPS coordinates to address, market, and timezone with circuit-breaker protection (Authenticated) |
+| `/api/location/snapshot` | POST | `server/api/location/location.js` | Create location snapshot, validate freshness, and generate strategy (Authenticated) |
+| `/api/location/news` | GET | `server/api/location/location.js` | Get local news briefing for the current location (Authenticated) |

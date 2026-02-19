@@ -1,4 +1,42 @@
 
+## 2026-02-17: Docs Agent Silently Corrupting Documentation (Including CLAUDE.md)
+
+- **Symptom:** CLAUDE.md kept "truncating" across sessions. Doc files had AI commentary ("Based on the code changes...") prepended to them. `api-reference.md` lost real endpoint rows.
+- **Root Cause:** The Docs Agent orchestrator ran on every server restart, but had NO safety rails:
+  1. `file-doc-mapping.js` mapped `gateway-server.js` → `CLAUDE.md` — a project instruction file, not documentation
+  2. `docs-policy.json` defined `allowed_paths` but the orchestrator **never enforced them** (loadPolicy() discarded the `agents` config)
+  3. The validator only checked for empty content and unclosed code blocks — no size, structure, or preamble checks
+  4. The AI generator returned commentary/analysis instead of updated docs, and nothing caught it
+- **Fix (5 layers):**
+  1. Removed CLAUDE.md from `gateway-server.js` mapping in `file-doc-mapping.js`
+  2. Added `PROTECTED_FILES` set in orchestrator (CLAUDE.md, GEMINI.md, ARCHITECTURE.md, LESSONS_LEARNED.md, etc.)
+  3. Enforced `allowed_paths` from `docs-policy.json` (fixed loadPolicy() to preserve `agents` config)
+  4. Added validator checks: content size (rejects >50% shrinkage), AI preamble detection (9 patterns), structural integrity (table/header preservation)
+  5. Cleaned AI preambles from 6 corrupted doc files, reverted 1 data-loss corruption
+- **Files:** `orchestrator.js`, `validator.js`, `file-doc-mapping.js`, `docs-policy.json`
+- **Lesson:** Autonomous AI systems that write to disk need defense-in-depth. A single validation check is never enough — LLMs are creative and will bypass narrow patterns. Combine content checks (preamble regex), structural checks (tables/headers preserved), and size checks (no catastrophic shrinkage). Also: never map AI instruction files (CLAUDE.md, GEMINI.md) as auto-update targets.
+
+## 2026-02-17: SSE Reconnect Orphans All Subscribers + Same-Provider Fallback = Zero Redundancy
+
+- **Symptom:** Production cascade: SSE "Client has encountered a connection error and is not queryable", Gemini 503 → HedgedRouter "All providers failed" → briefing/news timeouts at 75-90s.
+- **Root Cause (3 bugs):**
+  1. `db-client.js`: `notificationHandlerAttached` flag never reset during LISTEN client reconnect. New pgClient got no notification handler. All SSE subscribers became orphaned.
+  2. `model-registry.js`: `FALLBACK_CONFIG` used `gemini-3-flash` for ALL roles. When primary was also Google (18 Gemini roles), same-provider guard filtered it out → zero redundancy.
+  3. `model-registry.js`: 5 briefing roles missing from `FALLBACK_ENABLED_ROLES`.
+- **Fix:**
+  1. Reset `notificationHandlerAttached = false` in reconnect + added `resubscribeChannels()` to re-LISTEN and re-attach handler
+  2. Added `getFallbackConfig(primaryProvider)` for cross-provider fallback (Google → OpenAI, others → Gemini Flash)
+  3. Added all 5 missing briefing roles to fallback list
+- **Files:** `server/db/db-client.js`, `server/lib/ai/model-registry.js`, `server/lib/ai/adapters/index.js`
+- **Lesson:** Fallback systems must be tested for actual provider diversity. A "fallback" using the same provider family as the primary is not a fallback — it's a decoration. Also: singleton boolean flags (like `notificationHandlerAttached`) must be reset when the resource they track is destroyed.
+
+## 2026-02-17: Duplicate briefing_ready Notifications
+
+- **Symptom:** Client received 2 `briefing_ready` SSE events per pipeline run, refetching all 6 briefing queries twice.
+- **Root Cause:** Two sources: a DB trigger (`trg_briefing_complete`, fires on traffic_conditions NULL → populated) AND a manual `pg_notify` in `briefing-service.js` (fires after all sections saved). Both fired within milliseconds on the same INSERT/UPDATE.
+- **Fix:** Dropped the DB trigger via migration `20260217_drop_briefing_ready_trigger.sql`. The manual notify is the authoritative signal.
+- **Lesson:** When adding notification mechanisms, check if one already exists. The trigger was created in Jan when "the SSE endpoint had no producer." The manual notify was added later, making the trigger redundant. One canonical source of truth for notifications.
+
 ## 2026-02-15: Docs Agent Orchestrator — 4 Bugs Masking Total Failure
 
 - **Symptom:** Docs Agent never updated any documentation despite running on every server startup. 155 DOCS_GENERATOR calls failed silently.

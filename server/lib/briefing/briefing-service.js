@@ -617,29 +617,60 @@ function safeJsonParse(jsonString) {
   }
 
   // Helper to fix common JSON issues from LLMs
+  // 2026-02-17: FIX - Three bugs that CORRUPTED valid JSON instead of fixing it:
+  //   Bug 1: Single-quote regex treated English apostrophes as delimiters
+  //          ("Valentine's Day at Billy Bob's" → corrupted double-quote nesting)
+  //   Bug 2: Unquoted-property regex matched word:colon inside string values
+  //          ("NBA: Dallas" → "NBA": Dallas" inside a value)
+  //   Bug 3: Newline regex only fixed the LAST \n per string (greedy backtrack)
   function fixCommonJsonIssues(str) {
     let fixed = str;
 
-    // Convert single-quoted strings to double-quoted
-    // This regex matches single-quoted property names and values
-    fixed = fixed.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
+    // 2026-02-17: Only convert single quotes to double quotes when the string is
+    // Python-style output (no double quotes at all). Previously this regex corrupted
+    // JSON with English apostrophes (e.g., "Tonight's game" → broken structure).
+    const hasSingleQuoteDelimiters = !fixed.includes('"') && fixed.includes("'");
+    if (hasSingleQuoteDelimiters) {
+      fixed = fixed.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
+    }
 
-    // Fix unquoted property names (e.g., {title: "foo"} -> {"title": "foo"})
-    fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    // 2026-02-17: Only fix unquoted property names when the string doesn't already
+    // have double-quoted properties. The regex can't distinguish {,] boundaries from
+    // commas INSIDE string values, so "game, NBA: Dallas" would be corrupted.
+    const hasDoubleQuotedProperties = /"[^"]+"\s*:/.test(fixed);
+    if (!hasDoubleQuotedProperties) {
+      fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    }
 
     // Remove trailing commas before } or ]
     fixed = fixed.replace(/,\s*([}\]])/g, '$1');
 
-    // Fix escaped newlines within strings
-    fixed = fixed.replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
+    // 2026-02-19: FIX - Strip carriage returns instead of escaping them.
+    // Previous code (`\r\n` → `\\n`) converted valid structural whitespace into
+    // literal backslash-n characters between JSON properties, breaking every parse.
+    // Simply removing \r is safe: \r\n → \n (still valid whitespace), bare \r → empty.
+    fixed = fixed.replace(/\r/g, '');
 
-    // Replace actual newlines inside strings with escaped newlines
-    // This is tricky - we need to be careful not to break JSON structure
-    // Only replace newlines that appear between quotes
-    fixed = fixed.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => `"${p1}\\n${p2}"`);
+    // 2026-02-19: Strip JavaScript-style // line comments after JSON values.
+    // LLMs (especially GPT-5) sometimes add comments like:
+    //   "busyTimes": ["6:00 AM"]  // typical peak period
+    // Only strip when // follows a JSON value terminator to avoid matching URLs.
+    fixed = fixed.replace(/([\]}"'\d])\s*\/\/[^\n]*$/gm, '$1');
 
-    // Fix tabs
-    fixed = fixed.replace(/\t/g, '\\t');
+    // 2026-02-17: FIX - Loop newline replacement to handle MULTIPLE newlines per string.
+    // Only escapes newlines INSIDE quoted string values (between matching " delimiters).
+    // Structural newlines between properties are left intact.
+    let prevFixed;
+    do {
+      prevFixed = fixed;
+      fixed = fixed.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => `"${p1}\\n${p2}"`);
+    } while (fixed !== prevFixed);
+
+    // 2026-02-19: FIX - Replace tabs with spaces instead of escaping to literal \t.
+    // Previous code (`\t` → `\\t`) had the same structural corruption bug as \r\n:
+    // a tab between JSON properties became literal \t (invalid between tokens).
+    // Replacing with space is safe for both structural whitespace and string values.
+    fixed = fixed.replace(/\t/g, ' ');
 
     return fixed;
   }
@@ -664,22 +695,28 @@ function safeJsonParse(jsonString) {
   // Attempt 3: Extract JSON array or object and try again
   const jsonMatch = jsonString.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
   if (jsonMatch) {
+    // 2026-02-18: FIX - Hoist variable to outer scope so catch handler can access it
+    // Previously `const fixedExtracted` was block-scoped inside inner try → ReferenceError in catch
+    let fixedExtracted = null;
     try {
       return JSON.parse(jsonMatch[0]);
     } catch (_e3) {
       // Try with fixes
       try {
-        const fixedExtracted = fixCommonJsonIssues(jsonMatch[0]);
+        fixedExtracted = fixCommonJsonIssues(jsonMatch[0]);
         return JSON.parse(fixedExtracted);
       } catch (e4) {
-        console.error('[BriefingService] Failed to parse extracted JSON:', e4.message);
-        console.error('[BriefingService] Problematic JSON (first 500 chars):', jsonMatch[0].substring(0, 500));
+        // 2026-02-17: Enhanced logging — show BOTH raw extraction and post-fix to diagnose
+        console.error('[BriefingService] All 4 parse attempts failed:', e4.message);
+        console.error('[BriefingService] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
+        console.error('[BriefingService] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
       }
     }
   }
 
-  // If all else fails, throw with the original error
-  throw new Error(`JSON parse failed: Expected double-quoted property name - raw response may contain malformed JSON`);
+  // 2026-02-17: Log the raw input that caused total parse failure
+  console.error('[BriefingService] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
+  throw new Error(`JSON parse failed after 4 attempts - raw AI response is malformed JSON`);
 }
 
 // 2026-01-10: Updated to use canonical field names (event_start_date, event_start_time)
@@ -2184,6 +2221,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   }
 
   briefingLog.start(`${snapshot.city}, ${snapshot.state} (${snapshotId.slice(0, 8)})`);
+  const briefingStartMs = Date.now();
 
   const { city, state } = snapshot;
 
@@ -2319,7 +2357,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     } else {
       await db.insert(briefings).values(briefingData);
     }
-    briefingLog.complete(`${city}, ${state}`, OP.DB);
+    briefingLog.complete(`${city}, ${state}`, Date.now() - briefingStartMs);
 
     // Notify clients that briefing data is ready (SSE event)
     try {

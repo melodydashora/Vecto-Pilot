@@ -1,1 +1,0 @@
-ALTER TABLE "triad_jobs" ADD CONSTRAINT "triad_jobs_snapshot_id_unique" UNIQUE("snapshot_id");

@@ -16,7 +16,7 @@ export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }, // Replit PostgreSQL requires SSL with self-signed certs support
   max: 25, // ISSUE #22 FIX: Increased from 10 to 25 - strategy (2-3) + briefing (4-5) + blocks (2-3) = 8-11 per user, need buffer for concurrent users
-  idleTimeoutMillis: 10000, // ISSUE #2 FIX: Reduced to 10s to aggressively release idle connections before Replit terminates them
+  idleTimeoutMillis: 3000, // 2026-02-17: Reduced from 10s to 3s — close idle connections BEFORE Neon's proxy terminates them (prevents 57P01 error wall on refresh)
   connectionTimeoutMillis: 15000, // Slightly increased for safety during connection spikes
   statement_timeout: 30000, // 30 second statement timeout to prevent long-running queries from blocking
   keepAlive: true, // Keep TCP connections alive
@@ -48,8 +48,14 @@ setInterval(() => {
 }, 30000); // Check every 30 seconds
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  // Don't exit process immediately in serverless/replit envs, just log
+  // 2026-02-17: Distinguish Neon connection termination (57P01) from real errors.
+  // 57P01 happens when: user refreshes → queries cancel → connections go idle → Neon proxy terminates.
+  // The pool auto-recovers (evicts dead connection, creates new one on next query).
+  if (err?.code === '57P01') {
+    console.warn(`[pool] Neon terminated idle connection (57P01) — pool will auto-recover`);
+  } else {
+    console.error('[pool] Unexpected error on idle client:', err?.message || err);
+  }
 });
 
 export const query = (text, params) => pool.query(text, params);

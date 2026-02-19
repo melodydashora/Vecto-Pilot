@@ -537,7 +537,7 @@ const GlobalHeaderComponent: React.FC = () => {
                   navigate('/auth/sign-in');
                 }).catch((err) => {
                   console.error('[logout] Logout failed:', err);
-                  localStorage.removeItem('auth_token');
+                  localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
                   navigate('/auth/sign-in');
                 });
               }}

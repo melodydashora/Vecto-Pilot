@@ -86,3 +86,22 @@ The schema is designed around three core tables serving distinct purposes:
 | `snapshot_id` | UUID | Foreign Key to `snapshots` (Unique). |
 | `user_id` | UUID | User identifier. |
 | *State Columns* | ... | Tracks state machine (pending → running → ok/failed). |
+
+---
+
+## 4. Infrastructure & Connection Pooling
+**Purpose:** Database Connectivity & Stability.
+**Updated:** 2026-02-17 (Neon Optimization).
+
+*   **Configuration Source:** `server/db/connection-manager.js`
+*   **Provider:** Replit PostgreSQL (Neon).
+*   **Pool Settings:**
+    *   **Max Connections:** 25. Increased (from 10) to support concurrent strategy generation and briefings (Issue #22).
+    *   **Idle Timeout:** 3000ms (3s). Reduced (from 10s) to close idle connections *before* Neon's proxy terminates them.
+    *   **Connection Timeout:** 15000ms (15s). Slightly increased for safety during connection spikes.
+    *   **Statement Timeout:** 30s. Prevents long-running queries from blocking resources.
+    *   **Keep-Alive:** Enabled (Initial delay 10s). Maintains TCP connections.
+*   **Monitoring:**
+    *   **Capacity Warning:** Warns when pool usage reaches 80% (20+ connections).
+*   **Error Handling:**
+    *   **Code `57P01`:** Treated as a warning (auto-recovery). Occurs when Neon terminates idle connections; the pool automatically creates new connections on the next query.

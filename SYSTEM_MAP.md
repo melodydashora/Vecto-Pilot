@@ -13,16 +13,16 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │                      HEADLESS CLIENT INTEGRATION                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  ⚠️  AUTH BYPASS: This flow does NOT use JWT authentication!            │
-│  Security is via device_id registration + optional API key.              │
-│  user_id in intercepted_signals has NO FK constraint (nullable).        │
+│  ⚠️  AUTH BYPASS: This flow does NOT use JWT authentication!  (Is this still accurate? Melody)          │
+│  Security is via device_id registration + optional API key.  (I believe we are using user sign up/in now should this be updated? Melody)            │
+│  user_id in intercepted_signals has NO FK constraint (nullable). (Verify and check codebase for accuracy. Melody)       │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  iOS Siri Shortcut (OCR Text)                                     │  │
+│  │  iOS Siri Shortcut (OCR Text) (We are using the vision workflow now where an image is sent now and this is now complex with a table where data is parsed, cleaned and usable for AI/ML future use - please update this to include the entire workflow and data extraction to table aswell)                                    │  │
 │  │  • User shares screenshot of ride offer                           │  │
 │  │  • iOS OCR extracts text (price, miles, time)                     │  │
 │  │  • Shortcut calls POST /api/hooks/analyze-offer                   │  │
-│  │  • NO JWT token - uses device_id for identification               │  │
+│  │  • NO JWT token - uses device_id for identification  (we need to discuss how we are going to help the user apply this shortcut after a lot more testing from me - Melody)             │  │
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
@@ -46,7 +46,7 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Why No FK Constraint on user_id?
+### Why No FK Constraint on user_id? (we can require username - email address used to login instead of device id?)
 
 | Constraint Type | Problem with Headless Clients |
 |-----------------|-------------------------------|
@@ -128,14 +128,14 @@ iOS Device                      Vecto Server                    Database
 │  │  │ /co-pilot/strategy  → StrategyPage.tsx                     │  │  │
 │  │  │   • AI strategy display                                    │  │  │
 │  │  │   • Smart Blocks (NOW strategy: top 3 Grade A, ≥1mi apart) │  │  │
-│  │  │   • CoachChat (GPT-5.2 text + Realtime voice)              │  │  │
+│  │  │   • CoachChat (GPT-5.2 text + Realtime voice)  (Real-time voice is not integrated yet, we need to look at this. Please change the CoachChat to AICoach and gemini 3 pro with vision is used for uploading images such as heatmaps and surge maps - we should figure out a way to capture the images for further AI/ML learning if possible - Melody)            │  │  │
 │  │  │   • FeedbackModal                                          │  │  │
 │  │  │   • SmartBlocksStatus (pipeline progress)                  │  │  │
-│  │  │   • GreetingBanner (holiday awareness)                     │  │  │
+│  │  │   • GreetingBanner (holiday awareness)  (Banner should show the holiday in addition to the greeting. The greeting daypart seems to be different than the global header daypart - we need to review this - Melody)                   │  │  │
 │  │  ├────────────────────────────────────────────────────────────┤  │  │
-│  │  │ /co-pilot/bars → BarsPage.tsx                              │  │  │
+│  │  │ /co-pilot/bars → BarsPage.tsx    (update naming conventions in this map - Melody)                          │  │  │
 │  │  │   • BarsTable (premium venue listings)                     │  │  │
-│  │  │   • Filter: $$ and above, open only                        │  │  │
+│  │  │   • Filter: $$ and above, open only  (I feel like we should be capturing these venues into the venue_catelog table as the same names appear almost every day which reminds me that since google can return placesID maybe we should be requesting it do this with events as well - Melody)                      │  │  │
 │  │  ├────────────────────────────────────────────────────────────┤  │  │
 │  │  │ /co-pilot/briefing → BriefingPage.tsx                      │  │  │
 │  │  │   • BriefingTab (weather, traffic, news, events)           │  │  │

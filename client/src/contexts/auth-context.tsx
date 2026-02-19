@@ -60,10 +60,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // This handles cases where server returns 401 (no_token, session_expired, etc.)
   // Dispatched by useBriefingQueries and other hooks when API returns 401
   useEffect(() => {
-    const handleAuthError = (event: Event) => {
+    const handleAuthError = async (event: Event) => {
       const customEvent = event as CustomEvent;
       const error = customEvent.detail?.error || 'unknown';
       console.warn(`[auth] 🔐 Auth error received: ${error} - forcing logout`);
+
+      // 2026-02-17: FIX - Call server to release snapshot on TTL-triggered logout
+      // Without this, current_snapshot_id stays set and stale snapshot persists on next login
+      try {
+        const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+        if (token) {
+          await fetch(API_ROUTES.AUTH.LOGOUT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
+      } catch {
+        // Best-effort — server may already have invalidated the session
+      }
+
+      // Cancel active queries to prevent 401 cascade
+      queryClient.cancelQueries();
+      queryClient.clear();
 
       // Clear local auth state
       localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -136,6 +154,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.token) {
+        // 2026-02-17: FIX - Clear stale snapshot from previous session on login
+        // Without this, sessionStorage restore in location-context serves the OLD snapshot
+        // from before logout, bypassing the server entirely (never creates a new one)
+        sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
+        localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+        localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+
         localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
         setState({
           user: data.user || null,
@@ -185,11 +210,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
 
     try {
-      if (state.token) {
+      // 2026-02-17: FIX - Read token from localStorage instead of state.token closure.
+      // state.token can be stale after login→logout→login cycle due to useCallback closure.
+      // localStorage is the source of truth, set synchronously by login() before setState.
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      if (token) {
         await fetch(API_ROUTES.AUTH.LOGOUT, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${state.token}`,
+            Authorization: `Bearer ${token}`,
           },
         });
       }
@@ -211,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading: false,
       });
     }
-  }, [state.token]);
+  }, []);
 
   const refreshProfile = useCallback(async () => {
     if (state.token) {

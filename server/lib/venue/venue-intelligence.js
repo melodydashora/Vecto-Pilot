@@ -66,16 +66,16 @@ function calculateOpenStatus(place, timezone) {
   if (hours.openNow !== undefined && is_open !== null) {
     // Log discrepancy for debugging (don't override canonical result)
     if (hours.openNow !== is_open) {
-      barsLog.warn(`"${place.displayName?.text}" - openNow DISCREPANCY: Google=${hours.openNow}, Canonical=${is_open} (using canonical)`);
+      barsLog.warn(1, `"${place.displayName?.text}" - openNow DISCREPANCY: Google=${hours.openNow}, Canonical=${is_open} (using canonical)`);
     }
   } else if (is_open === null && hours.openNow !== undefined) {
     // No canonical data available - log warning but still don't use openNow as truth
-    barsLog.warn(`"${place.displayName?.text}" - Cannot calculate is_open (no weekdayDescriptions), Google openNow=${hours.openNow} (NOT USED)`);
+    barsLog.warn(1, `"${place.displayName?.text}" - Cannot calculate is_open (no weekdayDescriptions), Google openNow=${hours.openNow} (NOT USED)`);
   }
 
   // Get today's hours - NO FALLBACK, timezone required for accurate venue status
   if (!timezone) {
-    barsLog.warn(`"${place.displayName?.text}" - Missing timezone, cannot determine today's hours`);
+    barsLog.warn(1, `"${place.displayName?.text}" - Missing timezone, cannot determine today's hours`);
     return {
       is_open,
       hours_today: null,
@@ -213,32 +213,42 @@ function isExcludedVenue(name) {
 }
 
 /**
- * Use Haiku to filter venues - fast and cheap
- * Returns only actual upscale bars, lounges, nightclubs, wine bars
+ * 2026-02-18: Enhanced from simple keep/remove to quality classification.
+ * Haiku classifies each venue as Premium (P), Standard (S), or Remove (X).
+ * The quality tier is stored on the venue object and persisted to venue_catalog.
+ * Once cached, Haiku is never called again for that venue ("assess once, cache forever").
+ *
+ * @param {Array} venues - Venues from Google Places (after quick filter + upscale filter)
+ * @returns {Array} Classified venues with venue_quality_tier set (removes X-tier)
  */
-async function filterVenuesWithLLM(venues) {
+async function classifyAndFilterVenues(venues) {
   if (venues.length === 0) return [];
 
-  const venueList = venues.map((v, i) => `${i + 1}. ${v.name} (${v.expense_level})`).join('\n');
+  // 2026-02-18: Include rating in venue list so Haiku can factor in customer satisfaction
+  const venueList = venues.map((v, i) => {
+    const ratingStr = v.rating ? ` | rating: ${v.rating}` : '';
+    return `${i + 1}. ${v.name} (${v.expense_level}${ratingStr})`;
+  }).join('\n');
 
-  const prompt = `You are filtering a list of venues for a rideshare driver looking for UPSCALE BARS to find passengers.
+  const prompt = `You are classifying bars and lounges for a rideshare driver looking for UPSCALE venues with high passenger potential.
 
-KEEP only: Actual bars, lounges, nightclubs, wine bars, cocktail bars, speakeasies, rooftop bars, hotel bars, upscale restaurants with prominent bar areas (steakhouses, fine dining)
-
-REMOVE: Fast food, pizza places, ice cream shops, coffee shops, casual chain restaurants (Applebee's, Chili's, etc.), grocery stores, gas stations, convenience stores, any $ (cheap) venues
+For each venue, classify as:
+- "P" (PREMIUM): Upscale lounges, cocktail bars, rooftop bars, hotel bars, speakeasies, high-end nightclubs, fine dining with prominent bar areas. Places people dress up for. High ratings (4.5+) with $$$ or $$$$ pricing.
+- "S" (STANDARD): Regular sports bars, casual pubs, breweries, taphouses, moderate restaurants with bars. Decent spots with bar crowds but not a destination nightlife venue.
+- "X" (REMOVE): Fast food, pizza delivery, ice cream, coffee shops, casual chain restaurants (Applebee's, Chili's), grocery stores, gas stations, smoke/hookah shops, restaurants with no real bar scene.
 
 Venue list:
 ${venueList}
 
-Return ONLY a JSON array of the numbers to KEEP. Example: [1, 3, 5, 7]
-If none qualify, return: []`;
+Return ONLY a JSON object mapping venue number to classification. Example: {"1":"P","2":"S","3":"X","4":"P","5":"S"}
+Classify ALL venues. No explanation.`;
 
   try {
-    barsLog.phase(1, `Filtering ${venues.length} venues with VENUE_FILTER role...`);
+    barsLog.phase(1, `Classifying ${venues.length} venues with VENUE_FILTER role...`);
     const result = await callModel('VENUE_FILTER', {
-      system: 'You are a venue filter. Return ONLY a JSON array of numbers. No explanation.',
+      system: 'You are a venue classifier. Return ONLY a JSON object mapping numbers to P/S/X. No explanation.',
       user: prompt,
-      maxTokens: 200,
+      maxTokens: 300,
       temperature: 0
     });
 
@@ -247,22 +257,51 @@ If none qualify, return: []`;
       return venues; // Return unfiltered on error
     }
 
-    // Parse the response - extract JSON array
-    const match = result.output.match(/\[[\d,\s]*\]/);
-    if (!match) {
-      aiLog.warn(1, `Could not parse Haiku filter response: ${result.output}`);
-      return venues;
+    // Parse the response - extract JSON object {"1":"P","3":"S",...}
+    const objMatch = result.output.match(/\{[^}]+\}/);
+    if (objMatch) {
+      try {
+        const classifications = JSON.parse(objMatch[0]);
+        const classified = [];
+        let premiumCount = 0;
+        let standardCount = 0;
+
+        for (const [indexStr, tier] of Object.entries(classifications)) {
+          const idx = parseInt(indexStr) - 1;
+          const venue = venues[idx];
+          if (!venue) continue;
+
+          if (tier === 'X' || tier === 'x') continue; // Remove
+
+          venue.venue_quality_tier = (tier === 'P' || tier === 'p') ? 'premium' : 'standard';
+          if (venue.venue_quality_tier === 'premium') premiumCount++;
+          else standardCount++;
+          classified.push(venue);
+        }
+
+        barsLog.done(1, `Haiku classified ${classified.length}/${venues.length} venues (${premiumCount} premium, ${standardCount} standard)`);
+        return classified;
+      } catch (parseErr) {
+        aiLog.warn(1, `Could not parse Haiku classification JSON: ${result.output}`);
+      }
     }
 
-    const keepIndices = JSON.parse(match[0]);
-    const filtered = keepIndices
-      .map(i => venues[i - 1]) // Convert 1-indexed to 0-indexed
-      .filter(Boolean);
+    // Fallback: Try legacy array format [1, 3, 5] for backwards compatibility
+    const arrMatch = result.output.match(/\[[\d,\s]*\]/);
+    if (arrMatch) {
+      const keepIndices = JSON.parse(arrMatch[0]);
+      const filtered = keepIndices
+        .map(i => venues[i - 1])
+        .filter(Boolean);
+      // No quality tier assigned — will be null (legacy behavior)
+      barsLog.done(1, `Haiku kept ${filtered.length}/${venues.length} venues (legacy format)`);
+      return filtered;
+    }
 
-    barsLog.done(1, `Haiku kept ${filtered.length}/${venues.length} venues`);
-    return filtered;
+    aiLog.warn(1, `Could not parse Haiku response: ${result.output}`);
+    return venues;
   } catch (error) {
-    aiLog.warn(1, `LLM venue filter error: ${error.message}`);
+    aiLog.warn(1, `LLM venue classifier error: ${error.message}`);
     return venues; // Return unfiltered on error
   }
 }
@@ -343,7 +382,8 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
             name: v.venue_name,
             type: v.category || 'bar',
             address: v.formatted_address || v.address || '',
-            phone: null,
+            // 2026-02-18: Now stored in venue_catalog (previously always null)
+            phone: v.phone_number || null,
             expense_level: v.expense_rank === 4 ? '$$$$' : v.expense_rank === 3 ? '$$$' : v.expense_rank === 2 ? '$$' : '$',
             expense_rank: v.expense_rank || 2,
             isOpen: openStatus.is_open,
@@ -352,9 +392,12 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
             closing_soon: openStatus.closing_soon,
             minutes_until_close: openStatus.minutes_until_close,
             opens_in_minutes: openStatus.opens_in_minutes,
-            rating: null,
+            // 2026-02-18: Raw Google rating now stored (previously discarded to crowd_level)
+            rating: v.google_rating || null,
             crowd_level: v.crowd_level || 'medium',
             rideshare_potential: v.rideshare_potential || 'medium',
+            // 2026-02-18: Haiku quality tier from venue_catalog (assess once, cache forever)
+            venue_quality_tier: v.venue_quality_tier || null,
             lat: v.lat,
             lng: v.lng,
             place_id: v.place_id,
@@ -377,12 +420,16 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
           return false; // Skip unknown hours
         });
 
-        // Sort by open status, expense, then distance
+        // Sort by open status, quality tier, expense, then distance
         filteredVenues.sort((a, b) => {
           const aOpen = a.isOpen === true;
           const bOpen = b.isOpen === true;
           if (aOpen && !bOpen) return -1;
           if (!aOpen && bOpen) return 1;
+          // 2026-02-18: Premium venues sort above standard
+          const aPremium = a.venue_quality_tier === 'premium' ? 1 : 0;
+          const bPremium = b.venue_quality_tier === 'premium' ? 1 : 0;
+          if (bPremium !== aPremium) return bPremium - aPremium;
           if ((b.expense_rank || 0) !== (a.expense_rank || 0)) {
             return (b.expense_rank || 0) - (a.expense_rank || 0);
           }
@@ -493,7 +540,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
 
     // Step 3: LLM filter for remaining ambiguous venues (if any remain)
     if (venues.length > 0) {
-      venues = await filterVenuesWithLLM(venues);
+      venues = await classifyAndFilterVenues(venues);
     }
 
     // Step 4: "CLOSED GO ANYWAY" Logic
@@ -540,6 +587,11 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         const bClosingSoon = b.closing_soon === true;
         if (aClosingSoon !== bClosingSoon) return aClosingSoon ? 1 : -1;
 
+        // 2026-02-18: Premium venues sort above standard at same expense level
+        const aPremium = a.venue_quality_tier === 'premium' ? 1 : 0;
+        const bPremium = b.venue_quality_tier === 'premium' ? 1 : 0;
+        if (bPremium !== aPremium) return bPremium - aPremium;
+
         // Then sort by expense (highest first)
         if ((b.expense_rank || 0) !== (a.expense_rank || 0)) {
           return (b.expense_rank || 0) - (a.expense_rank || 0);
@@ -556,6 +608,13 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     const lastCallVenues = relevantVenues.filter(v => v.isOpen && v.closing_soon);
 
     barsLog.complete(`${relevantVenues.length} venues (incl. ${relevantVenues.filter(v => v.isOpen === false).length} closed high-value)`);
+
+    // 2026-02-18: FIX - Persist API results to venue_catalog for cache-first pattern.
+    // Previously persistVenuesToDatabase was defined but NEVER CALLED — every request hit Google Places API.
+    // Fire-and-forget: response returns immediately while DB write happens in background.
+    persistVenuesToDatabase(relevantVenues, { city, state }).catch(err => {
+      barsLog.warn(1, `Non-blocking persist failed: ${err.message}`);
+    });
 
     return {
       query_time: new Date().toLocaleTimeString(),
@@ -766,6 +825,11 @@ export async function persistVenuesToDatabase(venues, context) {
             // 2026-01-14: Progressive Enrichment fields
             is_bar: true, // Bar Tab discovery = is_bar
             record_status: finalRecordStatus, // Verified source
+            // 2026-02-18: Store Google Places data + Haiku quality tier
+            google_rating: v.rating || existing.google_rating,
+            phone_number: v.phone || existing.phone_number,
+            // Quality tier: once assessed as 'premium', stays 'premium' (assess once, cache forever)
+            venue_quality_tier: v.venue_quality_tier || existing.venue_quality_tier,
             access_count: (existing.access_count || 0) + 1,
             last_accessed_at: now,
             updated_at: now
@@ -805,6 +869,10 @@ export async function persistVenuesToDatabase(venues, context) {
             is_bar: true,           // Bar Tab discovery = is_bar
             is_event_venue: false,
             record_status: 'verified', // Bar Tab is a trusted source
+            // 2026-02-18: Store Google Places data + Haiku quality tier
+            google_rating: v.rating || null,
+            phone_number: v.phone || null,
+            venue_quality_tier: v.venue_quality_tier || null,
             access_count: 1,
             last_accessed_at: now,
             updated_at: now
