@@ -41,12 +41,16 @@ export function validateEnvironment() {
     warnings.push('GOOGLEAQ_API_KEY not set - air quality data will be unavailable');
   }
 
-  // Uber OAuth & Encryption (Optional but recommended for full feature set)
-  if (!process.env.TOKEN_ENCRYPTION_KEY) {
-    warnings.push('TOKEN_ENCRYPTION_KEY not set - Uber auth will fail');
-  }
-  if (!process.env.UBER_CLIENT_ID || !process.env.UBER_CLIENT_SECRET || !process.env.UBER_REDIRECT_URI) {
-    warnings.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured');
+  // 2026-02-19: Uber OAuth warnings only if Uber integration is partially configured
+  // Avoids noisy warnings when Uber integration is not enabled at all
+  const hasAnyUberConfig = !!(process.env.UBER_CLIENT_ID || process.env.UBER_CLIENT_SECRET || process.env.UBER_REDIRECT_URI);
+  if (hasAnyUberConfig) {
+    if (!process.env.TOKEN_ENCRYPTION_KEY) {
+      warnings.push('TOKEN_ENCRYPTION_KEY not set - Uber auth will fail');
+    }
+    if (!process.env.UBER_CLIENT_ID || !process.env.UBER_CLIENT_SECRET || !process.env.UBER_REDIRECT_URI) {
+      warnings.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured');
+    }
   }
   
   // Model configuration validation
