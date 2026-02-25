@@ -49,6 +49,15 @@ Detailed technical documentation split by domain. See [architecture/README.md](a
 | [Mismatched](MISMATCHED.md) | Identified mismatches |
 | [Monthly Review Checklist](MONTHLY_REVIEW_CHECKLIST.md) | Documentation maintenance checklist |
 
+## Research
+
+Research findings that inform platform development:
+
+| Document | Purpose |
+|----------|---------|
+| [Rideshare Algorithm Research](research/rideshare-algorithm-research.md) | Platform algorithm behaviors, detection rules, surge patterns |
+| [Mobile Subscription Architecture](research/mobile-subscription-architecture.md) | iOS/Android separate solutions for subscription services |
+
 ## Quick Links
 
 ### Folder Documentation
