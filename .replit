@@ -4,7 +4,7 @@ modules = ["python-3.11", "nodejs-20", "postgresql-16"]
 
 # Primary run command (Run button / default start)
 # Source env safely so comments/quotes are handled correctly
-run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js\""
+run = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\""
 
 # Nix/packages configuration
 [nix]
@@ -14,7 +14,7 @@ channel = "stable-25_05"
 # Deployment settings (CI-like build/start)
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
-run = ["sh", "-c", "DEPLOY_MODE=webservice node gateway-server.js"]
+run = ["sh", "-c", "node gateway-server.js"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
@@ -43,7 +43,7 @@ author = 43532959
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "set -a && . mono-mode.env && set +a && npm run start:replit"
+args = "set -a && . .env.local && set +a && npm run start:replit"
 
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
@@ -75,7 +75,7 @@ shell_exec = true
 #
 # See model-registry.js for the authoritative model configuration:
 #   Anthropic: claude-opus-4-6 (strategy, discovery) / claude-haiku-4-5-20251001 (bar filter)
-#   Google:    gemini-3-pro-preview (briefing, events, coach, concierge)
+#   Google:    gemini-3.1-pro-preview (briefing, events, coach, concierge)
 #   OpenAI:    gpt-5.2 (consolidator, venue scorer, parsing)
 # ==========================
 

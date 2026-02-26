@@ -360,7 +360,7 @@ iOS Device                      Vecto Server                    Database
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google Gemini 3.0 Pro + Search (Events, Traffic, News, Coach)  │   │
 │  │ • File: server/lib/ai/adapters/gemini-adapter.js                │   │
-│  │ • AI Coach: gemini-3-pro-preview (streaming, vision, search)    │   │
+│  │ • AI Coach: gemini-3.1-pro-preview (streaming, vision, search)  │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google Gemini 3.0 Flash (Offer Analysis — Vision)              │   │

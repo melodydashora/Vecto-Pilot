@@ -91,17 +91,18 @@ The schema is designed around three core tables serving distinct purposes:
 
 ## 4. Infrastructure & Connection Pooling
 **Purpose:** Database Connectivity & Stability.
-**Updated:** 2026-02-17 (Neon Optimization).
+**Updated:** 2026-02-26 (Helium Migration).
 
 *   **Configuration Source:** `server/db/connection-manager.js`
-*   **Provider:** Replit PostgreSQL (Neon).
+*   **Provider:** Replit PostgreSQL (Helium for Development, external/Neon for Production).
 *   **Pool Settings:**
     *   **Max Connections:** 25. Increased (from 10) to support concurrent strategy generation and briefings (Issue #22).
-    *   **Idle Timeout:** 3000ms (3s). Reduced (from 10s) to close idle connections *before* Neon's proxy terminates them.
+    *   **Idle Timeout:** 10000ms (10s). Relaxed (from 3s) as Helium runs locally without Neon's proxy termination risk.
     *   **Connection Timeout:** 15000ms (15s). Slightly increased for safety during connection spikes.
     *   **Statement Timeout:** 30s. Prevents long-running queries from blocking resources.
     *   **Keep-Alive:** Enabled (Initial delay 10s). Maintains TCP connections.
+    *   **SSL:** Dynamically configured (disabled for local Helium dev, enabled for production deployments).
 *   **Monitoring:**
     *   **Capacity Warning:** Warns when pool usage reaches 80% (20+ connections).
 *   **Error Handling:**
-    *   **Code `57P01`:** Treated as a warning (auto-recovery). Occurs when Neon terminates idle connections; the pool automatically creates new connections on the next query.
+    *   **Code `57P01`:** Treated as a warning (auto-recovery). Occurs if a server (like Neon's proxy) terminates idle connections; the pool automatically creates new connections on the next query. Less likely to occur with local Helium.

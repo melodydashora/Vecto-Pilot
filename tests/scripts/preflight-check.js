@@ -14,17 +14,17 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// Load DATABASE_URL
+// 2026-02-25: Load DATABASE_URL from .env.local or environment
 let DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
   try {
-    const envContent = readFileSync('mono-mode.env', 'utf8');
+    const envContent = readFileSync('.env.local', 'utf8');
     const match = envContent.match(/^DATABASE_URL=(.+)$/m);
     if (match) {
       DATABASE_URL = match[1].trim();
     }
   } catch (err) {
-    console.error('❌ Could not read mono-mode.env:', err.message);
+    console.error('❌ Could not read .env.local:', err.message);
     process.exit(1);
   }
 }

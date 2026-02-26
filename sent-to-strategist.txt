@@ -1,51 +1,47 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 02/19/2026, 8:27:55 AM CST
-Snapshot ID: 465f7c1d-0297-4639-ac0b-5b4b85c1121b
+Generated: 02/25/2026, 7:47:08 PM CST
+Snapshot ID: 4568b7b7-548a-4949-bf62-0c1a7dbf3259
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: 465f7c1d-0297-4639-ac0b-5b4b85c1121b
+snapshot_id: 4568b7b7-548a-4949-bf62-0c1a7dbf3259
 user_id: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
   formatted_address: 1735 Timber Ridge Dr, Frisco, TX 75036, USA
-  lat: 33.12922003166342
-  lng: -96.87556099161992
+  lat: 33.12903849597695
+  lng: -96.87558296390507
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Thu Feb 19 2026 08:27:23 GMT+0000 (Coordinated Universal Time)
-  formatted_local_time: Thursday, February 19, 2026 at 8:27 AM
-  dow: 4 (Thursday)
-  hour: 8
-  day_part_key: morning
+  local_iso: Wed Feb 25 2026 19:46:45 GMT+0000 (Coordinated Universal Time)
+  formatted_local_time: Wednesday, February 25, 2026 at 7:46 PM
+  dow: 3 (Wednesday)
+  hour: 19
+  day_part_key: early_evening
   is_holiday: false
   holiday: none
 
 WEATHER (from snapshot):
-{
-  "tempF": 63,
-  "conditions": "Mostly sunny",
-  "description": "Mostly sunny"
-}
+(null)
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 3df66174-a6b1-4d0f-81ec-3267314fcfc0
-snapshot_id: 465f7c1d-0297-4639-ac0b-5b4b85c1121b
-created_at (UTC): Thu Feb 19 2026 14:27:24 GMT+0000 (Coordinated Universal Time)
-created_at (local): Thu, Feb 19, 8:27 AM
-updated_at (UTC): Thu Feb 19 2026 14:27:55 GMT+0000 (Coordinated Universal Time)
-updated_at (local): Thu, Feb 19, 8:27 AM
+briefing_id: b1abbd3d-a265-4968-8f56-edb59dcd9c9e
+snapshot_id: 4568b7b7-548a-4949-bf62-0c1a7dbf3259
+created_at (UTC): Thu Feb 26 2026 01:46:46 GMT+0000 (Coordinated Universal Time)
+created_at (local): Wed, Feb 25, 7:46 PM
+updated_at (UTC): Thu Feb 26 2026 01:47:08 GMT+0000 (Coordinated Universal Time)
+updated_at (local): Wed, Feb 25, 7:47 PM
 
 NEWS (0 items):
 {
@@ -55,24 +51,24 @@ NEWS (0 items):
 
 WEATHER_CURRENT:
 {
-  "tempC": 17,
-  "tempF": 63,
+  "tempC": 20,
+  "tempF": 67,
   "country": "US",
   "uvIndex": 0,
-  "humidity": 60,
+  "humidity": 46,
   "tempUnit": "°F",
-  "feelsLike": 62,
-  "isDaytime": true,
-  "conditions": "Mostly sunny",
-  "feelsLikeC": 16,
-  "feelsLikeF": 62,
-  "observedAt": "2026-02-19T14:27:24.801944247Z",
+  "feelsLike": 76,
+  "isDaytime": false,
+  "conditions": "Cloudy",
+  "feelsLikeC": 24,
+  "feelsLikeF": 76,
+  "observedAt": "2026-02-26T01:46:46.319938654Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 63,
-  "conditionType": "MOSTLY_CLEAR",
+  "temperature": 67,
+  "conditionType": "CLOUDY",
   "precipitation": {
     "qpf": {
       "unit": "MILLIMETERS",
@@ -84,90 +80,90 @@ WEATHER_CURRENT:
     },
     "probability": {
       "type": "RAIN",
-      "percent": 2
+      "percent": 10
     }
   },
-  "windDirection": "SOUTHWEST",
+  "windDirection": "EAST_SOUTHEAST",
   "windSpeedUnit": "mph"
 }
 
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-02-19T14:27:24.812Z",
-    "tempC": 16,
-    "tempF": 61,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Sunny",
-    "temperature": 61,
-    "conditionType": "CLEAR",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 0
-  },
-  {
-    "time": "2026-02-19T15:27:24.812Z",
-    "tempC": 19,
-    "tempF": 65,
-    "tempUnit": "°F",
-    "isDaytime": true,
-    "windSpeed": null,
-    "conditions": "Partly sunny",
-    "temperature": 65,
-    "conditionType": "PARTLY_CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 5
-  },
-  {
-    "time": "2026-02-19T16:27:24.812Z",
+    "time": "2026-02-26T01:46:46.344Z",
     "tempC": 21,
     "tempF": 69,
     "tempUnit": "°F",
-    "isDaytime": true,
+    "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Mostly cloudy",
+    "conditions": "Cloudy",
     "temperature": 69,
-    "conditionType": "MOSTLY_CLOUDY",
+    "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
   },
   {
-    "time": "2026-02-19T17:27:24.812Z",
-    "tempC": 22,
-    "tempF": 71,
+    "time": "2026-02-26T02:46:46.344Z",
+    "tempC": 19,
+    "tempF": 67,
     "tempUnit": "°F",
-    "isDaytime": true,
+    "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Partly sunny",
-    "temperature": 71,
-    "conditionType": "PARTLY_CLOUDY",
+    "conditions": "Cloudy",
+    "temperature": 67,
+    "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
-    "precipitationProbability": 5
+    "precipitationProbability": 10
   },
   {
-    "time": "2026-02-19T18:27:24.812Z",
-    "tempC": 23,
-    "tempF": 73,
+    "time": "2026-02-26T03:46:46.344Z",
+    "tempC": 18,
+    "tempF": 65,
     "tempUnit": "°F",
-    "isDaytime": true,
+    "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Partly sunny",
-    "temperature": 73,
-    "conditionType": "PARTLY_CLOUDY",
+    "conditions": "Cloudy",
+    "temperature": 65,
+    "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
-    "precipitationProbability": 0
+    "precipitationProbability": 10
   },
   {
-    "time": "2026-02-19T19:27:24.812Z",
-    "tempC": 24,
-    "tempF": 75,
+    "time": "2026-02-26T04:46:46.344Z",
+    "tempC": 18,
+    "tempF": 64,
     "tempUnit": "°F",
-    "isDaytime": true,
+    "isDaytime": false,
     "windSpeed": null,
-    "conditions": "Mostly cloudy",
-    "temperature": 75,
-    "conditionType": "MOSTLY_CLOUDY",
+    "conditions": "Cloudy",
+    "temperature": 64,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-26T05:46:46.344Z",
+    "tempC": 17,
+    "tempF": 62,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 62,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-02-26T06:46:46.344Z",
+    "tempC": 16,
+    "tempF": 61,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 61,
+    "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
   }
@@ -175,47 +171,26 @@ WEATHER_FORECAST (6 hours):
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 54,
+  "jams": 20,
   "stats": {
-    "jams": 54,
-    "major": 31,
-    "total": 70,
-    "closures": 13,
-    "highways": 35,
+    "jams": 20,
+    "major": 11,
+    "total": 44,
+    "closures": 14,
+    "highways": 18,
     "accidents": 0,
-    "construction": 3
+    "construction": 10
   },
-  "summary": "Traffic in Frisco is heavy with multiple major jams, especially along local roads feeding highways, and several road closures within 3–9 miles. Key issues include major jams on FM-2934 → Legacy Dr (3.5 mi, ~4 min delay) and Dallas North Tollway S → Dallas Pkwy (2.7 mi, ~1-min delay), plus three local road closures (Lamar Hunt Way→FM-720, etc.). Recommend avoiding hotspots by routing via less congested arterials east or west of US-380, using service roads instead of highway feeders, and delaying highway on-ramps where possible until congestion eases.",
+  "summary": "Traffic is heavy around Frisco with multiple jams and road closures, especially on major arterials and highways. The worst delays are on FM-423 around Lebanon Rd to W Main St (~1.5-2.1 mi), plus local jams on King Arthur Blvd and E University Dr (~6-7 mi). You should avoid those bunching corridors, shift rides toward less impacted areas like northern Frisco or east toward US-380 where flow remains better, and plan pickups to stay or move counter-flow from those congestion pockets.",
   "analyzed": true,
-  "briefing": "Traffic in Frisco is heavy with multiple major jams, especially along local roads feeding highways, and several road closures within 3–9 miles. Key issues include major jams on FM-2934 → Legacy Dr (3.5 mi, ~4 min delay) and Dallas North Tollway S → Dallas Pkwy (2.7 mi, ~1-min delay), plus three local road closures (Lamar Hunt Way→FM-720, etc.). Recommend avoiding hotspots by routing via less congested arterials east or west of US-380, using service roads instead of highway feeders, and delaying highway on-ramps where possible until congestion eases.",
+  "briefing": "Traffic is heavy around Frisco with multiple jams and road closures, especially on major arterials and highways. The worst delays are on FM-423 around Lebanon Rd to W Main St (~1.5-2.1 mi), plus local jams on King Arthur Blvd and E University Dr (~6-7 mi). You should avoid those bunching corridors, shift rides toward less impacted areas like northern Frisco or east toward US-380 where flow remains better, and plan pickups to stay or move counter-flow from those congestion pockets.",
   "closures": [
     {
-      "road": "",
-      "location": "Lamar Hunt Way to FM-720",
+      "road": "FM-1171",
+      "location": "Mill St (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3
-    },
-    {
-      "road": "",
-      "location": "FM-720 to FM-720",
-      "severity": "low",
-      "isHighway": true,
-      "distanceFromDriver": 3.2
-    },
-    {
-      "road": "",
-      "location": "McKinney to FM-2478",
-      "severity": "low",
-      "isHighway": true,
-      "distanceFromDriver": 8.9
-    },
-    {
-      "road": "",
-      "location": "PGA Pkwy to US-380 E",
-      "severity": "low",
-      "isHighway": true,
-      "distanceFromDriver": 6.1
+      "distanceFromDriver": 9.6
     },
     {
       "road": "",
@@ -233,221 +208,234 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
+      "location": "Legacy Dr (Fields Pkwy) to Dallas Pkwy (Fields Pkwy)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 5.2
+    },
+    {
+      "road": "",
+      "location": "Universal Pkwy to Fields Pkwy",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 5.2
+    },
+    {
+      "road": "",
       "location": "Warren Pkwy to Warren Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3.6
+      "distanceFromDriver": 3.5
     },
     {
       "road": "",
-      "location": "Chapel Hill Ln / Lonesome Dove Trl to Rockhill Pkwy",
+      "location": "Ortega St to PGA Pkwy / Rockhill Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.6
+      "distanceFromDriver": 7.4
     },
     {
       "road": "",
-      "location": "Navo Rd to Paloma Creek Blvd",
+      "location": "Rockhill Pkwy to Chapel Hill Ln / Lonesome Dove Trl",
       "severity": "low",
-      "isHighway": false,
-      "distanceFromDriver": 7.2
-    },
-    {
-      "road": "",
-      "location": "Peregrine St to Javelin Way",
-      "severity": "low",
-      "isHighway": false,
-      "distanceFromDriver": 9.8
-    },
-    {
-      "road": "",
-      "location": "Benjamins Way to N Cowan Ave",
-      "severity": "low",
-      "isHighway": false,
-      "distanceFromDriver": 8.2
+      "isHighway": true,
+      "distanceFromDriver": 7.7
     },
     {
       "road": "",
       "location": "N Mill St / W College St to N Railroad St",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.7
-    },
-    {
-      "road": "",
-      "location": "Lakewood Dr to Main St / N Hook St",
-      "severity": "low",
-      "isHighway": false,
-      "distanceFromDriver": 8.1
-    }
-  ],
-  "headline": "Traffic in Frisco is heavy with multiple major jams, especially along local roads feeding highways, and several road closures within 3–9 miles.",
-  "provider": "tomtom",
-  "fetchedAt": "2026-02-19T14:27:25.122Z",
-  "incidents": [
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd)",
-      "priority": 159,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: N Shady Shores Dr (E Swisher Rd) to I-35E (E Swisher Rd) [9.1 mi]",
-      "lengthMiles": 0.4,
-      "delayMinutes": 4,
-      "distanceFromDriver": 9.1
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "FM-2934 to Legacy Dr",
-      "priority": 159,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: FM-2934 to Legacy Dr [3.5 mi]",
-      "lengthMiles": 0.1,
-      "delayMinutes": 4,
-      "distanceFromDriver": 3.5
-    },
-    {
-      "road": "TX-121 Bus",
-      "category": "Jam",
-      "location": "S Mill St (TX-121) to FM-544 (TX-121)",
-      "priority": 157,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: TX-121 Bus (S Mill St (TX-121) to FM-544 (TX-121)) [8.7 mi]",
-      "lengthMiles": 0.5,
-      "delayMinutes": 2,
-      "distanceFromDriver": 8.7
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "CR-4/W Prosper Trl (Dallas Pkwy) to US-380 (Dallas Pkwy)",
-      "priority": 150,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: CR-4/W Prosper Trl (Dallas Pkwy) to US-380 (Dallas Pkwy) [8.8 mi]",
-      "lengthMiles": 1.2,
-      "delayMinutes": 5,
       "distanceFromDriver": 8.8
     },
     {
-      "road": "US-380 W",
+      "road": "",
+      "location": "Benjamins Way to E Jones St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.2
+    },
+    {
+      "road": "",
+      "location": "Main St to Lamar Hunt Way",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 2.9
+    },
+    {
+      "road": "",
+      "location": "Main St to Main St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 3.2
+    },
+    {
+      "road": "",
+      "location": "Main St to Elm St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 3.3
+    },
+    {
+      "road": "",
+      "location": "Archgate Dr to Preston Meadow Dr / Turnberry Ct",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 6.6
+    }
+  ],
+  "headline": "Traffic is heavy around Frisco with multiple jams and road closures, especially on major arterials and highways.",
+  "provider": "tomtom",
+  "fetchedAt": "2026-02-26T01:46:46.498Z",
+  "incidents": [
+    {
+      "road": "FM-423",
       "category": "Jam",
-      "location": "Hollyhock Rd / Windsong Pkwy S to Doe Creek Rd",
-      "priority": 147,
+      "location": "Lebanon Rd (TX-423) to FM-720/W Main St (TX-423)",
+      "priority": 164,
       "severity": "high",
       "isHighway": true,
-      "description": "Jam: US-380 W (Hollyhock Rd / Windsong Pkwy S to Doe Creek Rd) [6.2 mi]",
+      "description": "Jam: FM-423 (Lebanon Rd (TX-423) to FM-720/W Main St (TX-423)) [1.5 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 9,
+      "distanceFromDriver": 1.5
+    },
+    {
+      "road": "FM-720, FM-423",
+      "category": "Jam",
+      "location": "E FM-720 (TX-423) to FM-720/W Main St (TX-423)",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-720, FM-423 (E FM-720 (TX-423) to FM-720/W Main St (TX-423)) [2.1 mi]",
       "lengthMiles": 0.2,
-      "delayMinutes": 2,
-      "distanceFromDriver": 6.2
+      "delayMinutes": 3,
+      "distanceFromDriver": 2.1
     },
     {
       "road": "",
       "category": "Jam",
-      "location": "US-380 E to Dallas Pkwy",
-      "priority": 147,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: US-380 E to Dallas Pkwy [6.8 mi]",
-      "lengthMiles": 0.3,
-      "delayMinutes": 2,
-      "distanceFromDriver": 6.8
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "Pilot Point-Aubrey to US-380 W",
-      "priority": 146,
-      "severity": "high",
-      "isHighway": true,
-      "description": "Jam: Pilot Point-Aubrey to US-380 W [8.7 mi]",
-      "lengthMiles": 0,
-      "delayMinutes": 1,
-      "distanceFromDriver": 8.7
-    },
-    {
-      "road": "",
-      "category": "Jam",
-      "location": "FM-2786/Stacy Rd (Sam Rayburn Tollway) to Ohio Dr (Sam Rayburn Tollway)",
-      "priority": 145,
+      "location": "Gee Rd (1st St) to FM-1385 (1st St)",
+      "priority": 143,
       "severity": "medium",
       "isHighway": true,
-      "description": "Jam: FM-2786/Stacy Rd (Sam Rayburn Tollway) to Ohio Dr (Sam Rayburn Tollway) [9.6 mi]",
-      "lengthMiles": 2.9,
-      "delayMinutes": 5,
-      "distanceFromDriver": 9.6
+      "description": "Jam: Gee Rd (1st St) to FM-1385 (1st St) [7 mi]",
+      "lengthMiles": 0.8,
+      "delayMinutes": 3,
+      "distanceFromDriver": 7
     },
     {
       "road": "FM-1171",
-      "category": "Jam",
-      "location": "Mill St (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
-      "priority": 142,
-      "severity": "medium",
+      "category": "Road Works",
+      "location": "Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
+      "priority": 135,
+      "severity": "low",
       "isHighway": true,
-      "description": "Jam: FM-1171 (Mill St (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.5 mi]",
-      "lengthMiles": 0.2,
-      "delayMinutes": 2,
-      "distanceFromDriver": 9.5
+      "description": "Road Works: FM-1171 (Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.6 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.6
+    },
+    {
+      "road": "I-35E N, US-77 S, US-77 N, I-35E S",
+      "category": "Road Works",
+      "location": "FM-1171/W Main St (Texpress Lanes/I-35) to E Corporate Dr (Texpress Lanes/I-35)",
+      "priority": 135,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Works: I-35E N, US-77 S, US-77 N, I-35E S (FM-1171/W Main St (Texpress Lanes/I-35) to E Corporate Dr (Texpress Lanes/I-35)) [9.6 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.6
     },
     {
       "road": "",
-      "category": "Jam",
-      "location": "Dallas North Tollway S to Dallas Pkwy",
-      "priority": 141,
-      "severity": "high",
+      "category": "Road Works",
+      "location": "TX-121 (W Corporate Dr) to I-35E/US-77/Stemmons Fwy (W Corporate Dr)",
+      "priority": 135,
+      "severity": "low",
       "isHighway": true,
-      "description": "Jam: Dallas North Tollway S to Dallas Pkwy [2.7 mi]",
+      "description": "Road Works: TX-121 (W Corporate Dr) to I-35E/US-77/Stemmons Fwy (W Corporate Dr) [10 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 0,
+      "distanceFromDriver": 10
+    },
+    {
+      "road": "US-380 W",
+      "category": "Road Works",
+      "location": "FM-1385 (US-380) to FM-2931 (US-380)",
+      "priority": 135,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Works: US-380 W (FM-1385 (US-380) to FM-2931 (US-380)) [7 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0,
+      "distanceFromDriver": 7
+    },
+    {
+      "road": "FM-1171",
+      "category": "Lane Closed",
+      "location": "Mill St (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)",
+      "priority": 125,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Lane Closed: FM-1171 (Mill St (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)) [9.6 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.6
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "S Stemmons Fwy to E Corporate Dr",
+      "priority": 125,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: S Stemmons Fwy to E Corporate Dr [9.9 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.9
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Dallas Pkwy to Dallas North Tollway S",
+      "priority": 125,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Dallas Pkwy to Dallas North Tollway S [5.1 mi]",
       "lengthMiles": 0.3,
-      "delayMinutes": 1,
-      "distanceFromDriver": 2.7
+      "delayMinutes": 0,
+      "distanceFromDriver": 5.1
     }
   ],
   "keyIssues": [
-    "FM-2934 → Legacy Dr local road: 3.5 mi away – major jam (~4 min delay)",
-    "Dallas North Tollway S → Dallas Pkwy: 2.7 mi away – major jam (~1 min delay)",
-    "US-380 W between Hollyhock Rd / Windsong Pkwy S → Doe Creek Rd: 6.2 mi away – major jam (~2 min delay)"
+    "FM-423 between Lebanon Rd and FM-720/W Main St - major jam at ~1.5 mi away causing ~9-min delay",
+    "FM-720 between FM-423 and W Main St - major jam ~2.1 mi away with ~3-min delay",
+    "King Arthur Blvd at Lady of the Lake Blvd - local jam ~6.7 mi away with ~5-min delay"
   ],
   "avoidAreas": [
-    "US-380 corridor between Hollyhock/Windsong Pkwy S and Doe Creek Rd (~6.2 mi) – major congestion",
-    "FM-2934 → Legacy Dr area (~3.5 mi) – heavy jam impacting feeder roads to highways"
+    "FM-423 corridor between Lebanon Rd and W Main St: heavy delays and congestion ~1-2 mi range",
+    "King Arthur Blvd and Lady of the Lake Blvd area: local jam ~6-7 mi north-east causing multi-minute delays"
   ],
-  "safetyAlert": "54 active traffic jams in the area",
-  "driverImpact": "Right now, picking up or heading toward rides in downtown-Frisco near Dallas North Tollway or Legacy Dr is slow; instead target rides south or northeast where major feeders to highway are less snarled.",
+  "safetyAlert": "20 active traffic jams in the area",
+  "driverImpact": "Right now rides toward FM-423 and FM-720 will suffer slow pickup/drop-off times; focusing on pickups east or north and avoiding jammed corridors increases trip efficiency.",
   "surgePricing": true,
-  "closuresCount": 13,
+  "closuresCount": 14,
   "repositioning": null,
-  "incidentsCount": 70,
-  "totalIncidents": 70,
-  "closuresSummary": "3 closures within 10 mi, most critical: Lamar Hunt Way → FM-720 at ~3.0 mi and FM-720 → FM-720 at ~3.2 mi.",
+  "incidentsCount": 44,
+  "totalIncidents": 44,
+  "closuresSummary": "5 road closures within 10 mi, most critical: S Stemmons Fwy → E Corporate Dr (~9.9 mi) and Dallas Pkwy → Dallas North Tollway S (~5.1 mi)",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Construction on FM-1171 Valley Pkwy → I-35E (~9.7 mi) and US-380 W between FM-1385 → FM-2931 (~7 mi); neither currently causing delays but monitor as they may escalate."
+  "constructionSummary": "Several road works along FM-1171 (Cross Timbers Rd to I-35E), TX-121 (W Corporate Dr to I-35E), and US-380 W; these may slow routes entering/exiting highways but currently have no reported delay minutes."
 }
 
-EVENTS (1 total):
-[
-  {
-    "title": "Texas Legends vs. South Bay Lakers",
-    "venue": "Comerica Center",
-    "impact": "high",
-    "address": "2601 Avenue of the Stars, Frisco, TX 75034, USA",
-    "subtype": "sports",
-    "summary": "Texas Legends vs. South Bay Lakers • Comerica Center • 2026-02-19 • 18:00",
-    "latitude": 33.1005264,
-    "location": "Comerica Center, 2601 Avenue of the Stars, Frisco, TX 75034, USA",
-    "venue_id": "3c506624-7eaa-465b-adce-56f4ea7fe521",
-    "longitude": -96.8191214,
-    "event_type": "sports",
-    "event_end_date": "2026-02-19",
-    "event_end_time": "20:30",
-    "event_start_date": "2026-02-19",
-    "event_start_time": "18:00"
-  }
-]
+EVENTS (0 total):
+{
+  "items": [],
+  "reason": "No events found for this location"
+}
 
 SCHOOL_CLOSURES (0 total, 0 active today):
 {
@@ -461,44 +449,43 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "No current major delays or cancellations reported. Routine delays during peak hours are typical. Recent studies show high overall delay rates (~26% of flights delayed) mostly due to air traffic volume and sometimes weather or staffing. Historical average delay durations vary but can be substantial during peak periods. ",
-      "status": "normal",
+      "delays": "Today there are about 95 delayed flights and 4 cancellations at DFW per live FlightAware data. ([flightaware.com](https://www.flightaware.com/live/cancelled/today/dfw?utm_source=openai))",
+      "status": "delays",
       "busyTimes": [
-        "5:00-9:00 AM",
-        "3:00-7:00 PM"
+        "5:00 PM-8:00 PM",
+        "7:00 AM-11:00 AM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Similarly, no specific new delay events noted. Love Field typically has delay rates of ~19% with average delays of ~50 minutes for affected flights. Most significant delays happen later at night. ",
+      "delays": "No verified reports of widespread delays or cancellations currently. Normal operations as of latest sources. (Some renovations announced starting 2027, but no impact today.) ([travelpander.com](https://travelpander.com/are-flights-delayed-in-dallas-right-now/?utm_source=openai))",
       "status": "normal",
       "busyTimes": [
-        "5:00-8:00 AM",
-        "4:00-7:00 PM"
+        "7:00 AM-10:00 AM",
+        "4:00 PM-7:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-02-19T14:27:33.065Z",
+  "fetchedAt": "2026-02-26T01:46:55.229Z",
   "busyPeriods": [
-    "Early mornings (5-9 AM) for both airports—departures stack up then.",
-    "Late afternoon to early evening (3-7 PM) especially at DFW, when international arrivals and return flights increase traffic.",
-    "Late afternoon-evening window (4-7 PM) is particularly heavy at Love Field due to tight scheduling (e.g. for Southwest)."
+    "Morning rush: around 7:00 AM to 11:00 AM",
+    "Evening peak: around 5:00 PM to 8:00 PM"
   ],
-  "recommendations": "For rideshare drivers: \n• Prioritize arrival at the airports just before the early-morning (around 4:30-5:00 AM) window begins, and similarly around 3:30-4:00 PM to catch the evening surge. \n• Use the designated rideshare or app pickup zones—at DFW this is usually in the Prearranged / rideshare area on the lower curb outside each terminal, and at DAL in the ground-transportation/rideshare curb. Waiting or circling on terminal curbs may lead to violations or higher congestion. \n• Between busy periods expect quieter times mid/late morning (10-11 AM) or mid-afternoon (2-4 PM), which can be useful times to refuel, reposition, or restock. \n• Since high demand times coincide with heavy traffic on airport access roads (especially approaching curbs), aim to stage nearby rather than enter the terminal area too early. \n• Keep an eye on weather, airline alerts, and the live flight-tracking tools to respond to sudden delays or cancellations that can create short-term peaks in demand."
+  "recommendations": "For rideshare drivers heading to or from DFW or Love Field: \n• Aim for pickups in the early morning (7-11 AM) or early evening (5-8 PM) when both airports see high activity. \n• At DFW, use Terminal zones (e.g., Terminal A, C) that are less congested if possible—monitor your app for gate assignments. \n• Avoid scheduling pickup during peak traffic times just after major flight arrivals during those busy periods. \n• For Love Field, pickup at lower levels rather than upper departure curbs during rush to reduce delay from traffic. \n• Use airport-approved rideshare pickup zones (check signs / airport app); avoid double parking or circling terminals. \n• Always check live airport alerts or your driver app before heading to the airport—conditions can shift quickly if weather or staffing issues crop up."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: 1c1e43de-934b-425b-aa04-6def0665bfaf
-snapshot_id: 465f7c1d-0297-4639-ac0b-5b4b85c1121b
+id: e742084f-a4be-45d6-9234-b5a964ed3d8b
+snapshot_id: 4568b7b7-548a-4949-bf62-0c1a7dbf3259
 status: pending
 error_message: (none)
-created_at: Thu Feb 19 2026 14:27:24 GMT+0000 (Coordinated Universal Time)
-updated_at: Thu Feb 19 2026 14:27:55 GMT+0000 (Coordinated Universal Time)
+created_at: Thu Feb 26 2026 01:46:46 GMT+0000 (Coordinated Universal Time)
+updated_at: Thu Feb 26 2026 01:46:46 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -524,13 +511,13 @@ Data Integrity:
   ✓ IDs match: YES
 
 School Closures Filter Check:
-  Today's date (America/Chicago): 2026-02-19
+  Today's date (America/Chicago): 2026-02-25
   Active closures (start_date <= today <= end_date): 0 / 0
   (None active today)
 
 Event Count:
-  Total events in briefing: 1
-  High impact: 1
+  Total events in briefing: 0
+  High impact: 0
   Medium impact: 0
   Low impact: 0
 
@@ -540,8 +527,8 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in time: 0
 
 Events AFTER filterInvalidEvents (what LLM actually receives):
-  Raw events in DB: 1
-  Filtered events (sent to LLM): 1
+  Raw events in DB: 0
+  Filtered events (sent to LLM): 0
   TBD events removed: 0
 
 ════════════════════════════════════════════════════════════════════════════════

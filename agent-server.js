@@ -74,7 +74,8 @@ function getDBPool() {
       console.log('[agent] Using local pool (shared pool disabled)');
       dbPool = new Pool({
         connectionString: dbUrl,
-        ssl: { rejectUnauthorized: false } // Replit PostgreSQL requires SSL
+        // 2026-02-26: SSL conditional — Helium (dev) runs locally without SSL
+        ssl: (process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production') ? { rejectUnauthorized: false } : false
       });
     }
   }

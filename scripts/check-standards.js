@@ -464,7 +464,7 @@ function checkDeprecatedAI() {
     { regex: /['"]gpt-4['"]/g, message: "Deprecated model 'gpt-4'. Use 'gpt-5.2' or 'o1'." },
     { regex: /['"]gpt-4-turbo['"]/g, message: "Deprecated model 'gpt-4-turbo'. Use 'gpt-5.2'." },
     { regex: /['"]claude-3-5-sonnet['"]/g, message: "Deprecated model 'claude-3-5-sonnet'. Use 'claude-sonnet-4-5'." },
-    { regex: /['"]gemini-pro['"]/g, message: "Ambiguous model 'gemini-pro'. Use 'gemini-3-pro-preview'." },
+    { regex: /['"]gemini-pro['"]/g, message: "Ambiguous model 'gemini-pro'. Use 'gemini-3.1-pro-preview'." },
     
     // Parameters
     { regex: /max_tokens(?=:)/g, message: "Deprecated parameter 'max_tokens' (OpenAI). Use 'max_completion_tokens'." },

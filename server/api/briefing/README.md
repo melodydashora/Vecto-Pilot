@@ -236,7 +236,7 @@ Briefing uses Gemini 3 Pro with Google Search grounding for news, weather, and s
 **Critical Settings:**
 ```javascript
 // Model ID must include -preview suffix
-model: "gemini-3-pro-preview"  // NOT "gemini-3-pro"!
+model: "gemini-3.1-pro-preview"  // NOT "gemini-3-pro"!
 
 // Token budget must account for thinking
 // With thinkingLevel: HIGH, thinking consumes tokens from maxOutputTokens
@@ -249,7 +249,7 @@ thinkingConfig: { thinkingLevel: "HIGH" }
 **Error Symptoms:**
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `404 model not found` | Missing `-preview` suffix | Use `gemini-3-pro-preview` |
+| `404 model not found` | Missing `-preview` suffix | Use `gemini-3.1-pro-preview` |
 | `MAX_TOKENS, parts: 0` | Token budget too low | Use `maxOutputTokens: 8192+` |
 | `thinking level not supported` | MEDIUM on Pro | Use LOW or HIGH only |
 
