@@ -3,6 +3,17 @@
 **Status:** Integration Complete (Standards Met)
 **Date:** 2026-02-15 (originally 2026-02-07)
 
+## Operational Mandates
+
+### Root Cause Analysis (RCA) Protocol
+1.  **Root Cause Analysis (RCA) is mandatory for all incidents.** We do not skip this step; understanding the fundamental origin of a failure is non-negotiable.
+2.  **Document RCA findings in `GEMINI.md`.** Every significant issue and its root cause must be recorded here to build institutional memory.
+3.  **Define RCA scope and methodology.** Clearly outline what is being investigated and the steps taken to isolate the cause (e.g., reproduction steps, logs analysis, hypothesis testing).
+4.  **Track RCA progress via issue tracker.** Ensure visible accountability for ongoing investigations.
+5.  **Implement preventative actions.** Fixes must not just resolve the symptom but prevent recurrence of the root cause.
+6.  **Validate action effectiveness.** Verify that the implemented fix actually addresses the root cause and doesn't introduce regressions.
+7.  **Update `GEMINI.md` with RCA outcomes.** Close the loop by documenting the final resolution and lessons learned.
+
 ## Objective
 Integrate enhancements from `vecto-pilot-ultimate` into the current repository, ensuring compatibility and stability.
 
@@ -57,7 +68,7 @@ Integrate enhancements from `vecto-pilot-ultimate` into the current repository, 
 - [ ] Fix `server/agent/enhanced-context.js` (Direct URL)
 - [ ] Fix `server/api/research/research.js` (Direct URL)
 - [ ] Fix `server/gateway/assistant-proxy.ts` (Direct URL)
-- [ ] Fix `server/lib/ai/models-dictionary.js` (Direct URL)
+- [x] ~~Fix `server/lib/ai/models-dictionary.js`~~ — DELETED 2026-02-26 (dead code, zero imports)
 - [ ] Fix `server/scripts/sync-events.mjs` (Direct URL)
 
 ### Access Control

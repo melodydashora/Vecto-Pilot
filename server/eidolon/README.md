@@ -1,15 +1,42 @@
-Based on the analysis of the code changes in `server/eidolon/core/llm.ts`, the file implements the `LLMClient` and the `llmPlan` function (Atlas planning engine).
+# Eidolon Configuration (`server/eidolon/config.ts`)
 
-The provided "Current Documentation" appears to be a status log from a previous check rather than the actual documentation file. However, it quotes a snippet of the documentation:
-> `llm.ts` | LLM client (Anthropic) and Atlas planning engine with SQL, shell, and file system tools (uses `../../lib/anthropic-extended.js`)
+The `EIDOLON_CONFIG` object defines the core behavior, capabilities, and identity of the Eidolon AI system. It is currently configured for maximum context and unified capabilities using Gemini 3 Pro.
 
-The code changes confirm:
-1.  **LLM Client**: Uses `anthropic-extended.js`, defaults to model `claude-opus-4-6`.
-2.  **Atlas Planning**: `llmPlan` function.
-3.  **Tools**: Explicitly defines `file_read`, `file_write`, `run_shell`, `sql_query`, `sql_execute` (write), `sql_tables`, `sql_schema`.
+## System Identity
+- **Version**: `8.0.0-unified-max`
+- **Identity**: Eidolon Unified AI - Complete IDE Integration (Gemini 3 Pro - 1M Context + High Thinking)
+- **Model**: `gemini-3.1-pro-preview`
+- **Context Window**: 1,000,000 tokens
+- **Thinking Mode**: `high`
 
-The quoted snippet "SQL, shell, and file system tools" accurately summarizes the capabilities found in the code. The mention of "Atlas planning engine" is also correct.
+## Capabilities
+The system is configured for **Unified Maximum Capabilities**, ensuring all AI subsystems have identical, unrestricted access to the environment.
 
-Since the description is accurate and covers the enhanced capabilities (SQL read/write, Shell, File System) at a high level, no updates are required to the description itself. The "Current Documentation" provided is a log confirming this state.
+### Core Infrastructure
+- **File System**: Full root access (`fs_read`, `fs_write`, `fs_delete`, `fs_create`, `fs_rename`). Can modify any file including system configs.
+- **Shell**: Unrestricted shell execution (`shell_exec`, `shell_unrestricted`) and process management.
+- **Database**: Complete SQL control (`sql_query`, `sql_execute`, `sql_ddl`, `sql_dml`, `sql_schema_introspection`).
+- **Network**: HTTP fetch, WebSocket access, and API integration.
 
-NO_CHANGE
+### Intelligence & Memory
+- **Memory**: Enhanced memory with cross-chat awareness, long-term persistence, and full workspace intelligence.
+- **Reasoning**: Deep reasoning, ultra-deep thinking, and predictive intelligence.
+- **Research**: Web research (Perplexity) and semantic search.
+
+### Self-Healing & Autonomy
+- **Circuit Breaker**: Active with override capabilities (`circuit_breaker_active`, `circuit_breaker_override`).
+- **Recovery**: Autonomous recovery, error prediction, and auto-remediation.
+
+## Features
+Enabled advanced features include:
+- Internet Search & Perplexity Research
+- Code Pattern Recognition
+- Security Auditing & Hardening
+- Performance Profiling & Auto-optimization
+- Multi-file Refactoring
+
+## Assistant Replacement
+Eidolon is configured to completely replace the standard assistant:
+- **Standard Assistant**: `COMPLETELY_BYPASSED`
+- **Override Mode**: `TOTAL_REPLACEMENT`
+- **Interception**: `ALL_REQUESTS`

@@ -283,13 +283,17 @@ router.get('/worker-status', requireAuth, async (req, res) => {
         REPL_ID: !!process.env.REPL_ID,
         REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT,
         K_SERVICE: !!process.env.K_SERVICE,
-        CLOUD_RUN_AUTOSCALE: process.env.CLOUD_RUN_AUTOSCALE
+        CLOUD_RUN_AUTOSCALE: process.env.CLOUD_RUN_AUTOSCALE,
+        REPLIT_AUTOSCALE: process.env.REPLIT_AUTOSCALE  // 2026-02-25: Added
       },
+      // 2026-02-25: Updated to match Phase 6 autoscale detection logic
       computed: {
         isReplit: !!process.env.REPL_ID,
         isCloudRun: process.env.REPLIT_DEPLOYMENT === "1",
-        isAutoscale: process.env.REPLIT_DEPLOYMENT === "1",
-        shouldEnableWorker: process.env.ENABLE_BACKGROUND_WORKER === 'true' && process.env.REPLIT_DEPLOYMENT !== "1"
+        isAutoscale: process.env.CLOUD_RUN_AUTOSCALE === '1' || process.env.REPLIT_AUTOSCALE === '1',
+        shouldEnableWorker: process.env.ENABLE_BACKGROUND_WORKER === 'true' &&
+          process.env.CLOUD_RUN_AUTOSCALE !== '1' &&
+          process.env.REPLIT_AUTOSCALE !== '1'
       }
     };
     
@@ -473,7 +477,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const ai = new GoogleGenAI({ apiKey });
-        const modelId = process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
+        const modelId = process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview';
         const result = await ai.models.generateContent({
           model: modelId,
           contents: 'ping'

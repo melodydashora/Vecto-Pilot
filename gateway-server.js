@@ -10,8 +10,8 @@ import { validateOrExit } from './server/config/validate-env.js';
 import { unifiedAI, UNIFIED_CAPABILITIES } from './server/lib/ai/unified-ai-capabilities.js';
 
 // 2026-02-19: Suppress pg-connection-string SSL mode deprecation warning.
-// Our pool config explicitly sets ssl: { rejectUnauthorized: false } which is correct
-// for Replit's self-signed certs. The warning is about future pg v9.0 behavior only.
+// 2026-02-26: SSL is now conditional (off for Helium dev, on for production).
+// The warning about future pg v9.0 behavior only matters for production SSL connections.
 const originalEmitWarning = process.emitWarning;
 process.emitWarning = function(warning, ...args) {
   if (typeof warning === 'string' && warning.includes("SSL modes 'prefer', 'require', and 'verify-ca'")) {
@@ -32,7 +32,20 @@ const distDir = path.join(__dirname, 'client', 'dist');
 
 // Deployment detection
 const isDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
-const isAutoscaleMode = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === '1';
+
+// 2026-02-25: Autoscale detection — checks EITHER flag independently (Phase 6 Refactor)
+// If either flag is set, the intent is clear: this is an autoscale environment.
+// Workers, SSE, and snapshot observer are forcibly disabled to prevent duplication.
+const isAutoscaleMode = process.env.CLOUD_RUN_AUTOSCALE === '1' || process.env.REPLIT_AUTOSCALE === '1';
+
+// Safety guardrail: loud warning when autoscale is active
+if (isAutoscaleMode) {
+  console.warn('[gateway] ═══════════════════════════════════════════════════════════════');
+  console.warn('[gateway] ⚠️  AUTOSCALE MODE ACTIVE');
+  console.warn('[gateway]    Background workers: DISABLED (must deploy as separate services)');
+  console.warn('[gateway]    SSE: DISABLED | Snapshot observer: DISABLED');
+  console.warn('[gateway] ═══════════════════════════════════════════════════════════════');
+}
 
 // Exported app reference for tests/importers (live binding)
 export let app = null;
@@ -100,10 +113,6 @@ process.on('unhandledRejection', (reason, promise) => {
     setImmediate(async () => {
       console.log('[gateway] Loading modules and mounting routes...');
 
-      // Load AI config
-      const { GATEWAY_CONFIG } = await import('./agent-ai-config.js');
-      console.log('[gateway] AI Config loaded');
-
       // Static assets
       app.use(express.static(distDir));
 
@@ -165,8 +174,8 @@ process.on('unhandledRejection', (reason, promise) => {
         res.sendFile(path.join(distDir, 'index.html'));
       });
 
-      // Start background worker if needed
-      const workerConfig = shouldStartWorker({ mode: MODE, isAutoscaleMode });
+      // Start background worker if needed (explicit opt-in only)
+      const workerConfig = shouldStartWorker({ isAutoscaleMode });
       if (workerConfig.shouldStart) {
         console.log(`[gateway] ${workerConfig.reason}`);
         startStrategyWorker({ useLogFile: workerConfig.useLogFile });

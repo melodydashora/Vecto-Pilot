@@ -264,18 +264,16 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 
 ---
 
-### Model Dictionary
-**What it is:** Reference catalog of model configurations (for documentation purposes).
+### Model Registry
+**What it is:** Centralized configuration for all AI model interactions — the single source of truth.
 
 **Codebase Files:**
-- `server/lib/ai/models-dictionary.js` - JavaScript implementation
-- `agent-ai-config.js` - Gateway AI configuration
-
-**Note:** The authoritative source for role→model mapping is `model-registry.js`, not this dictionary.
+- `server/lib/ai/model-registry.js` — Role definitions, model defaults, env overrides, quirks
 
 **Documentation:**
-- `MODEL.md` - Model capabilities and parameters
-- `tools/research/MODEL_UPDATE_TEMPLATE.md` - Update workflow
+- `docs/preflight/ai-models.md` — Human-readable model landscape and parameter constraints
+
+**Removed (2026-02-26):** `models-dictionary.js` (dead code, zero imports), `MODEL.md` (sync burden), `tools/research/` (orphaned pipeline).
 
 ---
 
@@ -633,7 +631,7 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 ## 📚 Documentation Files
 
 - `ARCHITECTURE.md` - System architecture and AI pipeline
-- `MODEL.md` - AI model capabilities and parameters
+- `docs/preflight/ai-models.md` - AI model reference and parameter constraints
 - `LEXICON.md` - This file (terminology reference)
 - `replit.md` - Replit-specific documentation
 - `COACH_DATA_ACCESS.md` - AI Coach data access patterns

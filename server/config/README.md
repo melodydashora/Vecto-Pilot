@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-02-25
 
 # Config Module (`server/config/`)
 
@@ -10,9 +10,8 @@ Server configuration: environment loading, validation, and runtime settings.
 
 | File | Purpose |
 |------|---------|
-| `load-env.js` | Environment loading (mode-specific .env files) |
-| `validate-env.js` | Environment validation (required API keys) |
-| `validate-strategy-env.js` | Strategy model configuration validation |
+| `load-env.js` | Environment loading: GCP credential reconstruction + .env.local |
+| `validate-env.js` | Environment validation (required API keys, strategy model config) |
 | `env-registry.js` | Environment variable registry with defaults and types |
 | `holiday-override.json` | Manual holiday override configuration |
 | `agent-policy.json` | Agent system policy |
@@ -23,26 +22,19 @@ Server configuration: environment loading, validation, and runtime settings.
 
 ### Environment Loading
 ```javascript
-import './config/load-env.js'; // First import in gateway-server.js
+import { loadEnvironment } from './server/config/load-env.js';
 
-// Loads in order:
-// 1. .env.shared (common settings)
-// 2. .env.{mode} (mode-specific settings)
-// 3. .env (local overrides)
+loadEnvironment();
+// 1. Reconstructs GCP credentials from Replit Secrets
+// 2. In deployment: uses Replit Secrets only (skips file loading)
+// 3. In dev: loads .env.local as baseline
 ```
 
 ### Environment Validation
 ```javascript
-import { validateEnv } from './config/validate-env.js';
+import { validateOrExit } from './server/config/validate-env.js';
 
-validateEnv(); // Throws if required vars missing
-```
-
-### Strategy Validation
-```javascript
-import { validateStrategyEnv } from './config/validate-strategy-env.js';
-
-validateStrategyEnv(); // Validates AI model configuration
+validateOrExit(); // Validates env + strategy models, exits on fatal errors
 ```
 
 ## Required Environment Variables
@@ -60,7 +52,7 @@ validateStrategyEnv(); // Validates AI model configuration
 ### Strategy Models
 ```bash
 STRATEGY_STRATEGIST=claude-opus-4-6
-STRATEGY_BRIEFER=gemini-3-pro-preview
+STRATEGY_BRIEFER=gemini-3.1-pro-preview
 STRATEGY_CONSOLIDATOR=gpt-5.2
 STRATEGY_EVENT_VALIDATOR=claude-opus-4-6
 ```
@@ -99,9 +91,8 @@ node server/scripts/holiday-override.js test
 
 ```javascript
 // From gateway-server.js (project root)
-import './server/config/load-env.js';  // MUST be first import
-import { validateEnv } from './server/config/validate-env.js';
-import { validateStrategyEnv } from './server/config/validate-strategy-env.js';
+import { loadEnvironment } from './server/config/load-env.js';
+import { validateOrExit } from './server/config/validate-env.js';
 
 // From server/lib/*/
 import holidayOverrides from '../../config/holiday-override.json' assert { type: 'json' };

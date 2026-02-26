@@ -276,7 +276,7 @@ This codebase has **95+ README files** — every folder documents its own purpos
 | [CLAUDE.md](CLAUDE.md) | AI assistant rules and development process |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture + folder index |
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical bugs and their fixes |
-| [MODEL.md](MODEL.md) | AI model capabilities and parameters |
+| [docs/preflight/ai-models.md](docs/preflight/ai-models.md) | AI model reference and parameter constraints |
 | [LEXICON.md](LEXICON.md) | Terminology and codebase reference |
 | [docs/architecture/](docs/architecture/README.md) | 13 focused architecture documents |
 | [docs/preflight/](docs/preflight/README.md) | Pre-flight cards (read before edits) |

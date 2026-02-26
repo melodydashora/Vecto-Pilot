@@ -404,7 +404,7 @@ DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
 async function analyzeTrafficWithAI({ tomtomData, rawTraffic, city, state, formattedAddress, driverLat, driverLon }) {
   // 2026-02-11: FIX - Route through callModel adapter (was direct GoogleGenAI SDK call)
   // This ensures thinkingLevel HIGH, safety settings, and JSON cleanup are applied
-  // Model is resolved from BRIEFING_TRAFFIC registry role (gemini-3-pro-preview)
+  // Model is resolved from BRIEFING_TRAFFIC registry role (gemini-3.1-pro-preview)
 
   const startTime = Date.now();
   briefingLog.ai(1, 'Gemini Pro', `analyzing traffic for ${city}, ${state}`);

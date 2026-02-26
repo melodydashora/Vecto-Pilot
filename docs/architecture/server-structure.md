@@ -2,14 +2,13 @@
 
 | File | Purpose |
 |------|---------|
-| `gateway-server.js` | Main Express server entry & Unified AI bootstrap |
-| `agent-ai-config.js` | AI configuration and limits |
+| `gateway-server.js` | Main Express server entry, Autoscale detection (disables workers/SSE), conditional SSL config, & Unified AI bootstrap |
 | `strategy-generator.js` | Background strategy worker |
 | `sdk-embed.js` | SDK router factory |
 | `server/bootstrap/health.js` | Health endpoints configuration |
-| `server/bootstrap/routes.js` | Route mounting order |
-| `server/bootstrap/middleware.js` | Middleware configuration |
-| `server/bootstrap/workers.js` | Background job startup (Strategy) |
+| `server/bootstrap/routes.js` | Route mounting order (Routes, SSE, Unified Capabilities) |
+| `server/bootstrap/middleware.js` | Middleware configuration & Error Handling |
+| `server/bootstrap/workers.js` | Background job startup (Strategy worker; Event Sync removed) |
 
 ## AI Layer (`server/lib/ai/`)
 

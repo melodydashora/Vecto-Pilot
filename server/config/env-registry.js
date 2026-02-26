@@ -79,7 +79,7 @@ export const ENV_VARS = {
   },
   STRATEGY_BRIEFER: {
     required: false,
-    default: 'gemini-3-pro-preview',
+    default: 'gemini-3.1-pro-preview',
     description: 'Model for briefing (events, traffic, news)',
   },
   STRATEGY_CONSOLIDATOR: {
@@ -157,7 +157,18 @@ export const ENV_VARS = {
   },
   CLOUD_RUN_AUTOSCALE: {
     required: false,
-    description: 'Enable autoscale optimizations',
+    description: 'Enable autoscale optimizations (Cloud Run)',
+  },
+  // 2026-02-25: Added for Replit-native autoscale detection
+  REPLIT_AUTOSCALE: {
+    required: false,
+    description: 'Enable autoscale optimizations (Replit native)',
+  },
+  // 2026-02-25: Registered — was used but never in the registry
+  ENABLE_BACKGROUND_WORKER: {
+    required: false,
+    default: 'false',
+    description: 'Explicitly enable background strategy worker process',
   },
   FAST_BOOT: {
     required: false,
@@ -239,17 +250,6 @@ export function logEnvConfig() {
   }
 }
 
-/**
- * Check if running in production
- */
-export function isProduction() {
-  return process.env.NODE_ENV === 'production' ||
-         process.env.REPLIT_DEPLOYMENT === '1';
-}
-
-/**
- * Check if running in development
- */
-export function isDevelopment() {
-  return !isProduction();
-}
+// 2026-02-25: Removed isProduction() and isDevelopment() — environment-based branching
+// is an anti-pattern in autoscale deployments. Route logic by capability flags instead
+// (e.g., ENABLE_BACKGROUND_WORKER, CLOUD_RUN_AUTOSCALE, REPLIT_AUTOSCALE).

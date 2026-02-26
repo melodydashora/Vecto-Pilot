@@ -92,6 +92,35 @@ The AI Coach needs **write access** to capture learnings from real user interact
 - This architecture ensures data consistency with the user's current context and reduces unnecessary API load.
 - **Do not** re-enable or reimplement background workers for event fetching.
 
+### Rule 12: Session-Start Review Protocol (2026-02-25)
+**At the start of EVERY session, review these documents before doing any work:**
+
+| Priority | Document | Why |
+|----------|----------|-----|
+| 1 | `docs/review-queue/pending.md` | Unfinished doc updates from prior sessions |
+| 2 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
+| 3 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
+| 4 | `docs/coach-inbox.md` | Memos from the AI Coach (Gemini) for Claude Code |
+| 5 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
+
+**This is your memory layer.** These documents persist across sessions and are your primary source of truth for the current state of the project. When you learn something important during a session, update the relevant document so future sessions benefit.
+
+### Rule 13: Database Environment Awareness (2026-02-25)
+- **Dev and Prod are TWO SEPARATE database instances** with completely isolated data
+- **Dev:** Replit Internal (Helium) — used in the workspace editor
+- **Prod:** Neon Serverless PostgreSQL — used in published deployments
+- Replit **automatically swaps** `DATABASE_URL` based on environment
+- **Do NOT** create custom env-swapping logic — Replit handles this natively
+- **Do NOT** assume data from dev exists in prod or vice versa
+- See `docs/architecture/database-environments.md` for full details
+
+### Rule 14: Model-Agnostic Adapter Architecture (2026-02-25)
+- The system uses a **model-agnostic adapter pattern** (`server/lib/ai/adapters/` + `model-registry.js`)
+- Model names are **decoupled** from provider API keys — a model can be routed through any adapter (direct API, Bedrock, Vertex AI, etc.)
+- **Do NOT** hardcode model-name-to-API-key mappings (e.g., `claude- → ANTHROPIC_API_KEY`) in validation or config
+- Environment validation checks **general** API key presence; **per-model** credential validation happens at runtime through the adapter layer
+- When in doubt about model routing, consult the adapter layer — it owns that responsibility
+
 ---
 
 ## 📂 Key Files & Architecture

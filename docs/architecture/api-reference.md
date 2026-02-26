@@ -19,3 +19,10 @@
 | `/api/location/resolve` | POST | `server/api/location/location.js` | Resolve GPS coordinates to address, market, and timezone with circuit-breaker protection (Authenticated) |
 | `/api/location/snapshot` | POST | `server/api/location/location.js` | Create location snapshot, validate freshness, and generate strategy (Authenticated) |
 | `/api/location/news` | GET | `server/api/location/location.js` | Get local news briefing for the current location (Authenticated) |
+
+### Health & Diagnostics
+
+| Endpoint | Method | Handler | Purpose |
+|----------|--------|---------|---------|
+| `/api/diagnostics` | GET | `server/api/health/diagnostics.js` | System health check (DB, API Keys, Activity, Pipeline, Storage, Catalog) (Authenticated) |
+| `/api/diagnostics/db-data` | GET | `server/api/health/diagnostics.js` | View raw database records for debugging (Authenticated) |

@@ -16,3 +16,20 @@ This module centralizes all Server-Sent Events (SSE) endpoints. It handles real-
 *   **Subscriber Leak Fixes (2026-02-18):**
     *   **Heartbeat:** Sends a comment (`: heartbeat`) every 30s to detect dead sockets (e.g., mobile sleep) that fail to send TCP close packets.
     *   **Race Condition Handling:** Includes a post-subscribe cleanup check. If a connection closes while `subscribeToChannel` is awaiting, the resulting unsubscribe function is immediately invoked to prevent leaks.
+
+### Parallel Strategy Generator
+
+**File:** `server/lib/strategy/strategy-generator-parallel.js`
+
+This module orchestrates the parallel multi-model strategy generation pipeline. It coordinates role-based AI agents to produce strategic advice, local intelligence, and consolidated plans.
+
+**Key Functions:**
+*   `callClaudeCore`: Invokes the "STRATEGY_CORE" model (Claude) to generate a high-level strategic plan based on location, time, and weather conditions.
+*   `callGeminiFeeds`: Invokes the "STRATEGY_CONTEXT" model (Gemini) to fetch real-time events, news, and traffic data.
+*   `consolidateWithGPT5Thinking`: Invokes the "STRATEGY_TACTICAL" role to merge the core plan and briefing data into a final actionable strategy.
+
+**Architecture & Implementation:**
+*   **Parallel Orchestration:** Executes model calls in parallel (controlled by `MULTI_STRATEGY_ENABLED`) to reduce total latency.
+*   **Status Management (2026-01-10):** Updated to use `STRATEGY_STATUS` from `status-constants.js` (S-004 FIX) for canonical state management across the pipeline.
+*   **Robust Parsing:** Implements fallback mechanisms for parsing AI responses, capable of extracting JSON from markdown blocks or handling malformed outputs.
+*   **Debugging:** Includes `dumpLastStrategyRow` for inspecting the most recent strategy generation state.

@@ -1,8 +1,9 @@
 import { Pool } from 'pg';
 
-// SIMPLIFIED: Replit PostgreSQL automatically injects the correct DATABASE_URL 
-// for both Development (local) and Production (Deployments).
-// We do not need manual switching logic or external database provider checks.
+// Replit PostgreSQL automatically injects the correct DATABASE_URL
+// for both Development (Helium, local) and Production (Deployments).
+// 2026-02-26: Migrated from Neon to Replit Helium (PostgreSQL 16).
+// Helium runs locally — no SSL needed in dev. Production may still require SSL.
 
 if (!process.env.DATABASE_URL) {
   console.error("❌ Fatal: DATABASE_URL is missing. Ensure Replit Postgres is enabled.");
@@ -11,16 +12,21 @@ if (!process.env.DATABASE_URL) {
   }
 }
 
+// 2026-02-26: SSL conditional — Helium (dev) runs locally without SSL,
+// production databases (Neon, external) may require SSL.
+const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production';
+const sslConfig = isProduction ? { rejectUnauthorized: false } : false;
+
 // Create a standard Postgres pool using the environment provided URL
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Replit PostgreSQL requires SSL with self-signed certs support
+  ssl: sslConfig,
   max: 25, // ISSUE #22 FIX: Increased from 10 to 25 - strategy (2-3) + briefing (4-5) + blocks (2-3) = 8-11 per user, need buffer for concurrent users
-  idleTimeoutMillis: 3000, // 2026-02-17: Reduced from 10s to 3s — close idle connections BEFORE Neon's proxy terminates them (prevents 57P01 error wall on refresh)
-  connectionTimeoutMillis: 15000, // Slightly increased for safety during connection spikes
-  statement_timeout: 30000, // 30 second statement timeout to prevent long-running queries from blocking
-  keepAlive: true, // Keep TCP connections alive
-  keepAliveInitialDelayMillis: 10000, // Start keepalive after 10s
+  idleTimeoutMillis: 10000, // 2026-02-26: Relaxed from 3s to 10s — Helium runs locally, no Neon proxy termination risk
+  connectionTimeoutMillis: 15000,
+  statement_timeout: 30000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 });
 
 // Add connection acquisition monitoring to detect pool exhaustion
@@ -48,11 +54,11 @@ setInterval(() => {
 }, 30000); // Check every 30 seconds
 
 pool.on('error', (err) => {
-  // 2026-02-17: Distinguish Neon connection termination (57P01) from real errors.
-  // 57P01 happens when: user refreshes → queries cancel → connections go idle → Neon proxy terminates.
-  // The pool auto-recovers (evicts dead connection, creates new one on next query).
+  // 57P01 = admin_shutdown (connection terminated by server).
+  // In Neon: proxy terminates idle connections. In Helium: shouldn't happen.
+  // Pool auto-recovers in both cases (evicts dead connection, creates new one on next query).
   if (err?.code === '57P01') {
-    console.warn(`[pool] Neon terminated idle connection (57P01) — pool will auto-recover`);
+    console.warn(`[pool] Connection terminated by server (57P01) — pool will auto-recover`);
   } else {
     console.error('[pool] Unexpected error on idle client:', err?.message || err);
   }

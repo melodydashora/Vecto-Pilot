@@ -21,13 +21,13 @@
 | `NewsCard.tsx` | Local news updates |
 | `AirportCard.tsx` | Airport delays and status |
 | `SchoolClosuresCard.tsx` | School closure information |
-| `DailyRefreshCard.tsx` | Daily summary and data refresh mechanism |
 
 ### Concierge Components (`components/concierge/`)
 
 | Component | Purpose |
 |-----------|---------|
 | `EventsExplorer.tsx` | Venue/Event search (DB-first) with quick filters. Splits results for list & map. |
+| `ConciergeMap.tsx` | Lightweight, on-demand Google Map displaying passenger location, venues, and events with custom SVG markers. Saves bandwidth for mobile. |
 
 ### Strategy Components (`components/strategy/`)
 
@@ -42,4 +42,5 @@
 | Hook | Purpose |
 |------|---------|
 | `useMarketIntelligence.ts` | Fetches market-specific intelligence (zones, strategies, safety) from `/api/intelligence`. Auto-detects market from location and handles market archetypes (Sprawl, Dense, Party). |
+| `useBriefingQueries.ts` | Manages parallel data fetching for the Briefing tab (weather, traffic, news, airports, school closures, events). |
 | `useMemory.ts` | Manages Coach memory operations (fetch, add, delete user notes and preferences). |

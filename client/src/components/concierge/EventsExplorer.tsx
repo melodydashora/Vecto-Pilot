@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   Loader2, Calendar, Wine, Music, Laugh, UtensilsCrossed, Trophy,
-  MapPin, Clock, Navigation, Star
+  Clock, Navigation, Star
 } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
 

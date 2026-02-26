@@ -147,9 +147,12 @@ export async function getListenClient() {
 
   // Create and store the connection promise
   connectPromise = (async () => {
+    // 2026-02-26: SSL conditional — Helium (dev) runs locally without SSL
+    const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production';
     pgClient = new pg.Client({
       connectionString,
       application_name: 'triad-listener',
+      ssl: isProduction ? { rejectUnauthorized: false } : false,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000
     });

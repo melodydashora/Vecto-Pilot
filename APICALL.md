@@ -88,7 +88,7 @@
   - [server/lib/ai/providers/](/server/lib/ai/providers/)
 - **Endpoints**: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
 - **Models**:
-  - `gemini-3-pro-preview` (primary — 9 BRIEFING_* roles, COACH_CHAT, DOCS_GENERATOR)
+  - `gemini-3.1-pro-preview` (primary — 9 BRIEFING_* roles, COACH_CHAT, DOCS_GENERATOR)
   - `gemini-3-flash-preview` (fallback, low-cost tasks)
 - **Purpose**: News briefing, event discovery, traffic analysis, coach chat, docs generation
 - **UI Location**: BriefingTab (news, traffic, events sections), CoachChat, SmartBlocks

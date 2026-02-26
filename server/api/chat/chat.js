@@ -1120,7 +1120,7 @@ No restrictions. Full transparency. Maximum capability.
 
     // 2026-01-06: Use adapter pattern for AI_COACH role (P1-A fix)
     // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing branding
-    // Model config (gemini-3-pro-preview, temp=0.7, google_search) is now in model-registry.js
+    // Model config (gemini-3.1-pro-preview, temp=0.7, google_search) is now in model-registry.js
     try {
       console.log(`[chat] Calling AI_COACH role via adapter with streaming...`);
 
@@ -1223,7 +1223,7 @@ No restrictions. Full transparency. Maximum capability.
               content_type: 'text',
               market_slug: fullContext?.marketSlug || null, // For cross-driver learning
               extracted_tips: extractedTips?.tips || [],
-              model_used: 'gemini-3-pro-preview',
+              model_used: 'gemini-3.1-pro-preview',
               location_context: fullContext?.snapshot ? {
                 city: fullContext.snapshot.city,
                 state: fullContext.snapshot.state,

@@ -1,4 +1,17 @@
 
+## 2026-02-25: Legacy Environment Cleanup — Triple Env Loading & Replit Agent Over-Engineering
+
+- **Symptom:** Environment files loaded 3 times per boot (.replit shell → start-replit.js → gateway loadEnvironment()). GCP credentials reconstructed in both start.sh (inline Node.js) and load-env.js. A DEPLOY_MODE contract system referenced an `env/` directory that was never created.
+- **Root Cause:** Replit Agents during early development didn't understand Replit's native `DATABASE_URL` auto-swap or that `.replit` already sources `mono-mode.env` via shell. They built: (1) a multi-mode deployment system (`mono/split/worker`) for a Cloud Run architecture that was never adopted, (2) duplicate env loading in every entry point, (3) duplicate GCP credential reconstruction in shell and JS, (4) a standalone validation file that only ran in dev mode.
+- **Fix (5 phases):**
+  1. Deleted 3 dead files: `db-doctor.js`, `agent-ai-config.js`, `start-mono.sh` (+ dead import in gateway)
+  2. Fixed 2 bugs in `start-replit.js`: undefined `sdk` reference in signal handlers, simulation mode race condition (`process.exit(0)` killing child before event handlers fired)
+  3. Merged `validate-strategy-env.js` into `validate-env.js` (now runs in all environments, not just dev)
+  4. Simplified `load-env.js` (removed DEPLOY_MODE, validateEnvContract, env/ cascade: 237→148 lines), removed duplicate mono-mode.env load from boot script, removed duplicate GCP reconstruction from start.sh
+  5. Updated all affected documentation
+- **Net result:** ~300 lines of dead/duplicate code removed, 2 bugs fixed, zero functionality loss.
+- **Lesson:** When inheriting AI-generated code, audit the full startup chain end-to-end before trusting it. AI agents frequently over-engineer systems they don't fully understand — especially platform-specific behavior like Replit's native environment handling. "It works" doesn't mean "it's not running the same code three times."
+
 ## 2026-02-17: Docs Agent Silently Corrupting Documentation (Including CLAUDE.md)
 
 - **Symptom:** CLAUDE.md kept "truncating" across sessions. Doc files had AI commentary ("Based on the code changes...") prepended to them. `api-reference.md` lost real endpoint rows.

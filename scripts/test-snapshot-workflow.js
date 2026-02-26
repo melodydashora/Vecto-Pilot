@@ -69,7 +69,9 @@ export async function observeSnapshotWorkflow() {
 
   let client;
   try {
-    client = new pg.Client({ connectionString: connStr, application_name: 'snap-observer', ssl: { rejectUnauthorized: false } });
+    // 2026-02-26: SSL conditional — Helium (dev) runs locally without SSL
+    const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production';
+    client = new pg.Client({ connectionString: connStr, application_name: 'snap-observer', ssl: isProduction ? { rejectUnauthorized: false } : false });
     await client.connect();
   } catch (err) {
     console.error(`[snapshot-observer] DB connect failed: ${err.message}`);

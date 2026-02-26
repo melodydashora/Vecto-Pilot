@@ -13,7 +13,7 @@ import { GoogleGenAI } from "@google/genai";
  * Returns the validated level in UPPERCASE for consistency; callers
  * convert to lowercase for the SDK or keep uppercase for REST API.
  *
- * @param {string} model - The Gemini model name (e.g. "gemini-3-pro-preview")
+ * @param {string} model - The Gemini model name (e.g. "gemini-3.1-pro-preview")
  * @param {string|null} thinkingLevel - Requested thinking level
  * @returns {string|null} Validated thinking level (UPPERCASE) or null if disabled
  */

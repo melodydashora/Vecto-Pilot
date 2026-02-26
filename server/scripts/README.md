@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-17
+> **Last Verified:** 2026-02-25
 
 # Scripts (`server/scripts/`)
 
@@ -16,7 +16,6 @@ Server-side utility scripts for maintenance, operations, and seeding.
 | `seed-uber-cities.js` | Seed Uber cities from platform data |
 | `seed-countries.js` | Seed countries table with ISO 3166-1 codes |
 | `holiday-override.js` | Manage holiday override configuration |
-| `db-doctor.js` | Database health checks and repairs |
 | `seed-dfw-venues.js` | Seed DFW area venue data |
 | `run-sql-migration.js` | Execute SQL migrations |
 | `continuous-monitor.js` | Continuous system monitoring |
@@ -38,7 +37,6 @@ node server/scripts/holiday-override.js disable
 node server/scripts/holiday-override.js test
 
 # Database operations
-node server/scripts/db-doctor.js
 node server/scripts/run-sql-migration.js
 
 # Testing

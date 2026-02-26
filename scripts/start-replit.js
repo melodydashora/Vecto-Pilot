@@ -19,7 +19,9 @@ const __dirname = path.dirname(__filename);
 
 // SIMULATION MODE: Run workflow simulation and exit
 // This must be checked FIRST, before any server setup
-if (process.env.SIMULATE === '1') {
+// 2026-02-25: Fixed race condition — process.exit(0) was killing child before its event handlers fired
+const isSimulation = process.env.SIMULATE === '1';
+if (isSimulation) {
   console.log('[boot] 📊 Simulation mode detected - running workflow simulation');
   
   const simulationEnv = {
@@ -50,9 +52,12 @@ if (process.env.SIMULATE === '1') {
   process.on('SIGINT', () => child.kill('SIGINT'));
   process.on('SIGTERM', () => child.kill('SIGTERM'));
   
-  // Exit here to prevent normal boot from running
-  process.exit(0);
+  // Child process event handlers (exit/error) will call process.exit()
+  // Do NOT call process.exit(0) here — it races with the child process
 }
+
+// Guard: skip normal boot when running simulation
+if (!isSimulation) {
 
 // Helper function to load env files
 function loadEnvFile(filename) {
@@ -110,11 +115,10 @@ console.log('[boot]   Reserved VM mode - running full application');
 // REGULAR MODE: Full mono-mode bootstrap with worker process
 console.log('[boot] Local development mode - full bootstrap');
 
-// Load .env first (contains AI model configs)
+// Load .env (contains AI model configs, API keys not in Replit Secrets)
+// 2026-02-25: .env.local is sourced by .replit shell command before this script runs
+// gateway-server.js loadEnvironment() will load .env.local again for completeness
 loadEnvFile('.env');
-
-// Load mono-mode.env (overrides deployment-specific settings)
-loadEnvFile('mono-mode.env');
 
 // Ensure deterministic env and port
 process.env.PORT = process.env.PORT || '5000';
@@ -133,10 +137,8 @@ const isCloudRun = false; // Already checked above
 
 // Skip expensive checks in Cloud Run/Autoscale (need fast startup for health checks)
 if (!isCloudRun) {
-  // Validate required STRATEGY_* environment variables (fail-fast on missing config)
-  const { validateStrategyEnv } = await import('../server/config/validate-strategy-env.js');
-  validateStrategyEnv();
-  
+  // Strategy env validation now handled by validateOrExit() in gateway-server.js
+
   // Kill any existing process on port 5000 to prevent conflicts
   try {
     execSync(`lsof -ti:${PORT} | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
@@ -184,80 +186,11 @@ server.on('exit', (code) => {
 // No separate SDK process needed in mono mode
 console.log('[boot] ⏩ SDK routes embedded in gateway (no separate SDK process)');
 
-// Start triad worker (only if enabled AND not on Cloud Run)
-// Cloud Run/Autoscale environments should NOT run background workers
-const shouldStartWorker = process.env.ENABLE_BACKGROUND_WORKER === 'true' && !isCloudRun;
-
-let worker = null;
-let consecutiveFailures = 0; // Tracks CONSECUTIVE failures, resets on successful start
-const MAX_WORKER_RESTARTS = parseInt(process.env.MAX_WORKER_RESTARTS || '10', 10);
-const RESTART_BACKOFF_MS = parseInt(process.env.RESTART_BACKOFF_MS || '5000', 10);
-
-async function startWorker() {
-  // Reset consecutive failures when spawning a new worker (successful restart)
-  consecutiveFailures = 0;
-  
-  const { openSync } = await import('node:fs');
-  const workerLogFd = openSync('/tmp/worker-output.log', 'a');
-  
-  worker = spawn('node', ['strategy-generator.js'], {
-    stdio: ['ignore', workerLogFd, workerLogFd],
-    env: { ...process.env }
-  });
-
-  worker.on('error', (err) => {
-    console.error('[boot:worker:error] Failed to spawn worker:', err.message);
-    consecutiveFailures++;
-  });
-
-  worker.on('exit', async (code) => {
-    console.error(`[boot:worker:exit] Worker exited with code ${code}`);
-    
-    // Show last 20 lines of log for debugging
-    if (code !== 0 && code !== null) {
-      try {
-        const { readFileSync } = await import('node:fs');
-        const logContent = readFileSync('/tmp/worker-output.log', 'utf-8');
-        const lastLines = logContent.split('\n').slice(-20).join('\n');
-        console.error('[boot:worker:crash] Last 20 lines of worker log:');
-        console.error('─'.repeat(80));
-        console.error(lastLines);
-        console.error('─'.repeat(80));
-      } catch (err) {
-        console.error('[boot:worker:crash] Could not read worker log:', err.message);
-      }
-    }
-
-    // Auto-restart logic (tracks CONSECUTIVE failures, not total)
-    if (code !== 0 && code !== null && consecutiveFailures < MAX_WORKER_RESTARTS) {
-      consecutiveFailures++;
-      console.log(`[boot:worker:restart] Restarting worker (consecutive failures: ${consecutiveFailures}/${MAX_WORKER_RESTARTS}) in ${RESTART_BACKOFF_MS}ms...`);
-      
-      setTimeout(() => {
-        console.log('[boot:worker:restart] Spawning new worker process...');
-        startWorker();
-      }, RESTART_BACKOFF_MS);
-    } else if (consecutiveFailures >= MAX_WORKER_RESTARTS) {
-      console.error('[boot:worker:restart] ❌ Max consecutive restart attempts reached, worker will not restart');
-      console.error('[boot:worker:restart] ❌ Strategy generation is OFFLINE - manual intervention required');
-    } else {
-      console.log('[boot:worker:exit] Worker exited gracefully (code 0), reset failure counter for next restart cycle');
-    }
-  });
-
-  console.log(`[boot] ✅ Triad worker started (PID: ${worker.pid})`);
-  console.log(`[boot] 📋 Worker logs: /tmp/worker-output.log`);
-  console.log(`[boot] 🔄 Auto-restart enabled (max ${MAX_WORKER_RESTARTS} consecutive failures allowed)`);
-}
-
-if (shouldStartWorker) {
-  console.log('[boot] ⚡ Starting triad worker with auto-restart...');
-  await startWorker();
-} else if (isCloudRun) {
-  console.log('[boot] ⏩ Skipping background worker (Cloud Run/Autoscale detected)');
-} else {
-  console.log('[boot] ⏸️  Background worker disabled (ENABLE_BACKGROUND_WORKER not set)');
-}
+// 2026-02-25: Worker lifecycle delegated exclusively to gateway-server.js (Phase 6 Refactor)
+// Eliminates dual-spawn bug where both start-replit.js AND gateway-server.js
+// independently spawned strategy-generator.js processes, causing DB race conditions.
+// gateway-server.js reads ENABLE_BACKGROUND_WORKER and makes the single decision.
+console.log('[boot] Worker lifecycle delegated to gateway-server.js');
 
 // Health gate: Wait for server to be ready before declaring success
 function waitHealth(url, timeoutMs = 15000) {
@@ -300,16 +233,15 @@ waitHealth(healthUrl)
   });
 
 // Graceful shutdown
+// 2026-02-25: Only kill gateway — worker lifecycle managed by gateway's killAllChildren()
 process.on('SIGTERM', () => {
   console.log('[boot] SIGTERM received, shutting down...');
   server.kill();
-  if (typeof sdk !== 'undefined' && sdk) sdk.kill();
-  if (worker) worker.kill();
 });
 
 process.on('SIGINT', () => {
   console.log('[boot] SIGINT received, shutting down...');
   server.kill();
-  if (typeof sdk !== 'undefined' && sdk) sdk.kill();
-  if (worker) worker.kill();
 });
+
+} // end if (!isSimulation)

@@ -48,6 +48,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [scalability.md](scalability.md) | ~100 | Rate limiting, Load Balancing, Caching | Tuning performance |
 | [disaster-recovery.md](disaster-recovery.md) | ~100 | Backup & Recovery procedures | Handling outages |
 | [realtime.md](realtime.md) | ~100 | WebSocket & SSE lifecycle | Working with real-time data |
+| [database-environments.md](database-environments.md) | ~130 | **Dev vs Prod DB architecture** | **Every session start** |
 | [environment.md](environment.md) | ~100 | SSL/TLS, Env Validation | Configuring deployment |
 | [feature-management.md](feature-management.md) | ~100 | Feature flags & A/B testing | Managing releases |
 | [media-handling.md](media-handling.md) | ~100 | File upload & Image processing | Working with media |

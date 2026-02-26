@@ -53,55 +53,13 @@ function makeSvgMarker(color: string, label?: string): string {
 
 export function ConciergeMap({ lat, lng, venues, events }: ConciergeMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstanceRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markersRef = useRef<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const infoWindowRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
 
-  // Initialize Google Map
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    // If Google Maps already loaded (from MapTab or previous instance), reuse it
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((window as any).google?.maps) {
-      initializeMap();
-      return;
-    }
-
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      console.error('[ConciergeMap] VITE_GOOGLE_MAPS_API_KEY not configured');
-      setMapError(true);
-      return;
-    }
-
-    // Check if script is already loading (from another component)
-    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-    if (existingScript) {
-      // Wait for existing script to load
-      existingScript.addEventListener('load', () => initializeMap());
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=maps`;
-    script.async = true;
-    script.defer = true;
-
-    script.onload = () => initializeMap();
-    script.onerror = () => {
-      console.error('[ConciergeMap] Failed to load Google Maps');
-      setMapError(true);
-    };
-
-    document.head.appendChild(script);
-  }, []);
-
+  // 2026-02-26: Declared before useEffect to satisfy react-hooks/immutability
   function initializeMap() {
     if (!mapRef.current || !(window as any).google) return;
 
@@ -120,6 +78,47 @@ export function ConciergeMap({ lat, lng, venues, events }: ConciergeMapProps) {
     infoWindowRef.current = new (window as any).google.maps.InfoWindow();
     setMapReady(true);
   }
+
+  // Initialize Google Map
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // If Google Maps already loaded (from MapTab or previous instance), reuse it
+    if ((window as any).google?.maps) {
+      initializeMap();
+      return;
+    }
+
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error('[ConciergeMap] VITE_GOOGLE_MAPS_API_KEY not configured');
+      setMapError(true);
+      return;
+    }
+
+    // Check if script is already loading (from another component)
+    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+    if (existingScript) {
+      // Wait for existing script to load
+      const onLoad = () => initializeMap();
+      existingScript.addEventListener('load', onLoad);
+      // 2026-02-26: Cleanup listener on unmount to prevent memory leak
+      return () => existingScript.removeEventListener('load', onLoad);
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=maps`;
+    script.async = true;
+    script.defer = true;
+
+    script.onload = () => initializeMap();
+    script.onerror = () => {
+      console.error('[ConciergeMap] Failed to load Google Maps');
+      setMapError(true);
+    };
+
+    document.head.appendChild(script);
+  }, []);
 
   // Add/update markers when map is ready or data changes
   useEffect(() => {
