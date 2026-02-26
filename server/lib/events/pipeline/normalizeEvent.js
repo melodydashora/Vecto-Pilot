@@ -239,6 +239,11 @@ export function normalizeEvent(rawEvent, context = {}) {
     event_end_time = addDuration(event_start_time, duration);
   }
 
+  // 2026-02-26: Pass through place_id from Gemini (Google Places ID for venue linking).
+  // "unknown" or empty means Gemini couldn't resolve it — geocoding will still work as fallback.
+  const rawPlaceId = (rawEvent.place_id || '').trim();
+  const place_id = rawPlaceId.startsWith('ChIJ') ? rawPlaceId : null;
+
   return {
     // Title - prefer 'title', fallback to 'name'
     title: normalizeTitle(rawEvent.title || rawEvent.name),
@@ -248,6 +253,9 @@ export function normalizeEvent(rawEvent, context = {}) {
 
     // Address
     address: (rawEvent.address || rawEvent.location || '').trim(),
+
+    // 2026-02-26: Google Places ID from Gemini — primary key for venue_catalog linking
+    place_id,
 
     // Location context
     city: rawEvent.city || city || '',

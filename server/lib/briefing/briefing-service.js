@@ -303,7 +303,7 @@ SEARCH QUERY: "${category.searchTerms(searchArea, state, date)}"
 Return a JSON array of events with this format (max 5 events):
 [{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","subtype":"${category.eventTypes[0]}","impact":"high"}]
 
-Return an empty array [] if no events found.`;
+ALL 4 date/time fields (event_start_date, event_start_time, event_end_time, event_end_date) are REQUIRED. Estimate times if unknown — do NOT omit them. Return an empty array [] if no events found.`;
 
     // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
     const system = `You are an event search assistant. Search the web for local events and return structured JSON data. Only include events happening TODAY. Be accurate with venue names and times.
@@ -313,7 +313,7 @@ STRICT CATEGORIZATION RULES (MUST FOLLOW):
 - live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges. NEVER tag these as 'concert'.
 - nightlife: For club nights, karaoke, trivia, themed bar parties. NEVER tag bar events as 'community'.
 - community: ONLY for public/civic gatherings (markets, library events).
-- sports: Official league games (High School, NBA, NHL, NFL, MLB, MLS).
+- sports: Official league or tournament games at any level (professional, collegiate, international).
 
 DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
 
@@ -616,6 +616,36 @@ function safeJsonParse(jsonString) {
     return cleaned;
   }
 
+  // 2026-02-26: FIX - Strip markdown prose/citations that google_search grounding injects.
+  // Safety net for when the adapter-level suppression doesn't fully eliminate citations.
+  function stripMarkdownProse(str) {
+    let cleaned = str;
+
+    // Remove inline markdown links: [text](url) → text
+    // Catches citations like [NBC News](https://nbc.com) that corrupt JSON array bracket matching
+    cleaned = cleaned.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1');
+
+    // Remove standalone markdown lines (headers, horizontal rules) that precede JSON
+    const lines = cleaned.split('\n');
+    const jsonLines = [];
+    let foundJson = false;
+    for (const line of lines) {
+      if (!foundJson && /^#{1,6}\s|^\*{3,}$|^-{3,}$/.test(line.trim())) {
+        continue; // Skip markdown header/rule lines before JSON starts
+      }
+      // Skip pure prose lines before JSON (no JSON structural characters)
+      if (!foundJson && line.trim() && !/[{[\]}",:]/.test(line)) {
+        continue;
+      }
+      if (/[{[\]}]/.test(line)) {
+        foundJson = true;
+      }
+      jsonLines.push(line);
+    }
+
+    return jsonLines.join('\n').trim();
+  }
+
   // Helper to fix common JSON issues from LLMs
   // 2026-02-17: FIX - Three bugs that CORRUPTED valid JSON instead of fixing it:
   //   Bug 1: Single-quote regex treated English apostrophes as delimiters
@@ -692,8 +722,11 @@ function safeJsonParse(jsonString) {
     // Continue to next attempt
   }
 
-  // Attempt 3: Extract JSON array or object and try again
-  const jsonMatch = jsonString.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+  // Attempt 3: Strip markdown prose, then extract JSON array or object
+  // 2026-02-26: FIX - Apply stripMarkdownProse before regex to prevent markdown citations
+  // (e.g., [Source](url)) from being captured as the start of a JSON array.
+  const strippedInput = stripMarkdownProse(jsonString);
+  const jsonMatch = strippedInput.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
   if (jsonMatch) {
     // 2026-02-18: FIX - Hoist variable to outer scope so catch handler can access it
     // Previously `const fixedExtracted` was block-scoped inside inner try → ReferenceError in catch
@@ -714,9 +747,38 @@ function safeJsonParse(jsonString) {
     }
   }
 
+  // Attempt 5: Extract individual JSON objects via balanced brace matching
+  // 2026-02-26: Last resort when greedy regex fails due to markdown corruption.
+  // Finds each top-level {...} object independently and wraps in an array.
+  const objects = [];
+  let braceDepth = 0;
+  let objStart = -1;
+  const src = strippedInput || jsonString;
+  for (let i = 0; i < src.length; i++) {
+    if (src[i] === '{') {
+      if (braceDepth === 0) objStart = i;
+      braceDepth++;
+    } else if (src[i] === '}') {
+      braceDepth--;
+      if (braceDepth === 0 && objStart !== -1) {
+        try {
+          const obj = JSON.parse(src.slice(objStart, i + 1));
+          objects.push(obj);
+        } catch {
+          // Skip malformed object, try next
+        }
+        objStart = -1;
+      }
+    }
+  }
+  if (objects.length > 0) {
+    console.log(`[BriefingService] 🧹 Attempt 5: Extracted ${objects.length} individual JSON objects via brace matching`);
+    return objects.length === 1 ? objects[0] : objects;
+  }
+
   // 2026-02-17: Log the raw input that caused total parse failure
   console.error('[BriefingService] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
-  throw new Error(`JSON parse failed after 4 attempts - raw AI response is malformed JSON`);
+  throw new Error(`JSON parse failed after 5 attempts - raw AI response is malformed JSON`);
 }
 
 // 2026-01-10: Updated to use canonical field names (event_start_date, event_start_time)
@@ -802,12 +864,13 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
  * - high_impact: Big venues that generate surge demand (stadiums, arenas, concert halls)
  * - local_entertainment: Smaller venues, local events (bars, comedy clubs, community)
  */
+// 2026-02-26: FIX - Removed hardcoded US league names (NBA, NFL, etc.) and DFW-specific references.
+// Search terms are now market-agnostic so Gemini discovers whatever events exist in any global market.
 const EVENT_CATEGORIES = [
   {
     name: 'high_impact',
-    description: 'Major events at large venues (stadiums, arenas, concert halls)',
-    // Uses market (e.g., "Dallas") not city (e.g., "Frisco") for broader coverage
-    searchTerms: (market, state, date) => `concerts sports games festivals ${market} metro ${state} ${date} stadium arena theater NBA NFL NHL MLB MLS college major events tonight`,
+    description: 'Major events at large venues (stadiums, arenas, concert halls, convention centers)',
+    searchTerms: (market, state, date) => `concerts sports games festivals ${market} metro ${state} ${date} stadium arena theater convention center major events tonight`,
     eventTypes: ['concert', 'sports', 'festival', 'game'],
     maxEvents: 8
   },
@@ -826,40 +889,51 @@ const EVENT_CATEGORIES = [
  */
 async function fetchEventCategory({ category, city, state, market, lat, lng, date, timezone }) {
   const maxEvents = category.maxEvents || 8;
-  // Use market for search (e.g., "Dallas") but mention driver's city for local relevance
+  // Use market for broader metro search, mention driver's city for local relevance
   const searchArea = market || city;
 
-  const prompt = `Find ${category.description || category.name.replace('_', ' ')} in the ${searchArea} metro area TODAY (${date}).
+  // 2026-02-26: Simplified prompt — today only, strict required fields, place_id for venue linking.
+  // Gemini has native Google Places knowledge via google_search grounding.
+  const prompt = `Find ${category.description || category.name.replace('_', ' ')} happening TODAY (${date}) in the ${searchArea} metro area.
 
-SEARCH THE ENTIRE ${searchArea.toUpperCase()} MARKET - include events in ${city} AND nearby cities (Dallas, Arlington, Fort Worth, Plano, etc. for DFW).
+SEARCH: "${category.searchTerms(searchArea, state, date)}"
+EVENT TYPES: ${category.eventTypes.join(', ')}
 
-SEARCH FOCUS: "${category.searchTerms(searchArea, state, date)}"
+Return JSON array (max ${maxEvents} events). EVERY field below is REQUIRED — events missing any field will be rejected:
+[{
+  "title": "Event Name",
+  "venue": "Venue Name",
+  "place_id": "ChIJ...",
+  "address": "Full Street Address, City, State",
+  "category": "${category.eventTypes[0]}",
+  "event_start_date": "${date}",
+  "event_start_time": "7:00 PM",
+  "event_end_time": "10:00 PM",
+  "event_end_date": "${date}",
+  "impact": "high|medium|low"
+}]
 
-EVENT TYPES TO FIND: ${category.eventTypes.join(', ')}
-
-Return JSON array (max ${maxEvents} events, prioritize high-impact events):
-[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","subtype":"${category.eventTypes[0]}","impact":"high|medium|low"}]
-
-IMPORTANT:
-- SEARCH THE ENTIRE METRO MARKET, not just one city
-- Include major venue events (stadiums, arenas, concert halls) from the whole market
-- Include event_end_date (same as start_date for single-day events)
-- ESTIMATE event_end_time if unknown (Sports=3h, Concert=3h, Festival=4h) - DO NOT leave blank
-- Prioritize events with large expected attendance
-- Include full address for navigation
-- Return [] if no events found for today.`;
+RULES:
+- TODAY ONLY — date must be ${date}. Multi-day events active today are included.
+- place_id: The Google Places ID for the venue (starts with "ChIJ"). Use your knowledge of Google Places to provide this. If truly unknown, use "unknown".
+- category: MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community
+- ALL 4 date/time fields REQUIRED — estimate times if unknown (Sports=3h, Concert=3h, Festival=4h, Nightlife=4h)
+- Search the ENTIRE ${searchArea.toUpperCase()} metro, not just ${city}
+- Prioritize high-attendance events that generate rideshare demand
+- Return [] if no events today.`;
 
   try {
     // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
     // This ensures bars with live music are tagged as "live_music", not "concert"
+    // 2026-02-26: FIX - Removed DFW-specific venue examples. App is global.
     const system = `You are an event discovery assistant. Search for local events and return structured JSON data.
 
 STRICT CATEGORIZATION RULES (MUST FOLLOW):
-- concert: ONLY for ticketed performances at dedicated music venues, theaters, arenas, or stadiums (e.g., American Airlines Center, Toyota Stadium).
-- live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges (e.g., "Live Band at Sidecar Social", "Jazz at Snowbird"). NEVER tag these as 'concert'.
-- nightlife: For club nights, karaoke, trivia, themed bar parties (e.g., "Music Bingo at MVP's"). NEVER tag bar events as 'community'.
+- concert: ONLY for ticketed performances at dedicated music venues, theaters, arenas, or stadiums. Must be a purpose-built performance venue.
+- live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges. NEVER tag these as 'concert'.
+- nightlife: For club nights, karaoke, trivia, themed bar parties. NEVER tag bar events as 'community'.
 - community: ONLY for public/civic gatherings (markets, library events, city council).
-- sports: Official league games (High School, NBA, NHL, NFL, MLB, MLS).
+- sports: Official league or tournament games at any level (professional, collegiate, international).
 
 DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
     // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
@@ -900,18 +974,14 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
 
   // 2026-02-01: Use market from snapshot (set from driver_profiles at signup)
   // Fallback to lookup for older snapshots that don't have market set
-  // This ensures we find events at AT&T Stadium (Arlington), AAC (Dallas), etc.
+  // This ensures we find events at major venues across the entire metro market.
   const market = snapshot.market || await getMarketForLocation(city, state);
 
-  // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
+  // 2026-02-26: Gemini-only for event discovery. Cross-provider fallback to Claude/GPT
+  // returned data in incompatible formats causing more parsing failures than it solved.
   if (!process.env.GEMINI_API_KEY) {
-    // Try Claude web search as fallback if Gemini not configured
-    if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.ai(2, 'Claude', `events for ${market} market (${date}) - web search fallback`);
-      return fetchEventsWithClaudeWebSearch({ snapshot, city, state, market, date, lat, lng, timezone });
-    }
-    briefingLog.error(2, `Neither GEMINI_API_KEY nor ANTHROPIC_API_KEY set`, null, OP.AI);
-    return { items: [], reason: 'No API keys configured for event search' };
+    briefingLog.error(2, `GEMINI_API_KEY not set - cannot fetch events`, null, OP.AI);
+    return { items: [], reason: 'GEMINI_API_KEY required for event discovery' };
   }
 
   briefingLog.ai(2, 'Gemini', `events for ${market} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
@@ -964,12 +1034,9 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const elapsedMs = Date.now() - startTime;
   briefingLog.done(2, `Gemini: ${allEvents.length} unique events (${totalFound} total from 2 searches) in ${elapsedMs}ms`, OP.AI);
 
+  // 2026-02-26: No cross-provider fallback. If Gemini returns 0, return empty.
+  // The Strategist AI can flag gaps; a second LLM returning different JSON made things worse.
   if (allEvents.length === 0) {
-    // TRY CLAUDE WEB SEARCH AS FALLBACK
-    if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.warn(2, `Gemini returned 0 events - trying Claude web search`, OP.FALLBACK);
-      return fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat, lng, timezone });
-    }
     return { items: [], reason: 'No events found across all categories', provider: 'gemini' };
   }
 
@@ -1132,19 +1199,26 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         try {
           const hash = generateEventHash(event);
 
-          // 2026-02-17: FIX Issue 1 (Venue Creation Gap)
-          // Was: lookupVenueFuzzy (read-only, never created venues for new event locations)
-          // Now: geocode event address → findOrCreateVenue (creates venue if new)
-          // Resolves: events at new venues stored with venue_id = NULL
+          // 2026-02-26: Venue linking — use Gemini-provided place_id FIRST, geocode as fallback.
+          // Gemini has native Google Places knowledge; place_id enables direct venue_catalog match.
           let venueId = null;
           if (event.venue_name) {
             try {
-              // Step 1: Geocode to get Google-verified coords + place_id
-              const geocodeResult = await geocodeEventAddress(
-                event.venue_name, city, state
-              );
+              let placeId = event.place_id || null;
+              let geocodeResult = null;
 
-              // Step 2: Find existing venue or create new one
+              // If Gemini provided a valid place_id, try direct venue lookup first
+              if (placeId) {
+                briefingLog.info(`Using Gemini place_id for "${event.venue_name}": ${placeId.slice(0, 15)}...`);
+              }
+
+              // Fallback: geocode to get coords + place_id if Gemini didn't provide one
+              if (!placeId) {
+                geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
+                placeId = geocodeResult?.place_id || null;
+              }
+
+              // Find existing venue or create new one
               // Lookup order: place_id → coord_key → fuzzy name → CREATE
               const venue = await findOrCreateVenue({
                 venue: event.venue_name,
@@ -1153,12 +1227,19 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
                 longitude: geocodeResult?.lng || null,
                 city: city,
                 state: state,
-                placeId: geocodeResult?.place_id || null,
+                placeId: placeId,
                 formattedAddress: geocodeResult?.formatted_address || null
               }, 'briefing_discovery');
 
               if (venue) {
                 venueId = venue.venue_id;
+                // 2026-02-26: Flag venue as event venue when linked via place_id
+                if (venue.is_event_venue !== true) {
+                  try {
+                    await db.update(venue_catalog).set({ is_event_venue: true, updated_at: new Date() })
+                      .where(eq(venue_catalog.venue_id, venue.venue_id));
+                  } catch (flagErr) { /* non-fatal */ }
+                }
                 briefingLog.info(`Linked "${event.title}" → "${venue.venue_name}" (${venue.venue_id?.slice(0, 8)})`);
               }
             } catch (venueErr) {
@@ -1458,11 +1539,75 @@ export async function fetchWeatherConditions({ snapshot }) {
       });
     }
 
+    // 2026-02-26: Generate driver-relevant weather summary (deterministic, no LLM call)
+    // The strategist receives this string instead of the full JSON blob
+    if (current) {
+      current.driverImpact = generateWeatherDriverImpact(current, forecast);
+    }
+
     return { current, forecast, fetchedAt: new Date().toISOString() };
   } catch (error) {
     briefingLog.error(1, `Weather API error`, error, OP.API);
     return { current: null, forecast: [], error: error.message };
   }
+}
+
+/**
+ * 2026-02-26: Generate a driver-relevant weather summary string.
+ * Deterministic — based on current conditions + 6-hour forecast.
+ * The strategist receives this instead of the full weather JSON blob.
+ *
+ * @param {Object} current - Current weather data { tempF, conditions, conditionType, windSpeed, humidity }
+ * @param {Array} forecast - 6-hour forecast array
+ * @returns {string} 1-2 sentence driver-relevant summary
+ */
+function generateWeatherDriverImpact(current, forecast = []) {
+  const parts = [];
+
+  // Current conditions
+  const temp = current.tempF || current.temperature;
+  const conditions = (current.conditions || '').toLowerCase();
+  const condType = (current.conditionType || '').toLowerCase();
+
+  // Severe weather detection
+  const isSevere = condType.includes('thunder') || condType.includes('tornado') ||
+                   condType.includes('ice') || condType.includes('blizzard') ||
+                   conditions.includes('thunder') || conditions.includes('tornado');
+  const isRain = condType.includes('rain') || condType.includes('drizzle') ||
+                 conditions.includes('rain') || conditions.includes('shower');
+  const isSnow = condType.includes('snow') || condType.includes('sleet') ||
+                 conditions.includes('snow') || conditions.includes('sleet');
+  const isFog = condType.includes('fog') || conditions.includes('fog') || conditions.includes('mist');
+
+  if (isSevere) {
+    parts.push(`Severe weather (${current.conditions}) — dangerous driving, expect surge from riders avoiding transit`);
+  } else if (isSnow) {
+    parts.push(`Snow/ice conditions — high risk driving, reduced demand but strong surge pricing`);
+  } else if (isRain) {
+    parts.push(`Rain — expect surge, riders avoid walking`);
+  } else if (isFog) {
+    parts.push(`Foggy — reduced visibility, drive carefully`);
+  } else if (temp && temp > 100) {
+    parts.push(`Extreme heat ${temp}°F — normal demand`);
+  } else if (temp && temp < 32) {
+    parts.push(`Freezing ${temp}°F — surge likely, riders avoid cold waits`);
+  } else {
+    parts.push(`${current.conditions || 'Clear'}, ${temp ? temp + '°F' : ''} — good driving conditions`);
+  }
+
+  // Check forecast for incoming weather changes (rain/storms in next 3 hours)
+  const upcomingRain = forecast.slice(0, 3).find(h =>
+    (h.precipitationProbability && h.precipitationProbability > 50) ||
+    (h.conditionType || '').toLowerCase().includes('rain') ||
+    (h.conditions || '').toLowerCase().includes('rain')
+  );
+
+  if (upcomingRain && !isRain && !isSevere) {
+    const idx = forecast.indexOf(upcomingRain);
+    parts.push(`Rain expected in ~${idx + 1} hour${idx > 0 ? 's' : ''} — surge incoming`);
+  }
+
+  return parts.join('. ') + '.';
 }
 
 export async function fetchSchoolClosures({ snapshot }) {

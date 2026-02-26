@@ -73,7 +73,7 @@ const CONCIERGE_FILTERS = {
     label: 'Sports',
     dbEventCategories: ['sports'],
     dbVenueTypes: ['stadium', 'bar'],
-    searchTerms: (date) => `sports bars games tonight NBA NFL NHL MLB MLS college ${date}`,
+    searchTerms: (date) => `sports bars games tonight stadium arena match ${date}`,
     system: 'Find sports bars showing games and sports events happening tonight.',
   },
 };
@@ -214,6 +214,35 @@ export async function getDriverPreview(userId) {
 }
 
 // ============================================================================
+// VENUE TYPE DERIVATION
+// ============================================================================
+
+/**
+ * 2026-02-26: Derive a human-readable venue type from venue_types array + category.
+ * Avoids blindly labeling everything with is_bar=true as "bar".
+ * Priority: venue_types array (most specific) → category → fallback
+ */
+function deriveVenueType(venue) {
+  const types = venue.venue_types || [];
+
+  // Check for specific types in priority order
+  if (types.includes('restaurant')) return 'restaurant';
+  if (types.includes('comedy_club')) return 'comedy';
+  if (types.includes('stadium') || types.includes('arena')) return 'stadium';
+  if (types.includes('event_host') || types.includes('concert_hall')) return 'event venue';
+  if (types.includes('nightclub')) return 'nightclub';
+  if (types.includes('wine_bar')) return 'wine bar';
+  if (types.includes('cocktail_bar')) return 'cocktail bar';
+  if (types.includes('bar')) return 'bar';
+
+  // Fall back to category, then is_bar flag
+  if (venue.category) return venue.category;
+  if (venue.is_bar) return 'bar';
+
+  return 'venue';
+}
+
+// ============================================================================
 // DB-FIRST SEARCH — query existing data before calling Gemini
 // ============================================================================
 
@@ -276,14 +305,29 @@ async function queryNearbyVenues({ lat, lng, filter }) {
       .filter(v => v.distance_miles <= RADIUS_MILES)
       .sort((a, b) => a.distance_miles - b.distance_miles);
 
-    // Format for API response — prioritize upscale venues (expense_rank >= 2)
+    // 2026-02-26: FIX - Respect user's filter selection when returning venues.
+    // Previously `|| v.is_bar` unconditionally included all bars regardless of filter,
+    // making every category (Late Night Food, Comedy, etc.) show mostly bars.
+    // Now: for 'bars'/'all' filters, include bars + upscale venues.
+    // For all other filters, trust the DB query's venue_types filter — don't override it.
+    const isBarFilter = filter === 'bars' || filter === 'all';
     return nearby
-      .filter(v => (v.expense_rank && v.expense_rank >= 2) || v.is_bar)
+      .filter(v => {
+        if (isBarFilter) {
+          // Bars/All: show upscale venues + bars (original behavior)
+          return (v.expense_rank && v.expense_rank >= 2) || v.is_bar;
+        }
+        // Other filters: DB already filtered by venue_types — just ensure quality
+        // Accept all results (the DB query already applied the right filter)
+        return true;
+      })
       .slice(0, 15)
       .map(v => ({
         title: v.venue_name,
         address: v.address || v.address_fallback || '',
-        type: v.is_bar ? 'bar' : (v.category || 'venue'),
+        // 2026-02-26: FIX - Use actual venue category instead of blindly labeling as 'bar'.
+        // Derive type from venue_types array first, then fall back to category.
+        type: deriveVenueType(v),
         expense_rank: v.expense_rank || null,
         venue_types: v.venue_types || [],
         distance_hint: `${v.distance_miles.toFixed(1)} mi`,
@@ -409,6 +453,10 @@ function safeJsonParse(jsonString) {
   // Remove trailing commas
   cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
 
+  // 2026-02-26: Strip inline markdown citations before parsing/regex extraction.
+  // Gemini's google_search grounding injects [Source](url) which corrupts []-based regex matching.
+  cleaned = cleaned.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1');
+
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -418,9 +466,25 @@ function safeJsonParse(jsonString) {
       try {
         return JSON.parse(arrayMatch[0].replace(/,\s*([}\]])/g, '$1'));
       } catch {
-        return [];
+        // Fall through to balanced-brace extraction
       }
     }
+
+    // 2026-02-26: Balanced-brace extraction — last resort when greedy regex fails
+    let depth = 0, start = -1;
+    const objs = [];
+    for (let i = 0; i < cleaned.length; i++) {
+      if (cleaned[i] === '{') { if (depth === 0) start = i; depth++; }
+      else if (cleaned[i] === '}') {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          try { objs.push(JSON.parse(cleaned.slice(start, i + 1))); } catch { /* skip */ }
+          start = -1;
+        }
+      }
+    }
+    if (objs.length > 0) return objs;
+
     return [];
   }
 }

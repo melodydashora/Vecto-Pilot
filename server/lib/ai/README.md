@@ -1,10 +1,10 @@
-> **Gemini Analysis (2026-02-17):**
+> **Gemini Analysis (2026-02-26):**
 > **Core Function:** This directory manages all AI interactions, enforcing the "Adapter Pattern" to decouple application logic from specific providers (OpenAI, Anthropic, Google, Vertex AI).
 > **Key Architecture:** It houses the **TRIAD Pipeline** (Strategist -> Planner -> Validator), which orchestrates multi-model strategy generation.
 > **Critical Rule:** Direct LLM API calls are forbidden here; all calls must route through `adapters/index.js` using semantic roles (e.g., `STRATEGY_CORE`).
-> **Recent Updates:** Enforced strict `thinkingLevel` validation for Gemini 3 models (Pro vs. Flash), added SDK key conflict resolution, enabled multimodal image support (Vision), integrated **Vertex AI**, and refined **Hedged Router** logic to ensure true cross-provider redundancy (fixing previous same-provider fallback limitations).
+> **Recent Updates:** Suppressed source citations globally for Google Search grounding to prevent JSON corruption, enforced strict `thinkingLevel` validation for Gemini 3 models (Pro vs. Flash), added SDK key conflict resolution, enabled multimodal image support (Vision), integrated **Vertex AI**, and refined **Hedged Router** logic to ensure true cross-provider redundancy (fixing previous same-provider fallback limitations).
 
-> **Last Verified:** 2026-02-17
+> **Last Verified:** 2026-02-26
 
 # AI Module (`server/lib/ai/`)
 
@@ -17,7 +17,7 @@ Centralized AI model management: adapters for different providers (Anthropic, Op
 ai/
 ├── adapters/           # Model API adapters (call these, not providers directly)
 │   ├── anthropic-adapter.js # Anthropic adapter (Claude, Web Search)
-│   ├── gemini-adapter.js    # Google GenAI adapter (Gemini 3, Vision, Thinking)
+│   ├── gemini-adapter.js    # Google GenAI adapter (Gemini 3, Vision, Thinking, Search Citation Suppression)
 │   ├── openai-adapter.js    # OpenAI adapter (GPT-4o, O-series, Web Search)
 │   ├── vertex-adapter.js    # Vertex AI adapter (Thinking, Search)
 │   └── index.js             # Main dispatcher (Hedged Router): callModel(role, {system, user, messages, images})

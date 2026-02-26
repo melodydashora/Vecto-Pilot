@@ -68,18 +68,19 @@ The `db-client.js` module manages the persistent `LISTEN` connection for Real-ti
   - **Resubscription**: Automatically calls `resubscribeChannels()` to re-issue `LISTEN` commands after a reconnect, preventing orphaned SSE subscribers.
 - **Keepalive**: Sends `SELECT 1` every 4 minutes to prevent connection timeouts.
 
-## Connection Manager & Pooling (2026-02-17)
+## Connection Manager & Pooling (2026-02-26)
 
-The `connection-manager.js` module handles the standard query pool configuration, optimized for Replit/Neon.
+The `connection-manager.js` module handles the standard query pool configuration, optimized for **Replit Helium (PostgreSQL 16)**.
 
 - **Pool Configuration**:
   - **Max Connections**: Increased to **25** (Issue #22). Accounts for high concurrency (Strategy + Briefing + Blocks = ~8-11 connections per user).
-  - **Idle Timeout**: Reduced to **3000ms** (3s). Aggressively closes idle connections before Neon's proxy terminates them to prevent `57P01` errors.
+  - **Idle Timeout**: Relaxed to **10000ms** (10s). Migrated from Neon to Helium, removing the risk of Neon's aggressive proxy termination.
   - **Connection Timeout**: **15s**. Slightly increased to handle connection spikes safely.
   - **Statement Timeout**: **30s** global timeout to prevent long-running queries from blocking.
-  - **TCP Keepalive**: Enabled (10s delay) to maintain stable connections through the proxy.
+  - **TCP Keepalive**: Enabled (10s delay) to maintain stable connections.
+  - **SSL Configuration**: Dynamically disabled in development (Helium runs locally) and enabled for production deployments.
 - **Monitoring & Health**:
   - **Capacity Warning**: Monitors pool usage every 30s. Logs a warning if usage exceeds **80%** (20 connections).
   - **Health Check**: `getAgentState()` statically reports healthy (`degraded: false`) as Replit manages the underlying Postgres availability.
 - **Error Handling**:
-  - **Neon 57P01**: "Admin Shutdown" errors on idle connections are treated as warnings (not fatal errors). The pool auto-recovers by evicting the dead client.
+  - **57P01 (Admin Shutdown)**: Previously common with Neon's proxy, now rare in Helium. Still treated as a warning (not fatal) and the pool auto-recovers by evicting the dead client.

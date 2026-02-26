@@ -65,6 +65,10 @@ Each role in `MODEL_ROLES` defines:
 *   Requires `anthropic-version: 2023-06-01` header
 
 ### Google (Gemini 3.x)
+*   **SDK:** Uses the new `@google/genai` SDK. *Note: The adapter temporarily hides `GOOGLE_API_KEY` during initialization to prevent conflicts with `GEMINI_API_KEY`.*
+*   **Streaming:** Supported via `callGeminiStream()`.
 *   Use `thinkingConfig: { thinkingLevel }` (NOT `thinking_budget`)
 *   Pro models: `LOW` or `HIGH` only. Flash: `LOW`/`MEDIUM`/`HIGH`
 *   Thinking tokens count against output limit — budget `maxTokens` accordingly
+*   **Search Grounding:** When `google_search` is enabled, source citations (e.g., `[Source](url)`) are globally suppressed via system directives to prevent JSON corruption and UI clutter.
+*   **Multimodal:** Supports image inputs via the `images` array (`[{mimeType, data}]`).

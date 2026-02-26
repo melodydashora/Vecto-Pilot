@@ -21,7 +21,7 @@ import { eventsLog, OP } from '../../../logger/workflow.js';
  * Increment when validation rules change.
  * Rows with version >= this do not need read-time revalidation.
  */
-export const VALIDATION_SCHEMA_VERSION = 3; // 2026-01-10: Added event_end_time validation (Rules 8-9)
+export const VALIDATION_SCHEMA_VERSION = 4; // 2026-02-26: Added category required (Rule 12) + today-only date (Rule 13)
 
 /**
  * Patterns that indicate incomplete/invalid data
@@ -122,6 +122,22 @@ export function validateEvent(event) {
   // Rule 11: Date must be valid format (YYYY-MM-DD)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(event.event_start_date)) {
     return { valid: false, reason: 'invalid_date_format', field: 'event_start_date' };
+  }
+
+  // Rule 12: Category is REQUIRED and must be from allowed list
+  // 2026-02-26: Events without category are not useful for strategy or filtering
+  const ALLOWED_CATEGORIES = ['concert', 'sports', 'comedy', 'theater', 'festival', 'nightlife', 'convention', 'community', 'other'];
+  if (!event.category || !ALLOWED_CATEGORIES.includes(event.category)) {
+    return { valid: false, reason: 'missing_or_invalid_category', field: 'category' };
+  }
+
+  // Rule 13: Date must be today or yesterday (for late-night events past midnight)
+  // 2026-02-26: We only ask Gemini for today's events. Future-dated events are noise.
+  // Allow yesterday to handle events discovered before midnight that end after midnight.
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  if (event.event_start_date !== today && event.event_start_date !== yesterday) {
+    return { valid: false, reason: 'not_today', field: 'event_start_date' };
   }
 
   // All rules passed

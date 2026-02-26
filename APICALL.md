@@ -22,14 +22,17 @@
 - **UI Location**: Used internally for time-based calculations, not directly displayed
 
 #### Google Places API (New)
-- **Files**: 
+- **Files**:
   - [server/lib/venues/venue-enrichment.js](/server/lib/venues/venue-enrichment.js)
   - [server/lib/venues/places-hours.js](/server/lib/venues/places-hours.js)
-- **Endpoints**: 
+  - [server/lib/venue/venue-cache.js](/server/lib/venue/venue-cache.js) (enrichment on discovery)
+- **Endpoints**:
   - `https://places.googleapis.com/v1/places:searchNearby`
-  - `https://places.googleapis.com/v1/places/{placeId}`
-- **Purpose**: Get place details, business hours, and venue information
+  - `https://places.googleapis.com/v1/places/{placeId}` (detail lookup + venue enrichment)
+- **Purpose**: Get place details, business hours, and venue information. Also used for non-blocking venue enrichment on discovery (phone, rating, hours, business status, types).
 - **UI Location**: SmartBlocks venue cards (hours, status), BarsTable, MapTab venue details
+- **Field Mask (enrichment)**: `displayName,nationalPhoneNumber,regularOpeningHours,rating,priceLevel,businessStatus,types,primaryType`
+- **Pricing Note**: Single-place GET by placeId uses basic detail tier pricing ($5/1000 after free tier), cheaper than searchNearby ($32/1000)
 
 #### Google Routes API
 - **Files**: [server/lib/routes/routes-api.js](/server/lib/routes/routes-api.js)
@@ -68,9 +71,9 @@
   - [server/eidolon/core/llm.ts](/server/eidolon/core/llm.ts)
 - **Endpoints**: `https://api.anthropic.com/v1/messages`
 - **Models**:
-  - `claude-opus-4-6` (primary — STRATEGY_CORE, BRIEFING_EVENTS_VALIDATOR)
-- **Purpose**: Strategic analysis, event validation, code assistance
-- **UI Location**: StrategyPage strategy display, event validation pipeline
+  - `claude-opus-4-6` (primary — STRATEGY_CORE, STRATEGY_TACTICAL, STRATEGY_DAILY)
+- **Purpose**: Strategic analysis and planning
+- **UI Location**: StrategyPage strategy display
 
 #### OpenAI (GPT-5.2)
 - **Files**:

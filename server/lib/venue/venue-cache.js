@@ -449,6 +449,8 @@ export async function findOrCreateVenue(eventData, source) {
   if (placeId && placeId.startsWith('ChIJ')) {
     const byPlaceId = await lookupVenue({ placeId });
     if (byPlaceId) {
+      // 2026-02-26: Backfill missing data on existing venues (non-blocking)
+      maybeBackfillVenue(byPlaceId, placeId);
       return byPlaceId;
     }
   }
@@ -469,6 +471,8 @@ export async function findOrCreateVenue(eventData, source) {
           .where(eq(venue_catalog.venue_id, byCoords.venue_id))
           .catch(() => {}); // Non-blocking update
       }
+      // 2026-02-26: Backfill missing data on existing venues (non-blocking)
+      maybeBackfillVenue(byCoords, placeId || byCoords.place_id);
       return byCoords;
     }
   }
@@ -494,6 +498,8 @@ export async function findOrCreateVenue(eventData, source) {
         .where(eq(venue_catalog.venue_id, existing.venue_id))
         .catch(() => {}); // Non-blocking update
     }
+    // 2026-02-26: Backfill missing data on existing venues (non-blocking)
+    maybeBackfillVenue(existing, placeId || existing.place_id);
     return existing;
   }
 
@@ -541,6 +547,14 @@ export async function findOrCreateVenue(eventData, source) {
     timezone: venueTimezone,
     marketSlug: venueMarketSlug
   });
+
+  // 2026-02-26: Non-blocking enrichment — fetch phone, hours, rating from Google Places API
+  // Fire-and-forget: event processing continues immediately
+  if (created && placeId) {
+    enrichVenueFromPlaceId(created.venue_id, placeId).catch(err => {
+      console.warn(`[venue-cache] Non-blocking enrichment failed for ${venueName}: ${err.message}`);
+    });
+  }
 
   return created;
 }
@@ -601,4 +615,114 @@ export async function getVenuesByType(options) {
     .from(venue_catalog)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .limit(limit);
+}
+
+// ─────────────────────────────────────────────────
+// 2026-02-26: Venue Enrichment via Google Places API
+// ─────────────────────────────────────────────────
+
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+
+/**
+ * 2026-02-26: Check if an existing venue needs enrichment and trigger it non-blockingly.
+ * Enrichment is needed if the venue is missing phone, hours, or rating AND has a place_id.
+ *
+ * @param {Object} venue - Existing venue record from DB
+ * @param {string|null} placeId - Google Place ID (ChIJ...)
+ */
+function maybeBackfillVenue(venue, placeId) {
+  if (!placeId || !placeId.startsWith('ChIJ')) return;
+  if (!venue?.venue_id) return;
+
+  // Already enriched — has phone AND google_rating (both require Places API)
+  if (venue.phone_number && venue.google_rating) return;
+
+  // Trigger non-blocking enrichment
+  enrichVenueFromPlaceId(venue.venue_id, placeId).catch(err => {
+    console.warn(`[venue-cache] Backfill failed for venue ${venue.venue_id}: ${err.message}`);
+  });
+}
+
+/**
+ * 2026-02-26: Enrich a venue with data from Google Places API using place_id.
+ * Fetches: phone, rating, business hours, business status, venue types.
+ * Updates the venue_catalog row directly.
+ *
+ * Uses Google Places (New) API: GET /v1/places/{placeId}
+ * This is cheaper than searchNearby — single place lookup by known ID.
+ *
+ * @param {string} venueId - venue_catalog.venue_id to update
+ * @param {string} placeId - Google Place ID (ChIJ...)
+ */
+async function enrichVenueFromPlaceId(venueId, placeId) {
+  if (!GOOGLE_MAPS_API_KEY || !placeId) return;
+
+  const fieldMask = [
+    'displayName',
+    'nationalPhoneNumber',
+    'regularOpeningHours',
+    'rating',
+    'priceLevel',
+    'businessStatus',
+    'types',
+    'primaryType'
+  ].join(',');
+
+  const url = `https://places.googleapis.com/v1/places/${placeId}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+      'X-Goog-FieldMask': fieldMask
+    }
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'unknown');
+    throw new Error(`Places API ${response.status}: ${errText.slice(0, 200)}`);
+  }
+
+  const place = await response.json();
+
+  // Build update payload — only set fields that have data
+  const updates = { updated_at: new Date() };
+
+  if (place.nationalPhoneNumber) {
+    updates.phone_number = place.nationalPhoneNumber;
+  }
+
+  if (place.rating) {
+    updates.google_rating = String(place.rating);
+  }
+
+  if (place.regularOpeningHours?.weekdayDescriptions) {
+    updates.business_hours = place.regularOpeningHours.weekdayDescriptions.join('; ');
+  }
+
+  if (place.regularOpeningHours?.periods) {
+    // Store structured hours for programmatic isOpen() checks
+    updates.hours_full_week = place.regularOpeningHours.periods;
+  }
+
+  if (place.businessStatus) {
+    updates.last_known_status = place.businessStatus === 'OPERATIONAL' ? 'open' : 'closed';
+  }
+
+  if (place.types && Array.isArray(place.types)) {
+    updates.venue_types = place.types;
+  }
+
+  // Mark as verified since we confirmed via Places API
+  updates.record_status = 'verified';
+
+  // Only update if we actually got useful data
+  const hasUsefulData = updates.phone_number || updates.google_rating || updates.business_hours;
+  if (!hasUsefulData) return;
+
+  await db.update(venue_catalog)
+    .set(updates)
+    .where(eq(venue_catalog.venue_id, venueId));
+
+  console.log(`[venue-cache] Enriched venue ${venueId} from Places API: phone=${!!updates.phone_number}, rating=${updates.google_rating || 'n/a'}, hours=${!!updates.business_hours}`);
 }

@@ -2,7 +2,7 @@
 
 | File | Purpose |
 |------|---------|
-| `gateway-server.js` | Main Express server entry, Autoscale detection (disables workers/SSE), conditional SSL config, & Unified AI bootstrap |
+| `gateway-server.js` | Main Express server entry, Autoscale detection (`CLOUD_RUN_AUTOSCALE`/`REPLIT_AUTOSCALE` disables workers, SSE, & snapshot observer), conditional SSL config, & Unified AI bootstrap |
 | `strategy-generator.js` | Background strategy worker |
 | `sdk-embed.js` | SDK router factory |
 | `server/bootstrap/health.js` | Health endpoints configuration |
@@ -20,7 +20,7 @@
 | `adapters/gemini-adapter.js` | Gemini integration |
 | `providers/minstrategy.js` | Strategic overview (Claude Opus 4.6) |
 | `providers/briefing.js` | Events, traffic, news (Gemini 3.0 Pro) |
-| `providers/consolidator.js` | Final strategy (GPT-5.2) |
+| `providers/consolidator.js` | Tactical + daily strategy (STRATEGY_TACTICAL / STRATEGY_DAILY via callModel) |
 | `models-dictionary.js` | Model configuration and roles |
 | `unified-ai-capabilities.js` | Unified AI registry & monitoring |
 | `coach-dal.js` | AI Coach data access layer |

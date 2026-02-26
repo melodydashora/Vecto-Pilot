@@ -110,7 +110,10 @@ export function toApiVenue(dbVenue) {
     placeId: dbVenue.place_id,
     // 2026-01-10: D-030 - Added for "Closed but worth it" UI feature
     closedGoAnyway: dbVenue.closed_go_anyway ?? dbVenue.closedGoAnyway ?? false,
-    closedReason: dbVenue.closed_reason ?? dbVenue.closedReason ?? null
+    closedReason: dbVenue.closed_reason ?? dbVenue.closedReason ?? null,
+    // 2026-02-26: Haiku-verified venue with no hours data from Google
+    hoursUnknown: dbVenue.hours_unknown ?? false,
+    venueQualityTier: dbVenue.venue_quality_tier ?? null
   };
 }
 

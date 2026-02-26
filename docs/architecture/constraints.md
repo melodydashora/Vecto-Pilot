@@ -30,6 +30,8 @@ The documentation should be updated to include these additional environment vari
 ### Claude Opus 4.6 (Agent Identity)
 
 **Configuration:**
+- **Identity:** `agent`
+- **Announce:** `🧠 Agent (Claude Opus 4.6 Enhanced) - Extended thinking with all tools enabled.`
 - **Model:** `claude-opus-4-6`
 - **Context Window:** 200,000 tokens
 - **Max Output:** 16,000 tokens
@@ -61,7 +63,11 @@ The documentation should be updated to include these additional environment vari
 - **Budgets (ms):** Total: 360,000 | Claude: 45,000 | GPT-5: 120,000 | Gemini: 60,000
 
 **Flags:**
-- Autonomous mode, self-healing, circuit breaker, unified routing, unrestricted shell, full access, no fallbacks.
+- Atlas enabled, thinking enabled, all tools enabled, autonomous mode, self-healing, circuit breaker, unified routing, unrestricted shell, full access, no fallbacks.
+
+**Startup & UI:**
+- **Required Env Vars:** `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`
+- **UI:** Show Research Banner (`true`), Show Thinking Indicator (`true`)
 
 ### Triad Configuration
 

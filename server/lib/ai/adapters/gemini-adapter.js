@@ -113,6 +113,18 @@ export async function callGemini({
       config.tools = [{ googleSearch: {} }];
     }
 
+    // 2026-02-26: FIX - Suppress source citations globally for google_search grounding.
+    // Gemini injects markdown citations [Source](url) into responses when using google_search,
+    // which corrupts JSON output and clutters prose responses. The UI does not display citations.
+    if (useSearch) {
+      const noCitationDirective = '\n\nIMPORTANT: Do NOT include source citations, URLs, reference links, or markdown link syntax like [text](url) in your response. Do NOT include any preamble, summary, or commentary — return ONLY the requested data format. No markdown formatting.';
+      if (system) {
+        system = system + noCitationDirective;
+      } else {
+        user = user + noCitationDirective;
+      }
+    }
+
     // Build contents with system instruction + optional images
     // 2026-02-16: Support multimodal vision via inlineData parts (Siri Vision shortcut)
     const parts = [];
@@ -155,43 +167,51 @@ export async function callGemini({
         console.log(`[model/gemini] 🧹 Removed wrapping markdown code block (${rawLength} → ${output.length} chars)`);
       }
 
+      // 2026-02-26: FIX - Removed isMarkdown check that skipped JSON extraction when
+      // Gemini prepended markdown headers (e.g., "### Findings...") before JSON.
+      // DOCS_GENERATOR already uses skipJsonExtraction=true, making isMarkdown redundant.
       if (user.toLowerCase().includes('json') && !skipJsonExtraction) {
-        // 2026-02-09: FIX - Don't extract JSON if output looks like a Markdown doc
-        // Prevents data loss for DOCS_GENERATOR requests that mention "json"
-        const isMarkdown = output.trim().startsWith('#');
-        
-        if (!isMarkdown) {
-          let jsonStart = -1;
-          let jsonEnd = -1;
-          let isArray = false;
-
-          const arrayStart = output.indexOf('[');
-          const objectStart = output.indexOf('{');
-
-          if (arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart)) {
-            jsonStart = arrayStart;
-            jsonEnd = output.lastIndexOf(']');
-            isArray = true;
-          } else if (objectStart !== -1) {
-            jsonStart = objectStart;
-            jsonEnd = output.lastIndexOf('}');
-            isArray = false;
+        // Strip leading markdown prose before JSON extraction
+        // (google_search grounding sometimes adds a prose preamble before the JSON)
+        let extractTarget = output;
+        const firstBrace = output.search(/[[\{]/);
+        if (firstBrace > 0) {
+          const preamble = output.substring(0, firstBrace);
+          // Only strip if preamble is pure prose (no JSON-like characters)
+          if (!preamble.includes('"') && !preamble.includes(':')) {
+            extractTarget = output.substring(firstBrace);
+            console.log(`[model/gemini] 🧹 Stripped ${firstBrace} chars of preamble before JSON`);
           }
+        }
 
-          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-            if (jsonStart > 0 || jsonEnd < output.length - 1) {
-              const extracted = output.slice(jsonStart, jsonEnd + 1);
-              try {
-                JSON.parse(extracted);
-                output = extracted;
-                console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
-              } catch (e) {
-                console.warn(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
-              }
+        let jsonStart = -1;
+        let jsonEnd = -1;
+        let isArray = false;
+
+        const arrayStart = extractTarget.indexOf('[');
+        const objectStart = extractTarget.indexOf('{');
+
+        if (arrayStart !== -1 && (objectStart === -1 || arrayStart < objectStart)) {
+          jsonStart = arrayStart;
+          jsonEnd = extractTarget.lastIndexOf(']');
+          isArray = true;
+        } else if (objectStart !== -1) {
+          jsonStart = objectStart;
+          jsonEnd = extractTarget.lastIndexOf('}');
+          isArray = false;
+        }
+
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          if (jsonStart > 0 || jsonEnd < extractTarget.length - 1) {
+            const extracted = extractTarget.slice(jsonStart, jsonEnd + 1);
+            try {
+              JSON.parse(extracted);
+              output = extracted;
+              console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
+            } catch (e) {
+              console.warn(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
             }
           }
-        } else {
-           console.log(`[model/gemini] ℹ️ Output looks like Markdown, skipping JSON extraction`);
         }
       }
     }
@@ -267,9 +287,14 @@ export async function callGeminiStream({
   };
 
   // Add system instruction if provided
-  if (system) {
+  // 2026-02-26: Suppress citations in streaming responses too (AI Coach uses google_search)
+  let streamSystem = system;
+  if (useSearch && streamSystem) {
+    streamSystem += '\n\nIMPORTANT: Do NOT include source citations, URLs, reference links, or markdown link syntax like [text](url) in your response. Return CLEAN content only. No markdown formatting.';
+  }
+  if (streamSystem) {
     requestBody.systemInstruction = {
-      parts: [{ text: system }]
+      parts: [{ text: streamSystem }]
     };
   }
 

@@ -47,12 +47,8 @@ const eidolonReply = async (payload: any) => {
   const plannerOutput = JSON.parse(plannerResult.output); // GPT usually returns JSON string if prompted, or we might need to parse
 
   // 3. VALIDATOR (Gemini 3 Pro)
-  // Using BRIEFING_EVENTS_VALIDATOR which maps to Claude Opus in registry, 
-  // but we want Gemini as per original code. 
-  // Let's use STRATEGY_CONTEXT (Gemini 3 Pro) or override.
-  // Ideally we stick to registry roles. 
-  // The original code used "GEMINI_MODEL" directly.
-  // We'll use 'STRATEGY_CONTEXT' as it is a Gemini 3 Pro role.
+  // Uses STRATEGY_CONTEXT (Gemini 3 Pro) for validation.
+  // 2026-02-26: BRIEFING_EVENTS_VALIDATOR removed — validation happens at store time.
   const validatorResult = await callModel('STRATEGY_CONTEXT', {
     user: validatePrompt(plannerOutput),
   });

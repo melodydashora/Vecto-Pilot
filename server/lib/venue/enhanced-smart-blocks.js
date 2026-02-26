@@ -10,8 +10,7 @@
 //   2. VENUE_SCORER role → 4-6 venue recommendations with coords
 //   3. Google Routes API → accurate distances and drive times
 //   4. Google Places API → business hours, addresses, open/closed status
-//   5. BRIEFING_EVENTS_VALIDATOR role → event verification (optional)
-//   6. Output: rankings + ranking_candidates tables populated
+//   5. Output: rankings + ranking_candidates tables populated
 //
 // CALLED BY:
 //   - blocks-fast.js POST route (via ensureSmartBlocksExist)

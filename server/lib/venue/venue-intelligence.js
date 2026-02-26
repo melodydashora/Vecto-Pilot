@@ -61,16 +61,19 @@ function calculateOpenStatus(place, timezone) {
     }
   }
 
-  // 2026-01-10: D-018 Fix - openNow is ONLY for debug comparison, NOT as truth
-  // Per CLAUDE.md: Never trust Google's openNow directly. Always parse weekdayDescriptions.
+  // 2026-01-10: D-018 Fix - openNow used for debug comparison when canonical is available
+  // 2026-02-26: FALLBACK - Use openNow when weekdayDescriptions is absent.
+  // Google Nearby Search often returns openNow + periods but NOT weekdayDescriptions.
+  // By this point, venues have passed name/upscale/rating/Haiku filters — they're real bars.
   if (hours.openNow !== undefined && is_open !== null) {
-    // Log discrepancy for debugging (don't override canonical result)
+    // Canonical is available — log discrepancy but trust canonical
     if (hours.openNow !== is_open) {
       barsLog.warn(1, `"${place.displayName?.text}" - openNow DISCREPANCY: Google=${hours.openNow}, Canonical=${is_open} (using canonical)`);
     }
   } else if (is_open === null && hours.openNow !== undefined) {
-    // No canonical data available - log warning but still don't use openNow as truth
-    barsLog.warn(1, `"${place.displayName?.text}" - Cannot calculate is_open (no weekdayDescriptions), Google openNow=${hours.openNow} (NOT USED)`);
+    // No canonical data — use openNow as fallback (better than dropping the venue entirely)
+    is_open = hours.openNow;
+    barsLog.info(`"${place.displayName?.text}" - Using openNow=${hours.openNow} as fallback (no weekdayDescriptions)`);
   }
 
   // Get today's hours - NO FALLBACK, timezone required for accurate venue status
@@ -107,6 +110,31 @@ function calculateOpenStatus(place, timezone) {
   // Debug log for hours parsing
   if (!hours_today && weekdayDescs.length > 0) {
     barsLog.info(`"${place.displayName?.text}" - Could not find ${todayName} in weekdayDescriptions`);
+  }
+
+  // 2026-02-26: Fallback — generate hours_today from periods when weekdayDescriptions is missing
+  // Google Nearby Search often has periods but not weekdayDescriptions
+  if (!hours_today && hours.periods && hours.periods.length > 0 && timezone) {
+    const dayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short' });
+    const dayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+    const todayDow = dayMap[dayFormatter.format(now)] ?? now.getDay();
+
+    const todayPeriod = hours.periods.find(p => p.open?.day === todayDow);
+    if (todayPeriod && todayPeriod.open) {
+      const fmtTime = (h, m) => {
+        const suffix = h >= 12 ? 'PM' : 'AM';
+        const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        return m ? `${h12}:${String(m).padStart(2, '0')} ${suffix}` : `${h12}:00 ${suffix}`;
+      };
+      const openStr = fmtTime(todayPeriod.open.hour, todayPeriod.open.minute || 0);
+      if (todayPeriod.close) {
+        const closeStr = fmtTime(todayPeriod.close.hour, todayPeriod.close.minute || 0);
+        hours_today = `${openStr} – ${closeStr}`;
+      } else {
+        hours_today = `${openStr} – Open 24 hours`;
+      }
+      barsLog.info(`"${place.displayName?.text}" - Generated hours_today from periods: ${hours_today}`);
+    }
   }
 
   // 2026-01-10: D-014 Phase 4 - Use canonical status data when available
@@ -358,10 +386,17 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
 
       barsLog.phase(0, `${nearbyBars.length} venues within ${radiusMiles} mile radius`);
 
-      // If we have 5+ cached venues, re-hydrate with live status and return
-      // This threshold ensures we don't serve stale data when cache is sparse
-      if (nearbyBars.length >= 5) {
-        barsLog.phase(0, `Using ${nearbyBars.length} cached venues (Cache First)`);
+      // 2026-02-26: Count venues WITH hours data — venues without hours get filtered out anyway
+      // Previously: 10 cached venues (no hours) → all filtered → 0 results served
+      // Now: only count venues that can actually calculate open/closed status
+      const venuesWithHours = nearbyBars.filter(v => v.hours_full_week || v.business_hours);
+      if (venuesWithHours.length < 5 && nearbyBars.length >= 5) {
+        barsLog.phase(0, `Only ${venuesWithHours.length}/${nearbyBars.length} cached venues have hours — falling through to API for fresh data`);
+      }
+
+      // If we have 5+ cached venues WITH HOURS, re-hydrate with live status and return
+      if (venuesWithHours.length >= 5) {
+        barsLog.phase(0, `Using ${nearbyBars.length} cached venues (Cache First, ${venuesWithHours.length} have hours)`);
 
         // Re-hydrate cached venues with live open status calculations
         const rehydrated = nearbyBars.map(v => {
@@ -408,9 +443,11 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         });
 
         // Apply same filtering as Google Places results
-        // Filter to only $$+ venues with known hours
+        // 2026-02-26: Filter to $$+ venues, 4.6+ rating, with known hours
         const filteredVenues = rehydrated.filter(v => {
           if (v.expense_rank < 2) return false;
+          // Rating filter: 4.6+ stars (skip venues without rating — they haven't been verified)
+          if (v.rating && parseFloat(v.rating) < 4.6) return false;
           if (v.isOpen === true) return true;
           if (v.isOpen === false && v.expense_rank >= 3) {
             v.closed_go_anyway = true;
@@ -526,7 +563,11 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         lat: place.location?.latitude,
         lng: place.location?.longitude,
         place_id: place.id,
-        google_types: place.types || []
+        google_types: place.types || [],
+        // 2026-02-26: Capture raw hours for persistence to venue_catalog
+        // Without this, cached venues have no hours and get filtered out
+        _regularOpeningHours: place.regularOpeningHours || null,
+        _currentOpeningHours: place.currentOpeningHours || null
       };
     });
 
@@ -534,9 +575,13 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     venues = venues.filter(v => !isExcludedVenue(v.name));
     barsLog.phase(1, `After quick filter: ${venues.length} venues`);
 
-    // Step 2: Only keep upscale venues ($$ and above)
+    // Step 2: Only keep upscale venues ($$ and above) with 4.6+ rating
     venues = venues.filter(v => v.expense_rank >= 2);
     barsLog.phase(1, `After upscale filter ($$+): ${venues.length} venues`);
+
+    // 2026-02-26: Rating quality filter — 4.6+ stars only
+    venues = venues.filter(v => !v.rating || v.rating >= 4.6);
+    barsLog.phase(1, `After rating filter (4.6+): ${venues.length} venues`);
 
     // Step 3: LLM filter for remaining ambiguous venues (if any remain)
     if (venues.length > 0) {
@@ -544,10 +589,11 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
     }
 
     // Step 4: "CLOSED GO ANYWAY" Logic
-    // 2026-01-14: Filter venues to only those with KNOWN operating hours
-    // - Open status (isOpen === true): Always keep
-    // - Unknown status (isOpen === null): DROP - no hours data = unusable (Mikes, BBQ Galaxy, etc.)
-    // - Closed status: Only keep if Expense Rank >= 3 ($$$ or $$$$) for staging
+    // 2026-01-14: Filter venues by operating status
+    // - Open (isOpen === true): Always keep
+    // - Closed + $$$ (isOpen === false, expense_rank >= 3): Keep for staging spillover
+    // - Unknown + Haiku-classified (isOpen === null, has venue_quality_tier): Keep (verified bar)
+    // - Unknown + unclassified: Drop (unreliable — could be BBQ joints, smoke shops, etc.)
     const relevantVenues = venues.filter(v => {
       // 1. Open status ONLY - must have confirmed operating hours
       if (v.isOpen === true) return true;
@@ -559,19 +605,27 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         return true;
       }
 
-      // 3. Drop venues with unknown hours (isOpen === null)
-      // These lack weekdayDescriptions from Google Places, making them unreliable
-      if (v.isOpen === null) {
-        barsLog.info(`Dropping "${v.name}" - no operating hours data available`);
+      // 3. Haiku-classified venues with unknown hours: keep (they passed 4 filters)
+      // 2026-02-26: Previously dropped ALL isOpen===null venues, but fresh API results
+      // that passed name/upscale/rating/Haiku filters are real bars worth showing
+      if (v.isOpen === null && v.venue_quality_tier) {
+        v.hours_unknown = true;
+        barsLog.info(`Keeping "${v.name}" (${v.venue_quality_tier}) - hours unknown but Haiku-verified`);
+        return true;
       }
 
-      return false; // Skip low-value closed AND unknown-hours venues
+      // 4. Drop truly unknown venues (no hours AND no Haiku classification)
+      if (v.isOpen === null) {
+        barsLog.info(`Dropping "${v.name}" - no hours data and not classified`);
+      }
+
+      return false; // Skip low-value closed AND unclassified unknown-hours venues
     });
 
-    // 2026-01-14: Strategic sort for drivers (unknown-hours venues now filtered out)
+    // 2026-01-14: Strategic sort for drivers
     // 1. Open venues with time to work (not closing soon) - sorted by expense ($$$$ first)
     // 2. Last call venues (closing soon) - still valuable for quick pickups
-    // 3. Closed High-Value Venues (Go Anyway) - staging spillover
+    // 3. Haiku-verified unknown hours + Closed High-Value Venues - staging spillover
     relevantVenues.sort((a, b) => {
       const aOpen = a.isOpen === true;
       const bOpen = b.isOpen === true;
@@ -830,6 +884,11 @@ export async function persistVenuesToDatabase(venues, context) {
             phone_number: v.phone || existing.phone_number,
             // Quality tier: once assessed as 'premium', stays 'premium' (assess once, cache forever)
             venue_quality_tier: v.venue_quality_tier || existing.venue_quality_tier,
+            // 2026-02-26: Store hours so cached venues can calculate open/closed status
+            ...(v._regularOpeningHours ? { hours_full_week: v._regularOpeningHours } : {}),
+            ...(v._regularOpeningHours?.weekdayDescriptions ? {
+              business_hours: v._regularOpeningHours.weekdayDescriptions.join('; ')
+            } : {}),
             access_count: (existing.access_count || 0) + 1,
             last_accessed_at: now,
             updated_at: now
@@ -873,6 +932,9 @@ export async function persistVenuesToDatabase(venues, context) {
             google_rating: v.rating || null,
             phone_number: v.phone || null,
             venue_quality_tier: v.venue_quality_tier || null,
+            // 2026-02-26: Store hours so cached venues can calculate open/closed status
+            hours_full_week: v._regularOpeningHours || null,
+            business_hours: v._regularOpeningHours?.weekdayDescriptions?.join('; ') || null,
             access_count: 1,
             last_accessed_at: now,
             updated_at: now
