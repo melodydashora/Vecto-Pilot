@@ -342,7 +342,9 @@ export const FALLBACK_ENABLED_ROLES = [
   'STRATEGY_DAILY',
   'VENUE_FILTER',           // 2026-01-14: Added for Anthropic credit fallback
   'STRATEGY_CORE',          // 2026-01-14: Added for Anthropic credit fallback
-  'OFFER_ANALYZER',         // 2026-02-15: Time-critical — must have fallback
+  // 2026-02-26: OFFER_ANALYZER removed — vision mode can't be hedged to non-vision fallback.
+  // OpenAI adapter doesn't pass images → GPT-5.2 responds first with empty data, discarding
+  // Gemini's actual vision analysis. Gemini-only is correct for image-based offer analysis.
 ];
 
 /**
