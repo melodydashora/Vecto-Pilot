@@ -274,16 +274,16 @@ export const MODEL_ROLES = {
   // 8. SIRI HOOKS (offer_intelligence)
   // ==========================
   // 2026-02-15: Dedicated role for real-time ride offer analysis via Siri Shortcuts.
-  // 2026-02-26: Upgraded Flash → Gemini 3.1 Pro for superior vision/OCR on screenshots.
-  // Pro's multimodal reasoning catches details Flash misses (surge multipliers, map routes).
-  // LOW thinking keeps latency manageable for time-sensitive decisions.
+  // 2026-02-26: Reverted Pro → Flash. Pro with thinking timed out Siri Shortcuts (~30s limit).
+  // Flash is purpose-built for fast vision extraction: <2s for screenshot → JSON decision.
+  // No thinking needed — this is OCR + math + rule application, not reasoning.
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
-    default: 'gemini-3.1-pro-preview',
+    default: 'gemini-3-flash-preview',
     purpose: 'Real-time ride offer analysis from Siri Shortcuts (ACCEPT/REJECT)',
     maxTokens: 1024, // Minimal — just JSON decision + short reasoning
     temperature: 0.1, // Near-deterministic for consistent decisions
-    thinkingLevel: 'LOW', // Speed over depth — this is a time-critical decision
+    // No thinkingLevel — Flash doesn't need it for OCR/extraction tasks
     features: ['vision'],
   },
 
