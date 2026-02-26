@@ -182,11 +182,49 @@ export async function callModel(role, params) {
 
   } catch (err) {
     const durationMs = Date.now() - callStart;
+
+    // 2026-02-26: Gemini 503 retry — when primary model is overloaded, try gemini-3.0-pro-preview.
+    // Same provider, different model. Briefing roles need google_search which only Gemini supports,
+    // so cross-provider fallback to GPT-5.2 doesn't work for them.
+    const is503 = err.message.includes('503') || err.message.includes('UNAVAILABLE');
+    const GEMINI_FALLBACK_MODEL = 'gemini-3.0-pro-preview';
+    if (is503 && primaryConfig.provider === 'google' && primaryConfig.model !== GEMINI_FALLBACK_MODEL) {
+      console.log(`🤖 [AI RETRY] ${primaryConfig.role} got 503 on ${primaryConfig.model} — retrying with ${GEMINI_FALLBACK_MODEL}...`);
+      try {
+        const needsSearch = roleUsesGoogleSearch(role);
+        const retryResult = await callGemini({
+          model: GEMINI_FALLBACK_MODEL,
+          system: params.system,
+          user: params.user,
+          images: params.images,
+          maxTokens: primaryConfig.maxTokens,
+          temperature: primaryConfig.temperature || 0.2,
+          useSearch: needsSearch,
+          thinkingLevel: primaryConfig.thinkingLevel,
+        });
+        if (retryResult.ok) {
+          const retryDuration = Date.now() - callStart;
+          console.log(`🤖 [AI DONE] ✅ ${primaryConfig.role} completed by google-fallback (${GEMINI_FALLBACK_MODEL}) in ${retryDuration}ms`);
+          return {
+            success: true,
+            ok: true,
+            text: retryResult.output,
+            output: retryResult.output,
+            provider: 'google-fallback',
+            latencyMs: retryDuration,
+            citations: retryResult.citations,
+          };
+        }
+      } catch (retryErr) {
+        console.error(`🤖 [AI RETRY FAIL] ❌ ${primaryConfig.role} ${GEMINI_FALLBACK_MODEL} also failed: ${retryErr.message}`);
+      }
+    }
+
     console.error(`🤖 [AI FAIL] ❌ ${primaryConfig.role} failed after ${durationMs}ms: ${err.message}`);
     // Return a structured error object instead of throwing
-    return { 
-      success: false, 
-      ok: false, 
+    return {
+      success: false,
+      ok: false,
       error: err.message,
       text: null
     };
