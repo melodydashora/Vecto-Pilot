@@ -1,20 +1,18 @@
-Looking at the code changes in `server/eidolon/config.ts` and comparing with the current documentation, I need to check for discrepancies:
+### Configuration (`server/eidolon/config.ts`)
 
-1. **Model**: Config says `gemini-3.1-pro-preview` — docs say `gemini-3.1-pro-preview` ✓
-2. **Context window**: Config says `1000000` — docs say `1M context window` and `maxTokens: 1000000` ✓
-3. **Thinking mode**: Config says `thinking_mode: "high"` — docs header mentions "1M context window and autonomous planning capabilities" but doesn't mention "High Thinking" mode, while the config identity string says "1M Context + High Thinking"
-4. **Tools listed in planning section**: Docs list `file_read, file_write, run_shell, sql_query, sql_execute, sql_tables, sql_schema` — the config now includes `sql_ddl`, `sql_dml`, `sql_schema_introspection` as distinct capabilities, plus extensive additional capabilities
-5. **Enhanced memory**: Config says `enhanced_memory_access` references "200K token context window" but the actual `context_window` is `1000000` (1M). This is an internal config inconsistency, but the docs should reflect the config's `context_window: 1000000`.
-6. **Version**: Updated to `8.0.0-unified-max`
+The `EIDOLON_CONFIG` object defines the core identity, model parameters, and unified capabilities of the Eidolon AI system. 
 
-The docs need updates to reflect the high thinking mode, the expanded tool set (especially SQL DDL/DML and additional system capabilities), and the unified capability model.
-
+- **Version:** `8.0.0-unified-max`
+- **Model:** `gemini-3.1-pro-preview`
+- **Context Window:** 1,000,000 tokens
+- **Thinking Mode:** `high`
+- **Access Level:** Complete IDE Integration with full root access, bypassing the standard assistant entirely.
 
 ### LLM Client & Planning
 
 Gemini 3 Pro wrapper with 1M context window, high thinking mode, and autonomous planning capabilities (Atlas):
 
-typescript
+```typescript
 import { LLMClient, llmPlan } from './core/llm';
 
 // Basic Chat
@@ -39,9 +37,9 @@ const text = await client.generate('Explain quantum computing');
 
 // Autonomous Planning
 // Generates execution plans using unified tools:
-// - file_read, file_write, file_create, file_delete, file_rename
-// - run_shell (unrestricted)
-// - sql_query, sql_execute
-// - sql_ddl, sql_dml, sql_schema_introspection
-// - http_fetch, websocket_access
+// - fs_read, fs_write, fs_create, fs_delete, fs_rename
+// - shell_exec, shell_unrestricted
+// - sql_query, sql_execute, sql_ddl, sql_dml, sql_schema_introspection
+// - http_fetch, websocket_access, api_integration
 // - system_diagnostics, process_management
+```

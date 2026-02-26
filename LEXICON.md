@@ -208,7 +208,6 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 | `BRIEFING_TRAFFIC` | Traffic conditions analysis | `BRIEFING_TRAFFIC_MODEL` | gemini-3-flash |
 | `BRIEFING_NEWS` | Local news research | `BRIEFING_NEWS_MODEL` | gemini-3-pro |
 | `BRIEFING_EVENTS_DISCOVERY` | Event discovery (parallel category search) | `BRIEFING_EVENTS_MODEL` | gemini-3-pro |
-| `BRIEFING_EVENTS_VALIDATOR` | Event schedule verification | `BRIEFING_VALIDATOR_MODEL` | claude-opus-4-6 |
 | `BRIEFING_FALLBACK` | General fallback for failed briefing calls | `BRIEFING_FALLBACK_MODEL` | claude-opus-4-6 |
 | **STRATEGIES TABLE** ||||
 | `STRATEGY_CORE` | Core strategic plan generation | `STRATEGY_CORE_MODEL` | claude-opus-4-6 |
@@ -246,7 +245,6 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 | `strategist` | `STRATEGY_CORE` |
 | `briefer` | `STRATEGY_CONTEXT` |
 | `consolidator` | `STRATEGY_TACTICAL` |
-| `event_validator` | `BRIEFING_EVENTS_VALIDATOR` |
 | `venue_planner` | `VENUE_SCORER` |
 | `venue_filter` | `VENUE_FILTER` |
 | `coach` | `COACH_CHAT` |

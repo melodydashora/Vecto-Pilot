@@ -1,6 +1,6 @@
 ### `callModel`
 
-*Updated: 2026-02-25*
+*Updated: 2026-02-26*
 
 The central dispatcher for all AI model interactions. It abstracts the underlying provider (OpenAI, Anthropic, Google, Vertex) based on the requested **role**. It leverages a **Hedged Router** to ensure reliability and performance, supporting fallback providers and concurrent requests.
 
@@ -32,3 +32,4 @@ export async function callModel(role, params)
 - **Provider Abstraction:** Automatically routes to the correct adapter (`openai`, `anthropic`, `google`, `vertex`) based on the role configuration. It handles provider-specific nuances, such as:
   - **Thinking Levels:** Validates and normalizes reasoning efforts (e.g., auto-correcting `MEDIUM` to `HIGH` for Gemini 3 Pro, which only supports `LOW`/`HIGH`).
   - **Multimodal Inputs:** Formats image data correctly for vision-capable models.
+  - **Search Grounding:** Suppresses automatic markdown citations when using Google Search tools to prevent JSON corruption and prose clutter.

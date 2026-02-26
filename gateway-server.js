@@ -197,11 +197,12 @@ process.on('unhandledRejection', (reason, promise) => {
           .catch(err => console.warn(`[gateway] snapshot-observer load failed: ${err.message}`));
       }
 
-      // Start change analyzer job (runs on startup, flags doc updates needed)
-      if (!isAutoscaleMode) {
-        const { startChangeAnalyzerJob } = await import('./server/jobs/change-analyzer-job.js');
-        startChangeAnalyzerJob();
-      }
+      // 2026-02-26: Docs generator PAUSED — consumes Gemini tokens on every restart
+      // without providing actionable value during active development. Re-enable when stable.
+      // if (!isAutoscaleMode) {
+      //   const { startChangeAnalyzerJob } = await import('./server/jobs/change-analyzer-job.js');
+      //   startChangeAnalyzerJob();
+      // }
 
       console.log('[gateway] ✅ All routes and middleware loaded');
     });

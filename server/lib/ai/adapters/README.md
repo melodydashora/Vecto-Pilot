@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-01-08
+> **Last Verified:** 2026-02-26
 
 # AI Adapters (`server/lib/ai/adapters/`)
 
@@ -52,12 +52,11 @@ if (result.ok) {
 | `BRIEFING_TRAFFIC` | Traffic conditions | Gemini 3 Flash |
 | `BRIEFING_NEWS` | Local news research | Gemini 3 Pro |
 | `BRIEFING_EVENTS_DISCOVERY` | Event discovery | Gemini 3 Pro |
-| `BRIEFING_EVENTS_VALIDATOR` | Event verification | Claude Opus 4.6 |
 | **STRATEGIES TABLE** |||
 | `STRATEGY_CORE` | Core strategic plan | Claude Opus 4.6 |
 | `STRATEGY_CONTEXT` | Real-time context | Gemini 3 Pro |
-| `STRATEGY_TACTICAL` | 1-hour tactical strategy | GPT-5.2 |
-| `STRATEGY_DAILY` | 8-12hr daily strategy | Gemini 3 Pro |
+| `STRATEGY_TACTICAL` | 1-hour tactical strategy | Claude Opus 4.6 |
+| `STRATEGY_DAILY` | 8-12hr daily strategy | Claude Opus 4.6 |
 | **VENUES TABLE** |||
 | `VENUE_SCORER` | Smart Blocks venue scoring | GPT-5.2 |
 | `VENUE_FILTER` | Fast venue filtering | Claude Haiku |
@@ -90,6 +89,8 @@ if (result.ok) {
 ### Gemini 3.0 Pro
 - Use nested `thinkingConfig`, NOT flat `thinking_budget`
 - Google Search enabled for roles with `features: ['google_search']`
+- **Citation suppression** (2026-02-26): When `useSearch` is true, the adapter automatically injects a "no citations" directive into the system prompt. This prevents Gemini from embedding markdown citations (`[Source](url)`) in responses, which corrupt JSON parsing. Applied to both `callGemini` and `callGeminiStream`.
+- **JSON preamble stripping**: When the response is expected to be JSON, any leading markdown prose (headers, bullet points) is stripped before JSON extraction. The old `isMarkdown` check that skipped extraction entirely has been removed — `skipJsonExtraction: true` is the correct opt-out mechanism.
 
 ### Claude Opus
 - Supports web search via `web_search_20250305` tool
@@ -154,7 +155,6 @@ Old role names are automatically mapped to new names:
 | `strategist` | `STRATEGY_CORE` |
 | `briefer` | `STRATEGY_CONTEXT` |
 | `consolidator` | `STRATEGY_TACTICAL` |
-| `event_validator` | `BRIEFING_EVENTS_VALIDATOR` |
 | `venue_planner` | `VENUE_SCORER` |
 | `venue_filter` | `VENUE_FILTER` |
 | `coach` | `COACH_CHAT` |

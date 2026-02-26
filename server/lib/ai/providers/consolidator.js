@@ -135,23 +135,17 @@ async function filterDeactivatedNews(newsData, userId) {
   }
 }
 
-// BRIEFING_FALLBACK role configuration
-const FALLBACK_MODEL = 'claude-opus-4-6';
-const FALLBACK_MAX_TOKENS = 8000;
-const FALLBACK_TEMPERATURE = 0.3;
+// 2026-02-26: Removed unused FALLBACK_MODEL/TOKENS/TEMPERATURE constants.
+// BRIEFING_FALLBACK role is configured in model-registry.js and called via callModel().
 
 /**
- * Call STRATEGY_TACTICAL role to generate immediate strategy from snapshot + briefing data
- * NO minstrategy required - STRATEGY_TACTICAL has all the context it needs
+ * 2026-02-26: Renamed from callGPT5ForImmediateStrategy (now uses Claude Opus via callModel).
+ * Generate immediate 1-hour tactical strategy from snapshot + briefing data.
+ * NO minstrategy required - STRATEGY_TACTICAL has all the context it needs.
  * @param {Object} snapshot - Full snapshot row from DB
  * @param {Object} briefing - Briefing data { traffic, events, weather }
  */
-async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    aiLog.warn(1, `OPENAI_API_KEY not configured for immediate strategy`);
-    return { strategy: '' };
-  }
+async function generateImmediateStrategy({ snapshot, briefing }) {
 
   // 2026-02-17: Use snapshot directly — it has everything resolved from GlobalHeader
   const localTime = formatLocalTime(snapshot);
@@ -163,7 +157,9 @@ async function callGPT5ForImmediateStrategy({ snapshot, briefing }) {
     // 2026-01-14: FIX - Send full formatted_address and snapshot context to LLM
     const driverAddress = snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`;
 
-    const prompt = `You are a rideshare strategist. Analyze the briefing data and tell the driver what to do RIGHT NOW.
+    // 2026-02-26: Enhanced with contextual intelligence — time-of-day awareness, cluster logic,
+    // event end-time surge, and "head home" option when nothing is nearby.
+    const prompt = `You are an expert rideshare strategist. Tell the driver what to do RIGHT NOW for the next 1-2 hours.
 
 === DRIVER CONTEXT ===
 Address: ${driverAddress}
@@ -174,40 +170,51 @@ Time: ${localTime} (${snapshot.day_part_key})
 ${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
 === BRIEFING DATA ===
-TRAFFIC IMPACT: ${briefing.traffic?.driverImpact || briefing.traffic?.headline || 'Normal traffic conditions'}
+TRAFFIC: ${briefing.traffic?.driverImpact || briefing.traffic?.headline || 'Normal traffic conditions'}
 
 EVENTS (next 6 hours):
 ${formattedEvents}
 
-WEATHER: ${JSON.stringify(optimizeWeatherForLLM(snapshot.weather))}
+WEATHER: ${optimizeWeatherForLLM(briefing.weather)}
 
-NEWS (today):
-${JSON.stringify(optimizeNewsForLLM(briefing.news), null, 1)}
+NEWS: ${formatNewsForPrompt(optimizeNewsForLLM(briefing.news))}
 
-SCHOOL CLOSURES (within 10mi):
-${formatSchoolClosuresSummary(briefing.school_closures, snapshot.timezone)}
+SCHOOL CLOSURES: ${formatSchoolClosuresSummary(briefing.school_closures, snapshot.timezone)}
 
-AIRPORT: ${JSON.stringify(optimizeAirportForLLM(briefing.airport))}
+AIRPORT: ${optimizeAirportForLLM(briefing.airport)}
 
-=== OUTPUT (500 chars max) ===
-Based on ALL the data above, provide a strategic brief:
+=== TIME-OF-DAY INTELLIGENCE ===
+Think about WHAT drives demand at ${localTime}:
+- Morning (6-10 AM): Commuters, airport departures, school drop-offs
+- Midday (10 AM-2 PM): Airport arrivals, business lunch, medical appointments
+- Afternoon (2-5 PM): School pickups, early commuters, airport surge
+- Evening (5-9 PM): Dinner, event arrivals, nightlife start
+- Night (9 PM-12 AM): Event exits (SURGE from crowds leaving), bar/club transfers
+- Late night (12-3 AM): Bar closings (last call surge), nightlife exodus
+- Dead hours (3-6 AM): Airport early departures, hotel shuttles, go home if nothing
 
-**GO:** [Area/zone to position - based on events, demand patterns]
-**AVOID:** [Roads/areas with incidents from traffic data]
-**WHEN:** [Timing window - when to be there, how long the opportunity lasts]
-**WHY:** [1 sentence - which specific event/condition is driving this]
-**IF NO PING:** [What to do if no rides come - how long to wait, backup move]
+=== OUTPUT FORMAT (no asterisks or bold in content — only section labels are bold) ===
 
-RULES:
-- Reference SPECIFIC data (event names, road numbers, times from above)
-- Use **bold** for area names and road names
-- Be concise but complete - driver needs actionable intel
-- Do NOT list specific venues (venue cards handle that separately)`;
+**GO:** Where to position — cluster near events/venues, not isolated spots
+**AVOID:** Roads/areas with incidents or competition
+**WHEN:** Timing window — consider event END times for exit surge, not just starts
+**WHY:** Which specific event/condition is driving this recommendation
+**IF NO PING:** Wait X minutes, then backup plan — nearby cluster or head home with destination filter on
+**INTEL:** 2-3 sentences of additional context — competitive landscape, upcoming demand shifts, airport opportunities, weather changes, or anything from news that affects the next few hours
+
+PRINCIPLES:
+- Verify timing: cross-reference news published dates against current time — yesterday's surge is over, do not recommend stale opportunities
+- Event END times create bigger surge than start times — crowds leaving = ride demand
+- Stay in clusters (nightlife districts, hotel zones, event complexes) — do not send the driver to isolated one-off venues
+- If nothing is nearby and demand is low, it is OK to recommend heading home with destination filter on
+- Factor in competitive landscape — if autonomous vehicles or new services operate in specific zones, note the impact on demand
+- Reference specific data from the briefing (event names, road names, times)
+- Do not use asterisks, bold, or markdown formatting inside the content text — only the section labels (GO, AVOID, WHEN, WHY, IF NO PING, INTEL) should be bold`;
 
 
-    // 2026-02-13: Uses STRATEGY_TACTICAL role via callModel adapter (hedged router + fallback)
+    // 2026-02-26: Uses STRATEGY_TACTICAL role via callModel adapter (Claude Opus)
     const response = await callModel('STRATEGY_TACTICAL', {
-      system: 'You are a rideshare strategy expert. Provide concise, actionable guidance.',
+      system: 'You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your guidance. You have access to real-time traffic, events, weather, airport conditions, and news — use all of it. You understand demand patterns: events create surge at END times, airports follow flight schedules, nightlife clusters outperform isolated venues, and sometimes the smartest move is heading home with destination filter on. Every recommendation you make directly impacts someone\'s livelihood. Be precise, be honest, be actionable.',
       user: prompt
     });
 
@@ -232,18 +239,18 @@ RULES:
 }
 
 /**
- * Call STRATEGY_DAILY role via callModel adapter with Retry Logic
- * 2026-02-11: Migrated from direct callGemini to callModel('STRATEGY_DAILY')
- * - Picks up thinkingLevel HIGH, maxTokens 16000, google_search from registry
- * - Handles 503/429 overload errors with exponential backoff
+ * 2026-02-26: Renamed from callGeminiConsolidator (now uses Claude Opus via callModel).
+ * Generate 8-12 hour daily strategy via STRATEGY_DAILY role with retry logic.
+ * Handles 503/429 overload errors with exponential backoff.
  */
-async function callGeminiConsolidator({ prompt, maxTokens = 4096, temperature = 0.2 }) {
+async function generateDailyStrategy({ prompt, maxTokens = 4096, temperature = 0.2 }) {
   // RETRY CONFIGURATION: 2 attempts with 1s, 2s delays (faster failure, rely on circuit breaker)
   const MAX_RETRIES = 2;
   const BASE_DELAY_MS = 1000;
   const callStart = Date.now();
 
-  const system = 'You are a strategic advisor for rideshare drivers. Create comprehensive daily strategies with specific times, locations, and actionable advice.';
+  // 2026-02-26: Rideshare Strategist Dispatch Authority — daily shift planning
+  const system = 'You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your daily shift plan. You have access to real-time traffic, events, weather, airport conditions, and news — use all of it to plan the most profitable 8-12 hour shift possible. You understand demand patterns: event END times create exit surge, airports follow flight schedules, nightlife clusters outperform isolated venues, weather changes trigger surge BEFORE the storm arrives. Every recommendation directly impacts someone\'s livelihood. Be precise, be honest, and when nothing is happening, say so.';
 
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
@@ -445,21 +452,20 @@ function formatTime12h(timeStr) {
  * Strips metadata timestamps — the snapshot already tells the LLM what time it is.
  * observedAt is just "when we fetched" noise that confuses the model.
  */
+/**
+ * 2026-02-26: Return driver-impact summary instead of full JSON blob.
+ * The briefing pipeline generates driverImpact at store time (briefing-service.js).
+ * Falls back to conditions + temp if driverImpact not yet populated (legacy rows).
+ */
 function optimizeWeatherForLLM(weather) {
-  if (!weather) return null;
-  const { observedAt, ...rest } = weather;
-  return rest;
+  if (!weather) return 'No weather data';
+  if (weather.driverImpact) return weather.driverImpact;
+  // Fallback for legacy rows without driverImpact
+  const temp = weather.tempF || weather.temperature || '??';
+  return `${weather.conditions || 'Unknown conditions'}, ${temp}°F`;
 }
 
-/**
- * 2026-02-17: Optimize traffic data for LLM.
- * Strips fetchedAt — the snapshot already tells the LLM what time it is.
- */
-function optimizeTrafficForLLM(traffic) {
-  if (!traffic) return null;
-  const { fetchedAt, ...rest } = traffic;
-  return rest;
-}
+// 2026-02-26: Removed optimizeTrafficForLLM — both prompts now use driverImpact summary directly.
 
 /**
  * 2026-01-14: FIX - Use correct field names from briefing-service.js normalization
@@ -591,43 +597,92 @@ async function formatEventsForLLM(events, timezone) {
 }
 
 /**
- * 2026-01-08: Optimize news data for LLM payload
- * Strip redundant fields like source, provider info
- * @param {Array|Object} news - News data (array or {items: []})
- * @returns {Array} Optimized news for LLM
+/**
+ * 2026-02-26: Simplified news for strategist — 5 items max.
+ * HIGH-impact items include summary (key context for strategy decisions).
+ * MEDIUM/LOW items are headline-only (saves tokens).
+ * All items include published_date so strategist can judge temporal relevance.
  */
 function optimizeNewsForLLM(news) {
-  // Handle both array and {items: []} format
   const items = Array.isArray(news) ? news : (news?.items || []);
   if (!items || items.length === 0) return [];
 
-  return items.slice(0, 8).map(item => ({
-    headline: item.headline || item.title,
-    impact: item.impact || 'medium',
-    date: item.published_date || item.date,
-    // Only include summary if short
-    ...(item.summary && item.summary.length < 200 ? { summary: item.summary } : {})
-    // Deliberately NOT including: source, provider, url (save tokens)
-  }));
+  return items.slice(0, 5).map(item => {
+    const entry = {
+      headline: item.headline || item.title,
+      impact: item.impact || 'medium',
+      date: item.published_date || item.date || null
+    };
+    // HIGH-impact items get summary — these drive strategy decisions
+    if (entry.impact === 'high' && item.summary) {
+      entry.context = item.summary.slice(0, 150); // Truncate to save tokens
+    }
+    return entry;
+  });
 }
 
 /**
- * 2026-01-08: Optimize airport data for LLM payload
- * Only include actionable info (delays, closures, peak times)
- * @param {Object} airport - Airport conditions data
- * @returns {Object} Optimized airport data
+ * 2026-02-26: Format news as string list for strategist prompt.
+ * HIGH-impact items show context. All items show published date for temporal verification.
+ */
+function formatNewsForPrompt(newsItems) {
+  if (!newsItems || newsItems.length === 0) return 'No relevant news today';
+  return newsItems.map(n => {
+    const date = n.date ? ` (${n.date})` : '';
+    const line = `- [${(n.impact || 'medium').toUpperCase()}] ${n.headline}${date}`;
+    return n.context ? `${line}\n  → ${n.context}` : line;
+  }).join('\n');
+}
+
+/**
+ * 2026-02-26: Simplified airport data — generate travelImpact summary, strip source noise.
+ * Handles both single airport and multi-airport (airports array) formats.
  */
 function optimizeAirportForLLM(airport) {
-  if (!airport) return null;
+  if (!airport) return 'No airport data';
 
-  return {
-    code: airport.code || airport.airport_code,
-    delays: airport.delays || airport.delay_status,
-    peak_arrivals: airport.peak_arrivals || airport.arrivals?.peak,
-    peak_departures: airport.peak_departures || airport.departures?.peak,
-    // Only include if there are issues
-    ...(airport.advisories ? { advisories: airport.advisories } : {})
-  };
+  // Handle airports array format from fetchAirportConditions()
+  const airports = airport.airports || [];
+  if (airports.length === 0 && !airport.code) {
+    return airport.recommendations || 'No airport data available';
+  }
+
+  // Single airport (legacy) or first airport from array
+  const primary = airports[0] || airport;
+  const code = primary.code || airport.code || airport.airport_code || '???';
+  const delays = primary.delays || airport.delays || airport.delay_status || 'normal operations';
+  const status = primary.status || 'normal';
+  const busyTimes = primary.busyTimes || [];
+  const recommendations = airport.recommendations || '';
+
+  // Generate concise travelImpact summary
+  const parts = [`${code}:`];
+
+  if (status === 'severe_delays') {
+    parts.push(`severe delays (${delays}) — high surge at terminal pickup`);
+  } else if (status === 'delays') {
+    parts.push(`delays (${delays}) — moderate surge opportunity`);
+  } else {
+    parts.push('normal operations');
+  }
+
+  if (busyTimes.length > 0) {
+    parts.push(`Peak: ${busyTimes.slice(0, 2).join(', ')}`);
+  }
+
+  // Add other airports briefly
+  if (airports.length > 1) {
+    const others = airports.slice(1).map(a =>
+      `${a.code || '???'}: ${a.status === 'delays' || a.status === 'severe_delays' ? a.delays : 'normal'}`
+    );
+    parts.push(others.join('; '));
+  }
+
+  if (recommendations) {
+    parts.push(recommendations);
+  }
+
+  return parts.join('. ');
 }
 
 /**
@@ -788,9 +843,8 @@ export async function runConsolidator(snapshotId, options = {}) {
     triadLog.phase(3, `Location: ${userAddress}`);
     triadLog.phase(3, `Time: ${localTime} (${snapshot.day_part_key})`);
 
-    // Step 4: Build Daily Strategy prompt with RAW briefing JSON
-    // This is the DAILY STRATEGY (8-12 hours) that goes to the Briefing Tab
-    // NOTE: All context comes from snapshot + briefings tables (no minstrategy)
+    // 2026-02-26: Build Daily Strategy prompt with pre-summarized briefing data.
+    // Weather, news, airport are summaries (not JSON dumps). Events keep structure for detail.
     const prompt = `You are a STRATEGIC ADVISOR for rideshare drivers. Create a comprehensive "Daily Strategy" covering the next 8-12 hours.
 
 === DRIVER CONTEXT ===
@@ -803,46 +857,54 @@ Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
 Day Part: ${snapshot.day_part_key}
 ${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
-=== CURRENT_TRAFFIC_DATA ===
-${JSON.stringify(optimizeTrafficForLLM(trafficData), null, 2)}
+=== TRAFFIC ===
+${trafficData?.driverImpact || trafficData?.headline || trafficData?.summary || 'Normal traffic conditions'}
+${(trafficData?.incidents || []).slice(0, 5).map(i => `- ${i.description || i.road}: ${i.severity}`).join('\n') || ''}
 
-=== CURRENT_EVENTS_DATA (optimized - today's events with venue status) ===
+=== EVENTS (today) ===
 ${JSON.stringify(optimizeEventsForLLM(eventsData, venueStatusMap).slice(0, 20), null, 1)}
 
-=== CURRENT_NEWS_DATA (optimized) ===
-${JSON.stringify(optimizeNewsForLLM(newsData), null, 1)}
+=== NEWS ===
+${formatNewsForPrompt(optimizeNewsForLLM(newsData))}
 
-=== CURRENT_WEATHER_DATA ===
-${JSON.stringify(optimizeWeatherForLLM(weatherData), null, 2)}
+=== WEATHER ===
+${optimizeWeatherForLLM(weatherData)}
 
-=== SCHOOL_CLOSURES_DATA (within 10mi of driver - TODAY ONLY) ===
+=== SCHOOL CLOSURES ===
 ${formatSchoolClosuresSummary(closuresData, snapshot.timezone)}
 
-=== AIRPORT_CONDITIONS_DATA (optimized) ===
-${JSON.stringify(optimizeAirportForLLM(airportData))}
+=== AIRPORT ===
+${optimizeAirportForLLM(airportData)}
 
 === YOUR TASK ===
-Create a DAILY STRATEGY for this driver covering the next 8-12 hours. Think like a shift planner, not just immediate tactics.
+Create a DAILY STRATEGY covering the next 8-12 hours. Think like an experienced rideshare driver planning a shift.
 
-CRITICAL: Reference SPECIFIC details from the data above (traffic incidents by name, event venues, closure streets, weather impacts, airport arrivals/departures).
+KEY PRINCIPLES:
+- VERIFY TIMING: Cross-reference news published dates against current time — don't recommend stale opportunities from yesterday
+- Event END times create bigger surge than start times (crowds LEAVING = ride demand)
+- Stay in clusters (nightlife districts, hotel zones, event areas) — don't send driver to isolated one-off venues
+- Airport demand follows flight schedules, not just "go to airport"
+- Dead hours (3-6 AM): Be honest — "head home, early airport runs only"
+- Weather changes create surge BEFORE the rain/storm arrives (people scramble for rides)
+- Note competitive landscape changes (autonomous vehicles, new services in specific zones) that affect demand
 
 Output 4-6 paragraphs covering:
 1. Today's overview: "Today in ${cityDisplay} (${dayOfWeek})..." - What makes today unique?
-2. Morning/Afternoon strategy: Where demand will be and when
-3. Events impact: Specific events from CURRENT_EVENTS_DATA and their timing/surge windows
-4. Traffic & hazards: Road closures, construction, areas to avoid
-5. Weather considerations: How conditions affect rider behavior
-6. Airport strategy: Peak arrival/departure times, which terminal to position at, expected delays
-7. Peak windows: "Your best earning windows today are..." with specific times and locations
+2. Time-block strategy: Where to position at each phase of the shift (morning → afternoon → evening → night)
+3. Events impact: Name specific events, their END times (exit surge), and which venues/areas to cluster near
+4. Traffic & hazards: Roads to avoid, areas with construction
+5. Peak earning windows: "Your best windows today are..." with specific times, locations, and WHY
+6. Airport: When to go (peak arrivals), when to avoid (dead periods), delay impacts on demand
+7. Late-night/wind-down: When to call it — last call surge at bars, hotel zone, or head home
 
-STYLE: Strategic and forward-looking. Think 8-12 hours ahead. Be specific about times, locations, and events. No bullet points.
+STYLE: Strategic, conversational, like advice from an experienced driver. Be specific about times and places.
 
-DO NOT: Focus only on "right now", list venues without context, output JSON.`;
+DO NOT: Give generic advice, list venues without context, output JSON, or pad with filler.`;
 
     aiLog.info(`Consolidator prompt size: ${prompt.length} chars`);
     
     // Step 5: Call STRATEGY_DAILY role (with BRIEFING_FALLBACK role on failure)
-    let result = await callGeminiConsolidator({
+    let result = await generateDailyStrategy({
       prompt,
       maxTokens: 2048,
       temperature: 0.3
@@ -856,7 +918,7 @@ DO NOT: Focus only on "right now", list venues without context, output JSON.`;
       // 2026-02-13: Uses BRIEFING_FALLBACK role via callModel adapter (hedged router)
       // Previously called Claude Opus directly; now uses registry-configured model
       const fallbackResult = await callModel('BRIEFING_FALLBACK', {
-        system: 'You are a strategic advisor for rideshare drivers. Create comprehensive daily strategies.',
+        system: 'You are the Rideshare Strategist Dispatch Authority (fallback). A driver depends on you. Create a daily shift plan with specific times, locations, and demand pattern awareness.',
         user: prompt
       });
 
@@ -989,7 +1051,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     triadLog.phase(3, `Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);
 
     // Call STRATEGY_TACTICAL role with snapshot + briefing (NO minstrategy)
-    const result = await callGPT5ForImmediateStrategy({ snapshot, briefing });
+    const result = await generateImmediateStrategy({ snapshot, briefing });
 
     if (!result.strategy) {
       throw new Error('STRATEGY_TACTICAL role returned empty strategy');

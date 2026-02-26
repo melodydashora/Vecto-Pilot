@@ -81,14 +81,8 @@ export const MODEL_ROLES = {
     thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
-  BRIEFING_EVENTS_VALIDATOR: {
-    envKey: 'BRIEFING_VALIDATOR_MODEL',
-    default: 'gemini-3.1-pro-preview',
-    purpose: 'Event schedule verification (Gemini)',
-    maxTokens: 4096,
-    temperature: 0.3,
-    features: ['google_search'],
-  },
+  // 2026-02-26: BRIEFING_EVENTS_VALIDATOR removed — dead code, never called.
+  // Validation happens via validateEventsHard() at store time in briefing-service.js.
   // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_FALLBACK: {
     envKey: 'BRIEFING_FALLBACK_MODEL',
@@ -149,22 +143,21 @@ export const MODEL_ROLES = {
     thinkingLevel: 'HIGH',
     features: ['google_search'],
   },
+  // 2026-02-26: Switched GPT-5.2 → Claude Opus 4.6 — all strategy roles use Claude
   STRATEGY_TACTICAL: {
     envKey: 'STRATEGY_TACTICAL_MODEL',
-    default: 'gpt-5.2',
-    purpose: 'Immediate 1-hour tactical strategy consolidation',
-    maxTokens: 32000,
-    reasoningEffort: 'medium',
+    default: 'claude-opus-4-6',
+    purpose: 'Immediate 1-hour tactical strategy consolidation (Claude Opus 4.6)',
+    maxTokens: 16000,
+    temperature: 0.5,
   },
-  // 2026-01-10: Added thinkingLevel HIGH, lowered temp 0.5 → 0.4 for consistency
+  // 2026-02-26: Switched Gemini → Claude Opus 4.6 — all strategy roles use Claude
   STRATEGY_DAILY: {
     envKey: 'STRATEGY_DAILY_MODEL',
-    default: 'gemini-3.1-pro-preview',
-    purpose: 'Long-term 8-12hr daily strategy generation',
+    default: 'claude-opus-4-6',
+    purpose: 'Long-term 8-12hr daily strategy generation (Claude Opus 4.6)',
     maxTokens: 16000,
-    temperature: 0.4,
-    thinkingLevel: 'HIGH',
-    features: ['google_search'],
+    temperature: 0.5,
   },
 
   // ==========================
@@ -281,18 +274,17 @@ export const MODEL_ROLES = {
   // 8. SIRI HOOKS (offer_intelligence)
   // ==========================
   // 2026-02-15: Dedicated role for real-time ride offer analysis via Siri Shortcuts.
-  // Uses Flash (not Pro) because speed is CRITICAL — Trip Radar gives only ~5 seconds; regular offers ~9s.
-  // Flash is 3-5x faster than Pro; LOW thinking minimizes latency further.
-  // 2026-02-26: gemini-3.1-pro-preview is the primary multimodal engine with superior vision.
-  // Override via OFFER_ANALYZER_MODEL=gemini-3.1-pro-preview if vision accuracy > latency.
-  // Also available: gemini-3-pro-image-preview ("Nano Banana Pro") for specialized screenshot analysis.
+  // 2026-02-26: Upgraded Flash → Gemini 3.1 Pro for superior vision/OCR on screenshots.
+  // Pro's multimodal reasoning catches details Flash misses (surge multipliers, map routes).
+  // LOW thinking keeps latency manageable for time-sensitive decisions.
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
-    default: 'gemini-3-flash-preview',
+    default: 'gemini-3.1-pro-preview',
     purpose: 'Real-time ride offer analysis from Siri Shortcuts (ACCEPT/REJECT)',
     maxTokens: 1024, // Minimal — just JSON decision + short reasoning
     temperature: 0.1, // Near-deterministic for consistent decisions
     thinkingLevel: 'LOW', // Speed over depth — this is a time-critical decision
+    features: ['vision'],
   },
 
   // ==========================
@@ -318,7 +310,7 @@ export const LEGACY_ROLE_MAP = {
   'strategist': 'STRATEGY_CORE',
   'briefer': 'STRATEGY_CONTEXT',
   'consolidator': 'STRATEGY_TACTICAL',
-  'event_validator': 'BRIEFING_EVENTS_VALIDATOR',
+  // 2026-02-26: 'event_validator' removed — BRIEFING_EVENTS_VALIDATOR was dead code
   'venue_planner': 'VENUE_SCORER',
   'venue_filter': 'VENUE_FILTER',
   'haiku': 'VENUE_FILTER',  // Legacy name for fast venue filtering
@@ -339,22 +331,18 @@ export const PROVIDERS = {
 /**
  * Roles that support fallback when primary model fails
  */
+// 2026-02-26: ALL BRIEFING_* roles removed from hedged fallback.
+// Briefing data fields use Gemini with google_search exclusively. Cross-provider fallback
+// to GPT-5.2 returned data in incompatible JSON formats (different field names, structure),
+// causing parse failures in safeJsonParse(). With citation suppression + parser hardening
+// in place, Gemini-only is reliable. The Strategist AI can flag missing data if needed.
 export const FALLBACK_ENABLED_ROLES = [
   'STRATEGY_TACTICAL',
   'STRATEGY_CONTEXT',
   'STRATEGY_DAILY',
-  'BRIEFING_EVENTS_DISCOVERY',
-  'BRIEFING_NEWS',
   'VENUE_FILTER',           // 2026-01-14: Added for Anthropic credit fallback
   'STRATEGY_CORE',          // 2026-01-14: Added for Anthropic credit fallback
-  'BRIEFING_EVENTS_VALIDATOR', // 2026-01-14: Added for Anthropic credit fallback
-  'BRIEFING_FALLBACK',      // 2026-01-14: Added for Anthropic credit fallback
   'OFFER_ANALYZER',         // 2026-02-15: Time-critical — must have fallback
-  'BRIEFING_WEATHER',       // 2026-02-17: All Gemini-primary briefing roles need cross-provider fallback
-  'BRIEFING_TRAFFIC',       // 2026-02-17: Critical for driver advice — must survive Gemini outages
-  'BRIEFING_SCHOOLS',       // 2026-02-17: Added for cross-provider redundancy
-  'BRIEFING_AIRPORT',       // 2026-02-17: Added for cross-provider redundancy
-  'BRIEFING_HOLIDAY',       // 2026-02-17: Added for cross-provider redundancy
 ];
 
 /**

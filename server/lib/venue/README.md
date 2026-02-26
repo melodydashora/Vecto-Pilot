@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-17
+> **Last Verified:** 2026-02-26
 
 # Venue Module (`server/lib/venue/`)
 
@@ -130,12 +130,39 @@ CREATE INDEX IF NOT EXISTS idx_venue_catalog_is_event_venue
   ON venue_catalog (is_event_venue) WHERE is_event_venue = TRUE;
 ```
 
+### Venue Enrichment on Discovery (2026-02-26)
+
+When a venue is created or matched during event discovery, `venue-cache.js` now triggers non-blocking enrichment to fill in missing data (phone, rating, hours, business status, types).
+
+**Two enrichment paths:**
+
+| Trigger | Function | When |
+|---------|----------|------|
+| New venue created | `enrichVenueFromPlaceId()` | After `findOrCreateVenue()` inserts a new row with a `place_id` |
+| Existing venue matched | `maybeBackfillVenue()` | When lookup finds a venue missing `phone_number` or `google_rating` |
+
+**How `enrichVenueFromPlaceId()` works:**
+1. Calls Google Places API: `GET /v1/places/{placeId}` with field mask
+2. Fields requested: `displayName`, `nationalPhoneNumber`, `regularOpeningHours`, `rating`, `priceLevel`, `businessStatus`, `types`, `primaryType`
+3. Updates `venue_catalog` row with: `phone_number`, `google_rating`, `business_hours`, `hours_full_week`, `last_known_status`, `venue_types`, `record_status='verified'`
+4. Only writes if at least one useful field (phone, rating, or hours) was returned
+
+**How `maybeBackfillVenue()` works:**
+- Checks if the venue has both `phone_number` AND `google_rating` (both require Places API)
+- If either is missing and a valid `place_id` exists (`ChIJ...` prefix), triggers `enrichVenueFromPlaceId()` as fire-and-forget
+- Called on all 3 match strategies in `findOrCreateVenue()`: place_id match, coord_key match, and fuzzy name match
+
+**Key design decisions:**
+- **Non-blocking:** Event processing continues immediately; enrichment runs as `.catch()` fire-and-forget
+- **Cheaper than searchNearby:** Uses single-place lookup by known ID (basic detail tier pricing)
+- **Idempotent:** Re-running enrichment on an already-enriched venue is a no-op (phone + rating check)
+
 ### Files Involved
 
 | File | Role in Architecture |
 |------|---------------------|
-| `venue-cache.js` | CRUD operations for venue_catalog |
-| `venue-enrichment.js` | Places API (New) calls for geocoding |
+| `venue-cache.js` | CRUD operations for venue_catalog + enrichment on discovery |
+| `venue-enrichment.js` | Places API (New) calls for geocoding + searchNearby |
 | `venue-utils.js` | Address normalization, coord_key generation |
 | `../briefing/briefing-service.js` | Event discovery → venue linking |
 | `../events/pipeline/normalizeEvent.js` | Event normalization (no coords) |
@@ -200,7 +227,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | `venue-enrichment.js` | Google Places/Routes data | `enrichVenue()`, `getBatchDriveTimes()` |
 | `venue-address-resolver.js` | Batch geocoding | `resolveAddresses()` |
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
-| `venue-cache.js` | Venue deduplication cache + timezone | `findOrCreateVenue()`, `lookupVenue()` |
+| `venue-cache.js` | Venue deduplication cache + timezone + enrichment | `findOrCreateVenue()`, `lookupVenue()`, `enrichVenueFromPlaceId()`, `maybeBackfillVenue()` |
 | `venue-utils.js` | Venue consolidation utilities | `parseAddressComponents()`, `calculateIsOpenFromHoursTextMap()` (**Note:** `generateCoordKey` is now imported from `server/lib/location/coords-key.js`) |
 | `district-detection.js` | Entertainment district identification | `detectDistrict()` |
 | `event-matcher.js` | Event-to-venue matching | `matchEventsToVenues()` |
@@ -272,6 +299,7 @@ const venues = await discoverNearbyVenues(lat, lng, city, state, {
 | OpenAI GPT-5.2 | Bar Tab discovery | `venue-intelligence.js` |
 | Google Places (searchNearby) | Find venues near location | `venue-enrichment.js` |
 | Google Places (getDetails) | Business hours, ratings | `venue-enrichment.js` |
+| Google Places (GET by placeId) | Enrich venue on discovery (phone, rating, hours, types) | `venue-cache.js` |
 | Google Routes API | Drive time, distance | `venue-enrichment.js` |
 | Google Geocoding API | Address resolution | `venue-address-resolver.js` |
 

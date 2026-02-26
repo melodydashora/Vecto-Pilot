@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-17
+> **Last Verified:** 2026-02-26 (Phase 3 briefing simplification)
 
 # Briefing Module (`server/lib/briefing/`)
 
@@ -157,6 +157,26 @@ await generateAndStoreBriefing({ snapshotId });
 
 The snapshot MUST have `formatted_address` - LLMs cannot reverse geocode.
 
+## Weather Driver Impact (2026-02-26)
+
+The `generateWeatherDriverImpact(current, forecast)` function in `briefing-service.js` produces a 1-2 sentence driver-relevant summary at store time. This replaces sending the full weather JSON blob to the strategist.
+
+**How it works:**
+- Deterministic (no LLM call) -- pattern-matches weather conditions to driver-relevant impacts
+- Stored on `weather_current.driverImpact` in the briefing row
+- The consolidator reads `driverImpact` directly instead of parsing raw weather JSON
+
+**Examples:**
+| Condition | Output |
+|-----------|--------|
+| Rain | "Rain -- expect surge, riders avoid walking." |
+| Freezing temps | "Freezing 28 F -- surge likely, riders avoid cold waits." |
+| Severe/tornado | "Severe weather (Tornado Warning) -- dangerous driving, expect surge from riders avoiding transit." |
+| Clear, 75 F | "Clear, 75 F -- good driving conditions." |
+| Clear now, rain in 2h | "Clear, 75 F -- good driving conditions. Rain expected in ~2 hours -- surge incoming." |
+
+**Forecast lookahead:** Checks the next 3 hours for incoming rain/storms. If rain is approaching but not here yet, appends a "surge incoming" warning.
+
 ## Briefing Structure (Stored in `briefings` table)
 
 ```javascript
@@ -164,7 +184,7 @@ The snapshot MUST have `formatted_address` - LLMs cannot reverse geocode.
   snapshot_id: "uuid",
 
   // Weather (Google Weather API)
-  weather_current: { tempF, conditions, humidity, ... },
+  weather_current: { tempF, conditions, humidity, ..., driverImpact: "Rain — expect surge..." },
   weather_forecast: [{ hour, tempF, conditions }],
 
   // Traffic (TomTom → Gemini analysis)
@@ -206,6 +226,20 @@ The snapshot MUST have `formatted_address` - LLMs cannot reverse geocode.
 | Airport | **No cache** | Fresh on EVERY call (delays change rapidly) |
 | News | **No cache** | Fresh on EVERY call (Gemini fast enough) |
 | School Closures | 24 hours by city | Same city within calendar day |
+
+## JSON Parsing Resilience (2026-02-26)
+
+`safeJsonParse()` in `briefing-service.js` uses a 5-attempt strategy to extract JSON from LLM responses:
+
+| Attempt | Strategy |
+|---------|----------|
+| 1 | Direct `JSON.parse` after stripping code fences |
+| 2 | Apply `fixCommonJsonIssues()` (trailing commas, unquoted props, embedded newlines) |
+| 3 | Strip markdown prose/citations via `stripMarkdownProse()`, then extract with regex |
+| 4 | Apply fixes to regex-extracted JSON |
+| 5 | **Balanced-brace extraction** — find individual `{...}` objects and wrap in array |
+
+**Citation suppression**: The Gemini adapter now injects a "no citations" directive at the prompt level for all `google_search` calls. `stripMarkdownProse()` in the parser acts as a safety net, removing any residual markdown links (`[text](url)`) and header lines before regex extraction.
 
 ## Connections
 

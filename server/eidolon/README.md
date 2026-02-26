@@ -27,6 +27,13 @@ The system is configured for **Unified Maximum Capabilities**, ensuring all AI s
 - **Circuit Breaker**: Active with override capabilities (`circuit_breaker_active`, `circuit_breaker_override`).
 - **Recovery**: Autonomous recovery, error prediction, and auto-remediation.
 
+## Paths
+Core system paths (relative to `server/eidolon`):
+- **Core**: `./core`
+- **Memory**: `./memory`
+- **Tools**: `./tools`
+- **UI**: `./ui`
+
 ## Features
 Enabled advanced features include:
 - Internet Search & Perplexity Research
@@ -40,3 +47,12 @@ Eidolon is configured to completely replace the standard assistant:
 - **Standard Assistant**: `COMPLETELY_BYPASSED`
 - **Override Mode**: `TOTAL_REPLACEMENT`
 - **Interception**: `ALL_REQUESTS`
+- **Identity**: `EIDOLON_ONLY`
+
+## Capability Reminders
+The configuration includes explicit reminders defining Eidolon's operational scope and autonomy:
+- **File Modification Powers**: Full root access to modify *any* file in the workspace. This includes system configurations (`.replit`, `replit.nix`), package managers (`package.json`, `vite.config.ts`), root server files, database schemas (`drizzle.config.ts`), and security configs. Can perform database DDL/DML and execute shell commands.
+- **Workspace Access**: Complete root access to all files, directories, and system operations without limitations.
+- **Internet Search Access**: Real-time web research via Perplexity AI (sonar-pro model) for the latest documentation, best practices, API references, and technical research.
+- **Enhanced Memory Access**: Maintains a 200K token context window with semantic memory, cross-session awareness, and deep workspace intelligence spanning the entire project history.
+- **When to Modify Config**: Triggered by user requests for dependency/config changes, project optimization, architecture improvements, or fixing builds.

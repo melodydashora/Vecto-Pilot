@@ -49,6 +49,11 @@ interface Venue {
   lat: number;
   lng: number;
   placeId?: string;
+  // 2026-02-26: Haiku-verified venue with unknown hours
+  hoursUnknown?: boolean;
+  venueQualityTier?: 'premium' | 'standard' | null;
+  closedGoAnyway?: boolean;
+  closedReason?: string | null;
 }
 
 /**
@@ -223,7 +228,10 @@ export default function BarTab({
 
   // Filter out venues without business hours - they're not useful to drivers
   // 2026-01-09: Using camelCase hoursToday field
+  // 2026-02-26: Allow Haiku-verified venues through even without hours
   const venuesWithHours = venueData.venues.filter(v => {
+    // Haiku-verified venues pass through even without hours (they're real bars)
+    if (v.hoursUnknown && v.venueQualityTier) return true;
     // Must have hoursToday to be displayed
     if (!v.hoursToday || v.hoursToday.trim().length === 0) return false;
     // Filter out "Hours not available" or similar
@@ -420,7 +428,9 @@ export default function BarTab({
                       {/* Today's Hours */}
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                        <span className="text-xs text-gray-700 font-mono">{venue.hoursToday}</span>
+                        <span className="text-xs text-gray-700 font-mono">
+                          {venue.hoursToday || (venue.hoursUnknown ? 'Hours not listed' : 'Check hours')}
+                        </span>
                       </div>
 
                       {/* Status Badges */}

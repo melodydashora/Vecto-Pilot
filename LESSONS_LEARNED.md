@@ -1,4 +1,12 @@
 
+## 2026-02-26: snapshot.weather vs briefing.weather — Wrong Data Source in Strategy Prompt
+
+- **Symptom:** The STRATEGY_TACTICAL prompt's weather section was always empty or undefined, despite weather data existing in the briefing.
+- **Root Cause:** The tactical prompt used `snapshot.weather` but snapshot objects do not contain weather data. Weather is fetched during the briefing pipeline and stored in the `briefings` table. The correct reference is `briefing.weather`.
+- **Fix:** Changed `snapshot.weather` to `briefing.weather` in the tactical prompt builder.
+- **File:** `server/lib/ai/providers/consolidator.js`
+- **Lesson:** When building LLM prompts that combine data from multiple sources (snapshot, briefing, venue), verify that each field reference points to the correct source object. The snapshot has location/time context; the briefing has weather/traffic/events/news. Confusing them produces silently undefined values that degrade strategy quality without any error.
+
 ## 2026-02-25: Legacy Environment Cleanup — Triple Env Loading & Replit Agent Over-Engineering
 
 - **Symptom:** Environment files loaded 3 times per boot (.replit shell → start-replit.js → gateway loadEnvironment()). GCP credentials reconstructed in both start.sh (inline Node.js) and load-env.js. A DEPLOY_MODE contract system referenced an `env/` directory that was never created.

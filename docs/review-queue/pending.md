@@ -4,6 +4,48 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2026-02-26: Phases 3-5 — Briefing Simplification + Strategy Prompt Enhancement + Venue Enrichment
+
+**Updated by:** Claude Opus 4.6
+**Date:** 2026-02-26
+**Scope:** Consolidator data optimization, strategy prompt intelligence, venue enrichment on discovery
+
+### Changes Made
+
+1. **Phase 3 - Simplify briefing data** (`consolidator.js`, `briefing-service.js`)
+   - `optimizeWeatherForLLM()` returns `driverImpact` summary string instead of full JSON blob
+   - `optimizeNewsForLLM()` reduced from 8 to 5 items, headline+impact only
+   - `optimizeAirportForLLM()` generates `travelImpact` summary string
+   - `formatNewsForPrompt()` new helper: formats news as `- [HIGH] headline` strings
+   - Removed `optimizeTrafficForLLM()` (unused after simplification)
+   - Bug fix: `snapshot.weather` changed to `briefing.weather` in tactical prompt
+   - `generateWeatherDriverImpact()` added to `briefing-service.js` (deterministic, no LLM)
+
+2. **Phase 4 - Enhanced strategy prompts** (`consolidator.js`)
+   - STRATEGY_TACTICAL prompt: time-of-day intelligence, event END time surge, cluster logic, "head home" option
+   - STRATEGY_DAILY prompt: same principles, organized as time-block strategy
+   - System messages updated for experienced driver mindset
+
+3. **Phase 5 - Venue enrichment on discovery** (`venue-cache.js`)
+   - `enrichVenueFromPlaceId()` calls Google Places API `GET /v1/places/{placeId}` for phone, rating, hours, types, status
+   - `maybeBackfillVenue()` triggers enrichment for existing venues missing phone/rating
+   - `findOrCreateVenue()` triggers non-blocking enrichment after creating new event venues
+   - Existing venue matches trigger backfill if missing phone/rating
+
+### Documentation Updated
+
+| File | Change |
+|------|--------|
+| `server/lib/briefing/README.md` | Added Weather Driver Impact section, updated briefing structure |
+| `server/lib/ai/providers/README.md` | Updated consolidator docs, added data optimization helpers table, added prompt intelligence section |
+| `server/lib/venue/README.md` | Added Venue Enrichment on Discovery section, updated files table and external APIs |
+| `APICALL.md` | Added Google Places GET by placeId for venue enrichment |
+| `docs/architecture/server-structure.md` | Updated consolidator.js description |
+
+### Status: COMPLETE
+
+---
+
 ## 2026-02-26: Model Registry Update — Gemini 3.1 Pro + Specialty Models
 
 **Updated by:** Claude Opus 4.6
@@ -1499,6 +1541,232 @@ Items flagged by the Change Analyzer for human-AI validation.
 - [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
 - [ ] Consider adding documentation - New file added (migrations/20260217_drop_briefing_ready_trigger.sql)
 - [ ] Consider adding documentation - New file added (scripts/test-snapshot-workflow.js)
+- [ ] Consider adding documentation - New file added (snapshot.txt)
+
+### Status: PENDING
+
+---
+
+## 2026-02-26 Analysis
+
+**Generated:** 2026-02-26T02:52:31.696Z
+**Branch:** main
+**Last Commit:** 40452771 Published your App
+
+### Uncommitted Changes (6)
+| File | Status |
+|------|--------|
+| `erver/lib/ai/adapters/README.md` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/briefing/README.md` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| `server/lib/concierge/concierge-service.js` | Modified |
+| `snapshot.txt` | Modified |
+
+### Recent Commit Changes (163)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.env.example` | Modified |
+| `mono-mode.env.example` | Renamed |
+| `.gitignore` | Modified |
+| `.replit` | Modified |
+| `APICALL.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `FEATURESANDNOTES.md` | Deleted |
+| `GEMINI.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `MODEL.md` | Deleted |
+| `README.md` | Modified |
+| `SYSTEM_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Deleted |
+| `agent-server.js` | Modified |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/briefing/SchoolClosuresCard.tsx` | Modified |
+| ... and 143 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/server-structure.md` - Main server changes (gateway-server.js)
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/strategy-events.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/test-snapshot-workflow.js)
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (snapshot.txt)
+
+### Status: PENDING
+
+---
+
+## 2026-02-26 Analysis
+
+**Generated:** 2026-02-26T03:01:36.093Z
+**Branch:** main
+**Last Commit:** 40452771 Published your App
+
+### Uncommitted Changes (16)
+| File | Status |
+|------|--------|
+| `ocs/architecture/ai-pipeline.md` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/preflight/ai-models.md` | Modified |
+| `docs/preflight/database.md` | Modified |
+| `docs/preflight/location.md` | Modified |
+| `docs/review-queue/2026-02-26.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `sent-to-strategist.txt` | Modified |
+| `server/eidolon/README.md` | Modified |
+| `server/lib/ai/README.md` | Modified |
+| `server/lib/ai/adapters/README.md` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/briefing/README.md` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| `server/lib/concierge/concierge-service.js` | Modified |
+| `snapshot.txt` | Modified |
+
+### Recent Commit Changes (163)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.env.example` | Modified |
+| `mono-mode.env.example` | Renamed |
+| `.gitignore` | Modified |
+| `.replit` | Modified |
+| `APICALL.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `FEATURESANDNOTES.md` | Deleted |
+| `GEMINI.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `MODEL.md` | Deleted |
+| `README.md` | Modified |
+| `SYSTEM_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Deleted |
+| `agent-server.js` | Modified |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/briefing/SchoolClosuresCard.tsx` | Modified |
+| ... and 143 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/server-structure.md` - Main server changes (gateway-server.js)
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/strategy-events.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/test-snapshot-workflow.js)
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
+- [ ] Consider adding documentation - New file added (snapshot.txt)
+
+### Status: PENDING
+
+---
+
+## 2026-02-26 Analysis
+
+**Generated:** 2026-02-26T03:25:37.144Z
+**Branch:** main
+**Last Commit:** 40452771 Published your App
+
+### Uncommitted Changes (18)
+| File | Status |
+|------|--------|
+| `ocs/ai-tools/eidolon.md` | Modified |
+| `docs/architecture/ai-pipeline.md` | Modified |
+| `docs/architecture/constraints.md` | Modified |
+| `docs/preflight/ai-models.md` | Modified |
+| `docs/preflight/database.md` | Modified |
+| `docs/preflight/location.md` | Modified |
+| `docs/review-queue/2026-02-26.md` | Modified |
+| `docs/review-queue/pending.md` | Modified |
+| `sent-to-strategist.txt` | Modified |
+| `server/eidolon/README.md` | Modified |
+| `server/lib/ai/README.md` | Modified |
+| `server/lib/ai/adapters/README.md` | Modified |
+| `server/lib/ai/adapters/gemini-adapter.js` | Modified |
+| `server/lib/ai/model-registry.js` | Modified |
+| `server/lib/briefing/README.md` | Modified |
+| `server/lib/briefing/briefing-service.js` | Modified |
+| `server/lib/concierge/concierge-service.js` | Modified |
+| `snapshot.txt` | Modified |
+
+### Recent Commit Changes (163)
+| File | Status |
+|------|--------|
+| `.claude/settings.local.json` | Modified |
+| `.env.example` | Modified |
+| `mono-mode.env.example` | Renamed |
+| `.gitignore` | Modified |
+| `.replit` | Modified |
+| `APICALL.md` | Modified |
+| `CLAUDE.md` | Modified |
+| `FEATURESANDNOTES.md` | Deleted |
+| `GEMINI.md` | Modified |
+| `LESSONS_LEARNED.md` | Modified |
+| `LEXICON.md` | Modified |
+| `MODEL.md` | Deleted |
+| `README.md` | Modified |
+| `SYSTEM_MAP.md` | Modified |
+| `WORKFLOW_FILE_LISTING.md` | Modified |
+| `agent-ai-config.js` | Deleted |
+| `agent-server.js` | Modified |
+| `client/src/components/BriefingTab.tsx` | Modified |
+| `client/src/components/GlobalHeader.tsx` | Modified |
+| `client/src/components/briefing/SchoolClosuresCard.tsx` | Modified |
+| ... and 143 more | |
+
+### Documentation Review Needed
+
+#### High Priority
+- [ ] `docs/preflight/ai-models.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/ai-pipeline.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `server/lib/ai/README.md` - Model adapter changes (server/lib/ai/adapters/gemini-adapter.js)
+- [ ] `docs/architecture/server-structure.md` - Main server changes (gateway-server.js)
+- [ ] `docs/architecture/api-reference.md` - API endpoint changes (server/api/chat/chat.js)
+- [ ] `docs/architecture/strategy-framework.md` - Strategy API changes (server/api/strategy/strategy-events.js)
+- [ ] `docs/preflight/location.md` - Location/GPS changes (server/lib/location/holiday-detector.js)
+
+#### Medium Priority
+- [ ] `docs/architecture/client-structure.md` - Component changes (client/src/components/BriefingTab.tsx)
+- [ ] `docs/architecture/database-schema.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/preflight/database.md` - Database connection changes (server/db/connection-manager.js)
+- [ ] `docs/ai-tools/eidolon.md` - Eidolon SDK changes (server/eidolon/config.ts)
+- [ ] `server/eidolon/README.md` - Eidolon SDK changes (server/eidolon/config.ts)
+
+#### Low Priority
+- [ ] Consider adding documentation - New file added (scripts/test-snapshot-workflow.js)
+- [ ] docs/architecture/constraints.md - Configuration changes (server/config/agent-policy.json)
 - [ ] Consider adding documentation - New file added (snapshot.txt)
 
 ### Status: PENDING
