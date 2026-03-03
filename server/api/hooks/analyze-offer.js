@@ -1,24 +1,15 @@
 // server/api/hooks/analyze-offer.js
 // Real-time ride offer analysis endpoint for Siri Shortcuts / Mobile Automation
 //
+// 2026-02-28: TWO-PHASE ARCHITECTURE
+//   Phase 1 (Sync):  Gemini Flash with ultra-lean prompt → instant Siri response (<2s target)
+//   Phase 2 (Async):  Gemini 3.1 Pro deep analysis → rich reasoning saved to DB (fire-and-forget)
+//
+// Previous history:
 // 2026-02-15: REWRITTEN for speed, location capture, and SSE notification.
-// 2026-02-16: Added server-side OCR pre-parser, 6-decimal GPS, clearer decision rules,
-//             voice $/mile, merged pre-parsed data into DB save, and VISION MODE.
+// 2026-02-16: Added server-side OCR pre-parser, 6-decimal GPS, VISION MODE.
 // 2026-02-17: Migrated to offer_intelligence table — structured columns replace JSONB blob.
-//             Added H3 geohashing, daypart classification, session tracking for analytics.
 //
-// - Uses OFFER_ANALYZER role (Gemini 3 Flash) — 3-5x faster than Pro
-// - Pre-parses OCR text server-side (regex) before LLM for reliable numeric extraction
-// - LLM focuses on addresses, destination quality, and decision — not math
-// - Captures driver location (6-decimal precision) for algorithm learning
-// - Broadcasts offer_analyzed via pg NOTIFY for web app SSE updates
-// - Voice response includes $/mile in spoken English for Siri TTS
-// - VISION MODE: Accepts base64 screenshot — Gemini Flash extracts data directly from image
-//
-// Flow A (text):   Siri "Vecto Analyze" → OCR → POST here → pre-parse → AI decision → Siri voice
-// Flow B (vision): Siri "Vecto Vision" → screenshot → base64 JSON → POST here → AI vision → Siri voice
-// Flow C (fast):   Siri "Vecto Vision" → screenshot → multipart upload → POST here → server encodes → AI vision → Siri voice
-//                  (2026-02-17: Eliminates base64 encoding on Siri side — server handles it in <1ms)
 // Auth: Explicitly public — Siri Shortcuts cannot send JWT tokens
 
 import { Router } from 'express';
@@ -42,6 +33,61 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max (matches express.json limit)
 });
+
+// 2026-02-28: Phase 1 ultra-lean prompt — extract + decide, no reasoning overhead.
+// Runs synchronously for Siri. Every token saved = faster response.
+const PHASE1_SYSTEM_PROMPT = `Extract ride details. Output ONLY raw valid JSON. Do NOT wrap the output in markdown. NO backticks. NO code blocks. NO explanations.
+
+STEP 1 (STRICT MATH):
+- Calculate Total Miles = Pickup Miles + Ride Miles.
+- Calculate total_minutes = Pickup Minutes + Ride Minutes + (Wait Minutes if visible, otherwise 0).
+- Calculate $/mi = Total Offer Price / Total Miles.
+
+STEP 2 (DECISION RULES - Evaluate in order):
+1. RATING: REJECT if rider rating is visible and < 4.85.
+2. VERIFIED: REJECT if the word "Verified" is missing from the OCR text.
+3. HARD FLOOR: REJECT if $/mi < 0.90.
+4. LOCAL (Both Pickup AND Dropoff are Frisco): ACCEPT if $/mi >= 0.90 AND total_minutes <= 20.
+5. NOT LOCAL (Either Pickup OR Dropoff is outside Frisco): ACCEPT if $/mi >= 1.75 AND total_minutes < 30.
+6. FAR (total_minutes >= 30 AND total_minutes <= 40): ACCEPT ONLY IF $/mi >= 2.00.
+7. VERY FAR (total_minutes > 40): ACCEPT ONLY IF $/mi >= 2.00.
+8. DEFAULT: REJECT anything that does not meet the above.
+
+The "decision" field MUST be exactly "ACCEPT" or "REJECT". Never output UNKNOWN.
+
+{"price":0,"miles":0,"pickup_minutes":0,"ride_minutes":0,"total_minutes":0,"pickup":"string","dropoff":"string","platform":"uber","surge":null,"per_mile":0,"decision":"REJECT","reasoning":"max 10 words","confidence":0}`;
+
+// 2026-02-28: Phase 2 deep prompt — full reasoning for DB enrichment.
+// Runs async after Siri response is sent. No time pressure.
+const PHASE2_SYSTEM_PROMPT = `You are a rideshare offer analyst for a DFW-area driver based in Frisco, TX.
+Provide DEEP analysis. Return ONLY valid JSON.
+
+{
+  "parsed_data": {
+    "price": number, "miles": number, "pickup_minutes": number, "ride_minutes": number,
+    "pickup": "street/intersection", "dropoff": "street/intersection",
+    "platform": "uber"|"lyft"|"unknown", "surge": number|null, "per_mile": number,
+    "rider_rating": number|null, "product_type": string|null
+  },
+  "decision": "ACCEPT"|"REJECT",
+  "reasoning": "2-3 sentences: location quality, return-trip viability, economic assessment",
+  "confidence": 0-100,
+  "location_analysis": {
+    "dropoff_zone": "core"|"deadhead"|"fringe",
+    "return_difficulty": "easy"|"moderate"|"hard",
+    "area_demand": "high"|"medium"|"low"
+  }
+}
+
+RULES:
+1. Above $1.00/mi total miles + pickup under 10 min → ACCEPT
+2. Below $0.72/mi → REJECT always
+3. Home base: Frisco, TX. Reject rides west of DFW Airport, Fort Worth, Denton outskirts, Anna, rural areas.
+4. Coppell, Irving, Plano, Richardson, Dallas, Carrollton are fine — easy return to Frisco.
+5. Deadhead zones (west of airport or south of 635) need >= $2.00/mi.
+6. Rider rating < 4.85 → REJECT. Short rides with good $/mi = GOOD.
+
+Trust pre-parsed numbers if provided. Focus on ADDRESSES and DESTINATION QUALITY.`;
 
 // POST /api/hooks/analyze-offer
 // Accepts THREE input modes:
@@ -100,71 +146,21 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       console.log(`[hooks/analyze-offer] 📊 Pre-parsed: $${preParsed.price || '?'} / ${preParsed.total_miles || '?'}mi = $${preParsed.per_mile || '?'}/mi (${preParsed.parse_confidence})`);
     }
 
-    // 2. Build the system prompt with pre-parsed data injected
-    const locationContext = (lat && lng)
-      ? `Driver location: ${lat}, ${lng} (market: ${market}).`
-      : 'Driver location: unknown.';
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 1 — SYNCHRONOUS: Fast Flash decision for Siri (<2s target)
+    // 2026-02-28: Lean prompt, compressed pre-parse, minimal tokens
+    // ═══════════════════════════════════════════════════════════════════════
 
-    // 2026-02-16: Inject pre-parsed numeric data so LLM focuses on decision, not parsing
-    const preParseBlock = preParsed && preParsed.parse_confidence !== 'minimal' ? `
-PRE-PARSED DATA (server-verified, trust these numbers):
-  Price: ${preParsed.price !== null ? `$${preParsed.price.toFixed(2)}` : 'NOT DETECTED'}
-  Pickup: ${preParsed.pickup_minutes !== null ? `${preParsed.pickup_minutes} min, ${preParsed.pickup_miles} mi` : 'NOT DETECTED'}
-  Ride: ${preParsed.ride_minutes !== null ? `${preParsed.ride_minutes} min, ${preParsed.ride_miles} mi` : 'NOT DETECTED'}
-  Total: ${preParsed.total_miles !== null ? `${preParsed.total_miles.toFixed(1)} mi, ${preParsed.total_minutes} min` : 'NOT DETECTED'}
-  $/mile: ${preParsed.per_mile !== null ? `$${preParsed.per_mile.toFixed(2)}` : 'CALCULATE FROM RAW TEXT'}
-  Product: ${preParsed.product_type || 'DETECT FROM RAW TEXT'}
-  Surge: ${preParsed.surge !== null ? `$${preParsed.surge}` : 'none detected'}
-` : '';
+    // Compressed pre-parse injection — single line to minimize tokens
+    const preParseOneLiner = preParsed && preParsed.parse_confidence !== 'minimal'
+      ? `PRE-PARSED: $${preParsed.price ?? '?'} | ${preParsed.pickup_minutes ?? '?'}min/${preParsed.pickup_miles ?? '?'}mi pickup | ${preParsed.ride_minutes ?? '?'}min/${preParsed.ride_miles ?? '?'}mi ride | $${preParsed.per_mile ?? '?'}/mi | ${preParsed.product_type || '?'}`
+      : '';
 
-    // 2026-02-16: Vision mode — tell the model it's reading a screenshot, not OCR text
-    const visionBlock = (!text && image) ? `
-NOTE: You are analyzing a SCREENSHOT of a ride offer, not OCR text.
-Extract ALL data directly from the image: price, pickup time/distance, ride time/distance,
-pickup address, dropoff address, platform (Uber/Lyft), and any surge/bonus.
-Calculate $/mile = price / (pickup_miles + ride_miles).
-` : '';
+    // Build lean user message — text path gets compressed pre-parse + raw text
+    const phase1UserMessage = text
+      ? `${preParseOneLiner ? preParseOneLiner + '\n' : ''}Offer text: "${text}"`
+      : 'Analyze this ride offer screenshot.';
 
-    const systemPrompt = `You are a rideshare offer analyst. Decide ACCEPT or REJECT.
-${locationContext}
-${preParseBlock}${visionBlock}
-Return ONLY valid JSON:
-{
-  "parsed_data": {
-    "price": number,
-    "miles": number,
-    "pickup_minutes": number,
-    "ride_minutes": number,
-    "pickup": "street/intersection",
-    "dropoff": "street/intersection",
-    "platform": "uber"|"lyft"|"unknown",
-    "surge": number|null,
-    "per_mile": number
-  },
-  "decision": "ACCEPT"|"REJECT",
-  "reasoning": "1 sentence max",
-  "confidence": 0-100
-}
-
-DECISION RULES (follow EXACTLY):
-1. Above $1.00/mi with pickup under 10 min → ACCEPT (regardless of total payout)
-2. $0.90-$1.00/mi for rides under 3 total miles → ACCEPT (short hop exception)
-3. Below $0.90/mi → REJECT (unless surge multiplier detected)
-4. Pickup over 10 min for ride under $10 → REJECT
-5. Dead-end destination (deep suburb, rural, no return trips) → REJECT even if $/mi is good
-
-CRITICAL: Do NOT reject offers above $1.00/mi because "total payout is too low".
-The ONLY valid reasons to reject above-$1.00/mi: Rule 4 (long pickup) or Rule 5 (bad destination).
-Short rides with good $/mi keep the driver in high-demand areas — that is a GOOD thing.
-
-If pre-parsed data is provided, use those numbers. Only re-parse from raw text if marked "NOT DETECTED".
-Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
-
-    const userMessage = text
-      ? `Offer text: "${text}"`
-      : 'Analyze the attached ride offer image.';
-
-    // 2. Call AI — OFFER_ANALYZER uses Flash for speed (~1-3s vs Pro's ~5-10s)
     // 2026-02-16: Build images array for vision path (Siri Vision shortcut sends base64 screenshot)
     const images = [];
     if (image && !text) {
@@ -176,7 +172,6 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
         if (match) {
           mimeType = match[1];
           imageData = match[2];
-          console.log(`[hooks/analyze-offer] 🖼️ Stripped data URL prefix, detected ${mimeType}`);
         }
       }
       // Remove any whitespace/newlines that break base64 decoding
@@ -185,91 +180,211 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
       console.log(`[hooks/analyze-offer] 🖼️ Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})`);
     }
 
-    console.log(`[hooks/analyze-offer] 🧠 Calling OFFER_ANALYZER${images.length ? ' (vision)' : ''}...`);
-    const aiResponse = await callModel('OFFER_ANALYZER', {
-      system: systemPrompt,
-      user: userMessage,
+    // Phase 1 AI call — OFFER_ANALYZER (Flash) for speed
+    console.log(`[hooks/analyze-offer] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash)${images.length ? ' [vision]' : ''}...`);
+    const phase1Response = await callModel('OFFER_ANALYZER', {
+      system: PHASE1_SYSTEM_PROMPT,
+      user: phase1UserMessage,
       images,
     });
 
-    if (!aiResponse.success) {
-      throw new Error(`AI analysis failed: ${aiResponse.error}`);
+    if (!phase1Response.success) {
+      throw new Error(`Phase 1 AI analysis failed: ${phase1Response.error}`);
     }
 
-    // 3. Parse AI response
-    let result;
+    // 2026-03-02: Robust JSON extraction — two-tier approach
+    // Tier 1: Direct parse (clean JSON from adapter)
+    // Tier 2: Extract first JSON object from prose (Gemini sometimes adds preamble)
+    let phase1Result;
     try {
-      const cleaned = aiResponse.text
+      const cleaned = phase1Response.text
         .replace(/```json/g, '').replace(/```/g, '').trim();
-      result = JSON.parse(cleaned);
+      try {
+        const raw = JSON.parse(cleaned);
+        phase1Result = raw.parsed_data || raw;
+      } catch {
+        const firstBrace = cleaned.indexOf('{');
+        const lastBrace = cleaned.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          const extracted = cleaned.slice(firstBrace, lastBrace + 1);
+          const raw = JSON.parse(extracted);
+          phase1Result = raw.parsed_data || raw;
+          console.log(`[hooks/analyze-offer] 🧹 Extracted JSON from preamble (${firstBrace} chars stripped)`);
+        } else {
+          throw new Error('No JSON object found in response');
+        }
+      }
     } catch (_parseErr) {
-      console.warn('[hooks/analyze-offer] ⚠️ JSON parse failed, saving raw:', aiResponse.text?.substring(0, 200));
-      result = {
-        parsed_data: {},
-        decision: 'UNKNOWN',
-        reasoning: aiResponse.text || 'Failed to parse AI response',
-        confidence: 0,
-      };
+      console.warn('[hooks/analyze-offer] ⚠️ Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
+      // Tier 3: Deterministic rule engine using pre-parsed data
+      // 2026-03-02: When AI fails to return JSON, apply the user's rules in code.
+      // Pre-parser already has price, miles, minutes — we just need the decision.
+      if (preParsed && preParsed.per_mile !== null) {
+        const pm = preParsed.per_mile;
+        const totalMin = preParsed.total_minutes ?? 999;
+        const rating = phase1Result?.rider_rating ?? null;
+        let fallbackDecision = 'REJECT';
+        let fallbackReason = '';
+
+        if (rating !== null && rating < 4.85) {
+          fallbackReason = `Rating ${rating} below 4.85`;
+        } else if (pm < 0.72) {
+          fallbackReason = `$${pm.toFixed(2)}/mi below $0.72 floor`;
+        } else if (pm >= 0.90 && totalMin <= 20) {
+          fallbackDecision = 'ACCEPT';
+          fallbackReason = `Local $${pm.toFixed(2)}/mi ${totalMin}min`;
+        } else if (pm >= 1.75 && totalMin < 30) {
+          fallbackDecision = 'ACCEPT';
+          fallbackReason = `Good rate $${pm.toFixed(2)}/mi ${totalMin}min`;
+        } else if (totalMin >= 30 && totalMin <= 40 && pm >= 3.00) {
+          fallbackDecision = 'ACCEPT';
+          fallbackReason = `Far but $${pm.toFixed(2)}/mi worth it`;
+        } else if (totalMin > 40) {
+          fallbackReason = `${totalMin}min too far`;
+        } else {
+          fallbackReason = `$${pm.toFixed(2)}/mi ${totalMin}min below thresholds`;
+        }
+
+        console.log(`[hooks/analyze-offer] 🔧 Deterministic fallback: ${fallbackDecision} — ${fallbackReason}`);
+        phase1Result = {
+          decision: fallbackDecision,
+          reasoning: fallbackReason,
+          confidence: 80,
+          ...preParsed,
+        };
+      } else {
+        // No pre-parsed data — try text detection as absolute last resort
+        const rawText = (phase1Response.text || '').toUpperCase();
+        const detectedDecision = rawText.includes('ACCEPT') ? 'ACCEPT'
+          : rawText.includes('REJECT') ? 'REJECT' : 'REJECT';
+        phase1Result = {
+          decision: detectedDecision,
+          reasoning: phase1Response.text || 'AI parse failed, defaulting to REJECT',
+          confidence: 0,
+        };
+      }
     }
+
+    // Extract decision fields from normalized result
+    const decision = phase1Result.decision || 'REJECT';
+    const reasoning = phase1Result.reasoning || '';
+    const confidence = phase1Result.confidence || 0;
 
     const responseTimeMs = Date.now() - startTime;
 
-    // 4. RESPOND IMMEDIATELY — driver is waiting, every ms counts
-    // 2026-02-16: Prefer server-calculated per_mile (regex, deterministic) over LLM-calculated.
-    const perMileValue = preParsed?.per_mile ?? result.parsed_data?.per_mile ?? null;
-    const perMileVoice = perMileValue !== null ? formatPerMileForVoice(perMileValue) : '';
-    const perMileDisplay = perMileValue !== null ? `$${perMileValue.toFixed(2)}/mi` : '';
+    // 2026-03-02: Simplified — just Accept or Reject. Rules protect the driver,
+    // no need for math/miles/stats in the notification. Clean and instant.
+    const perMileValue = preParsed?.per_mile ?? phase1Result.per_mile ?? null;
+    const voiceText = decision === 'ACCEPT' ? 'Accept' : 'Reject';
+    const notification = decision === 'ACCEPT' ? 'ACCEPT' : 'REJECT';
 
-    // 2026-02-16: Voice = decision + spoken $/mile for Siri TTS
-    const voiceText = perMileVoice
-      ? `${result.decision === 'ACCEPT' ? 'Accept' : 'Reject'}. ${perMileVoice}.`
-      : (result.decision === 'ACCEPT' ? 'Accept' : 'Reject');
-
-    // 2026-02-16: Notification = scannable line with $/mi, pickup time, total miles
-    // Format: "REJECT $0.86/mi · 11min · 10.3mi" — all 3 key numbers at a glance
-    const pickupMin = preParsed?.pickup_minutes ?? result.parsed_data?.pickup_minutes ?? null;
-    const totalMiles = preParsed?.total_miles ?? result.parsed_data?.miles ?? null;
-    const notifParts = [result.decision];
-    if (perMileDisplay) notifParts.push(perMileDisplay);
-    if (pickupMin !== null) notifParts.push(`${pickupMin}min`);
-    if (totalMiles !== null) notifParts.push(`${totalMiles}mi`);
-    const notification = notifParts.join(' · ');
-
+    // ══════════════════════════════════════════════════════════════
+    // RESPOND TO SIRI — driver is waiting, every ms counts
+    // ══════════════════════════════════════════════════════════════
     res.json({
       success: true,
       voice: voiceText,
       notification,
-      decision: result.decision,
+      decision,
       response_time_ms: responseTimeMs,
     });
 
-    // 5. BACKGROUND — Save to offer_intelligence + broadcast SSE (fire-and-forget after response sent)
-    // 2026-02-17: All structured columns populated for SQL analytics — no more JSONB-only storage
-    const platform = preParsed?.platform_hint || result.parsed_data?.platform || 'unknown';
-    const deviceId = device_id || 'anonymous_device';
+    console.log(`[hooks/analyze-offer] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi`);
 
-    // 2026-02-16: Merge pre-parsed server data with AI-parsed data for complete record.
-    const mergedParsedData = {
-      ...(preParsed || {}),
-      ...result.parsed_data,
-      per_mile: preParsed?.per_mile ?? result.parsed_data?.per_mile,
-      per_minute: preParsed?.per_minute ?? result.parsed_data?.per_minute,
-    };
+    // ═══════════════════════════════════════════════════════════════════════
+    // PHASE 2 — ASYNC: Deep Pro 3.1 analysis for DB enrichment
+    // 2026-02-28: Fire-and-forget after res.json(). Images stay in closure scope.
+    // If Pro fails, Phase 1 Flash result is saved to DB instead — data never lost.
+    // ═══════════════════════════════════════════════════════════════════════
+    const platform = preParsed?.platform_hint || phase1Result.platform || 'unknown';
+    const deviceId = device_id || 'anonymous_device';
 
     (async () => {
       try {
+        // Build rich context for Phase 2 deep analysis
+        const locationContext = (lat && lng)
+          ? `\nDriver GPS: ${lat}, ${lng} (market: ${market}).`
+          : '';
+
+        const preParseBlock = preParsed && preParsed.parse_confidence !== 'minimal' ? `
+PRE-PARSED DATA (server-verified):
+  Price: ${preParsed.price !== null ? `$${preParsed.price.toFixed(2)}` : 'NOT DETECTED'}
+  Pickup: ${preParsed.pickup_minutes !== null ? `${preParsed.pickup_minutes} min, ${preParsed.pickup_miles} mi` : 'NOT DETECTED'}
+  Ride: ${preParsed.ride_minutes !== null ? `${preParsed.ride_minutes} min, ${preParsed.ride_miles} mi` : 'NOT DETECTED'}
+  Total: ${preParsed.total_miles !== null ? `${preParsed.total_miles.toFixed(1)} mi, ${preParsed.total_minutes} min` : 'NOT DETECTED'}
+  $/mile: ${preParsed.per_mile !== null ? `$${preParsed.per_mile.toFixed(2)}` : 'CALCULATE'}
+  Product: ${preParsed.product_type || 'DETECT'}
+  Surge: ${preParsed.surge !== null ? `$${preParsed.surge}` : 'none'}` : '';
+
+        const phase2System = PHASE2_SYSTEM_PROMPT + locationContext + preParseBlock;
+
+        const phase2UserMessage = text
+          ? `Offer text: "${text}"`
+          : 'Analyze this ride offer screenshot in detail.';
+
+        // Phase 2 AI call — OFFER_ANALYZER_DEEP (Pro 3.1) for rich reasoning
+        // 2026-02-28: 45s timeout — callGemini SDK has no built-in timeout, so we wrap with Promise.race
+        // to prevent the async IIFE from hanging forever if Pro 3.1 is slow or unresponsive.
+        const PHASE2_TIMEOUT_MS = 45000;
+        console.log(`[hooks/analyze-offer] 🔬 PHASE 2: Calling OFFER_ANALYZER_DEEP (Pro 3.1, ${PHASE2_TIMEOUT_MS / 1000}s timeout)...`);
+        const phase2Start = Date.now();
+
+        let deepResult = null;
+        let aiModelUsed = 'gemini-3-flash'; // Default: Phase 1 model (used if Phase 2 fails)
+        let phase2RawText = null;
+
+        try {
+          const phase2Promise = callModel('OFFER_ANALYZER_DEEP', {
+            system: phase2System,
+            user: phase2UserMessage,
+            images,
+          });
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Phase 2 timed out after ${PHASE2_TIMEOUT_MS / 1000}s`)), PHASE2_TIMEOUT_MS)
+          );
+          const phase2Response = await Promise.race([phase2Promise, timeoutPromise]);
+
+          if (phase2Response.success) {
+            phase2RawText = phase2Response.text;
+            const cleaned = phase2Response.text
+              .replace(/```json/g, '').replace(/```/g, '').trim();
+            deepResult = JSON.parse(cleaned);
+            aiModelUsed = 'gemini-3.1-pro';
+            console.log(`[hooks/analyze-offer] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
+          } else {
+            console.warn(`[hooks/analyze-offer] ⚠️ Phase 2 AI call failed: ${phase2Response.error} — falling back to Phase 1 result`);
+          }
+        } catch (phase2Err) {
+          console.warn(`[hooks/analyze-offer] ⚠️ Phase 2 error: ${phase2Err.message} — falling back to Phase 1 result`);
+        }
+
+        // Use deep result if available, otherwise fall back to Phase 1
+        const dbParsedData = deepResult?.parsed_data || phase1Result;
+        const dbDecision = deepResult?.decision || decision;
+        const dbReasoning = deepResult?.reasoning || reasoning;
+        const dbConfidence = deepResult?.confidence || confidence;
+        const locationAnalysis = deepResult?.location_analysis || null;
+
+        // Merge all parsed data for the raw JSON column
+        const mergedParsedData = {
+          ...(preParsed || {}),
+          ...dbParsedData,
+          per_mile: preParsed?.per_mile ?? dbParsedData?.per_mile,
+          per_minute: preParsed?.per_minute ?? dbParsedData?.per_minute,
+          location_analysis: locationAnalysis,
+        };
+
         // 2026-02-17: Compute geographic columns
         const coordKeyValue = (lat && lng) ? coordsKey(lat, lng) : null;
         const h3Index = (lat && lng) ? latLngToCell(lat, lng, 8) : null;
 
         // 2026-02-17: Compute temporal columns from current time
-        // Uses UTC as base — timezone resolved from coords_cache if available
         const now = new Date();
-        const localHour = now.getUTCHours(); // Will be refined when timezone is known
-        const dayOfWeek = now.getUTCDay();   // 0=Sunday
+        const localHour = now.getUTCHours();
+        const dayOfWeek = now.getUTCDay();
         const dayPart = getDayPartKey(localHour);
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        const localDate = now.toISOString().split('T')[0]; // YYYY-MM-DD UTC
+        const localDate = now.toISOString().split('T')[0];
 
         // 2026-02-17: Session tracking — group offers within 30-min windows
         let offerSessionId = crypto.randomUUID();
@@ -295,29 +410,30 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
           console.warn(`[hooks/analyze-offer] Session tracking failed (non-fatal): ${seqErr.message}`);
         }
 
-        // 2026-02-17: INSERT into offer_intelligence with all structured columns
+        // 2026-02-28: INSERT with Phase 2 deep data (or Phase 1 fallback)
+        // ai_model records which model actually provided the stored analysis
         await db.insert(offer_intelligence).values({
           device_id: deviceId,
 
           // Offer metrics — prefer server pre-parsed (regex) over AI-parsed (LLM math)
-          price: preParsed?.price ?? result.parsed_data?.price ?? null,
+          price: preParsed?.price ?? dbParsedData?.price ?? null,
           per_mile: perMileValue,
-          per_minute: preParsed?.per_minute ?? result.parsed_data?.per_minute ?? null,
+          per_minute: preParsed?.per_minute ?? dbParsedData?.per_minute ?? null,
           hourly_rate: preParsed?.hourly_rate ?? null,
-          surge: preParsed?.surge ?? result.parsed_data?.surge ?? null,
+          surge: preParsed?.surge ?? dbParsedData?.surge ?? null,
           advantage_pct: preParsed?.advantage_pct ?? null,
-          pickup_minutes: preParsed?.pickup_minutes ?? result.parsed_data?.pickup_minutes ?? null,
+          pickup_minutes: preParsed?.pickup_minutes ?? dbParsedData?.pickup_minutes ?? null,
           pickup_miles: preParsed?.pickup_miles ?? null,
-          ride_minutes: preParsed?.ride_minutes ?? result.parsed_data?.ride_minutes ?? null,
+          ride_minutes: preParsed?.ride_minutes ?? dbParsedData?.ride_minutes ?? null,
           ride_miles: preParsed?.ride_miles ?? null,
-          total_miles: preParsed?.total_miles ?? result.parsed_data?.miles ?? null,
+          total_miles: preParsed?.total_miles ?? dbParsedData?.miles ?? null,
           total_minutes: preParsed?.total_minutes ?? null,
-          product_type: preParsed?.product_type ?? result.parsed_data?.product_type ?? null,
+          product_type: preParsed?.product_type ?? dbParsedData?.product_type ?? null,
           platform,
 
           // Addresses (from AI parsing — regex doesn't extract these)
-          pickup_address: result.parsed_data?.pickup ?? null,
-          dropoff_address: result.parsed_data?.dropoff ?? null,
+          pickup_address: dbParsedData?.pickup ?? null,
+          dropoff_address: dbParsedData?.dropoff ?? null,
 
           // Driver location (6-decimal precision)
           driver_lat: lat,
@@ -333,11 +449,11 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
           day_part: dayPart,
           is_weekend: isWeekend,
 
-          // AI analysis
-          decision: result.decision,
-          decision_reasoning: result.reasoning,
-          confidence_score: result.confidence,
-          ai_model: 'gemini-3-flash',
+          // AI analysis — Phase 2 deep reasoning (or Phase 1 fallback)
+          decision: dbDecision,
+          decision_reasoning: dbReasoning,
+          confidence_score: dbConfidence,
+          ai_model: aiModelUsed,
           response_time_ms: responseTimeMs,
 
           // Sequence tracking
@@ -352,25 +468,26 @@ Focus your analysis on: pickup/dropoff ADDRESSES and DESTINATION QUALITY.`;
 
           // Raw data preservation
           raw_text: text || `[Vision: ${Math.round((image?.length || 0) / 1024)}KB image]`,
-          raw_ai_response: aiResponse.text || null,
+          raw_ai_response: phase2RawText || phase1Response.text || null,
           parsed_data_json: mergedParsedData,
         });
 
-        console.log(`[hooks/analyze-offer] ✅ ${result.decision} (${responseTimeMs}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [saved to offer_intelligence]`);
+        console.log(`[hooks/analyze-offer] ✅ Saved: ${dbDecision} (Phase1: ${responseTimeMs}ms, Phase2: ${Date.now() - phase2Start}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [ai_model: ${aiModelUsed}]`);
 
         // SSE broadcast for web app
         const notifyPayload = JSON.stringify({
           device_id: deviceId,
-          decision: result.decision,
-          reasoning: result.reasoning,
-          price: result.parsed_data?.price,
+          decision: dbDecision,
+          reasoning: dbReasoning,
+          price: dbParsedData?.price,
           per_mile: perMileValue,
           platform,
           response_time_ms: responseTimeMs,
+          ai_model: aiModelUsed,
         });
         await db.execute(sql`SELECT pg_notify('offer_analyzed', ${notifyPayload})`);
       } catch (err) {
-        console.error(`[hooks/analyze-offer] ⚠️ Background save failed: ${err.message}`);
+        console.error(`[hooks/analyze-offer] ⚠️ Phase 2 background error: ${err.message}`);
       }
     })();
 

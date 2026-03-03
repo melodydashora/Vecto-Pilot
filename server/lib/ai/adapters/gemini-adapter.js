@@ -89,6 +89,9 @@ export async function callGemini({
       temperature: finalTemperature,
       ...(topP !== undefined && { topP }),
       ...(topK !== undefined && { topK }),
+      // 2026-03-02: Force JSON output when system/user requests it — prevents truncation
+      // and eliminates need for post-processing code block stripping
+      ...(expectsJson && { responseMimeType: 'application/json' }),
       // 2026-02-26: Safety filters set to OFF — news/traffic content about accidents,
       // violence, protests was being blocked. CIVIC_INTEGRITY removed (not a valid
       // adjustable category per Gemini API docs — caused silent request failures).
@@ -127,15 +130,15 @@ export async function callGemini({
       }
     }
 
-    // Build contents with system instruction + optional images
-    // 2026-02-16: Support multimodal vision via inlineData parts (Siri Vision shortcut)
-    const parts = [];
-    const textContent = system ? `${system}\n\n${user}` : user;
-    parts.push({ text: textContent });
+    // 2026-03-02: Use native systemInstruction for proper system/user separation.
+    // Previously concatenated system+user into a single user message, causing Flash
+    // to echo rules as prose instead of following them as instructions.
+    const userParts = [];
+    userParts.push({ text: user });
 
     if (images && images.length > 0) {
       for (const img of images) {
-        parts.push({
+        userParts.push({
           inlineData: {
             mimeType: img.mimeType,
             data: img.data,
@@ -145,13 +148,17 @@ export async function callGemini({
       console.log(`[model/gemini] 🖼️ Attached ${images.length} image(s) for vision analysis`);
     }
 
-    const contents = [{ role: "user", parts }];
+    const contents = [{ role: "user", parts: userParts }];
 
-    const result = await ai.models.generateContent({
-      model,
-      contents,
-      config
-    });
+    const generateParams = { model, contents, config };
+    if (system) {
+      generateParams.config = {
+        ...config,
+        systemInstruction: system,
+      };
+    }
+
+    const result = await ai.models.generateContent(generateParams);
 
     // New SDK response: result.text or result.response.text()
     let output = (result?.text || result?.response?.text?.() || "").trim();
@@ -172,7 +179,10 @@ export async function callGemini({
       // 2026-02-26: FIX - Removed isMarkdown check that skipped JSON extraction when
       // Gemini prepended markdown headers (e.g., "### Findings...") before JSON.
       // DOCS_GENERATOR already uses skipJsonExtraction=true, making isMarkdown redundant.
-      if (user.toLowerCase().includes('json') && !skipJsonExtraction) {
+      // 2026-03-01: FIX — Check both system AND user for "json" keyword.
+      // Previously only checked user, missing cases where system prompt requests JSON output
+      // (e.g., OFFER_ANALYZER Phase 1 prompt says "Output ONLY JSON" in system, not user).
+      if (expectsJson && !skipJsonExtraction) {
         // Strip leading markdown prose before JSON extraction
         // (google_search grounding sometimes adds a prose preamble before the JSON)
         let extractTarget = output;
