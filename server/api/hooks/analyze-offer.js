@@ -59,7 +59,7 @@ The "decision" field MUST be exactly "ACCEPT" or "REJECT". Never output UNKNOWN.
 
 // 2026-02-28: Phase 2 deep prompt — full reasoning for DB enrichment.
 // Runs async after Siri response is sent. No time pressure.
-const PHASE2_SYSTEM_PROMPT = `You are a rideshare offer analyst for a DFW-area driver based in Frisco, TX.
+const PHASE2_SYSTEM_PROMPT = `You are a rideshare offer analyst for a Dallas-Fort Worth DFW-area driver based in Frisco, TX.
 Provide DEEP analysis. Return ONLY valid JSON.
 
 {
@@ -272,18 +272,19 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
 
     const responseTimeMs = Date.now() - startTime;
 
-    // 2026-03-02: Simplified — just Accept or Reject. Rules protect the driver,
-    // no need for math/miles/stats in the notification. Clean and instant.
+    // 2026-03-03: Notification = decision + reasoning for silent banner display.
+    // No voice/TTS — driver has passengers. Clean banner at top of screen.
     const perMileValue = preParsed?.per_mile ?? phase1Result.per_mile ?? null;
-    const voiceText = decision === 'ACCEPT' ? 'Accept' : 'Reject';
-    const notification = decision === 'ACCEPT' ? 'ACCEPT' : 'REJECT';
+    const notification = reasoning
+      ? `${decision === 'ACCEPT' ? 'ACCEPT' : 'REJECT'}: ${reasoning}`
+      : (decision === 'ACCEPT' ? 'ACCEPT' : 'REJECT');
 
     // ══════════════════════════════════════════════════════════════
     // RESPOND TO SIRI — driver is waiting, every ms counts
     // ══════════════════════════════════════════════════════════════
     res.json({
       success: true,
-      voice: voiceText,
+      voice: '',
       notification,
       decision,
       response_time_ms: responseTimeMs,
