@@ -280,10 +280,23 @@ export const MODEL_ROLES = {
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
     default: 'gemini-3-flash-preview',
-    purpose: 'Real-time ride offer analysis from Siri Shortcuts (ACCEPT/REJECT)',
+    purpose: 'Phase 1: Real-time ride offer analysis from Siri Shortcuts (ACCEPT/REJECT)',
     maxTokens: 1024, // Minimal — just JSON decision + short reasoning
     temperature: 0.1, // Near-deterministic for consistent decisions
     // No thinkingLevel — Flash doesn't need it for OCR/extraction tasks
+    features: ['vision'],
+  },
+
+  // 2026-02-28: Phase 2 deep analysis — runs async AFTER Siri gets its fast response.
+  // Pro 3.1 provides richer reasoning, location analysis, and confidence scoring for DB storage.
+  // Not latency-sensitive — driver already has their answer from Flash.
+  OFFER_ANALYZER_DEEP: {
+    envKey: 'OFFER_ANALYZER_DEEP_MODEL',
+    default: 'gemini-3.1-pro-preview',
+    purpose: 'Phase 2: Async deep ride offer analysis for DB enrichment (runs after Siri response)',
+    maxTokens: 2048,
+    temperature: 0.2,
+    thinkingLevel: 'LOW', // Pro only supports LOW/HIGH; LOW gives reasoning boost without full latency
     features: ['vision'],
   },
 

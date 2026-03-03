@@ -16,6 +16,7 @@ channel = "stable-25_05"
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
 run = ["sh", "-c", "node gateway-server.js"]
 deploymentTarget = "cloudrun"
+publicDir = "dist/public"
 
 [[ports]]
 localPort = 3001

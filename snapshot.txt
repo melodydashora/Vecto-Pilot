@@ -1,59 +1,15 @@
-SNAPSHOT WORKFLOW OBSERVER — 2026-02-26T06:46:06.239Z
+SNAPSHOT WORKFLOW OBSERVER — 2026-03-02T00:45:10.015Z
 ════════════════════════════════════════════════════════════
 
 BEFORE (server boot)
 ────────────────────────────────────────────────────────────
   user_id                 2f22004b-c5cc-43c9-a5a6-02f50ccff571
-  current_snapshot_id     563c979f-135f-438c-91b5-969f97f98182
-  session_id              76b7fc5e-755c-4946-a213-a09566cf5190
-  last_active_at          2026-02-26T06:44:57.865Z
+  current_snapshot_id     2780b1b1-de89-4842-a608-02d9ce8ed7ca
+  session_id              1e00372d-193c-47e5-993d-d1443d26c8e3
+  last_active_at          2026-03-02T00:45:05.810Z
   old snapshot city       Frisco, TX
-  old snapshot age        35.4 min
+  old snapshot age        22.2 min
 
 Waiting for snapshot change...
   (log in → GPS resolves → new snapshot created)
-[06:46:39.829] OLD SNAPSHOT RELEASED (current_snapshot_id → null)
-[06:46:40.332] NEW SNAPSHOT DETECTED: ef82b7e9-ba36-4ddb-a35b-ac0d94170047
-
-NEW SNAPSHOT
-════════════════════════════════════════════════════════════
-  snapshot_id        ef82b7e9-ba36-4ddb-a35b-ac0d94170047
-  created_at         2026-02-26T06:46:39.923Z
-  device_id          b8401528-7d9f-42e4-93da-bb2f5f20c8e2
-  session_id         fb6b98c5-4fce-490d-b7b8-bceb88eac79e
-  h3_r8              8826c87297fffff
-  weather            null
-  air                ┐
-                     │ {
-                     │   "aqi": 81,
-                     │   "category": "Excellent air quality"
-                     │ }
-  permissions        ┐
-                     │ {
-                     │   "geolocation": "granted"
-                     │ }
-  holiday            none
-  is_holiday         false
-  lat                33.12922003166342
-  lng                -96.87556099161992
-  city               Frisco
-  state              TX
-  country            US
-  formatted_address  1735 Timber Ridge Dr, Frisco, TX 75036, USA
-  timezone           America/Chicago
-  local_iso          2026-02-26T00:46:39.000Z
-  dow                4
-  hour               0
-  day_part_key       overnight
-  date               2026-02-26
-  coord_key          33.129220_-96.875561
-  user_id            2f22004b-c5cc-43c9-a5a6-02f50ccff571
-  market             Dallas-Fort Worth
-
-TIMING
-────────────────────────────────────────────────────────────
-  Old snapshot created:   2026-02-26T06:10:39.898Z
-  Old snapshot released:  2026-02-26T06:46:39.829Z
-  New snapshot created:   2026-02-26T06:46:39.923Z
-  Release → Create gap:   0.1s
-  Old snapshot row:       STILL IN DB (not deleted, just dereferenced)
+No new snapshot within 300s
