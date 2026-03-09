@@ -83,7 +83,7 @@ generateBriefingInternal({ snapshotId, snapshot })
 | Market-based search | Uses metro market, not just driver's city — finds events across DFW, not just Dallas |
 | 2-search event model | 2 focused searches vs 5 categories — 60% cost reduction |
 | Soft deletes for events | `is_active=false`, never hard delete — preserves audit trail |
-| No location fallbacks | Missing city/state/timezone = explicit failure (Rule) |
+| Location handling | Core pipeline requires city/state/timezone, but some API endpoints have fallbacks (`timezone \|\| 'UTC'`, `city \|\| 'Unknown'`) — see Issues M-9 |
 
 ---
 
