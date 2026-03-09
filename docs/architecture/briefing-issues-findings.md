@@ -263,14 +263,20 @@ The docstring mentions "GPT-5.2 parallel fetch" which was removed. Code no longe
 
 ---
 
-### M-9: Timezone fallback inconsistency in news endpoint
+### M-9: Location/timezone fallback inconsistencies violate "no silent defaults" rule
 
-**File:** `server/api/briefing/briefing.js` ~line 576
-**Impact:** News could be filtered against UTC instead of local time
+**File:** `server/api/briefing/briefing.js`
+**Impact:** Incorrect filtering/queries when location data is missing
 
-`/rideshare-news/:snapshotId` uses `req.snapshot.timezone || 'UTC'` as fallback, while every other endpoint hard-fails on missing timezone. This is the only endpoint with a timezone fallback.
+The architecture mandates explicit failure on missing city/state/timezone, but three API endpoints silently use fallback values:
 
-**Fix:** Remove the `|| 'UTC'` fallback to match other endpoints, or add explicit error handling.
+| Endpoint | Line | Violation |
+|----------|------|-----------|
+| `/rideshare-news/:snapshotId` | ~576 | `req.snapshot.timezone \|\| 'UTC'` — news filtered against UTC instead of local time |
+| `/traffic/realtime` | ~410 | `city \|\| 'Unknown'` — traffic analysis tagged to fake city |
+| `/traffic/realtime` | ~411 | `state \|\| ''` — empty state breaks any downstream state-based filtering |
+
+**Fix:** Remove all three fallbacks. Return 400 if required fields are missing, matching the pattern used by the core briefing pipeline.
 
 ---
 
