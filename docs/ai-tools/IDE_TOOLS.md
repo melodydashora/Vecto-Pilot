@@ -1,6 +1,6 @@
 # IDE Tools for Vecto Pilot
 
-This document describes the powerful IDE tools available for development with **Replit IDE + Claude Opus 4.5**.
+This document describes the powerful IDE tools available for development with **Replit IDE + Claude Opus 4.6**.
 
 ---
 
@@ -10,7 +10,7 @@ Vecto Pilot is configured with a comprehensive AI-enhanced development environme
 
 | Tool | Purpose | Status |
 |------|---------|--------|
-| **Claude Opus 4.5** | Primary AI assistant | ✅ Enabled |
+| **Claude Opus 4.6** | Primary AI assistant | ✅ Enabled |
 | **Extended Thinking** | 10k token reasoning budget | ✅ Enabled |
 | **Web Search** | Real-time web search | ✅ Enabled |
 | **Web Fetch** | Fetch and analyze URLs | ✅ Enabled |
@@ -123,11 +123,11 @@ Runs at session start:
 
 ## Assistant Configuration
 
-The Replit Assistant is configured with Claude Opus 4.5:
+The Replit Assistant is configured with Claude Opus 4.6:
 
 ```toml
 [assistant]
-model = "claude-opus-4-5-20251101"
+model = "claude-opus-4-6"
 web_search = true
 web_fetch = true
 shell_exec = true
@@ -221,7 +221,7 @@ npm run build         # Production build
 
 ### Assistant Not Working
 1. Check `.replit-assistant-override.json` is valid JSON
-2. Verify model is set to `claude-opus-4-5-20251101`
+2. Verify model is set to `claude-opus-4-6`
 3. Restart the Repl
 
 ### Workflows Not Showing

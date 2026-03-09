@@ -180,7 +180,7 @@ When changing AI models, document:
 
 ```markdown
 ## AI Model: Event Validator Change (2026-01-04)
-- **Changed:** Gemini 2.5 Pro → Claude Opus 4.5
+- **Changed:** Gemini 2.5 Pro → Claude Opus 4.6
 - **Why:** Gemini returned outdated/incorrect event schedules
 - **File:** server/lib/ai/event-schedule-validator.js
 ```

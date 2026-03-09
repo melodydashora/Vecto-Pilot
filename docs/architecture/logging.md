@@ -129,7 +129,7 @@ import { ndjsonLog } from '../../logger/ndjson.js';
 ndjsonLog({
   event: 'strategy_generated',
   snapshot_id: snapshotId,
-  model: 'claude-opus-4-5',
+  model: 'claude-opus-4-6',
   tokens: 1234,
   duration_ms: 3500
 });
@@ -137,7 +137,7 @@ ndjsonLog({
 
 Output:
 ```json
-{"event":"strategy_generated","snapshot_id":"abc123","model":"claude-opus-4-5","tokens":1234,"duration_ms":3500,"timestamp":"2025-12-15T20:00:00Z"}
+{"event":"strategy_generated","snapshot_id":"abc123","model":"claude-opus-4-6","tokens":1234,"duration_ms":3500,"timestamp":"2025-12-15T20:00:00Z"}
 ```
 
 ## Correlation IDs

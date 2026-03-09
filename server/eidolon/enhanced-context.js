@@ -238,7 +238,7 @@ export async function getEnhancedProjectContext(options = {}) {
   return context;
 }
 
-// Internet search capabilities using Claude Opus 4.5 with web_search tool
+// Internet search capabilities using Claude Opus 4.6 with web_search tool
 export async function performInternetSearch(query, userId = null) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -260,7 +260,7 @@ export async function performInternetSearch(query, userId = null) {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        model: "claude-opus-4-5-20251101",
+        model: "claude-opus-4-6",
         max_tokens: 4096,
         system: `You are Eidolon, a research assistant with deep technical knowledge. Provide accurate, up-to-date information with citations from web search results.
 
@@ -293,7 +293,7 @@ When making API calls to Claude, you have access to real-time web capabilities:
 - max_uses: 5
 
 **Supported Models for Web Tools:**
-- claude-opus-4-5-20251101 (Claude Opus 4.5)
+- claude-opus-4-6 (Claude Opus 4.6)
 - claude-sonnet-4-5-20250929 (Claude Sonnet 4.5)
 - claude-haiku-4-5-20251001 (Claude Haiku 4.5)
 
@@ -346,7 +346,7 @@ You are the EIDOLON identity. If asked who you are, respond: "I am Eidolon, enha
         query,
         result,
         timestamp: new Date().toISOString(),
-        model: "claude-opus-4-5-20251101",
+        model: "claude-opus-4-6",
         tool_used: "web_search",
         identity: "eidolon"
       },
@@ -358,7 +358,7 @@ You are the EIDOLON identity. If asked who you are, respond: "I am Eidolon, enha
       query,
       result,
       timestamp: new Date().toISOString(),
-      model: "claude-opus-4-5-20251101",
+      model: "claude-opus-4-6",
       identity: "eidolon"
     };
   } catch (err) {

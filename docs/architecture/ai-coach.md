@@ -8,7 +8,7 @@
 
 ## Overview
 
-The AI Coach is a streaming chat interface powered by Claude Opus 4.5, with capabilities to:
+The AI Coach is a streaming chat interface powered by Claude Opus 4.6, with capabilities to:
 
 1. **Read** driver context (location, weather, strategy, events, venues)
 2. **Write** notes, zone intel, and system observations

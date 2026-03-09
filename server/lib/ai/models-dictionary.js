@@ -20,7 +20,7 @@ export const MODELS_DICTIONARY = {
 // ===== REPLIT AGENT ASSISTANT (Claude Sonnet 4.5) =====
 replit_agent: {
   provider: 'anthropic',
-  model_id: 'claude-opus-4-5-20251101',
+  model_id: 'claude-opus-4-6',
   model_name: 'Claude Sonnet 4.5',
   // 200k standard; 1M available via beta header (see notes below)
   context_window: 200_000,
@@ -70,7 +70,7 @@ replit_agent: {
   // ==========================================
   triad_strategist: {
     provider: 'anthropic',
-    model_id: 'claude-opus-4-5-20251101', // Updated to match Replit Agent
+    model_id: 'claude-opus-4-6', // Updated to match Replit Agent
     model_name: 'Claude Sonnet 4.5 (Strategist)',
     context_window: 200000,
     max_output_tokens: 64000,
@@ -138,13 +138,13 @@ replit_agent: {
   // ==========================================
   // TRIAD PIPELINE - STAGE 3: EVENT VALIDATOR
   // ==========================================
-  // NOTE: Changed from Gemini 2.5 Pro to Claude Opus 4.5 in Dec 2025
+  // NOTE: Changed from Gemini 2.5 Pro to Claude Opus 4.6 in Dec 2025
   // Reason: Gemini web search returned outdated/incorrect event schedules
   // See: server/lib/briefing/event-schedule-validator.js for implementation
   triad_validator: {
     provider: 'anthropic',
-    model_id: 'claude-opus-4-5-20251101',
-    model_name: 'Claude Opus 4.5 (Event Validator)',
+    model_id: 'claude-opus-4-6',
+    model_name: 'Claude Opus 4.6 (Event Validator)',
     context_window: 200000,
     max_output_tokens: 4096,
     api_endpoint: 'https://api.anthropic.com/v1/messages',
@@ -175,7 +175,7 @@ replit_agent: {
   // ==========================================
   agent_override_primary: {
     provider: 'anthropic',
-    model_id: 'claude-opus-4-5-20251101', // Matching Eidolon's model
+    model_id: 'claude-opus-4-6', // Matching Eidolon's model
     model_name: 'Claude Sonnet 4.5 (Atlas - Eidolon Unified)',
     context_window: 200000,
     max_output_tokens: 200000,
@@ -228,7 +228,7 @@ replit_agent: {
   // STRATEGIST - Strategic overview generation
   strategist: {
     provider: 'anthropic',
-    model_id: 'claude-opus-4-5-20251101',
+    model_id: 'claude-opus-4-6',
     model_name: 'Claude OPUS 4.5 (Strategist)',
     context_window: 200000,
     max_output_tokens: 4000,

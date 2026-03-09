@@ -33,7 +33,7 @@ Auto-generated from Perplexity web search research.
 | Provider | Flagship Model | Endpoint |
 |----------|----------------|----------|
 | OpenAI | gpt-5.2 | https://api.openai.com/v1/chat/completions |
-| Anthropic | claude-opus-4-5-20251101 | https://api.anthropic.com/v1/messages |
+| Anthropic | claude-opus-4-6 | https://api.anthropic.com/v1/messages |
 | Google | gemini-3-pro-preview | https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent |
 | Perplexity | sonar-pro | https://api.perplexity.ai/chat/completions |
 
@@ -83,8 +83,8 @@ Based on the search results provided, I can identify the newest Claude models, b
 The most recent Claude models mentioned in the search results are:[2]
 
 - **Claude 3.7 Sonnet** (model ID: `anthropic.claude-3-7-sonnet-20250219-v1:0`)[4]
-- **Claude Sonnet 4.5** (model ID: `anthropic.claude-opus-4-5-20251101-v1:0`)[4]
-- **Claude Opus 4.5**[2]
+- **Claude Sonnet 4.5** (model ID: `anthropic.claude-opus-4-6-v1:0`)[4]
+- **Claude Opus 4.6**[2]
 - **Claude Haiku 4.5**[2]
 
 ## Available Information from Search Results
@@ -94,7 +94,7 @@ The most recent Claude models mentioned in the search results are:[2]
 - Tool use / function calling supported[2]
 - Extended thinking / thinking blocks available on Claude 3.7 Sonnet and Claude Sonnet 4.5[4]
 - Fine-grained tool streaming on Claude Sonnet 4.5, Claude Haiku 4.5, Claude Sonnet 4, and Claude Opus 4[2]
-- Claude Opus 4.5 achieves 80.9% accuracy on real-world coding tasks[6]
+- Claude Opus 4.6 achieves 80.9% accuracy on real-world coding tasks[6]
 
 **Note:** An **Effort Parameter API** is available as a new SDK parameter to control reasoning depth, available through the Anthropic API with no additional charge[6]
 
@@ -327,8 +327,8 @@ For current, comprehensive documentation on these APIs' endpoints, parameters, p
 // Gemini 3 Pro (briefer)
 { model: "gemini-3-pro-preview", generationConfig: { thinkingConfig: { thinkingLevel: "LOW" } } }
 
-// Claude Opus 4.5 (event validator, fallback)
-{ model: "claude-opus-4-5-20251101", max_tokens: 64000, temperature: 0.7 }
+// Claude Opus 4.6 (event validator, fallback)
+{ model: "claude-opus-4-6", max_tokens: 64000, temperature: 0.7 }
 ```
 
 See `LESSONS_LEARNED.md` → "AI Model Configuration" for full details.

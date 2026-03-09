@@ -8,7 +8,7 @@ Vecto Pilot uses a multi-model AI pipeline called TRIAD (Three-model Intelligenc
 
 | Role | Model | Provider | Purpose |
 |------|-------|----------|---------|
-| Strategist | Claude Opus 4.5 | Anthropic | Generate strategic overview |
+| Strategist | Claude Opus 4.6 | Anthropic | Generate strategic overview |
 | Events | SerpAPI + GPT-5.2 | OpenAI | Event discovery (daily sync) |
 | News (Dual-Model) | Gemini 3.0 Pro + GPT-5.2 | Google + OpenAI | Parallel news fetch (both run, results merged) |
 | Traffic (Primary) | TomTom | TomTom | Real-time traffic data |
@@ -142,7 +142,7 @@ The adapter at `server/lib/ai/adapters/index.js` handles:
 
 ## Fallback System
 
-Claude Opus 4.5 with web search serves as automatic fallback when primary models fail:
+Claude Opus 4.6 with web search serves as automatic fallback when primary models fail:
 
 **Briefing Fallbacks (Gemini → Claude):**
 - Events: If Gemini returns 0 events → Claude web search with parallel category searches
@@ -192,11 +192,11 @@ Claude Opus 4.5 with web search serves as automatic fallback when primary models
 { thinking_budget: 8000 }  // Flat format not supported
 ```
 
-### Claude Opus 4.5
+### Claude Opus 4.6
 ```javascript
 // Standard Anthropic format
 {
-  model: "claude-opus-4-5-20251101",
+  model: "claude-opus-4-6",
   max_tokens: 8000,
   temperature: 0.3
 }
@@ -206,11 +206,11 @@ Claude Opus 4.5 with web search serves as automatic fallback when primary models
 
 ```bash
 # Model configuration
-STRATEGY_STRATEGIST=claude-opus-4-5-20251101
+STRATEGY_STRATEGIST=claude-opus-4-6
 STRATEGY_BRIEFER=gemini-3-pro-preview
 STRATEGY_CONSOLIDATOR=gpt-5.2
 STRATEGY_HOLIDAY_CHECKER=gemini-3-pro-preview
-STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101  # Event validation with web search
+STRATEGY_EVENT_VALIDATOR=claude-opus-4-6  # Event validation with web search
 
 # API keys
 ANTHROPIC_API_KEY=...

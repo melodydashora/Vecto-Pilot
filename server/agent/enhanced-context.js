@@ -239,7 +239,7 @@ export async function getEnhancedProjectContext(options = {}) {
   return context;
 }
 
-// Internet search capabilities using Claude Opus 4.5 with web_search tool
+// Internet search capabilities using Claude Opus 4.6 with web_search tool
 export async function performInternetSearch(query, userId = null) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -261,7 +261,7 @@ export async function performInternetSearch(query, userId = null) {
         "content-type": "application/json"
       },
       body: JSON.stringify({
-        model: "claude-opus-4-5-20251101",
+        model: "claude-opus-4-6",
         max_tokens: 4096,
         system: "You are Agent, a technical assistant with deep development knowledge. Provide accurate, up-to-date information with citations from web search results.",
         tools: [
@@ -304,7 +304,7 @@ export async function performInternetSearch(query, userId = null) {
         query,
         result,
         timestamp: new Date().toISOString(),
-        model: "claude-opus-4-5-20251101",
+        model: "claude-opus-4-6",
         tool_used: "web_search",
         identity: "agent"
       },
@@ -316,7 +316,7 @@ export async function performInternetSearch(query, userId = null) {
       query,
       result,
       timestamp: new Date().toISOString(),
-      model: "claude-opus-4-5-20251101",
+      model: "claude-opus-4-6",
       identity: "agent"
     };
   } catch (err) {

@@ -12,7 +12,7 @@ const ALERT_EMAIL = 'melodydashora@gmail.com';
 /**
  * Send an email alert when a model error occurs
  * @param {Object} params - Alert parameters
- * @param {string} params.model - The model that failed (e.g., 'claude-opus-4-5', 'gpt-5.2')
+ * @param {string} params.model - The model that failed (e.g., 'claude-opus-4-6', 'gpt-5.2')
  * @param {string} params.errorType - Type of error (e.g., 'credit_exhaustion', 'rate_limit', 'api_error')
  * @param {string} params.errorMessage - The error message
  * @param {string} params.context - Where the error occurred (e.g., 'traffic_analysis', 'strategy_generation')

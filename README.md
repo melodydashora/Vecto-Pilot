@@ -75,7 +75,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 PERPLEXITY_API_KEY=pplx-...
 
 # Model Configuration (optional - defaults shown)
-STRATEGY_STRATEGIST=claude-opus-4-5-20251101
+STRATEGY_STRATEGIST=claude-opus-4-6
 STRATEGY_BRIEFER=gemini-3-pro-preview
 STRATEGY_CONSOLIDATOR=gemini-3-pro-preview
 STRATEGY_HOLIDAY_CHECKER=sonar-pro
