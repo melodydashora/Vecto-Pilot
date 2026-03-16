@@ -13,6 +13,7 @@ import IntelPage from '@/pages/co-pilot/IntelPage';
 import AboutPage from '@/pages/co-pilot/AboutPage';
 import PolicyPage from '@/pages/co-pilot/PolicyPage';
 import SettingsPage from '@/pages/co-pilot/SettingsPage';
+import TranslationPage from '@/pages/co-pilot/TranslationPage';
 import {
   SignInPage,
   SignUpPage,
@@ -143,6 +144,11 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />,
+      },
+      {
+        // 2026-03-16: Real-time rider translation for FIFA World Cup
+        path: 'translate',
+        element: <TranslationPage />,
       },
     ],
   },

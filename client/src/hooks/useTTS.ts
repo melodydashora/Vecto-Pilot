@@ -7,7 +7,8 @@ import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface UseTTSReturn {
   isSpeaking: boolean;
-  speak: (text: string) => Promise<void>;
+  /** Speak text aloud. Optionally specify a language for multilingual TTS. */
+  speak: (text: string, language?: string) => Promise<void>;
   stop: () => void;
 }
 
@@ -28,7 +29,8 @@ export function useTTS(): UseTTSReturn {
     setIsSpeaking(false);
   }, []);
 
-  const speak = useCallback(async (text: string) => {
+  // 2026-03-16: Added optional language parameter for multilingual translation TTS
+  const speak = useCallback(async (text: string, language?: string) => {
     if (!text) return;
 
     if (isSpeaking) {
@@ -38,12 +40,12 @@ export function useTTS(): UseTTSReturn {
 
     try {
       setIsSpeaking(true);
-      console.log('[TTS] Requesting audio synthesis...');
+      console.log(`[TTS] Requesting audio synthesis...${language ? ` (lang: ${language})` : ''}`);
 
       const response = await fetch(API_ROUTES.TTS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text, ...(language && { language }) })
       });
 
       if (!response.ok) {
