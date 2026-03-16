@@ -1,3 +1,6 @@
+[SYSTEM TAG: HISTORICAL_RECORD | NON_EXECUTABLE]
+AGENT DIRECTIVE: This file contains resolved historical post-mortems. Do NOT attempt to fix the bugs listed here. Use this file STRICTLY as read-only context to avoid repeating past architectural mistakes.
+
 
 ## 2026-02-26: snapshot.weather vs briefing.weather — Wrong Data Source in Strategy Prompt
 

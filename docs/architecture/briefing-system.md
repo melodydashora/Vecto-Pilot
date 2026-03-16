@@ -31,10 +31,10 @@ The system moved from a fragile multi-model chain (SerpAPI -> GPT -> Claude) to 
 | Domain | Primary Source | AI Role (Gemini 3 Pro) | Refresh Strategy |
 | :--- | :--- | :--- | :--- |
 | **Traffic** | **TomTom API** (Raw Flow + Incidents) | **Strategic Analysis:** Correlates incidents with driver location to recommend actions. | Real-time (On Request) |
-| **Events** | **Gemini + Google Search** | **Discovery & Normalization:** Finds events, extracts times, deduplicates. | Daily (Background Job) |
-| **News** | **Gemini + Google Search** | **Filtering:** selects only driver-relevant news (surges, regulations, safety). | Daily (Background Job) |
+| **Events** | **Gemini + Google Search** | **Discovery & Normalization:** Finds events, extracts times, deduplicates. | Real-time (On Request) |
+| **News** | **Gemini + Google Search** | **Filtering:** selects only driver-relevant news (surges, regulations, safety). | Real-time (On Request) |
 | **Weather** | **Google Maps API** | **Forecast:** Generates 4-6 hour outlook and driving conditions text. | Real-time (On Request) |
-| **Schools** | **Gemini + Google Search** | **Discovery:** Finds closures/holidays within 15mi radius. | Daily |
+| **Schools** | **Gemini + Google Search** | **Discovery:** Finds closures/holidays within 15mi radius. | Real-time (On Request) |
 
 ## 4. Data Consolidation Schema
 

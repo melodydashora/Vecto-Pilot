@@ -1,3 +1,9 @@
+---
+[SYSTEM TAG: METRIC_BASELINE | ARCHITECTURAL_CONSTRAINTS | READ_ONLY]
+AGENT DIRECTIVE: This document contains the benchmarked optimization strategies for database pooling, API caching, and algorithmic efficiency.
+DO NOT implement new features that violate these baselines (e.g., introducing N+1 queries or bypassing the geocoding cache).
+USE CASE: Validate your implementation plans against these rules before executing code changes.
+---
 # Performance Optimizations
 
 **Last Updated:** 2026-02-15
@@ -7,7 +13,7 @@ This document describes the performance optimizations implemented in the Vecto P
 ## Overview
 
 Performance improvements target three main areas:
-1. **Database Operations** - Reducing query count and improving connection pooling (Note from Melody - how can we do this? Does it reduce functionality?
+1. **Database Operations** - Reducing query count and improving connection pooling (Note from Melody - how can we do this? Does it reduce functionality?)
 2. **External API Calls** - Caching to prevent redundant requests (I thought we were caching coords from base and user (reusing data is a problem when driver conditions change quickly - I'm not a fan of caching because we end up forgetting, not clearing, not considering driver movement and auth requirements - what would you like to cache?)
 3. 
 4. **Algorithm Efficiency** - Optimizing data structures and operations (I feel like ML is not even implemented. When we are ever able to get the scopes for UBER or make the SIRI shortcut where the user creates a shortcut that we would need to process without the driver needing to login (we have a proxy service through Eidolon we aren't using, here is what is easiest:
@@ -67,7 +73,7 @@ PG_USE_SHARED_POOL=true
 **Problem:** Repeated reverse geocoding API calls for venues in similar locations.
 
 **Solution:** In-memory cache with spatial precision and TTL:
-- Cache key: "lat,lng" rounded to 3 decimals (~110m precision) (nope always 6 - precision is the backbone)
+- Cache key: "lat,lng" rounded to 6 decimals (~110m precision) (nope always 6 - precision is the backbone)
 - TTL: 1 hour (addresses don't change frequently)
 - LRU eviction when cache exceeds 1000 entries
 
@@ -80,7 +86,7 @@ PG_USE_SHARED_POOL=true
 **Problem:** Expensive Routes API calls ($10 per 1,000 requests) without caching.
 
 **Solution:** In-memory cache with traffic-aware TTL:
-- Cache key: "origin_lat,origin_lng|dest_lat,dest_lng" (3 decimal precision)
+- Cache key: "origin_lat,origin_lng|dest_lat,dest_lng" (6 decimal precision)
 - TTL: 10 minutes (traffic changes frequently)
 - LRU eviction when cache exceeds 500 entries
 

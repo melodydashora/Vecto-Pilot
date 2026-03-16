@@ -23,6 +23,4 @@ node tools/query-briefing.js
 
 Outputs all fields from the most recent briefing to console and file.
 
-## Research Subfolder
 
-See `tools/research/README.md` for AI model research tools.

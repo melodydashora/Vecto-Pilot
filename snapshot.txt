@@ -1,14 +1,14 @@
-SNAPSHOT WORKFLOW OBSERVER — 2026-03-03T10:05:22.621Z
+SNAPSHOT WORKFLOW OBSERVER — 2026-03-05T10:54:57.229Z
 ════════════════════════════════════════════════════════════
 
 BEFORE (server boot)
 ────────────────────────────────────────────────────────────
   user_id                 2f22004b-c5cc-43c9-a5a6-02f50ccff571
-  current_snapshot_id     04210a2c-e7c0-40b1-95cd-8ca9b3d0723c
-  session_id              ce0d1649-c819-4052-bcc8-4e05f3ac192d
-  last_active_at          2026-03-03T07:35:46.582Z
+  current_snapshot_id     f8e5fd37-5ffc-49af-9f1a-b57e247d4804
+  session_id              b9feef5a-d1a7-4413-bac1-8c0dcb19740b
+  last_active_at          2026-03-04T20:40:33.748Z
   old snapshot city       Frisco, TX
-  old snapshot age        156.7 min
+  old snapshot age        861.9 min
 
 Waiting for snapshot change...
   (log in → GPS resolves → new snapshot created)
