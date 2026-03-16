@@ -154,6 +154,15 @@ export const API_ROUTES = {
   TTS: '/api/tts',
 
   // =========================================================================
+  // Translation (real-time driver-rider communication)
+  // 2026-03-16: Added for FIFA World Cup rider translation feature
+  // =========================================================================
+  TRANSLATE: {
+    SEND: '/api/translate',
+    LANGUAGES: '/api/translate/languages',
+  },
+
+  // =========================================================================
   // Realtime
   // =========================================================================
   REALTIME: {

@@ -100,8 +100,12 @@ export async function mountRoutes(app, server) {
     // Concierge (server/api/concierge/) - 2026-02-13: QR code sharing + public event discovery
     { path: '/api/concierge', module: './server/api/concierge/concierge.js', desc: 'Concierge' },
 
+    // Translation (server/api/translate/) - 2026-03-16: Real-time rider translation
+    { path: '/api/translate', module: './server/api/translate/index.js', desc: 'Translation API' },
+
     // External Hooks (server/api/hooks/)
     { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
+    { path: '/api/hooks', module: './server/api/hooks/translate.js', desc: 'Siri Translation Hook' },
 
     // 2026-01-09: Removed EventEmitter SSE - DB NOTIFY SSE is canonical (mountSSE)
     // The /events mount was duplicating /events/strategy, /events/blocks with EventEmitter
