@@ -5,8 +5,8 @@
  * that may need updating. Outputs to docs/review-queue/.
  *
  * Usage:
- *   - Automatically runs on server startup (unless RUN_CHANGE_ANALYZER=false)
- *   - Can be triggered manually via MCP tool: analyze_changes
+ * - Automatically runs on server startup (unless RUN_CHANGE_ANALYZER=false)
+ * - Can be triggered manually via MCP tool: analyze_changes
  */
 
 import { exec } from 'child_process';
@@ -69,11 +69,37 @@ export async function runAnalysis() {
       getLastCommit()
     ]);
 
-    // Combine all changes, excluding .md files to prevent recursive analysis
-    // (analyzing .md files causes them to be modified, triggering more analysis)
-    const allChanges = [...uncommittedChanges, ...recentCommits].filter(
-      change => !change.file.endsWith('.md')
-    );
+    // ---------------------------------------------------------
+    // SYSTEM OVERRIDE: SEMANTIC ROUTING FILTER
+    // ---------------------------------------------------------
+    // Define protected AI output zones that should NEVER trigger a recursive loop
+    const IGNORED_MD_PATHS = [
+      'docs/review-queue/', // The analyzer's own output
+      'docs/memory/',       // Agent scratchpads
+      'ARCHITECTURE.md',    // Root doc (Target)
+      'LESSONS_LEARNED.md', // Root doc (Target)
+      'LEXICON.md',         // Root doc (Target)
+      'GEMINI.md',          // System prompt
+      'CLAUDE.md',          // System prompt
+      'GEMINIANALYSIS.md',  // System audit
+      'GEMINIMEMORY.md',    // System context
+      'WORKFLOW_FILE_LISTING.md' // Auto-generated index
+    ];
+
+    // Combine all changes, allowing local READMEs to pass through 
+    // while filtering out root documents and non-markdown noise.
+    const allChanges = [...uncommittedChanges, ...recentCommits].filter(change => {
+      // Always allow code changes
+      if (!change.file.endsWith('.md')) return true;
+
+      // If it IS a markdown file, check if it's in the ignored paths
+      const isIgnored = IGNORED_MD_PATHS.some(ignoredPath => 
+        change.file.includes(ignoredPath) || change.file === ignoredPath
+      );
+
+      // Allow the change IF it's an .md file that IS NOT in the ignored list 
+      return !isIgnored;
+    });
 
     // Map to affected documentation
     const docImpacts = analyzeDocImpact(allChanges);
@@ -240,20 +266,11 @@ function generateReport({ uncommittedChanges, recentCommits, docImpacts, branch,
   const date = new Date().toISOString().split('T')[0];
   const hasImpacts = docImpacts.high.length > 0 || docImpacts.medium.length > 0;
 
-  let report = `## ${date} Analysis
-
-**Generated:** ${timestamp}
-**Branch:** ${branch}
-**Last Commit:** ${lastCommit}
-
-`;
+  let report = `## ${date} Analysis\n\n**Generated:** ${timestamp}\n**Branch:** ${branch}\n**Last Commit:** ${lastCommit}\n\n`;
 
   // Changes summary
   if (uncommittedChanges.length > 0) {
-    report += `### Uncommitted Changes (${uncommittedChanges.length})
-| File | Status |
-|------|--------|
-`;
+    report += `### Uncommitted Changes (${uncommittedChanges.length})\n| File | Status |\n|------|--------|\n`;
     for (const change of uncommittedChanges.slice(0, 20)) {
       report += `| \`${change.file}\` | ${change.status} |\n`;
     }
@@ -264,10 +281,7 @@ function generateReport({ uncommittedChanges, recentCommits, docImpacts, branch,
   }
 
   if (recentCommits.length > 0) {
-    report += `### Recent Commit Changes (${recentCommits.length})
-| File | Status |
-|------|--------|
-`;
+    report += `### Recent Commit Changes (${recentCommits.length})\n| File | Status |\n|------|--------|\n`;
     for (const change of recentCommits.slice(0, 20)) {
       report += `| \`${change.file}\` | ${change.status} |\n`;
     }
@@ -279,12 +293,9 @@ function generateReport({ uncommittedChanges, recentCommits, docImpacts, branch,
 
   // Documentation impact
   if (hasImpacts) {
-    report += `### Documentation Review Needed
-
-`;
+    report += `### Documentation Review Needed\n\n`;
     if (docImpacts.high.length > 0) {
-      report += `#### High Priority
-`;
+      report += `#### High Priority\n`;
       for (const impact of docImpacts.high) {
         report += `- [ ] \`${impact.doc}\` - ${impact.reason} (${impact.triggeredBy})\n`;
       }
@@ -292,8 +303,7 @@ function generateReport({ uncommittedChanges, recentCommits, docImpacts, branch,
     }
 
     if (docImpacts.medium.length > 0) {
-      report += `#### Medium Priority
-`;
+      report += `#### Medium Priority\n`;
       for (const impact of docImpacts.medium) {
         report += `- [ ] \`${impact.doc}\` - ${impact.reason} (${impact.triggeredBy})\n`;
       }
@@ -301,26 +311,17 @@ function generateReport({ uncommittedChanges, recentCommits, docImpacts, branch,
     }
 
     if (docImpacts.low.length > 0) {
-      report += `#### Low Priority
-`;
+      report += `#### Low Priority\n`;
       for (const impact of docImpacts.low) {
         report += `- [ ] ${impact.doc} - ${impact.reason} (${impact.triggeredBy})\n`;
       }
       report += '\n';
     }
   } else {
-    report += `### Documentation Review Needed
-
-No documentation impacts detected.
-
-`;
+    report += `### Documentation Review Needed\n\nNo documentation impacts detected.\n\n`;
   }
 
-  report += `### Status: PENDING
-
----
-
-`;
+  report += `### Status: PENDING\n\n---\n\n`;
 
   return report;
 }
@@ -354,13 +355,7 @@ async function writeToReviewQueue(report) {
   try {
     pendingContent = await fs.readFile(pendingPath, 'utf-8');
   } catch {
-    pendingContent = `# Pending Documentation Review
-
-Items flagged by the Change Analyzer for human-AI validation.
-
----
-
-`;
+    pendingContent = `# Pending Documentation Review\n\nItems flagged by the Change Analyzer for human-AI validation.\n\n---\n\n`;
   }
 
   // Remove the "no pending items" message if present

@@ -1,3 +1,5 @@
+[SYSTEM TAG: STRUCTURAL_INDEX | NON_EXECUTABLE]
+AGENT DIRECTIVE: This is a read-only map of the system. Do not modify this file unless explicitly instructed to document a new architectural paradigm.
 
 # LEXICON.md
 

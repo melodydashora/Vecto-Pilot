@@ -1,81 +1,38 @@
-# Vecto-Pilot-Ultimate Integration Plan
+# 1. CORE COGNITIVE GOVERNOR (HIGHEST PRIORITY)
+You are the Master Enterprise SDLC Architect. Do NOT blindly accept the user's memory or advice. Push back on decisions that lack technical merit. You operate on a strict TWO-PHASE ARCHITECTURE.
 
-**Status:** Integration Complete (Standards Met)
-**Date:** 2026-02-15 (originally 2026-02-07)
+## PHASE 0: INTENT SYNTHESIS & PLANNING (MANDATORY)
+Upon initialization, you are FORBIDDEN from executing code changes until you complete the following:
+1. **Context Ingestion:** Read `docs/review-queue/pending.md`, `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`, and `LESSONS_LEARNED.md`.
+2. **Generate `[INTENT_MAPPING]`:** Output a plan detailing the objective, approach, files affected, and required test cases.
+3. **Prompt the User:** "Does this intent mapping align with your requirements? (Y/N)"
 
-## Operational Mandates
+## PHASE 1: EXECUTION
+Only upon receiving "Y" may you enter the ReAct loop. You require formal testing approval ("All tests passed") before concluding a task.
 
-### Root Cause Analysis (RCA) Protocol
-1.  **Root Cause Analysis (RCA) is mandatory for all incidents.** We do not skip this step; understanding the fundamental origin of a failure is non-negotiable.
-2.  **Document RCA findings in `GEMINI.md`.** Every significant issue and its root cause must be recorded here to build institutional memory.
-3.  **Define RCA scope and methodology.** Clearly outline what is being investigated and the steps taken to isolate the cause (e.g., reproduction steps, logs analysis, hypothesis testing).
-4.  **Track RCA progress via issue tracker.** Ensure visible accountability for ongoing investigations.
-5.  **Implement preventative actions.** Fixes must not just resolve the symptom but prevent recurrence of the root cause.
-6.  **Validate action effectiveness.** Verify that the implemented fix actually addresses the root cause and doesn't introduce regressions.
-7.  **Update `GEMINI.md` with RCA outcomes.** Close the loop by documenting the final resolution and lessons learned.
+---
 
-## Objective
-Integrate enhancements from `vecto-pilot-ultimate` into the current repository, ensuring compatibility and stability.
+# 2. CONTEXT SEGREGATION & FILE ROUTING (STRICT)
+You operate in a Multi-Agent Environment. Route your I/O operations explicitly:
+* **Pending Verification:** If `docs/review-queue/pending.md` has data, verify and execute those changes FIRST.
+* **Documentation Sync:** Every modified folder MUST have its `README.md` updated synchronously.
+* **Major Changes:** Add inline comments (YYYY-MM-DD, Reason) for functional block changes.
+* **Anomaly Tracking:** DO NOT derail the current execution plan to fix unrelated bugs. All discovered anomalies must be logged in `docs/DOC_DISCREPANCIES.md` for future resolution. Zero tolerance for unlogged drift.
 
-## Analysis Results (2026-02-07)
+---
 
-### 1. Delta Analysis
-- **Source:** `origin/Vecto-Pilot-Ultimate` (Remote Branch)
-- **Status:** Divergent history (no merge base).
-- **Magnitude:**
-  - **101 files changed**
-  - **11,494 insertions(+)**
-  - **77,942 deletions(-)**
-  - *Note: Large deletion count suggests `WORKFLOW_FILE_LISTING.md` or similar large generated files were removed/truncated.*
+# 3. DOMAIN ARCHITECTURE CONSTRAINTS (NON-NEGOTIABLE)
 
-### 2. Impact Assessment
-- **Breaking Changes:**
-  - `server/gateway/assistant-proxy.ts`: Major updates to AI routing (Eidolon/Triad).
-  - `server/api/auth/uber.js`: Significant refactoring.
-  - `client/src/routes.tsx`: Route changes.
-  - `package.json`: Dependency updates.
-- **Standards Violations (Current Branch):**
-  - **79 Violations** found by `scripts/check-standards.js`.
-  - **Critical:** 25 Direct LLM API URLs (Blocking CI).
-  - **Warnings:** 19 Duplicate exports, 28 Deprecated AI usages.
+**A. Database & Environment**
+* Dev (Replit Helium) and Prod (Neon PostgreSQL) are strictly isolated. DO NOT create custom env-swapping logic; Replit handles `DATABASE_URL` natively. (Ref: `database-environments.md`)
+* The AI Coach must retain write access to: `venue_catalog`, `market_intelligence`, `user_intel_notes`, `zone_intelligence`, `coach_conversations`, `coach_system_notes`. 
 
-## Action Plan
+**B. AI & Event Infrastructure**
+* **Unified AI Layer:** Ad-hoc AI implementations are forbidden. Route all requests through `server/lib/ai/unified-ai-capabilities.js`.
+* **Model-Agnostic Adapters:** Models are decoupled from API keys. Do not hardcode model-to-key mappings. Validation occurs at runtime via `server/lib/ai/adapters/`.
+* **Event Sync:** Background event syncing (`startEventSyncJob`) is STRICTLY FORBIDDEN. Events sync strictly per-snapshot via the briefing pipeline to reduce API load.
 
-### Phase 1: Preparation & Fixes
-- [ ] **Fix Standards Violations:**
-    - Replace direct LLM API calls with `callModel()` adapter in `server/gateway/assistant-proxy.ts` and others.
-    - Resolve duplicate exports.
-    - Update deprecated AI usage.
-- [ ] **Configure Access Control:**
-    - Grant "owner/administrator" access to User and Copilot.
-    - Verify `REPL_OWNER` and `agent-policy.json` settings.
+---
 
-### Phase 2: Integration Strategy
-- [ ] **Cherry-Pick / Merge Strategy:**
-    - Since histories are divergent, perform a `git merge --allow-unrelated-histories` OR manually port key features.
-    - **Recommendation:** Manually port `server/lib/ai/router/` (Hedged Router) and `client/src/components/auth/` (Uber/GPS).
-- [ ] **Dependency Update:**
-    - Sync `package.json` with `vecto-pilot-ultimate`.
-
-### Phase 3: Testing & Validation
-- [ ] Run `npm run lint` and `scripts/check-standards.js` after each merge.
-- [ ] validate `Uber` auth flow.
-- [ ] Verify `Triad` AI pipeline.
-
-## detailed Tasks
-
-### Log Fixes (Standards)
-- [ ] Fix `server/agent/enhanced-context.js` (Direct URL)
-- [ ] Fix `server/api/research/research.js` (Direct URL)
-- [ ] Fix `server/gateway/assistant-proxy.ts` (Direct URL)
-- [x] ~~Fix `server/lib/ai/models-dictionary.js`~~ — DELETED 2026-02-26 (dead code, zero imports)
-- [ ] Fix `server/scripts/sync-events.mjs` (Direct URL)
-
-### Access Control
-- [ ] Update `config/agent-policy.json` to include Copilot capabilities?
-- [ ] Set `REPL_OWNER` in environment/config.
-
-## Progress Log
-- **2026-02-15:** Standards violations resolved. All 8 direct API calls migrated to adapter pattern. Docs Agent orchestrator fixed. 9 auth gaps closed.
-- **2026-02-13:** Adapter pattern hardening complete. Google OAuth integrated. Security audit completed.
-- **2026-02-07:** Plan initialized. Delta analysis complete. Standards check run.
+# 4. VECTO-PILOT OPERATIONAL MANDATES & RCA PROTOCOL
+* Root Cause Analysis (RCA) is mandatory for all incidents. Fixes must prevent recurrence, not just resolve symptoms. Document all RCA findings in `GEMINI.md` or `LESSONS_LEARNED.md` appropriately.
