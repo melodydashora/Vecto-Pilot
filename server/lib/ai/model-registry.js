@@ -271,7 +271,21 @@ export const MODEL_ROLES = {
   },
 
   // ==========================
-  // 8. SIRI HOOKS (offer_intelligence)
+  // 8. TRANSLATION (real-time rider communication)
+  // ==========================
+  // 2026-03-16: Added for FIFA World Cup rider translation feature.
+  // Flash for speed — translation is extraction/mapping, not reasoning.
+  // Sub-200ms target for real-time conversational UX.
+  UTIL_TRANSLATION: {
+    envKey: 'UTIL_TRANSLATION_MODEL',
+    default: 'gemini-3-flash-preview',
+    purpose: 'Real-time text translation for driver-rider communication',
+    maxTokens: 512,
+    temperature: 0.1, // Near-deterministic for consistent translations
+  },
+
+  // ==========================
+  // 9. SIRI HOOKS (offer_intelligence)
   // ==========================
   // 2026-02-15: Dedicated role for real-time ride offer analysis via Siri Shortcuts.
   // 2026-02-26: Reverted Pro → Flash. Pro with thinking timed out Siri Shortcuts (~30s limit).

@@ -16,16 +16,17 @@ const router = Router();
  */
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { text } = req.body;
-    
+    // 2026-03-16: Added optional language parameter for translation feature TTS
+    const { text, language } = req.body;
+
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return res.status(400).json({ ok: false, error: 'Text is required' });
     }
-    
-    console.log(`[TTS] Processing request: ${text.length} characters`);
-    
-    // Generate audio
-    const audioBuffer = await synthesizeSpeech(text);
+
+    console.log(`[TTS] Processing request: ${text.length} characters${language ? ` (lang: ${language})` : ''}`);
+
+    // Generate audio — language param improves accent for short multilingual phrases
+    const audioBuffer = await synthesizeSpeech(text, language);
     
     // Set response headers for audio file
     res.setHeader('Content-Type', 'audio/mpeg');
