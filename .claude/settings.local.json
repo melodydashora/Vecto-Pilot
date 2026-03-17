@@ -214,7 +214,11 @@
       "Bash(set -a && . .env.local 2>/dev/null && set +a && node -e \"\nconst { db } = await import\\('./server/db/drizzle.js'\\);\nconst { sql } = await import\\('drizzle-orm'\\);\nconst result = await db.execute\\(sql\\\\`\n  SELECT id, decision, decision_reasoning, ai_model, response_time_ms, confidence_score,\n         pickup_address, dropoff_address, per_mile, total_miles, created_at\n  FROM offer_intelligence\n  WHERE device_id = 'test_two_phase'\n  ORDER BY created_at DESC LIMIT 3\n\\\\`\\);\nconsole.log\\(JSON.stringify\\(result.rows, null, 2\\)\\);\nprocess.exit\\(0\\);\n\")",
       "Bash(set -a && . .env.local 2>/dev/null && set +a && node -e \"\nconst { db } = await import\\('./server/db/drizzle.js'\\);\nconst { sql } = await import\\('drizzle-orm'\\);\nconst result = await db.execute\\(sql\\\\`\n  SELECT id, decision, decision_reasoning, ai_model, confidence_score,\n         pickup_address, dropoff_address, per_mile, total_miles,\n         parsed_data_json->'location_analysis' as location_analysis,\n         response_time_ms\n  FROM offer_intelligence\n  WHERE device_id = 'test_final'\n  ORDER BY created_at DESC LIMIT 1\n\\\\`\\);\nconsole.log\\(JSON.stringify\\(result.rows[0], null, 2\\)\\);\nprocess.exit\\(0\\);\n\" 2>&1)",
       "Bash(set -a && . .env.local 2>/dev/null && set +a && node -e \"\nconst { db } = await import\\('./server/db/drizzle.js'\\);\nconst { sql } = await import\\('drizzle-orm'\\);\nconst result = await db.execute\\(sql\\\\`\n  SELECT decision, decision_reasoning, ai_model, per_mile, total_miles,\n         pickup_address, dropoff_address, response_time_ms,\n         parsed_data_json->'location_analysis' as location_analysis\n  FROM offer_intelligence\n  ORDER BY created_at DESC LIMIT 1\n\\\\`\\);\nconsole.log\\(JSON.stringify\\(result.rows[0], null, 2\\)\\);\nprocess.exit\\(0\\);\n\" 2>&1)",
-      "Bash(kill -HUP 2140 2>/dev/null; sleep 2; ps aux | grep -E 'node.*gateway' | grep -v grep | head -3)"
+      "Bash(kill -HUP 2140 2>/dev/null; sleep 2; ps aux | grep -E 'node.*gateway' | grep -v grep | head -3)",
+      "Bash(git merge origin/claude/add-research-enhancements-RkG6B --no-edit)",
+      "Bash(git merge origin/claude/analyze-briefings-workflow-Ylu9Q --no-edit)",
+      "Bash(git merge origin/claude/plan-translation-feature-arvDr --no-edit)",
+      "Bash(git remote get-url origin && git config credential.helper 2>/dev/null; echo \"---\"; env | grep -i \"GIT\\\\|GITHUB\\\\|TOKEN\" 2>/dev/null | head -5)"
     ],
     "deny": [],
     "ask": []
