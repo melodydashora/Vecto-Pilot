@@ -9,7 +9,8 @@ import {
   MessageSquare,
   Map as MapIcon,
   QrCode,
-  Target
+  Target,
+  Languages
 } from 'lucide-react';
 
 interface TabConfig {
@@ -63,6 +64,15 @@ const tabs: TabConfig[] = [
     icon: Target,
     activeColor: 'text-amber-600',
     activeBg: 'bg-amber-50'
+  },
+  {
+    // 2026-03-17: Added for FIFA World Cup real-time rider translation feature
+    id: 'translate',
+    path: '/co-pilot/translate',
+    label: 'Translate',
+    icon: Languages,
+    activeColor: 'text-sky-600',
+    activeBg: 'bg-sky-50'
   },
   {
     id: 'concierge',

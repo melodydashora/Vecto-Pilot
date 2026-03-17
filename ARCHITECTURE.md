@@ -1,11 +1,30 @@
 
 # Vecto Pilot - Architecture Reference
 
-**Last Updated:** 2026-02-15 UTC
+**Last Updated:** 2026-03-17 UTC
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
-## Recent Changes (2026-02-15)
+## Recent Changes (2026-03-17)
+
+- **Real-Time Rider Translation (2026-03-17)**
+  - FIFA World Cup 2026 feature: split-screen "Rearview" driver-rider translation
+  - 15+ languages, Web Speech API (STT), Gemini 3 Flash translation, OpenAI TTS
+  - Endpoints: `POST /api/translate` (JWT auth), `POST /api/hooks/translate` (Siri Shortcut)
+  - New model role: `UTIL_TRANSLATION` in model registry
+  - Shared prompt/parser in `server/api/translate/translation-prompt.js`
+  - Rate limited: 30 req/min (conversational pace)
+  - Navigate tab: "Translate" added to bottom tab navigation
+
+- **Research Documentation (2026-03-17)**
+  - New `docs/research/` folder with rideshare algorithm research and mobile subscription architecture
+  - Platform algorithm behaviors, surge patterns, rate cards, iOS Shortcut architecture
+
+- **Briefing Issues Documented (2026-03-17)**
+  - `docs/architecture/briefing-issues-findings.md` expanded: M-9 corrected from 1 to 3 endpoint violations
+  - Location fallback analysis corrected in `briefing-deep-dive-analysis.md`
+
+## Changes (2026-02-15)
 
 - **Docs Agent Orchestrator Fixed (2026-02-15)**
   - Fixed 4 critical bugs: hardcoded mapping (now 30+ entries via file-doc-mapping.js), policy loading, absolute paths, deduplication
@@ -125,6 +144,14 @@ This file provides navigation to focused architecture documentation. Each linked
 | **Strategy Framework** | [strategy-framework.md](docs/architecture/strategy-framework.md) | Understanding recommendations |
 | **Event Discovery** | [event-discovery.md](docs/architecture/event-discovery.md) | Modifying event detection |
 | **Google APIs** | [google-cloud-apis.md](docs/architecture/google-cloud-apis.md) | Places, Routes, Weather |
+
+### Research & Analysis
+
+| What | Document | When to Read |
+|------|----------|--------------|
+| **Research Index** | [docs/research/README.md](docs/research/README.md) | Platform algorithm insights |
+| **Translation API** | [server/api/translate/README.md](server/api/translate/README.md) | Translation endpoints & costs |
+| **Briefing Deep-Dive** | [briefing-deep-dive-analysis.md](docs/architecture/briefing-deep-dive-analysis.md) | Briefing pipeline internals |
 
 ### Rules & Decisions
 
