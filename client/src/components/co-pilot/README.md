@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-03-16
+> **Last Verified:** 2026-03-17
 
 # Co-Pilot Sub-Components (`client/src/components/co-pilot/`)
 
@@ -10,7 +10,7 @@ Sub-components extracted from the main co-pilot page for better organization.
 
 | File | Purpose |
 |------|---------|
-| `BottomTabNavigation.tsx` | Tab switcher (Strategy, Briefing, Map, etc.) |
+| `BottomTabNavigation.tsx` | Tab switcher (Strategy, Briefing, Map, Translate, etc. — 7 tabs) |
 | `GreetingBanner.tsx` | Holiday/greeting banner display |
 | `TranslationOverlay.tsx` | Split-screen "Rearview" translation UI (2026-03-16) |
 | `QuickPhrases.tsx` | Pre-loaded rideshare phrase buttons for translation (2026-03-16) |

@@ -15,19 +15,14 @@
 
 import { Router } from 'express';
 import { callModel } from '../../lib/ai/adapters/index.js';
+import { translationLimiter } from '../../middleware/rate-limit.js';
+// 2026-03-17: Shared constants extracted to eliminate duplication (Rule 9)
+import {
+  TRANSLATION_SYSTEM_PROMPT,
+  parseTranslationResponse,
+} from '../translate/translation-prompt.js';
 
 const router = Router();
-
-const TRANSLATION_SYSTEM_PROMPT = `You are a real-time translator for a rideshare driver communicating with passengers.
-Translate the given text between the specified languages. Output ONLY valid JSON, no markdown, no backticks.
-
-Rules:
-1. If sourceLang is "auto", detect the source language from the text.
-2. Translate naturally — use conversational tone appropriate for a car ride.
-3. Keep translations concise and clear.
-
-Output format:
-{"translatedText":"...","detectedLang":"ISO 639-1 code","targetLang":"ISO 639-1 code","confidence":0-100}`;
 
 /**
  * POST /api/hooks/translate
@@ -36,7 +31,7 @@ Output format:
  * Request:  { text: string, device_id: string, target_lang?: string, source_lang?: string }
  * Response: { success, voice, translatedText, detectedLang, targetLang }
  */
-router.post('/translate', async (req, res) => {
+router.post('/translate', translationLimiter, async (req, res) => {
   const startTime = Date.now();
 
   try {
@@ -72,21 +67,7 @@ Text: "${text}"`;
       throw new Error(`Translation failed: ${response.error}`);
     }
 
-    // Parse JSON response
-    let result;
-    try {
-      const cleaned = response.text
-        .replace(/```json/g, '').replace(/```/g, '').trim();
-      result = JSON.parse(cleaned);
-    } catch {
-      const firstBrace = response.text.indexOf('{');
-      const lastBrace = response.text.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace > firstBrace) {
-        result = JSON.parse(response.text.slice(firstBrace, lastBrace + 1));
-      } else {
-        throw new Error('Failed to parse translation response');
-      }
-    }
+    const result = parseTranslationResponse(response.text);
 
     const responseTimeMs = Date.now() - startTime;
 

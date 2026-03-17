@@ -4,6 +4,45 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2026-03-17: Branch Merges + Translation Feature Integration
+
+**Updated by:** Claude Opus 4.6
+**Date:** 2026-03-17
+**Scope:** 3 feature branches merged, translation feature hardened for production
+
+### Branches Merged
+
+1. **`claude/add-research-enhancements-RkG6B`** — New `docs/research/` folder (algorithm research + mobile subscription architecture)
+2. **`claude/analyze-briefings-workflow-Ylu9Q`** — 2 doc-fix commits (location fallback correction, M-9 expanded to 3 endpoints)
+3. **`claude/plan-translation-feature-arvDr`** — Real-time rider translation (FIFA World Cup, 15 languages, split-screen UI)
+
+### Translation Integration Changes (Post-Merge Hardening)
+
+| File | Change |
+|------|--------|
+| `client/src/components/co-pilot/BottomTabNavigation.tsx` | Added Translate tab (7th tab, Languages icon) |
+| `server/api/translate/translation-prompt.js` | NEW — Shared prompt, languages, JSON parser (Rule 9 consolidation) |
+| `server/api/translate/index.js` | Imports shared module, added `translationLimiter` (30 req/min) |
+| `server/api/hooks/translate.js` | Imports shared module, added `translationLimiter` |
+| `server/middleware/rate-limit.js` | Added `translationLimiter` export |
+| `server/lib/external/tts-handler.js` | Language-to-voice mapping (alloy for European, nova for Asian tonal) |
+| `ARCHITECTURE.md` | Added Research & Analysis section, translation changelog |
+
+### Branches Closed (Stale)
+
+- `claude/consolidate-repo-docs-doYAP` — 3 months old, content outdated, deleted from remote
+- `claude/setup-ide-tools-itkSq` — 27 merge conflicts, massive scope creep, deleted from remote
+
+### Flagged for Future Sessions
+
+- **25 briefing code bugs** (5 critical, 8 high) documented in `docs/architecture/briefing-issues-findings.md` — needs separate implementation PR
+- **Research P0 features** (acceptance rate tracking, multiple stops detection) — not yet implemented
+- **6 Dependabot vulnerabilities** (5 high, 1 low) flagged by GitHub
+
+### Status: COMPLETE
+
+---
+
 ## 2026-02-26: Phases 3-5 — Briefing Simplification + Strategy Prompt Enhancement + Venue Enrichment
 
 **Updated by:** Claude Opus 4.6

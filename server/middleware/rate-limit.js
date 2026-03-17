@@ -28,6 +28,23 @@ export const chatLimiter = rateLimit({
   skip: (req) => req.path.includes('/health')
 });
 
+// 2026-03-17: Translation-specific limiter — more generous than expensiveEndpointLimiter
+// because real-time conversation can need 20-30 translations in a 15-min ride.
+export const translationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute — supports conversational pace
+  message: {
+    ok: false,
+    error: 'Translation rate limit exceeded. Please wait a moment before translating again.'
+  },
+  standardHeaders: true,
+  // For hooks endpoint (no JWT): rate-limit by IP + device_id combo
+  keyGenerator: (req) => {
+    const deviceId = req.body?.device_id || 'unknown';
+    return `${req.ip}-${deviceId}`;
+  }
+});
+
 // Standard rate limiter for general endpoints
 export const generalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
