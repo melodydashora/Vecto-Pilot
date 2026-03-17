@@ -10,3 +10,5 @@ export { default as IntelPage } from "./IntelPage";
 export { default as AboutPage } from "./AboutPage";
 export { default as PolicyPage } from "./PolicyPage";
 export { default as SettingsPage } from "./SettingsPage";
+// 2026-03-16: Real-time rider translation for FIFA World Cup
+export { default as TranslationPage } from "./TranslationPage";
