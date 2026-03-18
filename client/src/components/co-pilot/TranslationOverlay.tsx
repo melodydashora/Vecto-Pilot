@@ -45,6 +45,7 @@ const RIDER_INTRO: Record<string, string> = {
 
 // Language options for the selector (FIFA World Cup priority languages)
 const LANGUAGES = [
+  { code: 'auto', name: 'Auto-detect', flag: '🌐' },
   { code: 'es', name: 'Spanish', flag: '🇪🇸' },
   { code: 'pl', name: 'Polish', flag: '🇵🇱' },
   { code: 'uk', name: 'Ukrainian', flag: '🇺🇦' },
@@ -91,7 +92,8 @@ async function requestWakeLock(): Promise<WakeLockSentinel | null> {
 
 export default function TranslationOverlay() {
   // State
-  const [riderLang, setRiderLang] = useState('es'); // Default: Spanish (most common in DFW)
+  // 2026-03-18: Default to auto-detect — driver shouldn't have to guess rider's language
+  const [riderLang, setRiderLang] = useState('auto');
   const [messages, setMessages] = useState<TranslationMessage[]>([]);
   const [isTranslating, setIsTranslating] = useState(false);
   const [activeMode, setActiveMode] = useState<'idle' | 'driver-speaking' | 'rider-speaking'>('idle');
@@ -147,6 +149,14 @@ export default function TranslationOverlay() {
       }
 
       const data = await response.json();
+
+      // 2026-03-18: Auto-detect — when riderLang is 'auto', lock to detected language
+      // after first successful detection. No extra API call needed.
+      if (riderLang === 'auto' && data.detectedLang && data.detectedLang !== 'en') {
+        console.log(`[TranslationOverlay] Auto-detected rider language: ${data.detectedLang}`);
+        setRiderLang(data.detectedLang);
+      }
+
       return {
         translatedText: data.translatedText,
         detectedLang: data.detectedLang,
@@ -157,7 +167,7 @@ export default function TranslationOverlay() {
     } finally {
       setIsTranslating(false);
     }
-  }, []);
+  }, [riderLang]);
 
   /**
    * Add a message to the conversation and auto-play TTS
@@ -228,9 +238,11 @@ export default function TranslationOverlay() {
       if (text) {
         setActiveMode('idle');
         // Rider messages auto-send (rider shouldn't need to confirm on driver's phone)
-        translateText(text, riderLang, 'en').then(result => {
+        // 2026-03-18: Use 'auto' for source when detecting, so Gemini figures out the language
+        const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
+        translateText(text, sourceLang, 'en').then(result => {
           if (result) {
-            addMessage(text, result.translatedText, riderLang, 'en', 'rider');
+            addMessage(text, result.translatedText, result.detectedLang || sourceLang, 'en', 'rider');
           }
         });
       }
@@ -238,7 +250,9 @@ export default function TranslationOverlay() {
       setActiveMode('rider-speaking');
       setPendingText(null);
       speech.clear();
-      speech.start(riderLang);
+      // 2026-03-18: When auto-detecting, start STT in English as fallback.
+      // Web Speech API needs a language hint; translation API handles actual detection.
+      speech.start(riderLang === 'auto' ? 'en' : riderLang);
     }
   }, [speech, riderLang, translateText, addMessage]);
 
@@ -260,12 +274,15 @@ export default function TranslationOverlay() {
     setPendingText(null);
 
     if (speaker === 'driver') {
-      translateText(text, 'en', riderLang).then(result => {
-        if (result) addMessage(text, result.translatedText, 'en', riderLang, 'driver');
+      // Driver→rider: translate English to rider's language (or auto-detect target)
+      const target = riderLang === 'auto' ? 'es' : riderLang; // fallback to Spanish if not yet detected
+      translateText(text, 'en', target).then(result => {
+        if (result) addMessage(text, result.translatedText, 'en', target, 'driver');
       });
     } else {
-      translateText(text, riderLang, 'en').then(result => {
-        if (result) addMessage(text, result.translatedText, riderLang, 'en', 'rider');
+      const source = riderLang === 'auto' ? 'auto' : riderLang;
+      translateText(text, source, 'en').then(result => {
+        if (result) addMessage(text, result.translatedText, result.detectedLang || source, 'en', 'rider');
       });
     }
   }, [pendingText, riderLang, translateText, addMessage]);
@@ -332,7 +349,7 @@ export default function TranslationOverlay() {
       {/* DIVIDER — Visual separator with language indicator               */}
       {/* ================================================================ */}
       <div className="bg-blue-500 px-4 py-1 flex items-center justify-between text-white text-sm font-medium shrink-0">
-        <span>EN ↔ {selectedLang?.flag} {selectedLang?.name}</span>
+        <span>EN ↔ {riderLang === 'auto' ? '🌐 Auto-detect' : `${selectedLang?.flag} ${selectedLang?.name}`}</span>
         {isTranslating && <span className="animate-pulse">Translating...</span>}
         {speech.isListening && (
           <span className="animate-pulse text-red-200">
