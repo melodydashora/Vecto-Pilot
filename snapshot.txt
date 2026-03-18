@@ -1,35 +1,30 @@
-SNAPSHOT WORKFLOW OBSERVER — 2026-03-18T03:47:47.246Z
+SNAPSHOT WORKFLOW OBSERVER — 2026-03-18T04:44:05.787Z
 ════════════════════════════════════════════════════════════
 
 BEFORE (server boot)
 ────────────────────────────────────────────────────────────
   user_id                 2f22004b-c5cc-43c9-a5a6-02f50ccff571
-  current_snapshot_id     db3dc668-b8e0-43d1-85c5-87aa74aae594
+  current_snapshot_id     6973a896-e957-4e39-8fb7-3bcce6a018c3
   session_id              0067dd65-30bd-4d94-bb87-cbcdc3639498
-  last_active_at          2026-03-18T03:31:06.805Z
+  last_active_at          2026-03-18T03:49:55.446Z
   old snapshot city       Frisco, TX
-  old snapshot age        18.9 min
+  old snapshot age        56.2 min
 
 Waiting for snapshot change...
   (log in → GPS resolves → new snapshot created)
-[03:47:52.772] NEW SNAPSHOT DETECTED: 6973a896-e957-4e39-8fb7-3bcce6a018c3
+[04:44:10.804] NEW SNAPSHOT DETECTED: d4907993-1664-4875-9b63-4e4bd528c49c
 
 NEW SNAPSHOT
 ════════════════════════════════════════════════════════════
-  snapshot_id        6973a896-e957-4e39-8fb7-3bcce6a018c3
-  created_at         2026-03-18T03:47:52.442Z
+  snapshot_id        d4907993-1664-4875-9b63-4e4bd528c49c
+  created_at         2026-03-18T04:44:10.622Z
   device_id          3125a9d0-2636-4daa-8f8b-f2013ee1c72f
-  session_id         5cad175d-b920-4f88-8988-1cf4525de69f
+  session_id         bce83a26-df20-46a4-a9e9-0efb1e93941d
   h3_r8              8826c87297fffff
-  weather            ┐
-                     │ {
-                     │   "tempF": 53,
-                     │   "conditions": "Clear with periodic clouds",
-                     │   "description": "Clear with periodic clouds"
-                     │ }
+  weather            null
   air                ┐
                      │ {
-                     │   "aqi": 63,
+                     │   "aqi": 65,
                      │   "category": "Good air quality"
                      │ }
   permissions        ┐
@@ -38,25 +33,25 @@ NEW SNAPSHOT
                      │ }
   holiday            none
   is_holiday         false
-  lat                33.12896661704532
-  lng                -96.8755401107427
+  lat                33.129219748343054
+  lng                -96.87564365598524
   city               Frisco
   state              TX
   country            US
-  formatted_address  1735 Timber Ridge Dr, Frisco, TX 75036, USA
+  formatted_address  1701 Timber Ridge Dr, Frisco, TX 75036, USA
   timezone           America/Chicago
-  local_iso          2026-03-17T22:47:52.000Z
+  local_iso          2026-03-17T23:44:10.000Z
   dow                2
-  hour               22
+  hour               23
   day_part_key       evening
   date               2026-03-17
-  coord_key          33.128967_-96.875540
+  coord_key          33.129220_-96.875644
   user_id            2f22004b-c5cc-43c9-a5a6-02f50ccff571
   market             Dallas-Fort Worth
 
 TIMING
 ────────────────────────────────────────────────────────────
-  Old snapshot created:   2026-03-18T03:28:51.299Z
+  Old snapshot created:   2026-03-18T03:47:52.442Z
   Old snapshot released:  NOT DETECTED (may have been replaced directly)
-  New snapshot created:   2026-03-18T03:47:52.442Z
+  New snapshot created:   2026-03-18T04:44:10.622Z
   Old snapshot row:       STILL IN DB (not deleted, just dereferenced)
