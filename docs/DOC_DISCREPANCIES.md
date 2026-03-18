@@ -395,6 +395,35 @@ These items are **documented and accepted** technical debt. They are NOT blockin
 
 ---
 
+### AI COACH — Remaining Issues (2026-03-18 Session)
+
+**Context:** 20 issues found in AI Coach action pipeline. 18 resolved in this session. 2 remain as next-session work.
+
+**Reference docs:** `docs/architecture/ai-coach-deep-dive-analysis.md`, `docs/architecture/ai-coach-issues-findings.md` (on branch `claude/analyze-briefings-workflow-Ylu9Q`)
+
+| ID | Location | Issue | Impact | Status |
+|----|----------|-------|--------|--------|
+| COACH-H7 | `server/api/chat/chat.js`, `server/lib/ai/model-registry.js` | No streaming fallback — Gemini outage kills the coach entirely. `callModelStream('AI_COACH')` only supports Gemini. Unlike the briefing pipeline which has fallback chains, the coach is a single point of failure. | Coach is completely unavailable during any Gemini outage | PENDING |
+| COACH-H8 | `server/api/chat/chat.js:1325-1345` | Conversation message saves are fire-and-forget with try/catch that swallows errors. If DB is under load, messages are silently lost and the coach's cross-session memory degrades without anyone noticing. | Silent memory loss — coach forgets conversations | PENDING |
+
+**Resolved in this session (2026-03-18):**
+- C-1: Fire-and-forget actions → now awaited with results in done SSE event
+- C-2/H-5: DAL null returns counted as success → now checked, errors reported
+- C-3: Missing MARKET_INTEL and SAVE_VENUE_INTEL action types → wired end-to-end
+- C-4: Notes panel never refreshed → auto-refreshes after SAVE_NOTE + always refetches on open
+- H-1: 3 action types skipped validation → all 11 types now Zod-validated
+- H-2: Super-user prompt had false capabilities → updated to match reality
+- H-3: JSON envelope regex captured wrong code block → now requires "actions" key
+- H-4: Validation error banner was dead code → wired to action results
+- H-6: activeSnapshotId shadowing lost strategy→snapshot resolution → hoisted
+- M-2: String.replace only removed first action tag → replaceAll
+- M-3: extractBalancedJson silently dropped malformed actions → now logs warning
+- M-5: Schema metadata missing new tables → updated
+- M-7: extractAndSaveTips duplicated SAVE_NOTE actions → skipped when notes exist
+- Plus: extractedTips?.tips bug (accessing .tips on a number)
+
+---
+
 ## Adding New Discrepancies
 
 ```markdown
