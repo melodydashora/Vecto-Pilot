@@ -30,6 +30,8 @@ export const chatLimiter = rateLimit({
 
 // 2026-03-17: Translation-specific limiter — more generous than expensiveEndpointLimiter
 // because real-time conversation can need 20-30 translations in a 15-min ride.
+// 2026-03-18: FIX — Disabled keyGeneratorIpFallback validation to avoid ERR_ERL_KEY_GEN_IPV6.
+// express-rate-limit v7 throws if req.ip is used directly without ipKeyGenerator helper.
 export const translationLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 30, // 30 requests per minute — supports conversational pace
@@ -38,6 +40,7 @@ export const translationLimiter = rateLimit({
     error: 'Translation rate limit exceeded. Please wait a moment before translating again.'
   },
   standardHeaders: true,
+  validate: { keyGeneratorIpFallback: false },
   // For hooks endpoint (no JWT): rate-limit by IP + device_id combo
   keyGenerator: (req) => {
     const deviceId = req.body?.device_id || 'unknown';

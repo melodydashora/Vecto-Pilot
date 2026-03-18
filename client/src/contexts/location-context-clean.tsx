@@ -220,6 +220,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const lastSnapshotIdRef = useRef<string | null>(null);
   const currentCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const cityRef = useRef<string | null>(null);
+  // 2026-03-18: Added timeZone ref — resume path must verify timezone before gating queries
+  const timeZoneRef = useRef<string | null>(null);
 
   // 2026-01-06: P3-B - Restore FULL session including snapshotId for resume
   // Previous: Only restored display data, always created new snapshot
@@ -506,9 +508,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.log('📍 [LocationContext] Location updated (phase 2):', locationData.city, locationData.state);
 
       // Mark location as resolved - gates downstream queries (Bar Tab, Strategy)
-      if (locationData.city && locationData.formattedAddress) {
+      // 2026-03-18: FIX — Also require timeZone. Without it, venue open/closed status
+      // calculations fail. useBarsQuery depends on isLocationResolved implying timezone is set.
+      if (locationData.city && locationData.formattedAddress && locationData.timeZone) {
         setIsLocationResolved(true);
         console.log('✅ [LocationContext] Location resolved - downstream queries enabled');
+      } else if (locationData.city && locationData.formattedAddress) {
+        console.warn('⚠️ [LocationContext] City resolved but timeZone missing — holding isLocationResolved=false');
       }
 
       // NOTE: JWT tokens are only used for registered users who login via /api/auth/login
@@ -712,6 +718,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => { lastSnapshotIdRef.current = lastSnapshotId; }, [lastSnapshotId]);
   useEffect(() => { currentCoordsRef.current = currentCoords; }, [currentCoords]);
   useEffect(() => { cityRef.current = city; }, [city]);
+  useEffect(() => { timeZoneRef.current = timeZone; }, [timeZone]);
 
   // Initial GPS fetch - ONLY start when user is AUTHENTICATED
   // This ensures snapshots are ALWAYS linked to the authenticated user
@@ -760,8 +767,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const cachedSnapshotId = lastSnapshotIdRef.current;
       const cachedCoords = currentCoordsRef.current;
       const cachedCity = cityRef.current;
+      // 2026-03-18: FIX — Also require timeZone for resume. Without it, downstream
+      // queries (useBarsQuery) that depend on isLocationResolved would fire without timezone.
+      const cachedTimeZone = timeZoneRef.current;
 
-      if (cachedSnapshotId && cachedCoords && cachedCity) {
+      if (cachedSnapshotId && cachedCoords && cachedCity && cachedTimeZone) {
         console.log('📦 [LocationContext] RESUME: Auth verified, enabling cached data');
         console.log(`📦 [LocationContext] Cached snapshot: ${cachedSnapshotId.slice(0, 8)}, city: ${cachedCity}`);
 

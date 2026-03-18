@@ -46,8 +46,8 @@ export async function configureMiddleware(app) {
       if (!origin) return callback(null, true);
       // Check explicit whitelist from env
       if (allowedOrigins.includes(origin)) return callback(null, true);
-      // Allow Replit domains (*.replit.dev, *.repl.co) and localhost
-      if (/\.(replit\.dev|repl\.co)$/.test(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      // Allow Replit domains (*.replit.dev, *.repl.co, *.replit.app) and localhost
+      if (/\.(replit\.dev|repl\.co|replit\.app)$/.test(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
       callback(new Error(`CORS blocked: ${origin}`));
