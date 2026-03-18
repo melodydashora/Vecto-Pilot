@@ -217,11 +217,10 @@ export default function TranslationOverlay() {
   const handleDriverMic = useCallback(() => {
     if (activeMode === 'driver-speaking') {
       speech.stop();
-      // Small delay lets the Web Speech API fire its final onresult before we read
+      setActiveMode('idle'); // Immediately stop flashing
       setTimeout(() => {
         const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
         speech.clear();
-        setActiveMode('idle');
         if (text) {
           setPendingText({ text, speaker: 'driver' });
         }
@@ -237,16 +236,18 @@ export default function TranslationOverlay() {
   /**
    * Handle rider mic button — listen in rider's language, translate to English
    */
-  // 2026-03-18: Rider mic — same pattern, using activeMode for toggle
+  // 2026-03-18: Rider mic — reset to idle IMMEDIATELY on stop so button stops flashing.
+  // Then wait 300ms for transcript, then translate.
   const handleRiderMic = useCallback(() => {
     if (activeMode === 'rider-speaking') {
       speech.stop();
+      setActiveMode('idle'); // Immediately stop flashing
       setTimeout(() => {
         const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
         speech.clear();
-        setActiveMode('idle');
         if (text) {
           const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
+          // isTranslating state shows "Translating..." in the divider bar
           translateText(text, sourceLang, 'en').then(result => {
             if (result) {
               addMessage(text, result.translatedText, result.detectedLang || sourceLang, 'en', 'rider');
@@ -258,7 +259,6 @@ export default function TranslationOverlay() {
       setActiveMode('rider-speaking');
       setPendingText(null);
       speech.clear();
-      // When auto-detecting, start STT in English as fallback.
       speech.start(riderLang === 'auto' ? 'en' : riderLang);
     }
   }, [speech, activeMode, riderLang, translateText, addMessage]);
