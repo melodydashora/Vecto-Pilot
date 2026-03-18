@@ -13,9 +13,9 @@
 | Severity | Count | Description |
 |----------|-------|-------------|
 | **CRITICAL** | 4 | Silent write failures, missing capabilities, broken feedback loop |
-| **HIGH** | 7 | Validation gaps, missing action types, dead UI code, race conditions |
+| **HIGH** | 8 | Validation gaps, null snapshotId, dead UI code, no fallback |
 | **MEDIUM** | 8 | Cosmetic leaks, stale docs, inconsistencies |
-| **Total** | 19 | |
+| **Total** | 20 | |
 
 ---
 
@@ -259,7 +259,18 @@ else results.errors.push('SystemNote: write returned null');
 
 ---
 
-### H-6: No streaming fallback — Gemini outage kills the coach entirely
+### H-6: `activeSnapshotId` null when client sends only `strategyId`
+
+**File:** `server/api/chat/chat.js` ~line 699
+**Impact:** ADD_EVENT actions fail silently with "Cannot determine city/state"
+
+The variable `activeSnapshotId` is set as `snapshotId || null` (line 699). If the client sends only `strategyId` (not `snapshotId`), then `activeSnapshotId` is null. The ADD_EVENT handler (line 315) tries `coachDAL.getHeaderSnapshot(null)` which returns null, causing the city/state lookup to fail. The action is skipped with an error pushed to `results.errors` — but per C-1, the client never sees this error.
+
+**Fix:** Resolve `snapshotId` from `strategyId` via `coachDAL.resolveStrategyToSnapshot()` before entering the action execution path. The DAL method already exists for this.
+
+---
+
+### H-7: No streaming fallback — Gemini outage kills the coach entirely (renumbered)
 
 **File:** `server/lib/ai/model-registry.js`, `server/api/chat/chat.js`
 **Impact:** If Gemini is down, the coach returns an error with no alternative
@@ -270,7 +281,7 @@ The AI_COACH role uses `callModelStream()` which only supports Gemini. There is 
 
 ---
 
-### H-7: Conversation messages saved without error feedback
+### H-8: Conversation messages saved without error feedback
 
 **File:** `server/api/chat/chat.js` ~lines 719-742, 1207-1240
 **Impact:** If conversation persistence fails, the coach loses memory
@@ -429,8 +440,11 @@ Per CLAUDE.md Rule 8, the AI Coach needs write access to these tables. Current s
 9. **H-2:** Reduce super-user prompt to match actual capabilities
 10. **M-5:** Update schema metadata endpoint
 
+### Short-term (action reliability)
+11. **H-6:** Resolve snapshotId from strategyId before action execution
+
 ### Long-term (reliability)
-11. **H-6:** Add streaming fallback provider
-12. **H-7:** Track conversation save failures
+12. **H-7:** Add streaming fallback provider
+13. **H-8:** Track conversation save failures
 13. **M-4:** Improve system note deduplication
 14. **M-7:** Prevent duplicate notes from extractAndSaveTips + SAVE_NOTE
