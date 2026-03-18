@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Navigation, MapPin, Phone, Wine, Loader, AlertCircle } from "lucide-react";
 import { openNavigation } from "@/utils/co-pilot-helpers";
 import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-03-18: Import canonical types from useBarsQuery (single source of truth)
+import type { Venue, BarsData } from '@/hooks/useBarsQuery';
 
 interface BarTabProps {
   latitude: number | null;
@@ -24,50 +26,9 @@ interface BarTabProps {
   getAuthHeader: () => Record<string, string>;
 }
 
-/**
- * Venue interface - uses camelCase to match API response
- * Mirrors server/validation/response-schemas.js VenueSchema
- */
-interface Venue {
-  name: string;
-  type: 'bar' | 'nightclub' | 'wine_bar' | 'lounge';
-  address: string;
-  phone: string | null;
-  expenseLevel: string;
-  expenseRank: number;
-  // 2026-01-09: isOpen can be null when hours unavailable
-  isOpen: boolean | null;
-  opensInMinutes: number | null;
-  // 2026-01-09: hoursToday can be null when hours unavailable
-  hoursToday: string | null;
-  hoursFullWeek?: Record<string, string>;
-  closingSoon: boolean;
-  minutesUntilClose: number | null;
-  crowdLevel: 'low' | 'medium' | 'high';
-  ridesharePotential: 'low' | 'medium' | 'high';
-  rating: number | null;
-  lat: number;
-  lng: number;
-  placeId?: string;
-  // 2026-02-26: Haiku-verified venue with unknown hours
-  hoursUnknown?: boolean;
-  venueQualityTier?: 'premium' | 'standard' | null;
-  closedGoAnyway?: boolean;
-  closedReason?: string | null;
-}
-
-/**
- * VenueData interface - uses camelCase to match API response
- * Mirrors server/validation/response-schemas.js VenueDataSchema
- */
-interface VenueData {
-  queryTime: string;
-  location: string;
-  totalVenues: number;
-  venues: Venue[];
-  lastCallVenues: Venue[];
-  searchSources?: string[];
-}
+// 2026-03-18: Venue and VenueData types imported from useBarsQuery (canonical source)
+// Alias for backwards-compatible local references
+type VenueData = BarsData;
 
 // Get category color based on venue type
 function getCategoryColor(type: string): string {
@@ -135,14 +96,19 @@ export default function BarTab({
     queryKey: ['bar-tab', latitude, longitude, city, state, timezone],
     queryFn: async () => {
       // 2026-01-09: NO FALLBACKS - fail explicitly if required data missing
+      // 2026-03-18: Downgraded from throw to console.warn + return null.
+      // React Query's refetch() bypasses `enabled`, so queryFn must be defensive.
       if (latitude == null || longitude == null) {
-        throw new Error('[BarTab] BUG: Query enabled without coordinates');
+        console.warn('[BarTab] Query called without coordinates — skipping');
+        return null as unknown as VenueData;
       }
       if (!timezone) {
-        throw new Error('[BarTab] BUG: Query enabled without timezone - isLocationResolved should gate this');
+        console.warn('[BarTab] Query called without timezone — skipping');
+        return null as unknown as VenueData;
       }
       if (!city) {
-        throw new Error('[BarTab] BUG: Query enabled without city - isLocationResolved should gate this');
+        console.warn('[BarTab] Query called without city — skipping');
+        return null as unknown as VenueData;
       }
 
       const params = new URLSearchParams({
@@ -168,6 +134,9 @@ export default function BarTab({
     // 2026-01-09: Explicitly require city and timezone (not just isLocationResolved)
     enabled: latitude != null && longitude != null && !!city && !!timezone && isLocationResolved,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    // 2026-03-18: Align with useBarsQuery.ts cache options for consistent React Query behavior
+    gcTime: 10 * 60 * 1000, // 10 minutes — match useBarsQuery
+    refetchOnWindowFocus: false, // Venues don't change that fast
     refetchInterval: false,
   });
 

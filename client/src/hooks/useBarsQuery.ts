@@ -35,6 +35,9 @@ export interface Venue {
   // 2026-01-14: Closed Go Anyway feature - high-value venues worth staging near even when closed
   closedGoAnyway?: boolean;      // Flag for high-value closed venues
   closedReason?: string | null;  // Reason to visit anyway (e.g., "Opens in 30 min")
+  // 2026-03-18: Added to match BarsMainTab and server toApiVenue() output
+  hoursUnknown?: boolean;
+  venueQualityTier?: 'premium' | 'standard' | null;
 }
 
 /**
@@ -78,14 +81,19 @@ export function useBarsQuery({
     queryFn: async () => {
       // 2026-01-06: P3-C - NO FALLBACKS - fail explicitly if required data missing
       // If this errors, it's a bug in LocationContext (isLocationResolved was true but data missing)
+      // 2026-03-18: Downgraded from throw to console.warn + return null.
+      // React Query's refetch() bypasses `enabled`, so queryFn must be defensive.
       if (latitude == null || longitude == null) {
-        throw new Error('[useBarsQuery] BUG: Query enabled without coordinates');
+        console.warn('[useBarsQuery] Query called without coordinates — skipping (refetch race?)');
+        return null as unknown as BarsData;
       }
       if (!timezone) {
-        throw new Error('[useBarsQuery] BUG: Query enabled without timezone - isLocationResolved should gate this');
+        console.warn('[useBarsQuery] Query called without timezone — skipping (refetch race?)');
+        return null as unknown as BarsData;
       }
       if (!city) {
-        throw new Error('[useBarsQuery] BUG: Query enabled without city - isLocationResolved should gate this');
+        console.warn('[useBarsQuery] Query called without city — skipping (refetch race?)');
+        return null as unknown as BarsData;
       }
 
       const params = new URLSearchParams({

@@ -454,7 +454,13 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
             v.closed_reason = "High-value venue - good for staging spillover";
             return true;
           }
-          return false; // Skip unknown hours
+          // 2026-03-18: FIX — Cache path must mirror fresh-API Haiku-verified logic (line 611).
+          // Previously dropped ALL isOpen===null from cache, losing premium venues on reload.
+          if (v.isOpen === null && v.venue_quality_tier) {
+            v.hours_unknown = true;
+            return true;
+          }
+          return false; // Skip unknown hours AND unclassified venues
         });
 
         // Sort by open status, quality tier, expense, then distance

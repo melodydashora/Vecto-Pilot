@@ -29,15 +29,27 @@ router.get('/nearby', async (req, res) => {
       });
     }
 
-    // CRITICAL: Use timezone for accurate time-based venue filtering
-    // Without this, server uses UTC and late-night venues show as closed
+    // 2026-03-18: FIX — Enforce city + timezone server-side (was client-only).
+    // Without timezone, calculateOpenStatus() returns null for all venues.
+    // Without city, cache lookup fails silently → unnecessary Google API calls.
+    if (!city) {
+      return res.status(400).json({
+        error: 'Missing required parameter: city (needed for cache lookup and venue context)'
+      });
+    }
+    if (!timezone) {
+      return res.status(400).json({
+        error: 'Missing required parameter: timezone (needed for accurate open/closed status)'
+      });
+    }
+
     const venueData = await discoverNearbyVenues({
       lat: parseFloat(lat),
       lng: parseFloat(lng),
-      city: city || 'Unknown',
+      city,
       state: state || '',
       radiusMiles: parseFloat(radius) || 25,  // Default 25 mile radius for upscale bars
-      timezone: timezone || null  // Pass to use correct local time
+      timezone  // Required — used for calculateOpenStatus()
     });
 
     // 2026-01-09: Transform to camelCase for consistent API response
