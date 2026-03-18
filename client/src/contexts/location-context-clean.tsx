@@ -317,11 +317,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [lastSnapshotId, currentCoords, city, state, timeZone, currentLocationString, weather, airQuality, isLocationResolved, lastUpdated]);
 
   const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number, forceRefresh = false) => {
-    // Prevent duplicate enrichment for same coordinates (debounce)
-    // Skip debounce check if force refresh (user clicked button)
+    // 2026-03-18: Dedup based on snapshot state, not forceRefresh flag.
+    // Only skip if same coordinates AND an active snapshot exists.
+    // When snapshot is released (logout, manual refresh, sign-in), always proceed.
+    // This replaces scattered lastEnrichmentCoordsRef.current = null clearing.
     const coordKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-    if (!forceRefresh && lastEnrichmentCoordsRef.current === coordKey) {
-      console.log('⏭️ Skipping duplicate enrichment for same coordinates:', coordKey);
+    if (lastEnrichmentCoordsRef.current === coordKey && lastSnapshotIdRef.current) {
+      console.log('⏭️ Skipping enrichment - same coords with active snapshot:', coordKey);
       return;
     }
     lastEnrichmentCoordsRef.current = coordKey;
@@ -674,6 +676,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       queryClient.cancelQueries();
       queryClient.clear();
 
+      // 2026-03-18: Null snapshot so enrichment dedup sees "no active snapshot" → always proceeds
+      setLastSnapshotId(null);
+      lastSnapshotIdRef.current = null;
+
       // Clear sessionStorage - driver clicked refresh to get fresh data at staging area
       clearSnapshotStorage();
 
@@ -713,6 +719,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     refreshGPSRef.current = refreshGPS;
   }, [refreshGPS]);
+
+  // 2026-03-18: Keep enrichLocation ref in sync — auto-enrich effect uses this
+  // to avoid depending on the enrichLocation reference (which changes on auth state change)
+  const enrichLocationRef = useRef<typeof enrichLocation>();
+  useEffect(() => {
+    enrichLocationRef.current = enrichLocation;
+  }, [enrichLocation]);
 
   // 2026-01-14: Keep state refs in sync for GPS effect to read current values
   // Without this, setTimeout closure captures stale values from when effect ran
@@ -790,12 +803,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return;
       }
 
-      // 2026-03-18: FIX — Resume failed or no cached data (fresh sign-in).
-      // Clear enrichment coord key so dedup doesn't block the fresh enrichment call.
-      // Use forceNewSnapshot=false here — release-snapshot is handled by login/logout,
-      // and the server reuse logic handles stale snapshots (>60min = new snapshot).
-      lastEnrichmentCoordsRef.current = null;
-
+      // Resume failed or no cached data (fresh sign-in).
+      // No need to clear lastEnrichmentCoordsRef — snapshot is null so dedup won't skip.
       gpsEffectRanRef.current = true;
       console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
       refreshGPSRef.current?.(false);
@@ -810,12 +819,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const handleOwnershipError = () => {
       console.warn('🚨 [LocationContext] Snapshot ownership error - clearing and refreshing');
-      // Clear the stale snapshot ID
+      // 2026-03-18: Null snapshot (state + ref) so enrichment dedup sees no active snapshot
       setLastSnapshotId(null);
+      lastSnapshotIdRef.current = null;
       // Clear sessionStorage to remove any persisted stale data
       clearSnapshotStorage();
-      // Clear the coord tracking so enrichment can run again
-      lastEnrichmentCoordsRef.current = null;
       // Trigger fresh GPS fetch → force new snapshot for current user
       // 2026-01-07: Use ref to access latest refreshGPS
       refreshGPSRef.current?.(true);
@@ -825,20 +833,22 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => window.removeEventListener('snapshot-ownership-error', handleOwnershipError);
   }, []); // Empty deps - event listener only needs to be set up once
 
-  // Auto-enrich when coords change (but skip initial mount to avoid duplicate)
+  // 2026-03-18: Auto-enrich when coords change during an active session.
+  // Only fires when: (a) not initial mount, (b) coords changed, (c) active snapshot exists.
+  // During sign-in/manual refresh, snapshot is null → refreshGPS handles enrichment directly.
+  // Uses enrichLocationRef to avoid re-firing when enrichLocation reference changes (auth state).
   useEffect(() => {
-    // Skip on initial mount - refreshGPS() already handles enrichment
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
       return;
     }
 
-    // Only enrich if we have valid coords and they've changed
-    if (currentCoords) {
-      console.log('📍 Coordinates changed - triggering enrichment');
-      enrichLocation(currentCoords.latitude, currentCoords.longitude, 10);
+    // Only auto-enrich if driver has an active snapshot (normal driving, not sign-in/refresh)
+    if (currentCoords && lastSnapshotIdRef.current) {
+      console.log('📍 Coordinates changed during active session - triggering enrichment');
+      enrichLocationRef.current?.(currentCoords.latitude, currentCoords.longitude, 10);
     }
-  }, [currentCoords?.latitude, currentCoords?.longitude, enrichLocation]);
+  }, [currentCoords?.latitude, currentCoords?.longitude]);
 
   // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
   // Without useMemo, every render creates a new object → all consumers re-render → cascade

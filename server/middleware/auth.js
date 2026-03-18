@@ -220,6 +220,10 @@ export async function requireAuth(req, res, next) {
         message: 'Authentication service temporarily unavailable. Please try again.'
       });
     }
+
+    // 2026-03-18: FIX — next() was accidentally removed by security fix F-1 (commit 2e400301).
+    // Without this, every authenticated request hangs forever (middleware never yields).
+    next();
   } catch (e) {
     res.status(401).json({ error: 'unauthorized', detail: e?.message });
   }
