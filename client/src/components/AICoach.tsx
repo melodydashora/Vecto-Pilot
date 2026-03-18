@@ -114,12 +114,12 @@ export default function AICoach({
     }
   }, []);
 
-  // Load notes when panel opens
+  // 2026-03-18: FIX (C-4) — Always refetch when panel opens (was only fetching when empty)
   useEffect(() => {
-    if (notesOpen && notes.length === 0) {
+    if (notesOpen) {
       fetchNotes();
     }
-  }, [notesOpen, notes.length, fetchNotes]);
+  }, [notesOpen, fetchNotes]);
 
   // Optimistic delete with rollback
   const deleteNote = useCallback(async (noteId: string) => {
@@ -590,6 +590,20 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
                 }
                 return copy;
               });
+            }
+            // 2026-03-18: FIX (C-4, H-4) — Handle action results from done event
+            if (msg.actions_result) {
+              // Refresh notes panel if any notes were saved
+              if (msg.actions_result.saved > 0) {
+                fetchNotes();
+              }
+              // Wire existing validation error banner (was dead code)
+              if (msg.actions_result.errors?.length > 0) {
+                setValidationErrors(
+                  msg.actions_result.errors.map((e: string) => ({ field: 'action', message: e }))
+                );
+                setTimeout(() => setValidationErrors([]), 8000);
+              }
             }
           } catch (_err) {
             // Ignore parse errors for partial SSE data
