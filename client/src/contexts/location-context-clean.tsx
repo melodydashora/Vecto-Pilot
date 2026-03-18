@@ -688,14 +688,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (coords) {
         console.log('📍 [LocationContext] GPS success - using live location');
         setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
-        // Pass forceNewSnapshot to server - controls whether to reuse existing snapshot
-        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy, forceNewSnapshot);
+        // 2026-03-18: Always force-refresh enrichment from refreshGPS.
+        // Driver may be at same coords but needs fresh snapshot data every sign-in.
+        // The dedup check only applies to the auto-enrich effect (coord change detection).
+        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy, true);
       } else if (profile?.homeLat && profile?.homeLng) {
         // Fallback to home location from user's profile (set during registration)
         console.log('🏠 [LocationContext] GPS unavailable - using home location from profile');
         setCurrentCoords({ latitude: profile.homeLat, longitude: profile.homeLng });
-        // Pass forceNewSnapshot to server - controls whether to reuse existing snapshot
-        await enrichLocation(profile.homeLat, profile.homeLng, 100, forceNewSnapshot); // 100m accuracy for geocoded address
+        await enrichLocation(profile.homeLat, profile.homeLng, 100, true);
       } else {
         // No GPS and no home location - user needs to enable GPS
         console.warn('[LocationContext] No GPS and no home location - cannot proceed');
