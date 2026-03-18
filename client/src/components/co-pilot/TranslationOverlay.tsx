@@ -191,14 +191,15 @@ export default function TranslationOverlay() {
 
     setMessages(prev => [...prev, msg]);
 
-    // Auto-TTS: speak the translation aloud for the other party
-    // Driver speaks English → TTS plays rider's language for rider (they read the text instead)
-    // Rider speaks their language → TTS plays English for driver (hands-free)
+    // 2026-03-18: Auto-TTS for BOTH directions
+    // Rider spoke → play English translation for driver (hands-free, eyes on road)
+    // Driver spoke/tapped phrase → play rider's language so rider hears it too
     if (speaker === 'rider') {
-      // Rider spoke → play English translation for driver via car speakers
       await tts.speak(translatedText, 'en');
+    } else {
+      // Speak the translated text in rider's language
+      await tts.speak(translatedText, targetLang);
     }
-    // When driver speaks, rider reads the translated text on screen (no TTS needed — they see it)
   }, [tts]);
 
   /**
@@ -211,21 +212,36 @@ export default function TranslationOverlay() {
   const [pendingText, setPendingText] = useState<{ text: string; speaker: 'driver' | 'rider' } | null>(null);
 
   const handleDriverMic = useCallback(() => {
-    if (speech.isListening) {
+    if (activeMode === 'driver-speaking') {
+      // Stop listening — transcript will be picked up by the effect below
       speech.stop();
-      const text = speech.finalTranscript.trim();
-      speech.clear();
-      if (text) {
-        setActiveMode('idle');
-        setPendingText({ text, speaker: 'driver' });
-      }
     } else {
       setActiveMode('driver-speaking');
       setPendingText(null);
       speech.clear();
       speech.start('en');
     }
-  }, [speech]);
+  }, [speech, activeMode]);
+
+  // 2026-03-18: Effect to capture transcript when driver stops speaking.
+  // We can't read finalTranscript synchronously after stop() because the
+  // Web Speech API fires onresult asynchronously. This effect watches for
+  // the transition: driver was speaking → speech stopped → grab text.
+  const wasDriverSpeakingRef = useRef(false);
+  useEffect(() => {
+    if (activeMode === 'driver-speaking') {
+      wasDriverSpeakingRef.current = true;
+    }
+    if (wasDriverSpeakingRef.current && !speech.isListening && activeMode === 'driver-speaking') {
+      wasDriverSpeakingRef.current = false;
+      const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
+      speech.clear();
+      setActiveMode('idle');
+      if (text) {
+        setPendingText({ text, speaker: 'driver' });
+      }
+    }
+  }, [speech.isListening, speech.finalTranscript, speech.interimTranscript, activeMode, speech]);
 
   /**
    * Handle rider mic button — listen in rider's language, translate to English
