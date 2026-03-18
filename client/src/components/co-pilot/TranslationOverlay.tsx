@@ -117,6 +117,36 @@ export default function TranslationOverlay() {
     };
   }, []);
 
+  // 2026-03-18: Auto-reset activeMode when speech recognizer stops on its own
+  // (e.g., silence timeout, end of speech detected by browser).
+  // Without this, the mic button stays as ⬛ Stop forever after the recognizer ends naturally.
+  useEffect(() => {
+    if (!speech.isListening && (activeMode === 'driver-speaking' || activeMode === 'rider-speaking')) {
+      // Recognizer stopped on its own — grab transcript and reset
+      const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
+
+      // Small delay to let any final onresult commit
+      const timer = setTimeout(() => {
+        speech.clear();
+        const currentMode = activeMode; // capture before reset
+        setActiveMode('idle');
+
+        if (text && currentMode === 'driver-speaking') {
+          setPendingText({ text, speaker: 'driver' });
+        } else if (text && currentMode === 'rider-speaking') {
+          const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
+          translateText(text, sourceLang, 'en').then(result => {
+            if (result) {
+              addMessage(text, result.translatedText, result.detectedLang || sourceLang, 'en', 'rider');
+            }
+          });
+        }
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [speech.isListening]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-scroll both panels when new messages arrive
   useEffect(() => {
     riderPanelRef.current?.scrollTo({ top: riderPanelRef.current.scrollHeight, behavior: 'smooth' });
@@ -490,6 +520,25 @@ export default function TranslationOverlay() {
             >
               {selectedLang?.flag || '🌐'}
             </Button>
+
+            {/* New Ride — clear conversation and reset to auto-detect */}
+            {messages.length > 0 && (
+              <Button
+                variant="outline"
+                className="h-12 px-3 text-xs"
+                onClick={() => {
+                  setMessages([]);
+                  setRiderLang('auto');
+                  setPendingText(null);
+                  setActiveMode('idle');
+                  speech.clear();
+                  setShowQuickPhrases(false);
+                  setShowLangPicker(false);
+                }}
+              >
+                🔄
+              </Button>
+            )}
           </div>
 
           {/* Speech recognition not supported warning */}
