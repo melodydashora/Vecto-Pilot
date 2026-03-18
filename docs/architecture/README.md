@@ -62,6 +62,16 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [intel-tab-architecture.md](intel-tab-architecture.md) | ~200 | Market Command Center design | Modifying intel tab |
 | [progress-bar-and-snapshot-flow.md](progress-bar-and-snapshot-flow.md) | ~150 | UX progress tracking | Modifying progress UI |
 
+### Audit & Analysis Reports
+
+| Document | Lines | Purpose | Read When... |
+|----------|-------|---------|--------------|
+| [briefing-deep-dive-analysis.md](briefing-deep-dive-analysis.md) | ~400 | Briefing pipeline end-to-end analysis | Understanding briefing flow |
+| [briefing-issues-findings.md](briefing-issues-findings.md) | ~300 | Briefing system issues & fixes | Fixing briefing bugs |
+| [ai-coach-deep-dive-analysis.md](ai-coach-deep-dive-analysis.md) | ~500 | AI Coach end-to-end analysis | Understanding coach flow |
+| [ai-coach-issues-findings.md](ai-coach-issues-findings.md) | ~300 | AI Coach issues & fixes (20 findings) | Fixing coach bugs |
+| [concierge-issues-findings.md](concierge-issues-findings.md) | ~350 | Concierge tab issues & fixes (39 findings) | Fixing concierge bugs |
+
 ## Quick Reference
 
 ### TRIAD Pipeline Phases
