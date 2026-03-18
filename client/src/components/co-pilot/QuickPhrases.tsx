@@ -18,7 +18,7 @@ export interface QuickPhrase {
 export const QUICK_PHRASES: QuickPhrase[] = [
   // Greetings
   { key: 'welcome', en: 'Welcome! How are you?', category: 'greeting' },
-  { key: 'name', en: 'My name is your driver. Nice to meet you!', category: 'greeting' },
+  { key: 'name', en: 'Nice to meet you! I am your driver.', category: 'greeting' },
   { key: 'enjoy', en: 'Enjoy the World Cup! Have a great time!', category: 'greeting' },
 
   // Route

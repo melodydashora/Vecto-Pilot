@@ -4,6 +4,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/useToast';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 interface UseTTSReturn {
   isSpeaking: boolean;
@@ -42,9 +43,14 @@ export function useTTS(): UseTTSReturn {
       setIsSpeaking(true);
       console.log(`[TTS] Requesting audio synthesis...${language ? ` (lang: ${language})` : ''}`);
 
+      // 2026-03-18: FIX (B-2) — Add auth header for authenticated TTS endpoint
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const response = await fetch(API_ROUTES.TTS, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
         body: JSON.stringify({ text, ...(language && { language }) })
       });
 

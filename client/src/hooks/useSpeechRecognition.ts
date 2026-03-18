@@ -102,6 +102,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  // 2026-03-18: FIX (F-2) — Ref tracks finalTranscript to avoid stale closure in onresult
+  const finalTranscriptRef = useRef('');
 
   const SpeechRecognition = getSpeechRecognition();
   const isSupported = SpeechRecognition !== null;
@@ -153,20 +155,17 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         }
       }
 
+      // 2026-03-18: FIX (F-2) — Use ref to avoid stale closure for finalTranscript
       if (final) {
-        setFinalTranscript(prev => {
-          const updated = prev + (prev ? ' ' : '') + final;
-          setTranscript(updated);
-          return updated;
-        });
+        const updated = finalTranscriptRef.current + (finalTranscriptRef.current ? ' ' : '') + final;
+        finalTranscriptRef.current = updated;
+        setFinalTranscript(updated);
+        setTranscript(updated);
         setInterimTranscript('');
       } else {
         setInterimTranscript(interim);
-        setTranscript(prev => {
-          // Show final + current interim
-          const base = finalTranscript || prev.split('...')[0];
-          return base + (base ? ' ' : '') + interim;
-        });
+        const base = finalTranscriptRef.current;
+        setTranscript(base + (base ? ' ' : '') + interim);
       }
     };
 
@@ -188,7 +187,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [SpeechRecognition, finalTranscript]);
+  // 2026-03-18: Removed finalTranscript from deps — ref handles it now
+  }, [SpeechRecognition]);
 
   const stop = useCallback(() => {
     if (recognitionRef.current) {
@@ -202,6 +202,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     setFinalTranscript('');
     setInterimTranscript('');
     setError(null);
+    finalTranscriptRef.current = '';
   }, []);
 
   return {

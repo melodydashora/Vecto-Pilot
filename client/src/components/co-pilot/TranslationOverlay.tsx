@@ -20,7 +20,28 @@ import { Card } from '@/components/ui/card';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTTS } from '@/hooks/useTTS';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { STORAGE_KEYS } from '@/constants/storageKeys';
 import QuickPhrases, { type QuickPhrase } from './QuickPhrases';
+
+// 2026-03-18: Rider intro text per language (U-1)
+// Shown in top panel when no messages yet — tells rider what to do
+const RIDER_INTRO: Record<string, string> = {
+  es: 'Tu conductor usa un traductor. Toca 🎤 para hablar en español.',
+  pl: 'Twój kierowca korzysta z tłumacza. Dotknij 🎤, aby mówić po polsku.',
+  uk: 'Ваш водій використовує перекладач. Натисніть 🎤, щоб говорити українською.',
+  sv: 'Din förare använder en översättare. Tryck på 🎤 för att prata på svenska.',
+  sq: 'Shoferi juaj përdor një përkthyes. Prekni 🎤 për të folur shqip.',
+  pt: 'Seu motorista está usando um tradutor. Toque em 🎤 para falar em português.',
+  fr: 'Votre chauffeur utilise un traducteur. Appuyez sur 🎤 pour parler en français.',
+  de: 'Ihr Fahrer verwendet einen Übersetzer. Tippen Sie auf 🎤, um Deutsch zu sprechen.',
+  ja: '運転手は翻訳機を使っています。🎤をタップして日本語で話してください。',
+  ko: '기사가 번역기를 사용하고 있습니다. 🎤을 눌러 한국어로 말하세요.',
+  ar: 'يستخدم سائقك مترجمًا. اضغط على 🎤 للتحدث بالعربية.',
+  hi: 'आपका ड्राइवर अनुवादक का उपयोग कर रहा है। हिंदी में बोलने के लिए 🎤 दबाएं।',
+  zh: '您的司机正在使用翻译器。点击 🎤 用中文说话。',
+  it: 'Il tuo autista sta usando un traduttore. Tocca 🎤 per parlare in italiano.',
+  ru: 'Ваш водитель использует переводчик. Нажмите 🎤, чтобы говорить по-русски.',
+};
 
 // Language options for the selector (FIFA World Cup priority languages)
 const LANGUAGES = [
@@ -110,9 +131,14 @@ export default function TranslationOverlay() {
   ): Promise<{ translatedText: string; detectedLang: string } | null> => {
     try {
       setIsTranslating(true);
+      // 2026-03-18: FIX (B-1) — Server requires auth, was missing Bearer token
+      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
       const response = await fetch(API_ROUTES.TRANSLATE.SEND, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
         body: JSON.stringify({ text, sourceLang, targetLang }),
       });
 
@@ -168,25 +194,28 @@ export default function TranslationOverlay() {
   /**
    * Handle driver mic button — listen in English, translate to rider's language
    */
+  // 2026-03-18: FIX (F-1) — Capture transcript and clear BEFORE translating.
+  // Previously clear() happened after translateText resolved, but finalTranscript
+  // kept accumulating across turns because onresult appends to prev.
+  // Also: instead of auto-translating on stop, set pending text for confirmation (U-2).
+  const [pendingText, setPendingText] = useState<{ text: string; speaker: 'driver' | 'rider' } | null>(null);
+
   const handleDriverMic = useCallback(() => {
     if (speech.isListening) {
       speech.stop();
-      // Translate whatever was captured
-      if (speech.finalTranscript.trim()) {
+      const text = speech.finalTranscript.trim();
+      speech.clear();
+      if (text) {
         setActiveMode('idle');
-        translateText(speech.finalTranscript, 'en', riderLang).then(result => {
-          if (result) {
-            addMessage(speech.finalTranscript, result.translatedText, 'en', riderLang, 'driver');
-            speech.clear();
-          }
-        });
+        setPendingText({ text, speaker: 'driver' });
       }
     } else {
       setActiveMode('driver-speaking');
+      setPendingText(null);
       speech.clear();
       speech.start('en');
     }
-  }, [speech, riderLang, translateText, addMessage]);
+  }, [speech]);
 
   /**
    * Handle rider mic button — listen in rider's language, translate to English
@@ -194,17 +223,20 @@ export default function TranslationOverlay() {
   const handleRiderMic = useCallback(() => {
     if (speech.isListening) {
       speech.stop();
-      if (speech.finalTranscript.trim()) {
+      const text = speech.finalTranscript.trim();
+      speech.clear();
+      if (text) {
         setActiveMode('idle');
-        translateText(speech.finalTranscript, riderLang, 'en').then(result => {
+        // Rider messages auto-send (rider shouldn't need to confirm on driver's phone)
+        translateText(text, riderLang, 'en').then(result => {
           if (result) {
-            addMessage(speech.finalTranscript, result.translatedText, riderLang, 'en', 'rider');
-            speech.clear();
+            addMessage(text, result.translatedText, riderLang, 'en', 'rider');
           }
         });
       }
     } else {
       setActiveMode('rider-speaking');
+      setPendingText(null);
       speech.clear();
       speech.start(riderLang);
     }
@@ -221,6 +253,27 @@ export default function TranslationOverlay() {
     }
   }, [riderLang, translateText, addMessage]);
 
+  // Phase 5 (U-2): Confirm or cancel pending transcript
+  const handleConfirmSend = useCallback(() => {
+    if (!pendingText) return;
+    const { text, speaker } = pendingText;
+    setPendingText(null);
+
+    if (speaker === 'driver') {
+      translateText(text, 'en', riderLang).then(result => {
+        if (result) addMessage(text, result.translatedText, 'en', riderLang, 'driver');
+      });
+    } else {
+      translateText(text, riderLang, 'en').then(result => {
+        if (result) addMessage(text, result.translatedText, riderLang, 'en', 'rider');
+      });
+    }
+  }, [pendingText, riderLang, translateText, addMessage]);
+
+  const handleCancelSend = useCallback(() => {
+    setPendingText(null);
+  }, []);
+
   const selectedLang = LANGUAGES.find(l => l.code === riderLang);
 
   return (
@@ -234,8 +287,11 @@ export default function TranslationOverlay() {
       >
         <div ref={riderPanelRef} className="h-full overflow-y-auto p-4 flex flex-col justify-end">
           {messages.length === 0 ? (
-            <div className="text-center text-slate-500 text-2xl font-light">
-              {selectedLang?.flag} Translation Ready
+            <div className="text-center space-y-3 px-4">
+              <div className="text-5xl">{selectedLang?.flag}</div>
+              <div className="text-2xl sm:text-3xl font-medium text-white leading-relaxed">
+                {RIDER_INTRO[riderLang] || `Your driver is using a translator. Tap 🎤 to speak.`}
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -322,6 +378,21 @@ export default function TranslationOverlay() {
             </div>
           )}
         </div>
+
+        {/* Transcript confirmation bar (U-2) — driver reviews before sending */}
+        {pendingText && (
+          <div className="shrink-0 border-t bg-yellow-50 dark:bg-yellow-900/30 px-3 py-2 flex items-center gap-2">
+            <div className="flex-1 text-sm font-medium truncate">
+              "{pendingText.text}"
+            </div>
+            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white h-8 px-3" onClick={handleConfirmSend}>
+              Send
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 px-3" onClick={handleCancelSend}>
+              Cancel
+            </Button>
+          </div>
+        )}
 
         {/* Controls bar */}
         <Card className="shrink-0 border-t rounded-none p-3 space-y-2">
