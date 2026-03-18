@@ -1,31 +1,31 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 03/17/2026, 11:46:46 PM CDT
-Snapshot ID: c3076faf-84ab-4fe3-9979-dd90e13bae2f
+Generated: 03/18/2026, 12:14:25 AM CDT
+Snapshot ID: 0716a646-a32f-49ae-98ed-92a2b214f45c
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: c3076faf-84ab-4fe3-9979-dd90e13bae2f
+snapshot_id: 0716a646-a32f-49ae-98ed-92a2b214f45c
 user_id: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
   formatted_address: 6058 Midnight Moon Dr, Frisco, TX 75036, USA
-  lat: 33.128441974871095
-  lng: -96.87581030154297
+  lat: 33.12839650885547
+  lng: -96.875739386398
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Tue Mar 17 2026 23:45:47 GMT+0000 (Coordinated Universal Time)
-  formatted_local_time: Tuesday, March 17, 2026 at 11:45 PM
-  dow: 2 (Tuesday)
-  hour: 23
-  day_part_key: evening
+  local_iso: Wed Mar 18 2026 00:13:11 GMT+0000 (Coordinated Universal Time)
+  formatted_local_time: Wednesday, March 18, 2026 at 12:13 AM
+  dow: 3 (Wednesday)
+  hour: 0
+  day_part_key: overnight
   is_holiday: false
   holiday: none
 
@@ -36,55 +36,48 @@ WEATHER (from snapshot):
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 33ffbe5a-3c55-4dc1-8158-5f55162cbf08
-snapshot_id: c3076faf-84ab-4fe3-9979-dd90e13bae2f
-created_at (UTC): Wed Mar 18 2026 04:45:47 GMT+0000 (Coordinated Universal Time)
-created_at (local): Tue, Mar 17, 11:45 PM
-updated_at (UTC): Wed Mar 18 2026 04:46:46 GMT+0000 (Coordinated Universal Time)
-updated_at (local): Tue, Mar 17, 11:46 PM
+briefing_id: 0ca0b168-13c8-40ba-9a8b-202b34c97e39
+snapshot_id: 0716a646-a32f-49ae-98ed-92a2b214f45c
+created_at (UTC): Wed Mar 18 2026 05:13:11 GMT+0000 (Coordinated Universal Time)
+created_at (local): Wed, Mar 18, 12:13 AM
+updated_at (UTC): Wed Mar 18 2026 05:14:25 GMT+0000 (Coordinated Universal Time)
+updated_at (local): Wed, Mar 18, 12:14 AM
 
-NEWS (6 items):
+NEWS (5 items):
 {
   "items": [
     {
-      "title": "Thousands Stranded at Dallas Love Field and DFW Due to Weather Cancellations",
+      "title": "Fatal Crash Shuts Down I-30 on Trinity River Bridge",
       "impact": "high",
-      "summary": "Severe weather and TSA delays have caused hundreds of flight cancellations across Dallas Love Field and DFW Airport. Rideshare drivers should anticipate massive surge pricing and high demand around the airports as stranded passengers seek rides to local hotels or alternative transportation. Positioning near airport hotel corridors could maximize earnings.",
+      "summary": "A major fatal accident has completely shut down the I-30 Trinity River Bridge in downtown Dallas. Rideshare drivers must avoid this corridor and use alternate routes like Woodall Rodgers Freeway or I-35E. Getting trapped in this gridlock will severely reduce trip turnover and hourly earnings during peak travel times.",
+      "category": "traffic",
+      "published_date": "2026-03-18"
+    },
+    {
+      "title": "DFW Airport Faces Severe TSA Shortages and Spring Break Delays",
+      "impact": "high",
+      "summary": "A partial government shutdown has led to missed paychecks and mass resignations among TSA agents, causing massive security lines at DFW Airport just as Spring Break travel surges. Drivers should anticipate chaotic drop-off zones, highly stressed passengers, and potential surge pricing opportunities as travelers scramble to make delayed flights.",
       "category": "airport",
       "published_date": "2026-03-17"
     },
     {
-      "title": "St. Patrick's Day Celebrations Drive High Bar-Hour Demand",
-      "impact": "high",
-      "summary": "With St. Patrick's Day events and drink specials happening across Dallas at venues like The Statler and local pubs, drivers can expect significant surge pricing and high ride volume throughout the evening. Drivers should position themselves near popular nightlife districts like Lower Greenville and Deep Ellum to maximize earnings, while being prepared for intoxicated passengers.",
-      "category": "event",
+      "title": "Uber Launches 'Elite' Luxury Tier with Airport Meet-and-Greet",
+      "impact": "medium",
+      "summary": "Uber has introduced a new invite-only luxury tier called Uber Elite, requiring commercially licensed chauffeurs and vehicles under three years old. For DFW drivers with qualifying high-end vehicles, this represents a lucrative new earning opportunity, particularly for premium airport runs that include baggage claim meet-and-greet services.",
+      "category": "platform",
       "published_date": "2026-03-17"
     },
     {
-      "title": "Major Overnight Closures on East Loop 820 in Fort Worth",
-      "impact": "medium",
-      "summary": "Starting Tuesday night, ongoing construction will force full directional closures on East Loop 820 in Fort Worth between 11 PM and 6 AM, diverting traffic to service roads. Late-night drivers should expect significant delays and longer trip times, which could reduce hourly earnings. Navigating via alternate highways is recommended to maintain efficiency.",
-      "category": "traffic",
-      "published_date": "2026-03-17"
-    },
-    {
-      "title": "Gas Leak Forces Evacuations and Road Closures in Lake Dallas",
-      "impact": "medium",
-      "summary": "A construction crew struck a natural gas pipeline in Lake Dallas, prompting evacuations and widespread road closures near North Shady Shores Road and East Hundley Drive. Drivers operating in the Lake Dallas area should avoid the vicinity entirely to prevent getting stuck in emergency traffic, which could severely impact trip completion rates and earnings.",
-      "category": "traffic",
-      "published_date": "2026-03-17"
-    },
-    {
-      "title": "Nightly Closures on Dallas North Tollway and PGBT",
-      "impact": "medium",
-      "summary": "Overnight closures are affecting the Dallas North Tollway frontage roads and the President George Bush Turnpike, including the direct connector ramp from southbound PGBT to westbound I-20. Drivers operating during late-night hours should anticipate detours that will increase trip durations. Utilizing navigation apps for real-time rerouting will be essential to protect hourly earnings.",
-      "category": "traffic",
-      "published_date": "2026-03-16"
-    },
-    {
-      "title": "Lyft Announces Plans to Launch Robotaxis in Dallas",
+      "title": "Late-Season Freeze Gives Way to Sudden Heat Wave",
       "impact": "low",
-      "summary": "Lyft has announced a partnership with Mobileye to deploy autonomous robotaxis in the Dallas market as soon as this year. While not an immediate disruption today, this signals upcoming direct competition for local rideshare drivers, which could eventually impact ride volume and long-term earning strategies on the Lyft platform.",
+      "summary": "A late-season freeze warning hit the DFW metroplex early Tuesday, but temperatures are forecasted to rapidly climb into the 90s by Friday. Drivers need to prepare their vehicles for drastic temperature swings, ensuring heating and AC systems are fully functional to maintain passenger comfort and protect driver ratings.",
+      "category": "weather",
+      "published_date": "2026-03-17"
+    },
+    {
+      "title": "Uber Expands Autonomous Vehicle Partnerships",
+      "impact": "low",
+      "summary": "Uber announced expanded partnerships to deploy more robotaxis across major cities starting in 2027. While not an immediate threat to DFW drivers today, this signals the platform's aggressive long-term shift toward autonomous fleets, which could eventually reduce ride demand and earnings for human drivers in major Texas markets.",
       "category": "platform",
       "published_date": "2026-03-17"
     }
@@ -95,24 +88,24 @@ NEWS (6 items):
 WEATHER_CURRENT:
 {
   "tempC": 11,
-  "tempF": 53,
+  "tempF": 52,
   "country": "US",
   "uvIndex": 0,
-  "humidity": 32,
+  "humidity": 33,
   "tempUnit": "°F",
-  "feelsLike": 49,
+  "feelsLike": 48,
   "isDaytime": false,
-  "conditions": "Partly cloudy",
+  "conditions": "Mostly cloudy",
   "feelsLikeC": 9,
-  "feelsLikeF": 49,
-  "observedAt": "2026-03-18T04:45:48.022412891Z",
+  "feelsLikeF": 48,
+  "observedAt": "2026-03-18T05:13:11.590830574Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 53,
-  "driverImpact": "Partly cloudy, 53°F — good driving conditions.",
-  "conditionType": "PARTLY_CLOUDY",
+  "temperature": 52,
+  "driverImpact": "Mostly cloudy, 52°F — good driving conditions.",
+  "conditionType": "MOSTLY_CLOUDY",
   "precipitation": {
     "qpf": {
       "unit": "MILLIMETERS",
@@ -124,7 +117,7 @@ WEATHER_CURRENT:
     },
     "probability": {
       "type": "RAIN",
-      "percent": 8
+      "percent": 10
     }
   },
   "windDirection": "SOUTH",
@@ -134,20 +127,7 @@ WEATHER_CURRENT:
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-03-18T04:45:48.033Z",
-    "tempC": 12,
-    "tempF": 53,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Clear with periodic clouds",
-    "temperature": 53,
-    "conditionType": "MOSTLY_CLEAR",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 0
-  },
-  {
-    "time": "2026-03-18T05:45:48.033Z",
+    "time": "2026-03-18T05:13:11.615Z",
     "tempC": 11,
     "tempF": 52,
     "tempUnit": "°F",
@@ -160,7 +140,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-03-18T06:45:48.033Z",
+    "time": "2026-03-18T06:13:11.615Z",
     "tempC": 11,
     "tempF": 52,
     "tempUnit": "°F",
@@ -173,7 +153,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-03-18T07:45:48.033Z",
+    "time": "2026-03-18T07:13:11.615Z",
     "tempC": 11,
     "tempF": 51,
     "tempUnit": "°F",
@@ -186,7 +166,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-03-18T08:45:48.033Z",
+    "time": "2026-03-18T08:13:11.615Z",
     "tempC": 10,
     "tempF": 50,
     "tempUnit": "°F",
@@ -199,7 +179,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-03-18T09:45:48.033Z",
+    "time": "2026-03-18T09:13:11.615Z",
     "tempC": 10,
     "tempF": 50,
     "tempUnit": "°F",
@@ -210,31 +190,44 @@ WEATHER_FORECAST (6 hours):
     "conditionType": "PARTLY_CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 5
+  },
+  {
+    "time": "2026-03-18T10:13:11.615Z",
+    "tempC": 9,
+    "tempF": 49,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 49,
+    "conditionType": "MOSTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
   }
 ]
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 1,
+  "jams": 0,
   "stats": {
-    "jams": 1,
-    "major": 1,
-    "total": 39,
+    "jams": 0,
+    "major": 0,
+    "total": 38,
     "closures": 33,
     "highways": 15,
     "accidents": 0,
     "construction": 5
   },
-  "summary": "Frisco is currently experiencing heavy congestion with 11 active road closures concentrated in key commercial and development corridors. Major disruptions on Warren Pkwy (3.5mi) and Dallas Pkwy (3.9mi) severely impact access to the Star District and local business hubs. Drivers should utilize the Dallas North Tollway for north-south transit while avoiding the Fields Pkwy and Warren Pkwy intersections entirely.",
+  "summary": "Frisco is experiencing heavy congestion driven by 11 road closures concentrated along the Dallas North Tollway corridor and northern development zones. Key closures on Warren Pkwy (3.5mi) and Dallas Pkwy (3.8mi) significantly restrict access to major commercial hubs like The Star and Frisco Station. Drivers should utilize north-south alternatives like Preston Road to bypass the central Tollway bottlenecks.",
   "analyzed": true,
-  "briefing": "Frisco is currently experiencing heavy congestion with 11 active road closures concentrated in key commercial and development corridors. Major disruptions on Warren Pkwy (3.5mi) and Dallas Pkwy (3.9mi) severely impact access to the Star District and local business hubs. Drivers should utilize the Dallas North Tollway for north-south transit while avoiding the Fields Pkwy and Warren Pkwy intersections entirely.",
+  "briefing": "Frisco is experiencing heavy congestion driven by 11 road closures concentrated along the Dallas North Tollway corridor and northern development zones. Key closures on Warren Pkwy (3.5mi) and Dallas Pkwy (3.8mi) significantly restrict access to major commercial hubs like The Star and Frisco Station. Drivers should utilize north-south alternatives like Preston Road to bypass the central Tollway bottlenecks.",
   "closures": [
     {
       "road": "",
-      "location": "Lakeland Dr to S Stemmons Fwy",
+      "location": "S Stemmons Fwy to Lakeland Dr",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 9.7
+      "distanceFromDriver": 9.6
     },
     {
       "road": "",
@@ -255,7 +248,7 @@ TRAFFIC_CONDITIONS:
       "location": "Parker Rd to Windhaven Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 5.9
+      "distanceFromDriver": 5.8
     },
     {
       "road": "",
@@ -290,14 +283,14 @@ TRAFFIC_CONDITIONS:
       "location": "Dallas Pkwy to Avenue of the Stars",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3.9
+      "distanceFromDriver": 3.8
     },
     {
       "road": "",
-      "location": "PGA Pkwy / Rockhill Pkwy to Ortega St",
+      "location": "Ortega St to PGA Pkwy / Rockhill Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.5
+      "distanceFromDriver": 7.4
     },
     {
       "road": "",
@@ -308,10 +301,10 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Shadow Ridge Dr to Kelly Blvd",
+      "location": "Kelly Blvd to Shadow Ridge Dr",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.7
+      "distanceFromDriver": 8.8
     },
     {
       "road": "",
@@ -336,14 +329,14 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Swisher Rd (Shady Shores Rd/Shady Shores Dr) to W Hundley Dr (Shady Shores Rd/Shady Shores Dr)",
+      "location": "Main St (Shady Shores Rd/Shady Shores Dr) to Swisher Rd (Shady Shores Rd/Shady Shores Dr)",
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 8.9
     },
     {
       "road": "",
-      "location": "Main St (Shady Shores Rd/Shady Shores Dr) to Swisher Rd (Shady Shores Rd/Shady Shores Dr)",
+      "location": "Swisher Rd (Shady Shores Rd/Shady Shores Dr) to W Hundley Dr (Shady Shores Rd/Shady Shores Dr)",
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 8.9
@@ -357,10 +350,10 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Bunker Hill Ln to Clary Rd",
+      "location": "Clary Rd to Bunker Hill Ln",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 7.1
+      "distanceFromDriver": 7.2
     },
     {
       "road": "",
@@ -371,10 +364,10 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Barcara Ln to Gordon Heights Ln",
+      "location": "Gordon Heights Ln to Barcara Ln",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 5.9
+      "distanceFromDriver": 6
     },
     {
       "road": "",
@@ -441,14 +434,14 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Mayfair Ln to Barcara Ln",
+      "location": "Barcara Ln to Mayfair Ln",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 5.8
+      "distanceFromDriver": 5.9
     },
     {
       "road": "",
-      "location": "Del Norte Ln to Parish Ln",
+      "location": "Parish Ln to Del Norte Ln",
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 5.9
@@ -461,9 +454,9 @@ TRAFFIC_CONDITIONS:
       "distanceFromDriver": 8.5
     }
   ],
-  "headline": "Frisco is currently experiencing heavy congestion with 11 active road closures concentrated in key commercial and development corridors.",
+  "headline": "Frisco is experiencing heavy congestion driven by 11 road closures concentrated along the Dallas North Tollway corridor and northern development zones.",
   "provider": "tomtom",
-  "fetchedAt": "2026-03-18T04:45:48.195Z",
+  "fetchedAt": "2026-03-18T05:13:11.856Z",
   "incidents": [
     {
       "road": "FM-1171",
@@ -492,14 +485,14 @@ TRAFFIC_CONDITIONS:
     {
       "road": "",
       "category": "Road Closed",
-      "location": "Lakeland Dr to S Stemmons Fwy",
+      "location": "S Stemmons Fwy to Lakeland Dr",
       "priority": 125,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Lakeland Dr to S Stemmons Fwy [9.7 mi]",
+      "description": "Road Closed: S Stemmons Fwy to Lakeland Dr [9.6 mi]",
       "lengthMiles": 0,
       "delayMinutes": 0,
-      "distanceFromDriver": 9.7
+      "distanceFromDriver": 9.6
     },
     {
       "road": "",
@@ -532,10 +525,10 @@ TRAFFIC_CONDITIONS:
       "priority": 105,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Parker Rd to Windhaven Pkwy [5.9 mi]",
+      "description": "Road Closed: Parker Rd to Windhaven Pkwy [5.8 mi]",
       "lengthMiles": 0.3,
       "delayMinutes": 0,
-      "distanceFromDriver": 5.9
+      "distanceFromDriver": 5.8
     },
     {
       "road": "",
@@ -587,106 +580,82 @@ TRAFFIC_CONDITIONS:
     }
   ],
   "keyIssues": [
-    "Warren Pkwy road closure 3.5mi away - high impact on Star District and local commercial access",
-    "Dallas Pkwy road closure 3.9mi away - restricts movement near Avenue of the Stars",
-    "US-380 W road works 7.0mi away - significant bottleneck for trips toward Prosper and Denton",
-    "Legacy Dr/Fields Pkwy closure 5.3mi away - blocks access to northern Frisco development zones"
+    "Warren Pkwy road closure 3.5mi away - Major access restriction to high-demand commercial districts",
+    "Dallas Pkwy at Avenue of the Stars closure 3.8mi away - High impact on rideshare efficiency near The Star",
+    "Legacy Dr at Fields Pkwy closure 5.3mi away - Blocks primary routes into the northern PGA Frisco expansion area"
   ],
   "avoidAreas": [
-    "Warren Pkwy corridor: Multiple closures within 4 miles causing heavy local gridlock",
-    "Fields Pkwy/Legacy Dr: Road closures 5.3mi north impacting northern residential pickups",
-    "Parker Rd/Windhaven Pkwy: Local closure 5.9mi south disrupting Plano-Frisco border traffic"
+    "Dallas North Tollway corridor near Warren Pkwy: Multiple closures within 4 miles causing heavy surface street overflow",
+    "Fields Pkwy and PGA Pkwy area: Cluster of road closures between 5.3mi and 7.7mi making northern pickups inefficient"
   ],
   "safetyAlert": null,
-  "driverImpact": "Rideshare operations are currently hindered by high-density local closures; prioritize long-haul Tollway trips and avoid short-distance requests in the Warren Pkwy and Fields Pkwy sectors to maintain efficiency.",
+  "driverImpact": "Prioritize residential pickups in East Frisco or McKinney to avoid the heavy congestion and dead-end closures concentrated along the Dallas Parkway and northern development sectors.",
   "surgePricing": true,
   "closuresCount": 33,
   "repositioning": null,
-  "incidentsCount": 39,
-  "totalIncidents": 39,
-  "closuresSummary": "11 closures within 10mi, most critical: Warren Pkwy at 3.5mi and Dallas Pkwy at 3.9mi.",
+  "incidentsCount": 38,
+  "totalIncidents": 38,
+  "closuresSummary": "11 closures within 10mi, most critical: Warren Pkwy and Dallas Pkwy at Avenue of the Stars.",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Significant road works on US-380 W and FM-1171 are creating unpredictable delays on the northern and western perimeters of Frisco."
+  "constructionSummary": "Significant road works on US-380 W and FM-1171 are creating unpredictable flow on major northern and western arterial boundaries."
 }
 
 EVENTS (0 total):
 {
   "items": [],
-  "reason": "No events found for this location"
+  "reason": "No events found"
 }
 
-SCHOOL_CLOSURES (12 total, 6 active today):
+SCHOOL_CLOSURES (11 total, 4 active today):
 [
   {
-    "lat": 33.236,
-    "lng": -96.801,
+    "lat": 33.2362,
+    "lng": -96.8011,
     "type": "public",
     "impact": "high",
     "reason": "Spring Break / Professional Learning",
     "schoolName": "Prosper ISD",
     "closureStart": "2026-03-16",
     "reopeningDate": "2026-03-24",
-    "distanceFromDriver": 8.5
+    "distanceFromDriver": 8.6
   },
   {
-    "lat": 33.236,
-    "lng": -96.801,
+    "lat": 33.2362,
+    "lng": -96.8011,
     "type": "public",
     "impact": "high",
     "reason": "Bad Weather Make-Up Day",
     "schoolName": "Prosper ISD",
     "closureStart": "2026-04-06",
     "reopeningDate": "2026-04-07",
-    "distanceFromDriver": 8.5
+    "distanceFromDriver": 8.6
   },
   {
-    "lat": 33.019,
-    "lng": -96.698,
+    "lat": 33.0198,
+    "lng": -96.6989,
     "type": "public",
     "impact": "high",
     "reason": "Spring Break",
     "schoolName": "Plano ISD",
     "closureStart": "2026-03-16",
     "reopeningDate": "2026-03-23",
-    "distanceFromDriver": 12.8
+    "distanceFromDriver": 12.7
   },
   {
-    "lat": 33.019,
-    "lng": -96.698,
+    "lat": 33.0198,
+    "lng": -96.6989,
     "type": "public",
     "impact": "high",
     "reason": "Student Holiday",
     "schoolName": "Plano ISD",
     "closureStart": "2026-04-03",
     "reopeningDate": "2026-04-06",
-    "distanceFromDriver": 12.8
+    "distanceFromDriver": 12.7
   },
   {
-    "lat": 33.046,
-    "lng": -96.994,
-    "type": "public",
-    "impact": "high",
-    "reason": "Spring Break",
-    "schoolName": "Lewisville ISD",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-23",
-    "distanceFromDriver": 8.9
-  },
-  {
-    "lat": 33.046,
-    "lng": -96.994,
-    "type": "public",
-    "impact": "high",
-    "reason": "Holiday / Bad Weather Day",
-    "schoolName": "Lewisville ISD",
-    "closureStart": "2026-04-02",
-    "reopeningDate": "2026-04-07",
-    "distanceFromDriver": 8.9
-  },
-  {
-    "lat": 33.15,
-    "lng": -96.823,
+    "lat": 33.1507,
+    "lng": -96.8236,
     "type": "public",
     "impact": "high",
     "reason": "Student Holiday / Bad Weather Make-Up Day",
@@ -696,59 +665,70 @@ SCHOOL_CLOSURES (12 total, 6 active today):
     "distanceFromDriver": 3.4
   },
   {
-    "lat": 33.163,
-    "lng": -96.937,
+    "lat": 33.0462,
+    "lng": -96.9942,
+    "type": "public",
+    "impact": "high",
+    "reason": "Spring Break",
+    "schoolName": "Lewisville ISD",
+    "closureStart": "2026-03-16",
+    "reopeningDate": "2026-03-23",
+    "distanceFromDriver": 8.9
+  },
+  {
+    "lat": 33.0462,
+    "lng": -96.9942,
+    "type": "public",
+    "impact": "high",
+    "reason": "Holiday / Bad Weather Day",
+    "schoolName": "Lewisville ISD",
+    "closureStart": "2026-04-03",
+    "reopeningDate": "2026-04-07",
+    "distanceFromDriver": 8.9
+  },
+  {
+    "lat": 33.1626,
+    "lng": -96.9375,
     "type": "public",
     "impact": "medium",
     "reason": "Bad Weather Makeup Day",
     "schoolName": "Little Elm ISD",
     "closureStart": "2026-04-03",
     "reopeningDate": "2026-04-06",
-    "distanceFromDriver": 4.2
-  },
-  {
-    "lat": 33.111,
-    "lng": -96.804,
-    "type": "college",
-    "impact": "high",
-    "reason": "Spring Break",
-    "schoolName": "Collin College - Frisco Campus",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-23",
     "distanceFromDriver": 4.3
   },
   {
-    "lat": 33.111,
-    "lng": -96.804,
+    "lat": 33.1626,
+    "lng": -96.9375,
+    "type": "public",
+    "impact": "medium",
+    "reason": "Bad Weather Makeup Day",
+    "schoolName": "Little Elm ISD",
+    "closureStart": "2026-04-17",
+    "reopeningDate": "2026-04-20",
+    "distanceFromDriver": 4.3
+  },
+  {
+    "lat": 33.1118,
+    "lng": -96.8025,
+    "type": "college",
+    "impact": "high",
+    "reason": "Spring Break",
+    "schoolName": "Collin College",
+    "closureStart": "2026-03-16",
+    "reopeningDate": "2026-03-23",
+    "distanceFromDriver": 4.4
+  },
+  {
+    "lat": 33.1118,
+    "lng": -96.8025,
     "type": "college",
     "impact": "high",
     "reason": "Spring Holiday",
-    "schoolName": "Collin College - Frisco Campus",
+    "schoolName": "Collin College",
     "closureStart": "2026-04-03",
     "reopeningDate": "2026-04-06",
-    "distanceFromDriver": 4.3
-  },
-  {
-    "lat": 33.125,
-    "lng": -96.82,
-    "type": "college",
-    "impact": "medium",
-    "reason": "Spring Break",
-    "schoolName": "University of North Texas at Frisco",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-23",
-    "distanceFromDriver": 3.2
-  },
-  {
-    "lat": 33.121,
-    "lng": -96.841,
-    "type": "private",
-    "impact": "low",
-    "reason": "Spring Break",
-    "schoolName": "Legacy Christian Academy",
-    "closureStart": "2026-03-16",
-    "reopeningDate": "2026-03-23",
-    "distanceFromDriver": 2.1
+    "distanceFromDriver": 4.4
   }
 ]
 
@@ -758,43 +738,43 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Severe disruptions with over 650 flight delays and 160 cancellations reported due to severe weather, spring break travel volume, and TSA staffing shortages.",
-      "status": "severe_delays",
+      "delays": "Minor gate hold, taxi, and airborne delays lasting 15 minutes or less.",
+      "status": "delays",
       "busyTimes": [
-        "06:00 AM - 09:00 AM",
-        "04:30 PM - 07:30 PM"
+        "5:00 AM - 8:00 AM",
+        "4:00 PM - 7:00 PM"
       ]
     },
     {
       "code": "DAL",
       "name": "Dallas Love Field",
-      "delays": "Experiencing moderate delays and longer security wait times due to nationwide weather impacts and TSA staffing shortages.",
+      "delays": "Minor gate hold, taxi, and airborne delays lasting 15 minutes or less.",
       "status": "delays",
       "busyTimes": [
-        "07:00 AM - 10:00 AM",
-        "03:00 PM - 06:00 PM"
+        "6:00 AM - 9:00 AM",
+        "4:00 PM - 7:00 PM"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-03-18T04:46:08.054Z",
+  "fetchedAt": "2026-03-18T05:13:40.656Z",
   "busyPeriods": [
-    "Morning business travel rush (6:00 AM - 10:00 AM)",
-    "Evening arrival rush (4:30 PM - 7:30 PM)"
+    "Early mornings (5:00 AM - 9:00 AM) driven by major airline flight banks and overnight transatlantic arrivals.",
+    "Late afternoons and evenings (4:00 PM - 7:00 PM) due to peak domestic and international arrival and departure congestion."
   ],
-  "recommendations": "For DFW, pickups are located at the upper-level curbside of each terminal (A-E) following the green signs. Terminal D is busiest for evening international arrivals, while A and C peak during business hours. Ensure you have the required DFW airport vehicle decal. For DAL, the rideshare pickup area has moved to the valet pavilion and Garage C Level 1 (ADA pickups remain on the lower-level curb). Monitor flight arrivals in your driver app, as severe weather and ATC issues are causing unpredictable arrival times."
+  "recommendations": "For DFW, pickups are located on the upper-level curbside of each terminal (A, B, C, D, E) in designated ride-app areas marked with green signage. For DAL, the rideshare pickup area is located in the Valet Lot (Zones 1, 2, and 3) across from the main terminal, which requires a longer walk for passengers. Always wait in the designated airport staging lots rather than circling the terminals. Follow in-app instructions for Express Match zones, and expect the highest ride demand during the morning (5 AM - 9 AM) and evening (4 PM - 7 PM) peak periods."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: e0173989-5fd1-4563-8af9-ae47fd7ec4f4
-snapshot_id: c3076faf-84ab-4fe3-9979-dd90e13bae2f
+id: 2788c388-4f8e-40cc-b10f-39e88f219ba2
+snapshot_id: 0716a646-a32f-49ae-98ed-92a2b214f45c
 status: pending
 error_message: (none)
-created_at: Wed Mar 18 2026 04:45:47 GMT+0000 (Coordinated Universal Time)
-updated_at: Wed Mar 18 2026 04:45:47 GMT+0000 (Coordinated Universal Time)
+created_at: Wed Mar 18 2026 05:13:11 GMT+0000 (Coordinated Universal Time)
+updated_at: Wed Mar 18 2026 05:13:11 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -820,9 +800,9 @@ Data Integrity:
   ✓ IDs match: YES
 
 School Closures Filter Check:
-  Today's date (America/Chicago): 2026-03-17
-  Active closures (start_date <= today <= end_date): 6 / 12
-  Active: Prosper ISD, Plano ISD, Lewisville ISD, Collin College - Frisco Campus, University of North Texas at Frisco, Legacy Christian Academy
+  Today's date (America/Chicago): 2026-03-18
+  Active closures (start_date <= today <= end_date): 4 / 11
+  Active: Prosper ISD, Plano ISD, Lewisville ISD, Collin College
 
 Event Count:
   Total events in briefing: 0
