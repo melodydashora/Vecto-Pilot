@@ -105,7 +105,10 @@ function parseActions(responseText) {
       const startIndex = match.index + match[0].length;
       const jsonResult = extractBalancedJson(responseText, startIndex);
 
-      if (jsonResult.json) {
+      if (!jsonResult.json) {
+        // 2026-03-18: FIX (M-3) — Log when AI generates malformed action tags
+        console.warn(`[chat] ⚠️ ${prefix} action tag found but JSON extraction failed (malformed/unclosed braces)`);
+      } else {
         try {
           const parsed = JSON.parse(jsonResult.json);
           actions[key].push(parsed);
@@ -1115,14 +1118,15 @@ You have elevated context access for deeper system insight.
 - Driver profile and vehicle data
 - Event data, briefings, and offer intelligence
 
+✏️ Write Access (via action tags):
+- User notes, zone intel, system notes, event CRUD, news deactivations
+- Market intelligence — surge patterns, timing insights, market-wide analysis
+- Venue catalog — staging spots, GPS dead zones, venue intel
+- Coach memos — feature requests, TODOs, bugs (docs/coach-inbox.md)
+
 🧠 Memory & Context:
 - Persistent conversation history (cross-session via coach_conversations)
-- Action tags: write notes, zone intel, system notes, event updates, news deactivations
 - Google Search via Gemini tools for real-time research
-
-📝 Coach Inbox (docs/coach-inbox.md):
-- Write feature requests, TODOs, bugs, code suggestions
-- Use [COACH_MEMO: {...}] to persist anything Melody asks you to remember
 
 **When Melody sends a screenshot or image:**
 - Analyze it with full vision/OCR capabilities
@@ -1312,11 +1316,16 @@ Full transparency. Maximum insight.
         // Save assistant response to coach_conversations (authenticated users only)
         if (isAuthenticated) {
           try {
-            // Extract tips from response using CoachDAL
-            const extractedTips = await coachDAL.extractAndSaveTips(authUserId, cleanedText, {
-              snapshot_id: activeSnapshotId,
-              conversation_id: conversationId
-            });
+            // 2026-03-18: FIX (M-7) — Skip auto-tip extraction if SAVE_NOTE actions
+            // were already parsed. The AI explicitly chose what to save; auto-extraction
+            // would duplicate those notes with slightly different titles.
+            const hasSaveNoteActions = actions?.notes?.length > 0;
+            const extractedTips = hasSaveNoteActions
+              ? 0
+              : await coachDAL.extractAndSaveTips(authUserId, cleanedText, {
+                  snapshot_id: activeSnapshotId,
+                  conversation_id: conversationId
+                });
 
             await coachDAL.saveConversationMessage({
               user_id: authUserId,
