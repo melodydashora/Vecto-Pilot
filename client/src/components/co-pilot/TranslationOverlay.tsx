@@ -211,10 +211,21 @@ export default function TranslationOverlay() {
   // Also: instead of auto-translating on stop, set pending text for confirmation (U-2).
   const [pendingText, setPendingText] = useState<{ text: string; speaker: 'driver' | 'rider' } | null>(null);
 
+  // 2026-03-18: Driver mic — use activeMode to toggle (not speech.isListening which can
+  // go false independently if recognizer times out from silence).
+  // After stop(), wait 300ms for Web Speech API to commit final onresult.
   const handleDriverMic = useCallback(() => {
     if (activeMode === 'driver-speaking') {
-      // Stop listening — transcript will be picked up by the effect below
       speech.stop();
+      // Small delay lets the Web Speech API fire its final onresult before we read
+      setTimeout(() => {
+        const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
+        speech.clear();
+        setActiveMode('idle');
+        if (text) {
+          setPendingText({ text, speaker: 'driver' });
+        }
+      }, 300);
     } else {
       setActiveMode('driver-speaking');
       setPendingText(null);
@@ -223,54 +234,34 @@ export default function TranslationOverlay() {
     }
   }, [speech, activeMode]);
 
-  // 2026-03-18: Effect to capture transcript when driver stops speaking.
-  // We can't read finalTranscript synchronously after stop() because the
-  // Web Speech API fires onresult asynchronously. This effect watches for
-  // the transition: driver was speaking → speech stopped → grab text.
-  const wasDriverSpeakingRef = useRef(false);
-  useEffect(() => {
-    if (activeMode === 'driver-speaking') {
-      wasDriverSpeakingRef.current = true;
-    }
-    if (wasDriverSpeakingRef.current && !speech.isListening && activeMode === 'driver-speaking') {
-      wasDriverSpeakingRef.current = false;
-      const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
-      speech.clear();
-      setActiveMode('idle');
-      if (text) {
-        setPendingText({ text, speaker: 'driver' });
-      }
-    }
-  }, [speech.isListening, speech.finalTranscript, speech.interimTranscript, activeMode, speech]);
-
   /**
    * Handle rider mic button — listen in rider's language, translate to English
    */
+  // 2026-03-18: Rider mic — same pattern, using activeMode for toggle
   const handleRiderMic = useCallback(() => {
-    if (speech.isListening) {
+    if (activeMode === 'rider-speaking') {
       speech.stop();
-      const text = speech.finalTranscript.trim();
-      speech.clear();
-      if (text) {
+      setTimeout(() => {
+        const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
+        speech.clear();
         setActiveMode('idle');
-        // Rider messages auto-send (rider shouldn't need to confirm on driver's phone)
-        // 2026-03-18: Use 'auto' for source when detecting, so Gemini figures out the language
-        const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
-        translateText(text, sourceLang, 'en').then(result => {
-          if (result) {
-            addMessage(text, result.translatedText, result.detectedLang || sourceLang, 'en', 'rider');
-          }
-        });
-      }
+        if (text) {
+          const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
+          translateText(text, sourceLang, 'en').then(result => {
+            if (result) {
+              addMessage(text, result.translatedText, result.detectedLang || sourceLang, 'en', 'rider');
+            }
+          });
+        }
+      }, 300);
     } else {
       setActiveMode('rider-speaking');
       setPendingText(null);
       speech.clear();
-      // 2026-03-18: When auto-detecting, start STT in English as fallback.
-      // Web Speech API needs a language hint; translation API handles actual detection.
+      // When auto-detecting, start STT in English as fallback.
       speech.start(riderLang === 'auto' ? 'en' : riderLang);
     }
-  }, [speech, riderLang, translateText, addMessage]);
+  }, [speech, activeMode, riderLang, translateText, addMessage]);
 
   /**
    * Handle quick phrase selection — instant translation + display
