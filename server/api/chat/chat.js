@@ -40,13 +40,16 @@ function parseActions(responseText) {
     eventReactivations: [],
     addEvents: [],       // 2026-02-17: Coach-created events from driver intel
     updateEvents: [],    // 2026-02-17: Coach-corrected event details
-    coachMemos: []       // 2026-02-17: Coach-to-Claude Code bridge memos (writes to file)
+    coachMemos: [],      // 2026-02-17: Coach-to-Claude Code bridge memos (writes to file)
+    marketIntel: [],     // 2026-03-18: C-3 — market-wide intelligence from driver conversations
+    venueIntel: []       // 2026-03-18: C-3 — staging spots, GPS dead zones, venue intel
   };
 
   let cleanedText = responseText;
 
-  // 2026-01-06: Try JSON envelope format first (preferred)
-  const jsonEnvelopeMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+  // 2026-03-18: FIX (H-3) — Match only JSON blocks containing "actions" array.
+  // Previous regex captured the first ```json block, which could be a code example.
+  const jsonEnvelopeMatch = responseText.match(/```json\s*([\s\S]*?"actions"\s*:\s*\[[\s\S]*?)\s*```/);
   if (jsonEnvelopeMatch) {
     try {
       const envelope = JSON.parse(jsonEnvelopeMatch[1]);
@@ -64,6 +67,8 @@ function parseActions(responseText) {
           else if (actionType === 'DEACTIVATE_NEWS') actions.news.push(actionData);
           else if (actionType === 'SYSTEM_NOTE') actions.systemNotes.push(actionData);
           else if (actionType === 'ZONE_INTEL') actions.zoneIntel.push(actionData);
+          else if (actionType === 'MARKET_INTEL') actions.marketIntel.push(actionData);
+          else if (actionType === 'SAVE_VENUE_INTEL') actions.venueIntel.push(actionData);
         }
         // Use the response field if present, otherwise remove the JSON block
         cleanedText = envelope.response || responseText.replace(jsonEnvelopeMatch[0], '').trim();
@@ -86,7 +91,9 @@ function parseActions(responseText) {
     { prefix: 'COACH_MEMO', key: 'coachMemos' },
     { prefix: 'DEACTIVATE_NEWS', key: 'news' },
     { prefix: 'SYSTEM_NOTE', key: 'systemNotes' },
-    { prefix: 'ZONE_INTEL', key: 'zoneIntel' }
+    { prefix: 'ZONE_INTEL', key: 'zoneIntel' },
+    { prefix: 'MARKET_INTEL', key: 'marketIntel' },
+    { prefix: 'SAVE_VENUE_INTEL', key: 'venueIntel' }
   ];
 
   for (const { prefix, key } of actionTypes) {
@@ -104,7 +111,8 @@ function parseActions(responseText) {
           actions[key].push(parsed);
           // Build the full match to remove (include closing bracket)
           const fullMatch = responseText.slice(match.index, jsonResult.endIndex + 1);
-          cleanedText = cleanedText.replace(fullMatch, '');
+          // 2026-03-18: FIX (M-2) — replaceAll so duplicate tags are both removed
+          cleanedText = cleanedText.replaceAll(fullMatch, '');
         } catch (e) {
           console.warn(`[chat] Failed to parse ${key} JSON:`, e.message);
         }
@@ -191,7 +199,8 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      await coachDAL.saveUserNote({
+      // 2026-03-18: Check return value — DAL returns null on failure
+      const noteResult = await coachDAL.saveUserNote({
         user_id: userId,
         snapshot_id: snapshotId,
         note_type: validation.data.note_type,
@@ -201,8 +210,12 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         confidence: 80,
         created_by: 'ai_coach'
       });
-      results.saved++;
-      console.log(`[chat/actions] Saved note: ${validation.data.title}`);
+      if (noteResult) {
+        results.saved++;
+        console.log(`[chat/actions] Saved note: ${validation.data.title}`);
+      } else {
+        results.errors.push(`Note "${validation.data.title}": write returned null`);
+      }
     } catch (e) {
       results.errors.push(`Note: ${e.message}`);
     }
@@ -222,71 +235,120 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      await coachDAL.deactivateEvent({
+      const deactResult = await coachDAL.deactivateEvent({
         user_id: userId,
         event_title: validation.data.event_title,
         reason: validation.data.reason,
         notes: validation.data.notes,
         deactivated_by: 'ai_coach',
-        snapshot_id: snapshotId // 2026-02-04: Pass snapshot_id for real-time UI update
+        snapshot_id: snapshotId
       });
-      results.saved++;
-      console.log(`[chat/actions] Deactivated event: ${validation.data.event_title}`);
+      if (deactResult) {
+        results.saved++;
+        console.log(`[chat/actions] Deactivated event: ${validation.data.event_title}`);
+      } else {
+        results.errors.push(`DeactivateEvent "${validation.data.event_title}": write returned null`);
+      }
     } catch (e) {
       results.errors.push(`Event: ${e.message}`);
     }
   }
 
   // Reactivate events (undo mistaken deactivations)
+  // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const event of actions.eventReactivations) {
     try {
-      await coachDAL.reactivateEvent({
-        user_id: userId,
+      const validation = validateAction('REACTIVATE_EVENT', {
         event_title: event.event_title,
         reason: event.reason,
-        notes: event.notes,
-        reactivated_by: 'ai_coach',
-        snapshot_id: snapshotId // 2026-02-04: Pass snapshot_id for real-time UI update
+        notes: event.notes
       });
-      results.saved++;
-      console.log(`[chat/actions] Reactivated event: ${event.event_title}`);
+      if (!validation.ok) {
+        results.errors.push(`ReactivateEvent validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      const reactResult = await coachDAL.reactivateEvent({
+        user_id: userId,
+        event_title: validation.data.event_title,
+        reason: validation.data.reason,
+        notes: validation.data.notes,
+        reactivated_by: 'ai_coach',
+        snapshot_id: snapshotId
+      });
+      if (reactResult) {
+        results.saved++;
+        console.log(`[chat/actions] Reactivated event: ${validation.data.event_title}`);
+      } else {
+        results.errors.push(`ReactivateEvent "${validation.data.event_title}": write returned null`);
+      }
     } catch (e) {
       results.errors.push(`EventReactivation: ${e.message}`);
     }
   }
 
   // Deactivate news
+  // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const news of actions.news) {
     try {
-      await coachDAL.deactivateNews({
-        user_id: userId,
+      const validation = validateAction('DEACTIVATE_NEWS', {
         news_title: news.news_title,
-        reason: news.reason,
-        deactivated_by: 'ai_coach',
-        snapshot_id: snapshotId // 2026-02-04: Pass snapshot_id for real-time UI update
+        reason: news.reason
       });
-      results.saved++;
-      console.log(`[chat/actions] Deactivated news: ${news.news_title}`);
+      if (!validation.ok) {
+        results.errors.push(`DeactivateNews validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      const newsResult = await coachDAL.deactivateNews({
+        user_id: userId,
+        news_title: validation.data.news_title,
+        reason: validation.data.reason,
+        deactivated_by: 'ai_coach',
+        snapshot_id: snapshotId
+      });
+      if (newsResult) {
+        results.saved++;
+        console.log(`[chat/actions] Deactivated news: ${validation.data.news_title}`);
+      } else {
+        results.errors.push(`DeactivateNews "${validation.data.news_title}": write returned null`);
+      }
     } catch (e) {
       results.errors.push(`News: ${e.message}`);
     }
   }
 
   // Save system notes
+  // 2026-03-18: Added Zod validation (H-1) and null-return check (C-2)
   for (const sysNote of actions.systemNotes) {
     try {
-      await coachDAL.saveSystemNote({
-        note_type: sysNote.type || 'pain_point',
+      const validation = validateAction('SYSTEM_NOTE', {
+        type: sysNote.type || 'pain_point',
         category: sysNote.category || 'general',
         title: sysNote.title,
-        description: sysNote.description,
+        description: sysNote.description
+      });
+      if (!validation.ok) {
+        results.errors.push(`SystemNote validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      const sysResult = await coachDAL.saveSystemNote({
+        note_type: validation.data.type,
+        category: validation.data.category,
+        title: validation.data.title,
+        description: validation.data.description,
         user_quote: sysNote.user_quote,
         triggering_user_id: userId,
         triggering_conversation_id: conversationId,
         triggering_snapshot_id: snapshotId
       });
-      results.saved++;
-      console.log(`[chat/actions] Saved system note: ${sysNote.title}`);
+      if (sysResult) {
+        results.saved++;
+        console.log(`[chat/actions] Saved system note: ${validation.data.title}`);
+      } else {
+        results.errors.push(`SystemNote "${validation.data.title}": write returned null`);
+      }
     } catch (e) {
       results.errors.push(`SystemNote: ${e.message}`);
     }
@@ -320,14 +382,18 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      await coachDAL.addEvent({
+      const addResult = await coachDAL.addEvent({
         ...validation.data,
         city,
         state,
         user_id: userId
       });
-      results.saved++;
-      console.log(`[chat/actions] Added event: ${validation.data.title}`);
+      if (addResult) {
+        results.saved++;
+        console.log(`[chat/actions] Added event: ${validation.data.title}`);
+      } else {
+        results.errors.push(`AddEvent "${validation.data.title}": write returned null`);
+      }
     } catch (e) {
       results.errors.push(`AddEvent: ${e.message}`);
     }
@@ -353,12 +419,16 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      await coachDAL.updateEvent({
+      const updateResult = await coachDAL.updateEvent({
         ...validation.data,
         snapshot_id: snapshotId
       });
-      results.saved++;
-      console.log(`[chat/actions] Updated event: ${validation.data.event_title}`);
+      if (updateResult) {
+        results.saved++;
+        console.log(`[chat/actions] Updated event: ${validation.data.event_title}`);
+      } else {
+        results.errors.push(`UpdateEvent "${validation.data.event_title}": write returned null`);
+      }
     } catch (e) {
       results.errors.push(`UpdateEvent: ${e.message}`);
     }
@@ -412,7 +482,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      await coachDAL.saveZoneIntelligence({
+      const zoneResult = await coachDAL.saveZoneIntelligence({
         market_slug: validation.data.market_slug,
         zone_type: validation.data.zone_type,
         zone_name: validation.data.zone_name,
@@ -425,10 +495,83 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         user_id: userId,
         conversation_id: conversationId
       });
-      results.saved++;
-      console.log(`[chat/actions] Saved zone intel: ${validation.data.zone_name} (${validation.data.zone_type})`);
+      if (zoneResult) {
+        results.saved++;
+        console.log(`[chat/actions] Saved zone intel: ${validation.data.zone_name} (${validation.data.zone_type})`);
+      } else {
+        results.errors.push(`ZoneIntel "${validation.data.zone_name}": write returned null`);
+      }
     } catch (e) {
       results.errors.push(`ZoneIntel: ${e.message}`);
+    }
+  }
+
+  // 2026-03-18: Market intelligence — driver-reported surge patterns, timing insights (C-3)
+  for (const intel of actions.marketIntel) {
+    try {
+      const validation = validateAction('MARKET_INTEL', {
+        market: intel.market,
+        intel_type: intel.intel_type,
+        title: intel.title,
+        content: intel.content,
+        intel_subtype: intel.intel_subtype,
+        summary: intel.summary,
+        platform: intel.platform,
+        priority: intel.priority,
+        confidence: intel.confidence,
+        tags: intel.tags
+      });
+      if (!validation.ok) {
+        results.errors.push(`MarketIntel validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      const miResult = await coachDAL.saveMarketIntelligence({
+        ...validation.data,
+        created_by: 'ai_coach'
+      });
+      if (miResult) {
+        results.saved++;
+        console.log(`[chat/actions] Saved market intel: ${validation.data.title} (${validation.data.market})`);
+      } else {
+        results.errors.push(`MarketIntel "${validation.data.title}": write returned null`);
+      }
+    } catch (e) {
+      results.errors.push(`MarketIntel: ${e.message}`);
+    }
+  }
+
+  // 2026-03-18: Venue catalog — staging spots, GPS dead zones, venue intel (C-3)
+  for (const venue of actions.venueIntel) {
+    try {
+      const validation = validateAction('SAVE_VENUE_INTEL', {
+        venue_name: venue.venue_name,
+        address: venue.address,
+        category: venue.category,
+        place_id: venue.place_id,
+        city: venue.city,
+        staging_notes: venue.staging_notes,
+        ai_estimated_hours: venue.ai_estimated_hours,
+        lat: venue.lat,
+        lng: venue.lng
+      });
+      if (!validation.ok) {
+        results.errors.push(`VenueIntel validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+
+      const viResult = await coachDAL.saveVenueCatalogEntry({
+        ...validation.data,
+        discovery_source: 'ai_coach'
+      });
+      if (viResult) {
+        results.saved++;
+        console.log(`[chat/actions] Saved venue intel: ${validation.data.venue_name}`);
+      } else {
+        results.errors.push(`VenueIntel "${validation.data.venue_name}": write returned null`);
+      }
+    } catch (e) {
+      results.errors.push(`VenueIntel: ${e.message}`);
     }
   }
 
@@ -612,11 +755,14 @@ router.post('/', requireAuth, async (req, res) => {
     let contextInfo = '';
     let fullContext = null;
     let snapshotHistoryInfo = '';  // Declared here so it's accessible in system prompt
+    // 2026-03-18: FIX (H-6) — Hoist activeSnapshotId so strategy→snapshot resolution
+    // persists to executeActions. Previously re-declared at line 701, throwing away the resolved value.
+    let activeSnapshotId = snapshotId || null;
 
     try {
       // PRIORITY: Use the snapshotId provided by the UI (always current)
       // The UI has the authoritative snapshot ID from the current location
-      let activeSnapshotId = snapshotId;
+      if (snapshotId) activeSnapshotId = snapshotId;
       
       if (activeSnapshotId) {
         console.log('[chat] Using snapshot from UI:', activeSnapshotId);
@@ -697,8 +843,7 @@ router.post('/', requireAuth, async (req, res) => {
       contextInfo = '\n\n⚠️ Context temporarily unavailable';
     }
 
-    // Track active snapshot ID for conversation persistence
-    let activeSnapshotId = snapshotId || null;
+    // activeSnapshotId already hoisted above (line ~615) with strategy→snapshot resolution
 
     // Check for Super User (Agent Capabilities)
     let isSuperUser = false;
@@ -1138,25 +1283,30 @@ Full transparency. Maximum insight.
         }
       }
 
+      // 2026-03-18: Declared outside if(totalText) so done event can always reference it
+      let actionsResult = null;
+
       if (totalText) {
-        // 2026-01-06: SECURITY - Don't log response content, only metadata
         console.log(`[chat] ✅ Gemini streamed response: ${totalText.length} chars`);
 
-        // Parse actions and execute them (non-blocking)
+        // 2026-03-18: Parse actions and execute them (awaited for client feedback)
         const { actions, cleanedText } = parseActions(totalText);
         const hasActions = Object.values(actions).some(arr => arr.length > 0);
 
         if (hasActions) {
-          console.log(`[chat] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, addEvents=${actions.addEvents.length}, updateEvents=${actions.updateEvents.length}, memos=${actions.coachMemos.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}`);
+          console.log(`[chat] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, addEvents=${actions.addEvents.length}, updateEvents=${actions.updateEvents.length}, memos=${actions.coachMemos.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}, marketIntel=${actions.marketIntel.length}, venueIntel=${actions.venueIntel.length}`);
 
-          // Execute actions asynchronously (don't wait for completion)
-          executeActions(actions, authUserId, activeSnapshotId, conversationId)
-            .then(result => {
-              if (result.saved > 0) {
-                console.log(`[chat] ✅ Executed ${result.saved} actions`);
-              }
-            })
-            .catch(e => console.error('[chat] Action execution error:', e.message));
+          // 2026-03-18: FIX (C-1) — Await actions so results can be sent to client.
+          // DB writes are sub-50ms each; minor latency is worth guaranteed feedback.
+          try {
+            actionsResult = await executeActions(actions, authUserId, activeSnapshotId, conversationId);
+            if (actionsResult.saved > 0) {
+              console.log(`[chat] ✅ Executed ${actionsResult.saved} actions`);
+            }
+          } catch (e) {
+            console.error('[chat] Action execution error:', e.message);
+            actionsResult = { saved: 0, errors: [e.message] };
+          }
         }
 
         // Save assistant response to coach_conversations (authenticated users only)
@@ -1177,7 +1327,8 @@ Full transparency. Maximum insight.
               content: cleanedText,
               content_type: 'text',
               market_slug: fullContext?.marketSlug || null, // For cross-driver learning
-              extracted_tips: extractedTips?.tips || [],
+              // 2026-03-18: extractAndSaveTips returns a number, not an object
+              extracted_tips: [],
               model_used: 'gemini-3.1-pro-preview',
               location_context: fullContext?.snapshot ? {
                 city: fullContext.snapshot.city,
@@ -1194,8 +1345,12 @@ Full transparency. Maximum insight.
         res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
       }
 
-      // Send done event with conversation_id for client to continue thread
-      res.write(`data: ${JSON.stringify({ done: true, conversation_id: conversationId })}\n\n`);
+      // 2026-03-18: FIX (C-1) — Include action results so client gets feedback
+      const donePayload = { done: true, conversation_id: conversationId };
+      if (actionsResult) {
+        donePayload.actions_result = actionsResult;
+      }
+      res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error) {
       console.error('[chat] Gemini request error:', error.message);

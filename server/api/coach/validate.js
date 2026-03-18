@@ -153,17 +153,46 @@ export const coachMemoSchema = z.object({
   related_files: z.array(z.string()).optional()
 });
 
+// 2026-03-18: Market intelligence validation (C-3 — was missing, DAL existed but unreachable)
+export const marketIntelSchema = z.object({
+  market: z.string().min(1, 'market is required'),
+  intel_type: z.string().min(1, 'intel_type is required'),
+  title: z.string().min(1, 'title is required').max(300),
+  content: z.string().min(1, 'content is required').max(10000),
+  intel_subtype: z.string().optional(),
+  summary: z.string().max(1000).optional(),
+  platform: z.enum(['uber', 'lyft', 'both']).default('both'),
+  priority: z.number().min(0).max(100).default(50),
+  confidence: z.number().min(0).max(100).default(70),
+  tags: z.array(z.string()).optional()
+});
+
+// 2026-03-18: Venue catalog validation (C-3 — was missing, DAL existed but unreachable)
+export const venueIntelSchema = z.object({
+  venue_name: z.string().min(1, 'venue_name is required').max(300),
+  address: z.string().min(1, 'address is required').max(500),
+  category: z.string().min(1, 'category is required'),
+  place_id: z.string().optional(),
+  city: z.string().optional(),
+  staging_notes: z.any().optional(),
+  ai_estimated_hours: z.any().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional()
+});
+
 // Action type to schema mapping
 const ACTION_SCHEMAS = {
   SAVE_NOTE: noteSchema,
   DEACTIVATE_EVENT: eventDeactivationSchema,
   REACTIVATE_EVENT: eventReactivationSchema,
-  ADD_EVENT: addEventSchema,         // 2026-02-17: Coach can add new events
-  UPDATE_EVENT: updateEventSchema,   // 2026-02-17: Coach can update event details
-  COACH_MEMO: coachMemoSchema,       // 2026-02-17: Coach-to-Claude Code bridge (writes to file)
+  ADD_EVENT: addEventSchema,
+  UPDATE_EVENT: updateEventSchema,
+  COACH_MEMO: coachMemoSchema,
   ZONE_INTEL: zoneIntelSchema,
   SYSTEM_NOTE: systemNoteSchema,
-  DEACTIVATE_NEWS: newsDeactivationSchema
+  DEACTIVATE_NEWS: newsDeactivationSchema,
+  MARKET_INTEL: marketIntelSchema,         // 2026-03-18: C-3 fix
+  SAVE_VENUE_INTEL: venueIntelSchema       // 2026-03-18: C-3 fix
 };
 
 // ============================================================================
