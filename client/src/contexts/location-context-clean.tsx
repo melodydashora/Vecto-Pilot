@@ -789,17 +789,14 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return;
       }
 
-      // 2026-03-18: FIX — Resume failed (e.g., missing timeZone in cached data).
-      // Clear the enrichment coord key that session restore may have set (line 288).
-      // Without this, refreshGPS → enrichLocation sees same coords and skips the API call,
-      // causing a deadlock where location never resolves.
+      // 2026-03-18: FIX — Resume failed or no cached data (fresh sign-in).
+      // Force a completely fresh cycle: release old snapshot, clear caches, fresh GPS.
+      // Per architecture: every sign-in = fresh snapshot. No pre-strategy caching.
       lastEnrichmentCoordsRef.current = null;
 
       gpsEffectRanRef.current = true;
-      console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
-      // Initial mount: allow server to reuse existing snapshot if < 60 min old
-      // 2026-01-07: Use ref to call latest refreshGPS without adding to deps
-      refreshGPSRef.current?.(false);
+      console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting fresh GPS fetch`);
+      refreshGPSRef.current?.(true);
     }, 50);
     return () => clearTimeout(timer);
   // 2026-01-14: CRITICAL - Only depend on auth state, NOT on GPS data (lastSnapshotId, currentCoords, city)
