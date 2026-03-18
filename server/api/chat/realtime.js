@@ -4,6 +4,10 @@
 import { Router } from 'express';
 import { coachDAL } from '../../lib/ai/coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
+// 2026-03-17: SECURITY FIX (F-5) — Snapshot ownership verification
+import { db } from '../../db/drizzle.js';
+import { snapshots } from '../../../shared/schema.js';
+import { eq } from 'drizzle-orm';
 // Node.js 18+ has built-in fetch - no import needed
 
 const router = Router();
@@ -69,6 +73,19 @@ router.post('/token', requireAuth, async (req, res) => {
     };
 
     if (snapshotId) {
+      // 2026-03-17: SECURITY FIX (F-5) — Verify snapshot belongs to authenticated user.
+      // Previously any signed-in user could access any snapshot's location/strategy context.
+      try {
+        const [snap] = await db.select({ user_id: snapshots.user_id })
+          .from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+        if (!snap || snap.user_id !== req.auth.userId) {
+          return res.status(403).json({ error: 'snapshot_not_owned', message: 'Snapshot does not belong to this user' });
+        }
+      } catch (ownerErr) {
+        console.warn('[realtime] Snapshot ownership check failed:', ownerErr.message);
+        return res.status(500).json({ error: 'ownership_check_failed' });
+      }
+
       try {
         const fullContext = await coachDAL.getCompleteContext(snapshotId);
         if (fullContext?.snapshot) {

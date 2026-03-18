@@ -136,7 +136,8 @@ router.post('/venue', requireAuth, async (req, res) => {
     
     console.log('[feedback] upsert ok', {
       corr: correlationId,
-      user: userId || 'anon',
+      // 2026-03-17: SECURITY FIX (F-13) — was `userId` (undefined since 2026-02-13 removal)
+      user: authUserId,
       ranking: ranking_id,
       place: place_id || 'null',
       sent: sentiment,
@@ -154,7 +155,8 @@ router.post('/venue', requireAuth, async (req, res) => {
           sentiment,
           has_comment: !!sanitizedComment,
           ranking_id
-        }, userId).catch(err => {
+        // 2026-03-17: SECURITY FIX (F-13) — was `userId` (undefined)
+        }, authUserId).catch(err => {
           console.error('[feedback] Learning capture failed:', err.message);
         });
       });

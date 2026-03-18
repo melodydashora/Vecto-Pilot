@@ -448,7 +448,8 @@ router.get('/resolve', async (req, res) => {
 
         // Verify HMAC signature
         // 2026-01-05: Must match fallback in auth.js for consistency
-        const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
+        // 2026-03-17: SECURITY FIX (F-10) — Removed hardcoded dev secret fallback
+        const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
         const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
 
         // 2026-01-07: DEBUG - Log signature comparison

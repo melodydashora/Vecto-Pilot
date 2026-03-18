@@ -38,8 +38,12 @@ import { validateAddress } from '../../lib/location/address-validation.js';
 
 const router = Router();
 
-// JWT secret for token generation
-const JWT_SECRET = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
+// 2026-03-17: SECURITY FIX (F-10) — Removed hardcoded 'dev-secret-change-in-production' fallback.
+// REPLIT_DEVSERVER_INTERNAL_ID is per-workspace (not predictable), acceptable for dev.
+const JWT_SECRET = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
+if (!JWT_SECRET) {
+  console.error('[auth] FATAL: No JWT_SECRET or REPLIT_DEVSERVER_INTERNAL_ID — token signing will fail');
+}
 
 /**
  * Generate a JWT token for a user

@@ -81,6 +81,32 @@ router.post('/token', requireAuth, async (req, res) => {
 });
 
 /**
+ * DELETE /api/concierge/token
+ * 2026-03-17: SECURITY FIX (F-14) — Revoke the driver's share token
+ * Nulls the concierge_share_token so public profile returns 404
+ */
+router.delete('/token', requireAuth, async (req, res) => {
+  try {
+    const { profileId } = await getShareToken(req.auth.userId);
+    if (!profileId) {
+      return res.status(404).json({ ok: false, error: 'No concierge profile found' });
+    }
+    // Import db inline to avoid circular dependency issues at module level
+    const { db } = await import('../../db/drizzle.js');
+    const { driver_profiles } = await import('../../../shared/schema.js');
+    const { eq } = await import('drizzle-orm');
+    await db.update(driver_profiles)
+      .set({ concierge_share_token: null })
+      .where(eq(driver_profiles.id, profileId));
+    console.log('[concierge] Token revoked for profile:', profileId);
+    res.json({ ok: true, message: 'Share token revoked' });
+  } catch (err) {
+    console.error('[concierge] Revoke token error:', err.message);
+    res.status(500).json({ ok: false, error: 'Failed to revoke share token' });
+  }
+});
+
+/**
  * GET /api/concierge/preview
  * Get the driver's own card data (for preview on concierge tab)
  */
