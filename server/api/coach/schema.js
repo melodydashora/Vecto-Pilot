@@ -143,6 +143,33 @@ export const coachSchemaMetadata = {
         news_source: "Source name (optional)",
         reason: "Why hiding this"
       }
+    },
+    // 2026-03-18: C-3 fix — these tables now have full action pipeline wiring
+    market_intelligence: {
+      description: "Market-wide intel from driver conversations — surge patterns, timing insights",
+      action_tag: "[MARKET_INTEL: {...}]",
+      fields: {
+        market: "Market name (e.g. Dallas-Fort Worth)",
+        intel_type: "surge_pattern | timing | demand | competition | pricing | seasonal",
+        title: "Short title (max 300 chars)",
+        content: "Full intelligence content (max 10000 chars)",
+        platform: "uber | lyft | both (default: both)",
+        priority: "1-100 (default 50)",
+        confidence: "1-100 (default 70)"
+      }
+    },
+    venue_catalog: {
+      description: "Driver-contributed venue intel — staging spots, GPS dead zones",
+      action_tag: "[SAVE_VENUE_INTEL: {...}]",
+      fields: {
+        venue_name: "Venue name",
+        address: "Full address",
+        category: "restaurant | bar | hotel | airport | event_venue | hospital | corporate | etc",
+        place_id: "Google Place ID (optional, enables dedup)",
+        city: "City name (optional)",
+        staging_notes: "Staging/parking tips as JSON (optional)",
+        ai_estimated_hours: "Peak hours as JSON (optional)"
+      }
     }
   },
 
