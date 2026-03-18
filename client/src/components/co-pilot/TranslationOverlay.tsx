@@ -20,6 +20,8 @@ import { Card } from '@/components/ui/card';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTTS } from '@/hooks/useTTS';
 import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-03-18: FIX — /api/translate requires JWT auth; was returning 401 without this
+import { getAuthHeader } from '@/contexts/auth-context';
 import QuickPhrases, { type QuickPhrase } from './QuickPhrases';
 
 // Language options for the selector (FIFA World Cup priority languages)
@@ -110,9 +112,10 @@ export default function TranslationOverlay() {
   ): Promise<{ translatedText: string; detectedLang: string } | null> => {
     try {
       setIsTranslating(true);
+      // 2026-03-18: FIX — include JWT auth header (server requires requireAuth)
       const response = await fetch(API_ROUTES.TRANSLATE.SEND, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({ text, sourceLang, targetLang }),
       });
 
@@ -223,8 +226,10 @@ export default function TranslationOverlay() {
 
   const selectedLang = LANGUAGES.find(l => l.code === riderLang);
 
+  // 2026-03-18: FIX — account for both header and bottom tab bar (96px each approx)
+  // Uses dvh for mobile viewport accuracy; bottom -mb-24 reclaims CoPilotLayout's pb-24
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] bg-background overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-160px)] bg-background overflow-hidden -mb-24">
       {/* ================================================================ */}
       {/* RIDER PANEL (TOP) — Rotated 180° for backseat readability       */}
       {/* ================================================================ */}
