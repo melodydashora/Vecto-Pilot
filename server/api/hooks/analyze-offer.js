@@ -617,9 +617,15 @@ router.post('/offer-override', async (req, res) => {
 // POST /api/hooks/offer-cleanup
 // Batch delete test/duplicate entries from offer_intelligence
 // 2026-02-17: Updated to use offer_intelligence table
+// 2026-03-17: SECURITY FIX (F-3) — Require device_id ownership scope.
+// Previously deleted arbitrary rows by id with no auth or ownership check.
 router.post('/offer-cleanup', async (req, res) => {
   try {
-    const { ids } = req.body;
+    const { ids, device_id } = req.body;
+
+    if (!device_id || typeof device_id !== 'string' || device_id.length > 128) {
+      return res.status(400).json({ error: 'Valid device_id required' });
+    }
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'Missing ids array' });
@@ -630,7 +636,7 @@ router.post('/offer-cleanup', async (req, res) => {
     }
 
     const result = await db.execute(
-      sql`DELETE FROM offer_intelligence WHERE id = ANY(${ids}) RETURNING id`
+      sql`DELETE FROM offer_intelligence WHERE id = ANY(${ids}) AND device_id = ${device_id} RETURNING id`
     );
 
     console.log(`[hooks/offer-cleanup] 🗑️ Deleted ${result.rows?.length || 0} of ${ids.length} requested`);

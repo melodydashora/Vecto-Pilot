@@ -1,7 +1,7 @@
 {
-  "name": "eidolon-enhanced-repl",
-  "version": "4.1.0",
-  "description": "Eidolon - Claude Opus 4.1 Enhanced SDK (Environment-Agnostic)",
+  "name": "vecto-pilot",
+  "version": "4.3.0",
+  "description": "Vecto Pilot - AI-Powered Rideshare Co-Pilot",
   "main": "gateway-server.js",
   "type": "module",
   "scripts": {

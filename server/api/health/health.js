@@ -1,16 +1,28 @@
 // server/api/health/health.js
 // Updated 2026-01-05: Migrated from llm-router-v2.js to model-registry.js
+// 2026-03-17: SECURITY FIX (F-11) — Public endpoints reduced to bare liveness.
+// Detailed diagnostics (memory, PID, pool, LLM, metrics) moved behind requireAuth.
 import { Router } from "express";
 import { getLLMDiagnostics } from "../../lib/ai/model-registry.js";
 import { getPoolStats, getSharedPool } from "../../db/pool.js";
 import { getAgentState } from "../../db/connection-manager.js";
 import { providers } from "../../lib/strategy/providers.js";
 import { ndjson } from "../../logger/ndjson.js";
+import { requireAuth } from "../../middleware/auth.js";
 
 const router = Router();
 
-// Root diagnostics endpoint
+// Public liveness — minimal output, no internal details
 router.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    service: "Vecto Co-Pilot API",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Detailed diagnostics — authenticated only
+router.get("/details", requireAuth, (req, res) => {
   const diag = getLLMDiagnostics();
   const poolStats = getPoolStats();
   res.json({
@@ -25,8 +37,8 @@ router.get("/", (req, res) => {
   });
 });
 
-// PostgreSQL pool statistics endpoint
-router.get("/pool-stats", (req, res) => {
+// PostgreSQL pool statistics endpoint — authenticated only
+router.get("/pool-stats", requireAuth, (req, res) => {
   const stats = getPoolStats();
   res.json({
     ok: true,
@@ -35,8 +47,8 @@ router.get("/pool-stats", (req, res) => {
   });
 });
 
-// Strategy provider registry health check
-router.get("/strategies", (req, res) => {
+// Strategy provider registry health check — authenticated only
+router.get("/strategies", requireAuth, (req, res) => {
   const providerStatus = {};
   for (const [name, fn] of Object.entries(providers)) {
     providerStatus[name] = {
@@ -57,8 +69,8 @@ router.get("/strategies", (req, res) => {
   });
 });
 
-// Prometheus metrics endpoint
-router.get("/metrics", (req, res) => {
+// Prometheus metrics endpoint — authenticated only
+router.get("/metrics", requireAuth, (req, res) => {
   try {
     const poolStats = getPoolStats();
     const memUsage = process.memoryUsage();

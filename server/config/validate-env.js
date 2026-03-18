@@ -32,6 +32,19 @@ export function validateEnvironment() {
     errors.push('GOOGLE_MAPS_API_KEY is required for location services');
   }
   
+  // 2026-03-17: SECURITY FIX (F-12) — Auth secret validation.
+  // Production MUST have a proper JWT_SECRET; dev falls back to REPLIT_DEVSERVER_INTERNAL_ID.
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isProd && !process.env.JWT_SECRET) {
+    errors.push('JWT_SECRET is required in production (token signing will fail)');
+  } else if (!process.env.JWT_SECRET && !process.env.REPLIT_DEVSERVER_INTERNAL_ID) {
+    warnings.push('JWT_SECRET not set and no REPLIT_DEVSERVER_INTERNAL_ID fallback — auth tokens cannot be signed');
+  }
+
+  if (!process.env.VECTO_AGENT_SECRET) {
+    warnings.push('VECTO_AGENT_SECRET not set — agent/system auth endpoints will reject all requests');
+  }
+
   // WARNINGS: Optional but recommended services
   if (!process.env.OPENWEATHER_API_KEY) {
     warnings.push('OPENWEATHER_API_KEY not set - weather data will be unavailable');

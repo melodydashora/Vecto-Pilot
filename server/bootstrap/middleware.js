@@ -34,8 +34,26 @@ export async function configureMiddleware(app) {
   // Helmet security headers (CSP disabled for SPA compatibility)
   app.use(helmet({ contentSecurityPolicy: false }));
 
-  // CORS - allow all origins with credentials
-  app.use(cors({ origin: true, credentials: true }));
+  // 2026-03-17: SECURITY FIX (F-2) — CORS origin whitelist replaces reflect-all.
+  // Previously `origin: true` reflected any origin with credentials, enabling CSRF.
+  // Now only Replit deployment domains and localhost are allowed.
+  const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : [];
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (server-to-server, Siri Shortcuts, curl)
+      if (!origin) return callback(null, true);
+      // Check explicit whitelist from env
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow Replit domains (*.replit.dev, *.repl.co) and localhost
+      if (/\.(replit\.dev|repl\.co)$/.test(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true
+  }));
 
   // Correlation ID middleware (before JSON parsing)
   try {

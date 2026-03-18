@@ -11,6 +11,8 @@ import { generateAndStoreBriefing } from "../../lib/briefing/briefing-service.js
 import { httpError } from "../utils/http-helpers.js";
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from "../../lib/location/coords-key.js";
+// 2026-03-17: Moved import to top — now used by both POST and GET routes
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -28,7 +30,9 @@ function requireStr(v, name) {
   return v.trim();
 }
 
-router.post("/", async (req, res) => {
+// 2026-03-17: SECURITY FIX (F-8) — Require authentication for snapshot creation.
+// Previously unauthenticated, allowing anyone to create snapshots with arbitrary data.
+router.post("/", requireAuth, async (req, res) => {
   const reqId = crypto.randomUUID();
   res.setHeader('x-req-id', reqId);
 
@@ -227,7 +231,6 @@ router.post("/", async (req, res) => {
 // GET /:snapshotId - Fetch snapshot for Coach context (early engagement backup)
 // Snapshot fields: city, state, weather (temp, condition), air (AQI), hour, dayPart, holiday, timezone, coordinates
 // SECURITY: requireAuth enforces user must be signed in (GPS gating requires auth)
-import { requireAuth } from '../../middleware/auth.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 
 router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, res) => {
