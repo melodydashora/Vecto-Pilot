@@ -790,13 +790,14 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       // 2026-03-18: FIX — Resume failed or no cached data (fresh sign-in).
-      // Force a completely fresh cycle: release old snapshot, clear caches, fresh GPS.
-      // Per architecture: every sign-in = fresh snapshot. No pre-strategy caching.
+      // Clear enrichment coord key so dedup doesn't block the fresh enrichment call.
+      // Use forceNewSnapshot=false here — release-snapshot is handled by login/logout,
+      // and the server reuse logic handles stale snapshots (>60min = new snapshot).
       lastEnrichmentCoordsRef.current = null;
 
       gpsEffectRanRef.current = true;
-      console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting fresh GPS fetch`);
-      refreshGPSRef.current?.(true);
+      console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
+      refreshGPSRef.current?.(false);
     }, 50);
     return () => clearTimeout(timer);
   // 2026-01-14: CRITICAL - Only depend on auth state, NOT on GPS data (lastSnapshotId, currentCoords, city)
