@@ -50,6 +50,10 @@ export async function configureMiddleware(app) {
       if (/\.(replit\.dev|repl\.co|replit\.app)$/.test(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
+      // 2026-03-18: Allow production custom domain
+      if (/^https?:\/\/(www\.)?vectopilot\.com$/.test(origin)) {
+        return callback(null, true);
+      }
       callback(new Error(`CORS blocked: ${origin}`));
     },
     credentials: true
