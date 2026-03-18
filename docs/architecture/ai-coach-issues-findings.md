@@ -119,12 +119,12 @@ CLAUDE.md Rule 8 specifies the AI Coach needs write access to:
 
 **Two tables are completely inaccessible to the coach:**
 
-1. **`venue_catalog`** — No action tag, no DAL write method. The coach cannot contribute driver-reported venue intel (staging spots, GPS dead zones, etc.) as specified in CLAUDE.md Rule 8 use cases.
+1. **`venue_catalog`** — The DAL has `saveVenueCatalogEntry()` and `addVenueStagingNotes()` but there is NO action tag to reach them from the chat pipeline. The coach cannot contribute driver-reported venue intel (staging spots, GPS dead zones, etc.) as specified in CLAUDE.md Rule 8 use cases.
 
-2. **`market_intelligence`** — The DAL has `saveMarketIntelligence()` but there is NO action tag (`MARKET_INTEL` or similar) in `parseActions()` or `executeActions()`. The method exists but is unreachable from the chat pipeline.
+2. **`market_intelligence`** — The DAL has `saveMarketIntelligence()` but there is NO action tag (`MARKET_INTEL` or similar) in `parseActions()` or `executeActions()`. The method exists but is unreachable from the chat pipeline. (Note: `/api/intelligence` REST endpoints exist but are separate from the coach chat flow.)
 
 **Fix:**
-1. Add `SAVE_VENUE_INTEL` action type → new DAL method for venue_catalog writes
+1. Add `SAVE_VENUE_INTEL` action type → wire to existing `coachDAL.saveVenueCatalogEntry()` and `addVenueStagingNotes()`
 2. Add `MARKET_INTEL` action type → wire to existing `coachDAL.saveMarketIntelligence()`
 3. Add both to parseActions, executeActions, and validate.js
 4. Add to system prompt action documentation
@@ -390,8 +390,8 @@ Per CLAUDE.md Rule 8, the AI Coach needs write access to these tables. Current s
 
 | Table | CLAUDE.md Requires | Action Tag Exists | DAL Method Exists | Status |
 |-------|-------------------|-------------------|-------------------|--------|
-| `venue_catalog` | Yes | No | No | **MISSING** |
-| `market_intelligence` | Yes | No | Yes (unreachable) | **BROKEN** |
+| `venue_catalog` | Yes | No | Yes (`saveVenueCatalogEntry`, `addVenueStagingNotes`) | **BROKEN** — DAL exists but no action tag to reach it |
+| `market_intelligence` | Yes | No | Yes (`saveMarketIntelligence`) | **BROKEN** — DAL exists but no action tag to reach it |
 | `user_intel_notes` | Yes | SAVE_NOTE | Yes | Working |
 | `zone_intelligence` | Yes | ZONE_INTEL | Yes | Working |
 | `coach_conversations` | Yes | Auto-saved | Yes | Working |

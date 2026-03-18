@@ -153,6 +153,8 @@ POST /api/chat  (SSE streaming endpoint)
 | `saveSystemNote(noteData)` | `coach_system_notes` | Log system observations (deduped by title+category) |
 | `saveZoneIntelligence(data)` | `zone_intelligence` | Crowd-sourced zone knowledge |
 | `saveMarketIntelligence(data)` | `market_intelligence` | Market-specific insights |
+| `saveVenueCatalogEntry(data)` | `venue_catalog` | Driver-reported venue intel (staging, hours) |
+| `addVenueStagingNotes(venueId, notes)` | `venue_catalog` | Append staging tips (JSONB merge) |
 | `saveConversationMessage(data)` | `coach_conversations` | Persist user/assistant messages |
 | `deactivateEvent(data)` | `discovered_events` | Soft-deactivate event + pg_notify |
 | `reactivateEvent(data)` | `discovered_events` | Restore deactivated event + pg_notify |
