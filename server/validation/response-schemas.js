@@ -76,7 +76,13 @@ export const VenueSchema = z.object({
   rating: z.number().nullable(),
   lat: z.number(),
   lng: z.number(),
-  placeId: z.string().optional()
+  placeId: z.string().optional(),
+  // 2026-03-18: Fields already sent by toApiVenue() but missing from formal schema
+  hoursUnknown: z.boolean().optional(),
+  hoursFullWeek: z.record(z.string(), z.string()).optional(),
+  venueQualityTier: z.enum(['premium', 'standard']).nullable().optional(),
+  closedGoAnyway: z.boolean().optional(),
+  closedReason: z.string().nullable().optional()
 });
 
 /**
