@@ -53,7 +53,7 @@ validateOrExit(); // Validates env + strategy models, exits on fatal errors
 ```bash
 STRATEGY_STRATEGIST=claude-opus-4-6
 STRATEGY_BRIEFER=gemini-3.1-pro-preview
-STRATEGY_CONSOLIDATOR=gpt-5.2
+STRATEGY_CONSOLIDATOR=gpt-5.4
 STRATEGY_EVENT_VALIDATOR=claude-opus-4-6
 ```
 

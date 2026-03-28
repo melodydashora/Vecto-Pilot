@@ -84,7 +84,7 @@ export const ENV_VARS = {
   },
   STRATEGY_CONSOLIDATOR: {
     required: false,
-    default: 'gpt-5.2',
+    default: 'gpt-5.4',
     description: 'Model for immediate strategy consolidation',
   },
   STRATEGY_EVENT_VALIDATOR: {
@@ -94,7 +94,7 @@ export const ENV_VARS = {
   },
   STRATEGY_VENUE_PLANNER: {
     required: false,
-    default: 'gpt-5.2',
+    default: 'gpt-5.4',
     description: 'Model for venue planning',
   },
 
@@ -118,7 +118,7 @@ export const ENV_VARS = {
   // === Voice ===
   VOICE_MODEL: {
     required: false,
-    default: 'gpt-5.2',
+    default: 'gpt-5.4',
     description: 'OpenAI Realtime voice model',
   },
 

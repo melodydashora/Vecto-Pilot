@@ -183,11 +183,12 @@ export async function callModel(role, params) {
   } catch (err) {
     const durationMs = Date.now() - callStart;
 
-    // 2026-02-26: Gemini 503 retry — when primary model is overloaded, try gemini-3.0-pro-preview.
+    // 2026-02-26: Gemini 503 retry — when primary model is overloaded, try a different Gemini model.
     // Same provider, different model. Briefing roles need google_search which only Gemini supports,
-    // so cross-provider fallback to GPT-5.2 doesn't work for them.
+    // so cross-provider fallback doesn't work for them.
+    // 2026-03-28: Updated fallback from gemini-3.0-pro-preview → gemini-3-pro-preview (verified available)
     const is503 = err.message.includes('503') || err.message.includes('UNAVAILABLE');
-    const GEMINI_FALLBACK_MODEL = 'gemini-3.0-pro-preview';
+    const GEMINI_FALLBACK_MODEL = 'gemini-3-pro-preview';
     if (is503 && primaryConfig.provider === 'google' && primaryConfig.model !== GEMINI_FALLBACK_MODEL) {
       console.log(`🤖 [AI RETRY] ${primaryConfig.role} got 503 on ${primaryConfig.model} — retrying with ${GEMINI_FALLBACK_MODEL}...`);
       try {

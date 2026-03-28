@@ -292,7 +292,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       best_staging_location: validStaging,
       tactical_summary: validated.tactical_summary,
       metadata: {
-        model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.2",
+        model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.4",
         duration_ms: duration,
         venues_recommended: validVenues.length,
         validation_passed: true
