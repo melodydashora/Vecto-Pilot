@@ -15,7 +15,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Voice model configuration
 // COACH_VOICE role: Real-time voice chat with snapshot context
-const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-5.2';
+const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-5.4';
 const TOKEN_EXPIRY_SECONDS = 3600; // 1 hour
 
 /**

@@ -134,16 +134,16 @@ Fallback-enabled roles: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY
 ## Environment Variables
 
 ```bash
-# Role → Model mapping (new {TABLE}_{FUNCTION} convention)
+# Role → Model mapping (override defaults via env vars)
+# Defaults are in model-registry.js — only set these to OVERRIDE
 STRATEGY_CORE_MODEL=claude-opus-4-6
 STRATEGY_CONTEXT_MODEL=gemini-3.1-pro-preview
-STRATEGY_TACTICAL_MODEL=gpt-5.2
-STRATEGY_DAILY_MODEL=gemini-3.1-pro-preview
+STRATEGY_TACTICAL_MODEL=claude-opus-4-6
+STRATEGY_DAILY_MODEL=claude-opus-4-6
 BRIEFING_EVENTS_MODEL=gemini-3.1-pro-preview
-BRIEFING_VALIDATOR_MODEL=claude-opus-4-6
-VENUE_SCORER_MODEL=gpt-5.2
-VENUE_FILTER_MODEL=claude-3-5-haiku-20241022
-COACH_CHAT_MODEL=gemini-3.1-pro-preview
+VENUE_SCORER_MODEL=gpt-5.4
+VENUE_FILTER_MODEL=claude-haiku-4-5-20251001
+AI_COACH_MODEL=gemini-3.1-pro-preview
 ```
 
 ## Legacy Role Mapping

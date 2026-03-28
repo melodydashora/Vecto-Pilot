@@ -137,7 +137,7 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
     if (user) messages.push({ role: "user", content: user });
 
     // Use gpt-5-search-api for web search (dedicated search model)
-    // Regular gpt-5.2 doesn't support web_search tool in Chat Completions
+    // Regular GPT-5 family models don't support web_search tool in Chat Completions
     const searchModel = 'gpt-5-search-api';
 
     const body = {
@@ -157,7 +157,7 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
     };
 
     // NOTE: gpt-5-search-api does NOT support reasoning_effort parameter
-    // Unlike regular gpt-5.2, the search model only accepts web_search_options
+    // Unlike regular GPT-5 family models, the search model only accepts web_search_options
     // Removed: body.reasoning_effort = reasoningEffort;
 
     aiLog.phase(1, `${searchModel} web-search request (${maxTokens} tokens)`, OP.AI);
