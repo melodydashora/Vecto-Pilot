@@ -56,8 +56,10 @@ function BriefingPage() {
     () => newsData ? { news: newsData } : undefined,
     [newsData]
   );
+  // 2026-03-28: Pass full events response through (events + marketEvents + market_name)
+  // eventsData is now the full API response object from CoPilotContext, not just the array
   const wrappedEventsData = useMemo(
-    () => eventsData ? { events: eventsData } : undefined,
+    () => eventsData || undefined,
     [eventsData]
   );
   const wrappedSchoolClosuresData = useMemo(
@@ -69,10 +71,9 @@ function BriefingPage() {
     [airportData]
   );
 
-  // 2026-02-10: Check if critical briefing data is still loading
-  // Weather and events are usually fast/local, so we gate on traffic, news, and airport
-  // This prevents the strategy from appearing before the supporting data is populated
-  const areCriticalBriefingsLoading = isLoading.traffic || isLoading.news || isLoading.airport;
+  // 2026-03-28: Gate strategy card on all critical briefing data including events
+  // Events now have proper polling/retry, so they participate in the loading lifecycle
+  const areCriticalBriefingsLoading = isLoading.traffic || isLoading.news || isLoading.airport || isLoading.events;
 
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="briefing-page">

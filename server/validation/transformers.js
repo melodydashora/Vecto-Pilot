@@ -233,6 +233,7 @@ export function toApiBlock(dbBlock) {
     address: dbBlock.address, // Prefer resolved address passed in by caller
     coordinates: dbBlock.coordinates || { lat: dbBlock.lat, lng: dbBlock.lng },
     placeId: dbBlock.placeId ?? dbBlock.place_id,
+    venueId: dbBlock.venueId ?? dbBlock.venue_id ?? null,
 
     // Metrics - coerce to numbers with defaults
     estimatedDistanceMiles: Number(dbBlock.estimatedDistanceMiles ?? dbBlock.distance_miles ?? dbBlock.estimated_distance_miles ?? 0),

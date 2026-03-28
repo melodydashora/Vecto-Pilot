@@ -10,7 +10,8 @@
 //   2. VENUE_SCORER role → 4-6 venue recommendations with coords
 //   3. Google Routes API → accurate distances and drive times
 //   4. Google Places API → business hours, addresses, open/closed status
-//   5. Output: rankings + ranking_candidates tables populated
+//   5. Catalog promotion → verified venues upserted to venue_catalog (venue_id returned)
+//   6. Output: rankings + ranking_candidates tables populated (with venue_id FK)
 //
 // CALLED BY:
 //   - blocks-fast.js POST route (via ensureSmartBlocksExist)
@@ -57,9 +58,63 @@ import { hasRenderableBriefing, updatePhase } from '../strategy/strategy-utils.j
 import { enrichVenues } from './venue-enrichment.js';
 import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
 import { matchVenuesToEvents } from './event-matcher.js';
+import { upsertVenue } from './venue-cache.js';
 import { venuesLog } from '../../logger/workflow.js';
 // 2026-01-31: Filter briefing data for venue planner to reduce token usage
 import { filterBriefingForPlanner } from '../briefing/filter-for-planner.js';
+
+/**
+ * 2026-03-28: Promote verified enriched venues to venue_catalog.
+ * Closes the canonicalization gap — SmartBlocks venues become first-class catalog entities
+ * for cross-session learning, event joins, and map/bars systems.
+ *
+ * Uses Promise.allSettled so one DB failure doesn't break the pipeline.
+ * Only promotes venues where Google Places verified the match (placeVerified + placeId).
+ *
+ * @param {Array} enrichedVenues - Output from enrichVenues()
+ * @param {Object} snapshot - Snapshot context (city, state for upsertVenue)
+ * @returns {Promise<Map<string, string>>} Map of venue name -> venue_id (UUID)
+ */
+async function promoteToVenueCatalog(enrichedVenues, snapshot) {
+  const promotable = enrichedVenues.filter(v => v.placeVerified === true && v.placeId);
+
+  if (promotable.length === 0) {
+    venuesLog.info(3, 'No verified venues to promote to catalog');
+    return new Map();
+  }
+
+  const results = await Promise.allSettled(
+    promotable.map(v =>
+      upsertVenue(
+        {
+          venueName: v.name,
+          city: snapshot.city,
+          state: snapshot.state,
+          lat: v.lat,
+          lng: v.lng,
+          placeId: v.placeId,
+          address: v.address,
+          formattedAddress: v.address,
+          hours: v.businessHours,
+          category: v.category || 'venue',
+          source: 'smart_blocks_promotion',
+        },
+        { recordStatus: 'verified' }
+      )
+    )
+  );
+
+  const venueIdMap = new Map();
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled' && result.value?.venue_id) {
+      venueIdMap.set(promotable[index].name, result.value.venue_id);
+    } else if (result.status === 'rejected') {
+      venuesLog.warn(3, `Catalog promotion failed for "${promotable[index].name}": ${result.reason?.message}`);
+    }
+  });
+
+  return venueIdMap;
+}
 
 /**
  * Generate enhanced smart blocks using VENUE_SCORER role
@@ -179,7 +234,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     const verifiedEventsJson = JSON.stringify(verifiedEvents);
     
     // Step 3: Create ranking record (use env var for model name)
-    const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.2';
+    const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.4';
     await db.insert(rankings).values({
       ranking_id: rankingId,
       snapshot_id: snapshotId,
@@ -196,7 +251,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       extras: verifiedEventsJson // Store verified events for strategy injection
     });
     
-    venuesLog.phase(4, `Storing ${enrichedVenues.length} candidates to DB`);
+    // Step 3.5: Promote verified venues to venue_catalog
+    // 2026-03-28: Bridges SmartBlocks to canonical venue identity
+    const venueIdMap = await promoteToVenueCatalog(enrichedVenues, snapshot);
+    venuesLog.phase(4, `Promoted ${venueIdMap.size}/${enrichedVenues.length} venues to catalog, storing ${enrichedVenues.length} candidates`);
 
     // Step 4: Insert ranking candidates with enriched Google data
     const candidates = enrichedVenues.map((enriched, index) => {
@@ -230,9 +288,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         lat: enriched.lat,
         lng: enriched.lng,
         rank: enriched.rank || index + 1,
-        
-        // ✅ ENRICHED DATA from Google APIs
+
+        // Canonical identity
         place_id: enriched.placeId,
+        venue_id: venueIdMap.get(enriched.name) || null,
         distance_miles: distanceMiles,
         drive_minutes: driveMinutes,
         value_per_min: valuePerMin,
@@ -248,13 +307,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         venue_events: matchedEvents,  // 2026-01-14: Time-relevant events only (within 2h future or 4h past)
         business_hours: enriched.businessHours,
         closed_reasoning: enriched.strategic_timing || null,
-        
-        // 2026-01-09: Phase 2 schema cleanup - removed redundant legacy column writes:
-        // - drive_time_min (duplicate of drive_minutes)
-        // - straight_line_km (write-only, never read)
-        // - estimated_distance_miles (duplicate of distance_miles)
-        // - drive_time_minutes (duplicate of drive_minutes)
-        // Remaining fields are still needed for other functionality:
+
         est_earnings_per_ride: estimatedEarnings,
         model_score: 1.0 - (index * 0.1),
         exploration_policy: 'greedy',

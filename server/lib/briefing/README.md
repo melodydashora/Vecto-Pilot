@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-26 (Phase 3 briefing simplification)
+> **Last Verified:** 2026-03-28 (Bug 8: venue creation gap fix, Bug 9: cleanup architecture note)
 
 # Briefing Module (`server/lib/briefing/`)
 

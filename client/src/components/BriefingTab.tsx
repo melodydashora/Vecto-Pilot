@@ -174,7 +174,7 @@ const BriefingTab = memo(function BriefingTab({
           </CardContent>
         </Card>
       ) : (
-        <EventsComponent events={eventsToday} isLoading={false} />
+        <EventsComponent events={allEvents} isLoading={false} timezone={timezone} />
       )}
 
       {marketEventsToday.length > 0 && (
@@ -205,7 +205,7 @@ const BriefingTab = memo(function BriefingTab({
           </CardHeader>
           {expandedMarketEvents && (
             <CardContent className="pt-0">
-              <EventsComponent events={marketEventsToday} isLoading={false} />
+              <EventsComponent events={marketEventsToday} isLoading={false} timezone={timezone} />
             </CardContent>
           )}
         </Card>

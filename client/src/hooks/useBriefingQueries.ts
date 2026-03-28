@@ -149,6 +149,15 @@ function isNewsLoading(data: any): boolean {
   return items.length === 0 && !hasReason;
 }
 
+// 2026-03-28: Check if events data is still loading/placeholder
+// Events are "loaded" if we have events OR a reason for having none
+function isEventsLoading(data: any): boolean {
+  if (!data) return true;
+  const events = data.events || [];
+  const hasReason = data.reason !== null && data.reason !== undefined;
+  return events.length === 0 && !hasReason;
+}
+
 export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }: BriefingQueriesOptions) {
   const queryClient = useQueryClient();
 
@@ -183,16 +192,17 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   }, [snapshotId, queryClient]);
 
   // Track retry attempts per query type (reset when snapshotId changes)
-  const retryCountsRef = useRef<{ traffic: number; news: number; airport: number; snapshotId: string | null }>({
+  const retryCountsRef = useRef<{ traffic: number; news: number; airport: number; events: number; snapshotId: string | null }>({
     traffic: 0,
     news: 0,
     airport: 0,
+    events: 0,
     snapshotId: null
   });
 
   // Reset retry counts when snapshotId changes
   if (retryCountsRef.current.snapshotId !== snapshotId) {
-    retryCountsRef.current = { traffic: 0, news: 0, airport: 0, snapshotId };
+    retryCountsRef.current = { traffic: 0, news: 0, airport: 0, events: 0, snapshotId };
   }
 
   // Force refetch all queries when snapshotId changes
@@ -449,11 +459,28 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { events: [], _error: response.status };
       }
       const data = await response.json();
-      console.log('[BriefingQuery] ✅ Events received:', data.events?.length || 0);
+      // 2026-03-28: Track loading state for retry logic (same pattern as traffic/news/airport)
+      const loading = isEventsLoading(data);
+      if (loading) {
+        retryCountsRef.current.events++;
+        console.log(`[BriefingQuery] ⏳ Events still loading... (attempt ${retryCountsRef.current.events}/${MAX_RETRY_ATTEMPTS})`);
+      } else {
+        console.log('[BriefingQuery] ✅ Events received:', data.events?.length || 0);
+      }
       return data;
     },
     enabled: isEnabled,
     ...baseConfig,
+    // 2026-03-28: Events now poll while empty (same lifecycle as traffic/news/airport)
+    refetchInterval: (query) => {
+      if (query.state.data?._ownershipError) return false;
+      const stillLoading = isEventsLoading(query.state.data);
+      const hasRetriesLeft = retryCountsRef.current.events < MAX_RETRY_ATTEMPTS;
+      if (stillLoading && hasRetriesLeft) {
+        return RETRY_INTERVAL_MS;
+      }
+      return false;
+    },
   });
 
   // School closures - usually ready quickly
@@ -568,7 +595,8 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     isLoading: {
       weather: weatherQuery.isLoading,
       traffic: trafficQuery.isLoading || isTrafficLoading(trafficQuery.data),
-      events: eventsQuery.isLoading,
+      // 2026-03-28: Include content-level loading (empty + no reason = still generating)
+      events: eventsQuery.isLoading || isEventsLoading(eventsQuery.data),
       news: newsQuery.isLoading || isNewsLoading(newsQuery.data),
       airport: airportQuery.isLoading || isAirportLoading(airportQuery.data),
       schoolClosures: schoolClosuresQuery.isLoading,
