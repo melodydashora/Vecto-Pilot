@@ -1164,6 +1164,9 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   // Soft-deactivates events that have ended (is_active = false, deactivated_at = NOW())
   // Uses snapshot timezone for accurate "now" calculation — NO FALLBACKS
   // Non-fatal: cleanup failure doesn't block event discovery
+  // 2026-03-28: ARCHITECTURE NOTE — Cleanup is intentionally opportunistic (per-briefing-fetch).
+  // No cron dependency. If scheduled cleanup is needed later for dashboard accuracy when
+  // no users are active, add a cron job calling deactivatePastEvents() per market timezone.
   if (timezone) {
     const deactivated = await deactivatePastEvents(timezone);
     if (deactivated > 0) {
@@ -1199,22 +1202,23 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         try {
           const hash = generateEventHash(event);
 
-          // 2026-02-26: Venue linking — use Gemini-provided place_id FIRST, geocode as fallback.
-          // Gemini has native Google Places knowledge; place_id enables direct venue_catalog match.
+          // 2026-03-28: Venue linking — Gemini place_id + ALWAYS geocode for coordinates.
+          // findOrCreateVenue() requires lat/lng to create new venues. Previously, geocoding
+          // was skipped when Gemini provided a place_id, causing new venues to fail creation.
           let venueId = null;
           if (event.venue_name) {
             try {
               let placeId = event.place_id || null;
               let geocodeResult = null;
 
-              // If Gemini provided a valid place_id, try direct venue lookup first
               if (placeId) {
                 briefingLog.info(`Using Gemini place_id for "${event.venue_name}": ${placeId.slice(0, 15)}...`);
               }
 
-              // Fallback: geocode to get coords + place_id if Gemini didn't provide one
+              // 2026-03-28: ALWAYS geocode to get coordinates — findOrCreateVenue needs lat/lng
+              // to create new venues. Gemini's place_id is preserved for lookup (Strategy 1).
+              geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
               if (!placeId) {
-                geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
                 placeId = geocodeResult?.place_id || null;
               }
 

@@ -31,12 +31,13 @@ export function useTTS(): UseTTSReturn {
   }, []);
 
   // 2026-03-16: Added optional language parameter for multilingual translation TTS
+  // 2026-03-28: Changed to interrupt-and-replace — previous audio is stopped, new audio plays.
+  // Previously stopped + returned, silently dropping the new utterance.
   const speak = useCallback(async (text: string, language?: string) => {
     if (!text) return;
 
     if (isSpeaking) {
       stop();
-      return;
     }
 
     try {

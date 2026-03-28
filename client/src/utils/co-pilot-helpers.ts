@@ -398,12 +398,25 @@ export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
  * Handles multi-day events by checking if today falls within event_start_date to event_end_date range
  * 2026-01-10: Use symmetric field names
  */
-export function filterValidEvents<T extends FilterableEvent>(events: T[]): {
+export function filterValidEvents<T extends FilterableEvent>(
+  events: T[],
+  timezone?: string
+): {
   todayEvents: T[];
   upcomingEvents: T[];
   invalidEvents: T[];
 } {
-  const today = new Date().toISOString().split('T')[0];
+  // 2026-03-28: Use timezone-aware date when timezone provided (fixes UTC mismatch near day boundaries)
+  // Previously used UTC toISOString which caused events to appear/disappear incorrectly near midnight
+  let today: string;
+  if (timezone) {
+    today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
+  } else {
+    today = new Date().toISOString().split('T')[0];
+  }
   const todayEvents: T[] = [];
   const upcomingEvents: T[] = [];
   const invalidEvents: T[] = [];

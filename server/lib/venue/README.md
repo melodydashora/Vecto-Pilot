@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-26
+> **Last Verified:** 2026-03-28
 
 # Venue Module (`server/lib/venue/`)
 
@@ -48,6 +48,7 @@
 | Table | Purpose | Lifecycle | Contains Coordinates? |
 |-------|---------|-----------|----------------------|
 | **venue_catalog** | Source of truth for ALL venues | Persistent, grows over time | ✅ YES - authoritative |
+| **ranking_candidates** | SmartBlocks venue recommendations | Per-snapshot, ephemeral | ✅ YES + venue_id FK to catalog |
 | **discovered_events** | Temporary event metadata | Deduplicated/purged constantly | ❌ NO - FK to venue_catalog |
 
 ### Venue Type Tagging
@@ -222,7 +223,7 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | File | Purpose | Key Export |
 |------|---------|------------|
 | `hours/` | **Canonical hours evaluation** | `parseGoogleWeekdayText()`, `getOpenStatus()` |
-| `enhanced-smart-blocks.js` | VENUES pipeline orchestrator | `generateEnhancedSmartBlocks(snapshotId)` |
+| `enhanced-smart-blocks.js` | VENUES pipeline orchestrator + catalog promotion | `generateEnhancedSmartBlocks(snapshotId)` |
 | `venue-intelligence.js` | Bar Tab discovery (GPT-5.2) | `discoverNearbyVenues()` |
 | `venue-enrichment.js` | Google Places/Routes data | `enrichVenue()`, `getBatchDriveTimes()` |
 | `venue-address-resolver.js` | Batch geocoding | `resolveAddresses()` |
@@ -250,7 +251,11 @@ generateEnhancedSmartBlocks(snapshotId)
 4. venue-event-verifier.js
    └── Verify events with Gemini (optional)
     ↓
-5. Write to rankings + ranking_candidates tables
+5. Catalog promotion (2026-03-28)
+   └── venue-cache.js: upsertVenue() for verified venues (placeVerified + placeId)
+   └── Returns venue_id map for FK storage on ranking_candidates
+    ↓
+6. Write to rankings + ranking_candidates tables (with venue_id FK to venue_catalog)
 ```
 
 ## Usage

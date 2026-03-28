@@ -683,7 +683,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       weather: weatherData?.weather || null,
       traffic: trafficData?.traffic || null,
       news: newsData?.news || null,
-      events: eventsData?.events || [],
+      // 2026-03-28: Store full API response (events + marketEvents + market_name)
+      // Previously only stored eventsData?.events, dropping market events
+      events: eventsData || null,
       // 2026-01-10: Snake/camel tolerant - accept both server response formats
       schoolClosures: schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures ?? [],
       airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,

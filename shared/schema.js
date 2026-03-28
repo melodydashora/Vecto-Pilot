@@ -175,6 +175,8 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   wait_minutes_used: integer("wait_minutes_used"),
   snapshot_id: uuid("snapshot_id"),
   place_id: text("place_id"),
+  // 2026-03-28: Canonical venue identity — bridges SmartBlocks to venue_catalog
+  venue_id: uuid("venue_id").references(() => venue_catalog.venue_id, { onDelete: 'set null' }),
   // Additional workflow trace fields
   estimated_distance_miles: doublePrecision("estimated_distance_miles"),
   drive_time_minutes: integer("drive_time_minutes"),
@@ -202,6 +204,7 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   // Foreign key indexes for performance optimization (Issue #28)
   idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
   idxSnapshotId: sql`create index if not exists idx_ranking_candidates_snapshot_id on ${table} (snapshot_id)`,
+  idxVenueId: sql`create index if not exists idx_ranking_candidates_venue_id on ${table} (venue_id) where venue_id is not null`,
 }));
 
 export const actions = pgTable("actions", {

@@ -10,9 +10,11 @@
 // Features:
 //   - Web Speech API for on-device STT (free, zero API cost)
 //   - Gemini 3 Flash translation (~100-200ms)
-//   - OpenAI TTS playback through car speakers
+//   - OpenAI TTS playback through car speakers (interrupt-and-replace)
 //   - Wake Lock to prevent screen sleep
 //   - Quick phrase buttons for zero-speech interaction
+//   - Mic permission preflight for instant first-tap response
+//   - Browser locale STT hint for auto-detect mode (2026-03-28)
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
@@ -106,33 +108,66 @@ export default function TranslationOverlay() {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const riderPanelRef = useRef<HTMLDivElement>(null);
   const driverPanelRef = useRef<HTMLDivElement>(null);
+  // 2026-03-28: Ref tracks latest transcript to avoid stale closures in setTimeout callbacks.
+  // React state (speech.finalTranscript) can be stale inside timeouts due to batching.
+  const latestTranscriptRef = useRef('');
+
+  // 2026-03-28: Keep transcript ref in sync with speech state
+  useEffect(() => {
+    latestTranscriptRef.current = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
+  }, [speech.finalTranscript, speech.interimTranscript]);
 
   // Acquire Wake Lock on mount, release on unmount
+  // 2026-03-28: Also preflight mic permission so first tap doesn't prompt
   useEffect(() => {
     requestWakeLock().then(sentinel => {
       wakeLockRef.current = sentinel;
     });
+    // Preflight: request mic permission early so first tap is instant
+    if (navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          stream.getTracks().forEach(t => t.stop());
+          console.log('[TranslationOverlay] Mic permission pre-granted');
+        })
+        .catch(() => {}); // Will prompt on first mic tap
+    }
     return () => {
       wakeLockRef.current?.release();
     };
   }, []);
 
+  // 2026-03-28: Reset activeMode on speech errors (permission denied, unsupported browser)
+  useEffect(() => {
+    if (speech.error && activeMode !== 'idle') {
+      console.warn('[TranslationOverlay] Speech error, resetting to idle:', speech.error);
+      setActiveMode('idle');
+    }
+  }, [speech.error, activeMode]);
+
   // 2026-03-18: Auto-reset activeMode when speech recognizer stops on its own
   // (e.g., silence timeout, end of speech detected by browser).
-  // Without this, the mic button stays as ⬛ Stop forever after the recognizer ends naturally.
+  // 2026-03-28: Fixed stale transcript bug — reads latestTranscriptRef INSIDE timeout
+  // so final onresult events during the 300ms window are captured.
+  // Also: driver path now auto-translates (no pendingText), matching rider path.
   useEffect(() => {
     if (!speech.isListening && (activeMode === 'driver-speaking' || activeMode === 'rider-speaking')) {
-      // Recognizer stopped on its own — grab transcript and reset
-      const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
-
+      const currentMode = activeMode;
       // Small delay to let any final onresult commit
       const timer = setTimeout(() => {
+        // 2026-03-28: Read ref AFTER delay — captures final words that arrive during 300ms window
+        const text = latestTranscriptRef.current;
         speech.clear();
-        const currentMode = activeMode; // capture before reset
         setActiveMode('idle');
 
         if (text && currentMode === 'driver-speaking') {
-          setPendingText({ text, speaker: 'driver' });
+          // 2026-03-28: Auto-translate driver speech (was pendingText, now seamless)
+          const target = riderLang === 'auto' ? 'auto' : riderLang;
+          translateText(text, 'en', target).then(result => {
+            if (result) {
+              addMessage(text, result.translatedText, 'en', result.detectedLang || target, 'driver');
+            }
+          });
         } else if (text && currentMode === 'rider-speaking') {
           const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
           translateText(text, sourceLang, 'en').then(result => {
@@ -235,49 +270,46 @@ export default function TranslationOverlay() {
   /**
    * Handle driver mic button — listen in English, translate to rider's language
    */
-  // 2026-03-18: FIX (F-1) — Capture transcript and clear BEFORE translating.
-  // Previously clear() happened after translateText resolved, but finalTranscript
-  // kept accumulating across turns because onresult appends to prev.
-  // Also: instead of auto-translating on stop, set pending text for confirmation (U-2).
-  const [pendingText, setPendingText] = useState<{ text: string; speaker: 'driver' | 'rider' } | null>(null);
-
-  // 2026-03-18: Driver mic — use activeMode to toggle (not speech.isListening which can
-  // go false independently if recognizer times out from silence).
-  // After stop(), wait 300ms for Web Speech API to commit final onresult.
+  // 2026-03-28: Driver mic — auto-translate on stop (same seamless flow as rider).
+  // Previously required manual Send confirmation via pendingText (removed).
+  // Reads latestTranscriptRef inside timeout to avoid stale closure bug.
   const handleDriverMic = useCallback(() => {
     if (activeMode === 'driver-speaking') {
       speech.stop();
-      setActiveMode('idle'); // Immediately stop flashing
+      setActiveMode('idle');
       setTimeout(() => {
-        const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
+        const text = latestTranscriptRef.current;
         speech.clear();
         if (text) {
-          setPendingText({ text, speaker: 'driver' });
+          const target = riderLang === 'auto' ? 'auto' : riderLang;
+          translateText(text, 'en', target).then(result => {
+            if (result) {
+              addMessage(text, result.translatedText, 'en', result.detectedLang || target, 'driver');
+            }
+          });
         }
       }, 300);
     } else {
       setActiveMode('driver-speaking');
-      setPendingText(null);
       speech.clear();
       speech.start('en');
     }
-  }, [speech, activeMode]);
+  }, [speech, activeMode, riderLang, translateText, addMessage]);
 
   /**
    * Handle rider mic button — listen in rider's language, translate to English
    */
-  // 2026-03-18: Rider mic — reset to idle IMMEDIATELY on stop so button stops flashing.
-  // Then wait 300ms for transcript, then translate.
+  // 2026-03-28: Rider mic — reads latestTranscriptRef inside timeout (stale closure fix).
+  // In auto-detect mode, uses browser language as STT hint instead of hardcoded English.
   const handleRiderMic = useCallback(() => {
     if (activeMode === 'rider-speaking') {
       speech.stop();
-      setActiveMode('idle'); // Immediately stop flashing
+      setActiveMode('idle');
       setTimeout(() => {
-        const text = (speech.finalTranscript + ' ' + speech.interimTranscript).trim();
+        const text = latestTranscriptRef.current;
         speech.clear();
         if (text) {
           const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
-          // isTranslating state shows "Translating..." in the divider bar
           translateText(text, sourceLang, 'en').then(result => {
             if (result) {
               addMessage(text, result.translatedText, result.detectedLang || sourceLang, 'en', 'rider');
@@ -287,9 +319,14 @@ export default function TranslationOverlay() {
       }, 300);
     } else {
       setActiveMode('rider-speaking');
-      setPendingText(null);
       speech.clear();
-      speech.start(riderLang === 'auto' ? 'en' : riderLang);
+      // 2026-03-28: In auto-detect mode, use browser's language as STT hint.
+      // The rider's phone locale is typically their native language — much better
+      // than forcing English which misrecognizes non-English speech entirely.
+      const sttLang = riderLang === 'auto'
+        ? (navigator.language?.split('-')[0] || 'en')
+        : riderLang;
+      speech.start(sttLang);
     }
   }, [speech, activeMode, riderLang, translateText, addMessage]);
 
@@ -303,30 +340,6 @@ export default function TranslationOverlay() {
       await addMessage(phrase.en, result.translatedText, 'en', riderLang, 'driver');
     }
   }, [riderLang, translateText, addMessage]);
-
-  // Phase 5 (U-2): Confirm or cancel pending transcript
-  const handleConfirmSend = useCallback(() => {
-    if (!pendingText) return;
-    const { text, speaker } = pendingText;
-    setPendingText(null);
-
-    if (speaker === 'driver') {
-      // Driver→rider: translate English to rider's language (or auto-detect target)
-      const target = riderLang === 'auto' ? 'es' : riderLang; // fallback to Spanish if not yet detected
-      translateText(text, 'en', target).then(result => {
-        if (result) addMessage(text, result.translatedText, 'en', target, 'driver');
-      });
-    } else {
-      const source = riderLang === 'auto' ? 'auto' : riderLang;
-      translateText(text, source, 'en').then(result => {
-        if (result) addMessage(text, result.translatedText, result.detectedLang || source, 'en', 'rider');
-      });
-    }
-  }, [pendingText, riderLang, translateText, addMessage]);
-
-  const handleCancelSend = useCallback(() => {
-    setPendingText(null);
-  }, []);
 
   const selectedLang = LANGUAGES.find(l => l.code === riderLang);
 
@@ -433,21 +446,6 @@ export default function TranslationOverlay() {
           )}
         </div>
 
-        {/* Transcript confirmation bar (U-2) — driver reviews before sending */}
-        {pendingText && (
-          <div className="shrink-0 border-t bg-yellow-50 dark:bg-yellow-900/30 px-3 py-2 flex items-center gap-2">
-            <div className="flex-1 text-sm font-medium truncate">
-              "{pendingText.text}"
-            </div>
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white h-8 px-3" onClick={handleConfirmSend}>
-              Send
-            </Button>
-            <Button size="sm" variant="outline" className="h-8 px-3" onClick={handleCancelSend}>
-              Cancel
-            </Button>
-          </div>
-        )}
-
         {/* Controls bar */}
         <Card className="shrink-0 border-t rounded-none p-3 space-y-2">
           {/* Quick Phrases panel (expandable) */}
@@ -529,7 +527,6 @@ export default function TranslationOverlay() {
                 onClick={() => {
                   setMessages([]);
                   setRiderLang('auto');
-                  setPendingText(null);
                   setActiveMode('idle');
                   speech.clear();
                   setShowQuickPhrases(false);
