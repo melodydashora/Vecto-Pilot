@@ -218,7 +218,12 @@
       "Bash(git merge origin/claude/add-research-enhancements-RkG6B --no-edit)",
       "Bash(git merge origin/claude/analyze-briefings-workflow-Ylu9Q --no-edit)",
       "Bash(git merge origin/claude/plan-translation-feature-arvDr --no-edit)",
-      "Bash(git remote get-url origin && git config credential.helper 2>/dev/null; echo \"---\"; env | grep -i \"GIT\\\\|GITHUB\\\\|TOKEN\" 2>/dev/null | head -5)"
+      "Bash(git remote get-url origin && git config credential.helper 2>/dev/null; echo \"---\"; env | grep -i \"GIT\\\\|GITHUB\\\\|TOKEN\" 2>/dev/null | head -5)",
+      "Bash(npx --yes better-npm-audit audit)",
+      "Bash(npx --yes audit-ci --config /dev/null --low)",
+      "Bash(npm outdated:*)",
+      "Bash(node -e \"import { ranking_candidates } from ''''./shared/schema.js''''; const cols = Object.keys\\(ranking_candidates\\); console.log\\(''''ranking_candidates cols:'''', cols.length, ''''| has venue_id:'''', cols.includes\\(''''venue_id''''\\)\\);\")",
+      "Bash(find /home/runner/workspace/client -type f \\\\\\(-name *.jsx -o -name *.tsx \\\\\\))"
     ],
     "deny": [],
     "ask": []

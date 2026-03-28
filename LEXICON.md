@@ -120,7 +120,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Real-time strategic analysis system using multiple AI models in a waterfall pipeline.
 
 **Key Characteristics:**
-- Three-stage pipeline (Claude → GPT-5 → Gemini)
+- Multi-provider pipeline (models swappable via env vars)
 - Real-time event analysis
 - Venue recommendations
 - Tactical planning
@@ -146,19 +146,21 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 ## 🧠 LLM (Large Language Models)
 
+### Architecture Overview
+**What it is:** A model-agnostic, multi-provider AI system. Code references **ROLES** (e.g., `VENUE_SCORER`), never model names. Models are swappable via environment variables without code changes.
+
+**⚠️ CRITICAL (Rule 14):** Do NOT hardcode model names in business logic. The adapter layer owns model routing. Default models listed below are current defaults in `model-registry.js` — they can be changed at any time via env vars.
+
+---
+
 ### LLM Router
-**What it is:** Multi-provider AI model routing system with hedging, circuit breakers, and fallback chains.
+**What it is:** Multi-provider routing with hedging, circuit breakers, and cross-provider fallback chains.
 
 **Codebase Files:**
 - `server/lib/ai/llm-router-v2.js` - Enhanced router with strict budget control
 - `server/lib/ai/llm-router.js` - Original router implementation
 - `server/lib/ai/model-retry.js` - Retry logic
 - `server/lib/ai/transient-retry.js` - Transient failure handling
-
-**Supported Providers:**
-- Anthropic (Claude)
-- OpenAI (GPT-5)
-- Google (Gemini)
 
 **Configuration:**
 - `LLM_TOTAL_BUDGET_MS` (default: 8000ms) - Total request timeout
@@ -168,80 +170,174 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 - `CIRCUIT_ERROR_THRESHOLD` (default: 5) - Circuit breaker threshold
 - `CIRCUIT_COOLDOWN_MS` (default: 60000ms) - Breaker reset time
 
+**Fallback Behavior:**
+- Primary is Google provider → fallback to OpenAI (cross-provider)
+- Primary is Anthropic/OpenAI → fallback to Google Flash model
+- BRIEFING and OFFER_ANALYZER roles have **no fallback** (require web search grounding)
+
 ---
 
-### Model Adapters
-**What it is:** Provider-specific API clients with unified interface.
+### Providers & Adapters
+**What it is:** Provider-specific API clients with a unified interface. Each adapter normalizes a provider's SDK into a common response format.
 
-**Codebase Files:**
-- `server/lib/ai/adapters/anthropic-adapter.js` - Claude adapter
-- `server/lib/ai/adapters/openai-adapter.js` - GPT-5 adapter
-- `server/lib/ai/adapters/gemini-adapter.js` - Gemini adapter
-- `server/lib/ai/adapters/perplexity-adapter.js` - Perplexity research adapter
-
-**Specialized Adapters:**
-- `server/lib/ai/adapters/anthropic-sonnet45.js` - Claude Sonnet 4.5
-- `server/lib/ai/adapters/openai-gpt5.js` - GPT-5 specific
-- `server/lib/ai/adapters/gemini-2.5-pro.js` - Gemini 2.5 Pro
-
-**Adapter Interface:**
+**Unified Response Interface:**
 ```javascript
 { ok: boolean, output: string, error?: string }
 ```
 
+**Dispatcher:**
+- `server/lib/ai/adapters/index.js` - `callModel(role, params)` entry point + HedgedRouter
+- `callModelStream(role, params)` - Streaming variant (provider must support it)
+
+#### Provider: Anthropic (Claude family)
+**Adapter:** `server/lib/ai/adapters/anthropic-adapter.js`
+**API Key Env Var:** `ANTHROPIC_API_KEY`
+**Functions:** `callAnthropic()`, `callAnthropicWithWebSearch()`
+
+| Parameter | Format | Notes |
+|-----------|--------|-------|
+| Max tokens | `max_tokens` | Standard parameter name |
+| Temperature | `temperature` | Supported on all Claude models |
+| Web search | `web_search_20250305` tool | Max 5 search uses per call |
+
+**Raw HTTP variant:** `server/lib/ai/adapters/anthropic-sonnet45.js` — Direct Messages API (no SDK)
+
+#### Provider: OpenAI (GPT / o-series family)
+**Adapter:** `server/lib/ai/adapters/openai-adapter.js`
+**API Key Env Var:** `OPENAI_API_KEY`
+**Functions:** `callOpenAI()`, `callOpenAIWithWebSearch()`
+
+| Parameter | Format | Notes |
+|-----------|--------|-------|
+| Max tokens | `max_completion_tokens` | NOT `max_tokens` (deprecated for reasoning models) |
+| Temperature | **NOT supported** | Use `reasoning_effort` instead for reasoning models |
+| Reasoning | `reasoning_effort: 'low'\|'medium'\|'high'` | Controls depth of chain-of-thought |
+| Web search | Separate search model | Uses dedicated search-capable model variant |
+
+#### Provider: Google (Gemini family)
+**Adapter:** `server/lib/ai/adapters/gemini-adapter.js`
+**SDK:** `@google/genai` (`GoogleGenAI` class)
+**API Key Env Var:** `GEMINI_API_KEY`
+**Functions:** `callGemini()`, `callGeminiStream()`
+
+| Parameter | Format | Notes |
+|-----------|--------|-------|
+| Max tokens | `maxOutputTokens` | NOT `max_tokens` |
+| Temperature | `temperature` | Supported |
+| Thinking | `thinkingConfig: { thinkingLevel }` | Extended reasoning |
+| Web search | `googleSearch: {}` tool | Native grounding with citation suppression |
+| Vision | `images: [{mimeType, data}]` | Multimodal input |
+| JSON mode | `responseMimeType: 'application/json'` | Structured output |
+| Safety | All HARM categories set to OFF | Required for news/traffic/civic content |
+
+**Thinking Level Constraints:**
+| Model tier | Allowed levels |
+|------------|----------------|
+| Pro models | `LOW`, `HIGH` only (NO `MEDIUM` — runtime validated) |
+| Flash models | `LOW`, `MEDIUM`, `HIGH` |
+
+#### Provider: Google Vertex AI
+**Adapter:** `server/lib/ai/adapters/vertex-adapter.js`
+**Auth:** Google Cloud Application Default Credentials (ADC) or service account
+**Functions:** `callVertexAI()`, `callVertexAIStream()`, `isVertexAIAvailable()`
+
+| Env Var | Purpose | Required |
+|---------|---------|----------|
+| `VERTEX_AI_ENABLED` | Set to `'true'` to enable | Yes |
+| `GOOGLE_CLOUD_PROJECT` | GCP project ID | Yes |
+| `GOOGLE_CLOUD_LOCATION` | Region (default: `us-central1`) | No |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Service account JSON path | No (uses ADC) |
+
+**Notes:** Same parameter format as Gemini adapter. Enables access to Vertex-only models (e.g., native audio).
+
+#### Provider: Perplexity
+**Adapter:** `server/lib/ai/adapters/perplexity-adapter.js`
+**API Key Env Var:** `PERPLEXITY_API_KEY`
+**Default Model:** `sonar-pro`
+**Purpose:** AI-powered web research for event discovery and holiday detection
+
+---
+
+### Provider Auto-Detection
+The adapter layer detects provider from model ID prefix:
+
+| Model ID prefix | Provider |
+|----------------|----------|
+| `gpt-*`, `o1-*` | OpenAI |
+| `claude-*` | Anthropic |
+| `gemini-*` | Google |
+
+**⚠️ This is the ONLY place model names matter.** All other code uses role names.
+
 ---
 
 ### AI Pipeline Roles
-**What it is:** Canonical role names for AI capabilities following `{TABLE}_{FUNCTION}` convention. Code references ROLES, not model names - models are swappable via environment variables.
+**What it is:** Canonical role names following `{TABLE}_{FUNCTION}` convention. The model-registry maps each role to a default model + parameters, all overridable via env vars.
 
 **Naming Convention:** `{TABLE}_{FUNCTION}`
 - `BRIEFING_*` - Roles that populate the `briefings` table
 - `STRATEGY_*` - Roles that populate the `strategies` table
-- `VENUE_*` - Roles that populate `ranking_candidates` (Venue Candidates)
-- `COACH_*` - Roles that populate `coach_conversations`
+- `VENUE_*` - Roles that populate `ranking_candidates` (SmartBlocks)
+- `AI_COACH` / `COACH_*` - Roles that populate `coach_conversations`
+- `OFFER_*` - Roles for real-time offer analysis (Siri Shortcuts)
+- `CONCIERGE_*` - Roles for public event/venue discovery
 - `UTIL_*` - Utility roles for validation/parsing (no direct DB write)
+- `DOCS_*` - Internal documentation generation
 
-**Role Registry:**
+**Complete Role Registry:**
 
-| Role | Purpose | Env Variable | Default Model |
-|------|---------|--------------|---------------|
+| Role | Purpose | Override Env Var | Features |
+|------|---------|------------------|----------|
 | **BRIEFINGS TABLE** ||||
-| `BRIEFING_WEATHER` | Weather intelligence with web search | `BRIEFING_WEATHER_MODEL` | gemini-3-pro |
-| `BRIEFING_TRAFFIC` | Traffic conditions analysis | `BRIEFING_TRAFFIC_MODEL` | gemini-3-flash |
-| `BRIEFING_NEWS` | Local news research | `BRIEFING_NEWS_MODEL` | gemini-3-pro |
-| `BRIEFING_EVENTS_DISCOVERY` | Event discovery (parallel category search) | `BRIEFING_EVENTS_MODEL` | gemini-3-pro |
-| `BRIEFING_FALLBACK` | General fallback for failed briefing calls | `BRIEFING_FALLBACK_MODEL` | claude-opus-4-6 |
+| `BRIEFING_WEATHER` | Weather intelligence | `BRIEFING_WEATHER_MODEL` | web search |
+| `BRIEFING_TRAFFIC` | Traffic conditions analysis | `BRIEFING_TRAFFIC_MODEL` | web search, extended thinking |
+| `BRIEFING_NEWS` | Local news research | `BRIEFING_NEWS_MODEL` | web search, extended thinking |
+| `BRIEFING_EVENTS_DISCOVERY` | Event discovery (parallel category search) | `BRIEFING_EVENTS_MODEL` | web search, extended thinking |
+| `BRIEFING_FALLBACK` | General fallback for failed briefing calls | `BRIEFING_FALLBACK_MODEL` | web search, extended thinking |
+| `BRIEFING_SCHOOLS` | School closure detection | `BRIEFING_SCHOOLS_MODEL` | web search, extended thinking |
+| `BRIEFING_AIRPORT` | Airport delay/disruption data | `BRIEFING_AIRPORT_MODEL` | web search |
+| `BRIEFING_HOLIDAY` | Holiday detection | `BRIEFING_HOLIDAY_MODEL` | web search, extended thinking |
 | **STRATEGIES TABLE** ||||
-| `STRATEGY_CORE` | Core strategic plan generation | `STRATEGY_CORE_MODEL` | claude-opus-4-6 |
-| `STRATEGY_CONTEXT` | Real-time context gathering | `STRATEGY_CONTEXT_MODEL` | gemini-3-pro |
-| `STRATEGY_TACTICAL` | Immediate 1-hour tactical strategy | `STRATEGY_TACTICAL_MODEL` | gpt-5.2 |
-| `STRATEGY_DAILY` | Long-term 8-12hr daily strategy | `STRATEGY_DAILY_MODEL` | gemini-3-pro |
-| **RANKING_CANDIDATES TABLE** ||||
-| `VENUE_SCORER` | Venue Candidate scoring | `VENUE_SCORER_MODEL` | gpt-5.2 |
-| `VENUE_FILTER` | Fast low-cost venue filtering | `VENUE_FILTER_MODEL` | claude-haiku |
-| `VENUE_TRAFFIC` | Venue-specific traffic intelligence | `VENUE_TRAFFIC_MODEL` | gemini-3-pro |
+| `STRATEGY_CORE` | Core strategic plan generation | `STRATEGY_CORE_MODEL` | |
+| `STRATEGY_CONTEXT` | Real-time context gathering | `STRATEGY_CONTEXT_MODEL` | extended thinking |
+| `STRATEGY_TACTICAL` | Immediate 1-hour tactical strategy | `STRATEGY_TACTICAL_MODEL` | fallback enabled |
+| `STRATEGY_DAILY` | Long-term 8-12hr daily strategy | `STRATEGY_DAILY_MODEL` | fallback enabled |
+| **RANKING_CANDIDATES TABLE (SmartBlocks)** ||||
+| `VENUE_SCORER` | Tactical venue recommendations (4-6 venues with coords) | `VENUE_SCORER_MODEL` | reasoning |
+| `VENUE_FILTER` | Fast low-cost venue classification | `VENUE_FILTER_MODEL` | minimal tokens |
+| `VENUE_TRAFFIC` | Venue-specific traffic intelligence | `VENUE_TRAFFIC_MODEL` | web search |
+| `VENUE_EVENT_VERIFIER` | Verify events at specific venues | `VENUE_EVENT_VERIFIER_MODEL` | minimal tokens |
 | **COACH_CONVERSATIONS TABLE** ||||
-| `COACH_CHAT` | AI Coach conversation | `COACH_CHAT_MODEL` | gemini-3-pro |
+| `AI_COACH` | AI Coach conversation (streaming) | `AI_COACH_MODEL` | web search, vision, OCR, **streaming required** |
+| **OFFER ANALYSIS** ||||
+| `OFFER_ANALYZER` | Phase 1: Quick offer screenshot analysis | `OFFER_ANALYZER_MODEL` | vision |
+| `OFFER_ANALYZER_DEEP` | Phase 2: Deep offer analysis | `OFFER_ANALYZER_DEEP_MODEL` | vision, thinking |
+| **CONCIERGE (Public)** ||||
+| `CONCIERGE_SEARCH` | Public event/venue search | `CONCIERGE_SEARCH_MODEL` | web search, thinking |
+| `CONCIERGE_CHAT` | Public conversational interface | `CONCIERGE_CHAT_MODEL` | web search, thinking |
 | **UTILITIES** ||||
-| `UTIL_WEATHER_VALIDATOR` | Validate weather data structure | `UTIL_WEATHER_VALIDATOR_MODEL` | gemini-3-pro |
-| `UTIL_TRAFFIC_VALIDATOR` | Validate traffic data structure | `UTIL_TRAFFIC_VALIDATOR_MODEL` | gemini-3-pro |
-| `UTIL_MARKET_PARSER` | Parsing unstructured market research | `UTIL_PARSER_MODEL` | gpt-5.2 |
+| `UTIL_RESEARCH` | General research queries | `UTIL_RESEARCH_MODEL` | web search |
+| `UTIL_WEATHER_VALIDATOR` | Validate weather data structure | `UTIL_WEATHER_VALIDATOR_MODEL` | |
+| `UTIL_TRAFFIC_VALIDATOR` | Validate traffic data structure | `UTIL_TRAFFIC_VALIDATOR_MODEL` | |
+| `UTIL_MARKET_PARSER` | Parse unstructured market research | `UTIL_PARSER_MODEL` | reasoning |
+| `UTIL_TRANSLATION` | Text translation | `UTIL_TRANSLATION_MODEL` | minimal tokens |
+| **INTERNAL** ||||
+| `DOCS_GENERATOR` | Documentation generation | `DOCS_GENERATOR_MODEL` | extended thinking, skip JSON extraction |
 
 **Usage Pattern:**
 ```javascript
 import { callModel } from './lib/ai/adapters/index.js';
 
-// NEW: Use {TABLE}_{FUNCTION} role names
+// Use {TABLE}_{FUNCTION} role names — NEVER model names
 const result = await callModel('STRATEGY_CORE', { system, user });
 const filtered = await callModel('VENUE_FILTER', { system, user });
 const events = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
 
-// LEGACY (still works via automatic mapping):
-const result = await callModel('strategist', { system, user });  // → STRATEGY_CORE
-const filtered = await callModel('consolidator', { system, user });  // → STRATEGY_TACTICAL
+// Streaming (AI Coach only — provider must support it)
+const stream = await callModelStream('AI_COACH', { system, messageHistory });
 ```
 
-**Legacy Role Mapping:**
+**Legacy Role Mapping (deprecated, still functional):**
 | Legacy Name | Maps To |
 |-------------|---------|
 | `strategist` | `STRATEGY_CORE` |
@@ -249,18 +345,31 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 | `consolidator` | `STRATEGY_TACTICAL` |
 | `venue_planner` | `VENUE_SCORER` |
 | `venue_filter` | `VENUE_FILTER` |
-| `coach` | `COACH_CHAT` |
+| `haiku` | `VENUE_FILTER` |
+| `coach` | `AI_COACH` |
+| `COACH_CHAT` | `AI_COACH` |
 
 **Key Principles:**
 1. Role names indicate **output destination** (table) + **function**
 2. Code references **ROLES**, never model names
-3. Model assignments are **configuration** (env vars)
-4. Adapters folder is the only place model names appear in code
-5. Legacy role names are supported but deprecated
+3. Model assignments are **configuration** (env vars in `model-registry.js`)
+4. Adapters folder is the only place provider-specific model IDs appear
+5. Any role can be pointed at any compatible provider via its env var override
+6. Legacy role names are supported but deprecated
+
+**API Key Requirements:**
+
+| Env Var | Provider | Required |
+|---------|----------|----------|
+| `ANTHROPIC_API_KEY` | Anthropic | Yes (strategy roles) |
+| `OPENAI_API_KEY` | OpenAI | Yes (venue/tactical roles) |
+| `GEMINI_API_KEY` | Google | Yes (briefing/coach roles) |
+| `PERPLEXITY_API_KEY` | Perplexity | Optional (event research) |
 
 **Codebase Files:**
-- `server/lib/ai/model-registry.js` - Canonical role definitions with `{TABLE}_{FUNCTION}` convention
-- `server/lib/ai/adapters/index.js` - Role dispatcher with legacy support
+- `server/lib/ai/model-registry.js` - Canonical role definitions, defaults, parameter quirks
+- `server/lib/ai/adapters/index.js` - Role dispatcher with HedgedRouter fallback
+- `server/config/env-registry.js` - Centralized env var definitions
 
 ---
 
@@ -497,67 +606,94 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 
 ## 📊 Data Pipeline
 
-### Smart Blocks (Intelligence Modules)
-**What it is:** Modular units of contextual market data (Traffic, Events, Weather, News) used to inform strategy. These are the **inputs** to the decision process.
+### SmartBlocks (Strategy Venue Recommendations)
+**What it is:** The venue cards displayed on the Strategy page — specific tactical venue recommendations generated by the VENUE_SCORER role during the strategy pipeline. These are the primary "where to go RIGHT NOW" outputs that drivers see.
 
-**⚠️ NOT to be confused with:** Venue Candidates (see below) - which are the **outputs**.
+**⚠️ Common confusion:** The codebase file `enhanced-smart-blocks.js` generates these. Despite the name overlap, SmartBlocks are **venue recommendations**, not raw intelligence data.
+
+**Pipeline (how SmartBlocks are generated):**
+1. VENUE_SCORER role generates 4-6 venue names + coordinates from strategy context
+2. Google Routes API calculates distances and drive times
+3. Google Places API enriches with addresses, business hours, open/closed status
+4. Events from `discovered_events` DB are matched to venues
+5. Results stored in `ranking_candidates` table, displayed as venue cards in UI
+
+**⚠️ SmartBlocks are AI-generated, NOT pulled from `venue_catalog`.** The AI model behind the VENUE_SCORER role uses its training knowledge to recommend venues for the driver's current location. The `venue_catalog` is only used by the separate Bar Tab/nightlife feature.
+
+**Codebase Files:**
+- `server/lib/venue/enhanced-smart-blocks.js` - Venue generation engine (orchestrates pipeline)
+- `server/lib/strategy/tactical-planner.js` - VENUE_SCORER AI prompt + response parsing
+- `server/lib/venue/venue-enrichment.js` - Google Places/Routes API enrichment
+- `server/api/strategy/blocks-fast.js` - HTTP endpoint (pipeline trigger)
+- `client/src/components/SmartBlocksStatus.tsx` - Pipeline status UI
+- `client/src/pages/co-pilot/StrategyPage.tsx` - Strategy page venue card display
+
+**Database Tables:**
+- `ranking_candidates` - Scored venue recommendations linked to a strategy/snapshot
+- `rankings` - Parent record for a set of venue candidates
+
+**API Endpoints:**
+- `POST /api/blocks-fast` - Trigger venue recommendation generation
+- `GET /api/blocks-fast?snapshot_id=<id>` - Fetch generated venue results
+
+---
+
+### Briefing Blocks (Intelligence Inputs)
+**What it is:** Modular units of contextual market data (Traffic, Events, Weather, News) gathered during the briefing pipeline. These are **inputs** to the strategy generation process, NOT displayed as venue cards.
 
 **Codebase Files:**
 - `server/lib/strategy/content-blocks.js` - Block generation
-- `server/api/strategy/blocks-fast.js` - HTTP endpoint (pipeline trigger)
-- `client/src/components/SmartBlocksStatus.tsx` - Pipeline status UI
 - `client/src/components/_future/SmartBlocks.tsx` - Renders briefing blocks (Events, Traffic, News)
 
-**What Smart Blocks ARE:**
+**What Briefing Blocks ARE:**
 - Traffic intelligence blocks
 - Event discovery blocks
 - Weather condition blocks
 - News/disruption blocks
 
-**What Smart Blocks are NOT:**
-- Specific bar or restaurant locations (those are Venue Candidates)
-- The "Upscale Bars" list in BarTab.tsx (that's Venue Intelligence output)
-
 ---
 
-### Venue Candidates (Tactical Opportunities)
-**What it is:** Specific high-value locations (Bars, Restaurants, Staging Areas) identified as tactical opportunities. These are the **outputs** of the Venue Intelligence system.
+### Venue Candidates (Bar Tab / Nightlife)
+**What it is:** Upscale bars and nightlife venues discovered via Google Places API for the "Lounges & Bars" tab. These are a **separate system** from SmartBlocks — they use a cache-first pattern backed by the `venue_catalog` table.
+
+**⚠️ NOT the same as SmartBlocks.** SmartBlocks = strategy venue recommendations (AI-generated). Venue Candidates = nightlife discovery (Google Places API + venue_catalog cache).
 
 **Codebase Files:**
-- `server/lib/venue/venue-intelligence.js` - Discovery engine (Google Places API)
-- `server/lib/venue/enhanced-smart-blocks.js` - Venue scoring and ranking
-- `client/src/components/BarsTable.tsx` - "Late Night Hotspots" UI display
-- `client/src/components/BarsMainTab.tsx` - "Lounges & Bars" driver UI (formerly BarTab.tsx)
+- `server/lib/venue/venue-intelligence.js` - Discovery engine (Google Places API + cache)
+- `server/lib/venue/venue-cache.js` - venue_catalog CRUD and cache lookup
+- `client/src/components/BarsMainTab.tsx` - "Lounges & Bars" driver UI
+- `client/src/hooks/useBarsQuery.ts` - Client-side data fetching
 
 **Database Tables:**
-- `ranking_candidates` - Scored venue recommendations linked to a strategy
-- `venue_catalog` - Persistent library of all known venues
+- `venue_catalog` - Persistent library of all known nightlife venues (cache-first pattern)
 
 **Key Distinction:**
-| Term | Meaning | Example |
-|------|---------|---------|
-| Smart Block | Intelligence input | "Traffic is heavy on I-35" |
-| Venue Candidate | Tactical output | "Concrete Cowboy bar, $$$, 2.3 mi away" |
+| Term | Source | UI Location | Example |
+|------|--------|-------------|---------|
+| SmartBlock | VENUE_SCORER role (AI-generated) | Strategy page venue cards | "Legacy West - position at north entrance for pickup surge" |
+| Briefing Block | Briefing pipeline | Intelligence feed | "Traffic is heavy on I-35" |
+| Venue Candidate | Google Places API + venue_catalog | Lounges & Bars tab | "Concrete Cowboy bar, $$$, 4.7★, Open" |
 
 **API Endpoints:**
-- `GET /api/venues/nearby` - Discover nearby venues
-- `POST /api/blocks-fast` - Generate venue recommendations
-- `GET /api/blocks-fast?snapshot_id=<id>` - Fetch venue results
+- `GET /api/venues/nearby` - Discover nearby nightlife venues
 
 ---
 
-### Strategy Pipeline (Three-Stage Waterfall)
-**What it is:** Claude → GPT-5 → Gemini AI pipeline for strategic analysis.
+### Strategy Pipeline (Multi-Stage)
+**What it is:** Multi-provider AI pipeline for strategic analysis. Models are role-based and swappable — do NOT assume a specific provider for any stage.
 
-**Stages:**
-1. **Claude Strategist** - Strategic overview (4000 tokens)
-2. **GPT-5 Tactical Planner** - Venue recommendations (JSON schema)
-3. **Gemini Validator** - Enrichment and validation
+**Stages (by role, not by model):**
+1. **STRATEGY_CORE** - Strategic overview and plan generation
+2. **VENUE_SCORER** - Tactical venue recommendations (JSON schema with coords)
+3. **STRATEGY_CONTEXT** - Real-time context enrichment and validation
+4. **STRATEGY_TACTICAL** - Immediate 1-hour actionable strategy
+5. **STRATEGY_DAILY** - Long-term 8-12hr daily strategy
 
 **Codebase Files:**
-- `server/lib/ai/providers/minstrategy.js` - Claude strategist
-- `server/lib/strategy/planner-gpt5.js` - GPT-5 planner
-- `server/lib/strategy/validator-gemini.js` - Gemini validator
+- `server/lib/ai/providers/minstrategy.js` - STRATEGY_CORE role implementation
+- `server/lib/strategy/tactical-planner.js` - VENUE_SCORER role implementation
+- `server/lib/venue/enhanced-smart-blocks.js` - SmartBlocks orchestrator (calls VENUE_SCORER + Google APIs)
+- `server/lib/strategy/strategy-generator.js` - Pipeline orchestrator
 
 **Documentation:**
 - `ARCHITECTURE.md` - Pipeline architecture (sections 1-9)
@@ -659,8 +795,8 @@ const filtered = await callModel('consolidator', { system, user });  // → STRA
 
 ---
 
-**Version:** 1.3.0
-**Last Updated:** February 15, 2026
+**Version:** 1.4.0
+**Last Updated:** March 28, 2026
 **Maintainer:** Vecto Pilot Development Team (Melody Dashora, architect)
 
 ---
