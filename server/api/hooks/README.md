@@ -86,19 +86,46 @@ Driver disagreed with AI decision — records the override for training data.
 }
 ```
 
-## Decision Rules (2026-02-16)
+## Decision Rules (2026-03-29)
 
-The AI follows these rules exactly:
+Phase 1 uses **tier-aware $/mi + duration thresholds** — no city/zone classification. Product type is parsed server-side, classified into a tier, and the matching prompt/rules are applied. Phase 2 (async) handles geographic deep analysis.
+
+### Tier Classification (from 300+ DFW offers)
+
+| Tier | Products | Rationale |
+|------|----------|-----------|
+| **share** | Share, Lyft Shared | Auto-REJECT. Median $0.69/mi, 0% accept rate. Skips AI call entirely. |
+| **standard** | UberX, UberX Exclusive, UberX Priority, Lyft, unknown | Accepted avg $1.13/mi, rejected avg $0.77/mi. Core volume tier. |
+| **premium** | Comfort, VIP, Black, UberXL, Lyft XL, Lyft Lux | Higher floor ($1.10), relaxed time limits. Worth more per-mile. |
+
+### Standard Rules (UberX / Exclusive / Priority / Lyft)
 
 | Rule | Condition | Decision |
 |------|-----------|----------|
-| 1 | Above $1.00/mi + pickup under 10 min | **ACCEPT** (regardless of total payout) |
-| 2 | $0.90-$1.00/mi for rides under 3 mi | **ACCEPT** (short hop exception) |
-| 3 | Below $0.90/mi | **REJECT** (unless surge detected) |
-| 4 | Pickup over 10 min for ride under $10 | **REJECT** |
-| 5 | Dead-end destination (suburb, rural) | **REJECT** (even if $/mi is good) |
+| 1 | Rider rating < 4.85 | **REJECT** |
+| 2 | "Verified" missing from OCR | **REJECT** |
+| 3 | $/mi < $0.90 (hard floor) | **REJECT** |
+| 4 | $/mi >= $0.90 + ≤20 min | **ACCEPT** |
+| 5 | $/mi >= $1.10 + ≤25 min | **ACCEPT** |
+| 6 | $/mi >= $1.75 + <30 min | **ACCEPT** |
+| 7 | $/mi >= $2.00 + 30-40 min | **ACCEPT** |
+| 8 | $/mi >= $2.00 + >40 min | **ACCEPT** |
+| 9 | Default | **REJECT** |
 
-**Critical:** The AI cannot reject above-$1.00/mi offers solely for "total payout too low". Short rides with good $/mi keep the driver in high-demand areas.
+### Premium Rules (Comfort / VIP / Black / XL)
+
+| Rule | Condition | Decision |
+|------|-----------|----------|
+| 1 | Rider rating < 4.85 | **REJECT** |
+| 2 | "Verified" missing from OCR | **REJECT** |
+| 3 | $/mi < $1.10 (premium floor) | **REJECT** |
+| 4 | $/mi >= $1.10 + ≤25 min | **ACCEPT** |
+| 5 | $/mi >= $1.40 + ≤30 min | **ACCEPT** |
+| 6 | $/mi >= $1.75 + ≤40 min | **ACCEPT** |
+| 7 | $/mi >= $2.00 + >40 min | **ACCEPT** |
+| 8 | Default | **REJECT** |
+
+**Critical:** Short rides with good $/mi = ACCEPT regardless of city. A $10 Comfort ride for 5 min in Plano clears premium rule 4 — no need to classify it as "local" or "not local".
 
 ## Two Shortcuts (A/B Testing)
 

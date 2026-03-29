@@ -4,6 +4,64 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2026-03-29: Analyze-Offer Decision Logic Overhaul (Phase 1 + Phase 2 Alignment)
+
+**Updated by:** Claude Opus 4.6
+**Date:** 2026-03-29
+**Scope:** Tier-aware decision rules, product type normalization, Phase 1/2 prompt rewrite
+
+### Changes Made
+
+1. **Product type normalization** (`server/lib/offers/parse-offer-text.js`)
+   - `extractProductType()` now returns canonical cased names (was storing "Uberx", "uberx Exclusive", etc.)
+   - New `classifyTier()` function: maps product types → `share` / `standard` / `premium`
+   - Data-driven from 300+ DFW `offer_intelligence` records
+
+2. **Three-tier decision system** (`server/api/hooks/analyze-offer.js`)
+   - **Share** (Share, Lyft Shared): Auto-REJECT, skips AI call entirely (median $0.69, 0% accept)
+   - **Standard** (UberX, Exclusive, Priority, Lyft): Floor $0.90, tight time limits (20/25/30/40 min)
+   - **Premium** (Comfort, VIP, Black, XL): Floor $1.10, relaxed time limits (25/30/40/50 min)
+   - Previously: 6/7 Comfort + 13/13 VIP wrongly rejected due to flat thresholds
+
+3. **Phase 1 prompt → tier-specific prompts** (`PHASE1_PROMPTS` object)
+   - Three separate prompts (share/standard/premium) selected at runtime via `classifyTier()`
+   - Share short-circuits before AI call — zero latency, zero token cost
+   - Premium prompt has higher floor ($1.10) and more generous time windows
+
+4. **Phase 2 tier injection** — tier tag added to Phase 2 system prompt so deep analysis applies correct rules
+
+5. **Deterministic fallback updated** — tier-aware branching in fallback logic mirrors AI prompts exactly
+
+6. **Terse notification with tier tag** — premium notifications include ` prem` suffix: `"ACCEPT: $1.21 13.7mi prem"`
+
+### Siri Shortcut Endpoint
+
+```
+POST https://69f9de93-7dc3-48aa-9050-4c395406d344-00-3uat6a5ciur3j.riker.replit.dev/api/hooks/analyze-offer
+```
+
+### Documentation Updated
+
+| File | Change |
+|------|--------|
+| `server/api/hooks/README.md` | Three-tier decision rules: tier classification table + standard/premium rule tables |
+| `server/lib/offers/parse-offer-text.js` | Canonical product types + `classifyTier()` export |
+
+### Verification
+
+- [x] Phase 1 prompts (standard/premium) match fallback logic tiers
+- [x] Phase 2 rules include tier-aware rule sets + tier context injection
+- [x] README decision tables match code (standard + premium)
+- [x] Share short-circuit skips AI call and returns instantly
+- [x] Product type normalization eliminates case fragmentation
+- [x] `classifyTier()` covers all known product types from DB
+- [x] `reasoning` → `reason` rename backward-compatible (`reason \|\| reasoning`)
+- [x] Dev endpoint verified (204 OPTIONS)
+
+### Status: ⏳ AWAITING TEST APPROVAL
+
+---
+
 ## 2026-03-17: Branch Merges + Translation Feature Integration
 
 **Updated by:** Claude Opus 4.6

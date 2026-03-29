@@ -223,7 +223,9 @@
       "Bash(npx --yes audit-ci --config /dev/null --low)",
       "Bash(npm outdated:*)",
       "Bash(node -e \"import { ranking_candidates } from ''''./shared/schema.js''''; const cols = Object.keys\\(ranking_candidates\\); console.log\\(''''ranking_candidates cols:'''', cols.length, ''''| has venue_id:'''', cols.includes\\(''''venue_id''''\\)\\);\")",
-      "Bash(find /home/runner/workspace/client -type f \\\\\\(-name *.jsx -o -name *.tsx \\\\\\))"
+      "Bash(find /home/runner/workspace/client -type f \\\\\\(-name *.jsx -o -name *.tsx \\\\\\))",
+      "Bash(find /home/runner/workspace -maxdepth 2 -type f \\\\\\(-name .env* -o -name replit.nix -o -name README* \\\\\\))",
+      "Bash(env)"
     ],
     "deny": [],
     "ask": []

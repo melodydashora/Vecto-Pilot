@@ -72,8 +72,9 @@ export function extractTimeDistancePairs(text) {
 
 /**
  * Extract Uber/Lyft product type from OCR text.
- * Examples: "UberX", "UberX Priority", "UberXXL", "UberX\nExclusive",
- *           "Uberx Priority", "Share", "Lyft", "Comfort", "Black"
+ * 2026-03-29: Returns CANONICAL cased names to prevent DB fragmentation.
+ * Examples: "UberX", "UberX Priority", "UberXL", "UberX Exclusive",
+ *           "Comfort", "Share", "Lyft", "Lyft XL", "Black", "VIP"
  *
  * @param {string} text - Raw OCR text
  * @returns {string|null}
@@ -82,23 +83,68 @@ export function extractProductType(text) {
   // Normalize newlines for multi-line product names like "UberX\nExclusive"
   const normalized = text.replace(/\n/g, ' ');
 
-  // Uber products (most specific first)
+  // Uber products — match raw, then canonicalize
   const uberMatch = normalized.match(/Uber\s*X{0,2}\s*L?\s*(?:Priority|Exclusive)?/i);
   if (uberMatch) {
-    // Clean up: collapse whitespace, title case
-    return uberMatch[0].replace(/\s+/g, ' ').trim();
+    const raw = uberMatch[0].replace(/\s+/g, ' ').trim().toLowerCase();
+    // 2026-03-29: Canonical mapping — eliminates "Uberx", "uberx Exclusive", etc.
+    if (/uberxl\s*exclusive/i.test(raw)) return 'UberXL Exclusive';
+    if (/uberxl/i.test(raw)) return 'UberXL';
+    if (/uberx\s*exclusive/i.test(raw)) return 'UberX Exclusive';
+    if (/uberx\s*priority/i.test(raw)) return 'UberX Priority';
+    if (/uberx/i.test(raw)) return 'UberX';
+    return 'Uber'; // bare "Uber" match
   }
 
   // Lyft products
   const lyftMatch = normalized.match(/Lyft\s*(?:XL|Lux|Black|Shared|Priority)?/i);
-  if (lyftMatch) return lyftMatch[0].replace(/\s+/g, ' ').trim();
+  if (lyftMatch) {
+    const raw = lyftMatch[0].replace(/\s+/g, ' ').trim().toLowerCase();
+    if (/lyft\s*xl/i.test(raw)) return 'Lyft XL';
+    if (/lyft\s*lux/i.test(raw)) return 'Lyft Lux';
+    if (/lyft\s*black/i.test(raw)) return 'Lyft Black';
+    if (/lyft\s*shared/i.test(raw)) return 'Lyft Shared';
+    if (/lyft\s*priority/i.test(raw)) return 'Lyft Priority';
+    return 'Lyft';
+  }
 
   // Standalone product names
   if (/\bComfort\b/i.test(text)) return 'Comfort';
+  if (/\bVIP\b/i.test(text)) return 'VIP';
   if (/\bBlack\b/i.test(text)) return 'Black';
   if (/\bShare\b/i.test(text)) return 'Share';
 
   return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIER CLASSIFICATION — Maps product types to decision threshold tiers
+// 2026-03-29: Three tiers with different $/mi floors and time tolerances.
+// Data-driven from 300+ DFW offer_intelligence records.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PREMIUM_PRODUCTS = new Set([
+  'Comfort', 'VIP', 'Black', 'UberXL', 'UberXL Exclusive',
+  'Lyft XL', 'Lyft Lux', 'Lyft Black',
+]);
+const SHARE_PRODUCTS = new Set(['Share', 'Lyft Shared']);
+
+/**
+ * Classify a product type into a decision tier.
+ *
+ * Tiers (from DFW data):
+ *   "share"    — Share/Lyft Shared: auto-reject (median $0.69, 0% accept rate)
+ *   "standard" — UberX/Exclusive/Priority/Lyft: floor $0.90, tight time limits
+ *   "premium"  — Comfort/VIP/Black/XL: floor $1.10, relaxed time limits
+ *
+ * @param {string|null} productType - Canonical product type from extractProductType()
+ * @returns {"share"|"standard"|"premium"}
+ */
+export function classifyTier(productType) {
+  if (!productType) return 'standard';
+  if (SHARE_PRODUCTS.has(productType)) return 'share';
+  if (PREMIUM_PRODUCTS.has(productType)) return 'premium';
+  return 'standard';
 }
 
 /**
