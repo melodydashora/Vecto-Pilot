@@ -19,7 +19,7 @@ import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
 import { offer_intelligence } from '../../../shared/schema.js';
 import { callModel } from '../../lib/ai/adapters/index.js';
-import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-offer-text.js';
+import { parseOfferText, formatPerMileForVoice, classifyTier } from '../../lib/offers/parse-offer-text.js';
 // 2026-02-17: Shared utilities for structured analytics columns
 import { getDayPartKey } from '../../lib/location/daypart.js';
 import { coordsKey } from '../../lib/location/coords-key.js';
@@ -34,28 +34,53 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max (matches express.json limit)
 });
 
-// 2026-02-28: Phase 1 ultra-lean prompt — extract + decide, no reasoning overhead.
-// Runs synchronously for Siri. Every token saved = faster response.
-const PHASE1_SYSTEM_PROMPT = `Extract ride details. Output ONLY raw valid JSON. Do NOT wrap the output in markdown. NO backticks. NO code blocks. NO explanations.
+// 2026-03-29: Phase 1 ultra-lean prompt — minimal tokens for 3s trip radar / 9s regular.
+// Rules produce ACCEPT/REJECT. Reason = terse: "$1.14 8.2mi" or "$0.78 14mi too far".
+// Phase 2 handles all deep analysis and DB enrichment — Phase 1 just decides.
+// Tier is injected at runtime from pre-parsed product_type via classifyTier().
+const PHASE1_PROMPTS = {
+  share: `Raw JSON only. No markdown/backticks.
+REJECT. Share rides always rejected.
+{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"share"}`,
 
-STEP 1 (STRICT MATH):
-- Calculate Total Miles = Pickup Miles + Ride Miles.
-- Calculate total_minutes = Pickup Minutes + Ride Minutes + (Wait Minutes if visible, otherwise 0).
-- Calculate $/mi = Total Offer Price / Total Miles.
+  standard: `Raw JSON only. No markdown/backticks.
 
-STEP 2 (DECISION RULES - Evaluate in order):
-1. RATING: REJECT if rider rating is visible and < 4.85.
-2. VERIFIED: REJECT if the word "Verified" is missing from the OCR text.
-3. HARD FLOOR: REJECT if $/mi < 0.90.
-4. LOCAL (Both Pickup AND Dropoff are Frisco): ACCEPT if $/mi >= 0.90 AND total_minutes <= 20.
-5. NOT LOCAL (Either Pickup OR Dropoff is outside Frisco): ACCEPT if $/mi >= 1.75 AND total_minutes < 30.
-6. FAR (total_minutes >= 30 AND total_minutes <= 40): ACCEPT ONLY IF $/mi >= 2.00.
-7. VERY FAR (total_minutes > 40): ACCEPT ONLY IF $/mi >= 2.00.
-8. DEFAULT: REJECT anything that does not meet the above.
+Math: total_miles=pickup_mi+ride_mi. total_min=pickup_min+ride_min. per_mile=price/total_miles.
 
-The "decision" field MUST be exactly "ACCEPT" or "REJECT". Never output UNKNOWN.
+Rules (first match wins):
+1. REJECT if rating visible and <4.85.
+2. REJECT if "Verified" missing.
+3. REJECT if $/mi<0.90.
+4. ACCEPT if $/mi>=0.90, total_min<=20.
+5. ACCEPT if $/mi>=1.10, total_min<=25.
+6. ACCEPT if $/mi>=1.75, total_min<30.
+7. ACCEPT if $/mi>=2.00, total_min 30-40.
+8. ACCEPT if $/mi>=2.00, total_min>40.
+9. REJECT.
 
-{"price":0,"miles":0,"pickup_minutes":0,"ride_minutes":0,"total_minutes":0,"pickup":"string","dropoff":"string","platform":"uber","surge":null,"per_mile":0,"decision":"REJECT","reasoning":"max 10 words","confidence":0}`;
+reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.
+
+{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"$0.00 0.0mi"}`,
+
+  premium: `Raw JSON only. No markdown/backticks.
+
+Math: total_miles=pickup_mi+ride_mi. total_min=pickup_min+ride_min. per_mile=price/total_miles.
+
+PREMIUM ride (Comfort/VIP/XL/Black). Higher floor, more time allowed.
+Rules (first match wins):
+1. REJECT if rating visible and <4.85.
+2. REJECT if "Verified" missing.
+3. REJECT if $/mi<1.10.
+4. ACCEPT if $/mi>=1.10, total_min<=25.
+5. ACCEPT if $/mi>=1.40, total_min<=30.
+6. ACCEPT if $/mi>=1.75, total_min<=40.
+7. ACCEPT if $/mi>=2.00, total_min>40.
+8. REJECT.
+
+reason: terse. "$1.21 13.7mi" or "$1.05 18mi low". No sentences.
+
+{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"$0.00 0.0mi"}`,
+};
 
 // 2026-02-28: Phase 2 deep prompt — full reasoning for DB enrichment.
 // Runs async after Siri response is sent. No time pressure.
@@ -79,13 +104,26 @@ Provide DEEP analysis. Return ONLY valid JSON.
   }
 }
 
-RULES:
-1. Above $1.00/mi total miles + pickup under 10 min → ACCEPT
-2. Below $0.72/mi → REJECT always
-3. Home base: Frisco, TX. Reject rides west of DFW Airport, Fort Worth, Denton outskirts, Anna, rural areas.
-4. Coppell, Irving, Plano, Richardson, Dallas, Carrollton are fine — easy return to Frisco.
-5. Deadhead zones (west of airport or south of 635) need >= $2.00/mi.
-6. Rider rating < 4.85 → REJECT. Short rides with good $/mi = GOOD.
+RULES (tier-aware — check TIER tag below):
+STANDARD (UberX/Exclusive/Priority/Lyft):
+  1. $/mi >= $0.90 + under 20 min → ACCEPT.
+  2. $/mi >= $1.10 + under 25 min → ACCEPT.
+  3. $/mi >= $1.75 + under 30 min → ACCEPT.
+  4. $/mi >= $2.00 + 30-40 min → ACCEPT.
+  5. $/mi >= $2.00 + >40 min → ACCEPT.
+  6. Below $0.90/mi → REJECT always.
+PREMIUM (Comfort/VIP/Black/XL):
+  1. $/mi >= $1.10 + under 25 min → ACCEPT.
+  2. $/mi >= $1.40 + under 30 min → ACCEPT.
+  3. $/mi >= $1.75 + under 40 min → ACCEPT.
+  4. $/mi >= $2.00 + >40 min → ACCEPT.
+  5. Below $1.10/mi → REJECT always.
+SHARE: Always REJECT.
+GENERAL:
+  7. Rider rating < 4.85 → REJECT. Short rides with good $/mi = GOOD.
+  8. Home base: Frisco, TX. Reject rides west of DFW Airport, Fort Worth, Denton outskirts, Anna, rural areas.
+  9. Deadhead zones (west of airport or south of 635) need >= $2.00/mi.
+  10. Consider driver's CURRENT LOCATION when evaluating deadhead. If already near dropoff area, deadhead is near-zero.
 
 Trust pre-parsed numbers if provided. Focus on ADDRESSES and DESTINATION QUALITY.`;
 
@@ -180,10 +218,27 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       console.log(`[hooks/analyze-offer] 🖼️ Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})`);
     }
 
+    // 2026-03-29: Tier-aware prompt selection — share/standard/premium
+    const tier = classifyTier(preParsed?.product_type);
+    const phase1SystemPrompt = PHASE1_PROMPTS[tier];
+
+    // Share = instant reject, skip AI call entirely
+    if (tier === 'share') {
+      const responseTimeMs = Date.now() - startTime;
+      console.log(`[hooks/analyze-offer] 🚫 Share tier auto-reject (${responseTimeMs}ms)`);
+      return res.json({
+        success: true,
+        voice: '',
+        notification: 'REJECT: share',
+        decision: 'REJECT',
+        response_time_ms: responseTimeMs,
+      });
+    }
+
     // Phase 1 AI call — OFFER_ANALYZER (Flash) for speed
-    console.log(`[hooks/analyze-offer] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash)${images.length ? ' [vision]' : ''}...`);
+    console.log(`[hooks/analyze-offer] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash) [${tier}]${images.length ? ' [vision]' : ''}...`);
     const phase1Response = await callModel('OFFER_ANALYZER', {
-      system: PHASE1_SYSTEM_PROMPT,
+      system: phase1SystemPrompt,
       user: phase1UserMessage,
       images,
     });
@@ -226,40 +281,74 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
         let fallbackDecision = 'REJECT';
         let fallbackReason = '';
 
+        // 2026-03-29: Tier-aware $/mi + duration fallback — three tiers from DFW data.
+        // Format: "$X.XX X.Xmi" for accepts, "$X.XX X.Xmi low/floor/too far" for rejects.
+        // Phase 2 handles geographic deep analysis — this just does math.
+        const totalMi = preParsed.total_miles?.toFixed(1) ?? '?';
+        const tierTag = tier === 'premium' ? ' prem' : '';
+
         if (rating !== null && rating < 4.85) {
-          fallbackReason = `Rating ${rating} below 4.85`;
-        } else if (pm < 0.72) {
-          fallbackReason = `$${pm.toFixed(2)}/mi below $0.72 floor`;
-        } else if (pm >= 0.90 && totalMin <= 20) {
-          fallbackDecision = 'ACCEPT';
-          fallbackReason = `Local $${pm.toFixed(2)}/mi ${totalMin}min`;
-        } else if (pm >= 1.75 && totalMin < 30) {
-          fallbackDecision = 'ACCEPT';
-          fallbackReason = `Good rate $${pm.toFixed(2)}/mi ${totalMin}min`;
-        } else if (totalMin >= 30 && totalMin <= 40 && pm >= 3.00) {
-          fallbackDecision = 'ACCEPT';
-          fallbackReason = `Far but $${pm.toFixed(2)}/mi worth it`;
-        } else if (totalMin > 40) {
-          fallbackReason = `${totalMin}min too far`;
+          fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi rating`;
+        } else if (tier === 'premium') {
+          // 2026-03-29: Premium tier — higher floor ($1.10), relaxed time limits
+          if (pm < 1.10) {
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi floor${tierTag}`;
+          } else if (pm >= 1.10 && totalMin <= 25) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi${tierTag}`;
+          } else if (pm >= 1.40 && totalMin <= 30) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi${tierTag}`;
+          } else if (pm >= 1.75 && totalMin <= 40) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi${tierTag}`;
+          } else if (pm >= 2.00 && totalMin > 40) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi${tierTag}`;
+          } else if (totalMin > 40) {
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi too far${tierTag}`;
+          } else {
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi low${tierTag}`;
+          }
         } else {
-          fallbackReason = `$${pm.toFixed(2)}/mi ${totalMin}min below thresholds`;
+          // 2026-03-29: Standard tier — same thresholds as before
+          if (pm < 0.90) {
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi floor`;
+          } else if (pm >= 0.90 && totalMin <= 20) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
+          } else if (pm >= 1.10 && totalMin <= 25) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
+          } else if (pm >= 1.75 && totalMin < 30) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
+          } else if (totalMin >= 30 && totalMin <= 40 && pm >= 2.00) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
+          } else if (totalMin > 40 && pm >= 2.00) {
+            fallbackDecision = 'ACCEPT';
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
+          } else if (totalMin > 40) {
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi too far`;
+          } else {
+            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi low`;
+          }
         }
 
         console.log(`[hooks/analyze-offer] 🔧 Deterministic fallback: ${fallbackDecision} — ${fallbackReason}`);
         phase1Result = {
           decision: fallbackDecision,
-          reasoning: fallbackReason,
+          reason: fallbackReason,
           confidence: 80,
           ...preParsed,
         };
       } else {
-        // No pre-parsed data — try text detection as absolute last resort
-        const rawText = (phase1Response.text || '').toUpperCase();
-        const detectedDecision = rawText.includes('ACCEPT') ? 'ACCEPT'
-          : rawText.includes('REJECT') ? 'REJECT' : 'REJECT';
+        // 2026-03-29: No pre-parsed data — "no data" not "REJECT".
+        // REJECT is reserved for rule-evaluated offers only.
         phase1Result = {
-          decision: detectedDecision,
-          reasoning: phase1Response.text || 'AI parse failed, defaulting to REJECT',
+          decision: 'NO DATA',
+          reason: 'no data',
           confidence: 0,
         };
       }
@@ -267,17 +356,23 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
 
     // Extract decision fields from normalized result
     const decision = phase1Result.decision || 'REJECT';
-    const reasoning = phase1Result.reasoning || '';
+    // 2026-03-29: Accept both "reason" (new terse) and "reasoning" (legacy) field names
+    const reason = phase1Result.reason || phase1Result.reasoning || '';
     const confidence = phase1Result.confidence || 0;
 
     const responseTimeMs = Date.now() - startTime;
 
-    // 2026-03-03: Notification = decision + reasoning for silent banner display.
-    // No voice/TTS — driver has passengers. Clean banner at top of screen.
+    // 2026-03-29: Terse notification for 3s trip radar / 9s regular offers.
+    // Format: "ACCEPT: $1.14 8.2mi core" or "REJECT: $0.78 14.0mi too far"
+    // Server builds from pre-parsed data when AI reason is missing/verbose.
     const perMileValue = preParsed?.per_mile ?? phase1Result.per_mile ?? null;
-    const notification = reasoning
-      ? `${decision === 'ACCEPT' ? 'ACCEPT' : 'REJECT'}: ${reasoning}`
-      : (decision === 'ACCEPT' ? 'ACCEPT' : 'REJECT');
+    const totalMi = preParsed?.total_miles ?? phase1Result.total_miles ?? null;
+    const terseReason = reason || (perMileValue !== null && totalMi !== null
+      ? `$${perMileValue.toFixed(2)} ${totalMi.toFixed(1)}mi`
+      : '');
+    const notification = terseReason
+      ? `${decision}: ${terseReason}`
+      : decision;
 
     // ══════════════════════════════════════════════════════════════
     // RESPOND TO SIRI — driver is waiting, every ms counts
@@ -290,7 +385,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       response_time_ms: responseTimeMs,
     });
 
-    console.log(`[hooks/analyze-offer] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi`);
+    console.log(`[hooks/analyze-offer] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi [${tier}]`);
 
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2 — ASYNC: Deep Pro 3.1 analysis for DB enrichment
@@ -317,7 +412,9 @@ PRE-PARSED DATA (server-verified):
   Product: ${preParsed.product_type || 'DETECT'}
   Surge: ${preParsed.surge !== null ? `$${preParsed.surge}` : 'none'}` : '';
 
-        const phase2System = PHASE2_SYSTEM_PROMPT + locationContext + preParseBlock;
+        // 2026-03-29: Inject tier so Phase 2 applies correct rule set
+        const tierContext = `\nTIER: ${tier.toUpperCase()} (${preParsed?.product_type || 'unknown'}). Apply ${tier} rules above.`;
+        const phase2System = PHASE2_SYSTEM_PROMPT + locationContext + tierContext + preParseBlock;
 
         const phase2UserMessage = text
           ? `Offer text: "${text}"`
@@ -362,7 +459,7 @@ PRE-PARSED DATA (server-verified):
         // Use deep result if available, otherwise fall back to Phase 1
         const dbParsedData = deepResult?.parsed_data || phase1Result;
         const dbDecision = deepResult?.decision || decision;
-        const dbReasoning = deepResult?.reasoning || reasoning;
+        const dbReasoning = deepResult?.reasoning || reason;
         const dbConfidence = deepResult?.confidence || confidence;
         const locationAnalysis = deepResult?.location_analysis || null;
 
