@@ -1,10 +1,5 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-# This workflow file requires a free account on Semgrep.dev to
-# manage rules, file ignores, notifications, and more.
+# Semgrep CI workflow — uses the Semgrep CLI directly
+# (the legacy returntocorp/semgrep-action wrapper is deprecated).
 #
 # See https://semgrep.dev/docs
 
@@ -31,17 +26,21 @@ jobs:
     name: Scan
     runs-on: ubuntu-latest
     steps:
-      # Checkout project source
       - uses: actions/checkout@v4
 
-      # Scan code using project's configuration on https://semgrep.dev/manage
-      - uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
-          publishDeployment: ${{ secrets.SEMGREP_DEPLOYMENT_ID }}
-          generateSarif: "1"
+          python-version: '3.x'
 
-      # Upload SARIF file generated in previous step
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep
+        run: semgrep --config auto --sarif --output semgrep.sarif
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
         with:
