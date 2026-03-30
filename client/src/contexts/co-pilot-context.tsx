@@ -59,6 +59,7 @@ interface CoPilotContextValue {
     traffic: any;
     news: any;
     events: any;
+    marketEvents: any;
     schoolClosures: any;
     airport: any;
     isLoading: {
@@ -683,9 +684,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       weather: weatherData?.weather || null,
       traffic: trafficData?.traffic || null,
       news: newsData?.news || null,
-      // 2026-03-28: Store full API response (events + marketEvents + market_name)
-      // Previously only stored eventsData?.events, dropping market events
-      events: eventsData || null,
+      // 2026-03-29: FIX - Unwrap events array from API response object
+      // Previously stored full response object, breaking .filter() calls downstream
+      // Now properly extracts events array AND marketEvents for separate access
+      events: eventsData?.events || null,
+      marketEvents: eventsData?.marketEvents || null,
       // 2026-01-10: Snake/camel tolerant - accept both server response formats
       schoolClosures: schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures ?? [],
       airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
