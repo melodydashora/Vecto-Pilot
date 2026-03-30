@@ -1,0 +1,356 @@
+// client/src/components/BarsDataGrid.tsx
+// 2026-01-09: Renamed from BarsTable.tsx for disambiguation (was confused with BarTab.tsx)
+
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Clock, Navigation, MapPin, DollarSign } from "lucide-react";
+import { openNavigation } from "@/utils/co-pilot-helpers";
+
+interface BusinessHours {
+  // 2026-01-09: Allow null when hours unavailable from Google Places
+  isOpen?: boolean | null;
+  todayHours?: string;
+  closingTime?: string;
+  weekdayTexts?: string[];
+}
+
+// NOTE: isOpen is calculated server-side using the correct venue timezone
+// Client-side recalculation was removed because browser timezone != venue timezone
+// This caused late-night venues to show as closed in production
+// Server calculates isOpen in venue-enrichment.js using Intl.DateTimeFormat with snapshot timezone
+
+// 2026-01-05: TERMINOLOGY FIX
+// This interface represents a "Venue Candidate" (tactical opportunity) - NOT a "Smart Block"
+// Smart Blocks are intelligence INPUTS (traffic, events, weather)
+// Venue Candidates are tactical OUTPUTS (specific bars/restaurants to visit)
+// See LEXICON.md for the authoritative terminology definitions
+interface VenueCandidate {
+  name: string;
+  address?: string;
+  category?: string;
+  coordinates?: { lat: number; lng: number };
+  placeId?: string;
+  estimatedDistanceMiles?: number;
+  driveTimeMinutes?: number;
+  valuePerMin?: number;
+  valueGrade?: string;
+  // 2026-01-09: Aligned with BarTab.tsx - server can return null when hours unavailable
+  isOpen?: boolean | null;
+  businessHours?: BusinessHours | string;
+}
+
+// Props use "blocks" for backward compatibility with parent components
+// Internally these are Venue Candidates, not Smart Blocks
+interface BarsTableProps {
+  blocks?: VenueCandidate[];
+}
+
+// Convert value metrics to price tier display
+function getPriceTier(venue: VenueCandidate): { tier: string; color: string; priority: number } {
+  const grade = venue.valueGrade;
+  const valuePerMin = venue.valuePerMin || 0;
+
+  if (grade === "A" && valuePerMin > 0.8) {
+    return { tier: "$$$$$", color: "text-amber-600", priority: 5 };
+  } else if (grade === "A" && valuePerMin > 0.6) {
+    return { tier: "$$$$", color: "text-amber-600", priority: 4 };
+  } else if (grade === "A" || (grade === "B" && valuePerMin > 0.5)) {
+    return { tier: "$$$", color: "text-amber-700", priority: 3 };
+  } else if (grade === "B") {
+    return { tier: "$$", color: "text-gray-700", priority: 2 };
+  }
+  return { tier: "$", color: "text-gray-500", priority: 1 };
+}
+
+// Extract closing time from business hours
+function getClosingInfo(businessHours: BusinessHours | string | undefined): string | null {
+  if (!businessHours) return null;
+
+  // Handle string format (condensed hours like "Mon-Fri: 6AM-10PM" or "5:00 PM - 2:00 AM")
+  if (typeof businessHours === "string") {
+    // Try to extract closing time from string (the time after the dash/hyphen)
+    const closeMatch = businessHours.match(/[-–]\s*(\d{1,2}(?::\d{2})?\s*[AP]M)/i);
+    if (closeMatch) return closeMatch[1];
+    // If no match found, don't return the full string - that would be redundant with todayHours
+    return null;
+  }
+
+  // Handle object format
+  if (businessHours.closingTime) {
+    return businessHours.closingTime;
+  }
+
+  if (businessHours.todayHours) {
+    const closeMatch = businessHours.todayHours.match(/[-–]\s*(\d{1,2}(?::\d{2})?\s*[AP]M)/i);
+    if (closeMatch) return closeMatch[1];
+    return businessHours.todayHours;
+  }
+
+  return null;
+}
+
+// Get today's hours from weekday texts
+function getTodayHours(businessHours: BusinessHours | string | undefined): string | null {
+  if (!businessHours) return null;
+
+  if (typeof businessHours === "string") {
+    return businessHours;
+  }
+
+  if (businessHours.todayHours) {
+    return businessHours.todayHours;
+  }
+
+  // Try to find today in weekdayTexts
+  if (businessHours.weekdayTexts && Array.isArray(businessHours.weekdayTexts)) {
+    const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    const todayEntry = businessHours.weekdayTexts.find((t) =>
+      t.toLowerCase().startsWith(today.toLowerCase())
+    );
+    if (todayEntry) {
+      // Extract just the hours part
+      const hoursMatch = todayEntry.match(/:\s*(.+)$/);
+      return hoursMatch ? hoursMatch[1] : todayEntry;
+    }
+  }
+
+  return null;
+}
+
+// Get bar category color
+function getCategoryColor(name: string, category?: string): string {
+  const lowerName = (name || "").toLowerCase();
+  const lowerCat = (category || "").toLowerCase();
+
+  if (lowerCat.includes("nightclub") || lowerCat.includes("club") || lowerName.includes("club")) {
+    return "bg-purple-500"; // Nightclubs - purple
+  }
+  if (lowerCat.includes("bar") || lowerName.includes("bar") || lowerName.includes("tavern") || lowerName.includes("pub")) {
+    return "bg-amber-500"; // Bars - amber
+  }
+  if (lowerCat.includes("brewery") || lowerName.includes("brewery")) {
+    return "bg-yellow-600"; // Breweries - dark yellow
+  }
+  if (lowerCat.includes("lounge") || lowerName.includes("lounge")) {
+    return "bg-indigo-500"; // Lounges - indigo
+  }
+  if (lowerCat.includes("restaurant") || lowerCat.includes("grill") || lowerName.includes("grill")) {
+    return "bg-rose-500"; // Restaurants - rose
+  }
+  return "bg-blue-500"; // Default
+}
+
+// Open navigation (uses Apple Maps on iOS/macOS, Google Maps elsewhere)
+function handleNavigation(venue: VenueCandidate) {
+  openNavigation({
+    lat: venue.coordinates?.lat,
+    lng: venue.coordinates?.lng,
+    placeId: venue.placeId,
+    name: venue.name,
+    address: venue.address
+  });
+}
+
+export default function BarsTable({ blocks }: BarsTableProps) {
+  if (!blocks || blocks.length === 0) {
+    return null;
+  }
+
+  // Filter for bars, restaurants, lounges
+  const bars = blocks.filter((block) => {
+    const category = (block.category || "").toLowerCase();
+    const name = (block.name || "").toLowerCase();
+
+    const isBevenue =
+      category.includes("bar") ||
+      category.includes("nightlife") ||
+      category.includes("restaurant") ||
+      category.includes("lounge") ||
+      category.includes("club") ||
+      category.includes("pub") ||
+      category.includes("tavern") ||
+      category.includes("brewery") ||
+      category.includes("winery") ||
+      category.includes("grill") ||
+      category.includes("cantina") ||
+      category.includes("steakhouse") ||
+      name.includes("bar") ||
+      name.includes("grill") ||
+      name.includes("tavern") ||
+      name.includes("pub");
+
+    const isNotCommon =
+      !name.includes("kroger") &&
+      !name.includes("walmart") &&
+      !name.includes("whole foods") &&
+      !name.includes("grocery") &&
+      !name.includes("school") &&
+      !name.includes("hospital") &&
+      !name.includes("college") &&
+      !name.includes("medical") &&
+      !name.includes("event center") &&
+      !name.includes("stadium") &&
+      !name.includes("airport") &&
+      !name.includes("gas station") &&
+      !name.includes("convenience");
+
+    return isBevenue && isNotCommon;
+  });
+
+  // Filter out closed venues AND venues with unknown/missing hours
+  // Only show venues that are explicitly open (isOpen === true) AND have business hours
+  const openBars = bars.filter((bar) => {
+    // Must be explicitly open
+    if (bar.isOpen !== true) return false;
+
+    // Must have business hours
+    if (!bar.businessHours) return false;
+
+    // If businessHours is a string, it must not be empty
+    if (typeof bar.businessHours === 'string') {
+      return bar.businessHours.trim().length > 0;
+    }
+
+    // If businessHours is an object, must have todayHours or weekdayTexts
+    const hours = bar.businessHours as BusinessHours;
+    return !!(hours.todayHours || (hours.weekdayTexts && hours.weekdayTexts.length > 0));
+  });
+
+  if (openBars.length === 0) {
+    return null;
+  }
+
+  // Sort by price tier ($$$$$ first), then by distance
+  const sortedBars = [...openBars].sort((a, b) => {
+    const tierA = getPriceTier(a);
+    const tierB = getPriceTier(b);
+
+    // Primary sort: price tier descending
+    if (tierB.priority !== tierA.priority) {
+      return tierB.priority - tierA.priority;
+    }
+
+    // Secondary sort: distance ascending
+    const distA = a.estimatedDistanceMiles || 999;
+    const distB = b.estimatedDistanceMiles || 999;
+    return distA - distB;
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-semibold text-gray-800">Late Night Hotspots</h3>
+          <span className="text-xs text-gray-500">({sortedBars.length} venues)</span>
+        </div>
+        <div className="flex items-center gap-1 text-xs text-gray-500">
+          <DollarSign className="w-3 h-3" />
+          <span>Sorted by earnings potential</span>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {sortedBars.map((bar, idx) => {
+          const priceTier = getPriceTier(bar);
+          const closingTime = getClosingInfo(bar.businessHours);
+          const todayHours = getTodayHours(bar.businessHours);
+          const categoryColor = getCategoryColor(bar.name, bar.category);
+          const distance = bar.estimatedDistanceMiles;
+          const driveTime = bar.driveTimeMinutes;
+          // Trust server's isOpen - calculated with correct venue timezone
+          const isOpen = bar.isOpen;
+
+          return (
+            <Card
+              key={idx}
+              className={`border transition-all hover:shadow-md ${
+                isOpen === true
+                  ? "border-green-200 bg-green-50/30"
+                  : isOpen === false
+                  ? "border-gray-200 bg-gray-50/50 opacity-60"
+                  : "border-purple-200 bg-white"
+              }`}
+              data-testid={`venue-card-${idx}`}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-start gap-3">
+                  {/* Category Color Pin */}
+                  <div className="flex-shrink-0 pt-1">
+                    <div className={`w-3 h-3 rounded-full ${categoryColor}`} title={bar.category || "Venue"} />
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="flex-1 min-w-0">
+                    {/* Row 1: Name + Price Tier */}
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-semibold text-gray-900 truncate">{bar.name}</h4>
+                      <span className={`font-bold text-lg ${priceTier.color} flex-shrink-0`}>
+                        {priceTier.tier}
+                      </span>
+                    </div>
+
+                    {/* Row 2: Address */}
+                    {bar.address && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <MapPin className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        <span className="text-xs text-gray-600 truncate">{bar.address}</span>
+                      </div>
+                    )}
+
+                    {/* Row 3: Hours + Status */}
+                    <div className="flex items-center gap-3 mt-2 flex-wrap">
+                      {/* Today's Hours */}
+                      {todayHours && (
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                          <span className="text-xs text-gray-700 font-mono">{todayHours}</span>
+                        </div>
+                      )}
+
+                      {/* Closing Time Badge */}
+                      {closingTime && (
+                        <Badge className="bg-orange-100 text-orange-700 border-0 text-xs">
+                          Closes {closingTime}
+                        </Badge>
+                      )}
+
+                      {/* Open/Closed Status */}
+                      <Badge
+                        className={`text-xs ${
+                          isOpen === true
+                            ? "bg-green-100 text-green-700 border-0"
+                            : isOpen === false
+                            ? "bg-red-100 text-red-700 border-0"
+                            : "bg-gray-100 text-gray-600 border-0"
+                        }`}
+                      >
+                        {isOpen === true ? "Open Now" : isOpen === false ? "Closed" : "Hours Unknown"}
+                      </Badge>
+                    </div>
+
+                    {/* Row 4: Distance + Drive Time + Navigate Button */}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        {distance && <span>{distance} mi</span>}
+                        {driveTime && <span>~{driveTime} min drive</span>}
+                      </div>
+
+                      {/* Navigate Button */}
+                      <button
+                        onClick={() => handleNavigation(bar)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
+                      >
+                        <Navigation className="w-3 h-3" />
+                        Navigate
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

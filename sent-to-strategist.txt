@@ -1,0 +1,995 @@
+════════════════════════════════════════════════════════════════════════════════
+SENT TO STRATEGIST - Verification File
+════════════════════════════════════════════════════════════════════════════════
+Generated: 03/29/2026, 2:51:38 AM CDT
+Snapshot ID: 193ca81d-7a42-4656-bda9-abccffa4a8e5
+════════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+snapshot_id: 193ca81d-7a42-4656-bda9-abccffa4a8e5
+user_id: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
+
+LOCATION (what strategist sees):
+  city: Dallas
+  state: TX
+  formatted_address: 3856 Royal Ln, Dallas, TX 75229, USA
+  lat: 32.894986851545376
+  lng: -96.84767273976146
+  timezone: America/Chicago
+
+TIME (what strategist sees):
+  local_iso: Sun Mar 29 2026 02:50:28 GMT+0000 (Coordinated Universal Time)
+  formatted_local_time: Sunday, March 29, 2026 at 2:50 AM
+  dow: 0 (Sunday)
+  hour: 2
+  day_part_key: overnight
+  is_holiday: false
+  holiday: none
+
+WEATHER (from snapshot):
+{
+  "tempF": 54,
+  "conditions": "Clear",
+  "description": "Clear"
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+briefing_id: 0baba9f7-a364-4363-992b-dad00ef53ff6
+snapshot_id: 193ca81d-7a42-4656-bda9-abccffa4a8e5
+created_at (UTC): Sun Mar 29 2026 07:50:28 GMT+0000 (Coordinated Universal Time)
+created_at (local): Sun, Mar 29, 2:50 AM
+updated_at (UTC): Sun Mar 29 2026 07:51:38 GMT+0000 (Coordinated Universal Time)
+updated_at (local): Sun, Mar 29, 2:51 AM
+
+NEWS (6 items):
+{
+  "items": [
+    {
+      "title": "Lyft Launches Nationwide Fuel Savings Program",
+      "impact": "high",
+      "summary": "Lyft has introduced a 60-day relief plan running through late May to help drivers offset rising gas prices. Drivers using a Lyft Direct debit card can earn up to 2% extra cash back on fuel, depending on their tier status. Combined with app partnerships, top-tier drivers could save up to 98 cents per gallon. This provides a direct boost to net earnings for full-time drivers facing high pump prices.",
+      "category": "cost",
+      "published_date": "2026-03-28"
+    },
+    {
+      "title": "Thousands Attend Protests in Dallas, Fort Worth, and Frisco",
+      "impact": "high",
+      "summary": "Large-scale protests are taking place across the metroplex this weekend, with thousands marching in downtown Dallas, Fort Worth, and Frisco. Drivers should anticipate significant road closures, heavy gridlock, and surging ride demand around major downtown corridors and gathering points. Navigating these areas may require extra time, but offers high earning potential for drop-offs and pick-ups near the rally edges.",
+      "category": "event",
+      "published_date": "2026-03-28"
+    },
+    {
+      "title": "Nightly Lane Closures Scheduled for Major DFW Interstates",
+      "impact": "medium",
+      "summary": "Starting tonight, March 29, drivers working the night shift will face significant construction delays. The northbound Sandy Lake Road exit on I-35E will be closed overnight. Additionally, single-lane closures will affect I-20 and I-30 eastbound and westbound between 7 PM and 6 AM. Drivers should rely on real-time GPS routing to avoid getting stuck in construction bottlenecks during late-night airport runs or bar close.",
+      "category": "traffic",
+      "published_date": "2026-03-29"
+    },
+    {
+      "title": "Dallas Country Music Festival in McKinney",
+      "impact": "medium",
+      "summary": "The two-day Dallas Country, Blues & Red Dirt Festival is taking place this weekend at Myers Park and Event Center in McKinney. With seven major concerts scheduled from 11 AM to 8 PM, drivers in the northern suburbs should expect localized traffic and increased ride requests around the venue, especially during the evening egress.",
+      "category": "event",
+      "published_date": "2026-03-28"
+    },
+    {
+      "title": "TSA Wait Times Remain Steady at DFW and Love Field Despite Shutdown",
+      "impact": "medium",
+      "summary": "Despite the ongoing government shutdown and TSA agent financial strain, security wait times at DFW Airport and Dallas Love Field remain stable at under 10 minutes. However, with over 450 TSA officers quitting nationally and call-outs affecting other major hubs, drivers should stay alert for sudden changes in passenger flow or localized terminal congestion if staffing shortages hit local airports.",
+      "category": "airport",
+      "published_date": "2026-03-28"
+    },
+    {
+      "title": "TSA Touchless ID Rolls Out at DFW Airport Terminals",
+      "impact": "low",
+      "summary": "DFW Airport has expanded TSA Touchless ID facial recognition screening to Terminals A, C, D, and E. While primarily a passenger convenience, this faster security process could lead to quicker curbside drop-offs and a more steady flow of arriving passengers exiting the terminals, slightly altering the pacing of airport queues for drivers.",
+      "category": "airport",
+      "published_date": "2026-03-28"
+    }
+  ],
+  "reason": null
+}
+
+WEATHER_CURRENT:
+{
+  "tempC": 12,
+  "tempF": 54,
+  "country": "US",
+  "uvIndex": 0,
+  "humidity": 64,
+  "tempUnit": "°F",
+  "feelsLike": 52,
+  "isDaytime": false,
+  "conditions": "Clear",
+  "feelsLikeC": 11,
+  "feelsLikeF": 52,
+  "observedAt": "2026-03-29T07:50:28.638157409Z",
+  "visibility": {
+    "unit": "KILOMETERS",
+    "distance": 16
+  },
+  "temperature": 54,
+  "driverImpact": "Clear, 54°F — good driving conditions.",
+  "conditionType": "CLEAR",
+  "precipitation": {
+    "qpf": {
+      "unit": "MILLIMETERS",
+      "quantity": 0
+    },
+    "snowQpf": {
+      "unit": "MILLIMETERS",
+      "quantity": 0
+    },
+    "probability": {
+      "type": "RAIN",
+      "percent": 0
+    }
+  },
+  "windDirection": "SOUTHEAST",
+  "windSpeedUnit": "mph"
+}
+
+WEATHER_FORECAST (6 hours):
+[
+  {
+    "time": "2026-03-29T07:50:28.656Z",
+    "tempC": 13,
+    "tempF": 55,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Clear",
+    "temperature": 55,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-03-29T08:50:28.656Z",
+    "tempC": 12,
+    "tempF": 54,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Clear",
+    "temperature": 54,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-03-29T09:50:28.656Z",
+    "tempC": 12,
+    "tempF": 53,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Clear",
+    "temperature": 53,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-03-29T10:50:28.656Z",
+    "tempC": 12,
+    "tempF": 53,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Clear",
+    "temperature": 53,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-03-29T11:50:28.656Z",
+    "tempC": 11,
+    "tempF": 52,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Clear",
+    "temperature": 52,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  },
+  {
+    "time": "2026-03-29T12:50:28.656Z",
+    "tempC": 11,
+    "tempF": 52,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Clear",
+    "temperature": 52,
+    "conditionType": "CLEAR",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 0
+  }
+]
+
+TRAFFIC_CONDITIONS:
+{
+  "jams": 17,
+  "stats": {
+    "jams": 17,
+    "major": 15,
+    "total": 97,
+    "closures": 62,
+    "highways": 34,
+    "accidents": 0,
+    "construction": 18
+  },
+  "summary": "Dallas is experiencing heavy congestion with critical disruptions concentrated on the I-35E and I-635 corridors. Major road closures at Empire Central and Greenville Ave, paired with extensive Texpress lane construction, are severely limiting north-south and east-west throughput. Drivers should utilize the Dallas North Tollway or secondary arterials to bypass the I-35E/I-635 interchange bottlenecks.",
+  "analyzed": true,
+  "briefing": "Dallas is experiencing heavy congestion with critical disruptions concentrated on the I-35E and I-635 corridors. Major road closures at Empire Central and Greenville Ave, paired with extensive Texpress lane construction, are severely limiting north-south and east-west throughput. Drivers should utilize the Dallas North Tollway or secondary arterials to bypass the I-35E/I-635 interchange bottlenecks.",
+  "closures": [
+    {
+      "road": "",
+      "location": "I-35E (Empire Central) to TX-354 Loop/Harry Hines Blvd (Empire Central)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 4.9
+    },
+    {
+      "road": "",
+      "location": "Griffin St E / S Saint Paul St to I-30 E",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "location": "E R.L. Thornton Service Rd N to I-30 E",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 8.8
+    },
+    {
+      "road": "",
+      "location": "Corinth St (N Central Expy/US-75) to I-30/US-67/R L Thornton Fwy (N Central Expy/US-75)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 9.2
+    },
+    {
+      "road": "",
+      "location": "Greenville Ave exit [18A] to I-635 E",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 5.7
+    },
+    {
+      "road": "LBJ Express",
+      "location": "T I Blvd (I-635 HOV) to I-635/LBJ Fwy Local Lane Access (I-635 HOV)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 5.9
+    },
+    {
+      "road": "",
+      "location": "I-635/Lyndon B Johnson Fwy (Jupiter Rd) to W Kingsley Rd (Jupiter Rd)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 9.6
+    },
+    {
+      "road": "",
+      "location": "Canton St (N Central Expy/US-75) to Corinth St (N Central Expy/US-75)",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 8.9
+    },
+    {
+      "road": "R L Thornton Fwy W, US-67 S, I-30 W",
+      "location": "I-30 E to Ervay St exit [46B]",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 8.9
+    },
+    {
+      "road": "",
+      "location": "E Rosemeade Pkwy to Clear Creek Ln",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 8.5
+    },
+    {
+      "road": "",
+      "location": "Stanhope St to Windsor Pkwy",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 4.3
+    },
+    {
+      "road": "",
+      "location": "Las Colinas Blvd W to Harmony Way / Music Factory Way",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 5.8
+    },
+    {
+      "road": "",
+      "location": "Southwest Dallas to Las Colinas Blvd W",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 5.8
+    },
+    {
+      "road": "",
+      "location": "Reunion Blvd E (Hyatt Regency Hotel Dr) to Memorial Dr (Hyatt Regency Hotel Dr)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.6
+    },
+    {
+      "road": "",
+      "location": "Cadiz St (Hyatt Regency Hotel Dr) to Reunion Blvd E (Hyatt Regency Hotel Dr)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9.1
+    },
+    {
+      "road": "",
+      "location": "S Griffin Blvd (Cadiz St) to S Akard St (Cadiz St)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "location": "S Lamar St (Corinth St) to TX-342/S Industrial Blvd (Corinth St)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9.6
+    },
+    {
+      "road": "",
+      "location": "Botham Jean Blvd to Corinth St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9.6
+    },
+    {
+      "road": "",
+      "location": "S Central Expy to Cesar Chavez Blvd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "location": "Cesar Chavez Blvd exit [47A] to S Central Expy",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.9
+    },
+    {
+      "road": "",
+      "location": "Cesar Chavez Blvd to E R.L. Thornton Service Rd N / S Harwood St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9.2
+    },
+    {
+      "road": "",
+      "location": "Lamar St exit [45B] to Cesar Chavez Blvd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "location": "Twin Sixties Dr to Smu Blvd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 5.8
+    },
+    {
+      "road": "",
+      "location": "Northeast Dallas to Jonsson Blvd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.8
+    },
+    {
+      "road": "",
+      "location": "LBJ Express to T I Blvd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 5.8
+    },
+    {
+      "road": "",
+      "location": "Edgewood Dr to College Park Blvd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.4
+    },
+    {
+      "road": "",
+      "location": "Treadway St to Bomar Ave",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 4.9
+    },
+    {
+      "road": "",
+      "location": "W Beverly Dr / Westside Dr to Eastern Ave",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 4.6
+    },
+    {
+      "road": "",
+      "location": "McKinney Ave to Howell St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 6.9
+    },
+    {
+      "road": "",
+      "location": "Bowen St (Oak Grove Ave) to Lemmon Ave (Oak Grove Ave)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7
+    },
+    {
+      "road": "",
+      "location": "Armstrong Ave to Oliver Ave",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 6
+    },
+    {
+      "road": "",
+      "location": "Buena Vista St to Cole Ave",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 6
+    },
+    {
+      "road": "",
+      "location": "W Lovers Ln to Stanford Ave",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 4.9
+    },
+    {
+      "road": "",
+      "location": "N Collett Ave / Bryan St to Live Oak St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.6
+    },
+    {
+      "road": "",
+      "location": "N Peak St to N Carroll Ave",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.4
+    },
+    {
+      "road": "",
+      "location": "W Shore Dr to Loving Ave",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.6
+    },
+    {
+      "road": "",
+      "location": "W Rochelle Rd to Anderson St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.5
+    },
+    {
+      "road": "",
+      "location": "W Jackson Rd to Thirty Five Oaks Mobile Home Park",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7
+    },
+    {
+      "road": "",
+      "location": "N Canada Dr to N Hampton Rd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.1
+    },
+    {
+      "road": "",
+      "location": "W Mockingbird Ln to Treadway St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 4.8
+    },
+    {
+      "road": "",
+      "location": "S Griffin St (S Akard St) to Canton St (S Akard St)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "location": "Wisteria Way to N Floyd Rd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.6
+    },
+    {
+      "road": "",
+      "location": "Nantucket Dr to N Floyd Rd",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.5
+    },
+    {
+      "road": "",
+      "location": "W Belt Line Rd to S Central Expy",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.3
+    },
+    {
+      "road": "",
+      "location": "W Spring Valley Rd to S Sherman St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.1
+    },
+    {
+      "road": "",
+      "location": "Custer Rd to N Central Expy",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.8
+    },
+    {
+      "road": "",
+      "location": "Nottingham Dr to Huntingdon Dr",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9.5
+    },
+    {
+      "road": "",
+      "location": "N Interstate 35E to Interstate 35 E",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 7.9
+    },
+    {
+      "road": "",
+      "location": "N Josey Ln to Paxton Dr",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8
+    },
+    {
+      "road": "",
+      "location": "Ponder Dr to Walnut Hill Ln",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 1.8
+    },
+    {
+      "road": "",
+      "location": "S Griffin St (Ceremonial Dr) to S Lamar St (Ceremonial Dr)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.7
+    },
+    {
+      "road": "",
+      "location": "Memorial Dr (Hyatt Regency Hotel Dr) to Cadiz St (Hyatt Regency Hotel Dr)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "location": "Young St (Lamar St) to Canton St (Lamar St)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.7
+    },
+    {
+      "road": "",
+      "location": "S Griffin St (Memorial Dr) to Hotel St (Memorial Dr)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.8
+    },
+    {
+      "road": "",
+      "location": "Cadiz St (Lamar St) to Canton St (Lamar St)",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "location": "Canton St to Cadiz St",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.8
+    },
+    {
+      "road": "",
+      "location": "Cliffside Dr to Blue Lake Cir",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 6.5
+    },
+    {
+      "road": "",
+      "location": "Lawnmeadow Dr to Nantucket Dr",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.6
+    },
+    {
+      "road": "",
+      "location": "Copper Ridge Dr to Nantucket Dr",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 8.7
+    },
+    {
+      "road": "",
+      "location": "N Central Expy to Waterwood Dr",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 9.9
+    },
+    {
+      "road": "",
+      "location": "Walnut Hill Ln to Plaudit Pl",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 1.9
+    },
+    {
+      "road": "",
+      "location": "LBJ Express to LBJ Express",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 5.6
+    }
+  ],
+  "headline": "Dallas is experiencing heavy congestion with critical disruptions concentrated on the I-35E and I-635 corridors.",
+  "provider": "tomtom",
+  "fetchedAt": "2026-03-29T07:50:28.920Z",
+  "incidents": [
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "I-35E/W Mockingbird Ln/Exit 433 (I-35E Frontage) to I-35E/Regal Row/Exit 434 (I-35E Frontage)",
+      "priority": 161,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: I-35E/W Mockingbird Ln/Exit 433 (I-35E Frontage) to I-35E/Regal Row/Exit 434 (I-35E Frontage) [5 mi]",
+      "lengthMiles": 0.4,
+      "delayMinutes": 6,
+      "distanceFromDriver": 5
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "N Hall St (Elm St) to I-45 Service Rd (Elm St)",
+      "priority": 157,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: N Hall St (Elm St) to I-45 Service Rd (Elm St) [8.5 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 2,
+      "distanceFromDriver": 8.5
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Empire Central Dr to N Stemmons Fwy",
+      "priority": 142,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Empire Central Dr to N Stemmons Fwy [4.9 mi]",
+      "lengthMiles": 0,
+      "delayMinutes": 2,
+      "distanceFromDriver": 4.9
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "I-35E (Empire Central) to TX-354 Loop/Harry Hines Blvd (Empire Central)",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: I-35E (Empire Central) to TX-354 Loop/Harry Hines Blvd (Empire Central) [4.9 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 4.9
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Griffin St E / S Saint Paul St to I-30 E",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Griffin St E / S Saint Paul St to I-30 E [9 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "E R.L. Thornton Service Rd N to I-30 E",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: E R.L. Thornton Service Rd N to I-30 E [8.8 mi]",
+      "lengthMiles": 0.2,
+      "delayMinutes": 0,
+      "distanceFromDriver": 8.8
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Corinth St (N Central Expy/US-75) to I-30/US-67/R L Thornton Fwy (N Central Expy/US-75)",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Corinth St (N Central Expy/US-75) to I-30/US-67/R L Thornton Fwy (N Central Expy/US-75) [9.2 mi]",
+      "lengthMiles": 0.3,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.2
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "Greenville Ave exit [18A] to I-635 E",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: Greenville Ave exit [18A] to I-635 E [5.7 mi]",
+      "lengthMiles": 0.7,
+      "delayMinutes": 0,
+      "distanceFromDriver": 5.7
+    },
+    {
+      "road": "LBJ Express",
+      "category": "Road Closed",
+      "location": "T I Blvd (I-635 HOV) to I-635/LBJ Fwy Local Lane Access (I-635 HOV)",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: LBJ Express (T I Blvd (I-635 HOV) to I-635/LBJ Fwy Local Lane Access (I-635 HOV)) [5.9 mi]",
+      "lengthMiles": 0.6,
+      "delayMinutes": 0,
+      "distanceFromDriver": 5.9
+    },
+    {
+      "road": "",
+      "category": "Road Closed",
+      "location": "I-635/Lyndon B Johnson Fwy (Jupiter Rd) to W Kingsley Rd (Jupiter Rd)",
+      "priority": 140,
+      "severity": "low",
+      "isHighway": true,
+      "description": "Road Closed: I-635/Lyndon B Johnson Fwy (Jupiter Rd) to W Kingsley Rd (Jupiter Rd) [9.6 mi]",
+      "lengthMiles": 0.1,
+      "delayMinutes": 0,
+      "distanceFromDriver": 9.6
+    }
+  ],
+  "keyIssues": [
+    "I-35E at Mockingbird Ln: Major jam 5.0mi south - 6min delay impacting downtown access",
+    "I-35E at Empire Central: Road closed 4.9mi south - forcing heavy detours to Harry Hines Blvd",
+    "I-635 at Greenville Ave: Road closed 5.7mi northeast - blocking eastbound highway flow"
+  ],
+  "avoidAreas": [
+    "I-35E Stemmons Corridor: Multiple closures and major jams between Empire Central and Mockingbird (4.9mi - 5.0mi away)",
+    "I-635 LBJ Freeway Eastbound: Closure at Greenville Ave causing significant spillover (5.7mi away)"
+  ],
+  "safetyAlert": "17 active traffic jams in the area",
+  "driverImpact": "Prioritize short-haul trips within the Love Field and Medical District areas while avoiding long-distance airport transfers via I-35E or I-635 due to high closure density and unpredictable delays.",
+  "surgePricing": true,
+  "closuresCount": 62,
+  "repositioning": null,
+  "incidentsCount": 97,
+  "totalIncidents": 97,
+  "closuresSummary": "7 closures within 10mi, most critical: I-35E at Empire Central and I-635 at Greenville Ave exit",
+  "congestionLevel": "high",
+  "highDemandZones": [],
+  "constructionSummary": "Significant road works on I-35E Texpress lanes between I-635 and Sandy Lake Rd (3.3mi to 7.1mi away) are restricting high-speed lane availability."
+}
+
+EVENTS (0 total):
+{
+  "items": [],
+  "reason": "No events found"
+}
+
+SCHOOL_CLOSURES (7 total, 0 active today):
+[
+  {
+    "lat": 33.02,
+    "lng": -96.73,
+    "type": "public",
+    "impact": "high",
+    "reason": "Student/Teacher Holiday",
+    "schoolName": "Plano ISD",
+    "closureStart": "2026-04-03",
+    "reopeningDate": "2026-04-06",
+    "distanceFromDriver": 7.4
+  },
+  {
+    "lat": 33.1188,
+    "lng": -96.8035,
+    "type": "public",
+    "impact": "high",
+    "reason": "Student Holiday",
+    "schoolName": "Frisco ISD",
+    "closureStart": "2026-04-03",
+    "reopeningDate": "2026-04-06",
+    "distanceFromDriver": 8.6
+  },
+  {
+    "lat": 32.8733,
+    "lng": -96.7688,
+    "type": "public",
+    "impact": "high",
+    "reason": "Holiday / Inclement Weather Make-up Day",
+    "schoolName": "Dallas ISD",
+    "closureStart": "2026-04-03",
+    "reopeningDate": "2026-04-06",
+    "distanceFromDriver": 10.3
+  },
+  {
+    "lat": 32.9857,
+    "lng": -96.7502,
+    "type": "college",
+    "impact": "high",
+    "reason": "Good Friday",
+    "schoolName": "The University of Texas at Dallas",
+    "closureStart": "2026-04-03",
+    "reopeningDate": "2026-04-06",
+    "distanceFromDriver": 6.3
+  },
+  {
+    "lat": 33.0528,
+    "lng": -96.6578,
+    "type": "college",
+    "impact": "high",
+    "reason": "Spring Holiday",
+    "schoolName": "Collin College",
+    "closureStart": "2026-04-03",
+    "reopeningDate": "2026-04-06",
+    "distanceFromDriver": 12
+  },
+  {
+    "lat": 32.8412,
+    "lng": -96.7845,
+    "type": "college",
+    "impact": "high",
+    "reason": "Good Friday",
+    "schoolName": "Southern Methodist University",
+    "closureStart": "2026-04-03",
+    "reopeningDate": "2026-04-06",
+    "distanceFromDriver": 12
+  },
+  {
+    "lat": 32.9324,
+    "lng": -96.8252,
+    "type": "private",
+    "impact": "medium",
+    "reason": "Easter Holiday",
+    "schoolName": "Parish Episcopal School",
+    "closureStart": "2026-04-03",
+    "reopeningDate": "2026-04-06",
+    "distanceFromDriver": 5.2
+  }
+]
+
+AIRPORT_CONDITIONS:
+{
+  "airports": [
+    {
+      "code": "DFW",
+      "name": "Dallas/Fort Worth International Airport",
+      "delays": "Experiencing significant delays and some cancellations due to spring travel volume and cascading effects from nationwide TSA staffing shortages.",
+      "status": "severe_delays",
+      "busyTimes": [
+        "5:00 AM - 8:00 AM",
+        "4:00 PM - 7:00 PM"
+      ]
+    },
+    {
+      "code": "DAL",
+      "name": "Dallas Love Field",
+      "delays": "Experiencing moderate delays with some travel waivers in effect due to regional disruptions.",
+      "status": "delays",
+      "busyTimes": [
+        "5:00 AM - 8:00 AM",
+        "4:00 PM - 7:00 PM"
+      ]
+    }
+  ],
+  "provider": "gemini",
+  "fetchedAt": "2026-03-29T07:50:52.359Z",
+  "busyPeriods": [
+    "Early morning rush from 5:00 AM to 8:00 AM driven by morning business flights and major flight banks.",
+    "Late afternoon and evening rush from 4:00 PM to 7:00 PM due to evening departures and arrivals."
+  ],
+  "recommendations": "For DFW, ensure your rideshare trade dress is visible, enter the designated FIFO staging area, and consider waiting near nearby hotels during peak departure times to catch rides heading to the airport. For DAL, note that the rideshare pickup location is located on the ground level of the rental car garage (follow signs for Rental Car Return and look for Blue, Red, or Yellow lanes). Always stay in the designated staging areas to maintain your spot in the queue."
+}
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECTION 3: STRATEGY ROW (AI Output)                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+id: 91f08fd0-8f18-4322-b689-75700d48e466
+snapshot_id: 193ca81d-7a42-4656-bda9-abccffa4a8e5
+status: pending
+error_message: (none)
+created_at: Sun Mar 29 2026 07:50:28 GMT+0000 (Coordinated Universal Time)
+updated_at: Sun Mar 29 2026 07:51:38 GMT+0000 (Coordinated Universal Time)
+
+STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
+────────────────────────────────────────────────────────────────────────────────
+(null or empty)
+────────────────────────────────────────────────────────────────────────────────
+
+CONSOLIDATED_STRATEGY (Gemini Daily Strategy):
+────────────────────────────────────────────────────────────────────────────────
+(null or empty)
+────────────────────────────────────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ SECTION 4: VERIFICATION CHECKLIST                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Data Integrity:
+  ✓ Snapshot timezone: America/Chicago
+  ✓ Briefing has traffic: YES
+  ✓ Briefing has events: YES
+  ✓ Strategy status: pending
+  ✓ Strategy has immediate: NO
+  ✓ Strategy has daily: NO
+  ✓ IDs match: YES
+
+School Closures Filter Check:
+  Today's date (America/Chicago): 2026-03-29
+  Active closures (start_date <= today <= end_date): 0 / 7
+  (None active today)
+
+Event Count:
+  Total events in briefing: 0
+  High impact: 0
+  Medium impact: 0
+  Low impact: 0
+
+TBD/Unknown Check (RAW DB data - these get filtered at read time):
+  Events with TBD in location: 0
+  Events with TBD in venue: 0
+  Events with TBD in time: 0
+
+Events AFTER filterInvalidEvents (what LLM actually receives):
+  Raw events in DB: 0
+  Filtered events (sent to LLM): 0
+  TBD events removed: 0
+
+════════════════════════════════════════════════════════════════════════════════
+END OF VERIFICATION FILE
+════════════════════════════════════════════════════════════════════════════════

@@ -189,8 +189,10 @@ CREATE TABLE IF NOT EXISTS http_idem (
 );
 
 -- Table 10: places_cache
+-- 2026-01-10: D-013 Fix - Renamed place_id → coords_key for semantic accuracy
+-- Column stores coordinate keys (lat_lng format), not Google Place IDs
 CREATE TABLE IF NOT EXISTS places_cache (
-  place_id TEXT PRIMARY KEY,
+  coords_key TEXT PRIMARY KEY,
   formatted_hours JSONB,
   cached_at TIMESTAMPTZ NOT NULL,
   access_count INTEGER NOT NULL DEFAULT 0

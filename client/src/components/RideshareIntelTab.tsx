@@ -1,0 +1,926 @@
+/**
+ * RideshareIntelTab - Market Intelligence & Strategy Hub
+ *
+ * Location-aware intelligence dashboard that provides:
+ * - Auto-detected market based on user's GPS location
+ * - Market archetype classification (Sprawl, Dense, Party)
+ * - Zone intelligence (honey holes, danger zones, dead zones)
+ * - Strategic principles (Ant vs Sniper strategies)
+ * - Deadhead risk calculator
+ * - Market-specific regulatory and strategy info
+ *
+ * Fetches data from /api/intelligence API filtered by snapshot location.
+ */
+
+import { useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  ChevronDown,
+  ChevronUp,
+  Target,
+  MapPin,
+  Loader2,
+  AlertCircle,
+  Navigation,
+  RefreshCw,
+  Globe,
+  Shield,
+  Plane,
+  Lightbulb,
+  Building2,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
+} from "lucide-react";
+
+import { useMarketIntelligence } from "@/hooks/useMarketIntelligence";
+import { useLocation } from "@/contexts/location-context-clean";
+// 2026-01-14: Removed useBriefingQueries import - now using pre-loaded data from CoPilotContext
+// This prevents duplicate SSE subscriptions to briefing_ready
+import { useCoPilot } from "@/contexts/co-pilot-context";
+import {
+  ZoneCards,
+  UniversalZoneLogic,
+  ZoneSummary,
+} from "@/components/intel/ZoneCards";
+import { DeadheadCalculator } from "@/components/intel/DeadheadCalculator";
+import {
+  StrategicPrinciples,
+  MarketStrategies,
+  TimingAdvice,
+} from "@/components/intel/StrategyCards";
+import TacticalStagingMap from "@/components/intel/TacticalStagingMap";
+import { DemandRhythmChart } from "@/components/intel/DemandRhythmChart";
+import { MarketBoundaryGrid } from "@/components/intel/MarketBoundaryGrid";
+import { MarketDeadheadCalculator } from "@/components/intel/MarketDeadheadCalculator";
+import type { EventMission, AirportMission } from "@/types/tactical-map";
+import type { RegionType } from "@/types/demand-patterns";
+import { formatEventTime } from "@/utils/co-pilot-helpers";
+
+export default function RideshareIntelTab() {
+  const { refreshGPS, isUpdating, currentCoords, timeZone } = useLocation();
+  // 2026-01-14: Get ALL data from CoPilotContext (single source of truth)
+  // This prevents duplicate useBriefingQueries calls which create extra SSE subscriptions
+  const { lastSnapshotId: snapshotId, briefingData } = useCoPilot();
+
+  // Extract coords for TacticalStagingMap
+  const latitude = currentCoords?.latitude;
+  const longitude = currentCoords?.longitude;
+  const timezone = timeZone;
+
+  // 1. Destructure RAW data from hook (may have unstable references)
+  const {
+    city,
+    state,
+    marketSlug,
+    isLocationResolved,
+    archetype,
+    archetypeInfo,
+    intelligence,
+    isLoading,
+    error,
+    zones: rawZones,
+    strategies: rawStrategies,
+    regulatory: rawRegulatory,
+    safety: rawSafety,
+    timing: rawTiming,
+    airport: rawAirport,
+    markets: rawMarkets,
+    marketsLoading,
+    marketAnchor,
+    regionType,
+    deadheadRisk,
+    marketStats,
+    marketCities: rawMarketCities,
+  } = useMarketIntelligence();
+
+  // ---------------------------------------------------------------------------
+  // 🛡️ DEFENSIVE MEMOIZATION (Fixes "Maximum update depth exceeded" loop)
+  // Even if the hook returns new array references, these useMemos ensure
+  // we only pass new props down if the LENGTH actually changes.
+  // Using .length as dependency is more stable than the array reference.
+  // ---------------------------------------------------------------------------
+  const zones = useMemo(() => rawZones || [], [rawZones?.length]);
+  const strategies = useMemo(() => rawStrategies || [], [rawStrategies?.length]);
+  const safety = useMemo(() => rawSafety || [], [rawSafety?.length]);
+  const regulatory = useMemo(() => rawRegulatory || [], [rawRegulatory?.length]);
+  const airport = useMemo(() => rawAirport || [], [rawAirport?.length]);
+  const marketCities = useMemo(() => rawMarketCities || [], [rawMarketCities?.length]);
+  const markets = useMemo(() => rawMarkets || [], [rawMarkets?.length]);
+  const timing = useMemo(() => rawTiming || [], [rawTiming?.length]);
+  // ---------------------------------------------------------------------------
+
+  // 2026-01-14: Use pre-loaded briefing data from CoPilotContext
+  // Context provides unwrapped values: events (array), traffic (object), airport (object)
+  const eventsArray = briefingData?.events || [];
+  const trafficObj = briefingData?.traffic;
+  const airportObj = briefingData?.airport;
+
+  // Transform briefing data for TacticalStagingMap
+  // Use .length dependency to avoid loops from array reference changes
+  const eventMissions: EventMission[] = useMemo(() => {
+    return eventsArray
+      // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
+      .filter((e: any) => e.latitude && e.longitude)
+      .map((e: any) => ({
+        id: `event-${e.title}`,
+        type: "event" as const,
+        name: e.venue || e.title,
+        lat: e.latitude,
+        lng: e.longitude,
+        // 2026-01-14: FIX - Format time as 12h AM/PM instead of 24h military time
+        subtitle: e.event_start_time ? `${e.title} - ${formatEventTime(e.event_start_time)}` : e.title,
+        venue: e.venue,
+        eventDate: e.event_start_date,
+        eventTime: e.event_start_time,
+        eventEndTime: e.event_end_time,
+        impact: e.impact,
+        category: e.event_type,
+        subtype: e.subtype,
+      }));
+  }, [eventsArray?.length]);
+
+  const airportMissions: AirportMission[] = useMemo(() => {
+    return (airportObj?.airports || [])
+      .filter((a: any) => a.lat && a.lng)
+      .map((a: any) => ({
+        id: `airport-${a.code}`,
+        type: "airport" as const,
+        name: a.name || a.code,
+        lat: a.lat,
+        lng: a.lng,
+        subtitle: a.status === "delays" ? `${a.code} - Delays` : a.code,
+        code: a.code,
+        status: a.status,
+        currentDelays:
+          a.arrivalDelays?.avgMinutes || a.departureDelays?.avgMinutes,
+      }));
+  }, [airportObj?.airports?.length]);
+
+  // Traffic context for AI tactical planner - use primitive deps for stability
+  // 2026-01-14: Updated to use trafficObj from CoPilotContext (unwrapped value)
+  const trafficContext = useMemo(() => {
+    if (!trafficObj) return undefined;
+    return {
+      congestionLevel: trafficObj.congestionLevel,
+      incidents: trafficObj.incidents,
+      avoidAreas: trafficObj.avoidAreas,
+    };
+  }, [
+    trafficObj?.congestionLevel,
+    trafficObj?.incidents?.length,
+  ]);
+
+  // Expand/collapse states
+  const [expandedSections, setExpandedSections] = useState({
+    marketPosition: true,
+    tacticalMap: true, // Tactical Staging Map section
+    demandRhythm: true, // NEW: Demand Rhythm Chart
+    marketGrid: true, // NEW: Market Boundary Grid
+    zones: true,
+    strategies: true,
+    calculator: true,
+    safety: false,
+    regulatory: false,
+    airport: false,
+    available: false,
+    marketCities: false,
+  });
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  // Archetype color mapping
+  const archetypeColorMap = {
+    sprawl: {
+      bg: "from-amber-50 to-orange-50",
+      border: "border-amber-200",
+      text: "text-amber-700",
+      badge: "bg-amber-100 text-amber-700 border-amber-300",
+    },
+    dense: {
+      bg: "from-blue-50 to-indigo-50",
+      border: "border-blue-200",
+      text: "text-blue-700",
+      badge: "bg-blue-100 text-blue-700 border-blue-300",
+    },
+    party: {
+      bg: "from-purple-50 to-pink-50",
+      border: "border-purple-200",
+      text: "text-purple-700",
+      badge: "bg-purple-100 text-purple-700 border-purple-300",
+    },
+  };
+
+  // FIX: Safe access to colors - fallback to 'sprawl' if archetype is undefined/invalid
+  // This prevents crash when archetype is loading or has unexpected value
+  const colors = (archetype && archetype in archetypeColorMap)
+    ? archetypeColorMap[archetype as keyof typeof archetypeColorMap]
+    : archetypeColorMap.sprawl;
+
+  return (
+    <div className="space-y-6 mb-24" data-testid="rideshare-intel-section">
+      {/* Header with Location Context */}
+      <div className="text-center max-w-2xl mx-auto">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <Target className="w-6 h-6 text-amber-600" />
+          <h1 className="text-2xl font-bold text-gray-900">
+            Market Intelligence
+          </h1>
+        </div>
+        <p className="text-gray-600">
+          Location-aware insights, zone strategies, and profitability tools for
+          your market.
+        </p>
+      </div>
+
+      {/* Market Context Banner */}
+      <Card className={`shadow-lg ${colors.border} overflow-hidden`}>
+        <CardContent className={`p-0 bg-gradient-to-r ${colors.bg}`}>
+          <div className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              {/* Location Info */}
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl bg-white/70 ${colors.text}`}>
+                  <Navigation className="w-6 h-6" />
+                </div>
+                <div>
+                  {!isLocationResolved ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                      <span className="text-gray-600">
+                        Detecting your market...
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {city}, {state}
+                      </h2>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className={colors.badge}>
+                          {archetypeInfo?.name || 'Unknown Market'}
+                        </Badge>
+                        <span className="text-sm text-gray-500">Market</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Market Type Description */}
+              <div className="flex-1 max-w-md">
+                <p className={`text-sm ${colors.text} leading-relaxed`}>
+                  {archetypeInfo?.description}
+                </p>
+              </div>
+
+              {/* Refresh Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshGPS}
+                disabled={isUpdating}
+                className="shrink-0"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 mr-2 ${isUpdating ? "animate-spin" : ""}`}
+                />
+                {isUpdating ? "Updating..." : "Refresh Location"}
+              </Button>
+            </div>
+
+            {/* Zone Summary */}
+            {zones.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/30">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-gray-700">
+                    Available Intel:
+                  </span>
+                  <ZoneSummary zones={zones} />
+                  {strategies.length > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="bg-indigo-100 text-indigo-700 border-indigo-200 text-xs"
+                    >
+                      🎯 {strategies.length} Strategies
+                    </Badge>
+                  )}
+                  {safety.length > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="bg-rose-100 text-rose-700 border-rose-200 text-xs"
+                    >
+                      🛡️ {safety.length} Safety Tips
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Market Position Card - Shows market anchor, region type, and deadhead risk */}
+      {regionType && (
+        <Card className="shadow-lg border-indigo-200 overflow-hidden">
+          <CardHeader
+            className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100 cursor-pointer"
+            onClick={() => toggleSection("marketPosition")}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                Your Market Position
+              </CardTitle>
+              {expandedSections.marketPosition ? (
+                <ChevronUp className="w-5 h-5 text-indigo-600" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-indigo-600" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.marketPosition && (
+            <CardContent className="p-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Region Type Badge */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      className={`text-sm px-3 py-1 ${
+                        regionType === "Core"
+                          ? "bg-green-100 text-green-800 border-green-300"
+                          : regionType === "Satellite"
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : "bg-red-100 text-red-800 border-red-300"
+                      }`}
+                    >
+                      {regionType === "Core" && (
+                        <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      {regionType === "Satellite" && (
+                        <TrendingUp className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      {regionType === "Rural" && (
+                        <AlertTriangle className="w-3.5 h-3.5 mr-1" />
+                      )}
+                      {regionType} Market
+                    </Badge>
+                  </div>
+
+                  {marketAnchor && city !== marketAnchor && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">{city}</span> is a{" "}
+                      {regionType?.toLowerCase()} city within the{" "}
+                      <span className="font-semibold text-indigo-700">
+                        {marketAnchor}
+                      </span>{" "}
+                      market.
+                    </p>
+                  )}
+
+                  {marketAnchor && city === marketAnchor && (
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">{city}</span> is the core
+                      anchor of this market.
+                    </p>
+                  )}
+
+                  {/* Market Stats */}
+                  {marketStats && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                        {marketStats.total_cities} cities in market
+                      </span>
+                      <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded">
+                        {marketStats.core_count} core
+                      </span>
+                      <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded">
+                        {marketStats.satellite_count} satellite
+                      </span>
+                      {parseInt(marketStats.rural_count) > 0 && (
+                        <span className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded">
+                          {marketStats.rural_count} rural
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Deadhead Risk */}
+                {deadheadRisk && (
+                  <div
+                    className={`p-4 rounded-lg ${
+                      deadheadRisk.level === "low"
+                        ? "bg-green-50 border border-green-200"
+                        : deadheadRisk.level === "medium"
+                          ? "bg-amber-50 border border-amber-200"
+                          : "bg-red-50 border border-red-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Target
+                        className={`w-4 h-4 ${
+                          deadheadRisk.level === "low"
+                            ? "text-green-600"
+                            : deadheadRisk.level === "medium"
+                              ? "text-amber-600"
+                              : "text-red-600"
+                        }`}
+                      />
+                      <span className="font-semibold text-gray-900">
+                        Deadhead Risk:{" "}
+                        {deadheadRisk.level.charAt(0).toUpperCase() +
+                          deadheadRisk.level.slice(1)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-2">
+                      {deadheadRisk.description}
+                    </p>
+                    <p className="text-sm font-medium text-gray-900">
+                      💡 {deadheadRisk.advice}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Tactical Staging Map - DISABLED - Google Maps DOM conflicts with React */}
+      {/* TODO: Fix Google Maps integration to prevent removeChild errors */}
+      {/* eslint-disable-next-line no-constant-condition -- intentionally disabled */}
+      {null && latitude && longitude ? (
+        snapshotId ? (
+          <TacticalStagingMap
+            snapshotId={snapshotId}
+            driverLat={latitude}
+            driverLng={longitude}
+            timezone={timezone}
+            events={eventMissions}
+            airports={airportMissions}
+            trafficContext={trafficContext}
+          />
+        ) : (
+          <Card className="shadow-lg border-violet-200 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 border-b border-violet-100">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Target className="w-5 h-5 text-violet-600" />
+                Tactical Staging Map
+                <Badge
+                  variant="secondary"
+                  className="bg-violet-100 text-violet-700 ml-2"
+                >
+                  Loading...
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-violet-400 mx-auto mb-3" />
+              <p className="text-gray-600">Waiting for strategy data...</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Navigate to Strategy tab first to initialize
+              </p>
+            </CardContent>
+          </Card>
+        )
+      ) : null}
+
+      {/* Demand Rhythm Chart - Weekly demand visualization */}
+      {isLocationResolved && (
+        <DemandRhythmChart
+          archetype={archetype}
+          marketSlug={marketSlug || undefined}
+          city={city || undefined}
+        />
+      )}
+
+      {/* Market Boundary Grid - Zone visualization */}
+      {/* TESTING: Enable one at a time */}
+      {false && isLocationResolved && marketCities.length > 0 && (
+        <MarketBoundaryGrid
+          currentCity={city}
+          marketAnchor={marketAnchor}
+          regionType={regionType as RegionType | null}
+          marketCities={marketCities}
+          marketStats={marketStats}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+          <span className="ml-3 text-gray-600">
+            Loading market intelligence...
+          </span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 text-red-700">
+              <AlertCircle className="w-5 h-5" />
+              <span>Failed to load intelligence data. Please try again.</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No Intelligence Available */}
+      {!isLoading && !error && intelligence?.total_items === 0 && (
+        <Card className="border-gray-200">
+          <CardContent className="p-8 text-center">
+            <Globe className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              No Intelligence Available Yet
+            </h3>
+            <p className="text-gray-600 max-w-md mx-auto">
+              We're still building intelligence for <strong>{city}</strong>.
+              Check back soon, or explore the universal zone logic and
+              calculator below!
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Universal Zone Logic (always shown) */}
+      <UniversalZoneLogic />
+
+      {/* Strategic Principles */}
+      <Card className="shadow-lg border-gray-200">
+        <CardHeader
+          className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => toggleSection("strategies")}
+        >
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Target className="w-5 h-5 text-gray-600" />
+              Strategic Principles
+            </CardTitle>
+            {expandedSections.strategies ? (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            )}
+          </div>
+        </CardHeader>
+        {expandedSections.strategies && (
+          <CardContent className="pt-0">
+            <StrategicPrinciples recommendedStrategy={archetype} />
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Deadhead Calculator */}
+      <div className="space-y-2">
+        <div
+          className="flex items-center justify-between cursor-pointer p-2 hover:bg-gray-50 rounded-lg transition-colors"
+          onClick={() => toggleSection("calculator")}
+        >
+          <div className="flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-gray-600" />
+            <h3 className="text-lg font-semibold text-gray-900">
+              Profitability Tools
+            </h3>
+          </div>
+          {expandedSections.calculator ? (
+            <ChevronUp className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          )}
+        </div>
+        {expandedSections.calculator && (
+          <div className="space-y-6">
+            {/* Market-Specific Deadhead Calculator */}
+            {/* TESTING: Enable one at a time */}
+            {false && marketCities.length > 0 && (
+              <MarketDeadheadCalculator
+                currentCity={city}
+                currentRegionType={regionType as RegionType | null}
+                marketCities={marketCities}
+                marketAnchor={marketAnchor}
+              />
+            )}
+            {/* Universal Deadhead Calculator */}
+            <DeadheadCalculator />
+          </div>
+        )}
+      </div>
+
+      {/* Market-Specific Zones */}
+      {zones.length > 0 && (
+        <Card className="shadow-lg border-emerald-200">
+          <CardHeader
+            className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 cursor-pointer"
+            onClick={() => toggleSection("zones")}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-emerald-600" />
+                {city} Zone Intelligence
+                <Badge variant="secondary" className="ml-2">
+                  {zones.length}
+                </Badge>
+              </CardTitle>
+              {expandedSections.zones ? (
+                <ChevronUp className="w-5 h-5 text-emerald-600" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-emerald-600" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.zones && (
+            <CardContent className="p-6">
+              <ZoneCards zones={zones} title="" />
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Market Strategies from API */}
+      {strategies.length > 0 && (
+        <MarketStrategies
+          strategies={strategies}
+          title={`${city} Strategies`}
+        />
+      )}
+
+      {/* Timing Advice */}
+      {timing.length > 0 && <TimingAdvice timing={timing} />}
+
+      {/* Safety Information */}
+      {safety.length > 0 && (
+        <Card className="shadow-lg border-rose-200">
+          <CardHeader
+            className="bg-gradient-to-r from-rose-50 to-red-50 border-b border-rose-100 cursor-pointer"
+            onClick={() => toggleSection("safety")}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Shield className="w-5 h-5 text-rose-600" />
+                Safety Information
+                <Badge
+                  variant="secondary"
+                  className="bg-rose-100 text-rose-700 ml-2"
+                >
+                  {safety.length}
+                </Badge>
+              </CardTitle>
+              {expandedSections.safety ? (
+                <ChevronUp className="w-5 h-5 text-rose-600" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-rose-600" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.safety && (
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                {safety.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white border border-rose-100 rounded-lg p-4"
+                  >
+                    <h4 className="font-semibold text-rose-800">
+                      {item.title}
+                    </h4>
+                    <p className="text-sm text-gray-700 mt-2">{item.content}</p>
+                    {item.neighborhoods && item.neighborhoods.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {item.neighborhoods.map((n, i) => (
+                          <span
+                            key={i}
+                            className="text-xs bg-rose-50 text-rose-700 px-2 py-1 rounded"
+                          >
+                            {n}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Airport Intelligence */}
+      {airport.length > 0 && (
+        <Card className="shadow-lg border-sky-200">
+          <CardHeader
+            className="bg-gradient-to-r from-sky-50 to-blue-50 border-b border-sky-100 cursor-pointer"
+            onClick={() => toggleSection("airport")}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Plane className="w-5 h-5 text-sky-600" />
+                Airport Intelligence
+                <Badge
+                  variant="secondary"
+                  className="bg-sky-100 text-sky-700 ml-2"
+                >
+                  {airport.length}
+                </Badge>
+              </CardTitle>
+              {expandedSections.airport ? (
+                <ChevronUp className="w-5 h-5 text-sky-600" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-sky-600" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.airport && (
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                {airport.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white border border-sky-100 rounded-lg p-4"
+                  >
+                    <h4 className="font-semibold text-sky-800">{item.title}</h4>
+                    <p className="text-sm text-gray-700 mt-2">{item.content}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Regulatory Information */}
+      {regulatory.length > 0 && (
+        <Card className="shadow-lg border-gray-200">
+          <CardHeader
+            className="cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => toggleSection("regulatory")}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-gray-600" />
+                Regulatory Context
+                <Badge variant="secondary" className="ml-2">
+                  {regulatory.length}
+                </Badge>
+              </CardTitle>
+              {expandedSections.regulatory ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.regulatory && (
+            <CardContent>
+              <div className="space-y-4">
+                {regulatory.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-gray-50 border border-gray-200 rounded-lg p-4"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-semibold text-gray-900">
+                        {item.title}
+                      </h4>
+                      {item.platform !== "both" && (
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {item.platform}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-700">{item.content}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Cities in Your Market */}
+      {marketCities.length > 1 && (
+        <Card className="shadow-lg border-gray-200">
+          <CardHeader
+            className="cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => toggleSection("marketCities")}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-gray-600" />
+                Cities in {marketAnchor || "Your"} Market
+                <Badge variant="secondary" className="ml-2">
+                  {marketCities.length} cities
+                </Badge>
+              </CardTitle>
+              {expandedSections.marketCities ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.marketCities && (
+            <CardContent>
+              <p className="text-sm text-gray-500 mb-4">
+                These cities share the same rideshare market. Rides between them
+                typically have good return trip opportunities.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                {marketCities.map((mc) => (
+                  <div
+                    key={mc.city}
+                    className={`p-2 rounded-lg border text-sm ${
+                      mc.city === city
+                        ? "bg-indigo-50 border-indigo-300 font-medium"
+                        : mc.region_type === "Core"
+                          ? "bg-green-50 border-green-200"
+                          : mc.region_type === "Satellite"
+                            ? "bg-amber-50 border-amber-200"
+                            : "bg-red-50 border-red-200"
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900">{mc.city}</div>
+                    <div className="text-xs text-gray-500">
+                      {mc.region_type || "Unknown"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Available Markets */}
+      {markets.length > 0 && (
+        <Card className="shadow-lg border-gray-200">
+          <CardHeader
+            className="cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => toggleSection("available")}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Globe className="w-5 h-5 text-gray-600" />
+                Markets with Intelligence
+                <Badge variant="secondary" className="ml-2">
+                  {markets.length} markets
+                </Badge>
+              </CardTitle>
+              {expandedSections.available ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </div>
+          </CardHeader>
+          {expandedSections.available && (
+            <CardContent>
+              {marketsLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {markets.map((m) => (
+                    <div
+                      key={m.market_slug}
+                      className={`p-3 rounded-lg border transition-colors ${
+                        m.market_slug === marketSlug
+                          ? "bg-amber-50 border-amber-300"
+                          : "bg-gray-50 border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="font-medium text-gray-900 text-sm">
+                        {m.market}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                        <span>{m.intel_count} items</span>
+                        {m.zone_count > 0 && (
+                          <span>• {m.zone_count} zones</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Footer */}
+      <div className="text-center text-gray-400 text-xs pt-4">
+        Market intelligence powered by VectoPilot. Data for planning purposes
+        only.
+      </div>
+    </div>
+  );
+}

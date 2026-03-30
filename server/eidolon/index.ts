@@ -24,7 +24,6 @@ export interface EidolonCapabilities {
   workspace_intelligence: boolean;
   assistant_override: boolean;
   predictive_intelligence: boolean;
-  mcp_diagnostics: boolean;
 }
 
 export interface EidolonSession {

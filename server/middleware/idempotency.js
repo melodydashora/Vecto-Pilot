@@ -8,11 +8,13 @@ export function idempotency({ header = "x-idempotency-key", ttlMs = 60000 } = {}
     if (!key) return next();
 
     try {
-      // Check for existing idempotency record within TTL  
+      // Check for existing idempotency record within TTL
+      // Using make_interval() for parameterized interval (Drizzle best practice)
+      const ttlSeconds = Math.floor(ttlMs / 1000);
       const hits = await db.select()
         .from(http_idem)
         .where(
-          sql`${http_idem.key} = ${key} AND ${http_idem.created_at} > now() - interval '${sql.raw(String(ttlMs / 1000))} seconds'`
+          sql`${http_idem.key} = ${key} AND ${http_idem.created_at} > now() - make_interval(secs => ${ttlSeconds})`
         )
         .limit(1);
 

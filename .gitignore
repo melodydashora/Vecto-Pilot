@@ -43,6 +43,12 @@ node_modules
 .env
 .env.local
 .env.*.local/
+.env_override
+
+# Temp analysis files
+GEMINIANALYSIS.md
+GEMINIMEMORY.md
+all_files.txt
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
@@ -192,3 +198,13 @@ private.pem
 !public.pem
 keys/
 !keys/.gitkeep
+
+# Drizzle auto-generated migration snapshots (regenerable via npx drizzle-kit generate)
+drizzle/
+
+# Shared env files with hardcoded secrets - NEVER commit!
+env/shared.env
+*.env.shared
+shared.env
+.env.example
+.env.unified

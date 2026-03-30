@@ -3,8 +3,9 @@
 // Validates that Drizzle schema matches actual database schema
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '../shared/schema.js';
-import pool from '../server/db/client.js';
+import { getPool } from '../server/db/connection-manager.js';
 
+const pool = getPool();
 const db = drizzle(pool, { schema });
 
 async function validateSchema() {

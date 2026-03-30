@@ -1,0 +1,289 @@
+/**
+ * server/lib/events/pipeline/normalizeEvent.js
+ *
+ * Canonical event normalization for the ETL pipeline.
+ * Converts RawEvent (provider format) → NormalizedEvent (canonical format).
+ *
+ * INVARIANT: Normalization is deterministic - same input always produces same output.
+ *
+ * @module server/lib/events/pipeline/normalizeEvent
+ */
+
+/**
+ * Normalize title - remove quotes, trim, collapse whitespace
+ * @param {string|undefined} title - Raw title
+ * @returns {string} Normalized title
+ */
+export function normalizeTitle(title) {
+  if (!title || typeof title !== 'string') return '';
+  return title
+    .replace(/^["'"]+|["'"]+$/g, '') // Remove surrounding quotes
+    .replace(/\s+/g, ' ')            // Collapse whitespace
+    .trim();
+}
+
+/**
+ * Normalize venue name - extract venue from combined strings
+ * @param {string|undefined} venue - Raw venue name
+ * @returns {string} Normalized venue name
+ */
+export function cleanVenueName(venue) {
+  if (!venue || typeof venue !== 'string') return '';
+  // Remove address suffix if present (e.g., "Venue Name, 123 Main St")
+  const parts = venue.split(',');
+  return parts[0].trim();
+}
+
+/**
+ * Alias for backward compatibility (tests expect normalizeVenueName)
+ */
+export const normalizeVenueName = cleanVenueName;
+
+/**
+ * Normalize date to YYYY-MM-DD format
+ * Handles various input formats: YYYY-MM-DD, MM/DD/YYYY, Month DD YYYY, etc.
+ * @param {string|undefined} dateStr - Raw date string
+ * @returns {string|null} Normalized date in YYYY-MM-DD format, or null if invalid
+ */
+export function normalizeDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+
+  const trimmed = dateStr.trim();
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Try MM/DD/YYYY
+  const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, month, day, year] = slashMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // Try Month DD, YYYY or DD Month YYYY
+  try {
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+  } catch {
+    // Parsing failed
+  }
+
+  return null;
+}
+
+/**
+ * Normalize time to HH:MM format (24-hour)
+ * Handles: "7 PM", "7:30 PM", "19:00", "7:30pm", etc.
+ * @param {string|undefined} timeStr - Raw time string
+ * @returns {string|null} Normalized time in HH:MM format, or null if invalid
+ */
+export function normalizeTime(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+
+  const trimmed = timeStr.trim().toUpperCase();
+
+  // Already HH:MM format
+  if (/^\d{2}:\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Parse "7 PM", "7:30 PM", "19:00", etc.
+  const match = trimmed.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/i);
+  if (!match) return null;
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2] || '00';
+  const period = (match[3] || '').toUpperCase();
+
+  // Convert to 24-hour
+  if (period === 'PM' && hour !== 12) hour += 12;
+  if (period === 'AM' && hour === 12) hour = 0;
+
+  // Validate hour range
+  if (hour < 0 || hour > 23) return null;
+
+  return `${hour.toString().padStart(2, '0')}:${minute}`;
+}
+
+// 2026-01-10: Removed normalizeCoordinate - geocoding happens in venue_catalog
+
+/**
+ * Normalize category to canonical values
+ * @param {string|undefined} category - Raw category
+ * @param {string|undefined} subtype - Raw subtype (fallback)
+ * @returns {string} Normalized category
+ */
+export function normalizeCategory(category, subtype) {
+  const raw = (category || subtype || 'other').toLowerCase();
+
+  // Map to canonical categories
+  if (raw.includes('concert') || raw.includes('music') || raw.includes('live')) {
+    return 'concert';
+  }
+  if (raw.includes('sport') || raw.includes('game') || raw.includes('nba') || raw.includes('nfl') || raw.includes('nhl') || raw.includes('mlb')) {
+    return 'sports';
+  }
+  if (raw.includes('comedy') || raw.includes('standup')) {
+    return 'comedy';
+  }
+  if (raw.includes('theater') || raw.includes('theatre') || raw.includes('performance')) {
+    return 'theater';
+  }
+  if (raw.includes('festival') || raw.includes('fair') || raw.includes('parade')) {
+    return 'festival';
+  }
+  if (raw.includes('night') || raw.includes('club') || raw.includes('bar')) {
+    return 'nightlife';
+  }
+  if (raw.includes('convention') || raw.includes('conference') || raw.includes('expo')) {
+    return 'convention';
+  }
+  if (raw.includes('community') || raw.includes('charity') || raw.includes('fundraiser')) {
+    return 'community';
+  }
+
+  return 'other';
+}
+
+/**
+ * Normalize attendance/impact to high/medium/low
+ * @param {string|undefined} attendance - Raw attendance value
+ * @returns {string} Normalized attendance (high/medium/low)
+ */
+export function normalizeAttendance(attendance) {
+  const raw = (attendance || 'medium').toLowerCase();
+
+  if (raw === 'high' || raw.includes('large') || raw.includes('major')) {
+    return 'high';
+  }
+  if (raw === 'low' || raw.includes('small') || raw.includes('minor')) {
+    return 'low';
+  }
+  return 'medium';
+}
+
+/**
+ * Add duration to a time string (HH:MM)
+ * @param {string} startTime - Start time in HH:MM
+ * @param {number} durationHours - Duration to add in hours
+ * @returns {string} New time in HH:MM
+ */
+function addDuration(startTime, durationHours) {
+  if (!startTime) return '';
+  const [h, m] = startTime.split(':').map(Number);
+  let newH = h + durationHours;
+  // Handle midnight rollover (simple wrap for 24h clock)
+  if (newH >= 24) newH -= 24;
+  return `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Normalize a raw event to canonical format
+ * This is the ONLY function that should convert provider output to internal format.
+ *
+ * @param {Object} rawEvent - Raw event from provider
+ * @param {Object} context - Location context { city, state }
+ * @returns {Object} NormalizedEvent
+ */
+export function normalizeEvent(rawEvent, context = {}) {
+  const { city, state } = context;
+
+  // Classification
+  const category = normalizeCategory(rawEvent.category, rawEvent.subtype);
+  const expected_attendance = normalizeAttendance(rawEvent.expected_attendance || rawEvent.impact);
+
+  // Date/Time Normalization
+  const event_start_date = normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date);
+
+  // 2026-02-17: Detect "All Day" events BEFORE normalizeTime (which returns null for non-time strings)
+  const rawStartTime = rawEvent.event_time || rawEvent.event_start_time || rawEvent.time || '';
+  const rawEndTime = rawEvent.event_end_time || rawEvent.end_time || '';
+  const isAllDay = /all\s*day/i.test(rawStartTime) || /all\s*day/i.test(rawEndTime);
+
+  let event_start_time = normalizeTime(rawStartTime);
+  let event_end_time = normalizeTime(rawEndTime);
+
+  // 2026-02-17: Handle "All Day" events — assign full-day window instead of rejecting
+  // Rideshare impact: All-day events (festivals, fairs, conventions) generate demand throughout the day
+  if (isAllDay && !event_start_time && !event_end_time) {
+    event_start_time = '08:00';
+    event_end_time = '22:00';
+  }
+
+  // 2026-02-17: Last resort — if BOTH times are still null, assign category-based defaults
+  // This prevents rejection of events where Gemini returned no time info at all
+  if (!event_start_time && !event_end_time && event_start_date) {
+    if (category === 'nightlife') {
+      event_start_time = '20:00';
+      event_end_time = '02:00';
+    } else if (category === 'festival' || category === 'convention' || category === 'community') {
+      event_start_time = '09:00';
+      event_end_time = '21:00';
+    } else {
+      event_start_time = '18:00'; // Default evening event
+      event_end_time = '22:00';
+    }
+  }
+
+  // 2026-02-05: Auto-estimate end time if missing (Requirement: End time MUST be resolved)
+  if (event_start_time && !event_end_time) {
+    let duration = 3; // Default 3 hours
+    if (category === 'festival' || category === 'convention') duration = 4;
+    else if (category === 'comedy' || category === 'theater') duration = 2;
+    else if (category === 'sports' || category === 'concert') duration = 3;
+
+    event_end_time = addDuration(event_start_time, duration);
+  }
+
+  // 2026-02-26: Pass through place_id from Gemini (Google Places ID for venue linking).
+  // "unknown" or empty means Gemini couldn't resolve it — geocoding will still work as fallback.
+  const rawPlaceId = (rawEvent.place_id || '').trim();
+  const place_id = rawPlaceId.startsWith('ChIJ') ? rawPlaceId : null;
+
+  return {
+    // Title - prefer 'title', fallback to 'name'
+    title: normalizeTitle(rawEvent.title || rawEvent.name),
+
+    // Venue - prefer 'venue_name', fallback to 'venue'
+    venue_name: cleanVenueName(rawEvent.venue_name || rawEvent.venue),
+
+    // Address
+    address: (rawEvent.address || rawEvent.location || '').trim(),
+
+    // 2026-02-26: Google Places ID from Gemini — primary key for venue_catalog linking
+    place_id,
+
+    // Location context
+    city: rawEvent.city || city || '',
+    state: rawEvent.state || state || '',
+    // 2026-01-10: Removed zip, lat, lng, source_url, raw_source_data
+    // Geocoding (lat/lng) happens in venue_catalog, which is source of truth for coordinates
+
+    // Date/Time (2026-01-10: Renamed to symmetric naming convention)
+    event_start_date,
+    event_start_time,
+    event_end_time,
+    // 2026-01-10: Default event_end_date to event_start_date for single-day events
+    event_end_date: normalizeDate(rawEvent.event_end_date) || normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
+
+    // Classification
+    category,
+    expected_attendance
+    // 2026-01-10: Removed source_model - not needed, all events come from Gemini discovery
+  };
+}
+
+/**
+ * Normalize an array of raw events
+ * @param {Array<Object>} rawEvents - Array of raw events
+ * @param {Object} context - Location context { city, state }
+ * @returns {Array<Object>} Array of NormalizedEvents
+ */
+export function normalizeEvents(rawEvents, context = {}) {
+  if (!Array.isArray(rawEvents)) return [];
+  return rawEvents.map(e => normalizeEvent(e, context));
+}

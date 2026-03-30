@@ -15,7 +15,6 @@ const ALLOWED_CONFIG_FILES = [
   ".replit",
   "replit.nix",
   ".replit.nix",
-  ".replit-assistant-override.json",
   
   // Package management
   "package.json",
@@ -40,8 +39,6 @@ const ALLOWED_CONFIG_FILES = [
   
   // Linting & formatting
   "eslint.config.js",
-  ".eslintrc.json",
-  ".eslintrc.js",
   ".prettierrc",
   ".prettierrc.json",
   ".prettierrc.js",

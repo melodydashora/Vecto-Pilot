@@ -1,0 +1,100 @@
+> **Last Verified:** 2026-02-17
+
+# Jobs Module (`server/jobs/`)
+
+## Purpose
+
+Background workers for async processing.
+
+## Files
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `triad-worker.js` | LISTEN-only SmartBlocks worker | Active |
+| `change-analyzer-job.js` | Documentation change analyzer job | Active |
+
+### Removed Files (2026-02-17)
+
+| File | Reason |
+|------|--------|
+| `event-cleanup.js` | Dead code — `startCleanupLoop()` never called. Superseded by per-snapshot `deactivatePastEvents()` in `server/lib/briefing/cleanup-events.js` |
+| `event-sync-job.js` | Removed — multi-provider event sync pipeline deleted. Event discovery now handled per-snapshot by `briefing-service.js` |
+
+## triad-worker.js
+
+Event-driven worker that listens for PostgreSQL NOTIFY events on the `strategy_ready` channel.
+
+### How It Works
+
+```
+1. Postgres NOTIFY 'strategy_ready' (from blocks-fast.js)
+       ↓
+2. triad-worker.js receives notification
+       ↓
+3. Verify strategy_for_now + briefing are present
+       ↓
+4. Call generateEnhancedSmartBlocks() → write rankings
+       ↓
+5. Send NOTIFY 'blocks_ready' for SSE listeners
+```
+
+**NOTE**: Strategy generation (briefing + immediate strategy) now runs synchronously in `blocks-fast.js`. This worker only handles SmartBlocks generation.
+
+### Key Features
+
+- **No polling**: Event-driven via Postgres LISTEN/NOTIFY
+- **Graceful shutdown**: Handles SIGINT/SIGTERM
+- **Idempotent**: Checks if blocks already generated
+
+### Usage
+
+Started automatically by `bootstrap/workers.js` in mono mode:
+
+```javascript
+import { startStrategyWorker } from './bootstrap/workers.js';
+
+if (DEPLOY_MODE === 'mono') {
+  startStrategyWorker();
+}
+```
+
+### Manual Run
+
+```bash
+node server/jobs/triad-worker.js
+```
+
+### Logging
+
+```
+[consolidation-listener] Listening on channel: strategy_ready
+[consolidation-listener] Notification: strategy_ready -> abc12345
+[consolidation-listener] Status for abc12345: { hasStrategyForNow: true, hasBriefing: true }
+[consolidation-listener] Generating enhanced smart blocks for abc12345...
+[consolidation-listener] Enhanced smart blocks generated for abc12345
+[consolidation-listener] NOTIFY blocks_ready sent for abc12345
+```
+
+## Connections
+
+- **Imports from:** `../lib/venue/enhanced-smart-blocks.js`, `../db/drizzle.js`
+- **Spawned by:** `../bootstrap/workers.js`
+- **Triggered by:** Postgres NOTIFY from `../api/strategy/blocks-fast.js`
+
+## Worker Modes
+
+| Mode | Behavior |
+|------|----------|
+| `mono` | Worker runs in same process as web server |
+| `webservice` | No worker (external process handles) |
+| `worker` | Worker only, no web routes |
+
+## Import Paths
+
+```javascript
+// From server/jobs/
+import { generateEnhancedSmartBlocks } from '../lib/venue/enhanced-smart-blocks.js';
+import { db } from '../db/drizzle.js';
+import { strategies, snapshots, briefings } from '../../shared/schema.js';
+```
+

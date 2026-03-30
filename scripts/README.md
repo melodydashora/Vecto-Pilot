@@ -1,128 +1,76 @@
-# Workflow Log Capture Scripts
+> **Last Verified:** 2026-02-25
 
-## Overview
+# Scripts (`scripts/`)
 
-These scripts capture comprehensive logs during workflow execution, from workflow refresh through smartblocks landing and completion.
+## Purpose
 
-## Scripts
+Build, development, and operational utility scripts.
 
-### 1. `capture-workflow-logs.js` - Main Capture Script
+## Key Scripts
 
-Monitors and logs:
-- Workflow startup/restart events
-- HTTP requests and responses  
-- Database operations (queries, inserts, updates)
-- LLM triad pipeline execution
-- Frontend smartblocks rendering
+| Script | Purpose |
+|--------|---------|
+| `start-replit.js` | Replit-specific startup script |
+| `seed-dev.js` | Seed development database |
+| `prebuild-check.js` | Pre-build validation |
+| `make-jwks.mjs` | Generate JWKS for JWT auth |
+| `sign-token.mjs` | Sign JWT tokens |
+| `create-all-tables.sql` | Database table creation SQL |
+| `populate-market-data.js` | Populate market data |
+| `import-platform-data.js` | Import platform data |
+| `load-market-research.js` | Load market research data from files |
+| `memory-cli.mjs` | CLI for memory system operations |
+| `seed-market-intelligence.js` | Seed market intelligence data |
+| `analyze-data-flow.js` | Analyze application data flow |
+| `generate-schema-docs.js` | Generate schema documentation |
+| `generate-schema-docs.sh` | Schema docs generation shell script |
+| `resolve-venue-addresses.js` | Resolve venue addresses via geocoding |
+| `test-event-dedup.js` | Test event deduplication logic |
+| `test-news-fetch.js` | Test news fetching functionality |
+| `import-market-cities.js` | **Import market cities from JSON/CSV** (2026-02-01) |
+| `fix-market-names.js` | Fix market name mismatches from research file |
 
-**Output:** `logs/workflow-capture.log` (overwrites on each run)
+## Market Data Scripts
 
-**Usage:**
+### import-market-cities.js (2026-02-01)
+
+Import/update `market_cities` table (2026-02-17: renamed from `us_market_cities`, now with `market_slug` FK to `markets`) from JSON or CSV files with field names that match the schema exactly.
+
 ```bash
-node scripts/capture-workflow-logs.js
+# Preview changes (dry run)
+node scripts/import-market-cities.js path/to/markets.json --dry-run
+
+# Import from JSON
+node scripts/import-market-cities.js path/to/markets.json
+
+# Import from CSV with updates
+node scripts/import-market-cities.js path/to/markets.csv --upsert
 ```
 
-**Duration:** 120 seconds (configurable via `CAPTURE_DURATION_MS`)
+**Supported formats:**
+- **JSON**: See `platform-data/uber/research-findings/market-template.json` for template
+- **CSV**: Header row with: `state_abbr,state,city,market_name,region_type`
 
-### 2. `enhanced-db-logger.js` - Database Operation Logger
+### fix-market-names.js
 
-Middleware for logging database operations with timing and row counts.
+One-time script to update market names from the legacy research-intel.txt format (CSV with `State,City,Market_Anchor,Region_Type`).
 
-**Usage in routes:**
-```javascript
-import { loggedQuery } from '../scripts/enhanced-db-logger.js';
-
-// Wrap database queries
-const snapshots = await loggedQuery(
-  () => db.select().from(snapshotsTable).where(eq(snapshotsTable.id, snapshotId)),
-  'SELECT',
-  'snapshots',
-  `Fetching snapshot ${snapshotId}`
-);
-```
-
-### 3. `test-workflow-capture.sh` - Test Runner
-
-Automated test script that:
-1. Starts log capture
-2. Triggers workflow refresh
-3. Waits for completion
-4. Displays summary
-
-**Usage:**
 ```bash
-./scripts/test-workflow-capture.sh
+node scripts/fix-market-names.js
 ```
 
-## Log File Format
+## Usage
 
-```
-[2025-10-08T20:00:00.000Z] [SECTION] Message
-{
-  "data": "optional structured data"
-}
-```
+Most scripts are run via npm:
 
-**Sections:**
-- `[INIT]` - Script initialization/shutdown
-- `[WORKFLOW]` - Workflow state changes
-- `[DATABASE]` - Database operations
-- `[TRIAD]` - LLM pipeline execution
-- `[BLOCKS]` - Smartblocks generation
-- `[HTTP]` - HTTP requests
-- `[ERROR]` - Error messages
-- `[WARN]` - Warning messages
-- `[STATUS]` - Workflow status checks
-
-## Integration with Existing Code
-
-To add database logging to your routes, import and use the logger:
-
-```javascript
-// In server/routes/blocks.js or similar
-import { loggedQuery } from '../scripts/enhanced-db-logger.js';
-
-// Replace direct db calls:
-// const result = await db.select()...
-
-// With logged queries:
-const result = await loggedQuery(
-  () => db.select().from(table).where(...),
-  'SELECT',
-  'table_name',
-  'Description of operation'
-);
+```bash
+npm run dev        # Development server
+npm run build      # Production build
+npm run db:push    # Push schema changes
+npm run seed:dev   # Seed development data
 ```
 
-## Output Example
+## Connections
 
-```
-[2025-10-08T20:00:00.000Z] [INIT] ========================================
-[2025-10-08T20:00:00.000Z] [INIT] WORKFLOW LOG CAPTURE STARTED
-[2025-10-08T20:00:01.234Z] [WORKFLOW] Eidolon SDK starting...
-[2025-10-08T20:00:02.345Z] [DATABASE] SELECT Query
-{
-  "query": "SELECT * FROM snapshots WHERE id = $1",
-  "params": "1 params"
-}
-[2025-10-08T20:00:02.456Z] [DATABASE] SELECT Result: 1 rows (111ms)
-[2025-10-08T20:00:05.678Z] [TRIAD] Step 1/3: Starting Claude strategist
-[2025-10-08T20:00:15.789Z] [TRIAD] Strategy received
-[2025-10-08T20:00:16.890Z] [BLOCKS] 6 blocks returned
-[2025-10-08T20:00:16.900Z] [STATUS] ✅ WORKFLOW CYCLE COMPLETE
-```
-
-## Troubleshooting
-
-**No logs captured:**
-- Ensure the workflow is running
-- Check that the script has permissions: `chmod +x scripts/*.sh scripts/*.js`
-- Verify logs directory exists: `mkdir -p logs`
-
-**Database logs missing:**
-- Import and use `loggedQuery` wrapper in your route handlers
-- Check that database operations are happening during capture window
-
-**Script exits early:**
-- Increase `CAPTURE_DURATION_MS` in capture-workflow-logs.js
-- Check for process errors in console output
+- **Called by:** `package.json` scripts
+- **Related:** `server/scripts/` for server-specific scripts

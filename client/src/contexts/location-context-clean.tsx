@@ -1,987 +1,897 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useRef,
-  ReactNode,
-} from "react";
-import { useGeoPosition } from "@/hooks/useGeoPosition";
-import type { DriverSettings } from "@/types/driver";
-import { buildTimeContext } from "@/lib/daypart";
-import { createSnapshot } from "@/lib/snapshot";
+// 2026-01-09: P1-6 FIX - Using centralized constants
+import React, { createContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useAuth } from './auth-context';
+import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
+import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-02-17: Import queryClient for full cache reset on manual refresh (matches logout behavior)
+import { queryClient } from '@/lib/queryClient';
 
-// Simple type for no-go zones (for future implementation)
-type NoGoZone = {
-  id: string;
-  name: string;
-  reason: string;
-  enabled: boolean;
-};
+// ═══════════════════════════════════════════════════════════════════════════
+// SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
+// ═══════════════════════════════════════════════════════════════════════════
+// Three-table architecture (per SAVE-IMPORTANT.md):
+//   - driver_profiles: Identity (forever)
+//   - users: Session (login → logout/60min TTL)
+//   - snapshots: Activity (forever)
+//
+// Session rules:
+//   - Login creates users row with session_id, current_snapshot_id=null
+//   - Snapshot creation updates users.current_snapshot_id
+//   - Every authenticated request updates users.last_active_at (60 min sliding window)
+//   - Hard limit: 2 hours from session_start_at = force re-login
+//   - Logout deletes users row immediately
+//
+// Client behavior:
+//   - Does NOT persist snapshot_id across reloads (server owns it)
+//   - Fires 'vecto-snapshot-saved' event for downstream components
+//   - Manual refresh (force=true) creates fresh snapshot
+// ═══════════════════════════════════════════════════════════════════════════
 
-// Simple helper - returns empty array (no default zones in clean build)
-const getDefaultNoGoZones = (): NoGoZone[] => [];
+// SessionStorage persistence for snapshot data
+// Prevents data loss when switching between apps (Uber ↔ Vecto)
+// 2026-01-09: P1-6 - Use centralized constant
+const SNAPSHOT_STORAGE_KEY = SESSION_KEYS.SNAPSHOT;
+// TTL for session storage - KEEP SHORT for real-time intelligence
+// 2 minutes allows quick app switches (Uber ↔ Vecto) but ensures fresh data otherwise
+// LESSON LEARNED: 1-hour TTL caused 49-minute-old stale strategies to appear
+// 2026-01-06: P3-B - Extended TTL for resume support
+// Previous: 2 min (too short - driver switches to Uber for 5 min, loses everything)
+// Previous: 1 hour (too long - stale traffic/events data)
+// New: 15 min - reasonable for app switching during active shift
+// The server has its own 60-min TTL for snapshot reuse, this is for CLIENT-side resume
+const SNAPSHOT_TTL_MS = 15 * 60 * 1000; // 15 minutes TTL for resume
 
-interface LocationState {
-  currentLocation: string;
-  latitude?: number;
-  longitude?: number;
-  lastUpdated: Date;
-  isUpdating: boolean;
-  vehicleTypes: string[];
-  minEarningsPerHour: number;
-  noGoZones: NoGoZone[];
+// Clear sessionStorage - called when driver clicks GPS refresh button
+// Driver does this when returning to staging area to get fresh data
+function clearSnapshotStorage(): void {
+  sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+  console.log('🔄 [LocationContext] Cleared sessionStorage - fresh data requested');
 }
 
-interface LocationContextType {
-  location: LocationState;
-  updateLocation: (newLocation: string, lat?: number, lon?: number) => void;
-  refreshGPS: () => Promise<void>;
-  clearLocation: () => void;
-  updateVehicleTypes: (types: string[]) => void;
-  updateMinEarnings: (amount: number) => void;
-}
+// Inline geolocation helper with manual timeout fallback
+// Browser's geolocation timeout can hang in some environments (previews, permission blocked)
+function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
+  // eslint-disable-next-line no-async-promise-executor
+  return new Promise(async (resolve) => {
+    let resolved = false;
 
-// Override coordinates for manual city search
-export interface OverrideCoordinates {
-  latitude: number;
-  longitude: number;
-  city: string;
-  source: 'manual_city_search';
-}
+    // Check permission state first (if available)
+    let permissionState = 'unknown';
+    try {
+      if (navigator.permissions) {
+        const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+        permissionState = result.state; // 'granted', 'denied', or 'prompt'
+      }
+    } catch (_e) {
+      permissionState = 'query-failed';
+    }
 
-// Updated interface for LocationContext to properly type it
-export interface LocationContextValue {
-  isLoading: boolean;
-  error: string | null;
-  hasPermission: boolean | null;
-  requestPermission: () => Promise<void>;
+    // Debug: Log environment info
+    console.log('[getGeoPosition] Starting...', {
+      hasNavigator: typeof navigator !== 'undefined',
+      hasGeolocation: typeof navigator !== 'undefined' && !!navigator.geolocation,
+      isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
+      protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
+      hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+      permissionState
+    });
 
-  // GPS and location data
-  currentCoords: GeolocationCoordinates | null;
-  currentLocationString: string;
-  lastUpdated: Date | null;
-  accuracy: number | null;
-  location: GeolocationPosition | null;
-  timeZone: string | null;
-
-  // Override coordinates (for manual city search)
-  overrideCoords: OverrideCoordinates | null;
-  setOverrideCoords: (coords: OverrideCoordinates | null) => void;
-
-  // Location session tracking
-  locationSessionId: number;
-
-  // User preferences and settings
-  manualLocationOverride: string | null;
-  settings: DriverSettings;
-  updateSettings: (newSettings: Partial<DriverSettings>) => Promise<void>;
-
-  // Location management
-  refreshLocation: () => Promise<void>;
-  refreshGPS: () => Promise<void>;
-  setManualLocation: (location: string) => void;
-  clearManualLocation: () => void;
-  updateLocation: (location: any) => void;
-  updateVehicleTypes: (types: string[]) => void;
-  updateMinEarnings: (amount: number) => void;
-}
-
-const LocationContext = createContext<LocationContextValue | null>({
-  // Provide default values to prevent errors during initialization
-  isLoading: false,
-  error: null,
-  hasPermission: null,
-  requestPermission: () => Promise.resolve(),
-  
-  // GPS and location data
-  currentCoords: null,
-  currentLocationString: "Getting location...",
-  lastUpdated: null,
-  accuracy: null,
-  location: null, // GeolocationPosition | null
-  timeZone: null,
-  
-  // Override coordinates (for manual city search)
-  overrideCoords: null,
-  setOverrideCoords: () => {},
-  
-  // Location session tracking
-  locationSessionId: 0,
-  
-  // User preferences and settings
-  manualLocationOverride: null,
-  settings: {
-    vehicleTypes: ["Standard"],
-    minEarningsPerHour: 25,
-  },
-  
-  // Location management functions
-  refreshLocation: () => Promise.resolve(),
-  refreshGPS: () => Promise.resolve(),
-  setManualLocation: () => {},
-  clearManualLocation: () => {},
-  updateLocation: () => {},
-  updateSettings: () => Promise.resolve(), // Fixed to return Promise<void>
-  updateVehicleTypes: () => {},
-  updateMinEarnings: () => {},
-});
-
-interface LocationProviderProps {
-  children: ReactNode;
-}
-
-// Simple GPS function from attachment
-const sendGPSLocation = async (): Promise<{
-  success: boolean;
-  data?: any;
-  error?: string;
-}> => {
-  console.log("🎯 GPS: Starting location request...");
-
-  if (!navigator.geolocation) {
-    console.warn("Geolocation not supported");
-    return { success: false, error: "Geolocation not supported" };
-  }
-
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        console.log(
-          `✅ GPS coordinates obtained: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-        );
-
-        // Use Google Maps API to resolve precise city name
-        try {
-          const response = await fetch(
-            `/api/location/resolve?lat=${latitude}&lng=${longitude}`,
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            const cityName =
-              data.city || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-            console.log(`✅ Location resolved via Google Maps: ${cityName}`);
-            console.log(`🌍 Timezone received: ${data.timeZone}`);
-
-            resolve({
-              success: true,
-              data: {
-                city: cityName,
-                latitude,
-                longitude,
-                timeZone: data.timeZone,
-              },
-            });
-          } else {
-            console.warn("⚠️ Google Maps API unavailable, using coordinates");
-            resolve({
-              success: true,
-              data: {
-                city: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-                latitude,
-                longitude,
-              },
-            });
-          }
-        } catch (error) {
-          console.warn(
-            "⚠️ Location resolution failed, using coordinates:",
-            error,
-          );
-          resolve({
-            success: true,
-            data: {
-              city: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-              latitude,
-              longitude,
-            },
-          });
-        }
-      },
-      (error) => {
-        console.error("GPS Error:", error);
-        let errorMsg = "GPS permission required";
-
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMsg = "GPS blocked - please allow location access";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMsg = "GPS unavailable - check device settings";
-            break;
-          case error.TIMEOUT:
-            errorMsg = "GPS timeout - try again";
-            break;
-        }
-
-        resolve({ success: false, error: errorMsg });
-      },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 },
-    );
-  });
-};
-
-export function LocationProvider({ children }: LocationProviderProps) {
-  const [locationState, setLocationState] = useState<any>({
-    // Changed to any to accommodate new structure from context value
-    currentLocation: "Getting location...",
-    latitude: undefined,
-    longitude: undefined,
-    lastUpdated: new Date(),
-    isUpdating: false,
-    vehicleTypes: ["Standard"],
-    minEarningsPerHour: 25,
-    noGoZones: getDefaultNoGoZones(),
-    manualLocation: null, // Added manualLocation
-    settings: {
-      // Added settings object
-      vehicleTypes: ["Standard"],
-      minEarningsPerHour: 25,
-    },
-    coords: null, // Added coords
-    accuracy: null, // Added accuracy
-    error: null, // Added error
-    isLoading: false, // Added isLoading
-    hasPermission: null, // Added hasPermission
-  });
-
-  // Override coordinates state (for manual city search)
-  const [overrideCoords, setOverrideCoords] = useState<OverrideCoordinates | null>(null);
-
-  // Session ID to invalidate queries when location changes (GPS refresh or city search)
-  const [locationSessionId, setLocationSessionId] = useState(0);
-
-  // AbortController to cancel stale enrichment requests
-  const enrichmentControllerRef = useRef<AbortController | null>(null);
-
-  // Use the GPS hook without automatic refresh (0 = no interval)
-  const { coords, loading, error: gpsError, refresh } = useGeoPosition(0);
-
-  // Simplified GPS refresh function using the hook
-  const refreshLocation = async () => {
-    // Renamed from refreshGPS to refreshLocation for consistency
-    console.log("🌐 Starting GPS refresh using useGeoPosition hook...");
-    
-    // GPS refresh clears override - this is the source of truth
-    setOverrideCoords(null);
-    console.log("🔄 GPS refresh - override coordinates cleared");
-    
-    setLocationState((prev: any) => ({
-      ...prev,
-      isUpdating: true,
-      isLoading: true,
-    }));
-
-    // Use the refresh function from useGeoPosition hook
-    await refresh();
-
-    // The useEffect will handle updating the location when coords change
-    console.log("✅ GPS refresh completed");
-  };
-
-  // Update location when GPS coordinates are received
-  useEffect(() => {
-    // Set isUpdating and isLoading to true when GPS is loading
-    if (loading) {
-      setLocationState((prev: any) => ({
-        ...prev,
-        isUpdating: true,
-        isLoading: true,
-        error: null, // Clear previous errors when starting a new load
-      }));
+    if (!navigator.geolocation) {
+      console.warn('[getGeoPosition] Geolocation not supported');
+      resolve(null);
       return;
     }
 
-    if (coords) {
-      console.log("[Global App] GPS coordinates received:", coords);
-      
-      // CLEAR OLD STRATEGY: We have new coords, about to create new snapshot
-      console.log("🧹 Clearing old strategy before creating new snapshot");
-      localStorage.removeItem('vecto_persistent_strategy');
-      localStorage.removeItem('vecto_strategy_snapshot_id');
-      window.dispatchEvent(new CustomEvent("vecto-strategy-cleared"));
-      
-      // Increment session ID to invalidate cached queries
-      setLocationSessionId(prev => prev + 1);
-      
-      // Cancel any in-flight enrichment requests from previous GPS position
-      if (enrichmentControllerRef.current) {
-        console.log("🚫 Aborting stale enrichment request");
-        enrichmentControllerRef.current.abort();
+    // Manual timeout - must be > browser timeout to let browser respond first
+    // Browser timeout is 10s, so manual is 12s as fallback
+    const manualTimeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        console.warn('[getGeoPosition] Manual timeout (12s) - browser geolocation hung.');
+        resolve(null);
       }
-      
-      // Create new AbortController for this GPS position
-      enrichmentControllerRef.current = new AbortController();
-      const signal = enrichmentControllerRef.current.signal;
-      
-      // DON'T update state yet - keep spinner active until location fully resolves
-      // We'll update after we get city, state, and formattedAddress
+    }, 12000);
 
-      // Resolve ALL context data in parallel: location, weather, and air quality
-      Promise.all([
-        fetch(`/api/location/resolve?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()),
-        fetch(`/api/location/weather?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
-        fetch(`/api/location/airquality?lat=${coords.latitude}&lng=${coords.longitude}`, { signal }).then(r => r.json()).catch(() => null),
-      ])
-        .then(async ([locationData, weatherData, airQualityData]) => {
-          // NOW update state - location is fully resolved
-          setLocationState((prev: any) => ({
-            ...prev,
-            coords: { ...coords },
-            accuracy: coords.accuracy,
-            isLoading: false, // NOW stop spinner - we have complete data
-            isUpdating: false,
-            error: null,
-          }));
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(manualTimeout);
+        console.log('[getGeoPosition] Success:', position.coords.latitude, position.coords.longitude);
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        });
+      },
+      async (error) => {
+        if (resolved) return;
+        console.warn('[getGeoPosition] Browser failed:', error.code, error.message);
 
-          // Format as "City, ST" if we have both city and state
-          let locationName;
-          if (locationData.city && locationData.state) {
-            locationName = `${locationData.city}, ${locationData.state}`;
-          } else if (locationData.city) {
-            locationName = locationData.city;
-          } else {
-            locationName = `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
-          }
-          console.log("[Global App] Location resolved to:", locationName);
-          console.log("[Global App] Weather:", weatherData?.available ? `${weatherData.temperature}°F` : 'unavailable');
-          console.log("[Global App] Air Quality:", airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'unavailable');
-
-          // Build time context with timezone
-          const timeContext = buildTimeContext(locationData.timeZone);
-          
-          // Build baseline context for snapshot
-          const baselineContext = {
-            reason: "app_open" as const,
-            timestampIso: new Date().toISOString(),
-            coords: { lat: coords.latitude, lng: coords.longitude },
-            geo: {
-              city: locationData.city,
-              state: locationData.state,
-              country: locationData.country,
-              formattedAddress: locationData.formattedAddress,
-            },
-            time: timeContext,
-            weather: weatherData?.available ? {
-              temperature: weatherData.temperature,
-              feelsLike: weatherData.feelsLike,
-              conditions: weatherData.conditions,
-              description: weatherData.description,
-              humidity: weatherData.humidity,
-              windSpeed: weatherData.windSpeed,
-              precipitation: weatherData.precipitation,
-            } : undefined,
-            airQuality: airQualityData?.available ? {
-              aqi: airQualityData.aqi,
-              category: airQualityData.category,
-              dominantPollutant: airQualityData.dominantPollutant,
-              healthRecommendations: airQualityData.healthRecommendations,
-            } : undefined,
-          };
-
-          // Build SnapshotV1 format for backend with ALL data
-          const snapshotV1 = createSnapshot({
-            coord: {
-              lat: coords.latitude,
-              lng: coords.longitude,
-              accuracyMeters: coords.accuracy,
-              source: 'gps' as const
-            },
-            resolved: {
-              city: locationData.city,
-              state: locationData.state,
-              country: locationData.country,
-              timezone: locationData.timeZone,
-              formattedAddress: locationData.formattedAddress,
-            },
-            timeContext: (() => {
-              const tz = locationData.timeZone || 'America/Chicago';
-              const now = new Date();
-              
-              // Get day of week (0=Sunday, 6=Saturday) in the user's timezone
-              const dowFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' });
-              const dayName = dowFormatter.format(now);
-              const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-              const dow = dowMap[dayName] ?? 0;
-              
-              // Get hour (0-23) in the user's timezone
-              const hourFormatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false });
-              const hourStr = hourFormatter.format(now);
-              const hour = parseInt(hourStr, 10) || 0;
-              
-              return {
-                local_iso: now.toISOString(),
-                dow,
-                hour,
-                is_weekend: timeContext.isWeekend,
-                day_part_key: timeContext.dayPartKey
-              };
-            })(),
-            weather: weatherData?.available ? {
-              tempF: weatherData.temperature,
-              conditions: weatherData.conditions,
-              description: weatherData.description,
-            } : undefined,
-            air: airQualityData?.available ? {
-              aqi: airQualityData.aqi,
-              category: airQualityData.category,
-            } : undefined,
-          });
-
-          // Save context snapshot for ML/analytics
+        // Fallback: Google Geolocation API (works when browser GPS fails)
+        const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        if (GOOGLE_API_KEY) {
           try {
-            const snapshotResponse = await fetch("/api/location/snapshot", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(snapshotV1),
-              signal, // Use same AbortController to prevent stale snapshot saves
-            });
-            
-            if (snapshotResponse.ok) {
-              const snapshotData = await snapshotResponse.json();
-              const snapshotId = snapshotData.snapshot_id || snapshotV1.snapshot_id;
-              
-              // CRITICAL: Create triad_job to start the strategy pipeline
-              try {
-                const jobResponse = await fetch("/api/blocks", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ snapshot_id: snapshotId }),
-                  signal,
-                });
-                
-                if (jobResponse.ok) {
-                  const jobData = await jobResponse.json();
-                  console.log("🎯 Co-Pilot: Strategy pipeline started for snapshot:", snapshotId);
-                  console.log("📋 Job status:", jobData.status);
-                } else {
-                  console.warn("⚠️ Failed to start strategy pipeline:", jobResponse.status);
-                }
-              } catch (jobErr) {
-                console.warn("⚠️ Error starting strategy pipeline:", jobErr);
-              }
-              
-              // Dispatch event to notify UI that snapshot is complete and ready
-              window.dispatchEvent(
-                new CustomEvent("vecto-snapshot-saved", {
-                  detail: {
-                    snapshotId,
-                    lat: coords.latitude,
-                    lng: coords.longitude,
-                  },
-                })
-              );
-              console.log("✅ Snapshot complete and ready! ID:", snapshotId);
-            }
-            
-            // Broadcast snapshot event for other components
-            window.dispatchEvent(
-              new CustomEvent("vecto-context-snapshot", {
-                detail: baselineContext,
-              })
+            console.log('[getGeoPosition] Trying Google Geolocation API fallback...');
+            const res = await fetch(
+              `https://www.googleapis.com/geolocation/v1/geolocate?key=${GOOGLE_API_KEY}`,
+              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
             );
-            
-            console.log("📸 Context snapshot saved:", {
-              city: locationData.city,
-              dayPart: timeContext.dayPartLabel,
-              isWeekend: timeContext.isWeekend,
-              weather: weatherData?.available ? `${weatherData.temperature}°F` : 'none',
-              airQuality: airQualityData?.available ? `AQI ${airQualityData.aqi}` : 'none',
-            });
-          } catch (err) {
-            console.warn("Failed to save context snapshot:", err);
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.location) {
+                resolved = true;
+                clearTimeout(manualTimeout);
+                console.log('[getGeoPosition] Google API success:', data.location.lat, data.location.lng);
+                resolve({
+                  latitude: data.location.lat,
+                  longitude: data.location.lng,
+                  accuracy: data.accuracy || 100
+                });
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('[getGeoPosition] Google API fallback failed:', e);
           }
+        }
 
-          // Update location state ONCE with both coordinates and resolved name
-          setLocationState((prev: any) => ({
-            ...prev,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            currentLocation: locationName,
-            lastUpdated: new Date(),
+        // No fallback worked
+        resolved = true;
+        clearTimeout(manualTimeout);
+        resolve(null);
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
+interface LocationContextType {
+  currentCoords: { latitude: number; longitude: number } | null;
+  currentLocationString: string;
+  city: string | null;
+  state: string | null;
+  timeZone: string | null;
+  isUpdating: boolean;
+  lastUpdated: string | null;
+  refreshGPS: () => Promise<void>;
+  overrideCoords: { latitude: number; longitude: number; city?: string } | null;
+  // Weather and air quality - fetched once during enrichment, shared via context
+  weather: { temp: number; conditions: string; description?: string } | null;
+  airQuality: { aqi: number; category: string } | null;
+  // Location resolution gate - true when city/formattedAddress are available
+  // Use this to gate downstream queries (Bar Tab, Strategy) to prevent race conditions
+  isLocationResolved: boolean;
+  isLoading: boolean;
+  setOverrideCoords: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
+  // Expose snapshot ID directly so co-pilot can access it as fallback
+  lastSnapshotId: string | null;
+  locationError?: { code: string; message: string } | null;
+}
+
+export const LocationContext = createContext<LocationContextType | null>(null);
+
+// Custom hook to consume location context
+export const useLocation = () => {
+  const context = React.useContext(LocationContext);
+  if (!context) {
+    throw new Error('useLocation must be used within LocationProvider');
+  }
+  return context;
+};
+
+export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Get auth state to link snapshots to logged-in user
+  // Also get profile for home location fallback when GPS fails
+  const { token, user, profile, isLoading: authLoading } = useAuth();
+
+  const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [currentLocationString, setCurrentLocationString] = useState('Getting location...');
+  const [city, setCity] = useState<string | null>(null);
+  const [state, setState] = useState<string | null>(null);
+  const [timeZone, setTimeZone] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [overrideCoords, setOverrideCoords] = useState<{ latitude: number; longitude: number; city?: string } | null>(null);
+  // Weather and air quality state - fetched once during enrichment, exposed via context
+  const [weather, setWeather] = useState<{ temp: number; conditions: string; description?: string } | null>(null);
+  const [airQuality, setAirQuality] = useState<{ aqi: number; category: string } | null>(null);
+  // Location resolution gate - prevents race conditions by gating downstream queries
+  const [isLocationResolved, setIsLocationResolved] = useState(false);
+  // 2026-02-01: FAIL HARD - Location error state for immediate critical error trigger
+  // When set, CoPilotContext should block the UI with CriticalError modal
+  const [locationError, setLocationError] = useState<{ code: string; message: string } | null>(null);
+  // Expose snapshot ID directly so co-pilot can access it as fallback if event is missed
+  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
+  const generationCounterRef = useRef(0);
+  const isInitialMountRef = useRef(true);
+  const lastEnrichmentCoordsRef = useRef<string | null>(null);
+  const sessionRestoreAttemptedRef = useRef(false);
+  // AbortController for request cancellation - prevents stale responses from overwriting fresh data
+  // Updated 2026-01-05: Fixes network waste when users tap refresh rapidly
+  const abortControllerRef = useRef<AbortController | null>(null);
+  // 2026-01-07: Ref to always access latest refreshGPS without adding to effect deps
+  // Adding refreshGPS to deps caused infinite loop (Maximum update depth exceeded)
+  // The ref is updated after refreshGPS is defined (see useEffect below refreshGPS definition)
+  const refreshGPSRef = useRef<(force?: boolean) => Promise<void>>();
+
+  // 2026-01-14: Refs to access current state values in GPS effect without adding to deps
+  // This prevents the closure capture problem where setTimeout sees stale values
+  const lastSnapshotIdRef = useRef<string | null>(null);
+  const currentCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const cityRef = useRef<string | null>(null);
+  // 2026-03-18: Added timeZone ref — resume path must verify timezone before gating queries
+  const timeZoneRef = useRef<string | null>(null);
+
+  // 2026-01-06: P3-B - Restore FULL session including snapshotId for resume
+  // Previous: Only restored display data, always created new snapshot
+  // Problem: User switches apps for 5 min → returns → 35-50s regeneration
+  // Solution: Restore snapshotId if within TTL, mark as "resume" to skip regeneration
+  //
+  // LESSON LEARNED (updated 2026-01-06):
+  // The "duplicate waterfalls" issue was caused by MOUNT-CLEARING strategy (P3-A fix)
+  // With P3-A fixed, we can now safely restore snapshotId because:
+  // - Strategy is also restored from localStorage if snapshotId matches
+  // - CoPilotContext will see existing strategy and not regenerate
+  useEffect(() => {
+    if (sessionRestoreAttemptedRef.current) return;
+    sessionRestoreAttemptedRef.current = true;
+
+    try {
+      const stored = sessionStorage.getItem(SNAPSHOT_STORAGE_KEY);
+      if (!stored) return;
+
+      const data = JSON.parse(stored);
+
+      // Check TTL - don't restore stale data (real-time app needs fresh intel)
+      if (Date.now() - data.timestamp > SNAPSHOT_TTL_MS) {
+        console.log('📦 [LocationContext] Stored snapshot expired (>15min), starting fresh');
+        sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+        return;
+      }
+
+      console.log('📦 [LocationContext] RESUME MODE - restoring full session:', data.snapshotId?.slice(0, 8));
+
+      // 2026-01-06: P3-B - Now restore snapshotId for resume
+      // This works because P3-A fixed the mount-clearing issue
+      if (data.snapshotId) {
+        setLastSnapshotId(data.snapshotId);
+        // Mark as resume for P3-D - CoPilotContext should not trigger blocks-fast
+        sessionStorage.setItem(SESSION_KEYS.RESUME_REASON, 'resume');
+      }
+      if (data.coords) setCurrentCoords(data.coords);
+      if (data.city) setCity(data.city);
+      if (data.state) setState(data.state);
+      if (data.timeZone) setTimeZone(data.timeZone);
+      if (data.locationString) setCurrentLocationString(data.locationString);
+      if (data.weather) setWeather(data.weather);
+      if (data.airQuality) setAirQuality(data.airQuality);
+
+      // 2026-01-07: DO NOT set isLocationResolved during restore
+      // LESSON LEARNED: Setting isLocationResolved = true here caused auth loop bug.
+      // The restore runs BEFORE auth finishes loading (empty deps []).
+      // If we gate queries here, they fire before auth is ready → 401 → logout loop.
+      //
+      // Instead, let the normal flow handle this:
+      // 1. Auth loads → isLoading becomes false
+      // 2. GPS effect runs (line 604) → sees we have cached coords
+      // 3. enrichLocation is called → server validates snapshot
+      // 4. On success, isLocationResolved is set to true (line 428)
+      //
+      // The restored display data (city, weather, etc.) shows immediately in UI,
+      // but API queries wait until auth + snapshot validation complete.
+
+      // Skip GPS fetch on resume - we have valid cached data
+      // The coord tracking prevents duplicate enrichment
+      if (data.coords) {
+        const coordKey = `${data.coords.latitude.toFixed(6)},${data.coords.longitude.toFixed(6)}`;
+        lastEnrichmentCoordsRef.current = coordKey;
+        console.log('📦 [LocationContext] Resume complete - skipping GPS fetch for coords:', coordKey);
+      }
+    } catch (e) {
+      console.warn('[LocationContext] Failed to restore from sessionStorage:', e);
+    }
+  }, []);
+
+  // Persist snapshot data to sessionStorage when it changes
+  // This enables persistence across app switches
+  useEffect(() => {
+    if (!lastSnapshotId) return;
+
+    const dataToStore = {
+      snapshotId: lastSnapshotId,
+      coords: currentCoords,
+      city,
+      state,
+      timeZone,
+      locationString: currentLocationString,
+      weather,
+      airQuality,
+      isLocationResolved,
+      lastUpdated,
+      timestamp: Date.now(),
+    };
+
+    sessionStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(dataToStore));
+    console.log('💾 [LocationContext] Persisted snapshot to sessionStorage:', lastSnapshotId.slice(0, 8));
+  }, [lastSnapshotId, currentCoords, city, state, timeZone, currentLocationString, weather, airQuality, isLocationResolved, lastUpdated]);
+
+  const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number, forceRefresh = false) => {
+    // 2026-03-18: Dedup based on snapshot state, not forceRefresh flag.
+    // Only skip if same coordinates AND an active snapshot exists.
+    // When snapshot is released (logout, manual refresh, sign-in), always proceed.
+    // This replaces scattered lastEnrichmentCoordsRef.current = null clearing.
+    const coordKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+    if (lastEnrichmentCoordsRef.current === coordKey && lastSnapshotIdRef.current) {
+      console.log('⏭️ Skipping enrichment - same coords with active snapshot:', coordKey);
+      return;
+    }
+    lastEnrichmentCoordsRef.current = coordKey;
+
+    // Cancel any pending requests before starting new ones
+    // Updated 2026-01-05: Prevents network waste when users tap refresh rapidly
+    if (abortControllerRef.current) {
+      console.log('🛑 [LocationContext] Cancelling previous enrichment request');
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const deviceId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID) || crypto.randomUUID();
+    localStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
+
+    const currentGeneration = ++generationCounterRef.current;
+    console.log(`🔢 Generation #${currentGeneration} starting for GPS update`);
+    console.log(`🔐 [LocationContext] Auth state: token=${token ? 'yes' : 'no'}, userId=${user?.userId || 'anonymous'}`);
+
+    // 2026-01-07: SAFEGUARD - Never make location requests without auth
+    // This catches stale closure bugs where enrichLocation was captured with null token
+    if (!token || !user?.userId) {
+      console.error('[LocationContext] ❌ BUG: enrichLocation called without auth! Aborting to prevent 401 loop.');
+      console.error('[LocationContext] This is likely a stale closure - refreshGPS captured old enrichLocation');
+      return;
+    }
+
+    try {
+      // 2026-01-09: P0-2 FIX - Removed user_id query param (was security bypass)
+      // Authentication ONLY comes from Authorization header now
+      // 2026-01-15: Using centralized API_ROUTES constant
+      let resolveUrl = API_ROUTES.LOCATION.RESOLVE_WITH_PARAMS(lat, lng, deviceId, accuracy);
+      // Force refresh bypasses server-side snapshot reuse (60 min TTL)
+      // This is used when user explicitly clicks the refresh button
+      if (forceRefresh) {
+        resolveUrl += '&force=true';
+      }
+
+      // Prepare headers - include auth token if logged in (ONLY source of auth)
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // 2026-01-09: P0-2 FIX - Removed sensitive DEBUG logging
+      // Token prefixes and userIds were being logged, exposing auth details
+      console.log('[LocationContext] Making location resolve request');
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // TWO-PHASE UI UPDATE: Weather/AQI appear ~200-300ms before city/state
+      // Weather and AQI are faster (single Google API each), location is slower
+      // (Google Geocode + Timezone + DB writes)
+      // ═══════════════════════════════════════════════════════════════════════════
+
+      // Start all requests in parallel with abort signal
+      // Updated 2026-01-05: Added signal for request cancellation
+      // 2026-01-15: Using centralized API_ROUTES constants
+      const locationPromise = fetch(resolveUrl, { headers, signal: controller.signal });
+      // 2026-02-17: Added auth headers — location routes require auth since 2026-02-12
+      const weatherPromise = fetch(API_ROUTES.LOCATION.WEATHER_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
+      const airPromise = fetch(API_ROUTES.LOCATION.AIR_QUALITY_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
+
+      // Track weather/air data for snapshot enrichment later
+      let weatherData: { available: boolean; temperature: number; conditions: string; description?: string } | null = null;
+      let airQualityData: { available: boolean; aqi: number; category: string } | null = null;
+
+      // PHASE 1: Update UI as soon as weather/air resolve (faster APIs)
+      // Don't await - let them update independently
+      weatherPromise.then(async (res) => {
+        if (currentGeneration !== generationCounterRef.current) return;
+        if (res.ok) {
+          const data = await res.json();
+          weatherData = data;
+          if (data?.available) {
+            setWeather({
+              temp: data.temperature,
+              conditions: data.conditions,
+              description: data.description
+            });
+            console.log('🌤️ [LocationContext] Weather updated (phase 1)');
+          }
+        }
+      }).catch((err) => console.warn('[LocationContext] Weather fetch failed:', err));
+
+      airPromise.then(async (res) => {
+        if (currentGeneration !== generationCounterRef.current) return;
+        if (res.ok) {
+          const data = await res.json();
+          airQualityData = data;
+          if (data?.available) {
+            setAirQuality({
+              aqi: data.aqi,
+              category: data.category
+            });
+            console.log('💨 [LocationContext] AQI updated (phase 1)');
+          }
+        }
+      }).catch((err) => console.warn('[LocationContext] AQI fetch failed:', err));
+
+      // PHASE 2: Wait for location resolve (slower due to DB writes)
+      const locationRes = await locationPromise;
+
+      if (currentGeneration !== generationCounterRef.current) {
+        console.log(`⏭️ Generation #${currentGeneration} superseded - ignoring results`);
+        return;
+      }
+
+      // Handle authentication errors - clear stale token and redirect to login
+      if (locationRes.status === 401) {
+        // 2026-01-07: DEBUG - Log detailed info about the 401
+        let errorBody = null;
+        try {
+          errorBody = await locationRes.clone().json();
+        } catch (_e) { /* ignore */ }
+        console.error('🔐 [LocationContext] ❌ 401 ERROR - Authentication failed!');
+        console.error('🔐 [LocationContext] Response body:', errorBody);
+        console.error('🔐 [LocationContext] Token was present:', !!token);
+        console.error('🔐 [LocationContext] Token from localStorage:', localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)?.substring(0, 20) + '...');
+        console.error('🔐 [LocationContext] User ID sent:', user?.userId);
+
+        // Clear stale token from localStorage (using centralized STORAGE_KEYS)
+        localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+        // Dispatch event so auth context can update
+        window.dispatchEvent(new CustomEvent('auth-token-expired'));
+        // Redirect to sign-in
+        window.location.href = '/auth/sign-in?expired=true';
+        return;
+      }
+
+      const locationData = await locationRes.json();
+
+      // Ensure weather/air data is populated (in case location finished first)
+      if (!weatherData) {
+        try {
+          const res = await weatherPromise;
+          if (res.ok) weatherData = await res.json();
+        } catch (_e) { /* already logged */ }
+      }
+      if (!airQualityData) {
+        try {
+          const res = await airPromise;
+          if (res.ok) airQualityData = await res.json();
+        } catch (_e) { /* already logged */ }
+      }
+
+      // Update city/state (phase 2 - after location resolves)
+      setCity(locationData.city);
+      setState(locationData.state);
+      setTimeZone(locationData.timeZone);
+      // 2026-02-01: FAIL HARD - If city/state missing, trigger critical error
+      // This prevents waterfall from progressing with incomplete location data
+      if (locationData.city && locationData.state) {
+        setCurrentLocationString(`${locationData.city}, ${locationData.state}`);
+        setLocationError(null); // Clear any previous error
+      } else {
+        // FAIL HARD: Set error state that will block the UI
+        console.error('❌ [LocationContext] FAIL HARD: City/state missing from geocode response', {
+          city: locationData.city,
+          state: locationData.state,
+          formattedAddress: locationData.formattedAddress
+        });
+
+        // CRITICAL: Clear ALL stale data from session restore
+        // Without valid coords, weather/AQI/timezone are meaningless and misleading
+        setWeather(null);
+        setAirQuality(null);
+        setTimeZone(null);
+        setCity(null);
+        setState(null);
+        setCurrentCoords(null);
+        setLastSnapshotId(null);
+        sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+        console.log('🧹 [LocationContext] Cleared ALL stale data - coords are required for everything');
+
+        setLocationError({
+          code: 'geocode_incomplete',
+          message: 'Could not determine your city/state. Please check GPS permissions and try again.'
+        });
+        setCurrentLocationString('Location unavailable');
+        return; // Stop processing - don't allow waterfall to continue
+      }
+      setLastUpdated(new Date().toISOString());
+      console.log('📍 [LocationContext] Location updated (phase 2):', locationData.city, locationData.state);
+
+      // Mark location as resolved - gates downstream queries (Bar Tab, Strategy)
+      // 2026-03-18: FIX — Also require timeZone. Without it, venue open/closed status
+      // calculations fail. useBarsQuery depends on isLocationResolved implying timezone is set.
+      if (locationData.city && locationData.formattedAddress && locationData.timeZone) {
+        setIsLocationResolved(true);
+        console.log('✅ [LocationContext] Location resolved - downstream queries enabled');
+      } else if (locationData.city && locationData.formattedAddress) {
+        console.warn('⚠️ [LocationContext] City resolved but timeZone missing — holding isLocationResolved=false');
+      }
+
+      // NOTE: JWT tokens are only used for registered users who login via /api/auth/login
+      // Anonymous users access data via snapshot ownership (snapshot_id acts as capability token)
+      // The old /api/auth/token endpoint is disabled in production
+
+      // ═══════════════════════════════════════════════════════════════════════════
+      // SNAPSHOT: Server creates snapshot during resolve, returns snapshot_id
+      // We just need to enrich it with weather/air and dispatch the event
+      // ═══════════════════════════════════════════════════════════════════════════
+      const snapshotId = locationData.snapshot_id;
+
+      if (snapshotId) {
+        console.log(`📸 [LocationContext] Using server-created snapshot: ${snapshotId.slice(0, 8)}...`);
+
+        // Enrich snapshot with weather/air if available
+        // 2026-01-15: Using centralized API_ROUTES constant
+        if (weatherData?.available || airQualityData?.available) {
+          try {
+            await fetch(API_ROUTES.LOCATION.SNAPSHOT_ENRICH(snapshotId), {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', ...headers },
+              body: JSON.stringify({
+                weather: weatherData?.available ? {
+                  tempF: weatherData.temperature,
+                  conditions: weatherData.conditions,
+                  description: weatherData.description
+                } : undefined,
+                air: airQualityData?.available ? {
+                  aqi: airQualityData.aqi,
+                  category: airQualityData.category
+                } : undefined
+              }),
+              signal: controller.signal
+            });
+            console.log(`📸 [LocationContext] Snapshot enriched with weather/air`);
+          } catch (enrichErr) {
+            // Ignore AbortError - request was intentionally cancelled
+            if (enrichErr instanceof Error && enrichErr.name === 'AbortError') {
+              console.log('🛑 [LocationContext] Enrich request cancelled');
+              return;
+            }
+            console.warn('[LocationContext] Failed to enrich snapshot:', enrichErr);
+          }
+        }
+
+        // Set snapshot ID in state (fallback for co-pilot if event is missed)
+        setLastSnapshotId(snapshotId);
+
+        // 2026-01-06: P3-D - Include reason for smart resume support
+        // CoPilotContext uses this to decide whether to trigger blocks-fast
+        const reason = forceRefresh ? 'manual_refresh' : 'init';
+        window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+          detail: { snapshotId, holiday: null, is_holiday: false, reason }
+        }));
+      } else {
+        // Fallback: Server didn't return snapshot_id, create one client-side (legacy path)
+        console.warn('⚠️ [LocationContext] No snapshot_id from server - using legacy client creation');
+        const fallbackSnapshotId = crypto.randomUUID();
+        const now = new Date();
+        const hour = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getHours();
+        const dow = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getDay();
+
+        const snapshot = {
+          snapshot_id: fallbackSnapshotId,
+          user_id: locationData.user_id,
+          device_id: deviceId,
+          session_id: crypto.randomUUID(),
+          created_at: now.toISOString(),
+          coord: { lat, lng, source: 'gps' },
+          resolved: {
             city: locationData.city,
             state: locationData.state,
             country: locationData.country,
-            timeZone: locationData.timeZone,
-            dayPart: timeContext.dayPartLabel,
-          }));
-        })
-        .catch((err) => {
-          // Don't log errors for intentional aborts (new GPS position arrived)
-          if (err.name === 'AbortError') {
-            console.log("⏭️ Enrichment aborted - new GPS position received");
-            return;
-          }
-          
-          console.error("[Global App] Location resolve error:", err);
-          // Fall back to coordinates if resolution fails
-          setLocationState((prev: any) => ({
-            ...prev,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            currentLocation: `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`,
-            lastUpdated: new Date(),
-          }));
-        });
-    } else if (gpsError) {
-      console.error("[Global App] GPS error:", gpsError);
-      setLocationState((prev: any) => ({
-        ...prev,
-        currentLocation: "GPS unavailable - use Edit button",
-        isUpdating: false,
-        isLoading: false,
-        error: gpsError, // Store the GPS error
-        latitude: undefined, // Clear coordinates on error
-        longitude: undefined, // Clear coordinates on error
-      }));
-    }
-  }, [coords, loading, gpsError]); // Depend on gpsError as well
-
-  // Load saved location from localStorage and setup GPS detection
-  useEffect(() => {
-    const savedLocation = localStorage.getItem("rideshare-location");
-    const savedNoGoZones = localStorage.getItem("driver-no-go-zones");
-
-    let noGoZones: NoGoZone[] = getDefaultNoGoZones();
-    if (savedNoGoZones) {
-      try {
-        const parsedZones = JSON.parse(savedNoGoZones);
-        if (Array.isArray(parsedZones)) {
-          if (parsedZones.length > 0 && typeof parsedZones[0] === "string") {
-            noGoZones = parsedZones.map((zone: string, index: number) => ({
-              id: `zone-${index}`,
-              name: zone,
-              reason: "User defined",
-              enabled: true,
-            }));
-          } else if (
-            parsedZones.length > 0 &&
-            typeof parsedZones[0] === "object"
-          ) {
-            noGoZones = parsedZones;
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse saved no-go zones:", error);
-      }
-    }
-
-    let initialLocationState = {
-      currentLocation: "Getting location...",
-      latitude: undefined,
-      longitude: undefined,
-      vehicleTypes: ["Standard"],
-      minEarningsPerHour: 25,
-      noGoZones,
-      manualLocation: null,
-      settings: {
-        // Initialize settings
-        vehicleTypes: ["Standard"],
-        minEarningsPerHour: 25,
-      },
-      // Initialize other state properties from the context value interface
-      coords: null,
-      accuracy: null,
-      error: null,
-      isLoading: true, // Start as loading
-      hasPermission: null,
-    };
-
-    if (savedLocation) {
-      try {
-        const parsed = JSON.parse(savedLocation);
-        initialLocationState = {
-          ...initialLocationState,
-          vehicleTypes: parsed.vehicleTypes || ["Standard"],
-          minEarningsPerHour: parsed.minEarningsPerHour || 25,
-          currentLocation: parsed.currentLocation || "Getting location...",
-          latitude: parsed.latitude,
-          longitude: parsed.longitude,
-          manualLocation: parsed.manualLocation || null,
-          settings: {
-            // Merge saved settings
-            vehicleTypes: parsed.vehicleTypes || ["Standard"],
-            minEarningsPerHour: parsed.minEarningsPerHour || 25,
+            timezone: locationData.timeZone,
+            formattedAddress: locationData.formattedAddress
           },
+          time_context: {
+            local_iso: now.toISOString(),
+            dow,
+            hour,
+            is_weekend: dow === 0 || dow === 6,
+            day_part_key: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+          },
+          weather: weatherData?.available ? {
+            tempF: weatherData.temperature,
+            conditions: weatherData.conditions,
+            description: weatherData.description
+          } : undefined,
+          air: airQualityData?.available ? {
+            aqi: airQualityData.aqi,
+            category: airQualityData.category
+          } : undefined,
+          device: { platform: 'web' },
+          permissions: { geolocation: 'granted' }
         };
-      } catch (error) {
-        console.error("Failed to parse saved location:", error);
+
+        // 2026-01-15: Using centralized API_ROUTES constant
+        const snapshotRes = await fetch(API_ROUTES.LOCATION.SNAPSHOT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify(snapshot),
+          signal: controller.signal
+        });
+
+        if (snapshotRes.ok) {
+          // Set snapshot ID in state (fallback for co-pilot if event is missed)
+          setLastSnapshotId(fallbackSnapshotId);
+
+          // 2026-01-06: P3-D - Include reason (legacy path uses same logic)
+          const fallbackReason = forceRefresh ? 'manual_refresh' : 'init';
+          window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+            detail: { snapshotId: fallbackSnapshotId, holiday: null, is_holiday: false, reason: fallbackReason }
+          }));
+        }
       }
+    } catch (error) {
+      // Ignore AbortError - request was intentionally cancelled (user tapped refresh rapidly)
+      // Updated 2026-01-05: Graceful handling of cancelled requests
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('🛑 [LocationContext] Enrichment cancelled by newer request');
+        return;
+      }
+      console.error('[LocationContext] Enrichment failed:', error);
+    }
+  // 2026-01-06: Depend on user?.userId (primitive) instead of user object
+  // This prevents callback recreation when user object reference changes but userId stays the same
+  }, [token, user?.userId]);
+
+  // refreshGPS: Fetch GPS and resolve location
+  // forceNewSnapshot: true = user clicked refresh button, always create new snapshot
+  //                   false = initial mount, allow server to reuse existing snapshot if < 60 min
+  const refreshGPS = useCallback(async (forceNewSnapshot = true) => {
+    setIsUpdating(true);
+    setOverrideCoords(null);
+    setIsLocationResolved(false); // Reset - gates queries until new location resolves
+
+    // Only clear storage when user explicitly requests fresh data
+    if (forceNewSnapshot) {
+      // 2026-02-17: Full waterfall reset — matches logout behavior (minus auth teardown).
+      // 1. Null snapshot on server IMMEDIATELY (before GPS fetch)
+      // 2. Cancel/clear all query cache
+      // 3. Clear all client-side snapshot + strategy storage
+      // This ensures no stale data survives. Fresh GPS coords will trigger a clean pipeline.
+      const authToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      if (authToken) {
+        try {
+          await fetch(API_ROUTES.LOCATION.RELEASE_SNAPSHOT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
+        } catch {
+          // Best-effort — enrichLocation with force=true will also null it
+        }
+      }
+
+      queryClient.cancelQueries();
+      queryClient.clear();
+
+      // 2026-03-18: Null snapshot so enrichment dedup sees "no active snapshot" → always proceeds
+      setLastSnapshotId(null);
+      lastSnapshotIdRef.current = null;
+
+      // Clear sessionStorage - driver clicked refresh to get fresh data at staging area
+      clearSnapshotStorage();
+
+      // Clear old strategy
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+      window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
     }
 
-    setLocationState(initialLocationState);
-    refreshLocation(); // Trigger initial GPS fetch
-    console.log(
-      "📍 Location context initialized - Initial GPS fetch triggered",
-    );
-
-    const handleManualLocationUpdate = async (event: Event) => {
-      const { location: manualLocation } = (event as CustomEvent).detail;
-      console.log("📍 Manual location update received:", manualLocation);
-
-      if (!manualLocation?.trim()) return;
-
-      try {
-        // Forward-geocode to coords
-        const res = await fetch(`/api/location/resolve?query=${encodeURIComponent(manualLocation.trim())}`);
-        const data = await res.json();
-
-        // Increment session ID to invalidate cached queries
-        setLocationSessionId(prev => prev + 1);
-        
-        // Cancel any in-flight enrichment from GPS
-        if (enrichmentControllerRef.current) {
-          console.log("🚫 Aborting stale enrichment request");
-          enrichmentControllerRef.current.abort();
-        }
-
-        // Source of truth for override used by Header & Co-Pilot
-        setOverrideCoords({
-          latitude: data.latitude,
-          longitude: data.longitude,
-          city: data.city || manualLocation.trim(),
-          source: 'manual_city_search',
-        });
-
-        // Reflect in human string for display/localStorage
-        updateLocation({
-          currentLocation: data.city || manualLocation.trim(),
-          latitude: undefined,
-          longitude: undefined,
-          manualLocation: manualLocation.trim(),
-        });
-        console.log("✅ Manual city search - overrideCoords set:", data.city);
-      } catch (error) {
-        console.error("❌ Manual location geocoding failed:", error);
+    try {
+      const coords = await getGeoPosition();
+      if (coords) {
+        console.log('📍 [LocationContext] GPS success - using live location');
+        setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
+        // 2026-03-18: Always force-refresh enrichment from refreshGPS.
+        // Driver may be at same coords but needs fresh snapshot data every sign-in.
+        // The dedup check only applies to the auto-enrich effect (coord change detection).
+        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy, true);
+      } else if (profile?.homeLat && profile?.homeLng) {
+        // Fallback to home location from user's profile (set during registration)
+        console.log('🏠 [LocationContext] GPS unavailable - using home location from profile');
+        setCurrentCoords({ latitude: profile.homeLat, longitude: profile.homeLng });
+        await enrichLocation(profile.homeLat, profile.homeLng, 100, true);
+      } else {
+        // No GPS and no home location - user needs to enable GPS
+        console.warn('[LocationContext] No GPS and no home location - cannot proceed');
+        setCurrentLocationString('Location unavailable - enable GPS');
       }
-    };
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [enrichLocation, profile?.homeLat, profile?.homeLng]);
 
-    const handleGPSPermissionGranted = (event: Event) => {
-      const { latitude, longitude } = (event as CustomEvent).detail;
-      console.log(
-        "🎯 GPS permission granted event received:",
-        latitude,
-        longitude,
-      );
-      console.log("🔄 Updating location context with GPS coordinates...");
-
-      // Cancel stale enrichment and create new AbortController
-      if (enrichmentControllerRef.current) {
-        enrichmentControllerRef.current.abort();
-      }
-      enrichmentControllerRef.current = new AbortController();
-      const { signal } = enrichmentControllerRef.current;
-
-      fetch(`/api/location/resolve?lat=${latitude}&lng=${longitude}`, { signal })
-        .then((response) => response.json())
-        .then((data) => {
-          console.log("📍 Location resolved to:", data);
-          const locationName =
-            data.city ||
-            data.address ||
-            `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-          updateLocation({
-            currentLocation: locationName,
-            latitude,
-            longitude,
-            manualLocation: null,
-          }); // Clear manual location on GPS update
-        })
-        .catch((err) => {
-          console.error("Failed to resolve location name:", err);
-          updateLocation({
-            currentLocation: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
-            latitude,
-            longitude,
-            manualLocation: null,
-          });
-        });
-    };
-
-    console.log("🔌 Setting up event listeners for location updates...");
-    window.addEventListener(
-      "manual-location-update",
-      handleManualLocationUpdate,
-    );
-    window.addEventListener(
-      "gps-permission-granted",
-      handleGPSPermissionGranted,
-    );
-    console.log("✅ Event listeners registered successfully");
-
-    return () => {
-      window.removeEventListener(
-        "manual-location-update",
-        handleManualLocationUpdate,
-      );
-      window.removeEventListener(
-        "gps-permission-granted",
-        handleGPSPermissionGranted,
-      );
-    };
-  }, []);
-
-  // Save location to localStorage whenever relevant parts of locationState change
+  // 2026-01-07: Keep ref in sync with latest refreshGPS
+  // This allows the GPS effect to always call the latest version
+  // without adding refreshGPS to its deps (which causes infinite loop)
   useEffect(() => {
-    localStorage.setItem(
-      "rideshare-location",
-      JSON.stringify({
-        currentLocation: locationState.currentLocation,
-        latitude: locationState.latitude,
-        longitude: locationState.longitude,
-        lastUpdated: locationState.lastUpdated?.toISOString() || new Date().toISOString(),
-        vehicleTypes: locationState.vehicleTypes,
-        minEarningsPerHour: locationState.minEarningsPerHour,
-        manualLocation: locationState.manualLocation,
-      }),
-    );
+    refreshGPSRef.current = refreshGPS;
+  }, [refreshGPS]);
 
-    // Dispatch custom event to notify other components
-    window.dispatchEvent(
-      new CustomEvent("location-changed", {
-        detail: locationState,
-      }),
-    );
-  }, [
-    locationState.currentLocation,
-    locationState.latitude,
-    locationState.longitude,
-    locationState.lastUpdated,
-    locationState.vehicleTypes,
-    locationState.minEarningsPerHour,
-    locationState.manualLocation,
+  // 2026-03-18: Keep enrichLocation ref in sync — auto-enrich effect uses this
+  // to avoid depending on the enrichLocation reference (which changes on auth state change)
+  const enrichLocationRef = useRef<typeof enrichLocation>();
+  useEffect(() => {
+    enrichLocationRef.current = enrichLocation;
+  }, [enrichLocation]);
+
+  // 2026-01-14: Keep state refs in sync for GPS effect to read current values
+  // Without this, setTimeout closure captures stale values from when effect ran
+  useEffect(() => { lastSnapshotIdRef.current = lastSnapshotId; }, [lastSnapshotId]);
+  useEffect(() => { currentCoordsRef.current = currentCoords; }, [currentCoords]);
+  useEffect(() => { cityRef.current = city; }, [city]);
+  useEffect(() => { timeZoneRef.current = timeZone; }, [timeZone]);
+
+  // Initial GPS fetch - ONLY start when user is AUTHENTICATED
+  // This ensures snapshots are ALWAYS linked to the authenticated user
+  // Anonymous users on sign-up/sign-in pages should NOT create snapshots
+  // Note: Browser may show "[Violation] Only request geolocation in response to user gesture"
+  // This is a warning, not an error - we try anyway and fall back to button click if needed
+  //
+  // 2026-01-14: FIX - Removed lastSnapshotId, currentCoords, city from deps
+  // These values are SET by refreshGPS, so having them in deps caused cascade:
+  // 1. Effect runs → refreshGPS called → setCurrentCoords
+  // 2. currentCoords changed → effect re-runs → another refreshGPS
+  // This was causing 4x GPS fetches in 200ms!
+  //
+  // Instead, we use refs to check cached data without adding to deps.
+  // The ref is updated in session restore (line 270-273) and by state updates.
+  const gpsEffectRanRef = useRef(false);
+
+  useEffect(() => {
+    // Don't start GPS fetch until auth state is determined
+    if (authLoading) {
+      console.log('🔐 [LocationContext] Waiting for auth state to load...');
+      return;
+    }
+
+    // CRITICAL: Only start GPS fetch if user is AUTHENTICATED
+    // Anonymous users should not create snapshots
+    if (!user?.userId || !token) {
+      console.log('🔐 [LocationContext] User not authenticated - skipping GPS fetch');
+      return;
+    }
+
+    // 2026-01-14: Prevent duplicate GPS fetches
+    // This flag ensures we only start ONE GPS fetch per auth session
+    if (gpsEffectRanRef.current) {
+      console.log('⏭️ [LocationContext] GPS effect already ran this session - skipping');
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      // Double-check the flag inside timeout (state might have changed)
+      if (gpsEffectRanRef.current) return;
+
+      // 2026-01-14: Handle resume with cached data
+      // Auth is now verified, check if we have valid cached data to resume from
+      // Use REFS to get current values - closures would capture stale values!
+      const cachedSnapshotId = lastSnapshotIdRef.current;
+      const cachedCoords = currentCoordsRef.current;
+      const cachedCity = cityRef.current;
+      // 2026-03-18: FIX — Also require timeZone for resume. Without it, downstream
+      // queries (useBarsQuery) that depend on isLocationResolved would fire without timezone.
+      const cachedTimeZone = timeZoneRef.current;
+
+      if (cachedSnapshotId && cachedCoords && cachedCity && cachedTimeZone) {
+        console.log('📦 [LocationContext] RESUME: Auth verified, enabling cached data');
+        console.log(`📦 [LocationContext] Cached snapshot: ${cachedSnapshotId.slice(0, 8)}, city: ${cachedCity}`);
+
+        // Mark location as resolved - auth is verified, cached data is valid
+        // This gates downstream queries (bars, briefing)
+        setIsLocationResolved(true);
+
+        // Dispatch event so CoPilotContext can use the cached snapshotId
+        // reason: 'resume' tells it not to regenerate strategy
+        window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
+          detail: { snapshotId: cachedSnapshotId, holiday: null, is_holiday: false, reason: 'resume' }
+        }));
+
+        gpsEffectRanRef.current = true;
+        return;
+      }
+
+      // Resume failed or no cached data (fresh sign-in).
+      // No need to clear lastEnrichmentCoordsRef — snapshot is null so dedup won't skip.
+      gpsEffectRanRef.current = true;
+      console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
+      refreshGPSRef.current?.(false);
+    }, 50);
+    return () => clearTimeout(timer);
+  // 2026-01-14: CRITICAL - Only depend on auth state, NOT on GPS data (lastSnapshotId, currentCoords, city)
+  // Those values are SET by refreshGPS, so having them in deps caused 4x GPS fetches
+  }, [authLoading, user?.userId, token]);
+
+  // Listen for snapshot ownership errors (when user changes but stale snapshot ID is used)
+  // This triggers a fresh GPS fetch to create a new snapshot for the current user
+  useEffect(() => {
+    const handleOwnershipError = () => {
+      console.warn('🚨 [LocationContext] Snapshot ownership error - clearing and refreshing');
+      // 2026-03-18: Null snapshot (state + ref) so enrichment dedup sees no active snapshot
+      setLastSnapshotId(null);
+      lastSnapshotIdRef.current = null;
+      // Clear sessionStorage to remove any persisted stale data
+      clearSnapshotStorage();
+      // Trigger fresh GPS fetch → force new snapshot for current user
+      // 2026-01-07: Use ref to access latest refreshGPS
+      refreshGPSRef.current?.(true);
+    };
+
+    window.addEventListener('snapshot-ownership-error', handleOwnershipError);
+    return () => window.removeEventListener('snapshot-ownership-error', handleOwnershipError);
+  }, []); // Empty deps - event listener only needs to be set up once
+
+  // 2026-03-18: Auto-enrich when coords change during an active session.
+  // Only fires when: (a) not initial mount, (b) coords changed, (c) active snapshot exists.
+  // During sign-in/manual refresh, snapshot is null → refreshGPS handles enrichment directly.
+  // Uses enrichLocationRef to avoid re-firing when enrichLocation reference changes (auth state).
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    // Only auto-enrich if driver has an active snapshot (normal driving, not sign-in/refresh)
+    if (currentCoords && lastSnapshotIdRef.current) {
+      console.log('📍 Coordinates changed during active session - triggering enrichment');
+      enrichLocationRef.current?.(currentCoords.latitude, currentCoords.longitude, 10);
+    }
+  }, [currentCoords?.latitude, currentCoords?.longitude]);
+
+  // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
+  // Without useMemo, every render creates a new object → all consumers re-render → cascade
+  // This was causing "Maximum update depth exceeded" errors
+  const contextValue = useMemo(() => ({
+    currentCoords,
+    currentLocationString,
+    city,
+    state,
+    timeZone,
+    isUpdating,
+    lastUpdated,
+    refreshGPS,
+    overrideCoords,
+    weather,
+    airQuality,
+    isLocationResolved,
+    lastSnapshotId,
+    isLoading: isUpdating,
+    setOverrideCoords,
+    // 2026-02-01: FAIL HARD - Expose location error for CoPilotContext to trigger CriticalError
+    locationError
+  }), [
+    currentCoords,
+    currentLocationString,
+    city,
+    state,
+    timeZone,
+    isUpdating,
+    lastUpdated,
+    refreshGPS,
+    overrideCoords,
+    weather,
+    airQuality,
+    isLocationResolved,
+    lastSnapshotId,
+    setOverrideCoords,
+    locationError
   ]);
 
-  const updateSettings = async (newSettings: Partial<DriverSettings>) => {
-    console.log("Updating settings:", newSettings);
-    setLocationState((prev: any) => {
-      const updatedSettings = { ...prev.settings, ...newSettings };
-      // Also update the top-level location state properties if they exist in newSettings
-      const updatedLocationState = { ...prev };
-      if (newSettings.vehicleTypes !== undefined) {
-        updatedLocationState.vehicleTypes = newSettings.vehicleTypes;
-      }
-      if (newSettings.minEarningsPerHour !== undefined) {
-        updatedLocationState.minEarningsPerHour =
-          newSettings.minEarningsPerHour;
-      }
-      return {
-        ...updatedLocationState,
-        settings: updatedSettings,
-        lastUpdated: new Date(),
-      };
-    });
-  };
-
-  const setManualLocation = (location: string) => {
-    console.log(`📍 Setting manual location: ${location}`);
-    setLocationState((prev: any) => ({
-      ...prev,
-      manualLocation: location,
-      currentLocation: location, // Update currentLocation as well
-      latitude: undefined, // Clear GPS coordinates
-      longitude: undefined,
-      lastUpdated: new Date(),
-      isUpdating: false,
-    }));
-  };
-
-  const clearManualLocation = () => {
-    console.log("📍 Clearing manual location override.");
-    setLocationState((prev: any) => ({
-      ...prev,
-      manualLocation: null,
-      // Reset currentLocation to something indicative of GPS detection, or keep as is if GPS is already active
-      // For now, let's keep it as is and rely on refreshLocation to get actual GPS data if available.
-      lastUpdated: new Date(),
-      isUpdating: false, // Ensure isUpdating is false
-    }));
-    refreshLocation(); // Attempt to refresh GPS after clearing manual location
-  };
-
-  const clearLocation = () => {
-    console.log("Clearing location state.");
-    setLocationState({
-      currentLocation: "Location detection required",
-      latitude: undefined,
-      longitude: undefined,
-      lastUpdated: new Date(),
-      isUpdating: false,
-      vehicleTypes: ["Standard"],
-      minEarningsPerHour: 25,
-      noGoZones: getDefaultNoGoZones(),
-      manualLocation: null,
-      settings: {
-        vehicleTypes: ["Standard"],
-        minEarningsPerHour: 25,
-      },
-      coords: null,
-      accuracy: null,
-      error: null,
-      isLoading: false,
-      hasPermission: null,
-    });
-  };
-
-  const updateLocation = (locationData: any) => {
-    // Accepts partial updates
-    console.log("Updating location state with:", locationData);
-    setLocationState((prev: any) => ({
-      ...prev,
-      ...locationData,
-      lastUpdated: new Date(),
-      isUpdating: false, // Assume update is complete
-    }));
-  };
-
-  const updateVehicleTypes = (types: string[]) => {
-    console.log(`🚗 Updating vehicle types: ${types.join(", ")}`);
-    updateSettings({ vehicleTypes: types });
-  };
-
-  const updateMinEarnings = (amount: number) => {
-    console.log(`💰 Updating minimum earnings per hour: $${amount}`);
-    updateSettings({ minEarningsPerHour: amount });
-  };
-
-  const requestPermission = async () => {
-    console.log("Requesting location permission...");
-    setLocationState((prev: any) => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const permissionStatus = await navigator.permissions.query({
-        name: "geolocation",
-      });
-      if (
-        permissionStatus.state === "granted" ||
-        permissionStatus.state === "prompt"
-      ) {
-        // If granted or prompt, try to get position
-        await refreshLocation();
-        setLocationState((prev: any) => ({
-          ...prev,
-          hasPermission: permissionStatus.state === "granted",
-          isLoading: false,
-        }));
-      } else if (permissionStatus.state === "denied") {
-        console.error("Geolocation permission denied by user.");
-        setLocationState((prev: any) => ({
-          ...prev,
-          error: "Location permission denied.",
-          hasPermission: false,
-          isLoading: false,
-        }));
-      }
-      permissionStatus.onchange = async () => {
-        console.log(
-          `Geolocation permission state changed to: ${permissionStatus.state}`,
-        );
-        if (permissionStatus.state === "granted") {
-          await refreshLocation();
-          setLocationState((prev: any) => ({
-            ...prev,
-            hasPermission: true,
-            isLoading: false,
-          }));
-        } else if (permissionStatus.state === "denied") {
-          setLocationState((prev: any) => ({
-            ...prev,
-            error: "Location permission denied.",
-            hasPermission: false,
-            isLoading: false,
-          }));
-        }
-      };
-    } catch (err) {
-      console.error("Error requesting location permission:", err);
-      setLocationState((prev: any) => ({
-        ...prev,
-        error: "Failed to request location permission.",
-        hasPermission: false,
-        isLoading: false,
-      }));
-    }
-  };
-
-  const value: LocationContextValue = {
-    isLoading: locationState.isLoading,
-    error: locationState.error,
-    hasPermission: locationState.hasPermission,
-    requestPermission,
-
-    // GPS and location data
-    currentCoords: locationState.coords,
-    currentLocationString: locationState.currentLocation,
-    lastUpdated: locationState.lastUpdated,
-    accuracy: locationState.accuracy,
-    location: locationState as any,
-    timeZone: locationState.timeZone,
-
-    // Location session tracking (increments on GPS refresh or city search)
-    locationSessionId,
-
-    // Override coordinates (for manual city search)
-    overrideCoords,
-    setOverrideCoords: (coords: OverrideCoordinates | null) => {
-      setOverrideCoords(coords);
-      // Increment session ID when city search happens
-      if (coords) {
-        setLocationSessionId(prev => prev + 1);
-      }
-    },
-
-    // User preferences and settings
-    manualLocationOverride: locationState.manualLocation,
-    settings: locationState.settings,
-    updateSettings,
-
-    // Location management
-    refreshLocation,
-    refreshGPS: refreshLocation,
-    setManualLocation,
-    clearManualLocation,
-    updateLocation: (location: any) => {
-      setLocationState((prev: any) => ({ ...prev, ...location }));
-    },
-    updateVehicleTypes: (types: string[]) => {
-      updateSettings({ vehicleTypes: types });
-    },
-    updateMinEarnings: (amount: number) => {
-      updateSettings({ minEarningsPerHour: amount });
-    },
-  };
-
   return (
-    <LocationContext.Provider value={value}>
+    <LocationContext.Provider value={contextValue}>
       {children}
     </LocationContext.Provider>
   );
-}
-
-export function useLocation(): any {
-  const context = useContext(LocationContext);
-  if (context === undefined) {
-    throw new Error("useLocation must be used within a LocationProvider");
-  }
-  return context as any;
-}
-
-// Custom hook for components that need to react to location changes
-export function useLocationUpdates() {
-  const locationContext = useLocation();
-  const location = locationContext?.location;
-  const [updateKey, setUpdateKey] = useState(0);
-
-  useEffect(() => {
-    const handleLocationChange = () => {
-      setUpdateKey((prev) => prev + 1);
-    };
-
-    window.addEventListener("location-changed", handleLocationChange);
-    return () =>
-      window.removeEventListener("location-changed", handleLocationChange);
-  }, []);
-
-  return { location, updateKey };
-}
+};
