@@ -199,4 +199,5 @@ env/shared.env
 shared.env
 .env.example
 .env.unified
-mono-mode.envnode_modules/
+mono-mode.env
+node_modules/
