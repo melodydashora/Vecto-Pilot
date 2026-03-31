@@ -2,14 +2,12 @@
 // Strategy page with AI recommendations, smart blocks, and coach chat
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   MapPin,
   Navigation,
-  TrendingUp,
   Clock,
   Sparkles,
   Zap,
@@ -31,10 +29,34 @@ import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
 import { logAction as logActionHelper } from '@/utils/co-pilot-helpers';
 import type { SmartBlock } from '@/types/co-pilot';
 
+/**
+ * Safely render markdown-like text with **bold** and newlines as React elements.
+ * Avoids dangerouslySetInnerHTML to prevent XSS.
+ */
+function renderFormattedText(text: string): React.ReactNode[] {
+  // Split by newlines first, then handle bold within each line
+  return text.split('\n').flatMap((line, lineIdx, lines) => {
+    // Split by **bold** pattern
+    const parts = line.split(/\*\*([^*]+)\*\*/g);
+    const elements: React.ReactNode[] = parts.map((part, partIdx) =>
+      // Odd indices are the captured bold groups
+      partIdx % 2 === 1 ? (
+        <strong key={`${lineIdx}-${partIdx}`} className="text-orange-800 font-semibold">{part}</strong>
+      ) : (
+        <React.Fragment key={`${lineIdx}-${partIdx}`}>{part}</React.Fragment>
+      )
+    );
+    // Add <br /> between lines (not after last line)
+    if (lineIdx < lines.length - 1) {
+      elements.push(<br key={`br-${lineIdx}`} />);
+    }
+    return elements;
+  });
+}
+
 export default function StrategyPage() {
   const locationContext = useLocationContext();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Get shared state from context
   const {
@@ -58,7 +80,7 @@ export default function StrategyPage() {
 
   // Local state for this page only
   const [selectedBlocks, setSelectedBlocks] = useState<Set<number>>(new Set());
-  const [dwellTimers, setDwellTimers] = useState<Map<number, number>>(new Map());
+  const dwellTimersRef = useRef<Map<number, number>>(new Map());
 
   // Feedback modal state
   const [feedbackModal, setFeedbackModal] = useState<{
@@ -112,21 +134,16 @@ export default function StrategyPage() {
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              const startTime = Date.now();
-              setDwellTimers(prev => new Map(prev).set(index, startTime));
+              dwellTimersRef.current.set(index, Date.now());
             } else {
-              const startTime = dwellTimers.get(index);
+              const startTime = dwellTimersRef.current.get(index);
               if (startTime) {
                 const dwellMs = Date.now() - startTime;
                 if (dwellMs > 500) {
                   const blockId = `${block.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${block.coordinates.lat}_${block.coordinates.lng}`;
                   logAction('block_dwell', blockId, dwellMs, index + 1);
                 }
-                setDwellTimers(prev => {
-                  const next = new Map(prev);
-                  next.delete(index);
-                  return next;
-                });
+                dwellTimersRef.current.delete(index);
               }
             }
           });
@@ -140,10 +157,11 @@ export default function StrategyPage() {
 
     return () => {
       observers.forEach(observer => observer.disconnect());
+      dwellTimersRef.current.clear();
     };
   }, [blocks, blocksData?.ranking_id]);
 
-  const toggleBlockSelection = (blockIndex: number) => {
+  const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
     if (!block) return;
 
@@ -275,14 +293,9 @@ export default function StrategyPage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-orange-900 mb-2">🎯 Where to Go NOW</p>
-                  <p
-                    className="text-sm text-gray-800 leading-relaxed"
-                    dangerouslySetInnerHTML={{
-                      __html: immediateStrategy
-                        .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-orange-800 font-semibold">$1</strong>')
-                        .replace(/\n/g, '<br />')
-                    }}
-                  />
+                  <p className="text-sm text-gray-800 leading-relaxed">
+                    {renderFormattedText(immediateStrategy)}
+                  </p>
                 </div>
               </div>
             </CardContent>

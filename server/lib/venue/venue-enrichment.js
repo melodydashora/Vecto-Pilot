@@ -19,10 +19,31 @@ const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_NEW_URL = "https://places.googleapis.com/v1/places:searchNearby";
 const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
-// In-memory cache for places (lasts duration of request batch)
+// In-memory cache for places with LRU eviction
 // Key: rounded coords "lat_lng" → value: place details
 const placesMemoryCache = new Map();
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const MAX_CACHE_SIZE = 500; // Prevent unbounded memory growth
+
+/**
+ * Set a value in the places memory cache with LRU eviction.
+ * When the cache exceeds MAX_CACHE_SIZE, evicts the oldest entries.
+ */
+function cacheSet(key, value) {
+  // Delete first to refresh insertion order (Map maintains insertion order)
+  placesMemoryCache.delete(key);
+  placesMemoryCache.set(key, value);
+
+  // Evict oldest entries if over limit
+  if (placesMemoryCache.size > MAX_CACHE_SIZE) {
+    const keysToDelete = [];
+    for (const k of placesMemoryCache.keys()) {
+      if (placesMemoryCache.size - keysToDelete.length <= MAX_CACHE_SIZE) break;
+      keysToDelete.push(k);
+    }
+    keysToDelete.forEach(k => placesMemoryCache.delete(k));
+  }
+}
 
 /**
  * Enrich GPT-5 venue recommendations with Google API data
@@ -446,7 +467,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
         const cached = dbCached.formatted_hours;
         venuesLog.info(`Places CACHE HIT (db): "${name}"`, OP.CACHE);
         // Update memory cache
-        placesMemoryCache.set(coordsKey, { ...cached, cachedAt: Date.now() });
+        cacheSet(coordsKey, { ...cached, cachedAt: Date.now() });
         // Update access count
         db.update(places_cache)
           .set({ access_count: (dbCached.access_count || 0) + 1 })
@@ -573,7 +594,7 @@ async function getPlaceDetails(lat, lng, name, timezone = "UTC") {
 
         // 4. Save to cache (both memory and DB) - fire and forget
         const cacheData = { ...result, cachedAt: Date.now() };
-        placesMemoryCache.set(coordsKey, cacheData);
+        cacheSet(coordsKey, cacheData);
 
         // Save to DB cache (async, don't await)
         db.insert(places_cache)

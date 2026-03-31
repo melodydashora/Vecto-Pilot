@@ -63,10 +63,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null);
 
   // Enriched reasonings for closed venues
-  const [enrichedReasonings, setEnrichedReasonings] = useState<Map<string, string>>(new Map());
+  const [enrichedReasonings, _setEnrichedReasonings] = useState<Map<string, string>>(new Map());
 
   // Ref to track polling status
-  const lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
+  const _lastStatusRef = useRef<'idle' | 'ready' | 'paused'>('idle');
 
   // Get coords from location context
   const gpsCoords = locationContext?.currentCoords;

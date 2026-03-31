@@ -3,36 +3,35 @@ import React, { createContext, useState, useEffect, useCallback, useRef } from '
 
 // Inline geolocation helper with manual timeout fallback
 // Browser's geolocation timeout can hang in some environments (previews, permission blocked)
-function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
-  return new Promise(async (resolve) => {
+async function getGeoPosition(): Promise<{ latitude: number; longitude: number; accuracy: number } | null> {
+  // Check permission state first (if available)
+  let permissionState = 'unknown';
+  try {
+    if (navigator.permissions) {
+      const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+      permissionState = result.state; // 'granted', 'denied', or 'prompt'
+    }
+  } catch (_e) {
+    permissionState = 'query-failed';
+  }
+
+  // Debug: Log environment info
+  console.log('[getGeoPosition] Starting...', {
+    hasNavigator: typeof navigator !== 'undefined',
+    hasGeolocation: typeof navigator !== 'undefined' && !!navigator.geolocation,
+    isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
+    protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
+    hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+    permissionState
+  });
+
+  if (!navigator.geolocation) {
+    console.warn('[getGeoPosition] Geolocation not supported');
+    return null;
+  }
+
+  return new Promise((resolve) => {
     let resolved = false;
-
-    // Check permission state first (if available)
-    let permissionState = 'unknown';
-    try {
-      if (navigator.permissions) {
-        const result = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-        permissionState = result.state; // 'granted', 'denied', or 'prompt'
-      }
-    } catch (e) {
-      permissionState = 'query-failed';
-    }
-
-    // Debug: Log environment info
-    console.log('[getGeoPosition] Starting...', {
-      hasNavigator: typeof navigator !== 'undefined',
-      hasGeolocation: typeof navigator !== 'undefined' && !!navigator.geolocation,
-      isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
-      protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
-      hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
-      permissionState
-    });
-
-    if (!navigator.geolocation) {
-      console.warn('[getGeoPosition] Geolocation not supported');
-      resolve(null);
-      return;
-    }
 
     // Manual timeout - browser's timeout can hang in previews
     const manualTimeout = setTimeout(() => {
