@@ -81,12 +81,7 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+# dotenv environment variable files (duplicates removed — primary rules at line 43-46)
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -208,3 +203,12 @@ env/shared.env
 shared.env
 .env.example
 .env.unified
+
+# Runtime data files (change on every run, not source code)
+sent-to-strategist.txt
+snapshot.txt
+briefing-output.json
+
+# AI session artifacts (one-time analysis outputs)
+anthropic_models_dict.json
+CLAUDE-OPUS-4.6-FULL-ANALYSIS.md
