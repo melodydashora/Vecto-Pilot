@@ -225,7 +225,21 @@
       "Bash(node -e \"import { ranking_candidates } from ''''./shared/schema.js''''; const cols = Object.keys\\(ranking_candidates\\); console.log\\(''''ranking_candidates cols:'''', cols.length, ''''| has venue_id:'''', cols.includes\\(''''venue_id''''\\)\\);\")",
       "Bash(find /home/runner/workspace/client -type f \\\\\\(-name *.jsx -o -name *.tsx \\\\\\))",
       "Bash(find /home/runner/workspace -maxdepth 2 -type f \\\\\\(-name .env* -o -name replit.nix -o -name README* \\\\\\))",
-      "Bash(env)"
+      "Bash(env)",
+      "Bash(du -sh /home/runner/workspace/* --exclude=node_modules)",
+      "Bash(/tmp/threshold_compare.txt:*)",
+      "Read(//tmp/**)",
+      "Read(//home/runner/.ssh/**)",
+      "Bash(ssh-keygen:*)",
+      "Bash(portal --help)",
+      "Bash(vstatus)",
+      "Bash(ssh -V)",
+      "Read(//etc/ssh/**)",
+      "Bash(snap list:*)",
+      "Bash(dpkg -l)",
+      "Bash(pip install:*)",
+      "Bash(termius --version)",
+      "Bash(termius --help)"
     ],
     "deny": [],
     "ask": []
