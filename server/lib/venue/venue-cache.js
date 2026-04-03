@@ -185,10 +185,15 @@ export async function insertVenue(venue) {
   const district = venue.district || extractDistrictFromVenueName(venue.venueName);
   const districtSlug = district ? normalizeDistrictSlug(district) : null;
 
+  // 2026-04-02: FIX - Defensive fallback for address to prevent NOT NULL violations.
+  // Postgres rejects the INSERT (including ON CONFLICT path) if address is null.
+  const resolvedAddress = venue.address || venue.formattedAddress
+    || (venue.city && venue.state ? `${venue.city}, ${venue.state}` : 'Address pending');
+
   const insertValues = {
     venue_name: venue.venueName,
     normalized_name: normalized,
-    address: venue.address || venue.formattedAddress,
+    address: resolvedAddress,
     city: venue.city,
     state: venue.state?.toUpperCase(),
     zip: venue.zip,

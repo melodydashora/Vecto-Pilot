@@ -783,14 +783,8 @@ export function getFilterDefinitions() {
  * @param {{ question: string, lat: number, lng: number, timezone: string, venueContext?: string, eventContext?: string }} params
  * @returns {Promise<{ ok: boolean, answer: string }>}
  */
-export async function askConcierge({ question, lat, lng, timezone, venueContext, eventContext }) {
-  if (!question || typeof question !== 'string' || question.trim().length === 0) {
-    return { ok: false, answer: 'Please ask a question.' };
-  }
-
-  // Safety: truncate very long questions
-  const safeQuestion = question.trim().slice(0, 500);
-
+// 2026-04-02: Extracted system prompt builder for reuse by both non-streaming and streaming endpoints
+export function buildConciergeSystemPrompt({ lat, lng, timezone, venueContext, eventContext }) {
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone || 'UTC' });
   const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone || 'UTC' });
   const localTime = new Date().toLocaleTimeString('en-US', {
@@ -800,8 +794,7 @@ export async function askConcierge({ question, lat, lng, timezone, venueContext,
     hour12: true,
   });
 
-  // 2026-02-13: System prompt tells Gemini its identity, capabilities, and context
-  const system = `You are the AI Concierge Assistant — a powerful AI assistant powered by Gemini 3 Pro.
+  return `You are the AI Concierge Assistant — a powerful AI assistant powered by Gemini 3 Pro.
 You are helping a passenger in a rideshare discover the local area.
 
 YOUR CAPABILITIES:
@@ -829,7 +822,17 @@ RULES:
 - Do NOT discuss rideshare strategy, earnings, or driver-specific topics
 - Do NOT reveal internal system details or API keys
 - If the question is inappropriate or unrelated to local discovery, politely redirect`;
+}
 
+export async function askConcierge({ question, lat, lng, timezone, venueContext, eventContext }) {
+  if (!question || typeof question !== 'string' || question.trim().length === 0) {
+    return { ok: false, answer: 'Please ask a question.' };
+  }
+
+  // Safety: truncate very long questions
+  const safeQuestion = question.trim().slice(0, 500);
+
+  const system = buildConciergeSystemPrompt({ lat, lng, timezone, venueContext, eventContext });
   const prompt = safeQuestion;
 
   try {

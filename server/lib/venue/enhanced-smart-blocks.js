@@ -76,7 +76,14 @@ import { filterBriefingForPlanner } from '../briefing/filter-for-planner.js';
  * @returns {Promise<Map<string, string>>} Map of venue name -> venue_id (UUID)
  */
 async function promoteToVenueCatalog(enrichedVenues, snapshot) {
-  const promotable = enrichedVenues.filter(v => v.placeVerified === true && v.placeId);
+  // 2026-04-02: FIX - Also require a valid address to avoid NOT NULL constraint violations.
+  // Address can be null when geocode/Places API fails to resolve during enrichment.
+  const promotable = enrichedVenues.filter(v =>
+    v.placeVerified === true &&
+    v.placeId &&
+    v.address &&
+    v.address !== 'Address unavailable'
+  );
 
   if (promotable.length === 0) {
     venuesLog.info(3, 'No verified venues to promote to catalog');
@@ -109,7 +116,9 @@ async function promoteToVenueCatalog(enrichedVenues, snapshot) {
     if (result.status === 'fulfilled' && result.value?.venue_id) {
       venueIdMap.set(promotable[index].name, result.value.venue_id);
     } else if (result.status === 'rejected') {
-      venuesLog.warn(3, `Catalog promotion failed for "${promotable[index].name}": ${result.reason?.message}`);
+      // 2026-04-02: FIX - Log the actual DB error code/detail, not just the Drizzle wrapper
+      const err = result.reason;
+      venuesLog.warn(3, `Catalog promotion failed for "${promotable[index].name}": ${err?.code || 'unknown'} — ${err?.detail || err?.message || 'no detail'}`);
     }
   });
 

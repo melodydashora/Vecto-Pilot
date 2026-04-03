@@ -196,6 +196,7 @@ export const API_ROUTES = {
       `/api/concierge/p/${token}/weather?lat=${lat}&lng=${lng}`,
     PUBLIC_EXPLORE: (token: string) => `/api/concierge/p/${token}/explore`,
     PUBLIC_ASK: (token: string) => `/api/concierge/p/${token}/ask`,
+    PUBLIC_ASK_STREAM: (token: string) => `/api/concierge/p/${token}/ask-stream`,
     PUBLIC_FEEDBACK: (token: string) => `/api/concierge/p/${token}/feedback`,
     FEEDBACK_SUMMARY: '/api/concierge/feedback',
   },

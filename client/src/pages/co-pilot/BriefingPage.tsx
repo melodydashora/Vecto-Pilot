@@ -27,6 +27,7 @@ function BriefingPage() {
     traffic: trafficData,
     news: newsData,
     events: eventsData,
+    marketEvents: marketEventsData,
     schoolClosures: schoolClosuresData,
     airport: airportData,
     isLoading
@@ -56,11 +57,12 @@ function BriefingPage() {
     () => newsData ? { news: newsData } : undefined,
     [newsData]
   );
-  // 2026-03-28: Pass full events response through (events + marketEvents + market_name)
-  // eventsData is now the full API response object from CoPilotContext, not just the array
+  // 2026-04-02: FIX - Re-wrap events into the object shape BriefingTab expects.
+  // CoPilotContext (line 690) unwraps eventsData.events into a plain array,
+  // but BriefingTab expects { events, marketEvents, market_name }.
   const wrappedEventsData = useMemo(
-    () => eventsData || undefined,
-    [eventsData]
+    () => eventsData ? { events: eventsData, marketEvents: marketEventsData || [] } : undefined,
+    [eventsData, marketEventsData]
   );
   const wrappedSchoolClosuresData = useMemo(
     () => schoolClosuresData ? { school_closures: schoolClosuresData } : undefined,
