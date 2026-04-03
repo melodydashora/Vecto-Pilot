@@ -239,7 +239,9 @@
       "Bash(dpkg -l)",
       "Bash(pip install:*)",
       "Bash(termius --version)",
-      "Bash(termius --help)"
+      "Bash(termius --help)",
+      "Bash(ssh:*)",
+      "Bash(git remote:*)"
     ],
     "deny": [],
     "ask": []
