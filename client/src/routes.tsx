@@ -26,6 +26,7 @@ import { GoogleCallbackPage } from '@/pages/auth/google/Callback';
 import AuthRedirect from '@/components/auth/AuthRedirect';
 import ConciergePage from '@/pages/co-pilot/ConciergePage';
 import PublicConciergePage from '@/pages/concierge/PublicConciergePage';
+import LandingPage from '@/pages/landing/LandingPage';
 
 export const router = createBrowserRouter([
   // ═══════════════════════════════════════════════════════════════════════════
@@ -67,6 +68,12 @@ export const router = createBrowserRouter([
   {
     path: '/c/:token',
     element: <PublicConciergePage />,
+  },
+
+  // 2026-04-02: Public landing/demo page — interactive feature showcase
+  {
+    path: '/demo',
+    element: <LandingPage />,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
