@@ -7,7 +7,8 @@ import {
   MapPin, BarChart2, Languages, Navigation, Smartphone,
   ChevronRight, ChevronLeft, Star, TrendingUp, AlertTriangle,
   QrCode, Mic, Globe, Map, Coffee, FileText, Cloud, Plane,
-  Car, Phone, Play, Square
+  Car, Phone, Play, Square, Zap, Brain, Shield, ArrowRight,
+  Github, ExternalLink
 } from 'lucide-react';
 
 const FEATURES = [
@@ -296,6 +297,185 @@ export default function LandingPage() {
           </div>
         </div>
       </main>
+
+      {/* ======= HOW IT WORKS ======= */}
+      <section id="how-it-works" className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-16 lg:py-24">
+        <div className="text-center mb-12 lg:mb-16">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold mb-4 border border-blue-200">
+            <Zap className="w-4 h-4" />
+            <span>Simple Setup</span>
+          </div>
+          <h2 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 mb-4">
+            Up and Running in Minutes
+          </h2>
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            No hardware. No training. Just sign in and start driving smarter.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
+          {[
+            {
+              step: '01',
+              title: 'Sign Up & Set Location',
+              description: 'Create your account and grant location access. Vecto Pilot auto-detects your city, market, and timezone.',
+              icon: MapPin,
+              color: 'violet',
+            },
+            {
+              step: '02',
+              title: 'Get Your Strategy',
+              description: 'Our AI analyzes traffic, events, weather, and demand patterns to generate your personalized positioning strategy.',
+              icon: Brain,
+              color: 'blue',
+            },
+            {
+              step: '03',
+              title: 'Drive & Earn More',
+              description: 'Follow real-time recommendations. The system learns from your market and continuously refines its advice.',
+              icon: TrendingUp,
+              color: 'green',
+            },
+          ].map((item) => {
+            const StepIcon = item.icon;
+            return (
+              <div key={item.step} className="relative">
+                <div className="bg-white rounded-2xl p-6 lg:p-8 shadow-sm border border-slate-100 hover:shadow-md transition-shadow h-full">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
+                      item.color === 'violet' ? 'bg-violet-600' :
+                      item.color === 'blue' ? 'bg-blue-600' : 'bg-green-600'
+                    } text-white`}>
+                      <StepIcon className="w-6 h-6" />
+                    </div>
+                    <span className="text-4xl font-extrabold text-slate-100">{item.step}</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">{item.title}</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">{item.description}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ======= BUILT WITH / TECH STACK ======= */}
+      <section id="pricing" className="bg-white border-y border-slate-200 py-16 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10 lg:mb-14">
+            <h2 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 mb-4">
+              Built for Serious Drivers
+            </h2>
+            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+              Enterprise-grade AI infrastructure powering individual driver success.
+            </p>
+          </div>
+
+          {/* Tech badges */}
+          <div className="flex flex-wrap justify-center gap-3 mb-12 lg:mb-16">
+            {[
+              { label: 'Claude Opus', sub: 'Strategy' },
+              { label: 'Gemini Pro', sub: 'Briefings' },
+              { label: 'GPT-5.2', sub: 'Consolidation' },
+              { label: 'Google Search', sub: 'Live Data' },
+              { label: 'TomTom', sub: 'Traffic' },
+              { label: 'Google Maps', sub: 'Routes' },
+              { label: 'React 19', sub: 'Frontend' },
+              { label: 'PostgreSQL', sub: 'Database' },
+            ].map((t) => (
+              <div key={t.label} className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-center hover:border-violet-200 hover:bg-violet-50/30 transition-colors">
+                <div className="font-bold text-sm text-slate-800">{t.label}</div>
+                <div className="text-[10px] text-slate-500 font-medium">{t.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-8">
+            {[
+              { value: '7', label: 'AI-Powered Features' },
+              { value: '3', label: 'Frontier AI Models' },
+              { value: '<60s', label: 'Strategy Generation' },
+              { value: '24/7', label: 'Real-Time Updates' },
+            ].map((s) => (
+              <div key={s.label} className="text-center">
+                <div className="text-3xl lg:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600 mb-1">{s.value}</div>
+                <div className="text-sm text-slate-600 font-medium">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ======= CTA BANNER ======= */}
+      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-16 lg:py-24">
+        <div className="bg-gradient-to-br from-blue-600 via-violet-600 to-violet-700 rounded-3xl p-8 md:p-12 lg:p-16 text-center text-white relative overflow-hidden">
+          {/* Decorative elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/3 -translate-x-1/4"></div>
+
+          <div className="relative z-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-white/90 text-sm font-semibold mb-6 border border-white/20">
+              <Shield className="w-4 h-4" />
+              <span>Free to try. No credit card required.</span>
+            </div>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+              Ready to Drive Smarter?
+            </h2>
+            <p className="text-lg text-blue-100 mb-8 max-w-xl mx-auto leading-relaxed">
+              Join the drivers who are using AI to outperform their market. Your first briefing is generated in under 60 seconds.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <a
+                href="/auth/sign-up"
+                className="inline-flex items-center justify-center gap-2 bg-white text-violet-700 px-8 py-3.5 rounded-full font-bold text-lg hover:bg-violet-50 transition-all shadow-lg active:scale-[0.98]"
+              >
+                Get Started Free <ArrowRight className="w-5 h-5" />
+              </a>
+              <a
+                href="/auth/sign-in"
+                className="inline-flex items-center justify-center gap-2 bg-white/10 text-white px-8 py-3.5 rounded-full font-bold text-lg hover:bg-white/20 transition-all border border-white/20"
+              >
+                Sign In
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ======= FOOTER ======= */}
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-12">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-violet-600 rounded-lg flex items-center justify-center shadow-md">
+                <Smartphone className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <span className="font-bold text-lg tracking-tight text-slate-900">Vecto Pilot&trade;</span>
+                <p className="text-xs text-slate-500">AI-Powered Rideshare Co-Pilot</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6 text-sm text-slate-600">
+              <a href="/policy" className="hover:text-violet-600 transition-colors">Privacy Policy</a>
+              <a href="/auth/terms" className="hover:text-violet-600 transition-colors">Terms</a>
+              <a
+                href="https://github.com/melodydashora/Vecto-Pilot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-violet-600 transition-colors flex items-center gap-1.5"
+              >
+                <Github className="w-4 h-4" /> GitHub <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div className="text-xs text-slate-400">
+              &copy; {new Date().getFullYear()} Vecto Pilot. Built with Claude, Gemini & GPT.
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
