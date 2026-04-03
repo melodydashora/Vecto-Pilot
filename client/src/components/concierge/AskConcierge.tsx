@@ -1,13 +1,12 @@
 // client/src/components/concierge/AskConcierge.tsx
 // 2026-02-13: AI Concierge Assistant — public AI Q&A for passengers on the concierge page
-// Passengers can ask about local restaurants, events, directions, etc.
+// 2026-04-02: Redesigned as full-height chat-first experience. Dark theme, modern messaging UI.
 // Uses CONCIERGE_CHAT model role (Gemini 3 Pro with Google Search)
 // Rate limited: 3 questions per minute on server, 5 per session on client
 
 import { useState, useRef, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Send, Loader2, Sparkles } from 'lucide-react';
+import { Send, Loader2, Sparkles, ArrowUp } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface ChatMessage {
@@ -27,10 +26,12 @@ interface AskConciergeProps {
 const MAX_QUESTIONS_PER_SESSION = 5;
 
 const SUGGESTED_QUESTIONS = [
-  'What are the best restaurants nearby?',
-  'Is this area safe to walk around at night?',
-  'What else is happening tonight?',
-  'Where can I find good coffee nearby?',
+  "What's happening tonight?",
+  'Best restaurants nearby',
+  'Is this area safe at night?',
+  'Good coffee spots',
+  'Things to do right now',
+  'Late night food options',
 ];
 
 export function AskConcierge({ token, lat, lng, timezone, venueContext, eventContext }: AskConciergeProps) {
@@ -47,10 +48,11 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // 2026-04-02: Streaming implementation — tokens appear in real time via SSE
   const sendQuestion = async (question: string) => {
     if (!question.trim() || isLoading) return;
     if (questionCount >= MAX_QUESTIONS_PER_SESSION) {
-      setError('You\'ve reached the question limit for this session. Refresh to ask more.');
+      setError('Question limit reached. Refresh the page to ask more.');
       return;
     }
 
@@ -61,8 +63,12 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
     setError(null);
     setQuestionCount(prev => prev + 1);
 
+    // Add empty assistant message that will be filled by streaming chunks
+    const assistantIdx = messages.length + 1; // +1 for the user message we just added
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
     try {
-      const response = await fetch(API_ROUTES.CONCIERGE.PUBLIC_ASK(token), {
+      const response = await fetch(API_ROUTES.CONCIERGE.PUBLIC_ASK_STREAM(token), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -75,21 +81,73 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
         }),
       });
 
-      const data = await response.json();
+      if (!response.ok || !response.body) {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[assistantIdx] = { role: 'assistant', content: 'Sorry, I couldn\'t connect to the AI. Try again.' };
+          return updated;
+        });
+        setIsLoading(false);
+        return;
+      }
 
-      if (data.ok && data.answer) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
-      } else {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: data.error || 'Sorry, I couldn\'t find an answer. Try rephrasing your question.',
-        }]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const data = JSON.parse(jsonStr);
+
+            if (data.done) break;
+
+            if (data.error) {
+              setMessages(prev => {
+                const updated = [...prev];
+                updated[assistantIdx] = { role: 'assistant', content: data.error };
+                return updated;
+              });
+              break;
+            }
+
+            if (data.delta) {
+              setMessages(prev => {
+                const updated = [...prev];
+                updated[assistantIdx] = {
+                  role: 'assistant',
+                  content: (updated[assistantIdx]?.content || '') + data.delta,
+                };
+                return updated;
+              });
+            }
+          } catch {
+            // Skip unparseable chunks
+          }
+        }
       }
     } catch {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Connection error. Please check your internet and try again.',
-      }]);
+      setMessages(prev => {
+        const updated = [...prev];
+        if (updated[assistantIdx]) {
+          updated[assistantIdx] = {
+            role: 'assistant',
+            content: updated[assistantIdx].content || 'Connection error. Please check your internet and try again.',
+          };
+        }
+        return updated;
+      });
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -104,108 +162,137 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
   const remainingQuestions = MAX_QUESTIONS_PER_SESSION - questionCount;
 
   return (
-    <div className="space-y-3">
-      {/* Section header */}
-      <div className="flex items-center gap-2">
-        <MessageCircle className="h-4 w-4 text-indigo-500" />
-        <h3 className="text-sm font-semibold text-gray-700">AI Concierge Assistant</h3>
-        {questionCount > 0 && (
-          <span className="text-xs text-gray-400">({remainingQuestions} left)</span>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 6rem)' }}>
+      {/* ═══ CHAT AREA ═══ */}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        {/* Empty state — welcome + suggested questions */}
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center min-h-[300px]">
+            {/* Welcome icon */}
+            <div className="h-14 w-14 rounded-2xl bg-indigo-500/15 flex items-center justify-center mb-4">
+              <Sparkles className="h-7 w-7 text-indigo-400" />
+            </div>
+
+            <h2 className="text-lg font-semibold text-white mb-1">
+              How can I help?
+            </h2>
+            <p className="text-sm text-slate-400 mb-6 text-center max-w-[280px]">
+              Ask me about restaurants, events, safety, directions — anything about the area.
+            </p>
+
+            {/* Suggested questions as pills */}
+            <div className="flex flex-wrap justify-center gap-2 max-w-[340px]">
+              {SUGGESTED_QUESTIONS.map((q, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendQuestion(q)}
+                  disabled={isLoading}
+                  className="text-xs px-3 py-2 bg-slate-800 text-slate-300 rounded-full border border-slate-700 hover:bg-slate-700 hover:text-white hover:border-slate-600 transition-all disabled:opacity-50"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chat messages */}
+        {messages.length > 0 && (
+          <div className="space-y-4">
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                {msg.role === 'assistant' && (
+                  <div className="h-6 w-6 rounded-full bg-indigo-500/20 flex items-center justify-center mr-2 mt-1 flex-shrink-0">
+                    <Sparkles className="h-3 w-3 text-indigo-400" />
+                  </div>
+                )}
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-indigo-600 text-white rounded-br-md'
+                      : 'bg-slate-800 text-slate-200 rounded-bl-md border border-slate-700'
+                  }`}
+                >
+                  {/* 2026-04-02: Render newlines in assistant responses as line breaks */}
+                  {msg.role === 'assistant' ? (
+                    msg.content.split('\n').map((line, i) => (
+                      <span key={i}>
+                        {line}
+                        {i < msg.content.split('\n').length - 1 && <br />}
+                      </span>
+                    ))
+                  ) : (
+                    msg.content
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Loading indicator — only shows before first streaming token arrives */}
+            {isLoading && (!messages.length || !messages[messages.length - 1]?.content) && (
+              <div className="flex justify-start">
+                <div className="h-6 w-6 rounded-full bg-indigo-500/20 flex items-center justify-center mr-2 mt-1 flex-shrink-0">
+                  <Sparkles className="h-3 w-3 text-indigo-400" />
+                </div>
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-bl-md px-4 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-1.5 w-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <div className="h-1.5 w-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="h-1.5 w-1.5 bg-indigo-400 rounded-full animate-bounce" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
         )}
       </div>
 
-      <Card className="bg-white border-gray-200 shadow-sm">
-        <CardContent className="p-4 space-y-3">
-          {/* Empty state — show suggested questions */}
-          {messages.length === 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-gray-500 flex items-center gap-1">
-                <Sparkles className="h-3 w-3 text-indigo-400" />
-                Ask anything about the area
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {SUGGESTED_QUESTIONS.map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendQuestion(q)}
-                    disabled={isLoading}
-                    className="text-xs px-2.5 py-1.5 bg-indigo-50 text-indigo-700 rounded-full hover:bg-indigo-100 transition-colors disabled:opacity-50"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+      {/* ═══ INPUT BAR (pinned to bottom) ═══ */}
+      <div className="border-t border-slate-800 bg-slate-900/80 backdrop-blur-sm px-4 py-3">
+        {/* Error message */}
+        {error && (
+          <p className="text-xs text-red-400 text-center mb-2">{error}</p>
+        )}
 
-          {/* Chat messages */}
-          {messages.length > 0 && (
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {messages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-indigo-600 text-white rounded-br-sm'
-                        : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                    }`}
-                  >
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-
-              {/* Loading indicator */}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span className="text-xs">Thinking...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-
-          {/* Error message */}
-          {error && (
-            <p className="text-xs text-red-500 text-center">{error}</p>
-          )}
-
-          {/* Input form */}
-          <form onSubmit={handleSubmit} className="flex gap-2">
+        <form onSubmit={handleSubmit} className="flex items-center gap-2 max-w-lg mx-auto">
+          <div className="flex-1 relative">
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={remainingQuestions > 0 ? 'Ask about nearby places...' : 'Question limit reached'}
+              placeholder={remainingQuestions > 0 ? 'Ask anything about the area...' : 'Question limit reached'}
               disabled={isLoading || remainingQuestions <= 0}
-              className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-full bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-sm px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-full text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/40 disabled:opacity-40 disabled:cursor-not-allowed"
               maxLength={500}
             />
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!input.trim() || isLoading || remainingQuestions <= 0}
-              className="rounded-full h-9 w-9 p-0 bg-indigo-600 hover:bg-indigo-700"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!input.trim() || isLoading || remainingQuestions <= 0}
+            className="rounded-full h-10 w-10 p-0 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 transition-colors"
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowUp className="h-4 w-4" />
+            )}
+          </Button>
+        </form>
+
+        {/* Remaining questions counter */}
+        {questionCount > 0 && remainingQuestions > 0 && (
+          <p className="text-center text-[10px] text-slate-600 mt-1.5">
+            {remainingQuestions} question{remainingQuestions !== 1 ? 's' : ''} remaining
+          </p>
+        )}
+      </div>
     </div>
   );
 }

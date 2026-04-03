@@ -15,6 +15,7 @@ import {
   getDriverPreview,
   searchNearby,
   askConcierge,
+  buildConciergeSystemPrompt,
   submitFeedback,
   getFeedbackSummary,
 } from '../../lib/concierge/concierge-service.js';
@@ -291,6 +292,107 @@ router.post('/p/:token/ask', askLimiter, async (req, res) => {
   } catch (err) {
     console.error('[concierge] Ask error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to process question. Please try again.' });
+  }
+});
+
+// ============================================================================
+// PUBLIC ASK (STREAMING) — SSE streaming version of concierge chat
+// 2026-04-02: Added streaming so passengers see tokens appear in real time
+// ============================================================================
+
+/**
+ * POST /api/concierge/p/:token/ask-stream
+ * Body: { question, lat, lng, timezone, venueContext?, eventContext? }
+ * Returns: SSE stream with { delta } chunks, then { done: true }
+ */
+router.post('/p/:token/ask-stream', askLimiter, async (req, res) => {
+  const { question, lat, lng, timezone, venueContext, eventContext } = req.body;
+
+  if (!question || typeof question !== 'string') {
+    return res.status(400).json({ ok: false, error: 'Question is required' });
+  }
+  if (!isFinite(Number(lat)) || !isFinite(Number(lng))) {
+    return res.status(400).json({ ok: false, error: 'Valid lat/lng required' });
+  }
+
+  const safeQuestion = question.trim().slice(0, 500);
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
+
+  // SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  try {
+    console.log(`[concierge] Stream ask: "${safeQuestion.slice(0, 50)}..." near ${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`);
+    const startTime = Date.now();
+
+    const system = buildConciergeSystemPrompt({
+      lat: latNum, lng: lngNum,
+      timezone: timezone || 'UTC',
+      venueContext: venueContext || '',
+      eventContext: eventContext || '',
+    });
+
+    const { callModelStream } = await import('../../lib/ai/adapters/index.js');
+
+    const response = await callModelStream('CONCIERGE_CHAT', {
+      system,
+      messageHistory: [{ role: 'user', parts: [{ text: safeQuestion }] }],
+    });
+
+    if (!response.ok) {
+      console.error(`[concierge] Stream API error: ${response.status}`);
+      res.write(`data: ${JSON.stringify({ error: 'AI service unavailable' })}\n\n`);
+      return res.end();
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let totalText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(jsonStr);
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              totalText += text;
+              res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
+            }
+          } catch {
+            // Skip unparseable chunks
+          }
+        }
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[concierge] Stream complete in ${elapsed}ms (${totalText.length} chars)`);
+
+    if (!totalText) {
+      res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
+    }
+
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    console.error('[concierge] Stream error:', err.message);
+    res.write(`data: ${JSON.stringify({ error: 'Something went wrong. Please try again.' })}\n\n`);
+    res.end();
   }
 });
 

@@ -1,18 +1,13 @@
 // client/src/pages/concierge/PublicConciergePage.tsx
 // 2026-02-13: Public page for passengers who scan a driver's QR code
-// Shows driver's business card, location header, event discovery, map, and concierge chat
+// 2026-04-02: Redesigned — chat-first layout. Driver info collapsed to a slim banner.
+//             AskConcierge is the primary full-height experience.
 // NO authentication required — uses browser GPS for location
-// 2026-02-13: Added ConciergeMap + AskConcierge (AI Concierge Assistant)
-//             Map and chat appear after first search, both are independently viewable
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, MapPinOff, Map, MessageCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { ConciergeHeader } from '@/components/concierge/ConciergeHeader';
+import { Loader2, MapPin, Cloud, Wind, MapPinOff } from 'lucide-react';
 import { DriverCard } from '@/components/concierge/DriverCard';
-import { EventsExplorer, VenueItem, EventItem } from '@/components/concierge/EventsExplorer';
-import { ConciergeMap } from '@/components/concierge/ConciergeMap';
 import { AskConcierge } from '@/components/concierge/AskConcierge';
 import { API_ROUTES } from '@/constants/apiRoutes';
 
@@ -49,28 +44,9 @@ export default function PublicConciergePage() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [airQuality, setAirQuality] = useState<AirQualityData | null>(null);
   const [isLoadingDriver, setIsLoadingDriver] = useState(true);
-
-  // 2026-02-13: Shared search results for map + chat context
-  const [venues, setVenues] = useState<VenueItem[]>([]);
-  const [events, setEvents] = useState<EventItem[]>([]);
-  const [hasSearched, setHasSearched] = useState(false);
-
-  // 2026-02-13: Toggle state for map and chat sections
-  const [showMap, setShowMap] = useState(false);
-  const [showChat, setShowChat] = useState(false);
+  const [showDriverDetails, setShowDriverDetails] = useState(false);
 
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-  // Callback from EventsExplorer when new search results arrive
-  const handleDataLoaded = useCallback((newVenues: VenueItem[], newEvents: EventItem[]) => {
-    setVenues(newVenues);
-    setEvents(newEvents);
-    setHasSearched(true);
-  }, []);
-
-  // Build context strings for the chat AI
-  const venueContext = venues.map(v => `${v.title} (${v.type || 'venue'}) - ${v.address || 'no address'}`).join('\n');
-  const eventContext = events.map(e => `${e.title} at ${e.venue || 'unknown venue'} - ${e.time || 'time TBD'} - ${e.address || 'no address'}`).join('\n');
 
   // Fetch driver profile
   useEffect(() => {
@@ -160,8 +136,8 @@ export default function PublicConciergePage() {
   // Loading state
   if (isLoadingDriver) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
       </div>
     );
   }
@@ -169,118 +145,114 @@ export default function PublicConciergePage() {
   // Driver not found
   if (driverError) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+      <div className="flex items-center justify-center min-h-screen bg-slate-950 p-4">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Link Not Found</h2>
-          <p className="text-gray-500">{driverError}</p>
+          <h2 className="text-xl font-semibold text-white mb-2">Link Not Found</h2>
+          <p className="text-slate-400">{driverError}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <ConciergeHeader
-        locationString={locationString}
-        weather={weather}
-        airQuality={airQuality}
-      />
+    <div className="min-h-screen bg-slate-950 flex flex-col">
+      {/* ═══ COMPACT TOP BAR: branding + location + weather ═══ */}
+      <div className="bg-slate-900 border-b border-slate-800 px-4 py-2.5">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-white tracking-tight">Vecto</span>
+            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-full font-medium">Concierge</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            {weather && (
+              <span className="flex items-center gap-1">
+                <Cloud className="h-3 w-3" />
+                {weather.temp}°F
+              </span>
+            )}
+            {airQuality && (
+              <span className="flex items-center gap-1">
+                <Wind className="h-3 w-3" />
+                AQI {airQuality.aqi}
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              <span className="truncate max-w-[120px]">{locationString}</span>
+            </span>
+          </div>
+        </div>
+      </div>
 
-      {/* Content */}
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
-        {/* Driver card (with interactive star rating on public page) */}
-        {driver && (
-          <DriverCard
-            name={driver.name}
-            phone={driver.phone}
-            vehicle={driver.vehicle}
-            token={token}
-          />
-        )}
+      {/* ═══ DRIVER BANNER: slim, tappable to expand ═══ */}
+      {driver && (
+        <div className="bg-slate-900/50 border-b border-slate-800">
+          <div className="max-w-lg mx-auto">
+            <button
+              onClick={() => setShowDriverDetails(!showDriverDetails)}
+              className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                  <span className="text-sm font-bold text-indigo-300">
+                    {driver.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-white">{driver.name}</span>
+                  <span className="text-xs text-slate-500 ml-2">Your Driver</span>
+                </div>
+              </div>
+              <span className="text-xs text-slate-500">
+                {showDriverDetails ? 'Hide' : 'Details'}
+              </span>
+            </button>
 
+            {/* Expandable driver details + rating */}
+            {showDriverDetails && (
+              <div className="px-4 pb-3">
+                <DriverCard
+                  name={driver.name}
+                  phone={driver.phone}
+                  vehicle={driver.vehicle}
+                  token={token}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MAIN CONTENT: AI Concierge fills remaining space ═══ */}
+      <div className="flex-1 flex flex-col max-w-lg mx-auto w-full">
         {/* Location denied message */}
         {locationError && (
-          <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <MapPinOff className="h-5 w-5 text-amber-500 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-800">Location access needed</p>
-              <p className="text-xs text-amber-600 mt-0.5">
-                Enable location in your browser settings to see events near you.
+          <div className="mx-4 mt-3">
+            <div className="flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <MapPinOff className="h-4 w-4 text-amber-400 flex-shrink-0" />
+              <p className="text-xs text-amber-300">
+                Enable location access for personalized recommendations.
               </p>
             </div>
           </div>
         )}
 
-        {/* Events explorer (only if we have location) */}
-        {coords && token && (
-          <EventsExplorer
-            token={token}
-            lat={coords.lat}
-            lng={coords.lng}
-            timezone={timezone}
-            onDataLoaded={handleDataLoaded}
-          />
-        )}
-
-        {/* ═══ Toggle buttons for Map and Chat (appear after first search) ═══ */}
-        {hasSearched && coords && token && (
-          <div className="flex gap-2">
-            <Button
-              variant={showMap ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setShowMap(prev => !prev)}
-              className={`flex-1 gap-1.5 ${
-                showMap
-                  ? 'bg-teal-600 hover:bg-teal-700 text-white'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <Map className="h-3.5 w-3.5" />
-              {showMap ? 'Hide Map' : 'Show Map'}
-            </Button>
-            <Button
-              variant={showChat ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setShowChat(prev => !prev)}
-              className={`flex-1 gap-1.5 ${
-                showChat
-                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              {showChat ? 'Hide Chat' : 'AI Concierge Assistant'}
-            </Button>
-          </div>
-        )}
-
-        {/* ═══ MAP SECTION (collapsible) ═══ */}
-        {showMap && coords && (
-          <div className="space-y-2">
-            <ConciergeMap
-              lat={coords.lat}
-              lng={coords.lng}
-              venues={venues}
-              events={events}
-            />
-          </div>
-        )}
-
-        {/* ═══ CONCIERGE CHAT SECTION (collapsible) ═══ */}
-        {showChat && coords && token && (
+        {/* ═══ AI CONCIERGE ASSISTANT (primary experience, fills screen) ═══ */}
+        {coords && token ? (
           <AskConcierge
             token={token}
             lat={coords.lat}
             lng={coords.lng}
             timezone={timezone}
-            venueContext={venueContext}
-            eventContext={eventContext}
           />
+        ) : !locationError && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center text-slate-500">
+              <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+              <p className="text-xs">Getting your location...</p>
+            </div>
+          </div>
         )}
-
-        {/* Bottom spacing for mobile */}
-        <div className="h-8" />
       </div>
     </div>
   );
