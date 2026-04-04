@@ -140,10 +140,14 @@ const MapTab: React.FC<MapTabProps> = ({
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
+  // 2026-04-04: Track last processed event data to prevent infinite re-render loop.
+  // Previously, any parent re-render created a new events array reference,
+  // triggering useMemo → useEffect → marker clear/add cycle every ~500ms.
+  const lastEventKeyRef = useRef<string>('');
+
   // Filter events to only show TODAY's events with valid start/end times
   const todayEvents = useMemo(() => {
     const filtered = filterTodayEvents(events);
-    console.log(`[MapTab] Showing ${filtered.length} of ${events.length} events (today only with valid times)`);
     return filtered;
   }, [events]);
 
@@ -324,6 +328,12 @@ const MapTab: React.FC<MapTabProps> = ({
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !window.google) return;
 
+    // 2026-04-04: Dedup check — skip if event data hasn't actually changed.
+    // Prevents clearing and re-adding identical markers on every parent re-render.
+    const eventKey = todayEvents.map(e => `${e.title}|${e.latitude}|${e.longitude}`).join(';');
+    if (eventKey === lastEventKeyRef.current) return;
+    lastEventKeyRef.current = eventKey;
+
     // Clear existing event markers
     eventMarkersRef.current.forEach(marker => marker.setMap(null));
     eventMarkersRef.current = [];
@@ -436,8 +446,10 @@ const MapTab: React.FC<MapTabProps> = ({
       eventMarkersRef.current.push(marker);
     });
 
-    console.log(`✅ Added ${eventsWithCoords.length} TODAY's event markers to map (filtered from ${events.length} total)`);
-  }, [mapReady, todayEvents, events.length]);
+    if (eventsWithCoords.length > 0) {
+      console.log(`[MapTab] ✅ Added ${eventsWithCoords.length} event markers to map`);
+    }
+  }, [mapReady, todayEvents]);
 
   // Add bar markers with color coding (green=open, red=closing soon)
   // Bars are $$+ venues separate from strategy blocks

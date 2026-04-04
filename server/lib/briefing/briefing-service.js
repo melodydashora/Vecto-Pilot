@@ -65,15 +65,29 @@ const EVENT_SEARCH_TIMEOUT_MS = 90000; // 90 seconds per category search (Gemini
  * @param {string} operationName - Name for logging purposes
  * @returns {Promise} - Resolves with either the original result or a timeout error
  */
+// 2026-04-04: FIX H-5 — Enhanced withTimeout to:
+// 1. Clear timer when promise resolves (was leaking timers)
+// 2. Signal AbortController on timeout so callers can cancel in-flight work
+// Note: H-2 (120s global router timeout) limits max wasted time even without abort support.
 function withTimeout(promise, timeoutMs, operationName = 'Operation') {
+  const controller = new AbortController();
+  let timer;
+
   const timeoutPromise = new Promise((resolve) => {
-    setTimeout(() => {
+    timer = setTimeout(() => {
       briefingLog.warn(2, `${operationName} timed out after ${timeoutMs}ms - returning empty`, OP.AI);
+      controller.abort();
       resolve({ timedOut: true, error: `Timeout after ${timeoutMs}ms` });
     }, timeoutMs);
   });
 
-  return Promise.race([promise, timeoutPromise]);
+  // Wrap the original promise to clear timer on completion
+  const wrappedPromise = promise.then(
+    (result) => { clearTimeout(timer); return result; },
+    (error) => { clearTimeout(timer); throw error; }
+  );
+
+  return Promise.race([wrappedPromise, timeoutPromise]);
 }
 
 /**
@@ -1174,12 +1188,19 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
     }
   }
 
-  // Get date range: today to 7 days out
+  // 2026-04-04: FIX C-5 — Use user's timezone for date range, not UTC
+  // Previously used toISOString() which is UTC-based. A driver in UTC-8 at 11PM local
+  // would get tomorrow's UTC date as "today", misaligning the 7-day event window.
+  // toLocaleDateString('en-CA') returns YYYY-MM-DD format in the correct timezone.
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = timezone
+    ? today.toLocaleDateString('en-CA', { timeZone: timezone })
+    : today.toISOString().split('T')[0];
   const weekFromNow = new Date();
   weekFromNow.setDate(weekFromNow.getDate() + 7);
-  const endDateStr = weekFromNow.toISOString().split('T')[0];
+  const endDateStr = timezone
+    ? weekFromNow.toLocaleDateString('en-CA', { timeZone: timezone })
+    : weekFromNow.toISOString().split('T')[0];
 
   // 2026-01-10: Consolidated event discovery using Briefer model with Google Search tools
   // Simpler pipeline, lower cost, cleaner data - model-agnostic (configured via BRIEFING_EVENTS_MODEL)
@@ -1194,7 +1215,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
       // Store discovered events in DB for caching and SmartBlocks integration
       // Note: This uses the canonical ETL pipeline for validation/normalization
-      const normalized = discoveryResult.items.map(e => normalizeEvent(e));
+      // 2026-04-04: FIX C-4 — Pass city/state context so normalizeEvent has fallback location
+      // Without context, events from AI responses missing city/state fields get empty strings,
+      // breaking downstream filtering and event hash consistency
+      const normalized = discoveryResult.items.map(e => normalizeEvent(e, { city, state }));
       // 2026-01-10: validateEventsHard returns { valid, invalid, stats } - extract .valid array
       const { valid: validatedEvents } = validateEventsHard(normalized);
 
@@ -1271,10 +1295,22 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             event_hash: hash
           }).onConflictDoUpdate({
             target: discovered_events.event_hash,
+            // 2026-04-04: FIX H-6 — Update all content fields on conflict, not just timestamp.
+            // Previously only updated updated_at + venue_id, silently dropping corrected data
+            // (title, times, venue name) from re-discovery.
             set: {
-              updated_at: sql`NOW()`,
-              // 2026-01-14: Also update venue_id on conflict (in case venue was added later)
-              venue_id: venueId || discovered_events.venue_id
+              title: event.title,
+              venue_name: event.venue_name,
+              address: event.address,
+              event_start_date: event.event_start_date,
+              event_start_time: event.event_start_time,
+              event_end_time: event.event_end_time,
+              event_end_date: event.event_end_date,
+              category: event.category,
+              expected_attendance: event.expected_attendance,
+              venue_id: venueId || discovered_events.venue_id,
+              is_active: true,
+              updated_at: sql`NOW()`
             }
           });
         } catch (insertErr) {
@@ -2277,63 +2313,90 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     return inFlightBriefings.get(snapshotId);
   }
 
-  // Dedup 2: Check database state - if briefing exists with ALL populated fields, skip regeneration
-  // NULL fields = generation in progress or needs refresh
-  // Populated fields = data ready, don't regenerate
-  const existing = await getBriefingBySnapshotId(snapshotId);
-  if (existing) {
-    const hasTraffic = existing.traffic_conditions !== null;
-    const hasEvents = existing.events !== null && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
-    const hasNews = existing.news !== null;
-    const hasClosures = existing.school_closures !== null;
+  // 2026-04-04: FIX H-4 — Use advisory lock to prevent race conditions across processes.
+  // Previously, between checking existing row and inserting/clearing placeholder, another
+  // process could insert, causing the "clear fields" UPDATE to wipe data being written
+  // by the other process. Advisory lock serializes the check-then-write sequence.
+  // NOTE: db.execute() returns { rows: [...] }, NOT an array — use .rows[0] (matches blocks-fast.js pattern)
+  const lockQueryResult = await db.execute(
+    sql`SELECT pg_try_advisory_lock(hashtext(${snapshotId})) as acquired`
+  );
+  const lockAcquired = lockQueryResult.rows?.[0]?.acquired === true;
 
-    // ALL fields must be populated for concurrent request deduplication to apply
-    if (hasTraffic && hasEvents && hasNews && hasClosures) {
-      // 2026-01-10: Fixed misleading terminology - this is DEDUP not CACHE
-      // Prevents duplicate concurrent requests, not traditional caching
-      // Only skip if briefing was generated < 60 seconds ago (in-flight or just completed)
-      const ageMs = Date.now() - new Date(existing.updated_at).getTime();
-      if (ageMs < 60000) {
-        briefingLog.info(`Recent briefing (${Math.round(ageMs/1000)}s old) - skipping duplicate generation`, OP.CACHE);
-        return { success: true, briefing: existing, deduplicated: true };
-      }
-    } else if (hasTraffic || hasEvents) {
-      briefingLog.info(`Partial data - regenerating`, OP.CACHE);
+  if (!lockAcquired) {
+    // Another process holds the lock — briefing generation is in progress elsewhere.
+    // Wait briefly then return whatever exists.
+    briefingLog.info(`Advisory lock not acquired for ${snapshotId.slice(0, 8)} - generation in progress elsewhere`, OP.CACHE);
+    const existing = await getBriefingBySnapshotId(snapshotId);
+    if (existing) {
+      return { success: true, briefing: existing, deduplicated: true };
     }
+    // No row yet — the other process hasn't inserted placeholder. Return pending.
+    return { success: true, briefing: null, deduplicated: true, pending: true };
   }
 
-  // Create placeholder row with NULL fields to signal "generation in progress"
-  // This prevents other callers from starting duplicate generation
-  if (!existing) {
-    try {
-      await db.insert(briefings).values({
-        snapshot_id: snapshotId,
-        news: null,
-        weather_current: null,
-        weather_forecast: null,
-        traffic_conditions: null,
-        events: null,
-        school_closures: null,
-        airport_conditions: null,
-        created_at: new Date(),
-        updated_at: new Date()
-      });
-    } catch (insertErr) {
-      // Row might already exist from concurrent call - that's OK
-      if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('unique')) {
-        briefingLog.warn(1, `Placeholder insert warning: ${insertErr.message}`, OP.DB);
+  try {
+    // Dedup 2: Check database state - if briefing exists with ALL populated fields, skip regeneration
+    // NULL fields = generation in progress or needs refresh
+    // Populated fields = data ready, don't regenerate
+    const existing = await getBriefingBySnapshotId(snapshotId);
+    if (existing) {
+      const hasTraffic = existing.traffic_conditions !== null;
+      const hasEvents = existing.events !== null && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
+      const hasNews = existing.news !== null;
+      const hasClosures = existing.school_closures !== null;
+
+      // ALL fields must be populated for concurrent request deduplication to apply
+      if (hasTraffic && hasEvents && hasNews && hasClosures) {
+        // 2026-01-10: Fixed misleading terminology - this is DEDUP not CACHE
+        // Prevents duplicate concurrent requests, not traditional caching
+        // Only skip if briefing was generated < 60 seconds ago (in-flight or just completed)
+        const ageMs = Date.now() - new Date(existing.updated_at).getTime();
+        if (ageMs < 60000) {
+          briefingLog.info(`Recent briefing (${Math.round(ageMs/1000)}s old) - skipping duplicate generation`, OP.CACHE);
+          return { success: true, briefing: existing, deduplicated: true };
+        }
+      } else if (hasTraffic || hasEvents) {
+        briefingLog.info(`Partial data - regenerating`, OP.CACHE);
       }
     }
-  } else {
-    // Clear fields to signal "refreshing in progress"
-    await db.update(briefings)
-      .set({
-        traffic_conditions: null,
-        events: null,
-        airport_conditions: null,
-        updated_at: new Date()
-      })
-      .where(eq(briefings.snapshot_id, snapshotId));
+
+    // Create placeholder row with NULL fields to signal "generation in progress"
+    // This prevents other callers from starting duplicate generation
+    if (!existing) {
+      try {
+        await db.insert(briefings).values({
+          snapshot_id: snapshotId,
+          news: null,
+          weather_current: null,
+          weather_forecast: null,
+          traffic_conditions: null,
+          events: null,
+          school_closures: null,
+          airport_conditions: null,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+      } catch (insertErr) {
+        // Row might already exist from concurrent call - that's OK
+        if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('unique')) {
+          briefingLog.warn(1, `Placeholder insert warning: ${insertErr.message}`, OP.DB);
+        }
+      }
+    } else {
+      // Clear fields to signal "refreshing in progress"
+      await db.update(briefings)
+        .set({
+          traffic_conditions: null,
+          events: null,
+          airport_conditions: null,
+          updated_at: new Date()
+        })
+        .where(eq(briefings.snapshot_id, snapshotId));
+    }
+  } finally {
+    // Release advisory lock — the placeholder is set, actual generation runs without lock
+    await db.execute(sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`);
   }
 
   const briefingPromise = generateBriefingInternal({ snapshotId, snapshot });

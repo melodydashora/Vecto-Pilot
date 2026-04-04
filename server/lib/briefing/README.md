@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-03-28 (Bug 8: venue creation gap fix, Bug 9: cleanup architecture note)
+> **Last Verified:** 2026-04-04 (C-1 barrel exports, C-4 normalizeEvent context, C-5 timezone dates, H-6 ON CONFLICT content update)
 
 # Briefing Module (`server/lib/briefing/`)
 

@@ -297,6 +297,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { weather: null, _error: response.status };
       }
       const data = await response.json();
+      // 2026-04-04: Guard against success:false responses — treat as loading/retry state
+      if (data?.success === false) {
+        console.warn('[BriefingQuery] Weather returned success:false');
+        return { weather: null };
+      }
       console.log('[BriefingQuery] ✅ Weather received');
       return data;
     },
@@ -340,6 +345,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { traffic: null, _error: response.status };
       }
       const data = await response.json();
+      // 2026-04-04: Guard against success:false responses
+      if (data?.success === false) {
+        console.warn('[BriefingQuery] Traffic returned success:false');
+        return { traffic: null };
+      }
       const isLoading = isTrafficLoading(data);
       if (isLoading) {
         retryCountsRef.current.traffic++;
@@ -400,6 +410,13 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { news: null, _error: response.status };
       }
       const data = await response.json();
+      // 2026-04-04: Guard against success:false — this is the primary crash trigger.
+      // Server can return { success: false, news: null } on 200 OK during generation.
+      // Without this guard, null news flows to components that try to iterate it.
+      if (data?.success === false) {
+        console.warn('[BriefingQuery] News returned success:false — treating as loading');
+        return { news: null };
+      }
       const isLoading = isNewsLoading(data);
       if (isLoading) {
         retryCountsRef.current.news++;
@@ -459,6 +476,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { events: [], _error: response.status };
       }
       const data = await response.json();
+      // 2026-04-04: Guard against success:false responses
+      if (data?.success === false) {
+        console.warn('[BriefingQuery] Events returned success:false');
+        return { events: [] };
+      }
       // 2026-03-28: Track loading state for retry logic (same pattern as traffic/news/airport)
       const loading = isEventsLoading(data);
       if (loading) {
@@ -519,6 +541,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { school_closures: [], _error: response.status };
       }
       const data = await response.json();
+      // 2026-04-04: Guard against success:false responses
+      if (data?.success === false) {
+        console.warn('[BriefingQuery] School closures returned success:false');
+        return { school_closures: [] };
+      }
       console.log('[BriefingQuery] ✅ School closures received');
       return data;
     },
@@ -562,6 +589,11 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { airport_conditions: null, _error: response.status };
       }
       const data = await response.json();
+      // 2026-04-04: Guard against success:false responses
+      if (data?.success === false) {
+        console.warn('[BriefingQuery] Airport returned success:false');
+        return { airport_conditions: null };
+      }
       const isLoading = isAirportLoading(data);
       if (isLoading) {
         retryCountsRef.current.airport++;
@@ -653,6 +685,10 @@ export function useActiveEventsQuery(snapshotId: string | null) {
       }
 
       const data = await response.json();
+      // 2026-04-04: Guard against success:false responses
+      if (data?.success === false) {
+        return { events: [] };
+      }
       console.log('[BriefingQuery] ✅ Active events received:', data.events?.length || 0);
       return data;
     },

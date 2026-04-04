@@ -7,7 +7,7 @@
 // Now uses shared barsData from CoPilotContext via useBarsQuery cache
 // Removed separate useQuery that violated NO FALLBACKS rule (city: 'Unknown')
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { MapPin } from 'lucide-react';
 import MapTab from '@/components/MapTab';
 import { useCoPilot } from '@/contexts/co-pilot-context';
@@ -135,10 +135,10 @@ export default function MapPage() {
     );
   }
 
-  // Transform blocks to map venues format
-  // 2026-01-09: Use camelCase property names to match SmartBlock type
-  // 2026-01-10: D-026 - Use fallback chain for earnings (types have both fields)
-  const venues = blocks.map((block, idx) => ({
+  // 2026-04-04: Memoize venue + event transforms to prevent infinite MapTab re-render loop.
+  // Previously these were inline .map() calls that created new array references on every render,
+  // cascading through MapTab's useMemo → useEffect → marker re-creation every ~500ms.
+  const venues = useMemo(() => blocks.map((block, idx) => ({
     id: `${idx}`,
     name: block.name,
     lat: block.coordinates.lat,
@@ -148,13 +148,11 @@ export default function MapPage() {
     est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? null,
     rank: idx + 1,
     value_grade: block.valueGrade,
-  }));
+  })), [blocks]);
 
   // Transform ACTIVE events to map format (only events happening NOW)
   // Uses useActiveEventsQuery which fetches ?filter=active from the API
-  // This ensures the map shows real-time events, not all upcoming events
-  // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-  const mapEvents: MapEvent[] = (activeEventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
+  const mapEvents: MapEvent[] = useMemo(() => (activeEventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
     title: e.title as string,
     venue: e.venue as string | undefined,
     address: e.address as string | undefined,
@@ -166,7 +164,7 @@ export default function MapPage() {
     longitude: e.longitude as number | undefined,
     impact: e.impact as 'high' | 'medium' | 'low' | undefined,
     subtype: e.subtype as string | undefined,
-  }));
+  })), [activeEventsData?.events]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="map-page">
