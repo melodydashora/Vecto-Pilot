@@ -2493,23 +2493,17 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // 2026-01-05: News moved to fresh fetch (dual-model is fast enough)
   briefingLog.phase(1, `Fetching weather + traffic + events + airport + news`, OP.AI);
 
-  // 2026-04-04: Defensive — assign from Promise.all result array instead of destructuring.
-  // Array destructuring of Promise.all is technically safe (always returns array), but
-  // wrapping each result with catch ensures one subsystem failure doesn't crash the pipeline.
+  // FAIL HARD — all five subsystems must succeed. If any throws, the pipeline fails
+  // and the error surfaces to the client for retry. No silent degradation.
   let weatherResult, trafficResult, eventsResult, airportResult, newsResult;
   try {
-    const results = await Promise.all([
-      fetchWeatherConditions({ snapshot }).catch(e => { briefingLog.warn(1, `Weather fetch error: ${e.message}`, OP.AI); return { current: null, forecast: [] }; }),
-      fetchTrafficConditions({ snapshot }).catch(e => { briefingLog.warn(1, `Traffic fetch error: ${e.message}`, OP.AI); return null; }),
-      (snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.resolve({ items: [], reason: 'No snapshot' })).catch(e => { briefingLog.warn(1, `Events fetch error: ${e.message}`, OP.AI); return { items: [], reason: e.message }; }),
-      fetchAirportConditions({ snapshot }).catch(e => { briefingLog.warn(1, `Airport fetch error: ${e.message}`, OP.AI); return { airports: [], busyPeriods: [] }; }),
-      fetchRideshareNews({ snapshot }).catch(e => { briefingLog.warn(1, `News fetch error: ${e.message}`, OP.AI); return { items: [], reason: e.message }; })
+    [weatherResult, trafficResult, eventsResult, airportResult, newsResult] = await Promise.all([
+      fetchWeatherConditions({ snapshot }),
+      fetchTrafficConditions({ snapshot }),
+      snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
+      fetchAirportConditions({ snapshot }),
+      fetchRideshareNews({ snapshot })
     ]);
-    weatherResult = results[0];
-    trafficResult = results[1];
-    eventsResult = results[2];
-    airportResult = results[3];
-    newsResult = results[4];
   } catch (freshErr) {
     console.error(`[BriefingService] ❌ FAIL-FAST: Fresh data fetch failed:`, freshErr.message);
     throw freshErr;
@@ -2527,17 +2521,25 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     try {
       schoolClosures = await fetchSchoolClosures({ snapshot });
     } catch (dailyErr) {
-      // 2026-04-04: Graceful degradation — don't crash pipeline for school closures failure
-      briefingLog.warn(2, `Closures fetch failed (non-fatal): ${dailyErr.message}`, OP.AI);
-      schoolClosures = [];
+      console.error(`[BriefingService] ❌ FAIL-FAST: Closures fetch failed:`, dailyErr.message);
+      throw dailyErr;
     }
   }
 
-  // 2026-04-04: Defensive — ensure all result fields are safe before downstream use.
-  // Prevents "undefined is not iterable" if any fetch returned unexpected shape.
-  let eventsItems = Array.isArray(eventsResult?.items) ? eventsResult.items : [];
-  const newsItems = Array.isArray(newsResult?.items) ? newsResult.items : [];
-  if (!Array.isArray(schoolClosures)) schoolClosures = [];
+  // 2026-04-04: Type guards — these must be arrays before downstream .length/.map() calls.
+  // If a fetch function returns a malformed response, crash here with a clear message
+  // rather than deep in an unrelated for-of loop.
+  let eventsItems = eventsResult?.items;
+  if (!Array.isArray(eventsItems)) {
+    throw new Error(`BRIEFING BUG: eventsResult.items is ${typeof eventsItems} (${JSON.stringify(eventsItems)?.slice(0, 100)}), expected array. Fix fetchEventsForBriefing return value.`);
+  }
+  const newsItems = newsResult?.items;
+  if (!Array.isArray(newsItems)) {
+    throw new Error(`BRIEFING BUG: newsResult.items is ${typeof newsItems} (${JSON.stringify(newsItems)?.slice(0, 100)}), expected array. Fix fetchRideshareNews return value.`);
+  }
+  if (!Array.isArray(schoolClosures)) {
+    throw new Error(`BRIEFING BUG: schoolClosures is ${typeof schoolClosures} (${JSON.stringify(schoolClosures)?.slice(0, 100)}), expected array. Fix fetchSchoolClosures return value.`);
+  }
 
   const airportCount = airportResult?.airports?.length || 0;
   const forecastHours = weatherResult?.forecast?.length || 0;
