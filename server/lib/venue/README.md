@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-03-28
+> **Last Verified:** 2026-04-04 (hours backfill fix: storage format, re-hydration, maybeBackfillVenue trigger, batch backfill)
 
 # Venue Module (`server/lib/venue/`)
 
