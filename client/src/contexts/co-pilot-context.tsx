@@ -680,6 +680,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     timeRemainingText,
 
     // Pre-loaded briefing data
+    // 2026-04-04: Defense-in-depth — ensure array fields are always arrays, never null.
+    // Prevents "undefined is not iterable" crashes when components use for...of or spread.
     briefingData: {
       weather: weatherData?.weather || null,
       traffic: trafficData?.traffic || null,
@@ -687,10 +689,13 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       // 2026-03-29: FIX - Unwrap events array from API response object
       // Previously stored full response object, breaking .filter() calls downstream
       // Now properly extracts events array AND marketEvents for separate access
-      events: eventsData?.events || null,
-      marketEvents: eventsData?.marketEvents || null,
+      events: Array.isArray(eventsData?.events) ? eventsData.events : [],
+      marketEvents: Array.isArray(eventsData?.marketEvents) ? eventsData.marketEvents : [],
       // 2026-01-10: Snake/camel tolerant - accept both server response formats
-      schoolClosures: schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures ?? [],
+      schoolClosures: (() => {
+        const raw = schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures;
+        return Array.isArray(raw) ? raw : [];
+      })(),
       airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
       isLoading: briefingIsLoading,
     },

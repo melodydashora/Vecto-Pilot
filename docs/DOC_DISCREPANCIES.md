@@ -424,6 +424,38 @@ These items are **documented and accepted** technical debt. They are NOT blockin
 
 ---
 
+---
+
+## 2026-04-04 Audit — New Documentation Discrepancies
+
+**Audit Source:** `docs/architecture/full-audit-2026-04-04.md`
+
+### CRITICAL (P0 - Docs Reference Non-Existent Resources)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-077 | `docs/architecture/briefing-system.md` | Documents phantom endpoint `POST /refresh-daily/:snapshotId` | Endpoint does not exist in code | PENDING |
+| D-078 | `docs/architecture/briefing-system.md` | Says "Events/News cache: 24 hours" | Events: 4h staleness, News: no cache | PENDING |
+| D-079 | `docs/architecture/briefing-system.md` | Missing 4 API endpoints from docs | Missing: filter-invalid-events, deactivate, reactivate, discovered-events | PENDING |
+| D-080 | `ARCHITECTURE.md` | Lists "OpenAI (GPT-5.2, Realtime API)" as primary model | Actual primary is Gemini 3.1 Pro for briefing roles | PENDING |
+
+### HIGH (P1 - Wrong Paths / References)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-081 | `server/lib/briefing/README.md` | References `phase-emitter.js` as in `server/lib/briefing/` | Actual location: `server/events/phase-emitter.js` | PENDING |
+| D-082 | `server/lib/traffic/tomtom.js` JSDoc | Says `radiusMiles` default 10 | Signature says `radiusMeters` 5000 | PENDING |
+| D-083 | `ARCHITECTURE.md` | Last updated 2026-03-17 | Code changed through 2026-03-29 (offer tier overhaul) | PENDING |
+
+### MEDIUM (P2 - Stale / Incomplete)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-084 | `docs/architecture/briefing-system.md` | Last updated 2026-02-10 | Code changed significantly through 2026-02-17 | PENDING |
+| D-085 | `ARCHITECTURE.md` | Claims "95 README files total" | Actual count appears to be ~82 | PENDING |
+
+---
+
 ## Adding New Discrepancies
 
 ```markdown

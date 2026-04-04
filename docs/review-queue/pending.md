@@ -1870,4 +1870,92 @@ POST https://69f9de93-7dc3-48aa-9050-4c395406d344-00-3uat6a5ciur3j.riker.replit.
 
 ---
 
+## 2026-04-04: Full Repository Audit (5-Agent Parallel Analysis)
+
+**Updated by:** Claude Opus 4.6
+**Date:** 2026-04-04
+**Scope:** Server, Client, Schema, Documentation, Code Quality — comprehensive sweep
+
+### Summary
+
+Full audit conducted with 5 parallel exploration agents covering:
+- Server architecture (228 files, ~57K LOC)
+- Client architecture (62+ components, 23 pages, ~32K LOC)
+- Database schema (55 tables, 27 migrations)
+- Bug/issue detection across entire codebase
+- Documentation accuracy review
+
+### Key Findings
+
+| Severity | Count | Top Issue |
+|----------|-------|-----------|
+| CRITICAL | 5 | Briefing runtime bugs (C-1 to C-5) — barrel export mismatches, missing imports, wrong params |
+| HIGH | 15 | Unprotected JSON.parse (15+ locations), silent promise rejections, no AI call timeouts |
+| MEDIUM | 12 | Dead code (9 functions), 4 ESLint violations, stale ARCHITECTURE.md, debug flags |
+| LOW | 5 | TODO cleanup, naming consistency |
+
+### Full Report
+
+See `docs/architecture/full-audit-2026-04-04.md` for complete findings with file paths and line numbers.
+
+### Prior Unfixed Items Confirmed Still Open
+
+1. **Offer tier overhaul** — AWAITING TEST APPROVAL since 2026-03-29
+2. **25 briefing bugs** — DOCUMENTED since 2026-03-09, UNFIXED
+3. **Research P0 features** — NOT IMPLEMENTED
+4. **Dependabot vulnerabilities** — FLAGGED
+
+### Status: DOCUMENTED — AWAITING PRIORITIZED IMPLEMENTATION
+
+---
+
+## 2026-04-04: Frontend "undefined is not iterable" Crash Fix
+
+**Updated by:** Claude Opus 4.6
+**Date:** 2026-04-04
+**Scope:** Client-side crash when API returns `success: false` or null array fields
+
+### Root Cause
+
+`onAfterProcessingUnexpectedShift` in call stack = React Scheduler internal. Crash happens during re-render when state update delivers null where array expected. Two code paths triggered it:
+
+1. **API response `{ success: false, news: null }`** — queryFn returned raw response, null flowed to components that iterated it
+2. **Strategy completion → blocks/venue loading** — `filterHighValueSpacedBlocks()` received null during transition
+
+### Fixes Applied (3 layers, defense-in-depth)
+
+**Layer 1: Utility functions** (`client/src/utils/co-pilot-helpers.ts`)
+- `filterValidEvents()` — added `Array.isArray()` guard before `for...of` loop
+- `filterHighValueSpacedBlocks()` — same guard, returns `[]` on null/undefined input
+
+**Layer 2: API boundary** (`client/src/hooks/useBriefingQueries.ts`)
+- All 7 queryFns now check `data?.success === false` before returning
+- Replaces raw response with safe defaults (`{ news: null }`, `{ events: [] }`, etc.)
+
+**Layer 3: Context** (`client/src/contexts/co-pilot-context.tsx`)
+- `briefingData.events` and `briefingData.marketEvents` now use `Array.isArray()` — always arrays, never null
+- `schoolClosures` same treatment
+
+### Status: ⏳ AWAITING TEST APPROVAL
+
+---
+
+## 2026-04-04: MapTab/EventFilter Infinite Loop Fix (~500ms re-renders)
+
+**Updated by:** Claude Opus 4.6
+**Date:** 2026-04-04
+**Scope:** Map tab re-processing event markers every ~500ms even when data unchanged
+
+### Root Cause
+
+Every parent re-render created a new `mapEvents` array via inline `.map()` at MapPage:157. New reference cascaded through MapTab's `useMemo → useEffect → marker clear/re-add` cycle, repeating every ~500ms.
+
+### Fixes Applied
+
+1. **MapPage.tsx** — Wrapped `venues` and `mapEvents` in `useMemo` with `[blocks]` and `[activeEventsData?.events]` deps
+2. **MapTab.tsx** — Added `lastEventKeyRef` dedup check; skips marker rebuild if event data unchanged
+3. **co-pilot-helpers.ts** — Removed per-event console.logs from hot-path filter functions
+
+### Status: ⏳ AWAITING TEST APPROVAL
+
 ---

@@ -152,7 +152,11 @@ export async function callModel(role, params) {
       configs
     }, {
       providers, // Explicitly pass ordered list (primary first)
-      timeout: 0 // DISABLE TIMEOUT (User Request: "remove time out for models to respond")
+      // 2026-04-04: FIX H-2 — Restored safety timeout. Was disabled (timeout: 0) per user request,
+      // but indefinite hangs block the entire briefing pipeline. 120s is generous enough for
+      // Gemini HIGH thinking + Google Search while catching genuinely stuck calls.
+      // Individual operations can still use withTimeout() for tighter per-call limits.
+      timeout: 120000
     });
 
     const response = result.response;

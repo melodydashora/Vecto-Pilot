@@ -585,11 +585,10 @@ export const discovered_events = pgTable("discovered_events", {
   address: text("address"),
   city: text("city").notNull(),
   state: text("state").notNull(),
-  zip: text("zip"),
-  // Geocoding (lat/lng) happens in venue_catalog, which is source of truth for coordinates
-  // But we store raw coords here for events that don't match a venue yet
-  lat: doublePrecision("lat"),
-  lng: doublePrecision("lng"),
+  // 2026-04-04: FIX H-7 — Removed zip, lat, lng from schema.
+  // Migration 20260110_drop_discovered_events_unused_cols.sql dropped these columns.
+  // Geocoding lives in venue_catalog (source of truth for coordinates).
+  // Events link to venues via venue_id FK below.
   // Reference to venue_catalog (enables venue → events queries for SmartBlocks)
   // Updated 2026-01-05: FK changed from venue_cache.id to venue_catalog.venue_id
   venue_id: uuid("venue_id").references(() => venue_catalog.venue_id, { onDelete: 'set null' }),

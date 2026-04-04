@@ -345,11 +345,7 @@ export function isEventToday(event: FilterableEvent): boolean {
 
   // Multi-day event: check if today falls within the date range
   if (event.event_end_date) {
-    const inRange = event.event_start_date <= today && today <= event.event_end_date;
-    if (inRange) {
-      console.log(`[EventFilter] ✅ Multi-day event "${event.title}" - today ${today} is within range ${event.event_start_date} to ${event.event_end_date}`);
-    }
-    return inRange;
+    return event.event_start_date <= today && today <= event.event_end_date;
   }
 
   // Single-day event: exact date match
@@ -376,19 +372,11 @@ export function hasValidEventTime(event: FilterableEvent): boolean {
  * Filter events to only show today's events with valid times
  * Use this for map display where we only want actionable events
  */
+// 2026-04-04: Removed per-event console.logs that fired every ~500ms in the render loop.
+// These are pure filter functions — log only at the caller level when the count changes.
 export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
-  return events.filter(event => {
-    const isToday = isEventToday(event);
-    const hasTime = hasValidEventTime(event);
-
-    if (!isToday) {
-      console.log(`[EventFilter] Rejected "${event.title}" - not today (date: ${event.event_start_date})`);
-    } else if (!hasTime) {
-      console.log(`[EventFilter] Rejected "${event.title}" - no valid time (time: ${event.event_start_time})`);
-    }
-
-    return isToday && hasTime;
-  });
+  if (!events || !Array.isArray(events)) return [];
+  return events.filter(event => isEventToday(event) && hasValidEventTime(event));
 }
 
 /**
@@ -398,14 +386,20 @@ export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
  * Handles multi-day events by checking if today falls within event_start_date to event_end_date range
  * 2026-01-10: Use symmetric field names
  */
+// 2026-04-04: Guard against null/undefined — for...of crashes with "undefined is not iterable"
 export function filterValidEvents<T extends FilterableEvent>(
-  events: T[],
+  events: T[] | null | undefined,
   timezone?: string
 ): {
   todayEvents: T[];
   upcomingEvents: T[];
   invalidEvents: T[];
 } {
+  // 2026-04-04: Guard — for...of on null/undefined crashes with "undefined is not iterable"
+  if (!events || !Array.isArray(events)) {
+    return { todayEvents: [], upcomingEvents: [], invalidEvents: [] };
+  }
+
   // 2026-03-28: Use timezone-aware date when timezone provided (fixes UTC mismatch near day boundaries)
   // Previously used UTC toISOString which caused events to appear/disappear incorrectly near midnight
   let today: string;
@@ -602,11 +596,14 @@ export function isHighValueBlock(block: FilterableBlock): boolean {
  * @param maxVenues - Maximum venues to return (default: 3)
  * @returns Filtered array of high-value blocks (spacing preferred but not required)
  */
+// 2026-04-04: Guard against null/undefined — for...of crashes with "undefined is not iterable"
 export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
-  blocks: T[],
+  blocks: T[] | null | undefined,
   minDistanceMiles: number = 1.0,
   maxVenues: number = 3
 ): T[] {
+  if (!blocks || !Array.isArray(blocks) || blocks.length === 0) return [];
+
   // Helper: Check if block has valid coordinates
   const hasValidCoords = (block: T): boolean => {
     const coords = block.coordinates;

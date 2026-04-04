@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-17
+> **Last Verified:** 2026-04-04
 
 # Briefing API (`server/api/briefing/`)
 
@@ -48,9 +48,11 @@ PATCH /api/briefing/event/:eventId/reactivate   - Reactivate an event
 
 ### Real-time
 ```
-GET  /api/briefing/traffic/realtime   - Fresh traffic (requires lat, lng)
-GET  /api/briefing/weather/realtime   - Fresh weather (requires lat, lng)
+GET  /api/briefing/traffic/realtime   - Fresh traffic (requires lat, lng, city, state, timezone)
+GET  /api/briefing/weather/realtime   - Fresh weather (requires lat, lng; optional: country)
 ```
+
+> **2026-04-04 Fixes:** Traffic endpoint now requires `city`, `state`, `timezone` params (was crashing with `ReferenceError` due to missing import + wrong param shape). Weather endpoint fixed to pass `{ snapshot }` shape. Event deactivate/reactivate now checks user's market matches event location.
 
 > **SSE (2026-01-09):** All SSE endpoints moved to `/events/*` via `strategy-events.js`:
 > - `/events/strategy` - Strategy ready (DB NOTIFY)

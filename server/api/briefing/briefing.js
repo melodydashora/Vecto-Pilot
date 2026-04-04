@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, filterInvalidEvents, fetchWeatherConditions, fetchRideshareNews, deduplicateEvents } from '../../lib/briefing/briefing-service.js';
+// 2026-04-04: FIX C-2 — Added fetchTrafficConditions (was missing, causing ReferenceError on /traffic/realtime)
+import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, filterInvalidEvents, fetchWeatherConditions, fetchTrafficConditions, fetchRideshareNews, deduplicateEvents } from '../../lib/briefing/briefing-service.js';
 import { db } from '../../db/drizzle.js';
 import { snapshots, discovered_events, news_deactivations, briefings, market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte, ilike, not, or, sql } from 'drizzle-orm';
@@ -396,19 +397,25 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
   }
 });
 
+// 2026-04-04: FIX C-2 — fetchTrafficConditions expects { snapshot } shape, not flat params.
+// Also fixed: removed NO FALLBACKS violations (city || 'Unknown', state || '').
+// Added timezone as required param (needed for date calculation inside the function).
 router.get('/traffic/realtime', requireAuth, async (req, res) => {
   try {
-    const { lat, lng, city, state } = req.query;
+    const { lat, lng, city, state, timezone } = req.query;
 
-    if (!lat || !lng) {
-      return res.status(400).json({ error: 'Missing required parameters: lat, lng' });
+    if (!lat || !lng || !city || !state || !timezone) {
+      return res.status(400).json({ error: 'Missing required parameters: lat, lng, city, state, timezone' });
     }
 
     const traffic = await fetchTrafficConditions({
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
-      city: city || 'Unknown',
-      state: state || ''
+      snapshot: {
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+        city,
+        state,
+        timezone
+      }
     });
 
     res.json({ success: true, traffic });
@@ -418,17 +425,22 @@ router.get('/traffic/realtime', requireAuth, async (req, res) => {
   }
 });
 
+// 2026-04-04: FIX C-3 — fetchWeatherConditions expects { snapshot } shape, not { lat, lng }.
+// The function accesses snapshot.lat, snapshot.lng, snapshot.country internally.
 router.get('/weather/realtime', requireAuth, async (req, res) => {
   try {
-    const { lat, lng } = req.query;
+    const { lat, lng, country } = req.query;
 
     if (!lat || !lng) {
       return res.status(400).json({ error: 'Missing required parameters: lat, lng' });
     }
 
     const weather = await fetchWeatherConditions({
-      lat: parseFloat(lat),
-      lng: parseFloat(lng)
+      snapshot: {
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+        country: country || 'US'
+      }
     });
 
     res.json({ success: true, weather });
@@ -649,7 +661,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
         title: e.title,
         summary: [e.title, venueName, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
         impact: e.expected_attendance === 'high' ? 'high' : e.expected_attendance === 'low' ? 'low' : 'medium',
-        source: e.source_model || (v?.source ? `Venue: ${v.source}` : 'discovered'),
+        // 2026-04-04: FIX H-8 — source_model column was removed from schema (2026-01-14)
+        source: v?.source ? `Venue: ${v.source}` : 'discovered',
         event_type: e.category,
         subtype: e.category, // For EventsComponent category grouping
         event_start_date: e.event_start_date,
@@ -744,8 +757,27 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
           );
 
           // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-          const rawMarketEvents = await db.select()
+          // 2026-04-04: FIX H-7 — Left join venue_catalog for coordinates.
+          // lat/lng columns were dropped from discovered_events (migration 20260110).
+          // Coordinates now come from venue_catalog via venue_id FK.
+          const rawMarketEvents = await db.select({
+            id: discovered_events.id,
+            title: discovered_events.title,
+            venue_name: discovered_events.venue_name,
+            address: discovered_events.address,
+            city: discovered_events.city,
+            state: discovered_events.state,
+            event_start_date: discovered_events.event_start_date,
+            event_end_date: discovered_events.event_end_date,
+            event_start_time: discovered_events.event_start_time,
+            event_end_time: discovered_events.event_end_time,
+            category: discovered_events.category,
+            expected_attendance: discovered_events.expected_attendance,
+            venue_lat: venue_catalog.lat,
+            venue_lng: venue_catalog.lng,
+          })
             .from(discovered_events)
+            .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
             .where(and(
               or(...cityConditions),
               or(
@@ -766,7 +798,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
             title: e.title,
             summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
             impact: 'high', // All market events are high-value by definition
-            source: e.source_model,
+            // 2026-04-04: FIX H-8 — source_model column removed from schema
+            source: 'discovered',
             event_type: e.category,
             subtype: e.category,
             event_start_date: e.event_start_date,
@@ -776,8 +809,8 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
             address: e.address,
             venue: e.venue_name,
             location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
-            latitude: e.lat,
-            longitude: e.lng,
+            latitude: e.venue_lat,
+            longitude: e.venue_lng,
             city: e.city // Include city for UI display
           }));
 
@@ -957,6 +990,19 @@ router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
+    // 2026-04-04: FIX H-1 — Market authorization check.
+    // Previously any authenticated user could deactivate ANY event in the system.
+    // Now verify the user's most recent snapshot is in the same city/state as the event.
+    const [userSnapshot] = await db.select({ city: snapshots.city, state: snapshots.state })
+      .from(snapshots)
+      .where(eq(snapshots.user_id, req.auth.userId))
+      .orderBy(desc(snapshots.created_at))
+      .limit(1);
+
+    if (userSnapshot && event.city && userSnapshot.city?.toLowerCase() !== event.city?.toLowerCase()) {
+      return res.status(403).json({ error: 'You can only deactivate events in your market area' });
+    }
+
     // Build update payload
     const updatePayload = {
       is_active: false,
@@ -1010,6 +1056,17 @@ router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
 
     if (!event) {
       return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // 2026-04-04: FIX H-1 — Market authorization check (same as deactivate)
+    const [userSnapshot] = await db.select({ city: snapshots.city, state: snapshots.state })
+      .from(snapshots)
+      .where(eq(snapshots.user_id, req.auth.userId))
+      .orderBy(desc(snapshots.created_at))
+      .limit(1);
+
+    if (userSnapshot && event.city && userSnapshot.city?.toLowerCase() !== event.city?.toLowerCase()) {
+      return res.status(403).json({ error: 'You can only reactivate events in your market area' });
     }
 
     // Reactivate the event

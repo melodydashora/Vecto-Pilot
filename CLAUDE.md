@@ -102,6 +102,7 @@ The AI Coach needs **write access** to capture learnings from real user interact
 | 3 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
 | 4 | `docs/coach-inbox.md` | Memos from the AI Coach (Gemini) for Claude Code |
 | 5 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
+| 6 | `docs/architecture/full-audit-2026-04-04.md` | Latest comprehensive audit findings (37 issues) |
 
 **This is your memory layer.** These documents persist across sessions and are your primary source of truth for the current state of the project. When you learn something important during a session, update the relevant document so future sessions benefit.
 
