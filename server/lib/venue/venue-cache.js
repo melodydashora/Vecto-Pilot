@@ -635,12 +635,18 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
  * @param {Object} venue - Existing venue record from DB
  * @param {string|null} placeId - Google Place ID (ChIJ...)
  */
+// 2026-04-04: Also trigger on missing hours data (was only checking phone+rating).
+// Venues created via event discovery get place_id but no hours → shows "0 open".
 function maybeBackfillVenue(venue, placeId) {
   if (!placeId || !placeId.startsWith('ChIJ')) return;
   if (!venue?.venue_id) return;
 
-  // Already enriched — has phone AND google_rating (both require Places API)
-  if (venue.phone_number && venue.google_rating) return;
+  // Check if enrichment is needed: missing phone, rating, OR hours
+  const hasPhone = !!venue.phone_number;
+  const hasRating = !!venue.google_rating;
+  const hasHours = !!(venue.business_hours || venue.hours_full_week);
+
+  if (hasPhone && hasRating && hasHours) return; // Fully enriched
 
   // Trigger non-blocking enrichment
   enrichVenueFromPlaceId(venue.venue_id, placeId).catch(err => {
@@ -659,7 +665,8 @@ function maybeBackfillVenue(venue, placeId) {
  * @param {string} venueId - venue_catalog.venue_id to update
  * @param {string} placeId - Google Place ID (ChIJ...)
  */
-async function enrichVenueFromPlaceId(venueId, placeId) {
+// 2026-04-04: Exported for batch backfill in venue-intelligence.js cache path
+export async function enrichVenueFromPlaceId(venueId, placeId) {
   if (!GOOGLE_MAPS_API_KEY || !placeId) return;
 
   const fieldMask = [
@@ -701,13 +708,24 @@ async function enrichVenueFromPlaceId(venueId, placeId) {
     updates.google_rating = String(place.rating);
   }
 
-  if (place.regularOpeningHours?.weekdayDescriptions) {
-    updates.business_hours = place.regularOpeningHours.weekdayDescriptions.join('; ');
-  }
-
-  if (place.regularOpeningHours?.periods) {
-    // Store structured hours for programmatic isOpen() checks
-    updates.hours_full_week = place.regularOpeningHours.periods;
+  // 2026-04-04: Store the FULL regularOpeningHours object (weekdayDescriptions + periods).
+  // Previously stored weekdayDescriptions as joined string and periods separately.
+  // Bug: re-hydration in venue-intelligence.js expected .weekdayDescriptions array on
+  // business_hours, but got a plain string → hours parsing always returned null → "0 open".
+  if (place.regularOpeningHours) {
+    // Store as structured object with weekdayDescriptions array for parseGoogleWeekdayText()
+    if (place.regularOpeningHours.weekdayDescriptions) {
+      updates.business_hours = {
+        weekdayDescriptions: place.regularOpeningHours.weekdayDescriptions
+      };
+    }
+    if (place.regularOpeningHours.periods) {
+      // Store full regularOpeningHours so re-hydration can access .weekdayDescriptions
+      updates.hours_full_week = {
+        weekdayDescriptions: place.regularOpeningHours.weekdayDescriptions || [],
+        periods: place.regularOpeningHours.periods
+      };
+    }
   }
 
   if (place.businessStatus) {

@@ -14,7 +14,7 @@ import { callModel } from '../ai/adapters/index.js';
 import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
 import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
 // 2026-01-14: Cache First pattern - check database before calling Google Places API
-import { getVenuesByType } from './venue-cache.js';
+import { getVenuesByType, enrichVenueFromPlaceId } from './venue-cache.js';
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 // 2026-01-10: D-014 Phase 4 - Use canonical hours module directly for all isOpen calculations
 import { parseGoogleWeekdayText, getOpenStatus } from './hours/index.js';
@@ -394,21 +394,49 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         barsLog.phase(0, `Only ${venuesWithHours.length}/${nearbyBars.length} cached venues have hours — falling through to API for fresh data`);
       }
 
+      // 2026-04-04: Batch backfill — trigger non-blocking enrichment for venues with
+      // place_id but missing hours. They'll have hours on the next request.
+      const venuesMissingHours = nearbyBars.filter(v =>
+        v.place_id && v.place_id.startsWith('ChIJ') &&
+        !v.hours_full_week && !v.business_hours
+      );
+      if (venuesMissingHours.length > 0) {
+        barsLog.phase(0, `[BARS] Backfilling hours for ${venuesMissingHours.length} venues missing data`);
+        // Rate limit: max 5 concurrent, fire-and-forget
+        const batch = venuesMissingHours.slice(0, 5);
+        for (const v of batch) {
+          enrichVenueFromPlaceId(v.venue_id, v.place_id).catch(err => {
+            barsLog.warn(0, `Hours backfill failed for "${v.venue_name}": ${err.message}`);
+          });
+        }
+      }
+
       // If we have 5+ cached venues WITH HOURS, re-hydrate with live status and return
       if (venuesWithHours.length >= 5) {
         barsLog.phase(0, `Using ${nearbyBars.length} cached venues (Cache First, ${venuesWithHours.length} have hours)`);
 
         // Re-hydrate cached venues with live open status calculations
         const rehydrated = nearbyBars.map(v => {
-          // Build a mock place object for calculateOpenStatus
+          // 2026-04-04: Extract weekdayDescriptions from stored data, handling all formats:
+          // - New object format: { weekdayDescriptions: [...] }
+          // - Old string format: "Monday: 6 AM – 11 PM; Tuesday: ..." (split on '; ')
+          // - Old periods-only array: [{ open: {...}, close: {...} }] (no weekdayDescriptions)
+          function extractWeekdayDescs(data) {
+            if (!data) return [];
+            if (Array.isArray(data.weekdayDescriptions)) return data.weekdayDescriptions;
+            if (typeof data === 'string') return data.split('; ').filter(Boolean);
+            if (Array.isArray(data) && data[0]?.open) return []; // periods array, no descriptions
+            return [];
+          }
+
+          const businessDescs = extractWeekdayDescs(v.business_hours);
+          const hoursDescs = extractWeekdayDescs(v.hours_full_week);
+          const weekdayDescriptions = businessDescs.length > 0 ? businessDescs : hoursDescs;
+
           const mockPlace = {
             displayName: { text: v.venue_name },
-            currentOpeningHours: v.business_hours ? {
-              weekdayDescriptions: v.business_hours.weekdayDescriptions || []
-            } : null,
-            regularOpeningHours: v.hours_full_week ? {
-              weekdayDescriptions: v.hours_full_week.weekdayDescriptions || []
-            } : null
+            currentOpeningHours: weekdayDescriptions.length > 0 ? { weekdayDescriptions } : null,
+            regularOpeningHours: weekdayDescriptions.length > 0 ? { weekdayDescriptions } : null
           };
 
           const openStatus = calculateOpenStatus(mockPlace, timezone);
