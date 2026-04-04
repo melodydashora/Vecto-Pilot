@@ -777,11 +777,14 @@ export async function runConsolidator(snapshotId, options = {}) {
       throw new Error(`Snapshot not found: ${snapshotId}`);
     }
 
-    // Fetch strategy row and briefing
-    const [[strategyRow], [briefingRow]] = await Promise.all([
+    // 2026-04-04: Avoid nested array destructuring — if a query returns unexpected shape,
+    // the inner destructuring throws "(intermediate value) is not iterable".
+    const [strategyRows, briefingRows] = await Promise.all([
       db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1),
       db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1)
     ]);
+    const strategyRow = strategyRows?.[0];
+    const briefingRow = briefingRows?.[0];
 
     if (!strategyRow) {
       throw new Error(`Strategy row not found for snapshot ${snapshotId}`);
