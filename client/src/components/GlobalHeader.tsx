@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   MapPin,
   Clock,
-  Settings,
   RefreshCw,
   Car,
   CloudRain,
@@ -25,6 +24,8 @@ import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 import { useCoPilot } from '@/contexts/co-pilot-context';
 // 2026-02-13: Logout button in header
 import { useAuth } from '@/contexts/auth-context';
+// 2026-04-05: Hamburger menu for secondary pages
+import HamburgerMenu from '@/components/HamburgerMenu';
 
 // helpers (add these files from sections 2 and 3 below)
 import { classifyDayPart } from "@/lib/daypart";
@@ -510,17 +511,8 @@ const GlobalHeaderComponent: React.FC = () => {
               </div>
             </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/20 p-2"
-              title="Settings"
-              aria-label="Open settings"
-              data-testid="button-settings"
-              onClick={() => navigate('/co-pilot/settings')}
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
+            {/* 2026-04-05: Hamburger menu replaces standalone settings button */}
+            <HamburgerMenu />
 
             {/* 2026-02-13: Logout button */}
             <Button

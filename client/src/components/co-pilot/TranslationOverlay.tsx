@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTTS } from '@/hooks/useTTS';
+import { useToast } from '@/hooks/useToast';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import QuickPhrases, { type QuickPhrase } from './QuickPhrases';
@@ -45,9 +46,10 @@ const RIDER_INTRO: Record<string, string> = {
   ru: 'Ваш водитель использует переводчик. Нажмите 🎤, чтобы говорить по-русски.',
 };
 
-// Language options for the selector (FIFA World Cup priority languages)
+// 2026-04-05: Removed 'auto' from language list (audit fix 1A).
+// targetLang='auto' is undefined behavior — rider language must be explicitly selected.
+// Auto-detect is valid for sourceLang (detecting what someone speaks) but NOT for targetLang.
 const LANGUAGES = [
-  { code: 'auto', name: 'Auto-detect', flag: '🌐' },
   { code: 'es', name: 'Spanish', flag: '🇪🇸' },
   { code: 'pl', name: 'Polish', flag: '🇵🇱' },
   { code: 'uk', name: 'Ukrainian', flag: '🇺🇦' },
@@ -94,17 +96,19 @@ async function requestWakeLock(): Promise<WakeLockSentinel | null> {
 
 export default function TranslationOverlay() {
   // State
-  // 2026-03-18: Default to auto-detect — driver shouldn't have to guess rider's language
-  const [riderLang, setRiderLang] = useState('auto');
+  // 2026-04-05: Default to '' (unset) — rider language MUST be explicitly selected (audit fix 1A).
+  // 'auto' as targetLang is undefined behavior. Show language picker on first interaction.
+  const [riderLang, setRiderLang] = useState('');
   const [messages, setMessages] = useState<TranslationMessage[]>([]);
   const [isTranslating, setIsTranslating] = useState(false);
   const [activeMode, setActiveMode] = useState<'idle' | 'driver-speaking' | 'rider-speaking'>('idle');
   const [showQuickPhrases, setShowQuickPhrases] = useState(false);
-  const [showLangPicker, setShowLangPicker] = useState(false);
+  const [showLangPicker, setShowLangPicker] = useState(true); // 2026-04-05: Open picker on mount
 
   // Hooks
   const speech = useSpeechRecognition();
   const tts = useTTS();
+  const { toast } = useToast();
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const riderPanelRef = useRef<HTMLDivElement>(null);
   const driverPanelRef = useRef<HTMLDivElement>(null);
@@ -161,18 +165,21 @@ export default function TranslationOverlay() {
         setActiveMode('idle');
 
         if (text && currentMode === 'driver-speaking') {
-          // 2026-03-28: Auto-translate driver speech (was pendingText, now seamless)
-          const target = riderLang === 'auto' ? 'auto' : riderLang;
-          translateText(text, 'en', target).then(result => {
+          // 2026-04-05: Rider language must be set (audit fix 1A)
+          if (!riderLang) {
+            toast({ title: 'Select rider language', description: 'Choose the rider\'s language before translating.', variant: 'destructive' });
+            return;
+          }
+          translateText(text, 'en', riderLang).then(result => {
             if (result) {
-              addMessage(text, result.translatedText, 'en', result.detectedLang || target, 'driver');
+              addMessage(text, result.translatedText, 'en', result.detectedLang || riderLang, 'driver');
             }
           });
         } else if (text && currentMode === 'rider-speaking') {
-          const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
-          translateText(text, sourceLang, 'en').then(result => {
+          // 2026-04-05: Use explicit riderLang as sourceLang hint (audit fix 1B)
+          translateText(text, riderLang || 'auto', 'en').then(result => {
             if (result) {
-              addMessage(text, result.translatedText, result.detectedLang || sourceLang, 'en', 'rider');
+              addMessage(text, result.translatedText, result.detectedLang || riderLang, 'en', 'rider');
             }
           });
         }
@@ -191,6 +198,7 @@ export default function TranslationOverlay() {
   /**
    * Translate text via the server API
    */
+  // 2026-04-05: Added auth pre-check (audit fix 1D) and toast errors (audit fix 1C)
   const translateText = useCallback(async (
     text: string,
     sourceLang: string,
@@ -198,26 +206,37 @@ export default function TranslationOverlay() {
   ): Promise<{ translatedText: string; detectedLang: string } | null> => {
     try {
       setIsTranslating(true);
-      // 2026-03-18: FIX (B-1) — Server requires auth, was missing Bearer token
+
+      // 2026-04-05: Auth pre-check (audit fix 1D) — fail fast with clear message
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      if (!token) {
+        toast({ title: 'Session expired', description: 'Please log in to use translation.', variant: 'destructive' });
+        return null;
+      }
+
       const response = await fetch(API_ROUTES.TRANSLATE.SEND, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ text, sourceLang, targetLang }),
       });
 
+      if (response.status === 401 || response.status === 403) {
+        toast({ title: 'Session expired', description: 'Please log in to use translation.', variant: 'destructive' });
+        return null;
+      }
+
       if (!response.ok) {
-        throw new Error(`Translation failed: ${response.statusText}`);
+        toast({ title: 'Translation failed', description: 'Please try again.', variant: 'destructive' });
+        return null;
       }
 
       const data = await response.json();
 
-      // 2026-03-18: Auto-detect — when riderLang is 'auto', lock to detected language
-      // after first successful detection. No extra API call needed.
-      if (riderLang === 'auto' && data.detectedLang && data.detectedLang !== 'en') {
+      // 2026-04-05: Auto-lock rider language from first detection (when riderLang unset)
+      if (!riderLang && data.detectedLang && data.detectedLang !== 'en') {
         console.log(`[TranslationOverlay] Auto-detected rider language: ${data.detectedLang}`);
         setRiderLang(data.detectedLang);
       }
@@ -227,12 +246,14 @@ export default function TranslationOverlay() {
         detectedLang: data.detectedLang,
       };
     } catch (err) {
+      // 2026-04-05: Toast on failure (audit fix 1C) — network errors, etc.
       console.error('[TranslationOverlay] Translation error:', err);
+      toast({ title: 'Translation failed', description: 'Check connection and try again.', variant: 'destructive' });
       return null;
     } finally {
       setIsTranslating(false);
     }
-  }, [riderLang]);
+  }, [riderLang, toast]);
 
   /**
    * Add a message to the conversation and auto-play TTS
@@ -274,6 +295,12 @@ export default function TranslationOverlay() {
   // Previously required manual Send confirmation via pendingText (removed).
   // Reads latestTranscriptRef inside timeout to avoid stale closure bug.
   const handleDriverMic = useCallback(() => {
+    // 2026-04-05: Block if rider language not selected (audit fix 1A)
+    if (!riderLang) {
+      setShowLangPicker(true);
+      toast({ title: 'Select rider language', description: 'Choose the rider\'s language first.', variant: 'destructive' });
+      return;
+    }
     if (activeMode === 'driver-speaking') {
       speech.stop();
       setActiveMode('idle');
@@ -281,10 +308,9 @@ export default function TranslationOverlay() {
         const text = latestTranscriptRef.current;
         speech.clear();
         if (text) {
-          const target = riderLang === 'auto' ? 'auto' : riderLang;
-          translateText(text, 'en', target).then(result => {
+          translateText(text, 'en', riderLang).then(result => {
             if (result) {
-              addMessage(text, result.translatedText, 'en', result.detectedLang || target, 'driver');
+              addMessage(text, result.translatedText, 'en', result.detectedLang || riderLang, 'driver');
             }
           });
         }
@@ -294,14 +320,21 @@ export default function TranslationOverlay() {
       speech.clear();
       speech.start('en');
     }
-  }, [speech, activeMode, riderLang, translateText, addMessage]);
+  }, [speech, activeMode, riderLang, translateText, addMessage, toast]);
 
   /**
    * Handle rider mic button — listen in rider's language, translate to English
    */
   // 2026-03-28: Rider mic — reads latestTranscriptRef inside timeout (stale closure fix).
   // In auto-detect mode, uses browser language as STT hint instead of hardcoded English.
+  // 2026-04-05: Audit fixes 1A + 1B — require explicit riderLang, use it as STT hint
+  // (navigator.language returns DRIVER's locale on this split-screen, not rider's)
   const handleRiderMic = useCallback(() => {
+    if (!riderLang) {
+      setShowLangPicker(true);
+      toast({ title: 'Select rider language', description: 'Choose the rider\'s language first.', variant: 'destructive' });
+      return;
+    }
     if (activeMode === 'rider-speaking') {
       speech.stop();
       setActiveMode('idle');
@@ -309,10 +342,9 @@ export default function TranslationOverlay() {
         const text = latestTranscriptRef.current;
         speech.clear();
         if (text) {
-          const sourceLang = riderLang === 'auto' ? 'auto' : riderLang;
-          translateText(text, sourceLang, 'en').then(result => {
+          translateText(text, riderLang, 'en').then(result => {
             if (result) {
-              addMessage(text, result.translatedText, result.detectedLang || sourceLang, 'en', 'rider');
+              addMessage(text, result.translatedText, result.detectedLang || riderLang, 'en', 'rider');
             }
           });
         }
@@ -320,26 +352,27 @@ export default function TranslationOverlay() {
     } else {
       setActiveMode('rider-speaking');
       speech.clear();
-      // 2026-03-28: In auto-detect mode, use browser's language as STT hint.
-      // The rider's phone locale is typically their native language — much better
-      // than forcing English which misrecognizes non-English speech entirely.
-      const sttLang = riderLang === 'auto'
-        ? (navigator.language?.split('-')[0] || 'en')
-        : riderLang;
-      speech.start(sttLang);
+      // 2026-04-05: Use explicitly selected riderLang as STT hint (audit fix 1B).
+      // navigator.language returns the DRIVER's locale (this is the driver's phone).
+      speech.start(riderLang);
     }
-  }, [speech, activeMode, riderLang, translateText, addMessage]);
+  }, [speech, activeMode, riderLang, translateText, addMessage, toast]);
 
   /**
    * Handle quick phrase selection — instant translation + display
    */
   const handleQuickPhrase = useCallback(async (phrase: QuickPhrase) => {
+    if (!riderLang) {
+      setShowLangPicker(true);
+      toast({ title: 'Select rider language', description: 'Choose the rider\'s language first.', variant: 'destructive' });
+      return;
+    }
     setShowQuickPhrases(false);
     const result = await translateText(phrase.en, 'en', riderLang);
     if (result) {
       await addMessage(phrase.en, result.translatedText, 'en', riderLang, 'driver');
     }
-  }, [riderLang, translateText, addMessage]);
+  }, [riderLang, translateText, addMessage, toast]);
 
   const selectedLang = LANGUAGES.find(l => l.code === riderLang);
 
@@ -399,7 +432,7 @@ export default function TranslationOverlay() {
       {/* DIVIDER — Visual separator with language indicator               */}
       {/* ================================================================ */}
       <div className="bg-blue-500 px-4 py-1 flex items-center justify-between text-white text-sm font-medium shrink-0">
-        <span>EN ↔ {riderLang === 'auto' ? '🌐 Auto-detect' : `${selectedLang?.flag} ${selectedLang?.name}`}</span>
+        <span>EN ↔ {!riderLang ? '⚠️ Select language' : `${selectedLang?.flag} ${selectedLang?.name}`}</span>
         {isTranslating && <span className="animate-pulse">Translating...</span>}
         {speech.isListening && (
           <span className="animate-pulse text-red-200">
@@ -526,11 +559,11 @@ export default function TranslationOverlay() {
                 className="h-12 px-3 text-xs"
                 onClick={() => {
                   setMessages([]);
-                  setRiderLang('auto');
+                  setRiderLang(''); // 2026-04-05: Reset to unset, not 'auto'
                   setActiveMode('idle');
                   speech.clear();
                   setShowQuickPhrases(false);
-                  setShowLangPicker(false);
+                  setShowLangPicker(true); // Show picker for new ride
                 }}
               >
                 🔄
