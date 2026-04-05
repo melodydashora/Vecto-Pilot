@@ -1291,15 +1291,21 @@ router.get('/weather', async (req, res) => {
 
     locationLog.done(1, `Weather: ${current?.tempF}°F ${current?.conditions || ''}`, OP.API);
 
-    res.json({
-      ...current,
-      forecast
-    });
+    // 2026-04-05: Always include `available` field so client can distinguish
+    // "API succeeded but no data" from "API failed". Without this, the response
+    // is just { forecast: [] } when current is null — client sees no `available`
+    // field and skips snapshot enrichment, leaving weather permanently null.
+    if (current) {
+      res.json({ ...current, forecast });
+    } else {
+      res.json({ available: false, forecast, reason: 'current_conditions_unavailable' });
+    }
   } catch (err) {
     console.error('[location] weather error', err);
-    res.status(500).json({ 
+    res.json({
       available: false,
-      error: 'weather-fetch-failed' 
+      forecast: [],
+      error: 'weather-fetch-failed'
     });
   }
 });
