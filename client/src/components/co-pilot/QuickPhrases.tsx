@@ -52,12 +52,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   safety: 'Safety',
 };
 
+// 2026-04-05: Fixed contrast — old colors (text-*-300) were invisible on light backgrounds
 const CATEGORY_COLORS: Record<string, string> = {
-  greeting: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  route: 'bg-green-500/20 text-green-300 border-green-500/30',
-  comfort: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  payment: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-  safety: 'bg-red-500/20 text-red-300 border-red-500/30',
+  greeting: 'bg-blue-50 text-blue-700 border-blue-300',
+  route: 'bg-green-50 text-green-700 border-green-300',
+  comfort: 'bg-purple-50 text-purple-700 border-purple-300',
+  payment: 'bg-amber-50 text-amber-700 border-amber-300',
+  safety: 'bg-red-50 text-red-700 border-red-300',
 };
 
 interface QuickPhrasesProps {
@@ -89,7 +90,7 @@ export default function QuickPhrases({ onSelect, isTranslating, selectedCategory
                   size="sm"
                   disabled={isTranslating}
                   onClick={() => onSelect(phrase)}
-                  className={`text-xs h-auto py-1.5 px-2.5 border ${CATEGORY_COLORS[cat]} hover:opacity-80 transition-opacity`}
+                  className={`text-sm h-auto py-1.5 px-2.5 border font-medium ${CATEGORY_COLORS[cat]} hover:opacity-90 transition-opacity`}
                 >
                   {phrase.en}
                 </Button>
