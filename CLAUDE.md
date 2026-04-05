@@ -106,12 +106,13 @@ The AI Coach needs **write access** to capture learnings from real user interact
 
 **This is your memory layer.** These documents persist across sessions and are your primary source of truth for the current state of the project. When you learn something important during a session, update the relevant document so future sessions benefit.
 
-### Rule 13: Database Environment Awareness (2026-02-25)
-- **Dev and Prod are TWO SEPARATE database instances** with completely isolated data
-- **Dev:** Replit Internal (Helium) — used in the workspace editor
-- **Prod:** Neon Serverless PostgreSQL — used in published deployments
-- Replit **automatically swaps** `DATABASE_URL` based on environment
+### Rule 13: Database Environment Awareness (2026-02-25, updated 2026-04-05)
+- **Dev and Prod are TWO SEPARATE Replit Helium (PostgreSQL 16) instances** with completely isolated data
+- **Dev:** Replit Helium — used in the workspace editor (no SSL)
+- **Prod:** Replit Helium — used in published deployments (SSL required)
+- Replit **automatically injects** `DATABASE_URL` for the correct instance — this is the ONLY database variable
 - **Do NOT** create custom env-swapping logic — Replit handles this natively
+- **Do NOT** reference PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE — only `DATABASE_URL` exists
 - **Do NOT** assume data from dev exists in prod or vice versa
 - See `docs/architecture/database-environments.md` for full details
 
