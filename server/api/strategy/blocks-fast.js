@@ -542,7 +542,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
     // CRITICAL: Fetch FULL snapshot row to get location data
     // LLMs cannot reverse geocode - we must provide formatted_address
-    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    // 2026-04-05: Changed from const to let — briefing readiness gate re-reads snapshot
+    // after briefing completes to get enriched weather data (line ~745).
+    let [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
