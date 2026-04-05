@@ -14,6 +14,10 @@ import AboutPage from '@/pages/co-pilot/AboutPage';
 import PolicyPage from '@/pages/co-pilot/PolicyPage';
 import SettingsPage from '@/pages/co-pilot/SettingsPage';
 import TranslationPage from '@/pages/co-pilot/TranslationPage';
+// 2026-04-05: Hamburger menu pages
+import SchedulePage from '@/pages/co-pilot/SchedulePage';
+import DonatePage from '@/pages/co-pilot/DonatePage';
+import HelpPage from '@/pages/co-pilot/HelpPage';
 import {
   SignInPage,
   SignUpPage,
@@ -156,6 +160,19 @@ export const router = createBrowserRouter([
         // 2026-03-16: Real-time rider translation for FIFA World Cup
         path: 'translate',
         element: <TranslationPage />,
+      },
+      // 2026-04-05: Hamburger menu pages
+      {
+        path: 'schedule',
+        element: <SchedulePage />,
+      },
+      {
+        path: 'donate',
+        element: <DonatePage />,
+      },
+      {
+        path: 'help',
+        element: <HelpPage />,
       },
     ],
   },

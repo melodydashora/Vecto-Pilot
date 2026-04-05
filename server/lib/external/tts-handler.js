@@ -5,15 +5,22 @@ import OpenAI from "openai";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// 2026-03-17: Voice selection by language family. OpenAI TTS auto-detects
-// language from input text, so the language param controls voice choice
-// rather than language detection. "nova" produces clearer tonal pronunciation
-// for CJK/Thai languages; "alloy" is the default for everything else.
-const ASIAN_TONAL_LANGUAGES = new Set(['ja', 'ko', 'zh', 'th', 'vi']);
+// 2026-04-05: Expanded nova voice coverage (audit fix 1E).
+// OpenAI TTS auto-detects language from input text. "nova" produces clearer
+// pronunciation across most non-English languages — not just CJK/tonal.
+// "alloy" is only used for English where it sounds most natural.
+// Languages mapped to nova: all supported non-English languages.
+const NOVA_LANGUAGES = new Set([
+  'ja', 'ko', 'zh', 'th', 'vi',    // CJK + tonal (original)
+  'ar', 'hi', 'ru',                  // Arabic, Hindi, Russian
+  'de', 'fr', 'es', 'pt', 'it',     // European Romance + Germanic
+  'tr', 'pl', 'uk', 'sv', 'sq',     // Turkish, Polish, Ukrainian, Swedish, Albanian
+  'tl', 'id', 'ms',                  // Filipino, Indonesian, Malay
+]);
 
 function selectVoice(language) {
-  if (language && ASIAN_TONAL_LANGUAGES.has(language)) return 'nova';
-  return 'alloy';
+  if (language && NOVA_LANGUAGES.has(language)) return 'nova';
+  return 'alloy'; // English and unknown languages
 }
 
 /**
