@@ -689,19 +689,68 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           freshBriefing = briefingResult.briefing;
 
           // =========================================================================
+          // 2026-04-05: BRIEFING READINESS GATE — DATA CORRECTNESS > SPEED
+          // The strategy MUST NOT proceed with null briefing fields. If runBriefing
+          // returns incomplete data (race condition with concurrent subsystems), poll
+          // the DB for up to 90 seconds until all critical fields are populated.
+          // =========================================================================
+          const BRIEFING_WAIT_TIMEOUT_MS = 90000;
+          const BRIEFING_POLL_INTERVAL_MS = 3000;
+          const briefingStartWait = Date.now();
+
+          function checkBriefingReady(row) {
+            return {
+              traffic: row?.traffic_conditions !== null && row?.traffic_conditions !== undefined,
+              events: row?.events !== null && row?.events !== undefined,
+              news: row?.news !== null && row?.news !== undefined,
+              weather: row?.weather_current !== null && row?.weather_current !== undefined,
+              airport: row?.airport_conditions !== null && row?.airport_conditions !== undefined,
+              schools: row?.school_closures !== null && row?.school_closures !== undefined,
+            };
+          }
+
+          let readiness = checkBriefingReady(freshBriefing);
+          let allReady = Object.values(readiness).every(Boolean);
+
+          if (!allReady) {
+            const missing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
+            triadLog.warn(2, `[BRIEFING GATE] Incomplete after runBriefing — missing: ${missing.join(', ')}. Polling DB (max ${BRIEFING_WAIT_TIMEOUT_MS / 1000}s)...`);
+
+            while (!allReady && (Date.now() - briefingStartWait) < BRIEFING_WAIT_TIMEOUT_MS) {
+              await new Promise(r => setTimeout(r, BRIEFING_POLL_INTERVAL_MS));
+              const [dbRow] = await db.select().from(briefings)
+                .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+              if (dbRow) {
+                freshBriefing = dbRow;
+                readiness = checkBriefingReady(freshBriefing);
+                allReady = Object.values(readiness).every(Boolean);
+              }
+            }
+
+            const elapsed = ((Date.now() - briefingStartWait) / 1000).toFixed(1);
+            if (allReady) {
+              triadLog.done(2, `[BRIEFING GATE] All fields populated after ${elapsed}s`);
+            } else {
+              const stillMissing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
+              triadLog.warn(2, `[BRIEFING GATE] TIMEOUT after ${elapsed}s — proceeding with incomplete data. Still missing: ${stillMissing.join(', ')}`);
+            }
+          }
+
+          // 2026-04-05: Re-read snapshot AFTER briefing is ready (fixes weather race condition).
+          // The snapshot enrichment (weather fetch) may complete after the initial snapshot read.
+          // Re-reading ensures strategy sees the fully enriched snapshot.
+          const [freshSnapshot] = await db.select().from(snapshots)
+            .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+          if (freshSnapshot) {
+            snapshot = freshSnapshot;
+          }
+
+          // =========================================================================
           // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 2 - POST-BRIEFING
           // =========================================================================
-          const hasTraffic = freshBriefing?.traffic_conditions !== null;
-          const hasEvents = freshBriefing?.events !== null;
-          const hasNews = freshBriefing?.news !== null;
-          const hasWeather = freshBriefing?.weather_current !== null;
-          const hasSchools = freshBriefing?.school_closures !== null;
-          const hasAirport = freshBriefing?.airport_conditions !== null;
-          triadLog.phase(2, `[VERIFY] Briefing row populated: traffic=${hasTraffic}, events=${hasEvents}, news=${hasNews}, weather=${hasWeather}, schools=${hasSchools}, airport=${hasAirport}`);
+          triadLog.phase(2, `[VERIFY] Briefing row populated: traffic=${readiness.traffic}, events=${readiness.events}, news=${readiness.news}, weather=${readiness.weather}, schools=${readiness.schools}, airport=${readiness.airport}`);
+          triadLog.phase(2, `[VERIFY] Snapshot weather: ${snapshot.weather ? 'YES' : 'NULL'}, holiday: ${snapshot.is_holiday ? snapshot.holiday : 'none'}`);
 
-          if (!hasTraffic && !hasEvents) {
-            triadLog.warn(2, `[VERIFY] WARNING: Briefing row missing critical data (traffic + events both null)`);
-          }
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
           briefingLog.error(2, `Briefing failed (BLOCKING): ${briefingErr.message}`);
