@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   MapPin,
   Clock,
@@ -11,7 +10,6 @@ import {
   CloudSnow,
   CheckCircle2,
   Trash2,
-  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
@@ -22,8 +20,6 @@ import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Access critical error setter from CoPilotContext
 import { useCoPilot } from '@/contexts/co-pilot-context';
-// 2026-02-13: Logout button in header
-import { useAuth } from '@/contexts/auth-context';
 // 2026-04-05: Hamburger menu for secondary pages
 import HamburgerMenu from '@/components/HamburgerMenu';
 
@@ -84,14 +80,10 @@ const GlobalHeaderComponent: React.FC = () => {
   // CRITICAL FIX Issue #3: Removed incorrect useLocation hook and used useContext for LocationContext
   const loc = useContext(LocationContext) as ExtendedLocationContext | null;
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   // 2026-01-15: FAIL HARD - Get setCriticalError from CoPilotContext
   // GlobalHeader is always used inside CoPilotProvider (via CoPilotLayout)
   const { setCriticalError } = useCoPilot();
-  // 2026-02-13: Logout from global header
-  const { logout } = useAuth();
-
   // state for display
   const [now, setNow] = useState<Date>(new Date());
   const [timeString, setTimeString] = useState<string>("");
@@ -511,31 +503,8 @@ const GlobalHeaderComponent: React.FC = () => {
               </div>
             </div>
 
-            {/* 2026-04-05: Hamburger menu replaces standalone settings button */}
+            {/* 2026-04-05: Hamburger menu (includes Sign Out) */}
             <HamburgerMenu />
-
-            {/* 2026-02-13: Logout button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-red-500/30 p-2"
-              title="Log out"
-              aria-label="Log out"
-              data-testid="button-logout"
-              onClick={() => {
-                // Clear critical error FIRST to prevent flash of red screen during logout
-                setCriticalError(null);
-                logout().then(() => {
-                  navigate('/auth/sign-in');
-                }).catch((err) => {
-                  console.error('[logout] Logout failed:', err);
-                  localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-                  navigate('/auth/sign-in');
-                });
-              }}
-            >
-              <LogOut className="h-5 w-5" />
-            </Button>
           </div>
         </div>
       </div>
