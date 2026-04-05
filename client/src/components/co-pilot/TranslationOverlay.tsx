@@ -18,7 +18,6 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useTTS } from '@/hooks/useTTS';
 import { useToast } from '@/hooks/useToast';
@@ -49,22 +48,23 @@ const RIDER_INTRO: Record<string, string> = {
 // 2026-04-05: Removed 'auto' from language list (audit fix 1A).
 // targetLang='auto' is undefined behavior — rider language must be explicitly selected.
 // Auto-detect is valid for sourceLang (detecting what someone speaks) but NOT for targetLang.
+// 2026-04-05: Added nativeName so riders can self-identify their language (Problem 4 fix)
 const LANGUAGES = [
-  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-  { code: 'pl', name: 'Polish', flag: '🇵🇱' },
-  { code: 'uk', name: 'Ukrainian', flag: '🇺🇦' },
-  { code: 'sv', name: 'Swedish', flag: '🇸🇪' },
-  { code: 'sq', name: 'Albanian', flag: '🇦🇱' },
-  { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
-  { code: 'fr', name: 'French', flag: '🇫🇷' },
-  { code: 'de', name: 'German', flag: '🇩🇪' },
-  { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
-  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
-  { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
-  { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
-  { code: 'zh', name: 'Mandarin', flag: '🇨🇳' },
-  { code: 'it', name: 'Italian', flag: '🇮🇹' },
-  { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'pl', name: 'Polish', nativeName: 'Polski', flag: '🇵🇱' },
+  { code: 'uk', name: 'Ukrainian', nativeName: 'Українська', flag: '🇺🇦' },
+  { code: 'sv', name: 'Swedish', nativeName: 'Svenska', flag: '🇸🇪' },
+  { code: 'sq', name: 'Albanian', nativeName: 'Shqip', flag: '🇦🇱' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
+  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳' },
+  { code: 'zh', name: 'Mandarin', nativeName: '中文', flag: '🇨🇳' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
 ];
 
 interface TranslationMessage {
@@ -432,7 +432,7 @@ export default function TranslationOverlay() {
       {/* DIVIDER — Visual separator with language indicator               */}
       {/* ================================================================ */}
       <div className="bg-blue-500 px-4 py-1 flex items-center justify-between text-white text-sm font-medium shrink-0">
-        <span>EN ↔ {!riderLang ? '⚠️ Select language' : `${selectedLang?.flag} ${selectedLang?.name}`}</span>
+        <span>EN ↔ {!riderLang ? '⚠️ Select language' : `${selectedLang?.flag} ${selectedLang?.nativeName}`}</span>
         {isTranslating && <span className="animate-pulse">Translating...</span>}
         {speech.isListening && (
           <span className="animate-pulse text-red-200">
@@ -443,17 +443,98 @@ export default function TranslationOverlay() {
 
       {/* ================================================================ */}
       {/* DRIVER PANEL (BOTTOM) — English text + controls                  */}
+      {/* 2026-04-05: Restructured — mic at top, lang picker as modal,     */}
+      {/*   quick phrases below mic, language names in native script       */}
       {/* ================================================================ */}
-      <div className="flex-1 bg-background overflow-hidden flex flex-col">
-        {/* Messages */}
+      <div className="flex-1 bg-background overflow-hidden flex flex-col relative">
+        {/* Controls bar — pinned at TOP of driver section for instant access */}
+        <div className="shrink-0 border-b bg-card p-2 space-y-2">
+          {/* Primary action row */}
+          <div className="flex items-center gap-2">
+            {/* Driver Mic — prominent, takes most width */}
+            <Button
+              onClick={handleDriverMic}
+              className={`flex-1 h-12 text-base font-medium ${
+                activeMode === 'driver-speaking'
+                  ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
+                  : ''
+              }`}
+              variant={activeMode === 'driver-speaking' ? 'default' : 'default'}
+            >
+              {activeMode === 'driver-speaking' ? '⬛ Stop' : '🎤 Speak English'}
+            </Button>
+
+            {/* Quick Phrases toggle */}
+            <Button
+              variant="outline"
+              className="h-12 px-3"
+              onClick={() => {
+                setShowQuickPhrases(!showQuickPhrases);
+                if (showLangPicker) setShowLangPicker(false);
+              }}
+            >
+              💬
+            </Button>
+
+            {/* Language picker toggle */}
+            <Button
+              variant="outline"
+              className="h-12 px-3 text-sm"
+              onClick={() => {
+                setShowLangPicker(!showLangPicker);
+                if (showQuickPhrases) setShowQuickPhrases(false);
+              }}
+            >
+              {selectedLang ? selectedLang.flag : '🌐'}
+            </Button>
+
+            {/* New Ride — clear conversation and reset */}
+            {messages.length > 0 && (
+              <Button
+                variant="outline"
+                className="h-12 px-3 text-xs"
+                onClick={() => {
+                  setMessages([]);
+                  setRiderLang('');
+                  setActiveMode('idle');
+                  speech.clear();
+                  setShowQuickPhrases(false);
+                  setShowLangPicker(true);
+                }}
+              >
+                🔄
+              </Button>
+            )}
+          </div>
+
+          {/* Quick Phrases panel (expandable, directly below action buttons) */}
+          {showQuickPhrases && (
+            <div className="max-h-40 overflow-y-auto pt-2 border-t">
+              <QuickPhrases
+                onSelect={handleQuickPhrase}
+                isTranslating={isTranslating}
+              />
+            </div>
+          )}
+
+          {/* Speech recognition not supported warning */}
+          {!speech.isSupported && (
+            <div className="text-xs text-destructive text-center">
+              Speech recognition not supported in this browser. Use Quick Phrases instead.
+            </div>
+          )}
+        </div>
+
+        {/* Messages area */}
         <div ref={driverPanelRef} className="flex-1 overflow-y-auto p-3">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground space-y-2">
               <div className="text-4xl">🌐</div>
               <div className="text-lg font-medium">Rider Translation</div>
               <div className="text-sm text-center max-w-xs">
-                Tap the mic to speak, or use Quick Phrases below.
-                Rider sees translated text on the top half of the screen.
+                {!riderLang
+                  ? "Tap 🌐 to select rider's language, then tap 🎤 to speak."
+                  : 'Tap the mic to speak, or use Quick Phrases. Rider sees translated text on the top half.'}
               </div>
             </div>
           ) : (
@@ -479,105 +560,44 @@ export default function TranslationOverlay() {
           )}
         </div>
 
-        {/* Controls bar */}
-        <Card className="shrink-0 border-t rounded-none p-3 space-y-2">
-          {/* Quick Phrases panel (expandable) */}
-          {showQuickPhrases && (
-            <div className="max-h-48 overflow-y-auto pb-2 border-b mb-2">
-              <QuickPhrases
-                onSelect={handleQuickPhrase}
-                isTranslating={isTranslating}
-              />
+        {/* Language picker — modal overlay (replaces inline 5x3 grid) */}
+        {showLangPicker && (
+          <div className="absolute inset-0 z-10 bg-background/95 backdrop-blur-sm flex flex-col p-4 overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold">Select Rider's Language</h3>
+              {riderLang && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowLangPicker(false)}
+                  className="text-muted-foreground"
+                >
+                  ✕
+                </Button>
+              )}
             </div>
-          )}
-
-          {/* Language picker (expandable) */}
-          {showLangPicker && (
-            <div className="max-h-48 overflow-y-auto pb-2 border-b mb-2">
-              <div className="grid grid-cols-3 gap-1.5">
-                {LANGUAGES.map(lang => (
-                  <Button
-                    key={lang.code}
-                    variant={lang.code === riderLang ? 'default' : 'outline'}
-                    size="sm"
-                    className="text-xs h-auto py-1.5"
-                    onClick={() => {
-                      setRiderLang(lang.code);
-                      setShowLangPicker(false);
-                    }}
-                  >
-                    {lang.flag} {lang.name}
-                  </Button>
-                ))}
-              </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Rider can also tap their language below.
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {LANGUAGES.map(lang => (
+                <Button
+                  key={lang.code}
+                  variant={lang.code === riderLang ? 'default' : 'outline'}
+                  className="h-auto py-2 px-1.5 flex flex-col items-center gap-0.5"
+                  onClick={() => {
+                    setRiderLang(lang.code);
+                    setShowLangPicker(false);
+                  }}
+                >
+                  <span className="text-lg leading-none">{lang.flag}</span>
+                  <span className="text-sm font-medium leading-tight">{lang.nativeName}</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">{lang.name}</span>
+                </Button>
+              ))}
             </div>
-          )}
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            {/* Driver Mic */}
-            <Button
-              onClick={handleDriverMic}
-              className={`flex-1 h-12 text-base font-medium ${
-                activeMode === 'driver-speaking'
-                  ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
-                  : ''
-              }`}
-              variant={activeMode === 'driver-speaking' ? 'default' : 'default'}
-            >
-              {activeMode === 'driver-speaking' ? '⬛ Stop' : '🎤 Speak English'}
-            </Button>
-
-            {/* Quick Phrases toggle */}
-            <Button
-              variant="outline"
-              className="h-12 px-3"
-              onClick={() => {
-                setShowQuickPhrases(!showQuickPhrases);
-                setShowLangPicker(false);
-              }}
-            >
-              💬
-            </Button>
-
-            {/* Language picker toggle */}
-            <Button
-              variant="outline"
-              className="h-12 px-3"
-              onClick={() => {
-                setShowLangPicker(!showLangPicker);
-                setShowQuickPhrases(false);
-              }}
-            >
-              {selectedLang?.flag || '🌐'}
-            </Button>
-
-            {/* New Ride — clear conversation and reset to auto-detect */}
-            {messages.length > 0 && (
-              <Button
-                variant="outline"
-                className="h-12 px-3 text-xs"
-                onClick={() => {
-                  setMessages([]);
-                  setRiderLang(''); // 2026-04-05: Reset to unset, not 'auto'
-                  setActiveMode('idle');
-                  speech.clear();
-                  setShowQuickPhrases(false);
-                  setShowLangPicker(true); // Show picker for new ride
-                }}
-              >
-                🔄
-              </Button>
-            )}
           </div>
-
-          {/* Speech recognition not supported warning */}
-          {!speech.isSupported && (
-            <div className="text-xs text-destructive text-center">
-              Speech recognition not supported in this browser. Use Quick Phrases instead.
-            </div>
-          )}
-        </Card>
+        )}
       </div>
     </div>
   );
