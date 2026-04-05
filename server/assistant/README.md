@@ -13,7 +13,6 @@ AI assistant proxy layer providing enhanced context, internet search, and worksp
 | `routes.js` | Assistant API endpoints (context, search, analyze) |
 | `enhanced-context.js` | Context enrichment wrapper (uses `../lib/ai/context/enhanced-context-base.js`) |
 | `policy-loader.js` | Policy configuration loading |
-| `policy-middleware.js` | Policy enforcement middleware |
 | `thread-context.js` | Thread context management |
 
 ## API Endpoints

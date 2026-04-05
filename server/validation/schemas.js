@@ -132,6 +132,8 @@ export const newsBriefingSchema = z.object({
   address: z.string().min(1, 'Address is required'),
   city: z.string().optional(),
   state: z.string().optional(),
+  // 2026-04-05: Global app fix — accept country from client instead of hardcoding 'United States'
+  country: z.string().optional(),
   radius: z.number()
     .int()
     .min(1, 'Radius must be at least 1 mile')

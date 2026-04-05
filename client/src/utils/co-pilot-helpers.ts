@@ -426,7 +426,8 @@ export function filterValidEvents<T extends FilterableEvent>(
   for (const event of events) {
     if (!hasValidEventTime(event)) {
       invalidEvents.push(event);
-      console.log(`[EventFilter] Invalid event "${event.title}" - no time (${event.event_start_time})`);
+      // 2026-04-05: Removed per-event console.log — fired every render cycle (~500ms).
+      // Caller-level summary log in EventsComponent is sufficient for debugging.
       continue;
     }
 

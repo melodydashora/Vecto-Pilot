@@ -1804,7 +1804,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         created_at: snapshotV1.created_at,
         city: snapshotV1.resolved?.city,
         state: snapshotV1.resolved?.state,
-        country: snapshotV1.resolved?.country || 'United States',
+        // 2026-04-05: Global app fix — use resolved country, fall back to 'Unknown' not 'United States'
+        country: snapshotV1.resolved?.country || 'Unknown',
         timezone: snapshotV1.resolved?.timezone
       })
     ]);
@@ -2004,7 +2005,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         
         await db.insert(travel_disruptions).values({
           id: randomUUID(),
-          country_code: 'US',
+          // 2026-04-05: Global app fix — derive country from snapshot, not hardcoded 'US'
+          country_code: snapshotV1?.resolved?.country || dbSnapshot?.country || 'US',
           airport_code: airportContext.airport_code,
           airport_name: airportContext.airport_name || null,
           delay_minutes: Number(airportContext.delay_minutes || 0),
@@ -2075,7 +2077,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 // Generate local news briefing for rideshare drivers
 router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res) => {
   try {
-    const { latitude, longitude, address, city, state, radius = 10 } = req.body;
+    // 2026-04-05: Global app fix — accept country from client instead of hardcoding 'United States'
+    const { latitude, longitude, address, city, state, country, radius = 10 } = req.body;
     
     if (!latitude || !longitude || !address) {
       return res.status(400).json({ 
@@ -2106,7 +2109,8 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
       lng: longitude,
       city: snapshot.city,
       state: snapshot.state,
-      country: 'United States',
+      // 2026-04-05: Global app fix — use client-provided country, not hardcoded 'United States'
+      country: country || 'Unknown',
       formattedAddress: address
     });
 
@@ -2157,16 +2161,14 @@ router.get('/ip', async (req, res) => {
                       clientIp.startsWith('172.');
 
     if (isPrivate) {
-      console.log('[IP Geolocation] Private/localhost IP detected, using default location');
-      // Return Dallas, TX as default for development/preview
+      // 2026-04-05: Global app fix — do NOT return hardcoded US coordinates for private IPs.
+      // Let the client handle missing location by prompting for GPS permission.
+      console.log('[IP Geolocation] Private/localhost IP detected, no coordinates returned');
       return res.json({
-        latitude: 32.7767,
-        longitude: -96.7970,
-        city: 'Dallas',
-        state: 'TX',
-        country: 'United States',
-        accuracy: 10000,
-        source: 'default'
+        ok: false,
+        source: 'none',
+        reason: 'private_ip',
+        message: 'GPS permission required for accurate location'
       });
     }
 
@@ -2181,16 +2183,13 @@ router.get('/ip', async (req, res) => {
     const data = await response.json();
 
     if (data.status !== 'success') {
+      // 2026-04-05: Global app fix — return no coordinates instead of hardcoded US fallback.
       console.warn('[IP Geolocation] IP API failed:', data.message);
-      // Fallback to default
       return res.json({
-        latitude: 32.7767,
-        longitude: -96.7970,
-        city: 'Dallas',
-        state: 'TX',
-        country: 'United States',
-        accuracy: 10000,
-        source: 'default'
+        ok: false,
+        source: 'none',
+        reason: 'ip_api_failed',
+        message: 'GPS permission required for accurate location'
       });
     }
 
@@ -2207,16 +2206,13 @@ router.get('/ip', async (req, res) => {
       source: 'ip-api'
     });
   } catch (err) {
+    // 2026-04-05: Global app fix — return no coordinates instead of hardcoded US fallback.
     console.error('[IP Geolocation] Error:', err.message);
-    // Return default location on any error
     res.json({
-      latitude: 32.7767,
-      longitude: -96.7970,
-      city: 'Dallas',
-      state: 'TX',
-      country: 'United States',
-      accuracy: 10000,
-      source: 'default'
+      ok: false,
+      source: 'none',
+      reason: 'ip_lookup_error',
+      message: 'GPS permission required for accurate location'
     });
   }
 });
