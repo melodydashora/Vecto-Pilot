@@ -70,6 +70,13 @@ interface CoPilotContextValue {
       airport: boolean;
       schoolClosures: boolean;
     };
+    // 2026-04-05: Retries exhausted — data permanently unavailable for this snapshot
+    isUnavailable?: {
+      traffic: boolean;
+      events: boolean;
+      news: boolean;
+      airport: boolean;
+    };
   };
 
   // Pre-loaded bars data (fetched as soon as location resolves)
@@ -614,7 +621,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     eventsData,
     schoolClosuresData,
     airportData,
-    isLoading: briefingIsLoading
+    isLoading: briefingIsLoading,
+    isUnavailable: briefingIsUnavailable
   } = useBriefingQueries({ snapshotId: lastSnapshotId, pipelinePhase });
 
   // Pre-load bars data as soon as location resolves (no snapshot needed)
@@ -698,6 +706,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       })(),
       airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
       isLoading: briefingIsLoading,
+      // 2026-04-05: Expose "gave up" state so UI can show "Briefing data unavailable"
+      isUnavailable: briefingIsUnavailable,
     },
 
     // Pre-loaded bars data
@@ -736,6 +746,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     schoolClosuresData,
     airportData,
     briefingIsLoading,
+    briefingIsUnavailable,
     barsData,
     isBarsLoading,
     // refetchBlocks and refetchBars are EXCLUDED - they're stable refs from useQuery

@@ -21,11 +21,16 @@ interface BriefingQueriesOptions {
   pipelinePhase?: PipelinePhase;
 }
 
-// Maximum retry attempts before giving up
-// LESSON LEARNED: Briefing generation can take 40-60 seconds (traffic AI analysis + event discovery).
-// Need enough retries to cover the full generation time until SSE briefing_ready fires.
-const MAX_RETRY_ATTEMPTS = 40; // 40 attempts × 2 seconds = 80 seconds (covers worst case)
-const RETRY_INTERVAL_MS = 2000; // Poll every 2 seconds
+// 2026-04-05: Retry with exponential backoff (was fixed 2s × 40 = infinite loop when success:false)
+// Backoff: 2s → 4s → 8s → 16s → 30s → 30s... Total coverage ~3 minutes with 12 attempts.
+const MAX_RETRY_ATTEMPTS = 12;
+const INITIAL_RETRY_MS = 2000;
+const MAX_RETRY_MS = 30000;
+
+// Calculate backoff interval: 2s, 4s, 8s, 16s, 30s, 30s, ...
+function getBackoffInterval(attemptCount: number): number {
+  return Math.min(INITIAL_RETRY_MS * Math.pow(2, attemptCount), MAX_RETRY_MS);
+}
 
 // Special error to indicate snapshot ownership failure (different user)
 // This triggers a GPS refresh to create a new snapshot for the current user
@@ -346,9 +351,16 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
       }
       const data = await response.json();
       // 2026-04-04: Guard against success:false responses
+      // 2026-04-05: FIX — must increment retry count here too, otherwise refetchInterval loops forever
       if (data?.success === false) {
-        console.warn('[BriefingQuery] Traffic returned success:false');
-        return { traffic: null };
+        retryCountsRef.current.traffic++;
+        const attempt = retryCountsRef.current.traffic;
+        if (attempt >= MAX_RETRY_ATTEMPTS) {
+          console.error(`[BriefingQuery] Max retries reached for traffic — stopping (${attempt}/${MAX_RETRY_ATTEMPTS})`);
+          return { traffic: null, _exhausted: true, _generationFailed: data._generationFailed };
+        }
+        console.warn(`[BriefingQuery] Traffic returned success:false (attempt ${attempt}/${MAX_RETRY_ATTEMPTS})`);
+        return { traffic: null, _generationFailed: data._generationFailed };
       }
       const isLoading = isTrafficLoading(data);
       if (isLoading) {
@@ -361,16 +373,17 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     },
     enabled: isEnabled,
     ...baseConfig,
-    // Retry every 2 seconds if data is still loading, stop after MAX_RETRY_ATTEMPTS
-    // IMPORTANT: Don't retry if we got an ownership error (404)
+    // 2026-04-05: Exponential backoff, stop on exhaustion/ownership/permanent failure
     refetchInterval: (query) => {
-      if (query.state.data?._ownershipError) return false; // Stop on ownership error
+      if (query.state.data?._ownershipError) return false;
+      if (query.state.data?._exhausted) return false;
+      if (query.state.data?._generationFailed) return false; // Server says generation permanently failed
       const stillLoading = isTrafficLoading(query.state.data);
-      const hasRetriesLeft = retryCountsRef.current.traffic < MAX_RETRY_ATTEMPTS;
-      if (stillLoading && hasRetriesLeft) {
-        return RETRY_INTERVAL_MS; // Poll faster for better UX
+      const attempts = retryCountsRef.current.traffic;
+      if (stillLoading && attempts < MAX_RETRY_ATTEMPTS) {
+        return getBackoffInterval(attempts);
       }
-      return false; // Stop polling, cache forever
+      return false;
     },
   });
 
@@ -410,12 +423,17 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { news: null, _error: response.status };
       }
       const data = await response.json();
-      // 2026-04-04: Guard against success:false — this is the primary crash trigger.
-      // Server can return { success: false, news: null } on 200 OK during generation.
-      // Without this guard, null news flows to components that try to iterate it.
+      // 2026-04-04: Guard against success:false (null news → crash in components)
+      // 2026-04-05: FIX — must increment retry count here too
       if (data?.success === false) {
-        console.warn('[BriefingQuery] News returned success:false — treating as loading');
-        return { news: null };
+        retryCountsRef.current.news++;
+        const attempt = retryCountsRef.current.news;
+        if (attempt >= MAX_RETRY_ATTEMPTS) {
+          console.error(`[BriefingQuery] Max retries reached for news — stopping (${attempt}/${MAX_RETRY_ATTEMPTS})`);
+          return { news: null, _exhausted: true, _generationFailed: data._generationFailed };
+        }
+        console.warn(`[BriefingQuery] News returned success:false (attempt ${attempt}/${MAX_RETRY_ATTEMPTS})`);
+        return { news: null, _generationFailed: data._generationFailed };
       }
       const isLoading = isNewsLoading(data);
       if (isLoading) {
@@ -428,12 +446,15 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     },
     enabled: isEnabled,
     ...baseConfig,
+    // 2026-04-05: Exponential backoff
     refetchInterval: (query) => {
-      if (query.state.data?._ownershipError) return false; // Stop on ownership error
+      if (query.state.data?._ownershipError) return false;
+      if (query.state.data?._exhausted) return false;
+      if (query.state.data?._generationFailed) return false;
       const stillLoading = isNewsLoading(query.state.data);
-      const hasRetriesLeft = retryCountsRef.current.news < MAX_RETRY_ATTEMPTS;
-      if (stillLoading && hasRetriesLeft) {
-        return RETRY_INTERVAL_MS;
+      const attempts = retryCountsRef.current.news;
+      if (stillLoading && attempts < MAX_RETRY_ATTEMPTS) {
+        return getBackoffInterval(attempts);
       }
       return false;
     },
@@ -476,12 +497,17 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { events: [], _error: response.status };
       }
       const data = await response.json();
-      // 2026-04-04: Guard against success:false responses
+      // 2026-04-05: FIX — increment retry on success:false (was missing → infinite loop)
       if (data?.success === false) {
-        console.warn('[BriefingQuery] Events returned success:false');
-        return { events: [] };
+        retryCountsRef.current.events++;
+        const attempt = retryCountsRef.current.events;
+        if (attempt >= MAX_RETRY_ATTEMPTS) {
+          console.error(`[BriefingQuery] Max retries reached for events — stopping (${attempt}/${MAX_RETRY_ATTEMPTS})`);
+          return { events: [], _exhausted: true, _generationFailed: data._generationFailed };
+        }
+        console.warn(`[BriefingQuery] Events returned success:false (attempt ${attempt}/${MAX_RETRY_ATTEMPTS})`);
+        return { events: [], _generationFailed: data._generationFailed };
       }
-      // 2026-03-28: Track loading state for retry logic (same pattern as traffic/news/airport)
       const loading = isEventsLoading(data);
       if (loading) {
         retryCountsRef.current.events++;
@@ -493,13 +519,15 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     },
     enabled: isEnabled,
     ...baseConfig,
-    // 2026-03-28: Events now poll while empty (same lifecycle as traffic/news/airport)
+    // 2026-04-05: Exponential backoff
     refetchInterval: (query) => {
       if (query.state.data?._ownershipError) return false;
+      if (query.state.data?._exhausted) return false;
+      if (query.state.data?._generationFailed) return false;
       const stillLoading = isEventsLoading(query.state.data);
-      const hasRetriesLeft = retryCountsRef.current.events < MAX_RETRY_ATTEMPTS;
-      if (stillLoading && hasRetriesLeft) {
-        return RETRY_INTERVAL_MS;
+      const attempts = retryCountsRef.current.events;
+      if (stillLoading && attempts < MAX_RETRY_ATTEMPTS) {
+        return getBackoffInterval(attempts);
       }
       return false;
     },
@@ -589,10 +617,16 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
         return { airport_conditions: null, _error: response.status };
       }
       const data = await response.json();
-      // 2026-04-04: Guard against success:false responses
+      // 2026-04-05: FIX — increment retry on success:false (was missing → infinite loop)
       if (data?.success === false) {
-        console.warn('[BriefingQuery] Airport returned success:false');
-        return { airport_conditions: null };
+        retryCountsRef.current.airport++;
+        const attempt = retryCountsRef.current.airport;
+        if (attempt >= MAX_RETRY_ATTEMPTS) {
+          console.error(`[BriefingQuery] Max retries reached for airport — stopping (${attempt}/${MAX_RETRY_ATTEMPTS})`);
+          return { airport_conditions: null, _exhausted: true, _generationFailed: data._generationFailed };
+        }
+        console.warn(`[BriefingQuery] Airport returned success:false (attempt ${attempt}/${MAX_RETRY_ATTEMPTS})`);
+        return { airport_conditions: null, _generationFailed: data._generationFailed };
       }
       const isLoading = isAirportLoading(data);
       if (isLoading) {
@@ -605,12 +639,15 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     },
     enabled: isEnabled,
     ...baseConfig,
+    // 2026-04-05: Exponential backoff
     refetchInterval: (query) => {
-      if (query.state.data?._ownershipError) return false; // Stop on ownership error
+      if (query.state.data?._ownershipError) return false;
+      if (query.state.data?._exhausted) return false;
+      if (query.state.data?._generationFailed) return false;
       const stillLoading = isAirportLoading(query.state.data);
-      const hasRetriesLeft = retryCountsRef.current.airport < MAX_RETRY_ATTEMPTS;
-      if (stillLoading && hasRetriesLeft) {
-        return RETRY_INTERVAL_MS;
+      const attempts = retryCountsRef.current.airport;
+      if (stillLoading && attempts < MAX_RETRY_ATTEMPTS) {
+        return getBackoffInterval(attempts);
       }
       return false;
     },
@@ -624,14 +661,21 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
     schoolClosuresData: schoolClosuresQuery.data,
     airportData: airportQuery.data,
     // 2026-02-18: FIX - Added news + schoolClosures (were missing → undefined → no loading spinners)
+    // 2026-04-05: Stop showing loading once retries exhausted (_exhausted flag)
     isLoading: {
       weather: weatherQuery.isLoading,
-      traffic: trafficQuery.isLoading || isTrafficLoading(trafficQuery.data),
-      // 2026-03-28: Include content-level loading (empty + no reason = still generating)
-      events: eventsQuery.isLoading || isEventsLoading(eventsQuery.data),
-      news: newsQuery.isLoading || isNewsLoading(newsQuery.data),
-      airport: airportQuery.isLoading || isAirportLoading(airportQuery.data),
+      traffic: trafficQuery.isLoading || (isTrafficLoading(trafficQuery.data) && !trafficQuery.data?._exhausted && !trafficQuery.data?._generationFailed),
+      events: eventsQuery.isLoading || (isEventsLoading(eventsQuery.data) && !eventsQuery.data?._exhausted && !eventsQuery.data?._generationFailed),
+      news: newsQuery.isLoading || (isNewsLoading(newsQuery.data) && !newsQuery.data?._exhausted && !newsQuery.data?._generationFailed),
+      airport: airportQuery.isLoading || (isAirportLoading(airportQuery.data) && !airportQuery.data?._exhausted && !airportQuery.data?._generationFailed),
       schoolClosures: schoolClosuresQuery.isLoading,
+    },
+    // 2026-04-05: Expose "gave up" state so UI can show "Briefing data unavailable"
+    isUnavailable: {
+      traffic: !!(trafficQuery.data?._exhausted || trafficQuery.data?._generationFailed),
+      events: !!(eventsQuery.data?._exhausted || eventsQuery.data?._generationFailed),
+      news: !!(newsQuery.data?._exhausted || newsQuery.data?._generationFailed),
+      airport: !!(airportQuery.data?._exhausted || airportQuery.data?._generationFailed),
     }
   };
 }

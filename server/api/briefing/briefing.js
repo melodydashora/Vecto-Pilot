@@ -10,6 +10,48 @@ import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { filterFreshEvents, filterFreshNews } from '../../lib/strategy/strategy-utils.js';
 
+// 2026-04-05: Self-healing for zombie placeholder rows.
+// When a briefing generation crashes (e.g., RC-1 db.execute destructuring bug), the
+// placeholder row stays in the DB with NULL fields forever. GET endpoints detect this
+// stale state and trigger background regeneration so the next client retry gets real data.
+// Threshold: 2 minutes — anything newer might still be actively generating.
+const ZOMBIE_THRESHOLD_MS = 2 * 60 * 1000;
+// Track in-flight zombie recoveries to avoid duplicate triggers
+const zombieRecoveryInFlight = new Set();
+
+function triggerZombieRecoveryIfNeeded(briefing, snapshot) {
+  if (!briefing || !snapshot) return;
+  const snapshotId = snapshot.snapshot_id;
+
+  // Already recovering this snapshot
+  if (zombieRecoveryInFlight.has(snapshotId)) return;
+
+  // Check if row is stale (old updated_at + NULL fields = zombie)
+  const ageMs = Date.now() - new Date(briefing.updated_at).getTime();
+  if (ageMs < ZOMBIE_THRESHOLD_MS) return; // Still fresh — might be generating
+
+  // Check if key fields are NULL (zombie) or error-marked
+  const hasTraffic = briefing.traffic_conditions && !briefing.traffic_conditions._generationFailed;
+  const hasNews = briefing.news && !briefing.news._generationFailed;
+  const hasAirport = briefing.airport_conditions && !briefing.airport_conditions._generationFailed;
+
+  if (hasTraffic && hasNews && hasAirport) return; // Data exists — not a zombie
+
+  // Trigger background regeneration
+  console.log(`[BriefingRoute] Zombie recovery: triggering regeneration for ${snapshotId.slice(0, 8)} (age: ${Math.round(ageMs / 1000)}s)`);
+  zombieRecoveryInFlight.add(snapshotId);
+  generateAndStoreBriefing({ snapshotId, snapshot })
+    .then((result) => {
+      console.log(`[BriefingRoute] Zombie recovery complete for ${snapshotId.slice(0, 8)}: success=${result?.success}`);
+    })
+    .catch((err) => {
+      console.error(`[BriefingRoute] Zombie recovery failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
+    })
+    .finally(() => {
+      zombieRecoveryInFlight.delete(snapshotId);
+    });
+}
+
 /**
  * Normalize a news title for hash matching
  * Strips common prefixes like "URGENT:", "BREAKING:", etc.
@@ -502,11 +544,25 @@ router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async 
     // Traffic is generated once during pipeline and stays until new snapshot
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
+    // 2026-04-05: Self-heal zombie placeholder rows (NULL fields from crashed generation)
+    triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
+
     // Fail hard if no data - don't mask with placeholder
     if (!briefing?.traffic_conditions) {
       return res.status(202).json({
         success: false,
         error: 'Traffic data not yet available',
+        traffic: null,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // 2026-04-05: Detect error marker from failed generation — tell client to stop polling
+    if (briefing.traffic_conditions._generationFailed) {
+      return res.status(200).json({
+        success: false,
+        _generationFailed: true,
+        error: briefing.traffic_conditions.error || 'Briefing generation failed',
         traffic: null,
         timestamp: new Date().toISOString()
       });
@@ -533,11 +589,25 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
     // FETCH-ONCE: Just read cached data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
+    // 2026-04-05: Self-heal zombie placeholder rows
+    triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
+
     // Fail hard if no data - don't mask with placeholder
     if (!briefing?.news) {
       return res.status(202).json({
         success: false,
         error: 'News data not yet available',
+        news: null,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // 2026-04-05: Detect error marker from failed generation
+    if (briefing.news._generationFailed) {
+      return res.status(200).json({
+        success: false,
+        _generationFailed: true,
+        error: briefing.news.error || 'Briefing generation failed',
         news: null,
         timestamp: new Date().toISOString()
       });
@@ -864,6 +934,17 @@ router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership
       });
     }
 
+    // 2026-04-05: Detect error marker from failed generation
+    if (briefing.school_closures._generationFailed) {
+      return res.status(200).json({
+        success: false,
+        _generationFailed: true,
+        error: briefing.school_closures.error || 'Briefing generation failed',
+        school_closures: null,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // Handle both array format and {items: [], reason: string} format
     let closures = [];
     let reason = null;
@@ -898,11 +979,25 @@ router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async 
     // FETCH-ONCE: Just read cached airport data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
+    // 2026-04-05: Self-heal zombie placeholder rows
+    triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
+
     // Fail hard if no data
     if (!briefing?.airport_conditions) {
       return res.status(202).json({
         success: false,
         error: 'Airport data not yet available',
+        airport_conditions: null,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // 2026-04-05: Detect error marker from failed generation
+    if (briefing.airport_conditions._generationFailed) {
+      return res.status(200).json({
+        success: false,
+        _generationFailed: true,
+        error: briefing.airport_conditions.error || 'Briefing generation failed',
         airport_conditions: null,
         timestamp: new Date().toISOString()
       });
