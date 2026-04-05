@@ -619,6 +619,16 @@ function safeJsonParse(jsonString) {
     throw new Error('JSON parse failed: input is empty or not a string');
   }
 
+  // 2026-04-05: PRE-PROCESSING — Replace literal \n sequences with real newlines BEFORE
+  // any parse attempt. AI models sometimes return JSON with literal backslash-n between
+  // tokens. Real newlines are valid JSON whitespace between tokens, and JSON.parse handles
+  // \n escape sequences inside strings natively — so this global replacement is safe.
+  // Also handle \\n (doubled backslash from stringify) and literal \r\n.
+  jsonString = jsonString
+    .replace(/\\r\\n/g, '\n')   // literal \r\n → real newline
+    .replace(/\\r/g, '')         // literal \r → remove
+    .replace(/\\n/g, '\n');      // literal \n → real newline
+
   // Helper to clean markdown and normalize the string
   function cleanMarkdown(str) {
     let cleaned = str.trim();
@@ -673,27 +683,9 @@ function safeJsonParse(jsonString) {
   function fixCommonJsonIssues(str) {
     let fixed = str;
 
-    // 2026-04-05: FIX — Replace LITERAL \n (two-char sequence backslash + n) OUTSIDE of
-    // quoted strings with actual newlines. AI models sometimes return:
-    //   "airports": \n    {\n "code": "DFW"
-    // where \n is literal text, not a real newline — this breaks JSON.parse.
-    // We walk the string tracking quote state to avoid corrupting valid \n inside strings.
-    {
-      let result = '';
-      let inString = false;
-      for (let i = 0; i < fixed.length; i++) {
-        if (fixed[i] === '"' && (i === 0 || fixed[i - 1] !== '\\')) {
-          inString = !inString;
-          result += fixed[i];
-        } else if (!inString && fixed[i] === '\\' && fixed[i + 1] === 'n') {
-          result += '\n';
-          i++; // skip the 'n'
-        } else {
-          result += fixed[i];
-        }
-      }
-      fixed = result;
-    }
+    // 2026-04-05: Literal \n replacement moved to safeJsonParse pre-processing step.
+    // It runs ONCE at the top before any parse attempt, which is simpler and avoids
+    // interaction with the newline-in-string escaper below (lines 729-736).
 
     // 2026-02-17: Only convert single quotes to double quotes when the string is
     // Python-style output (no double quotes at all). Previously this regex corrupted
