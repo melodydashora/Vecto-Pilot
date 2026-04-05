@@ -1496,11 +1496,19 @@ function formatWindSpeed(windSpeedMs, country) {
 export async function fetchWeatherConditions({ snapshot }) {
   if (!GOOGLE_MAPS_API_KEY) {
     briefingLog.warn(1, `GOOGLE_MAPS_API_KEY not set - skipping weather`, OP.API);
-    return { current: null, forecast: [], error: 'GOOGLE_MAPS_API_KEY not configured' };
+    return {
+      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'GOOGLE_MAPS_API_KEY not configured' },
+      forecast: [],
+      reason: 'GOOGLE_MAPS_API_KEY not configured'
+    };
   }
 
   if (!snapshot?.lat || !snapshot?.lng) {
-    return { current: null, forecast: [], error: 'Missing coordinates' };
+    return {
+      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'Snapshot missing GPS coordinates' },
+      forecast: [],
+      reason: 'Snapshot missing GPS coordinates (lat/lng)'
+    };
   }
 
   const { lat, lng, country } = snapshot;
@@ -1588,7 +1596,11 @@ export async function fetchWeatherConditions({ snapshot }) {
     return { current, forecast, fetchedAt: new Date().toISOString() };
   } catch (error) {
     briefingLog.error(1, `Weather API error`, error, OP.API);
-    return { current: null, forecast: [], error: error.message };
+    return {
+      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: `Weather API error: ${error.message}` },
+      forecast: [],
+      reason: `Google Weather API error: ${error.message}`
+    };
   }
 }
 
@@ -1753,10 +1765,11 @@ export async function fetchTrafficConditions({ snapshot }) {
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
     briefingLog.warn(2, 'Missing location data in snapshot - cannot fetch traffic', OP.AI);
     return {
-      summary: null,
+      summary: 'Traffic data unavailable — snapshot missing city, state, or timezone',
+      briefing: 'Traffic analysis could not be performed because location data is incomplete.',
       incidents: [],
-      congestionLevel: null,
-      reason: 'Location data not available'
+      congestionLevel: 'unknown',
+      reason: 'Snapshot missing required location data (city/state/timezone)'
     };
   }
   const city = snapshot.city;
@@ -1773,17 +1786,19 @@ export async function fetchTrafficConditions({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // Default fallback traffic data
+  // Default fallback traffic data — NO NULLS: every field has a typed value + reason
   const fallbackTraffic = {
-    summary: `Traffic conditions for ${city}, ${state} unavailable - using default`,
+    summary: `Traffic data for ${city}, ${state} could not be retrieved from any provider`,
+    briefing: `Traffic analysis for ${city}, ${state} is temporarily unavailable. Both TomTom and Gemini providers failed to return data.`,
     incidents: [],
-    congestionLevel: 'medium',
+    congestionLevel: 'unknown',
     highDemandZones: [],
-    repositioning: null,
+    repositioning: 'No repositioning data available — traffic providers unreachable',
     surgePricing: false,
-    safetyAlert: null,
+    safetyAlert: 'Unable to check for safety alerts — traffic data unavailable',
     fetchedAt: new Date().toISOString(),
-    isFallback: true
+    isFallback: true,
+    reason: `Traffic providers (TomTom + Gemini) both failed for ${city}, ${state}`
   };
 
   // TRY TOMTOM FIRST (if configured + has coordinates) - real-time traffic data
@@ -1887,9 +1902,9 @@ export async function fetchTrafficConditions({ snapshot }) {
           totalIncidents: traffic.totalIncidents,
           jams: traffic.jams,
           highDemandZones: [],
-          repositioning: null,
+          repositioning: analysis?.repositioning || 'No repositioning advice — see AI briefing above',
           surgePricing: traffic.congestionLevel === 'heavy',
-          safetyAlert: traffic.jams > 3 ? `${traffic.jams} active traffic jams in the area` : null,
+          safetyAlert: traffic.jams > 3 ? `${traffic.jams} active traffic jams in the area` : 'No safety alerts at this time',
           fetchedAt: traffic.fetchedAt,
           provider: 'tomtom',
           analyzed: !!analysis
@@ -1969,8 +1984,8 @@ async function fetchAirportConditions({ snapshot }) {
     return {
       airports: [],
       busyPeriods: [],
-      recommendations: null,
-      reason: 'Location data not available'
+      recommendations: 'Airport data unavailable — snapshot missing city, state, or timezone',
+      reason: 'Snapshot missing required location data (city/state/timezone)'
     };
   }
   const city = snapshot.city;
@@ -1987,13 +2002,14 @@ async function fetchAirportConditions({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // Fallback for API failures (not missing data)
+  // Fallback for API failures — NO NULLS: always include reason
   const fallbackAirport = {
     airports: [],
     busyPeriods: [],
-    recommendations: null,
+    recommendations: `Airport data for ${city}, ${state} could not be retrieved`,
     fetchedAt: new Date().toISOString(),
-    isFallback: true
+    isFallback: true,
+    reason: `Airport conditions provider (Gemini) failed for ${city}, ${state}`
   };
 
   // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
@@ -2042,7 +2058,7 @@ Return JSON (use actual airport codes and names for the location):
     return {
       airports: Array.isArray(parsed.airports) ? parsed.airports : [],
       busyPeriods: Array.isArray(parsed.busyPeriods) ? parsed.busyPeriods : [],
-      recommendations: parsed.recommendations || null,
+      recommendations: parsed.recommendations || 'No specific airport recommendations at this time',
       fetchedAt: new Date().toISOString(),
       provider: 'gemini'
     };
@@ -2533,46 +2549,52 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     fetchRideshareNews({ snapshot })
   ]);
 
-  // Extract results — fulfilled gets the value, rejected gets null + error log
+  // 2026-04-05: Extract results with REASON for every outcome (NO NULLS rule).
+  // Every subsystem produces either real data or an explanatory error — never bare null.
   const subsystemNames = ['weather', 'traffic', 'events', 'airport', 'news'];
+  const failedReasons = {};
   const extractedResults = fetchResults.map((result, i) => {
     if (result.status === 'fulfilled') {
       return result.value;
     }
-    console.error(`[BriefingService] ❌ ${subsystemNames[i]} fetch failed independently: ${result.reason?.message}`);
+    const reason = result.reason?.message || 'Unknown error';
+    console.error(`[BriefingService] ❌ ${subsystemNames[i]} fetch failed independently: ${reason}`);
+    failedReasons[subsystemNames[i]] = reason;
     return null;
   });
   [weatherResult, trafficResult, eventsResult, airportResult, newsResult] = extractedResults;
 
-  const failedCount = fetchResults.filter(r => r.status === 'rejected').length;
+  const failedCount = Object.keys(failedReasons).length;
   if (failedCount > 0) {
-    briefingLog.warn(1, `${failedCount}/5 subsystems failed — storing partial results`, OP.AI);
+    briefingLog.warn(1, `${failedCount}/5 subsystems failed — storing partial results (${Object.keys(failedReasons).join(', ')})`, OP.AI);
   }
   // If ALL five failed, that's a systemic problem — throw so the .catch() handler marks the row
   if (failedCount === 5) {
-    throw new Error('All 5 briefing subsystems failed — cannot store empty briefing');
+    throw new Error(`All 5 briefing subsystems failed: ${Object.values(failedReasons).join('; ')}`);
   }
 
   // Step 3: Get cached school closures or fetch fresh if cache miss
   let schoolClosures;
+  let schoolClosuresReason = 'No school closures found for this area';
 
   if (cachedDailyData) {
-    // CACHE HIT: Use cached closures
     schoolClosures = cachedDailyData.school_closures?.items || cachedDailyData.school_closures || [];
+    schoolClosuresReason = schoolClosures.length > 0 ? null : 'No school closures in cache for this area';
   } else {
-    // CACHE MISS: Fetch closures from Gemini
     briefingLog.phase(2, `Fetching school closures`, OP.AI);
     try {
       schoolClosures = await fetchSchoolClosures({ snapshot });
+      schoolClosuresReason = schoolClosures.length > 0 ? null : 'No school closures found for this area';
     } catch (dailyErr) {
-      // 2026-04-05: Non-fatal — closures failing shouldn't prevent other data from being stored
+      // Non-fatal — closures failing shouldn't prevent other data from being stored
       console.error(`[BriefingService] ❌ Closures fetch failed (non-fatal): ${dailyErr.message}`);
       schoolClosures = [];
+      schoolClosuresReason = `School closures fetch failed: ${dailyErr.message}`;
     }
   }
 
   // 2026-04-05: Defensive extraction — each subsystem may be null if its fetch failed.
-  // Extract .items safely, defaulting to empty arrays for failed subsystems.
+  // NO NULLS: every field gets a typed value + reason. Empty arrays are valid; null is not.
   let eventsItems = eventsResult?.items;
   if (!Array.isArray(eventsItems)) {
     if (eventsResult !== null) {
@@ -2594,32 +2616,65 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   const airportCount = airportResult?.airports?.length || 0;
   const forecastHours = weatherResult?.forecast?.length || 0;
-  briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'ok'}, airports=${airportCount}`, OP.AI);
+  briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'N/A'}, airports=${airportCount}`, OP.AI);
 
-  const weatherCurrent = weatherResult?.current || null;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BUILD BRIEFING DATA — NO NULLS RULE
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Every JSONB column gets a well-typed value. Never bare null.
+  // If a subsystem failed, the stored object includes `reason` explaining why.
+  // If a subsystem succeeded but found nothing, `reason` explains that too.
+  // The client uses the presence of data (not null checks) to decide what to show.
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // 2026-04-05: For failed subsystems (null results), store a meaningful empty state
-  // instead of null. Null = "still generating" (triggers client retry), while an
-  // object with data = "done" (even if empty). This prevents zombie placeholder rows.
+  const weatherCurrent = weatherResult?.current || {
+    temperature: 'N/A',
+    conditions: failedReasons.weather
+      ? `Weather unavailable: ${failedReasons.weather}`
+      : 'Weather data could not be retrieved',
+    reason: failedReasons.weather || 'Weather API returned no current conditions'
+  };
+
   const briefingData = {
     snapshot_id: snapshotId,
-    // Location (city, state, formatted_address) available via snapshot_id JOIN
-    news: newsResult ? {
+    news: {
       items: newsItems,
-      reason: newsResult?.reason || null
-    } : { items: [], reason: 'News fetch failed — will retry on next snapshot' },
+      reason: failedReasons.news
+        ? `News fetch failed: ${failedReasons.news}`
+        : newsResult?.reason || (newsItems.length === 0 ? 'No rideshare news found for this area' : null)
+    },
     weather_current: weatherCurrent,
     weather_forecast: weatherResult?.forecast || [],
     traffic_conditions: trafficResult || {
-      summary: 'Traffic data temporarily unavailable',
+      summary: failedReasons.traffic
+        ? `Traffic unavailable: ${failedReasons.traffic}`
+        : 'No traffic data available for this area',
+      briefing: failedReasons.traffic
+        ? `Traffic analysis could not be completed: ${failedReasons.traffic}`
+        : 'Traffic data is not available for this location',
       incidents: [],
-      congestionLevel: null,
-      reason: 'Traffic fetch failed — will retry on next snapshot',
-      isFallback: true
+      congestionLevel: 'unknown',
+      reason: failedReasons.traffic || 'Traffic data could not be retrieved'
     },
-    events: eventsItems.length > 0 ? eventsItems : { items: [], reason: eventsResult?.reason || 'No events found' },
-    school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: 'No school closures found' },
-    airport_conditions: airportResult || { airports: [], busyPeriods: [], recommendations: null, isFallback: true },
+    events: eventsItems.length > 0
+      ? eventsItems
+      : {
+          items: [],
+          reason: failedReasons.events
+            ? `Events fetch failed: ${failedReasons.events}`
+            : eventsResult?.reason || 'No events found for this area'
+        },
+    school_closures: schoolClosures.length > 0
+      ? schoolClosures
+      : { items: [], reason: schoolClosuresReason },
+    airport_conditions: airportResult || {
+      airports: [],
+      busyPeriods: [],
+      recommendations: failedReasons.airport
+        ? `Airport data unavailable: ${failedReasons.airport}`
+        : 'No airport data available for this area',
+      reason: failedReasons.airport || 'Airport conditions could not be retrieved'
+    },
     created_at: new Date(),
     updated_at: new Date()
   };
