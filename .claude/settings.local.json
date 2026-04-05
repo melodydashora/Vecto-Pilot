@@ -241,7 +241,12 @@
       "Bash(termius --version)",
       "Bash(termius --help)",
       "Bash(ssh:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(/tmp/schema_analysis.sh)",
+      "Bash(/tmp/check_consistency.sh)",
+      "Bash(/tmp/relationship_analysis.sh)",
+      "Bash(/tmp/index_coverage.sh)",
+      "Bash(/tmp/final_analysis.sh)"
     ],
     "deny": [],
     "ask": []

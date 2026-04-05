@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Sign a JWT with RS256 for testing Neon RLS
- * 
+ * Sign a JWT with RS256 for testing RLS
+ *
  * This creates a JWT token that can be used to authenticate
- * API requests to Neon's Data API with RLS enabled.
+ * API requests with RLS enabled.
  * 
  * Usage:
  *   node scripts/sign-token.mjs [user_id] [tenant_id]
@@ -61,7 +61,7 @@ try {
   console.log('🎫 JWT Token:');
   console.log(jwt);
   console.log('\n📝 Usage:');
-  console.log('   curl -H "Authorization: Bearer <token>" https://api.neon.tech/sql/v2?query=...');
+  console.log('   curl -H "Authorization: Bearer <token>" <your-api-url>');
   console.log('\n⚠️  Token expires in 24 hours. Generate a new one if expired.\n');
   
 } catch (error) {

@@ -198,11 +198,11 @@ Each phase is independently reversible via git revert.
 
 | Item | Reason to Keep |
 |------|----------------|
-| `connection-manager.js` | 57P01 handling is production-critical for Neon |
+| `connection-manager.js` | 57P01 handling is production-critical |
 | `db-client.js` | LISTEN/NOTIFY real-time is production-critical |
 | `env-registry.js` | Clean registry pattern, used by getEnv() |
 | `scripts/db-detox.js` | Useful manual maintenance utility |
-| `.env_override` | Local dev override mechanism |
+| `.env_override` | **DELETED** (2026-04-05) — contained stale Neon credentials |
 | `strategy-generator.js` | Active worker entry point |
 | `server/bootstrap/workers.js` | Active worker lifecycle management |
 | `mono-mode.env` | Dev env file (simplify later, but not in this cleanup) |

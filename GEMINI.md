@@ -24,7 +24,7 @@ You operate in a Multi-Agent Environment. Route your I/O operations explicitly:
 # 3. DOMAIN ARCHITECTURE CONSTRAINTS (NON-NEGOTIABLE)
 
 **A. Database & Environment**
-* Dev (Replit Helium) and Prod (Neon PostgreSQL) are strictly isolated. DO NOT create custom env-swapping logic; Replit handles `DATABASE_URL` natively. (Ref: `database-environments.md`)
+* Dev and Prod are TWO SEPARATE Replit Helium (PostgreSQL 16) instances with completely isolated data. DO NOT create custom env-swapping logic; Replit handles `DATABASE_URL` natively. (Ref: `database-environments.md`)
 * The AI Coach must retain write access to: `venue_catalog`, `market_intelligence`, `user_intel_notes`, `zone_intelligence`, `coach_conversations`, `coach_system_notes`. 
 
 **B. AI & Event Infrastructure**
