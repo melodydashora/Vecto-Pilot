@@ -15,6 +15,9 @@
  */
 
 import { eventsLog, OP } from '../../../logger/workflow.js';
+// 2026-04-05: Import normalizeCategory for fuzzy rescue — if the AI returns an unmapped
+// category value, remap it before rejecting. This makes the pipeline self-healing.
+import { normalizeCategory } from './normalizeEvent.js';
 
 /**
  * Current schema version for validation tracking.
@@ -126,9 +129,18 @@ export function validateEvent(event) {
 
   // Rule 12: Category is REQUIRED and must be from allowed list
   // 2026-02-26: Events without category are not useful for strategy or filtering
+  // 2026-04-05: Added fuzzy rescue — if the AI returns an unmapped value (e.g., "live_music",
+  // "game", "hockey"), try normalizeCategory() before rejecting. This handles cases where
+  // events bypass normalizeEvent() or the AI returns unexpected category strings.
   const ALLOWED_CATEGORIES = ['concert', 'sports', 'comedy', 'theater', 'festival', 'nightlife', 'convention', 'community', 'other'];
   if (!event.category || !ALLOWED_CATEGORIES.includes(event.category)) {
-    return { valid: false, reason: 'missing_or_invalid_category', field: 'category' };
+    // Fuzzy rescue: try to remap the category before rejecting
+    const remapped = normalizeCategory(event.category, event.subtype);
+    if (ALLOWED_CATEGORIES.includes(remapped)) {
+      event.category = remapped;  // Mutate in place — callers expect validated events to have valid categories
+    } else {
+      return { valid: false, reason: 'missing_or_invalid_category', field: 'category' };
+    }
   }
 
   // Rule 13: Date must be today or yesterday (for late-night events past midnight)
