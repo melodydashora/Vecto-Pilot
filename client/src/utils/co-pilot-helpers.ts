@@ -103,14 +103,22 @@ function subscribeSSE(
 
 /**
  * Get auth headers with JWT token from localStorage
+ * 2026-04-05: Log-once guard — prevents console spam when no token (e.g., after logout)
  */
+let _noTokenWarningLogged = false;
 export function getAuthHeader(): Record<string, string> {
   // 2026-01-09: P1-6 FIX - Using STORAGE_KEYS constant instead of hardcoded string
   const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
   if (!token) {
-    console.warn('[co-pilot] No auth token found in localStorage');
+    if (!_noTokenWarningLogged) {
+      console.warn('[co-pilot] No auth token found in localStorage — waiting for login');
+      _noTokenWarningLogged = true;
+    }
+    return {};
   }
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
+  // Reset flag when token reappears (user logged back in)
+  _noTokenWarningLogged = false;
+  return { 'Authorization': `Bearer ${token}` };
 }
 
 /**

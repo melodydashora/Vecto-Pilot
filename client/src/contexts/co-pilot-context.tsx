@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
+import { useAuth } from '@/contexts/auth-context';
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
 import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady, subscribePhaseChange } from '@/utils/co-pilot-helpers';
 import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
@@ -98,6 +99,8 @@ export function useCoPilot() {
 export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const locationContext = useLocationContext();
   const queryClient = useQueryClient();
+  // 2026-04-05: Gate all queries on auth state — stop polling after logout
+  const { isAuthenticated } = useAuth();
 
   // 2026-01-15: FAIL HARD - Critical error state
   // When set, the entire dashboard unmounts and CriticalError is shown
@@ -130,6 +133,22 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // When refresh clicked, we clear lastSnapshotId, but locationContext still has old value
   // Without this flag, useEffect would immediately restore the old snapshotId
   const manualRefreshInProgressRef = useRef<boolean>(false);
+
+  // 2026-04-05: Clear snapshot on logout so all queries stop (refetchInterval included)
+  // Without this, strategy query keeps polling with refetchInterval: 3000 after logout
+  // because lastSnapshotId is still set and `enabled` is true.
+  const prevAuthRef = useRef(isAuthenticated);
+  useEffect(() => {
+    if (prevAuthRef.current && !isAuthenticated) {
+      // User just logged out
+      console.log('[CoPilotContext] Auth lost — clearing snapshot and stopping queries');
+      setLastSnapshotId(null);
+      setPersistentStrategy(null);
+      setImmediateStrategy(null);
+      waterfallTriggeredRef.current.clear();
+    }
+    prevAuthRef.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   // Get coords from location context
   const gpsCoords = locationContext?.currentCoords;
@@ -380,7 +399,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       }
       return data;
     },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+    // 2026-04-05: Gate on isAuthenticated to prevent polling after logout
+    enabled: isAuthenticated && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     staleTime: 10 * 60 * 1000,
     gcTime: 20 * 60 * 1000,
     retry: (failureCount, error: any) => {
@@ -420,7 +440,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
       return { ...data, _snapshotId: lastSnapshotId };
     },
-    enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+    // 2026-04-05: Gate on isAuthenticated — this is the 3-second poller that spams after logout
+    enabled: isAuthenticated && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (status === 'ok' || status === 'error') return false;
@@ -542,6 +563,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       }
     },
     enabled: (() => {
+      if (!isAuthenticated) return false; // 2026-04-05: No polling after logout
       const hasCoords = !!coords;
       const hasSnapshot = !!lastSnapshotId && lastSnapshotId !== 'live-snapshot';
       // 2026-01-10: D-021 - Server sends 'ok' or 'pending_blocks', not 'complete' (removed deprecated check)
