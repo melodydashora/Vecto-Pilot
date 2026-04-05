@@ -2519,20 +2519,38 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // 2026-01-05: News moved to fresh fetch (dual-model is fast enough)
   briefingLog.phase(1, `Fetching weather + traffic + events + airport + news`, OP.AI);
 
-  // FAIL HARD — all five subsystems must succeed. If any throws, the pipeline fails
-  // and the error surfaces to the client for retry. No silent degradation.
+  // 2026-04-05: INDEPENDENT SUBSYSTEMS — use Promise.allSettled so each fetch is independent.
+  // Previously used Promise.all (all-or-nothing) which meant one crash (e.g., events) killed
+  // ALL results, leaving traffic/news/airport as NULLs in the DB forever.
+  // Now each subsystem succeeds or fails independently.
   let weatherResult, trafficResult, eventsResult, airportResult, newsResult;
-  try {
-    [weatherResult, trafficResult, eventsResult, airportResult, newsResult] = await Promise.all([
-      fetchWeatherConditions({ snapshot }),
-      fetchTrafficConditions({ snapshot }),
-      snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
-      fetchAirportConditions({ snapshot }),
-      fetchRideshareNews({ snapshot })
-    ]);
-  } catch (freshErr) {
-    console.error(`[BriefingService] ❌ FAIL-FAST: Fresh data fetch failed:`, freshErr.message);
-    throw freshErr;
+
+  const fetchResults = await Promise.allSettled([
+    fetchWeatherConditions({ snapshot }),
+    fetchTrafficConditions({ snapshot }),
+    snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
+    fetchAirportConditions({ snapshot }),
+    fetchRideshareNews({ snapshot })
+  ]);
+
+  // Extract results — fulfilled gets the value, rejected gets null + error log
+  const subsystemNames = ['weather', 'traffic', 'events', 'airport', 'news'];
+  const extractedResults = fetchResults.map((result, i) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    console.error(`[BriefingService] ❌ ${subsystemNames[i]} fetch failed independently: ${result.reason?.message}`);
+    return null;
+  });
+  [weatherResult, trafficResult, eventsResult, airportResult, newsResult] = extractedResults;
+
+  const failedCount = fetchResults.filter(r => r.status === 'rejected').length;
+  if (failedCount > 0) {
+    briefingLog.warn(1, `${failedCount}/5 subsystems failed — storing partial results`, OP.AI);
+  }
+  // If ALL five failed, that's a systemic problem — throw so the .catch() handler marks the row
+  if (failedCount === 5) {
+    throw new Error('All 5 briefing subsystems failed — cannot store empty briefing');
   }
 
   // Step 3: Get cached school closures or fetch fresh if cache miss
@@ -2547,24 +2565,31 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     try {
       schoolClosures = await fetchSchoolClosures({ snapshot });
     } catch (dailyErr) {
-      console.error(`[BriefingService] ❌ FAIL-FAST: Closures fetch failed:`, dailyErr.message);
-      throw dailyErr;
+      // 2026-04-05: Non-fatal — closures failing shouldn't prevent other data from being stored
+      console.error(`[BriefingService] ❌ Closures fetch failed (non-fatal): ${dailyErr.message}`);
+      schoolClosures = [];
     }
   }
 
-  // 2026-04-04: Type guards — these must be arrays before downstream .length/.map() calls.
-  // If a fetch function returns a malformed response, crash here with a clear message
-  // rather than deep in an unrelated for-of loop.
+  // 2026-04-05: Defensive extraction — each subsystem may be null if its fetch failed.
+  // Extract .items safely, defaulting to empty arrays for failed subsystems.
   let eventsItems = eventsResult?.items;
   if (!Array.isArray(eventsItems)) {
-    throw new Error(`BRIEFING BUG: eventsResult.items is ${typeof eventsItems} (${JSON.stringify(eventsItems)?.slice(0, 100)}), expected array. Fix fetchEventsForBriefing return value.`);
+    if (eventsResult !== null) {
+      briefingLog.warn(1, `eventsResult.items is ${typeof eventsItems} — defaulting to []`, OP.AI);
+    }
+    eventsItems = [];
   }
-  const newsItems = newsResult?.items;
+  let newsItems = newsResult?.items;
   if (!Array.isArray(newsItems)) {
-    throw new Error(`BRIEFING BUG: newsResult.items is ${typeof newsItems} (${JSON.stringify(newsItems)?.slice(0, 100)}), expected array. Fix fetchRideshareNews return value.`);
+    if (newsResult !== null) {
+      briefingLog.warn(1, `newsResult.items is ${typeof newsItems} — defaulting to []`, OP.AI);
+    }
+    newsItems = [];
   }
   if (!Array.isArray(schoolClosures)) {
-    throw new Error(`BRIEFING BUG: schoolClosures is ${typeof schoolClosures} (${JSON.stringify(schoolClosures)?.slice(0, 100)}), expected array. Fix fetchSchoolClosures return value.`);
+    briefingLog.warn(1, `schoolClosures is ${typeof schoolClosures} — defaulting to []`, OP.AI);
+    schoolClosures = [];
   }
 
   const airportCount = airportResult?.airports?.length || 0;
@@ -2573,16 +2598,25 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   const weatherCurrent = weatherResult?.current || null;
 
+  // 2026-04-05: For failed subsystems (null results), store a meaningful empty state
+  // instead of null. Null = "still generating" (triggers client retry), while an
+  // object with data = "done" (even if empty). This prevents zombie placeholder rows.
   const briefingData = {
     snapshot_id: snapshotId,
     // Location (city, state, formatted_address) available via snapshot_id JOIN
-    news: {
+    news: newsResult ? {
       items: newsItems,
       reason: newsResult?.reason || null
-    },
+    } : { items: [], reason: 'News fetch failed — will retry on next snapshot' },
     weather_current: weatherCurrent,
     weather_forecast: weatherResult?.forecast || [],
-    traffic_conditions: trafficResult,
+    traffic_conditions: trafficResult || {
+      summary: 'Traffic data temporarily unavailable',
+      incidents: [],
+      congestionLevel: null,
+      reason: 'Traffic fetch failed — will retry on next snapshot',
+      isFallback: true
+    },
     events: eventsItems.length > 0 ? eventsItems : { items: [], reason: eventsResult?.reason || 'No events found' },
     school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: 'No school closures found' },
     airport_conditions: airportResult || { airports: [], busyPeriods: [], recommendations: null, isFallback: true },
