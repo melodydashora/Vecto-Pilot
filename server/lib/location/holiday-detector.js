@@ -144,6 +144,193 @@ function getHolidayOverride(date) {
 // 2026-02-13: Migrated from direct callGemini to callModel adapter (hedged router + fallback)
 import { callModel } from '../ai/adapters/index.js';
 
+// ============================================================================
+// 2026-04-05: LOCAL STATIC HOLIDAY DETECTOR
+// Runs BEFORE the Gemini API call — zero cost, zero latency, 100% reliable
+// for well-known US holidays and Easter (which requires dynamic computation).
+// ============================================================================
+
+/**
+ * Compute Easter Sunday for a given year using the Anonymous Gregorian algorithm (Computus).
+ * Returns a Date object in UTC for Easter Sunday.
+ * @param {number} year - The year (e.g., 2026)
+ * @returns {Date} Easter Sunday
+ */
+function computeEasterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31); // 3=March, 4=April
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+/**
+ * Get the Nth occurrence of a weekday in a given month/year.
+ * @param {number} year - Year
+ * @param {number} month - Month (0-indexed: 0=Jan, 11=Dec)
+ * @param {number} dayOfWeek - Day of week (0=Sunday, 1=Monday, ..., 6=Saturday)
+ * @param {number} n - Which occurrence (1=first, 2=second, etc.)
+ * @returns {Date} The date in UTC
+ */
+function nthWeekdayOfMonth(year, month, dayOfWeek, n) {
+  const first = new Date(Date.UTC(year, month, 1));
+  let offset = (dayOfWeek - first.getUTCDay() + 7) % 7;
+  return new Date(Date.UTC(year, month, 1 + offset + 7 * (n - 1)));
+}
+
+/**
+ * Get the last occurrence of a weekday in a given month/year.
+ * @param {number} year - Year
+ * @param {number} month - Month (0-indexed)
+ * @param {number} dayOfWeek - Day of week (0=Sunday, ..., 6=Saturday)
+ * @returns {Date} The date in UTC
+ */
+function lastWeekdayOfMonth(year, month, dayOfWeek) {
+  const last = new Date(Date.UTC(year, month + 1, 0)); // Last day of month
+  let offset = (last.getUTCDay() - dayOfWeek + 7) % 7;
+  return new Date(Date.UTC(year, month + 1, -offset));
+}
+
+// === GLOBAL HOLIDAYS (observed in all countries) ===
+const GLOBAL_FIXED_HOLIDAYS = {
+  '01-01': "New Year's Day",
+  '12-25': 'Christmas Day',
+};
+
+// === COUNTRY-SPECIFIC FIXED-DATE HOLIDAYS ===
+// Key: ISO 3166-1 alpha-2 country code (uppercase)
+// Extensible: add new countries by adding entries here.
+const COUNTRY_FIXED_HOLIDAYS = {
+  US: {
+    '06-19': 'Juneteenth',
+    '07-04': 'Independence Day',
+    '11-11': "Veterans Day",
+    '12-24': 'Christmas Eve',
+    '12-31': "New Year's Eve",
+  },
+  CA: {
+    '07-01': 'Canada Day',
+    '11-11': 'Remembrance Day',
+    '12-24': 'Christmas Eve',
+    '12-26': 'Boxing Day',
+    '12-31': "New Year's Eve",
+  },
+  GB: {
+    '12-24': 'Christmas Eve',
+    '12-26': 'Boxing Day',
+    '12-31': "New Year's Eve",
+  },
+  AU: {
+    '01-26': 'Australia Day',
+    '04-25': 'Anzac Day',
+    '12-26': 'Boxing Day',
+    '12-31': "New Year's Eve",
+  },
+  MX: {
+    '02-05': 'Constitution Day',
+    '09-16': 'Independence Day',
+    '11-20': 'Revolution Day',
+    '12-24': 'Nochebuena',
+    '12-31': "New Year's Eve",
+  },
+};
+
+/**
+ * Check if a date matches a known holiday for the given country.
+ * Uses static computation (no API calls) for well-known holidays.
+ * @param {string} dateStr - Date in YYYY-MM-DD format (local date)
+ * @param {string} countryCode - ISO 3166-1 alpha-2 code (e.g., 'US', 'GB', 'CA')
+ * @returns {{ holiday: string, is_holiday: boolean } | null}
+ */
+function detectStaticHoliday(dateStr, countryCode = 'US') {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const dateMs = Date.UTC(year, month - 1, day);
+  const mmdd = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const cc = (countryCode || 'US').toUpperCase();
+
+  // === GLOBAL FIXED-DATE HOLIDAYS ===
+  if (GLOBAL_FIXED_HOLIDAYS[mmdd]) {
+    return { holiday: GLOBAL_FIXED_HOLIDAYS[mmdd], is_holiday: true };
+  }
+
+  // === COUNTRY-SPECIFIC FIXED-DATE HOLIDAYS ===
+  const countryHolidays = COUNTRY_FIXED_HOLIDAYS[cc] || {};
+  if (countryHolidays[mmdd]) {
+    return { holiday: countryHolidays[mmdd], is_holiday: true };
+  }
+
+  // === EASTER WEEKEND (universal — observed worldwide) ===
+  const easter = computeEasterSunday(year);
+  const easterMs = easter.getTime();
+  const dayMs = 86400000;
+
+  if (dateMs === easterMs - 2 * dayMs) return { holiday: 'Good Friday', is_holiday: true };
+  if (dateMs === easterMs - dayMs) return { holiday: 'Holy Saturday (Easter Weekend)', is_holiday: true };
+  if (dateMs === easterMs) return { holiday: 'Easter Sunday', is_holiday: true };
+  if (dateMs === easterMs + dayMs) return { holiday: 'Easter Monday', is_holiday: true };
+
+  // === MOVABLE US-SPECIFIC HOLIDAYS ===
+  if (cc === 'US') {
+    const movable = [
+      { date: nthWeekdayOfMonth(year, 0, 1, 3), name: 'Martin Luther King Jr. Day' },
+      { date: nthWeekdayOfMonth(year, 1, 1, 3), name: "Presidents' Day" },
+      { date: lastWeekdayOfMonth(year, 4, 1), name: 'Memorial Day' },
+      { date: nthWeekdayOfMonth(year, 8, 1, 1), name: 'Labor Day' },
+      { date: nthWeekdayOfMonth(year, 9, 1, 2), name: "Indigenous Peoples' Day" },
+    ];
+
+    for (const { date, name } of movable) {
+      if (dateMs === date.getTime()) return { holiday: name, is_holiday: true };
+    }
+
+    // Thanksgiving: 4th Thursday in November + Black Friday
+    const thanksgiving = nthWeekdayOfMonth(year, 10, 4, 4);
+    if (dateMs === thanksgiving.getTime()) return { holiday: 'Thanksgiving Day', is_holiday: true };
+    if (dateMs === thanksgiving.getTime() + dayMs) return { holiday: 'Black Friday', is_holiday: true };
+
+    // Super Bowl Sunday: 1st Sunday in February
+    const superBowl = nthWeekdayOfMonth(year, 1, 0, 1);
+    if (dateMs === superBowl.getTime()) return { holiday: 'Super Bowl Sunday', is_holiday: true };
+  }
+
+  // === MOVABLE CA-SPECIFIC HOLIDAYS ===
+  if (cc === 'CA') {
+    // Thanksgiving: 2nd Monday in October
+    const caThanksgiving = nthWeekdayOfMonth(year, 9, 1, 2);
+    if (dateMs === caThanksgiving.getTime()) return { holiday: 'Thanksgiving Day', is_holiday: true };
+    // Victoria Day: Last Monday before May 25
+    const may25 = Date.UTC(year, 4, 25);
+    const may25Date = new Date(may25);
+    const daysBefore = (may25Date.getUTCDay() + 6) % 7 || 7; // Monday before May 25
+    if (dateMs === may25 - daysBefore * dayMs) return { holiday: 'Victoria Day', is_holiday: true };
+  }
+
+  // === MOVABLE GB-SPECIFIC HOLIDAYS ===
+  if (cc === 'GB') {
+    // Early May bank holiday: 1st Monday in May
+    const earlyMay = nthWeekdayOfMonth(year, 4, 1, 1);
+    if (dateMs === earlyMay.getTime()) return { holiday: 'Early May Bank Holiday', is_holiday: true };
+    // Spring bank holiday: Last Monday in May
+    const springBank = lastWeekdayOfMonth(year, 4, 1);
+    if (dateMs === springBank.getTime()) return { holiday: 'Spring Bank Holiday', is_holiday: true };
+    // Summer bank holiday: Last Monday in August
+    const summerBank = lastWeekdayOfMonth(year, 7, 1);
+    if (dateMs === summerBank.getTime()) return { holiday: 'Summer Bank Holiday', is_holiday: true };
+  }
+
+  return null; // Not a known static holiday
+}
+
 /**
  * Detect holiday for a given date/location using BRIEFING_HOLIDAY role
  * @param {Object} context - { created_at, city, state, country, timezone }
@@ -168,6 +355,23 @@ export async function detectHoliday(context) {
   if (override && !override.superseded_by_actual) {
     return { holiday: override.holiday, is_holiday: true };
   }
+
+  // 2026-04-05: Static holiday detection — zero cost, zero latency, 100% reliable
+  // Runs BEFORE any API call. Covers US federal holidays, Easter, Thanksgiving,
+  // and major holidays for CA, GB, AU, MX. Uses snapshot's country field.
+  {
+    const localDateStr = context.timezone
+      ? new Date(checkDate.toLocaleString('en-US', { timeZone: context.timezone })).toLocaleDateString('en-CA')
+      : checkDate.toISOString().split('T')[0];
+    const countryCode = context.country || 'US';
+    const staticResult = detectStaticHoliday(localDateStr, countryCode);
+    if (staticResult) {
+      console.log(`[holiday-detector] 📅 Static detection: ${staticResult.holiday} (${localDateStr}, ${countryCode})`);
+      setHolidayCache(cacheKey, staticResult);
+      return staticResult;
+    }
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.warn('[holiday-detector] ⚠️ GEMINI_API_KEY not set - skipping holiday detection');

@@ -203,6 +203,7 @@ Think about WHAT drives demand at ${localTime}:
 **INTEL:** 2-3 sentences of additional context — competitive landscape, upcoming demand shifts, airport opportunities, weather changes, or anything from news that affects the next few hours
 
 PRINCIPLES:
+- NEVER include raw latitude/longitude coordinates in the strategy text. Always refer to locations by name — use venue names, neighborhood names, intersection names (e.g. "Preston Road and Coit Road"), or landmark names. Coordinates are for internal use only and must never appear in user-facing text.
 - Verify timing: cross-reference news published dates against current time — yesterday's surge is over, do not recommend stale opportunities
 - Event END times create bigger surge than start times — crowds leaving = ride demand
 - Stay in clusters (nightlife districts, hotel zones, event complexes) — do not send the driver to isolated one-off venues
@@ -1016,11 +1017,16 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       throw new Error(`Briefing not found for snapshot ${snapshotId}`);
     }
 
-    // 2026-01-08: FIX - Validate briefing data is POPULATED, not just placeholder row
-    // Placeholder rows have NULL fields - generation is in progress or failed
-    // Strategy REQUIRES actual briefing data (traffic, events) to be useful
+    // 2026-04-05: Validate briefing data is POPULATED, not just placeholder row.
+    // DATA CORRECTNESS > SPEED. Strategy with missing data produces bad advice.
     const hasTraffic = briefingRow.traffic_conditions !== null;
     const hasEvents = briefingRow.events !== null;
+    const hasWeather = briefingRow.weather_current !== null;
+    const hasNews = briefingRow.news !== null;
+    const hasAirport = briefingRow.airport_conditions !== null;
+
+    triadLog.phase(3, `[DATA CHECK] traffic=${hasTraffic}, events=${hasEvents}, weather=${hasWeather}, news=${hasNews}, airport=${hasAirport}`);
+
     if (!hasTraffic && !hasEvents) {
       throw new Error(`Briefing data not ready for snapshot ${snapshotId} (placeholder only - traffic=${hasTraffic}, events=${hasEvents})`);
     }
