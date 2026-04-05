@@ -2005,6 +2005,58 @@ CRITICAL: Include highDemandZones and repositioning.`;
  * @param {Object} params.snapshot - Snapshot with location data
  * @returns {Promise<Object>} Airport conditions data
  */
+/**
+ * 2026-04-05: Manual airport JSON extraction — last resort when safeJsonParse fails.
+ * Gemini with google_search often wraps JSON in markdown narrative. This function
+ * extracts airport data by walking braces and looking for the "airports" key.
+ */
+function extractAirportJson(rawText) {
+  if (!rawText) return { airports: [] };
+
+  // Strategy 1: Find {"airports" and extract the balanced object
+  const airportsIdx = rawText.indexOf('"airports"');
+  if (airportsIdx === -1) {
+    console.warn('[Airport] No "airports" key found in response');
+    return { airports: [] };
+  }
+
+  // Walk backwards to find the opening brace
+  let objStart = -1;
+  for (let i = airportsIdx - 1; i >= 0; i--) {
+    if (rawText[i] === '{') { objStart = i; break; }
+  }
+  if (objStart === -1) return { airports: [] };
+
+  // Walk forward to find the balanced closing brace
+  let depth = 0;
+  for (let i = objStart; i < rawText.length; i++) {
+    if (rawText[i] === '{') depth++;
+    else if (rawText[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        const candidate = rawText.slice(objStart, i + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          // Strategy 2: Clean common issues and retry
+          try {
+            const cleaned = candidate
+              .replace(/\*+/g, '')           // Strip markdown bold/italic
+              .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')  // Strip markdown links
+              .replace(/,\s*([}\]])/g, '$1');  // Strip trailing commas
+            return JSON.parse(cleaned);
+          } catch {
+            console.warn('[Airport] Manual extraction found object but parse failed');
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  return { airports: [] };
+}
+
 async function fetchAirportConditions({ snapshot }) {
   // Require valid location data - no fallbacks for global app
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
@@ -2049,28 +2101,13 @@ async function fetchAirportConditions({ snapshot }) {
   try {
     briefingLog.ai(2, 'Gemini', `airport conditions for ${city}, ${state}`);
 
-    const system = `You are an airport conditions assistant. Search for current flight status and airport conditions. Return structured JSON data.`;
+    // 2026-04-05: Strict JSON-only prompt — previous version allowed Gemini to return
+    // markdown prose with JSON embedded, which broke safeJsonParse repeatedly.
+    const system = `You are an airport conditions API. Return ONLY valid JSON. No prose, no markdown, no explanatory text, no code fences. Output a single JSON object and nothing else.`;
     const user = `Search for current airport conditions near ${city}, ${state} as of ${date}.
 
-Find airports within 50 miles and report:
-1. Flight delays and cancellations
-2. Busy arrival/departure periods today
-3. Recommendations for rideshare drivers (best pickup spots, busy times)
-
-Return JSON (use actual airport codes and names for the location):
-{
-  "airports": [
-    {
-      "code": "<IATA_CODE>",
-      "name": "<Full Airport Name>",
-      "delays": "<description of current delays>",
-      "status": "normal" | "delays" | "severe_delays",
-      "busyTimes": ["<time range>", "<time range>"]
-    }
-  ],
-  "busyPeriods": ["<description of busy period>"],
-  "recommendations": "<driver tips for airport pickups>"
-}`;
+Find airports within 50 miles. Return ONLY this JSON structure (no other text):
+{"airports":[{"code":"IATA","name":"Airport Name","delays":"description","status":"normal","busyTimes":["time range"]}],"busyPeriods":["description"],"recommendations":"driver tips"}`;
 
     // Uses BRIEFING_AIRPORT role (Gemini with google_search)
     const result = await callModel('BRIEFING_AIRPORT', { system, user });
@@ -2080,9 +2117,17 @@ Return JSON (use actual airport codes and names for the location):
       return fallbackAirport;
     }
 
-    // 2026-04-05: Debug log — raw airport response helps diagnose parse failures
-    console.log(`[Airport] Raw Gemini response (${result.output?.length || 0} chars, first 300):`, result.output?.substring(0, 300));
-    const parsed = safeJsonParse(result.output);
+    // 2026-04-05: Try safeJsonParse first, fall back to manual extraction if it fails.
+    // Gemini with google_search often wraps JSON in markdown narrative text.
+    let parsed;
+    try {
+      parsed = safeJsonParse(result.output);
+    } catch (parseErr) {
+      // Manual extraction: find {"airports" or [{"code" in the raw text
+      console.warn(`[Airport] safeJsonParse failed (${parseErr.message}), trying manual extraction...`);
+      console.log(`[Airport] Raw (first 300):`, result.output?.substring(0, 300));
+      parsed = extractAirportJson(result.output);
+    }
     briefingLog.done(2, `Gemini airport: ${parsed.airports?.length || 0} airports`, OP.AI);
 
     return {
