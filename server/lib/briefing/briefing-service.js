@@ -315,21 +315,24 @@ SEARCH THE ENTIRE ${searchArea.toUpperCase()} MARKET - include events in ${city}
 SEARCH QUERY: "${category.searchTerms(searchArea, state, date)}"
 
 Return a JSON array of events with this format (max 5 events):
-[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","subtype":"${category.eventTypes[0]}","impact":"high"}]
+[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","category":"${category.eventTypes[0]}","impact":"high"}]
 
 ALL 4 date/time fields (event_start_date, event_start_time, event_end_time, event_end_date) are REQUIRED. Estimate times if unknown — do NOT omit them. Return an empty array [] if no events found.`;
 
-    // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
+    // 2026-04-05: FIX — Aligned with ALLOWED_CATEGORIES. Removed 'live_music' (not in allowed list).
     const system = `You are an event search assistant. Search the web for local events and return structured JSON data. Only include events happening TODAY. Be accurate with venue names and times.
 
 STRICT CATEGORIZATION RULES (MUST FOLLOW):
-- concert: ONLY for ticketed performances at dedicated music venues, theaters, arenas, or stadiums.
-- live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges. NEVER tag these as 'concert'.
-- nightlife: For club nights, karaoke, trivia, themed bar parties. NEVER tag bar events as 'community'.
-- community: ONLY for public/civic gatherings (markets, library events).
+- concert: For ticketed performances at music venues, theaters, arenas, stadiums, AND live bands/DJs at bars or lounges.
 - sports: Official league or tournament games at any level (professional, collegiate, international).
+- comedy: Stand-up comedy, improv nights, comedy club events.
+- theater: Plays, musicals, ballet, opera, dance performances.
+- festival: Multi-act festivals, fairs, parades.
+- nightlife: Club nights, karaoke, trivia, themed bar parties (no live music performance).
+- convention: Conventions, conferences, expos.
+- community: Public/civic gatherings (markets, library events, charity).
 
-DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
+category MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community, other.`;
 
     try {
       // Uses BRIEFING_FALLBACK role (Claude with web_search) for parallel event discovery
@@ -670,6 +673,28 @@ function safeJsonParse(jsonString) {
   function fixCommonJsonIssues(str) {
     let fixed = str;
 
+    // 2026-04-05: FIX — Replace LITERAL \n (two-char sequence backslash + n) OUTSIDE of
+    // quoted strings with actual newlines. AI models sometimes return:
+    //   "airports": \n    {\n "code": "DFW"
+    // where \n is literal text, not a real newline — this breaks JSON.parse.
+    // We walk the string tracking quote state to avoid corrupting valid \n inside strings.
+    {
+      let result = '';
+      let inString = false;
+      for (let i = 0; i < fixed.length; i++) {
+        if (fixed[i] === '"' && (i === 0 || fixed[i - 1] !== '\\')) {
+          inString = !inString;
+          result += fixed[i];
+        } else if (!inString && fixed[i] === '\\' && fixed[i + 1] === 'n') {
+          result += '\n';
+          i++; // skip the 'n'
+        } else {
+          result += fixed[i];
+        }
+      }
+      fixed = result;
+    }
+
     // 2026-02-17: Only convert single quotes to double quotes when the string is
     // Python-style output (no double quotes at all). Previously this regex corrupted
     // JSON with English apostrophes (e.g., "Tonight's game" → broken structure).
@@ -880,19 +905,21 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
  */
 // 2026-02-26: FIX - Removed hardcoded US league names (NBA, NFL, etc.) and DFW-specific references.
 // Search terms are now market-agnostic so Gemini discovers whatever events exist in any global market.
+// 2026-04-05: FIX — eventTypes now use ONLY values from ALLOWED_CATEGORIES in validateEvent.js.
+// Previously used 'game' and 'live_music' which don't exist in the allowed list.
 const EVENT_CATEGORIES = [
   {
     name: 'high_impact',
     description: 'Major events at large venues (stadiums, arenas, concert halls, convention centers)',
     searchTerms: (market, state, date) => `concerts sports games festivals ${market} metro ${state} ${date} stadium arena theater convention center major events tonight`,
-    eventTypes: ['concert', 'sports', 'festival', 'game'],
+    eventTypes: ['concert', 'sports', 'festival', 'convention'],
     maxEvents: 8
   },
   {
     name: 'local_entertainment',
     description: 'Local nightlife and community events',
     searchTerms: (market, state, date) => `comedy shows live music bars nightlife community events ${market} ${state} ${date} trivia karaoke DJ local entertainment`,
-    eventTypes: ['live_music', 'comedy', 'nightlife', 'community'],
+    eventTypes: ['concert', 'comedy', 'nightlife', 'community'],
     maxEvents: 8
   }
 ];
@@ -940,16 +967,25 @@ RULES:
     // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
     // This ensures bars with live music are tagged as "live_music", not "concert"
     // 2026-02-26: FIX - Removed DFW-specific venue examples. App is global.
+    // 2026-04-05: FIX — Aligned system prompt with ALLOWED_CATEGORIES from validateEvent.js.
+    // Previously taught Gemini to use "live_music" which was NOT in the allowed list,
+    // causing 100% validation rejection. Now uses only: concert, sports, comedy, theater,
+    // festival, nightlife, convention, community, other.
     const system = `You are an event discovery assistant. Search for local events and return structured JSON data.
 
 STRICT CATEGORIZATION RULES (MUST FOLLOW):
-- concert: ONLY for ticketed performances at dedicated music venues, theaters, arenas, or stadiums. Must be a purpose-built performance venue.
-- live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges. NEVER tag these as 'concert'.
-- nightlife: For club nights, karaoke, trivia, themed bar parties. NEVER tag bar events as 'community'.
-- community: ONLY for public/civic gatherings (markets, library events, city council).
+- concert: For ticketed performances at dedicated music venues, theaters, arenas, stadiums, AND live bands/DJs at bars or lounges.
 - sports: Official league or tournament games at any level (professional, collegiate, international).
+- comedy: Stand-up comedy shows, improv nights, comedy club events.
+- theater: Plays, musicals, ballet, opera, dance performances.
+- festival: Multi-act festivals, fairs, parades, outdoor celebrations.
+- nightlife: Club nights, karaoke, trivia, themed bar parties (no live music performance).
+- convention: Conventions, conferences, expos, trade shows.
+- community: Public/civic gatherings (markets, library events, charity, fundraisers).
+- other: Anything that doesn't fit the above categories.
 
-DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
+category MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community, other.
+DO NOT use any other category values.`;
     // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
     const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user: prompt });
 
