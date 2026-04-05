@@ -111,12 +111,20 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => 
                 <Badge variant="secondary">$800+</Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-700">Perplexity Sonar Pro (Research)</span>
-                <Badge variant="secondary">$600+</Badge>
+                <span className="text-gray-700">Gemini 3.1 Pro (Briefing & Research)</span>
+                <Badge variant="secondary">$500+</Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-700">OpenAI GPT-5.2 & Realtime (Voice)</span>
-                <Badge variant="secondary">$900+</Badge>
+                <span className="text-gray-700">GPT-5.4 (Tactical Consolidation)</span>
+                <Badge variant="secondary">$700+</Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">OpenAI GPT-5.2 Realtime (Voice)</span>
+                <Badge variant="secondary">$400+</Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700">Perplexity Sonar Pro (Research)</span>
+                <Badge variant="secondary">$600+</Badge>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-700">Google APIs (Maps, Places, Weather)</span>
@@ -124,7 +132,7 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => 
               </div>
               <div className="border-t pt-3 flex justify-between items-center font-semibold">
                 <span>Total Out-of-Pocket</span>
-                <Badge className="bg-blue-600 text-white">$5,000+</Badge>
+                <Badge className="bg-blue-600 text-white">$6,000+</Badge>
               </div>
             </CardContent>
           </Card>
@@ -218,9 +226,10 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => 
             </CardHeader>
             <CardContent className="text-sm text-gray-600 space-y-2">
               <p>✓ Claude Opus 4.6 (Strategic Analysis)</p>
-              <p>✓ Perplexity Sonar Pro (Real-time Research)</p>
-              <p>✓ GPT-5.2 (Tactical Consolidation)</p>
-              <p>✓ OpenAI Realtime (Voice Chat)</p>
+              <p>✓ Gemini 3.1 Pro (Briefing & Research)</p>
+              <p>✓ GPT-5.4 (Tactical Consolidation)</p>
+              <p>✓ OpenAI GPT-5.2 Realtime (Voice)</p>
+              <p>✓ Perplexity Sonar Pro (Research)</p>
             </CardContent>
           </Card>
 
@@ -388,7 +397,7 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => 
       {/* Footer note */}
       <div className="text-center text-xs text-gray-500">
         <p>Vecto Pilot™ - Built with care for rideshare drivers worldwide</p>
-        <p className="mt-1">6 months of planning • 750+ hours of development • 3 advanced AI models</p>
+        <p className="mt-1">6 months of planning • 750+ hours of development • 5 advanced AI models</p>
       </div>
     </div>
   );
