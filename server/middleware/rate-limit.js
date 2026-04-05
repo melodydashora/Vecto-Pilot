@@ -48,14 +48,33 @@ export const translationLimiter = rateLimit({
   }
 });
 
-// Standard rate limiter for general endpoints
-export const generalLimiter = rateLimit({
+// 2026-04-05: SECURITY — Global rate limiter for all /api routes (CodeQL: missing rate limiting)
+// Applied in server/bootstrap/middleware.js on all /api/* routes.
+// Per-route limiters (expensiveEndpointLimiter, chatLimiter) are stricter overrides.
+export const globalApiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 30, // 30 requests per minute
-  message: { 
-    ok: false, 
-    error: 'Too many requests. Please try again later.' 
+  max: 100, // 100 requests per minute per IP
+  message: {
+    ok: false,
+    error: 'Too many requests. Please try again later.'
   },
   standardHeaders: true,
-  skip: (req) => req.path.includes('/health')
+  validate: { keyGeneratorIpFallback: false },
+  skip: (req) => {
+    // Health/diagnostic endpoints have their own higher-limit limiter
+    return req.path.startsWith('/health') || req.path.startsWith('/ml-health') ||
+           req.path.startsWith('/diagnostics') || req.path.startsWith('/diagnostic');
+  }
+});
+
+// Higher-limit rate limiter for health/monitoring endpoints (200 req/min)
+export const healthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: {
+    ok: false,
+    error: 'Health check rate limit exceeded.'
+  },
+  standardHeaders: true,
+  validate: { keyGeneratorIpFallback: false },
 });

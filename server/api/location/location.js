@@ -501,7 +501,9 @@ router.get('/resolve', async (req, res) => {
     // Dev fallback: Generate deterministic device_id from coords if not provided
     // Uses 6 decimal precision (~0.1m) to ensure unique user per exact address
     // This ensures user records are created even in dev/testing without a real device
-    let deviceId = req.query.device_id;
+    // 2026-04-05: SECURITY — sanitize to prevent type confusion (CodeQL)
+    const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+    let deviceId = sanitizeString(req.query.device_id);
     const isProduction = process.env.NODE_ENV === 'production' && !process.env.REPLIT_DEPLOYMENT;
 
     if (!deviceId && !isProduction) {
@@ -2150,17 +2152,28 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
 router.get('/ip', async (req, res) => {
   try {
     // Get client IP from various headers (Cloudflare, proxy, direct)
-    const clientIp = req.headers['cf-connecting-ip'] ||
-                     req.headers['x-real-ip'] ||
-                     req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-                     req.ip ||
-                     req.connection?.remoteAddress;
+    // 2026-04-05: SECURITY — validate IP format to prevent SSRF (CodeQL)
+    const { sanitizeIp } = await import('../../lib/utils/sanitize.js');
+    const rawIp = req.headers['cf-connecting-ip'] ||
+                  req.headers['x-real-ip'] ||
+                  req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                  req.ip ||
+                  req.connection?.remoteAddress;
+    const clientIp = sanitizeIp(rawIp);
 
-    console.log('[IP Geolocation] Client IP:', clientIp);
+    console.log('[IP Geolocation] Client IP:', clientIp || '(invalid)');
+
+    if (!clientIp) {
+      return res.json({
+        ok: false,
+        source: 'none',
+        reason: 'invalid_ip',
+        message: 'GPS permission required for accurate location'
+      });
+    }
 
     // Skip localhost/private IPs - they won't geolocate
-    const isPrivate = !clientIp ||
-                      clientIp === '127.0.0.1' ||
+    const isPrivate = clientIp === '127.0.0.1' ||
                       clientIp === '::1' ||
                       clientIp.startsWith('192.168.') ||
                       clientIp.startsWith('10.') ||
@@ -2179,6 +2192,7 @@ router.get('/ip', async (req, res) => {
     }
 
     // Call ip-api.com for geolocation (free, no API key required)
+    // clientIp is validated as a proper IP address by sanitizeIp above
     const ipApiUrl = `http://ip-api.com/json/${clientIp}?fields=status,message,country,regionName,city,lat,lon,timezone`;
     const response = await fetch(ipApiUrl, { timeout: 5000 });
 
@@ -2229,7 +2243,9 @@ router.get('/ip', async (req, res) => {
 // Always returns fresh data from authoritative source
 router.get('/users/me', async (req, res) => {
   try {
-    const deviceId = req.query.device_id;
+    // 2026-04-05: SECURITY — sanitize query params to prevent type confusion (CodeQL)
+    const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+    const deviceId = sanitizeString(req.query.device_id);
     
     if (!deviceId) {
       return res.status(400).json({ 

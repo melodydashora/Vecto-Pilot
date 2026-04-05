@@ -396,7 +396,9 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
 // STRATEGY-FIRST GATING: Returns 202 until strategy is ready
 // ISSUE #24 FIX: Rate limited to prevent quota exhaustion
 router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
-  const snapshotId = req.query.snapshotId || req.query.snapshot_id;
+  // 2026-04-05: SECURITY — sanitize query params to prevent type confusion (CodeQL)
+  const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+  const snapshotId = sanitizeString(req.query.snapshotId || req.query.snapshot_id);
   // 2026-01-09: P0-3 FIX - Get authenticated userId for ownership check
   const authUserId = req.auth?.userId;
   venuesLog.info(`[blocks-fast] GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
@@ -501,7 +503,9 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
 });
 
 router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
-  triadLog.start(`POST request for ${req.body?.snapshotId?.slice(0, 8) || 'unknown'}`);
+  // 2026-04-05: SECURITY — sanitize body params to prevent type confusion (CodeQL)
+  const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+  triadLog.start(`POST request for ${sanitizeString(req.body?.snapshotId)?.slice(0, 8) || 'unknown'}`);
 
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
@@ -526,7 +530,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
   try {
     // 2026-01-09: P0-3 FIX - Removed userId from body (was accepting arbitrary userId='demo')
     // Authentication ONLY comes from req.auth.userId (set by requireAuth middleware)
-    const { snapshotId } = req.body;
+    const snapshotId = sanitizeString(req.body?.snapshotId);
     const authUserId = req.auth?.userId;
 
     if (!snapshotId) {

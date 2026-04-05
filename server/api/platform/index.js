@@ -161,7 +161,12 @@ router.get('/countries', async (req, res) => {
  */
 router.get('/search', async (req, res) => {
   try {
-    const { q, platform = 'uber', country, limit = 20 } = req.query;
+    // 2026-04-05: SECURITY — sanitize query params to prevent type confusion (CodeQL)
+    const { sanitizeString, sanitizeNumber } = await import('../../lib/utils/sanitize.js');
+    const q = sanitizeString(req.query.q);
+    const platform = sanitizeString(req.query.platform) || 'uber';
+    const country = sanitizeString(req.query.country);
+    const limit = sanitizeNumber(req.query.limit) || 20;
 
     if (!q || q.length < 2) {
       return res.status(400).json({ error: 'Search query must be at least 2 characters' });

@@ -57,9 +57,12 @@ export function extractHourlyRate(text) {
  * @returns {Array<{minutes: number, miles: number}>}
  */
 export function extractTimeDistancePairs(text) {
+  // 2026-04-05: SECURITY — input length limit to prevent ReDoS on pathological OCR input
+  if (!text || text.length > 5000) return [];
   const pairs = [];
   // Pattern: X min/mins (Y.Z mi) — handles optional bullet, newline noise, plural
-  const regex = /(\d+)\s*min(?:s|utes?)?\s*\((\d+\.?\d*)\s*mi\)/gi;
+  // 2026-04-05: SECURITY — replaced \d+\.?\d* with \d+(?:\.\d+)? to eliminate ReDoS (CodeQL)
+  const regex = /(\d+)\s*min(?:s|utes?)?\s*\((\d+(?:\.\d+)?)\s*mi\)/gi;
   let match;
   while ((match = regex.exec(text)) !== null) {
     pairs.push({
@@ -195,6 +198,8 @@ export function extractSurge(text) {
  * @returns {number|null}
  */
 export function extractAdvantage(text) {
+  // 2026-04-05: SECURITY — input length limit to prevent ReDoS (CodeQL)
+  if (!text || text.length > 5000) return null;
   const match = text.match(/(\d+)%\s*Advantage/i);
   return match ? parseInt(match[1], 10) : null;
 }
@@ -255,7 +260,8 @@ export function parseOfferText(rawText) {
   } else if (pairs.length === 1) {
     // Only one pair — could be either. If "Avg. wait time at pickup" appears
     // before it, it's the pickup. Check context.
-    const pairIndex = rawText.search(/\d+\s*min(?:s|utes?)?\s*\(\d+\.?\d*\s*mi\)/i);
+    // 2026-04-05: SECURITY — replaced \d+\.?\d* with \d+(?:\.\d+)? to eliminate ReDoS (CodeQL)
+    const pairIndex = rawText.search(/\d+\s*min(?:s|utes?)?\s*\(\d+(?:\.\d+)?\s*mi\)/i);
     const avgWaitIndex = rawText.search(/Avg\.?\s*wait\s*time/i);
     if (avgWaitIndex !== -1 && avgWaitIndex > pairIndex) {
       // The pair appears before "Avg. wait time" — it's pickup

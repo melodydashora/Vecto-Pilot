@@ -257,8 +257,10 @@ router.get('/memory/:scope', async (req, res) => {
 // GET /api/ml/search?q=<term> - Search across all learning data
 router.get('/search', async (req, res) => {
   try {
-    const { q } = req.query;
-    
+    // 2026-04-05: SECURITY — sanitize query params to prevent type confusion (CodeQL)
+    const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+    const q = sanitizeString(req.query.q);
+
     if (!q || q.length < 3) {
       return res.status(400).json({
         ok: false,
