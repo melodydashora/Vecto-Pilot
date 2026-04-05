@@ -2080,6 +2080,8 @@ Return JSON (use actual airport codes and names for the location):
       return fallbackAirport;
     }
 
+    // 2026-04-05: Debug log — raw airport response helps diagnose parse failures
+    console.log(`[Airport] Raw Gemini response (${result.output?.length || 0} chars, first 300):`, result.output?.substring(0, 300));
     const parsed = safeJsonParse(result.output);
     briefingLog.done(2, `Gemini airport: ${parsed.airports?.length || 0} airports`, OP.AI);
 
