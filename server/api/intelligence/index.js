@@ -112,19 +112,19 @@ const ZONE_SUBTYPES = ['honey_hole', 'danger_zone', 'dead_zone', 'safe_corridor'
  */
 router.get('/', async (req, res) => {
   try {
-    const {
-      market,
-      platform,
-      type,
-      subtype,
-      tags,
-      active = 'true',
-      coach,
-      search,
-      limit = 50,
-      offset = 0,
-      sort = 'priority',
-    } = req.query;
+    // 2026-04-05: SECURITY — sanitize query params to prevent type confusion (CodeQL)
+    const { sanitizeString, sanitizeNumber } = await import('../../lib/utils/sanitize.js');
+    const market = sanitizeString(req.query.market);
+    const platform = sanitizeString(req.query.platform);
+    const type = sanitizeString(req.query.type);
+    const subtype = sanitizeString(req.query.subtype);
+    const tags = sanitizeString(req.query.tags);
+    const active = sanitizeString(req.query.active) || 'true';
+    const coach = sanitizeString(req.query.coach);
+    const search = sanitizeString(req.query.search);
+    const limit = sanitizeNumber(req.query.limit) || 50;
+    const offset = sanitizeNumber(req.query.offset) || 0;
+    const sort = sanitizeString(req.query.sort) || 'priority';
 
     const conditions = [];
 
@@ -360,7 +360,13 @@ router.post('/add-market', async (req, res) => {
  */
 router.get('/for-location', async (req, res) => {
   try {
-    const { city, state, type, platform, limit = 20 } = req.query;
+    // 2026-04-05: SECURITY — sanitize query params to prevent type confusion (CodeQL)
+    const { sanitizeString, sanitizeNumber } = await import('../../lib/utils/sanitize.js');
+    const city = sanitizeString(req.query.city);
+    const state = sanitizeString(req.query.state);
+    const type = sanitizeString(req.query.type);
+    const platform = sanitizeString(req.query.platform);
+    const limit = sanitizeNumber(req.query.limit) || 20;
 
     // Validate required params
     if (!city || !state) {

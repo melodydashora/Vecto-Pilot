@@ -1174,7 +1174,11 @@ Full transparency. Maximum insight.
     }
 
     // Convert base64 data URL attachments to Gemini inline_data format
+    // 2026-04-05: SECURITY — import sanitizeForLog once for use across all attachments
+    const { sanitizeForLog } = await import('../../lib/utils/sanitize.js');
     for (const att of attachments) {
+      // Sanitize attachment name early to prevent format string injection in logs
+      const safeName = sanitizeForLog(att.name);
       if (att.data && att.type) {
         try {
           // att.data is a data URL: "data:image/png;base64,iVBOR..."
@@ -1189,14 +1193,15 @@ Full transparency. Maximum insight.
                 data: base64Data,
               }
             });
-            console.log(`[chat] Attached image: ${att.name} (${mimeType}, ${Math.round(base64Data.length / 1024)}KB base64)`);
+            console.log(`[chat] Attached image: ${safeName} (${mimeType}, ${Math.round(base64Data.length / 1024)}KB base64)`);
           } else {
             // Non-data-URL attachment — include as text reference
-            userParts.push({ text: `[Attachment: ${att.name} (${att.type})]` });
+            userParts.push({ text: `[Attachment: ${safeName} (${att.type})]` });
           }
         } catch (err) {
-          console.warn(`[chat] Failed to process attachment "${att.name}":`, err.message);
-          userParts.push({ text: `[Attachment: ${att.name} — could not process]` });
+          // 2026-04-05: SECURITY — sanitize att.name to prevent format string injection (CodeQL)
+          console.warn(`[chat] Failed to process attachment "${safeName}":`, err.message);
+          userParts.push({ text: `[Attachment: ${safeName} — could not process]` });
         }
       }
     }

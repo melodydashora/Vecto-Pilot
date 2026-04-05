@@ -31,8 +31,26 @@ export async function configureMiddleware(app) {
     next();
   });
 
-  // Helmet security headers (CSP disabled for SPA compatibility)
-  app.use(helmet({ contentSecurityPolicy: false }));
+  // 2026-04-05: SECURITY — Enable CSP with SPA-compatible directives (CodeQL fix)
+  // Previously disabled entirely; now allows inline styles (Vite/React), self scripts,
+  // and required external domains for Google Maps, AI APIs, and analytics.
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://maps.googleapis.com", "https://maps.gstatic.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.ggpht.com", "https://places.googleapis.com"],
+        connectSrc: ["'self'", "https://maps.googleapis.com", "https://places.googleapis.com", "https://routes.googleapis.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
+        frameSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+      }
+    },
+    // Ensure HSTS and X-Frame-Options are enabled (helmet defaults)
+    hsts: { maxAge: 31536000, includeSubDomains: true },
+  }));
 
   // 2026-03-17: SECURITY FIX (F-2) — CORS origin whitelist replaces reflect-all.
   // Previously `origin: true` reflected any origin with credentials, enabling CSRF.
@@ -58,6 +76,21 @@ export async function configureMiddleware(app) {
     },
     credentials: true
   }));
+
+  // 2026-04-05: SECURITY — Global rate limiting (CodeQL: missing rate limiting on 30+ routes)
+  // Applied before JSON parsing to reject floods early and save CPU on body parsing.
+  try {
+    const rateLimitPath = path.join(rootDir, 'server/middleware/rate-limit.js');
+    const { globalApiLimiter, healthLimiter } = await import(pathToFileURL(rateLimitPath).href);
+    app.use('/api', globalApiLimiter);
+    app.use('/api/health', healthLimiter);
+    app.use('/api/ml-health', healthLimiter);
+    app.use('/api/diagnostics', healthLimiter);
+    app.use('/api/diagnostic', healthLimiter);
+    console.log('[gateway] ✅ Global rate limiting enabled (100/min API, 200/min health)');
+  } catch (e) {
+    console.warn('[gateway] Rate limiting not available:', e?.message);
+  }
 
   // Correlation ID middleware (before JSON parsing)
   try {
