@@ -387,42 +387,44 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const weatherPromise = fetch(API_ROUTES.LOCATION.WEATHER_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
       const airPromise = fetch(API_ROUTES.LOCATION.AIR_QUALITY_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
 
-      // Track weather/air data for snapshot enrichment later
-      let weatherData: { available: boolean; temperature: number; conditions: string; description?: string } | null = null;
-      let airQualityData: { available: boolean; aqi: number; category: string } | null = null;
+      // 2026-04-05: FIX — Weather/air data parsed into reusable promises.
+      // Previously, .then() consumed res.json() and the fallback at line ~460 tried to
+      // read the same response body again → "body already consumed" → silent failure →
+      // weatherData stayed null → snapshot enrichment PATCH never fired.
+      // Now: parse once into a promise, await it wherever needed.
+      const weatherDataPromise = weatherPromise.then(async (res) => {
+        if (!res.ok) return null;
+        return await res.json();
+      }).catch((err) => { console.warn('[LocationContext] Weather fetch failed:', err); return null; });
+
+      const airQualityDataPromise = airPromise.then(async (res) => {
+        if (!res.ok) return null;
+        return await res.json();
+      }).catch((err) => { console.warn('[LocationContext] AQI fetch failed:', err); return null; });
 
       // PHASE 1: Update UI as soon as weather/air resolve (faster APIs)
-      // Don't await - let them update independently
-      weatherPromise.then(async (res) => {
+      weatherDataPromise.then((data) => {
         if (currentGeneration !== generationCounterRef.current) return;
-        if (res.ok) {
-          const data = await res.json();
-          weatherData = data;
-          if (data?.available) {
-            setWeather({
-              temp: data.temperature,
-              conditions: data.conditions,
-              description: data.description
-            });
-            console.log('🌤️ [LocationContext] Weather updated (phase 1)');
-          }
+        if (data?.available) {
+          setWeather({
+            temp: data.temperature,
+            conditions: data.conditions,
+            description: data.description
+          });
+          console.log('🌤️ [LocationContext] Weather updated (phase 1)');
         }
-      }).catch((err) => console.warn('[LocationContext] Weather fetch failed:', err));
+      });
 
-      airPromise.then(async (res) => {
+      airQualityDataPromise.then((data) => {
         if (currentGeneration !== generationCounterRef.current) return;
-        if (res.ok) {
-          const data = await res.json();
-          airQualityData = data;
-          if (data?.available) {
-            setAirQuality({
-              aqi: data.aqi,
-              category: data.category
-            });
-            console.log('💨 [LocationContext] AQI updated (phase 1)');
-          }
+        if (data?.available) {
+          setAirQuality({
+            aqi: data.aqi,
+            category: data.category
+          });
+          console.log('💨 [LocationContext] AQI updated (phase 1)');
         }
-      }).catch((err) => console.warn('[LocationContext] AQI fetch failed:', err));
+      });
 
       // PHASE 2: Wait for location resolve (slower due to DB writes)
       const locationRes = await locationPromise;
@@ -456,19 +458,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const locationData = await locationRes.json();
 
-      // Ensure weather/air data is populated (in case location finished first)
-      if (!weatherData) {
-        try {
-          const res = await weatherPromise;
-          if (res.ok) weatherData = await res.json();
-        } catch (_e) { /* already logged */ }
-      }
-      if (!airQualityData) {
-        try {
-          const res = await airPromise;
-          if (res.ok) airQualityData = await res.json();
-        } catch (_e) { /* already logged */ }
-      }
+      // 2026-04-05: Await parsed data from reusable promises (no double-read risk)
+      const weatherData = await weatherDataPromise;
+      const airQualityData = await airQualityDataPromise;
 
       // Update city/state (phase 2 - after location resolves)
       setCity(locationData.city);
