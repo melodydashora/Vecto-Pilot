@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- React DevTools standalone connector - REMOVE BEFORE PRODUCTION -->
+    <!-- Connects to react-devtools standalone app on localhost:8097 (dev only) -->
+    <script>
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        var s = document.createElement('script');
+        s.src = 'http://localhost:8097';
+        document.currentScript.parentNode.insertBefore(s, document.currentScript);
+      }
+    </script>
     <meta charset="UTF-8" />
     <meta
       name="viewport"

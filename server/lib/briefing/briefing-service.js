@@ -2339,12 +2339,13 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     // Dedup 2: Check database state - if briefing exists with ALL populated fields, skip regeneration
     // NULL fields = generation in progress or needs refresh
     // Populated fields = data ready, don't regenerate
+    // 2026-04-05: Error-marked fields (_generationFailed) don't count as "populated" — must regenerate
     const existing = await getBriefingBySnapshotId(snapshotId);
     if (existing) {
-      const hasTraffic = existing.traffic_conditions !== null;
-      const hasEvents = existing.events !== null && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
-      const hasNews = existing.news !== null;
-      const hasClosures = existing.school_closures !== null;
+      const hasTraffic = existing.traffic_conditions !== null && !existing.traffic_conditions?._generationFailed;
+      const hasEvents = existing.events !== null && !existing.events?._generationFailed && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
+      const hasNews = existing.news !== null && !existing.news?._generationFailed;
+      const hasClosures = existing.school_closures !== null && !existing.school_closures?._generationFailed;
 
       // ALL fields must be populated for concurrent request deduplication to apply
       if (hasTraffic && hasEvents && hasNews && hasClosures) {
@@ -2399,7 +2400,32 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     await db.execute(sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`);
   }
 
-  const briefingPromise = generateBriefingInternal({ snapshotId, snapshot });
+  // 2026-04-05: Wrap in error handler to mark placeholder row as permanently failed
+  // on throw. Without this, a thrown error leaves NULL fields in the DB forever,
+  // and GET endpoints return success:false indefinitely → client infinite retry loop.
+  const briefingPromise = generateBriefingInternal({ snapshotId, snapshot })
+    .catch(async (err) => {
+      console.error(`[BriefingService] ❌ Generation failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
+      // Mark the placeholder row with error sentinel so endpoints return _generationFailed
+      // instead of "not yet available" (which causes clients to keep polling)
+      const errorMarker = { _generationFailed: true, error: err.message, failedAt: new Date().toISOString() };
+      try {
+        await db.update(briefings)
+          .set({
+            traffic_conditions: errorMarker,
+            events: errorMarker,
+            news: errorMarker,
+            airport_conditions: errorMarker,
+            updated_at: new Date()
+          })
+          .where(eq(briefings.snapshot_id, snapshotId));
+        briefingLog.warn(1, `Marked briefing ${snapshotId.slice(0, 8)} as permanently failed`, OP.DB);
+      } catch (markErr) {
+        console.error(`[BriefingService] Could not mark failed briefing: ${markErr.message}`);
+      }
+      return { success: false, error: err.message, _generationFailed: true };
+    });
+
   inFlightBriefings.set(snapshotId, briefingPromise);
 
   briefingPromise.finally(() => {

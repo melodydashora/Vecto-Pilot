@@ -31,7 +31,8 @@
     "build:dev": "npm run build:client",
     "build:deploy": "npm run guard && npm run build:client",
     "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",
-    "research:models": "echo 'Removed 2026-02-26: Model research now done via Claude Code. See docs/preflight/ai-models.md'"
+    "research:models": "echo 'Removed 2026-02-26: Model research now done via Claude Code. See docs/preflight/ai-models.md'",
+    "devtools": "react-devtools"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
@@ -82,6 +83,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "cors": "^2.8.5",
+    "dompurify": "^3.3.3",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.5",
     "drizzle-zod": "^0.8.3",
@@ -165,6 +167,7 @@
     "jest-environment-jsdom": "^30.2.0",
     "jsonlint": "^1.6.3",
     "npm-run-all": "^4.1.5",
+    "react-devtools": "^7.0.1",
     "sass": "^1.94.0",
     "ts-jest": "^29.4.6",
     "tsx": "^4.20.6",
