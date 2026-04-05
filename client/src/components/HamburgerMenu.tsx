@@ -5,7 +5,8 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Settings, Calendar, Info, Heart, HelpCircle, X } from 'lucide-react';
+import { Menu, Settings, Calendar, Info, Heart, HelpCircle, LogOut, X } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -26,6 +27,7 @@ const MENU_ITEMS = [
 export default function HamburgerMenu() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -69,6 +71,23 @@ export default function HamburgerMenu() {
             </button>
           ))}
         </nav>
+        <div className="border-t mx-2 my-1" />
+        <div className="p-2">
+          <button
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            onClick={() => {
+              setOpen(false);
+              logout().then(() => {
+                navigate('/auth/sign-in');
+              }).catch(() => {
+                navigate('/auth/sign-in');
+              });
+            }}
+          >
+            <LogOut className="h-5 w-5" />
+            Sign Out
+          </button>
+        </div>
       </SheetContent>
     </Sheet>
   );
