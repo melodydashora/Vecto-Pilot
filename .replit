@@ -20,7 +20,6 @@ publicDir = "dist/public"
 
 [[ports]]
 localPort = 3001
-externalPort = 3001
 
 [[ports]]
 localPort = 5000
@@ -28,14 +27,12 @@ externalPort = 80
 
 [[ports]]
 localPort = 5904
-externalPort = 3002
 
 [[ports]]
 localPort = 24282
 
 [[ports]]
 localPort = 62789
-externalPort = 3000
 
 # Workflows
 [workflows]
@@ -54,7 +51,7 @@ args = "set -a && . .env.local && set +a && npm run start:replit"
 integrations = ["perplexity_v0:1.0.0"]
 expertMode = true
 
-[assistant]
+[agent]
 # System prompt for Replit IDE Assistant
 system_prompt = """
 You are Replit Assistant Enhanced. You have FULL shell execution capabilities.
