@@ -4,6 +4,114 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2026-04-09: Bot Blocker Fix — Replit Preview Pane Unreachable
+
+**Updated by:** Claude Opus 4.6
+**Date:** 2026-04-09
+**Scope:** Bot blocker `/__repl*` path allowlist
+
+### Problem
+
+Replit preview pane showed "Hmm... We couldn't reach this app" despite the server running healthy on port 5000. Networking panel confirmed port 5000 → external port 80 mapping and correct PID.
+
+### Root Cause
+
+Replit's preview proxy probes `/__repl` and `/__replit` endpoints to determine app reachability. The bot blocker middleware (`server/middleware/bot-blocker.js`) was rejecting these probes because:
+1. Line 111: `if (!userAgent) return true` — no User-Agent = treated as bot
+2. No path allowlist for Replit's internal `/__repl*` endpoints
+
+These probes returned `403 { "error": "Access denied", "message": "Automated access is not permitted" }`, so Replit's proxy concluded the app was unreachable.
+
+### Timing Hypothesis
+
+Melody confirmed both Helmet and the bot blocker have been in place for a long time, and the preview worked until ~2026-04-08. This suggests **Replit changed their reachability probe behavior** (possibly started checking `/__repl*` endpoints, or changed the User-Agent on probe requests). This is a platform-side change, not a regression in our code.
+
+### Fix
+
+Added `/__repl*` path allowlist in `bot-blocker.js` (line 140), following the same pattern as existing `/health` and `/api/hooks/` allowlists:
+
+```javascript
+// 2026-04-09: Allow Replit internal proxy probes (preview pane reachability checks)
+if (path.startsWith('/__repl')) {
+  return next();
+}
+```
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `server/middleware/bot-blocker.js` | Added `/__repl*` path allowlist (line 140) |
+
+### Verification
+
+- [x] `curl http://localhost:5000/__repl` → 200 (was 403)
+- [x] `curl http://localhost:5000/__replit` → 200 (was 403)
+- [x] `curl http://localhost:5000/health` → 200 (unchanged)
+- [x] Bot blocking still active for actual bots (no regression)
+- [x] **Melody: Confirm preview pane loads after clicking Run** ✅ 2026-04-09
+
+### Status: ✅ VERIFIED — Preview pane working
+
+---
+
+## 2026-04-09: Session Work Plan — Config Drift, Security Upgrades, Dead Code
+
+**Updated by:** Claude Opus 4.6
+**Date:** 2026-04-09
+**Scope:** Policy JSON consolidation, drizzle-orm security upgrade, dead file cleanup
+
+### Work Items (Priority Order)
+
+#### Item 1: Policy JSON Consolidation (D-086, D-087, D-088) — Rule 9
+
+**Problem:** 3 pairs of policy JSONs (`config/` vs `server/config/`) have drifted. Both paths are in active fallback chains. The `config/eidolon-policy.json` has a JSON syntax error that will crash on parse.
+
+**Plan:**
+1. Determine which copy is authoritative (likely `config/` — newer `web_fetch_20250910` type)
+2. Fix the JSON syntax error in `config/eidolon-policy.json`
+3. Delete the `server/config/` duplicates
+4. Update all import paths in `config-manager.js`, `enhanced-context-base.js`, `policy-loader.js` to use single `config/` source
+5. Update `server/config/README.md`
+
+**Risk:** Low — policy files control agent tool permissions, not core app logic. Consolidation simplifies the fallback chain.
+
+#### Item 2: Drizzle-ORM Security Upgrade (D-090) — GHSA-gpj5-g38j-94v9
+
+**Problem:** SQL injection via improperly escaped identifiers in drizzle-orm@0.44.7.
+
+**Plan:**
+```bash
+npm install drizzle-orm@0.45.2
+npm install -D drizzle-kit@^0.31.10
+```
+
+**Verified low risk:**
+- Zero `drizzle-zod` imports (no path refactoring needed)
+- No dynamic `sql.identifier()` usage
+- 1 static `.as()` usage in `feedback.js` (not user-input-driven)
+- `serial` type in `shared/schema.js` may emit deprecation warning (cosmetic only)
+
+#### Item 3: Dead Vite Config Cleanup (D-089)
+
+**Problem:** `client/vite.config.ts` is dead code — self-documents "NOT used, see root vite.config.js"
+
+**Plan:** Delete `client/vite.config.ts`. Root `vite.config.js` is authoritative (confirmed by build output + 2026-04-05 update date).
+
+#### Item 4: Vite Security Patches (D-091)
+
+**Problem:** 2 high vulns in vite@7.3.1 (dev-server only, not production)
+
+**Plan:** `npm audit fix` — non-breaking patches available.
+
+### Existing D-077 to D-080 (from full audit 2026-04-04)
+
+These 4 critical discrepancies remain open. Not addressed this session but tracked in `DOC_DISCREPANCIES.md`.
+
+### Status: ✅ ALL ITEMS EXECUTED AND VERIFIED
+
+---
+
 ## 2026-03-29: Analyze-Offer Decision Logic Overhaul (Phase 1 + Phase 2 Alignment)
 
 **Updated by:** Claude Opus 4.6

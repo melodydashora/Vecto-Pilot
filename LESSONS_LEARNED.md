@@ -2,6 +2,23 @@
 AGENT DIRECTIVE: This file contains resolved historical post-mortems. Do NOT attempt to fix the bugs listed here. Use this file STRICTLY as read-only context to avoid repeating past architectural mistakes.
 
 
+## 2026-04-09: Soft Warnings Hiding Broken Production Features
+
+- **Symptom:** Production deployment logs showed `⚠️ ENVIRONMENT WARNINGS` for `VECTO_AGENT_SECRET` and `TOKEN_ENCRYPTION_KEY`, but `✅ Environment validation passed`. The server started successfully while agent auth and Uber OAuth were completely broken.
+- **Root Cause:** `validate-env.js` classified missing feature-critical secrets as "warnings" instead of "errors." The validation passed, the server booted, and users hit runtime failures with no indication at startup that entire features were non-functional.
+- **Fix:** Promoted `VECTO_AGENT_SECRET` and `TOKEN_ENCRYPTION_KEY` (when Uber is configured) to production errors. In dev, they remain warnings (flexibility for local testing). In production, they now block startup with a clear error message.
+- **File:** `server/config/validate-env.js`
+- **Lesson:** A warning that describes a broken feature is a lie. If the consequence of a missing env var is "all requests to this endpoint will fail" or "this entire integration is broken," that is an ERROR, not a warning. Soft validation that lets broken deployments through is worse than no validation — it creates false confidence. The validation tier (error vs warning) must match the user-facing impact, not the developer's convenience. In production, if it's broken, fail fast and say so.
+
+## 2026-04-09: Bot Blocker Blocking Replit Preview Proxy Probes
+
+- **Symptom:** Replit preview pane showed "We couldn't reach this app" despite server running healthy on port 5000 with correct port mapping (5000 → external 80).
+- **Root Cause:** The bot blocker middleware treats empty User-Agent as bot traffic. Replit's preview proxy probes `/__repl*` endpoints to check app reachability, and these probes arrived with no/internal User-Agent. The 403 response made Replit conclude the app was unreachable.
+- **Timing:** Bot blocker and Helmet had been in place for weeks with a working preview. The break appeared ~2026-04-08, suggesting Replit changed their probe behavior (new endpoints, different User-Agent). Platform-side change, not a code regression.
+- **Fix:** Added `/__repl*` to the bot blocker's path allowlist, alongside existing allowlists for `/health` and `/api/hooks/`.
+- **File:** `server/middleware/bot-blocker.js`
+- **Lesson:** Security middleware (bot blockers, rate limiters, WAFs) must account for the hosting platform's internal traffic. When debugging "can't reach" errors on PaaS platforms, check whether your middleware is blocking the platform's own health/reachability probes — the server can be perfectly healthy internally while appearing dead to the platform's proxy layer. Test with `curl` against internal probe paths, not just your own endpoints.
+
 ## 2026-02-26: snapshot.weather vs briefing.weather — Wrong Data Source in Strategy Prompt
 
 - **Symptom:** The STRATEGY_TACTICAL prompt's weather section was always empty or undefined, despite weather data existing in the briefing.

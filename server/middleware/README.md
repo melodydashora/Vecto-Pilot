@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-12
+> **Last Verified:** 2026-04-09
 
 # Middleware Module (`server/middleware/`)
 
@@ -114,6 +114,17 @@ app.use('/api', apiOnlyBotBlocker);
 | `expensiveLimiter` | 5/min | `/api/blocks-fast`, `/api/briefing/generate` |
 | `chatLimiter` | 3/min | `/api/chat` |
 | `generalLimiter` | 30/min | All other `/api/*` |
+
+## Bot Blocker Path Allowlist
+
+The full `botBlocker` middleware skips these paths (allows all User-Agents):
+
+| Path | Reason |
+|------|--------|
+| `/robots.txt` | Let bots discover the deny-all policy |
+| `/health`, `/api/health` | Internal health checks (no UA) |
+| `/api/hooks/*` | Siri Shortcuts, Android Automations (non-browser UAs) |
+| `/__repl*` | Replit preview proxy reachability probes (2026-04-09) |
 
 ## Bot Patterns Blocked
 

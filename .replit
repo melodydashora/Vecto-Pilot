@@ -4,78 +4,25 @@ modules = ["python-3.11", "nodejs-20", "postgresql-16"]
 
 # Primary run command (Run button / default start)
 # Source env safely so comments/quotes are handled correctly
-run = "sh -c \"set -a && . ./mono-mode.env && set +a && node scripts/start-replit.js\""
+run = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\""
 
 # Nix/packages configuration
 [nix]
-packages = [
-  "at",
-  "imagemagick_light",
-  "jq",
-  "lsof",
-  "nodejs-22",
-  "spidermonkey_91",
-  "tree",
-  "mailutils",
-  "pgroll",
-  "unpackerr",
-  # Playwright browser dependencies
-  "glib",
-  "nspr",
-  "nss",
-  "dbus",
-  "atk",
-  "at-spi2-atk",
-  "cups",
-  "libxcb",
-  "libxkbcommon",
-  "at-spi2-core",
-  "xorg.libX11",
-  "xorg.libXcomposite",
-  "xorg.libXdamage",
-  "xorg.libXext",
-  "xorg.libXfixes",
-  "xorg.libXrandr",
-  "mesa",
-  "cairo",
-  "pango",
-  "alsa-lib"
-]
+packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "docker", "glib", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nodejs-22", "nspr", "nss", "pango", "pgroll", "python313Packages.conda", "spidermonkey_91", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "google-cloud-sdk-gce", "nano", "tmux"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
 [deployment]
 build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
-run = ["sh", "-c", "DEPLOY_MODE=webservice node gateway-server.js"]
+run = ["sh", "-c", "node gateway-server.js"]
 deploymentTarget = "cloudrun"
+publicDir = "dist/public"
 
+# 2026-04-09: Only declare the app port. Extra port entries (3001, 5904, 24282, 62789)
+# with no externalPort were removed — they added noise and could confuse Replit's proxy.
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 5173
-externalPort = 5173
-
-[[ports]]
-localPort = 9323
-externalPort = 3003
-
-[[ports]]
-localPort = 38339
-externalPort = 3002
-
-[[ports]]
-localPort = 41475
-externalPort = 4200
-
-[[ports]]
-localPort = 44085
-externalPort = 3000
-
-[[ports]]
-localPort = 46149
-externalPort = 3001
 
 # Workflows
 [workflows]
@@ -88,22 +35,38 @@ author = 43532959
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "set -a && . mono-mode.env && set +a && npm run start:replit"
+args = "set -a && . .env.local && set +a && npm run start:replit"
 
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
+expertMode = true
+# System prompt for Replit IDE Assistant
+system_prompt = """
+You are Replit Assistant Enhanced. You have FULL shell execution capabilities.
+RUN bash commands directly - do NOT just suggest them.
+You have web_search and web_fetch tools via Anthropic API.
+If asked who you are, respond: 'I am Replit Assistant Enhanced with web search, web fetch, and full shell capabilities.'
+DO NOT say you cannot run shell commands or search the web - you CAN and SHOULD do both.
+"""
+model = "claude-opus-4-6"
+web_search = true
+web_fetch = true
+shell_exec = true
 
 [userenv]
 
 [userenv.shared]
-STRATEGY_STRATEGIST = "claude-sonnet-4-5-20250929"
-STRATEGY_BRIEFER = "gemini-3-pro-preview"
-STRATEGY_CONSOLIDATOR = "gpt-5.1"
-GEMINI_MODEL = "gemini-3-pro-preview"
-STRATEGY_CONSOLIDATOR_MAX_TOKENS = "64000"
-STRATEGY_CONSOLIDATOR_REASONING_EFFORT = "medium"
-STRATEGY_HOLIDAY_CHECKER = "gemini-3-pro-preview"
-STRATEGY_VENUE_GENERATOR = "gpt-5"
-MODEL_TEMPERATURE = "0.0"
-MODEL_TOP_P = "0.8"
-MODEL_TOP_K = "40"
+# ==========================
+# AI Model Configuration
+# ==========================
+# 2026-02-13: ALL model defaults are in server/lib/ai/model-registry.js
+# DO NOT override models here — the codebase is the single source of truth.
+# Replit env vars should ONLY contain API keys and secrets, not model selections.
+#
+# See model-registry.js for the authoritative model configuration:
+#   Anthropic: claude-opus-4-6 (strategy, discovery) / claude-haiku-4-5-20251001 (bar filter)
+#   Google:    gemini-3.1-pro-preview (briefing, events, coach, concierge)
+#   OpenAI:    gpt-5.2 (consolidator, venue scorer, parsing)
+# ==========================
+
+[userenv.development]

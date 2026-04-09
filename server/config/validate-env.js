@@ -41,8 +41,14 @@ export function validateEnvironment() {
     warnings.push('JWT_SECRET not set and no REPLIT_DEVSERVER_INTERNAL_ID fallback — auth tokens cannot be signed');
   }
 
+  // 2026-04-09: Promoted to production error. Without this secret, agent/system auth
+  // endpoints reject ALL requests — that's not a degradation, it's a broken feature.
   if (!process.env.VECTO_AGENT_SECRET) {
-    warnings.push('VECTO_AGENT_SECRET not set — agent/system auth endpoints will reject all requests');
+    if (isProd) {
+      errors.push('VECTO_AGENT_SECRET not set — agent/system auth endpoints will reject all requests');
+    } else {
+      warnings.push('VECTO_AGENT_SECRET not set — agent/system auth endpoints will reject all requests');
+    }
   }
 
   // WARNINGS: Optional but recommended services
@@ -54,15 +60,24 @@ export function validateEnvironment() {
     warnings.push('GOOGLEAQ_API_KEY not set - air quality data will be unavailable');
   }
 
-  // 2026-02-19: Uber OAuth warnings only if Uber integration is partially configured
-  // Avoids noisy warnings when Uber integration is not enabled at all
+  // 2026-02-19: Uber OAuth validation (only when Uber integration is configured)
+  // 2026-04-09: Promoted to production errors. If Uber is configured but deps are missing,
+  // that's not a "warning" — Uber auth is BROKEN and users will hit a wall at runtime.
   const hasAnyUberConfig = !!(process.env.UBER_CLIENT_ID || process.env.UBER_CLIENT_SECRET || process.env.UBER_REDIRECT_URI);
   if (hasAnyUberConfig) {
     if (!process.env.TOKEN_ENCRYPTION_KEY) {
-      warnings.push('TOKEN_ENCRYPTION_KEY not set - Uber auth will fail');
+      if (isProd) {
+        errors.push('TOKEN_ENCRYPTION_KEY not set — Uber OAuth is configured but token encryption will fail');
+      } else {
+        warnings.push('TOKEN_ENCRYPTION_KEY not set - Uber auth will fail');
+      }
     }
     if (!process.env.UBER_CLIENT_ID || !process.env.UBER_CLIENT_SECRET || !process.env.UBER_REDIRECT_URI) {
-      warnings.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured');
+      if (isProd) {
+        errors.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured — Uber integration is broken');
+      } else {
+        warnings.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured');
+      }
     }
   }
   
