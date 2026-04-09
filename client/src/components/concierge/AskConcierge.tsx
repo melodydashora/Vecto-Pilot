@@ -209,8 +209,9 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
                     <Sparkles className="h-3 w-3 text-indigo-400" />
                   </div>
                 )}
+                {/* 2026-04-09: Added break-words to prevent long URLs/paths from overflowing chat bubbles */}
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed break-words ${
                     msg.role === 'user'
                       ? 'bg-indigo-600 text-white rounded-br-md'
                       : 'bg-slate-800 text-slate-200 rounded-bl-md border border-slate-700'
@@ -259,8 +260,9 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
           <p className="text-xs text-red-400 text-center mb-2">{error}</p>
         )}
 
-        <form onSubmit={handleSubmit} className="flex items-center gap-2 max-w-lg mx-auto">
-          <div className="flex-1 relative">
+        {/* 2026-04-09: Added max-w-full to prevent mobile horizontal overflow pushing Send button off-screen */}
+        <form onSubmit={handleSubmit} className="flex items-center gap-2 max-w-lg mx-auto w-full">
+          <div className="flex-1 min-w-0 relative">
             <input
               ref={inputRef}
               type="text"

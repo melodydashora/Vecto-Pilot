@@ -43,6 +43,9 @@ export function SmartBlocksStatus({
   // Get cycling venue loading messages
   const venueMessages = useVenueLoadingMessages(pipelinePhase);
 
+  // 2026-04-09: Log snapshot ID for debugging in all environments (UI display is dev-only)
+  if (snapshotId) console.log('[SmartBlocksStatus] snapshotId:', snapshotId);
+
   return (
     <Card className="border-2 border-purple-400 bg-gradient-to-br from-purple-50 to-indigo-50 shadow-lg" data-testid="smart-blocks-status">
       <CardContent className="p-4">
@@ -174,7 +177,9 @@ export function SmartBlocksStatus({
           </div>
 
           {/* Stage 3: Location Context */}
-          {snapshotId && (
+          {/* 2026-04-09: Snapshot ID hidden in production — only shown in dev for debugging.
+             Console.log retained so developers can still inspect via browser devtools. */}
+          {snapshotId && import.meta.env.DEV && (
             <div className="flex items-start gap-3 pt-2 border-t border-purple-200">
               <MapPin className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1">

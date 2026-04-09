@@ -306,11 +306,13 @@ export const MODEL_ROLES = {
   // 8. TRANSLATION (real-time rider communication)
   // ==========================
   // 2026-03-16: Added for FIFA World Cup rider translation feature.
-  // Flash for speed — translation is extraction/mapping, not reasoning.
-  // Sub-200ms target for real-time conversational UX.
+  // 2026-04-09: Upgraded gemini-3-flash → gemini-3.1-flash-lite (D-101).
+  // Flash-Lite is Google's most cost-efficient model (March 2026), optimized for
+  // high-volume low-latency text tasks. Standard REST API, no integration changes.
+  // Flash Live (audio WebSocket) was considered but is wrong fit for text-to-text.
   UTIL_TRANSLATION: {
     envKey: 'UTIL_TRANSLATION_MODEL',
-    default: 'gemini-3-flash-preview',
+    default: 'gemini-3.1-flash-lite-preview',
     purpose: 'Real-time text translation for driver-rider communication',
     maxTokens: 512,
     temperature: 0.1, // Near-deterministic for consistent translations

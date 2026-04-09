@@ -124,16 +124,10 @@ export default function MapPage() {
     return mappedBars;
   }, [barsData]);
 
-  // Show placeholder if no location or snapshot
-  if (!coords || !lastSnapshotId) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <MapPin className="w-12 h-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-semibold text-gray-700">Map & Venues</h3>
-        <p className="text-gray-500 mt-2">Generate recommendations to view them on the map</p>
-      </div>
-    );
-  }
+  // 2026-04-09: A-001 FIX — Moved useMemo calls above the early return to comply with
+  // React's Rules of Hooks (hooks must be called unconditionally at the top level).
+  // Previously these were after the `if (!coords || !lastSnapshotId)` guard, which meant
+  // they were conditionally skipped, breaking React's hook ordering between renders.
 
   // 2026-04-04: Memoize venue + event transforms to prevent infinite MapTab re-render loop.
   // Previously these were inline .map() calls that created new array references on every render,
@@ -165,6 +159,17 @@ export default function MapPage() {
     impact: e.impact as 'high' | 'medium' | 'low' | undefined,
     subtype: e.subtype as string | undefined,
   })), [activeEventsData?.events]);
+
+  // Show placeholder if no location or snapshot
+  if (!coords || !lastSnapshotId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <MapPin className="w-12 h-12 text-gray-400 mb-4" />
+        <h3 className="text-lg font-semibold text-gray-700">Map & Venues</h3>
+        <p className="text-gray-500 mt-2">Generate recommendations to view them on the map</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="map-page">

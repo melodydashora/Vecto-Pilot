@@ -652,6 +652,19 @@ function safeJsonParse(jsonString) {
     // Catches citations like [NBC News](https://nbc.com) that corrupt JSON array bracket matching
     cleaned = cleaned.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1');
 
+    // 2026-04-09: FIX (D-095) - Strip malformed markdown link artifacts that Gemini injects
+    // into JSON string values (e.g. school closure data). The valid markdown regex above
+    // only catches well-formed [text](url). Malformed variants like ([collintimes.com)
+    // leave stray brackets/parens that corrupt JSON parsing.
+    // Pattern 1: ([text) — open paren, bracket, content, close paren (no proper markdown)
+    cleaned = cleaned.replace(/\(\[([^\]]*?)\)(?!\s*[{[\],:}])/g, '$1');
+    // Pattern 2: [text] not followed by (url) — bare reference-style links inside strings
+    // Negative lookahead ensures we don't strip valid JSON array brackets (followed by JSON structural chars)
+    cleaned = cleaned.replace(/(?<=:\s*"[^"]*)\[([^\]]*)\](?!\s*[,\]}:({])/g, '$1');
+    // Pattern 3: (url) fragments that look like citation URLs inside string values
+    // Only matches when preceded by word char (end of a citation source name) and contains dot (URL-like)
+    cleaned = cleaned.replace(/(?<=\w)\((?:https?:\/\/)?[a-zA-Z0-9.-]+\.[a-z]{2,}[^)]*\)/g, '');
+
     // Remove standalone markdown lines (headers, horizontal rules) that precede JSON
     const lines = cleaned.split('\n');
     const jsonLines = [];
