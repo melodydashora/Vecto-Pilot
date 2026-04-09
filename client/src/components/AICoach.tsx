@@ -848,8 +848,9 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
                 <Zap className="h-3.5 w-3.5 text-white" />
               </div>
             )}
+            {/* 2026-04-09: Added break-words to prevent long URLs/paths from overflowing chat bubbles */}
             <div
-              className={`inline-block rounded-2xl px-4 py-2.5 max-w-[75%] shadow-sm ${
+              className={`inline-block rounded-2xl px-4 py-2.5 max-w-[75%] shadow-sm break-words ${
                 m.role === "user"
                   ? "bg-blue-600 text-white rounded-br-sm"
                   : "bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600 rounded-bl-sm"

@@ -460,10 +460,10 @@ These items are **documented and accepted** technical debt. They are NOT blockin
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
-| D-086 | `config/agent-policy.json` vs `server/config/agent-policy.json` | Duplicate policy files drifted: `config/` has `web_fetch_20250910` + `max_uses:5`, `server/config/` has older `web_fetch_20250305` | Both paths in fallback chains (`config-manager.js:68-69`, `enhanced-context-base.js:219-224`) | PENDING |
-| D-087 | `config/assistant-policy.json` vs `server/config/assistant-policy.json` | Same drift as D-086 — newer web_fetch type in `config/`, older in `server/config/` | `policy-loader.js` defaults to `server/config/` path | PENDING |
-| D-088 | `config/eidolon-policy.json` vs `server/config/eidolon-policy.json` | Same drift + **JSON syntax error** in `config/` copy: `"web-fetch-2025-09-10"5"` (corrupted string literal) | Corrupted JSON will crash on parse | PENDING |
-| D-089 | `client/vite.config.ts` | Dead config file — contains comment "NOTE: This config is NOT used - see root /vite.config.js" | Root `vite.config.js` (updated 2026-04-05) is authoritative | PENDING |
+| D-086 | `config/agent-policy.json` vs `server/config/agent-policy.json` | Duplicate policy files drifted | Consolidated to `config/`, deleted `server/config/` copies, updated all consumers | ✅ FIXED 2026-04-09 |
+| D-087 | `config/assistant-policy.json` vs `server/config/assistant-policy.json` | Same drift as D-086 | Consolidated to `config/`, deleted `server/config/` copies | ✅ FIXED 2026-04-09 |
+| D-088 | `config/eidolon-policy.json` vs `server/config/eidolon-policy.json` | JSON syntax error + drift | Fixed syntax error, consolidated, deleted duplicate | ✅ FIXED 2026-04-09 |
+| D-089 | `client/vite.config.ts` | Dead config file | Deleted. Root `vite.config.js` is authoritative | ✅ FIXED 2026-04-09 |
 
 ### PRODUCTION ENVIRONMENT (P0 - Broken Features)
 
@@ -473,12 +473,29 @@ These items are **documented and accepted** technical debt. They are NOT blockin
 | D-093 | Replit Prod Secrets | `TOKEN_ENCRYPTION_KEY` not set — Uber OAuth token encryption broken in production | Must be added as Replit Secret in the production deployment | PENDING |
 | D-094 | `server/config/validate-env.js` | Was classifying broken prod features as "warnings" — server booted with ✅ while features were broken | Fixed 2026-04-09: promoted to production errors | ✅ FIXED |
 
+### PRODUCTION RUNTIME ERRORS (P0/P1 - Active failures in prod logs 2026-04-09)
+
+| ID | Location | Issue | Root Cause | Status |
+|----|----------|-------|------------|--------|
+| D-095 | `server/lib/briefing/briefing-service.js:652-665` | Briefing JSON parse — malformed markdown links | Added 3 regex patterns for `([text)`, bare `[text]`, and `(url)` fragments | ✅ FIXED 2026-04-09 |
+| D-096 | `server/lib/venue/enhanced-smart-blocks.js:121` | Venue error logs "unknown" | Unwrapped Drizzle error chain: `err.cause.code/message` | ✅ FIXED 2026-04-09 |
+| D-097 | `shared/schema.js:237` | Venue `category` NOT NULL no default | Added `.default('venue')` to schema | ✅ FIXED 2026-04-09 |
+| D-098 | `server/api/translate/translation-prompt.js` | Translation parse failures | 3-attempt fallback chain + error logging of raw response | ✅ FIXED 2026-04-09 |
+| D-099 | Briefing pipeline | Event search `high_impact` timeout at 90s — returns empty | External API or query exceeds timeout; events silently dropped | PENDING |
+| D-100 | `server/bootstrap/middleware.js` | Payload too large (3x consecutive 413s) | Client doesn't validate upload size pre-flight; user retries with no helpful error | PENDING |
+
+### MODEL UPGRADE RECOMMENDATION (2026-04-09)
+
+| ID | Current Model | Recommended | Reason | Status |
+|----|--------------|-------------|--------|--------|
+| D-101 | `model-registry.js` UTIL_TRANSLATION | Model upgrade | Changed from `gemini-3-flash-preview` to `gemini-3.1-flash-lite-preview` (lower latency, lower cost) | ✅ FIXED 2026-04-09 |
+
 ### SECURITY (P0 - Dependency Vulnerability)
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
-| D-090 | `drizzle-orm@0.44.7` | GHSA-gpj5-g38j-94v9: SQL injection via improperly escaped identifiers | Fix: upgrade to 0.45.2, bump drizzle-kit to ^0.31.10. Low migration risk — no `drizzle-zod` imports, no dynamic `sql.identifier()` usage | PENDING |
-| D-091 | `vite@7.3.1` | 2 high vulns: path traversal in optimized deps + `server.fs.deny` bypass | Dev-server only, not production. Fix via `npm audit fix` | PENDING |
+| D-090 | `drizzle-orm@0.44.7` | SQL injection (GHSA-gpj5-g38j-94v9) | Upgraded to drizzle-orm@0.45.2 + drizzle-kit@0.31.10. 0 production vulns remaining | ✅ FIXED 2026-04-09 |
+| D-091 | `vite@7.3.1` | Path traversal + fs.deny bypass | Upgraded to vite@7.3.2 via npm audit fix. Dev-only vulns resolved | ✅ FIXED 2026-04-09 |
 
 ---
 

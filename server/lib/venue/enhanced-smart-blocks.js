@@ -116,9 +116,12 @@ async function promoteToVenueCatalog(enrichedVenues, snapshot) {
     if (result.status === 'fulfilled' && result.value?.venue_id) {
       venueIdMap.set(promotable[index].name, result.value.venue_id);
     } else if (result.status === 'rejected') {
-      // 2026-04-02: FIX - Log the actual DB error code/detail, not just the Drizzle wrapper
+      // 2026-04-09: D-096 FIX - Unwrap Drizzle ORM error wrappers to surface real PG error code/detail.
+      // Drizzle wraps PostgreSQL errors in .cause or .original; err.code is undefined on the wrapper.
       const err = result.reason;
-      venuesLog.warn(3, `Catalog promotion failed for "${promotable[index].name}": ${err?.code || 'unknown'} — ${err?.detail || err?.message || 'no detail'}`);
+      const pgCode = err?.cause?.code || err?.original?.code || err?.code || 'unknown';
+      const pgDetail = err?.cause?.detail || err?.cause?.message || err?.detail || err?.message || 'no detail';
+      venuesLog.warn(3, `Catalog promotion failed for "${promotable[index].name}": ${pgCode} — ${pgDetail}`);
     }
   });
 

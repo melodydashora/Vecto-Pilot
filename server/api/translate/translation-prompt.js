@@ -52,18 +52,41 @@ Output format:
  * @throws {Error} If JSON cannot be extracted
  */
 export function parseTranslationResponse(responseText) {
-  // Try direct parse after stripping markdown fences
+  // 2026-04-09: Enhanced parser with 3-attempt fallback chain.
+  // Gemini Flash sometimes returns markdown fences, prose preamble, or truncated JSON.
+
+  // Attempt 1: Direct parse after stripping markdown fences
   try {
     const cleaned = responseText
       .replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleaned);
-  } catch {
-    // Fallback: extract first JSON object from prose
+  } catch { /* fall through */ }
+
+  // Attempt 2: Extract first JSON object from prose
+  try {
     const firstBrace = responseText.indexOf('{');
     const lastBrace = responseText.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace > firstBrace) {
       return JSON.parse(responseText.slice(firstBrace, lastBrace + 1));
     }
-    throw new Error('Failed to parse translation response');
-  }
+  } catch { /* fall through */ }
+
+  // Attempt 3: Aggressive cleanup — strip markdown links, control chars, then retry
+  try {
+    let aggressive = responseText
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')  // [text](url) → text
+      .replace(/\([^)]*\.(com|org|net|io)[^)]*\)/g, '') // (domain.com) fragments
+      .replace(/```json/g, '').replace(/```/g, '')
+      .replace(/[\x00-\x1f]/g, ' ')  // control chars → space
+      .trim();
+    const firstBrace = aggressive.indexOf('{');
+    const lastBrace = aggressive.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(aggressive.slice(firstBrace, lastBrace + 1));
+    }
+  } catch { /* fall through */ }
+
+  // Log the raw response for debugging before throwing
+  console.error('[translate] All parse attempts failed. Raw response (first 300 chars):', responseText.substring(0, 300));
+  throw new Error('Failed to parse translation response');
 }

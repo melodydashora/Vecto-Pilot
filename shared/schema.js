@@ -234,7 +234,9 @@ export const venue_catalog = pgTable("venue_catalog", {
   address: varchar('address', { length: 500 }).notNull(), // Max 500 chars (full address)
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
-  category: text("category").notNull(),
+  // 2026-04-09: D-097 FIX - Added .default('venue') to prevent NOT NULL constraint violations
+  // when callers omit category. Matches the fallback used in insertVenue() and promoteToVenueCatalog().
+  category: text("category").notNull().default('venue'),
   dayparts: text("dayparts").array(),
   staging_notes: jsonb("staging_notes"),
   city: text("city"),
