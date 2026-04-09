@@ -64,9 +64,10 @@ const ALLOWED_CONFIG_FILES = [
   "agent-server.js",
   "index.js",
   
-  // Assistant & Eidolon configs
+  // Assistant & Eidolon configs (2026-04-09: consolidated to config/ — single source of truth)
   "config/assistant-policy.json",
-  "server/config/assistant-policy.json",
+  "config/agent-policy.json",
+  "config/eidolon-policy.json",
   
   // Documentation
   "README.md",

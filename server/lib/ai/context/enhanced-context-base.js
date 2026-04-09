@@ -216,12 +216,10 @@ export async function getEnhancedProjectContextBase(identity, memoryTable, optio
       "package.json",
       "tsconfig.json",
       "drizzle.config.ts",
+      // 2026-04-09: Consolidated to config/ — single source of truth (removed server/config/ duplicates)
       "config/assistant-policy.json",
       "config/agent-policy.json",
       "config/eidolon-policy.json",
-      "server/config/assistant-policy.json",
-      "server/config/agent-policy.json",
-      "server/config/eidolon-policy.json",
     ];
 
     for (const file of configFilesToRead) {

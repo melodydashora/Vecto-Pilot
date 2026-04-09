@@ -454,6 +454,32 @@ These items are **documented and accepted** technical debt. They are NOT blockin
 | D-084 | `docs/architecture/briefing-system.md` | Last updated 2026-02-10 | Code changed significantly through 2026-02-17 | PENDING |
 | D-085 | `ARCHITECTURE.md` | Claims "95 README files total" | Actual count appears to be ~82 | PENDING |
 
+### CONFIG DRIFT (P1 - Duplicate Logic = Bug, Rule 9)
+
+**Audit Source:** PID & Config assessment, 2026-04-09
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-086 | `config/agent-policy.json` vs `server/config/agent-policy.json` | Duplicate policy files drifted: `config/` has `web_fetch_20250910` + `max_uses:5`, `server/config/` has older `web_fetch_20250305` | Both paths in fallback chains (`config-manager.js:68-69`, `enhanced-context-base.js:219-224`) | PENDING |
+| D-087 | `config/assistant-policy.json` vs `server/config/assistant-policy.json` | Same drift as D-086 — newer web_fetch type in `config/`, older in `server/config/` | `policy-loader.js` defaults to `server/config/` path | PENDING |
+| D-088 | `config/eidolon-policy.json` vs `server/config/eidolon-policy.json` | Same drift + **JSON syntax error** in `config/` copy: `"web-fetch-2025-09-10"5"` (corrupted string literal) | Corrupted JSON will crash on parse | PENDING |
+| D-089 | `client/vite.config.ts` | Dead config file — contains comment "NOTE: This config is NOT used - see root /vite.config.js" | Root `vite.config.js` (updated 2026-04-05) is authoritative | PENDING |
+
+### PRODUCTION ENVIRONMENT (P0 - Broken Features)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-092 | Replit Prod Secrets | `VECTO_AGENT_SECRET` not set — agent/system auth rejects ALL requests in production | Must be added as Replit Secret in the production deployment | PENDING |
+| D-093 | Replit Prod Secrets | `TOKEN_ENCRYPTION_KEY` not set — Uber OAuth token encryption broken in production | Must be added as Replit Secret in the production deployment | PENDING |
+| D-094 | `server/config/validate-env.js` | Was classifying broken prod features as "warnings" — server booted with ✅ while features were broken | Fixed 2026-04-09: promoted to production errors | ✅ FIXED |
+
+### SECURITY (P0 - Dependency Vulnerability)
+
+| ID | Location | Issue | Code Truth | Status |
+|----|----------|-------|------------|--------|
+| D-090 | `drizzle-orm@0.44.7` | GHSA-gpj5-g38j-94v9: SQL injection via improperly escaped identifiers | Fix: upgrade to 0.45.2, bump drizzle-kit to ^0.31.10. Low migration risk — no `drizzle-zod` imports, no dynamic `sql.identifier()` usage | PENDING |
+| D-091 | `vite@7.3.1` | 2 high vulns: path traversal in optimized deps + `server.fs.deny` bypass | Dev-server only, not production. Fix via `npm audit fix` | PENDING |
+
 ---
 
 ## Adding New Discrepancies

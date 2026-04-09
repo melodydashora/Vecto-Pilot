@@ -176,4 +176,15 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Catch-all — redirect unknown paths to root
+  // 2026-04-09: Replit's preview proxy can leak the port number into the URL
+  // path (e.g., "/5000"), causing React Router to crash with no matching route.
+  // This catch-all redirects any unmatched path back to "/" gracefully.
+  // ═══════════════════════════════════════════════════════════════════════════
+  {
+    path: '*',
+    element: <Navigate to="/" replace />,
+  },
 ]);

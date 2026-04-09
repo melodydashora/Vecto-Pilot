@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-25
+> **Last Verified:** 2026-04-09
 
 # Config Module (`server/config/`)
 
@@ -14,9 +14,8 @@ Server configuration: environment loading, validation, and runtime settings.
 | `validate-env.js` | Environment validation (required API keys, strategy model config) |
 | `env-registry.js` | Environment variable registry with defaults and types |
 | `holiday-override.json` | Manual holiday override configuration |
-| `agent-policy.json` | Agent system policy |
-| `assistant-policy.json` | Assistant system policy |
-| `eidolon-policy.json` | Eidolon system policy |
+
+> **Note (2026-04-09):** Policy files (`agent-policy.json`, `assistant-policy.json`, `eidolon-policy.json`) were consolidated to `config/` (project root) as the single source of truth. They no longer live in `server/config/`. See `config-manager.js` and `policy-loader.js`.
 
 ## Usage
 
@@ -97,6 +96,6 @@ import { validateOrExit } from './server/config/validate-env.js';
 // From server/lib/*/
 import holidayOverrides from '../../config/holiday-override.json' assert { type: 'json' };
 
-// Reading policy files
+// Reading policy files (from config/ at project root — single source of truth since 2026-04-09)
 const policy = await import('../../config/agent-policy.json', { assert: { type: 'json' } });
 ```

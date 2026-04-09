@@ -5,7 +5,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-export function loadAssistantPolicy(path = 'server/config/assistant-policy.json') {
+// 2026-04-09: Consolidated to config/ as single source of truth (was server/config/, caused drift)
+export function loadAssistantPolicy(path = 'config/assistant-policy.json') {
   try {
     const configPath = join(process.cwd(), path);
     const raw = readFileSync(configPath, 'utf-8');

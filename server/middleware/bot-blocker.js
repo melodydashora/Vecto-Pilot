@@ -138,6 +138,13 @@ export function botBlocker(req, res, next) {
     return next();
   }
 
+  // 2026-04-09: Allow Replit internal proxy probes (preview pane reachability checks)
+  // Replit probes /__repl* paths with no/internal User-Agent to decide if the app is reachable.
+  // Blocking these causes the preview pane to show "We couldn't reach this app."
+  if (path.startsWith('/__repl')) {
+    return next();
+  }
+
   // 2026-02-15: Allow hooks (Siri Shortcuts, Android Automations)
   // These endpoints are explicitly public and designed for automated clients.
   // Siri sends a valid UA (Shortcuts/x.x) but other automation tools may not.
