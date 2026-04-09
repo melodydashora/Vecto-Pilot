@@ -1,0 +1,2 @@
+- [Melody](user_melody.md) — rideshare driver, no-code background, building AI reference implementation
+- [No soft failures](feedback_no_soft_failures.md) — never dismiss broken features as "non-fatal warnings"

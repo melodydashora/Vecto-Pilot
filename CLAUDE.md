@@ -130,4 +130,36 @@ The AI Coach needs **write access** to capture learnings from real user interact
 - **`gateway-server.js`**: Main application entry point. Handles bootstrap, environment validation, and mounts the Unified AI capabilities.
 - **`server/lib/ai/unified-ai-capabilities.js`**: Central registry for AI capabilities and health monitoring.
 - **`server/bootstrap/routes.js`**: Central route mounting logic.
+
+---
+
+## 🤝 Claude Code ↔ Gemini Bridge (2026-04-08)
+
+**You (Claude Code) can delegate tasks to Gemini 3.1 Pro via a CLI.** Use it when a task would benefit from Gemini's strengths:
+
+- **Live web knowledge** — anything past your training cutoff (API docs, current rate limits, recent incidents)
+- **Large-context analysis** — a whole file or whole directory that would burn a lot of your Reads
+- **Vision / screenshots** — Melody frequently shares screenshots of the running app. Pass them to Gemini with `--image` for layout/UX/visual-bug analysis. This is often the right first move when a UI issue is described visually rather than in code terms.
+- **Second opinion** — when you're genuinely uncertain about a design call and want a peer check
+
+**Invocation (via your Bash tool):**
+```bash
+node scripts/ask-gemini.mjs "your task"                                     # one-shot, search on by default
+node scripts/ask-gemini.mjs --file path/to/file.js "task"                   # attach a file as context
+node scripts/ask-gemini.mjs --image path/to/screenshot.png "what's wrong?"  # vision analysis
+node scripts/ask-gemini.mjs --image a.png --image b.png "compare these"     # multi-image comparison
+node scripts/ask-gemini.mjs --thread <name> "follow-up"                     # multi-turn conversation
+node scripts/ask-gemini.mjs --no-search --no-diff "quick task"              # minimal context
+node scripts/ask-gemini.mjs --help                                          # full options
+```
+
+**Vision notes:** supported formats are `.png .jpg .jpeg .webp .gif .heic .heif`; 15MB hard cap per image; in thread mode an image is visible only on the turn it's attached — re-attach on follow-ups if needed.
+
+**On first turn of any thread (or in one-shot mode), `git diff HEAD` is auto-attached** so Gemini sees what we just changed. Turn it off with `--no-diff` when you don't want that overhead.
+
+**When NOT to delegate:** small edits, things you can verify with a single Grep, anything where waking up another model is slower than just doing it yourself. This is a tool for high-value, high-context tasks — not a reflex.
+
+**Feedback loop the other direction:** the in-app AI Coach (also Gemini) writes memos to `docs/coach-inbox.md` via `[COACH_MEMO]` tags. Rule 12 already tells you to check that file at session start.
+
+See `scripts/README.md` §"Claude Code ↔ Gemini Bridge" for full CLI reference and design rationale.
 - **`server/bootstrap/workers.js`**: Worker process management (Strategy Worker).
