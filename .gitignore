@@ -51,6 +51,9 @@ GEMINIMEMORY.md
 all_files.txt
 jspm_packages/
 
+# Claude Code ↔ Gemini CLI thread history (scripts/ask-gemini.mjs, 2026-04-08)
+.gemini-threads/
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 

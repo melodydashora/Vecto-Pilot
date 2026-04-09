@@ -247,10 +247,17 @@
       "Bash(/tmp/relationship_analysis.sh)",
       "Bash(/tmp/index_coverage.sh)",
       "Bash(/tmp/final_analysis.sh)",
-      "Bash(git cherry-pick:*)"
+      "Bash(git cherry-pick:*)",
+      "Bash(touch /tmp/fake.bmp)",
+      "Bash(rm -f /tmp/fake.bmp)",
+      "Bash(kill 5759 5748 5733 5732)",
+      "Bash(openssl rand:*)"
     ],
     "deny": [],
     "ask": []
+  },
+  "enabledPlugins": {
+    "feature-dev@claude-plugins-official": true
   },
   "outputStyle": "Explanatory"
 }

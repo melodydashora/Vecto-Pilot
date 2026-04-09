@@ -8,7 +8,10 @@
     },
     "debugKeystrokeLogging": true,
     "previewFeatures": true,
-    "enablePromptCompletion": true
+    "enablePromptCompletion": true,
+    "plan": {
+      "enabled": true
+    }
   },
   "security": {
     "enablePermanentToolApproval": true,
@@ -25,12 +28,7 @@
       "showColor": true
     }
   },
-  "experimental": {
-    "plan": true,
-    "codebaseInvestigatorSettings": {
-      "maxNumTurns": 100
-    }
-  },
+  "experimental": {},
   "ide": {
     "enabled": true
   },
