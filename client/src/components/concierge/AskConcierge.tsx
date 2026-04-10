@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, Loader2, Sparkles, ArrowUp } from 'lucide-react';
+import { Loader2, Sparkles, ArrowUp } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface ChatMessage {

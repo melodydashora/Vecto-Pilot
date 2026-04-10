@@ -114,7 +114,6 @@ const BriefingTab = memo(function BriefingTab({
     subtype: event.event_type || event.subtype,
     venue: event.venue || event.location,
   }));
-  const eventsToday = allEvents.filter(isEventForToday);
 
   // Process Market Events
   const marketName = eventsData?.market_name || null;

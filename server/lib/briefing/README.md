@@ -41,7 +41,7 @@ Real-time briefing service for events, traffic, weather, news, airport condition
 | `venue-event-verifier.js` | Verify event-venue matches (hours + proximity) | `verifyEventVenueMatch()` |
 | `enhanced-smart-blocks.js` | Generate SmartBlocks with event context | `generateEnhancedSmartBlocks()` |
 | `district-detection.js` | Detect entertainment districts | `detectDistrict()` |
-| `phase-emitter.js` | SSE phase progress to client | `emitPhase()` |
+| `../../events/phase-emitter.js` | SSE phase progress to client (lives in `server/events/`, not here) | `emitPhase()` |
 | `index.js` | Module barrel exports | All briefing exports |
 | `dump-last-briefing.js` | Debug utility: dump last briefing | CLI script |
 | `dump-latest.js` | Debug utility: dump latest briefing | CLI script |

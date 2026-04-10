@@ -1,7 +1,7 @@
 # Briefing System Architecture
 
 **Status:** Active / Phase 3 Intelligence
-**Last Updated:** 2026-02-10
+**Last Updated:** 2026-04-10
 
 ## 1. Overview
 
@@ -79,13 +79,18 @@ All endpoints are prefixed with `/api/briefing` and require authentication (`req
 
 ### Primary Flows
 - **`GET /current`**: Returns the latest generated briefing for the user's last snapshot. Fast (reads DB).
-- **`POST /refresh`**: Forces a regeneration of real-time components (Traffic, Weather).
-- **`POST /refresh-daily/:snapshotId`**: Forces a regeneration of daily components (Events, News).
+- **`POST /refresh`**: Forces a regeneration of real-time components (Traffic, Weather, News).
 
 ### Component-Specific
 - **`GET /traffic/realtime?lat=...&lng=...`**: Fetches raw traffic analysis for a specific point.
 - **`GET /weather/realtime?lat=...&lng=...`**: Fetches current weather conditions.
 - **`GET /events/:snapshotId`**: Fetches events from `discovered_events` table (with filters).
+- **`GET /discovered-events/:snapshotId`**: Fetches raw discovered events from DB for snapshot's location (next 7 days). *(Added 2026-04-09)*
+
+### Event & News Management *(Added 2026-04-09)*
+- **`POST /filter-invalid-events`**: Removes events with TBD/Unknown in critical fields (strict removal, no AI repair).
+- **`PATCH /event/:eventId/deactivate`**: Deactivate an event (hide from Map). Used by AI Coach. Requires market authorization.
+- **`PATCH /event/:eventId/reactivate`**: Reactivate a previously deactivated event. Requires market authorization.
 
 ## 6. Caching & Freshness
 
@@ -93,9 +98,10 @@ All endpoints are prefixed with `/api/briefing` and require authentication (`req
 - **`briefings` Table:** Stores the consolidated JSON object. Acts as the "Hot Cache".
 - **`discovered_events` Table:** Stores unique events. Allows de-duplication across users/snapshots.
 
-### Refresh Intervals
-- **Traffic/Weather:** 5-15 minutes (Real-time).
-- **Events/News/Schools:** 24 hours (Daily).
+### Refresh Intervals *(Corrected 2026-04-09)*
+- **Traffic/Weather/News:** Always fresh (fetched every request, never cached).
+- **Events:** 4-hour staleness check (`isEventsStale()` in briefing-service.js). Refreshed when older than 4 hours.
+- **School Closures:** 24-hour city-level cache (only daily data that is cached).
 
 ### "Active" Filtering
 - Events are filtered by `event_start_date` and `event_start_time`.

@@ -434,10 +434,10 @@ These items are **documented and accepted** technical debt. They are NOT blockin
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
-| D-077 | `docs/architecture/briefing-system.md` | Documents phantom endpoint `POST /refresh-daily/:snapshotId` | Endpoint does not exist in code | PENDING |
-| D-078 | `docs/architecture/briefing-system.md` | Says "Events/News cache: 24 hours" | Events: 4h staleness, News: no cache | PENDING |
-| D-079 | `docs/architecture/briefing-system.md` | Missing 4 API endpoints from docs | Missing: filter-invalid-events, deactivate, reactivate, discovered-events | PENDING |
-| D-080 | `ARCHITECTURE.md` | Lists "OpenAI (GPT-5.2, Realtime API)" as primary model | Actual primary is Gemini 3.1 Pro for briefing roles | PENDING |
+| D-077 | `docs/architecture/briefing-system.md` | Documents phantom endpoint `POST /refresh-daily/:snapshotId` | Endpoint does not exist in code | RESOLVED 2026-04-09 — Removed phantom endpoint from docs |
+| D-078 | `docs/architecture/briefing-system.md` | Says "Events/News cache: 24 hours" | Events: 4h staleness, News: no cache | RESOLVED 2026-04-09 — Corrected: Events 4h, News always fresh, Closures 24h |
+| D-079 | `docs/architecture/briefing-system.md` | Missing 4 API endpoints from docs | Missing: filter-invalid-events, deactivate, reactivate, discovered-events | RESOLVED 2026-04-09 — Added all 4 endpoints to Section 5 |
+| D-080 | `ARCHITECTURE.md` | Lists "OpenAI (GPT-5.2, Realtime API)" as primary model | Actual primary is Gemini 3.1 Pro for briefing roles | RESOLVED 2026-04-09 — Reordered: Gemini 3.1 Pro primary, OpenAI GPT-5.4 for venues/voice |
 
 ### HIGH (P1 - Wrong Paths / References)
 

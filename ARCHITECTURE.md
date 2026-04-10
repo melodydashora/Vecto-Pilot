@@ -1,11 +1,15 @@
 
 # Vecto Pilot - Architecture Reference
 
-**Last Updated:** 2026-03-17 UTC
+**Last Updated:** 2026-04-10 UTC
 
 This file provides navigation to focused architecture documentation. Each linked document is designed to be readable in a single pass.
 
-## Recent Changes (2026-03-17)
+## Recent Changes (2026-04-10)
+
+- **Offer Tier Overhaul (2026-03-29)**
+  - 3-tier system: share / standard / premium
+  - Tier classification drives strategy recommendations and venue prioritization
 
 - **Real-Time Rider Translation (2026-03-17)**
   - FIFA World Cup 2026 feature: split-screen "Rearview" driver-rider translation
@@ -118,7 +122,7 @@ This file provides navigation to focused architecture documentation. Each linked
 - **Bootstrap System**: Separated server startup concerns into `server/bootstrap/`
 - **React Router Refactor**: Monolithic co-pilot.tsx split into 8 route-based pages
 - **Auth System**: New authentication pages and protected routes
-- **Documentation**: 95+ README files across all folders
+- **Documentation**: 237 README files across all folders
 - **Change Analyzer**: Automatic detection of repo changes that may need doc updates
 
 ## Quick Navigation
@@ -205,9 +209,9 @@ This file provides navigation to focused architecture documentation. Each linked
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EXTERNAL AI/API SERVICES                      │
+│  • Google (Gemini 3.1 Pro) — Briefing primary, Coach, Search    │
 │  • Anthropic (Claude Opus 4.6) — Strategy, Validation           │
-│  • OpenAI (GPT-5.2, Realtime API) — Tactical, Voice             │
-│  • Google (Gemini 3 Pro, Places, Routes, Weather, AQ)           │
+│  • OpenAI (GPT-5.4, Realtime API) — Venues, Voice (2026-04-09) │
 │  • Perplexity (Sonar Pro) — Real-time web research              │
 │  • TomTom — Traffic incidents                                    │
 │  • FAA ASWS — Airport delays                                     │
@@ -293,7 +297,7 @@ The AI considers:
 
 ## Complete Folder README Index
 
-Every folder has a README.md. Total: **95 README files**.
+Every folder has a README.md. Total: **237 README files** (verified 2026-04-10).
 
 ### Root Level
 
@@ -549,4 +553,4 @@ See [docs/review-queue/2026-02-15-findings.md](docs/review-queue/2026-02-15-find
 
 ---
 
-**Note:** This file was restructured on 2025-12-15 and updated on 2026-02-15 with current architecture state. Detailed content is in `docs/architecture/` for better readability. Complete folder README index includes 95+ files. All 32 doc discrepancies resolved.
+**Note:** This file was restructured on 2025-12-15 and updated on 2026-02-15 with current architecture state. Detailed content is in `docs/architecture/` for better readability. Complete folder README index includes 237 files. All 32 doc discrepancies resolved.
