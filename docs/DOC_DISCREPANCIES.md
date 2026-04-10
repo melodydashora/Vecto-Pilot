@@ -443,16 +443,16 @@ These items are **documented and accepted** technical debt. They are NOT blockin
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
-| D-081 | `server/lib/briefing/README.md` | References `phase-emitter.js` as in `server/lib/briefing/` | Actual location: `server/events/phase-emitter.js` | PENDING |
-| D-082 | `server/lib/traffic/tomtom.js` JSDoc | Says `radiusMiles` default 10 | Signature says `radiusMeters` 5000 | PENDING |
-| D-083 | `ARCHITECTURE.md` | Last updated 2026-03-17 | Code changed through 2026-03-29 (offer tier overhaul) | PENDING |
+| D-081 | `server/lib/briefing/README.md` | References `phase-emitter.js` in wrong directory | Fixed path to `../../events/phase-emitter.js` | ✅ FIXED 2026-04-10 |
+| D-082 | `server/lib/traffic/tomtom.js` JSDoc | Says `radiusMiles` default 10 | Fixed to `radiusMeters` 5000, corrected return shape | ✅ FIXED 2026-04-10 |
+| D-083 | `ARCHITECTURE.md` | Last updated 2026-03-17 | Updated to 2026-04-10, added offer tier overhaul entry | ✅ FIXED 2026-04-10 |
 
 ### MEDIUM (P2 - Stale / Incomplete)
 
 | ID | Location | Issue | Code Truth | Status |
 |----|----------|-------|------------|--------|
-| D-084 | `docs/architecture/briefing-system.md` | Last updated 2026-02-10 | Code changed significantly through 2026-02-17 | PENDING |
-| D-085 | `ARCHITECTURE.md` | Claims "95 README files total" | Actual count appears to be ~82 | PENDING |
+| D-084 | `docs/architecture/briefing-system.md` | Last updated 2026-02-10 | Updated to 2026-04-10 | ✅ FIXED 2026-04-10 |
+| D-085 | `ARCHITECTURE.md` | Claims "95 README files total" | Corrected to 237 (verified via find) | ✅ FIXED 2026-04-10 |
 
 ### CONFIG DRIFT (P1 - Duplicate Logic = Bug, Rule 9)
 
@@ -496,6 +496,77 @@ These items are **documented and accepted** technical debt. They are NOT blockin
 |----|----------|-------|------------|--------|
 | D-090 | `drizzle-orm@0.44.7` | SQL injection (GHSA-gpj5-g38j-94v9) | Upgraded to drizzle-orm@0.45.2 + drizzle-kit@0.31.10. 0 production vulns remaining | ✅ FIXED 2026-04-09 |
 | D-091 | `vite@7.3.1` | Path traversal + fs.deny bypass | Upgraded to vite@7.3.2 via npm audit fix. Dev-only vulns resolved | ✅ FIXED 2026-04-09 |
+
+---
+
+## 2026-04-10 Concierge Tab Security Audit (39 findings)
+
+**Audit Source:** Gemini 3.1 Pro deep-dive, verified by Claude Code agents against codebase
+**Commit:** `2a78c592` (security fixes)
+
+### CRITICAL (P0)
+
+| ID | Location | Issue | Status |
+|----|----------|-------|--------|
+| X-1 | `client/src/components/concierge/ConciergeMap.tsx:165-201` | Stored XSS via InfoWindow.setContent() — AI-generated HTML rendered unescaped on public page | ✅ FIXED 2026-04-10 — escapeHtml() on all AI data |
+
+### HIGH (P1 - Security)
+
+| ID | Location | Issue | Status |
+|----|----------|-------|--------|
+| CH-1 | `server/api/concierge/concierge.js:156,231,270,308` | Token bypass — weather, explore, ask, ask-stream accepted any string as token | ✅ FIXED 2026-04-10 — validateShareToken middleware on all endpoints |
+| CH-2 | `server/api/concierge/concierge.js:270-296,308-336` | Prompt injection — venueContext/eventContext injected raw into Gemini system prompt | ✅ FIXED 2026-04-10 — type check, 2000 char limit, whitespace normalization |
+| CH-3 | `server/lib/concierge/concierge-service.js:130-167` | PII leak — driver phone number returned on public profile endpoint | ✅ FIXED 2026-04-10 — phone removed from DB query and response |
+| CH-4 | `server/api/concierge/concierge.js:165-172` | API key architecture — weather endpoint uses Google Maps key server-side but endpoint was unprotected | ✅ MITIGATED — token validation now gates access |
+| CH-5 | `server/lib/concierge/concierge-service.js` | findOrCreateVenue() can't persist Gemini-discovered venues — missing coordinates from Gemini response breaks DB insert | PENDING |
+
+### MEDIUM (P2 - Race conditions, missing indexes, silent errors)
+
+| ID | Location | Issue | Status |
+|----|----------|-------|--------|
+| CM-1 | `server/lib/concierge/concierge-service.js` | Race condition in searchNearby() — concurrent requests can trigger duplicate Gemini calls for same location | PENDING |
+| CM-2 | `server/lib/concierge/concierge-service.js` | No spatial index on venue_catalog for lat/lng range queries — table scan on every explore request | PENDING |
+| CM-3 | `server/api/concierge/concierge.js` | No response.ok check on Google Weather API fetch — non-200 responses silently produce null weather | PENDING |
+| CM-4 | `server/api/concierge/concierge.js` | No response.ok check on Google AQI API fetch — failures silently swallowed | PENDING |
+| CM-5 | `server/api/concierge/concierge.js` | Feedback endpoint allows unlimited submissions per token — no dedup or rate tracking per passenger | PENDING |
+| CM-6 | `server/lib/concierge/concierge-service.js` | askConcierge() errors return generic message, no error logging of Gemini response body | PENDING |
+| CM-7 | `client/src/pages/concierge/PublicConciergePage.tsx` | No error boundary on public concierge page — React crash shows blank screen to passenger | PENDING |
+| CM-8 | `client/src/components/concierge/AskConcierge.tsx` | Chat history not persisted — refresh loses all messages | PENDING |
+| CM-9 | `server/lib/concierge/concierge-service.js` | buildConciergeSystemPrompt() has no max length check — very long context can exceed model limits | PENDING |
+| CM-10 | `server/api/concierge/concierge.js` | Weather and AQI fetched sequentially — could be parallelized for faster response | PENDING |
+| CM-11 | `server/lib/concierge/concierge-service.js` | Gemini venue search uses unbounded radius — may return irrelevant far-away results | PENDING |
+| CM-12 | `client/src/components/concierge/ConciergeMap.tsx` | Google Maps script loaded without error handling — if CDN fails, map silently breaks | PENDING |
+| CM-13 | `server/api/concierge/concierge.js` | getDriverPublicProfile called twice per protected request (once in validateShareToken, once in handler) for /p/:token | PENDING — now uses req.conciergeProfile from middleware |
+| CM-14 | `server/lib/concierge/concierge-service.js` | No timeout on Gemini explore/ask calls — can hang indefinitely | PENDING |
+| CM-15 | `client/src/pages/concierge/PublicConciergePage.tsx` | Loading states don't show skeleton UI — blank sections during API calls | PENDING |
+| CM-16 | `server/api/concierge/concierge.js` | share token generation has no collision check — theoretically possible (unlikely) for 2 drivers to get same token | PENDING |
+
+### LOW (P3 - Validation gaps, UX polish)
+
+| ID | Location | Issue | Status |
+|----|----------|-------|--------|
+| CL-1 | `client/src/pages/concierge/PublicConciergePage.tsx` | No input sanitization on passenger question before display | PENDING |
+| CL-2 | `client/src/components/concierge/AskConcierge.tsx` | Question input has no character limit enforced in UI (server limits to 500) | PENDING |
+| CL-3 | `server/api/concierge/concierge.js` | Feedback text field has no length limit — could submit massive strings | PENDING |
+| CL-4 | `client/src/pages/concierge/PublicConciergePage.tsx` | No offline detection — passenger on bad mobile connection gets silent failures | PENDING |
+| CL-5 | `client/src/components/concierge/ConciergeMap.tsx` | Map markers don't cluster — many venues in dense area overlap | PENDING |
+| CL-6 | `client/src/pages/concierge/PublicConciergePage.tsx` | No dark mode support on public page (driver app has dark mode) | PENDING |
+| CL-7 | `server/lib/concierge/concierge-service.js` | Vehicle seatbelts field exposed but not useful to passengers without context | PENDING |
+| CL-8 | `client/src/components/concierge/AskConcierge.tsx` | No typing indicator while waiting for Gemini response | PENDING |
+| CL-9 | `server/api/concierge/concierge.js` | Rate limiter messages not localized for international passengers | PENDING |
+| CL-10 | `client/src/pages/concierge/PublicConciergePage.tsx` | Page title is generic — should show driver name for personalization | PENDING |
+| CL-11 | `client/src/components/concierge/ConciergeMap.tsx` | No "recenter" button when passenger scrolls map away from markers | PENDING |
+| CL-12 | `server/lib/concierge/concierge-service.js` | searchNearby() hardcodes 5km radius — no way for passenger to expand search area | PENDING |
+
+### INFO (Positive findings + notes)
+
+| ID | Note |
+|----|------|
+| I-1 | Rate limiting properly configured on all public endpoints (3-10 req/min) |
+| I-2 | SSE streaming for ask-stream works correctly with proper cleanup on disconnect |
+| I-3 | Gemini fallback for uncatalogued areas is architecturally sound (DB-first + AI-fallback) |
+| I-4 | Share token generation uses crypto.randomBytes — cryptographically secure |
+| I-5 | Feedback submission validates token against DB (one of the two originally secure endpoints) |
 
 ---
 
