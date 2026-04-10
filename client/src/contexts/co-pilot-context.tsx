@@ -129,6 +129,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Prevents duplicate pipeline runs when both useEffect AND event handler fire
   const waterfallTriggeredRef = useRef<Set<string>>(new Set());
 
+  // 2026-04-10: AbortController for in-flight waterfall POST — aborted on logout (Window 3 race fix)
+  const waterfallAbortRef = useRef<AbortController | null>(null);
+
   // 2026-01-07: Flag to prevent race condition during manual refresh
   // When refresh clicked, we clear lastSnapshotId, but locationContext still has old value
   // Without this flag, useEffect would immediately restore the old snapshotId
@@ -146,6 +149,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       setPersistentStrategy(null);
       setImmediateStrategy(null);
       waterfallTriggeredRef.current.clear();
+      // 2026-04-10: Abort any in-flight waterfall POST (Window 3 race fix)
+      if (waterfallAbortRef.current) {
+        waterfallAbortRef.current.abort();
+        waterfallAbortRef.current = null;
+      }
     }
     prevAuthRef.current = isAuthenticated;
   }, [isAuthenticated]);
@@ -267,17 +275,29 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
         waterfallTriggeredRef.current.add(snapshotId);
 
         try {
+          // 2026-04-10: Abort any previous in-flight waterfall POST (Window 3 race fix)
+          if (waterfallAbortRef.current) {
+            waterfallAbortRef.current.abort();
+          }
+          const controller = new AbortController();
+          waterfallAbortRef.current = controller;
+
           console.log("🚀 Triggering POST /api/blocks-fast waterfall (from event)...", snapshotId.slice(0, 8));
           const response = await fetch(API_ROUTES.BLOCKS.FAST, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-            body: JSON.stringify({ snapshotId })
+            body: JSON.stringify({ snapshotId }),
+            signal: controller.signal,
           });
 
           if (response.ok) {
             console.log("✅ Waterfall complete");
           }
-        } catch (err) {
+        } catch (err: any) {
+          if (err.name === 'AbortError') {
+            console.log("[CoPilotContext] Waterfall POST aborted (logout or new snapshot)");
+            return;
+          }
           console.error("❌ Waterfall error:", err);
         }
       }

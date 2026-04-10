@@ -187,7 +187,7 @@ export default function TranslationOverlay() {
 
       return () => clearTimeout(timer);
     }
-  }, [speech.isListening]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [speech.isListening]);
 
   // Auto-scroll both panels when new messages arrive
   useEffect(() => {

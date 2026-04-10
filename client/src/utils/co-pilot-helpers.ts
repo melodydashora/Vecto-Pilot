@@ -102,6 +102,21 @@ function subscribeSSE(
 }
 
 /**
+ * Close ALL singleton SSE connections immediately.
+ * 2026-04-10: Called during logout to prevent orphaned EventSource connections
+ * from receiving events after auth is invalidated (Window 2 race condition fix).
+ */
+export function closeAllSSE(): void {
+  console.log(`[SSE Manager] 🔌 Closing ALL connections (${sseConnections.size} active)`);
+  for (const [key, sub] of sseConnections) {
+    sub.eventSource.close();
+    sub.subscribers.clear();
+    console.log(`[SSE Manager] 🔌 Closed: ${key}`);
+  }
+  sseConnections.clear();
+}
+
+/**
  * Get auth headers with JWT token from localStorage
  * 2026-04-05: Log-once guard — prevents console spam when no token (e.g., after logout)
  */
