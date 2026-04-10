@@ -3,7 +3,7 @@
 // Shows passenger's location (blue pin) + venue markers (purple) + event markers (amber)
 // Loads on-demand when user taps "Show Map" — saves bandwidth for mobile
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapPin, Loader2 } from 'lucide-react';
 
 // 2026-04-10: SECURITY FIX (X-1 CRITICAL) — HTML-escape all AI/user-generated strings

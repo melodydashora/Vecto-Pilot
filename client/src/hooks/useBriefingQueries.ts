@@ -15,6 +15,8 @@ import { getAuthHeader, subscribeBriefingReady } from '@/utils/co-pilot-helpers'
 import type { PipelinePhase } from '@/types/co-pilot';
 // 2026-01-15: Centralized API routes and query keys
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
+// 2026-04-10: Import storage keys for synchronous auth check in queryFn (Window 1 race fix)
+import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 interface BriefingQueriesOptions {
   snapshotId: string | null;
@@ -125,6 +127,22 @@ function exitCoolingOffForNewSnapshot(newSnapshotId: string): void {
   // Reset state
   isInCoolingOff = false;
   coolingOffSnapshotId = null;
+}
+
+// 2026-04-10: Reset module-level state on logout (Fix 4)
+// Prevents stale cooldowns from persisting across logout/login cycles.
+// Listens to vecto-auth-error (dispatched by dispatchAuthError above and by auth-context).
+if (typeof window !== 'undefined') {
+  window.addEventListener('vecto-auth-error', () => {
+    isInCoolingOff = false;
+    coolingOffSnapshotId = null;
+    if (coolingOffTimeoutId) {
+      clearTimeout(coolingOffTimeoutId);
+      coolingOffTimeoutId = null;
+    }
+    lastAuthErrorTime = 0;
+    lastOwnershipErrorTime = 0;
+  });
 }
 
 // Check if queries should be disabled (cooling off from ownership error)
@@ -264,6 +282,8 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   const weatherQuery = useQuery({
     queryKey: QUERY_KEYS.BRIEFING_WEATHER(snapshotId!),
     queryFn: async () => {
+      // 2026-04-10: Synchronous auth guard — prevents stale refetchInterval closures from firing after logout
+      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return { weather: null };
       console.log('[BriefingQuery] ☀️ Fetching weather for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { weather: null };
       const response = await fetch(API_ROUTES.BRIEFING.WEATHER(snapshotId), {
@@ -318,6 +338,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   const trafficQuery = useQuery({
     queryKey: QUERY_KEYS.BRIEFING_TRAFFIC(snapshotId!),
     queryFn: async () => {
+      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return { traffic: null };
       console.log('[BriefingQuery] 🚗 Fetching traffic for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { traffic: null };
       const response = await fetch(API_ROUTES.BRIEFING.TRAFFIC(snapshotId), {
@@ -391,6 +412,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   const newsQuery = useQuery({
     queryKey: QUERY_KEYS.BRIEFING_RIDESHARE_NEWS(snapshotId!),
     queryFn: async () => {
+      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return { news: null };
       console.log('[BriefingQuery] 📰 Fetching news for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { news: null };
       const response = await fetch(API_ROUTES.BRIEFING.RIDESHARE_NEWS(snapshotId), {
@@ -464,6 +486,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   const eventsQuery = useQuery({
     queryKey: QUERY_KEYS.BRIEFING_EVENTS(snapshotId!),
     queryFn: async () => {
+      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return { events: [] };
       console.log('[BriefingQuery] 🎭 Fetching events for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { events: [] };
       const response = await fetch(API_ROUTES.BRIEFING.EVENTS(snapshotId), {
@@ -537,6 +560,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   const schoolClosuresQuery = useQuery({
     queryKey: QUERY_KEYS.BRIEFING_SCHOOL_CLOSURES(snapshotId!),
     queryFn: async () => {
+      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return { school_closures: [] };
       console.log('[BriefingQuery] 🏫 Fetching school closures for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { school_closures: [] };
       const response = await fetch(API_ROUTES.BRIEFING.SCHOOL_CLOSURES(snapshotId), {
@@ -585,6 +609,7 @@ export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }
   const airportQuery = useQuery({
     queryKey: QUERY_KEYS.BRIEFING_AIRPORT(snapshotId!),
     queryFn: async () => {
+      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return { airport_conditions: null };
       console.log('[BriefingQuery] ✈️ Fetching airport for', snapshotId?.slice(0, 8));
       if (!snapshotId) return { airport_conditions: null };
       const response = await fetch(API_ROUTES.BRIEFING.AIRPORT(snapshotId), {
@@ -694,6 +719,7 @@ export function useActiveEventsQuery(snapshotId: string | null) {
   return useQuery({
     queryKey: QUERY_KEYS.BRIEFING_EVENTS_ACTIVE(snapshotId!),
     queryFn: async () => {
+      if (!localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)) return { events: [] };
       if (!snapshotId) return { events: [] };
 
       console.log('[BriefingQuery] 🎯 Fetching active events for', snapshotId.slice(0, 8));
@@ -736,7 +762,8 @@ export function useActiveEventsQuery(snapshotId: string | null) {
       console.log('[BriefingQuery] ✅ Active events received:', data.events?.length || 0);
       return data;
     },
-    enabled: !!snapshotId,
+    // 2026-04-10: Added shouldDisableQueries() check (was missing — race condition on logout)
+    enabled: !!snapshotId && !shouldDisableQueries(),
     staleTime: 30000, // Consider stale after 30 seconds
     refetchInterval: 60000, // Refetch every 60 seconds for real-time accuracy
     refetchOnWindowFocus: true,

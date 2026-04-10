@@ -15,6 +15,8 @@ import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
 // 2026-02-13: Cancel active queries on logout to prevent 401 race condition
 import { queryClient } from '@/lib/queryClient';
+// 2026-04-10: Close SSE connections on logout to prevent orphaned EventSource connections
+import { closeAllSSE } from '@/utils/co-pilot-helpers';
 
 interface AuthContextValue extends AuthState {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
@@ -82,6 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Cancel active queries to prevent 401 cascade
       queryClient.cancelQueries();
       queryClient.clear();
+      // 2026-04-10: Kill all SSE connections on forced logout (Window 2 race fix)
+      closeAllSSE();
 
       // Clear local auth state
       localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -208,6 +212,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // which triggers setCriticalError (red FAIL HARD screen) during logout.
     queryClient.cancelQueries();
     queryClient.clear();
+    // 2026-04-10: Kill all SSE connections on logout (Window 2 race fix)
+    closeAllSSE();
 
     try {
       // 2026-02-17: FIX - Read token from localStorage instead of state.token closure.

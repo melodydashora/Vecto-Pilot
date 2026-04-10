@@ -43,8 +43,8 @@ export function SmartBlocksStatus({
   // Get cycling venue loading messages
   const venueMessages = useVenueLoadingMessages(pipelinePhase);
 
-  // 2026-04-09: Log snapshot ID for debugging in all environments (UI display is dev-only)
-  if (snapshotId) console.log('[SmartBlocksStatus] snapshotId:', snapshotId);
+  // 2026-04-10: Removed unconditional console.log — was firing every ~500ms causing log spam.
+  // Snapshot ID is still visible in dev via the UI element gated by import.meta.env.DEV below.
 
   return (
     <Card className="border-2 border-purple-400 bg-gradient-to-br from-purple-50 to-indigo-50 shadow-lg" data-testid="smart-blocks-status">
