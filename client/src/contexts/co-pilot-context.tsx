@@ -59,7 +59,6 @@ interface CoPilotContextValue {
     traffic: any;
     news: any;
     events: any;
-    marketEvents: any;
     schoolClosures: any;
     airport: any;
     isLoading: {
@@ -681,18 +680,15 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     // Pre-loaded briefing data
     briefingData: {
-      // 2026-04-10: No nulls allowed in briefing fields — use empty objects/arrays
-      weather: weatherData?.weather || {},
-      traffic: trafficData?.traffic || {},
-      news: newsData?.news || {},
-      // 2026-03-29: FIX - Unwrap events array from API response object
-      // Previously stored full response object, breaking .filter() calls downstream
-      // Now properly extracts events array AND marketEvents for separate access
-      events: eventsData?.events || [],
-      marketEvents: eventsData?.marketEvents || [],
+      weather: weatherData?.weather || null,
+      traffic: trafficData?.traffic || null,
+      news: newsData?.news || null,
+      // 2026-04-10: events stores full API response object { events: [], marketEvents: [], market_name }
+      // BriefingTab needs the full object; RideshareIntelTab must extract .events array
+      events: eventsData || null,
       // 2026-01-10: Snake/camel tolerant - accept both server response formats
       schoolClosures: schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures ?? [],
-      airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? {},
+      airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
       isLoading: briefingIsLoading,
     },
 

@@ -112,9 +112,9 @@ export default function RideshareIntelTab() {
   const timing = useMemo(() => rawTiming || [], [rawTiming?.length]);
   // ---------------------------------------------------------------------------
 
-  // 2026-01-14: Use pre-loaded briefing data from CoPilotContext
-  // Context provides unwrapped values: events (array), traffic (object), airport (object)
-  const eventsArray = briefingData?.events || [];
+  // 2026-04-10: briefingData.events is the full API response { events: [], marketEvents: [], market_name }
+  // Extract the events array for map markers and intel display
+  const eventsArray = briefingData?.events?.events || [];
   const trafficObj = briefingData?.traffic;
   const airportObj = briefingData?.airport;
 
