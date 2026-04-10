@@ -123,7 +123,8 @@ export async function getShareToken(userId) {
 
 /**
  * Get sanitized public profile for a driver by share token
- * Privacy: NEVER returns email, last_name, address, home coords, user_id
+ * Privacy: NEVER returns email, last_name, address, home coords, user_id, phone
+ * 2026-04-10: SECURITY FIX — Removed phone from public profile (PII leak on public page)
  * @param {string} token - concierge_share_token
  * @returns {Promise<Object|null>} Public profile or null if not found
  */
@@ -134,7 +135,7 @@ export async function getDriverPublicProfile(token) {
       id: true,
       first_name: true,
       driver_nickname: true,
-      phone: true,
+      // 2026-04-10: phone REMOVED from public profile — PII should never be on a public page
     },
   });
 
@@ -156,7 +157,6 @@ export async function getDriverPublicProfile(token) {
 
   return {
     name: profile.driver_nickname || profile.first_name,
-    phone: profile.phone || null,
     vehicle: vehicle ? {
       year: vehicle.year,
       make: vehicle.make,
