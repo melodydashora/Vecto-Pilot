@@ -55,11 +55,11 @@ if (path.startsWith('/__repl')) {
 
 ---
 
-## 2026-04-09/10: Full Sprint — Config, Security, Prod Bugs, Docs, Concierge Audit
+## 2026-04-09/10: Full Sprint — Config, Security, Prod Bugs, Docs, Concierge, Logout Race
 
 **Updated by:** Claude Opus 4.6
 **Date:** 2026-04-09 → 2026-04-10
-**Scope:** 33 items resolved across 4 commits
+**Scope:** 37+ items resolved across 6 commits
 
 ### Work Items (Priority Order)
 
@@ -115,15 +115,19 @@ These 4 critical discrepancies remain open. Not addressed this session but track
 | `89068791` | Critical prod bugs, security upgrades, UI fixes (10 items) |
 | `e720298a` | Documentation drift + lint fixes (12 items) |
 | `2a78c592` | Concierge security: XSS, token bypass, prompt injection, PII leak (4 items) |
+| `22fb8285` | Full concierge audit (39 findings) documented |
+| `dae1dc7b` | Logout race conditions: SSE, polling, in-flight POST (3 windows closed) |
 
-### Items Resolved: 33 total
+### Items Resolved: 37+ total
 - Production Bugs: D-095, D-096, D-097, D-098, A-001
 - Security: D-090, D-091, D-094, X-1, CH-1, CH-2, CH-3, CH-4
 - Config/Infra: D-086, D-087, D-088, D-089, bot blocker, .replit ports
 - UI: Chat overflow, concierge overflow, snapshot ID, catch-all route
 - Documentation: D-077 to D-085
-- Lint: A-005, A-006, A-007
+- Lint: A-005, A-006, A-007, SmartBlocks log spam, unused import, dead eslint-disable
 - Model: D-101 (translation → flash-lite)
+- Race Conditions: Logout SSE cleanup, polling localStorage guard, waterfall AbortController
+- Strategy Pipeline: Verified S-001 to S-006 all applied (trigger, locks, status, mapper, error msg)
 
 ### Status: ✅ ALL ITEMS EXECUTED AND VERIFIED
 
