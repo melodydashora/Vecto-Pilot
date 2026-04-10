@@ -1,67 +1,98 @@
-> **Last Verified:** 2026-01-06
+> **Last Verified:** 2026-04-10
 
 # Architecture Documentation
 
-This folder contains focused, readable technical documentation for Vecto Pilot's architecture. Each document is designed to be read in a single pass (<300 lines).
+This folder contains focused, readable technical documentation for Vecto Pilot's architecture. Each document is designed to be read in a single pass (<300 lines). All canonical docs use **UPPERCASE** filenames.
 
 ## Document Index
 
 ### Core System (Start Here)
 
-| Document | Lines | Purpose | Read When... |
-|----------|-------|---------|--------------|
-| [server-structure.md](server-structure.md) | ~190 | Backend organization, 37 folder READMEs | Modifying server code |
-| [client-structure.md](client-structure.md) | ~220 | Frontend organization, 16 folder READMEs | Modifying client code |
-| [database-schema.md](database-schema.md) | ~200 | PostgreSQL tables and relationships | Working with DB |
-| [api-reference.md](api-reference.md) | ~150 | Complete API endpoint documentation | Adding/modifying API routes |
-| [api-versioning.md](api-versioning.md) | ~50 | API versioning strategy | Planning API changes |
-| [frontend-optimization.md](frontend-optimization.md) | ~100 | Client performance & standards | Optimizing frontend |
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [DB_SCHEMA.md](DB_SCHEMA.md) | PostgreSQL tables and relationships | Working with DB |
+| [API_REFERENCE.md](API_REFERENCE.md) | Complete API endpoint documentation | Adding/modifying API routes |
+| [API_VERSIONING.md](API_VERSIONING.md) | API versioning strategy | Planning API changes |
+| [UX_SCHEMA.md](UX_SCHEMA.md) | React component hierarchy, routing, design system | Modifying frontend |
+| [GLOBALHEADER.md](GLOBALHEADER.md) | GlobalHeader component, location resolution, GPS → snapshot flow | Modifying location/header |
+| [SNAPSHOT.md](SNAPSHOT.md) | Snapshot lifecycle, persistence, zombie snapshot problem | Modifying snapshot flow |
 
 ### AI System
 
-| Document | Lines | Purpose | Read When... |
-|----------|-------|---------|--------------|
-| [ai-pipeline.md](ai-pipeline.md) | ~200 | TRIAD pipeline, model configuration | Modifying AI flow |
-| [ai-coach.md](ai-coach.md) | ~300 | AI Coach system, schema access, write capabilities | Working with AI Coach |
-| [strategy-framework.md](strategy-framework.md) | ~400 | 13-component recommendation pipeline | Understanding how recommendations work |
-| [driver-intelligence-system.md](driver-intelligence-system.md) | ~800 | Full driver intelligence architecture & vision | Understanding staging recommendations |
-| [event-discovery.md](event-discovery.md) | ~300 | Multi-model AI event search | Modifying event detection |
-| [google-cloud-apis.md](google-cloud-apis.md) | ~250 | Places, Routes, Weather, Geocoding | Using Google APIs |
-| [district-tagging.md](district-tagging.md) | ~280 | District metadata for venue matching | Improving venue accuracy |
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [AI_RIDESHARE_COACH.md](AI_RIDESHARE_COACH.md) | AI Coach system, schema access, write capabilities | Working with AI Coach |
+| [AI_BEST_PRACTICES.md](AI_BEST_PRACTICES.md) | Prompt patterns, cost optimization, hallucination prevention | Writing AI prompts |
+| [AI_MODEL_ADAPTERS.md](AI_MODEL_ADAPTERS.md) | Model adapter pattern, provider routing | Adding/changing AI providers |
+| [AI_MODEL_UPDATE_STRATEGY.md](AI_MODEL_UPDATE_STRATEGY.md) | Model versions, swap patterns, deprecation migration | Upgrading models |
+| [LLM-REQUESTS.md](LLM-REQUESTS.md) | Every LLM API call path, auth, and model used | Auditing AI costs/security |
+| [OFFER_ANALYZER.md](OFFER_ANALYZER.md) | Siri Shortcuts, ride offer analysis, Gemini Vision | Modifying offer analysis |
+| [STRATEGY.md](STRATEGY.md) | Strategy generation, recommendation pipeline | Modifying strategy |
+| [MARKET_INTELLIGENCE.md](MARKET_INTELLIGENCE.md) | Market data sources, intelligence storage, MI API | Working with market data |
 
 ### System Rules
 
-| Document | Lines | Purpose | Read When... |
-|----------|-------|---------|--------------|
-| [constraints.md](constraints.md) | ~150 | Critical rules that cannot be violated | **Before ANY code change** |
-| [decisions.md](decisions.md) | ~200 | WHY choices were made, fix capsules | Questioning architecture |
-| [deprecated.md](deprecated.md) | ~100 | Removed features - DO NOT re-implement | Before adding features |
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [CONSTRAINTS.md](CONSTRAINTS.md) | Critical rules that cannot be violated | **Before ANY code change** |
+| [DECISIONS.md](DECISIONS.md) | WHY choices were made, fix capsules | Questioning architecture |
+| [DEPRECATED.md](DEPRECATED.md) | Removed features — DO NOT re-implement | Before adding features |
+| [STANDARDS.md](STANDARDS.md) | Coding standards and conventions | Writing new code |
+| [RISKS.md](RISKS.md) | Risk register with severity matrix and mitigations | Assessing impact |
 
 ### Infrastructure
 
-| Document | Lines | Purpose | Read When... |
-|----------|-------|---------|--------------|
-| [authentication.md](authentication.md) | ~650 | Full auth system (JWT, login, register) | Modifying auth |
-| [auth-system.md](auth-system.md) | ~100 | Legacy auth overview (see authentication.md) | Quick reference |
-| [logging.md](logging.md) | ~100 | Workflow logging conventions | Adding logging |
-| [observability.md](observability.md) | ~100 | Monitoring, Error Tracking, Analytics | improving reliability |
-| [scalability.md](scalability.md) | ~100 | Rate limiting, Load Balancing, Caching | Tuning performance |
-| [disaster-recovery.md](disaster-recovery.md) | ~100 | Backup & Recovery procedures | Handling outages |
-| [realtime.md](realtime.md) | ~100 | WebSocket & SSE lifecycle | Working with real-time data |
-| [database-environments.md](database-environments.md) | ~130 | **Dev vs Prod DB architecture** | **Every session start** |
-| [environment.md](environment.md) | ~100 | SSL/TLS, Env Validation | Configuring deployment |
-| [feature-management.md](feature-management.md) | ~100 | Feature flags & A/B testing | Managing releases |
-| [media-handling.md](media-handling.md) | ~100 | File upload & Image processing | Working with media |
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [AUTH.md](AUTH.md) | Full auth system (JWT, login, register, logout) | Modifying auth |
+| [DATABASE_ENVIRONMENTS.md](DATABASE_ENVIRONMENTS.md) | **Dev vs Prod DB architecture** | **Every session start** |
+| [LOGGING.md](LOGGING.md) | Workflow logging conventions | Adding logging |
+| [SSE.md](SSE.md) | Server-Sent Events lifecycle, auth-drop behavior | Working with real-time data |
+| [SCALABILITY.md](SCALABILITY.md) | Rate limiting, load balancing, caching | Tuning performance |
+| [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) | Backup & recovery procedures | Handling outages |
+| [SECURITY.md](SECURITY.md) | Security posture and hardening plan | Security review |
+| [TESTING.md](TESTING.md) | Test pyramid, catalog, CI/CD, coverage targets | Writing tests |
 
-### Domain-Specific
+### Domain Features
 
-| Document | Lines | Purpose | Read When... |
-|----------|-------|---------|--------------|
-| [Briefing.md](Briefing.md) | ~150 | Briefing tab architecture | Modifying briefing |
-| [Location.md](Location.md) | ~150 | Location resolution flow | Modifying location |
-| [Strategy.md](Strategy.md) | ~150 | Strategy generation overview | Modifying strategy |
-| [intel-tab-architecture.md](intel-tab-architecture.md) | ~200 | Market Command Center design | Modifying intel tab |
-| [progress-bar-and-snapshot-flow.md](progress-bar-and-snapshot-flow.md) | ~150 | UX progress tracking | Modifying progress UI |
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [BRIEFING.md](BRIEFING.md) | Briefing tab architecture | Modifying briefing |
+| [VENUES.md](VENUES.md) | Venue discovery, scoring, ranking, Google Places | Working with venues |
+| [LOUNGES_AND_BARS.md](LOUNGES_AND_BARS.md) | Lounge/bar discovery, filtering, scoring | Modifying lounge features |
+| [MAP.md](MAP.md) | GPS tracking, map rendering, districts/zones | Modifying map |
+| [CONCIERGE.md](CONCIERGE.md) | Passenger-facing share mode, public endpoints | Modifying concierge |
+| [DISTRICT_TAGGING.md](DISTRICT_TAGGING.md) | District metadata for venue matching | Improving venue accuracy |
+| [USER_PREFERENCES.md](USER_PREFERENCES.md) | Preference storage, personalization, onboarding | Working with user settings |
+
+### Internationalization & Compliance
+
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [TRANSLATION.md](TRANSLATION.md) | Real-time translation, language support, TTS | Adding language features |
+| [GLOBALIZATION.md](GLOBALIZATION.md) | Currency/date formatting, RTL, locale logic | Expanding to new markets |
+| [ACCESSIBILITY.md](ACCESSIBILITY.md) | WCAG 2.1 compliance, screen reader, keyboard nav | Improving accessibility |
+| [ISO.md](ISO.md) | ISO 27001 Annex A compliance mapping | Compliance audits |
+| [NIST.md](NIST.md) | NIST Cybersecurity Framework mapping | Security compliance |
+
+### Platform & Future
+
+| Document | Purpose | Read When... |
+|----------|---------|--------------|
+| [NATIVE_APPS.md](NATIVE_APPS.md) | iOS/Android conversion strategy | Planning mobile apps |
+| [CONVERSION.md](CONVERSION.md) | Web-to-native migration paths, feature flags | Planning platform shift |
+| [SDK.md](SDK.md) | Eidolon agent server, tool definitions, API surface | Working with SDK |
+| [FUTURE.md](FUTURE.md) | Roadmap, consolidated TODOs, strategic direction | Planning features |
+| [FEASIBILITY.md](FEASIBILITY.md) | Scalability limits, mobile feasibility, dependencies | Assessing viability |
+| [ROI.md](ROI.md) | LLM cost analysis, revenue model, optimization | Budgeting |
+
+### Historical / Incident Reports
+
+| Document | Purpose |
+|----------|---------|
+| [full-audit-2026-04-04.md](full-audit-2026-04-04.md) | Comprehensive 37-issue audit findings |
+| [etl-pipeline-refactoring-2026-01-09.md](etl-pipeline-refactoring-2026-01-09.md) | ETL pipeline refactoring record |
+| [iterable-crash-root-cause-analysis.md](iterable-crash-root-cause-analysis.md) | Root cause analysis for iterable crash |
 
 ## Quick Reference
 
@@ -98,16 +129,16 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 ### New to the Codebase?
 
 Read in this order:
-1. [constraints.md](constraints.md) - What you cannot do
-2. [server-structure.md](server-structure.md) or [client-structure.md](client-structure.md) - Where things are
-3. [ai-pipeline.md](ai-pipeline.md) - How AI works
-4. [decisions.md](decisions.md) - Why things are the way they are
+1. [CONSTRAINTS.md](CONSTRAINTS.md) — What you cannot do
+2. [UX_SCHEMA.md](UX_SCHEMA.md) or [DB_SCHEMA.md](DB_SCHEMA.md) — Where things are
+3. [AI_BEST_PRACTICES.md](AI_BEST_PRACTICES.md) — How AI works
+4. [DECISIONS.md](DECISIONS.md) — Why things are the way they are
 
 ### Before Making Changes
 
 Always check:
-1. [constraints.md](constraints.md) - Critical rules
-2. [deprecated.md](deprecated.md) - Don't re-implement removed features
+1. [CONSTRAINTS.md](CONSTRAINTS.md) — Critical rules
+2. [DEPRECATED.md](DEPRECATED.md) — Don't re-implement removed features
 3. Relevant domain doc (AI, database, auth, etc.)
 
 ### Finding the Right README
@@ -132,27 +163,28 @@ See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the complete folder README inde
 
 ## Related Documentation
 
-- [CLAUDE.md](../../CLAUDE.md) - AI assistant quick reference
-- [ARCHITECTURE.md](../../ARCHITECTURE.md) - Pointer file with complete folder index
-- [LESSONS_LEARNED.md](../../LESSONS_LEARNED.md) - Historical issues and fixes
-- [AI_PARTNERSHIP_PLAN.md](../AI_PARTNERSHIP_PLAN.md) - Documentation improvement roadmap
+- [CLAUDE.md](../../CLAUDE.md) — AI assistant quick reference
+- [ARCHITECTURE.md](../../ARCHITECTURE.md) — Pointer file with complete folder index
+- [LESSONS_LEARNED.md](../../LESSONS_LEARNED.md) — Historical issues and fixes
+- [AI_PARTNERSHIP_PLAN.md](../AI_PARTNERSHIP_PLAN.md) — Documentation improvement roadmap
 
 ### Research
 
-- [Rideshare Algorithm Research](../research/rideshare-algorithm-research.md) - Platform algorithm behaviors and detection patterns
-- [Mobile Subscription Architecture](../research/mobile-subscription-architecture.md) - iOS/Android subscription service solutions
+- [Rideshare Algorithm Research](../research/rideshare-algorithm-research.md) — Platform algorithm behaviors and detection patterns
+- [Mobile Subscription Architecture](../research/mobile-subscription-architecture.md) — iOS/Android subscription service solutions
 
 ## Document Statistics
 
-| Category | Count | Total Lines |
-|----------|-------|-------------|
-| Core System | 4 | ~760 |
-| AI System | 7 | ~2530 |
-| System Rules | 3 | ~450 |
-| Infrastructure | 3 | ~850 |
-| Domain-Specific | 5 | ~800 |
-| **Total** | **22** | **~5390** |
+| Category | Count |
+|----------|-------|
+| Core System | 6 |
+| AI System | 8 |
+| System Rules | 5 |
+| Infrastructure | 8 |
+| Domain Features | 7 |
+| i18n & Compliance | 5 |
+| Platform & Future | 6 |
+| Historical | 3 |
+| **Total** | **48** |
 
-Most documents are under 400 lines, making them readable in a single pass. The driver-intelligence-system.md (~800 lines) and authentication.md (~650 lines) are comprehensive architecture documents.
-
-**Note:** `driver-intelligence-system.html` is an HTML export of the markdown file for external sharing.
+All canonical documents use UPPERCASE filenames. Historical/incident reports retain lowercase date-stamped names.
