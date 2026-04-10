@@ -18,8 +18,6 @@ run = ["sh", "-c", "node gateway-server.js"]
 deploymentTarget = "cloudrun"
 publicDir = "dist/public"
 
-# 2026-04-09: Only declare the app port. Extra port entries (3001, 5904, 24282, 62789)
-# with no externalPort were removed — they added noise and could confuse Replit's proxy.
 [[ports]]
 localPort = 5000
 externalPort = 80

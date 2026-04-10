@@ -251,7 +251,9 @@
       "Bash(touch /tmp/fake.bmp)",
       "Bash(rm -f /tmp/fake.bmp)",
       "Bash(kill 5759 5748 5733 5732)",
-      "Bash(openssl rand:*)"
+      "Bash(openssl rand:*)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/escape-html.test.js tests/bot-blocker.test.js tests/translation-prompt.test.js --verbose)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/escape-html.test.js --verbose)"
     ],
     "deny": [],
     "ask": []
