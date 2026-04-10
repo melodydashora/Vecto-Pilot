@@ -174,8 +174,8 @@ function calculateIncidentPriority(incident) {
  *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
- * @param {number} radiusMiles - Search radius (default 10 miles)
- * @returns {Promise<{flowSegmentData: Object|null, incidents: Array, bbox: string, fetchedAt: string}>}
+ * @param {number} radiusMeters - Search radius in meters (default 5000)
+ * @returns {Promise<{flow: Object|null, incidents: Array}|null>}
  */
 export async function fetchRawTraffic(lat, lng, radiusMeters = 5000) {
   // 2026-01-14: Phase 3 Intelligence Hardening - simplified raw data fetch for Gemini
