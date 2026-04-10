@@ -112,3 +112,8 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
   2. **Guard CoPilotContext sync effect:** Wrap the snapshot sync (line ~188) with `isAuthenticated` check — if not authenticated, do not sync from LocationContext.
   3. **Verify SSE destruction:** Confirm `closeAllSSE()` (already called in auth-context logout) fully destroys EventSource instances and prevents auto-reconnect unless a NEW snapshot ID is explicitly provided.
 - **Files:** `client/src/contexts/location-context-clean.tsx`, `client/src/contexts/co-pilot-context.tsx`, `client/src/contexts/auth-context.tsx`
+
+### [TODO] Fix Google Maps deprecation and loading warnings on MapPage
+- **Priority:** medium | **Date:** 2026-04-10 07:07
+- Logs from /co-pilot/map indicate two issues that need fixing: 1. Google Maps JS API is loaded directly without loading=async, which impacts performance. 2. google.maps.Marker is deprecated and needs to be updated to google.maps.marker.AdvancedMarkerElement.
+  - Files: client/src/pages/copilot/MapPage.tsx

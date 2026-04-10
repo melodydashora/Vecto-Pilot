@@ -253,7 +253,12 @@
       "Bash(kill 5759 5748 5733 5732)",
       "Bash(openssl rand:*)",
       "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/escape-html.test.js tests/bot-blocker.test.js tests/translation-prompt.test.js --verbose)",
-      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/escape-html.test.js --verbose)"
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/escape-html.test.js --verbose)",
+      "Bash(cp decisions.md DECISIONS.md)",
+      "Bash(cp deprecated.md DEPRECATED.md)",
+      "Bash(cp constraints.md CONSTRAINTS.md)",
+      "Bash(cp district-tagging.md DISTRICT_TAGGING.md)",
+      "Bash(cp api-reference.md API_REFERENCE.md)"
     ],
     "deny": [],
     "ask": []
