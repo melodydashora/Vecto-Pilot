@@ -22,6 +22,23 @@ import {
 
 const router = Router();
 
+// 2026-04-10: SECURITY FIX (H-1) — Validate share token on ALL public endpoints.
+// Previously only /p/:token and /p/:token/feedback validated. Weather, explore, and
+// ask endpoints accepted ANY string as token, bypassing the authentication gate.
+async function validateShareToken(req, res, next) {
+  const { token } = req.params;
+  if (!token || token.length > 12) {
+    return res.status(400).json({ ok: false, error: 'Invalid token' });
+  }
+  const profile = await getDriverPublicProfile(token);
+  if (!profile) {
+    return res.status(404).json({ ok: false, error: 'Invalid or expired share link' });
+  }
+  // Attach validated profile so downstream handlers can use it
+  req.conciergeProfile = profile;
+  next();
+}
+
 // ============================================================================
 // RATE LIMITERS (for public endpoints — no auth means we must limit aggressively)
 // ============================================================================
@@ -153,7 +170,7 @@ router.get('/p/:token', publicProfileLimiter, async (req, res) => {
  * GET /api/concierge/p/:token/weather?lat=&lng=
  * Get weather + AQI for coordinates (proxied to Google Weather API)
  */
-router.get('/p/:token/weather', weatherLimiter, async (req, res) => {
+router.get('/p/:token/weather', weatherLimiter, validateShareToken, async (req, res) => {
   try {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
@@ -228,7 +245,7 @@ router.get('/p/:token/weather', weatherLimiter, async (req, res) => {
  * Body: { lat, lng, filter, timezone }
  * Returns: { ok, venues: [...], events: [...], filter, source: 'db'|'gemini'|'db+gemini' }
  */
-router.post('/p/:token/explore', exploreLimiter, async (req, res) => {
+router.post('/p/:token/explore', exploreLimiter, validateShareToken, async (req, res) => {
   try {
     const { lat, lng, filter, timezone } = req.body;
 
@@ -267,7 +284,7 @@ const askLimiter = rateLimit({
  * Body: { question, lat, lng, timezone, venueContext?, eventContext? }
  * Returns: { ok, answer }
  */
-router.post('/p/:token/ask', askLimiter, async (req, res) => {
+router.post('/p/:token/ask', askLimiter, validateShareToken, async (req, res) => {
   try {
     const { question, lat, lng, timezone, venueContext, eventContext } = req.body;
 
@@ -279,13 +296,18 @@ router.post('/p/:token/ask', askLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Valid lat/lng required' });
     }
 
+    // 2026-04-10: SECURITY FIX (H-2) — Sanitize client-supplied context before AI prompt injection.
+    // Strip any instruction-like patterns that could manipulate Gemini's behavior.
+    const safeVenue = typeof venueContext === 'string' ? venueContext.slice(0, 2000).replace(/\n{3,}/g, '\n\n') : '';
+    const safeEvent = typeof eventContext === 'string' ? eventContext.slice(0, 2000).replace(/\n{3,}/g, '\n\n') : '';
+
     const result = await askConcierge({
       question,
       lat: Number(lat),
       lng: Number(lng),
       timezone: timezone || 'UTC',
-      venueContext: venueContext || '',
-      eventContext: eventContext || '',
+      venueContext: safeVenue,
+      eventContext: safeEvent,
     });
 
     res.json(result);
@@ -305,7 +327,7 @@ router.post('/p/:token/ask', askLimiter, async (req, res) => {
  * Body: { question, lat, lng, timezone, venueContext?, eventContext? }
  * Returns: SSE stream with { delta } chunks, then { done: true }
  */
-router.post('/p/:token/ask-stream', askLimiter, async (req, res) => {
+router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, res) => {
   const { question, lat, lng, timezone, venueContext, eventContext } = req.body;
 
   if (!question || typeof question !== 'string') {
@@ -328,11 +350,15 @@ router.post('/p/:token/ask-stream', askLimiter, async (req, res) => {
     console.log(`[concierge] Stream ask: "${safeQuestion.slice(0, 50)}..." near ${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`);
     const startTime = Date.now();
 
+    // 2026-04-10: SECURITY FIX (H-2) — Sanitize client-supplied context in streaming endpoint too
+    const safeVenue = typeof venueContext === 'string' ? venueContext.slice(0, 2000).replace(/\n{3,}/g, '\n\n') : '';
+    const safeEvent = typeof eventContext === 'string' ? eventContext.slice(0, 2000).replace(/\n{3,}/g, '\n\n') : '';
+
     const system = buildConciergeSystemPrompt({
       lat: latNum, lng: lngNum,
       timezone: timezone || 'UTC',
-      venueContext: venueContext || '',
-      eventContext: eventContext || '',
+      venueContext: safeVenue,
+      eventContext: safeEvent,
     });
 
     const { callModelStream } = await import('../../lib/ai/adapters/index.js');

@@ -3,8 +3,20 @@
 // Shows passenger's location (blue pin) + venue markers (purple) + event markers (amber)
 // Loads on-demand when user taps "Show Map" — saves bandwidth for mobile
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { MapPin, Loader2 } from 'lucide-react';
+
+// 2026-04-10: SECURITY FIX (X-1 CRITICAL) — HTML-escape all AI/user-generated strings
+// before passing to Google Maps InfoWindow.setContent() to prevent stored XSS.
+// This is a public page (passengers access via QR code, no auth required).
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 // Google Maps is loaded dynamically via script tag.
 // Types are declared globally in MapTab.tsx — we use loose typing here to avoid
@@ -162,11 +174,12 @@ export function ConciergeMap({ lat, lng, venues, events }: ConciergeMapProps) {
         const nav = venue.address
           ? `<a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(venue.address)}" target="_blank" style="color:#6366F1;text-decoration:none;font-size:12px">Get directions</a>`
           : '';
+        // 2026-04-10: X-1 FIX — escape all AI-generated content to prevent XSS
         infoWindow.setContent(`
           <div style="max-width:200px;padding:4px">
-            <div style="font-weight:600;font-size:14px">${venue.title}</div>
-            ${venue.type ? `<div style="color:#666;font-size:11px;margin-top:2px">${venue.type}</div>` : ''}
-            ${venue.address ? `<div style="color:#888;font-size:11px;margin-top:4px">${venue.address}</div>` : ''}
+            <div style="font-weight:600;font-size:14px">${escapeHtml(venue.title)}</div>
+            ${venue.type ? `<div style="color:#666;font-size:11px;margin-top:2px">${escapeHtml(venue.type)}</div>` : ''}
+            ${venue.address ? `<div style="color:#888;font-size:11px;margin-top:4px">${escapeHtml(venue.address)}</div>` : ''}
             ${nav ? `<div style="margin-top:6px">${nav}</div>` : ''}
           </div>
         `);
@@ -190,12 +203,13 @@ export function ConciergeMap({ lat, lng, venues, events }: ConciergeMapProps) {
         const nav = event.address
           ? `<a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(event.address)}" target="_blank" style="color:#6366F1;text-decoration:none;font-size:12px">Get directions</a>`
           : '';
+        // 2026-04-10: X-1 FIX — escape all AI-generated content to prevent XSS
         infoWindow.setContent(`
           <div style="max-width:200px;padding:4px">
-            <div style="font-weight:600;font-size:14px">${event.title}</div>
-            ${event.venue ? `<div style="color:#666;font-size:12px">${event.venue}</div>` : ''}
-            ${event.time ? `<div style="color:#888;font-size:11px;margin-top:2px">${event.time}</div>` : ''}
-            ${event.address ? `<div style="color:#888;font-size:11px;margin-top:4px">${event.address}</div>` : ''}
+            <div style="font-weight:600;font-size:14px">${escapeHtml(event.title)}</div>
+            ${event.venue ? `<div style="color:#666;font-size:12px">${escapeHtml(event.venue)}</div>` : ''}
+            ${event.time ? `<div style="color:#888;font-size:11px;margin-top:2px">${escapeHtml(event.time)}</div>` : ''}
+            ${event.address ? `<div style="color:#888;font-size:11px;margin-top:4px">${escapeHtml(event.address)}</div>` : ''}
             ${nav ? `<div style="margin-top:6px">${nav}</div>` : ''}
           </div>
         `);
