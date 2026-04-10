@@ -185,6 +185,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // 2026-04-10: FIX — Never sync snapshot when logged out (zombie snapshot fix).
+    // After logout, LocationContext may briefly still hold the old snapshotId
+    // (before its own auth-drop cleanup runs). Without this guard, the sync
+    // restores the dead snapshot 1ms after the auth-drop effect clears it.
+    if (!isAuthenticated) return;
+
     if (contextSnapshotId && !lastSnapshotId) {
       // 2026-01-10: CONSOLIDATED - This useEffect only syncs state
       // The vecto-snapshot-saved event listener (below) is the SINGLE source of waterfall triggers
@@ -199,7 +205,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       }
       // NOTE: Waterfall is triggered by vecto-snapshot-saved event, not here
     }
-  }, [locationContext?.lastSnapshotId, lastSnapshotId]);
+  }, [locationContext?.lastSnapshotId, lastSnapshotId, isAuthenticated]);
 
   // 2026-01-07: Listen for manual refresh to immediately clear strategy state
   // Location context dispatches 'vecto-strategy-cleared' when user clicks refresh button

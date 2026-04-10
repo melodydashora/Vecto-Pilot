@@ -223,6 +223,47 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // 2026-03-18: Added timeZone ref — resume path must verify timezone before gating queries
   const timeZoneRef = useRef<string | null>(null);
 
+  // 2026-04-10: FIX — Clear ALL location state when auth drops (zombie snapshot fix).
+  // Without this, LocationContext holds a stale lastSnapshotId after logout.
+  // CoPilotContext's sync effect sees it and immediately re-syncs the dead snapshot,
+  // reopening SSE connections and operating on stale data.
+  const prevTokenRef = useRef(token);
+  useEffect(() => {
+    if (prevTokenRef.current && !token) {
+      console.log('🔐 [LocationContext] Auth lost — clearing all location state');
+      // Clear React state
+      setLastSnapshotId(null);
+      setCurrentCoords(null);
+      setCity(null);
+      setState(null);
+      setTimeZone(null);
+      setWeather(null);
+      setAirQuality(null);
+      setIsLocationResolved(false);
+      setCurrentLocationString('Getting location...');
+      setLastUpdated(null);
+      setOverrideCoords(null);
+      setLocationError(null);
+      // Clear refs so they don't hold stale values for next session
+      lastSnapshotIdRef.current = null;
+      currentCoordsRef.current = null;
+      cityRef.current = null;
+      timeZoneRef.current = null;
+      lastEnrichmentCoordsRef.current = null;
+      // Reset GPS effect flag — next login must trigger fresh GPS fetch
+      gpsEffectRanRef.current = false;
+      sessionRestoreAttemptedRef.current = false;
+      // Cancel any in-flight enrichment requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      // Clear sessionStorage so no stale snapshot survives for resume
+      sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+    }
+    prevTokenRef.current = token;
+  }, [token]);
+
   // 2026-01-06: P3-B - Restore FULL session including snapshotId for resume
   // Previous: Only restored display data, always created new snapshot
   // Problem: User switches apps for 5 min → returns → 35-50s regeneration

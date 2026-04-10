@@ -102,3 +102,13 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 ### [BUG] Unmask Timestamps in Context Injector
 - **Priority:** medium | **Date:** 2026-04-09 (extracted from prod DB)
 - The 'created_at' timestamps for user_intel_notes are currently stripped by the Context Injector to save tokens, blinding the AI to the date of a preference. Expose the timestamp field for Super User admin debugging.
+
+### [COACH_MEMO] Zombie Snapshot & Auth Boundary Fix
+- **Priority:** high (State Management / Data Leak) | **Date:** 2026-04-10
+- **Context:** When the user logs out or auth is lost, `CoPilotContext` closes SSE connections but immediately resyncs the old Snapshot ID from `LocationContext` React state (not just sessionStorage), causing reconnection to stale streams and bypassing the GPS/Enrichment waterfall on next login.
+- **Root Cause:** `auth-context.tsx` already clears `sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT)` in all 3 logout paths. However, `LocationContext` holds the old `lastSnapshotId` in React state and has NO auth-drop handler. When `CoPilotContext` clears its own `lastSnapshotId` on auth loss, its sync effect (line ~188) sees `locationContext.lastSnapshotId` still set → immediately re-syncs the zombie.
+- **Required Execution:**
+  1. **Clear LocationContext state on auth loss:** Add an `isAuthenticated` watcher in `location-context-clean.tsx` that clears `lastSnapshotId`, `currentCoords`, `city`, `state`, `isLocationResolved`, etc. when auth drops — mirror the sessionStorage cleanup with React state cleanup.
+  2. **Guard CoPilotContext sync effect:** Wrap the snapshot sync (line ~188) with `isAuthenticated` check — if not authenticated, do not sync from LocationContext.
+  3. **Verify SSE destruction:** Confirm `closeAllSSE()` (already called in auth-context logout) fully destroys EventSource instances and prevents auto-reconnect unless a NEW snapshot ID is explicitly provided.
+- **Files:** `client/src/contexts/location-context-clean.tsx`, `client/src/contexts/co-pilot-context.tsx`, `client/src/contexts/auth-context.tsx`
