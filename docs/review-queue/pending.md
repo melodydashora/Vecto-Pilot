@@ -55,11 +55,11 @@ if (path.startsWith('/__repl')) {
 
 ---
 
-## 2026-04-09: Session Work Plan — Config Drift, Security Upgrades, Dead Code
+## 2026-04-09/10: Full Sprint — Config, Security, Prod Bugs, Docs, Concierge Audit
 
 **Updated by:** Claude Opus 4.6
-**Date:** 2026-04-09
-**Scope:** Policy JSON consolidation, drizzle-orm security upgrade, dead file cleanup
+**Date:** 2026-04-09 → 2026-04-10
+**Scope:** 33 items resolved across 4 commits
 
 ### Work Items (Priority Order)
 
@@ -107,6 +107,23 @@ npm install -D drizzle-kit@^0.31.10
 ### Existing D-077 to D-080 (from full audit 2026-04-04)
 
 These 4 critical discrepancies remain open. Not addressed this session but tracked in `DOC_DISCREPANCIES.md`.
+
+### Commits
+| Hash | Description |
+|------|-------------|
+| `2205a8bc` | Bot blocker, policy consolidation, env validation, catch-all route (7 items) |
+| `89068791` | Critical prod bugs, security upgrades, UI fixes (10 items) |
+| `e720298a` | Documentation drift + lint fixes (12 items) |
+| `2a78c592` | Concierge security: XSS, token bypass, prompt injection, PII leak (4 items) |
+
+### Items Resolved: 33 total
+- Production Bugs: D-095, D-096, D-097, D-098, A-001
+- Security: D-090, D-091, D-094, X-1, CH-1, CH-2, CH-3, CH-4
+- Config/Infra: D-086, D-087, D-088, D-089, bot blocker, .replit ports
+- UI: Chat overflow, concierge overflow, snapshot ID, catch-all route
+- Documentation: D-077 to D-085
+- Lint: A-005, A-006, A-007
+- Model: D-101 (translation → flash-lite)
 
 ### Status: ✅ ALL ITEMS EXECUTED AND VERIFIED
 
