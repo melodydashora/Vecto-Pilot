@@ -17,6 +17,10 @@ import {
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 // 2026-02-17: Shared timezone resolution — set timezone + market_slug on venue creation
 import { resolveTimezoneFromMarket } from '../location/resolveTimezone.js';
+// 2026-04-11: Address quality validation — catches bad Places API results before they persist
+import { validateVenueAddress } from './venue-address-validator.js';
+// 2026-04-11: Places API re-resolution when cached address fails validation
+import { searchPlaceWithTextSearch } from './venue-address-resolver.js';
 
 // Re-export utils for backward compatibility
 export { normalizeVenueName };
@@ -454,9 +458,11 @@ export async function findOrCreateVenue(eventData, source) {
   if (placeId && placeId.startsWith('ChIJ')) {
     const byPlaceId = await lookupVenue({ placeId });
     if (byPlaceId) {
+      // 2026-04-11: Validate cached address quality before returning
+      const validated = await maybeReResolveAddress(byPlaceId, venueName, latitude, longitude, city, state);
       // 2026-02-26: Backfill missing data on existing venues (non-blocking)
-      maybeBackfillVenue(byPlaceId, placeId);
-      return byPlaceId;
+      maybeBackfillVenue(validated || byPlaceId, placeId);
+      return validated || byPlaceId;
     }
   }
 
@@ -476,9 +482,11 @@ export async function findOrCreateVenue(eventData, source) {
           .where(eq(venue_catalog.venue_id, byCoords.venue_id))
           .catch(() => {}); // Non-blocking update
       }
+      // 2026-04-11: Validate cached address quality before returning
+      const validated = await maybeReResolveAddress(byCoords, venueName, latitude, longitude, city, state);
       // 2026-02-26: Backfill missing data on existing venues (non-blocking)
-      maybeBackfillVenue(byCoords, placeId || byCoords.place_id);
-      return byCoords;
+      maybeBackfillVenue(validated || byCoords, placeId || byCoords.place_id);
+      return validated || byCoords;
     }
   }
 
@@ -503,9 +511,11 @@ export async function findOrCreateVenue(eventData, source) {
         .where(eq(venue_catalog.venue_id, existing.venue_id))
         .catch(() => {}); // Non-blocking update
     }
+    // 2026-04-11: Validate cached address quality before returning
+    const validated = await maybeReResolveAddress(existing, venueName, latitude, longitude, city, state);
     // 2026-02-26: Backfill missing data on existing venues (non-blocking)
-    maybeBackfillVenue(existing, placeId || existing.place_id);
-    return existing;
+    maybeBackfillVenue(validated || existing, placeId || existing.place_id);
+    return validated || existing;
   }
 
   // Only create if we have coordinates
@@ -561,7 +571,105 @@ export async function findOrCreateVenue(eventData, source) {
     });
   }
 
+  // 2026-04-11: Validate newly created venue's address quality too
+  if (created) {
+    const validated = await maybeReResolveAddress(created, venueName, latitude, longitude, city, state);
+    return validated || created;
+  }
+
   return created;
+}
+
+/**
+ * 2026-04-11: Validate a venue's address quality and re-resolve via Places API if it fails.
+ * This prevents bad cached data (e.g., "Theatre, Frisco, TX 75034") from propagating.
+ *
+ * Only triggers a Places API call when validation FAILS — no extra cost for good addresses.
+ *
+ * @param {Object} venue - Venue record from venue_catalog
+ * @param {string} venueName - Venue name for search
+ * @param {number} lat - Latitude hint for Places API location bias
+ * @param {number} lng - Longitude hint for Places API location bias
+ * @param {string} city - City context
+ * @param {string} state - State context
+ * @returns {Promise<Object|null>} Updated venue record if re-resolved, null if address was valid
+ */
+async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
+  if (!venue) return null;
+
+  const addrToCheck = venue.formatted_address || venue.address;
+  const { valid, issues } = validateVenueAddress({
+    formattedAddress: addrToCheck,
+    venueName: venueName || venue.venue_name,
+    lat: venue.lat,
+    lng: venue.lng,
+    city: venue.city
+  });
+
+  if (valid) return null; // Address is fine, no action needed
+
+  // Address failed validation — attempt Places API re-resolution
+  console.warn(`[VENUE-VALIDATE] Re-resolving "${venue.venue_name}" (${venue.venue_id?.slice(0, 8)}): ${issues.join('; ')}`);
+
+  try {
+    // Use venue's own coords if available, otherwise caller's coords
+    const searchLat = venue.lat || lat;
+    const searchLng = venue.lng || lng;
+    const searchName = venueName || venue.venue_name;
+
+    if (!searchLat || !searchLng || !searchName) return null;
+
+    // 50km radius — metro-wide search to find the real venue
+    const placeResult = await searchPlaceWithTextSearch(searchLat, searchLng, searchName, { radius: 50000 });
+
+    if (!placeResult || !placeResult.formattedAddress) {
+      console.warn(`[VENUE-VALIDATE] Re-resolution returned no result for "${searchName}"`);
+      return null;
+    }
+
+    // Validate the NEW address too — don't replace bad with bad
+    const recheck = validateVenueAddress({
+      formattedAddress: placeResult.formattedAddress,
+      venueName: searchName
+    });
+
+    if (!recheck.valid) {
+      console.warn(`[VENUE-VALIDATE] Re-resolution also failed for "${searchName}": "${placeResult.formattedAddress}" — ${recheck.issues.join('; ')}`);
+      return null;
+    }
+
+    // Good address — update venue_catalog
+    // 2026-04-11: Round coords to 6 decimal places (~11cm precision) to match coord_key
+    const fixedLat = placeResult.lat ? parseFloat(Number(placeResult.lat).toFixed(6)) : venue.lat;
+    const fixedLng = placeResult.lng ? parseFloat(Number(placeResult.lng).toFixed(6)) : venue.lng;
+
+    const [updated] = await db.update(venue_catalog)
+      .set({
+        formatted_address: placeResult.formattedAddress,
+        address: placeResult.formattedAddress,
+        address_1: placeResult.parsed?.address_1 || venue.address_1,
+        city: placeResult.parsed?.city || venue.city,
+        state: placeResult.parsed?.state || venue.state,
+        zip: placeResult.parsed?.zip || venue.zip,
+        lat: fixedLat,
+        lng: fixedLng,
+        coord_key: generateCoordKey(fixedLat, fixedLng) || venue.coord_key,
+        place_id: placeResult.placeId || venue.place_id,
+        updated_at: new Date()
+      })
+      .where(eq(venue_catalog.venue_id, venue.venue_id))
+      .returning();
+
+    if (updated) {
+      console.log(`[VENUE-VALIDATE] Fixed "${venue.venue_name}" address: "${addrToCheck}" → "${placeResult.formattedAddress}"`);
+      return updated;
+    }
+  } catch (err) {
+    // Non-fatal — return null so caller uses original venue
+    console.warn(`[VENUE-VALIDATE] Re-resolution error for "${venue.venue_name}": ${err.message}`);
+  }
+
+  return null;
 }
 
 /**

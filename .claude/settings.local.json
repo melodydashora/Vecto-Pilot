@@ -258,7 +258,8 @@
       "Bash(cp deprecated.md DEPRECATED.md)",
       "Bash(cp constraints.md CONSTRAINTS.md)",
       "Bash(cp district-tagging.md DISTRICT_TAGGING.md)",
-      "Bash(cp api-reference.md API_REFERENCE.md)"
+      "Bash(cp api-reference.md API_REFERENCE.md)",
+      "Bash(npm list:*)"
     ],
     "deny": [],
     "ask": []

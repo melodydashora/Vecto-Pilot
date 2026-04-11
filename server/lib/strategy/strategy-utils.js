@@ -638,18 +638,23 @@ function hasValidDateInfo(event, timezone = null) {
 export function isEventFresh(event, now = new Date(), timezone = null) {
   if (!event) return false;
 
+  // 2026-04-10: FIX — Post-event surge window. Rideshare drivers benefit from knowing about
+  // events for ~1 hour AFTER they end (pickup surge from attendees leaving). Previously,
+  // events were removed the instant they ended, which is too aggressive for driver utility.
+  const POST_EVENT_SURGE_MS = 60 * 60 * 1000; // 1 hour post-event surge window
+
   // 2026-01-06: Pass timezone to getEventEndTime for proper parsing of discovered_events format
   const endTime = getEventEndTime(event, timezone);
 
-  // If we have an end time, check if event has ended
+  // If we have an end time, keep event visible until end + 1hr (post-surge)
   if (endTime) {
-    return endTime > now;
+    return new Date(endTime.getTime() + POST_EVENT_SURGE_MS) > now;
   }
 
-  // If no end time, use start time + default duration (4 hours)
+  // If no end time, use start time + default duration (3 hours) + post-surge
   const startTime = getEventStartTime(event, timezone);
   if (startTime) {
-    const inferredEnd = new Date(startTime.getTime() + 4 * 60 * 60 * 1000);
+    const inferredEnd = new Date(startTime.getTime() + 3 * 60 * 60 * 1000 + POST_EVENT_SURGE_MS);
     return inferredEnd > now;
   }
 

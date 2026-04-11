@@ -20,6 +20,8 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
 // 2026-01-10: Added for Gemini-only event discovery (normalizing + hashing)
 import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
 import { generateEventHash } from '../events/pipeline/hashEvent.js';
+// 2026-04-11: Title-similarity dedup — catches Gemini returning same event with different titles
+import { deduplicateEventsSemantic } from '../events/pipeline/deduplicateEventsSemantic.js';
 
 // 2026-02-17: FIX Issue 1 (Venue Creation Gap) — geocode + findOrCreateVenue
 // Was: lookupVenueFuzzy (read-only, never created venues for new event locations)
@@ -28,8 +30,13 @@ import { generateEventHash } from '../events/pipeline/hashEvent.js';
 // - Events on map (coordinates from venue)
 // - Event badges on venue cards
 // - Precise location data in strategies
-import { findOrCreateVenue } from '../venue/venue-cache.js';
+import { findOrCreateVenue, lookupVenue } from '../venue/venue-cache.js';
 import { geocodeEventAddress } from '../events/pipeline/geocodeEvent.js';
+// 2026-04-10: Google Places API (New) is the authoritative source for venue data.
+// Used in event pipeline to resolve venue address, coordinates, and city after Gemini discovery.
+import { searchPlaceWithTextSearch } from '../venue/venue-address-resolver.js';
+// 2026-04-11: Address quality validation — catches bad Places API results before they persist
+import { validateVenueAddress } from '../venue/venue-address-validator.js';
 
 // 2026-02-17: FIX Issue 3 (Past Event Cleanup)
 // Soft-deactivates ended events (is_active = false) before each discovery cycle
@@ -1057,7 +1064,8 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const categoryResults = await Promise.all(categoryPromises);
 
   // Merge results from all categories
-  const allEvents = [];
+  // 2026-04-11: Two-phase merge — exact title dedup first, then semantic title-similarity dedup
+  const rawEvents = [];
   const seenTitles = new Set();
   let totalFound = 0;
   let timedOutCount = 0;
@@ -1070,11 +1078,11 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     }
     totalFound += result.items?.length || 0;
     for (const event of result.items || []) {
-      // Deduplicate by title (case-insensitive)
+      // Phase 1: Exact title dedup (cheap, catches identical titles from different categories)
       const titleKey = event.title?.toLowerCase().trim();
       if (titleKey && !seenTitles.has(titleKey)) {
         seenTitles.add(titleKey);
-        allEvents.push(event);
+        rawEvents.push(event);
       }
     }
     if (result.error) {
@@ -1084,6 +1092,20 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
 
   if (timedOutCount > 0) {
     briefingLog.warn(2, `${timedOutCount}/${EVENT_CATEGORIES.length} category searches timed out`, OP.AI);
+  }
+
+  // 2026-04-11: Phase 2 — Title-similarity dedup. Catches:
+  // - "Jon Wolfe Concert" / "Jon Wolfe Live" / "Jon Wolfe" (title variants)
+  // - "Fatboy Slim" at SILO Dallas + "Fatboy Slim" at Globe Life Field (wrong stadium assignment)
+  // Prefers specific venues over stadiums, longer titles over shorter.
+  const { deduplicated: allEvents, removed: semanticRemoved, mergeLog } =
+    deduplicateEventsSemantic(rawEvents);
+
+  if (semanticRemoved.length > 0) {
+    briefingLog.done(2, `[DEDUP] Semantic dedup: ${rawEvents.length} → ${allEvents.length} (${semanticRemoved.length} title-variant duplicates removed)`, OP.AI);
+    for (const logLine of mergeLog) {
+      briefingLog.info(logLine);
+    }
   }
 
   const elapsedMs = Date.now() - startTime;
@@ -1267,49 +1289,81 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         try {
           const hash = generateEventHash(event);
 
-          // 2026-03-28: Venue linking — Gemini place_id + ALWAYS geocode for coordinates.
-          // findOrCreateVenue() requires lat/lng to create new venues. Previously, geocoding
-          // was skipped when Gemini provided a place_id, causing new venues to fail creation.
+          // 2026-04-10: Venue Resolution via Google Places API (New).
+          // Google Places is the ONLY source of truth for venue addresses, coordinates, and cities.
+          // Priority chain: (a) place_id cache hit → (b) Places API search → (c) geocode fallback
           let venueId = null;
+          let resolvedVenue = null;  // Will hold venue_catalog record with authoritative data
+
           if (event.venue_name) {
             try {
               let placeId = event.place_id || null;
-              let geocodeResult = null;
 
-              if (placeId) {
-                briefingLog.info(`Using Gemini place_id for "${event.venue_name}": ${placeId.slice(0, 15)}...`);
-              }
-
-              // 2026-03-28: ALWAYS geocode to get coordinates — findOrCreateVenue needs lat/lng
-              // to create new venues. Gemini's place_id is preserved for lookup (Strategy 1).
-              geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
-              if (!placeId) {
-                placeId = geocodeResult?.place_id || null;
-              }
-
-              // Find existing venue or create new one
-              // Lookup order: place_id → coord_key → fuzzy name → CREATE
-              const venue = await findOrCreateVenue({
-                venue: event.venue_name,
-                address: event.address,
-                latitude: geocodeResult?.lat || null,
-                longitude: geocodeResult?.lng || null,
-                city: city,
-                state: state,
-                placeId: placeId,
-                formattedAddress: geocodeResult?.formatted_address || null
-              }, 'briefing_discovery');
-
-              if (venue) {
-                venueId = venue.venue_id;
-                // 2026-02-26: Flag venue as event venue when linked via place_id
-                if (venue.is_event_venue !== true) {
-                  try {
-                    await db.update(venue_catalog).set({ is_event_venue: true, updated_at: new Date() })
-                      .where(eq(venue_catalog.venue_id, venue.venue_id));
-                  } catch (flagErr) { /* non-fatal */ }
+              // Step (a): If Gemini returned a place_id, check venue_catalog cache
+              if (placeId && placeId.startsWith('ChIJ')) {
+                const cached = await lookupVenue({ placeId });
+                if (cached && cached.formatted_address && cached.lat && cached.lng) {
+                  // Venue exists with complete Places API data — use it directly
+                  resolvedVenue = cached;
+                  venueId = cached.venue_id;
+                  briefingLog.info(`Cache hit (place_id) for "${event.venue_name}": ${cached.venue_name}`);
                 }
-                briefingLog.info(`Linked "${event.title}" → "${venue.venue_name}" (${venue.venue_id?.slice(0, 8)})`);
+                // If cached but MISSING formatted_address/lat/lng, fall through to step (b)
+              }
+
+              // Step (b): No cached venue — resolve via Google Places API (New)
+              // Uses snapshot lat/lng as location bias with 50km radius for metro-wide discovery
+              if (!resolvedVenue) {
+                const placeResult = await searchPlaceWithTextSearch(lat, lng, event.venue_name, { radius: 50000 });
+
+                if (placeResult) {
+                  // Places API returned authoritative venue data
+                  const venue = await findOrCreateVenue({
+                    venue: event.venue_name,
+                    address: placeResult.formattedAddress,
+                    latitude: placeResult.lat,
+                    longitude: placeResult.lng,
+                    city: placeResult.parsed?.city || city,       // FROM PLACES API
+                    state: placeResult.parsed?.state || state,     // FROM PLACES API
+                    placeId: placeResult.placeId,
+                    formattedAddress: placeResult.formattedAddress
+                  }, 'briefing_discovery');
+
+                  if (venue) {
+                    resolvedVenue = venue;
+                    venueId = venue.venue_id;
+                    briefingLog.info(`Places API resolved "${event.venue_name}" → "${venue.venue_name}" in ${placeResult.parsed?.city || '?'} (${venue.venue_id?.slice(0, 8)})`);
+                  }
+                } else {
+                  // Step (c): Places API returned nothing — fall back to geocode with snapshot context
+                  const geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
+                  if (geocodeResult) {
+                    const venue = await findOrCreateVenue({
+                      venue: event.venue_name,
+                      address: geocodeResult.formatted_address || event.address,
+                      latitude: geocodeResult.lat,
+                      longitude: geocodeResult.lng,
+                      city: city,
+                      state: state,
+                      placeId: geocodeResult.place_id || placeId,
+                      formattedAddress: geocodeResult.formatted_address
+                    }, 'briefing_discovery');
+
+                    if (venue) {
+                      resolvedVenue = venue;
+                      venueId = venue.venue_id;
+                      briefingLog.info(`Geocode fallback for "${event.venue_name}" → ${venue.venue_id?.slice(0, 8)}`);
+                    }
+                  }
+                }
+              }
+
+              // Flag venue as event venue if not already
+              if (resolvedVenue && resolvedVenue.is_event_venue !== true) {
+                try {
+                  await db.update(venue_catalog).set({ is_event_venue: true, updated_at: new Date() })
+                    .where(eq(venue_catalog.venue_id, resolvedVenue.venue_id));
+                } catch (flagErr) { /* non-fatal */ }
               }
             } catch (venueErr) {
               // Non-fatal - continue without link
@@ -1317,14 +1371,34 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             }
           }
 
-          // 2026-01-10: Use normalized field names (event is already normalized by normalizeEvent)
-          // Removed: lat, lng, zip, source_url, raw_source_data (geocoding happens in venue_catalog)
+          // 2026-04-11: Validate resolved venue address quality before storing.
+          // If the venue's address is garbage (e.g., "Theatre, Frisco, TX 75034"),
+          // log a warning. The venue-cache layer already re-resolves bad addresses,
+          // so here we just validate the final result for monitoring.
+          const resolvedAddress = resolvedVenue?.formatted_address || event.address;
+          const resolvedCity = resolvedVenue?.city || city;
+          const resolvedState = resolvedVenue?.state || state;
+
+          if (resolvedVenue) {
+            const { valid: addrValid, issues: addrIssues } = validateVenueAddress({
+              formattedAddress: resolvedAddress,
+              venueName: event.venue_name,
+              lat: resolvedVenue.lat,
+              lng: resolvedVenue.lng,
+              city: resolvedCity
+            });
+            if (!addrValid) {
+              briefingLog.warn(2, `[VENUE-VALIDATE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
+            }
+          }
+
+          // Store event with venue_catalog truth (city/address from Places API, not Gemini guess)
           await db.insert(discovered_events).values({
             title: event.title,
-            venue_name: event.venue_name,  // Already normalized - was bug: event.venue || event.location
-            address: event.address,
-            city: city,
-            state: state,
+            venue_name: event.venue_name,  // Keep Gemini's name for display
+            address: resolvedAddress,
+            city: resolvedCity,
+            state: resolvedState,
             venue_id: venueId,  // 2026-01-14: FIX - Link to venue_catalog for coords/map
             event_start_date: event.event_start_date,
             event_start_time: event.event_start_time,
@@ -1339,10 +1413,14 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             // 2026-04-04: FIX H-6 — Update all content fields on conflict, not just timestamp.
             // Previously only updated updated_at + venue_id, silently dropping corrected data
             // (title, times, venue name) from re-discovery.
+            // 2026-04-11: FIX — Use resolved venue data for address/city/state on conflict too.
+            // Previously used raw event.address on conflict, bypassing Places API resolution.
             set: {
               title: event.title,
               venue_name: event.venue_name,
-              address: event.address,
+              address: resolvedAddress,
+              city: resolvedCity,
+              state: resolvedState,
               event_start_date: event.event_start_date,
               event_start_time: event.event_start_time,
               event_end_time: event.event_end_time,
@@ -1397,8 +1475,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
     })
       .from(discovered_events)
       .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
+      // 2026-04-10: FIX — Query by STATE (metro-wide), not city. Events now store their
+      // actual venue city (e.g., "Fort Worth", "Arlington") so filtering by snapshot city
+      // ("Dallas") would miss all metro events outside the driver's exact city.
       .where(and(
-        eq(discovered_events.city, city),
         eq(discovered_events.state, state),
         gte(discovered_events.event_start_date, todayStr),
         lte(discovered_events.event_start_date, endDateStr),

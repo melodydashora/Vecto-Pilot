@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-02-17
+> **Last Verified:** 2026-04-11 (added deduplicateEventsSemantic.js for title-similarity dedup)
 
 # Event Pipeline (`server/lib/events/pipeline/`)
 
@@ -25,6 +25,7 @@ BriefingEvent ← (DB read) ← discovered_events ← (DB write)
 | `validateEvent.js` | Hard filter validation | validateEvent, validateEventsHard, needsReadTimeValidation |
 | `hashEvent.js` | MD5 hash for deduplication | generateEventHash, buildHashInput, eventsHaveSameHash |
 | `geocodeEvent.js` | Google Geocoding for events | geocodeEventAddress, geocodeMissingCoordinates |
+| `deduplicateEventsSemantic.js` | Title-similarity dedup + venue plausibility | deduplicateEventsSemantic, titlesMatch, normalizeTitleForComparison |
 
 ## Usage
 

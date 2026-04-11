@@ -2,6 +2,8 @@ import { Router } from 'express';
 import crypto from 'crypto';
 // 2026-04-04: FIX C-2 — Added fetchTrafficConditions (was missing, causing ReferenceError on /traffic/realtime)
 import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, filterInvalidEvents, fetchWeatherConditions, fetchTrafficConditions, fetchRideshareNews, deduplicateEvents } from '../../lib/briefing/briefing-service.js';
+// 2026-04-11: Title-similarity dedup safety net — catches duplicates that survived hash-based dedup
+import { deduplicateEventsSemantic } from '../../lib/events/pipeline/deduplicateEventsSemantic.js';
 import { db } from '../../db/drizzle.js';
 import { snapshots, discovered_events, news_deactivations, briefings, market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte, ilike, not, or, sql } from 'drizzle-orm';
@@ -707,8 +709,10 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     })
       .from(discovered_events)
       .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
+      // 2026-04-10: FIX — Query by STATE (metro-wide), not city. Events now store their
+      // venue's actual city from Google Places API (e.g., "Fort Worth", "Arlington"), so
+      // filtering by snapshot city ("Dallas") would miss metro events outside the driver's city.
       .where(and(
-        eq(discovered_events.city, snapshot.city),
         eq(discovered_events.state, snapshot.state),
         gte(discovered_events.event_start_date, today),
         lte(discovered_events.event_start_date, endDate),
@@ -755,6 +759,16 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     allEvents = deduplicateEvents(allEvents);
     if (beforeDedup > allEvents.length) {
       console.log(`[BriefingRoute] Dedup: ${beforeDedup} → ${allEvents.length} events (removed ${beforeDedup - allEvents.length} duplicates)`);
+    }
+
+    // 2026-04-11: Title-similarity dedup safety net — catches "Jon Wolfe Concert" vs "Jon Wolfe"
+    // and wrong-stadium assignments that survived hash-based dedup.
+    // Uses venue field (mapped from venue_name above) for venue plausibility scoring.
+    const beforeSemantic = allEvents.length;
+    const { deduplicated: semanticDeduped } = deduplicateEventsSemantic(allEvents);
+    allEvents = semanticDeduped;
+    if (beforeSemantic > allEvents.length) {
+      console.log(`[BriefingRoute] Semantic dedup: ${beforeSemantic} → ${allEvents.length} events (removed ${beforeSemantic - allEvents.length} title-variant duplicates)`);
     }
 
     // CRITICAL: Filter stale events and events without date info (2026-01-05)
@@ -886,6 +900,9 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
 
           // Apply same deduplication and freshness filters
           marketEvents = deduplicateEvents(marketEvents);
+          // 2026-04-11: Title-similarity dedup for market events too
+          const { deduplicated: marketDeduped } = deduplicateEventsSemantic(marketEvents);
+          marketEvents = marketDeduped;
           marketEvents = filterFreshEvents(marketEvents, new Date(), snapshotTz);
 
           if (marketEvents.length > 0) {
@@ -1213,10 +1230,10 @@ router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnersh
     console.log(`[BriefingRoute] GET /discovered-events for ${snapshot.city}, ${snapshot.state} (${today} to ${endDate}, tz=${userTimezone})`);
 
     // 2026-01-10: Use symmetric field names (event_start_date)
+    // 2026-04-10: FIX — Query by state (metro-wide), same as /events endpoint above
     const events = await db.select()
       .from(discovered_events)
       .where(and(
-        eq(discovered_events.city, snapshot.city),
         eq(discovered_events.state, snapshot.state),
         gte(discovered_events.event_start_date, today),
         lte(discovered_events.event_start_date, endDate),
