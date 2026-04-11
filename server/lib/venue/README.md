@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-04-04 (hours backfill fix: storage format, re-hydration, maybeBackfillVenue trigger, batch backfill)
+> **Last Verified:** 2026-04-11 (address quality validation: venue-address-validator.js, findOrCreateVenue re-resolution gate, backfill script radius fix)
 
 # Venue Module (`server/lib/venue/`)
 
@@ -131,6 +131,28 @@ CREATE INDEX IF NOT EXISTS idx_venue_catalog_is_event_venue
   ON venue_catalog (is_event_venue) WHERE is_event_venue = TRUE;
 ```
 
+### Address Quality Validation (2026-04-11)
+
+When venue resolution via Google Places API returns a result, **address quality is validated before the data is used.** This catches bad results like `"Theatre, Frisco, TX 75034"` (venue name fragment leaked into address) or `"Dallas, TX, USA"` (city-only, no street).
+
+**Validation checks** (in `venue-address-validator.js`):
+
+| Check | Type | What It Catches |
+|-------|------|-----------------|
+| `ADDRESS_HAS_STREET_NUMBER` | Soft signal | Addresses missing any digits (e.g., "Frisco, TX, USA") |
+| `ADDRESS_NOT_GENERIC` | **Hard fail** | Venue type words as address (e.g., "Theatre, Frisco, TX") |
+| `ADDRESS_HAS_STREET_NAME` | Soft signal | Missing street patterns like St, Ave, Blvd, Way |
+| `COORD_SANITY` | Soft signal | Coords don't match the city in the address |
+
+**Scoring:** Hard fail = always invalid. 2+ soft signal failures = invalid. 1 soft signal = valid with warning.
+
+**Integration points:**
+
+1. **`venue-cache.js` `findOrCreateVenue()`**: After lookup/creation, `maybeReResolveAddress()` validates the address. If invalid, triggers Places API re-resolution (50km radius) and updates venue_catalog.
+2. **`briefing-service.js` event pipeline**: After venue resolution, validates the final address before inserting into `discovered_events`. Logs `[VENUE-VALIDATE]` warnings for monitoring.
+
+**Global-aware:** Checks use international street patterns (German Straße, French Rue, Spanish Calle). Street number check is a soft signal because some international addresses don't have numbers.
+
 ### Venue Enrichment on Discovery (2026-02-26)
 
 When a venue is created or matched during event discovery, `venue-cache.js` now triggers non-blocking enrichment to fill in missing data (phone, rating, hours, business status, types).
@@ -226,7 +248,8 @@ Venue discovery, enrichment, and Smart Blocks generation. Produces the ranked ve
 | `enhanced-smart-blocks.js` | VENUES pipeline orchestrator + catalog promotion | `generateEnhancedSmartBlocks(snapshotId)` |
 | `venue-intelligence.js` | Bar Tab discovery (GPT-5.2) | `discoverNearbyVenues()` |
 | `venue-enrichment.js` | Google Places/Routes data | `enrichVenue()`, `getBatchDriveTimes()` |
-| `venue-address-resolver.js` | Batch geocoding | `resolveAddresses()` |
+| `venue-address-resolver.js` | Batch geocoding + Places API text search | `resolveAddresses()`, `searchPlaceWithTextSearch()` |
+| `venue-address-validator.js` | Address quality validation (string-only, no API calls) | `validateVenueAddress()`, `isAddressValid()` |
 | `venue-event-verifier.js` | Event verification | `verifyVenueEvents()` |
 | `venue-cache.js` | Venue deduplication cache + timezone + enrichment | `findOrCreateVenue()`, `lookupVenue()`, `enrichVenueFromPlaceId()`, `maybeBackfillVenue()` |
 | `venue-utils.js` | Venue consolidation utilities | `parseAddressComponents()`, `calculateIsOpenFromHoursTextMap()` (**Note:** `generateCoordKey` is now imported from `server/lib/location/coords-key.js`) |

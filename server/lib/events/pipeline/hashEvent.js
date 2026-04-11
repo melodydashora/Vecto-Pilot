@@ -3,10 +3,17 @@
  *
  * Canonical event hashing for deduplication.
  *
- * HASH CONTRACT (2026-01-09):
+ * HASH CONTRACT (2026-04-10, v2):
  * ═══════════════════════════════════════════════════════════════════════════
- * Hash input = normalize(title) + "|" + normalize(venue_address) + "|" + date + "|" + time
+ * Hash input = normalize(title) + "|" + normalize(venue_name) + "|" + city + "|" + date
  * Hash algorithm = MD5 (32-char hex)
+ *
+ * 2026-04-10: CHANGED from v1 (title|venue_address|date|time).
+ * - ADDED city: prevents "Fair Park, Dallas" and "Fair Park, Houston" from colliding.
+ * - REMOVED time: "Bruno Mars 7:00 PM" and "Bruno Mars 7:30 PM" at same venue/date
+ *   are the same event with a time correction — they should UPDATE, not create duplicates.
+ * - CHANGED venue_address → venue_name: address varies across discovery runs but
+ *   venue name is more stable for deduplication.
  *
  * CRITICAL: Title normalization MUST strip "at Venue" suffixes to prevent
  * duplicate events like "Cirque du Soleil at Cosm" vs "Cirque du Soleil"
@@ -110,12 +117,13 @@ function normalizeTimeForHash(timeStr) {
 
 /**
  * Build the canonical hash input string.
- * Format: "normalized_title|normalized_venue_address|date|time"
+ * Format: "normalized_title|normalized_venue_name|city|date"
  *
- * 2026-01-09: Updated to include time and strip "at Venue" suffixes
- * This prevents duplicate events like:
- * - "Cirque du Soleil at Cosm" vs "Cirque du Soleil"
- * - Same event at same venue at different times (now distinguished)
+ * 2026-04-10: v2 — Changed to title|venue_name|city|date (removed time, added city).
+ * This ensures:
+ * - "Bruno Mars" at same venue on same date with different times → SAME hash (UPDATE)
+ * - "Fair Park" in Dallas vs "Fair Park" in Houston → DIFFERENT hashes
+ * - "Cirque du Soleil at Cosm" vs "Cirque du Soleil" → SAME hash (suffix stripped)
  *
  * @param {Object} event - NormalizedEvent or object with required fields
  * @returns {string} Hash input string
@@ -125,17 +133,16 @@ export function buildHashInput(event) {
   const titleWithoutVenue = stripVenueSuffix(event.title);
   const title = normalizeForHash(titleWithoutVenue);
 
-  // Use venue_name + address for more precise venue matching
-  const venueAndAddress = [event.venue_name || event.venue, event.address]
-    .filter(Boolean)
-    .join(' ');
-  const venue = normalizeForHash(venueAndAddress);
+  // 2026-04-10: Use venue_name only (not address) — address varies between discovery runs
+  // but venue name is stable. "American Airlines Center" stays consistent.
+  const venue = normalizeForHash(event.venue_name || event.venue);
 
-  // 2026-01-10: Use symmetric naming (event_start_date, event_start_time)
+  // 2026-04-10: Include city to prevent cross-city hash collisions
+  const city = normalizeForHash(event.city);
+
   const date = event.event_start_date || '';
-  const time = normalizeTimeForHash(event.event_start_time);
 
-  return `${title}|${venue}|${date}|${time}`;
+  return `${title}|${venue}|${city}|${date}`;
 }
 
 /**
