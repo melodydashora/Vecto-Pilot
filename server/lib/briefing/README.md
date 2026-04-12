@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-04-04 (C-1 barrel exports, C-4 normalizeEvent context, C-5 timezone dates, H-6 ON CONFLICT content update)
+> **Last Verified:** 2026-04-11 (filter-for-planner.js NEAR/FAR event bucketing; 15-mile rule restored as supreme VENUE_SCORER constraint; analyzeTrafficWithGemini additive return shape preserves raw TomTom data for strategist enrichment)
 
 # Briefing Module (`server/lib/briefing/`)
 
@@ -35,9 +35,9 @@ Real-time briefing service for events, traffic, weather, news, airport condition
 |------|---------|------------|
 | `briefing-service.js` | Main briefing orchestrator | `getOrGenerateBriefing(snapshotId)` |
 | `cleanup-events.js` | Soft-deactivate past events per-snapshot (2026-02-17) | `deactivatePastEvents(timezone)` |
-| `filter-for-planner.js` | Filter briefing for venue planner (2026-01-31) | `filterBriefingForPlanner(briefing, snapshot)` |
+| `filter-for-planner.js` | Filter briefing for venue planner (2026-01-31, updated 2026-04-11 with `todayEvents` param) | `filterBriefingForPlanner(briefing, snapshot, todayEvents?)` |
 | `event-schedule-validator.js` | Event verification (DISABLED — dead code) | `validateEventSchedules(events)` |
-| `event-matcher.js` | Match events ↔ venues for SmartBlocks | `matchEventsToVenues(events, venues)` |
+| `event-matcher.js` | **Lives in `server/lib/venue/`, not here.** Matches SmartBlocks venues ↔ discovered events using place_id + venue_id + name fallback (2026-04-11 rewrite). | `matchVenuesToEvents(venues, todayEvents)` |
 | `venue-event-verifier.js` | Verify event-venue matches (hours + proximity) | `verifyEventVenueMatch()` |
 | `enhanced-smart-blocks.js` | Generate SmartBlocks with event context | `generateEnhancedSmartBlocks()` |
 | `district-detection.js` | Detect entertainment districts | `detectDistrict()` |
@@ -257,17 +257,25 @@ import { getOrGenerateBriefing } from '../../lib/briefing/briefing-service.js';
 import { getOrGenerateBriefing } from '../briefing/briefing-service.js';
 ```
 
-## Briefing Filter for Venue Planner (2026-01-31)
+## Briefing Filter for Venue Planner (2026-01-31, updated 2026-04-11)
 
-The `filter-for-planner.js` module filters full briefing data for efficient venue planner consumption:
+The `filter-for-planner.js` module filters full briefing data for efficient venue planner consumption and formats events into a prompt-ready form that works with the 15-mile rule.
 
 ```javascript
 import { filterBriefingForPlanner, formatBriefingForPrompt } from './filter-for-planner.js';
 
-// Filter briefing to reduce token usage
+// 2026-04-11: Preferred — pass pre-fetched state-scoped events as 3rd arg.
+// The caller (enhanced-smart-blocks.js) pre-fetches events with driver
+// coordinates so distance annotation is available for downstream NEAR/FAR
+// bucketing in formatBriefingForPrompt.
+const filteredBriefing = filterBriefingForPlanner(briefingRow, snapshot, todayEvents);
+
+// Legacy — city-scoped filter path, kept for back-compat (no active callers)
 const filteredBriefing = filterBriefingForPlanner(briefingRow, snapshot);
 
-// Format for LLM prompt inclusion
+// Format for LLM prompt inclusion. Events are split into NEAR (≤ 15 mi,
+// candidate venues) and FAR (> 15 mi, surge flow intelligence) buckets
+// based on the `_distanceMiles` annotation attached by the caller's fetch.
 const promptSection = formatBriefingForPrompt(filteredBriefing);
 ```
 
@@ -275,18 +283,90 @@ const promptSection = formatBriefingForPrompt(filteredBriefing);
 
 | Data Type | Filter Logic |
 |-----------|--------------|
-| Events | Today only. Large events (stadiums, arenas) kept from entire market. Small events (bars) filtered to user's city. |
+| Events (2026-04-11) | **Preferred path:** pre-fetched by caller via state-scoped `discovered_events ⋈ venue_catalog` query, distance-annotated with `_distanceMiles` — passed as `todayEvents` arg. `filterBriefingForPlanner` uses them directly without further filtering. **Legacy path:** `briefing.events` with the deprecated 2026-01-31 city/state split, kept only for any unmigrated callers. The city-match branch has a stale-data bug post-2026-04-11 address correctness work; no active callers remain. |
 | Traffic | Summary only: briefing text + top 3 keyIssues + top 2 avoidAreas |
 | Weather | Essential fields: condition, temperature, driver impact |
 | School Closures | Today only (start_date <= today <= end_date) |
 | Airport | Pass-through (already summarized) |
 
+### Event Bucketing in `formatBriefingForPrompt` (2026-04-11)
+
+When events carry a `_distanceMiles` annotation (attached by the caller's pre-fetch with driver coordinates), `formatBriefingForPrompt` splits them into two bucketed blocks before emitting the prompt section. The split is governed by the `NEAR_EVENT_RADIUS_MILES = 15` constant inside the formatter — the same 15-mile rule `VENUE_SCORER` enforces as its supreme venue-eligibility constraint.
+
+**NEAR EVENTS block** (within 15 mi of driver — candidate venues):
+- Header labels the events as CANDIDATE VENUES.
+- Body instructs `VENUE_SCORER` to recommend the event venue directly with event-specific `pro_tips` (pickup surge timing, post-show staging, pre-show drop-off) when the event is high-impact and starting/ending within the next 2 hours.
+- Slice cap: 6 events. Bounded to keep prompt size reasonable; the closest-first sort from the caller ensures the 6 shown are the most driver-relevant.
+
+**FAR EVENTS block** (beyond 15 mi of driver — surge flow intelligence):
+- Header labels the events as SURGE FLOW INTELLIGENCE and explicitly tells the model `DO NOT recommend these venues` — they violate the 15-mile rule.
+- Body instructs `VENUE_SCORER` to reason about **demand origination**: attendees travel FROM hotels, residential areas, and dining clusters NEAR the driver TO these far venues. That outflow creates pickup demand within the driver's 15-mile radius at the departure end (not at the event). The prompt tells the model to recommend the closest high-impact venues in the driver's radius that benefit from the outflow (hotels near freeway on-ramps, dining hubs, residential/entertainment centers where attendees pre-load).
+- Slice cap: 8 events.
+
+**Unbucketed fallback**: If events lack `_distanceMiles` (the caller did not pass driver coordinates), the formatter renders them under a neutral "distance not annotated" header noting that the 15-mile rule still applies. No bucketing attempted. This path is reachable only from legacy callers; the primary Smart Blocks pipeline always passes driver coordinates.
+
+**Per-event rendering (both buckets):** venue name, exact coordinates, full address, start/end time, category, expected attendance, and distance from driver. The formatter prefers `venue_catalog` joined fields (`vc_venue_name`, `vc_formatted_address`, `vc_lat`, `vc_lng`) when available, falling back to `discovered_events` fields for orphan events with a null `venue_id`.
+
 ### Why This Matters
 
-- **Token Reduction**: Full briefing can be 5K+ tokens. Filtered version is ~500 tokens.
-- **Relevance**: Venue planner only needs today's actionable data.
-- **Market-Wide Events**: Large events (Cowboys game in Arlington) affect traffic across the entire DFW market, so they're kept even if user is in Frisco.
-- **Local Events**: Bar trivia in Dallas isn't relevant to a driver in Frisco, so it's filtered out.
+- **Token reduction.** Full briefing can be 5K+ tokens. Filtered version is ~500 tokens pre-bucketing, ~700–900 tokens with NEAR/FAR blocks rendered (depending on how many events fall in each bucket and the caps above).
+- **Relevance.** Venue planner only needs today's actionable data and today's surge-flow intelligence. Historical events, stale traffic, and weather forecasts outside the next hour are dropped upstream.
+- **Metro-wide event visibility.** State-scoped event fetching at the caller layer surfaces every event in the driver's metro, not just those whose venue happens to be in the driver's literal city. Cross-city metro events (typical in any large market where the driver's metro spans multiple municipalities) reach the prompt so the planner can reason about metro-wide demand flow.
+- **Closest-first invariant preserved.** By splitting events into NEAR (candidate venues) and FAR (intelligence), the planner prompt lets `VENUE_SCORER` use far-event data for origination reasoning without weakening the 15-mile rule. Far events enrich close-venue selection without polluting the candidate pool. A driver in any metro keeps seeing the closest high-impact venues first, whether or not distant events are happening tonight.
+
+### See also
+
+- `../venue/README.md` § "Smart Blocks ↔ Event Venue Coordination (2026-04-11)" — venue module perspective on how the NEAR/FAR prompt output is consumed
+- `../venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md` — full history of the alignment work: initial fix (sections 1–11), first followup (section 12), second revert (section 13)
+- `../../../docs/EVENTS.md` § 10 "Smart Blocks ↔ Event Venue Coordination" — canonical reference
+
+## Traffic Intelligence Persistence (2026-04-11)
+
+`analyzeTrafficWithGemini` (in `briefing-service.js`) now preserves raw TomTom data alongside Gemini's analyzed strings. This is an **additive** change — existing callers that read only `briefing`, `headline`, `keyIssues`, `avoidAreas`, `driverImpact`, `closuresSummary`, `constructionSummary` see no behavior change. New callers (specifically the strategist) can now read structured incident/closure/zone data.
+
+### What's in the return object
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `briefing` | string | Gemini's 2–3 sentence strategic summary (existing) |
+| `headline` | string | First sentence of the briefing (existing) |
+| `keyIssues` | string[] | Gemini's 3 top issue strings with road + distance + impact (existing) |
+| `avoidAreas` | string[] | Gemini's areas-to-avoid corridor strings (existing) |
+| `driverImpact` | string | 1-sentence strategic summary (existing) |
+| `closuresSummary` | string | Gemini's closures description (existing) |
+| `constructionSummary` | string | Gemini's construction description (existing) |
+| `analyzedAt` | ISO timestamp | Analysis time (existing) |
+| `provider` | string | `'BRIEFING_TRAFFIC'` (existing) |
+| **`incidents`** | Array<object> | **NEW** — top 20 raw TomTom incidents with `road`, `category`, `distanceFromDriver`, `isHighway`, `magnitude`, `delayMinutes`, `from`, `to`, `location` |
+| **`closures`** | Array<object> | **NEW** — incidents filtered to `category === 'Road Closed'` or `'Lane Closed'`, top 10 |
+| **`highwayIncidents`** | Array<object> | **NEW** — incidents filtered to `isHighway === true`, top 10 |
+| **`congestionLevel`** | string | **NEW** — TomTom's congestion level (`low` / `medium` / `high` / `unknown`) |
+| **`highDemandZones`** | Array | **NEW** — TomTom's high-demand zone list (often empty, reserved for future traffic intelligence) |
+
+### Why this change exists
+
+The strategist in `server/lib/ai/providers/consolidator.js` previously received only Gemini's 1-line `driverImpact` summary as its entire traffic block. After the 2026-04-11 strategist enrichment (`STRATEGIST_ENRICHMENT_PLAN.md`), the strategist now needs structured data to render the compact TRAFFIC block with:
+
+- `TRAFFIC: {driverImpact} | Congestion: {congestionLevel}`
+- `AVOID: {avoidArea1} | {avoidArea2} | ...`
+- `CLOSURES: {road1} ({dist1}mi) | {road2} ({dist2}mi) | ...`
+- `TOP INCIDENTS: {road1} ({dist1}mi, {severity1}) | ...`
+- `HIGH-DEMAND ZONES: {zone1} | ...`
+
+Without the additive return-shape change, the strategist would have to reverse-engineer road names and distances from Gemini's free-text `keyIssues` strings. With the additive change, the strategist reads structured fields directly.
+
+### Graceful degradation — legacy briefings
+
+Any briefing written **before** this change lacks the five new fields. The strategist's `formatTrafficIntelForStrategist` helper (in `consolidator.js`) falls back to the pre-existing fields — `avoidAreas[]`, `keyIssues[]`, `driverImpact`. Older rows produce a less-structured but still-useful TRAFFIC block. **No breakage, no migration needed.**
+
+### JSONB storage impact
+
+The raw TomTom data adds ~5–10 KB per briefing row to the `briefings.traffic_conditions` column. `briefings` is a PostgreSQL table with JSONB columns and no documented size constraint, so the addition is well within limits for typical row sizes.
+
+### See also
+
+- `../ai/providers/STRATEGIST_ENRICHMENT_PLAN.md` § 6 — the design rationale and graceful-degradation ladder
+- `../ai/providers/README.md` § "Strategist Data Enrichment (2026-04-11)" — the consumer side (how the strategist reads these fields)
 
 ## Recommended Driver Resources (Curated)
 

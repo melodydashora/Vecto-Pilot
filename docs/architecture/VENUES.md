@@ -1,7 +1,7 @@
 # VENUES.md — Venue Discovery and Management Architecture
 
 > **Canonical reference** for venue discovery, scoring, ranking, Google Places integration, and how venues appear in the UI.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-11 (Smart Blocks ↔ Event Venue Coordination: NEAR/FAR bucket model, 15-mile rule restored as supreme)
 
 ## Supersedes
 - `server/lib/venue/README.md` — Venue module docs (merged here)
@@ -45,7 +45,15 @@ generateEnhancedSmartBlocks(snapshotId)
   │  └─ Filter permanently closed venues
   │
   ├─ Step 3: matchVenuesToEvents() (event-matcher.js)
-  │  └─ Link discovered_events to venues by city/state + fuzzy name match
+  │  └─ 2026-04-11: Match via place_id (primary) → venue_id → name fallback.
+  │     Events are pre-fetched state-scoped by the caller at the top of the
+  │     pipeline (fetchTodayDiscoveredEventsWithVenue with driver coords,
+  │     60-mile metro context radius, distance-annotated, closest-first
+  │     sorted). The matcher uses strong identity keys instead of address
+  │     strings and does not re-query the DB. Distance plays no role in the
+  │     matcher itself — by the time it runs, VENUE_SCORER has only picked
+  │     venues within 15 miles of the driver, so far-bucket events naturally
+  │     produce no matches (they were never candidates).
   │
   ├─ Step 4: verifyVenueEventsBatch() (venue-event-verifier.js)
   │  └─ Gemini verifies event relevance per venue
@@ -251,10 +259,26 @@ Fast food chains (McDonald's, Wendy's, etc.), coffee shops (Starbucks, Dunkin'),
 **File:** `server/lib/venue/event-matcher.js`
 
 ```javascript
-matchVenuesToEvents(enrichedVenues, city, state, eventDate)
-// Links discovered_events to venues by city/state + fuzzy name match
+// 2026-04-11: Rewritten to use strong identity keys. No longer async, no longer
+// queries the DB — caller (enhanced-smart-blocks.js) pre-fetches events via
+// fetchTodayDiscoveredEventsWithVenue(state, eventDate, driverLat, driverLng, 60)
+// and passes them in. The caller supplies distance annotation and closest-first
+// sort; the matcher itself is distance-agnostic.
+matchVenuesToEvents(enrichedVenues, todayEvents)
+// Match priority: place_id → venue_id → name fallback
 // Returns Map<venueName, Event[]>
 ```
+
+### Smart Blocks ↔ Event Venue Coordination (NEAR / FAR Bucket Model)
+
+The venue-to-event relationship is governed by the 15-mile rule: `VENUE_SCORER` may only recommend venues within 15 miles of the driver's GPS coordinates, even when events exist in the metro. Event data enriches Smart Blocks via a two-bucket model applied at the prompt-formatting layer (`server/lib/briefing/filter-for-planner.js :: formatBriefingForPrompt`):
+
+- **NEAR EVENTS (≤ 15 mi from driver):** Candidate venues. `VENUE_SCORER` recommends these event venues directly with event-specific `pro_tips`.
+- **FAR EVENTS (> 15 mi from driver):** Surge flow intelligence, NOT destinations. `VENUE_SCORER` uses them to reason about demand origination (attendees depart FROM areas near the driver TO the far venue) and recommends close high-impact venues that benefit from the outflow.
+
+The 60-mile metro context radius at the fetch layer is decoupled from the 15-mile venue-eligibility rule at the prompt layer: the former is a data-layer cap on what's worth reasoning over, the latter is a tactical-layer constraint on what to recommend as a destination.
+
+**Canonical reference:** `docs/EVENTS.md` § 10. Full history: `server/lib/venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md`.
 
 ### Time Relevance Filter
 
@@ -325,7 +349,8 @@ Each block sent to client:
 | VENUE_SCORER (GPT-5.4) | Working — 4-8 venue recommendations |
 | Google Places enrichment | Working — place_id, hours, status |
 | Google Routes batch | Working — drive time with traffic |
-| Event matching | Working — fuzzy name match |
+| Event matching | Working — strong identity keys (`place_id` → `venue_id` → name fallback, 2026-04-11) |
+| Smart Blocks ↔ event coordination | Working — NEAR/FAR bucket model with 15-mile rule as supreme constraint (2026-04-11) |
 | Venue catalog persistence | Working — upsert on each pipeline run |
 | VENUE_FILTER (Haiku) | Working — P/S/X classification |
 | Value grading (A/B/C) | Working — earnings-per-minute based |
@@ -336,7 +361,7 @@ Each block sent to client:
 
 1. **No driver preference influence** — Venue scoring doesn't consider driver's vehicle class or service preferences.
 2. **No venue freshness tracking** — A venue's hours from 3 months ago are treated the same as today's data.
-3. **Event matching is fuzzy** — String-based name matching can miss or mismatch venues.
+3. ~~**Event matching is fuzzy** — String-based name matching can miss or mismatch venues.~~ **Resolved 2026-04-11:** `event-matcher.js` rewritten to use `place_id` as the primary match key (both sides Google-sourced → invariant across formatting drift), with `venue_id` as secondary and substantial-name-match as a tertiary fallback.
 4. **No surge data integration** — Value scoring uses static $1.50/mile, not real-time surge pricing.
 5. **Venue catalog grows unbounded** — No cleanup of permanently closed or unused venues.
 6. **No venue popularity signal** — Missing data on which venues actually produce rides.
@@ -349,7 +374,7 @@ Each block sent to client:
 - [ ] **Add venue freshness TTL** — Re-check business hours if data older than 7 days
 - [ ] **Driver preference-aware scoring** — Weight venues by vehicle class eligibility
 - [ ] **Venue popularity from ride history** — Track which venues drivers get rides from (via offer intelligence)
-- [ ] **Place_id-based event matching** — Use Google Place IDs instead of fuzzy name matching
+- [x] ~~**Place_id-based event matching** — Use Google Place IDs instead of fuzzy name matching~~ (Resolved 2026-04-11 — `event-matcher.js` rewritten with `place_id` → `venue_id` → name fallback)
 - [ ] **Venue catalog cleanup job** — Archive permanently closed venues, prune unused stubs older than 90 days
 - [ ] **Real-time surge overlay** — Show surge zones on venue map markers
 

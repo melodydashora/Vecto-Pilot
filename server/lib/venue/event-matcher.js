@@ -1,146 +1,177 @@
 // server/lib/venue/event-matcher.js
-// Simple event matching for SmartBlocks venues
-// Queries discovered_events table and matches by address/city
-
-import { db } from '../../db/drizzle.js';
-import { discovered_events } from '../../../shared/schema.js';
-import { eq, and, sql } from 'drizzle-orm';
+// ============================================================================
+// EVENT MATCHER — Venue ↔ Discovered Events Alignment
+// ============================================================================
+//
+// PURPOSE: Given a list of venues (from enrichVenues) and a list of today's
+//          discovered events (pre-fetched by caller with venue_catalog join),
+//          produce a Map<venueName, matchedEvents> using strong identity keys.
+//
+// 2026-04-11: Rewrote matching logic to use strong identity keys
+//   (place_id → venue_id → name fallback) and removed the internal DB query.
+//
+//   The previous implementation (address string matching + per-call DB fetch)
+//   had three stacked bugs:
+//     1. Fragile address matching: addressesMatchStrictly required exact street-
+//        number + street-name equality across two independently-sourced Google
+//        address strings. Formatting drift (e.g., "...TX 76011" vs
+//        "...TX 76011, USA") caused false negatives.
+//     2. City-scoped DB query dropped metro-wide events — same bug we fixed in
+//        briefing-service.js and briefing.js during the 2026-04-11 address
+//        correctness work. A Dallas driver would never see a match for an
+//        event at Globe Life Field in Arlington.
+//     3. Pipeline ordering made the strong venue_id key unusable: matching ran
+//        before catalog promotion, so neither side had a shared venue_id.
+//
+//   The fix uses place_id as the primary key (both sides call the same Google
+//   Places API (New), so place_id is a stable identity), falls back to
+//   venue_id (available after catalog promotion), and finally to substantial
+//   name matching for venues without Google identity. DB fetching is moved
+//   up to the caller (enhanced-smart-blocks.js :: fetchTodayDiscoveredEventsWithVenue),
+//   which uses a state-scoped query with a venue_catalog left-join.
+//
+// CALLED BY: enhanced-smart-blocks.js (after enrichVenues, before catalog promotion)
+//
+// INPUT:
+//   - venues:      Array of enriched venues from enrichVenues().
+//                  Each has .name, .placeId, .lat, .lng (plus other enrichment fields).
+//                  venue_id is NOT yet available at this call site — it's assigned
+//                  in the subsequent promoteToVenueCatalog step. Primary match is place_id.
+//   - todayEvents: Array of state-scoped discovered_events with venue_catalog
+//                  left-join, produced by fetchTodayDiscoveredEventsWithVenue in
+//                  enhanced-smart-blocks.js. Each row has discovered_events fields
+//                  PLUS vc_* prefixed venue_catalog fields (vc_place_id, vc_venue_name,
+//                  vc_address, vc_city, vc_lat, vc_lng).
+//
+// OUTPUT:
+//   - Map<string venueName, Array<EventMatch>>
+//     where EventMatch = { title, venue_name, event_start_time,
+//                          event_end_time, category, expected_attendance }
+//   The shape is preserved from the old API so enhanced-smart-blocks.js's
+//   candidate-assembly code (which reads venue_events[0].title for badges)
+//   does not need to change.
+//
+// ============================================================================
 
 /**
- * Match enriched venues to discovered events by address
+ * Normalize a venue name for fuzzy matching.
+ * @param {string} name
+ * @returns {string}
+ */
+function normalizeName(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Substantial name match. Exact equality, or containment where the contained
+ * side is at least 50% of the container length. This prevents "Majestic"
+ * (8 chars) from matching "Majestic Theatre" (16 chars) as a substring
+ * — that would be too loose — while still matching "The Majestic Theatre"
+ * against "Majestic Theatre" (contained side is ~80% of container).
  *
- * @param {Array} venues - Enriched venues with address field
- * @param {string} city - City name for filtering events
- * @param {string} state - State for filtering events
- * @param {string} eventDate - Date in YYYY-MM-DD format
- * @returns {Map<string, Array>} Map of venue address → matching events
- */
-export async function matchVenuesToEvents(venues, city, state, eventDate) {
-  if (!venues?.length || !city || !eventDate) {
-    return new Map();
-  }
-
-  try {
-    // Fetch today's events for this city
-    // 2026-01-10: Use symmetric field name (event_start_date)
-    const events = await db.select()
-      .from(discovered_events)
-      .where(
-        and(
-          eq(discovered_events.city, city),
-          eq(discovered_events.state, state),
-          eq(discovered_events.event_start_date, eventDate),
-          eq(discovered_events.is_active, true)
-        )
-      );
-
-    if (!events.length) {
-      console.log(`[event-matcher] No events found for ${city}, ${state} on ${eventDate}`);
-      return new Map();
-    }
-
-    console.log(`[event-matcher] Found ${events.length} events for ${city}, ${state} on ${eventDate}`);
-
-    // Create map of venue address → matching events
-    const matchMap = new Map();
-
-    for (const venue of venues) {
-      const matchedEvents = [];
-
-      for (const event of events) {
-        // STRICT matching: require street number + street name OR significant venue name match
-        const addressMatch = addressesMatchStrictly(venue.address, event.address);
-        const nameMatch = venueNamesMatch(venue.name, event.venue_name);
-
-        if (addressMatch || nameMatch) {
-          // 2026-01-10: Use symmetric field names from DB
-          matchedEvents.push({
-            title: event.title,
-            venue_name: event.venue_name,
-            event_start_time: event.event_start_time,
-            event_end_time: event.event_end_time,
-            category: event.category,
-            expected_attendance: event.expected_attendance
-          });
-          console.log(`[event-matcher] ✅ MATCH: "${venue.name}" ↔ "${event.title}" (${addressMatch ? 'address' : 'name'} match)`);
-        }
-      }
-
-      if (matchedEvents.length > 0) {
-        matchMap.set(venue.name, matchedEvents);
-      }
-    }
-
-    return matchMap;
-
-  } catch (err) {
-    console.error('[event-matcher] Error matching events:', err.message);
-    return new Map();
-  }
-}
-
-/**
- * Extract street number from address (e.g., "6991 Main St" → "6991")
- */
-function extractStreetNumber(address) {
-  if (!address) return '';
-  const match = address.match(/^(\d+)\s/);
-  return match ? match[1] : '';
-}
-
-/**
- * Extract street name from address (e.g., "6991 Main St" → "main")
- */
-function extractStreetName(address) {
-  if (!address) return '';
-  return address
-    .toLowerCase()
-    .replace(/^\d+\s+/, '')  // Remove leading street number
-    .replace(/[,\.#]/g, '')  // Remove punctuation
-    .replace(/\b(street|st|avenue|ave|boulevard|blvd|road|rd|drive|dr|lane|ln|way|court|ct|place|pl|parkway|pkwy|highway|hwy)\b/g, '')
-    .replace(/\s+(tx|texas|usa|frisco|plano|dallas|mckinney)\b.*/i, '')  // Remove city/state suffix
-    .replace(/\s+/g, ' ')
-    .trim()
-    .split(' ')[0] || '';  // Just the first word of street name
-}
-
-/**
- * Check if two addresses match strictly
- * Requires BOTH street number AND street name to match
- */
-function addressesMatchStrictly(addr1, addr2) {
-  if (!addr1 || !addr2) return false;
-
-  const num1 = extractStreetNumber(addr1);
-  const num2 = extractStreetNumber(addr2);
-
-  // Street numbers must both exist and match
-  if (!num1 || !num2 || num1 !== num2) return false;
-
-  const street1 = extractStreetName(addr1);
-  const street2 = extractStreetName(addr2);
-
-  // Street names must match (at least one word)
-  if (!street1 || !street2) return false;
-
-  return street1 === street2 || street1.includes(street2) || street2.includes(street1);
-}
-
-/**
- * Check if venue names match (must be substantial match, not just partial)
+ * @param {string} name1
+ * @param {string} name2
+ * @returns {boolean}
  */
 function venueNamesMatch(name1, name2) {
-  if (!name1 || !name2) return false;
-
-  const n1 = name1.toLowerCase().trim();
-  const n2 = name2.toLowerCase().trim();
-
-  // Exact match
+  const n1 = normalizeName(name1);
+  const n2 = normalizeName(name2);
+  if (!n1 || !n2) return false;
   if (n1 === n2) return true;
-
-  // One contains the other, but only if it's a significant portion (>50%)
-  if (n1.includes(n2) && n2.length > n1.length * 0.5) return true;
-  if (n2.includes(n1) && n1.length > n2.length * 0.5) return true;
-
+  if (n1.includes(n2) && n2.length >= n1.length * 0.5) return true;
+  if (n2.includes(n1) && n1.length >= n2.length * 0.5) return true;
   return false;
+}
+
+/**
+ * Build an EventMatch object from a discovered_events row. Preserves the
+ * shape that enhanced-smart-blocks.js expects for ranking_candidates.venue_events[].
+ *
+ * Prefers venue_catalog canonical name (vc_venue_name) when joined, since
+ * the catalog name is the authoritative display form after Places API
+ * resolution. Falls back to discovered_events.venue_name for orphan events
+ * (null venue_id, no join row).
+ *
+ * @param {Object} event - Row from fetchTodayDiscoveredEventsWithVenue
+ * @returns {Object} EventMatch
+ */
+function toEventMatch(event) {
+  return {
+    title: event.title,
+    venue_name: event.vc_venue_name || event.venue_name,
+    event_start_time: event.event_start_time,
+    event_end_time: event.event_end_time,
+    category: event.category,
+    expected_attendance: event.expected_attendance
+  };
+}
+
+/**
+ * Match enriched venues against pre-fetched discovered events using strong
+ * identity keys.
+ *
+ * Match priority (highest → lowest):
+ *   1. place_id: venue.placeId === event.vc_place_id
+ *      Both sides Google-sourced — most reliable. This is the primary key at
+ *      the current call site because venue.placeId is set by enrichVenues
+ *      and event.vc_place_id is set by the venue_catalog join.
+ *
+ *   2. venue_id: venue.venue_id === event.venue_id
+ *      Available only after catalog promotion. At the current call site this
+ *      branch is dormant (venue.venue_id not yet set) but kept as a defensive
+ *      check for any future callers that match post-promotion.
+ *
+ *   3. name match: venueNamesMatch(venue.name, event.vc_venue_name || event.venue_name)
+ *      Tertiary fallback for venues lacking a Google place_id (rare) or for
+ *      legacy rows where place_id was never populated.
+ *
+ * @param {Array<Object>} venues - Enriched venues from enrichVenues()
+ * @param {Array<Object>} todayEvents - State-scoped discovered_events with venue_catalog join
+ * @returns {Map<string, Array<Object>>} Map keyed by venue.name
+ */
+export function matchVenuesToEvents(venues, todayEvents) {
+  if (!venues?.length || !todayEvents?.length) {
+    return new Map();
+  }
+
+  const matchMap = new Map();
+
+  for (const venue of venues) {
+    const matches = [];
+
+    for (const event of todayEvents) {
+      let matchType = null;
+
+      // Primary: place_id (Google Places API identity on both sides)
+      if (venue.placeId && event.vc_place_id && venue.placeId === event.vc_place_id) {
+        matchType = 'place_id';
+      }
+      // Secondary: venue_id (both in venue_catalog — dormant at current call site)
+      else if (venue.venue_id && event.venue_id && venue.venue_id === event.venue_id) {
+        matchType = 'venue_id';
+      }
+      // Tertiary: substantial name match against catalog name or discovered name
+      else if (venueNamesMatch(venue.name, event.vc_venue_name || event.venue_name)) {
+        matchType = 'name';
+      }
+
+      if (matchType) {
+        matches.push(toEventMatch(event));
+        console.log(`[event-matcher] ✅ MATCH (${matchType}): "${venue.name}" ↔ "${event.title}"`);
+      }
+    }
+
+    if (matches.length > 0) {
+      matchMap.set(venue.name, matches);
+    }
+  }
+
+  if (matchMap.size === 0) {
+    console.log(`[event-matcher] No matches for ${venues.length} venues against ${todayEvents.length} events`);
+  } else {
+    console.log(`[event-matcher] Matched ${matchMap.size}/${venues.length} venues to events`);
+  }
+
+  return matchMap;
 }

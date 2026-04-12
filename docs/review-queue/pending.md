@@ -4,6 +4,69 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2026-04-11: Driver Preferences Schema Migration (BLOCKED on DB migration)
+
+**Author:** Claude Opus 4.6 (in session with Melody)
+**Date:** 2026-04-11
+**Scope:** `driver_profiles` table — add four columns for STRATEGIST ENRICHMENT
+
+### Status
+
+**Code shipped, migration pending.** The 2026-04-11 Strategist Data Enrichment code change (`server/lib/ai/providers/consolidator.js`) is complete, syntax-clean, and deployable. It reads four new preference fields from `driver_profiles` that **do not exist in the schema yet**. The `loadDriverPreferences(userId)` helper catches PG error `42703` ("column does not exist") and falls through to defaults, so the code works correctly against the current schema. After the migration runs, real values flow through automatically with zero code changes.
+
+### The migration
+
+```sql
+-- Add driver preference columns for STRATEGY_TACTICAL / STRATEGY_DAILY enrichment.
+-- See server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md section 5 for rationale.
+
+ALTER TABLE driver_profiles
+  ADD COLUMN IF NOT EXISTS fuel_economy_mpg integer,         -- e.g., 25 (mpg). null = use default (25).
+  ADD COLUMN IF NOT EXISTS earnings_goal_daily numeric(10,2),-- e.g., 250.00. null = goal not set.
+  ADD COLUMN IF NOT EXISTS shift_hours_target numeric(4,1),  -- e.g., 8.0 (hours). null = target not set.
+  ADD COLUMN IF NOT EXISTS max_deadhead_mi integer;          -- e.g., 15 (miles). null = use default (15).
+
+COMMENT ON COLUMN driver_profiles.fuel_economy_mpg IS 'Driver vehicle fuel economy in mpg (or null to use default 25). Used by strategist prompt for per-mile gas cost math. Ignored when attr_electric = true.';
+COMMENT ON COLUMN driver_profiles.earnings_goal_daily IS 'Driver daily earnings target in local currency (or null). Used by strategist to compute required $/hr for the shift.';
+COMMENT ON COLUMN driver_profiles.shift_hours_target IS 'Driver target shift length in hours (or null). Paired with earnings_goal_daily for $/hr pacing.';
+COMMENT ON COLUMN driver_profiles.max_deadhead_mi IS 'Max miles the driver will drive empty for a pickup (or null to use default 15).';
+```
+
+### Why not run the migration in the same session as the code?
+
+- **CLAUDE.md Rule 13** — Dev/Prod DB awareness. Schema migrations touch a real table and should be run deliberately with separate review.
+- **Smaller blast radius** — code-only changes are easily reverted; schema changes are harder. Decoupling reduces risk.
+- **Additive-default design** — the code works correctly whether the migration has run or not. This decoupling lets the enrichment ship without waiting for schema review.
+- **Architecture Rule 6 (master architect)** — the owner suggested adding fields to `snapshots`. I pushed back: these are user-level preferences, not snapshot-level, and belong on `driver_profiles` matching the existing `elig_*`/`attr_*`/`pref_*` convention. That architectural call should get a second look before being committed to the schema.
+
+### Verification
+
+- [x] `node --check server/lib/ai/providers/consolidator.js` — syntax clean
+- [x] `loadDriverPreferences` catches PG 42703 and falls back to defaults
+- [x] `STRATEGIST_ENRICHMENT_PLAN.md` section 5 documents the SQL
+- [x] `CHANGELOG.md` entry lists the migration as pending follow-up
+- [x] `server/lib/ai/providers/README.md` notes the migration dependency
+- [ ] **Melody: Run the migration on dev DB** → verify a driver profile can be updated with the new fields without errors
+- [ ] **Melody: Run the migration on prod DB** → after dev verification
+- [ ] **Melody: Update a real driver profile** with non-null values for all four new fields and test that the strategist prompt picks them up
+- [ ] **Melody: Monitor server logs** for `[strategist-enrichment] loadDriverPreferences failed` warnings — these should not appear post-migration
+
+### Files referencing this migration
+
+- `server/lib/ai/providers/consolidator.js` — `loadDriverPreferences` helper with defensive fallback
+- `server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md` — § 5 (schema migration SQL), § 3 (architectural pushback)
+- `server/lib/ai/providers/README.md` — § "Strategist Data Enrichment (2026-04-11)" → "Schema migration — pending follow-up"
+- `CHANGELOG.md` — `[Unreleased] — 2026-04-11 (Strategist Data Enrichment)` → "Notes — schema migration pending"
+- `docs/review-queue/pending.md` — this entry
+
+### Rollback
+
+Not applicable — the migration uses `ADD COLUMN IF NOT EXISTS` and is forward-only. If the migration is reverted, the code still works via the defensive `42703` fallback.
+
+### Status: 🔧 PENDING MIGRATION — Code ships; schema change awaits dev+prod migration approval
+
+---
+
 ## 2026-04-09: Bot Blocker Fix — Replit Preview Pane Unreachable
 
 **Updated by:** Claude Opus 4.6

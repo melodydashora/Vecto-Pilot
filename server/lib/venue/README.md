@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-04-11 (address quality validation: venue-address-validator.js, findOrCreateVenue re-resolution gate, backfill script radius fix)
+> **Last Verified:** 2026-04-11 (address quality validation + Smart Blocks ↔ event venue coordination with 15-mile rule restored: venue-address-validator.js, findOrCreateVenue re-resolution gate, backfill script radius fix, event-matcher.js rewrite with strong identity keys, enhanced-smart-blocks.js NEAR/FAR event bucketing)
 
 # Venue Module (`server/lib/venue/`)
 
@@ -152,6 +152,108 @@ When venue resolution via Google Places API returns a result, **address quality 
 2. **`briefing-service.js` event pipeline**: After venue resolution, validates the final address before inserting into `discovered_events`. Logs `[VENUE-VALIDATE]` warnings for monitoring.
 
 **Global-aware:** Checks use international street patterns (German Straße, French Rue, Spanish Calle). Street number check is a soft signal because some international addresses don't have numbers.
+
+### Smart Blocks ↔ Event Venue Coordination (2026-04-11)
+
+**Design principle:** Smart Blocks must recommend the **closest high-impact venues first**. The 15-mile rule — all venue recommendations must be within 15 miles of the driver's GPS coordinates — is the supreme constraint and is never relaxed, not even for events. Event data enriches Smart Blocks in two distinct ways based on the event's distance from the driver, without ever weakening the 15-mile rule.
+
+#### The NEAR / FAR bucket model
+
+```
+Driver location
+    │
+    ├──── 15 mi radius (candidate zone) ────┐
+    │                                        │
+    │   NEAR EVENTS                          │      FAR EVENTS (15–60 mi)
+    │   (candidate venues — recommend        │      (surge flow intelligence —
+    │    directly with event-specific        │       NOT destinations; used to
+    │    pro_tips: pre-show drop-off,        │       reason about where demand
+    │    time window, post-show staging)     │       will ORIGINATE)
+    │                                        │
+    └────────────────────────────────────────┘
+```
+
+- **NEAR EVENTS (≤ 15 mi from driver):** Candidate venues. `VENUE_SCORER` recommends these event venues directly with event-specific `pro_tips` (time window, pickup surge prediction, pre-show drop-off, post-show staging) when the event is high-impact and starting/ending within the next 2 hours.
+
+- **FAR EVENTS (> 15 mi from driver):** Surge flow intelligence — NOT destinations. They violate the 15-mile rule and cannot be recommended. Instead, `VENUE_SCORER` uses them to reason about demand **origination**: event attendees travel FROM hotels, residential areas, and dining clusters NEAR the driver TO the far venue. That outflow creates pickup demand within the driver's 15-mile radius at the departure end (not at the event). `VENUE_SCORER` recommends the closest high-impact venues in the driver's radius that benefit from the outflow.
+
+#### Pipeline flow
+
+```
+1. fetchTodayDiscoveredEventsWithVenue(state, today, driverLat, driverLng, 60)
+   State-scoped SELECT on discovered_events LEFT JOIN venue_catalog.
+   Returns rows with discovered_events fields + vc_* prefixed venue_catalog
+   fields (vc_place_id, vc_venue_name, vc_lat, vc_lng, …). Driver coords
+   enable haversine distance annotation (`_distanceMiles`) and closest-first
+   sort. `maxDistanceMiles` default 60 = metro context radius (NOT a
+   VENUE_SCORER rule); events farther out are dropped as out-of-metro noise.
+
+2. filterBriefingForPlanner(briefing, snapshot, todayEvents)
+   Uses the pre-fetched events directly (ignores briefing.events when the
+   3rd arg is provided). formatBriefingForPrompt emits TWO bucketed blocks
+   based on the `_distanceMiles` annotation:
+
+     • NEAR EVENTS (within 15 mi of driver) — rendered as candidate venues,
+       with an instruction to recommend them directly with event-specific
+       pro_tips. Slice cap: 6 events.
+
+     • FAR EVENTS (beyond 15 mi of driver) — rendered as surge flow
+       intelligence, with an explicit "DO NOT recommend these venues"
+       instruction and the origination-reasoning guidance. Slice cap: 8
+       events.
+
+   Rich per-event rendering in both blocks: venue name, exact coordinates,
+   full address, start/end time, category, expected attendance, and
+   distance from driver.
+
+3. generateTacticalPlan (VENUE_SCORER prompt)
+   System prompt contains the "EVENT INTELLIGENCE" block framing events
+   as surge-flow intel, not a venue list. The 15-mile rule is the single
+   absolute distance constraint — VENUE_SCORER picks 4–6 recommendations
+   from within 15 mi of the driver. When NEAR events exist, they are
+   candidate venues. When FAR events exist, VENUE_SCORER uses them to
+   reason about origination and prioritize the close high-impact venues
+   that will benefit from the outflow.
+
+4. matchVenuesToEvents(enrichedVenues, todayEvents)
+   Synchronous, no DB query. Match priority:
+     (a) place_id: venue.placeId === event.vc_place_id
+         (both Google-sourced → most reliable)
+     (b) venue_id: venue.venue_id === event.venue_id
+         (dormant at current call site; defensive for future reorderings)
+     (c) name match: venueNamesMatch(venue.name, event.vc_venue_name || event.venue_name)
+         (tertiary fallback for venues without Google identity)
+   Distance plays no role — by the time this runs, VENUE_SCORER has only
+   picked ≤ 15-mile venues, so far-bucket events simply find no matches.
+```
+
+#### Why far events stay in the prompt instead of being discarded
+
+Drivers earn at the **departure end** of surge flows, not at distant events themselves. A driver picks up an attendee at a hotel near the freeway on-ramp, not at an arena 30 miles away. Without far events in the prompt, `VENUE_SCORER` has no way to know that a particular hotel or dining cluster will see event-driven demand tonight. Keeping them in (but framing them as intelligence) gives the model the signal it needs to prioritize the right close venues.
+
+This reframes event data as **a signal about which close-in venues will see demand** rather than **a list of distant venues to drive to**. The signal is valuable; the distant venue as a destination is not.
+
+#### Metro context radius vs. VENUE_SCORER rule
+
+`fetchTodayDiscoveredEventsWithVenue(..., maxDistanceMiles=60)` caps the events reaching the prompt at 60 miles by default. This is a **data-layer choice** about what events are worth reasoning over, NOT a `VENUE_SCORER` rule. The 15-mile rule is separate — it's the tactical-layer constraint on what the driver should drive to, enforced by the `tactical-planner.js` prompt. The two numbers are deliberately decoupled: a 60-mile radius for data context, a 15-mile radius for venue eligibility.
+
+#### Global applicability
+
+The NEAR / FAR bucket model is distance-based only. A driver in any market with any metro layout sees the same mechanism — events within the candidate radius are candidates, events beyond are intelligence. The 15-mile candidate radius reflects the operational reality of rideshare earnings degradation with drive time, which is universal. The 60-mile metro context radius is a default for a typical large metro; smaller markets can tune it via the `maxDistanceMiles` parameter.
+
+#### History
+
+This coordination model is the result of three waves of work on 2026-04-11:
+
+1. **Initial alignment fix** — Wired event data into the `VENUE_SCORER` prompt and rewrote the matcher to use strong identity keys.
+2. **First followup fix** — Split the 15-mile rule into "general ≤ 15 mi, event ≤ 40 mi" so distant event venues could be recommended. This broke the closest-first invariant — `VENUE_SCORER` started reaching for distant event arenas instead of closer high-impact venues.
+3. **Second revert** (current state) — Restored the 15-mile rule as supreme and introduced the NEAR / FAR bucket model to preserve event data utility without weakening the rule.
+
+The canonical history log with full rationale for each wave lives in `server/lib/venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md` (sections 1–11, section 12, section 13).
+
+**Load-bearing lesson:** The 15-mile rule encodes the driver's operational reality. When event data seems to conflict with it, the resolution is NOT to weaken the rule — it is to find the near-driver venue that benefits from the far event's surge flow.
+
+**See the full plan + rationale:** `server/lib/venue/SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md`
 
 ### Venue Enrichment on Discovery (2026-02-26)
 

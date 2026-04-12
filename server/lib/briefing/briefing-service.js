@@ -526,7 +526,18 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
     const elapsedMs = Date.now() - startTime;
     briefingLog.done(1, `Gemini Pro traffic analysis (${elapsedMs}ms)`, OP.AI);
 
+    // 2026-04-11: STRATEGIST ENRICHMENT — additive changes to preserve the raw
+    // TomTom incident/closure arrays alongside Gemini's analyzed strings. The
+    // consolidator's formatTrafficIntelForStrategist helper reads these structured
+    // fields to build the enriched TRAFFIC block (with road names, distances,
+    // severity, and congestion level). Legacy briefings written before this change
+    // will lack these fields — the strategist falls back gracefully to the
+    // existing keyIssues[] / avoidAreas[] / driverImpact strings.
+    //
+    // See server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md section 6 for
+    // the design rationale and graceful-degradation ladder.
     return {
+      // Existing Gemini-analyzed fields (unchanged)
       briefing: analysis.briefing,
       headline: analysis.briefing?.split('.')[0] + '.' || analysis.headline,
       keyIssues: analysis.keyIssues || [],
@@ -535,7 +546,17 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
       closuresSummary: analysis.closuresSummary,
       constructionSummary: analysis.constructionSummary,
       analyzedAt: new Date().toISOString(),
-      provider: 'BRIEFING_TRAFFIC'
+      provider: 'BRIEFING_TRAFFIC',
+
+      // NEW (2026-04-11 additive): raw TomTom data preserved for strategist enrichment.
+      // Each incident has: road, category, distanceFromDriver, isHighway, magnitude,
+      // delayMinutes, from, to, location — a subset of the TomTom fields already used
+      // in Gemini's prompt above. Sliced to keep the JSONB column size bounded.
+      incidents: incidents.slice(0, 20),
+      closures: closures.slice(0, 10),
+      highwayIncidents: highwayIncidents.slice(0, 10),
+      congestionLevel: tomtomData.congestionLevel || 'unknown',
+      highDemandZones: tomtomData.highDemandZones || []
     };
   } catch (err) {
     briefingLog.warn(1, `BRIEFING_TRAFFIC analysis failed: ${err.message}`, OP.AI);

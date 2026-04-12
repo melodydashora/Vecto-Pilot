@@ -13,7 +13,10 @@
 
 import crypto from 'crypto';
 import { db } from '../../../db/drizzle.js';
-import { strategies, briefings, news_deactivations, venue_catalog } from '../../../../shared/schema.js';
+// 2026-04-11: Added driver_profiles for STRATEGIST_ENRICHMENT_PLAN (driver preferences,
+// home base, vehicle class derivation, EV detection). See
+// server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md for the design rationale.
+import { strategies, briefings, news_deactivations, venue_catalog, driver_profiles } from '../../../../shared/schema.js';
 import { eq, inArray, or, ilike, sql } from 'drizzle-orm';
 // 2026-02-13: Removed direct callAnthropic import — now uses callModel adapter
 // @ts-ignore
@@ -142,8 +145,17 @@ async function filterDeactivatedNews(newsData, userId) {
  * 2026-02-26: Renamed from callGPT5ForImmediateStrategy (now uses Claude Opus via callModel).
  * Generate immediate 1-hour tactical strategy from snapshot + briefing data.
  * NO minstrategy required - STRATEGY_TACTICAL has all the context it needs.
+ *
+ * 2026-04-11: STRATEGIST ENRICHMENT — the prompt now includes driver preferences
+ * (vehicle class, fuel economy, earnings goal), full traffic intel (incidents,
+ * closures, high-demand zones), NEAR/FAR event distance annotation, 6-hour
+ * weather forecast timeline, event capacity estimates, home base context, and
+ * pre-computed earnings math. See server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md
+ * for the full design. All enrichments are ADDITIVE — if a field is null or a
+ * schema migration hasn't applied, helpers fall back to sensible defaults.
+ *
  * @param {Object} snapshot - Full snapshot row from DB
- * @param {Object} briefing - Briefing data { traffic, events, weather }
+ * @param {Object} briefing - Briefing data { traffic, events, weather, weather_forecast, news, school_closures, airport }
  */
 async function generateImmediateStrategy({ snapshot, briefing }) {
 
@@ -151,31 +163,62 @@ async function generateImmediateStrategy({ snapshot, briefing }) {
   const localTime = formatLocalTime(snapshot);
 
   try {
-    // 2026-01-08: Pre-format events (now async to lookup venue hours from venue_catalog)
-    const formattedEvents = await formatEventsForLLM(briefing.events, snapshot.timezone);
+    // 2026-04-11: Fetch driver preferences (single indexed lookup, defensive defaults).
+    // Returns a well-formed prefs object even when user_id is null, profile is
+    // missing, or the migration hasn't run yet.
+    const prefs = await loadDriverPreferences(snapshot.user_id);
+
+    // 2026-04-11: Event distance annotation + NEAR/FAR bucketing via the
+    // venue_lat / venue_lng already present in briefing.events (from the
+    // venue_catalog LEFT JOIN in briefing-service.js). No new DB query.
+    const formattedEvents = await formatEventsForStrategist(briefing.events, snapshot, 15);
+
+    // 2026-04-11: Traffic intelligence — structured incidents/closures/zones
+    // when the new traffic shape is present, Gemini analysis fallback otherwise.
+    const trafficBlock = formatTrafficIntelForStrategist(briefing.traffic);
+
+    // 2026-04-11: Weather forecast timeline — reads briefing.weather_forecast
+    // (already populated upstream, previously unused).
+    const weatherBlock = formatWeatherForStrategist(briefing.weather, briefing.weather_forecast, snapshot.timezone);
+
+    // 2026-04-11: Driver preference summary + pre-computed earnings math.
+    const driverPrefBlock = buildDriverPreferencesSection(prefs);
+    const earningsBlock = buildEarningsContextSection(prefs);
+    const homeBaseLine = buildHomeBaseLine(snapshot, prefs);
 
     // 2026-01-14: FIX - Send full formatted_address and snapshot context to LLM
     const driverAddress = snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`;
 
-    // 2026-02-26: Enhanced with contextual intelligence — time-of-day awareness, cluster logic,
-    // event end-time surge, and "head home" option when nothing is nearby.
-    const prompt = `You are an expert rideshare strategist. Tell the driver what to do RIGHT NOW for the next 1-2 hours.
+    // Greeting personalization — use driver_nickname or first name if we have it
+    const driverGreeting = prefs.driver_nickname ? ` for ${prefs.driver_nickname}` : '';
+
+    // 2026-04-11: Prompt rebuilt with 7 enrichments. Driver preferences and earnings
+    // context sit near the top; traffic/events/weather sections now use enriched
+    // formatters; the TIME-OF-DAY and OUTPUT FORMAT sections remain.
+    const prompt = `You are an expert rideshare strategist${driverGreeting}. Tell the driver what to do RIGHT NOW for the next 1-2 hours.
 
 === DRIVER CONTEXT ===
-Address: ${driverAddress}
-City: ${snapshot.city}, ${snapshot.state}
+Current position: ${driverAddress}
 Coords: ${parseFloat(snapshot.lat).toFixed(6)},${parseFloat(snapshot.lng).toFixed(6)}
+${homeBaseLine || ''}
+City: ${snapshot.city}, ${snapshot.state}
 Timezone: ${snapshot.timezone}
 Time: ${localTime} (${snapshot.day_part_key})
 ${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
-=== BRIEFING DATA ===
-TRAFFIC: ${briefing.traffic?.driverImpact || briefing.traffic?.headline || 'Normal traffic conditions'}
+=== DRIVER PREFERENCES ===
+${driverPrefBlock}
 
-EVENTS (next 6 hours):
+=== EARNINGS CONTEXT ===
+${earningsBlock}
+
+=== BRIEFING DATA ===
+${trafficBlock}
+
+EVENTS (next 6 hours, sorted closest-first, [NEAR] = within 15mi, [FAR] = beyond 15mi — intel only):
 ${formattedEvents}
 
-WEATHER: ${optimizeWeatherForLLM(briefing.weather)}
+${weatherBlock}
 
 NEWS: ${formatNewsForPrompt(optimizeNewsForLLM(briefing.news))}
 
@@ -195,27 +238,44 @@ Think about WHAT drives demand at ${localTime}:
 
 === OUTPUT FORMAT (no asterisks or bold in content — only section labels are bold) ===
 
-**GO:** Where to position — cluster near events/venues, not isolated spots
-**AVOID:** Roads/areas with incidents or competition
-**WHEN:** Timing window — consider event END times for exit surge, not just starts
-**WHY:** Which specific event/condition is driving this recommendation
-**IF NO PING:** Wait X minutes, then backup plan — nearby cluster or head home with destination filter on
-**INTEL:** 2-3 sentences of additional context — competitive landscape, upcoming demand shifts, airport opportunities, weather changes, or anything from news that affects the next few hours
+**GO:** Where to position — cluster near events/venues, not isolated spots. Quote expected earnings: "$X-Y in surge rides" where appropriate.
+**AVOID:** Roads/areas with incidents or competition — name specific road names from the TRAFFIC block.
+**WHEN:** Hour-by-hour timing window — consider event END times for exit surge, not just starts. Phase the night if multiple events have different exit windows.
+**WHY:** Which specific event/condition is driving this recommendation — reference the NEAR event or the FAR event whose surge flow you're catching.
+**IF NO PING:** Wait X minutes, then backup plan — nearby cluster, or head home with destination filter on. Include a fuel-cost sanity check: "Drive to X (12mi, ~$2.40 fuel) for $40-60 surge rides."
+**INTEL:** 2-3 sentences of additional context — competitive landscape, upcoming demand shifts, airport opportunities, weather changes, or anything from news that affects the next few hours.
 
 PRINCIPLES:
-- NEVER include raw latitude/longitude coordinates in the strategy text. Always refer to locations by name — use venue names, neighborhood names, intersection names (e.g. "Preston Road and Coit Road"), or landmark names. Coordinates are for internal use only and must never appear in user-facing text.
-- Verify timing: cross-reference news published dates against current time — yesterday's surge is over, do not recommend stale opportunities
-- Event END times create bigger surge than start times — crowds leaving = ride demand
-- Stay in clusters (nightlife districts, hotel zones, event complexes) — do not send the driver to isolated one-off venues
-- If nothing is nearby and demand is low, it is OK to recommend heading home with destination filter on
-- Factor in competitive landscape — if autonomous vehicles or new services operate in specific zones, note the impact on demand
-- Reference specific data from the briefing (event names, road names, times)
-- Do not use asterisks, bold, or markdown formatting inside the content text — only the section labels (GO, AVOID, WHEN, WHY, IF NO PING, INTEL) should be bold`;
+- DOLLAR-SPECIFIC ADVICE: You have the driver's vehicle class, fuel cost per mile, and earnings goal. Quote dollar figures. "Drive to X (~$2.40 fuel) for $40-60 surge rides" beats "go north."
+- NEAR vs FAR EVENTS: Events tagged [NEAR] are within 15mi — recommend them directly with pickup/drop-off pro-tips. Events tagged [FAR] are beyond 15mi — treat as SURGE FLOW INTELLIGENCE only: fans travel FROM hotels/dining/residential clusters near the driver TO the distant event, and that outflow creates pickup demand near the driver. Recommend the closest high-impact venues in the 15-mile radius that benefit from the outflow. NEVER recommend a [FAR] event venue as a destination.
+- HOUR-BY-HOUR PHASING: When multiple events have different start/end times, phase the advice. "7-8pm: [NEAR] theater at 7:30 — drop-off surge. 9-10pm: stage at hotel cluster for the [FAR] sports game end — fans from the hotels will ride back."
+- ROAD-SPECIFIC AVOID: Name the specific roads and distances from the TRAFFIC block. "Avoid I-35 near exit 428 (3.2mi, closed)."
+- FUEL-COST REPOSITIONING: Before recommending a long reposition, compute whether it's worth it: drive distance × fuel cost/mi should be << expected surge revenue.
+- NEVER include raw latitude/longitude coordinates in the strategy text. Always refer to locations by name — venue names, neighborhood names, intersection names ("Preston Road and Coit Road"), or landmark names. Coordinates are for internal use only and must never appear in user-facing text.
+- Verify timing: cross-reference news published dates against current time — yesterday's surge is over, do not recommend stale opportunities.
+- Event END times create bigger surge than start times — crowds leaving = ride demand.
+- Stay in clusters (nightlife districts, hotel zones, event complexes) — do not send the driver to isolated one-off venues.
+- If nothing is nearby and demand is low, it is OK to recommend heading home with destination filter on — especially if that's within the driver's max_deadhead radius and fuel cost is material.
+- Factor in competitive landscape — if autonomous vehicles or new services operate in specific zones, note the impact on demand.
+- Reference specific data from the briefing (event names, road names, times).
+- Do not use asterisks, bold, or markdown formatting inside the content text — only the section labels (GO, AVOID, WHEN, WHY, IF NO PING, INTEL) should be bold.`;
 
 
     // 2026-02-26: Uses STRATEGY_TACTICAL role via callModel adapter (Claude Opus)
+    // 2026-04-11: System prompt expanded with the 5 owner directives (dollar-specific
+    // advice, NEAR/FAR event reasoning, hour-by-hour phasing, specific roads, fuel-cost
+    // repositioning math).
     const response = await callModel('STRATEGY_TACTICAL', {
-      system: 'You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your guidance. You have access to real-time traffic, events, weather, airport conditions, and news — use all of it. You understand demand patterns: events create surge at END times, airports follow flight schedules, nightlife clusters outperform isolated venues, and sometimes the smartest move is heading home with destination filter on. Every recommendation you make directly impacts someone\'s livelihood. Be precise, be honest, be actionable.',
+      system: `You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your guidance. You have access to real-time traffic, events, weather, airport conditions, news, AND the driver's preferences (vehicle type, fuel costs, earnings goal, home base). Every recommendation must be actionable, specific, and dollar-aware.
+
+CORE DIRECTIVES:
+- You have the driver's vehicle type, fuel costs, and earnings goal. Use these to give DOLLAR-SPECIFIC advice. Quote expected earnings and fuel costs in your recommendations. "Drive to X (12mi, ~$2.40 fuel) for $40-60 in surge rides" beats "go north for surge."
+- Every event has a distance from the driver. Events tagged [NEAR] are within 15 miles — recommend them directly as destinations with event-specific pro-tips. Events tagged [FAR] are beyond 15 miles — use them as SURGE FLOW INTELLIGENCE only: fans travel FROM hotels, dining clusters, and residential areas near the driver TO the distant event, and that outflow creates pickup demand NEAR the driver at the departure end. Recommend the closest high-impact venues within 15 miles that will benefit from the outflow. NEVER recommend a [FAR] event venue as a destination — it violates the closest-first invariant.
+- Give hour-by-hour phased advice when multiple events have different start/end times. Phase the shift: what to do now, at 7pm, at 9pm, at 11pm.
+- Name specific roads and intersections to avoid and specific named areas to stage. Use the TRAFFIC block's AVOID and CLOSURES rows verbatim when relevant.
+- Include fuel cost estimates for any repositioning move. A 12-mile drive at 25 mpg and $3.50/gal costs ~$1.70 in fuel — factor that against expected surge revenue before recommending the drive.
+
+You understand demand patterns: events create surge at END times (exit crowds), airports follow flight schedules, nightlife clusters outperform isolated venues, and sometimes the smartest move is heading home with destination filter on. Every recommendation directly impacts someone's livelihood. Be precise, be honest, be actionable, be dollar-aware.`,
       user: prompt
     });
 
@@ -695,6 +755,520 @@ function optimizeAirportForLLM(airport) {
  * @param {string} timezone - IANA timezone for isOpen calculation
  * @returns {Promise<Map>} Map of venueName -> { isOpen, nextChange, reason }
  */
+// ============================================================================
+// 2026-04-11: STRATEGIST ENRICHMENT HELPERS
+// ============================================================================
+// See server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md for full design.
+//
+// These helpers enrich the STRATEGY_TACTICAL / STRATEGY_DAILY prompts with:
+//   1. Driver preferences (vehicle class, fuel economy, earnings goal, etc.)
+//   2. Full traffic intelligence (incidents/closures/avoid/highDemandZones)
+//   3. Event distance annotation with NEAR/FAR bucketing (15-mile threshold)
+//   4. 6-hour weather forecast timeline with storm risk detection
+//   5. Event capacity heuristic for scale awareness
+//   6. Home base context (distinct from current snapshot position)
+//   7. Earnings math context (rates, fuel cost/mile, net, required $/hr)
+//
+// DESIGN PRINCIPLE — ADDITIVE: Every helper degrades gracefully when a field
+// is null, a row is missing, or the driver_profiles schema migration hasn't
+// been applied yet. The pipeline NEVER breaks on missing enrichment data.
+//
+// The schema migration (add 4 columns to driver_profiles) is documented in
+// the plan file section 5 and docs/review-queue/pending.md as follow-up work.
+// Until it runs, all new preference fields fall through to owner-specified
+// defaults. After it runs, real values are picked up automatically.
+// ============================================================================
+
+/**
+ * Haversine distance in miles between two lat/lng points. Returns Infinity
+ * when either point has null coordinates so callers can filter or sort
+ * "unknown distance" events to the bottom without special-casing.
+ */
+function haversineMiles(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
+  const R = 3958.7613; // Earth radius in miles
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Sensible defaults for driver preferences (plan file section 4). */
+const DRIVER_PREF_DEFAULTS = Object.freeze({
+  fuel_economy_mpg: 25,
+  earnings_goal_daily: null,
+  shift_hours_target: null,
+  max_deadhead_mi: 15,
+  vehicle_class: 'UberX',
+});
+
+/**
+ * Default rate cards by vehicle class. Illustrative baselines labeled as
+ * "estimated" in the prompt — replaceable whenever live market rates are wired
+ * in. Keys match the vehicle_class values deriveVehicleClass() returns.
+ */
+const RATE_DEFAULTS = Object.freeze({
+  'UberX':          { perMile: 0.80, perMin: 0.20 },
+  'Uber Comfort':   { perMile: 1.20, perMin: 0.25 },
+  'UberXL':         { perMile: 1.00, perMin: 0.22 },
+  'UberXXL':        { perMile: 1.10, perMin: 0.24 },
+  'Uber Black':     { perMile: 2.50, perMin: 0.50 },
+  'Uber Black SUV': { perMile: 3.50, perMin: 0.70 },
+});
+
+// Default gas price per gallon for fuel cost math (replaceable via env var).
+const DEFAULT_GAS_PRICE = Number(process.env.GAS_PRICE_DEFAULT || 3.50);
+// Electric vehicle cost per mile (covers typical electricity cost for rideshare EVs).
+const EV_COST_PER_MILE = 0.04;
+// NEAR/FAR distance threshold — matches VENUE_SCORER's 15-mile rule so the
+// strategist and Smart Blocks pipeline share a consistent mental model.
+const NEAR_EVENT_RADIUS_MILES = 15;
+
+/**
+ * Derive the driver's primary vehicle class from driver_profiles.elig_*
+ * booleans. Highest-tier-eligible wins. The class name is also the key into
+ * RATE_DEFAULTS, so earnings math lines up with whatever class we derive.
+ */
+function deriveVehicleClass(profile) {
+  if (!profile) return DRIVER_PREF_DEFAULTS.vehicle_class;
+  if (profile.elig_luxury_suv)   return 'Uber Black SUV';
+  if (profile.elig_luxury_sedan) return 'Uber Black';
+  if (profile.elig_xxl)          return 'UberXXL';
+  if (profile.elig_xl)           return 'UberXL';
+  if (profile.elig_comfort)      return 'Uber Comfort';
+  if (profile.elig_economy)      return 'UberX';
+  return DRIVER_PREF_DEFAULTS.vehicle_class;
+}
+
+/**
+ * Load a normalized driver_preferences object for a user. Always returns a
+ * well-formed object even when:
+ *   - user_id is null
+ *   - driver_profiles row doesn't exist
+ *   - schema migration hasn't applied (new columns missing, PG error 42703)
+ *   - any other DB error
+ *
+ * Defaults are applied for fields that are null or unavailable. Callers get a
+ * consistent shape regardless of schema state.
+ */
+async function loadDriverPreferences(userId) {
+  const prefs = {
+    vehicle_class: DRIVER_PREF_DEFAULTS.vehicle_class,
+    fuel_economy_mpg: DRIVER_PREF_DEFAULTS.fuel_economy_mpg,
+    earnings_goal_daily: DRIVER_PREF_DEFAULTS.earnings_goal_daily,
+    shift_hours_target: DRIVER_PREF_DEFAULTS.shift_hours_target,
+    max_deadhead_mi: DRIVER_PREF_DEFAULTS.max_deadhead_mi,
+    is_electric: false,
+    home_lat: null,
+    home_lng: null,
+    home_formatted_address: null,
+    driver_nickname: null,
+    rideshare_platforms: null,
+    profile_loaded: false,
+    migration_applied: false,
+  };
+
+  if (!userId) return prefs;
+
+  try {
+    // First try: full SELECT (assumes migration has run).
+    // On PG error 42703 ("column does not exist"), fall back to the safe column set.
+    let row = null;
+    try {
+      const rows = await db.select().from(driver_profiles)
+        .where(eq(driver_profiles.user_id, userId))
+        .limit(1);
+      row = rows[0] || null;
+      prefs.migration_applied = true;
+    } catch (err) {
+      const pgCode = err?.cause?.code || err?.original?.code || err?.code;
+      const msg = err?.cause?.message || err?.message || '';
+      if (pgCode === '42703' || /column.*does not exist/i.test(msg)) {
+        // Schema migration hasn't applied — select only columns known to exist.
+        const rows = await db.select({
+          user_id: driver_profiles.user_id,
+          first_name: driver_profiles.first_name,
+          driver_nickname: driver_profiles.driver_nickname,
+          home_lat: driver_profiles.home_lat,
+          home_lng: driver_profiles.home_lng,
+          home_formatted_address: driver_profiles.home_formatted_address,
+          market: driver_profiles.market,
+          rideshare_platforms: driver_profiles.rideshare_platforms,
+          elig_economy: driver_profiles.elig_economy,
+          elig_xl: driver_profiles.elig_xl,
+          elig_xxl: driver_profiles.elig_xxl,
+          elig_comfort: driver_profiles.elig_comfort,
+          elig_luxury_sedan: driver_profiles.elig_luxury_sedan,
+          elig_luxury_suv: driver_profiles.elig_luxury_suv,
+          attr_electric: driver_profiles.attr_electric,
+        }).from(driver_profiles)
+          .where(eq(driver_profiles.user_id, userId))
+          .limit(1);
+        row = rows[0] || null;
+        prefs.migration_applied = false;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!row) return prefs;
+
+    prefs.profile_loaded = true;
+    prefs.vehicle_class = deriveVehicleClass(row);
+    prefs.is_electric = !!row.attr_electric;
+    prefs.home_lat = row.home_lat;
+    prefs.home_lng = row.home_lng;
+    prefs.home_formatted_address = row.home_formatted_address;
+    prefs.driver_nickname = row.driver_nickname || row.first_name || null;
+    prefs.rideshare_platforms = row.rideshare_platforms || null;
+
+    // New preference fields — only present when migration has applied.
+    if (prefs.migration_applied) {
+      if (row.fuel_economy_mpg != null) prefs.fuel_economy_mpg = row.fuel_economy_mpg;
+      if (row.earnings_goal_daily != null) prefs.earnings_goal_daily = Number(row.earnings_goal_daily);
+      if (row.shift_hours_target != null) prefs.shift_hours_target = Number(row.shift_hours_target);
+      if (row.max_deadhead_mi != null) prefs.max_deadhead_mi = row.max_deadhead_mi;
+    }
+
+    return prefs;
+  } catch (err) {
+    aiLog.warn(1, `[strategist-enrichment] loadDriverPreferences failed for ${userId}: ${err.message}`, OP.DB);
+    return prefs;
+  }
+}
+
+/**
+ * Compute per-mile fuel/energy cost based on vehicle type and preference data.
+ * Returns the cost as a number (dollars per mile).
+ */
+function computeFuelCostPerMile(prefs) {
+  if (prefs.is_electric) return EV_COST_PER_MILE;
+  const mpg = Math.max(prefs.fuel_economy_mpg, 1);
+  return DEFAULT_GAS_PRICE / mpg;
+}
+
+/**
+ * Build the DRIVER PREFERENCES prompt section (single compact line).
+ * Token budget: ~80 tokens.
+ */
+function buildDriverPreferencesSection(prefs) {
+  const fuelType = prefs.is_electric ? 'electric' : 'gas';
+  const mpgDisplay = prefs.is_electric ? 'n/a (EV)' : `${prefs.fuel_economy_mpg} mpg`;
+  const perMileCost = computeFuelCostPerMile(prefs);
+  const goalDisplay = prefs.earnings_goal_daily != null
+    ? `$${prefs.earnings_goal_daily.toFixed(0)}`
+    : 'not set';
+  const hoursDisplay = prefs.shift_hours_target != null ? `${prefs.shift_hours_target}` : 'not set';
+
+  return `Vehicle: ${prefs.vehicle_class} | Fuel economy: ${mpgDisplay} (${fuelType}) | Cost/mile: ~$${perMileCost.toFixed(2)} | Today's goal: ${goalDisplay} in ${hoursDisplay} hours | Max deadhead: ${prefs.max_deadhead_mi} mi from home`;
+}
+
+/**
+ * Build the EARNINGS CONTEXT prompt section — pre-computed economics the
+ * strategist can quote directly. Omits the required-$/hr line when goal/hours
+ * are not set. Token budget: ~180 tokens.
+ */
+function buildEarningsContextSection(prefs) {
+  const rate = RATE_DEFAULTS[prefs.vehicle_class] || RATE_DEFAULTS['UberX'];
+  const perMileCost = computeFuelCostPerMile(prefs);
+  const netPerMile = rate.perMile - perMileCost;
+
+  const lines = [];
+  lines.push(`Vehicle class: ${prefs.vehicle_class} | Estimated rate: ~$${rate.perMile.toFixed(2)}/mi + $${rate.perMin.toFixed(2)}/min`);
+  if (prefs.is_electric) {
+    lines.push(`Fuel cost: ~$${EV_COST_PER_MILE.toFixed(2)}/mi (electric)`);
+  } else {
+    lines.push(`Fuel cost: $${DEFAULT_GAS_PRICE.toFixed(2)}/gal ÷ ${prefs.fuel_economy_mpg} mpg = ~$${perMileCost.toFixed(2)}/mi (gas)`);
+  }
+  lines.push(`Net per mile: ~$${netPerMile.toFixed(2)}/mi`);
+  if (prefs.earnings_goal_daily != null && prefs.shift_hours_target != null && prefs.shift_hours_target > 0) {
+    const perHourGross = prefs.earnings_goal_daily / prefs.shift_hours_target;
+    lines.push(`To earn $${prefs.earnings_goal_daily.toFixed(0)} in ${prefs.shift_hours_target}hrs: need ~$${perHourGross.toFixed(0)}/hr gross`);
+  }
+  lines.push(`Surge multiplier on event nights: typically 1.5-3x in the first 30 min after major event end times`);
+  return lines.join('\n');
+}
+
+/**
+ * Build the home-base context line. Returns null when home fields are not
+ * populated (caller omits the line entirely). The strategist should interpret
+ * absence as "use current position as home."
+ */
+function buildHomeBaseLine(snapshot, prefs) {
+  if (prefs.home_lat == null || prefs.home_lng == null) return null;
+  const distFromHome = haversineMiles(snapshot.lat, snapshot.lng, prefs.home_lat, prefs.home_lng);
+  const distDisplay = Number.isFinite(distFromHome)
+    ? ` — ${distFromHome.toFixed(1)} mi from current position`
+    : '';
+  const homeAddress = prefs.home_formatted_address
+    || `${Number(prefs.home_lat).toFixed(6)}, ${Number(prefs.home_lng).toFixed(6)}`;
+  return `Home base: ${homeAddress}${distDisplay}`;
+}
+
+/**
+ * Heuristic event capacity estimate from venue name + category + expected_
+ * attendance. Returns a round number the prompt renders as "~X expected" to
+ * communicate uncertainty. See plan file section 4 enrichment 5 for the table.
+ */
+function estimateEventCapacity(event) {
+  const category = (event.category || '').toLowerCase();
+  const venueName = (event.venue_name || '').toLowerCase();
+  const attendance = (event.expected_attendance || 'medium').toLowerCase();
+
+  // Venue-type heuristic (strongest signal)
+  if (/stadium|arena|coliseum|speedway/.test(venueName)) return 18000;
+  if (/pavilion|amphitheater|amphitheatre/.test(venueName)) return 12000;
+  if (/convention center|expo center|fairgrounds/.test(venueName)) return 8000;
+  if (/theater|theatre|playhouse|opera house|hall/.test(venueName)) return 2000;
+  if (/comedy club|comedy cellar/.test(venueName)) return 350;
+  if (/nightclub|club/.test(venueName) && category === 'nightlife') return 1000;
+
+  // Category fallback
+  if (category === 'sports') return 15000;
+  if (category === 'concert') return 10000;
+  if (category === 'festival') return 8000;
+  if (category === 'theater') return 2000;
+  if (category === 'comedy') return 350;
+  if (category === 'nightlife') return 500;
+
+  // Expected_attendance 3-level fallback
+  if (attendance === 'high') return 5000;
+  if (attendance === 'low') return 200;
+  return 1000; // medium default
+}
+
+/**
+ * Annotate events with distance and capacity, then bucket into NEAR / FAR /
+ * unknown-distance groups. NEAR events are sorted closest-first; FAR events
+ * are sorted by impact (high attendance first) then distance.
+ *
+ * Events receive new fields: distance_mi, estimated_attendance.
+ * The source fields (venue_lat, venue_lng) are already present in
+ * briefings.events from the venue_catalog LEFT JOIN — no extra DB query.
+ */
+function annotateAndBucketEvents(events, driverLat, driverLng) {
+  const annotated = (events || []).map(e => ({
+    ...e,
+    distance_mi: haversineMiles(driverLat, driverLng, e.venue_lat, e.venue_lng),
+    estimated_attendance: estimateEventCapacity(e),
+  }));
+
+  const near = annotated
+    .filter(e => Number.isFinite(e.distance_mi) && e.distance_mi <= NEAR_EVENT_RADIUS_MILES)
+    .sort((a, b) => a.distance_mi - b.distance_mi);
+
+  const far = annotated
+    .filter(e => Number.isFinite(e.distance_mi) && e.distance_mi > NEAR_EVENT_RADIUS_MILES)
+    .sort((a, b) => {
+      const aHigh = a.expected_attendance === 'high' ? 1 : 0;
+      const bHigh = b.expected_attendance === 'high' ? 1 : 0;
+      if (aHigh !== bHigh) return bHigh - aHigh;
+      return a.distance_mi - b.distance_mi;
+    });
+
+  const unknown = annotated.filter(e => !Number.isFinite(e.distance_mi));
+
+  return { near, far, unknown };
+}
+
+/**
+ * Format an event list for the strategist prompt with distance annotation,
+ * NEAR/FAR tags, and capacity labels. Prioritizes NEAR events in the slice
+ * (all near first, then highest-impact far, then unknowns).
+ *
+ * Reuses the existing filterEventsToTimeWindow + filterStrategyWorthyEvents +
+ * batchLookupVenueHours pipeline — no behavior change to those steps.
+ *
+ * Limit is 15 for the immediate strategist and 20 for the daily strategist.
+ */
+async function formatEventsForStrategist(events, snapshot, limit = 15) {
+  if (!events || !Array.isArray(events) || events.length === 0) {
+    return 'No relevant events in the next 6 hours';
+  }
+
+  const relevant = filterEventsToTimeWindow(events, snapshot.timezone);
+  if (!relevant || relevant.length === 0) {
+    return 'No relevant events in the next 6 hours';
+  }
+  const worthy = filterStrategyWorthyEvents(relevant);
+  if (worthy.length === 0) {
+    return 'No significant events in the next 6 hours';
+  }
+
+  const { near, far, unknown } = annotateAndBucketEvents(worthy, snapshot.lat, snapshot.lng);
+  const prioritized = [...near, ...far, ...unknown].slice(0, limit);
+
+  // Batch-look-up venue hours for open/closed flag (existing behavior)
+  const venueNames = prioritized.map(e => e.venue_name || e.venue).filter(Boolean);
+  const venueStatusMap = await batchLookupVenueHours(venueNames, snapshot.timezone);
+
+  const lines = prioritized.map(e => {
+    const bucket = !Number.isFinite(e.distance_mi)
+      ? '[?mi]'
+      : e.distance_mi <= NEAR_EVENT_RADIUS_MILES
+        ? `[NEAR ${e.distance_mi.toFixed(1)}mi]`
+        : `[FAR ${e.distance_mi.toFixed(1)}mi]`;
+
+    const start = formatTime12h(e.event_start_time);
+    const end = formatTime12h(e.event_end_time);
+    const category = e.category || 'event';
+    const impact = (e.expected_attendance || '').toLowerCase() === 'high' ? ' HIGH IMPACT' : '';
+    const capacity = e.estimated_attendance
+      ? ` ~${e.estimated_attendance.toLocaleString()} expected`
+      : '';
+    const venue = e.venue_name || e.venue || 'Unknown venue';
+
+    const venueKey = venue.toLowerCase();
+    const venueStatus = venueStatusMap.get(venueKey);
+    const openFlag = venueStatus?.isOpen === false ? ' [CLOSED NOW]' : '';
+
+    return `${bucket} ${e.title} — ${venue} — ${start}-${end} — ${category}${impact}${capacity}${openFlag}`;
+  });
+
+  return lines.join('\n');
+}
+
+/**
+ * Build the TRAFFIC intelligence block. Reads the enriched traffic_conditions
+ * shape (structured incidents, closures, highDemandZones, congestionLevel)
+ * when available. Falls back to the Gemini-analyzed shape (avoidAreas,
+ * keyIssues, driverImpact strings) when raw data isn't persisted — this is
+ * the path for any briefings written before the analyzeTrafficWithGemini
+ * additive change.
+ *
+ * Graceful degradation ladder:
+ *   1. Full structured data (incidents + closures + congestion + highDemandZones)
+ *   2. Only Gemini analysis (avoidAreas + keyIssues + closuresSummary)
+ *   3. Only driverImpact (single line — worst case, matches current behavior)
+ */
+function formatTrafficIntelForStrategist(traffic) {
+  if (!traffic) return 'TRAFFIC: No traffic data available';
+
+  const lines = [];
+  const impact = traffic.driverImpact || traffic.headline || traffic.summary || 'Normal conditions';
+  const congestion = traffic.congestionLevel && traffic.congestionLevel !== 'unknown'
+    ? ` | Congestion: ${traffic.congestionLevel}`
+    : '';
+  lines.push(`TRAFFIC: ${impact}${congestion}`);
+
+  const avoidAreas = Array.isArray(traffic.avoidAreas) ? traffic.avoidAreas.slice(0, 5) : [];
+  if (avoidAreas.length > 0) {
+    lines.push(`AVOID: ${avoidAreas.join(' | ')}`);
+  }
+
+  const closures = Array.isArray(traffic.closures) ? traffic.closures.slice(0, 5) : [];
+  if (closures.length > 0) {
+    const closureStrs = closures.map(c => {
+      const road = c.road || 'Local road';
+      const dist = c.distanceFromDriver != null ? `${c.distanceFromDriver}mi` : '?mi';
+      const category = c.category || 'closed';
+      return `${road} (${dist}, ${category})`;
+    });
+    lines.push(`CLOSURES: ${closureStrs.join(' | ')}`);
+  }
+
+  // Structured top incidents (non-closure) by severity/magnitude descending
+  const incidentsArr = Array.isArray(traffic.incidents) ? traffic.incidents : [];
+  const topIncidents = incidentsArr
+    .filter(i => !['Road Closed', 'Lane Closed'].includes(i.category))
+    .sort((a, b) => (b.magnitude || 0) - (a.magnitude || 0))
+    .slice(0, 5);
+  if (topIncidents.length > 0) {
+    const incidentStrs = topIncidents.map(i => {
+      const road = i.road || 'Local road';
+      const dist = i.distanceFromDriver != null ? `${i.distanceFromDriver}mi` : '?mi';
+      const delay = i.delayMinutes ? `${i.delayMinutes}min delay` : '';
+      const severity = i.magnitude ? `severity ${i.magnitude}` : '';
+      const desc = [i.category, severity, delay].filter(Boolean).join(', ');
+      return `${road} (${dist}, ${desc})`;
+    });
+    lines.push(`TOP INCIDENTS: ${incidentStrs.join(' | ')}`);
+  }
+
+  // Fallback: no structured data → use Gemini's keyIssues as mid-tier signal
+  if (topIncidents.length === 0 && closures.length === 0) {
+    const keyIssues = Array.isArray(traffic.keyIssues) ? traffic.keyIssues.slice(0, 3) : [];
+    if (keyIssues.length > 0) {
+      lines.push(`KEY ISSUES: ${keyIssues.join(' | ')}`);
+    }
+  }
+
+  const highDemandZones = Array.isArray(traffic.highDemandZones) ? traffic.highDemandZones.slice(0, 5) : [];
+  if (highDemandZones.length > 0) {
+    const zoneStrs = highDemandZones
+      .map(z => typeof z === 'string' ? z : (z.name || z.description || ''))
+      .filter(Boolean);
+    if (zoneStrs.length > 0) {
+      lines.push(`HIGH-DEMAND ZONES: ${zoneStrs.join(' | ')}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Build a compact weather block with current conditions + 6-hour forecast
+ * timeline. Reads briefings.weather_forecast (already populated — see
+ * briefing-service.js:1680–1708). Adds a ⚠️ STORM RISK warning line when
+ * any hour's precipitationProbability > 30%.
+ *
+ * Fallback: if weather_forecast is empty/missing, emits only the driverImpact
+ * line (current behavior).
+ */
+function formatWeatherForStrategist(weatherCurrent, weatherForecast, timezone) {
+  if (!weatherCurrent) return 'WEATHER: No weather data';
+
+  const lines = [];
+  const currentLine = weatherCurrent.driverImpact
+    || `${weatherCurrent.conditions || 'Unknown conditions'}, ${weatherCurrent.tempF || weatherCurrent.temperature || '??'}°F`;
+  lines.push(`WEATHER: ${currentLine}`);
+
+  if (!Array.isArray(weatherForecast) || weatherForecast.length === 0) {
+    return lines.join('\n');
+  }
+
+  // Format an hour label in the driver's timezone (e.g., "7pm")
+  const formatHourLabel = (iso) => {
+    if (!iso) return '?';
+    try {
+      const date = new Date(iso);
+      if (isNaN(date.getTime())) return '?';
+      if (!timezone) return '?';
+      return date.toLocaleTimeString('en-US', {
+        timeZone: timezone,
+        hour: 'numeric',
+        hour12: true
+      }).replace(/\s+/g, '').toLowerCase().replace(':00', '');
+    } catch {
+      return '?';
+    }
+  };
+
+  const hoursToShow = weatherForecast.slice(0, 6);
+  const timelineParts = hoursToShow.map(h => {
+    const temp = h.tempF != null ? `${Math.round(h.tempF)}°F` : '?°F';
+    const precip = h.precipitationProbability != null
+      ? ` (${Math.round(h.precipitationProbability)}% precip)`
+      : '';
+    return `${temp}@${formatHourLabel(h.time)}${precip}`;
+  });
+  lines.push(`6hr forecast: ${timelineParts.join(' → ')}`);
+
+  // Storm risk detection — first hour with precip > 30%
+  const stormHour = hoursToShow.find(h => (h.precipitationProbability || 0) > 30);
+  if (stormHour) {
+    lines.push(`⚠️ STORM RISK: ${formatHourLabel(stormHour.time)} (${Math.round(stormHour.precipitationProbability)}% precip) — factor into positioning`);
+  }
+
+  return lines.join('\n');
+}
+
+// ============================================================================
+// END STRATEGIST ENRICHMENT HELPERS
+// ============================================================================
+
 async function batchLookupVenueHours(venueNames, timezone) {
   const venueStatusMap = new Map();
 
@@ -806,6 +1380,10 @@ export async function runConsolidator(snapshotId, options = {}) {
     const rawEventsData = parseJsonField(briefingRow.events);
     const rawNewsData = parseJsonField(briefingRow.news);
     const weatherData = parseJsonField(briefingRow.weather_current);
+    // 2026-04-11: Added weather_forecast parse — STRATEGIST ENRICHMENT #4.
+    // Previously, weather_forecast was populated by the briefing pipeline but never
+    // read by the consolidator. The new formatWeatherForStrategist helper consumes it.
+    const weatherForecastData = parseJsonField(briefingRow.weather_forecast);
     const closuresData = parseJsonField(briefingRow.school_closures);
     const airportData = parseJsonField(briefingRow.airport_conditions);
 
@@ -816,13 +1394,12 @@ export async function runConsolidator(snapshotId, options = {}) {
     // Filter out deactivated news for this user
     const newsData = await filterDeactivatedNews(rawNewsData, snapshot.user_id);
 
-    // 2026-01-08: Lookup venue hours from venue_catalog for open/closed status
-    const eventVenueNames = (eventsData || [])
-      .map(e => e.venue_name || e.venue)
-      .filter(Boolean);
-    const venueStatusMap = await batchLookupVenueHours(eventVenueNames, snapshot.timezone);
+    // 2026-04-11: Load driver preferences for STRATEGY_DAILY enrichment.
+    // Single indexed lookup on driver_profiles. Returns defaults if user_id is null,
+    // profile row is missing, or the schema migration hasn't applied yet.
+    const prefs = await loadDriverPreferences(snapshot.user_id);
 
-    triadLog.phase(3, `Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, airport=${!!airportData}`);
+    triadLog.phase(3, `Briefing data: traffic=${!!trafficData}, events=${!!eventsData}, news=${!!newsData}, weather=${!!weatherData}, forecast=${Array.isArray(weatherForecastData) ? weatherForecastData.length + 'hr' : '0hr'}, airport=${!!airportData}, driverProfile=${prefs.profile_loaded ? 'loaded' : 'defaults'}`);
 
     // 2026-01-14: FIX - NO FALLBACKS rule - require location data from snapshot
     // If snapshot is missing required location fields, it's a bug upstream that must be fixed
@@ -847,66 +1424,87 @@ export async function runConsolidator(snapshotId, options = {}) {
     triadLog.phase(3, `Location: ${userAddress}`);
     triadLog.phase(3, `Time: ${localTime} (${snapshot.day_part_key})`);
 
+    // 2026-04-11: Pre-compute enriched prompt sections using the helpers at
+    // the top of this file. Each helper degrades gracefully when data is missing.
+    // Daily strategist uses 20 events (immediate uses 15) because the 8-12 hour
+    // window covers more of the day.
+    const eventsBlock = await formatEventsForStrategist(eventsData, snapshot, 20);
+    const trafficBlock = formatTrafficIntelForStrategist(trafficData);
+    const weatherBlock = formatWeatherForStrategist(weatherData, weatherForecastData, snapshot.timezone);
+    const driverPrefBlock = buildDriverPreferencesSection(prefs);
+    const earningsBlock = buildEarningsContextSection(prefs);
+    const homeBaseLine = buildHomeBaseLine(snapshot, prefs);
+    const driverGreeting = prefs.driver_nickname ? ` for ${prefs.driver_nickname}` : '';
+
     // 2026-02-26: Build Daily Strategy prompt with pre-summarized briefing data.
-    // Weather, news, airport are summaries (not JSON dumps). Events keep structure for detail.
-    const prompt = `You are a STRATEGIC ADVISOR for rideshare drivers. Create a comprehensive "Daily Strategy" covering the next 8-12 hours.
+    // 2026-04-11: Enriched with driver preferences, earnings context, home base,
+    // structured traffic intel, weather forecast timeline, and NEAR/FAR event
+    // distance annotation. See STRATEGIST_ENRICHMENT_PLAN.md for full rationale.
+    const prompt = `You are a STRATEGIC ADVISOR for rideshare drivers${driverGreeting}. Create a comprehensive "Daily Strategy" covering the next 8-12 hours.
 
 === DRIVER CONTEXT ===
-Address: ${userAddress}
-City: ${cityDisplay}, ${stateDisplay}
+Current position: ${userAddress}
 Coordinates: ${lat}, ${lng}
+${homeBaseLine || ''}
+City: ${cityDisplay}, ${stateDisplay}
 Timezone: ${snapshot.timezone}
 Current Time: ${localTime}
 Day: ${dayOfWeek} ${isWeekend ? '[WEEKEND]' : '[WEEKDAY]'}
 Day Part: ${snapshot.day_part_key}
 ${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
 
-=== TRAFFIC ===
-${trafficData?.driverImpact || trafficData?.headline || trafficData?.summary || 'Normal traffic conditions'}
-${(trafficData?.incidents || []).slice(0, 5).map(i => `- ${i.description || i.road}: ${i.severity}`).join('\n') || ''}
+=== DRIVER PREFERENCES ===
+${driverPrefBlock}
 
-=== EVENTS (today) ===
-${JSON.stringify(optimizeEventsForLLM(eventsData, venueStatusMap).slice(0, 20), null, 1)}
+=== EARNINGS CONTEXT ===
+${earningsBlock}
 
-=== NEWS ===
+=== BRIEFING DATA ===
+${trafficBlock}
+
+EVENTS (today, sorted closest-first, [NEAR] = within 15mi, [FAR] = beyond 15mi — intel only):
+${eventsBlock}
+
+${weatherBlock}
+
+NEWS:
 ${formatNewsForPrompt(optimizeNewsForLLM(newsData))}
 
-=== WEATHER ===
-${optimizeWeatherForLLM(weatherData)}
-
-=== SCHOOL CLOSURES ===
+SCHOOL CLOSURES:
 ${formatSchoolClosuresSummary(closuresData, snapshot.timezone)}
 
-=== AIRPORT ===
+AIRPORT:
 ${optimizeAirportForLLM(airportData)}
 
 === YOUR TASK ===
-Create a DAILY STRATEGY covering the next 8-12 hours. Think like an experienced rideshare driver planning a shift.
+Create a DAILY STRATEGY covering the next 8-12 hours. Think like an experienced rideshare dispatcher planning a shift for this specific driver.
 
 KEY PRINCIPLES:
+- DOLLAR-SPECIFIC ADVICE: You have the driver's vehicle class, fuel cost per mile, and earnings goal. Quote expected gross and net earnings. "Drive to hotel cluster (8mi, ~$1.60 fuel) to catch 10pm theater exits — expect $80-120 in 2 hours" beats generic "go to the hotel zone."
+- NEAR vs FAR EVENTS: Events tagged [NEAR] are within 15mi — recommend them directly as destinations with event-specific staging advice. Events tagged [FAR] are beyond 15mi — treat as SURGE FLOW INTELLIGENCE only: fans travel FROM hotels/dining/residential clusters near the driver TO the distant event, and that outflow creates pickup demand near the driver. Recommend the closest high-impact venues in the 15-mile radius that benefit from the outflow. NEVER recommend a [FAR] event venue as a destination.
+- HOUR-BY-HOUR PHASING: Break the shift into phases (morning → afternoon → evening → night → late-night) with specific positioning for each phase based on the events and demand patterns.
+- SPECIFIC ROADS: Use the AVOID, CLOSURES, and TOP INCIDENTS rows from the TRAFFIC block verbatim — name the actual roads.
 - VERIFY TIMING: Cross-reference news published dates against current time — don't recommend stale opportunities from yesterday
 - Event END times create bigger surge than start times (crowds LEAVING = ride demand)
-- Stay in clusters (nightlife districts, hotel zones, event areas) — don't send driver to isolated one-off venues
 - Airport demand follows flight schedules, not just "go to airport"
-- Dead hours (3-6 AM): Be honest — "head home, early airport runs only"
-- Weather changes create surge BEFORE the rain/storm arrives (people scramble for rides)
-- Note competitive landscape changes (autonomous vehicles, new services in specific zones) that affect demand
+- Dead hours (3-6 AM): Be honest — "head home, early airport runs only" — especially if the drive home is within max_deadhead_mi
+- Weather changes create surge BEFORE the rain/storm arrives (people scramble for rides) — use the 6hr forecast timeline to predict exactly when
 
 Output 4-6 paragraphs covering:
-1. Today's overview: "Today in ${cityDisplay} (${dayOfWeek})..." - What makes today unique?
-2. Time-block strategy: Where to position at each phase of the shift (morning → afternoon → evening → night)
-3. Events impact: Name specific events, their END times (exit surge), and which venues/areas to cluster near
-4. Traffic & hazards: Roads to avoid, areas with construction
-5. Peak earning windows: "Your best windows today are..." with specific times, locations, and WHY
-6. Airport: When to go (peak arrivals), when to avoid (dead periods), delay impacts on demand
-7. Late-night/wind-down: When to call it — last call surge at bars, hotel zone, or head home
+1. Today's overview: "Today in ${cityDisplay} (${dayOfWeek})..." — what makes today unique based on events, weather, and day-of-week patterns?
+2. Time-block strategy: Phase-by-phase positioning. Reference specific events by name with their times.
+3. Events impact: Name [NEAR] events as direct destinations with staging advice. For [FAR] events, describe the surge-flow reasoning (which nearby venues benefit).
+4. Traffic & hazards: Specific roads to avoid from the TRAFFIC block, and how they affect routing.
+5. Peak earning windows: "Your best windows today are..." with specific times, locations, dollar expectations, and WHY.
+6. Airport: When to go (peak arrivals), when to avoid (dead periods), delay impacts on demand.
+7. Late-night/wind-down: When to call it — last call surge at bars, hotel zone, or head home with destination filter.
 
-STYLE: Strategic, conversational, like advice from an experienced driver. Be specific about times and places.
+STYLE: Strategic, conversational, like advice from an experienced dispatcher who knows this specific driver and their vehicle. Be specific about times, places, roads, and dollar figures.
 
-DO NOT: Give generic advice, list venues without context, output JSON, or pad with filler.`;
+DO NOT: Give generic advice, list venues without context, output JSON, pad with filler, or recommend a [FAR] event venue as a destination.`;
 
     aiLog.info(`Consolidator prompt size: ${prompt.length} chars`);
-    
+
     // Step 5: Call STRATEGY_DAILY role (with BRIEFING_FALLBACK role on failure)
     let result = await generateDailyStrategy({
       prompt,
@@ -921,8 +1519,10 @@ DO NOT: Give generic advice, list venues without context, output JSON, or pad wi
 
       // 2026-02-13: Uses BRIEFING_FALLBACK role via callModel adapter (hedged router)
       // Previously called Claude Opus directly; now uses registry-configured model
+      // 2026-04-11: Fallback system prompt expanded to match the enriched primary prompt
+      // (dollar-specific advice, NEAR/FAR event reasoning).
       const fallbackResult = await callModel('BRIEFING_FALLBACK', {
-        system: 'You are the Rideshare Strategist Dispatch Authority (fallback). A driver depends on you. Create a daily shift plan with specific times, locations, and demand pattern awareness.',
+        system: `You are the Rideshare Strategist Dispatch Authority (fallback). A driver depends on you. Create a daily shift plan with specific times, locations, dollar figures, and demand pattern awareness. You have access to the driver's vehicle class, fuel costs, earnings goal, and home base — use them for dollar-specific advice. Events tagged [NEAR] are within 15mi (candidate venues); [FAR] events are beyond 15mi (surge flow intelligence only, NOT destinations — they violate the 15-mile rule).`,
         user: prompt
       });
 
