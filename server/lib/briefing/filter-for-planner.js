@@ -169,16 +169,32 @@ function filterClosuresToToday(closures, today) {
  * Filter briefing data for venue planner consumption
  *
  * Reduces token usage by:
- * - Filtering events to today only (+ market-wide events from region)
+ * - Using pre-fetched state-scoped events (preferred) or falling back to briefing.events
  * - Summarizing traffic (briefing + top issues + avoid areas)
  * - Including only essential weather info
  * - Filtering school closures to today
  *
+ * 2026-04-11: Added `todayEvents` parameter. When provided, it is used directly
+ * as the event set (no further filtering). This is the source of truth for the
+ * Smart Blocks pipeline, which fetches state-scoped discovered_events with a
+ * venue_catalog join *before* calling this function. The legacy `briefing.events`
+ * fallback is kept for callers that haven't been migrated.
+ *
+ * The 2026-01-31 city/state split (`isLargeEvent` branching) is deprecated. After
+ * the 2026-04-11 venue address correctness work, events carry their *venue's*
+ * city (Arlington, Fort Worth, Frisco) rather than the driver's snapshot city, so
+ * the city-match branch dropped metro-wide events that were legitimately driver-
+ * relevant. The Smart Blocks pipeline now state-scopes at the DB query level
+ * instead — see enhanced-smart-blocks.js :: fetchTodayDiscoveredEventsWithVenue.
+ *
  * @param {Object} briefing - Full briefing row from database
  * @param {Object} snapshot - Snapshot with location context
+ * @param {Array} [todayEvents] - Pre-fetched state-scoped events with venue_catalog join.
+ *   When provided, replaces briefing.events as the event source. Expected shape: array of
+ *   objects with discovered_events fields + vc_* prefixed venue_catalog fields.
  * @returns {Object} Filtered briefing for venue planner
  */
-export function filterBriefingForPlanner(briefing, snapshot) {
+export function filterBriefingForPlanner(briefing, snapshot, todayEvents = null) {
   if (!briefing || !snapshot) {
     return {
       events: [],
@@ -193,24 +209,29 @@ export function filterBriefingForPlanner(briefing, snapshot) {
   const userCity = snapshot.city || '';
   const userState = snapshot.state || '';
 
-  // Parse events - handle both array and {items: []} format
-  const rawEvents = briefing.events;
-  const eventItems = Array.isArray(rawEvents) ? rawEvents : (rawEvents?.items || []);
+  // 2026-04-11: Prefer pre-fetched state-scoped events when caller provides them.
+  // Legacy path: fall back to briefing.events (city-scoped filter kept only for
+  // the unmigrated call path — no known live callers remain).
+  let filteredEvents;
+  if (Array.isArray(todayEvents)) {
+    filteredEvents = todayEvents;
+    if (filteredEvents.length > 0) {
+      briefingLog.phase(2, `[Filter] Events: ${filteredEvents.length} (state-scoped, pre-fetched)`);
+    }
+  } else {
+    // Legacy path — kept for backward compatibility. See filterEventsForPlanner for the
+    // deprecated city/state split logic.
+    const rawEvents = briefing.events;
+    const eventItems = Array.isArray(rawEvents) ? rawEvents : (rawEvents?.items || []);
+    filteredEvents = filterEventsForPlanner(eventItems, { today, userCity, userState });
 
-  // Filter events for planner
-  const filteredEvents = filterEventsForPlanner(eventItems, {
-    today,
-    userCity,
-    userState
-  });
-
-  // Log filtering results
-  const totalEvents = eventItems.length;
-  const keptEvents = filteredEvents.length;
-  if (totalEvents > 0) {
-    const largeEvents = filteredEvents.filter(e => isLargeEvent(e)).length;
-    const localEvents = keptEvents - largeEvents;
-    briefingLog.phase(2, `[Filter] Events: ${totalEvents} → ${keptEvents} (${largeEvents} large, ${localEvents} local for ${userCity})`);
+    const totalEvents = eventItems.length;
+    const keptEvents = filteredEvents.length;
+    if (totalEvents > 0) {
+      const largeEvents = filteredEvents.filter(e => isLargeEvent(e)).length;
+      const localEvents = keptEvents - largeEvents;
+      briefingLog.phase(2, `[Filter] Events (legacy): ${totalEvents} → ${keptEvents} (${largeEvents} large, ${localEvents} local for ${userCity})`);
+    }
   }
 
   // Extract traffic summary - only essential fields
@@ -262,13 +283,111 @@ export function formatBriefingForPrompt(filteredBriefing) {
   const sections = [];
 
   // Events section
+  // 2026-04-11 (REVERT — owner direction): Events are now bucketed into two lists
+  // based on distance from the driver. The 15-mile rule is the supreme constraint
+  // for venue recommendations — VENUE_SCORER must never recommend a venue >15mi
+  // away, even if that venue has a high-impact event. But events >15mi still
+  // contain valuable information about where demand surges will originate, so
+  // they're kept in the prompt as SURGE FLOW INTELLIGENCE rather than discarded.
+  //
+  //   NEAR EVENTS (≤15mi): Candidate venues. VENUE_SCORER SHOULD recommend the
+  //     event venue directly with event-specific pro_tips if the event is high
+  //     impact and happening in the next 2 hours.
+  //
+  //   FAR EVENTS (>15mi): Surge flow intelligence. VENUE_SCORER MUST NOT recommend
+  //     these as destinations. Instead, use them to reason about demand
+  //     ORIGINATION: fans travel FROM hotels/residential/dining near the driver TO
+  //     the far venue. Recommend venues within 15mi of driver that will benefit
+  //     from that outflow (e.g., hotels near freeway on-ramps).
+  //
+  // Rich event format (venue name/address/coords/end time/category/attendance) is
+  // preserved so the LLM has enough context for both reasoning tasks. Prefers
+  // venue_catalog joined fields (vc_*) when available, falling back to
+  // discovered_events fields for orphan events (null venue_id).
   if (filteredBriefing.events && filteredBriefing.events.length > 0) {
-    const eventLines = filteredBriefing.events.slice(0, 10).map(e => {
-      const time = e.event_start_time || e.time || '';
-      const venue = e.venue_name || e.venue || '';
-      return `- ${e.title} at ${venue} (${time})`;
-    });
-    sections.push(`TODAY'S EVENTS (prioritize venues near these):\n${eventLines.join('\n')}`);
+    const NEAR_EVENT_RADIUS_MILES = 15;
+
+    const formatEvent = (e) => {
+      const startTime = e.event_start_time || e.time || '';
+      const endTime = e.event_end_time ? ` - ${e.event_end_time}` : '';
+      // Prefer venue_catalog canonical name/address when joined, else discovered_events fields
+      const venueName = e.vc_venue_name || e.venue_name || e.venue || '';
+      const address = e.vc_address || e.vc_formatted_address || e.address || '';
+      // Coordinates: only from venue_catalog join (discovered_events has no lat/lng)
+      const hasCoords = e.vc_lat != null && e.vc_lng != null;
+      const coords = hasCoords ? ` [${Number(e.vc_lat).toFixed(6)}, ${Number(e.vc_lng).toFixed(6)}]` : '';
+      const category = e.category ? ` (${e.category})` : '';
+      const attendance = e.expected_attendance && e.expected_attendance !== 'medium'
+        ? ` [${e.expected_attendance} attendance]`
+        : '';
+      // Distance from driver, if attached by fetchTodayDiscoveredEventsWithVenue
+      const distance = e._distanceMiles != null && Number.isFinite(e._distanceMiles)
+        ? ` — ${e._distanceMiles.toFixed(1)} mi from driver`
+        : '';
+
+      // Multi-line format so VENUE_SCORER can parse the structure reliably
+      return [
+        `- ${e.title}${category}${attendance}${distance}`,
+        `  Venue: ${venueName}${coords}`,
+        address ? `  Address: ${address}` : null,
+        `  Time: ${startTime}${endTime}`
+      ].filter(Boolean).join('\n');
+    };
+
+    // Bucket by distance. Events without _distanceMiles (no driver coords passed)
+    // fall into an "unbucketed" list and render with a neutral header.
+    const eventsWithDistance = filteredBriefing.events.filter(
+      e => e._distanceMiles != null && Number.isFinite(e._distanceMiles)
+    );
+    const eventsWithoutDistance = filteredBriefing.events.filter(
+      e => e._distanceMiles == null || !Number.isFinite(e._distanceMiles)
+    );
+    const nearEvents = eventsWithDistance.filter(
+      e => e._distanceMiles <= NEAR_EVENT_RADIUS_MILES
+    );
+    const farEvents = eventsWithDistance.filter(
+      e => e._distanceMiles > NEAR_EVENT_RADIUS_MILES
+    );
+
+    const eventBlocks = [];
+
+    if (nearEvents.length > 0) {
+      const nearLines = nearEvents.slice(0, 6).map(formatEvent).join('\n');
+      eventBlocks.push(
+        `NEAR EVENTS (within ${NEAR_EVENT_RADIUS_MILES} mi of driver — CANDIDATE VENUES):\n` +
+        `If an event below is high-impact and starting/ending within the next 2 hours, ` +
+        `recommend the event venue directly with event-specific pro_tips (pickup surge ` +
+        `timing, post-show staging). Use the exact coordinates shown.\n${nearLines}`
+      );
+    }
+
+    if (farEvents.length > 0) {
+      const farLines = farEvents.slice(0, 8).map(formatEvent).join('\n');
+      eventBlocks.push(
+        `FAR EVENTS (beyond ${NEAR_EVENT_RADIUS_MILES} mi — SURGE FLOW INTELLIGENCE, NOT destinations):\n` +
+        `DO NOT recommend these venues — they violate the 15-mile rule. Instead, use them to ` +
+        `reason about where demand will ORIGINATE: fans travel FROM hotels, residential ` +
+        `areas, and dining clusters NEAR the driver TO these far venues. That outflow creates ` +
+        `pickup demand within 15 mi of the driver, not at the event. Recommend the closest ` +
+        `high-impact venues within 15 mi (hotels near freeway on-ramps, dining hubs, residential ` +
+        `centers) that fans would depart from on their way to the event.\n${farLines}`
+      );
+    }
+
+    if (eventsWithoutDistance.length > 0) {
+      // Unbucketed fallback — caller did not annotate _distanceMiles. Render flat
+      // with a neutral header; VENUE_SCORER's 15-mile rule still applies.
+      const unbucketedLines = eventsWithoutDistance.slice(0, 8).map(formatEvent).join('\n');
+      eventBlocks.push(
+        `TODAY'S EVENTS (distance not annotated — 15-mile rule still applies):\n${unbucketedLines}`
+      );
+    }
+
+    if (eventBlocks.length > 0) {
+      sections.push(eventBlocks.join('\n\n'));
+    } else {
+      sections.push('TODAY\'S EVENTS: None with driver impact');
+    }
   } else {
     sections.push('TODAY\'S EVENTS: None with driver impact');
   }
