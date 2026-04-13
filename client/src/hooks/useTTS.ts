@@ -1,5 +1,10 @@
 // client/src/hooks/useTTS.ts
-// Text-to-speech hook using OpenAI natural voice
+// Text-to-speech hook using OpenAI natural voice with browser TTS fallback
+//
+// 2026-03-16: Created for Translation feature — OpenAI TTS-1-HD
+// 2026-04-13: Added browser speechSynthesis fallback for iOS/mobile where
+//   audio.play() fails when called seconds after the user gesture (Coach streaming).
+//   Translation still uses OpenAI TTS (fast path, ~500ms from gesture).
 
 import { useState, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/useToast';
@@ -16,47 +21,58 @@ interface UseTTSReturn {
 }
 
 /**
- * Hook for text-to-speech functionality using OpenAI TTS
+ * Speak using browser's native speechSynthesis API (free, no network, iOS-compatible).
+ * Returns true if successfully started, false if not available.
+ */
+function speakWithBrowserTTS(text: string, language?: string): boolean {
+  if (!window.speechSynthesis) return false;
+
+  // Cancel any ongoing speech
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = language === 'en' ? 'en-US' : language || 'en-US';
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+  utterance.volume = 1.0;
+
+  window.speechSynthesis.speak(utterance);
+  return true;
+}
+
+/**
+ * Hook for text-to-speech functionality using OpenAI TTS with browser fallback
  * @returns Object with speaking state and control functions
  */
 export function useTTS(): UseTTSReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // 2026-04-13: AudioContext unlocks programmatic audio playback after user gesture
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const { toast } = useToast();
 
   const stop = useCallback(() => {
+    // Stop OpenAI TTS audio element
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
+    }
+    // Stop browser TTS if active
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
     setIsSpeaking(false);
   }, []);
 
   // 2026-04-13: Unlock audio for later programmatic playback.
-  // Must be called from a user gesture (click/tap). Creates and resumes an
-  // AudioContext which stays unlocked for the page session, and also plays
-  // a tiny silent buffer through a fresh Audio element to satisfy browsers
-  // that gate HTMLAudioElement.play() separately from AudioContext.
+  // Must be called from a user gesture (click/tap).
   const warmUp = useCallback(() => {
-    // Resume or create AudioContext (works in Chrome, Firefox, Safari)
     try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      if (audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume();
-      }
-    } catch {
-      // AudioContext not available — continue without it
-    }
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+    } catch { /* best-effort */ }
 
-    // Also touch the Audio element from gesture context
     if (!audioRef.current) {
       audioRef.current = new Audio();
     }
-    // Play + immediately pause to mark element as user-activated
     const a = audioRef.current;
     a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
     a.volume = 1;
@@ -64,8 +80,8 @@ export function useTTS(): UseTTSReturn {
   }, []);
 
   // 2026-03-16: Added optional language parameter for multilingual translation TTS
-  // 2026-03-28: Changed to interrupt-and-replace — previous audio is stopped, new audio plays.
-  // 2026-04-13: Uses fresh Audio element per call to avoid state pollution from warmUp.
+  // 2026-03-28: Changed to interrupt-and-replace
+  // 2026-04-13: Falls back to browser speechSynthesis if Audio element playback fails (iOS)
   const speak = useCallback(async (text: string, language?: string) => {
     if (!text) return;
 
@@ -93,45 +109,65 @@ export function useTTS(): UseTTSReturn {
       }
 
       const audioBlob = await response.blob();
-      console.log(`[TTS] Received ${audioBlob.size} bytes, type: ${audioBlob.type}`);
+      console.log(`[TTS] Received ${audioBlob.size} bytes`);
       const audioUrl = URL.createObjectURL(audioBlob);
 
-      // 2026-04-13: Create fresh element each call — avoids stale state from warmUp
-      const audio = new Audio(audioUrl);
-      audio.volume = 1;
-
-      // Store ref so stop() can reach it
-      if (audioRef.current) {
-        audioRef.current.pause();
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
       }
-      audioRef.current = audio;
+
+      const audio = audioRef.current;
+      audio.src = audioUrl;
+      audio.volume = 1;
 
       audio.onended = () => {
         setIsSpeaking(false);
         URL.revokeObjectURL(audioUrl);
       };
 
-      audio.onerror = (e) => {
-        setIsSpeaking(false);
+      audio.onerror = () => {
         URL.revokeObjectURL(audioUrl);
-        console.error('[TTS] Audio playback error:', e);
-        toast({
-          title: 'Playback Failed',
-          description: 'Unable to play audio.',
-          variant: 'destructive',
-        });
+        // 2026-04-13: Audio element failed (iOS autoplay restriction) — fall back to browser TTS
+        console.log('[TTS] Audio element failed, falling back to browser speechSynthesis');
+        if (speakWithBrowserTTS(text, language)) {
+          // Track when browser TTS finishes
+          const checkInterval = setInterval(() => {
+            if (!window.speechSynthesis.speaking) {
+              clearInterval(checkInterval);
+              setIsSpeaking(false);
+            }
+          }, 200);
+        } else {
+          setIsSpeaking(false);
+          toast({
+            title: 'Voice Unavailable',
+            description: 'Unable to play audio on this device.',
+            variant: 'destructive',
+          });
+        }
       };
 
       await audio.play();
-      console.log('[TTS] Playing audio');
+      console.log('[TTS] Playing audio via OpenAI TTS');
     } catch (err) {
-      setIsSpeaking(false);
-      console.error('[TTS] Error:', err);
-      toast({
-        title: 'Text-to-Speech Failed',
-        description: err instanceof Error ? err.message : 'Unable to read aloud.',
-        variant: 'destructive',
-      });
+      // 2026-04-13: Network/API error — try browser TTS as fallback
+      console.warn('[TTS] OpenAI TTS failed, trying browser fallback:', err);
+      if (speakWithBrowserTTS(text, language)) {
+        console.log('[TTS] Playing audio via browser speechSynthesis (fallback)');
+        const checkInterval = setInterval(() => {
+          if (!window.speechSynthesis.speaking) {
+            clearInterval(checkInterval);
+            setIsSpeaking(false);
+          }
+        }, 200);
+      } else {
+        setIsSpeaking(false);
+        toast({
+          title: 'Text-to-Speech Failed',
+          description: err instanceof Error ? err.message : 'Unable to read aloud.',
+          variant: 'destructive',
+        });
+      }
     }
   }, [isSpeaking, stop, toast]);
 
