@@ -2,9 +2,11 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle } from "lucide-react";
+import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { useMemory } from "@/hooks/useMemory";
 import { useChatPersistence } from "@/hooks/useChatPersistence";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useTTS } from "@/hooks/useTTS";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { API_ROUTES } from "@/constants/apiRoutes";
@@ -71,14 +73,19 @@ export default function AICoach({
   
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [_isVoiceActive, setIsVoiceActive] = useState(false);
-  const [_voiceTranscript, setVoiceTranscript] = useState("");
   const [attachments, setAttachments] = useState<Array<{ name: string; type: string; data: string; }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
-  const realtimeRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const _audioContextRef = useRef<AudioContext | null>(null);
+
+  // 2026-04-13: Voice integration — reuses Translation feature's proven hooks
+  // STT: free on-device Web Speech API, TTS: OpenAI TTS-1-HD via /api/tts
+  const speech = useSpeechRecognition();
+  const tts = useTTS();
+  const latestTranscriptRef = useRef('');
+  const [voiceEnabled, setVoiceEnabled] = useState(() =>
+    localStorage.getItem(STORAGE_KEYS.COACH_VOICE_ENABLED) === 'true'
+  );
 
   // 2026-01-05: Notes panel state for AI Coach memory feature
   const [notes, setNotes] = useState<UserNote[]>([]);
@@ -94,6 +101,11 @@ export default function AICoach({
     userId,
     loadOnMount: false  // Only load when explicitly needed
   });
+
+  // 2026-04-13: Sync speech transcript to ref to avoid stale closure in setTimeout
+  useEffect(() => {
+    latestTranscriptRef.current = speech.transcript;
+  }, [speech.transcript]);
 
   // 2026-01-05: Notes CRUD functions with optimistic UI
   const fetchNotes = useCallback(async () => {
@@ -283,186 +295,46 @@ export default function AICoach({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Initialize voice chat with OpenAI Realtime API
-  async function _startVoiceChat() {
-    try {
-      setIsVoiceActive(true);
-      console.log('[voice] Starting voice chat session...');
+  // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
+  const sentViaVoiceRef = useRef(false);
 
-      // Get ephemeral token from backend
-      const res = await fetch(API_ROUTES.REALTIME.TOKEN, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ snapshotId, userId, strategyId }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to get token');
-      }
-
-      const { token, model, context } = await res.json();
-      // 2026-01-06: SECURITY - Don't log token content, only presence
-      console.log('[voice] Token received, model:', model, 'hasToken:', !!token);
-
-      if (!token) {
-        throw new Error('No token returned from server');
-      }
-
-      // Initialize WebSocket connection to OpenAI Realtime API
-      // Token must be passed as query parameter for auth
-      const wsUrl = `wss://api.openai.com/v1/realtime?model=${model}&token=${token}`;
-      console.log('[voice] Connecting to realtime API...');
-      const ws = new WebSocket(wsUrl);
-      realtimeRef.current = ws;
-
-      ws.onopen = () => {
-        console.log('[voice] WebSocket connected - sending session config');
-        
-        // 2026-01-06: Send session setup with driver context (NO HARDCODED LOCATIONS)
-        ws.send(JSON.stringify({
-          type: 'session.update',
-          session: {
-            modalities: ['text', 'audio'],
-            instructions: `You are an AI companion for rideshare drivers${context.city ? ` in ${context.city}${context.state ? `, ${context.state}` : ''}` : ''}.
-Weather: ${context.weather?.conditions || 'current conditions unknown'} (${context.weather?.tempF ? `${context.weather.tempF}°F` : 'temp unknown'})
-Time: ${context.dayPart || 'unknown time'} (${context.hour !== undefined ? `${context.hour}:00` : 'time unknown'})
-Strategy: ${context.strategy?.substring(0, 150) || 'Generate advice for earning opportunities'}
-
-Keep responses under 100 words. Be conversational, friendly, and supportive. Focus on safety and maximizing earnings.`,
-            voice: 'alloy',
-            input_audio_format: 'pcm16',
-            output_audio_format: 'pcm16',
-            input_audio_transcription: { model: 'whisper-1' },
-          },
-        }));
-
-        // Start audio capture AFTER session is configured
-        startAudioCapture();
-      };
-
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        handleRealtimeMessage(msg);
-      };
-
-      ws.onerror = (err) => {
-        console.error('[voice] WebSocket error:', err);
-        setIsVoiceActive(false);
-      };
-
-      ws.onclose = (event) => {
-        console.log('[voice] Voice chat ended, code:', event.code, 'reason:', event.reason);
-        setIsVoiceActive(false);
-      };
-      
-      ws.onerror = (event) => {
-        console.error('[voice] WebSocket error:', event);
-      };
-    } catch (err) {
-      console.error('[voice] Start failed:', err);
-      setIsVoiceActive(false);
-      alert('Failed to start voice chat: ' + (err instanceof Error ? err.message : 'Unknown error'));
-    }
-  }
-
-  function stopVoiceChat() {
-    if (realtimeRef.current) {
-      // Clean up MediaRecorder if attached
-      const mediaRecorder = (realtimeRef.current as any).mediaRecorder;
-      const audioStream = (realtimeRef.current as any).audioStream;
-      
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-        console.log('[voice] MediaRecorder stopped');
-      }
-      
-      if (audioStream) {
-        audioStream.getTracks().forEach((track: MediaStreamTrack) => {
-          track.stop();
-          console.log('[voice] Audio track stopped');
-        });
-      }
-      
-      // Close WebSocket
-      realtimeRef.current.close();
-      realtimeRef.current = null;
-    }
-    setIsVoiceActive(false);
-    setVoiceTranscript("");
-  }
-
-  async function startAudioCapture() {
-    try {
-      console.log('[voice] Starting audio capture...');
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { echoCancellation: true, noiseSuppression: true } 
-      });
-      console.log('[voice] ✅ Microphone access granted');
-      
-      // Use MediaRecorder for reliable audio capture (avoids deprecated ScriptProcessor)
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      
-      mediaRecorder.ondataavailable = async (event) => {
-        if (!realtimeRef.current || realtimeRef.current.readyState !== WebSocket.OPEN) {
-          console.log('[voice] WebSocket not ready, skipping audio chunk');
-          return;
+  // 2026-04-13: Mic toggle — start/stop speech recognition, auto-send transcript
+  // Same pattern as TranslationOverlay: latestTranscriptRef avoids stale closure in setTimeout
+  const handleMicToggle = useCallback(() => {
+    if (speech.isListening) {
+      // 2026-04-13: Warm up audio element NOW (user gesture context) so TTS can
+      // play later after streaming completes (browsers block delayed audio.play())
+      tts.warmUp();
+      speech.stop();
+      // 300ms delay lets final onresult events commit before we read the ref
+      setTimeout(() => {
+        const text = latestTranscriptRef.current.trim();
+        if (text) {
+          sentViaVoiceRef.current = true;
+          send(text);
         }
-        
-        if (event.data.size === 0) return;
-        
-        // Read as ArrayBuffer for raw audio data
-        const arrayBuffer = await event.data.arrayBuffer();
-        // Convert to base64 for transmission
-        const bytes = new Uint8Array(arrayBuffer);
-        const base64Audio = btoa(String.fromCharCode.apply(null, Array.from(bytes)));
-        
-        try {
-          realtimeRef.current.send(JSON.stringify({
-            type: 'input_audio_buffer.append',
-            audio: base64Audio,
-          }));
-          console.log('[voice] 📡 Audio chunk sent (', bytes.length, 'bytes)');
-        } catch (err) {
-          console.error('[voice] Failed to send audio:', err);
-        }
-      };
-      
-      mediaRecorder.onerror = (err) => {
-        console.error('[voice] MediaRecorder error:', err);
-        stopVoiceChat();
-      };
-      
-      // Start recording with 100ms chunks for streaming
-      mediaRecorder.start(100);
-      console.log('[voice] ✅ MediaRecorder started, sending audio in 100ms chunks');
-      
-      // Store reference to stop recording later
-      (realtimeRef.current as any).mediaRecorder = mediaRecorder;
-      (realtimeRef.current as any).audioStream = stream;
-    } catch (err) {
-      console.error('[voice] Audio capture failed:', err);
-      setIsVoiceActive(false);
-      alert('Microphone access denied: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        speech.clear();
+      }, 300);
+    } else {
+      // Interrupt coach TTS if it's speaking when driver starts talking
+      if (tts.isSpeaking) tts.stop();
+      speech.clear();
+      speech.start('en');
     }
-  }
+  }, [speech, tts]);
 
-  function handleRealtimeMessage(msg: any) {
-    if (msg.type === 'response.audio_transcript.delta') {
-      // AI is speaking - show in transcript
-      setVoiceTranscript(prev => prev + (msg.delta || ''));
-    } else if (msg.type === 'conversation.item.created') {
-      // Message created
-      if (msg.item?.role === 'assistant') {
-        setMsgs(prev => [...prev, { role: 'assistant', content: msg.item.content?.[0]?.transcript || '' }]);
-      }
-    } else if (msg.type === 'input_audio_buffer.speech_started') {
-      // User started speaking
-      console.log('[voice] User speech detected');
-    } else if (msg.type === 'input_audio_buffer.speech_stopped') {
-      // User stopped speaking
-      console.log('[voice] User speech ended');
-    }
+  // 2026-04-13: Strip markdown/action tags from coach response for clean TTS playback
+  function cleanTextForTTS(text: string): string {
+    return text
+      .replace(/\[[\w_]+:\s*\{[\s\S]*?\}\s*\]/g, '')  // Remove action tags [SAVE_NOTE: {...}]
+      .replace(/\*\*([^*]+)\*\*/g, '$1')                // Remove markdown bold
+      .replace(/\*([^*]+)\*/g, '$1')                     // Remove markdown italic
+      .replace(/```[\s\S]*?```/g, '')                    // Remove code blocks
+      .replace(/`([^`]+)`/g, '$1')                       // Remove inline code
+      .replace(/#{1,6}\s/g, '')                          // Remove headers
+      .replace(/\n{2,}/g, '. ')                          // Paragraphs → pauses
+      .replace(/\s{2,}/g, ' ')                           // Collapse whitespace
+      .trim();
   }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -491,14 +363,16 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
     }
   }
 
-  async function send() {
-    if (!input.trim() && attachments.length === 0 || isStreaming) return;
-    
-    const my = input.trim();
+  // 2026-04-13: Added overrideMessage param so handleMicToggle can send transcript directly
+  // without going through the input state (avoids stale closure race condition)
+  async function send(overrideMessage?: string) {
+    const messageText = overrideMessage || input.trim();
+    if (!messageText && attachments.length === 0 || isStreaming) return;
+
     setInput("");
     const filesToSend = attachments;
     setAttachments([]);
-    setMsgs((m) => [...m, { role: "user", content: my || "(uploaded files)", attachments: filesToSend }, { role: "assistant", content: "" }]);
+    setMsgs((m) => [...m, { role: "user", content: messageText || "(uploaded files)", attachments: filesToSend }, { role: "assistant", content: "" }]);
     setIsStreaming(true);
 
     controllerRef.current?.abort();
@@ -518,7 +392,7 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         // Only send: IDs + message + history + attachments + minimal snapshot for timezone
         body: JSON.stringify({
           userId,
-          message: my || "(analyzing files)",
+          message: messageText || "(analyzing files)",
           threadHistory: msgs,  // Conversation context
           snapshotId,           // Server fetches full snapshot via CoachDAL
           strategyId,           // Server fetches strategy + blocks via CoachDAL
@@ -559,18 +433,21 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
       const reader = res.body!.getReader();
       const dec = new TextDecoder();
       let acc = "";
+      // 2026-04-13: Accumulate full response locally for TTS (avoids side-effect in setState)
+      let fullResponse = "";
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         acc += dec.decode(value, { stream: true });
-        
+
         // parse SSE lines
         for (const line of acc.split("\n")) {
           if (!line.startsWith("data:")) continue;
           try {
             const msg = JSON.parse(line.slice(5).trim());
             if (msg.delta) {
+              fullResponse += msg.delta;
               setMsgs((m) => {
                 const copy = [...m];
                 const last = copy[copy.length - 1];
@@ -613,6 +490,18 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         const lastNl = acc.lastIndexOf("\n");
         if (lastNl >= 0) acc = acc.slice(lastNl + 1);
       }
+
+      // 2026-04-13: Auto-speak coach response after streaming completes
+      // Triggers if: voice toggle is ON, OR if the user spoke this message via mic
+      // (If you spoke your question, you want to hear the answer — no toggle needed)
+      if ((voiceEnabled || sentViaVoiceRef.current) && fullResponse) {
+        const spokenText = cleanTextForTTS(fullResponse);
+        if (spokenText.length > 0) {
+          console.log(`[AICoach] TTS: speaking ${spokenText.length} chars`);
+          tts.speak(spokenText.slice(0, 4000), 'en');
+        }
+        sentViaVoiceRef.current = false;
+      }
     } catch (err: unknown) {
       const error = err as Error;
       if (error.name !== 'AbortError') {
@@ -649,6 +538,23 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
           <h3 className="font-semibold text-sm">AI Coach</h3>
           <p className="text-xs text-white/80">Powered by Gemini 3 Pro</p>
         </div>
+        {/* 2026-04-13: Voice Output Toggle */}
+        <Button
+          onClick={() => {
+            const next = !voiceEnabled;
+            setVoiceEnabled(next);
+            localStorage.setItem(STORAGE_KEYS.COACH_VOICE_ENABLED, String(next));
+            if (next) tts.warmUp(); // Unlock audio on enable gesture
+            else tts.stop();
+          }}
+          size="sm"
+          variant="ghost"
+          className="text-white hover:bg-white/20"
+          title={voiceEnabled ? 'Mute coach voice' : 'Enable coach voice'}
+          data-testid="button-voice-toggle"
+        >
+          {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+        </Button>
         {/* 2026-01-05: Notes Panel Toggle */}
         <Button
           onClick={() => setNotesOpen(!notesOpen)}
@@ -889,17 +795,33 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
         </div>
       )}
 
+      {/* 2026-04-13: Listening indicator — shows real-time transcript while mic is active */}
+      {speech.isListening && (
+        <div className="px-4 py-2 bg-green-50 dark:bg-green-900/30 border-t border-green-200 dark:border-green-800 flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+          <p className="text-sm text-green-800 dark:text-green-200 flex-1 truncate">
+            {speech.transcript || 'Listening...'}
+          </p>
+          <button
+            onClick={handleMicToggle}
+            className="text-xs text-green-700 dark:text-green-300 underline"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
       {/* Input Area */}
       <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 flex gap-2">
         <Input
           id="coach-chat-message"
           name="coach-chat-message"
           className="flex-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          placeholder="Ask anything - rideshare tips, life advice, or just chat..."
+          placeholder={speech.isListening ? "Listening..." : "Ask anything - rideshare tips, life advice, or just chat..."}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !isStreaming && send()}
-          disabled={isStreaming}
+          disabled={isStreaming || speech.isListening}
           autoComplete="off"
           data-testid="input-chat-message"
         />
@@ -916,23 +838,41 @@ Keep responses under 100 words. Be conversational, friendly, and supportive. Foc
           accept="image/*,.pdf,.doc,.docx,.txt"
           data-testid="input-file-upload"
         />
-        
+
         {/* File Upload Button */}
         <Button
           onClick={() => fileInputRef.current?.click()}
           size="icon"
           className="rounded-full h-10 w-10 bg-gray-500 hover:bg-gray-600 text-white"
           title="Upload files (images, PDFs, documents)"
-          disabled={isStreaming}
+          disabled={isStreaming || speech.isListening}
           data-testid="button-upload-file"
         >
           <Paperclip className="h-4 w-4" />
         </Button>
-        
+
+        {/* 2026-04-13: Mic Button — big, prominent, pulses red while listening */}
+        {speech.isSupported && (
+          <Button
+            onClick={handleMicToggle}
+            size="icon"
+            className={`rounded-full h-10 w-10 text-white transition-colors ${
+              speech.isListening
+                ? 'bg-red-500 hover:bg-red-600 animate-pulse'
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+            title={speech.isListening ? 'Stop listening & send' : 'Speak to coach'}
+            disabled={isStreaming}
+            data-testid="button-mic-toggle"
+          >
+            {speech.isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </Button>
+        )}
+
         {/* Send Button */}
         <Button
-          onClick={send}
-          disabled={!input.trim() || isStreaming}
+          onClick={() => send()}
+          disabled={(!input.trim() && !speech.isListening) || isStreaming}
           size="icon"
           className="rounded-full h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
           data-testid="button-send-message"
