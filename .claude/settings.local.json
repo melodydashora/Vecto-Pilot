@@ -259,7 +259,8 @@
       "Bash(cp constraints.md CONSTRAINTS.md)",
       "Bash(cp district-tagging.md DISTRICT_TAGGING.md)",
       "Bash(cp api-reference.md API_REFERENCE.md)",
-      "Bash(npm list:*)"
+      "Bash(npm list:*)",
+      "Bash(kill 11211)"
     ],
     "deny": [],
     "ask": []

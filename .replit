@@ -8,7 +8,7 @@ run = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.j
 
 # Nix/packages configuration
 [nix]
-packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "docker", "glib", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nodejs-22", "nspr", "nss", "pango", "pgroll", "python313Packages.conda", "spidermonkey_91", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "google-cloud-sdk-gce", "nano", "tmux"]
+packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "docker", "glib", "google-cloud-sdk-gce", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nano", "nodejs-22", "nspr", "nss", "pango", "pgroll", "python313Packages.conda", "spidermonkey_91", "tmux", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
@@ -20,20 +20,10 @@ publicDir = "dist/public"
 
 [[ports]]
 localPort = 5000
-externalPort = 80
+externalPort = 24282
 
-# Workflows
 [workflows]
 runButton = "Run App"
-
-[[workflows.workflow]]
-name = "Run App"
-mode = "sequential"
-author = 43532959
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "set -a && . .env.local && set +a && npm run start:replit"
 
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
