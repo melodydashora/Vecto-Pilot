@@ -29,6 +29,9 @@ export const STORAGE_KEYS = {
 
   // Schedule (weekly driving availability)
   SCHEDULE: 'vectopilot_schedule',
+
+  // AI Coach voice preference (2026-04-13)
+  COACH_VOICE_ENABLED: 'vectopilot_coach_voice',
 } as const;
 
 /**
