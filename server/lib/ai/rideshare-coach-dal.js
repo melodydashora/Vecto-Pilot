@@ -76,7 +76,7 @@ export class RideshareCoachDAL {
         strategy_id: strat.id  // Return id as strategy_id for backwards compatibility
       };
     } catch (error) {
-      console.error('[CoachDAL] resolveStrategyToSnapshot error:', error);
+      console.error('[RideshareCoach] resolveStrategyToSnapshot error:', error);
       return null;
     }
   }
@@ -134,7 +134,7 @@ export class RideshareCoachDAL {
 
       // NO FALLBACK - timezone is required for accurate coach context
       if (!snap.timezone) {
-        console.warn('[CoachDAL] Snapshot missing timezone - coach context may be inaccurate');
+        console.warn('[RideshareCoach] Snapshot missing timezone - coach context may be inaccurate');
       }
       return {
         snapshot_id: snap.snapshot_id,
@@ -156,7 +156,7 @@ export class RideshareCoachDAL {
         // 2026-01-14: airport_context dropped - get from briefings.airport_conditions if needed
       };
     } catch (error) {
-      console.error('[CoachDAL] getHeaderSnapshot error:', error);
+      console.error('[RideshareCoach] getHeaderSnapshot error:', error);
       return null;
     }
   }
@@ -214,7 +214,7 @@ export class RideshareCoachDAL {
         status: strat.status,
       };
     } catch (error) {
-      console.error('[CoachDAL] getLatestStrategy error:', error);
+      console.error('[RideshareCoach] getLatestStrategy error:', error);
       return null;
     }
   }
@@ -256,7 +256,7 @@ export class RideshareCoachDAL {
         briefing_events: briefingRecord.events || null,
       };
     } catch (error) {
-      console.error('[CoachDAL] getComprehensiveBriefing error:', error);
+      console.error('[RideshareCoach] getComprehensiveBriefing error:', error);
       return {};
     }
   }
@@ -282,7 +282,7 @@ export class RideshareCoachDAL {
         strategy_feedback: strategyFeedback || [],
       };
     } catch (error) {
-      console.error('[CoachDAL] getFeedback error:', error);
+      console.error('[RideshareCoach] getFeedback error:', error);
       return { venue_feedback: [], strategy_feedback: [] };
     }
   }
@@ -320,7 +320,7 @@ export class RideshareCoachDAL {
         venues: venues || [],
       };
     } catch (error) {
-      console.error('[CoachDAL] getVenueData error:', error);
+      console.error('[RideshareCoach] getVenueData error:', error);
       return { candidates_count: 0, place_ids: [], venues: [] };
     }
   }
@@ -339,7 +339,7 @@ export class RideshareCoachDAL {
 
       return driverActions || [];
     } catch (error) {
-      console.error('[CoachDAL] getActions error:', error);
+      console.error('[RideshareCoach] getActions error:', error);
       return [];
     }
   }
@@ -376,7 +376,7 @@ export class RideshareCoachDAL {
         school_closures: briefingRecord.school_closures || [],
       };
     } catch (error) {
-      console.error('[CoachDAL] getBriefing error:', error);
+      console.error('[RideshareCoach] getBriefing error:', error);
       return {
         events: [],
         traffic: [],
@@ -445,7 +445,7 @@ export class RideshareCoachDAL {
         rank: c.rank,
       }));
     } catch (error) {
-      console.error('[CoachDAL] getSmartBlocks error:', error);
+      console.error('[RideshareCoach] getSmartBlocks error:', error);
       return [];
     }
   }
@@ -540,7 +540,7 @@ export class RideshareCoachDAL {
         intelligence: intelligence || [],
       };
     } catch (error) {
-      console.error('[CoachDAL] getMarketIntelligence error:', error);
+      console.error('[RideshareCoach] getMarketIntelligence error:', error);
       return { marketPosition: null, intelligence: [] };
     }
   }
@@ -575,7 +575,7 @@ export class RideshareCoachDAL {
 
       return notes || [];
     } catch (error) {
-      console.error('[CoachDAL] getUserNotes error:', error);
+      console.error('[RideshareCoach] getUserNotes error:', error);
       return [];
     }
   }
@@ -604,7 +604,7 @@ export class RideshareCoachDAL {
       } = noteData;
 
       if (!user_id || !content) {
-        console.warn('[CoachDAL] saveUserNote: missing user_id or content');
+        console.warn('[RideshareCoach] saveUserNote: missing user_id or content');
         return null;
       }
 
@@ -627,10 +627,10 @@ export class RideshareCoachDAL {
         })
         .returning();
 
-      console.log(`[CoachDAL] Saved user note: ${note.id} (${note_type})`);
+      console.log(`[RideshareCoach] Saved user note: ${note.id} (${note_type})`);
       return note;
     } catch (error) {
-      console.error('[CoachDAL] saveUserNote error:', error);
+      console.error('[RideshareCoach] saveUserNote error:', error);
       return null;
     }
   }
@@ -649,7 +649,7 @@ export class RideshareCoachDAL {
         })
         .where(eq(user_intel_notes.id, noteId));
     } catch (error) {
-      console.error('[CoachDAL] incrementNoteReference error:', error);
+      console.error('[RideshareCoach] incrementNoteReference error:', error);
     }
   }
 
@@ -661,11 +661,11 @@ export class RideshareCoachDAL {
   async getDriverProfile(userId) {
     try {
       if (!userId) {
-        console.log('[CoachDAL] getDriverProfile: No userId provided');
+        console.log('[RideshareCoach] getDriverProfile: No userId provided');
         return { profile: null, vehicle: null };
       }
 
-      console.log(`[CoachDAL] getDriverProfile: Looking up profile for user ${userId.slice(0, 8)}...`);
+      console.log(`[RideshareCoach] getDriverProfile: Looking up profile for user ${userId.slice(0, 8)}...`);
 
       // Get driver profile - only select columns that exist in schema
       const [profile] = await db
@@ -713,11 +713,11 @@ export class RideshareCoachDAL {
         .limit(1);
 
       if (!profile) {
-        console.log(`[CoachDAL] getDriverProfile: No profile found for user ${userId.slice(0, 8)}`);
+        console.log(`[RideshareCoach] getDriverProfile: No profile found for user ${userId.slice(0, 8)}`);
         return { profile: null, vehicle: null };
       }
 
-      console.log(`[CoachDAL] getDriverProfile: Found profile for ${profile.first_name} ${profile.last_name}`);
+      console.log(`[RideshareCoach] getDriverProfile: Found profile for ${profile.first_name} ${profile.last_name}`);
 
       // Get primary vehicle
       const [vehicle] = await db
@@ -739,9 +739,9 @@ export class RideshareCoachDAL {
         .limit(1);
 
       if (vehicle) {
-        console.log(`[CoachDAL] getDriverProfile: Found vehicle ${vehicle.year} ${vehicle.make} ${vehicle.model}`);
+        console.log(`[RideshareCoach] getDriverProfile: Found vehicle ${vehicle.year} ${vehicle.make} ${vehicle.model}`);
       } else {
-        console.log(`[CoachDAL] getDriverProfile: No vehicle found for profile ${profile.id.slice(0, 8)}`);
+        console.log(`[RideshareCoach] getDriverProfile: No vehicle found for profile ${profile.id.slice(0, 8)}`);
       }
 
       return {
@@ -749,7 +749,7 @@ export class RideshareCoachDAL {
         vehicle: vehicle || null,
       };
     } catch (error) {
-      console.error('[CoachDAL] getDriverProfile error:', error);
+      console.error('[RideshareCoach] getDriverProfile error:', error);
       return { profile: null, vehicle: null };
     }
   }
@@ -774,7 +774,7 @@ export class RideshareCoachDAL {
       if (!activeSnapshotId && strategyId) {
         const resolution = await this.resolveStrategyToSnapshot(strategyId);
         if (!resolution) {
-          console.warn('[CoachDAL] Could not resolve strategy_id:', strategyId);
+          console.warn('[RideshareCoach] Could not resolve strategy_id:', strategyId);
           return {
             snapshot: null,
             strategy: null,
@@ -818,7 +818,7 @@ export class RideshareCoachDAL {
       if (snapshot) {
         // Use authenticated user ID if provided, otherwise fall back to snapshot's user_id
         const effectiveUserId = authenticatedUserId || snapshot.user_id;
-        console.log(`[CoachDAL] getCompleteContext: Snapshot user_id = ${snapshot.user_id || 'NULL'}, authenticated = ${authenticatedUserId || 'NULL'}, effective = ${effectiveUserId || 'NULL'}, city = ${snapshot.city}`);
+        console.log(`[RideshareCoach] getCompleteContext: Snapshot user_id = ${snapshot.user_id || 'NULL'}, authenticated = ${authenticatedUserId || 'NULL'}, effective = ${effectiveUserId || 'NULL'}, city = ${snapshot.city}`);
 
         const [intel, notes, driver, offers] = await Promise.all([
           this.getMarketIntelligence(snapshot.city, snapshot.state),
@@ -848,7 +848,7 @@ export class RideshareCoachDAL {
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
     } catch (error) {
-      console.error('[CoachDAL] getCompleteContext error:', error);
+      console.error('[RideshareCoach] getCompleteContext error:', error);
       return {
         snapshot: null,
         strategy: null,
@@ -1299,10 +1299,10 @@ export class RideshareCoachDAL {
         ),
       };
 
-      console.log(`[CoachDAL] getOfferHistory: ${history.length} offers, ${stats.accept_rate_pct}% accept rate`);
+      console.log(`[RideshareCoach] getOfferHistory: ${history.length} offers, ${stats.accept_rate_pct}% accept rate`);
       return { offers: history, stats };
     } catch (error) {
-      console.error('[CoachDAL] getOfferHistory error:', error);
+      console.error('[RideshareCoach] getOfferHistory error:', error);
       return { offers: [], stats: null };
     }
   }
@@ -1364,10 +1364,10 @@ export class RideshareCoachDAL {
         })
       );
 
-      console.log(`[CoachDAL] getSnapshotHistory: Found ${enrichedHistory.length} snapshots for user ${userId.slice(0, 8)}`);
+      console.log(`[RideshareCoach] getSnapshotHistory: Found ${enrichedHistory.length} snapshots for user ${userId.slice(0, 8)}`);
       return enrichedHistory;
     } catch (error) {
-      console.error('[CoachDAL] getSnapshotHistory error:', error);
+      console.error('[RideshareCoach] getSnapshotHistory error:', error);
       return [];
     }
   }
@@ -1403,7 +1403,7 @@ export class RideshareCoachDAL {
       } = messageData;
 
       if (!user_id || !conversation_id || !role || !content) {
-        console.warn('[CoachDAL] saveConversationMessage: missing required fields');
+        console.warn('[RideshareCoach] saveConversationMessage: missing required fields');
         return null;
       }
 
@@ -1429,10 +1429,10 @@ export class RideshareCoachDAL {
         })
         .returning();
 
-      console.log(`[CoachDAL] Saved conversation message: ${message.id} (${role})`);
+      console.log(`[RideshareCoach] Saved conversation message: ${message.id} (${role})`);
       return message;
     } catch (error) {
-      console.error('[CoachDAL] saveConversationMessage error:', error);
+      console.error('[RideshareCoach] saveConversationMessage error:', error);
       return null;
     }
   }
@@ -1460,10 +1460,10 @@ export class RideshareCoachDAL {
         .orderBy(asc(coach_conversations.created_at))
         .limit(limit);
 
-      console.log(`[CoachDAL] getConversationHistory: Found ${messages.length} messages for user ${userId.slice(0, 8)}`);
+      console.log(`[RideshareCoach] getConversationHistory: Found ${messages.length} messages for user ${userId.slice(0, 8)}`);
       return messages;
     } catch (error) {
-      console.error('[CoachDAL] getConversationHistory error:', error);
+      console.error('[RideshareCoach] getConversationHistory error:', error);
       return [];
     }
   }
@@ -1495,10 +1495,10 @@ export class RideshareCoachDAL {
         .orderBy(coach_conversations.conversation_id, desc(coach_conversations.created_at))
         .limit(limit);
 
-      console.log(`[CoachDAL] getConversations: Found ${conversations.length} conversations for user ${userId.slice(0, 8)}`);
+      console.log(`[RideshareCoach] getConversations: Found ${conversations.length} conversations for user ${userId.slice(0, 8)}`);
       return conversations;
     } catch (error) {
-      console.error('[CoachDAL] getConversations error:', error);
+      console.error('[RideshareCoach] getConversations error:', error);
       return [];
     }
   }
@@ -1514,9 +1514,9 @@ export class RideshareCoachDAL {
         .update(coach_conversations)
         .set({ is_starred: starred, updated_at: new Date() })
         .where(eq(coach_conversations.id, messageId));
-      console.log(`[CoachDAL] Message ${messageId} ${starred ? 'starred' : 'unstarred'}`);
+      console.log(`[RideshareCoach] Message ${messageId} ${starred ? 'starred' : 'unstarred'}`);
     } catch (error) {
-      console.error('[CoachDAL] toggleMessageStar error:', error);
+      console.error('[RideshareCoach] toggleMessageStar error:', error);
     }
   }
 
@@ -1546,7 +1546,7 @@ export class RideshareCoachDAL {
       } = noteData;
 
       if (!note_type || !category || !title || !description) {
-        console.warn('[CoachDAL] saveSystemNote: missing required fields');
+        console.warn('[RideshareCoach] saveSystemNote: missing required fields');
         return null;
       }
 
@@ -1570,7 +1570,7 @@ export class RideshareCoachDAL {
             updated_at: new Date()
           })
           .where(eq(coach_system_notes.id, existing.id));
-        console.log(`[CoachDAL] Updated existing system note: ${existing.id} (occurrence: ${existing.occurrence_count + 1})`);
+        console.log(`[RideshareCoach] Updated existing system note: ${existing.id} (occurrence: ${existing.occurrence_count + 1})`);
         return existing;
       }
 
@@ -1592,10 +1592,10 @@ export class RideshareCoachDAL {
         })
         .returning();
 
-      console.log(`[CoachDAL] Saved system note: ${note.id} (${note_type}/${category})`);
+      console.log(`[RideshareCoach] Saved system note: ${note.id} (${note_type}/${category})`);
       return note;
     } catch (error) {
-      console.error('[CoachDAL] saveSystemNote error:', error);
+      console.error('[RideshareCoach] saveSystemNote error:', error);
       return null;
     }
   }
@@ -1622,7 +1622,7 @@ export class RideshareCoachDAL {
 
       return notes;
     } catch (error) {
-      console.error('[CoachDAL] getSystemNotes error:', error);
+      console.error('[RideshareCoach] getSystemNotes error:', error);
       return [];
     }
   }
@@ -1674,7 +1674,7 @@ export class RideshareCoachDAL {
       } = deactivationData;
 
       if (!user_id || !news_title || !reason) {
-        console.warn('[CoachDAL] deactivateNews: missing required fields');
+        console.warn('[RideshareCoach] deactivateNews: missing required fields');
         return null;
       }
 
@@ -1699,18 +1699,18 @@ export class RideshareCoachDAL {
         })
         .returning();
 
-      console.log(`[CoachDAL] Deactivated news: "${news_title.substring(0, 30)}..." for user ${user_id.slice(0, 8)} (reason: ${reason})`);
+      console.log(`[RideshareCoach] Deactivated news: "${news_title.substring(0, 30)}..." for user ${user_id.slice(0, 8)} (reason: ${reason})`);
 
       // 2026-02-04: Real-time update - notify client to refresh briefing
       if (snapshot_id && deactivation) {
         const payload = JSON.stringify({ snapshot_id, type: 'news_update' });
         await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
-        console.log(`[CoachDAL] 📢 Sent briefing_ready notification for news update (snapshot: ${snapshot_id.slice(0, 8)})`);
+        console.log(`[RideshareCoach] 📢 Sent briefing_ready notification for news update (snapshot: ${snapshot_id.slice(0, 8)})`);
       }
 
       return deactivation;
     } catch (error) {
-      console.error('[CoachDAL] deactivateNews error:', error);
+      console.error('[RideshareCoach] deactivateNews error:', error);
       return null;
     }
   }
@@ -1731,7 +1731,7 @@ export class RideshareCoachDAL {
 
       return new Set(deactivations.map(d => d.news_hash));
     } catch (error) {
-      console.error('[CoachDAL] getDeactivatedNewsHashes error:', error);
+      console.error('[RideshareCoach] getDeactivatedNewsHashes error:', error);
       return new Set();
     }
   }
@@ -1760,7 +1760,7 @@ export class RideshareCoachDAL {
       } = deactivationData;
 
       if (!reason) {
-        console.warn('[CoachDAL] deactivateEvent: missing reason');
+        console.warn('[RideshareCoach] deactivateEvent: missing reason');
         return null;
       }
 
@@ -1785,7 +1785,7 @@ export class RideshareCoachDAL {
 
         if (exactMatch) {
           targetEventId = exactMatch.id;
-          console.log(`[CoachDAL] Found event by title: "${event_title}" -> ID ${targetEventId}`);
+          console.log(`[RideshareCoach] Found event by title: "${event_title}" -> ID ${targetEventId}`);
         } else {
           // Try partial match (title contains the search term or vice versa)
           const partialMatch = matchingEvents.find(e =>
@@ -1795,13 +1795,13 @@ export class RideshareCoachDAL {
 
           if (partialMatch) {
             targetEventId = partialMatch.id;
-            console.log(`[CoachDAL] Found event by partial match: "${event_title}" -> "${partialMatch.title}" (ID ${targetEventId})`);
+            console.log(`[RideshareCoach] Found event by partial match: "${event_title}" -> "${partialMatch.title}" (ID ${targetEventId})`);
           }
         }
       }
 
       if (!targetEventId) {
-        console.warn(`[CoachDAL] deactivateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
+        console.warn(`[RideshareCoach] deactivateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
         return null;
       }
 
@@ -1819,18 +1819,18 @@ export class RideshareCoachDAL {
         .where(eq(discovered_events.id, targetEventId))
         .returning();
 
-      console.log(`[CoachDAL] Deactivated event: ${targetEventId} (reason: ${deactivationReason})`);
+      console.log(`[RideshareCoach] Deactivated event: ${targetEventId} (reason: ${deactivationReason})`);
 
       // 2026-02-04: Real-time update - notify client to refresh briefing
       if (snapshot_id && event) {
         const payload = JSON.stringify({ snapshot_id, type: 'event_update' });
         await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
-        console.log(`[CoachDAL] 📢 Sent briefing_ready notification for event deactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
+        console.log(`[RideshareCoach] 📢 Sent briefing_ready notification for event deactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
       }
 
       return event;
     } catch (error) {
-      console.error('[CoachDAL] deactivateEvent error:', error);
+      console.error('[RideshareCoach] deactivateEvent error:', error);
       return null;
     }
   }
@@ -1859,7 +1859,7 @@ export class RideshareCoachDAL {
       } = reactivationData;
 
       if (!reason) {
-        console.warn('[CoachDAL] reactivateEvent: missing reason');
+        console.warn('[RideshareCoach] reactivateEvent: missing reason');
         return null;
       }
 
@@ -1886,7 +1886,7 @@ export class RideshareCoachDAL {
 
         if (exactMatch) {
           targetEventId = exactMatch.id;
-          console.log(`[CoachDAL] Found inactive event by title: "${event_title}" -> ID ${targetEventId}`);
+          console.log(`[RideshareCoach] Found inactive event by title: "${event_title}" -> ID ${targetEventId}`);
         } else {
           // Try partial match on inactive events
           const partialMatch = inactiveEvents.find(e =>
@@ -1896,13 +1896,13 @@ export class RideshareCoachDAL {
 
           if (partialMatch) {
             targetEventId = partialMatch.id;
-            console.log(`[CoachDAL] Found inactive event by partial match: "${event_title}" -> "${partialMatch.title}" (ID ${targetEventId})`);
+            console.log(`[RideshareCoach] Found inactive event by partial match: "${event_title}" -> "${partialMatch.title}" (ID ${targetEventId})`);
           }
         }
       }
 
       if (!targetEventId) {
-        console.warn(`[CoachDAL] reactivateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
+        console.warn(`[RideshareCoach] reactivateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
         return null;
       }
 
@@ -1921,18 +1921,18 @@ export class RideshareCoachDAL {
         .where(eq(discovered_events.id, targetEventId))
         .returning();
 
-      console.log(`[CoachDAL] Reactivated event: ${targetEventId} (reason: ${reactivationNote}, by: ${reactivated_by})`);
+      console.log(`[RideshareCoach] Reactivated event: ${targetEventId} (reason: ${reactivationNote}, by: ${reactivated_by})`);
 
       // 2026-02-04: Real-time update - notify client to refresh briefing
       if (snapshot_id && event) {
         const payload = JSON.stringify({ snapshot_id, type: 'event_update' });
         await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
-        console.log(`[CoachDAL] 📢 Sent briefing_ready notification for event reactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
+        console.log(`[RideshareCoach] 📢 Sent briefing_ready notification for event reactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
       }
 
       return event;
     } catch (error) {
-      console.error('[CoachDAL] reactivateEvent error:', error);
+      console.error('[RideshareCoach] reactivateEvent error:', error);
       return null;
     }
   }
@@ -1957,7 +1957,7 @@ export class RideshareCoachDAL {
       } = eventData;
 
       if (!title || !event_start_date || !city || !state) {
-        console.warn('[CoachDAL] addEvent: missing required fields (title, event_start_date, city, state)');
+        console.warn('[RideshareCoach] addEvent: missing required fields (title, event_start_date, city, state)');
         return null;
       }
 
@@ -2011,10 +2011,10 @@ export class RideshareCoachDAL {
         })
         .returning();
 
-      console.log(`[CoachDAL] ✅ addEvent: "${title}" on ${event_start_date} in ${city}, ${state} (hash: ${eventHash.slice(0, 8)})`);
+      console.log(`[RideshareCoach] ✅ addEvent: "${title}" on ${event_start_date} in ${city}, ${state} (hash: ${eventHash.slice(0, 8)})`);
       return event;
     } catch (error) {
-      console.error('[CoachDAL] addEvent error:', error);
+      console.error('[RideshareCoach] addEvent error:', error);
       return null;
     }
   }
@@ -2038,7 +2038,7 @@ export class RideshareCoachDAL {
       } = updateData;
 
       if (!event_title && !event_id) {
-        console.warn('[CoachDAL] updateEvent: need event_title or event_id');
+        console.warn('[RideshareCoach] updateEvent: need event_title or event_id');
         return null;
       }
 
@@ -2062,7 +2062,7 @@ export class RideshareCoachDAL {
       }
 
       if (!event) {
-        console.warn(`[CoachDAL] updateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
+        console.warn(`[RideshareCoach] updateEvent: could not find event - id: ${event_id}, title: "${event_title}"`);
         return null;
       }
 
@@ -2082,7 +2082,7 @@ export class RideshareCoachDAL {
         .where(eq(discovered_events.id, event.id))
         .returning();
 
-      console.log(`[CoachDAL] ✅ updateEvent: "${event.title}" updated (${Object.keys(updates).filter(k => k !== 'updated_at').join(', ')})`);
+      console.log(`[RideshareCoach] ✅ updateEvent: "${event.title}" updated (${Object.keys(updates).filter(k => k !== 'updated_at').join(', ')})`);
 
       // Send real-time notification if snapshot_id available
       if (snapshot_id) {
@@ -2092,7 +2092,7 @@ export class RideshareCoachDAL {
 
       return updated;
     } catch (error) {
-      console.error('[CoachDAL] updateEvent error:', error);
+      console.error('[RideshareCoach] updateEvent error:', error);
       return null;
     }
   }
@@ -2127,7 +2127,7 @@ export class RideshareCoachDAL {
       } = intelData;
 
       if (!market || !intel_type || !title || !content) {
-        console.warn('[CoachDAL] saveMarketIntelligence: missing required fields');
+        console.warn('[RideshareCoach] saveMarketIntelligence: missing required fields');
         return null;
       }
 
@@ -2157,10 +2157,10 @@ export class RideshareCoachDAL {
         })
         .returning();
 
-      console.log(`[CoachDAL] Saved market intel: ${intel.id} (${market}/${intel_type})`);
+      console.log(`[RideshareCoach] Saved market intel: ${intel.id} (${market}/${intel_type})`);
       return intel;
     } catch (error) {
-      console.error('[CoachDAL] saveMarketIntelligence error:', error);
+      console.error('[RideshareCoach] saveMarketIntelligence error:', error);
       return null;
     }
   }
@@ -2193,7 +2193,7 @@ export class RideshareCoachDAL {
       } = venueData;
 
       if (!venue_name || !address || !category) {
-        console.warn('[CoachDAL] saveVenueCatalogEntry: missing required fields');
+        console.warn('[RideshareCoach] saveVenueCatalogEntry: missing required fields');
         return null;
       }
 
@@ -2221,7 +2221,7 @@ export class RideshareCoachDAL {
             .where(eq(venue_catalog.venue_id, existing.venue_id))
             .returning();
 
-          console.log(`[CoachDAL] Updated venue: ${updated.venue_id} (${venue_name})`);
+          console.log(`[RideshareCoach] Updated venue: ${updated.venue_id} (${venue_name})`);
           return updated;
         }
       }
@@ -2247,10 +2247,10 @@ export class RideshareCoachDAL {
         })
         .returning();
 
-      console.log(`[CoachDAL] Created venue: ${venue.venue_id} (${venue_name})`);
+      console.log(`[RideshareCoach] Created venue: ${venue.venue_id} (${venue_name})`);
       return venue;
     } catch (error) {
-      console.error('[CoachDAL] saveVenueCatalogEntry error:', error);
+      console.error('[RideshareCoach] saveVenueCatalogEntry error:', error);
       return null;
     }
   }
@@ -2264,7 +2264,7 @@ export class RideshareCoachDAL {
   async addVenueStagingNotes(placeId, stagingNotes) {
     try {
       if (!placeId || !stagingNotes) {
-        console.warn('[CoachDAL] addVenueStagingNotes: missing required fields');
+        console.warn('[RideshareCoach] addVenueStagingNotes: missing required fields');
         return null;
       }
 
@@ -2278,11 +2278,11 @@ export class RideshareCoachDAL {
         .returning();
 
       if (venue) {
-        console.log(`[CoachDAL] Added staging notes to venue: ${placeId}`);
+        console.log(`[RideshareCoach] Added staging notes to venue: ${placeId}`);
       }
       return venue;
     } catch (error) {
-      console.error('[CoachDAL] addVenueStagingNotes error:', error);
+      console.error('[RideshareCoach] addVenueStagingNotes error:', error);
       return null;
     }
   }
@@ -2333,11 +2333,11 @@ export class RideshareCoachDAL {
       }
 
       if (uniqueTips.length > 0) {
-        console.log(`[CoachDAL] Extracted ${uniqueTips.length} tips from coach response`);
+        console.log(`[RideshareCoach] Extracted ${uniqueTips.length} tips from coach response`);
       }
       return uniqueTips.length;
     } catch (error) {
-      console.error('[CoachDAL] extractAndSaveTips error:', error);
+      console.error('[RideshareCoach] extractAndSaveTips error:', error);
       return 0;
     }
   }
@@ -2395,7 +2395,7 @@ export class RideshareCoachDAL {
       } = zoneData;
 
       if (!market_slug || !zone_type || !zone_name) {
-        console.warn('[CoachDAL] saveZoneIntelligence: missing required fields');
+        console.warn('[RideshareCoach] saveZoneIntelligence: missing required fields');
         return null;
       }
 
@@ -2454,7 +2454,7 @@ export class RideshareCoachDAL {
           .where(eq(zone_intelligence.id, matchingZone.id))
           .returning();
 
-        console.log(`[CoachDAL] Zone intel updated: "${zone_name}" now has ${updated.reports_count} reports, confidence=${updated.confidence_score}`);
+        console.log(`[RideshareCoach] Zone intel updated: "${zone_name}" now has ${updated.reports_count} reports, confidence=${updated.confidence_score}`);
         return updated;
       } else {
         // New zone - create it
@@ -2481,11 +2481,11 @@ export class RideshareCoachDAL {
           })
           .returning();
 
-        console.log(`[CoachDAL] New zone intel created: "${zone_name}" in ${market_slug} (${zone_type})`);
+        console.log(`[RideshareCoach] New zone intel created: "${zone_name}" in ${market_slug} (${zone_type})`);
         return created;
       }
     } catch (error) {
-      console.error('[CoachDAL] saveZoneIntelligence error:', error);
+      console.error('[RideshareCoach] saveZoneIntelligence error:', error);
       return null;
     }
   }
@@ -2517,10 +2517,10 @@ export class RideshareCoachDAL {
         .orderBy(desc(zone_intelligence.confidence_score), desc(zone_intelligence.reports_count))
         .limit(limit);
 
-      console.log(`[CoachDAL] getZoneIntelligence: Found ${zones.length} zones in ${marketSlug}`);
+      console.log(`[RideshareCoach] getZoneIntelligence: Found ${zones.length} zones in ${marketSlug}`);
       return zones;
     } catch (error) {
-      console.error('[CoachDAL] getZoneIntelligence error:', error);
+      console.error('[RideshareCoach] getZoneIntelligence error:', error);
       return [];
     }
   }
@@ -2565,7 +2565,7 @@ export class RideshareCoachDAL {
 
       return summary;
     } catch (error) {
-      console.error('[CoachDAL] getZoneIntelligenceSummary error:', error);
+      console.error('[RideshareCoach] getZoneIntelligenceSummary error:', error);
       return '';
     }
   }

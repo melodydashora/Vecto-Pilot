@@ -120,7 +120,7 @@ export default function RideshareCoach({
         setNotes(data.notes || []);
       }
     } catch (err) {
-      console.error('[AICoach] Failed to fetch notes:', err);
+      console.error('[RideshareCoach] Failed to fetch notes:', err);
     } finally {
       setNotesLoading(false);
     }
@@ -145,9 +145,9 @@ export default function RideshareCoach({
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Delete failed');
-      console.log('[AICoach] Note deleted:', noteId);
+      console.log('[RideshareCoach] Note deleted:', noteId);
     } catch (err) {
-      console.error('[AICoach] Delete failed, rolling back:', err);
+      console.error('[RideshareCoach] Delete failed, rolling back:', err);
       setNotes(original); // Rollback on error
     }
   }, [notes]);
@@ -166,9 +166,9 @@ export default function RideshareCoach({
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Pin toggle failed');
-      console.log('[AICoach] Note pin toggled:', noteId);
+      console.log('[RideshareCoach] Note pin toggled:', noteId);
     } catch (err) {
-      console.error('[AICoach] Pin toggle failed, rolling back:', err);
+      console.error('[RideshareCoach] Pin toggle failed, rolling back:', err);
       setNotes(original);
     }
   }, [notes]);
@@ -194,9 +194,9 @@ export default function RideshareCoach({
         body: JSON.stringify({ content: editContent })
       });
       if (!res.ok) throw new Error('Update failed');
-      console.log('[AICoach] Note updated:', noteId);
+      console.log('[RideshareCoach] Note updated:', noteId);
     } catch (err) {
-      console.error('[AICoach] Update failed, rolling back:', err);
+      console.error('[RideshareCoach] Update failed, rolling back:', err);
       setNotes(original);
     }
     setEditContent("");
@@ -219,7 +219,7 @@ export default function RideshareCoach({
     const { topic, summary } = summarizeConversation(msgs);
     if (topic && summary) {
       await logConversation(topic, summary);
-      console.log('[AICoach] Conversation logged to memory');
+      console.log('[RideshareCoach] Conversation logged to memory');
     }
   }, [msgs, logConversation, summarizeConversation]);
 
@@ -440,7 +440,7 @@ export default function RideshareCoach({
       if ((voiceEnabled || sentViaVoiceRef.current) && fullResponse) {
         const spokenText = cleanTextForTTS(fullResponse);
         if (spokenText.length > 0) {
-          console.log(`[AICoach] TTS: speaking ${spokenText.length} chars`);
+          console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars`);
           tts.speak(spokenText.slice(0, 4000), 'en');
         }
         sentViaVoiceRef.current = false;
@@ -472,7 +472,7 @@ export default function RideshareCoach({
           <Zap className="h-4 w-4" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-sm">AI Coach</h3>
+          <h3 className="font-semibold text-sm">Rideshare Coach</h3>
           <p className="text-xs text-white/80">Powered by Gemini 3 Pro</p>
         </div>
         {/* 2026-04-13: Voice Output Toggle */}
@@ -655,7 +655,7 @@ export default function RideshareCoach({
               <MessageSquare className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your AI Coach</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your Rideshare Coach</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300 max-w-sm mx-auto leading-relaxed">
                 Ask me anything - rideshare strategy, life advice, or just chat. I can search the web too!
               </p>
