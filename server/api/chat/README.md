@@ -85,7 +85,7 @@ This prevents date-related mistakes when deactivating events. If the Coach deact
 - **Uses:** `../../../shared/schema.js` for database schema
 - **Uses:** `../../lib/ai/coach-dal.js` for context
 - **Uses:** `../../lib/ai/adapters/` for model calls
-- **Called by:** Client CoachChat component
+- **Called by:** Client AICoach component
 
 ## Import Paths
 

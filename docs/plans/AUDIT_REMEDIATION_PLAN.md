@@ -89,9 +89,9 @@ if (!userTimezone) {
 
 ### P0-C: Remove Hardcoded 'TX' from Voice Instructions
 
-**Problem:** `CoachChat.tsx:326` hardcodes "TX" in voice chat instructions.
+**Problem:** `AICoach.tsx:326` hardcodes "TX" in voice chat instructions.
 
-**File:** `client/src/components/CoachChat.tsx` (line 326)
+**File:** `client/src/components/AICoach.tsx` (line 326)
 
 **Current Code:**
 ```javascript
@@ -130,12 +130,12 @@ instructions: `You are an AI companion for rideshare drivers in ${context.city |
 **Problem:** Multiple files log sensitive data:
 - `server/lib/ai/adapters/index.js` - logs message previews
 - `server/api/chat/chat.js` - logs user ID and message text
-- `CoachChat.tsx` - logs realtime token substrings
+- `AICoach.tsx` - logs realtime token substrings
 
 **Files Affected:**
 - `server/lib/ai/adapters/index.js`
 - `server/api/chat/chat.js` (multiple console.log statements)
-- `client/src/components/CoachChat.tsx` (line 305)
+- `client/src/components/AICoach.tsx` (line 305)
 
 **Fix Approach:**
 1. Replace `console.log` with structured logger that redacts by default
@@ -223,7 +223,7 @@ const patterns = [
 **Fixed:** Client sends only IDs, server rebuilds context via CoachDAL.
 
 **Files Affected:**
-- `client/src/components/CoachChat.tsx` (send function)
+- `client/src/components/AICoach.tsx` (send function)
 - `server/api/chat/chat.js` (already uses CoachDAL, just needs client changes)
 
 **Test Cases:**

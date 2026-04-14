@@ -1,5 +1,8 @@
 # AI Coach Voice Integration Plan
 
+> **LEGACY — Voice status consolidated into [docs/architecture/RIDESHARE_COACH.md](../../../docs/architecture/RIDESHARE_COACH.md) §4 on 2026-04-14.**
+> This file is retained as a detailed implementation reference.
+
 **Created:** 2026-04-13
 **Author:** Claude Opus 4.6 (in session with Melody)
 **Status:** PLAN — awaiting testing approval

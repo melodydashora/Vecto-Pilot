@@ -1,6 +1,9 @@
 # AI_RIDESHARE_COACH.md — AI Coach System End-to-End
 
-> **Canonical reference** for the AI Coach chat system: context injection, prompt construction, streaming, action tags, and coaching personality.
+> **LEGACY — Consolidated into [RIDESHARE_COACH.md](RIDESHARE_COACH.md) on 2026-04-14.**
+> This file is retained for reference. The canonical coach doc is now RIDESHARE_COACH.md.
+
+> ~~**Canonical reference** for the AI Coach chat system: context injection, prompt construction, streaming, action tags, and coaching personality.~~
 > Last updated: 2026-04-10
 
 ## Supersedes

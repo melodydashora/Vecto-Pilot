@@ -2,7 +2,7 @@
 > **Frontend:** This is the core React (Vite) application logic, optimized for mobile-first rideshare strategy.
 > **Key State:** `CoPilotContext` manages the complex strategy lifecycle and SSE subscriptions.
 > **Structure:** Routes (`/co-pilot/*`) map to page components (`StrategyPage`, `BriefingPage`, etc.).
-> **Components:** Shadcn UI primitives (`ui/`) and domain-specific components (`CoachChat`, `BriefingTab`) handle interactions.
+> **Components:** Shadcn UI primitives (`ui/`) and domain-specific components (`AICoach`, `BriefingTab`) handle interactions.
 
 > **Last Verified:** 2026-01-09
 
@@ -62,7 +62,7 @@ src/
 | `layouts/CoPilotLayout.tsx` | Shared layout with conditional GlobalHeader |
 | `contexts/co-pilot-context.tsx` | Strategy, blocks, SSE state |
 | `components/GlobalHeader.tsx` | Weather, location, time |
-| `components/CoachChat.tsx` | AI chat + voice |
+| `components/AICoach.tsx` | AI chat + voice |
 | `components/BriefingTab.tsx` | Events, traffic, news |
 | `components/BarsMainTab.tsx` | Premium bars sidebar (renamed from BarTab.tsx) |
 | `components/BarsDataGrid.tsx` | Venue data table (renamed from BarsTable.tsx) |

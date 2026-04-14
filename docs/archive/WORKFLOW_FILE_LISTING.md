@@ -1514,7 +1514,7 @@ _Source: shared/schema.js_
 - [server/api/briefing/index.js](./server/api/briefing/index.js) (active) → UI: [index-BfAOqFWl.css](./client/dist/assets/index-BfAOqFWl.css)
 - [server/api/briefing/README.md](./server/api/briefing/README.md) (active) → UI: [README.md](./client/README.md)
 - [server/api/chat/chat-context.js](./server/api/chat/chat-context.js) (active)
-- [server/api/chat/chat.js](./server/api/chat/chat.js) (active) → UI: [CoachChat.tsx](./client/src/components/CoachChat.tsx)
+- [server/api/chat/chat.js](./server/api/chat/chat.js) (active) → UI: [AICoach.tsx](./client/src/components/AICoach.tsx)
 - [server/api/chat/index.js](./server/api/chat/index.js) (active) → UI: [index-BfAOqFWl.css](./client/dist/assets/index-BfAOqFWl.css)
 - [server/api/chat/README.md](./server/api/chat/README.md) (active) → UI: [README.md](./client/README.md)
 - [server/api/chat/realtime.js](./server/api/chat/realtime.js) (active)

@@ -150,7 +150,7 @@
       "Bash(server/api/chat/chat.js )",
       "Bash(server/bootstrap/routes.js )",
       "Bash(server/lib/ai/coach-dal.js )",
-      "Bash(client/src/components/CoachChat.tsx )",
+      "Bash(client/src/components/AICoach.tsx )",
       "Bash(docs/architecture/ai-coach.md )",
       "Bash(tests/coach-validation.test.js )",
       "Bash(tests/coach-schema.test.js)",
@@ -260,7 +260,12 @@
       "Bash(cp district-tagging.md DISTRICT_TAGGING.md)",
       "Bash(cp api-reference.md API_REFERENCE.md)",
       "Bash(npm list:*)",
-      "Bash(kill 11211)"
+      "Bash(kill 11211)",
+      "Bash(npm show:*)",
+      "Bash(kill 412)",
+      "Bash(sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\")",
+      "Bash(disown)",
+      "Bash(break)"
     ],
     "deny": [],
     "ask": []

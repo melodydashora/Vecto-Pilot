@@ -130,7 +130,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **Codebase Files:**
 - `server/api/chat/chat.js` - Chat interface endpoint
 - `server/lib/ai/providers/coach-dal.js` - Data access layer
-- `client/src/components/CoachChat.tsx` - UI component
+- `client/src/components/AICoach.tsx` - UI component
 - `server/api/chat/chat-context.js` - Context builder
 - `server/lib/strategy-generator.js` - Pipeline orchestrator
 - `server/lib/triad-orchestrator.js` - Three-stage coordinator

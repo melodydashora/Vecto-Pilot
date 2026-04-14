@@ -30,7 +30,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 
 | Document | Purpose | Read When... |
 |----------|---------|--------------|
-| [AI_RIDESHARE_COACH.md](AI_RIDESHARE_COACH.md) | AI Coach system, schema access, write capabilities | Working with AI Coach |
+| [RIDESHARE_COACH.md](RIDESHARE_COACH.md) | AI Coach: architecture, voice, action tags, known issues | Working with AI Coach |
 | [AI_BEST_PRACTICES.md](AI_BEST_PRACTICES.md) | Prompt patterns, cost optimization, hallucination prevention | Writing AI prompts |
 | [AI_MODEL_ADAPTERS.md](AI_MODEL_ADAPTERS.md) | Model adapter pattern, provider routing | Adding/changing AI providers |
 | [AI_MODEL_UPDATE_STRATEGY.md](AI_MODEL_UPDATE_STRATEGY.md) | Model versions, swap patterns, deprecation migration | Upgrading models |

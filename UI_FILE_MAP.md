@@ -82,7 +82,7 @@ This document provides a complete mapping of UI components to their source files
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
 | `GlobalHeader.tsx` | Location, time, weather display | CoPilotLayout.tsx | ✅ Active |
-| `CoachChat.tsx` | AI chat + voice interface (GPT-5.2) | StrategyPage.tsx | ✅ Active |
+| `AICoach.tsx` | AI chat + voice interface (GPT-5.2) | StrategyPage.tsx | ✅ Active |
 | `BriefingTab.tsx` | Weather, traffic, news, events | BriefingPage.tsx | ✅ Active |
 | `FeedbackModal.tsx` | Venue/strategy feedback dialogs | StrategyPage.tsx | ✅ Active |
 | `SmartBlocksStatus.tsx` | Pipeline loading status with progress bar | StrategyPage.tsx | ✅ Active |
@@ -129,12 +129,12 @@ This document provides a complete mapping of UI components to their source files
 | `hooks/useStrategyPolling.ts` | Strategy fetching with SSE + caching | co-pilot-context.tsx | ✅ Active |
 | `hooks/useStrategyLoadingMessages.ts` | Rotating loading messages + time remaining | StrategyPage.tsx | ✅ Active |
 | `hooks/useVenueLoadingMessages.ts` | Venue enrichment loading messages | StrategyPage.tsx | ✅ Active |
-| `hooks/useTTS.ts` | Text-to-speech with OpenAI | CoachChat.tsx | ✅ Active |
+| `hooks/useTTS.ts` | Text-to-speech with OpenAI | AICoach.tsx | ✅ Active |
 | `hooks/useBarsQuery.ts` | Bar listings query | BarsPage.tsx | ✅ Active |
 | `hooks/useMemory.ts` | Memory persistence utilities | Multiple | ✅ Active |
 | `hooks/useMarketIntelligence.ts` | Market intelligence queries | IntelPage.tsx | ✅ Active |
 | `hooks/usePlatformData.ts` | Platform data queries (countries, markets, etc.) | SettingsPage.tsx | ✅ Active |
-| `hooks/useChatPersistence.ts` | Chat history persistence | CoachChat.tsx | ✅ Active |
+| `hooks/useChatPersistence.ts` | Chat history persistence | AICoach.tsx | ✅ Active |
 
 ### Tests
 
@@ -236,9 +236,9 @@ This document provides a complete mapping of UI components to their source files
 
 | Endpoint | Method | Called By | Purpose | Auth |
 |----------|--------|-----------|---------|------|
-| `/api/chat/:snapshotId/message` | POST (SSE) | CoachChat.tsx | Text chat streaming | ✅ Required |
-| `/api/realtime/token` | POST | CoachChat.tsx | Voice API token | ✅ Required |
-| `/api/tts` | POST | CoachChat.tsx | Text-to-speech | ✅ Required |
+| `/api/chat/:snapshotId/message` | POST (SSE) | AICoach.tsx | Text chat streaming | ✅ Required |
+| `/api/realtime/token` | POST | AICoach.tsx | Voice API token | ✅ Required |
+| `/api/tts` | POST | AICoach.tsx | Text-to-speech | ✅ Required |
 
 ### Venue APIs
 
@@ -375,7 +375,7 @@ main.tsx
             │   │   ├── useStrategyLoadingMessages.ts
             │   │   ├── useVenueLoadingMessages.ts
             │   │   ├── FeedbackModal.tsx
-            │   │   ├── CoachChat.tsx → useTTS.ts
+            │   │   ├── AICoach.tsx → useTTS.ts
             │   │   ├── SmartBlocksStatus.tsx
             │   │   ├── BarsTable.tsx
             │   │   └── GreetingBanner.tsx
@@ -468,8 +468,8 @@ main.tsx
 | **Weather Display** | `GlobalHeader.tsx`, `BriefingTab.tsx` |
 | **Strategy Generation** | `co-pilot-context.tsx`, blocks-fast API |
 | **Venue Blocks** | `StrategyPage.tsx`, `BarsTable.tsx`, `SmartBlocksStatus.tsx` |
-| **AI Chat** | `CoachChat.tsx` (GPT-5.2 text) |
-| **Voice Chat** | `CoachChat.tsx` (OpenAI Realtime) |
+| **AI Chat** | `AICoach.tsx` (GPT-5.2 text) |
+| **Voice Chat** | `AICoach.tsx` (OpenAI Realtime) |
 | **Briefing Tab** | `BriefingPage.tsx`, `BriefingTab.tsx`, `EventsComponent.tsx` |
 | **Map View** | `MapPage.tsx`, `MapTab.tsx` |
 | **Intelligence** | `IntelPage.tsx`, `RideshareIntelTab.tsx`, intel components |
