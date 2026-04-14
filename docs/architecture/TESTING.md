@@ -17,6 +17,8 @@
 | Load | No | — | — | — |
 | Smoke | Yes — script | `node tests/scripts/smoke-test.js` | No | — |
 | Preflight | Yes — script | `node tests/scripts/preflight-check.js` | No | — |
+| Coverage (backend) | collectCoverageFrom configured | `npx jest --coverage` | No | No threshold enforced |
+| Coverage (frontend) | collectCoverageFrom configured | `npx jest -c jest.client.config.js --coverage` | No | No threshold enforced |
 
 ---
 
@@ -31,8 +33,10 @@
 7. [Coverage Targets](#7-coverage-targets)
 8. [Smoke Tests for Deployment](#8-smoke-tests-for-deployment)
 9. [Current State](#9-current-state)
-10. [Known Gaps](#10-known-gaps)
-11. [TODO — Hardening Work](#11-todo--hardening-work)
+10. [Validation Coverage](#10-validation-coverage)
+11. [Critical Test Gaps](#11-critical-test-gaps)
+12. [Known Gaps](#12-known-gaps)
+13. [TODO — Hardening Work](#13-todo--hardening-work)
 
 ---
 
@@ -319,26 +323,69 @@ Add: E2E journeys, load testing, coach integration
 | Test files | 21 total (10 backend, 6 frontend, 5 integration) |
 | Framework | Jest + ts-jest |
 | CI/CD | NOT configured |
-| Coverage reporting | NOT configured |
+| Coverage reporting | Configured (manual run, no CI enforcement) |
 | Load testing | NOT configured |
 | LLM mocking | NOT standardized |
 | Smoke tests | Script exists (manual) |
 
 ---
 
-## 10. Known Gaps
+## 10. Validation Coverage
 
-1. **No CI/CD pipeline** — Tests run manually only.
-2. **Auth flow completely untested** — Login, logout, session TTL, zombie fix have zero tests.
-3. **No SSE tests** — Real-time event flow untested.
-4. **No load testing** — Unknown breaking point.
-5. **No LLM mock standard** — Each test mocks differently.
-6. **No coverage enforcement** — No minimum threshold.
-7. **Zombie snapshot fix has no regression test** — Critical fix with no automated protection.
+The validation system is well-designed but enforcement proof is partial.
+
+| Layer | What Exists | Proven By Tests | Enforcement Status |
+|-------|-------------|-----------------|-------------------|
+| **Request schemas** | `server/validation/schemas.js` — Zod schemas for API inputs | `tests/coach-validation.test.js` (11 action types) | Route-by-route — not centrally enforced |
+| **Response schemas** | `server/validation/response-schemas.js` — SmartBlockSchema, etc. | `tests/blocksApi.test.js` (shape validation) | Used in `toApiBlock()` transformer |
+| **Transformers** | `server/validation/transformers.js` — `toApiBlock()`, `toApiVenue()` | Implicitly via blocks API tests | All block responses route through transformers |
+| **Schema contracts** | `tests/schema-validation.test.js` — DB schema field verification | Direct test | Schema-level only, not runtime |
+
+**What is NOT proven:** Broad automated response-schema enforcement across all routes. Individual routes may return raw data without passing through `validateResponse()` or transformers. A comprehensive route-by-route enforcement audit has not been performed.
 
 ---
 
-## 11. TODO — Hardening Work
+## 11. Critical Test Gaps
+
+Prioritized list of missing tests that should be written. See §12 Known Gaps for broader context.
+
+### P0 — Blocks Deployment Confidence
+
+| Gap | What To Test | Suggested File |
+|-----|-------------|----------------|
+| Auth login/logout/session TTL | Full auth flow including JWT issuance, session expiry, zombie fix | `tests/auth/auth-flow.test.js` |
+| `toApiBlock()` transformer contract | Input→output shape with all field variants (open/closed, event/no-event, staging) | `tests/validation/toApiBlock.test.js` |
+
+### P1 — Blocks Feature Confidence
+
+| Gap | What To Test | Suggested File |
+|-----|-------------|----------------|
+| SSE lifecycle | Connect, receive events, auth-drop behavior, reconnect | `tests/sse/strategy-events.test.js` |
+| `isEventTimeRelevant()` | 24h, 12h, edge cases (midnight, noon, malformed) | `tests/venue/event-time.test.js` |
+| Strategy NOW vs 12HR format | Immediate vs daily strategy output shape validation | `tests/strategy/format.test.js` |
+
+### P2 — Improves Quality
+
+| Gap | What To Test | Suggested File |
+|-----|-------------|----------------|
+| Offer tier classification | `classifyTier()` for all known product types | `tests/offers/classify-tier.test.js` |
+| Voice formatting | Translation prompt + TTS voice selection | `tests/translate/voice.test.js` |
+| Zombie snapshot prevention | Staleness detection + reset behavior in blocks-fast | `tests/strategy/staleness.test.js` |
+
+---
+
+## 12. Known Gaps
+
+1. **No CI/CD pipeline** — Tests run manually only.
+2. **No load testing** — Unknown breaking point.
+3. **No LLM mock standard** — Each test mocks differently.
+4. **No coverage enforcement** — Collection configured but no minimum threshold.
+
+> Auth, SSE, and zombie-snapshot gaps are now tracked with priorities in §11 Critical Test Gaps.
+
+---
+
+## 13. TODO — Hardening Work
 
 - [ ] **Set up CI/CD** — GitHub Actions with test gates on every push (P0)
 - [ ] **Auth integration tests** — Login, logout, TTL, zombie regression (P0)

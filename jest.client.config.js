@@ -14,5 +14,11 @@ export default {
   testMatch: [
     '**/tests/**/*.test.tsx'
   ],
+  collectCoverageFrom: [
+    'client/src/**/*.{ts,tsx}',
+    '!client/src/**/*.test.{ts,tsx}',
+    '!**/node_modules/**',
+  ],
+  coverageDirectory: 'coverage-client',
   verbose: true,
 };
