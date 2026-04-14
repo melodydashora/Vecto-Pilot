@@ -103,7 +103,7 @@ Uber OAuth connects the driver's Uber account for trip/payment data — it does 
 
 Creates `users` row + `driver_profiles` + `driver_vehicles` + `auth_credentials`.
 Validates and geocodes address via Google Address Validation API.
-Does **not** auto-login — returns token but client does not store it (user must sign in manually to verify).
+Registration returns a token in the response body for compatibility and future SDK use. The current web client intentionally does not persist it as a login session — the user must sign in manually after registration. Future clients or SDK consumers should not assume `/register` auto-logs in.
 
 ### 1f. Password Reset
 
