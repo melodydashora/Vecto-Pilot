@@ -27,6 +27,7 @@ import {
 } from '../../../shared/schema.js';
 import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
 import crypto from 'crypto';
+import { VALIDATION_SCHEMA_VERSION } from '../../events/pipeline/validateEvent.js';
 
 /**
  * CoachDAL - Full schema read access for AI Coach
@@ -1988,6 +1989,7 @@ export class CoachDAL {
           event_hash: eventHash,
           is_active: true,
           is_verified: false, // Coach-added events are unverified until confirmed
+          schema_version: VALIDATION_SCHEMA_VERSION,
           deactivation_reason: null,
           deactivated_at: null,
           deactivated_by: null,
@@ -2003,6 +2005,7 @@ export class CoachDAL {
             category,
             expected_attendance,
             is_active: true,
+            schema_version: VALIDATION_SCHEMA_VERSION,
             updated_at: new Date(),
           }
         })

@@ -13,6 +13,7 @@ import { db } from '../../db/drizzle.js';
 import { driver_profiles, driver_vehicles, discovered_events, venue_catalog, concierge_feedback } from '../../../shared/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
+import { VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
 import { haversineDistanceMiles } from '../location/geo.js';
 import { findOrCreateVenue } from '../venue/venue-cache.js';
 import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
@@ -680,6 +681,7 @@ async function persistGeminiResults({ venues, events, todayDate }) {
         expected_attendance: normalized.expected_attendance || 'medium',
         event_hash: eventHash,
         is_active: true,
+        schema_version: VALIDATION_SCHEMA_VERSION,
       }).onConflictDoNothing({ target: discovered_events.event_hash });
 
       eventsSaved++;

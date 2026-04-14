@@ -94,22 +94,22 @@ export const strategies = pgTable("strategies", {
   error_message: text("error_message"),
 
   // Strategy outputs - THE PRODUCT
-  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour tactical strategy (GPT-5.2)
-  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (on-demand via Briefing tab)
+  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour tactical strategy (STRATEGY_TACTICAL role)
+  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (STRATEGY_DAILY role, on-demand via Briefing tab)
 
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Briefing data from Perplexity Sonar Pro + Gemini 3.0 Pro with Google Search
+// Briefing data from BRIEFING_* AI roles (see model-registry.js for current models)
 // Contains ONLY briefing data (events, traffic, news, weather, closures, airport)
 // All location/time context comes from snapshot via snapshot_id FK
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
 
-  // === BRIEFING DATA (from Perplexity + Gemini + Google APIs) ===
+  // === BRIEFING DATA (from BRIEFING_* roles via callModel + Google APIs) ===
   news: jsonb("news"), // Rideshare-relevant news
   weather_current: jsonb("weather_current"), // Current conditions from Google Weather API
   weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
@@ -181,11 +181,11 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   estimated_distance_miles: doublePrecision("estimated_distance_miles"),
   drive_time_minutes: integer("drive_time_minutes"),
   distance_source: text("distance_source"),
-  // GPT-5 Planner outputs (tactical recommendations)
+  // VENUE_SCORER planner outputs (tactical recommendations)
   pro_tips: text("pro_tips").array(), // Array of tactical tips from planner
   closed_reasoning: text("closed_reasoning"), // Why recommend if closed (strategic timing)
   staging_tips: text("staging_tips"), // Where to park/stage for this venue
-  // GPT-5 Staging area coordinates
+  // Staging area coordinates (from VENUE_SCORER)
   staging_name: text("staging_name"), // Name of staging location for verification
   staging_lat: doublePrecision("staging_lat"), // Staging area latitude
   staging_lng: doublePrecision("staging_lng"), // Staging area longitude
@@ -199,7 +199,7 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   access_status: text("access_status"), // Venue access status: 'public', 'restricted', 'private'
   aliases: text("aliases").array(), // Alternative place IDs for this venue (variations)
   // District tagging from LLM output (for text search fallback and deduplication)
-  district: text("district"), // District/neighborhood from GPT-5.2: "Legacy West", "Deep Ellum"
+  district: text("district"), // District/neighborhood from VENUE_SCORER: "Legacy West", "Deep Ellum"
 }, (table) => ({
   // Foreign key indexes for performance optimization (Issue #28)
   idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
@@ -242,7 +242,7 @@ export const venue_catalog = pgTable("venue_catalog", {
   city: text("city"),
   metro: text("metro"),
   // District tagging for improved Places API matching (Issue: coord imprecision)
-  // When GPT-5.2 coords are off, we fall back to text search: "venue_name district city"
+  // When AI-estimated coords are off, we fall back to text search: "venue_name district city"
   district: text("district"), // Human-readable: "Legacy West", "Deep Ellum"
   district_slug: text("district_slug"), // Normalized: "legacy-west", "deep-ellum"
   district_centroid_lat: doublePrecision("district_centroid_lat"), // Cluster center lat
@@ -577,8 +577,8 @@ export const venue_events = pgTable("venue_events", {
   idxStartsAt: sql`create index if not exists idx_venue_events_starts_at on ${table} (starts_at)`,
 }));
 
-// Discovered events from AI model searches (SerpAPI, GPT-5.2, etc.)
-// Populated daily by event sync script, used for rideshare demand prediction
+// Discovered events from BRIEFING_EVENTS_DISCOVERY role (Gemini + Google Search)
+// Populated per-snapshot via briefing pipeline, used for rideshare demand prediction
 export const discovered_events = pgTable("discovered_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   // Event identity
@@ -611,6 +611,9 @@ export const discovered_events = pgTable("discovered_events", {
   // Flags
   is_verified: boolean("is_verified").default(false), // Human verified
   is_active: boolean("is_active").default(true), // False if event was cancelled or deactivated
+  // 2026-04-14: Schema version — enables skipping redundant read-time validation
+  // for rows written by current pipeline. See validateEvent.js VALIDATION_SCHEMA_VERSION.
+  schema_version: integer("schema_version").notNull().default(1),
   // Deactivation tracking (populated when AI Coach or user marks event inactive)
   deactivation_reason: text("deactivation_reason"), // 'event_ended' | 'incorrect_time' | 'no_longer_relevant' | 'cancelled' | 'duplicate' | 'other'
   deactivated_at: timestamp("deactivated_at", { withTimezone: true }),
