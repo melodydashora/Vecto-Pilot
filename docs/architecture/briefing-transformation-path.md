@@ -101,6 +101,51 @@ After the DB→strategist mapping, these functions further transform specific fi
 | `buildEarningsContextSection(prefs)` | driver_profiles row | Earnings math text block | consolidator.js (top of file) |
 | `buildHomeBaseLine(snapshot, prefs)` | snapshot + prefs | Home base context line | consolidator.js (top of file) |
 
-## 5. Resolved Issues
+## 5. Event Source Contract
+
+> **This is intentional tiering, not accidental divergence.**
+
+The system has two distinct event input paths that feed different AI roles. Each path has a different source of truth for events:
+
+### Strategist Roles (STRATEGY_TACTICAL, STRATEGY_DAILY)
+
+- **Event source:** Frozen `briefings.events` JSONB snapshot only
+- **Where:** `consolidator.js` lines 1651 (immediate) and 1384 (daily): `parseJsonField(briefingRow.events)`
+- **No live augmentation.** The strategist sees exactly what the briefing pipeline stored at snapshot time.
+- **Rationale:** Strategy output must be deterministic relative to the snapshot. If events changed between briefing generation and strategy generation, the strategist would contradict the briefing the user already sees.
+
+### Venue Planner Roles (VENUE_SCORER via tactical-planner.js)
+
+- **Event source:** Briefing snapshot (for traffic/weather/closures) **PLUS** live `discovered_events` table (for events)
+- **Where:** `enhanced-smart-blocks.js` line 356: `fetchTodayDiscoveredEventsWithVenue()` queries live `discovered_events` joined with `venue_catalog`, then line 367 passes these as `todayEvents` to `filterBriefingForPlanner()`
+- **Live augmentation:** `filter-for-planner.js` line 197 accepts optional `todayEvents` parameter. When provided, it replaces `briefing.events` entirely. The legacy briefing.events fallback is kept for unmigrated callers (none remain in production).
+- **Rationale:** Venue scoring happens AFTER strategy generation. By this point, events may have been updated (new discoveries, deactivations). The venue planner needs the freshest event data for accurate proximity scoring, NEAR/FAR bucketing, and event-venue matching via `matchVenuesToEvents()`.
+
+### Data Flow Diagram
+
+```
+briefings.events (JSONB)          discovered_events (live table)
+       │                                    │
+       ▼                                    ▼
+  parseJsonField()              fetchTodayDiscoveredEventsWithVenue()
+       │                          (state-scoped, venue_catalog JOIN,
+       │                           distance-annotated, sorted)
+       │                                    │
+       ▼                                    ▼
+  consolidator.js                 filter-for-planner.js
+  ┌─────────────────┐            ┌─────────────────────────┐
+  │ STRATEGY_TACTICAL│            │ todayEvents → events    │
+  │ STRATEGY_DAILY   │            │ briefing → traffic,     │
+  │                  │            │   weather, closures,    │
+  │ (frozen snapshot │            │   airport               │
+  │  events only)    │            └──────────┬──────────────┘
+  └──────────────────┘                       │
+                                             ▼
+                                     VENUE_SCORER
+                                  (NEAR/FAR bucketed,
+                                   event-venue matched)
+```
+
+## 6. Resolved Issues
 
 - **2026-04-14 (Issue F):** `weather_forecast` was missing from the immediate path's briefing object. Fixed — both paths now include all 7 fields. Audit confirmed no other enrichment fields are missing from either path.
