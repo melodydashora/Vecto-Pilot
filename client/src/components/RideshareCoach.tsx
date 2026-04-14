@@ -354,20 +354,21 @@ export default function RideshareCoach({
       });
 
       if (!res.ok && res.headers.get("content-type")?.includes("text/event-stream") === false) {
+        // 2026-04-14: Read body once as text, then try JSON parse (fixes "body stream already read" error)
+        const errorText = await res.text();
         try {
-          const errData = await res.json();
+          const errData = JSON.parse(errorText);
           // 2026-01-06: Handle specific error codes with user-friendly messages
           if (errData.code === 'missing_timezone') {
             setMsgs((m) => [...m.slice(0, -1), {
               role: "assistant",
-              content: "📍 I need your location to give you accurate advice! Please enable GPS in your browser settings and refresh the page."
+              content: "I need your location to give you accurate advice! Please enable GPS in your browser settings and refresh the page."
             }]);
           } else {
             setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${errData.message || errData.error}` }]);
           }
         } catch {
-          const t = await res.text();
-          setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${t}` }]);
+          setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${errorText}` }]);
         }
         setIsStreaming(false);
         return;
