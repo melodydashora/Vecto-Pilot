@@ -20,7 +20,7 @@ publicDir = "dist/public"
 
 [[ports]]
 localPort = 5000
-externalPort = 24282
+externalPort = 80
 
 [workflows]
 runButton = "Run App"
