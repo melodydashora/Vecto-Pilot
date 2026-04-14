@@ -1,6 +1,6 @@
 # Vecto Pilot - AI-Powered Rideshare Intelligence Platform
 
-**Last Updated:** 2026-02-15 | **Version:** 4.3.0 | **Status:** Production
+**Last Updated:** 2026-04-14 | **Version:** 4.3.0 | **Status:** Deployed — single-instance production
 
 > **Built by AI, For AI-Assisted Drivers.**
 >
@@ -279,20 +279,22 @@ This codebase has **95+ README files** — every folder documents its own purpos
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical bugs and their fixes |
 | [docs/preflight/ai-models.md](docs/preflight/ai-models.md) | AI model reference and parameter constraints |
 | [LEXICON.md](LEXICON.md) | Terminology and codebase reference |
-| [docs/architecture/](docs/architecture/README.md) | 13 focused architecture documents |
+| [docs/architecture/](docs/architecture/README.md) | 50 architecture documents (canonical index) |
 | [docs/preflight/](docs/preflight/README.md) | Pre-flight cards (read before edits) |
 | [docs/review-queue/](docs/review-queue/README.md) | Change analyzer findings |
 
 ### Architecture Documents
 
+> Full index at [docs/architecture/README.md](docs/architecture/README.md) (50 documents). Key entry points:
+
 | Document | When to Read |
 |----------|--------------|
-| [ai-pipeline.md](docs/architecture/ai-pipeline.md) | Modifying AI flow or model config |
-| [database-schema.md](docs/architecture/database-schema.md) | Working with tables |
-| [api-reference.md](docs/architecture/api-reference.md) | Adding/modifying endpoints |
-| [server-structure.md](docs/architecture/server-structure.md) | Modifying backend code |
-| [client-structure.md](docs/architecture/client-structure.md) | Modifying frontend code |
-| [constraints.md](docs/architecture/constraints.md) | Before ANY code change |
+| [CONSTRAINTS.md](docs/architecture/CONSTRAINTS.md) | **Before ANY code change** |
+| [DB_SCHEMA.md](docs/architecture/DB_SCHEMA.md) | Working with tables or migrations |
+| [API_REFERENCE.md](docs/architecture/API_REFERENCE.md) | Adding/modifying endpoints |
+| [STRATEGY.md](docs/architecture/STRATEGY.md) | Modifying strategy pipeline |
+| [VENUES.md](docs/architecture/VENUES.md) | Working with venues/blocks |
+| [AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md) | AI model assignments per role |
 
 ---
 
@@ -304,7 +306,7 @@ This codebase has **95+ README files** — every folder documents its own purpos
 | Client TSX/TS Files | ~161 |
 | AI Model Roles | 31 |
 | API Routes | 30+ |
-| Database Tables | 25+ |
+| Database Tables | 57+ |
 | README Files | 95+ |
 | shadcn/ui Components | 48 |
 | Custom React Hooks | 16 |
@@ -336,7 +338,7 @@ See [docs/architecture/SECURITY.md](docs/architecture/SECURITY.md) for full secu
 - **O(n*m) to O(n)** algorithm improvements via Set-based filtering
 - **50-200ms** response time improvement via async snapshot backups
 
-See [PERFORMANCE_OPTIMIZATIONS.md](PERFORMANCE_OPTIMIZATIONS.md) for details.
+See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for canonical scalability posture.
 
 ---
 

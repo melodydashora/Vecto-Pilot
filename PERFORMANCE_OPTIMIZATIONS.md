@@ -6,6 +6,8 @@ USE CASE: Validate your implementation plans against these rules before executin
 ---
 # Performance Optimizations
 
+> **Historical benchmark memo.** For canonical scalability posture, see [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md).
+
 **Last Updated:** 2026-02-15
 
 This document describes the performance optimizations implemented in the Vecto Pilot application to improve response times, reduce API costs, and minimize database load.
