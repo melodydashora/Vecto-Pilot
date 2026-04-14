@@ -52,9 +52,9 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 - **Public endpoint exceptions**: `/api/hooks/*` (Siri Shortcuts), `/api/platform/*` (reference data), health/monitoring — see SECURITY.md for full list
 - **RLS**: Planned (currently enforced at application layer via `requireAuth` middleware)
 
-### Autonomous Documentation
-- **Docs Agent**: Gemini-powered orchestrator that automatically detects code changes, maps them to affected documentation, generates updates, validates markdown, and publishes — reducing manual doc maintenance
-- **Change Analyzer**: Runs on server startup, detects git changes, and flags documentation that may need updating
+### Assisted Documentation Maintenance
+- **Docs Agent**: Gemini-powered orchestrator that detects code changes and proposes documentation updates — operates under guard rails (protected-file list, shrinkage detection, structural validation, trust tiers)
+- **Change Analyzer**: Runs on server startup, detects git changes, and flags documentation that may need review
 - **95+ README Files**: Every folder in the codebase has its own README
 
 ---
@@ -326,7 +326,8 @@ This codebase has **95+ README files** — every folder documents its own purpos
 - Rate limiting on expensive endpoints
 - Zod schema validation on all inputs
 
-See [docs/architecture/SECURITY.md](docs/architecture/SECURITY.md) for full security posture.
+- [docs/architecture/SECURITY.md](docs/architecture/SECURITY.md) — internal security architecture and gap analysis
+- [SECURITY.md](SECURITY.md) — vulnerability reporting policy (for external security researchers)
 
 ---
 
@@ -347,8 +348,8 @@ See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for can
 1. **AI-First Workflow**: AI code is reviewed against `LESSONS_LEARNED.md` to avoid regression
 2. **Adapter Pattern**: Never call AI APIs directly — always use `callModel(role)`
 3. **Linting**: Run `npm run lint` before committing (zero-warning policy)
-4. **Migrations**: Never modify existing SQL migrations — use `drizzle-kit generate`
-5. **Testing**: Ensure `npm run typecheck` passes
+4. **Migrations**: Never modify existing migration files. New schema changes via `drizzle-kit generate`; direct-SQL exceptions allowed per [DB_SCHEMA.md §13](docs/architecture/DB_SCHEMA.md) policy
+5. **Testing**: Run `npm test` (unit + E2E) and `npm run typecheck`. See [TESTING.md](docs/architecture/TESTING.md) for full test doctrine
 6. **Documentation**: Update the folder README.md after any file changes
 7. **No Fallbacks**: Missing data = error, not a default value (see CLAUDE.md)
 
