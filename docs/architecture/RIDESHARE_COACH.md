@@ -10,13 +10,17 @@
 |---------|------|---------|
 | Product name (prose) | **Rideshare Coach** | "The Rideshare Coach helps drivers..." |
 | Canonical doc | `RIDESHARE_COACH.md` | This file |
-| Frontend component | `AICoach.tsx` | `client/src/components/AICoach.tsx` |
-| Server DAL | `coach-dal.js` | `server/lib/ai/coach-dal.js` |
+| Component file | `RideshareCoach.tsx` | `client/src/components/RideshareCoach.tsx` |
+| Component name | `RideshareCoach` | `export default function RideshareCoach` |
+| DAL file | `rideshare-coach-dal.js` | `server/lib/ai/rideshare-coach-dal.js` |
+| Class name | `RideshareCoachDAL` | `export class RideshareCoachDAL` |
+| Singleton export | `rideshareCoachDAL` | `import { rideshareCoachDAL } from ...` |
 | Server chat routes | `chat.js` | `server/api/chat/chat.js` |
-| Model role | `AI_COACH` | `callModelStream('AI_COACH')` |
-| DB tables | `coach_conversations`, `user_intel_notes`, `coach_system_notes` | Schema names |
-
-Code identifiers use their original names. Only prose and doc titles use "Rideshare Coach."
+| Log prefix | `[RideshareCoach]` | All console.log/error/warn in coach code |
+| UI heading | `"Rideshare Coach"` | Header and welcome text shown to driver |
+| Model role | `AI_COACH` | `callModelStream('AI_COACH')` — unchanged (external config) |
+| API routes | `/api/coach/*` | Stable client contract — unchanged |
+| DB tables | `coach_conversations`, `user_intel_notes`, `coach_system_notes` | Schema-level — unchanged |
 
 ---
 
@@ -28,7 +32,7 @@ The Rideshare Coach is a conversational assistant powered by Gemini 3.1 Pro Prev
 
 ```
 User message → requireAuth → snapshot resolution →
-  coach-dal.js loads 11 data sources in parallel →
+  rideshare-coach-dal.js loads 11 data sources in parallel →
   formatContextForPrompt() builds ~1200-line system prompt →
   callModelStream('AI_COACH') → SSE streaming to client →
   action tag parsing + Zod validation + DB writes →
@@ -45,7 +49,7 @@ User message → requireAuth → snapshot resolution →
 
 ## 2. Components
 
-### Frontend: `client/src/components/AICoach.tsx` (~885 lines)
+### Frontend: `client/src/components/RideshareCoach.tsx` (~885 lines)
 
 - Streaming message display with delta chunk appending
 - Attachment support (file picker → base64 → sent to chat API)
@@ -64,7 +68,7 @@ User message → requireAuth → snapshot resolution →
 - SSE protocol with `done` event carrying `actions_result`
 - `POST /api/chat/deactivate-event` — manual event deactivation
 
-### Server: `server/lib/ai/coach-dal.js` (2,575 lines)
+### Server: `server/lib/ai/rideshare-coach-dal.js` (2,575 lines)
 
 Data access layer loading 11 parallel context sources:
 1. Header snapshot (location, weather, air, timezone, holiday)
@@ -79,7 +83,7 @@ Data access layer loading 11 parallel context sources:
 10. Driver profile (identity, vehicle, preferences, eligibility)
 11. Offer history (Siri ride offer analysis log)
 
-### Server: `server/api/coach/` (4 files, 1,153 lines)
+### Server: `server/api/rideshare-coach/` (4 files, 1,153 lines)
 
 | File | Lines | Purpose |
 |------|-------|---------|
@@ -150,7 +154,7 @@ Data access layer loading 11 parallel context sources:
 | 3 | No conversation summarization — thread history grows unbounded | Medium | AI_RIDESHARE_COACH.md |
 | 4 | Action tag extraction is regex-based, can break on malformed JSON | Low | AI_RIDESHARE_COACH.md |
 | 5 | No per-user chat rate limit (global only) | Low | AI_RIDESHARE_COACH.md |
-| 6 | ~180 lines of dead OpenAI Realtime API code in AICoach.tsx | Low | Voice plan |
+| 6 | ~180 lines of dead OpenAI Realtime API code in RideshareCoach.tsx | Low | Voice plan |
 | COACH-H7 | No streaming fallback — Gemini outage kills coach entirely | High | DOC_DISCREPANCIES.md |
 | COACH-H8 | Conversation saves are fire-and-forget with swallowed errors | High | DOC_DISCREPANCIES.md |
 
@@ -189,10 +193,10 @@ See `docs/coach-inbox.md` for the full queue with details.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `client/src/components/AICoach.tsx` | 885 | React chat component + voice |
+| `client/src/components/RideshareCoach.tsx` | 885 | React chat component + voice |
 | `server/api/chat/chat.js` | 1,572 | Chat endpoint, streaming, action parsing |
-| `server/lib/ai/coach-dal.js` | 2,575 | Data access layer (11 sources) |
-| `server/api/coach/validate.js` | 423 | Zod validation for all action types |
-| `server/api/coach/notes.js` | 448 | Notes CRUD API |
-| `server/api/coach/schema.js` | 261 | Schema metadata for coach context |
+| `server/lib/ai/rideshare-coach-dal.js` | 2,575 | Data access layer (11 sources) |
+| `server/api/rideshare-coach/validate.js` | 423 | Zod validation for all action types |
+| `server/api/rideshare-coach/notes.js` | 448 | Notes CRUD API |
+| `server/api/rideshare-coach/schema.js` | 261 | Schema metadata for coach context |
 | `docs/coach-inbox.md` | ~120 | Coach → Claude Code memo queue |

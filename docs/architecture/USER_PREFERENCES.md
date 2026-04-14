@@ -228,6 +228,6 @@ Form uses React Hook Form + Zod validation → `PUT /api/auth/profile` → updat
 |------|---------|
 | `shared/schema.js` (lines 933–1027) | `driver_profiles` table schema |
 | `server/api/auth/auth.js` (lines 63–530) | Registration + profile update |
-| `server/lib/ai/coach-dal.js` (`getDriverProfile`) | Coach context injection |
+| `server/lib/ai/rideshare-coach-dal.js` (`getDriverProfile`) | Coach context injection |
 | `client/src/pages/co-pilot/SettingsPage.tsx` | Settings UI |
-| `server/api/coach/notes.js` | Learned preference storage |
+| `server/api/rideshare-coach/notes.js` | Learned preference storage |

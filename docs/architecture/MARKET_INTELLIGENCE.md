@@ -140,7 +140,7 @@ Market Intelligence (MI) is the knowledge layer that gives the Rideshare Coach a
 
 ### Coach Injection
 
-**File:** `server/lib/ai/coach-dal.js` → `getMarketIntelligence(city, state, platform)`
+**File:** `server/lib/ai/rideshare-coach-dal.js` → `getMarketIntelligence(city, state, platform)`
 
 1. Resolves market via `platform_data` table (city → market_slug)
 2. Queries `market_intelligence` where `market_slug` matches AND `is_active = true`
@@ -157,7 +157,7 @@ Strategy generation (`consolidator.js`) receives briefing data which includes ev
 
 ### Zone Intelligence Injection
 
-**File:** `coach-dal.js` → `getZoneIntelligence(marketSlug)`
+**File:** `rideshare-coach-dal.js` → `getZoneIntelligence(marketSlug)`
 
 Returns active zones for the driver's market, injected into Coach context. Enables coach to say: "Avoid Deep Ellum after 2am — multiple drivers report dead zone."
 
@@ -249,5 +249,5 @@ Each archetype provides hour-by-hour demand scores (0–100) per day of week, re
 | File | Purpose |
 |------|---------|
 | `server/api/intelligence/index.js` | All intelligence routes (1,400+ lines) |
-| `server/lib/ai/coach-dal.js` | MI → Coach injection |
+| `server/lib/ai/rideshare-coach-dal.js` | MI → Coach injection |
 | `shared/schema.js` | market_intelligence, zone_intelligence, platform_data, market_cities |

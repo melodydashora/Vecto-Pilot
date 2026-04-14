@@ -107,7 +107,7 @@ node scripts/memory-cli.mjs session \
 
 ## Rideshare Coach Auto-Logging
 
-The Rideshare Coach (`client/src/components/AICoach.tsx`) now **automatically logs conversations** to memory after each exchange. This happens via the `useMemory` hook.
+The Rideshare Coach (`client/src/components/RideshareCoach.tsx`) now **automatically logs conversations** to memory after each exchange. This happens via the `useMemory` hook.
 
 No manual action needed for Coach conversations - they're persisted automatically.
 

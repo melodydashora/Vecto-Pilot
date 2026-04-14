@@ -118,7 +118,7 @@ Zod schemas defined for:
 
 ### Coach Action Validation
 
-**File:** `server/api/coach/validate.js` (428 lines)
+**File:** `server/api/rideshare-coach/validate.js` (428 lines)
 
 Full Zod schemas for all 11 action tag types (SAVE_NOTE, DEACTIVATE_EVENT, ZONE_INTEL, etc.) with field-level constraints.
 
@@ -330,6 +330,6 @@ Runs first in middleware chain. Blocks known bot user-agents and suspicious requ
 | `server/bootstrap/middleware.js` | CORS, Helmet, CSP, bot blocker |
 | `server/middleware/rate-limit.js` | All rate limiters |
 | `server/middleware/validation.js` | Zod validation middleware |
-| `server/api/coach/validate.js` | Action tag Zod schemas |
+| `server/api/rideshare-coach/validate.js` | Action tag Zod schemas |
 | `server/middleware/bot-blocker.js` | Bot detection |
 | `server/api/hooks/analyze-offer.js` | Zero-auth endpoint |
