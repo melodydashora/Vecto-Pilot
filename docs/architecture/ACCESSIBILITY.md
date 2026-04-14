@@ -60,7 +60,7 @@ Custom components (GlobalHeader, MapTab, AICoach, etc.) have inconsistent access
 |-----------|-------|-----|
 | `BottomTabNavigation.tsx` | No `role="navigation"`, no `aria-current` on active tab | Add nav role + current page indicator |
 | `MapTab.tsx` | Map markers have no alt text or ARIA labels | Add labels to custom markers |
-| `AICoach.tsx` | Chat messages have no `role="log"` or `aria-live` | Add live region for streaming |
+| `RideshareCoach.tsx` | Chat messages have no `role="log"` or `aria-live` | Add live region for streaming |
 | `BarsMainTab.tsx` | Venue cards lack `role="listitem"` | Add list semantics |
 | `BriefingPage.tsx` | Data cards lack descriptive labels | Add `aria-label` per card |
 | `SmartBlocksPipeline.tsx` | Venue recommendation cards lack structure | Add `role="article"` or similar |
@@ -127,7 +127,7 @@ Dialogs, sheets, alert-dialogs, popovers — all have automatic focus trap and r
 | Component | Issue |
 |-----------|-------|
 | `CriticalError.tsx` | Full-screen overlay — should trap focus |
-| `AICoach.tsx` | Streaming messages — no focus management as new messages arrive |
+| `RideshareCoach.tsx` | Streaming messages — no focus management as new messages arrive |
 | `TranslationOverlay.tsx` | Split-screen — focus should move to active panel |
 
 ---

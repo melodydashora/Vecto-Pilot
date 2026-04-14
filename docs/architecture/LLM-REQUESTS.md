@@ -412,7 +412,7 @@ node scripts/ask-gemini.mjs --thread name "follow-up"  # Multi-turn
 
 ## 11. Context Injection (Coach DAL)
 
-**File:** `server/lib/ai/coach-dal.js`
+**File:** `server/lib/ai/rideshare-coach-dal.js`
 
 **Function:** `getCompleteContext(snapshotId)` builds the full data payload injected into AI prompts.
 
@@ -540,5 +540,5 @@ All read from `process.env`. No values stored in code.
 | `server/api/hooks/analyze-offer.js` | Offer analysis (Siri) |
 | `server/api/translate/` | Translation endpoint |
 | `server/api/chat/tts.js` | TTS endpoint |
-| `server/lib/ai/coach-dal.js` | Context injection for AI prompts |
+| `server/lib/ai/rideshare-coach-dal.js` | Context injection for AI prompts |
 | `scripts/ask-gemini.mjs` | CLI bridge to Gemini |

@@ -286,6 +286,6 @@ User-dismissed news and events are filtered before prompt injection. Prevents LL
 | `server/lib/ai/providers/consolidator.js` | Data reduction + prompt construction |
 | `server/lib/ai/adapters/gemini-adapter.js` | JSON mode, citation suppression |
 | `server/lib/events/pipeline/validateEvent.js` | Hallucination prevention (13 rules) |
-| `server/api/coach/validate.js` | Zod action validation |
+| `server/api/rideshare-coach/validate.js` | Zod action validation |
 | `server/lib/ai/router/error-classifier.js` | Error handling |
 | `server/lib/ai/router/hedged-router.js` | Cross-provider fallback |

@@ -142,7 +142,7 @@ Shows: city/state, weather temp + conditions, AQI badge, snapshot status. Update
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `AICoach.tsx` | components/ | Full chat interface with streaming, notes, voice |
+| `RideshareCoach.tsx` | components/ | Full chat interface with streaming, notes, voice |
 | `CriticalError.tsx` | components/ | Full-screen error for unrecoverable states |
 | `FeedbackModal.tsx` | components/ | Venue/strategy/app feedback (1-5 stars + comment) |
 | `GlobalHeader.tsx` | components/ | Location + weather bar |

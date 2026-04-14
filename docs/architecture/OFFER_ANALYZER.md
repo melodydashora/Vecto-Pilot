@@ -285,7 +285,7 @@ Device history, market/daypart, H3 clustering, date/platform, weekend/hour, sess
 
 ### Coach DAL Integration
 
-**File:** `server/lib/ai/coach-dal.js`
+**File:** `server/lib/ai/rideshare-coach-dal.js`
 
 **Loading:** `getOfferHistory(20)` called in `getCompleteContext()` batch (line 826)
 **Query:** Last 20 offers from `offer_intelligence` (lines 1249–1307)
@@ -425,5 +425,5 @@ Android will use the same `POST /api/hooks/analyze-offer` endpoint with the same
 | `server/lib/offers/parse-offer-text.js` | Regex pre-parser (377 lines) |
 | `server/api/hooks/README.md` | Siri Shortcuts docs + decision rules |
 | `server/lib/ai/model-registry.js` | OFFER_ANALYZER, OFFER_ANALYZER_DEEP configs |
-| `server/lib/ai/coach-dal.js` | Coach offer history integration |
+| `server/lib/ai/rideshare-coach-dal.js` | Coach offer history integration |
 | `shared/schema.js` (lines 1548–1713) | offer_intelligence table schema |
