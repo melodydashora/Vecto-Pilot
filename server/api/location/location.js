@@ -2386,7 +2386,31 @@ router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
 
     snapshotLog.done(2, `Enriched ${snapshotId.slice(0, 8)}: ${Object.keys(updatePayload).join(', ')}`, OP.DB);
 
-    res.json({ ok: true, enriched: Object.keys(updatePayload) });
+    // Memory #110: Readiness gate — re-read row and flip status to 'ok' when all required fields populated.
+    const REQUIRED_FIELDS = ['weather', 'air', 'lat', 'lng', 'city', 'state', 'timezone', 'market', 'h3_r8', 'day_part_key'];
+    const [fullRow] = await db
+      .select()
+      .from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId))
+      .limit(1);
+
+    const missingFields = REQUIRED_FIELDS.filter(f => {
+      const v = fullRow?.[f];
+      return v === null || v === undefined || v === '';
+    });
+
+    let newStatus = fullRow?.status || 'pending';
+    if (missingFields.length === 0) {
+      await db.update(snapshots)
+        .set({ status: 'ok' })
+        .where(eq(snapshots.snapshot_id, snapshotId));
+      newStatus = 'ok';
+      console.log('[Snapshot] ✅ All required fields populated — status set to ok', snapshotId);
+    } else {
+      console.warn('[Snapshot] ⚠️ Enrichment partial — still pending. Missing:', missingFields);
+    }
+
+    res.json({ ok: true, enriched: Object.keys(updatePayload), status: newStatus, missingFields });
   } catch (err) {
     console.error('[location] snapshot enrich error:', err);
     res.status(500).json({

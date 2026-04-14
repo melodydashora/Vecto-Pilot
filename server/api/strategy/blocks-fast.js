@@ -572,6 +572,16 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       });
     }
 
+    // GATE: Only generate briefing when snapshot has all required fields (status = 'ok').
+    // Memory #110: Prevents race where briefing reads null weather/air before enrichment completes.
+    if (snapshot.status !== 'ok') {
+      triadLog.info(`Snapshot ${snapshotId.slice(0, 8)} status=${snapshot.status || 'pending'} — holding briefing`);
+      return sendOnce(202, {
+        status: 'pending',
+        message: 'Snapshot enrichment in progress — briefing will start when snapshot is complete'
+      });
+    }
+
     triadLog.phase(1, `Snapshot resolved: ${snapshot.city}, ${snapshot.state}`);
 
     // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
