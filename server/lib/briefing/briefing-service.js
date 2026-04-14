@@ -981,7 +981,7 @@ async function fetchEventCategory({ category, city, state, market, lat, lng, dat
   // never reached the prompt.
   const prompt = `Find ${category.description || category.name.replace('_', ' ')} happening TODAY (${date}) in the ${searchArea} metro area.
 
-The driver is currently near coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)}). Prioritize discovering events at venues within 15 miles of these coordinates first. Then include the most impactful events from the broader ${searchArea} area.
+The driver is currently near coordinates (${lat.toFixed(6)}, ${lng.toFixed(6)}). Prioritize discovering events at venues within 15 miles of these coordinates first. Then include the most impactful events from the broader ${searchArea} area.
 
 SEARCH: "${category.searchTerms(searchArea, state, date)}"
 EVENT TYPES: ${category.eventTypes.join(', ')}
