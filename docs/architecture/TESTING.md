@@ -1,10 +1,22 @@
 # TESTING.md — Comprehensive Testing Documentation
 
 > **Canonical reference** for test pyramid, test catalog, load testing, CI/CD pipeline, mocking strategies, and coverage targets.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-14
 
 ## Supersedes
 - `docs/architecture/TEST_STRATEGY.md` — Previous testing overview (absorbed and expanded into definitive doc)
+
+## Testing Reality Check
+
+| Area | Implemented | Runnable | CI-Enforced | Coverage-Enforced |
+|------|-------------|----------|-------------|-------------------|
+| Unit (backend) | Yes — 10 files | `npm run test:unit` | No | No |
+| Unit (frontend) | Yes — 6 files | `npm run test:client` | No | No |
+| Integration | Yes — 4 files | Manual via node | No | No |
+| E2E | Yes — Playwright | `npm run test:e2e` | No | No |
+| Load | No | — | — | — |
+| Smoke | Yes — script | `node tests/scripts/smoke-test.js` | No | — |
+| Preflight | Yes — script | `node tests/scripts/preflight-check.js` | No | — |
 
 ---
 
@@ -46,7 +58,7 @@
 | Unit (backend) | Jest | `jest.config.js` — Node env, 10s timeout |
 | Unit (frontend) | Jest + ts-jest | `jest.client.config.js` — jsdom env |
 | Integration | Jest | Same backend config |
-| E2E | Playwright (planned) | Not configured |
+| E2E | Playwright | `playwright.config.ts`, `npm run test:e2e` |
 | Load | k6 (planned) | Not configured |
 
 ---
@@ -334,7 +346,7 @@ Add: E2E journeys, load testing, coach integration
 - [ ] **LLM fixture mocks** — Standard fixtures in tests/fixtures/llm/ (P1)
 - [ ] **k6 load testing scripts** — Baseline + peak + stress scenarios (P1)
 - [ ] **SSE test harness** — EventSource mock for connection lifecycle (P2)
-- [ ] **E2E with Playwright** — 5-10 critical user journeys (P2)
+- [x] **E2E with Playwright** — configured (`playwright.config.ts`, `tests/e2e/copilot.spec.ts`). Expand to 5-10 journeys (P2)
 - [ ] **Automated smoke tests** — Run on every deploy (P1)
 
 ---
