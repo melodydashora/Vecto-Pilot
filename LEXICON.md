@@ -5,6 +5,8 @@ AGENT DIRECTIVE: This is a read-only map of the system. Do not modify this file 
 
 **Vecto Pilot Terminology & Codebase Reference**
 
+> **Scope:** This file is a TERMINOLOGY GLOSSARY. For endpoint inventories see [API_REFERENCE.md](docs/architecture/API_REFERENCE.md). For architecture see [docs/architecture/README.md](docs/architecture/README.md). For AI roles see [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md).
+
 This document defines the core terminology used throughout Vecto Pilot and maps each concept to its implementation in the codebase.
 
 ---
@@ -564,7 +566,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **API Prefix:** `/api` (default)
 
 **Key Routes (by domain):**
-- `/api/strategy/blocks-fast` - Smart blocks generation
+- `/api/blocks-fast` - Smart blocks generation
 - `/api/briefing/*` - Events, traffic, news
 - `/api/auth/*` - Authentication
 - `/api/location/*` - Location resolution
