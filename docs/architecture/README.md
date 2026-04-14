@@ -122,6 +122,17 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 > Models change frequently — do not hardcode versions in index docs.
 > See [docs/AI_ROLE_MAP.md](../AI_ROLE_MAP.md) for current model assignments per role.
 
+### Runtime Entrypoints
+
+| Path | Command | Sources `.env.local` | Use Case |
+|------|---------|---------------------|----------|
+| **Replit Run** | `.replit` → `sh -c "set -a && . .env.local && set +a && node scripts/start-replit.js"` | Yes | Replit editor Run button (builds client first via `prestart:replit`) |
+| **Local Dev** | `npm run dev` | No (uses process env) | Local development (`NODE_ENV=development`) |
+| **Deployment** | `.replit [deployment]` → `npm ci && npm run build:client` then `node gateway-server.js` | No | Replit cloud deployment (`NODE_ENV=production`) |
+| **npm start** | `NODE_ENV=production node gateway-server.js` | No | Manual production start |
+
+All paths ultimately run `gateway-server.js`. The Replit Run path adds `.env.local` sourcing and `scripts/start-replit.js` (health gate + PORT binding). The deployment path builds the client first and uses Replit-injected env vars.
+
 ### Database Core Tables
 
 | Table | Purpose | Key Fields |
