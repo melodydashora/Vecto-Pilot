@@ -325,9 +325,12 @@ async function promoteToVenueCatalog(enrichedVenues, snapshot) {
  * @param {string} params.immediateStrategy - "Where to go NOW" strategy (required)
  * @param {Object} params.briefing - Gemini briefing (optional)
  * @param {Object} params.snapshot - Snapshot context
- * @param {string} params.user_id - User ID
+ * @param {string} params.user_id - User ID (currently used only for ranking record attribution, not scoring)
  * @param {EventEmitter} params.phaseEmitter - Optional emitter for SSE phase updates
  */
+// 2026-04-14: Issue T — user_id is currently used only for ranking record attribution, not scoring.
+// Future: thread driver preferences (max deadhead, home base, vehicle class) into venue scoring.
+// The strategist layer was enriched with driver prefs (2026-04-11) but the venue layer was not.
 export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrategy, briefing, snapshot, user_id, phaseEmitter }) {
   const startTime = Date.now();
   const correlationId = randomUUID();
@@ -492,7 +495,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       // Calculate value metrics
       const distanceMiles = parseFloat(enriched.distanceMiles) || 0;
       const driveMinutes = enriched.driveTimeMinutes || 0;
-      const estimatedEarnings = distanceMiles * 1.50; // $1.50/mile estimate
+      // HEURISTIC: Static $1.50/mile estimate. No surge, offer, or airport multiplier data.
+      // value_grade is a distance-based approximation, not economic truth. See VENUES.md §11.
+      const estimatedEarnings = distanceMiles * 1.50;
       const valuePerMin = driveMinutes > 0 ? estimatedEarnings / driveMinutes : 0;
 
       // Get matched events for this venue
