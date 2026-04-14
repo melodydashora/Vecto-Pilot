@@ -1868,6 +1868,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 
     const dbSnapshot = {
       snapshot_id: snapshotV1.snapshot_id,
+      // FIX: Use authenticated user_id from session, not client-sent field (was silently undefined)
+      user_id: req.auth?.userId ?? null,
       created_at: createdAtDate,
       date: today,
       device_id: snapshotV1.device_id,
@@ -1976,7 +1978,10 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 
       // 2026-01-05: Session Architecture - Link snapshot to user's session
       // This updates current_snapshot_id and extends the sliding window TTL
-      const snapshotUserId = snapshotV1.userId || dbSnapshot.user_id;
+      // 2026-04-14 (Memory #108): Multi-source user_id resolution + FAIL-LOUD fallback.
+      // Previously only checked snapshotV1.userId (camelCase) which never matched the
+      // client's user_id (snake_case). Now tries all known sources and logs loudly if none resolve.
+      const snapshotUserId = snapshotV1.userId || snapshotV1.user_id || dbSnapshot.user_id || req.auth?.userId;
       if (snapshotUserId) {
         try {
           const updateResult = await db.update(users)
@@ -1998,6 +2003,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
           // Non-blocking - log but don't fail the snapshot
           console.warn('[Snapshot DB] Session update failed (non-blocking):', sessionErr.message);
         }
+      } else {
+        console.error('[Snapshot] CRITICAL: No user_id resolved for snapshot — current_snapshot_id will NOT be updated. snapshotV1 keys:', Object.keys(snapshotV1 || {}), 'dbSnapshot.user_id:', dbSnapshot.user_id, 'req.auth?.userId:', req.auth?.userId);
       }
     } catch (dbError) {
       console.error('[Snapshot DB] ❌ Database insert failed:', dbError);
