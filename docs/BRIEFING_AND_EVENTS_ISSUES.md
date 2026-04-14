@@ -103,39 +103,56 @@ event.venue_name + city + state
 ## Issue 2: Two Separate Event Discovery Code Paths
 
 **Severity:** MEDIUM — Duplicate logic, different provider sets, maintenance burden
+**Status:** RESOLVED 2026-04-14 — sync pipeline removed, single path remains
 
-### The Problem
+### Original Problem (now resolved)
 
-Event discovery exists in two completely separate implementations:
+Event discovery previously existed in two separate implementations: a fast briefing pipeline (`briefing-service.js`) and a full sync pipeline (`sync-events.mjs`). The sync pipeline used 5 providers (SerpAPI + GPT-5.2 + Gemini + Claude + Perplexity) while the briefing pipeline used only Gemini with google_search.
 
-| | Briefing Pipeline | Sync Pipeline |
-|---|---|---|
-| **File** | `briefing-service.js` (`fetchEventsForBriefing`) | `sync-events.mjs` (`syncEventsForLocation`) |
-| **Providers** | Gemini google_search (2 categories) + Claude fallback | SerpAPI + GPT-5.2 + Gemini + Claude + Perplexity (5 providers) |
-| **When** | Every snapshot (login/refresh) | Manual "Refresh Daily" button |
-| **Venue linking** | `findOrCreateVenue()` (was lookupVenueFuzzy, fixed 2026-02-17) | `findOrCreateVenue()` (create + enrich) |
-| **Geocoding** | `geocodeEventAddress()` per-event (fixed 2026-02-17) | `geocodeMissingCoordinates()` batch via Google Maps |
-| **ETL** | Normalize + Validate + Hash + Fuzzy Link + Store + Read | Validate + Geocode + VenueCache + Store |
+### Resolution
 
-### Impact
+The `sync-events.mjs` file has been removed. **Only one event discovery path exists now:**
 
-- Both paths normalize/validate/hash events independently
-- The briefing pipeline uses fewer AI providers (faster, cheaper, but finds fewer events)
-- The sync pipeline geocodes and creates venues (more complete, but only on manual refresh)
-- Bug fixes in one path don't automatically apply to the other
-- The ETL modules (`normalizeEvent`, `validateEvent`, `hashEvent`) are shared, but the orchestration around them is duplicated
+| Aspect | Current Architecture |
+|--------|---------------------|
+| **File** | `briefing-service.js` → `fetchEventsForBriefing()` |
+| **Provider** | `BRIEFING_EVENTS_DISCOVERY` role (Gemini 3.1 Pro with google_search) |
+| **When triggered** | Per-snapshot via briefing pipeline (login/refresh) |
+| **Manual refresh** | `refreshEventsInBriefing()` (line 3026) calls the same `fetchEventsForBriefing()` |
+| **ETL** | Normalize → Validate → Hash → Venue resolve (Google Places) → Store to `discovered_events` |
+| **Shared modules** | `server/lib/events/pipeline/` (normalizeEvent.js, validateEvent.js, hashEvent.js) |
 
-### Where in Code
+### Event Discovery Architecture (2026-04-14)
 
-- **Briefing path orchestration:** `briefing-service.js:1046-1228`
-- **Sync path orchestration:** `sync-events.mjs:938-1033`
-- **Shared ETL modules:** `server/lib/events/pipeline/` (normalizeEvent.js, validateEvent.js, hashEvent.js)
+```
+User login / manual refresh
+        │
+        ▼
+  generateAndStoreBriefing()          refreshEventsInBriefing()
+        │                                    │
+        ├── fetchWeatherConditions()          │
+        ├── fetchTrafficConditions()          │
+        ├── fetchEventsForBriefing() ◄────────┘  (same function)
+        ├── fetchAirportConditions()
+        └── fetchRideshareNews()
+                    │
+                    ▼
+         discoverEventsForCategory()  (parallel, 2 categories)
+                    │
+                    ▼
+         callModel('BRIEFING_EVENTS_DISCOVERY')
+                    │
+                    ▼
+         normalizeEvent() → validateEventsHard() → generateEventHash()
+                    │
+                    ▼
+         Venue resolution: findOrCreateVenue() → Google Places API
+                    │
+                    ▼
+         INSERT INTO discovered_events (schema_version = VALIDATION_SCHEMA_VERSION)
+```
 
-### Resolution Options
-
-- **Option A:** Unify into a single `discoverEvents()` function with a `mode` parameter (fast vs full)
-- **Option B:** Have the briefing pipeline call `syncEventsForLocation()` directly with a `briefingMode: true` flag
-- **Option C:** Keep separate but ensure venue creation happens in both paths
+**Decision:** This is intentional single-path architecture. The old sync pipeline's multi-provider approach traded latency for coverage, but per Rule 11 (no background event sync), all event discovery must happen per-snapshot. A single provider (Gemini with google_search) provides sufficient coverage for the snapshot-scoped use case while keeping latency acceptable for the user-facing flow.
 
 ---
 
