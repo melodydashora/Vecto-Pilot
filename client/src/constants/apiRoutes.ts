@@ -61,8 +61,16 @@ export const API_ROUTES = {
   },
 
   STRATEGY: {
+    // Current — active routes
     DAILY: (snapshotId: string) => `/api/strategy/daily/${snapshotId}`,
     TACTICAL_PLAN: '/api/strategy/tactical-plan',
+    RETRY: (snapshotId: string) => `/api/strategy/${snapshotId}/retry`,
+    HISTORY: '/api/strategy/history',
+    // Legacy — prefer BLOCKS.STRATEGY for polling, BRIEFING.* for section data
+    LEGACY_GET: (snapshotId: string) => `/api/strategy/${snapshotId}`,
+    LEGACY_BRIEFING: (snapshotId: string) => `/api/strategy/briefing/${snapshotId}`,
+    LEGACY_RUN: (snapshotId: string) => `/api/strategy/run/${snapshotId}`,
+    LEGACY_SEED: '/api/strategy/seed',
   },
 
   // =========================================================================

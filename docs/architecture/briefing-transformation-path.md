@@ -146,15 +146,40 @@ briefings.events (JSONB)          discovered_events (live table)
                                    event-venue matched)
 ```
 
-## 6. API Response Contracts (Client-Facing)
+## 6. Canonical API Read Contract
 
-Two endpoints return briefing data to the client with **different shapes**. This is undocumented historical divergence, not an intentional design.
+Four overlapping read paths exist. The client now uses the PRIMARY routes; the others are LEGACY.
 
-### GET /api/strategy/:snapshotId (summary endpoint)
+| Route | Role | Status | File |
+|-------|------|--------|------|
+| `GET /api/blocks/strategy/:snapshotId` | Strategy + blocks polling (camelCase) | **PRIMARY** | `content-blocks.js:56` |
+| `GET /api/briefing/weather/:snapshotId` | Weather section data | **PRIMARY** | `briefing.js` |
+| `GET /api/briefing/traffic/:snapshotId` | Traffic section data | **PRIMARY** | `briefing.js` |
+| `GET /api/briefing/events/:snapshotId` | Events section data | **PRIMARY** | `briefing.js` |
+| `GET /api/briefing/rideshare-news/:snapshotId` | News section data | **PRIMARY** | `briefing.js` |
+| `GET /api/briefing/school-closures/:snapshotId` | School closures section data | **PRIMARY** | `briefing.js` |
+| `GET /api/briefing/airport/:snapshotId` | Airport conditions section data | **PRIMARY** | `briefing.js` |
+| `GET /api/blocks-fast?snapshotId=...` | Generate-if-missing trigger | **TRIGGER** | `blocks-fast.js` |
+| `GET /api/strategy/:snapshotId` | Summary strategy + partial briefing (snake_case) | **LEGACY** | `strategy.js:27` |
+| `GET /api/strategy/briefing/:snapshotId` | Full briefing (DB column names) | **LEGACY** | `strategy.js:117` |
 
-**File:** `server/api/strategy/strategy.js` line 59
+**Client route usage** (defined in `client/src/constants/apiRoutes.ts`):
+- `API_ROUTES.BLOCKS.STRATEGY(id)` → primary polling
+- `API_ROUTES.BRIEFING.*` → dedicated section endpoints
+- `API_ROUTES.BLOCKS.FAST` → pipeline trigger
+- `API_ROUTES.STRATEGY.DAILY(id)` → on-demand daily strategy generation
 
-Returns strategy + trimmed briefing. Used by the main client polling loop.
+---
+
+## 7. Legacy API Response Shapes
+
+> The legacy routes below are preserved for admin/debug paths but are not used by the current client.
+
+### GET /api/strategy/:snapshotId (legacy summary)
+
+**File:** `server/api/strategy/strategy.js` line 27
+
+Returns strategy + trimmed briefing in mixed case. Used by older admin/debug paths.
 
 ```json
 {
@@ -206,13 +231,13 @@ Returns fuller briefing data. Used by the Briefing tab UI.
 | `school_closures` | `briefing.school_closures` | `briefing.school_closures` |
 | `weather_current` | not returned | `briefing.weather_current` |
 | `weather_forecast` | not returned | `briefing.weather_forecast` |
-| `airport_conditions` | not returned | not returned |
+| `airport_conditions` | not returned | `briefing.airport_conditions` *(added 2026-04-14, Issue U)* |
 
-**Note:** `airport_conditions` is not returned by either endpoint despite being populated in the briefings table and consumed by the strategist. The comment at `strategy.js:221` acknowledges the column was moved to the briefings table but it was never added to either response shape. This is historical — may warrant normalization.
+**Note:** `airport_conditions` was missing from both endpoints (discovered Issue K, 2026-04-14). **Fixed in Issue U:** added to the `/api/strategy/briefing/:snapshotId` response. The summary endpoint (`/api/strategy/:snapshotId`) still omits it — that route is LEGACY and the client uses dedicated `/api/briefing/airport/:snapshotId` instead.
 
 ---
 
-## 7. schema_version Optimization Scope
+## 8. schema_version Optimization Scope
 
 **Added 2026-04-14 (Issue B).** The `discovered_events.schema_version` column enables `filterEventsReadTime()` in `consolidator.js` to skip redundant revalidation for current-version rows.
 
@@ -229,6 +254,6 @@ Returns fuller briefing data. Used by the Briefing tab UI.
 
 ---
 
-## 8. Resolved Issues
+## 9. Resolved Issues
 
 - **2026-04-14 (Issue F):** `weather_forecast` was missing from the immediate path's briefing object. Fixed — both paths now include all 7 fields. Audit confirmed no other enrichment fields are missing from either path.

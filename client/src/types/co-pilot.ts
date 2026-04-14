@@ -33,6 +33,7 @@ export interface SmartBlock {
   isOpen?: boolean;
   businessStatus?: string;
   placeId?: string;
+  venueId?: string | null;  // 2026-04-14: Canonical venue_catalog identity (from toApiBlock)
   closedButStillGood?: string;
   closedVenueReasoning?: string;
   hasEvent?: boolean;
