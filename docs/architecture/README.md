@@ -1,4 +1,4 @@
-> **Last Verified:** 2026-04-10
+> **Last Verified:** 2026-04-14
 
 # Architecture Documentation
 
@@ -108,11 +108,8 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 
 ### Model Configuration
 
-| Role | Default Model | Purpose |
-|------|---------------|---------|
-| Strategist | Claude Opus 4.6 | Long-term strategy analysis |
-| Briefer | Gemini 3.0 Pro | Real-time events, traffic, news |
-| Consolidator | GPT-5.2 | Immediate tactical strategy |
+> Models change frequently — do not hardcode versions in index docs.
+> See [docs/AI_ROLE_MAP.md](../AI_ROLE_MAP.md) for current model assignments per role.
 
 ### Database Core Tables
 
@@ -159,12 +156,12 @@ The codebase has **68 folder README files**. Key entry points:
 | Database | [server/db/README.md](../../server/db/README.md) |
 | Tests | [tests/README.md](../../tests/README.md) |
 
-See [ARCHITECTURE.md](../../ARCHITECTURE.md) for the complete folder README index.
+Every folder has a README.md. Use `find . -name README.md` or your editor's file search to locate them.
 
 ## Related Documentation
 
 - [CLAUDE.md](../../CLAUDE.md) — AI assistant quick reference
-- [ARCHITECTURE.md](../../ARCHITECTURE.md) — Pointer file with complete folder index
+- [ARCHITECTURE.md](../../ARCHITECTURE.md) — Pointer file (redirects here)
 - [LESSONS_LEARNED.md](../../LESSONS_LEARNED.md) — Historical issues and fixes
 - [AI_PARTNERSHIP_PLAN.md](../AI_PARTNERSHIP_PLAN.md) — Documentation improvement roadmap
 
