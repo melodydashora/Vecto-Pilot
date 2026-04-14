@@ -2387,7 +2387,12 @@ router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
     snapshotLog.done(2, `Enriched ${snapshotId.slice(0, 8)}: ${Object.keys(updatePayload).join(', ')}`, OP.DB);
 
     // Memory #110: Readiness gate — re-read row and flip status to 'ok' when all required fields populated.
-    const REQUIRED_FIELDS = ['weather', 'air', 'lat', 'lng', 'city', 'state', 'timezone', 'market', 'h3_r8', 'day_part_key'];
+    // 2026-04-14: Phase 3 resolution — classification of required vs optional fields pinned in
+    // BRIEFING-DATA-MODEL.md §9 decision 1. Previous list (v1.0) included h3_r8 and omitted the
+    // temporal fields + user_id; corrected here. Fields NOT in this list (coord_key, h3_r8,
+    // formatted_address, country, device_id, session_id, permissions, holiday, is_holiday) may
+    // be null without blocking the gate.
+    const REQUIRED_FIELDS = ['lat', 'lng', 'city', 'state', 'timezone', 'local_iso', 'date', 'dow', 'hour', 'day_part_key', 'weather', 'air', 'market', 'user_id'];
     const [fullRow] = await db
       .select()
       .from(snapshots)

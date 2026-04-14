@@ -574,10 +574,41 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
     // GATE: Only generate briefing when snapshot has all required fields (status = 'ok').
     // Memory #110: Prevents race where briefing reads null weather/air before enrichment completes.
+    // 2026-04-14: Phase 4 — Hard-fail after MAX_SNAPSHOT_RETRIES via X-Snapshot-Retry-Count header.
+    // Client exponential backoff (co-pilot-context.tsx) sends header on each retry; server returns
+    // 503 once count >= MAX instead of the indefinite 202 loop. Required-field list mirrors the
+    // enrichment endpoint (location.js §Phase 3 resolution) for diagnostic symmetry.
     if (snapshot.status !== 'ok') {
-      triadLog.info(`Snapshot ${snapshotId.slice(0, 8)} status=${snapshot.status || 'pending'} — holding briefing`);
+      const MAX_SNAPSHOT_RETRIES = 5;
+      const SNAPSHOT_REQUIRED_FIELDS = ['lat', 'lng', 'city', 'state', 'timezone', 'local_iso', 'date', 'dow', 'hour', 'day_part_key', 'weather', 'air', 'market', 'user_id'];
+
+      const retryHeader = req.headers['x-snapshot-retry-count'];
+      const retryCountParsed = retryHeader != null ? parseInt(String(retryHeader), 10) : 0;
+      const retryCount = Number.isFinite(retryCountParsed) ? retryCountParsed : 0;
+
+      const missingFields = SNAPSHOT_REQUIRED_FIELDS.filter(f => {
+        const v = snapshot[f];
+        return v === null || v === undefined || v === '';
+      });
+
+      if (retryCount >= MAX_SNAPSHOT_RETRIES) {
+        console.error(`[blocks-fast] HARD FAIL: snapshot ${snapshotId.slice(0, 8)} still pending after ${retryCount} retries. Missing: ${missingFields.join(', ') || '(unknown)'}`);
+        triadLog.error(1, `HARD FAIL snapshot=${snapshotId.slice(0, 8)} retries=${retryCount} missing=${missingFields.join(',')}`);
+        return sendOnce(503, {
+          error: 'snapshot_incomplete',
+          missingFields,
+          message: 'Required snapshot fields missing after max retries',
+          retryCount,
+          maxRetries: MAX_SNAPSHOT_RETRIES
+        });
+      }
+
+      triadLog.info(`Snapshot ${snapshotId.slice(0, 8)} status=${snapshot.status || 'pending'} retry=${retryCount}/${MAX_SNAPSHOT_RETRIES} — holding briefing`);
       return sendOnce(202, {
         status: 'pending',
+        retryCount,
+        maxRetries: MAX_SNAPSHOT_RETRIES,
+        missingFields,
         message: 'Snapshot enrichment in progress — briefing will start when snapshot is complete'
       });
     }

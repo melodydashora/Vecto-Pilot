@@ -137,6 +137,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Without this flag, useEffect would immediately restore the old snapshotId
   const manualRefreshInProgressRef = useRef<boolean>(false);
 
+  // 2026-04-14: Phase 4 — Snapshot hard-fail block. Set to the failed snapshotId when
+  // server returns 503 (snapshot_incomplete after MAX retries). Cleared when a NEW
+  // snapshot_id arrives or the user triggers manual refresh. Prevents endless retries
+  // against a snapshot we already know to be unrecoverable.
+  const snapshotHardFailRef = useRef<string | null>(null);
+
   // 2026-04-05: Clear snapshot on logout so all queries stop (refetchInterval included)
   // Without this, strategy query keeps polling with refetchInterval: 3000 after logout
   // because lastSnapshotId is still set and `enabled` is true.
@@ -233,6 +239,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       console.log('[CoPilotContext] 🔄 Clearing waterfallTriggeredRef, had:', Array.from(waterfallTriggeredRef.current));
       waterfallTriggeredRef.current.clear();
 
+      // 2026-04-14: Phase 4 — Manual refresh is a user action that resets the hard-fail block.
+      if (snapshotHardFailRef.current) {
+        console.log('[CoPilotContext] 🔄 Clearing snapshot hard-fail block on manual refresh:', snapshotHardFailRef.current.slice(0, 8));
+        snapshotHardFailRef.current = null;
+      }
+
       // Reset previous snapshot ref so change detection works
       prevSnapshotIdRef.current = null;
 
@@ -256,6 +268,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
       if (snapshotId) {
         console.log("🎯 CoPilotContext: Snapshot ready (via event):", snapshotId.slice(0, 8), "reason:", reason);
+
+        // 2026-04-14: Phase 4 — Hard-fail guard. If this exact snapshotId already hard-failed,
+        // refuse to retrigger until user acts (manual refresh) or a different snapshot arrives.
+        if (snapshotHardFailRef.current === snapshotId) {
+          console.warn("[CoPilotContext] Snapshot already hard-failed — ignoring event until refresh:", snapshotId.slice(0, 8));
+          return;
+        }
+        if (snapshotHardFailRef.current && snapshotHardFailRef.current !== snapshotId) {
+          console.log("[CoPilotContext] New snapshot after hard-fail — clearing block:", snapshotHardFailRef.current.slice(0, 8), "→", snapshotId.slice(0, 8));
+          snapshotHardFailRef.current = null;
+        }
 
         // 2026-01-07: Clear the manual refresh flag - new snapshot has arrived
         // This allows the system to accept this snapshot and trigger waterfall
@@ -301,10 +324,35 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
             );
             response = await fetch(API_ROUTES.BLOCKS.FAST, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+              headers: {
+                'Content-Type': 'application/json',
+                // 2026-04-14: Phase 4 — server reads this header and returns 503 once >= MAX_SNAPSHOT_RETRIES.
+                'X-Snapshot-Retry-Count': String(attempt),
+                ...getAuthHeader()
+              },
               body: JSON.stringify({ snapshotId }),
               signal: controller.signal,
             });
+
+            // 2026-04-14: Phase 4 — 503 = hard fail. Server has given up; we stop and block further retries.
+            if (response.status === 503) {
+              let body: any = {};
+              try { body = await response.clone().json(); } catch { /* body not JSON — proceed with empty */ }
+              const missing: string[] = Array.isArray(body?.missingFields) ? body.missingFields : [];
+              console.error('[CoPilot] ❌ HARD FAIL: Snapshot incomplete after max retries. Missing:', missing.length ? missing : '(unknown)');
+              snapshotHardFailRef.current = snapshotId;
+              // Dispatch a window event so UI layers (header, toast, etc.) can surface "Location data incomplete — please refresh".
+              window.dispatchEvent(new CustomEvent('vecto-snapshot-hard-fail', {
+                detail: {
+                  snapshotId,
+                  missingFields: missing,
+                  message: body?.message || 'Location data incomplete — please refresh',
+                  retryCount: body?.retryCount,
+                  maxRetries: body?.maxRetries
+                }
+              }));
+              break;
+            }
 
             if (response.status !== 202) break; // 200/error/etc — exit loop, handle below
 
@@ -326,6 +374,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
           if (response?.ok) {
             console.log("✅ Waterfall complete");
+          } else if (response?.status === 503) {
+            console.error("[CoPilot] Waterfall aborted — snapshot hard-failed. Awaiting manual refresh or new snapshot.");
           } else if (response?.status === 202) {
             console.warn("[CoPilot] Waterfall still pending after retries — user may need to refresh");
           }
