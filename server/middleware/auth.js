@@ -67,16 +67,16 @@ function validateAgentAuth(req) {
   return SYSTEM_AGENT_USER_ID;
 }
 
-// JWT functions - basic implementation
+// Auth token functions — HMAC-SHA256 userId.signature format (not standard JWT despite env var name)
 function verifyAppToken(token) {
-  // Security: Require JWT_SECRET in production
+  // Security: Require auth signing secret (JWT_SECRET env var) in production
   const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
 
   if (isProduction && !process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET must be configured in production');
   }
 
-  // Use JWT_SECRET, fallback to Replit device ID for dev (unique per instance)
+  // Use auth signing secret (JWT_SECRET env var), fallback to Replit device ID for dev
   const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
 
   if (!secret) {
