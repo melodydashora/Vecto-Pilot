@@ -4,6 +4,24 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2026-04-14: Pass 1 Audit Cleanup — Issues A-E (COMPLETED)
+
+**Author:** Claude Opus 4.6 (in session with Melody)
+**Date:** 2026-04-14
+
+### Changes
+- **Issue A**: Replaced 7 stale model-name comments in `shared/schema.js` with role contracts
+- **Issue B**: Added `schema_version` column to `discovered_events` (INTEGER NOT NULL DEFAULT 1). Wired up in consolidator (read), briefing-service, concierge-service, coach-dal (write). Migration applied via direct SQL on dev DB.
+  - **Prod DB migration needed:** `ALTER TABLE discovered_events ADD COLUMN IF NOT EXISTS schema_version INTEGER NOT NULL DEFAULT 1;`
+- **Issue C**: Created `docs/architecture/briefing-transformation-path.md` — DB column → strategist field mapping with transformation sites
+- **Issue D**: Marked `filterInvalidEvents()` as `@deprecated` with 3 caller locations
+- **Issue E**: Created `docs/AI_ROLE_MAP.md` — 26 AI roles mapped from actual code
+
+### Known Issue Found
+- Immediate strategy path (`consolidator.js:1654`) omits `weather_forecast` from briefing object. `generateImmediateStrategy()` at line 187 reads it but gets `undefined`. Daily path is correct.
+
+---
+
 ## 2026-04-14: Claude Memory Table System (NEW)
 
 **Author:** Claude Opus 4.6 (in session with Melody)

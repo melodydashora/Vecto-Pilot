@@ -32,26 +32,31 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
 
 /**
  * 2026-01-09: Read-time event validation
- * 2026-01-10: Updated - validates ALL events (no schema_version tracking in DB)
+ * 2026-04-14: Now accepts optional schema_version to skip redundant revalidation.
  *
- * Uses canonical validateEventsHard module.
+ * Uses canonical validateEventsHard module. Events written with the current
+ * VALIDATION_SCHEMA_VERSION were already validated at store time in
+ * briefing-service.js, so re-validating them is safe but redundant.
  *
- * NOTE: This is safe but potentially redundant for new briefings that were
- * already validated at STORE time in briefing-service.js. Without schema_version
- * tracking in discovered_events table, we cannot skip re-validation.
+ * For events from briefings.events JSONB (no schema_version available), pass null
+ * to always revalidate (safe default). For direct discovered_events table reads,
+ * pass the row's schema_version to enable the optimization.
  *
- * Future optimization: Add schema_version column to discovered_events
- * and only validate if needsReadTimeValidation(schema_version) returns true.
- *
- * @param {Array} events - Events from briefing row
+ * @param {Array} events - Events array
+ * @param {number|null} [schemaVersion=null] - schema_version from discovered_events row (if available)
  * @returns {Array} Validated events (TBD/Unknown removed)
  */
-function filterEventsReadTime(events) {
+function filterEventsReadTime(events, schemaVersion = null) {
   if (!events || !Array.isArray(events) || events.length === 0) {
     return events || [];
   }
 
-  // Use canonical validation module
+  // 2026-04-14: Skip revalidation if events were written at current schema version
+  if (schemaVersion !== null && !needsReadTimeValidation(schemaVersion)) {
+    return events;
+  }
+
+  // Legacy, older-version, or briefing-sourced events need revalidation
   const result = validateEventsHard(events, {
     logRemovals: false,  // Don't spam logs for read-time validation
     phase: 'CONSOLIDATOR_READ'

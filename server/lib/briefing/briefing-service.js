@@ -282,7 +282,14 @@ export function deduplicateEvents(events) {
  * This function is kept for backwards compatibility. New code should use:
  * import { validateEventsHard } from '../events/pipeline/validateEvent.js';
  *
- * @deprecated Use validateEventsHard from pipeline/validateEvent.js instead
+ * @deprecated Compatibility shim — use validateEventsHard() directly.
+ * Scheduled for removal after all callers are migrated.
+ *
+ * Active callers (as of 2026-04-14):
+ *   1. server/api/briefing/briefing.js:1050       — imported at line 4
+ *   2. server/lib/briefing/briefing-service.js:1548 — internal call (this file)
+ *   3. server/lib/briefing/dump-last-briefing.js:171,173,174 — imported at line 8
+ *
  * @param {Array} events - Array of events to filter
  * @returns {Array} Clean events with no TBD/Unknown values
  */
@@ -1428,7 +1435,9 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             category: event.category,  // Already normalized
             expected_attendance: event.expected_attendance,  // Already normalized
             // 2026-01-14: Removed source_model - column removed from schema (all events from Gemini)
-            event_hash: hash
+            event_hash: hash,
+            // 2026-04-14: Stamp current validation version — enables skipping read-time revalidation
+            schema_version: VALIDATION_SCHEMA_VERSION,
           }).onConflictDoUpdate({
             target: discovered_events.event_hash,
             // 2026-04-04: FIX H-6 — Update all content fields on conflict, not just timestamp.
@@ -1450,6 +1459,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
               expected_attendance: event.expected_attendance,
               venue_id: venueId || discovered_events.venue_id,
               is_active: true,
+              schema_version: VALIDATION_SCHEMA_VERSION,
               updated_at: sql`NOW()`
             }
           });
