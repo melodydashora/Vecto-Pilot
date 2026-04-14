@@ -41,7 +41,7 @@ import { VALIDATION_SCHEMA_VERSION } from '../../events/pipeline/validateEvent.j
  * - Null-safe reads (missing data returns null, not errors)
  * - Temporal alignment: Trust snapshot day/time as ground truth
  */
-export class CoachDAL {
+export class RideshareCoachDAL {
   /**
    * Resolve strategy_id to snapshot_id + user_id (entry point)
    * @param {string} strategyId - Strategy ID from UI
@@ -1647,7 +1647,7 @@ export class CoachDAL {
    *
    * @example
    * // User asks to hide old news
-   * await coachDAL.deactivateNews({
+   * await rideshareCoachDAL.deactivateNews({
    *   user_id: userId,
    *   news_title: 'Rideshare driver carjacked in East Dallas',
    *   reason: 'Article is from a year ago'
@@ -1655,7 +1655,7 @@ export class CoachDAL {
    *
    * @example
    * // User preference
-   * await coachDAL.deactivateNews({
+   * await rideshareCoachDAL.deactivateNews({
    *   user_id: userId,
    *   news_title: 'Uber announces new driver incentives',
    *   reason: 'I only drive Lyft'
@@ -2367,7 +2367,7 @@ export class CoachDAL {
    * @returns {Promise<Object|null>} Saved/updated zone or null
    *
    * @example
-   * await coachDAL.saveZoneIntelligence({
+   * await rideshareCoachDAL.saveZoneIntelligence({
    *   market_slug: 'dallas-tx',
    *   zone_type: 'dead_zone',
    *   zone_name: 'The area around Galleria after 11pm',
@@ -2572,4 +2572,4 @@ export class CoachDAL {
 }
 
 // Export singleton instance
-export const coachDAL = new CoachDAL();
+export const rideshareCoachDAL = new RideshareCoachDAL();

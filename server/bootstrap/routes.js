@@ -57,7 +57,7 @@ export async function mountRoutes(app, server) {
 
     // Coach API (server/api/coach/) - Schema awareness, validation, notes CRUD
     // 2026-01-05: Added for AI Coach enhancements
-    { path: '/api/coach', module: './server/api/coach/index.js', desc: 'Coach API (schema, validate, notes)' },
+    { path: '/api/coach', module: './server/api/rideshare-coach/index.js', desc: 'Rideshare Coach API (schema, validate, notes)' },
 
     // Venue Intelligence (server/api/venue/)
     { path: '/api/venues', module: './server/api/venue/venue-intelligence.js', desc: 'Venue Intelligence' },

@@ -143,7 +143,7 @@ export const updateEventSchema = z.object({
  * 2026-02-17: Coach memo validation (for COACH_MEMO action)
  * Persists to docs/coach-inbox.md — bridge between AI Coach and Claude Code sessions
  */
-export const coachMemoSchema = z.object({
+export const rideshareCoachMemoSchema = z.object({
   type: z.enum(['feature_request', 'remember', 'bug', 'code_suggestion', 'observation', 'todo'], {
     errorMap: () => ({ message: 'type must be one of: feature_request, remember, bug, code_suggestion, observation, todo' })
   }),
@@ -187,7 +187,7 @@ const ACTION_SCHEMAS = {
   REACTIVATE_EVENT: eventReactivationSchema,
   ADD_EVENT: addEventSchema,
   UPDATE_EVENT: updateEventSchema,
-  COACH_MEMO: coachMemoSchema,
+  COACH_MEMO: rideshareCoachMemoSchema,
   ZONE_INTEL: zoneIntelSchema,
   SYSTEM_NOTE: systemNoteSchema,
   DEACTIVATE_NEWS: newsDeactivationSchema,
