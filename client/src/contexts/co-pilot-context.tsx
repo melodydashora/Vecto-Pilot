@@ -288,16 +288,46 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
           const controller = new AbortController();
           waterfallAbortRef.current = controller;
 
-          console.log("🚀 Triggering POST /api/blocks-fast waterfall (from event)...", snapshotId.slice(0, 8));
-          const response = await fetch(API_ROUTES.BLOCKS.FAST, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-            body: JSON.stringify({ snapshotId }),
-            signal: controller.signal,
-          });
+          // Snapshot readiness gate: 202 means enrichment in progress, retry with backoff.
+          // Memory #111: Server holds briefing until snapshot.status = 'ok'. Client retries
+          // with exponential backoff (2s, 4s, 8s, 16s, 32s) up to 5 attempts.
+          const delays = [2000, 4000, 8000, 16000, 32000];
+          let attempt = 0;
+          let response: Response | null = null;
 
-          if (response.ok) {
+          while (attempt <= delays.length) {
+            console.log(
+              `🚀 Triggering POST /api/blocks-fast waterfall (from event)... ${snapshotId.slice(0, 8)}${attempt > 0 ? ` [retry ${attempt}/${delays.length}]` : ''}`
+            );
+            response = await fetch(API_ROUTES.BLOCKS.FAST, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+              body: JSON.stringify({ snapshotId }),
+              signal: controller.signal,
+            });
+
+            if (response.status !== 202) break; // 200/error/etc — exit loop, handle below
+
+            if (attempt >= delays.length) {
+              console.warn('[CoPilot] Snapshot still pending after max retries — giving up');
+              break;
+            }
+
+            console.log(`[CoPilot] Snapshot still enriching — will retry when ready (in ${delays[attempt] / 1000}s)`);
+            await new Promise<void>((resolve, reject) => {
+              const timer = setTimeout(resolve, delays[attempt]);
+              controller.signal.addEventListener('abort', () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+              }, { once: true });
+            });
+            attempt++;
+          }
+
+          if (response?.ok) {
             console.log("✅ Waterfall complete");
+          } else if (response?.status === 202) {
+            console.warn("[CoPilot] Waterfall still pending after retries — user may need to refresh");
           }
         } catch (err: any) {
           if (err.name === 'AbortError') {

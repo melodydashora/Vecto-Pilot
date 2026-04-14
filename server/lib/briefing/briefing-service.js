@@ -2915,13 +2915,27 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     }
 
     // Dump last briefing row to file for debugging
-    dumpLastBriefingRow().catch(err => 
+    dumpLastBriefingRow().catch(err =>
       briefingLog.warn(1, `Failed to dump briefing: ${err.message}`, OP.DB)
     );
 
+    // Memory #111: Briefing completeness check — strategist should NOT receive incomplete data.
+    // Validate that critical briefing fields are present and non-empty before returning success.
+    const REQUIRED_BRIEFING_FIELDS = ['events', 'news', 'weather_current', 'traffic_conditions'];
+    const missingFields = REQUIRED_BRIEFING_FIELDS.filter(f => {
+      const v = briefingData?.[f];
+      return v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
+    });
+    const isComplete = missingFields.length === 0;
+    if (!isComplete) {
+      console.warn('[Briefing] ⚠️ Incomplete briefing — missing fields:', missingFields);
+    }
+
     return {
       success: true,
-      briefing: briefingData
+      briefing: briefingData,
+      complete: isComplete,
+      missingFields
     };
   } catch (error) {
     console.error('[BriefingService] Database error:', error);
