@@ -69,7 +69,7 @@ Function: runImmediateStrategy()
 | `news` | `news` | `parseJsonField()` → `filterDeactivatedNews()` |
 | `school_closures` | `school_closures` | `parseJsonField()` |
 | `airport_conditions` | `airport` | `parseJsonField()` |
-| `weather_forecast` | *(not included in object)* | **NOTE:** `generateImmediateStrategy()` reads `briefing.weather_forecast` at line 187, but the immediate path object at line 1654 does not include it. The `formatWeatherForStrategist()` helper degrades gracefully when forecast is undefined. |
+| `weather_forecast` | `weather_forecast` | `parseJsonField()` *(added 2026-04-14, Issue F)* |
 
 ### Daily Strategy (`consolidateForDailyStrategy`, lines 1378-1396)
 
@@ -101,6 +101,6 @@ After the DB→strategist mapping, these functions further transform specific fi
 | `buildEarningsContextSection(prefs)` | driver_profiles row | Earnings math text block | consolidator.js (top of file) |
 | `buildHomeBaseLine(snapshot, prefs)` | snapshot + prefs | Home base context line | consolidator.js (top of file) |
 
-## 5. Known Issue
+## 5. Resolved Issues
 
-The **immediate strategy** path (line 1654) does not include `weather_forecast` in the briefing object, but `generateImmediateStrategy()` at line 187 reads `briefing.weather_forecast`. The `formatWeatherForStrategist()` helper handles `undefined` forecast gracefully (returns current weather only, no timeline). The daily strategy path correctly includes forecast data.
+- **2026-04-14 (Issue F):** `weather_forecast` was missing from the immediate path's briefing object. Fixed — both paths now include all 7 fields. Audit confirmed no other enrichment fields are missing from either path.
