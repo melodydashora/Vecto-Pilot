@@ -1655,6 +1655,10 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       traffic: parseJsonField(briefingRow.traffic_conditions),
       events: cleanEvents,
       weather: parseJsonField(briefingRow.weather_current),
+      // 2026-04-14: FIX Issue F — weather_forecast was missing from immediate path.
+      // generateImmediateStrategy() passes it to formatWeatherForStrategist() at line 187.
+      // Without it, the 1-hour tactical strategist silently lost the 6-hour forecast timeline.
+      weather_forecast: parseJsonField(briefingRow.weather_forecast),
       news: filteredNews,
       school_closures: parseJsonField(briefingRow.school_closures),
       airport: parseJsonField(briefingRow.airport_conditions)

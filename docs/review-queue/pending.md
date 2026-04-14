@@ -17,8 +17,8 @@ Items flagged by the Change Analyzer for human-AI validation.
 - **Issue D**: Marked `filterInvalidEvents()` as `@deprecated` with 3 caller locations
 - **Issue E**: Created `docs/AI_ROLE_MAP.md` — 26 AI roles mapped from actual code
 
-### Known Issue Found
-- Immediate strategy path (`consolidator.js:1654`) omits `weather_forecast` from briefing object. `generateImmediateStrategy()` at line 187 reads it but gets `undefined`. Daily path is correct.
+### Known Issue Found → RESOLVED (Issue F)
+- ~~Immediate strategy path (`consolidator.js:1654`) omits `weather_forecast` from briefing object.~~ **Fixed 2026-04-14:** Added `weather_forecast: parseJsonField(briefingRow.weather_forecast)` to the immediate path's briefing object at line 1661. Both paths now include forecast data. No other enrichment fields were missing.
 
 ---
 
