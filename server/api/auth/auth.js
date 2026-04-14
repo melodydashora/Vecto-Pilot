@@ -46,10 +46,10 @@ if (!JWT_SECRET) {
 }
 
 /**
- * Generate a JWT token for a user
+ * Generate an HMAC auth token for a user
  * @param {string} userId - User UUID
  * @param {string} email - User email (optional, for logging)
- * @returns {string} JWT token
+ * @returns {string} Auth token (userId.hmacSignature format, not standard JWT)
  */
 function generateAuthToken(userId, email = '') {
   const signature = crypto.createHmac('sha256', JWT_SECRET).update(userId).digest('hex');

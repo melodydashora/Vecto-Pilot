@@ -374,7 +374,7 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 
 7. **Session cleanup is lazy** — Expired sessions are only detected on next `requireAuth` call. Orphaned sessions accumulate in DB.
 
-8. **No concurrent session detection** — A user can be logged in on multiple devices simultaneously. No "logged in elsewhere" notification.
+8. **No concurrent session detection** — Token format is `userId.hmacSignature` with no session UUID binding. A new login overwrites the `users` session row (so only one session_id exists), but the old token remains cryptographically valid until the overwritten session check fails. There is no active "logged in elsewhere" notification.
 
 ---
 
