@@ -145,7 +145,7 @@ const BriefingTab = memo(function BriefingTab({
         areCriticalBriefingsLoading={!!areCriticalBriefingsLoading}
       />
 
-      <WeatherCard weatherData={weatherData} />
+      <WeatherCard weatherData={weatherData} timezone={timezone} />
 
       <TrafficCard 
         trafficData={trafficData} 

@@ -133,6 +133,7 @@ router.get('/briefing/:snapshotId', async (req, res) => {
     
     console.log(`[strategy] ✅ Briefing found for ${snapshotId}`);
 
+    // 2026-04-14: Issue U — Added airport_conditions (was missing from response, see Issue K)
     res.json({
       ok: true,
       snapshot_id: snapshotId,
@@ -142,7 +143,8 @@ router.get('/briefing/:snapshotId', async (req, res) => {
         weather_forecast: briefingRow.weather_forecast || [],
         traffic_conditions: briefingRow.traffic_conditions || null,
         events: briefingRow.events || [],
-        school_closures: briefingRow.school_closures || []
+        school_closures: briefingRow.school_closures || [],
+        airport_conditions: briefingRow.airport_conditions || null,
       },
       created_at: briefingRow.created_at,
       updated_at: briefingRow.updated_at

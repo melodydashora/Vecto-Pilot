@@ -570,7 +570,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
             proTips: v.proTips ?? [],
             streetViewUrl: v.streetViewUrl,
             hasEvent: v.hasEvent ?? false,
-            eventBadge: v.eventBadge ?? null
+            eventBadge: v.eventBadge ?? null,
+            // 2026-04-14: Issue X — Preserve fields from toApiBlock() that were previously dropped
+            venueId: v.venueId ?? null,
+            eventSummary: v.eventSummary ?? null
           })) || [],
           rankingId: data.rankingId,
           metadata: {

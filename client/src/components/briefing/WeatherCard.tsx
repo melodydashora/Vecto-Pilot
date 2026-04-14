@@ -29,9 +29,10 @@ interface WeatherData {
 
 interface WeatherCardProps {
   weatherData?: WeatherData;
+  timezone?: string | null;  // 2026-04-14: Issue W — Driver timezone for correct hour labels
 }
 
-export function WeatherCard({ weatherData }: WeatherCardProps) {
+export function WeatherCard({ weatherData, timezone }: WeatherCardProps) {
   const weather = weatherData?.weather;
 
   // 2026-02-18: FIX - Show loading state instead of silent null when data hasn't arrived yet
@@ -75,7 +76,7 @@ export function WeatherCard({ weatherData }: WeatherCardProps) {
           {weather.forecast.slice(0, 6).map((hour, idx) => (
             <div key={idx} className="flex flex-col items-center min-w-[70px] text-center p-2 bg-white/50 rounded">
               <span className="text-xs text-gray-500 font-medium">
-                {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric' }) : `+${idx + 1}h`}
+                {hour.time ? new Date(hour.time).toLocaleTimeString([], { hour: 'numeric', ...(timezone ? { timeZone: timezone } : {}) }) : `+${idx + 1}h`}
               </span>
               <div className="my-1">{getWeatherIcon(hour.conditionType, hour.isDaytime)}</div>
               <span className="text-sm font-medium text-gray-800">
