@@ -47,9 +47,10 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 
 ### Security & Authentication
 - **Multi-Provider OAuth**: Email/password + Google OAuth + Uber OAuth (in progress)
-- **JWT Authentication**: 15-minute access tokens + 7-day refresh tokens
-- **Row-Level Security**: Database-level user data isolation via PostgreSQL RLS policies
+- **Custom HMAC-SHA256 Auth Tokens**: `userId.signature` format (standard JWT migration pending — see [SECURITY.md](docs/architecture/SECURITY.md))
 - **9 Previously Unprotected Routes Secured**: Full auth audit completed Feb 2026
+- **Public endpoint exceptions**: `/api/hooks/*` (Siri Shortcuts), `/api/platform/*` (reference data), health/monitoring — see SECURITY.md for full list
+- **RLS**: Planned (currently enforced at application layer via `requireAuth` middleware)
 
 ### Autonomous Documentation
 - **Docs Agent**: Gemini-powered orchestrator that automatically detects code changes, maps them to affected documentation, generates updates, validates markdown, and publishes — reducing manual doc maintenance
@@ -67,7 +68,7 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 │                         VECTO PILOT                               │
 │                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐ │
-│  │         React Client (Vite 6 + React Router v6)              │ │
+│  │         React Client (Vite 7 + React Router v7)              │ │
 │  │  20 Routes (9 Co-Pilot + 5 Auth + 6 System)                 │ │
 │  │  3 Context Providers | 48 shadcn/ui Components | 16 Hooks    │ │
 │  └──────────────────────────────────────────────────────────────┘ │
@@ -129,26 +130,26 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 
 ## Technical Stack
 
-**Frontend**
-- **Framework**: React 18 + React Router v6
-- **Build Tool**: Vite 6.x
-- **Language**: TypeScript 5.x (strict mode)
+**Frontend** (see `package.json` for exact versions)
+- **Framework**: React 19 + React Router v7
+- **Build Tool**: Vite 7
+- **Language**: TypeScript 5 (strict mode)
 - **Styling**: TailwindCSS 4 + Radix UI Primitives (48 shadcn/ui components)
 - **State**: React Query (TanStack) + 3 Context Providers + Local State
 - **Real-time**: SSE via singleton connection manager
 
 **Backend**
-- **Runtime**: Node.js 20+
+- **Runtime**: Node.js 18+
 - **Server**: Express.js (gateway-server.js)
-- **Database**: PostgreSQL 15+ with Drizzle ORM (25+ tables)
+- **Database**: PostgreSQL 16 (Replit Helium) with Drizzle ORM (57+ tables)
 - **Real-time**: Server-Sent Events (SSE) for strategy updates, WebSocket for Voice
-- **Auth**: JWT (15min access + 7-day refresh) + Google OAuth + Uber OAuth
-- **Workers**: Background strategy generator, change analyzer, event sync
+- **Auth**: Custom HMAC-SHA256 tokens + Google OAuth + Uber OAuth
+- **Workers**: Background strategy generator, change analyzer
 
-**AI & APIs (13 External Services)**
-- **Anthropic Claude Opus 4.6**: Strategic reasoning, event validation
-- **Google Gemini 3.0 Pro Preview**: Briefing synthesis, coach, news/events
-- **OpenAI GPT-5.2**: Tactical planning, venue scoring, consolidation
+**AI & APIs** (see [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md) for current model assignments)
+- **Anthropic**: Strategy, validation
+- **Google Gemini**: Briefing synthesis, coach, news/events
+- **OpenAI**: Venue scoring, voice
 - **Perplexity Sonar Pro**: Real-time web research (holidays, local news)
 - **Google Maps Platform**: Places, Routes, Weather, Air Quality, Geocoding, Timezone
 - **TomTom Traffic API**: Traffic incident prioritization
@@ -187,8 +188,8 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 ## Setup & Installation
 
 ### Prerequisites
-- Node.js 20.x or higher
-- PostgreSQL 15+ database
+- Node.js 18+ (see `package.json` engines)
+- PostgreSQL 16 (Replit Helium, or any PostgreSQL 15+)
 - API Keys: OpenAI, Anthropic, Google Gemini, Google Maps, Perplexity
 
 ### Quick Start
@@ -221,7 +222,7 @@ UBER_CLIENT_SECRET="..."
 ```
 
 ```bash
-npm run db:push    # Initialize database
+npm run db:push    # Initialize database (dev setup only — see docs/architecture/DB_SCHEMA.md for migration policy)
 npm run dev        # Start development server (port 5000)
 ```
 
@@ -314,16 +315,16 @@ This codebase has **95+ README files** — every folder documents its own purpos
 
 ## Security
 
-- JWT authentication with token refresh
+- Custom HMAC-SHA256 auth tokens (standard JWT migration pending)
 - Google OAuth 2.0 integration
-- Row-Level Security (RLS) in PostgreSQL
-- All API routes require `requireAuth` middleware (9 gaps fixed Feb 2026)
+- Most API routes require `requireAuth` middleware (9 gaps fixed Feb 2026); intentionally public exceptions documented
+- RLS planned — currently enforced at application layer
 - IDOR vulnerability patched in feedback routes
 - Push protection prevents secret commits
 - Rate limiting on expensive endpoints
 - Zod schema validation on all inputs
 
-See [SECURITY.md](SECURITY.md) for full security policy.
+See [docs/architecture/SECURITY.md](docs/architecture/SECURITY.md) for full security posture.
 
 ---
 
