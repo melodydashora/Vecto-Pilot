@@ -196,7 +196,7 @@ VENUE_FILTER, BRIEFING_WEATHER, BRIEFING_TRAFFIC, BRIEFING_SCHOOLS, BRIEFING_AIR
 | Return type | `{ ok, output, latencyMs }` | `Response` (SSE stream) |
 | Fallback | HedgedRouter | No fallback |
 | JSON mode | Auto-detected | Not available |
-| Use case | Strategy, briefing, venues | AI Coach chat |
+| Use case | Strategy, briefing, venues | Rideshare Coach chat |
 | Timeout | 120s | 90s |
 
 ---

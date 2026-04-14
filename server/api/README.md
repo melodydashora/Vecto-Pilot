@@ -18,8 +18,8 @@ Express API endpoints organized by domain. Each domain folder contains related r
 api/
 ├── auth/           # Authentication (JWT, login, register)
 ├── briefing/       # Events, traffic, news
-├── chat/           # AI Coach, voice
-├── coach/          # AI Coach schema, validation, notes CRUD
+├── chat/           # Rideshare Coach, voice
+├── coach/          # Rideshare Coach schema, validation, notes CRUD
 ├── feedback/       # User feedback, actions
 ├── health/         # Health checks, diagnostics
 ├── intelligence/   # Market intelligence (zones, strategies)
@@ -54,7 +54,7 @@ api/
 ### chat/
 | File | Route | Purpose |
 |------|-------|---------|
-| `chat.js` | `/api/chat` | AI Coach (SSE streaming) |
+| `chat.js` | `/api/chat` | Rideshare Coach (SSE streaming) |
 | `chat-context.js` | `/coach/context/*` | Read-only chat context |
 | `realtime.js` | `/api/realtime` | OpenAI Realtime voice API |
 | `tts.js` | `/api/tts` | Text-to-speech |
@@ -63,7 +63,7 @@ api/
 ### coach/
 | File | Route | Purpose |
 |------|-------|---------|
-| `index.js` | `/api/coach/*` | AI Coach router (mounts sub-routers) |
+| `index.js` | `/api/coach/*` | Rideshare Coach router (mounts sub-routers) |
 | `schema.js` | `/api/coach/schema/*` | Database schema awareness for Coach |
 | `validate.js` | `/api/coach/validate/*` | Coach validation endpoints |
 | `notes.js` | `/api/coach/notes/*` | User notes CRUD operations |
@@ -145,7 +145,7 @@ Key intelligence endpoints:
 GET  /api/intelligence           - List all intelligence with filters
 GET  /api/intelligence/markets   - List markets with intel counts
 GET  /api/intelligence/market/:slug - Get intel for specific market
-GET  /api/intelligence/coach/:market - AI Coach context for market
+GET  /api/intelligence/coach/:market - Rideshare Coach context for market
 ```
 
 See [intelligence/README.md](intelligence/README.md) for full documentation.

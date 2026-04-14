@@ -63,7 +63,7 @@ if (result.ok) {
 | `VENUE_TRAFFIC` | Venue traffic intel | Gemini 3 Pro |
 | `VENUE_EVENT_VERIFIER` | Venue event verification | Gemini 3 Pro |
 | **COACH TABLE** |||
-| `COACH_CHAT` | AI Coach conversation | Gemini 3 Pro |
+| `COACH_CHAT` | Rideshare Coach conversation | Gemini 3 Pro |
 | **UTILITIES** |||
 | `UTIL_MARKET_PARSER` | Market research parsing | GPT-5.2 |
 

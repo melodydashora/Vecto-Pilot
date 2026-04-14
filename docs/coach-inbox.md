@@ -1,10 +1,10 @@
-# AI Coach Inbox
+# Rideshare Coach Inbox
 
-Observations, feature requests, and memos from the AI Coach.
+Observations, feature requests, and memos from the Rideshare Coach.
 Items are appended here automatically when the coach uses `[COACH_MEMO]` action tags.
 
 **For Claude Code:** Check this file at session start. Pick up actionable items and implement them.
-**For AI Coach:** Write here when Melody asks you to remember something, suggests a feature, or you observe something worth capturing.
+**For Rideshare Coach:** Write here when Melody asks you to remember something, suggests a feature, or you observe something worth capturing.
 
 ---
 
@@ -81,7 +81,7 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 
 ### [FEATURE_REQUEST] Text-to-Speech (Voice Output)
 - **Priority:** high | **Date:** 2026-04-09 (extracted from prod DB)
-- Implement a Text-to-Speech engine so the driver can hear the AI Coach's strategy updates and offer analysis aloud without taking their eyes off the road.
+- Implement a Text-to-Speech engine so the driver can hear the Rideshare Coach's strategy updates and offer analysis aloud without taking their eyes off the road.
 
 ### [FEATURE_REQUEST] Concierge QR Code
 - **Priority:** medium | **Date:** 2026-04-09 (extracted from prod DB)

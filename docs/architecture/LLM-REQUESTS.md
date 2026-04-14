@@ -9,7 +9,7 @@
 
 1. [Adapter Architecture](#1-adapter-architecture)
 2. [Model Registry](#2-model-registry)
-3. [AI Coach Chat](#3-ai-coach-chat)
+3. [Rideshare Coach Chat](#3-ai-coach-chat)
 4. [Strategy Generation](#4-strategy-generation)
 5. [Briefing Pipeline LLM Calls](#5-briefing-pipeline-llm-calls)
 6. [Public Concierge](#6-public-concierge)
@@ -116,7 +116,7 @@ Provides cross-provider fallback:
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `AI_COACH` | gemini-3.1-pro-preview | streaming, search, vision, OCR | AI Coach chat |
+| `AI_COACH` | gemini-3.1-pro-preview | streaming, search, vision, OCR | Rideshare Coach chat |
 
 #### Concierge
 
@@ -143,11 +143,11 @@ Provides cross-provider fallback:
 ### Override Env Vars
 
 - `AGENT_OVERRIDE_MODEL` — Override model for agent roles
-- `AI_COACH_OVERRIDE_MODEL` — Override for AI Coach (streaming-aware)
+- `AI_COACH_OVERRIDE_MODEL` — Override for Rideshare Coach (streaming-aware)
 
 ---
 
-## 3. AI Coach Chat
+## 3. Rideshare Coach Chat
 
 ### Endpoint
 
@@ -189,7 +189,7 @@ If auth expires during a streaming chat response:
 
 ### Action Tags
 
-The AI Coach can embed action tags in responses:
+The Rideshare Coach can embed action tags in responses:
 `SAVE_NOTE`, `DEACTIVATE_EVENT`, `REACTIVATE_EVENT`, `ADD_EVENT`, `UPDATE_EVENT`, `DEACTIVATE_NEWS`, `SYSTEM_NOTE`, `ZONE_INTEL`, `MARKET_INTEL`, `SAVE_VENUE_INTEL`
 
 These are parsed and executed server-side after the response completes.
@@ -468,7 +468,7 @@ All read from `process.env`. No values stored in code.
 
 | Path | Auth | Model | Status |
 |------|------|-------|--------|
-| AI Coach chat | `requireAuth` | Gemini 3.1 Pro (streaming) | Working |
+| Rideshare Coach chat | `requireAuth` | Gemini 3.1 Pro (streaming) | Working |
 | Tactical strategy | `requireAuth` (via waterfall) | Claude Opus 4.6 | Working |
 | Daily strategy | `requireAuth` (via waterfall) | Claude Opus 4.6 | Working |
 | Briefing (7 LLM calls) | `requireAuth` (via waterfall) | Gemini 3.1 Pro (search) | Working |
@@ -532,7 +532,7 @@ All read from `process.env`. No values stored in code.
 | `server/lib/ai/adapters/gemini-adapter.js` | Gemini API calls |
 | `server/lib/ai/adapters/openai-adapter.js` | OpenAI API calls |
 | `server/lib/ai/unified-ai-capabilities.js` | Health monitoring |
-| `server/api/chat/chat.js` | AI Coach chat endpoint |
+| `server/api/chat/chat.js` | Rideshare Coach chat endpoint |
 | `server/lib/ai/providers/consolidator.js` | Strategy generation LLM calls |
 | `server/lib/briefing/briefing-service.js` | Briefing pipeline LLM calls (3,103 lines) |
 | `server/api/concierge/concierge.js` | Public concierge endpoints |

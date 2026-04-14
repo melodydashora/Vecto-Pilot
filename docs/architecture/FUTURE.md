@@ -71,7 +71,7 @@ Source: `docs/coach-inbox.md` (updated 2026-04-10)
 **From coach-inbox.md (HIGH priority):**
 
 **Problem:** Web browsers suspend background tabs when driver switches to Uber/Lyft app. This kills WebSocket/SSE connections, causing:
-- AI Coach connection drops during active driving
+- Rideshare Coach connection drops during active driving
 - SSE events missed (strategy_ready, blocks_ready, briefing_ready)
 - Session restore required on every return (15-30s delay)
 

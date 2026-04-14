@@ -45,7 +45,7 @@ A single user session (login → GPS → snapshot → strategy → blocks) trigg
 
 | Component | Model | Est. Cost |
 |-----------|-------|-----------|
-| AI Coach message | Gemini 3.1 Pro (streaming) | ~$0.01–0.05 |
+| Rideshare Coach message | Gemini 3.1 Pro (streaming) | ~$0.01–0.05 |
 | With Google Search | +search tool calls | +$0.005 |
 
 ### Per-Translation Costs
@@ -174,7 +174,7 @@ Monthly:          ~$65/user/month
 | Briefing (weather, events) | Free | ~$0.08 | Daily conditions |
 | NOW Strategy | Standard | ~$0.27 | Tactical positioning |
 | SmartBlocks (venues) | Standard | ~$0.05 | Earning optimization |
-| AI Coach chat | Standard | ~$0.03/msg | Personalized advice |
+| Rideshare Coach chat | Standard | ~$0.03/msg | Personalized advice |
 | Offer analysis | Standard | ~$0.006/offer | Accept/reject guidance |
 | Translation | Standard | ~$0.01/ride | FIFA World Cup feature |
 | 12HR Daily Strategy | Premium | ~$0.30 | Full-day planning |

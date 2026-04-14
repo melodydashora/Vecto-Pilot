@@ -85,7 +85,7 @@ STRATEGY_TACTICAL: {
 
 Two env vars allow runtime override without code changes:
 - `AGENT_OVERRIDE_MODEL` — Override for agent roles
-- `AI_COACH_OVERRIDE_MODEL` — Override for AI Coach (must support streaming)
+- `AI_COACH_OVERRIDE_MODEL` — Override for Rideshare Coach (must support streaming)
 
 ### Via Adapter Pattern
 

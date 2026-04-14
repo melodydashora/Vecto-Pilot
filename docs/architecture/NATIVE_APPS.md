@@ -142,7 +142,7 @@ The React web app communicates via REST API (`/api/*`). Native apps use the **ex
 | Google OAuth | Yes | Yes (WebView) | Yes (ASWebAuth) | Yes (WebView) | Yes (Google Sign-In) |
 | GPS + Snapshot | Yes | Yes + background | Yes + background | Yes + background | Yes + background |
 | Strategy | Yes | Yes (WebView) | Yes (native SSE) | Yes (WebView) | Yes (native SSE) |
-| AI Coach | Yes | Yes (WebView) | Yes (native stream) | Yes (WebView) | Yes (native stream) |
+| Rideshare Coach | Yes | Yes (WebView) | Yes (native stream) | Yes (WebView) | Yes (native stream) |
 | Map | Yes | Yes (WebView) | Yes (Maps SDK) | Yes (WebView) | Yes (Maps SDK) |
 | Bars/Venues | Yes | Yes (WebView) | Yes (native) | Yes (WebView) | Yes (native) |
 | Translation | Yes | Yes (WebView) | Yes (SFSpeech) | Yes (WebView) | Yes (SpeechRecognizer) |

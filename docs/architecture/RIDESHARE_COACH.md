@@ -1,14 +1,28 @@
-# RIDESHARE_COACH.md — AI Rideshare Coach System
+# RIDESHARE_COACH.md — Rideshare Coach System
 
 > **Trust Tier:** Canonical
 > **Last Updated:** 2026-04-14
 > **Consolidates:** AI_RIDESHARE_COACH.md, AI_COACH_VOICE_PLAN.md, ai-coach-enhancements.md, coach-inbox.md
 
+## Naming Convention
+
+| Context | Name | Example |
+|---------|------|---------|
+| Product name (prose) | **Rideshare Coach** | "The Rideshare Coach helps drivers..." |
+| Canonical doc | `RIDESHARE_COACH.md` | This file |
+| Frontend component | `AICoach.tsx` | `client/src/components/AICoach.tsx` |
+| Server DAL | `coach-dal.js` | `server/lib/ai/coach-dal.js` |
+| Server chat routes | `chat.js` | `server/api/chat/chat.js` |
+| Model role | `AI_COACH` | `callModelStream('AI_COACH')` |
+| DB tables | `coach_conversations`, `user_intel_notes`, `coach_system_notes` | Schema names |
+
+Code identifiers use their original names. Only prose and doc titles use "Rideshare Coach."
+
 ---
 
 ## 1. Architecture Overview
 
-The AI Coach is a conversational assistant powered by Gemini 3.1 Pro Preview with streaming, Google Search, vision/OCR, and 11 action tag types for database writes. It operates through a context-injection model: every chat request loads the driver's full situation (location, strategy, briefing, venues, history, notes, market intel) and injects it as a system prompt.
+The Rideshare Coach is a conversational assistant powered by Gemini 3.1 Pro Preview with streaming, Google Search, vision/OCR, and 11 action tag types for database writes. It operates through a context-injection model: every chat request loads the driver's full situation (location, strategy, briefing, venues, history, notes, market intel) and injects it as a system prompt.
 
 ### Data Flow
 
@@ -157,7 +171,7 @@ Data access layer loading 11 parallel context sources:
 
 ## 8. Coach Inbox Items
 
-The AI Coach writes memos to `docs/coach-inbox.md` via `[COACH_MEMO]` action tags. Key pending items as of 2026-04-14:
+The Rideshare Coach writes memos to `docs/coach-inbox.md` via `[COACH_MEMO]` action tags. Key pending items as of 2026-04-14:
 
 - Zombie Snapshot & Auth Boundary Fix (high)
 - Briefing pipeline mocked news data (high)

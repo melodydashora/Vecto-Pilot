@@ -21,7 +21,7 @@ Real-time ride offer analysis from Siri Shortcuts. Accepts **OCR text** or a **b
 **Pre-Parser:** `server/lib/offers/parse-offer-text.js` extracts price/miles/times via regex (text mode only)
 **Database:** Writes to `intercepted_signals` table
 **SSE:** Broadcasts `offer_analyzed` event via pg NOTIFY
-**Coach:** AI Coach reads offer history via `CoachDAL.getOfferHistory()`
+**Coach:** Rideshare Coach reads offer history via `CoachDAL.getOfferHistory()`
 **Body limit:** 5MB (route-specific, for image payloads)
 
 **Request (text mode — "Vecto Analyze"):**
@@ -227,7 +227,7 @@ Every analyzed offer is stored with:
 - **Response time** — how fast the system analyzed
 - **Driver override** — when the AI was wrong (training signal)
 
-**AI Coach integration:** The coach reads offer history via `CoachDAL.getOfferHistory()` and includes stats + recent offers in its context for pattern-aware coaching.
+**Rideshare Coach integration:** The coach reads offer history via `CoachDAL.getOfferHistory()` and includes stats + recent offers in its context for pattern-aware coaching.
 
 This builds a dataset of real offers for:
 - Surge pattern detection per location

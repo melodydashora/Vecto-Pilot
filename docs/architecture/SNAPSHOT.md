@@ -22,7 +22,7 @@
 
 ## 1. What Is a Snapshot?
 
-A snapshot is a **point-in-time capture of the driver's context** — location, weather, time, and market conditions. It is the foundational data unit that feeds every downstream system: strategy generation, venue ranking, briefing, and AI Coach conversations.
+A snapshot is a **point-in-time capture of the driver's context** — location, weather, time, and market conditions. It is the foundational data unit that feeds every downstream system: strategy generation, venue ranking, briefing, and Rideshare Coach conversations.
 
 **Design principle:** The snapshot is the single source of truth for "where is the driver and what's happening around them." Every AI call references a snapshot ID, ensuring all systems reason about the same data.
 

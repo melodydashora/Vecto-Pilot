@@ -102,12 +102,12 @@ node scripts/memory-cli.mjs pref \
 # Note pending work
 node scripts/memory-cli.mjs session \
   "next_session" \
-  '{"todo":"Test memory integration with AI Coach","priority":"high"}'
+  '{"todo":"Test memory integration with Rideshare Coach","priority":"high"}'
 ```
 
-## AI Coach Auto-Logging
+## Rideshare Coach Auto-Logging
 
-The AI Coach (`client/src/components/AICoach.tsx`) now **automatically logs conversations** to memory after each exchange. This happens via the `useMemory` hook.
+The Rideshare Coach (`client/src/components/AICoach.tsx`) now **automatically logs conversations** to memory after each exchange. This happens via the `useMemory` hook.
 
 No manual action needed for Coach conversations - they're persisted automatically.
 

@@ -27,7 +27,7 @@ Detailed technical documentation split by domain. See [architecture/README.md](a
 | [Authentication](architecture/authentication.md) | JWT auth, login, registration flow |
 | [Database Schema](architecture/database-schema.md) | PostgreSQL tables and relationships |
 | [AI Pipeline](architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
-| [AI Coach](architecture/ai-coach.md) | AI Coach system architecture |
+| [Rideshare Coach](architecture/ai-coach.md) | Rideshare Coach system architecture |
 | [Event Discovery](architecture/event-discovery.md) | Multi-model AI event search system |
 | [Constraints](architecture/constraints.md) | Critical rules and limitations |
 | [Google Cloud APIs](architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |

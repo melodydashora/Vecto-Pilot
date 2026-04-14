@@ -74,7 +74,7 @@ export const discovered_events = pgTable("discovered_events", {
 
 **Deduplication**: Uses MD5 hash of `normalize(title + venue + date + city)` to prevent duplicates across sources.
 
-**Deactivation**: Events can be marked inactive by AI Coach or users. Deactivated events are filtered out of Map tab displays but kept in database for audit.
+**Deactivation**: Events can be marked inactive by Rideshare Coach or users. Deactivated events are filtered out of Map tab displays but kept in database for audit.
 
 See [Event Discovery Architecture](../docs/architecture/event-discovery.md) for full documentation.
 

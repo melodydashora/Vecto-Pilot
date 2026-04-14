@@ -24,7 +24,7 @@ The market intelligence system stores actionable insights about specific markets
 | GET | `/api/intelligence/markets-dropdown` | **NEW** Get all 243 markets for signup dropdown |
 | GET | `/api/intelligence/for-location` | Get intel for a city → market lookup |
 | GET | `/api/intelligence/market/:slug` | Get all intelligence for a market |
-| GET | `/api/intelligence/coach/:market` | Get AI Coach context for a market |
+| GET | `/api/intelligence/coach/:market` | Get Rideshare Coach context for a market |
 | GET | `/api/intelligence/staging-areas` | Get staging areas from ranking_candidates |
 | GET | `/api/intelligence/:id` | Get specific intelligence item |
 | POST | `/api/intelligence` | Create new intelligence |
@@ -177,9 +177,9 @@ GET /api/intelligence/for-location?city=Frisco&state=Texas
 | safe_corridor | Recommended safe routes |
 | caution_zone | Areas requiring awareness |
 
-## AI Coach Integration
+## Rideshare Coach Integration
 
-The `/api/intelligence/coach/:market` endpoint provides formatted context for the AI Coach:
+The `/api/intelligence/coach/:market` endpoint provides formatted context for the Rideshare Coach:
 
 ```javascript
 // Request
@@ -233,7 +233,7 @@ Key fields:
 - `title` / `summary` / `content` - Intelligence content
 - `neighborhoods` / `boundaries` - Geographic context
 - `priority` / `confidence` - Importance ratings
-- `coach_can_cite` / `coach_priority` - AI Coach integration
+- `coach_can_cite` / `coach_priority` - Rideshare Coach integration
 - `is_active` / `is_verified` - Status flags
 
 ## Populating Data

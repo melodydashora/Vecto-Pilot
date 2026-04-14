@@ -144,7 +144,7 @@ Enabled on all map instances: `new google.maps.TrafficLayer()`. Shows real-time 
 
 ### How Zones Are Created
 
-1. **AI Coach:** Via `[ZONE_INTEL]` action tags during conversations
+1. **Rideshare Coach:** Via `[ZONE_INTEL]` action tags during conversations
 2. **Market Intelligence API:** `POST /api/intelligence` with `intel_type: 'zone'`
 3. **Cross-driver learning:** Confidence score increments when multiple drivers report same zone
 
