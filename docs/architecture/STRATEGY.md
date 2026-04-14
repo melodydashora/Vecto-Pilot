@@ -1,7 +1,7 @@
 # STRATEGY.md — Strategy Generation Architecture
 
 > **Canonical reference** for the NOW (1-hour tactical) and 12-Hour (daily consolidated) strategy system.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-14
 
 ## Supersedes
 - `docs/architecture/Strategy.md` — High-level overview, now expanded here with full code paths
@@ -34,7 +34,7 @@
 | Trigger | Auto — part of blocks-fast waterfall | On-demand — user clicks "Daily Strategy" |
 | Model | `STRATEGY_TACTICAL` → Claude Opus 4.6 | `STRATEGY_DAILY` → Claude Opus 4.6 |
 | Time horizon | Next 1 hour | Next 8–12 hours |
-| Input | Snapshot + briefing (traffic, events, weather, news) | Snapshot + briefing + venue hours from catalog |
+| Input | Snapshot + briefing (traffic, events, weather, weather_forecast, news, closures, airport) + driver preferences + earnings context | Snapshot + briefing (same) + driver preferences + earnings context |
 | Output format | GO / AVOID / WHEN / WHY / IF NO PING / INTEL | 4–6 paragraphs covering time blocks |
 | Max tokens | 16,000 | 16,000 |
 | Temperature | 0.5 | 0.5 |
@@ -123,9 +123,11 @@ The briefing readiness gate (lines 707–743) polls the DB for up to 90 seconds 
 **File:** `server/lib/ai/providers/consolidator.js` (lines 148–240)
 **Function:** `generateImmediateStrategy()`
 
-**Input context:**
+**Input context (enriched 2026-04-11):**
 - Driver's exact address, coordinates, timezone
-- Briefing: traffic `driverImpact`, events (next 6 hours), weather, news, school closures, airport
+- Briefing: traffic (structured incidents/closures/zones), events (NEAR/FAR bucketed with haversine distances), weather + 6-hour forecast timeline, news, school closures, airport
+- Driver preferences: vehicle class, service prefs, fuel economy, max deadhead miles, home base
+- Earnings context: daily goal, shift hours target, computed $/hr requirement
 - Time-of-day intelligence patterns (morning/midday/afternoon/evening/night)
 
 **Output format:**
@@ -365,13 +367,13 @@ isStrategyFetching: boolean;            // React Query isFetching flag
 
 5. **No strategy diff** — When the driver refreshes, there's no way to see what changed between the old and new strategy.
 
-6. **Strategy prompt doesn't include driver preferences** — Vehicle eligibility (XL, Comfort, etc.) and service preferences are not injected into the strategy prompt. A Comfort-eligible driver gets the same strategy as an economy-only driver.
+6. ~~**Strategy prompt doesn't include driver preferences**~~ — **RESOLVED 2026-04-11.** Driver preferences (vehicle class, fuel economy, earnings goal, shift hours, max deadhead) and earnings context are now injected via `loadDriverPreferences()` + `buildDriverPreferencesSection()` + `buildEarningsContextSection()` in `consolidator.js`. See `STRATEGIST_ENRICHMENT_PLAN.md` for full details.
 
 ---
 
 ## 12. TODO — Hardening Work
 
-- [ ] **Inject driver preferences into strategy prompt** — Vehicle class, platform, service preferences should influence recommendations
+- [x] **Inject driver preferences into strategy prompt** — DONE 2026-04-11. Vehicle class, fuel economy, earnings goal, shift hours, max deadhead, home base. Both immediate and daily paths.
 - [ ] **Auto-generate 12HR strategy** — Generate alongside NOW strategy as part of waterfall
 - [ ] **Add strategy quality scoring** — LLM self-evaluation or heuristic scoring of recommendation quality
 - [ ] **Add strategy diff on refresh** — Show what changed between previous and new strategy

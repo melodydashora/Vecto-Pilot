@@ -81,24 +81,28 @@ Response
 ## TRIAD Pipeline (AI Strategy Generation)
 
 ```
-POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
+POST /api/blocks-fast → TRIAD Pipeline (~35-90s)
 │
-├── Phase 1 (Parallel): Strategist + Briefer + Holiday
-│   ├── minstrategy (Claude Opus 4.6) → strategies.minstrategy
-│   ├── briefing.js (Gemini 3.0 Pro) → briefings table
-│   └── holiday-checker → holiday context
+├── Phase: analyzing (10-15s)
+│   └── BRIEFING_* roles (7 parallel subsystems) → briefings table
+│       Weather, traffic, events, airport, news, schools, holiday
 │
-├── Phase 2 (Parallel): Consolidators
-│   ├── runConsolidator (Gemini) → strategies.consolidated_strategy
-│   └── runImmediateStrategy (GPT-5.2) → strategies.strategy_for_now
+├── Phase: immediate (5-8s)
+│   └── STRATEGY_TACTICAL role → strategies.strategy_for_now
+│       Input: snapshot + briefing + driver preferences + earnings context
 │
-├── Phase 3: Venue Generation
-│   └── enhanced-smart-blocks.js → rankings + ranking_candidates
+├── Phase: venues (6-10s)
+│   └── VENUE_SCORER role → rankings + ranking_candidates
+│       Input: strategy + briefing + live discovered_events (NEAR/FAR bucketed)
 │
-└── Response with strategy + blocks
+├── Phase: routing (2-5s) → Google Routes API (drive times)
+├── Phase: places (2-5s) → Google Places API (business hours)
+├── Phase: verifying (5-8s) → Event verification (VENUE_EVENT_VERIFIER role)
+└── Phase: complete → Response with strategy + blocks
 
 Phase timing tracked via strategies.phase_started_at for real-time progress.
-See lib/ai/README.md for model details.
+Daily strategy (STRATEGY_DAILY role) is on-demand, not part of this waterfall.
+See lib/ai/README.md and docs/AI_ROLE_MAP.md for model ownership.
 ```
 
 ## Key Conventions

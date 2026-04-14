@@ -146,6 +146,89 @@ briefings.events (JSONB)          discovered_events (live table)
                                    event-venue matched)
 ```
 
-## 6. Resolved Issues
+## 6. API Response Contracts (Client-Facing)
+
+Two endpoints return briefing data to the client with **different shapes**. This is undocumented historical divergence, not an intentional design.
+
+### GET /api/strategy/:snapshotId (summary endpoint)
+
+**File:** `server/api/strategy/strategy.js` line 59
+
+Returns strategy + trimmed briefing. Used by the main client polling loop.
+
+```json
+{
+  "status": "ok",
+  "strategy_for_now": "...",
+  "consolidated": "...",
+  "briefing": {
+    "events": [],
+    "news": { "items": [] },
+    "traffic": {},
+    "school_closures": []
+  }
+}
+```
+
+**Included:** `events`, `news`, `traffic` (renamed from `traffic_conditions`), `school_closures`
+**Missing:** `weather_current`, `weather_forecast`, `airport_conditions`
+
+### GET /api/strategy/briefing/:snapshotId (full briefing endpoint)
+
+**File:** `server/api/strategy/strategy.js` line 136
+
+Returns fuller briefing data. Used by the Briefing tab UI.
+
+```json
+{
+  "ok": true,
+  "briefing": {
+    "news": { "items": [] },
+    "weather_current": null,
+    "weather_forecast": [],
+    "traffic_conditions": null,
+    "events": [],
+    "school_closures": []
+  }
+}
+```
+
+**Included:** `news`, `weather_current`, `weather_forecast`, `traffic_conditions`, `events`, `school_closures`
+**Missing:** `airport_conditions`
+
+### Key Differences
+
+| Field | `/api/strategy/:id` | `/api/strategy/briefing/:id` |
+|-------|---------------------|------------------------------|
+| `events` | `briefing.events` | `briefing.events` |
+| `news` | `briefing.news` | `briefing.news` |
+| Traffic | `briefing.traffic` (renamed) | `briefing.traffic_conditions` (DB name) |
+| `school_closures` | `briefing.school_closures` | `briefing.school_closures` |
+| `weather_current` | not returned | `briefing.weather_current` |
+| `weather_forecast` | not returned | `briefing.weather_forecast` |
+| `airport_conditions` | not returned | not returned |
+
+**Note:** `airport_conditions` is not returned by either endpoint despite being populated in the briefings table and consumed by the strategist. The comment at `strategy.js:221` acknowledges the column was moved to the briefings table but it was never added to either response shape. This is historical — may warrant normalization.
+
+---
+
+## 7. schema_version Optimization Scope
+
+**Added 2026-04-14 (Issue B).** The `discovered_events.schema_version` column enables `filterEventsReadTime()` in `consolidator.js` to skip redundant revalidation for current-version rows.
+
+**Scope: direct `discovered_events` table reads only.**
+
+| Path | Has schema_version? | Revalidation behavior |
+|------|--------------------|-----------------------|
+| **Venue planner** (`enhanced-smart-blocks.js` → `fetchTodayDiscoveredEventsWithVenue()`) | Yes — each row has `schema_version` | Can skip revalidation when `schemaVersion >= VALIDATION_SCHEMA_VERSION` (caller must pass it) |
+| **Strategist** (`consolidator.js` → `parseJsonField(briefingRow.events)`) | No — `briefings.events` JSONB does not carry version | Always revalidates (safe default — `schemaVersion = null`) |
+
+**Why this is acceptable:** Events in `briefings.events` were already validated at write time by `briefing-service.js:1548` (the `filterInvalidEvents()` call before storage). Revalidation is redundant but cheap — the validation logic is pure array filtering, not an AI call.
+
+**Future option:** If revalidation becomes a performance concern (unlikely — it's sub-millisecond), propagate `schema_version` into the briefing events JSONB at write time so the consolidator can also skip it.
+
+---
+
+## 8. Resolved Issues
 
 - **2026-04-14 (Issue F):** `weather_forecast` was missing from the immediate path's briefing object. Fixed — both paths now include all 7 fields. Audit confirmed no other enrichment fields are missing from either path.
