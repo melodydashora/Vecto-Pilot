@@ -1062,7 +1062,13 @@ function annotateAndBucketEvents(events, driverLat, driverLng) {
 
   const near = annotated
     .filter(e => Number.isFinite(e.distance_mi) && e.distance_mi <= NEAR_EVENT_RADIUS_MILES)
-    .sort((a, b) => a.distance_mi - b.distance_mi);
+    .sort((a, b) => {
+      // Impact-weighted sort: capacity / (1 + distance) — higher score = better event
+      // A stadium at 7mi (1875) beats karaoke at 3mi (87). See Memory #106.
+      const scoreA = (a.estimated_attendance || 1000) / (1 + a.distance_mi);
+      const scoreB = (b.estimated_attendance || 1000) / (1 + b.distance_mi);
+      return scoreB - scoreA; // descending — highest impact first
+    });
 
   const far = annotated
     .filter(e => Number.isFinite(e.distance_mi) && e.distance_mi > NEAR_EVENT_RADIUS_MILES)

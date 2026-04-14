@@ -156,6 +156,7 @@ Data access layer loading 11 parallel context sources:
 | 4 | Action tag extraction is regex-based, can break on malformed JSON | Low | AI_RIDESHARE_COACH.md |
 | 5 | No per-user chat rate limit (global only) | Low | AI_RIDESHARE_COACH.md |
 | 6 | ~180 lines of dead OpenAI Realtime API code in RideshareCoach.tsx | Low | Voice plan |
+| ~~10~~ | ~~NEAR events sorted distance-only, ignoring impact~~ | ~~P1~~ | RESOLVED — composite score `capacity/(1+distance)` in consolidator.js. Memory #106 |
 | COACH-H7 | No streaming fallback — Gemini outage kills coach entirely | High | DOC_DISCREPANCIES.md |
 | COACH-H8 | Conversation saves are fire-and-forget with swallowed errors | High | DOC_DISCREPANCIES.md |
 
