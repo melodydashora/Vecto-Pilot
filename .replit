@@ -23,7 +23,28 @@ localPort = 5000
 externalPort = 80
 
 [workflows]
-runButton = "Run App"
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Run App"
+
+[[workflows.workflow]]
+name = "Run App"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\""
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
