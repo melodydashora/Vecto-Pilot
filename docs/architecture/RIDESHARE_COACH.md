@@ -149,7 +149,8 @@ Data access layer loading 11 parallel context sources:
 
 | # | Issue | Severity | Source |
 |---|-------|----------|--------|
-| 1 | Client `handleEventDeactivation()` duplicates server-side DEACTIVATE_EVENT parsing | Medium | Discovery scan |
+| ~~1~~ | ~~Client `handleEventDeactivation()` duplicates server-side parsing~~ | ~~Medium~~ | RESOLVED — removed in Part 3 |
+| ~~9~~ | ~~`validateEvent.js` import path wrong in rideshare-coach-dal.js~~ | ~~Critical~~ | RESOLVED — `../../events/` → `../events/` (latent since Pass 1 Issue B, exposed by rename) |
 | 2 | No context size estimation — all data injected unconditionally | Medium | AI_RIDESHARE_COACH.md |
 | 3 | No conversation summarization — thread history grows unbounded | Medium | AI_RIDESHARE_COACH.md |
 | 4 | Action tag extraction is regex-based, can break on malformed JSON | Low | AI_RIDESHARE_COACH.md |
