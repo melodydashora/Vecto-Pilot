@@ -2881,7 +2881,13 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       reason: failedReasons.airport || 'Airport conditions could not be retrieved'
     },
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
+    // 2026-04-14: Phase 7 — populate generated_at at the final-data-store write (was dead
+    // column per Phase 2 audit). Semantics: last time this briefing's data was actually
+    // generated (not placeholder, not error, not cleared). Other write paths intentionally
+    // do not touch this column so it preserves "last successful generation" across failures.
+    // See BRIEFING-DATA-MODEL.md Appendix D.
+    generated_at: new Date()
   };
 
   try {
@@ -2897,7 +2903,9 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
           events: briefingData.events,
           school_closures: briefingData.school_closures,
           airport_conditions: briefingData.airport_conditions,
-          updated_at: new Date()
+          updated_at: new Date(),
+          // 2026-04-14: Phase 7 — refresh generated_at on every successful regeneration.
+          generated_at: new Date()
         })
         .where(eq(briefings.snapshot_id, snapshotId));
     } else {
