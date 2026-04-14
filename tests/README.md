@@ -1,7 +1,6 @@
-> **Gemini Analysis (2026-02-11):**
-> This document outlines the testing strategy, including End-to-End (Playwright), Unit (Jest), and Integration tests. It lists the root test files and available commands for running the test suites.
+> For the canonical testing architecture doc, see [docs/architecture/TESTING.md](../docs/architecture/TESTING.md). This file is a quick-reference command guide.
 
-> **Last Verified:** 2026-01-09
+> **Last Updated:** 2026-04-14
 
 # Tests (`tests/`)
 

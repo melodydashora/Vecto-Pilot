@@ -1,4 +1,6 @@
-> **Last Verified:** 2026-01-06
+> For the canonical testing architecture doc, see [docs/architecture/TESTING.md](../../docs/architecture/TESTING.md). This file documents E2E-specific setup and usage.
+
+> **Last Updated:** 2026-04-14
 
 # Playwright E2E Tests - CoPilot Smart Blocks
 
