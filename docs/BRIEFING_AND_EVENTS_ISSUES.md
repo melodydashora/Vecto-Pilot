@@ -1,7 +1,7 @@
 # Briefing & Events Pipeline: Known Issues
 
 **Created:** 2026-02-17
-**Last Verified:** 2026-02-17 (all claims code-verified against actual files)
+**Last Updated:** 2026-04-14
 **Context:** Deep analysis of the briefing pipeline during event-sync-job removal. These issues were identified by tracing the complete flow from snapshot creation through event discovery, venue linking, and strategist delivery.
 
 ## Verification Status

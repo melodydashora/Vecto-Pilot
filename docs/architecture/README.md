@@ -4,6 +4,15 @@
 
 This folder contains focused, readable technical documentation for Vecto Pilot's architecture. Each document is designed to be read in a single pass (<300 lines). All canonical docs use **UPPERCASE** filenames.
 
+## Document Trust Tiers
+
+| Tier | Meaning | Examples |
+|------|---------|----------|
+| **Canonical** | Must match code. Manually maintained or generated from source. | DB_SCHEMA.md, API_REFERENCE.md, AI_ROLE_MAP.md, CONSTRAINTS.md |
+| **Operational Queue** | Current work only. Items resolved here, not stored. | DOC_DISCREPANCIES.md, pending.md |
+| **Historical** | Never use as current truth. Read-only reference. | LESSONS_LEARNED.md, archive files, etl-pipeline-refactoring-*.md |
+| **Generated Map** | Informational only. May lag code unless regenerated this session. | SYSTEM_MAP.md, DATA_FLOW_MAP.json |
+
 ## Document Index
 
 ### Core System (Start Here)

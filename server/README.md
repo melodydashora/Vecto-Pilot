@@ -1,7 +1,7 @@
 > **Gemini Analysis (2026-02-11):**
 > This document details the backend architecture, folder structure (api, lib, db, etc.), and data flow. It highlights the TRIAD pipeline for strategy generation and emphasizes the use of the unified AI adapter pattern and Drizzle ORM.
 
-> **Last Verified:** 2026-01-10
+> **Last Updated:** 2026-04-14
 
 # Server Architecture (`server/`)
 
