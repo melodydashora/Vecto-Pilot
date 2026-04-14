@@ -11,7 +11,7 @@
 | Area | Implemented | Runnable | CI-Enforced | Coverage-Enforced |
 |------|-------------|----------|-------------|-------------------|
 | Unit (backend) | Yes — 10 files | `npm run test:unit` | No | No |
-| Unit (frontend) | Yes — 6 files | `npm run test:client` | No | No |
+| Unit (frontend) | Yes — 6 files | `npx jest -c jest.client.config.js` | No | No |
 | Integration | Yes — 4 files | Manual via node | No | No |
 | E2E | Yes — Playwright | `npm run test:e2e` | No | No |
 | Load | No | — | — | — |
@@ -19,6 +19,19 @@
 | Preflight | Yes — script | `node tests/scripts/preflight-check.js` | No | — |
 | Coverage (backend) | collectCoverageFrom configured | `npx jest --coverage` | No | No threshold enforced |
 | Coverage (frontend) | collectCoverageFrom configured | `npx jest -c jest.client.config.js --coverage` | No | No threshold enforced |
+
+## Test Entrypoints
+
+| Command | What It Runs | Status |
+|---------|-------------|--------|
+| `npm test` | Unit + E2E (`test:unit && test:e2e`) | **Blessed entrypoint** |
+| `npm run test:unit` | Backend Jest tests (`tests/**/*.test.js`) | Primary |
+| `npm run test:e2e` | Playwright (`tests/e2e/copilot.spec.ts`) | Primary |
+| `npx jest -c jest.client.config.js` | Frontend Jest tests (`tests/**/*.test.tsx`) | Primary (no npm script alias) |
+| `node tests/scripts/smoke-test.js` | Deployment smoke check (5 endpoint status checks) | Primary |
+| `node tests/scripts/preflight-check.js` | Pre-deployment env check (DB, schema, health) | Primary |
+| `node tests/run-all-tests.js` | Gateway + Eidolon runner | LEGACY — predates Jest/Playwright |
+| `node tests/run-all-phases.js` | Phase-C infrastructure audit | LEGACY — predates Jest/Playwright |
 
 ---
 
