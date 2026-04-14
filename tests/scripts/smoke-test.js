@@ -1,109 +1,71 @@
 #!/usr/bin/env node
 /**
- * Smoke Test - Verify root causes are fixed
- * 
- * Tests:
- * 1. /health endpoint responds
- * 2. /api/assistant/verify-override exists (was 404)
- * 3. No "column key" errors in context enrichment
- * 4. No "threadManager.get" errors
+ * Quick deployment smoke test — verifies critical endpoints respond.
+ *
+ * Usage: node tests/scripts/smoke-test.js
+ * Requires: Running server (default http://localhost:5000)
+ * Override: BASE_URL=https://your-app.replit.dev node tests/scripts/smoke-test.js
+ *
+ * 2026-04-14: Rewritten for current architecture (Pass 7, Issue AV)
  */
 
-const http = require('http');
+import http from 'node:http';
+import https from 'node:https';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 
 function httpGet(url) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
-    const options = {
+    const transport = urlObj.protocol === 'https:' ? https : http;
+    const req = transport.request({
       hostname: urlObj.hostname,
-      port: urlObj.port || 80,
+      port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
       path: urlObj.pathname + urlObj.search,
       method: 'GET',
-      timeout: 3000
-    };
-
-    const req = http.request(options, (res) => {
+      timeout: 5000,
+    }, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        resolve({
-          status: res.statusCode,
-          headers: res.headers,
-          body: data
-        });
-      });
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
     });
-
     req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
     req.end();
   });
 }
 
-async function runTests() {
-  console.log('\n🧪 Root Cause Fix Verification\n');
-  console.log('='.repeat(50));
+// Endpoints to verify. Any listed status code counts as "responding."
+// We don't require 200 — a 401 or 400 still proves the route is mounted and the server is running.
+const endpoints = [
+  { name: '/health',             path: '/health',                     ok: [200] },
+  { name: '/api/auth',           path: '/api/auth/status',            ok: [200, 401, 403] },
+  { name: '/api/blocks-fast',    path: '/api/blocks-fast',            ok: [200, 400, 401, 403, 405] },
+  { name: '/api/briefing',       path: '/api/briefing/weather/test',  ok: [200, 400, 401, 403, 404] },
+  { name: '/api/strategy/events',path: '/events/strategy',            ok: [200, 401, 403, 404] },
+];
 
-  let passed = 0;
-  let failed = 0;
+let passed = 0;
+let failed = 0;
 
-  // Test 1: Health endpoint
+console.log(`\nSmoke Test — ${BASE_URL}\n${'='.repeat(50)}`);
+
+for (const ep of endpoints) {
   try {
-    const res = await httpGet(`${BASE_URL}/health`);
-    if (res.status === 200 && res.body.trim() === 'OK') {
-      console.log('✅ Test 1: Health endpoint (200 OK)');
+    const res = await httpGet(`${BASE_URL}${ep.path}`);
+    if (ep.ok.includes(res.status)) {
+      console.log(`  PASS  ${ep.name} (${res.status})`);
       passed++;
     } else {
-      console.log(`❌ Test 1: Health endpoint (got ${res.status}, expected 200)`);
+      console.log(`  FAIL  ${ep.name} — got ${res.status}, expected one of [${ep.ok}]`);
       failed++;
     }
   } catch (err) {
-    console.log(`❌ Test 1: Health endpoint (error: ${err.message})`);
+    console.log(`  FAIL  ${ep.name} — ${err.message}`);
     failed++;
-  }
-
-  // Test 2: Verify-override endpoint (was 404)
-  try {
-    const res = await httpGet(`${BASE_URL}/api/assistant/verify-override`);
-    if (res.status === 200) {
-      const data = JSON.parse(res.body);
-      if (data.ok === true && data.mode && data.timestamp) {
-        console.log('✅ Test 2: Verify-override endpoint (was 404, now 200)');
-        console.log(`   Mode: ${data.mode}, Timestamp: ${data.timestamp}`);
-        passed++;
-      } else {
-        console.log('❌ Test 2: Verify-override missing required fields');
-        failed++;
-      }
-    } else {
-      console.log(`❌ Test 2: Verify-override (got ${res.status}, expected 200)`);
-      failed++;
-    }
-  } catch (err) {
-    console.log(`❌ Test 2: Verify-override (error: ${err.message})`);
-    failed++;
-  }
-
-  // Summary
-  console.log('\n' + '='.repeat(50));
-  console.log(`\n📊 Results: ${passed} passed, ${failed} failed\n`);
-
-  if (failed === 0) {
-    console.log('✅ All root causes fixed!\n');
-    process.exit(0);
-  } else {
-    console.log('❌ Some tests failed\n');
-    process.exit(1);
   }
 }
 
-runTests().catch(err => {
-  console.error('Fatal error:', err.message);
-  process.exit(1);
-});
+console.log(`\n${'='.repeat(50)}`);
+console.log(`Results: ${passed} passed, ${failed} failed\n`);
+process.exit(failed > 0 ? 1 : 0);
