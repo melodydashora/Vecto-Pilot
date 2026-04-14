@@ -11,10 +11,13 @@
 //   GET /api/blocks-fast?snapshotId=X - Get blocks (generates if missing)
 //
 // PIPELINE (POST):
-//   1. STRATEGY_CONTEXT role → events, traffic, news (briefings table)
+//   1. BRIEFING_* roles → weather, traffic, events, news, airport, schools (briefings table)
 //   2. STRATEGY_TACTICAL role → strategy_for_now (strategies table)
+//      Input: snapshot + briefing + driver preferences + earnings context
 //   3. VENUE_SCORER role → venue recommendations (ranking_candidates table)
+//      Input: strategy + briefing + live discovered_events (NEAR/FAR bucketed)
 //   4. Google APIs → distances, business hours, enrichment
+//   5. VENUE_EVENT_VERIFIER role → event verification
 //
 // NOTE: Daily strategy (STRATEGY_DAILY) is NOT generated automatically.
 //       It's on-demand via POST /api/strategy/daily/:snapshotId when user requests it.
