@@ -434,3 +434,66 @@ These are documented as *projections*, not as owned fields. Per §6 every header
 | `snapshots.market` nullable-but-required + fallback policy | **Phase 3** (resolve open decisions) |
 | Missing wire→DB persistence of `coord.source`, `coord.accuracyMeters`, `is_weekend` | **Phase 3** or **Phase 4** — decide whether to extend schema or drop from wire |
 
+---
+
+## Appendix B: Phase 5 — `dow` Field Verification (2026-04-14)
+
+### B.1 Write-Path Verification
+
+`dow` is populated at snapshot creation in **both** write paths, alongside `hour`, `day_part_key`, `local_iso`:
+
+| File:Line | Path | Code |
+|-----------|------|------|
+| `server/api/location/location.js:1891` | `POST /api/location/resolve` (primary) | `dow: typeof snapshotV1.time_context?.dow === 'number' ? snapshotV1.time_context.dow : null` |
+| `server/api/location/snapshot.js:138` | `POST /api/location/snapshot` (secondary) | `dow: typeof dow === 'number' ? dow : null` |
+| `server/api/location/location.js:1656` | "minimal mode enriched" fallback | `dow: localDow >= 0 ? localDow : now.getDay()` (derived server-side via `Intl.DateTimeFormat({weekday:'long', timeZone})` + `dayNames.indexOf(...)`) |
+
+Server-side validation at `location.js:1929` rejects snapshots where `dow` is `undefined`/`null` with HTTP 400 `incomplete_snapshot`. `dow` is included in the Phase 4 `REQUIRED_FIELDS` readiness-gate list.
+
+### B.2 Format Verification: `dow` is an INTEGER 0–6
+
+The Phase 5 task brief asserted "`dow` should be a string like 'Monday', 'Tuesday'." This assertion is **incorrect** and contradicts every authoritative source:
+
+| Source | Says |
+|--------|------|
+| `shared/schema.js:57` | `dow: integer("dow").notNull(), // 0=Sunday, 1=Monday, etc.` |
+| `shared/types/snapshot.ts:22` | `dow: number;` |
+| `BRIEFING-DATA-MODEL.md §3.3` | `dow | integer | 0=Sunday … 6=Saturday` |
+| Memory #110 | "Required NOT NULL: … dow …" (integer per schema) |
+
+Twelve consumers observed — all treat `dow` as an integer:
+
+| Consumer | Treatment |
+|----------|-----------|
+| `tactical-planner.js:97` | `dayNames[snapshot.dow]` (array index — requires integer) |
+| `consolidator.js:1431` | `dayNames[snapshot.dow]` (array index) |
+| `consolidator.js:1432` | `snapshot.dow === 0 \|\| snapshot.dow === 6` (weekend check) |
+| `get-snapshot-context.js:35,108` | `dow === 0 \|\| dow === 6` |
+| `getSnapshotTimeContext.js:73` | `dayOfWeek === 0 \|\| dayOfWeek === 6` |
+| `rideshare-coach-dal.js:134` | `dow === 0 \|\| dow === 6` |
+| `dump-last-briefing.js:80` | `['Sunday',…'Saturday'][snapshot.dow]` |
+| `location.js:1656` | `localDow >= 0` (numeric gate) |
+| `location.js:1929` | `dow === undefined \|\| dow === null` (number check) |
+| `location.js:2046` | `dayNames[snapshotV1.time_context?.dow]` (array index) |
+
+**Zero consumers treat `dow` as a string.** Migrating to string would silently break every one of them — array-indexing with a string key returns `undefined`, and `"Monday" === 0` is always false so weekend detection would permanently return false.
+
+### B.3 Decision
+
+**`dow` is CORRECT AS-IS.** No code changes made. Per the Phase 5 brief's own clause ("If dow is already correct, just document the finding and move on"), this phase is closed in documentation.
+
+The Phase 5 brief's step-3 string-format assertion is **REJECTED** under Rule 6 (master-architect pushback). If a human-readable day name is needed for display, the correct mechanism is a derived accessor (e.g., `dayNames[snapshot.dow]` at the display layer) or a separate `dow_name` string column — not a migration of the primary integer field.
+
+### B.4 Noted but NOT fixed in Phase 5
+
+1. **Client-trust risk on primary write paths.** `location.js:1891` and `snapshot.js:138` both accept the client-sent `dow` without server-side re-derivation. If the client sends a non-number, the validation at `location.js:1929` rejects the entire snapshot (fail-safe, not silent). But this is less robust than the `:1656` fallback which derives `dow` server-side from `timezone` + `createdAtDate` via `Intl.DateTimeFormat({weekday:'long', timeZone})` + `dayNames.indexOf(...)`. **Recommendation:** apply the same server-side derivation on the primary paths as a sanity check (prefer server value; log-warn if the client disagrees). **Not fixed here** — it is scope-expansion beyond the "if correct, document and move on" instruction. Flag for a future dedicated hardening pass.
+
+2. **§3.3 rule violation: `GlobalHeader.tsx:466` recomputes `dow` via `classifyDayPart(now, tz)`.** Already documented in Appendix A as a Phase 6 target. Not duplicated here. The Phase 6 fix will source the header's day-of-week indicator from `snapshot.dow` directly.
+
+### B.5 Summary
+
+- **dow populated at creation:** YES (both paths + fallback)
+- **dow in REQUIRED_FIELDS (Phase 4):** YES (confirmed in `location.js:2390`)
+- **dow format correct:** YES (integer per schema and all consumers)
+- **Phase 5 code changes:** NONE. Pushback documented. Hardening opportunity flagged for future work.
+
