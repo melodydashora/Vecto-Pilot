@@ -39,7 +39,7 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 - **6-Decimal GPS Precision**: ~11cm accuracy for cache keys and venue matching — coordinates always from Google APIs, never AI-generated
 - **140+ Global Markets**: Pre-stored timezone and airport data for 69 US + 71 international markets, saving ~200-300ms per request
 
-### AI Coach (Voice & Text)
+### Rideshare Coach (Voice & Text)
 - **Conversational AI**: Gemini 3 Pro-powered coach with full context awareness — knows your location, strategy, events, and market intelligence
 - **Voice Mode**: Hands-free voice conversations via OpenAI Realtime API while driving
 - **Cross-Session Memory**: Coach remembers preferences, vehicle type, past strategies, and driver-contributed zone intelligence
@@ -361,7 +361,7 @@ See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for can
 - [x] Multi-model TRIAD pipeline (Claude + Gemini + GPT-5.2)
 - [x] 31-role model registry with hedged routing and fallback
 - [x] Smart Blocks with real-time venue enrichment
-- [x] AI Coach with voice and text (Gemini 3 Pro + OpenAI Realtime)
+- [x] Rideshare Coach with voice and text (Gemini 3 Pro + OpenAI Realtime)
 - [x] Event ETL pipeline with 5-phase processing
 - [x] Google OAuth integration
 - [x] 140+ global market support with pre-stored timezones
@@ -403,8 +403,8 @@ This project is licensed under the **MIT License**.
 - **Reliability**: Fixed logout race condition (cancel queries before clearing auth token)
 - **Fix**: Resolved shell-level env overwrite that broke DOCS_GENERATOR API calls
 
-### v4.2.0 - AI Coach & Identity (Feb 2026)
-- **Feature**: AI Coach upgraded with full model identity, vision/OCR capabilities, and agent write access
+### v4.2.0 - Rideshare Coach & Identity (Feb 2026)
+- **Feature**: Rideshare Coach upgraded with full model identity, vision/OCR capabilities, and agent write access
 - **Feature**: AI Concierge Assistant with venue/event exploration context
 - **Auth**: Uber OAuth callback route and flow foundations
 - **Fix**: Corrected all Anthropic model IDs from Claude 4.5 to Claude Opus 4.6 across adapters
@@ -413,7 +413,7 @@ This project is licensed under the **MIT License**.
 - **Integration**: Merged "Vecto-Pilot-Ultimate" features — Hedged Routing, Uber Auth foundations
 - **Infrastructure**: Migrated to ESLint v9 Flat Config
 - **Architecture**: TRIAD parallel waterfall pipeline (~35s avg strategy generation)
-- **Feature**: Voice AI Coach via OpenAI Realtime API
+- **Feature**: Voice Rideshare Coach via OpenAI Realtime API
 - **Reliability**: FAIL HARD pattern for critical data dependencies
 - **Data**: 6-decimal GPS precision (~11cm accuracy)
 

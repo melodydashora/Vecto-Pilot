@@ -395,7 +395,7 @@ POST https://69f9de93-7dc3-48aa-9050-4c395406d344-00-3uat6a5ciur3j.riker.replit.
 ### Changes Made
 
 1. **Gemini 3.1 Pro** (`gemini-3.1-pro-preview`) — set as default for all 20+ Gemini-primary roles
-2. **AI Coach** — explicitly upgraded to Gemini 3.1 Pro with updated purpose string
+2. **Rideshare Coach** — explicitly upgraded to Gemini 3.1 Pro with updated purpose string
 3. **`.env.example`** — updated from stale `claude-opus-4-5-20251101` → `claude-opus-4-6` (6 refs) and `gemini-3-pro-preview` → `gemini-3.1-pro-preview` (2 refs)
 4. **New specialty models documented** (not yet assigned to roles):
    - `gemini-2.5-flash-native-audio-latest` — Realtime Voice Coach (future)

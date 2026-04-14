@@ -225,7 +225,7 @@ If an existing strategy has `status === 'pending_blocks'` or is stuck in-progres
 
 ## 6. How Strategy Feeds Into Coach and Briefing
 
-### Strategy → AI Coach
+### Strategy → Rideshare Coach
 
 **File:** `server/api/chat/chat-context.js` (92 lines)
 

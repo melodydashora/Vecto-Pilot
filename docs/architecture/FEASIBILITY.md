@@ -99,7 +99,7 @@ A thin native shell (Swift + Kotlin) wrapping the React web app would solve the 
 ### NOT Available Offline
 
 - Fresh GPS location
-- AI Coach chat (requires API)
+- Rideshare Coach chat (requires API)
 - Briefing data (requires server)
 - Venue recommendations (requires LLM)
 - Offer analysis (requires Gemini Vision)

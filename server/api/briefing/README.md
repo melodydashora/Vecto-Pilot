@@ -40,7 +40,7 @@ GET  /api/briefing/discovered-events/:snapshotId - Raw discovered_events data
 POST /api/briefing/confirm-event-details        - Confirm TBD event details
 ```
 
-### Event Management (AI Coach)
+### Event Management (Rideshare Coach)
 ```
 PATCH /api/briefing/event/:eventId/deactivate   - Mark event as inactive
 PATCH /api/briefing/event/:eventId/reactivate   - Reactivate an event
@@ -109,7 +109,7 @@ Direct access to `discovered_events` table rows.
 ```
 
 ### PATCH /api/briefing/event/:eventId/deactivate
-Mark an event as inactive (hides from Map tab). Used by AI Coach when driver reports event is over/cancelled/incorrect.
+Mark an event as inactive (hides from Map tab). Used by Rideshare Coach when driver reports event is over/cancelled/incorrect.
 
 **Request Body:**
 ```json
@@ -146,8 +146,8 @@ Reactivate a previously deactivated event (shows on Map again).
 }
 ```
 
-### AI Coach Integration
-The AI Coach can deactivate and reactivate events using special formats in responses:
+### Rideshare Coach Integration
+The Rideshare Coach can deactivate and reactivate events using special formats in responses:
 
 **Deactivate an event:**
 ```

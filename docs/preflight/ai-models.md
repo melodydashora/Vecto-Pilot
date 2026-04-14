@@ -40,7 +40,7 @@ Each role in `MODEL_ROLES` defines:
 | Anthropic | Claude Opus 4.6 | `claude-opus-4-6` | 1M (beta) | 128K | Strategy core, event validation |
 | Anthropic | Claude Sonnet 4.6 | `claude-sonnet-4-6` | 1M (beta) | 64K | Fast + intelligent (available) |
 | Anthropic | Claude Haiku 4.5 | `claude-haiku-4-5-20251001` | 200K | 8K | Venue classification |
-| Google | Gemini 3.1 Pro | `gemini-3.1-pro-preview` | 1M | 65K | Briefings, AI Coach, context |
+| Google | Gemini 3.1 Pro | `gemini-3.1-pro-preview` | 1M | 65K | Briefings, Rideshare Coach, context |
 | Google | Gemini 3 Flash | `gemini-3-flash-preview` | 1M | 65K | Offer analyzer, fallbacks |
 | OpenAI | GPT-5.2 | `gpt-5.2` | 400K | 128K | Tactical strategy, venue scoring |
 | Perplexity | Sonar Pro | `sonar-pro` | 200K | 8K | Web-grounded research |

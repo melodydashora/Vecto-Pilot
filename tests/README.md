@@ -25,8 +25,8 @@ Test suites for the application.
 |------|---------|
 | `auth-token-validation.test.js` | Auth token validation tests |
 | `blocksApi.test.js` | Blocks API endpoint tests |
-| `coach-schema.test.js` | AI Coach schema validation tests |
-| `coach-validation.test.js` | AI Coach input validation tests |
+| `coach-schema.test.js` | Rideshare Coach schema validation tests |
+| `coach-validation.test.js` | Rideshare Coach input validation tests |
 | `schema-validation.test.js` | Schema validation tests |
 | `snapshot-ownership-event.test.ts` | Snapshot ownership and event tests |
 | `phase-c-infrastructure.js` | Infrastructure phase tests |

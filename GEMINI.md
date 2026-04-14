@@ -25,7 +25,7 @@ You operate in a Multi-Agent Environment. Route your I/O operations explicitly:
 
 **A. Database & Environment**
 * Dev and Prod are TWO SEPARATE Replit Helium (PostgreSQL 16) instances with completely isolated data. DO NOT create custom env-swapping logic; Replit handles `DATABASE_URL` natively. (Ref: `database-environments.md`)
-* The AI Coach must retain write access to: `venue_catalog`, `market_intelligence`, `user_intel_notes`, `zone_intelligence`, `coach_conversations`, `coach_system_notes`. 
+* The Rideshare Coach must retain write access to: `venue_catalog`, `market_intelligence`, `user_intel_notes`, `zone_intelligence`, `coach_conversations`, `coach_system_notes`. 
 
 **B. AI & Event Infrastructure**
 * **Unified AI Layer:** Ad-hoc AI implementations are forbidden. Route all requests through `server/lib/ai/unified-ai-capabilities.js`.

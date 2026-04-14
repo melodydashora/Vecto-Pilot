@@ -13,7 +13,7 @@ The memory layer uses **4 PostgreSQL tables** to store context for different AI 
 | Table | Purpose | Used By |
 |-------|---------|---------|
 | `agent_memory` | Workspace agent context | Agent |
-| `assistant_memory` | User preferences, conversations | Assistant, AI Coach |
+| `assistant_memory` | User preferences, conversations | Assistant, Rideshare Coach |
 | `eidolon_memory` | Session/project state | Eidolon framework |
 | `cross_thread_memory` | Shared context across threads | All |
 
@@ -121,7 +121,7 @@ fetch('/agent/memory/conversation', {
 });
 ```
 
-### Get Full Context (AI Coach / Agent)
+### Get Full Context (Rideshare Coach / Agent)
 
 ```javascript
 // GET /agent/context - Returns everything
@@ -234,7 +234,7 @@ CREATE INDEX idx_{table}_expires ON {table} (expires_at);
 ┌─────────────────────────────────────────────────────────────────┐
 │                      AI Systems                                  │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Claude  │  │ AI Coach │  │  Agent   │  │ Eidolon  │        │
+│  │  Claude  │  │ Rideshare Coach │  │  Agent   │  │ Eidolon  │        │
 │  │  Code    │  │ (client) │  │ (server) │  │ (server) │        │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘        │
 │       │             │             │             │               │

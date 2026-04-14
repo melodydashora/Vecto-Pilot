@@ -50,7 +50,7 @@ Email/password auth, Google OAuth, Uber OAuth linkage, driver profiles, vehicle/
 
 Headless offer-ingestion system for Siri Shortcuts and ride-offer analysis with structured storage in offer_intelligence.
 
-### I. AI Coach / memory / market intelligence
+### I. Rideshare Coach / memory / market intelligence
 
 Conversational and memory-bearing layer: coach_conversations, user_intel_notes, coach_system_notes, market/zone intelligence, claude_memory for session knowledge capture.
 

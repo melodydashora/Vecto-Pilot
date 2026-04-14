@@ -102,7 +102,7 @@ When GPS fails or is unavailable, `home_lat`/`home_lng` from the profile is used
 
 **Table:** `user_intel_notes`
 
-The AI Coach saves learned preferences via `[SAVE_NOTE]` action tags:
+The Rideshare Coach saves learned preferences via `[SAVE_NOTE]` action tags:
 
 ```json
 {

@@ -62,7 +62,7 @@ co-pilot/
 The main page - displays:
 - AI-generated driving strategy (immediate + daily)
 - Smart Blocks (venue recommendations)
-- AI Coach chat interface
+- Rideshare Coach chat interface
 - Loading states with progress indicators
 
 Uses:

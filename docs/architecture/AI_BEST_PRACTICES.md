@@ -32,7 +32,7 @@
 | **Deep reasoning** | Claude Opus 4.6 | Strategy generation (synthesis of 7+ data sources) |
 | **Search + reasoning** | Gemini Pro (HIGH thinking) | Briefing (events, traffic, news — needs web search) |
 | **Ultra-fast vision** | Gemini Flash (vision) | Offer screenshot analysis (<2s for Siri) |
-| **Streaming conversation** | Gemini Pro (streaming) | AI Coach chat (requires SSE) |
+| **Streaming conversation** | Gemini Pro (streaming) | Rideshare Coach chat (requires SSE) |
 
 ### Feature Requirements Drive Selection
 

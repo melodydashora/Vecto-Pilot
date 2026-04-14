@@ -1,21 +1,21 @@
-# AI Coach Enhancements - TODO
+# Rideshare Coach Enhancements - TODO
 
 > **LEGACY — Enhancement queue consolidated into [docs/architecture/RIDESHARE_COACH.md](../architecture/RIDESHARE_COACH.md) §6-7 on 2026-04-14.**
 > Most items below have been implemented. See the consolidated doc for current status.
 
 **Created:** 2025-12-29
-**Status:** PENDING
+**Status:** COMPLETED — consolidated into RIDESHARE_COACH.md
 **Priority:** High
 
 ## Requirements
 
 ### 1. Notes Field Updates
-- AI Coach should be able to update a `notes` field for users
+- Rideshare Coach should be able to update a `notes` field for users
 - Consider adding to `driver_profiles` table or creating separate `coach_notes` table
 - Notes should persist across sessions
 
 ### 2. Database Visibility
-- AI Coach needs visibility into all tables and fields
+- Rideshare Coach needs visibility into all tables and fields
 - Create a schema introspection endpoint or provide schema context to the coach
 - Tables to expose:
   - `users` / `driver_profiles` / `driver_vehicles`
@@ -39,7 +39,7 @@
 
 ## Implementation Notes
 
-The AI Coach currently uses:
+The Rideshare Coach currently uses:
 - `/api/chat/coach` for text conversations
 - `/api/intelligence/coach/:market` for market context
 - Memory system for conversation history

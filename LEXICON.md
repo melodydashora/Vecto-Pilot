@@ -118,7 +118,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 ---
 
-### AI Coach (Multi-Model System)
+### Rideshare Coach (Multi-Model System)
 **What it is:** Real-time strategic analysis system using multiple AI models in a waterfall pipeline.
 
 **Key Characteristics:**
@@ -310,7 +310,7 @@ The adapter layer detects provider from model ID prefix:
 | `VENUE_TRAFFIC` | Venue-specific traffic intelligence | `VENUE_TRAFFIC_MODEL` | web search |
 | `VENUE_EVENT_VERIFIER` | Verify events at specific venues | `VENUE_EVENT_VERIFIER_MODEL` | minimal tokens |
 | **COACH_CONVERSATIONS TABLE** ||||
-| `AI_COACH` | AI Coach conversation (streaming) | `AI_COACH_MODEL` | web search, vision, OCR, **streaming required** |
+| `AI_COACH` | Rideshare Coach conversation (streaming) | `AI_COACH_MODEL` | web search, vision, OCR, **streaming required** |
 | **OFFER ANALYSIS** ||||
 | `OFFER_ANALYZER` | Phase 1: Quick offer screenshot analysis | `OFFER_ANALYZER_MODEL` | vision |
 | `OFFER_ANALYZER_DEEP` | Phase 2: Deep offer analysis | `OFFER_ANALYZER_DEEP_MODEL` | vision, thinking |
@@ -335,7 +335,7 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 const filtered = await callModel('VENUE_FILTER', { system, user });
 const events = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
 
-// Streaming (AI Coach only — provider must support it)
+// Streaming (Rideshare Coach only — provider must support it)
 const stream = await callModelStream('AI_COACH', { system, messageHistory });
 ```
 
@@ -772,7 +772,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 - `docs/preflight/ai-models.md` - AI model reference and parameter constraints
 - `LEXICON.md` - This file (terminology reference)
 - `replit.md` - Replit-specific documentation
-- `COACH_DATA_ACCESS.md` - AI Coach data access patterns
+- `COACH_DATA_ACCESS.md` - Rideshare Coach data access patterns
 - `QUERY_CONVENTIONS.md` - Database query standards
 - `SECURITY_AUDIT_REPORT.md` - Security audit findings
 

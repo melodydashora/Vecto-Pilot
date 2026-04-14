@@ -27,7 +27,7 @@
 
 ## 1. What Is Market Intelligence?
 
-Market Intelligence (MI) is the knowledge layer that gives the AI Coach and strategy engine understanding of **how rideshare markets work** — beyond what's in the current snapshot. This includes:
+Market Intelligence (MI) is the knowledge layer that gives the Rideshare Coach and strategy engine understanding of **how rideshare markets work** — beyond what's in the current snapshot. This includes:
 
 - Market structure (Core vs Satellite cities, Gravity Model)
 - Algorithm mechanics (Upfront Pricing, Area Preferences)
@@ -44,7 +44,7 @@ Market Intelligence (MI) is the knowledge layer that gives the AI Coach and stra
 | Source | How Collected | Stored In |
 |--------|---------------|-----------|
 | Research data | Manual ETL from `platform-data/` files | `market_intelligence`, `platform_data` |
-| AI Coach conversations | Coach saves via `[MARKET_INTEL]` action tags | `market_intelligence` |
+| Rideshare Coach conversations | Coach saves via `[MARKET_INTEL]` action tags | `market_intelligence` |
 | Driver reports | Coach saves via `[ZONE_INTEL]` action tags | `zone_intelligence` |
 | System observations | Coach saves via `[SYSTEM_NOTE]` action tags | `coach_system_notes` |
 | Venue discovery | SmartBlocks pipeline + concierge search | `venue_catalog` |

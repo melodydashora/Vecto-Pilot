@@ -9,13 +9,13 @@ Full UUIDs are PII and should not appear in server logs.
 
 ## Purpose
 
-AI Coach with streaming and voice capabilities.
+Rideshare Coach with streaming and voice capabilities.
 
 ## Files
 
 | File | Route | Purpose | Auth Required |
 |------|-------|---------|---------------|
-| `chat.js` | `/api/chat` | AI Coach SSE streaming | Yes |
+| `chat.js` | `/api/chat` | Rideshare Coach SSE streaming | Yes |
 | `chat-context.js` | `/coach/context/*` | Read-only chat context | No |
 | `realtime.js` | `/api/realtime` | OpenAI Realtime voice | **Yes** |
 | `tts.js` | `/api/tts` | Text-to-speech | **Yes** |
@@ -23,7 +23,7 @@ AI Coach with streaming and voice capabilities.
 ## Endpoints
 
 ```
-POST /api/chat/:snapshotId/message  - AI Coach with streaming (SSE)
+POST /api/chat/:snapshotId/message  - Rideshare Coach with streaming (SSE)
 GET  /coach/context/:snapshotId     - Get chat context
 POST /api/realtime/token            - Get Realtime session token (AUTH REQUIRED)
 POST /api/tts                       - Text-to-speech conversion (AUTH REQUIRED)
@@ -40,7 +40,7 @@ POST /api/tts                       - Text-to-speech conversion (AUTH REQUIRED)
 
 Both use `requireAuth` middleware to prevent unauthenticated API cost abuse.
 
-## AI Coach Flow
+## Rideshare Coach Flow
 
 1. Client sends message via POST /api/chat
 2. Server extracts user's timezone from `clientSnapshot.timezone`
@@ -52,7 +52,7 @@ Both use `requireAuth` middleware to prevent unauthenticated API cost abuse.
 
 ## Action Parsing
 
-The AI Coach can emit special action tags that are parsed and executed server-side:
+The Rideshare Coach can emit special action tags that are parsed and executed server-side:
 
 | Action | Purpose | Example |
 |--------|---------|---------|

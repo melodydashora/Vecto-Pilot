@@ -4,7 +4,7 @@
 
 ## Purpose
 
-AI Coach API routes for schema awareness, validation, and notes CRUD operations. Provides the AI Coach with database awareness and the ability to store/retrieve user notes.
+Rideshare Coach API routes for schema awareness, validation, and notes CRUD operations. Provides the Rideshare Coach with database awareness and the ability to store/retrieve user notes.
 
 ## Files
 
@@ -69,4 +69,4 @@ import { requireAuth } from '../../middleware/auth.js';
 ```
 
 ---
-*Created: 2026-01-05 - AI Coach enhancements*
+*Created: 2026-01-05 - Rideshare Coach enhancements*

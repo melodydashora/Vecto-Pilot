@@ -39,14 +39,14 @@ This file provides guidance to Claude Code when working with this repository.
 - Create sub-agents (Task tool) for complex investigations
 - Make logical, well-reasoned decisions with justification
 
-### Rule 7: AI Coach Data Access (Schema Changes)
-When schema changes are made, ensure the **AI Coach** has access to:
+### Rule 7: Rideshare Coach Data Access (Schema Changes)
+When schema changes are made, ensure the **Rideshare Coach** has access to:
 - All database tables
 - Snapshot history filtered by `user_id`
 - Connected static data (markets, platforms, venue catalogues)
 
-### Rule 8: AI Coach Write Access
-The AI Coach needs **write access** to capture learnings from real user interactions:
+### Rule 8: Rideshare Coach Write Access
+The Rideshare Coach needs **write access** to capture learnings from real user interactions:
 
 | Table | Purpose |
 |-------|---------|
@@ -55,7 +55,7 @@ The AI Coach needs **write access** to capture learnings from real user interact
 | `user_intel_notes` | Per-user notes from driver interactions |
 | `zone_intelligence` | Crowd-sourced zone knowledge (dead zones, honey holes, staging spots) |
 | `coach_conversations` | Thread history for cross-session memory |
-| `coach_system_notes` | **AI Coach observations** about system enhancements |
+| `coach_system_notes` | **Rideshare Coach observations** about system enhancements |
 | `discovered_events` | Event deactivation/reactivation (via `is_active` flag) |
 | `news_deactivations` | User news hiding preferences |
 
@@ -100,7 +100,7 @@ The AI Coach needs **write access** to capture learnings from real user interact
 | 1 | `docs/review-queue/pending.md` | Unfinished doc updates from prior sessions |
 | 2 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
 | 3 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
-| 4 | `docs/coach-inbox.md` | Memos from the AI Coach (Gemini) for Claude Code |
+| 4 | `docs/coach-inbox.md` | Memos from the Rideshare Coach (Gemini) for Claude Code |
 | 5 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
 | 6 | `docs/architecture/full-audit-2026-04-04.md` | Latest comprehensive audit findings (37 issues) |
 
@@ -159,7 +159,7 @@ node scripts/ask-gemini.mjs --help                                          # fu
 
 **When NOT to delegate:** small edits, things you can verify with a single Grep, anything where waking up another model is slower than just doing it yourself. This is a tool for high-value, high-context tasks — not a reflex.
 
-**Feedback loop the other direction:** the in-app AI Coach (also Gemini) writes memos to `docs/coach-inbox.md` via `[COACH_MEMO]` tags. Rule 12 already tells you to check that file at session start.
+**Feedback loop the other direction:** the in-app Rideshare Coach (also Gemini) writes memos to `docs/coach-inbox.md` via `[COACH_MEMO]` tags. Rule 12 already tells you to check that file at session start.
 
 See `scripts/README.md` §"Claude Code ↔ Gemini Bridge" for full CLI reference and design rationale.
 - **`server/bootstrap/workers.js`**: Worker process management (Strategy Worker).

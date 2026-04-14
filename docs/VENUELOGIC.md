@@ -131,16 +131,16 @@ rideshare_potential: price.rank >= 3 ? 'high' : price.rank >= 2 ? 'medium' : 'lo
 
 ---
 
-### Fields Populated by `coach-dal.js` (AI Coach Writes)
+### Fields Populated by `coach-dal.js` (Rideshare Coach Writes)
 
 | Field | Source Code | Line # |
 |-------|-------------|--------|
-| `staging_notes` | AI Coach venue intel contributions | 1886, 1916, 1939, 1973 |
-| `dayparts` | AI Coach venue intel contributions | 1885, 1938 |
-| `ai_estimated_hours` | AI Coach venue intel contributions | 1890, 1917, 1944 |
-| `market_slug` | AI Coach market context | 1833, 2028 |
+| `staging_notes` | Rideshare Coach venue intel contributions | 1886, 1916, 1939, 1973 |
+| `dayparts` | Rideshare Coach venue intel contributions | 1885, 1938 |
+| `ai_estimated_hours` | Rideshare Coach venue intel contributions | 1890, 1917, 1944 |
+| `market_slug` | Rideshare Coach market context | 1833, 2028 |
 
-**AI Coach staging_notes merge logic (line 1973):**
+**Rideshare Coach staging_notes merge logic (line 1973):**
 ```javascript
 staging_notes: sql`COALESCE(${venue_catalog.staging_notes}, '{}')::jsonb || ${JSON.stringify(stagingNotes)}::jsonb`
 ```
@@ -211,7 +211,7 @@ staging_notes: {
 | insertVenue | `venue-cache.js` | ✅ From caller | Depends on caller | ✅ YES |
 | SmartBlocks | `enhanced-smart-blocks.js` | ❌ NO | ❌ NO | ❌ NO |
 | Manual Seed | `seed-dfw-venues.js` | ❌ NO | ❌ NO | ❌ NO |
-| AI Coach | `coach-dal.js` | ❌ NO | ❌ NO | ❌ NO |
+| Rideshare Coach | `coach-dal.js` | ❌ NO | ❌ NO | ❌ NO |
 
 ---
 
@@ -279,7 +279,7 @@ The 6-phase consolidation plan from 2026-01-05 is **fully implemented**:
 
 The TTL document claims `discovered_events` has an `expires_at` column and a DB trigger — **neither exists**.
 The actual event lifecycle in `discovered_events` uses:
-- `is_active` boolean — toggled by AI Coach, chat, briefing endpoints
+- `is_active` boolean — toggled by Rideshare Coach, chat, briefing endpoints
 - `deactivated_at` timestamp — set when deactivated
 - `fetchEventsForBriefing()` date-range WHERE clause — filters at read time
 - `filterFreshEvents()` — application-level freshness check
@@ -297,7 +297,7 @@ See `BRIEFING_AND_EVENTS_ISSUES.md` Issues 6-8 for full analysis.
 | `server/lib/venue/venue-intelligence.js` | Bar Tab discovery (premium bars) |
 | `server/lib/venue/enhanced-smart-blocks.js` | SmartBlocks venue enrichment |
 | `server/lib/venue/district-detection.js` | District tagging |
-| `server/lib/ai/coach-dal.js` | AI Coach venue contributions |
+| `server/lib/ai/coach-dal.js` | Rideshare Coach venue contributions |
 | `server/scripts/seed-dfw-venues.js` | Manual DFW venue seeding |
 | `server/scripts/migrate-venue-hours.js` | Hours migration |
 | `server/scripts/migrate-venues-to-catalog.ARCHIVED.js` | Old table migration |

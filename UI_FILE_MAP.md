@@ -534,7 +534,7 @@ main.tsx
 - ✅ 5 auth pages (sign-in, sign-up, forgot, reset, terms)
 - ✅ Real-time updates via SSE
 - ✅ Smart Blocks with NOW strategy (top 3 Grade A, ≥1mi apart)
-- ✅ AI Coach with text + voice
+- ✅ Rideshare Coach with text + voice
 - ✅ Market intelligence system
 - ✅ Siri Interceptor (headless client integration via iOS Shortcuts)
 

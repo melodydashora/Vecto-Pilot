@@ -157,7 +157,7 @@
 
 ### Chat & Coach Routes
 
-#### `/api/chat` - AI Coach
+#### `/api/chat` - Rideshare Coach
 - **File**: [server/api/chat/chat.js](/server/api/chat/chat.js)
 - **DAL**: [server/lib/ai/coach-dal.js](/server/lib/ai/coach-dal.js)
 - **Endpoints**:
@@ -174,7 +174,7 @@
   - `POST /api/chat/deactivate-event` - Deactivate event
   - `GET /api/chat/snapshot-history` - Get location history
 
-##### AI Coach Action Parsing
+##### Rideshare Coach Action Parsing
 The chat endpoint parses special action tags from AI responses:
 
 | Action Tag | Table | Purpose |
@@ -260,8 +260,8 @@ The chat endpoint parses special action tags from AI responses:
   - `llm_venue_suggestions` - LLM-suggested venues
   - `eidolon_memory` - Eidolon memory store
   - `assistant_memory` - Assistant memory
-  - `coach_conversations` - AI Coach chat history (with `market_slug`)
-  - `coach_notes` - User notes from AI Coach
+  - `coach_conversations` - Rideshare Coach chat history (with `market_slug`)
+  - `coach_notes` - User notes from Rideshare Coach
   - `coach_system_notes` - AI-generated observations
   - `news_deactivations` - Hidden news items
   - `event_deactivations` - Hidden events

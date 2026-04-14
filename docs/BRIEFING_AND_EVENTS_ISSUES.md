@@ -34,7 +34,7 @@ Comment at line 737: *"Pass fresh briefing directly (no DB re-read for stale dat
 
 `cleanupPastEvents()` is the only **bulk date-based** deactivator. But other code paths also set `is_active = false`:
 - `PATCH /api/briefing/event/:eventId/deactivate` (briefing.js:1094) — single event deactivation
-- `coachDAL.deactivateEvent()` (coach-dal.js:1809) — AI Coach deactivation
+- `coachDAL.deactivateEvent()` (coach-dal.js:1809) — Rideshare Coach deactivation
 - `POST /api/chat/deactivate-event` (chat.js:1399) — user-triggered via chat
 - `scripts/db-detox.js` (line 277) — hard DELETES past events (more aggressive)
 
@@ -182,7 +182,7 @@ User login / manual refresh
 
 **Other deactivation paths (unchanged):**
 - `PATCH /api/briefing/event/:eventId/deactivate` (briefing.js:1094) — single event
-- `coachDAL.deactivateEvent()` (coach-dal.js:1809) — AI Coach
+- `coachDAL.deactivateEvent()` (coach-dal.js:1809) — Rideshare Coach
 - `POST /api/chat/deactivate-event` (chat.js:1399) — user-triggered via chat
 
 ---
@@ -326,7 +326,7 @@ snapshots ──1:1──→ briefings
 
 discovered_events ──N:1──→ venue_catalog (via venue_id FK, can be NULL)
     └── event_hash (UNIQUE) deduplication key
-    └── is_active (AI Coach toggleable)
+    └── is_active (Rideshare Coach toggleable)
 ```
 
 ---
