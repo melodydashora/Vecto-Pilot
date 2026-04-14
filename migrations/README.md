@@ -1,58 +1,55 @@
-> **Last Verified:** 2026-01-06
+> **Last Updated:** 2026-04-14
 
 # Migrations
 
-Manual database migration scripts.
+## Migration Policy
 
-## Structure
+| Aspect | Policy |
+|--------|--------|
+| **Canonical schema** | `shared/schema.js` (Drizzle ORM — all tables, columns, indexes) |
+| **Standard path** | Drizzle-managed migrations via `npm run db:migrate` (output in `drizzle/`) |
+| **Exception path** | Targeted direct SQL when `drizzle-kit push` risks global drift |
+| **Exception rule** | Every direct-SQL exception MUST be logged in `docs/review-queue/pending.md` and backfilled into migration history |
+
+For the current exceptions table (direct-SQL changes pending prod deployment), see [DB_SCHEMA.md §13](../docs/architecture/DB_SCHEMA.md#13-migrations).
+
+## Directory Structure
 
 | Path | Purpose |
 |------|---------|
-| `*.sql` | Manual migration files |
-| `manual/` | One-off migration scripts |
+| `migrations/*.sql` | Manual migrations: RLS policies, triggers, functions, one-off fixes |
+| `drizzle/` | Auto-generated Drizzle migrations (schema changes) |
+| `shared/schema.js` | Single source of truth for all table definitions |
+| `drizzle.config.js` | Drizzle Kit configuration (points to shared/schema.js) |
+
+## Running Migrations
+
+```bash
+# Standard path (Drizzle-managed schema changes)
+npm run db:migrate
+
+# Manual migrations (RLS, triggers, one-off fixes)
+psql $DATABASE_URL -f migrations/<filename>.sql
+```
 
 ## Naming Convention
 
 ```
 YYYYMMDD_description.sql   # Date-prefixed for manual migrations
-00X_name.sql               # Numbered for sequential migrations
+00X_name.sql               # Numbered for sequential bootstrap migrations
 ```
 
-## Current Migrations
+## When to Use Direct SQL vs Drizzle
 
-| File | Purpose |
-|------|---------|
-| `001_init.sql` | Initial schema setup |
-| `002_memory_tables.sql` | MCP memory system tables |
-| `003_rls_security.sql` | Row-Level Security policies |
-| `004_jwt_helpers.sql` | JWT helper functions |
-| `20251103_add_strategy_notify.sql` | Strategy notification trigger |
-| `20251209_drop_unused_briefing_columns.sql` | Drop unused briefing columns |
-| `20251209_fix_strategy_notify.sql` | Fix strategy notification |
-| `20251214_add_event_end_time.sql` | Add event end time column |
-| `20251214_discovered_events.sql` | Discovered events table |
-| `20251228_auth_system_tables.sql` | Authentication system tables |
-| `20251228_drop_snapshot_user_device.sql` | Drop snapshot user device columns |
-| `20251229_district_tagging.sql` | District tagging feature |
-
-## Running Migrations
-
-```bash
-# Via npm script
-npm run db:migrate
-
-# Manually
-psql $DATABASE_URL -f migrations/001_init.sql
-```
-
-## Manual vs Drizzle Migrations
-
-| Folder | Use Case |
-|--------|----------|
-| `migrations/` | RLS policies, functions, triggers, one-off fixes |
-| `drizzle/` | Schema changes (tables, columns, indexes) |
+| Scenario | Use |
+|----------|-----|
+| New table, column, index | `drizzle-kit push` or `drizzle-kit generate` |
+| RLS policy, trigger, function | Manual SQL in `migrations/` |
+| Surgical column add to avoid touching unrelated constraints | Direct SQL (log in pending.md) |
+| Emergency prod fix | Direct SQL (log in pending.md, backfill later) |
 
 ## See Also
 
-- [drizzle/](../drizzle/) - Auto-generated Drizzle migrations
-- [shared/schema.js](../shared/schema.js) - Drizzle schema
+- [DB_SCHEMA.md](../docs/architecture/DB_SCHEMA.md) — Canonical schema documentation
+- [shared/schema.js](../shared/schema.js) — Drizzle schema definitions
+- [drizzle/](../drizzle/) — Auto-generated Drizzle migration files

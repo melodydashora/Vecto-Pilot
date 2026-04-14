@@ -290,7 +290,7 @@ Pool auto-recovers on admin shutdown (code 57P01).
 |------|--------|
 | Schema definition (Drizzle) | Working — 57 tables |
 | Connection pooling | Working — 25 max, monitoring |
-| Migrations | Working — 27 applied |
+| Migrations | Working — 27 Drizzle-managed + direct-SQL exceptions (see §13 for current exceptions pending prod) |
 | Parameterized queries | Working — all via Drizzle |
 
 ---
