@@ -29,6 +29,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [OFFER_ANALYZER.md](OFFER_ANALYZER.md) | Siri Shortcuts, ride offer analysis, Gemini Vision | Modifying offer analysis |
 | [STRATEGY.md](STRATEGY.md) | Strategy generation, recommendation pipeline | Modifying strategy |
 | [MARKET_INTELLIGENCE.md](MARKET_INTELLIGENCE.md) | Market data sources, intelligence storage, MI API | Working with market data |
+| [AI_ROLE_MAP.md](../AI_ROLE_MAP.md) | Every AI role: model, file, function, data flow | Auditing roles or swapping models |
 
 ### System Rules
 
@@ -58,6 +59,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | Document | Purpose | Read When... |
 |----------|---------|--------------|
 | [BRIEFING.md](BRIEFING.md) | Briefing tab architecture | Modifying briefing |
+| [briefing-transformation-path.md](briefing-transformation-path.md) | DB column → strategist field mapping, event source contract | Tracing briefing data flow |
 | [VENUES.md](VENUES.md) | Venue discovery, scoring, ranking, Google Places | Working with venues |
 | [LOUNGES_AND_BARS.md](LOUNGES_AND_BARS.md) | Lounge/bar discovery, filtering, scoring | Modifying lounge features |
 | [MAP.md](MAP.md) | GPS tracking, map rendering, districts/zones | Modifying map |
@@ -175,13 +177,13 @@ Every folder has a README.md. Use `find . -name README.md` or your editor's file
 | Category | Count |
 |----------|-------|
 | Core System | 6 |
-| AI System | 8 |
+| AI System | 9 |
 | System Rules | 5 |
 | Infrastructure | 8 |
-| Domain Features | 7 |
+| Domain Features | 8 |
 | i18n & Compliance | 5 |
 | Platform & Future | 6 |
 | Historical | 3 |
-| **Total** | **48** |
+| **Total** | **50** |
 
 All canonical documents use UPPERCASE filenames. Historical/incident reports retain lowercase date-stamped names.
