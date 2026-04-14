@@ -1,7 +1,7 @@
 # DB_SCHEMA.md — Database Schema Documentation
 
 > **Canonical reference** for every table, the Drizzle ORM setup, connection management, and query patterns.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-14
 
 ## Supersedes
 - `docs/architecture/database-schema.md` — Previous schema doc (expanded here with ALL tables)
@@ -129,7 +129,7 @@
 
 ### `discovered_events` — Auto-Discovered Events
 
-Key fields: `id`, `title`, `venue_name`, `venue_id` (FK), `event_start_date/time`, `event_end_date/time`, `category`, `expected_attendance`, `event_hash` (unique), `is_verified`, `is_active`.
+Key fields: `id`, `title`, `venue_name`, `venue_id` (FK), `event_start_date/time`, `event_end_date/time`, `category`, `expected_attendance`, `event_hash` (unique), `is_verified`, `is_active`, `schema_version` (integer, default 1 — enables read-time validation skip when current).
 
 ### `venue_metrics` — Feedback Aggregation
 
@@ -163,6 +163,10 @@ Key fields: `id`, `user_id`, `note_type`, `category`, `title`, `content`, `impor
 
 Key fields: `id`, `note_type`, `category`, `title`, `description`, `user_quote`, `triggering_user_id`.
 
+### `claude_memory` — Claude Code Session Memory
+
+Key fields: `id`, `session_id`, `category`, `title`, `content`, `source`, `priority`, `status`, `tags` (JSONB), `related_files` (JSONB), `parent_id`, `metadata` (JSONB). Indexes on session_id, category, status.
+
 ### Memory Tables (Eidolon SDK)
 
 - `agent_memory` — Agent-specific state
@@ -180,11 +184,11 @@ Key fields: `id`, `note_type`, `category`, `title`, `description`, `user_quote`,
 
 ### `driver_vehicles` — Vehicle Info
 
-Key fields: `vehicle_id`, `driver_id`, `year`, `make`, `model`, `color`, `seatbelts`.
+Key fields: `id`, `driver_profile_id`, `year`, `make`, `model`, `color`, `license_plate`, `seatbelts`.
 
 ### `auth_credentials` — Password Hashes
 
-Key fields: `user_id`, `password_hash`, `failed_login_attempts`, `locked_until`, `password_reset_token`, `reset_token_expires_at`.
+Key fields: `user_id`, `password_hash`, `failed_login_attempts`, `locked_until`, `password_reset_token`, `password_reset_expires`.
 
 ### `verification_codes` — SMS/Email Codes
 
@@ -192,7 +196,7 @@ Key fields: `user_id`, `code`, `code_type`, `expires_at`.
 
 ### `oauth_states` — CSRF Tokens
 
-Key fields: `state_token`, `provider`, `created_at`, `expires_at`.
+Key fields: `state`, `provider`, `user_id`, `redirect_uri`, `expires_at`, `created_at`.
 
 ### `uber_connections` — Uber OAuth Tokens
 
@@ -202,7 +206,7 @@ Key fields: `user_id`, `access_token_encrypted`, `refresh_token_encrypted`, `tok
 
 ## 8. Cache Tables
 
-- `places_cache` — Google Places API responses (coords_key, cached_data, TTL)
+- `places_cache` — Google Places API responses (coords_key, formatted_hours, cached_at, access_count)
 - `coords_cache` — Coordinate/geolocation cache
 - `vehicle_makes_cache`, `vehicle_models_cache` — Vehicle data
 
@@ -260,7 +264,23 @@ Pool auto-recovers on admin shutdown (code 57P01).
 
 **Directory:** `migrations/` (27 migration files)
 
-Managed via Drizzle Kit. Migrations run on app startup.
+### Current Migration Policy
+
+| Aspect | Policy |
+|--------|--------|
+| **Canonical schema definition** | `shared/schema.js` — all tables, columns, indexes, and relations |
+| **Standard path** | Drizzle-managed migrations via `npm run db:migrate` (uses `drizzle.config.js` → `./drizzle/` output) |
+| **Exception path** | Targeted direct SQL when global `drizzle-kit push` risks drift (e.g., adding a column to a large table without touching unrelated constraints) |
+| **Exception rule** | Every direct-SQL exception MUST be logged in `docs/review-queue/pending.md` and backfilled into migration history |
+| **Manual migrations** | `migrations/` folder for RLS policies, triggers, functions, and one-off fixes that Drizzle doesn't manage |
+
+### Current Exceptions (Direct SQL, Not Yet in Drizzle History)
+
+| Change | Dev DB | Prod DB | Logged In |
+|--------|--------|---------|-----------|
+| `discovered_events.schema_version` (INTEGER NOT NULL DEFAULT 1) | Applied 2026-04-14 | **Pending** | pending.md §Pass 1 |
+| `claude_memory` table (14 columns, 3 indexes) | Applied 2026-04-14 | **Pending** | pending.md §Memory Table |
+| `driver_profiles` — 4 preference columns (fuel_economy_mpg, earnings_goal_daily, shift_hours_target, max_deadhead_mi) | **Deferred** | **Deferred** | pending.md §Driver Prefs |
 
 ---
 
@@ -282,7 +302,7 @@ Managed via Drizzle Kit. Migrations run on app startup.
 3. **No table partitioning** — `snapshots` and `coach_conversations` will grow large. No time-based partitioning.
 4. **No explicit N+1 prevention** — Application responsible for batching.
 5. **No row-level security** — Enforced in API code, not DB-level.
-6. **No schema versioning on data** — Events validated at read-time, not write-time.
+6. ~~No schema versioning on data~~ — **Partially resolved (2026-04-14):** `discovered_events.schema_version` added (Issue B, Pass 1). Enables read-time validation skip for current-version rows. Not yet propagated to other mutable tables.
 
 ---
 
@@ -292,7 +312,7 @@ Managed via Drizzle Kit. Migrations run on app startup.
 - [ ] **Table partitioning** — Partition snapshots and coach_conversations by month
 - [ ] **Read replica** — Split read-heavy queries (analytics, intelligence) to replica
 - [ ] **Row-level security** — Add PostgreSQL RLS policies for user data isolation
-- [ ] **Schema versioning** — Add `schema_version` to mutable tables for migration tracking
+- [x] **Schema versioning** — `schema_version` added to `discovered_events` (2026-04-14). Remaining: propagate to other mutable tables if needed
 - [ ] **Index audit** — Verify all FK columns and common query patterns have indexes
 
 ---
