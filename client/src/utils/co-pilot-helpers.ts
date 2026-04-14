@@ -71,8 +71,15 @@ function subscribeSSE(
     });
 
     eventSource.onerror = (e) => {
-      console.warn(`[SSE Manager] ⚠️ Connection error: ${endpoint}`, e);
+      // FIX: SSE disconnect triggers reconnect, not auth clearing. Only HTTP 401/403 clears auth.
+      // EventSource has native automatic reconnection (browser handles the exponential backoff
+      // via the SSE spec's retry field). We log the disconnect and mark the subscription as
+      // not-connected but NEVER dispatch vecto-auth-error or clear localStorage. Auth clearing
+      // is reserved for explicit 401/403 HTTP responses in useBriefingQueries and location-context.
+      console.warn(`[SSE Manager] ⚠️ Connection error: ${endpoint} — browser will auto-reconnect`, e);
       subscription!.isConnected = false;
+      // Note: we do NOT call eventSource.close() here. Closing would prevent browser auto-reconnect.
+      // If the connection is permanently broken (server gone), subsequent readyState will report CLOSED.
     };
 
     sseConnections.set(key, subscription);
