@@ -975,7 +975,13 @@ async function fetchEventCategory({ category, city, state, market, lat, lng, dat
 
   // 2026-02-26: Simplified prompt — today only, strict required fields, place_id for venue linking.
   // Gemini has native Google Places knowledge via google_search grounding.
+  // 2026-04-14: Inject driver GPS for proximity-biased discovery (Memory #107). Previously
+  // the search was metro-wide with no proximity bias, so drivers in suburbs got events
+  // 30-60mi away in the far corners of the metro. lat/lng were already parameters but
+  // never reached the prompt.
   const prompt = `Find ${category.description || category.name.replace('_', ' ')} happening TODAY (${date}) in the ${searchArea} metro area.
+
+The driver is currently near coordinates (${lat.toFixed(4)}, ${lng.toFixed(4)}). Prioritize discovering events at venues within 15 miles of these coordinates first. Then include the most impactful events from the broader ${searchArea} area.
 
 SEARCH: "${category.searchTerms(searchArea, state, date)}"
 EVENT TYPES: ${category.eventTypes.join(', ')}
