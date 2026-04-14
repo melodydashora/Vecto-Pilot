@@ -103,6 +103,9 @@ export async function mountRoutes(app, server) {
     // Translation (server/api/translate/) - 2026-03-16: Real-time rider translation
     { path: '/api/translate', module: './server/api/translate/index.js', desc: 'Translation API' },
 
+    // Claude Memory (server/api/memory/) — 2026-04-14: Persistent knowledge base for Claude Code
+    { path: '/api/memory', module: './server/api/memory/index.js', desc: 'Claude Memory API' },
+
     // External Hooks (server/api/hooks/)
     { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
     { path: '/api/hooks', module: './server/api/hooks/translate.js', desc: 'Siri Translation Hook' },

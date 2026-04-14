@@ -152,6 +152,12 @@ export function botBlocker(req, res, next) {
     return next();
   }
 
+  // 2026-04-14: Allow Claude Memory API (internal Claude Code / agent use)
+  // Called by memory-keeper agent and CLI tools — no browser UA expected.
+  if (path.startsWith('/api/memory')) {
+    return next();
+  }
+
   // Block suspicious paths immediately
   if (isSuspiciousPath(path)) {
     console.log(`[bot-blocker] Blocked suspicious path: ${path} from ${req.ip}`);

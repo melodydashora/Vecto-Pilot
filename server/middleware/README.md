@@ -124,6 +124,7 @@ The full `botBlocker` middleware skips these paths (allows all User-Agents):
 | `/robots.txt` | Let bots discover the deny-all policy |
 | `/health`, `/api/health` | Internal health checks (no UA) |
 | `/api/hooks/*` | Siri Shortcuts, Android Automations (non-browser UAs) |
+| `/api/memory*` | Claude Memory API — internal Claude Code / agent use (2026-04-14) |
 | `/__repl*` | Replit preview proxy reachability probes (2026-04-09) |
 
 ## Bot Patterns Blocked

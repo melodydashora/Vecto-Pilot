@@ -4,6 +4,35 @@ Items flagged by the Change Analyzer for human-AI validation.
 
 ---
 
+## 2026-04-14: Claude Memory Table System (NEW)
+
+**Author:** Claude Opus 4.6 (in session with Melody)
+**Date:** 2026-04-14
+**Scope:** New `claude_memory` table, `/api/memory` API, memory-keeper agent, bot-blocker update
+
+### Changes Made
+1. **Schema:** Added `claudeMemory` table to `shared/schema.js` (14 columns, 3 indexes)
+2. **Migration:** Applied directly via SQL (table + indexes created in dev DB)
+3. **API:** Created `server/api/memory/index.js` with 6 endpoints (list, create, update, stats, rules, session)
+4. **Route Mount:** Registered in `server/bootstrap/routes.js`
+5. **Bot Blocker:** Added `/api/memory` to allowlist in `server/middleware/bot-blocker.js`
+6. **Agent:** Created `.claude/agents/memory-keeper.md` background agent
+7. **Agent Memory:** Created `.claude/agent-memory/memory-keeper/` with MEMORY.md and initial-setup.md
+8. **Docs:** Created `docs/guides/siri-shortcuts-guide.md` (Siri Shortcuts integration guide)
+9. **Seed Data:** 9 initial entries (4 rules, 3 context, 2 actions)
+
+### README Updates Needed
+- [ ] `server/api/README.md` — add memory API section
+- [ ] `server/middleware/README.md` — note bot-blocker update
+- [ ] `.claude/agents/README.md` or equivalent — document memory-keeper agent
+- [ ] `docs/guides/README.md` — create if needed for guides directory
+
+### Migration Note
+- Table created via direct SQL on dev DB only
+- **Prod DB migration still needed** — run the same SQL on production when deploying
+
+---
+
 ## 2026-04-11: Driver Preferences Schema Migration (BLOCKED on DB migration)
 
 **Author:** Claude Opus 4.6 (in session with Melody)
