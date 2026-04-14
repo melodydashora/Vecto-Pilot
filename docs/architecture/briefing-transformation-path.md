@@ -257,3 +257,5 @@ Returns fuller briefing data. Used by the Briefing tab UI.
 ## 9. Resolved Issues
 
 - **2026-04-14 (Issue F):** `weather_forecast` was missing from the immediate path's briefing object. Fixed — both paths now include all 7 fields. Audit confirmed no other enrichment fields are missing from either path.
+- **2026-04-14 (Issue U):** `airport_conditions` added to `GET /api/strategy/briefing/:snapshotId` response. Was missing from both legacy endpoints.
+- **2026-04-14 (Pass 4 — positive finding):** BriefingPage confirmed as clean wrapper over CoPilotContext. BriefingTab receives normalized props (`weatherData`, `trafficData`, `newsData`, `eventsData`, `airportData`, `schoolClosuresData`, `consolidatedStrategy`) rather than owning fetch logic. `useBriefingQueries()` hook handles all data fetching. This is the target pattern for all page components.

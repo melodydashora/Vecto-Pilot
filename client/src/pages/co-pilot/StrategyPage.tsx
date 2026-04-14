@@ -619,16 +619,21 @@ export default function StrategyPage() {
                       </div>
                     )}
 
-                    {/* Staging Area */}
+                    {/* Staging Area
+                        2026-04-14: Issue Z — Defensive field checks. Server may send full object
+                        { type, name, address, walkTime, parkingTip, lat, lng } or string-normalized
+                        { parkingTip: "..." } only. Each sub-field renders conditionally. */}
                     {block.stagingArea && (
                       <div className="bg-gray-50 rounded-lg p-3 mb-3">
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="flex items-center gap-2">
                             <MapPin className="w-4 h-4 text-gray-600" />
                             <h4 className="text-sm font-semibold text-gray-900">Staging Area</h4>
-                            <Badge className="bg-yellow-400 text-yellow-900 border-0 text-xs px-2 py-0">
-                              {block.stagingArea.type}
-                            </Badge>
+                            {block.stagingArea.type && (
+                              <Badge className="bg-yellow-400 text-yellow-900 border-0 text-xs px-2 py-0">
+                                {block.stagingArea.type}
+                              </Badge>
+                            )}
                           </div>
                           {block.stagingArea.lat && block.stagingArea.lng && (
                             <Button
@@ -647,13 +652,21 @@ export default function StrategyPage() {
                           )}
                         </div>
                         <div className="ml-6 space-y-1">
-                          <p className="text-sm font-medium text-gray-900">{block.stagingArea.name}</p>
-                          <p className="text-xs text-gray-600">{block.stagingArea.address}</p>
-                          <div className="flex items-center gap-1 mt-2">
-                            <Clock className="w-3 h-3 text-gray-500" />
-                            <p className="text-xs text-gray-600">{block.stagingArea.walkTime}</p>
-                          </div>
-                          <p className="text-xs text-gray-500 italic">{block.stagingArea.parkingTip}</p>
+                          {block.stagingArea.name && (
+                            <p className="text-sm font-medium text-gray-900">{block.stagingArea.name}</p>
+                          )}
+                          {block.stagingArea.address && (
+                            <p className="text-xs text-gray-600">{block.stagingArea.address}</p>
+                          )}
+                          {block.stagingArea.walkTime && (
+                            <div className="flex items-center gap-1 mt-2">
+                              <Clock className="w-3 h-3 text-gray-500" />
+                              <p className="text-xs text-gray-600">{block.stagingArea.walkTime}</p>
+                            </div>
+                          )}
+                          {block.stagingArea.parkingTip && (
+                            <p className="text-xs text-gray-500 italic">{block.stagingArea.parkingTip}</p>
+                          )}
                         </div>
                       </div>
                     )}
@@ -699,6 +712,9 @@ export default function StrategyPage() {
                     {/* Actions */}
                     <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                       <div className="flex items-center gap-3">
+                        {/* 2026-04-14: Issue Y — Removed count display (block.up_count/down_count).
+                            toApiBlock() does not emit count fields and the pipeline has no aggregation.
+                            TODO: Add upCount/downCount to toApiBlock() when feedback aggregation is implemented. */}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -706,8 +722,7 @@ export default function StrategyPage() {
                           onClick={() => setFeedbackModal({ isOpen: true, sentiment: 'up', block, blockIndex: index })}
                           data-testid={`button-thumbs-up-${index}`}
                         >
-                          <ThumbsUp className="w-4 h-4 mr-1" />
-                          {block.up_count || ''}
+                          <ThumbsUp className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -716,8 +731,7 @@ export default function StrategyPage() {
                           onClick={() => setFeedbackModal({ isOpen: true, sentiment: 'down', block, blockIndex: index })}
                           data-testid={`button-thumbs-down-${index}`}
                         >
-                          <ThumbsDown className="w-4 h-4 mr-1" />
-                          {block.down_count || ''}
+                          <ThumbsDown className="w-4 h-4" />
                         </Button>
                       </div>
                       <div className="flex items-center gap-2">
