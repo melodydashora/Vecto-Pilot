@@ -107,7 +107,19 @@ The snapshot carries a `status` column (text, default `'pending'`):
 - `'pending'` — row exists, asynchronous enrichment (weather/air/market/h3_r8) has not yet completed. Briefing pipeline refuses to run (returns HTTP 202).
 - `'ok'` — all required fields populated and non-empty. Briefing pipeline is allowed to proceed.
 
-Transition from `pending` → `ok` happens in `PATCH /api/location/snapshot/:id/enrich` after re-reading the row and verifying `REQUIRED_FIELDS = [weather, air, lat, lng, city, state, timezone, market, h3_r8, day_part_key]` are all non-null / non-empty.
+Transition from `pending` → `ok` happens in `PATCH /api/location/snapshot/:id/enrich` after re-reading the row and verifying the resolved required-field list (§9 decision 1) is all non-null / non-empty:
+
+```
+REQUIRED_FIELDS = [
+  lat, lng, city, state, timezone,
+  local_iso, date, dow, hour, day_part_key,
+  weather, air, market, user_id
+]
+```
+
+Fields NOT in this list (`coord_key`, `h3_r8`, `formatted_address`, `country`, `device_id`, `session_id`, `permissions`, `holiday`, `is_holiday`) may be null without blocking.
+
+> **v1.0 note:** earlier drafts of this section listed `h3_r8` as required and did not list `local_iso`, `date`, `dow`, `hour`, or `user_id`. Phase 3 (2026-04-14) resolved both: `h3_r8` is optional (no current readers); the temporal fields and `user_id` are required because the briefing pipeline authoritatively depends on them.
 
 ---
 
@@ -209,17 +221,37 @@ Any duplicated field added to the briefing row without citing one of these excep
 
 ---
 
-## 9. Open Business Decisions (TO BE RESOLVED)
+## 9. Business Decisions (RESOLVED Phase 3 — 2026-04-14)
 
-These are decisions that require product/architect judgment and are NOT pinned in this spec. Each is tracked for Phases 2–8 of this session or future work.
+All seven open decisions from v1.0 are resolved below. Each decision text is binding for Phases 4–8 and for future work on this data model.
 
-- [ ] **Field-by-field required vs optional classification** — the spec lists broad required groups; a field-level matrix is needed (Phase 2).
-- [ ] **Exact retry count before hard failure** — currently 5 (client-side exponential backoff). Is 5 correct, or too lenient / too strict?
-- [ ] **Header freshness source definition** — is freshness measured from `snapshot.created_at`, from last enrichment, from briefing `generated_at`, or a composite?
-- [ ] **Location readiness source definition** — is readiness a single boolean (`status === 'ok'`), or a multi-state composite including permissions and enrichment completeness?
-- [ ] **Duplication exceptions inventory** — full enumeration of every duplicated field currently in the briefing row, with the cited exception (Phase 7).
-- [ ] **`status` / `generated_at` field semantics** — is `status='complete'` identical to `generated_at IS NOT NULL`, or are they independent state machines?
-- [ ] **Market fallback policy** — the current city-substitution-as-market fallback is **NOT approved** and must be removed or formally sanctioned.
+- [x] **Field-by-field required vs optional classification — RESOLVED.**
+  - **REQUIRED** (must be non-null for `status='ok'`): `lat`, `lng`, `city`, `state`, `timezone`, `local_iso`, `date`, `dow`, `hour`, `day_part_key`, `weather`, `air`, `market`, `user_id`.
+  - **OPTIONAL** (may be null without blocking): `coord_key`, `h3_r8`, `formatted_address`, `country`, `device_id`, `session_id`, `permissions`, `holiday`, `is_holiday`.
+  - *Note on `formatted_address`:* optional for readiness, but `blocks-fast.js:567` independently hard-fails (400) if missing for LLM geocoding reasons. That stricter path is a per-endpoint product constraint, not a readiness-gate input.
+  - *Note on `user_id`:* making this required for `status='ok'` means anonymous snapshots stay `pending` indefinitely. This is intentional — the briefing pipeline requires an authenticated owner.
+
+- [x] **Exact retry count before hard failure — RESOLVED.** `MAX_SNAPSHOT_RETRIES = 5`. Client already enforces this via exponential backoff (2s, 4s, 8s, 16s, 32s). Server now mirrors this via the `X-Snapshot-Retry-Count` request header: when the header value is ≥ 5 and `snapshot.status !== 'ok'`, the server returns **HTTP 503** with `{ error: 'snapshot_incomplete', missingFields, retryCount, maxRetries }`.
+
+- [x] **Header freshness source definition — RESOLVED.** `snapshot.created_at` is the **canonical** freshness timestamp. The current header `lastUpdated` (set on location-resolve completion) is acceptable as a *secondary* indicator for the transitional period but is DOCUMENTED as non-canonical. Phase 6 will re-source the primary indicator to `snapshot.created_at`.
+
+- [x] **Location readiness source definition — RESOLVED.** `snapshot.status === 'ok'` is the **canonical** readiness signal (optionally combined with `permissions.geolocation === 'granted'` once that column has server readers). The current client-side composite (`coords && currentLocationString && !placeholder`) is acceptable transitionally and is DOCUMENTED as non-canonical. Phase 6 will migrate.
+
+- [x] **Duplication exceptions inventory — RESOLVED (per-case below).**
+  - `snapshots.weather` ↔ `briefings.weather_current` — **JUSTIFIED** under §7 exception #4 (materially transformed: snapshot.weather is raw API payload for strategist ingestion; briefings.weather_current is LLM-generated analysis for display).
+  - `snapshots.air` ↔ header's own `/api/location/air-quality` fetch — **UNJUSTIFIED**. Fix in Phase 6.
+  - `snapshots.weather` ↔ header's own `/api/location/weather` fetch — **UNJUSTIFIED**. Fix in Phase 6.
+  - `snapshots.holiday` ↔ `briefings.holiday` — **UNJUSTIFIED** (briefings.holiday is a dead column). Mark for removal in Phase 7.
+  - `snapshots.timezone` ↔ `dbUserLocation.timezone` (from `/api/auth/me`) — **BORDERLINE** (§7 #5, documented-product-behavior fallback). Phase 6 re-evaluation.
+  - `snapshots.local_iso`/`date`/`dow`/`day_part_key` ↔ header render-time `new Date()` / `classifyDayPart` — **UNJUSTIFIED**. Fix in Phase 6.
+  - `snapshots.status` ↔ header client-side readiness composite — **UNJUSTIFIED**. Fix in Phase 6.
+  - `snapshots.created_at` ↔ header `lastUpdated` — **UNJUSTIFIED** (as primary). Acceptable as secondary per decision #3 above.
+
+- [x] **`status` / `generated_at` field semantics — RESOLVED.**
+  - `briefings.status` is currently **DEAD** (never written). Decision: populate it from the existing completeness-validation result in `briefing-service.js` (`'complete'` when all required sections present; `'error'` on generation failure; `'pending'` during initial placeholder insert) — **OR** drop the column. Implementation or removal lands in Phase 7.
+  - `briefings.generated_at` is currently **DEAD**. Decision: populate with `NOW()` on the UPDATE at `briefing-service.js:2891` (first successful generation). If we choose to drop instead, the call-site uses `updated_at` as a proxy. Phase 7.
+
+- [x] **Market fallback policy — RESOLVED.** `market` IS a required field. If missing after enrichment, it is a **hard-fail** condition. The historic city-substitution fallback is **NOT approved** and must be removed. Any code path that substitutes `city` for a missing `market` is a bug to be fixed in Phase 7 or when encountered.
 
 ---
 
