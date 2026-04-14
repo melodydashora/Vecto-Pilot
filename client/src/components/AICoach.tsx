@@ -209,65 +209,8 @@ export default function AICoach({
     setTimeout(() => setValidationErrors([]), 5000);
   }, []);
 
-  // Handle event deactivation commands from AI Coach
-  const handleEventDeactivation = useCallback(async (content: string) => {
-    const deactivatePattern = /\[DEACTIVATE_EVENT:\s*({[^}]+})\]/g;
-    const matches = content.matchAll(deactivatePattern);
-
-    for (const match of matches) {
-      try {
-        const data = JSON.parse(match[1]);
-        const { event_title, reason, notes } = data;
-
-        if (!event_title || !reason) {
-          console.warn('[AICoach] Invalid deactivation command:', data);
-          continue;
-        }
-
-        console.log('[AICoach] Processing event deactivation:', event_title, reason);
-
-        // First, find the event by title (search in discovered events)
-        const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-        const searchRes = await fetch(API_ROUTES.BRIEFING.DISCOVERED_EVENTS(snapshotId!), {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (!searchRes.ok) {
-          console.error('[AICoach] Failed to search for events');
-          continue;
-        }
-
-        const searchData = await searchRes.json();
-        const eventToDeactivate = searchData.events?.find(
-          (e: any) => e.title.toLowerCase().includes(event_title.toLowerCase())
-        );
-
-        if (!eventToDeactivate) {
-          console.warn('[AICoach] Event not found:', event_title);
-          continue;
-        }
-
-        // Deactivate the event
-        const deactivateRes = await fetch(API_ROUTES.BRIEFING.EVENT_DEACTIVATE(eventToDeactivate.id), {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({ reason, notes })
-        });
-
-        if (deactivateRes.ok) {
-          const result = await deactivateRes.json();
-          console.log('[AICoach] ✅ Event deactivated:', result.title);
-        } else {
-          console.error('[AICoach] Failed to deactivate event:', await deactivateRes.text());
-        }
-      } catch (err) {
-        console.error('[AICoach] Error processing deactivation:', err);
-      }
-    }
-  }, [snapshotId]);
+  // 2026-04-14: Client-side handleEventDeactivation removed (was duplicate of server-side action tag parsing).
+  // Server path (chat.js → coach-dal.js) handles DEACTIVATE_EVENT with Zod validation. See RIDESHARE_COACH.md §3.
 
   // Log conversation when it ends (after assistant response completes)
   const logCurrentConversation = useCallback(async () => {
@@ -510,14 +453,8 @@ export default function AICoach({
     } finally {
       setIsStreaming(false);
 
-      // Check for event deactivation commands in the last assistant message
-      setMsgs((currentMsgs) => {
-        const lastMsg = currentMsgs[currentMsgs.length - 1];
-        if (lastMsg?.role === 'assistant' && lastMsg.content.includes('[DEACTIVATE_EVENT:')) {
-          handleEventDeactivation(lastMsg.content);
-        }
-        return currentMsgs;
-      });
+      // 2026-04-14: Event deactivation is handled server-side via action tag parsing in chat.js.
+      // No client-side duplicate processing needed.
     }
   }
 
