@@ -101,6 +101,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 
 | Document | Purpose |
 |----------|---------|
+| [AUDIT_SYNTHESIS_2026-04.md](../AUDIT_SYNTHESIS_2026-04.md) | 65-issue audit synthesis — product, subsystems, risks, verdicts |
 | [full-audit-2026-04-04.md](full-audit-2026-04-04.md) | Comprehensive 37-issue audit findings |
 | [etl-pipeline-refactoring-2026-01-09.md](etl-pipeline-refactoring-2026-01-09.md) | ETL pipeline refactoring record |
 | [iterable-crash-root-cause-analysis.md](iterable-crash-root-cause-analysis.md) | Root cause analysis for iterable crash |
