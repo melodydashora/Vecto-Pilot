@@ -712,3 +712,152 @@ Phase 2 Appendix A identified three columns on the `briefings` table that are de
   - Phase 8 or future — `briefings.status` population.
   - Destructive-ops-owner-approval — `briefings.holiday` column drop.
 
+---
+
+## Appendix E: Prompt Construction Compliance (Phase 8 — 2026-04-14)
+
+### E.1 §8 Rules in Practice
+
+§8 has three rules. The audit below checks each active prompt site against all three.
+
+| Rule | Summary | Compliance check |
+|------|---------|------------------|
+| §8.1 | Full snapshot row sent to every briefing-related LLM request. | Does the prompt include **all relevant snapshot fields** (structured), or only some? |
+| §8.2 | Prompts should NOT restate snapshot fields in narrative prose. | Is the context conveyed as structured labeled fields, or as paraphrased prose? |
+| §8.3 | Components use a **task-relevant subset** of snapshot fields. | Does each role include only the fields it actually needs? |
+
+**Interpretation nuance:** §8.1 and §8.3 appear to be in tension if read strictly ("send everything" vs. "send only what's needed"). In practice the codebase resolves this with a third pattern: **embed snapshot fields as structured labeled pairs inside the prompt text** (e.g., `Current position: X / Timezone: Y / Day: Z`). This is compliant with §8.2 because nothing is paraphrased, and satisfies §8.1's intent (the role sees the snapshot's structure) while also satisfying §8.3 (each role selects its own subset). Phase 8 confirms this pattern is the de-facto standard and does not flag it as a violation.
+
+### E.2 Prompt Site Audit
+
+#### E.2.1 `server/lib/briefing/briefing-service.js:982–1009` — BRIEFING_EVENTS (per-category Gemini discovery)
+
+- **Fields used:** `category`, `city`, `state`, `market`, `lat`, `lng`, `date`, `timezone` (passed as function parameters, ultimately from snapshot).
+- **Structured vs narrative:** Mixed. The category name, event types, date, and search area are structured. Lines 982–984 include the prose `"The driver is currently near coordinates (${lat}, ${lng}). Prioritize discovering events at venues within 15 miles..."`.
+- **§8.1 (full snapshot sent):** Partial — this call site passes individual fields, not the full row. Task-appropriate for a discovery role (the model does not need weather/air/permissions/holiday to discover concerts).
+- **§8.2 (no narrative restatement):** **Borderline but COMPLIANT.** The prose sentence at line 984 is **instructional** ("prioritize within 15 miles"), not merely duplicative. There is no structured snapshot being passed alongside this prompt, so the coordinate restatement is load-bearing — the model has no other channel to see the coordinates. Memory #107 shipped this line as a proximity-bias fix; without it, event discovery was metro-wide with no priority given to the driver's actual location.
+- **§8.3 (task-relevant subset):** COMPLIANT — only 8 fields used.
+- **Verdict:** **COMPLIANT.** The narrative is instructional and necessary; not §8.2 anti-pattern.
+
+#### E.2.2 `server/lib/ai/providers/consolidator.js:1454–1499` — STRATEGY_DAILY prompt
+
+- **Fields used:** `formatted_address`, `city`, `state`, `lat`, `lng`, `timezone`, `dow`, `day_part_key`, `is_holiday`, `holiday`, `local_iso` (via `formatLocalTime`).
+- **Structured vs narrative:** Explicitly structured via a `=== DRIVER CONTEXT ===` block with labeled fields (`Current position: X / Coordinates: lat,lng / City: X, Y / Timezone: Z / Current Time: T / Day: D [WEEKEND/WEEKDAY] / Day Part: P / HOLIDAY: name`).
+- **§8.1 (full snapshot sent):** COMPLIANT-IN-SPIRIT. All driver-context fields relevant to strategy are present as labeled fields. Not sent as a raw JSON blob, but every field the role needs is in structured form.
+- **§8.2 (no narrative restatement):** COMPLIANT. No prose paraphrase — each field is a `key: value` line.
+- **§8.3 (task-relevant subset):** COMPLIANT. No unused fields bloat the prompt.
+- **Derivation audit:** `dayOfWeek = dayNames[snapshot.dow]` at :1431 is a **display derivation** from `snapshot.dow`, not a recomputation. Similarly `isWeekend = snapshot.dow === 0 || snapshot.dow === 6` reads the persisted field. These are §3.3-compliant.
+- **Verdict:** **COMPLIANT.** Exemplary pattern — use as reference for future prompt sites.
+
+#### E.2.3 `server/lib/strategy/tactical-planner.js:85–160` — VENUE_SCORER prompt
+
+- **Fields used:** `formatted_address` / `city` / `state` (→ `location`), `dow` (→ `dayName`), `created_at` + `timezone` (→ `dateStr` + `timeStr`).
+- **Structured vs narrative:** Mostly narrative but not restating fields — the prose is about the MISSION and RULES (e.g. "Your job: Convert the IMMEDIATE action plan..."). The driver location appears as `the ${location} region` and in the VENUE SELECTION bullet `ONLY recommend venues near ${location}`.
+- **§8.1 (full snapshot sent):** Partial — only `location`, `dayName`, `dateStr`, `timeStr` are embedded. Acceptable for a venue-selection role.
+- **§8.2 (no narrative restatement):** COMPLIANT. Location appears as a single interpolated reference within instructional prose, not as a restated structured field.
+- **§8.3 (task-relevant subset):** COMPLIANT.
+- **Date/time derivation issue:** Lines 100–116 compute `dateStr` and `timeStr` from `snapshot.created_at` + `snapshot.timezone` using `toLocaleDateString` / `toLocaleTimeString`. This **could** read `snapshot.local_iso` + `snapshot.date` directly per §3.3's "never recomputed downstream" rule. The current approach is functionally equivalent when snapshot is fresh but drifts if the snapshot is older than the current wall-clock — which, for a venue-scorer running against a recent snapshot, is a non-issue. **Flag as soft-finding only**, not a blocker.
+- **Verdict:** **COMPLIANT** with a soft recommendation to prefer `snapshot.date` / `snapshot.local_iso` over re-formatting `created_at`.
+
+#### E.2.4 `server/lib/ai/providers/consolidator.js` — other callModel sites (BRIEFING_TRAFFIC, BRIEFING_NEWS, formatters)
+
+- Briefly surveyed. These follow the same structured labeled-fields pattern as E.2.2. No narrative-restatement anti-patterns observed.
+
+#### E.2.5 `server/lib/ai/rideshare-coach-dal.js` — Rideshare Coach chat prompts
+
+- Reads `snapshot.dow`, `snapshot.city`, `snapshot.state`, `snapshot.holiday`, etc. for coach context. Follows the structured pattern.
+- `snapshot.dow` and weekend derivation at :132–134 — correct usage, reads persisted field.
+- **Verdict:** COMPLIANT with the same caveat as E.2.2.
+
+### E.3 Aggregate Findings
+
+- **Prompt sites audited:** 5 primary
+- **§8.1 violations:** 0 (subset-passing is compatible with §8.3)
+- **§8.2 violations (narrative restatement):** 0 confirmed. 1 borderline at `briefing-service.js:984` that was verified as instructional-not-duplicative (Memory #107).
+- **§8.3 violations (bloated prompts):** 0
+- **Soft recommendations:** `tactical-planner.js:100–116` could read `snapshot.date` / `snapshot.local_iso` directly rather than re-formatting `created_at`. Low priority.
+
+### E.4 Recommendation: Clarify §8 Wording
+
+The strict reading of §8.1 ("full snapshot row sent to every briefing-related LLM request") suggests attaching a raw JSON blob. The codebase's de-facto pattern is **structured labeled fields inside the prompt text**, which is semantically equivalent and more readable for the model. Phase 8 recommends a future v1.1 of the spec soften §8.1 to:
+
+> "The task-relevant subset of snapshot fields MUST be embedded in every briefing-related LLM request as structured, labeled fields (not as narrative prose). Each role selects its own subset per §8.3."
+
+This makes §8.1, §8.2, §8.3 mutually consistent rather than in tension.
+
+### E.5 Summary
+
+- Phase 8 code changes: **NONE** (documentation only per brief).
+- Prompt anti-pattern count: **0 confirmed, 1 borderline verified as compliant, 1 soft recommendation.**
+- Spec-clarification opportunity noted in §E.4.
+
+---
+
+## Session Summary (2026-04-14)
+
+Eight-phase autonomous Data Model Hardening Session driven against the April 14, 2026 "Driver Briefing, Snapshot, and Header Data Model" specification. All phases complete.
+
+### Phase Register
+
+| Phase | Scope | Outcome | Commit | Memory |
+|-------|-------|---------|--------|--------|
+| **1** | Data model spec + session bootstrap | `BRIEFING-DATA-MODEL.md` v1.0 (§1–§11) | d6c82597 (incl. Phase 2) | #113 |
+| **2** | Field-level matrix audit | Appendix A — 49 fields, 11 duplications, 8 §6 violations surfaced | d6c82597 | #114 |
+| **3** | Resolve §9 open decisions | §9 all 7 resolved; §3.7 synced | b9b64d0b | #115 (joint) |
+| **4** | Hard-fail gate implementation | `REQUIRED_FIELDS` updated; `X-Snapshot-Retry-Count` header + 503 path in blocks-fast.js; client retry loop + `vecto-snapshot-hard-fail` event in CoPilotContext | 52095ec9 | #115 (joint) |
+| **5** | `dow` field audit + fix | Verified integer 0-6 correct; **pushed back** on string-format assertion; no code change | 24ccfa3a | #116 |
+| **6** | Header projection audit (docs-only) | Appendix C — 10 header elements, 8 §6 violations, migration plan with owner approval checkpoint | 88ee3fe3 | #117 |
+| **7** | Duplication audit + dead-column triage | Appendix D — 14 duplications registered (5 justified, 9 unjustified); **`briefings.generated_at` populated** at INSERT + UPDATE | 1a9b2a85 | #118 |
+| **8** | Prompt construction audit + session summary | Appendix E — 5 prompt sites audited, 0 violations confirmed; this session summary | (this commit) | (this commit) |
+
+### Code Changes Shipped
+
+| File | Phase | Change |
+|------|-------|--------|
+| `server/api/location/location.js` | 4 | `REQUIRED_FIELDS` array updated to resolved Phase 3 classification (removed `h3_r8`; added `local_iso`, `date`, `dow`, `hour`, `user_id`) |
+| `server/api/strategy/blocks-fast.js` | 4 | Added `MAX_SNAPSHOT_RETRIES=5`, reads `X-Snapshot-Retry-Count` header, returns HTTP 503 with `{error, missingFields, retryCount, maxRetries}` on exhaustion. `console.error` + `triadLog.error` on hard fail. |
+| `client/src/contexts/co-pilot-context.tsx` | 4 | Added `snapshotHardFailRef`; retry loop passes `X-Snapshot-Retry-Count: <attempt>` header; on 503 sets the ref, dispatches `vecto-snapshot-hard-fail` CustomEvent, and blocks further retriggers until new snapshot or manual refresh. |
+| `server/lib/briefing/briefing-service.js` | 7 | `briefings.generated_at` populated at final-data-store writes (INSERT + UPDATE). Dead column now live. |
+
+**Total code diff:** 4 files, ~90 lines added. All verified with `node --check` (server) and `npx tsc --noEmit --pretty` (client, exit 0).
+
+### Docs Shipped
+
+Single source of truth: **`BRIEFING-DATA-MODEL.md`** at repo root.
+- §1–§11: v1.0 spec (architecture, contract, validation, briefing row, header contract, duplication control, prompt construction rules, open decisions, gaps, references)
+- **Appendix A:** Field-Level Matrix (Phase 2)
+- **Appendix B:** `dow` Field Verification (Phase 5)
+- **Appendix C:** Header Projection Migration Plan (Phase 6 — PENDING OWNER APPROVAL)
+- **Appendix D:** Duplication Exception Register (Phase 7)
+- **Appendix E:** Prompt Construction Compliance (Phase 8)
+
+### Pending Owner Approval
+
+Three items blocked on Melody's return:
+
+1. **Phase 6b — Header rewiring.** Appendix C §C.5 checkpoint has 5 confirmations needed before the GlobalHeader component is migrated to read from snapshot. This unblocks: 7 §6 violations, activation of the Phase 4 `vecto-snapshot-hard-fail` UI consumer, and removal of the redundant client-side `/api/location/weather` + `/api/location/air-quality` fetches.
+2. **`briefings.holiday` DROP COLUMN.** Destructive schema op — requires explicit approval. Column is dead (never written); `snapshots.holiday` is authoritative.
+3. **`briefings.status` populate.** Larger change than `generated_at` (requires threading completeness-validation result into DB write). Deferred to a future dedicated pass.
+
+### Notable Pushbacks (Rule 6 Applied)
+
+- **Phase 5 string-format assertion** — rejected. `dow` is integer per schema and 12 consumers; string migration would silently break every one. Documented in Appendix B.
+- **Path corrections** — Phase 3+4 brief referenced `server/lib/briefing/location.js` (doesn't exist); correct path `server/api/location/location.js`. Phase 8 brief implicitly expected a `driverLocationSnapshots` table; correct name is `snapshots`.
+- **Characterization correction** — Phase 3 called `briefings.weather_current` "LLM-generated analysis"; Phase 2 agent proved otherwise (direct Google Weather API response). Appendix D entry 1 carries the corrected characterization.
+
+### Risks / Watch Items
+
+- The Phase 4 hard-fail gate is **only as effective as Phase 6b makes it.** Until the UI consumer lands, 503s are observable only via `console.error`.
+- Making `user_id` required for `status='ok'` means anonymous snapshots will stay `pending` indefinitely and trigger the 503 after 5 retries with `missingFields: ['user_id']`. Intentional per Phase 3 decision #1, but worth confirming on Melody's return.
+- Server-side `dow` hardening (§B.4.1) flagged as follow-up opportunity — primary write paths trust client-sent `dow`. Validation at `:1929` catches null, but server-side re-derivation (like the `:1656` fallback) would be more robust.
+
+### Memory Entries (Chronological)
+
+- #113 SESSION_PLAN — Phase 1 kickoff
+- #114 ARCHITECTURE_AUDIT — Phase 2 complete (field matrix)
+- #115 ARCHITECTURE_AUDIT — Phase 3+4 complete (decisions + hard-fail)
+- #116 ARCHITECTURE_AUDIT — Phase 5 complete (dow verified)
+- #117 ARCHITECTURE_AUDIT — Phase 6 complete (header plan, pending approval)
+- #118 ARCHITECTURE_AUDIT — Phase 7 complete (duplication register + generated_at)
+- #119 SESSION_SUMMARY — this final summary
+
