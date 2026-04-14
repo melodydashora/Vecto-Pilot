@@ -2,7 +2,7 @@
 // Enables voice-to-voice conversation with full snapshot context
 
 import { Router } from 'express';
-import { coachDAL } from '../../lib/ai/coach-dal.js';
+import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
 // 2026-03-17: SECURITY FIX (F-5) — Snapshot ownership verification
 import { db } from '../../db/drizzle.js';
@@ -87,7 +87,7 @@ router.post('/token', requireAuth, async (req, res) => {
       }
 
       try {
-        const fullContext = await coachDAL.getCompleteContext(snapshotId);
+        const fullContext = await rideshareCoachDAL.getCompleteContext(snapshotId);
         if (fullContext?.snapshot) {
           context = {
             snapshot_id: snapshotId,

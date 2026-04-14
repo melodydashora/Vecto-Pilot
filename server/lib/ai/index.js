@@ -16,7 +16,7 @@ export { runBriefing } from './providers/briefing.js';
 export { runImmediateStrategy, runConsolidator } from './providers/consolidator.js';
 
 // Data access
-export { coachDAL } from './coach-dal.js';
+export { rideshareCoachDAL } from './rideshare-coach-dal.js';
 
 // Utilities - now from model-registry.js (updated 2026-01-05)
 export { getLLMStatus, getLLMDiagnostics } from './model-registry.js';

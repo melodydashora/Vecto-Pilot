@@ -15,7 +15,7 @@ const router = Router();
  * This is a curated view of the database schema that helps the coach
  * understand what data it can access and what actions it can take.
  */
-export const coachSchemaMetadata = {
+export const rideshareCoachSchemaMetadata = {
   // Tables the coach can READ
   readable_tables: {
     snapshots: {
@@ -198,7 +198,7 @@ export const coachSchemaMetadata = {
 router.get('/', (_req, res) => {
   res.json({
     ok: true,
-    schema: coachSchemaMetadata,
+    schema: rideshareCoachSchemaMetadata,
     generated_at: new Date().toISOString()
   });
 });
@@ -209,11 +209,11 @@ router.get('/', (_req, res) => {
  */
 router.get('/tables', (_req, res) => {
   const tables = {
-    readable: Object.entries(coachSchemaMetadata.readable_tables).map(([name, info]) => ({
+    readable: Object.entries(rideshareCoachSchemaMetadata.readable_tables).map(([name, info]) => ({
       name,
       description: info.description
     })),
-    writable: Object.entries(coachSchemaMetadata.writable_tables).map(([name, info]) => ({
+    writable: Object.entries(rideshareCoachSchemaMetadata.writable_tables).map(([name, info]) => ({
       name,
       description: info.description,
       action_tag: info.action_tag || info.action_tags?.[0]
@@ -228,7 +228,7 @@ router.get('/tables', (_req, res) => {
  * Returns formatted string for system prompt injection
  */
 router.get('/prompt', (_req, res) => {
-  const prompt = formatSchemaForPrompt(coachSchemaMetadata);
+  const prompt = formatSchemaForPrompt(rideshareCoachSchemaMetadata);
   res.json({ ok: true, prompt });
 });
 

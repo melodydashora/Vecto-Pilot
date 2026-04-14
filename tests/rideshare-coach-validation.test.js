@@ -9,7 +9,7 @@ import {
   eventDeactivationSchema,
   zoneIntelSchema,
   systemNoteSchema
-} from '../server/api/coach/validate.js';
+} from '../server/api/rideshare-coach/validate.js';
 
 describe('Coach Validation', () => {
 

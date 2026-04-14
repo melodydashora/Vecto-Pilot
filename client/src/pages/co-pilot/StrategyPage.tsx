@@ -21,7 +21,7 @@ import {
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/useToast';
 import { FeedbackModal } from '@/components/FeedbackModal';
-import AICoach from '@/components/AICoach';
+import RideshareCoach from '@/components/RideshareCoach';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 // 2026-01-09: Renamed from BarsTable for disambiguation
 import BarsDataGrid from '@/components/BarsDataGrid';
@@ -864,7 +864,7 @@ export default function StrategyPage() {
             <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">Live Chat</Badge>
           </div>
           <div className="mt-4">
-            <AICoach
+            <RideshareCoach
               userId={localStorage.getItem('vecto_user_id') || 'default'}
               snapshotId={lastSnapshotId || undefined}
               strategyId={strategyData?.strategyId || undefined}

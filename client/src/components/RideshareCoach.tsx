@@ -49,7 +49,7 @@ interface SnapshotData {
   lng?: number;
 }
 
-interface AICoachProps {
+interface RideshareCoachProps {
   userId: string;
   snapshotId?: string;
   strategyId?: string;
@@ -59,7 +59,7 @@ interface AICoachProps {
   strategyReady?: boolean; // Indicates if strategy is still generating or complete
 }
 
-export default function AICoach({
+export default function RideshareCoach({
   userId,
   snapshotId,
   strategyId,
@@ -67,7 +67,7 @@ export default function AICoach({
   snapshot,
   blocks: _blocks = [],
   strategyReady = false
-}: AICoachProps) {
+}: RideshareCoachProps) {
   // Use persistent state hook
   const { messages: msgs, setMessages: setMsgs, isLoaded: _isChatLoaded } = useChatPersistence(userId, snapshotId);
   

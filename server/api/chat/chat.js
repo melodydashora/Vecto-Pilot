@@ -9,9 +9,9 @@ import { fileURLToPath } from 'url';
 import { db } from '../../db/drizzle.js';
 import { snapshots, strategies, driver_profiles } from '../../../shared/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
-import { coachDAL } from '../../lib/ai/coach-dal.js';
+import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
-import { validateAction } from '../coach/validate.js';
+import { validateAction } from '../rideshare-coach/validate.js';
 // @ts-ignore
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
 
@@ -203,7 +203,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       }
 
       // 2026-03-18: Check return value — DAL returns null on failure
-      const noteResult = await coachDAL.saveUserNote({
+      const noteResult = await rideshareCoachDAL.saveUserNote({
         user_id: userId,
         snapshot_id: snapshotId,
         note_type: validation.data.note_type,
@@ -238,7 +238,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const deactResult = await coachDAL.deactivateEvent({
+      const deactResult = await rideshareCoachDAL.deactivateEvent({
         user_id: userId,
         event_title: validation.data.event_title,
         reason: validation.data.reason,
@@ -271,7 +271,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const reactResult = await coachDAL.reactivateEvent({
+      const reactResult = await rideshareCoachDAL.reactivateEvent({
         user_id: userId,
         event_title: validation.data.event_title,
         reason: validation.data.reason,
@@ -303,7 +303,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const newsResult = await coachDAL.deactivateNews({
+      const newsResult = await rideshareCoachDAL.deactivateNews({
         user_id: userId,
         news_title: validation.data.news_title,
         reason: validation.data.reason,
@@ -336,7 +336,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const sysResult = await coachDAL.saveSystemNote({
+      const sysResult = await rideshareCoachDAL.saveSystemNote({
         note_type: validation.data.type,
         category: validation.data.category,
         title: validation.data.title,
@@ -377,7 +377,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       }
 
       // Get city/state from snapshot context (events need location)
-      const snapshot = snapshotId ? await coachDAL.getHeaderSnapshot(snapshotId) : null;
+      const snapshot = snapshotId ? await rideshareCoachDAL.getHeaderSnapshot(snapshotId) : null;
       const city = event.city || snapshot?.city;
       const state = event.state || snapshot?.state;
       if (!city || !state) {
@@ -385,7 +385,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const addResult = await coachDAL.addEvent({
+      const addResult = await rideshareCoachDAL.addEvent({
         ...validation.data,
         city,
         state,
@@ -422,7 +422,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const updateResult = await coachDAL.updateEvent({
+      const updateResult = await rideshareCoachDAL.updateEvent({
         ...validation.data,
         snapshot_id: snapshotId
       });
@@ -485,7 +485,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const zoneResult = await coachDAL.saveZoneIntelligence({
+      const zoneResult = await rideshareCoachDAL.saveZoneIntelligence({
         market_slug: validation.data.market_slug,
         zone_type: validation.data.zone_type,
         zone_name: validation.data.zone_name,
@@ -529,7 +529,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const miResult = await coachDAL.saveMarketIntelligence({
+      const miResult = await rideshareCoachDAL.saveMarketIntelligence({
         ...validation.data,
         created_by: 'ai_coach'
       });
@@ -563,7 +563,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
 
-      const viResult = await coachDAL.saveVenueCatalogEntry({
+      const viResult = await rideshareCoachDAL.saveVenueCatalogEntry({
         ...validation.data,
         discovery_source: 'ai_coach'
       });
@@ -596,7 +596,7 @@ router.post('/notes', requireAuth, async (req, res) => {
   }
 
   try {
-    const note = await coachDAL.saveUserNote({
+    const note = await rideshareCoachDAL.saveUserNote({
       user_id: userId,
       snapshot_id: snapshot_id || null,
       note_type: note_type || 'insight',
@@ -629,7 +629,7 @@ router.get('/notes', requireAuth, async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
 
   try {
-    const notes = await coachDAL.getUserNotes(userId, limit);
+    const notes = await rideshareCoachDAL.getUserNotes(userId, limit);
     res.json({ notes, count: notes.length });
   } catch (error) {
     console.error('[chat/notes] Error fetching notes:', error);
@@ -677,7 +677,7 @@ router.get('/context/:snapshotId', requireAuth, async (req, res) => {
   
   try {
     // Use CoachDAL for read-only access
-    const context = await coachDAL.getCompleteContext(snapshotId);
+    const context = await rideshareCoachDAL.getCompleteContext(snapshotId);
     
     res.json({
       snapshot_id: snapshotId,
@@ -772,7 +772,7 @@ router.post('/', requireAuth, async (req, res) => {
       } else if (strategyId) {
         // Fallback: resolve strategy to snapshot if no direct snapshotId
         console.log('[chat] Resolving strategy_id:', strategyId);
-        const resolution = await coachDAL.resolveStrategyToSnapshot(strategyId);
+        const resolution = await rideshareCoachDAL.resolveStrategyToSnapshot(strategyId);
         if (resolution) {
           activeSnapshotId = resolution.snapshot_id;
           console.log('[chat] Resolved strategy_id to snapshot_id:', activeSnapshotId);
@@ -797,8 +797,8 @@ router.post('/', requireAuth, async (req, res) => {
       // Get COMPLETE context using CoachDAL (full schema access)
       // Pass authenticated user ID for driver profile lookup (in case snapshot has different/null user_id)
       if (activeSnapshotId) {
-        fullContext = await coachDAL.getCompleteContext(activeSnapshotId, null, authUserId !== 'anonymous' ? authUserId : null);
-        contextInfo = coachDAL.formatContextForPrompt(fullContext);
+        fullContext = await rideshareCoachDAL.getCompleteContext(activeSnapshotId, null, authUserId !== 'anonymous' ? authUserId : null);
+        contextInfo = rideshareCoachDAL.formatContextForPrompt(fullContext);
 
         console.log(`[chat] Full context loaded - Status: ${fullContext.status} | Snapshot: ${activeSnapshotId}`);
         console.log(`[chat] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, driverProfile=${!!fullContext.driverProfile}, vehicle=${!!fullContext.driverVehicle}`);
@@ -809,7 +809,7 @@ router.post('/', requireAuth, async (req, res) => {
       // Add snapshot history for authenticated users (last 10 sessions)
       if (isAuthenticated) {
         try {
-          const history = await coachDAL.getSnapshotHistory(authUserId, 10);
+          const history = await rideshareCoachDAL.getSnapshotHistory(authUserId, 10);
           if (history && history.length > 0) {
             fullContext = fullContext || {};
             fullContext.snapshotHistory = history;
@@ -829,10 +829,10 @@ router.post('/', requireAuth, async (req, res) => {
       // Add crowd-sourced zone intelligence for this market
       if (fullContext?.snapshot) {
         try {
-          const marketSlug = coachDAL.generateMarketSlug(fullContext.snapshot.city, fullContext.snapshot.state);
+          const marketSlug = rideshareCoachDAL.generateMarketSlug(fullContext.snapshot.city, fullContext.snapshot.state);
           if (marketSlug) {
             fullContext.marketSlug = marketSlug;
-            const zoneIntelSummary = await coachDAL.getZoneIntelligenceSummary(marketSlug);
+            const zoneIntelSummary = await rideshareCoachDAL.getZoneIntelligenceSummary(marketSlug);
             if (zoneIntelSummary) {
               contextInfo += zoneIntelSummary;
             }
@@ -870,7 +870,7 @@ router.post('/', requireAuth, async (req, res) => {
     let userMessageId = null;
     if (isAuthenticated) {
       try {
-        const userMsg = await coachDAL.saveConversationMessage({
+        const userMsg = await rideshareCoachDAL.saveConversationMessage({
           user_id: authUserId,
           snapshot_id: activeSnapshotId,
           conversation_id: conversationId,
@@ -1037,7 +1037,7 @@ You have FULL event management capabilities — add, update, deactivate, and rea
 🗺️ **Zone Intelligence (Crowd-Sourced Learning):**
 - When drivers share intel about specific areas (dead zones, dangerous spots, honey holes, staging spots), SAVE IT!
 - This builds a crowd-sourced knowledge base that helps ALL drivers in this market
-- Format: \`[ZONE_INTEL: {"zone_type": "dead_zone|danger_zone|honey_hole|surge_trap|staging_spot|event_zone", "zone_name": "Human-readable area name", "market_slug": "${fullContext?.snapshot ? coachDAL.generateMarketSlug(fullContext.snapshot.city, fullContext.snapshot.state) : 'unknown'}", "reason": "What the driver said", "time_constraints": "after 10pm weeknights", "address_hint": "near the Target on Main"}]\`
+- Format: \`[ZONE_INTEL: {"zone_type": "dead_zone|danger_zone|honey_hole|surge_trap|staging_spot|event_zone", "zone_name": "Human-readable area name", "market_slug": "${fullContext?.snapshot ? rideshareCoachDAL.generateMarketSlug(fullContext.snapshot.city, fullContext.snapshot.state) : 'unknown'}", "reason": "What the driver said", "time_constraints": "after 10pm weeknights", "address_hint": "near the Target on Main"}]\`
 - Zone types:
   • dead_zone: Areas with little/no ride demand
   • danger_zone: Unsafe/sketchy areas to avoid
@@ -1327,12 +1327,12 @@ Full transparency. Maximum insight.
             const hasSaveNoteActions = actions?.notes?.length > 0;
             const extractedTips = hasSaveNoteActions
               ? 0
-              : await coachDAL.extractAndSaveTips(authUserId, cleanedText, {
+              : await rideshareCoachDAL.extractAndSaveTips(authUserId, cleanedText, {
                   snapshot_id: activeSnapshotId,
                   conversation_id: conversationId
                 });
 
-            await coachDAL.saveConversationMessage({
+            await rideshareCoachDAL.saveConversationMessage({
               user_id: authUserId,
               snapshot_id: activeSnapshotId,
               conversation_id: conversationId,
@@ -1395,7 +1395,7 @@ router.get('/conversations', requireAuth, async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
 
   try {
-    const conversations = await coachDAL.getConversations(userId, limit);
+    const conversations = await rideshareCoachDAL.getConversations(userId, limit);
     res.json({ conversations, count: conversations.length });
   } catch (error) {
     console.error('[chat/conversations] Error fetching conversations:', error);
@@ -1411,7 +1411,7 @@ router.get('/conversations/:conversationId', requireAuth, async (req, res) => {
   const limit = parseInt(req.query.limit) || 100;
 
   try {
-    const messages = await coachDAL.getConversationHistory(userId, conversationId, limit);
+    const messages = await rideshareCoachDAL.getConversationHistory(userId, conversationId, limit);
     res.json({ conversation_id: conversationId, messages, count: messages.length });
   } catch (error) {
     console.error('[chat/conversations] Error fetching conversation history:', error);
@@ -1426,7 +1426,7 @@ router.post('/conversations/:messageId/star', requireAuth, async (req, res) => {
   const { starred } = req.body;
 
   try {
-    const result = await coachDAL.toggleMessageStar(messageId, starred !== false);
+    const result = await rideshareCoachDAL.toggleMessageStar(messageId, starred !== false);
     if (result) {
       res.json({ success: true, message_id: messageId, starred: result.is_starred });
     } else {
@@ -1445,7 +1445,7 @@ router.get('/history', requireAuth, async (req, res) => {
   const limit = parseInt(req.query.limit) || 100;
 
   try {
-    const messages = await coachDAL.getConversationHistory(userId, null, limit);
+    const messages = await rideshareCoachDAL.getConversationHistory(userId, null, limit);
     res.json({ messages, count: messages.length });
   } catch (error) {
     console.error('[chat/history] Error fetching history:', error);
@@ -1464,7 +1464,7 @@ router.get('/system-notes', requireAuth, async (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
 
   try {
-    const notes = await coachDAL.getSystemNotes(status, limit);
+    const notes = await rideshareCoachDAL.getSystemNotes(status, limit);
     res.json({ notes, count: notes.length });
   } catch (error) {
     console.error('[chat/system-notes] Error fetching system notes:', error);
@@ -1487,7 +1487,7 @@ router.post('/deactivate-news', requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await coachDAL.deactivateNews({
+    const result = await rideshareCoachDAL.deactivateNews({
       user_id: userId,
       news_title,
       news_source: news_source || null,
@@ -1512,7 +1512,7 @@ router.get('/deactivated-news', requireAuth, async (req, res) => {
   const userId = req.auth.userId;
 
   try {
-    const hashes = await coachDAL.getDeactivatedNewsHashes(userId);
+    const hashes = await rideshareCoachDAL.getDeactivatedNewsHashes(userId);
     res.json({ hashes, count: hashes.length });
   } catch (error) {
     console.error('[chat/deactivated-news] Error:', error);
@@ -1531,7 +1531,7 @@ router.post('/deactivate-event', requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await coachDAL.deactivateEvent({
+    const result = await rideshareCoachDAL.deactivateEvent({
       user_id: userId,
       event_title,
       reason: reason || 'User requested removal',
@@ -1561,7 +1561,7 @@ router.get('/snapshot-history', requireAuth, async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
 
   try {
-    const history = await coachDAL.getSnapshotHistory(userId, limit);
+    const history = await rideshareCoachDAL.getSnapshotHistory(userId, limit);
     res.json({ snapshots: history, count: history.length });
   } catch (error) {
     console.error('[chat/snapshot-history] Error:', error);
