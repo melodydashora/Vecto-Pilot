@@ -27,7 +27,8 @@ import {
 } from '../../../shared/schema.js';
 import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
 import crypto from 'crypto';
-import { VALIDATION_SCHEMA_VERSION } from '../../events/pipeline/validateEvent.js';
+// Path: from server/lib/ai/ → ../events/ resolves to server/lib/events/
+import { VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
 
 /**
  * CoachDAL - Full schema read access for AI Coach
