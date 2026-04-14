@@ -1,7 +1,7 @@
 # VENUES.md — Venue Discovery and Management Architecture
 
 > **Canonical reference** for venue discovery, scoring, ranking, Google Places integration, and how venues appear in the UI.
-> Last updated: 2026-04-11 (Smart Blocks ↔ Event Venue Coordination: NEAR/FAR bucket model, 15-mile rule restored as supreme)
+> Last updated: 2026-04-14 (Status taxonomy, heuristic scoring labels, driver preference gap documented)
 
 ## Supersedes
 - `server/lib/venue/README.md` — Venue module docs (merged here)
@@ -85,10 +85,12 @@ VenueRecommendation {
 }
 ```
 
-### Value Scoring (Post-Enrichment)
+### Value Scoring (Post-Enrichment) — HEURISTIC
+
+> **Note:** This is a distance-based heuristic, not an economic model. The $1.50/mile rate is a static estimate with no surge, airport, or offer data. See §11 Known Gaps.
 
 ```javascript
-estimatedEarnings = distanceMiles * $1.50/mile;
+estimatedEarnings = distanceMiles * $1.50/mile;  // static rate
 valuePerMin = estimatedEarnings / driveTimeMinutes;
 
 // Grading:
@@ -344,25 +346,39 @@ Each block sent to client:
 
 ## 10. Current State
 
+### Status Taxonomy
+
+| Label | Meaning |
+|-------|---------|
+| **Implemented** | Code exists and compiles. No runtime evidence yet. |
+| **Statically Verified** | Code reviewed, syntax checked, imports validated. Not tested with real data. |
+| **Runtime Tested** | Ran in dev with real or realistic data. Observed correct behavior in logs. |
+| **Owner Confirmed** | Melody (product owner) has verified the feature in the running app. |
+
+### Feature Status
+
 | Area | Status |
 |------|--------|
-| VENUE_SCORER (GPT-5.4) | Working — 4-8 venue recommendations |
-| Google Places enrichment | Working — place_id, hours, status |
-| Google Routes batch | Working — drive time with traffic |
-| Event matching | Working — strong identity keys (`place_id` → `venue_id` → name fallback, 2026-04-11) |
-| Smart Blocks ↔ event coordination | Working — NEAR/FAR bucket model with 15-mile rule as supreme constraint (2026-04-11) |
-| Venue catalog persistence | Working — upsert on each pipeline run |
-| VENUE_FILTER (Haiku) | Working — P/S/X classification |
-| Value grading (A/B/C) | Working — earnings-per-minute based |
+| VENUE_SCORER (via `VENUE_SCORER` role) | Runtime Tested — 4-8 venue recommendations |
+| Google Places enrichment | Runtime Tested — place_id, hours, status |
+| Google Routes batch | Runtime Tested — drive time with traffic |
+| Event matching | Statically Verified — strong identity keys (`place_id` → `venue_id` → name fallback, 2026-04-11). Rewritten but no post-rewrite runtime confirmation. |
+| Smart Blocks ↔ event coordination | Statically Verified — NEAR/FAR bucket model with 15-mile rule (2026-04-11). Code complete, reviewed, no end-to-end runtime test with real events confirmed. |
+| Venue catalog persistence | Runtime Tested — upsert on each pipeline run |
+| VENUE_FILTER (via `VENUE_FILTER` role) | Runtime Tested — P/S/X classification |
+| Value grading (A/B/C) | Runtime Tested — heuristic, distance-based (see §11 Known Gaps) |
 
 ---
 
 ## 11. Known Gaps
 
-1. **No driver preference influence** — Venue scoring doesn't consider driver's vehicle class or service preferences.
+1. **No driver preference influence on venue scoring** — `generateEnhancedSmartBlocks()` accepts `user_id` but only uses it for ranking record attribution. Scoring and filtering ignore driver preferences entirely. The strategist layer was enriched with driver prefs (2026-04-11) but the venue layer was not. Specific preferences that should be threaded through:
+   - **max_deadhead_mi** — Filter venues beyond the driver's deadhead tolerance (currently hardcoded 25mi)
+   - **Home base bias** — Prefer venues closer to home for end-of-shift positioning
+   - **Vehicle/service eligibility** — Exclude venues requiring vehicle types the driver doesn't have (e.g., airport queue requires TLC plates)
 2. **No venue freshness tracking** — A venue's hours from 3 months ago are treated the same as today's data.
 3. ~~**Event matching is fuzzy** — String-based name matching can miss or mismatch venues.~~ **Resolved 2026-04-11:** `event-matcher.js` rewritten to use `place_id` as the primary match key (both sides Google-sourced → invariant across formatting drift), with `venue_id` as secondary and substantial-name-match as a tertiary fallback.
-4. **No surge data integration** — Value scoring uses static $1.50/mile, not real-time surge pricing.
+4. **Value scoring is a distance heuristic, not economic truth** — `estimatedEarnings = distanceMiles × $1.50/mile` (static). No surge multiplier, airport queue premium, or offer intelligence data. The A/B/C grade (`valuePerMin`) measures drive-efficiency, not actual earning potential. See `enhanced-smart-blocks.js:495`.
 5. **Venue catalog grows unbounded** — No cleanup of permanently closed or unused venues.
 6. **No venue popularity signal** — Missing data on which venues actually produce rides.
 
@@ -372,7 +388,7 @@ Each block sent to client:
 
 - [ ] **Integrate surge pricing into value scoring** — Use real-time surge multipliers from offer intelligence
 - [ ] **Add venue freshness TTL** — Re-check business hours if data older than 7 days
-- [ ] **Driver preference-aware scoring** — Weight venues by vehicle class eligibility
+- [ ] **Driver preference-aware scoring** — Thread max_deadhead_mi (filter), home base bias (end-of-shift), vehicle/service eligibility (exclusion) into venue scoring via `loadDriverPreferences(user_id)`
 - [ ] **Venue popularity from ride history** — Track which venues drivers get rides from (via offer intelligence)
 - [x] ~~**Place_id-based event matching** — Use Google Place IDs instead of fuzzy name matching~~ (Resolved 2026-04-11 — `event-matcher.js` rewritten with `place_id` → `venue_id` → name fallback)
 - [ ] **Venue catalog cleanup job** — Archive permanently closed venues, prune unused stubs older than 90 days

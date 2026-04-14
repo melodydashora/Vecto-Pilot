@@ -1,5 +1,7 @@
 # Workflow File Listing
 
+> **ARCHIVED 2026-04-14 — This file was generated on 2026-02-04 and no longer reflects current schema. See `docs/architecture/` for current documentation.**
+
 Generated: 2026-02-04T18:42:32.776Z
 
 Workflow files organized by event flow order. Non-active files appear at the end of each category.

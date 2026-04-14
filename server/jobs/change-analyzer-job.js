@@ -83,7 +83,7 @@ export async function runAnalysis() {
       'CLAUDE.md',          // System prompt
       'GEMINIANALYSIS.md',  // System audit
       'GEMINIMEMORY.md',    // System context
-      'WORKFLOW_FILE_LISTING.md' // Auto-generated index
+      'docs/archive/WORKFLOW_FILE_LISTING.md' // Archived 2026-04-14 — stale since 2026-02-04
     ];
 
     // Combine all changes, allowing local READMEs to pass through 
