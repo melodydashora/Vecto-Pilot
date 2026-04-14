@@ -133,6 +133,35 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 
 All paths ultimately run `gateway-server.js`. The Replit Run path adds `.env.local` sourcing and `scripts/start-replit.js` (health gate + PORT binding). The deployment path builds the client first and uses Replit-injected env vars.
 
+### Node.js Version Matrix
+
+| Source | Declares | Notes |
+|--------|----------|-------|
+| `package.json` engines | `>=18.0.0` | Minimum for ESM + top-level await |
+| `.replit` modules | `nodejs-20` | Replit runtime module |
+| `.replit` nix packages | `nodejs-22` | Nix overlay (may or may not be active) |
+
+**Effective runtime:** Node 20 (from Replit modules). The `>=18` engine floor is the compatibility contract; 20 is the deployed version.
+
+### Deployment Secrets Checklist
+
+| Variable | Required | Dev Fallback | Purpose |
+|----------|----------|-------------|---------|
+| `DATABASE_URL` | Yes | Auto-injected by Replit | PostgreSQL connection |
+| `JWT_SECRET` | Prod: Yes | `REPLIT_DEVSERVER_INTERNAL_ID` | Auth token signing (HMAC-SHA256) |
+| `VECTO_AGENT_SECRET` | Prod: Yes | None (agent auth fails) | Agent/system auth header |
+| `ANTHROPIC_API_KEY` | Yes (at least 1 AI key) | None | Claude models |
+| `OPENAI_API_KEY` | Yes (at least 1 AI key) | None | GPT models |
+| `GEMINI_API_KEY` | Yes (at least 1 AI key) | `GOOGLE_AI_API_KEY` alias | Gemini models |
+| `GOOGLE_CLIENT_ID` | Optional | None (Google OAuth disabled) | Google OAuth consent |
+| `GOOGLE_CLIENT_SECRET` | Optional | None | Google OAuth exchange |
+| `TOKEN_ENCRYPTION_KEY` | If Uber OAuth configured | None (Uber auth fails) | Uber token AES encryption |
+| `UBER_CLIENT_ID` | Optional | None (Uber OAuth disabled) | Uber OAuth |
+| `UBER_CLIENT_SECRET` | Optional | None | Uber OAuth |
+| `PERPLEXITY_API_KEY` | Optional | None (web research disabled) | Perplexity Sonar Pro |
+
+See `server/config/validate-env.js` for the full validation logic. In production, missing required secrets cause startup errors (not warnings).
+
 ### Database Core Tables
 
 | Table | Purpose | Key Fields |
