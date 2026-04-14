@@ -497,3 +497,148 @@ The Phase 5 brief's step-3 string-format assertion is **REJECTED** under Rule 6 
 - **dow format correct:** YES (integer per schema and all consumers)
 - **Phase 5 code changes:** NONE. Pushback documented. Hardening opportunity flagged for future work.
 
+---
+
+## Appendix C: Header Projection Migration Plan (Phase 6 — 2026-04-14)
+
+> **STATUS: PENDING OWNER APPROVAL.** This appendix documents the proposed migration for the GlobalHeader component to bring it into compliance with §6. No code changes have been made to `client/src/components/GlobalHeader.tsx` or the LocationContext. The header is user-facing and live — rewiring it changes visible UI behavior, so owner sign-off is required before Phase 6b (implementation) proceeds.
+
+### C.1 Scope & §6 Reminder
+
+Per §6, **every value displayed in the GlobalHeader must come from `snapshots` or be deterministically derived from `snapshots` + runtime status.** Phase 2's Appendix A found that 7 of 9 header elements violate this rule. Phase 3 §9 decisions #3 and #4 pinned `snapshot.created_at` as the canonical freshness timestamp and `snapshot.status === 'ok'` as the canonical readiness signal.
+
+This appendix formalizes the projection contract, documents each violation in detail, and proposes a migration path that **preserves the existing UX property of fast visual feedback** (values rendering within ~100ms of login, not blocked on enrichment).
+
+### C.2 Per-Element Audit
+
+For each header element: `Current source` → where the value comes from today; `Spec source` → where §6 says it should come from; `Migration risk` → what can break; `Recommended approach` → the fix.
+
+---
+
+#### C.2.1 Location label (e.g., "Frisco, TX" / formatted address)
+
+- **File:line:** `GlobalHeader.tsx:518` (`<span>{formatLocation()}</span>`)
+- **Current source:** `formatLocation()` prefers `dbUserLocation.formatted_address` (served by `/api/auth/me`, so it is the user's *account-level* location, not per-snapshot); falls back to `loc.city, loc.state` from LocationContext.
+- **Spec source:** `snapshot.city`, `snapshot.state`, `snapshot.formatted_address` — the *per-snapshot* resolved location.
+- **Migration risk:** The current `dbUserLocation` can be stale (user logged in from home, now driving in another city). Phase 2 noted this as a subtle bug hiding behind the priority order. Switching to snapshot may change the label for users whose device moved after login (desired behavior). Risk: brief flicker between old and new value on GPS change.
+- **Recommended approach:** Read `snapshot.city`, `snapshot.state`, `snapshot.formatted_address` as **primary**. Fall back to `dbUserLocation` only when no snapshot exists yet (cold-start state). Migration is low-risk because the *shape* of the displayed string doesn't change.
+
+#### C.2.2 Time display (e.g., "11:30:05 AM")
+
+- **File:line:** `GlobalHeader.tsx:454` (`{timeString}`)
+- **Current source:** `new Date()` from a `useState` + 1-second `setInterval`, rendered via `Intl.DateTimeFormat({timeZone})` where the timezone is `dbUserLocation.timezone` (fallback: `LocationContext.timeZone`).
+- **Spec source:** `snapshot.local_iso` + `snapshot.timezone`, advanced by `now - snapshot.created_at`.
+- **Migration risk:** The real-time ticking clock is a core UX affordance (drivers glance at the header to check the time — it must tick). A naive switch to `snapshot.local_iso` would freeze at the snapshot creation instant.
+- **Recommended approach:** Keep the 1-second ticking render, but **anchor** to snapshot: `displayTime = snapshot.local_iso + (now - snapshot.created_at)`. The tick interval still uses `new Date()` for *delta*, but the zero-point is the snapshot's point-in-time. This satisfies §6 ("deterministically derived from snapshot + runtime status") while preserving the real-time clock UX. Timezone reads from `snapshot.timezone`, not `dbUserLocation.timezone`.
+
+#### C.2.3 Date display (e.g., "Tuesday, Apr 14")
+
+- **File:line:** `GlobalHeader.tsx:462,466` (`{dayOfWeek}, {dateString}`)
+- **Current source:** `new Date()` + `Intl.DateTimeFormat({timeZone, month:'short', day:'numeric'})` for the date; `classifyDayPart(now, tz)` for day-part context; `dayOfWeek` computed from `now` + timezone.
+- **Spec source:**
+  - date → `snapshot.date` (already `YYYY-MM-DD` in snapshot timezone); format for display only.
+  - day-of-week → `snapshot.dow` (integer 0–6; map via `['Sunday',...,'Saturday']`). Per Appendix B, `dow` is authoritatively integer.
+  - day-part → `snapshot.day_part_key`.
+- **Migration risk:** Display strings may change subtly if the snapshot's timezone differs from `dbUserLocation.timezone` (possible after travel). This is desired behavior but may surprise users during the transition.
+- **Recommended approach:** Direct substitution. `dateString` from `snapshot.date`; `dayOfWeek` from `dayNames[snapshot.dow]`; `timeContextLabel` from `snapshot.day_part_key`. No recomputation.
+
+#### C.2.4 Temperature display (e.g., "76°" + weather icon)
+
+- **File:line:** `GlobalHeader.tsx:488` (`{Math.round(weather.temp)}°`), icon at `:478-486`
+- **Current source:** `loc.weather.temp` + `loc.weather.conditions` from `LocationContext`, which fetches `/api/location/weather?lat=..&lng=..` independently of snapshot creation (line 428 in LocationContext). **This is the most consequential §6 violation** — it means the displayed temperature was fetched at a different moment than the snapshot's enrichment, and the two can disagree.
+- **Spec source:** `snapshot.weather` (the jsonb blob populated by `PATCH /snapshot/:id/enrich`). Shape: `{ tempF, conditions, description }` per `location.js:1895-1899`.
+- **Migration risk:**
+  - **Timing:** snapshot.weather is null until enrichment completes (typically <1s after creation). Current fetch is also async — no worse than status quo.
+  - **Shape:** current UI reads `weather.temp` and `weather.conditions`. Snapshot's stored shape uses `tempF` (not `temp`). Rename needed at the consumption site.
+  - **Loss of independence:** if snapshot enrichment fails, header temperature disappears. Acceptable per Phase 4 hard-fail philosophy — the `vecto-snapshot-hard-fail` event gives the UI a way to render a targeted "weather unavailable" note.
+- **Recommended approach:** Switch to `snapshot.weather.tempF` / `.conditions`. Remove the independent `/api/location/weather` fetch entirely. Phase 6b can keep the fetch during a deprecation window, with a console.warn when the shim path fires, to confirm the snapshot path reliably covers the real-user traffic before removal.
+
+#### C.2.5 AQI badge (e.g., "AQI 78")
+
+- **File:line:** `GlobalHeader.tsx:499` (`AQI {airQuality.aqi}`)
+- **Current source:** `loc.airQuality.aqi` + `.category` from `LocationContext`, fetched independently from `/api/location/air-quality?lat=..&lng=..` (LocationContext line 429).
+- **Spec source:** `snapshot.air` (jsonb blob from enrichment).
+- **Migration risk:** Same class as C.2.4. Shape alignment is simpler here — both sides use `aqi` + `category`.
+- **Recommended approach:** Switch to `snapshot.air.aqi` / `.category`. Drop the independent fetch. Same deprecation-window shim recommended.
+
+#### C.2.6 Freshness indicator (e.g., "just now" / "5m ago")
+
+- **File:line:** `GlobalHeader.tsx:520` (`({lastUpdated ? timeAgo(lastUpdated) : "just now"})`)
+- **Current source:** `lastUpdated` set by LocationContext:542 as `new Date().toISOString()` when reverse-geocoding completes.
+- **Spec source (Phase 3 decision #3):** `snapshot.created_at` is canonical.
+- **Migration risk:** Timer drift between LocationContext's local clock and the server's `created_at` is typically < 1s — no visible UX change for users. One gotcha: `snapshot.created_at` is a server timestamp with timezone; displaying "X ago" must compute against the *client's* clock. That arithmetic already happens in `timeAgo()` so the risk is zero.
+- **Recommended approach:** Swap `lastUpdated` → `snapshot.created_at`. `timeAgo()` logic unchanged. `lastUpdated` can be kept as a secondary diagnostic (shown in hover tooltip, e.g.) if desired, but the primary display reads from the snapshot per decision #3.
+
+#### C.2.7 Location readiness (e.g., "location ready" ✓)
+
+- **File:line:** `GlobalHeader.tsx:525-535`
+- **Current source:** `isLocationResolved`, computed client-side at LocationContext:168-174 as `coords.latitude && coords.longitude && currentLocationString && !placeholder`. Does not consult snapshot status or geolocation permission.
+- **Spec source (Phase 3 decision #4):** `snapshot.status === 'ok'` is canonical. Optionally AND with `snapshot.permissions.geolocation === 'granted'` once that column has server readers.
+- **Migration risk:** The current signal goes green ~200ms after GPS resolves; the snapshot-based signal goes green after enrichment completes (typically <1s, but could be longer on slow network). Users may perceive readiness as "slower" on the new signal. Mitigation: show an intermediate state "resolving…" while `status='pending'` and only flip to ✓ on `'ok'`.
+- **Recommended approach:**
+  - Primary: `snapshot.status === 'ok'` → green "location ready."
+  - `snapshot.status === 'pending'` (or no snapshot yet) → amber "resolving location…" (show missing-fields from 202 payload as tooltip for debuggability).
+  - **Hard-fail state (from `vecto-snapshot-hard-fail` CustomEvent, Phase 4):** red "Location data incomplete — please refresh." Add a `useEffect` subscribing to the event and storing `{ snapshotId, missingFields, message }` in local state; render the red state until a new `snapshotId` arrives (at which point clear the state).
+  - Phase 3 decision #4 permits the current composite as a transitional secondary signal. Recommended: ship the snapshot-primary path and keep the composite as fallback only when `snapshot` is null (true cold start).
+
+#### C.2.8 Day-of-week + day-part label (part of C.2.3, listed separately for clarity)
+
+- **File:line:** `GlobalHeader.tsx:466` (`{dayOfWeek}, {dateString} • {timeContextLabel}`)
+- Covered by C.2.3. Included here only because Appendix A §A.5 classified it as its own violation.
+
+#### C.2.9 Weather icon (CloudRain / Cloud / Sun / CloudSnow)
+
+- **File:line:** `GlobalHeader.tsx:478-486`
+- Covered by C.2.4 (uses the same `weather.conditions` string). Will follow whatever we decide for temperature.
+
+### C.3 §6 Compliance Summary (post-migration)
+
+| Element | Current source | Post-migration source | §6-compliant? |
+|---------|----------------|-----------------------|---------------|
+| Location label | `dbUserLocation` / `loc.city` | `snapshot.city`, `snapshot.state`, `snapshot.formatted_address` | YES |
+| Time display | `new Date()` + `dbUserLocation.timezone` | `snapshot.local_iso + (now - snapshot.created_at)` rendered in `snapshot.timezone` | YES (deterministic derivation) |
+| Date display | `new Date()` formatting | `snapshot.date` | YES |
+| Day-of-week | `new Date()` + timezone | `dayNames[snapshot.dow]` | YES |
+| Day-part label | `classifyDayPart(now, tz)` | `snapshot.day_part_key` | YES |
+| Temperature | `/api/location/weather` fetch | `snapshot.weather.tempF` | YES |
+| Weather icon | `/api/location/weather` fetch | `snapshot.weather.conditions` | YES |
+| AQI | `/api/location/air-quality` fetch | `snapshot.air.aqi` | YES |
+| Freshness | `lastUpdated` | `snapshot.created_at` | YES |
+| Location readiness | Client composite | `snapshot.status === 'ok'` + hard-fail event | YES |
+
+### C.4 Migration Path (Preserving Fast Visual Feedback)
+
+The current UX property worth preserving: values render within ~100–500ms of page load, not blocked on the briefing pipeline. The snapshot-driven reads mostly satisfy this already (snapshot creation is part of the first GPS-resolve flow), but care is needed.
+
+**Phase 6b — Implementation (requires owner approval):**
+
+1. **Add snapshot-reading code paths alongside the existing ones.** Render the snapshot-derived value if `snapshot` is available; otherwise fall back to the current `dbUserLocation` / `loc.weather` / `lastUpdated` / composite paths. This gives us a safety net during rollout.
+
+2. **Hook the `vecto-snapshot-hard-fail` CustomEvent into the header.** On event, set a React state like `hardFailState: { message, missingFields } | null`. When non-null, render the red "Location data incomplete — please refresh." in the readiness slot, overriding the normal indicator. Clear the state when a new `snapshotId` arrives. This is the missing UI consumer for the Phase 4 event — without it, Phase 4's hard-fail is only observable via `console.error`.
+
+3. **Use a single snapshot-subscription hook at the top of GlobalHeader.** Something like `const snapshot = useCurrentSnapshot();` returning the full row (or null while pending). This avoids scattered reads of individual fields and makes the shape change local to one file.
+
+4. **For temperature / AQI specifically:** keep the `/api/location/weather` and `/api/location/air-quality` fetches running *in parallel* during a deprecation window (e.g., 1–2 weeks) with a console.warn when the fallback fires. After that window, remove the client-side fetches entirely — their only caller is the header.
+
+5. **For the real-time clock anchoring:** introduce a small helper `useAnchoredClock(snapshot)` that returns a ticking `Date` equal to `snapshot.local_iso + (now - snapshot.created_at)`. Unit-test the anchor math against `Intl.DateTimeFormat` output to confirm timezone correctness.
+
+6. **Validation:** after implementation, visually confirm all 10 header elements in a running browser session. Type-check with `npx tsc --noEmit`. Monitor console for `[CoPilot] HARD FAIL` messages during QA to validate the readiness indicator flips to the red state on triggered failures (e.g., simulate by sending `X-Snapshot-Retry-Count: 6`).
+
+### C.5 Owner Approval Checkpoint
+
+**Before Phase 6b proceeds, the session owner must confirm:**
+
+- [ ] Switching location label to per-snapshot data (may change what users see if their device moved post-login) is acceptable.
+- [ ] Anchored-clock approach for the real-time time display is acceptable (vs. keeping `new Date()` free-running).
+- [ ] The `vecto-snapshot-hard-fail` UI integration plan — rendering a red "Location data incomplete — please refresh" in the readiness slot — matches intended UX copy, or new copy should be provided.
+- [ ] Weather/AQI independent fetches may be removed from the client after the deprecation window.
+- [ ] Whether to ship Phase 6b as a single PR or split into per-element commits (recommended: single PR because the reads share the snapshot hook).
+
+### C.6 Summary
+
+- Header elements audited: **10** (9 from Phase 2 + weather icon broken out)
+- §6 violations: **8** (one per element except the weather icon, which rides on temperature's fix)
+- Code changes made in Phase 6: **NONE**. This is documentation + migration plan only.
+- Phase 4's `vecto-snapshot-hard-fail` event currently has **no UI consumer**. The Phase 6b plan adds the missing subscriber.
+- Next action: **owner approval on §C.5 checkpoint before Phase 6b proceeds.**
+
