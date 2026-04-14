@@ -2073,3 +2073,29 @@ export const concierge_feedback = pgTable("concierge_feedback", {
   idxDriverProfile: sql`create index if not exists idx_concierge_feedback_driver on ${table} (driver_profile_id)`,
   idxCreatedAt: sql`create index if not exists idx_concierge_feedback_created on ${table} (created_at)`,
 }));
+
+// ============================================================================
+// CLAUDE MEMORY TABLE — Persistent knowledge base for Claude Code interactions
+// ============================================================================
+// 2026-04-14: Tracks rules agreed upon, actions taken, insights discovered,
+// and context per session. Used by the memory-keeper agent and /api/memory endpoints.
+export const claudeMemory = pgTable("claude_memory", {
+  id: serial("id").primaryKey(),
+  session_id: text("session_id").notNull(),           // Unique ID per Claude Code conversation
+  category: text("category").notNull(),                // 'rule' | 'action' | 'insight' | 'decision' | 'context' | 'feedback'
+  title: text("title").notNull(),                      // Short summary (e.g., "Always use Drizzle migrations")
+  content: text("content").notNull(),                  // Full detail of the memory entry
+  source: text("source").default("claude-code"),       // 'claude-code' | 'user' | 'agent' | 'system'
+  priority: text("priority").default("normal"),        // 'critical' | 'high' | 'normal' | 'low'
+  status: text("status").default("active"),            // 'active' | 'superseded' | 'archived' | 'disputed'
+  tags: jsonb("tags").default([]),                     // Array of searchable tags
+  related_files: jsonb("related_files").default([]),   // Files touched during this memory
+  parent_id: integer("parent_id"),                     // For threading/linking related memories
+  metadata: jsonb("metadata").default({}),             // Flexible extra data (model used, token count, etc.)
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxSessionId: sql`create index if not exists idx_claude_memory_session on ${table} (session_id)`,
+  idxCategory: sql`create index if not exists idx_claude_memory_category on ${table} (category)`,
+  idxStatus: sql`create index if not exists idx_claude_memory_status on ${table} (status)`,
+}));

@@ -29,6 +29,10 @@ api/
 ├── strategy/       # Strategy generation
 ├── vehicle/        # Vehicle makes/models (NHTSA proxy)
 ├── venue/          # Venue intelligence
+├── memory/         # Claude Memory (persistent AI knowledge base)
+├── concierge/      # QR code sharing, passenger feedback
+├── translate/      # Real-time rider translation
+├── hooks/          # External hooks (Siri, OCR/Signals)
 └── utils/          # Shared utilities
 ```
 
@@ -216,6 +220,21 @@ Routes are mounted in specific order (see `bootstrap/routes.js`):
 3. API routes (auth required)
 4. SSE events
 5. Catch-all fallback
+
+### memory/ (2026-04-14)
+| File | Route | Purpose |
+|------|-------|---------|
+| `index.js` | `/api/memory` | Claude Memory CRUD — persistent knowledge base for Claude Code sessions |
+
+**Endpoints:**
+- `GET /api/memory` — List memories (filters: `?category`, `?status`, `?search`, `?limit`)
+- `POST /api/memory` — Create memory entry (requires: session_id, category, title, content)
+- `PATCH /api/memory/:id` — Update memory entry
+- `GET /api/memory/stats` — Category counts
+- `GET /api/memory/rules` — Active rules (quick access)
+- `GET /api/memory/session/:sessionId` — Session-specific history
+
+**Note:** No auth middleware — internal Claude Code / agent use only. Bot-blocker allowlisted.
 
 ## Adding New Routes
 
