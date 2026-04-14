@@ -642,3 +642,73 @@ The current UX property worth preserving: values render within ~100–500ms of p
 - Phase 4's `vecto-snapshot-hard-fail` event currently has **no UI consumer**. The Phase 6b plan adds the missing subscriber.
 - Next action: **owner approval on §C.5 checkpoint before Phase 6b proceeds.**
 
+---
+
+## Appendix D: Duplication Exception Register (Phase 7 — 2026-04-14)
+
+### D.1 Purpose
+
+This appendix is the canonical register of every field in the data model that is duplicated across layers. For each duplication, it cites one of the five §7 exceptions that justifies it — or marks it **UNJUSTIFIED**, in which case it carries a remediation recommendation.
+
+The register consolidates findings from Phase 2 Appendix A §A.7 (duplications found) and Phase 3 §9 decision #5 (per-case justifications) into a single maintained index.
+
+### D.2 §7 Exception Reminder
+
+A duplication is justified only if at least one of these five exceptions applies:
+
+1. **Frozen for audit/history.** The duplicated copy must not follow later changes to the source.
+2. **Needed for indexing / filtering / reporting.** A column that is queried directly without a join.
+3. **Required for resilience when the source is unavailable later.**
+4. **Materially transformed into a different shape for the consuming layer.** The copy is not a copy — it is a derivation with a different purpose.
+5. **Necessary for documented product behavior.** A PM-approved constraint that cannot be satisfied by a live join.
+
+### D.3 Duplication Register
+
+Each row is a duplication. Columns:
+- **Source of truth** — the authoritative layer.
+- **Duplicate location** — where else the value exists.
+- **§7 exception** — 1, 2, 3, 4, 5, or **UNJUSTIFIED**.
+- **Remediation** — if unjustified, what to do.
+
+| # | Source of truth | Duplicate location | §7 exception | Remediation |
+|---|-----------------|--------------------|--------------|-------------|
+| 1 | `snapshots.weather` (raw summary, shape `{tempF, conditions, description}`) | `briefings.weather_current` (full Google Weather API response, different shape) | **#4 (transformed)** — different shapes serve different consumers: snapshot for strategist/LLM input, briefing for UI display. Justification verified via Phase 2 agent finding that `fetchWeatherConditions()` calls Google Weather API directly (not a copy). | None — justified. |
+| 2 | `snapshots.weather` | Client-side `/api/location/weather` fetch → `loc.weather.temp` in `LocationContext` → rendered in `GlobalHeader.tsx:488` | **UNJUSTIFIED** — independent client fetch bypasses the snapshot layer entirely, violating §6. | **Fix in Phase 6b** (pending owner approval, Appendix C §C.2.4). Header reads `snapshot.weather.tempF`; remove the independent fetch after deprecation window. |
+| 3 | `snapshots.air` | Client-side `/api/location/air-quality` fetch → `loc.airQuality.aqi` → `GlobalHeader.tsx:499` | **UNJUSTIFIED** — same class as #2. | **Fix in Phase 6b** (Appendix C §C.2.5). |
+| 4 | `snapshots.holiday` (text, populated at creation) | `briefings.holiday` (text column, **NEVER WRITTEN** per Phase 2) | **UNJUSTIFIED** — the briefing column is dead (no write paths). If it were written, §7 #1 (frozen for audit/history) would justify it; because it is dead, it is pure schema bloat. | **RECOMMEND REMOVAL** — see §D.4 Dead Columns. |
+| 5 | `snapshots.city`, `state`, `formatted_address` (per-snapshot resolved) | `dbUserLocation.formatted_address` / `.city` / `.state` served by `/api/auth/me` (user's account-level location) | **#5 (documented product behavior)** — BORDERLINE. The account-level copy is used for cold-start render before any snapshot exists. Phase 6b will switch the primary source to per-snapshot values and keep the account-level copy as cold-start fallback only. | None on the DB side — the snapshot is authoritative. Header rewiring is Phase 6b. |
+| 6 | `snapshots.timezone` | `dbUserLocation.timezone` via `/api/auth/me` | **#5 (documented product behavior)** — BORDERLINE (same as #5 above). | None on DB side. Phase 6b will prefer `snapshots.timezone` at the header. |
+| 7 | `snapshots.date` (text `YYYY-MM-DD` in snapshot timezone) | Header recomputes via `new Date()` + `Intl.DateTimeFormat({timeZone})` at `GlobalHeader.tsx:462` | **UNJUSTIFIED** — violates §6. | **Fix in Phase 6b** (Appendix C §C.2.3). |
+| 8 | `snapshots.local_iso` (timestamp, no tz) | Header recomputes via `new Date()` at `GlobalHeader.tsx:454` | **UNJUSTIFIED** — violates §6. | **Fix in Phase 6b** via `useAnchoredClock(snapshot)` helper (Appendix C §C.2.2) — preserves real-time tick UX while sourcing from snapshot. |
+| 9 | `snapshots.dow` (integer 0–6) | Header recomputes via `classifyDayPart(now, tz)` at `GlobalHeader.tsx:466` | **UNJUSTIFIED** — also violates §3.3 "first-class field, never recomputed downstream." | **Fix in Phase 6b** — read `dayNames[snapshot.dow]` (Appendix C §C.2.3). |
+| 10 | `snapshots.day_part_key` | Header recomputes via `classifyDayPart(now, tz)` at `GlobalHeader.tsx:466` (same call site as #9) | **UNJUSTIFIED** — violates §6. | **Fix in Phase 6b** — read `snapshot.day_part_key` (Appendix C §C.2.3). |
+| 11 | `snapshots.created_at` (Phase 3 decision #3 canonical) | `lastUpdated` state in `LocationContext`, set at reverse-geocode completion, rendered at `GlobalHeader.tsx:520` | **UNJUSTIFIED as primary** — violates §6. Acceptable as *secondary* diagnostic per decision #3. | **Fix in Phase 6b** (Appendix C §C.2.6). |
+| 12 | `snapshots.status` (Phase 3 decision #4 canonical) | Client-side composite `coords && currentLocationString && !placeholder` at `LocationContext:168-174` → `isLocationResolved` → `GlobalHeader.tsx:525-535` | **UNJUSTIFIED** — violates §6. | **Fix in Phase 6b** (Appendix C §C.2.7) — read `snapshot.status === 'ok'` + consume `vecto-snapshot-hard-fail` event. |
+| 13 | `snapshots.market` (copied from `driver_profiles.market` at creation) | `driver_profiles.market` (ongoing) | **#1 (frozen for audit/history)** — the snapshot's market value is frozen at creation; later changes to `driver_profiles.market` (user moves markets) must not retroactively alter the snapshot's meaning. | None — justified. |
+| 14 | `snapshots.is_holiday` (boolean derived from `snapshots.holiday`) | `snapshots.holiday` (text) | **#2 (indexable boolean for filtering)** — both live on the same row; `is_holiday` is the filterable form of `holiday`. Not a cross-layer duplication. | None — justified within the row. |
+
+### D.4 Dead Briefing Columns
+
+Phase 2 Appendix A identified three columns on the `briefings` table that are declared in `shared/schema.js:110-130` but never written by any code path. Each needs a decision.
+
+| Column | Current state | Decision | Action |
+|--------|---------------|----------|--------|
+| `briefings.generated_at` | **Dead — never written** | **IMPLEMENT** (safe code change per brief) | **FIXED in Phase 7** (this appendix): `briefing-service.js` now sets `generated_at: new Date()` on both the INSERT path (line 2889) and the UPDATE path (line 2902) in the final-data-store write. Placeholder (2590), refresh-clear (2610), and error (2634) paths intentionally leave `generated_at` untouched so it preserves "last successful generation time" across transient failures. |
+| `briefings.holiday` | **Dead — never written**. Snapshot already has `holiday` + `is_holiday` columns populated by the holiday detector at snapshot creation. | **RECOMMEND REMOVAL** | Produce a migration to `ALTER TABLE briefings DROP COLUMN holiday;` after confirming no ad-hoc consumers exist (a final `grep -r "briefings.holiday" / "briefings\.\?.*holiday"` pass). Blocked on: explicit owner approval for a destructive schema change (Rule: destructive DB ops need user confirmation). Until then, the column remains dead and is documented here as such. |
+| `briefings.status` | **Dead — never written**. Completeness validation exists at `briefing-service.js:2922-2929` but its result (`isComplete: boolean`, `missingFields: string[]`) is returned to the caller via the API response, not persisted. | **RECOMMEND POPULATE** — not implemented in Phase 7 because the correct semantics require threading through the completeness-check result into the DB write, which is a larger change than the generated_at two-liner. | Phase 8 or a dedicated later pass. Proposed states: `'pending'` on placeholder insert (2590); `'error'` on the error path (2634); `'complete'` on the final-data-store path if `isComplete === true`; `'partial'` if final-data-store succeeds but `isComplete === false`. Consumer-side: strategist pipeline should refuse to read any briefing with `status !== 'complete'` (currently it gets only via `complete` flag in the return payload). |
+
+### D.5 Summary
+
+- **Duplications registered:** 14
+  - Justified (§7 #1–5): **5** (entries 1, 5, 6, 13, 14)
+  - Unjustified: **9** (entries 2, 3, 4, 7, 8, 9, 10, 11, 12)
+    - Of the 9 unjustified:
+      - 7 are header-layer violations (entries 2, 3, 7, 8, 9, 10, 11, 12 — no, that is 8, but entries 9 and 10 share a call site so functionally 7 fix points) scheduled for Phase 6b pending owner approval.
+      - 1 is the dead `briefings.holiday` column (recommend removal in §D.4).
+- **Dead briefing columns:** 3 — `generated_at` (FIXED this phase), `holiday` (recommend remove), `status` (recommend populate, Phase 8).
+- **Code change in Phase 7:** 1 edit to `server/lib/briefing/briefing-service.js` — `generated_at: new Date()` added to INSERT briefingData object and UPDATE set block. Verified with `node --check`. No consumer needs to change: any existing reader gets a real timestamp where it used to get NULL.
+- **Remaining work routed to later phases:**
+  - Phase 6b (owner-approval-blocked) — entries 2, 3, 7, 8, 9, 10, 11, 12.
+  - Phase 8 or future — `briefings.status` population.
+  - Destructive-ops-owner-approval — `briefings.holiday` column drop.
+
