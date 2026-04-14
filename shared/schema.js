@@ -70,6 +70,8 @@ export const snapshots = pgTable("snapshots", {
   // Holiday detection at snapshot creation (via Gemini 3.0 Pro + Google Search)
   holiday: text("holiday").notNull().default('none'), // Holiday name (e.g., "Thanksgiving", "Christmas") or 'none'
   is_holiday: boolean("is_holiday").notNull().default(false), // Boolean flag: true if today is a holiday
+  // Snapshot readiness gate: 'pending' until all required fields are populated, then 'ok'
+  status: text("status").default('pending'),
 });
 
 // 2026-01-14: LEAN STRATEGIES TABLE
