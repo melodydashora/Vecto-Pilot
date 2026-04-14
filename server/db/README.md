@@ -1,66 +1,30 @@
-> **Last Verified:** 2026-01-06
+> **Last Updated:** 2026-04-14
 
 # Database (`server/db/`)
 
-## Purpose
-
-Database connection management and Drizzle ORM configuration.
+Database connection management and Drizzle ORM client. For schema documentation, see [DB_SCHEMA.md](../../docs/architecture/DB_SCHEMA.md). For migration policy, see [migrations/README.md](../../migrations/README.md).
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `db-client.js` | Main database client export |
-| `connection-manager.js` | Connection pool management |
+| `drizzle.js` | Drizzle ORM client (primary import) |
+| `drizzle-lazy.js` | Lazy-initialized Drizzle client |
+| `db-client.js` | Legacy client export |
 | `pool.js` | PostgreSQL pool configuration |
-| `drizzle.js` | Drizzle ORM setup |
-| `drizzle-lazy.js` | Lazy Drizzle initialization |
+| `connection-manager.js` | Connection pool lifecycle |
 | `rls-middleware.js` | Row-level security middleware |
-
-## SQL Files
-
-| File | Purpose |
-|------|---------|
-| `001_init.sql` | Initial schema creation |
-| `002_seed_dfw.sql` | DFW area seed data |
-
-### Migration Scripts (`sql/`)
-
-| File | Purpose |
-|------|---------|
-| `2025-10-31_strategy_generic.sql` | Strategy table generalization |
-| `2025-11-03_blocks_ready_notify.sql` | Blocks ready notification trigger |
-| `2025-12-27_event_deactivation_fields.sql` | Event deactivation field additions |
 
 ## Usage
 
 ```javascript
-import { db } from './db/db-client.js';
-
-// Query example
-const users = await db.select().from(users).where(eq(users.id, userId));
-```
-
-## Connection String
-
-Uses `DATABASE_URL` environment variable (Replit built-in PostgreSQL).
-
-## Connections
-
-- **Schema:** `../../shared/schema.js`
-- **Used by:** All route handlers and lib modules
-
-## Import Paths
-
-From different locations:
-
-```javascript
-// From server/api/*/ (nested routes)
+// From server/api/*/ (route handlers)
 import { db } from '../../db/drizzle.js';
-import { getDb } from '../../db/drizzle-lazy.js';
-import { getPoolStats } from '../../db/pool.js';
-import { getAgentState } from '../../db/connection-manager.js';
+import { users, snapshots } from '../../../shared/schema.js';
 
-// From server/lib/*/ (lib modules)
-import { db } from '../db/drizzle.js';
+const result = await db.select().from(snapshots).where(eq(snapshots.user_id, userId));
 ```
+
+## Connection
+
+Uses `DATABASE_URL` environment variable (Replit-managed PostgreSQL). Schema defined in `shared/schema.js`.
