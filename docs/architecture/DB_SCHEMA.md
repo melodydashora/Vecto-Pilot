@@ -2,6 +2,16 @@
 
 > **Canonical reference** for every table, the Drizzle ORM setup, connection management, and query patterns.
 > Last updated: 2026-04-14
+>
+> **Schema rollout exceptions** are tracked in [section 13](#13-migrations). Always check that section before assuming the documented schema matches prod.
+
+## Schema Artifact Trust Tiers
+
+| Tier | Artifact | Trust Level |
+|------|----------|-------------|
+| **Canonical** | `shared/schema.js` | Always authoritative. The single source of truth for all table definitions. |
+| **Operational** | `migrations/` + rollout notes in `pending.md` | Tracks how schema changes are deployed. Check for pending prod migrations. |
+| **Deprecated** | `scripts/create-all-tables.sql` | DO NOT use for recovery. Marked deprecated 2026-04-14 (Issue AL). |
 
 ## Supersedes
 - `docs/architecture/database-schema.md` — Previous schema doc (expanded here with ALL tables)
@@ -271,7 +281,8 @@ Pool auto-recovers on admin shutdown (code 57P01).
 | **Canonical schema definition** | `shared/schema.js` — all tables, columns, indexes, and relations |
 | **Standard path** | Drizzle-managed migrations via `npm run db:migrate` (uses `drizzle.config.js` → `./drizzle/` output) |
 | **Exception path** | Targeted direct SQL when global `drizzle-kit push` risks drift (e.g., adding a column to a large table without touching unrelated constraints) |
-| **Exception rule** | Every direct-SQL exception MUST be logged in `docs/review-queue/pending.md` and backfilled into migration history |
+| **Exception rule** | Every direct-SQL exception MUST be recorded in the exceptions table below AND in `docs/review-queue/pending.md` before deployment |
+| **Backfill policy** | Direct-SQL exceptions do NOT need to be backfilled as committed migration files. The pending.md queue and this exceptions table are sufficient tracking. |
 | **Manual migrations** | `migrations/` folder for RLS policies, triggers, functions, and one-off fixes that Drizzle doesn't manage |
 
 ### Current Exceptions (Direct SQL, Not Yet in Drizzle History)
