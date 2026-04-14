@@ -32,26 +32,40 @@ import { rankings, ranking_candidates, discovered_events, venue_catalog } from '
 // 2026-01-14: Time-sensitive event badge filtering
 // Only show event badges for events that are time-relevant (within 2h future or 4h past start)
 // 2026-01-31: Removed hardcoded timezone fallback - timezone is required per NO FALLBACKS rule
+// 2026-04-14: Issue M — Added 12-hour AM/PM parsing support for robustness.
+//   Canonical pipeline (normalizeEvent.js) stores HH:MM 24-hour format in discovered_events,
+//   but briefings.events JSONB may contain raw Gemini output like "7:00 PM".
+//   Handled formats: "19:00", "7:00 PM", "7 PM", "07:00", "7:30 AM"
 function isEventTimeRelevant(eventStartTime, snapshotTimezone) {
   if (!eventStartTime) return false;
   // 2026-01-31: NO FALLBACKS - timezone is required for global app
   if (!snapshotTimezone) return false;
 
-  // Get current time in venue's timezone
+  // Get current time in snapshot's timezone
   const now = new Date();
   const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: snapshotTimezone }));
   const currentMinutes = nowInTimezone.getHours() * 60 + nowInTimezone.getMinutes();
 
-  // Parse event start time (HH:MM format)
-  const [hours, minutes] = eventStartTime.split(':').map(Number);
-  if (isNaN(hours) || isNaN(minutes)) return false;
+  // 2026-04-14: Parse event start time — supports both 24h "HH:MM" and 12h "H:MM AM/PM"
+  const trimmed = eventStartTime.trim().toUpperCase();
+  const match = trimmed.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/);
+  if (!match) return false;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2] || '0', 10);
+  const period = match[3] || '';
+
+  // Convert 12-hour to 24-hour
+  if (period === 'PM' && hours !== 12) hours += 12;
+  if (period === 'AM' && hours === 12) hours = 0;
+
+  if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23) return false;
   const eventMinutes = hours * 60 + minutes;
 
   // Check: starts within next 2 hours OR started within last 4 hours
   const minutesUntilStart = eventMinutes - currentMinutes;
   const minutesSinceStart = currentMinutes - eventMinutes;
 
-  // Event starts within 2 hours (120 min) OR started within last 4 hours (240 min)
   return (minutesUntilStart >= 0 && minutesUntilStart <= 120) ||
          (minutesSinceStart >= 0 && minutesSinceStart <= 240);
 }
@@ -63,6 +77,8 @@ import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-ver
 import { matchVenuesToEvents } from './event-matcher.js';
 import { upsertVenue } from './venue-cache.js';
 import { venuesLog } from '../../logger/workflow.js';
+// 2026-04-14: Issue O — Use role config for accurate model telemetry in rankings.model_name
+import { getRoleConfig } from '../ai/model-registry.js';
 // 2026-01-31: Filter briefing data for venue planner to reduce token usage
 import { filterBriefingForPlanner } from '../briefing/filter-for-planner.js';
 
@@ -229,8 +245,9 @@ export async function fetchTodayDiscoveredEventsWithVenue(
     // Non-fatal — return empty array so the pipeline continues with generic venues.
     // The alternative (throwing) would block blocks-fast on any transient DB issue,
     // which is worse than degrading to the event-less code path.
-    console.error(`[enhanced-smart-blocks] fetchTodayDiscoveredEventsWithVenue error: ${err.message}`);
-    return [];
+    // 2026-04-14: Issue P — Use structured workflow logger + return error flag for telemetry
+    venuesLog.warn(1, `[EVENT-FETCH-FAILED] fetchTodayDiscoveredEventsWithVenue: ${err.message} (state=${state}, date=${eventDate})`);
+    return { events: [], eventFetchFailed: true, error: err.message };
   }
 }
 
@@ -350,16 +367,25 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // bucketing in formatBriefingForPrompt splits events into NEAR (≤15mi candidates)
     // and FAR (15-60mi surge flow intel). The 15-mile rule applies to ALL venue
     // recommendations — far events are intelligence, not destinations.
+    // 2026-04-14: Issue N — Require timezone per NO FALLBACKS rule.
+    // UTC fallback near midnight can shift event selection by one day.
+    if (!snapshot.timezone) {
+      venuesLog.warn(1, `[VENUE] snapshot.timezone is missing for ${snapshotId} — cannot compute today's date. Skipping event fetch.`);
+      // Continue pipeline with empty events rather than wrong-day events
+    }
     const todayDate = snapshot.timezone
       ? new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone })
-      : new Date().toISOString().split('T')[0];
-    const todayEvents = await fetchTodayDiscoveredEventsWithVenue(
-      snapshot.state,
-      todayDate,
-      snapshot.lat,
-      snapshot.lng
-    );
-    venuesLog.phase(1, `Fetched ${todayEvents.length} reachable events for ${snapshot.state} on ${todayDate}`);
+      : null;
+    // 2026-04-14: Issue P — fetchTodayDiscoveredEventsWithVenue returns Array on success,
+    // or { events: [], eventFetchFailed: true } on error. Normalize here.
+    const eventResult = todayDate
+      ? await fetchTodayDiscoveredEventsWithVenue(snapshot.state, todayDate, snapshot.lat, snapshot.lng)
+      : [];
+    const eventFetchFailed = !Array.isArray(eventResult) && eventResult?.eventFetchFailed;
+    const todayEvents = Array.isArray(eventResult) ? eventResult : (eventResult?.events || []);
+    venuesLog.phase(1, eventFetchFailed
+      ? `[DEGRADED] Event fetch failed — proceeding with 0 events (generic venues only)`
+      : `Fetched ${todayEvents.length} reachable events for ${snapshot.state} on ${todayDate || 'NO_TZ'}`);
 
     // 2026-01-31: Filter briefing data for venue planner
     // 2026-04-11: Now passes pre-fetched state-scoped events as 3rd arg — the filter
@@ -435,8 +461,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // Store verified events for strategy injection
     const verifiedEventsJson = JSON.stringify(verifiedEvents);
     
-    // Step 3: Create ranking record (use env var for model name)
-    const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.4';
+    // Step 3: Create ranking record
+    // 2026-04-14: Issue O — Use VENUE_SCORER role config for accurate model telemetry.
+    // Previously used STRATEGY_CONSOLIDATOR env var which is the wrong role entirely.
+    const venueRoleConfig = getRoleConfig('VENUE_SCORER');
     await db.insert(rankings).values({
       ranking_id: rankingId,
       snapshot_id: snapshotId,
@@ -444,12 +472,13 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       user_id: user_id && user_id.trim() !== '' ? user_id : null,
       city: snapshot.city || null,
       ui: null,
-      model_name: `${venuePlannerModel}-venue-planner`,
+      model_name: `${venueRoleConfig.model}-venue-scorer`,
       scoring_ms: 0,
       planner_ms: plannerMs,
       total_ms: 0,
       timed_out: false,
-      path_taken: 'enhanced-smart-blocks',
+      // 2026-04-14: Issue P — Record if event context was degraded
+      path_taken: eventFetchFailed ? 'enhanced-smart-blocks:degraded-events' : 'enhanced-smart-blocks',
       extras: verifiedEventsJson // Store verified events for strategy injection
     });
     
