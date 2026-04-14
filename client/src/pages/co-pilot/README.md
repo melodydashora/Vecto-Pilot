@@ -67,7 +67,7 @@ The main page - displays:
 
 Uses:
 - `useCoPilot()` for strategy/blocks state
-- `CoachChat` for AI chat
+- `AICoach` for AI chat
 - `SmartBlocksStatus` for loading states
 
 ### VenueManagerPage (formerly BarsPage)

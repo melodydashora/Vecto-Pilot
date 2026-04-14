@@ -107,7 +107,7 @@ node scripts/memory-cli.mjs session \
 
 ## AI Coach Auto-Logging
 
-The AI Coach (`client/src/components/CoachChat.tsx`) now **automatically logs conversations** to memory after each exchange. This happens via the `useMemory` hook.
+The AI Coach (`client/src/components/AICoach.tsx`) now **automatically logs conversations** to memory after each exchange. This happens via the `useMemory` hook.
 
 No manual action needed for Coach conversations - they're persisted automatically.
 

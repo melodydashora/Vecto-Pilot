@@ -854,7 +854,7 @@ Root cause of "data not pushed/fetched properly" - two SSE systems at overlappin
 ### Files Modified
 - `.claude/settings.local.json`
 - `LESSONS_LEARNED.md`
-- `client/src/components/CoachChat.tsx`
+- `client/src/components/AICoach.tsx`
 - `client/src/components/GlobalHeader.tsx`
 - `client/src/components/auth/*` (multiple auth components)
 - `client/src/contexts/auth-context.tsx`

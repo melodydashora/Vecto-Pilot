@@ -22,7 +22,7 @@ Successfully upgraded the project's linting infrastructure to ESLint v9, adoptin
 3.  **Modified:** `package.json`
     - Removed legacy `--ext` flag from `lint` script (not supported in Flat Config).
     - Updated `devDependencies`.
-4.  **Modified:** `client/src/components/CoachChat.tsx`
+4.  **Modified:** `client/src/components/AICoach.tsx`
     - Removed unused `eslint-disable` directive that became invalid under the new parser.
 5.  **Modified:** `server/agent/config-manager.js`
     - Removed `.eslintrc.cjs` from the allowed config file list.

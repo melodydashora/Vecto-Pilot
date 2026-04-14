@@ -1,5 +1,8 @@
 # AI Coach Enhancements - TODO
 
+> **LEGACY — Enhancement queue consolidated into [docs/architecture/RIDESHARE_COACH.md](../architecture/RIDESHARE_COACH.md) §6-7 on 2026-04-14.**
+> Most items below have been implemented. See the consolidated doc for current status.
+
 **Created:** 2025-12-29
 **Status:** PENDING
 **Priority:** High
@@ -49,4 +52,4 @@ Consider adding:
 ## Related Files
 - `server/api/chat/chat.js` - Chat routes
 - `server/lib/ai/providers/` - AI providers
-- `client/src/components/CoachChat.tsx` - Chat UI
+- `client/src/components/AICoach.tsx` - Chat UI
