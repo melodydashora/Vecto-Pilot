@@ -232,6 +232,10 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
         notification: 'REJECT: share',
         decision: 'REJECT',
         response_time_ms: responseTimeMs,
+        // 2026-04-15: Phase-1 reason exposed independently from notification so Siri
+        // Shortcuts can speak decision + display reason separately. Literal 'share'
+        // because terseReason is not yet in scope on this early-return path.
+        reason: 'share',
       });
     }
 
@@ -383,6 +387,14 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       notification,
       decision,
       response_time_ms: responseTimeMs,
+      // 2026-04-15: Phase-1 reason exposed independently from notification.
+      // Sourced from terseReason (already computed above from phase1Result.reason
+      // / phase1Result.reasoning / pre-parsed fallback) — same value embedded after
+      // the colon in `notification`, but available standalone for Siri Shortcuts
+      // that want to speak the decision + display the reason separately.
+      // For the no-data path, phase1Result.reason is set to 'no data' at line ~351
+      // and flows through here unchanged.
+      reason: terseReason || '',
     });
 
     console.log(`[hooks/analyze-offer] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi [${tier}]`);
@@ -597,6 +609,10 @@ PRE-PARSED DATA (server-verified):
       notification: 'Analysis failed — decide manually',
       error: error.message,
       response_time_ms: responseTimeMs,
+      // 2026-04-15: Reason field present even on the failure path for shape
+      // consistency with the success responses. Literal because terseReason is
+      // unreachable here (the catch block can fire before it's computed).
+      reason: 'analysis failed',
     });
   }
 });
