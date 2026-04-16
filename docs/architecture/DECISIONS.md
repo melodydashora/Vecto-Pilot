@@ -267,6 +267,24 @@ const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 
 ---
 
+### 16. User-Visible Computed Fields: Four-Hop Contract
+
+**Decision:** Any user-visible field computed by the backend pipeline must be explicitly carried through four stages: (1) compute, (2) persist to DB, (3) serialize in API response, (4) render in client UI. Defensive field-by-field construction is the preferred pattern for DB writes (prevents pollution), but the tradeoff is that every new surfaced field requires explicit addition in schema + insert + serializer + client consumer.
+
+**Added:** 2026-04-16
+
+**Why:** Origin: `beyond_deadhead` fix (commit `2e1dea4c`). The tactical planner computed the flag but `enhanced-smart-blocks.js:518-568` dropped it at the DB insert step because the candidate object is constructed field-by-field — only explicitly named fields survive. The flag never reached the serializer (`toApiBlock()`) or the client. Three-place gap caused by implicit rather than explicit field propagation.
+
+**Implementation:**
+- Compute: `server/lib/strategy/tactical-planner.js` — haversine pass sets `beyond_deadhead` + `distance_from_home_mi` on venue objects
+- Persist: `server/lib/venue/enhanced-smart-blocks.js:568` — candidate insert must name every field
+- Serialize: `server/validation/transformers.js:toApiBlock()` — snake_case → camelCase mapping
+- Render: client component must read + display (type interface must include the field)
+
+**Enforcement:** Code review should verify the four-hop trace for any new user-visible field. PR template should include a "four-hop check" section when touching strategy pipeline outputs.
+
+---
+
 ## Decision History
 
 Track when decisions were made and how they evolved.
@@ -288,6 +306,7 @@ Track when decisions were made and how they evolved.
 | Staging Area Constraint | Oct 2024 | Active | 2-minute drive rule |
 | Location Resolution Priority | Dec 2024 | Active | Users → Cache → API |
 | Driver Pref Schema Fallback | Apr 2026 | Active | Dev-only until prod migration; defaults via DRIVER_PREF_DEFAULTS |
+| Four-Hop Contract | Apr 2026 | Active | Origin: beyond_deadhead fix 2e1dea4c |
 
 ### Status Meanings
 
