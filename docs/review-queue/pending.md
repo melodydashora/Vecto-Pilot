@@ -44,6 +44,20 @@ ALTER TABLE driver_profiles
 
 ### Status: APPLIED on dev (2026-04-16) — prod pending Melody's approval
 
+### PROD BEHAVIOR UNTIL MIGRATION APPLIED
+
+Until Melody runs `migrations/20260416_driver_preference_columns.sql` on prod, the following fallback behavior is active:
+
+| Column | Exists in Prod? | Fallback | Effect on Driver |
+|--------|----------------|----------|-----------------|
+| `max_deadhead_mi` | **NO** | Defaults to `15` via `DRIVER_PREF_DEFAULTS` | Every driver gets 15mi deadhead threshold; `beyond_deadhead` flag triggers at 15mi regardless of preference |
+| `fuel_economy_mpg` | **NO** | Defaults to `25` via `DRIVER_PREF_DEFAULTS` | Strategy prompt shows "25 mpg (default)" for all drivers |
+| `earnings_goal_daily` | **NO** | Defaults to `null` | Earnings pacing line omitted from strategy prompt |
+| `shift_hours_target` | **NO** | Defaults to `null` | Shift hours line omitted from strategy prompt |
+| `home_lat` / `home_lng` | **YES** (already in schema) | N/A — reads real values | Home-base distance calculation works today if driver has entered an address |
+
+**Mechanism:** `loadDriverPreferences()` in `consolidator.js:861` catches PG error `42703` ("column does not exist") on the full SELECT, falls back to a safe column set, and sets `prefs.migration_applied = false`. The 4 new columns are only read when `migration_applied === true`. No code change needed when the migration runs — the fallback path simply stops firing.
+
 ---
 
 ## 2026-04-04: Full Repository Audit — Awaiting Implementation

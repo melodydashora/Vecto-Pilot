@@ -251,6 +251,22 @@ const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 
 ---
 
+### 15. Driver Preference Columns: Dev-Only Until Prod Migration
+
+**Decision:** Ship code that reads `max_deadhead_mi`, `fuel_economy_mpg`, `earnings_goal_daily`, and `shift_hours_target` from `driver_profiles` before the columns exist in prod. Code uses a defensive fallback (`loadDriverPreferences()` catches PG error `42703`) and applies `DRIVER_PREF_DEFAULTS` (15mi deadhead, 25mpg, null goal, null shift hours) when the columns are missing.
+
+**Added:** 2026-04-16
+
+**Why:** Decouples code deployment from schema migration. The feature works correctly on both dev (real values) and prod (defaults) without conditional logic or feature flags. When the migration runs on prod, real values flow through automatically — no code change needed. This pattern was validated during the 2026-04-11 strategist enrichment work and extended to the tactical planner on 2026-04-16.
+
+**Implementation:**
+- `server/lib/ai/providers/consolidator.js:861-945` — `loadDriverPreferences()` with PG `42703` catch + `migration_applied` flag
+- `server/lib/strategy/tactical-planner.js` — reads `prefs.max_deadhead_mi` for `beyond_deadhead` flagging; injects prefs into VENUE_SCORER prompt when `profile_loaded === true`
+- `migrations/20260416_driver_preference_columns.sql` — applied to dev, prod pending
+- Fallback contract documented in `docs/review-queue/pending.md` §PROD BEHAVIOR
+
+---
+
 ## Decision History
 
 Track when decisions were made and how they evolved.
@@ -258,7 +274,7 @@ Track when decisions were made and how they evolved.
 | Decision | Date | Status | Notes |
 |----------|------|--------|-------|
 | Single-Path Orchestration | Oct 2024 | Active | No changes |
-| Coordinates from Google | Oct 2024 | Active | No changes |
+| Coordinates from Google | Oct 2024 | Active | Enforced via P0-6 fix 2026-04-16 |
 | Complete Snapshot Gating | Oct 2024 | Active | No changes |
 | Fail-Fast, No Stub Data | Oct 2024 | Active | No changes |
 | Key-Based Merge | Oct 2024 | Active | Fixed venue data bugs |
@@ -271,6 +287,7 @@ Track when decisions were made and how they evolved.
 | Gemini 3 Pro Config | Nov 2024 | Active | thinkingConfig format |
 | Staging Area Constraint | Oct 2024 | Active | 2-minute drive rule |
 | Location Resolution Priority | Dec 2024 | Active | Users → Cache → API |
+| Driver Pref Schema Fallback | Apr 2026 | Active | Dev-only until prod migration; defaults via DRIVER_PREF_DEFAULTS |
 
 ### Status Meanings
 
