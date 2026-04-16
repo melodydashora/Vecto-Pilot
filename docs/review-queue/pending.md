@@ -20,11 +20,11 @@ Items requiring action. For completed session logs and historical analysis, see 
 
 ---
 
-## 2026-04-11: Driver Preferences Schema Migration (BLOCKED)
+## 2026-04-11: Driver Preferences Schema Migration — ✅ APPLIED (Dev)
 
 **Author:** Claude Opus 4.6 | **Scope:** `driver_profiles` — add 4 columns for strategist enrichment
 
-**Code shipped, migration pending.** The consolidator reads four new preference fields from `driver_profiles` that do not exist in the schema yet. `loadDriverPreferences(userId)` catches PG error `42703` and falls through to defaults, so the code works correctly against the current schema.
+**Migration applied to dev DB on 2026-04-16.** File: `migrations/20260416_driver_preference_columns.sql`. The consolidator and tactical planner now read real column values (falling back to `DRIVER_PREF_DEFAULTS` when null).
 
 ### Migration SQL
 
@@ -37,12 +37,12 @@ ALTER TABLE driver_profiles
 ```
 
 ### Verification Checklist
-- [ ] **Melody: Run migration on dev DB** → verify driver profile updates work
+- [x] **Run migration on dev DB** → applied 2026-04-16 via `psql $DATABASE_URL -f migrations/20260416_driver_preference_columns.sql`
 - [ ] **Melody: Run migration on prod DB** → after dev verification
 - [ ] **Melody: Update a real driver profile** with non-null values for all four fields
 - [ ] **Melody: Monitor server logs** for `[strategist-enrichment] loadDriverPreferences failed` warnings
 
-### Status: BLOCKED on DB migration
+### Status: APPLIED on dev (2026-04-16) — prod pending Melody's approval
 
 ---
 
