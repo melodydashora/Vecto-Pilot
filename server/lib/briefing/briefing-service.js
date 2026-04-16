@@ -1188,7 +1188,13 @@ async function _fetchEventsWithGemini3ProPreviewLegacy({ snapshot }) {
   }
 
   const timeContext = hour >= 17 ? 'tonight' : 'today';
-  const dayOfWeek = new Date().toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
+  // 2026-04-16: FIX — derive weekday name from snapshot.dow (integer 0-6) instead of
+  // recomputing from new Date(). Recomputation could drift if the briefing runs near
+  // midnight UTC while the driver is still in the previous local day.
+  const DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayOfWeek = snapshot.dow != null
+    ? DOW_NAMES[snapshot.dow]
+    : new Date().toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
 
   // 2026-01-10: Enhanced prompt with STRICT date/time requirements
   // Validation will reject events missing event_start_date, event_start_time, or event_end_time

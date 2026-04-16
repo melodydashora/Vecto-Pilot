@@ -831,7 +831,7 @@ What is missing: native app, share-intent handler, accessibility service, notifi
 10. **Phase 2 errors silently degrade** — If the IIFE itself throws after Phase 2, **no DB row is written** at all. Siri got its answer, but we lose the analytics record. Fix: outer try/catch that writes a Phase-1-only row.
 11. **No rate limiting per `device_id`** — Current rate limiting is IP-based only.
 12. **No vision-mode fallback** — `OFFER_ANALYZER` was removed from the hedged-fallback list because non-vision models can't process images. A Gemini Flash outage means the entire Phase 1 request fails over to the deterministic fallback (text mode only) or errors out (vision mode).
-13. **`NO DATA` voice line** — For the no-data response, `buildVoiceLine` produces bare `"Unknown."`; worth explicitly returning `"No data. Decide manually."` for consistency with the error path.
+13. ~~**`NO DATA` voice line**~~ — **FIXED 2026-04-16.** `buildVoiceLine` now returns `"No data. Decide manually."` when perMile/totalMiles are missing, instead of bare `"Unknown."` that gave Siri nothing actionable to speak.
 
 ---
 

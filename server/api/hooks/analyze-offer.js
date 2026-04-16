@@ -34,7 +34,7 @@ const router = Router();
 // Examples:
 //   ACCEPT, $1.12, 8mi              → "Accept. dollar twelve per mile, 8 miles."
 //   REJECT, $0.78, 14mi, "too far"  → "Reject. seventy-eight cents per mile, 14 miles, too far."
-//   REJECT, no data                 → "Reject."
+//   NO DATA                         → "No data. Decide manually."
 // Qualifier is sniffed from the terse Phase-1 reason ("low"/"floor"/"too far"/"rating") and
 // rendered as a natural-language tail. Siri's TTS handles bare digits ("14 miles") as words.
 function buildVoiceLine(decision, perMile, totalMiles, reason) {
@@ -42,8 +42,10 @@ function buildVoiceLine(decision, perMile, totalMiles, reason) {
     : decision === 'REJECT' ? 'Reject'
     : String(decision || '').toLowerCase().replace(/^./, c => c.toUpperCase());
 
+  // 2026-04-16: FIX — produce an actionable message when offer data couldn't be parsed,
+  // instead of bare "Unknown." which gives Siri nothing useful to speak.
   if (perMile == null || totalMiles == null || isNaN(perMile) || isNaN(totalMiles)) {
-    return `${decisionWord}.`;
+    return 'No data. Decide manually.';
   }
 
   const perMileSpoken = formatPerMileForVoice(perMile);
