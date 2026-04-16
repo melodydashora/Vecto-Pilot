@@ -155,7 +155,7 @@ Data access layer loading 11 parallel context sources:
 | 3 | No conversation summarization — thread history grows unbounded | Medium | AI_RIDESHARE_COACH.md |
 | 4 | Action tag extraction is regex-based, can break on malformed JSON | Low | AI_RIDESHARE_COACH.md |
 | 5 | No per-user chat rate limit (global only) | Low | AI_RIDESHARE_COACH.md |
-| 6 | ~180 lines of dead OpenAI Realtime API code in RideshareCoach.tsx | Low | Voice plan |
+| ~~6~~ | ~~\~180 lines of dead OpenAI Realtime API code in RideshareCoach.tsx~~ | ~~Low~~ | RESOLVED — dead code removed, file reduced from ~885 to 822 lines (2026-04-14) |
 | ~~10~~ | ~~NEAR events sorted distance-only, ignoring impact~~ | ~~P1~~ | RESOLVED — composite score `capacity/(1+distance)` in consolidator.js. Memory #106 |
 | COACH-H7 | No streaming fallback — Gemini outage kills coach entirely | High | DOC_DISCREPANCIES.md |
 | COACH-H8 | Conversation saves are fire-and-forget with swallowed errors | High | DOC_DISCREPANCIES.md |
@@ -164,11 +164,11 @@ Data access layer loading 11 parallel context sources:
 
 ## 7. TODO — Hardening Work
 
-- [ ] Remove client-side `handleEventDeactivation()` duplicate (server handles it)
+- [x] Remove client-side `handleEventDeactivation()` duplicate (server handles it) — DONE 2026-04-14
 - [ ] Add context size estimation — truncate least-important sections if over budget
 - [ ] Conversation summarization — compress old messages into summaries
 - [ ] Per-user chat rate limit — 30 messages/hour
-- [ ] Remove dead OpenAI Realtime API code (~180 lines)
+- [x] Remove dead OpenAI Realtime API code (~180 lines) — DONE 2026-04-14
 - [ ] Add streaming fallback for Gemini outages (COACH-H7)
 - [ ] Fix fire-and-forget conversation saves (COACH-H8)
 - [ ] Unify voice and text on same model (Gemini Live when available)
