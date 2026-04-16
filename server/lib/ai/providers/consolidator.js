@@ -801,7 +801,8 @@ function haversineMiles(lat1, lon1, lat2, lon2) {
 }
 
 /** Sensible defaults for driver preferences (plan file section 4). */
-const DRIVER_PREF_DEFAULTS = Object.freeze({
+// 2026-04-16: Exported for reuse by tactical-planner.js (driver preference scoring)
+export const DRIVER_PREF_DEFAULTS = Object.freeze({
   fuel_economy_mpg: 25,
   earnings_goal_daily: null,
   shift_hours_target: null,
@@ -858,7 +859,8 @@ function deriveVehicleClass(profile) {
  * Defaults are applied for fields that are null or unavailable. Callers get a
  * consistent shape regardless of schema state.
  */
-async function loadDriverPreferences(userId) {
+// 2026-04-16: Exported for reuse by tactical-planner.js (driver preference scoring)
+export async function loadDriverPreferences(userId) {
   const prefs = {
     vehicle_class: DRIVER_PREF_DEFAULTS.vehicle_class,
     fuel_economy_mpg: DRIVER_PREF_DEFAULTS.fuel_economy_mpg,
@@ -958,7 +960,8 @@ function computeFuelCostPerMile(prefs) {
  * Build the DRIVER PREFERENCES prompt section (single compact line).
  * Token budget: ~80 tokens.
  */
-function buildDriverPreferencesSection(prefs) {
+// 2026-04-16: Exported for reuse by tactical-planner.js (driver preference scoring)
+export function buildDriverPreferencesSection(prefs) {
   const fuelType = prefs.is_electric ? 'electric' : 'gas';
   const mpgDisplay = prefs.is_electric ? 'n/a (EV)' : `${prefs.fuel_economy_mpg} mpg`;
   const perMileCost = computeFuelCostPerMile(prefs);

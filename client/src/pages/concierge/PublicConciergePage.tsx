@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, MapPin, Cloud, Wind, MapPinOff } from 'lucide-react';
+import { Loader2, MapPin, Cloud, Wind, MapPinOff, Sparkles } from 'lucide-react';
 import { DriverCard } from '@/components/concierge/DriverCard';
 import { AskConcierge } from '@/components/concierge/AskConcierge';
 import { API_ROUTES } from '@/constants/apiRoutes';
@@ -156,69 +156,64 @@ export default function PublicConciergePage() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
-      {/* ═══ COMPACT TOP BAR: branding + location + weather ═══ */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-2.5">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white tracking-tight">Vecto</span>
-            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-full font-medium">Concierge</span>
+      {/* ═══ GRADIENT HEADER BAR (matches AI Coach styling) ═══ */}
+      <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3">
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <div className="flex items-center justify-center h-9 w-9 rounded-full bg-white/20 flex-shrink-0">
+            <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <div className="flex items-center gap-3 text-xs text-slate-400">
-            {weather && (
-              <span className="flex items-center gap-1">
-                <Cloud className="h-3 w-3" />
-                {weather.temp}°F
-              </span>
-            )}
-            {airQuality && (
-              <span className="flex items-center gap-1">
-                <Wind className="h-3 w-3" />
-                AQI {airQuality.aqi}
-              </span>
-            )}
-            <span className="flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              <span className="truncate max-w-[120px]">{locationString}</span>
-            </span>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-semibold text-sm text-white">Concierge</h1>
+            <p className="text-xs text-white/70">Powered by Vecto</p>
           </div>
+          {driver && (
+            <button
+              onClick={() => setShowDriverDetails(!showDriverDetails)}
+              className="flex items-center gap-2 hover:bg-white/10 rounded-full pl-3 pr-1.5 py-1 transition-colors"
+            >
+              <span className="text-sm text-white/90 font-medium truncate max-w-[120px]">{driver.name}</span>
+              <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-xs font-bold text-white">
+                  {driver.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ═══ DRIVER BANNER: slim, tappable to expand ═══ */}
-      {driver && (
-        <div className="bg-slate-900/50 border-b border-slate-800">
-          <div className="max-w-lg mx-auto">
-            <button
-              onClick={() => setShowDriverDetails(!showDriverDetails)}
-              className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-slate-800/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                  <span className="text-sm font-bold text-indigo-300">
-                    {driver.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-white">{driver.name}</span>
-                  <span className="text-xs text-slate-500 ml-2">Your Driver</span>
-                </div>
-              </div>
-              <span className="text-xs text-slate-500">
-                {showDriverDetails ? 'Hide' : 'Details'}
-              </span>
-            </button>
+      {/* ═══ CONTEXT BAR: weather + location (slim secondary strip) ═══ */}
+      <div className="bg-slate-900 border-b border-slate-800 px-4 py-1.5">
+        <div className="max-w-lg mx-auto flex items-center justify-center gap-4 text-[11px] text-slate-500">
+          {weather && (
+            <span className="flex items-center gap-1">
+              <Cloud className="h-3 w-3" />
+              {weather.temp}°F
+            </span>
+          )}
+          {airQuality && (
+            <span className="flex items-center gap-1">
+              <Wind className="h-3 w-3" />
+              AQI {airQuality.aqi}
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3 w-3" />
+            <span className="truncate max-w-[140px]">{locationString}</span>
+          </span>
+        </div>
+      </div>
 
-            {/* Expandable driver details + rating */}
-            {showDriverDetails && (
-              <div className="px-4 pb-3">
-                <DriverCard
-                  name={driver.name}
-                  phone={driver.phone}
-                  vehicle={driver.vehicle}
-                  token={token}
-                />
-              </div>
-            )}
+      {/* ═══ DRIVER DETAILS (expandable from header avatar tap) ═══ */}
+      {driver && showDriverDetails && (
+        <div className="bg-slate-900/50 border-b border-slate-800">
+          <div className="max-w-lg mx-auto px-4 py-3">
+            <DriverCard
+              name={driver.name}
+              phone={driver.phone}
+              vehicle={driver.vehicle}
+              token={token}
+            />
           </div>
         </div>
       )}

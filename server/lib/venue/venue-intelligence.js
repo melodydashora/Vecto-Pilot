@@ -482,13 +482,9 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
             v.closed_reason = "High-value venue - good for staging spillover";
             return true;
           }
-          // 2026-03-18: FIX — Cache path must mirror fresh-API Haiku-verified logic (line 611).
-          // Previously dropped ALL isOpen===null from cache, losing premium venues on reload.
-          if (v.isOpen === null && v.venue_quality_tier) {
-            v.hours_unknown = true;
-            return true;
-          }
-          return false; // Skip unknown hours AND unclassified venues
+          // 2026-04-16 (P0-1 fix): Hours unknown = DROP, regardless of quality tier.
+          // Quality tier confirms venue TYPE, not operating STATUS. See ARCHITECTURE_REQUIREMENTS.md §1.
+          return false;
         });
 
         // Sort by open status, quality tier, expense, then distance
@@ -639,27 +635,21 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         return true;
       }
 
-      // 3. Haiku-classified venues with unknown hours: keep (they passed 4 filters)
-      // 2026-02-26: Previously dropped ALL isOpen===null venues, but fresh API results
-      // that passed name/upscale/rating/Haiku filters are real bars worth showing
-      if (v.isOpen === null && v.venue_quality_tier) {
-        v.hours_unknown = true;
-        barsLog.info(`Keeping "${v.name}" (${v.venue_quality_tier}) - hours unknown but Haiku-verified`);
-        return true;
-      }
-
-      // 4. Drop truly unknown venues (no hours AND no Haiku classification)
+      // 3. Hours unknown: DROP regardless of quality tier (2026-04-16, P0-1 fix)
+      // Quality tier confirms venue TYPE, not operating STATUS. If Google Places
+      // has no hours, we cannot claim "open now". See ARCHITECTURE_REQUIREMENTS.md §1.
       if (v.isOpen === null) {
-        barsLog.info(`Dropping "${v.name}" - no hours data and not classified`);
+        barsLog.info(`Dropping "${v.name}" (tier: ${v.venue_quality_tier || 'none'}) - hours unknown, cannot confirm open`);
+        return false;
       }
 
-      return false; // Skip low-value closed AND unclassified unknown-hours venues
+      return false; // Closed low-value venues
     });
 
-    // 2026-01-14: Strategic sort for drivers
+    // 2026-01-14: Strategic sort for drivers (2026-04-16: removed tier 3 — hours-unknown venues no longer pass filter)
     // 1. Open venues with time to work (not closing soon) - sorted by expense ($$$$ first)
     // 2. Last call venues (closing soon) - still valuable for quick pickups
-    // 3. Haiku-verified unknown hours + Closed High-Value Venues - staging spillover
+    // 3. Closed High-Value Venues ($$$+) - staging spillover
     relevantVenues.sort((a, b) => {
       const aOpen = a.isOpen === true;
       const bOpen = b.isOpen === true;

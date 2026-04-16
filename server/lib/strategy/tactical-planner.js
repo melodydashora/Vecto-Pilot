@@ -13,13 +13,18 @@
 //
 // OUTPUT:
 //   - 4-6 venue recommendations with:
-//     * Venue coordinates (lat/lng)
-//     * Staging coordinates (where to park/wait)
+//     * Venue name + district (coordinates resolved post-LLM via Google Places API)
+//     * Staging name (informal text — parking lots, gas stations, etc.)
 //     * Category (airport, dining, hotel, etc.)
 //     * Pro tips (2-3 per venue)
 //     * Strategic timing (why go there NOW)
-//   - Best central staging location
+//   - Best central staging location (name + reason, no coordinates)
 //   - Tactical summary
+//
+// 2026-04-16 (P0-6): Coordinates REMOVED from LLM output. The LLM emits venue names;
+// a post-LLM resolver chain (resolve → retry → catalog fallback → LLM replacement)
+// populates coordinates via Google Places API — the single source of truth.
+// See ARCHITECTURE_REQUIREMENTS.md §3.
 //
 // ROLE: VENUE_SCORER via VENUE_SCORER_MODEL env var
 // TIMEOUT: PLANNER_DEADLINE_MS (default 180s)
@@ -32,38 +37,36 @@ import { callModel } from "../ai/adapters/index.js";
 import { z } from "zod";
 import { safeJsonParse } from "../../api/utils/http-helpers.js";
 import { formatBriefingForPrompt } from "../briefing/filter-for-planner.js";
+// 2026-04-16 (P0-6): Import resolver + catalog for post-LLM coordinate resolution
+import { searchPlaceByText } from "../venue/venue-enrichment.js";
+import { getVenuesByType } from "../venue/venue-cache.js";
+// 2026-04-16: Import driver preferences for prompt injection + deadhead flagging
+import { loadDriverPreferences, buildDriverPreferencesSection } from "../ai/providers/consolidator.js";
 
-// VENUE_SCORER response schema: venue coords + staging coords + category + district + pro tips
-// Addresses, distances, and place details resolved via Google Places API (New) + Routes API (New)
-// District field enables text search fallback when coord-based matching fails
-// 2026-02-19: lat/lng made nullable — GPT-5.2 sometimes returns null for all coords.
-// Post-validation filtering removes venues without required coords (see below).
+// 2026-04-16 (P0-6): Coordinates REMOVED from LLM schema. The LLM emits venue
+// names + district; coordinates are resolved post-LLM via Google Places API (New)
+// text search — the single source of truth. See ARCHITECTURE_REQUIREMENTS.md §3.
 const VenueRecommendationSchema = z.object({
   name: z.string().min(1).max(200),
-  lat: z.number().min(-90).max(90).nullable(),
-  lng: z.number().min(-180).max(180).nullable(),
-  staging_lat: z.number().min(-90).max(90).nullable().optional(),  // Where to park/wait for this venue
-  staging_lng: z.number().min(-180).max(180).nullable().optional(),
-  staging_name: z.string().max(200).optional(),          // Name of staging location
+  staging_name: z.string().max(200).optional(),          // Informal staging spot (parking lot, gas station)
   district: z.string().max(100).optional(),              // Shopping center, neighborhood, or area name (e.g., "Legacy West", "Deep Ellum")
   category: z.enum(['airport', 'entertainment', 'shopping', 'dining', 'sports_venue', 'transit_hub', 'hotel', 'nightlife', 'event_venue', 'other']).or(z.string()),
   pro_tips: z.array(z.string().max(500)).min(1).max(3),
-  strategic_timing: z.string().optional()       // Strategic reason to go (even if Google says closed): "Opens in 30 min", "Event at 7 PM" - no char limit for model-agnostic reasoning
+  strategic_timing: z.string().optional()       // Strategic reason to go (even if Google says closed): "Opens in 30 min", "Event at 7 PM"
 });
 
 const StagingLocationSchema = z.object({
   name: z.string().min(1).max(200),
-  lat: z.number().min(-90).max(90).nullable(),
-  lng: z.number().min(-180).max(180).nullable(),
   reason: z.string().max(500)
 });
 
-// 2026-02-19: min(0) allows empty array — post-validation filters out null-coord venues
 const GPT5ResponseSchema = z.object({
   recommended_venues: z.array(VenueRecommendationSchema).min(0).max(8),
   best_staging_location: StagingLocationSchema.optional(),
   tactical_summary: z.string().min(10).max(1500)
 });
+
+const TARGET_VENUE_COUNT = 6;
 
 /**
  * Generate tactical venue recommendations using VENUE_SCORER role
@@ -90,7 +93,12 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
   const startTime = Date.now();
   const driverAddress = snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown';
 
-  console.log(`🏢 [VENUES 1/4 - Tactical Planner] Input: "${strategy.slice(0, 80)}..." at ${driverAddress}`);
+  // 2026-04-16: Load driver preferences (single indexed DB row lookup, sub-ms).
+  // If profile doesn't exist or user_id is null, returns defaults with profile_loaded=false.
+  const prefs = await loadDriverPreferences(snapshot?.user_id);
+  const hasPrefs = prefs.profile_loaded;
+
+  console.log(`🏢 [VENUES 1/4 - Tactical Planner] Input: "${strategy.slice(0, 80)}..." at ${driverAddress}${hasPrefs ? ` (prefs: ${prefs.vehicle_class}, deadhead ${prefs.max_deadhead_mi}mi)` : ' (no prefs)'}`);
 
   // Get day name from dow
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -124,32 +132,41 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
   const developer = [
     `You are an expert rideshare tactician for the ${location} region.`,
-    "Your job: Convert the IMMEDIATE action plan into specific venues with EXACT COORDINATES.",
+    "Your job: Convert the IMMEDIATE action plan into specific venue NAMES.",
+    "Do NOT generate lat/lng coordinates — they will be resolved via Google Places API.",
     "",
     "🎯 MISSION: Where should this driver go RIGHT NOW (next 1-2 hours) to maximize earnings?",
     "",
     "CRITICAL REQUIREMENTS:",
-    "1. EVERY venue MUST have TWO sets of coordinates:",
-    "   - Venue coords (lat/lng): The actual destination/entrance",
-    "   - Staging coords (staging_lat/staging_lng): Where to park/wait for this specific venue",
-    "2. Provide 4-6 SPECIFIC venue names (not districts or areas)",
-    "3. Include category + 2-3 tactical pro tips per venue (pickup zones, positioning, timing)",
-    "4. Focus on venues with ACTIVE demand RIGHT NOW or within the next 2 hours",
+    "1. Provide 6 SPECIFIC venue names (not districts or areas). Exactly 6.",
+    "2. Include DISTRICT for venues in shopping centers, entertainment districts, or named areas",
+    "   - Use the local district/neighborhood name where the venue is located",
+    "   - This helps accurately locate venues when multiple businesses share similar names",
+    "3. Include a staging_name for each venue (nearby parking lot, gas station, safe waiting spot)",
+    "4. Include category + 2-3 tactical pro tips per venue (pickup zones, positioning, timing)",
+    "5. Focus on venues with ACTIVE demand RIGHT NOW or within the next 2 hours",
     "   — Event venues WITHIN 15 MILES with shows starting in the next 2 hours count as ACTIVE demand",
     "   — Event venues WITHIN 15 MILES whose events end within the next hour also count (pickup surge window)",
     "   — Event venues beyond 15 miles are NOT candidates — they are surge flow intelligence only",
-    "5. Include DISTRICT for venues in shopping centers, entertainment districts, or named areas",
-    "   - Use the local district/neighborhood name where the venue is located",
-    "   - This helps accurately locate venues when multiple businesses share similar names",
     "",
     "VENUE SELECTION (RIGHT NOW FOCUS):",
     `- ONLY recommend venues near ${location} with current or imminent demand`,
     "- Prioritize: venues that are OPEN NOW or opening within 30 minutes",
     "- Consider: rush hour patterns, lunch/dinner timing, event let-outs",
-    "- Use REAL, SPECIFIC venue names (actual business names from Maps)",
-    "- Each venue = specific business, building, or landmark with GPS coordinates",
+    "- Use REAL, SPECIFIC venue names (actual business names from Google Maps)",
+    "- Each venue = specific business, building, or landmark",
     "- Venues MUST be spread 2-3 minutes drive apart (different locations)",
     "",
+    // 2026-04-16: Inject driver preferences as tiebreaker (not override)
+    ...(hasPrefs ? [
+      "DRIVER PREFERENCES (tiebreaker — do NOT override demand-based ranking):",
+      buildDriverPreferencesSection(prefs),
+      "- Use these preferences to break ties between venues with similar demand levels",
+      "- If the driver has a home base, prefer venues that minimize empty deadhead miles",
+      "- Vehicle class may affect which venue types generate the best match quality",
+      "- These are soft signals for ordering, not hard constraints — never drop a high-demand venue for a preference",
+      "",
+    ] : []),
     "EVENT INTELLIGENCE (2026-04-11 REVERT — 15-mile rule is SUPREME):",
     "- Events listed in the user message are happening in your metro today. They are",
     "  INTELLIGENCE, not a venue list. The 15-mile rule OVERRIDES everything —",
@@ -173,25 +190,22 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     "- WHEN NO EVENTS ARE LISTED: recommend 4-6 general venues as usual.",
     "",
     "STAGING LOCATIONS:",
-    "- EACH venue needs staging coords (nearby parking lot, safe waiting spot)",
-    "- PLUS one central staging point within 2 min drive of ALL venues",
+    "- EACH venue needs a staging_name (nearby parking lot, safe waiting spot)",
+    "- PLUS one best_staging_location — a central spot within 2 min drive of ALL venues",
     "- Prioritize free parking lots, gas stations, hotel front drives",
+    "- Staging spots are text descriptions, NOT coordinates",
     "",
     "STRATEGIC TIMING:",
     "- If a venue opens soon, include strategic_timing: 'Opens in 30 min - position early'",
     "- If event ending: 'Concert ends 10 PM - arrive 9:45 for surge'",
     "- Google APIs will verify hours - you explain the tactical WHY",
     "",
-    "OUTPUT FORMAT (JSON only):",
+    "OUTPUT FORMAT (JSON only — NO lat/lng fields, coordinates resolved separately):",
     "{",
     '  "recommended_venues": [',
     '    {',
     '      "name": "Specific Venue Name",',
-    '      "lat": 00.0000,',
-    '      "lng": -00.0000,',
-    '      "staging_lat": 00.0000,',
-    '      "staging_lng": -00.0000,',
-    '      "staging_name": "Nearby parking lot name",',
+    '      "staging_name": "Nearby parking lot or safe waiting spot",',
     '      "district": "Shopping center or neighborhood name where venue is located",',
     '      "category": "airport|entertainment|shopping|dining|sports_venue|transit_hub|hotel|nightlife|event_venue|other",',
     '      "pro_tips": ["Pickup zone tip", "Positioning tip", "Timing tip"],',
@@ -200,8 +214,6 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     '  ],',
     '  "best_staging_location": {',
     '    "name": "Central Staging Spot",',
-    '    "lat": 00.0000,',
-    '    "lng": -00.0000,',
     '    "reason": "Why this position works"',
     '  },',
     '  "tactical_summary": "Go to X now because Y - expect Z rides in next hour"',
@@ -368,43 +380,185 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
     const validated = validation.data;
 
-    // 2026-02-19: Filter out venues with null lat/lng (GPT-5.2 sometimes omits coords)
-    const allVenues = validated.recommended_venues;
-    const validVenues = allVenues.filter(v => v.lat != null && v.lng != null);
-    if (validVenues.length < allVenues.length) {
-      const dropped = allVenues.filter(v => v.lat == null || v.lng == null).map(v => v.name);
-      console.warn(`🏢 [VENUES 1/4 - Tactical Planner] ⚠️ Dropped ${dropped.length} venues with null coords: ${dropped.join(', ')}`);
+    // 2026-04-16 (P0-6): Resolve venue names → Google Places coordinates
+    // Chain: resolve → retry (relaxed) → catalog fallback → LLM replacement → escalate
+    // See ARCHITECTURE_REQUIREMENTS.md §3.
+    const llmVenues = validated.recommended_venues;
+    const city = snapshot?.city || null;
+    const state = snapshot?.state || null;
+    const tz = snapshot?.timezone || null;
+
+    console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ LLM returned ${llmVenues.length} venue names in ${duration}ms — resolving via Places API...`);
+
+    const resolvedVenues = [];
+    const resolvedNames = new Set(); // track resolved names to avoid duplicates in replacement
+    const failedVenues = [];
+
+    for (const venue of llmVenues) {
+      const districtInfo = venue.district ? ` @ ${venue.district}` : '';
+
+      // Step 1: RESOLVE — full text search with district
+      let placeResult = await searchPlaceByText(venue.name, venue.district || null, city, state, tz);
+
+      // Step 2: RETRY — drop district from query string
+      if (!placeResult && venue.district) {
+        console.log(`🏢 [VENUES 1/4] Retry without district: "${venue.name}" (was: ${venue.district})`);
+        placeResult = await searchPlaceByText(venue.name, null, city, state, tz);
+      }
+
+      if (placeResult && placeResult.google_lat != null && placeResult.google_lng != null) {
+        resolvedVenues.push({
+          ...venue,
+          lat: placeResult.google_lat,
+          lng: placeResult.google_lng,
+          place_id: placeResult.place_id,
+          google_name: placeResult.google_name,
+        });
+        resolvedNames.add(venue.name);
+        console.log(`   ✅ "${venue.name}"${districtInfo} → ${placeResult.google_name} (${placeResult.google_lat.toFixed(6)},${placeResult.google_lng.toFixed(6)})`);
+        continue;
+      }
+
+      // Step 3: CATALOG FALLBACK — find top venue in district matching category
+      if (venue.category && state) {
+        const catalogVenues = await getVenuesByType({
+          venueTypes: [venue.category],
+          district: venue.district || null,
+          state,
+          orderByExpense: true,
+          limit: 3
+        });
+        // Pick first catalog venue not already resolved
+        const fallback = catalogVenues.find(cv => !resolvedNames.has(cv.name));
+        if (fallback && fallback.lat && fallback.lng) {
+          resolvedVenues.push({
+            ...venue,
+            name: fallback.name, // use catalog name — it's verified
+            lat: parseFloat(fallback.lat),
+            lng: parseFloat(fallback.lng),
+            place_id: fallback.place_id || null,
+            google_name: fallback.name,
+            catalog_fallback: true,
+          });
+          resolvedNames.add(fallback.name);
+          console.log(`   🔄 "${venue.name}"${districtInfo} → catalog fallback: "${fallback.name}" (${fallback.lat},${fallback.lng})`);
+          continue;
+        }
+      }
+
+      // Failed — log and track for replacement
+      failedVenues.push(venue);
+      console.warn(`🏢 [VENUES 1/4] ❌ Failed to resolve: "${venue.name}"${districtInfo} (${city}, ${state})`);
     }
 
-    if (validVenues.length === 0) {
-      console.error('🏢 [VENUES 1/4 - Tactical Planner] ❌ All venues had null coordinates');
-      throw new Error('AI returned venues but all had null coordinates');
+    // Step 4: LLM REPLACEMENT — ask for replacements for unresolved venues
+    if (resolvedVenues.length < TARGET_VENUE_COUNT && failedVenues.length > 0) {
+      const needed = TARGET_VENUE_COUNT - resolvedVenues.length;
+      const alreadyResolved = [...resolvedNames].join(', ');
+      const failedSummary = failedVenues.map(v => `${v.name} (${v.category}${v.district ? `, ${v.district}` : ''})`).join('; ');
+
+      console.log(`🏢 [VENUES 1/4] Requesting ${needed} replacement venue(s) — failed: ${failedSummary}`);
+
+      try {
+        const replacementResult = await callModel('VENUE_SCORER', {
+          developer: `You are a rideshare venue expert for ${location}. Give me ${needed} replacement venue(s). Return JSON: {"replacements": [{"name": "...", "district": "...", "category": "...", "staging_name": "...", "pro_tips": ["..."], "strategic_timing": "..."}]}`,
+          user: `I need ${needed} replacement venue(s) near ${location}. Type: similar to ${failedSummary}. Do NOT suggest: ${alreadyResolved}. Real Google Maps business names only.`
+        });
+
+        const replacementParsed = safeJsonParse(replacementResult.output);
+        if (replacementParsed?.replacements) {
+          for (const rv of replacementParsed.replacements.slice(0, needed)) {
+            if (resolvedVenues.length >= TARGET_VENUE_COUNT) break;
+
+            let rvResult = await searchPlaceByText(rv.name, rv.district || null, city, state, tz);
+            if (!rvResult && rv.district) {
+              rvResult = await searchPlaceByText(rv.name, null, city, state, tz);
+            }
+
+            if (rvResult && rvResult.google_lat != null && rvResult.google_lng != null) {
+              resolvedVenues.push({
+                ...rv,
+                pro_tips: rv.pro_tips || ['Replacement venue — check conditions on arrival'],
+                lat: rvResult.google_lat,
+                lng: rvResult.google_lng,
+                place_id: rvResult.place_id,
+                google_name: rvResult.google_name,
+                llm_replacement: true,
+              });
+              resolvedNames.add(rv.name);
+              console.log(`   🔁 Replacement resolved: "${rv.name}" → ${rvResult.google_name}`);
+            }
+          }
+        }
+      } catch (replacementError) {
+        console.warn(`🏢 [VENUES 1/4] Replacement LLM call failed: ${replacementError.message}`);
+      }
     }
 
-    // Also filter staging location if coords are null
-    const stagingLoc = validated.best_staging_location;
-    const validStaging = (stagingLoc && stagingLoc.lat != null && stagingLoc.lng != null)
-      ? stagingLoc : null;
+    // Step 5: ESCALATE — if still short, flag degraded
+    const degraded = resolvedVenues.length < TARGET_VENUE_COUNT;
+    const degradedReason = degraded
+      ? `Resolved ${resolvedVenues.length}/${TARGET_VENUE_COUNT} venues. Failed: ${failedVenues.map(v => v.name).join(', ')}`
+      : null;
 
-    // Log each venue individually for clear tracing
-    console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ ${validVenues.length} venues in ${duration}ms:`);
-    validVenues.forEach((v, i) => {
+    if (degraded) {
+      console.error(`🏢 [VENUES 1/4] ⚠️ DEGRADED: ${degradedReason} | snapshot: ${snapshot?.id?.slice(0, 8)} | ${city}, ${state}`);
+
+      // 2026-04-16: Fire-and-forget degradation memory entry for catalog gap tracking
+      try {
+        fetch('http://localhost:5000/api/memory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: `degradation-${snapshot?.id || 'unknown'}`,
+            category: 'degradation',
+            title: `Venue resolution degraded: ${resolvedVenues.length}/${TARGET_VENUE_COUNT} at ${city}, ${state}`,
+            content: `Failed venues: ${failedVenues.map(v => `${v.name} (${v.category}${v.district ? `, ${v.district}` : ''}, ${city}, ${state})`).join('; ')}. Resolved: ${resolvedNames.size}. Snapshot: ${snapshot?.id || 'unknown'}.`,
+            tags: ['degradation', 'venue-resolution', city, state].filter(Boolean)
+          })
+        }).catch(() => {}); // fire and forget
+      } catch { /* non-blocking */ }
+    }
+
+    // 2026-04-16: Flag venues beyond driver's max deadhead distance from home.
+    // Does NOT drop venues (preserves always-6). Annotates for client transparency.
+    // Skipped entirely if home coords are missing (new driver, incomplete profile).
+    if (prefs.home_lat != null && prefs.home_lng != null && prefs.max_deadhead_mi != null) {
+      for (const venue of resolvedVenues) {
+        const distFromHome = haversineDistanceMiles(prefs.home_lat, prefs.home_lng, venue.lat, venue.lng);
+        venue.distance_from_home_mi = Math.round(distFromHome * 10) / 10;
+        if (distFromHome > prefs.max_deadhead_mi) {
+          venue.beyond_deadhead = true;
+        }
+      }
+    }
+
+    console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ ${resolvedVenues.length} venues resolved${degraded ? ' (DEGRADED)' : ''}:`);
+    resolvedVenues.forEach((v, i) => {
+      const tag = v.catalog_fallback ? ' [catalog]' : v.llm_replacement ? ' [replacement]' : '';
+      const deadheadTag = v.beyond_deadhead ? ' ⚠️ BEYOND DEADHEAD' : '';
+      const homeDistTag = v.distance_from_home_mi != null ? ` (${v.distance_from_home_mi}mi from home)` : '';
       const districtInfo = v.district ? ` @ ${v.district}` : '';
-      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category}) at ${v.lat.toFixed(6)},${v.lng.toFixed(6)}`);
+      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category}) at ${v.lat.toFixed(6)},${v.lng.toFixed(6)}${tag}${homeDistTag}${deadheadTag}`);
     });
 
-    // Add rank to each venue and prepare final response
+    // Prepare final response — staging location is name+reason only (no coords)
     const normalized = {
-      recommended_venues: validVenues.map((v, i) => ({
+      recommended_venues: resolvedVenues.map((v, i) => ({
         ...v,
         rank: i + 1
       })),
-      best_staging_location: validStaging,
+      best_staging_location: validated.best_staging_location || null,
       tactical_summary: validated.tactical_summary,
+      degraded,
+      degradedReason,
       metadata: {
         model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.4",
-        duration_ms: duration,
-        venues_recommended: validVenues.length,
+        duration_ms: Date.now() - startTime, // includes resolution time
+        venues_from_llm: llmVenues.length,
+        venues_resolved: resolvedVenues.length,
+        venues_failed: failedVenues.length,
+        resolution_chain_used: resolvedVenues.some(v => v.catalog_fallback) || resolvedVenues.some(v => v.llm_replacement),
         validation_passed: true
       }
     };
@@ -417,5 +571,19 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Haversine distance in miles between two lat/lng points.
+ * Used for beyond_deadhead flagging — straight-line, not driving distance.
+ */
+function haversineDistanceMiles(lat1, lng1, lat2, lng2) {
+  const R = 3959; // Earth radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+    * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 

@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Sparkles, ArrowUp } from 'lucide-react';
+import { Loader2, Sparkles, Send, MessageSquare } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
 
 interface ChatMessage {
@@ -26,12 +26,10 @@ interface AskConciergeProps {
 const MAX_QUESTIONS_PER_SESSION = 5;
 
 const SUGGESTED_QUESTIONS = [
-  "What's happening tonight?",
-  'Best restaurants nearby',
-  'Is this area safe at night?',
-  'Good coffee spots',
-  'Things to do right now',
-  'Late night food options',
+  "What's nearby?",
+  'Best places to eat',
+  'Events happening now',
+  'Things to do here',
 ];
 
 export function AskConcierge({ token, lat, lng, timezone, venueContext, eventContext }: AskConciergeProps) {
@@ -162,32 +160,32 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
   const remainingQuestions = MAX_QUESTIONS_PER_SESSION - questionCount;
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 6rem)' }}>
+    <div className="flex flex-col flex-1">
       {/* ═══ CHAT AREA ═══ */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {/* Empty state — welcome + suggested questions */}
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center min-h-[300px]">
-            {/* Welcome icon */}
-            <div className="h-14 w-14 rounded-2xl bg-indigo-500/15 flex items-center justify-center mb-4">
-              <Sparkles className="h-7 w-7 text-indigo-400" />
+          <div className="flex flex-col items-center justify-center min-h-[300px] py-8">
+            {/* Welcome icon — large circle matching AI Coach style */}
+            <div className="inline-flex items-center justify-center h-16 w-16 bg-purple-500/15 rounded-full mb-5">
+              <MessageSquare className="h-8 w-8 text-purple-400" />
             </div>
 
-            <h2 className="text-lg font-semibold text-white mb-1">
+            <h2 className="text-xl font-bold text-white mb-2">
               How can I help?
             </h2>
-            <p className="text-sm text-slate-400 mb-6 text-center max-w-[280px]">
+            <p className="text-sm text-slate-400 mb-8 text-center max-w-xs leading-relaxed">
               Ask me about restaurants, events, safety, directions — anything about the area.
             </p>
 
-            {/* Suggested questions as pills */}
-            <div className="flex flex-wrap justify-center gap-2 max-w-[340px]">
+            {/* Suggested questions — wrapped centered grid */}
+            <div className="flex flex-wrap justify-center gap-2 max-w-sm">
               {SUGGESTED_QUESTIONS.map((q, i) => (
                 <button
                   key={i}
                   onClick={() => sendQuestion(q)}
                   disabled={isLoading}
-                  className="text-xs px-3 py-2 bg-slate-800 text-slate-300 rounded-full border border-slate-700 hover:bg-slate-700 hover:text-white hover:border-slate-600 transition-all disabled:opacity-50"
+                  className="text-xs px-4 py-2.5 bg-slate-800/60 text-slate-300 rounded-full border border-slate-700 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all disabled:opacity-50"
                 >
                   {q}
                 </button>
@@ -253,37 +251,34 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
         )}
       </div>
 
-      {/* ═══ INPUT BAR (pinned to bottom) ═══ */}
-      <div className="border-t border-slate-800 bg-slate-900/80 backdrop-blur-sm px-4 py-3">
+      {/* ═══ INPUT BAR (pinned to bottom, matches AI Coach styling) ═══ */}
+      <div className="p-3 border-t border-slate-800 bg-slate-900">
         {/* Error message */}
         {error && (
           <p className="text-xs text-red-400 text-center mb-2">{error}</p>
         )}
 
-        {/* 2026-04-09: Added max-w-full to prevent mobile horizontal overflow pushing Send button off-screen */}
         <form onSubmit={handleSubmit} className="flex items-center gap-2 max-w-lg mx-auto w-full">
-          <div className="flex-1 min-w-0 relative">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={remainingQuestions > 0 ? 'Ask anything about the area...' : 'Question limit reached'}
-              disabled={isLoading || remainingQuestions <= 0}
-              className="w-full text-sm px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-full text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/40 disabled:opacity-40 disabled:cursor-not-allowed"
-              maxLength={500}
-            />
-          </div>
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={remainingQuestions > 0 ? 'Ask anything about the area...' : 'Question limit reached'}
+            disabled={isLoading || remainingQuestions <= 0}
+            className="flex-1 min-w-0 text-sm px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-full text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+            maxLength={500}
+          />
           <Button
             type="submit"
-            size="sm"
+            size="icon"
             disabled={!input.trim() || isLoading || remainingQuestions <= 0}
-            className="rounded-full h-10 w-10 p-0 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 transition-colors"
+            className="rounded-full h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors"
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <ArrowUp className="h-4 w-4" />
+              <Send className="h-4 w-4" />
             )}
           </Button>
         </form>

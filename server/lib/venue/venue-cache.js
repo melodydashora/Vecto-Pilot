@@ -706,7 +706,8 @@ function guessVenueType(name) {
  * @returns {Promise<Array>} Matching venues
  */
 export async function getVenuesByType(options) {
-  const { venueTypes, city, state, limit = 50 } = options;
+  // 2026-04-16: Added optional district + orderByExpense for P0-6 catalog fallback
+  const { venueTypes, city, state, district, orderByExpense, limit = 50 } = options;
 
   let conditions = [];
 
@@ -723,11 +724,25 @@ export async function getVenuesByType(options) {
     conditions.push(eq(venue_catalog.state, state.toUpperCase()));
   }
 
-  return db
+  // 2026-04-16: District filter — try exact match first, fall back to slug
+  if (district) {
+    const slug = normalizeDistrictSlug(district);
+    conditions.push(or(
+      ilike(venue_catalog.district, district),
+      eq(venue_catalog.district_slug, slug)
+    ));
+  }
+
+  const query = db
     .select()
     .from(venue_catalog)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .limit(limit);
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+  if (orderByExpense) {
+    return query.orderBy(sql`expense_rank DESC NULLS LAST`).limit(limit);
+  }
+
+  return query.limit(limit);
 }
 
 // ─────────────────────────────────────────────────
