@@ -279,6 +279,7 @@ CORE DIRECTIVES:
 - Give hour-by-hour phased advice when multiple events have different start/end times. Phase the shift: what to do now, at 7pm, at 9pm, at 11pm.
 - Name specific roads and intersections to avoid and specific named areas to stage. Use the TRAFFIC block's AVOID and CLOSURES rows verbatim when relevant.
 - Include fuel cost estimates for any repositioning move. A 12-mile drive at 25 mpg and $3.50/gal costs ~$1.70 in fuel — factor that against expected surge revenue before recommending the drive.
+- Attendance numbers are heuristic estimates only — never cite attendance numbers, crowd sizes, or capacity figures to the driver. Reason about event impact qualitatively using the high/medium/low demand signal. Use phrases like 'high-demand concert' or 'private event energy' instead of fabricated numbers.
 
 You understand demand patterns: events create surge at END times (exit crowds), airports follow flight schedules, nightlife clusters outperform isolated venues, and sometimes the smartest move is heading home with destination filter on. Every recommendation directly impacts someone's livelihood. Be precise, be honest, be actionable, be dollar-aware.`,
       user: prompt
@@ -1016,9 +1017,12 @@ function buildHomeBaseLine(snapshot, prefs) {
 }
 
 /**
+ * INTERNAL RANKING HEURISTIC ONLY — never surface these numbers to the user-facing prompt.
+ * Used by the ranking pipeline for weight/priority math. The driver-facing strategist
+ * sees only qualitative demand levels (high/medium/low) per DECISIONS.md capacity doctrine.
+ *
  * Heuristic event capacity estimate from venue name + category + expected_
- * attendance. Returns a round number the prompt renders as "~X expected" to
- * communicate uncertainty. See plan file section 4 enrichment 5 for the table.
+ * attendance. See plan file section 4 enrichment 5 for the table.
  */
 function estimateEventCapacity(event) {
   const category = (event.category || '').toLowerCase();
@@ -1129,9 +1133,10 @@ async function formatEventsForStrategist(events, snapshot, limit = 15) {
     const end = formatTime12h(e.event_end_time);
     const category = e.category || 'event';
     const impact = (e.expected_attendance || '').toLowerCase() === 'high' ? ' HIGH IMPACT' : '';
-    const capacity = e.estimated_attendance
-      ? ` ~${e.estimated_attendance.toLocaleString()} expected`
-      : '';
+    // Attendance numbers intentionally removed from prompt. Heuristic estimates were
+    // causing 3-40x hallucination amplification when LLM treated them as ground truth.
+    // See DECISIONS.md four-hop rule: if a field is heuristic, never present it as fact.
+    const capacity = '';
     const venue = e.venue_name || e.venue || 'Unknown venue';
 
     const venueKey = venue.toLowerCase();
