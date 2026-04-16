@@ -261,7 +261,11 @@ export function toApiBlock(dbBlock) {
     streetViewUrl: streetViewUrl,
     hasEvent: hasEvent,
     eventBadge: eventBadge,
-    eventSummary: eventSummary
+    eventSummary: eventSummary,
+
+    // Driver preference scoring (2026-04-16)
+    beyondDeadhead: !!(dbBlock.beyondDeadhead ?? dbBlock.beyond_deadhead),
+    distanceFromHomeMi: dbBlock.distanceFromHomeMi ?? dbBlock.distance_from_home_mi ?? null
   };
 }
 

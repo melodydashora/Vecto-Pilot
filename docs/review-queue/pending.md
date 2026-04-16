@@ -4,6 +4,24 @@ Items requiring action. For completed session logs and historical analysis, see 
 
 ---
 
+## 2026-04-16: ranking_candidates Deadhead Columns — ✅ APPLIED (Dev)
+
+**Author:** Claude Opus 4.6 | **Scope:** `ranking_candidates` — add 2 columns for driver preference scoring visibility
+
+**Migration applied to dev DB on 2026-04-16.** File: `migrations/20260416_ranking_candidates_deadhead.sql`. The strategy pipeline now persists `beyond_deadhead` and `distance_from_home_mi` through to the API response via `toApiBlock()`.
+
+### Migration SQL
+
+```sql
+ALTER TABLE ranking_candidates
+  ADD COLUMN IF NOT EXISTS beyond_deadhead boolean,
+  ADD COLUMN IF NOT EXISTS distance_from_home_mi double precision;
+```
+
+### Status: APPLIED on dev (2026-04-16) — prod pending Melody's approval
+
+---
+
 ## 2026-04-14: Claude Memory Table System
 
 **Author:** Claude Opus 4.6 | **Scope:** `claude_memory` table, `/api/memory` API, memory-keeper agent

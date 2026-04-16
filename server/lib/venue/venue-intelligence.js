@@ -345,6 +345,10 @@ Classify ALL venues. No explanation.`;
  * @param {string} [params.timezone] - Timezone for accurate hours display
  * @returns {Promise<Object>} Venue intelligence with sorted venues
  */
+// TODO (2026-04-16): Bars tab does not compute beyond_deadhead. The strategy pipeline
+// sets this flag via tactical-planner.js, but the Bars pipeline is independent.
+// Decision pending: either call loadDriverPreferences() here and compute haversine
+// inline, or restructure to share the scoring step. See SESSION_HANDOFF_2026-04-16.md.
 export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles = 25, timezone = null }) {
   if (!GOOGLE_MAPS_API_KEY) {
     barsLog.warn(1, `GOOGLE_MAPS_API_KEY not set`);

@@ -564,7 +564,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         distance_source: enriched.distanceSource || 'google_routes_api',
         rate_per_min_used: 1.50,
         trip_minutes_used: driveMinutes,
-        wait_minutes_used: 0
+        wait_minutes_used: 0,
+        // 2026-04-16: Driver preference scoring — persisted for client-side deadhead badge
+        beyond_deadhead: enriched.beyond_deadhead || false,
+        distance_from_home_mi: enriched.distance_from_home_mi || null
       };
     });
     

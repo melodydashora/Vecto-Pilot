@@ -202,6 +202,9 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   aliases: text("aliases").array(), // Alternative place IDs for this venue (variations)
   // District tagging from LLM output (for text search fallback and deduplication)
   district: text("district"), // District/neighborhood from VENUE_SCORER: "Legacy West", "Deep Ellum"
+  // 2026-04-16: Driver preference scoring — home distance + deadhead flag
+  beyond_deadhead: boolean("beyond_deadhead"), // True when venue exceeds driver's max_deadhead_mi
+  distance_from_home_mi: doublePrecision("distance_from_home_mi"), // Haversine miles from driver home
 }, (table) => ({
   // Foreign key indexes for performance optimization (Issue #28)
   idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
