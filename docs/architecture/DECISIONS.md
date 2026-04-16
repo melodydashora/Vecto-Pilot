@@ -285,6 +285,42 @@ const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 
 ---
 
+### 17. Never Inject Heuristic or Estimated Values Into LLM Prompts as Bare Facts
+
+**Decision:** Any value computed from a heuristic, lookup table, or unverified source MUST NOT appear in an LLM prompt without one of: (a) Removal — prefer qualitative signal (high/medium/low) over fabricated precision, (b) Explicit label — "HEURISTIC ESTIMATE (do not cite to user):" prefix in the prompt, (c) Sanity-bounded — cross-checked against a hard ceiling (e.g., venue physical capacity). Corollary: internal ranking heuristics may continue to use these values for math. They are only prohibited in user-facing prompt text.
+
+**Added:** 2026-04-16
+
+**Why:** The strategy engine was injecting `estimateEventCapacity()` output (a static lookup: stadium=18000, high=5000, low=200) into the strategist prompt as "~5,000 expected" with no label. The strategist LLM read these as ground truth and amplified them 2-3x further to 15,000+ in driver-facing output. One session found 3-40x inflation against real venue capacity (Comerica Center: 15k claimed vs 5.3k real; Riders Field: 15k claimed vs 10.2k real).
+
+**Enforcement:** Grep for numeric interpolations into prompt strings at code review time. Any `~${number}` or `expected ${number}` pattern must have provenance documented.
+
+---
+
+### 18. All Date/Time Filtering in Driver-Facing Queries Uses Driver-Local Timezone
+
+**Decision:** Any query that resolves "today", "tonight", "upcoming", or relative time windows for driver-facing output MUST use the driver's snapshot timezone (stored at session start via the geolocation → timezone resolution). Never `Date.now()` against UTC. Never server-side `current_date` without `AT TIME ZONE` conversion. Required pattern: `WHERE event_start_date = (now() AT TIME ZONE $driver_tz)::date`. Defensive post-filter: after the DB query, the consolidator re-verifies each event's local date matches today in driver_tz before prompt injection (belt-and-suspenders).
+
+**Added:** 2026-04-16
+
+**Why:** Dallas Pulse event scheduled Apr 17 7:00 PM CT appeared in Apr 16 strategy block. Root cause: `filterEventsToTimeWindow()` could not parse split `event_start_date` + `event_start_time` fields from `discovered_events` — events with unparseable times passed by default (`return true`). Combined with Gemini storing the wrong date, this let a tomorrow event into tonight's strategy.
+
+**Enforcement:** Any PR touching time/date filters in the strategy or briefing pipeline must cite this rule and show the TZ-aware query.
+
+---
+
+### 19. Numeric Driver-Impacting Fields Must Have Sanity Ceilings or Real-Data Ground Truth
+
+**Decision:** Any numeric field that drives a driver decision (attendance, earnings estimate, travel time, deadhead distance) must have at least one of: (a) Ground truth — a real-data column that, when populated, wins over the heuristic, (b) Hard ceiling — an absolute cap tied to physical/logical reality (venue_capacity, max_shift_hours, etc.), (c) Provenance flag — a tag indicating "heuristic" vs "verified" so downstream consumers can gate confidence. The `venue_catalog.capacity_estimate` column (H-3a) is the ground-truth pattern applied. `estimateEventCapacity()` now prefers real capacity × demand_pct (H-3b), falling back to heuristic only when no ground truth exists.
+
+**Added:** 2026-04-16
+
+**Why:** `estimateEventCapacity()` had no upper bound and no cross-check against real `venue_capacity`, which exists as a column but was 0/500 populated. This allowed "stadium" venues to receive a flat 18,000 heuristic regardless of actual physical capacity. Comerica Center got 15,000 claimed vs real max ~5,300.
+
+**Enforcement:** New numeric fields entering the driver-facing chain must document their ground truth path in the PR description.
+
+---
+
 ## Decision History
 
 Track when decisions were made and how they evolved.
@@ -307,6 +343,9 @@ Track when decisions were made and how they evolved.
 | Location Resolution Priority | Dec 2024 | Active | Users → Cache → API |
 | Driver Pref Schema Fallback | Apr 2026 | Active | Dev-only until prod migration; defaults via DRIVER_PREF_DEFAULTS |
 | Four-Hop Contract | Apr 2026 | Active | Origin: beyond_deadhead fix 2e1dea4c |
+| Heuristic-as-Fact Rule | Apr 2026 | Active | Origin: attendance hallucination fix c605eabb |
+| Driver-Local Time Rule | Apr 2026 | Active | Origin: Dallas Pulse date leak fix d6ce19e8 |
+| Capacity Ceiling Rule | Apr 2026 | Active | Origin: venue capacity seed + ceiling ceeb62b6 |
 
 ### Status Meanings
 

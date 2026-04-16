@@ -4,6 +4,24 @@ Items requiring action. For completed session logs and historical analysis, see 
 
 ---
 
+## 2026-04-16: Strategy Hallucination Session (H-1/H-2/H-3)
+
+**Doctrine rules added:** DECISIONS.md #17 (heuristic-as-fact), #18 (driver-local time), #19 (capacity ceiling)
+
+**Commits:** c605eabb (H-1), d6ce19e8 (H-2), ceeb62b6 (H-3)
+
+- **Source bug:** Rideshare Coach live verification caught Comerica 15k (real ~5k), Riders Field 15k (real ~10k), Omni PGA 10k (real ~2.5k), + Dallas Pulse date drift Apr 17 → Apr 16
+- **Pending prod actions (Melody approval required):**
+  1. Run `migrations/20260416_venue_capacity_seed.sql` on prod (30 venues populated)
+  2. Monitor next strategy block for absence of fabricated attendance numbers
+  3. Verify Dallas Pulse does NOT appear in Apr 16 prod strategy, DOES appear in Apr 17
+- **Follow-ups (not blocking):**
+  - Extend capacity seed beyond 30 venues as Coach surfaces more during live drives
+  - Consider a `verified_source` boolean on venue_catalog for confidence gating
+  - Pass F (observability lane audit) still outstanding — this session's SYSTEM_NOTE bug report is live test data
+
+---
+
 ## 2026-04-16: ranking_candidates Deadhead Columns — ✅ APPLIED (Dev)
 
 **Author:** Claude Opus 4.6 | **Scope:** `ranking_candidates` — add 2 columns for driver preference scoring visibility
