@@ -22,6 +22,14 @@ Items requiring action. For completed session logs and historical analysis, see 
 
 ---
 
+## 2026-04-16: app_feedback user_id Column — ✅ APPLIED (Dev)
+
+**Author:** Claude Opus 4.6 | **Scope:** `app_feedback` — add user_id column (Pass F bug fix)
+**Migration:** `migrations/20260416_app_feedback_user_link.sql` — `ADD COLUMN IF NOT EXISTS user_id uuid`
+**Status:** APPLIED on dev (2026-04-16) — prod pending Melody's approval
+
+---
+
 ## 2026-04-16: ranking_candidates Deadhead Columns — ✅ APPLIED (Dev)
 
 **Author:** Claude Opus 4.6 | **Scope:** `ranking_candidates` — add 2 columns for driver preference scoring visibility

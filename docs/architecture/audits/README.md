@@ -17,7 +17,8 @@ Audit passes typically produce 0-N new DECISIONS.md entries. The audit file capt
 | C | 2026-04-16 | API surface relationship map | Produced DECISIONS.md #16 (four-hop contract) |
 | D | 2026-04-16 | Client field survivability | Closed by commit 6b321afb (beyond_deadhead end-to-end) |
 | E | 2026-04-16 | Coach / notes / memory / observability relationship map | 5 E-Rules documented, Pass F queued |
-| F | (pending) | Issue logging / feedback / monitoring survivability | Not yet run |
+| F | 2026-04-16 | Issue logging / feedback / monitoring survivability | 8 claims verified, 1 bug fixed (403a4b9f), 5 F-Rules + 7 F-gaps documented, Pass G queued |
+| G | (pending) | Actions / learning-capture / queryability audit | Not yet run |
 
 ## Retroactive captures
 
