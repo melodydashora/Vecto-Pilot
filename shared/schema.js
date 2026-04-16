@@ -430,6 +430,8 @@ export const strategy_feedback = pgTable("strategy_feedback", {
 // General app feedback (simplified - just snapshot context)
 export const app_feedback = pgTable("app_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // 2026-04-16 (Pass F fix): user_id was missing — auth was required but identity was lost
+  user_id: uuid("user_id"),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   // Resolved precise location from snapshot
   formatted_address: text("formatted_address"),

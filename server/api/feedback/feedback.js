@@ -344,9 +344,11 @@ router.post('/app', requireAuth, async (req, res) => {
     // No rate limiting for app feedback (it's infrequent)
     
     // Insert app feedback
+    // 2026-04-16 (Pass F fix): authUserId was read but not inserted — identity was lost
     await db
       .insert(app_feedback)
       .values({
+        user_id: authUserId || null,
         snapshot_id: snapshot_id || null,
         sentiment,
         comment: sanitizedComment,
