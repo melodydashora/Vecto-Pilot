@@ -24,6 +24,8 @@ import { parseOfferText, formatPerMileForVoice, classifyTier } from '../../lib/o
 import { getDayPartKey } from '../../lib/location/daypart.js';
 import { coordsKey } from '../../lib/location/coords-key.js';
 import { latLngToCell } from 'h3-js';
+// 2026-04-16: FIX — resolve driver timezone from coords so temporal columns are local, not UTC
+import { resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
 
 const router = Router();
 
@@ -531,13 +533,32 @@ PRE-PARSED DATA (server-verified):
         const coordKeyValue = (lat && lng) ? coordsKey(lat, lng) : null;
         const h3Index = (lat && lng) ? latLngToCell(lat, lng, 8) : null;
 
-        // 2026-02-17: Compute temporal columns from current time
+        // 2026-04-16: FIX — temporal columns must reflect driver's local time, not UTC.
+        // getUTCHours() returned server UTC, corrupting local_hour/day_of_week/is_weekend
+        // for time-of-day analytics and the idx_oi_weekend_hour index.
+        // Resolution order: coord-based Google Timezone API (always available on Siri path).
+        let driverTimezone = null;
+        if (lat && lng) {
+          try {
+            driverTimezone = await resolveTimezoneFromCoords(lat, lng);
+          } catch (tzErr) {
+            console.warn(`[hooks/analyze-offer] Timezone resolution failed (${tzErr.message}) — falling back to UTC`);
+          }
+        }
+
         const now = new Date();
-        const localHour = now.getUTCHours();
-        const dayOfWeek = now.getUTCDay();
+        // With timezone: derive local hour/day via Intl (exact). Without: UTC fallback (legacy behavior).
+        const localHour = driverTimezone
+          ? parseInt(new Intl.DateTimeFormat('en-US', { timeZone: driverTimezone, hour: 'numeric', hour12: false }).format(now), 10)
+          : now.getUTCHours();
+        const dayOfWeek = driverTimezone
+          ? new Date(now.toLocaleDateString('en-CA', { timeZone: driverTimezone })).getDay()
+          : now.getUTCDay();
         const dayPart = getDayPartKey(localHour);
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        const localDate = now.toISOString().split('T')[0];
+        const localDate = driverTimezone
+          ? now.toLocaleDateString('en-CA', { timeZone: driverTimezone })
+          : now.toISOString().split('T')[0];
 
         // 2026-02-17: Session tracking — group offers within 30-min windows
         let offerSessionId = crypto.randomUUID();
@@ -595,12 +616,13 @@ PRE-PARSED DATA (server-verified):
           h3_index: h3Index,
           market,
 
-          // Temporal
+          // Temporal — 2026-04-16: now timezone-aware (was UTC)
           local_date: localDate,
           local_hour: localHour,
           day_of_week: dayOfWeek,
           day_part: dayPart,
           is_weekend: isWeekend,
+          timezone: driverTimezone,
 
           // AI analysis — Phase 2 deep reasoning (or Phase 1 fallback)
           decision: dbDecision,

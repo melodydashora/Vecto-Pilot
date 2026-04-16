@@ -602,12 +602,12 @@ Miles are rounded to the nearest whole number with plural handling (`1 mile`, `6
 
 | Column | Type | Source |
 |--------|------|--------|
-| `local_date` | text | `YYYY-MM-DD` (currently derived from UTC `new Date()` — see §16) |
-| `local_hour` | integer | 0-23 |
-| `day_of_week` | integer | 0=Sun … 6=Sat |
+| `local_date` | text | `YYYY-MM-DD` in driver's local timezone (via `resolveTimezoneFromCoords`) |
+| `local_hour` | integer | 0-23 in driver's local timezone |
+| `day_of_week` | integer | 0=Sun … 6=Sat (local timezone) |
 | `day_part` | text | `getDayPartKey(hour)` |
-| `is_weekend` | boolean | Saturday or Sunday |
-| `timezone` | text | IANA zone (currently unset on Siri path — see §16) |
+| `is_weekend` | boolean | Saturday or Sunday (local timezone) |
+| `timezone` | text | IANA zone from Google Timezone API (e.g., `America/Chicago`) |
 
 #### AI Analysis
 
@@ -827,7 +827,7 @@ What is missing: native app, share-intent handler, accessibility service, notifi
 6. **No offer data in strategy prompt** — Strategy generation ignores offer patterns. Venue scoring could weight areas by historic $/mi.
 7. **`vehicle_mode` not propagating** — Coach inbox bug: XL/Comfort info extracted by OCR does not reach Coach AI context.
 8. **Trip Radar timing is tight** — 3 s window; Flash at ~2.5 s burns most of it. No P95 alerting yet.
-9. **Temporal columns use UTC `new Date()`** — `local_date`, `local_hour`, `day_of_week`, `is_weekend` are derived from `now.getUTCHours()` / `now.getUTCDay()` in `analyze-offer.js`, not from the driver's timezone. `timezone` column is not written on the Siri path. Fix: accept `timezone` in the request and use it to compute temporal columns.
+9. ~~**Temporal columns use UTC `new Date()`**~~ — **FIXED 2026-04-16.** Temporal columns now use `resolveTimezoneFromCoords()` (Google Timezone API) to derive driver-local hour/day/date. `timezone` column is now written on every offer. Falls back to UTC only if coord-based resolution fails.
 10. **Phase 2 errors silently degrade** — If the IIFE itself throws after Phase 2, **no DB row is written** at all. Siri got its answer, but we lose the analytics record. Fix: outer try/catch that writes a Phase-1-only row.
 11. **No rate limiting per `device_id`** — Current rate limiting is IP-based only.
 12. **No vision-mode fallback** — `OFFER_ANALYZER` was removed from the hedged-fallback list because non-vision models can't process images. A Gemini Flash outage means the entire Phase 1 request fails over to the deterministic fallback (text mode only) or errors out (vision mode).
