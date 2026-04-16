@@ -166,7 +166,7 @@ export default function BarTab({
             <p className="text-gray-600 text-xs">{error.message}</p>
             <button
               onClick={() => refetch()}
-              className="mt-2 text-xs text-purple-600 hover:underline"
+              className="mt-2 text-xs text-purple-600 hover:underline min-h-11 inline-flex items-center"
             >
               Try again
             </button>
@@ -186,7 +186,7 @@ export default function BarTab({
           <p className="text-gray-500 mt-2">No bars or lounges found in your area</p>
           <button
             onClick={() => refetch()}
-            className="mt-4 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="mt-4 px-4 py-2 min-h-11 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
           >
             Refresh
           </button>
@@ -278,7 +278,7 @@ export default function BarTab({
           <p className="text-gray-500 mt-2">No bars with business hours found in your area</p>
           <button
             onClick={() => refetch()}
-            className="mt-4 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="mt-4 px-4 py-2 min-h-11 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
           >
             Refresh
           </button>
@@ -384,7 +384,7 @@ export default function BarTab({
                     {venue.phone && (
                       <button
                         onClick={() => callVenue(venue.phone!)}
-                        className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors w-full"
+                        className="flex items-center gap-2 mt-2 px-3 py-1.5 min-h-11 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors w-full"
                       >
                         <Phone className="w-4 h-4 text-blue-600" />
                         <span className="text-sm font-medium text-blue-700">{venue.phone}</span>
@@ -451,7 +451,7 @@ export default function BarTab({
 
                       <button
                         onClick={() => handleNavigation(venue)}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
+                        className="flex items-center gap-1 px-3 py-2.5 min-h-11 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
                       >
                         <Navigation className="w-3 h-3" />
                         Navigate
