@@ -92,7 +92,8 @@ export function BottomTabNavigation() {
   const activeTab = tabs.find(tab => location.pathname === tab.path)?.id || 'strategy';
 
   return (
-    <div
+    <nav
+      aria-label="Main navigation"
       className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50"
       data-testid="bottom-tabs"
     >
@@ -106,6 +107,8 @@ export function BottomTabNavigation() {
               <button
                 key={tab.id}
                 onClick={() => navigate(tab.path)}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={tab.label}
                 className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
                   isActive
                     ? `${tab.activeColor} ${tab.activeBg}`
@@ -125,7 +128,7 @@ export function BottomTabNavigation() {
           })}
         </div>
       </div>
-    </div>
+    </nav>
   );
 }
 

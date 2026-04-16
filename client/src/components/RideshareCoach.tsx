@@ -648,7 +648,8 @@ export default function RideshareCoach({
       )}
 
       {/* Messages Area - Light background for readability */}
-      <div className="flex-1 overflow-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-800">
+      {/* 2026-04-16: WCAG — role="log" + aria-live for screen reader announcement of new messages */}
+      <div role="log" aria-live="polite" className="flex-1 overflow-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-800">
         {msgs.length === 0 && (
           <div className="text-center py-8 space-y-4">
             <div className="inline-flex items-center justify-center h-14 w-14 bg-blue-100 dark:bg-blue-900 rounded-full">
