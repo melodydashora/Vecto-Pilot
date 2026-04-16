@@ -251,7 +251,7 @@ All seven open decisions from v1.0 are resolved below. Each decision text is bin
   - `briefings.status` is currently **DEAD** (never written). Decision: populate it from the existing completeness-validation result in `briefing-service.js` (`'complete'` when all required sections present; `'error'` on generation failure; `'pending'` during initial placeholder insert) — **OR** drop the column. Implementation or removal lands in Phase 7.
   - `briefings.generated_at` is currently **DEAD**. Decision: populate with `NOW()` on the UPDATE at `briefing-service.js:2891` (first successful generation). If we choose to drop instead, the call-site uses `updated_at` as a proxy. Phase 7.
 
-- [x] **Market fallback policy — RESOLVED.** `market` IS a required field. If missing after enrichment, it is a **hard-fail** condition. The historic city-substitution fallback is **NOT approved** and must be removed. Any code path that substitutes `city` for a missing `market` is a bug to be fixed in Phase 7 or when encountered.
+- [x] **Market fallback policy — RESOLVED & IMPLEMENTED (2026-04-16).** `market` IS a required field. The historic city-substitution fallback has been **removed** from `briefing-service.js`: `getMarketForLocation()` now returns `null` on miss (not city), and all callers use `'[unknown-market]'` placeholder that surfaces visibly in AI prompts and logs. No silent data corruption.
 
 ---
 

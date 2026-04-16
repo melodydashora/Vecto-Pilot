@@ -100,10 +100,13 @@ function withTimeout(promise, timeoutMs, operationName = 'Operation') {
 /**
  * Get market name for a city/state location
  * 2026-02-01: Extracted as reusable function for events + news
+ * 2026-04-16: FIX — returns null instead of city on miss. City-as-market substitution
+ * produced narrower search results (e.g., "Plano" instead of "Dallas") and violated
+ * the BRIEFING-DATA-MODEL.md contract that market is a distinct concept from city.
  *
  * @param {string} city - City name (e.g., "Frisco")
  * @param {string} state - State abbreviation (e.g., "TX")
- * @returns {Promise<string>} - Market name (e.g., "Dallas") or city as fallback
+ * @returns {Promise<string|null>} - Market name (e.g., "Dallas") or null if no DB match
  */
 async function getMarketForLocation(city, state) {
   try {
@@ -122,12 +125,12 @@ async function getMarketForLocation(city, state) {
       return marketResult.market_name;
     }
 
-    // Fallback: use city name as market
-    briefingLog.info(`No market found for ${city}, ${state} - using city as market`, OP.DB);
-    return city;
+    // 2026-04-16: No silent city substitution — callers handle null explicitly
+    briefingLog.warn(2, `No market found for ${city}, ${state} — market_cities table has no match`, OP.DB);
+    return null;
   } catch (dbErr) {
     briefingLog.warn(2, `Market lookup failed (non-fatal): ${dbErr.message}`, OP.DB);
-    return city; // Fallback to city
+    return null;
   }
 }
 
@@ -318,7 +321,9 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
  */
 async function fetchEventsWithClaudeWebSearch({ snapshot, city, state, market, date, lat, lng, timezone }) {
   const startTime = Date.now();
-  const searchArea = market || city;
+  // 2026-04-16: market is authoritative; '[unknown-market]' placeholder surfaces in AI prompts
+  // so we can spot unresolved markets instead of silently searching a single suburb.
+  const searchArea = market || '[unknown-market]';
 
   // Helper to search a single category with Claude
   async function searchCategory(category) {
@@ -970,8 +975,8 @@ const EVENT_CATEGORIES = [
  */
 async function fetchEventCategory({ category, city, state, market, lat, lng, date, timezone }) {
   const maxEvents = category.maxEvents || 8;
-  // Use market for broader metro search, mention driver's city for local relevance
-  const searchArea = market || city;
+  // 2026-04-16: market is authoritative; placeholder surfaces unresolved markets in prompts
+  const searchArea = market || '[unknown-market]';
 
   // 2026-02-26: Simplified prompt — today only, strict required fields, place_id for venue linking.
   // Gemini has native Google Places knowledge via google_search grounding.
@@ -1068,10 +1073,12 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // 2026-02-01: Use market from snapshot (set from driver_profiles at signup)
-  // Fallback to lookup for older snapshots that don't have market set
-  // This ensures we find events at major venues across the entire metro market.
+  // 2026-04-16: Resolve market — snapshot.market is authoritative, DB lookup is fallback
+  // for older snapshots. Null means genuinely unknown; callers handle the placeholder.
   const market = snapshot.market || await getMarketForLocation(city, state);
+  if (!market) {
+    briefingLog.warn(2, `No market resolved for ${city}, ${state} — event search will use [unknown-market] placeholder`, OP.AI);
+  }
 
   // 2026-02-26: Gemini-only for event discovery. Cross-provider fallback to Claude/GPT
   // returned data in incompatible formats causing more parsing failures than it solved.
@@ -1080,7 +1087,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     return { items: [], reason: 'GEMINI_API_KEY required for event discovery' };
   }
 
-  briefingLog.ai(2, 'Gemini', `events for ${market} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
+  briefingLog.ai(2, 'Gemini', `events for ${market || '[unknown-market]'} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
 
   // PARALLEL CATEGORY SEARCHES - 2 focused searches (high_impact + local_entertainment)
   // Each category runs independently, results are merged and deduplicated
@@ -2351,18 +2358,21 @@ export async function fetchRideshareNews({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // 2026-02-01: Use market from snapshot (set from driver_profiles at signup)
-  // Fallback to lookup for older snapshots that don't have market set
+  // 2026-04-16: Resolve market — snapshot.market is authoritative, DB lookup is fallback.
+  // Null means genuinely unknown; buildNewsPrompt handles the placeholder.
   const market = snapshot.market || await getMarketForLocation(city, state);
+  if (!market) {
+    briefingLog.warn(2, `No market resolved for ${city}, ${state} — news search will use [unknown-market] placeholder`, OP.AI);
+  }
 
   // Build the enhanced prompt with Market, City, Airport, Headlines
   // 2026-01-10: Updated prompt to strip source citations for cleaner UI
-  const newsPrompt = buildNewsPrompt({ city, state, market, date });
+  const newsPrompt = buildNewsPrompt({ city, state, market: market || '[unknown-market]', date });
   const system = `You are a rideshare news research assistant for drivers on platforms like Uber, Lyft, ridehail, taxis, and private car services. Search for recent news and return structured JSON with publication dates. Focus on news that IMPACTS driver earnings, strategy, and working conditions. DO NOT include source citations, URLs, or "[Source: ...]" text in your summaries - return CLEAN text suitable for display.`;
 
   // 2026-01-10: Consolidated to single Briefer model (configured via BRIEFING_NEWS_MODEL)
   // Single-model approach: simpler pipeline, lower cost, cleaner data
-  briefingLog.phase(2, `News fetch: ${city}, ${state} (market: ${market})`, OP.AI);
+  briefingLog.phase(2, `News fetch: ${city}, ${state} (market: ${market || '[unknown-market]'})`, OP.AI);
 
   if (!process.env.GEMINI_API_KEY) {
     briefingLog.warn(2, `BRIEFING_NEWS model not configured (requires GEMINI_API_KEY)`, OP.AI);

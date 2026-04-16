@@ -120,16 +120,19 @@ Event and news searches use the **market** (e.g., "Dallas-Fort Worth") instead o
 **Market Source Priority:**
 1. `snapshot.market` - From `driver_profiles.market` (set at user signup)
 2. `getMarketForLocation()` fallback - Looks up `market_cities` table for older snapshots
+3. If both miss, market is `null` — callers use `'[unknown-market]'` placeholder (2026-04-16)
 
 ```javascript
 // In fetchEventsWithGemini3ProPreview and fetchRideshareNews:
 const market = snapshot.market || await getMarketForLocation(city, state);
+// market may be null — callers handle with '[unknown-market]' placeholder
 ```
 
 **Why from driver_profiles:**
 - Market is known at signup (user selects it)
 - No need for DB lookup on every briefing request
 - Faster and more reliable
+- City-as-market substitution is NOT allowed (see BRIEFING-DATA-MODEL.md §9)
 
 ## Usage
 
