@@ -649,6 +649,8 @@ PRE-PARSED DATA (server-verified):
     console.error(`[hooks/analyze-offer] ❌ Error (${responseTimeMs}ms):`, error.message);
     res.status(500).json({
       success: false,
+      // 2026-04-16: TTS line for Siri — em-dash in notification doesn't speak well, so use period.
+      voice: 'Analysis failed. Decide manually.',
       notification: 'Analysis failed — decide manually',
       error: error.message,
       response_time_ms: responseTimeMs,

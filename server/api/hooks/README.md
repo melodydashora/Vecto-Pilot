@@ -51,15 +51,17 @@ Real-time ride offer analysis from Siri Shortcuts. Accepts **OCR text** or a **b
 ```json
 {
   "success": true,
-  "voice": "Accept. dollar fifty-seven per mile.",
-  "notification": "ACCEPT $1.57/mi",
+  "voice": "Accept. dollar fifty-seven per mile, 8 miles.",
+  "notification": "ACCEPT: $1.57 8.2mi",
   "decision": "ACCEPT",
+  "reason": "$1.57 8.2mi",
   "response_time_ms": 1823
 }
 ```
 
-- `voice` — Pre-formatted for Siri "Speak Text" action (includes spoken $/mile)
+- `voice` — TTS-friendly line for Siri "Speak Text" action. Composes `<Decision>. <perMileSpoken>, <N> miles[, <qualifier>].` Qualifiers ("too far", "below floor", "rate too low", "low rider rating") are spoken as natural-language tails. Special cases: share-tier auto-reject → `"Reject. Share tier."`, error path → `"Analysis failed. Decide manually."`. (2026-04-16)
 - `notification` — Short format for visual display
+- `reason` — Phase-1 terse reason exposed independently so Shortcuts can display it separately from the spoken decision
 
 ### `GET /api/hooks/offer-history?device_id=xxx&limit=20`
 
