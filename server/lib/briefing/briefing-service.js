@@ -1890,8 +1890,22 @@ NOTES:
       return [];
     }
 
+    // 2026-04-16: FIX — Normalize Gemini's camelCase response to snake_case fields.
+    // The prompt schema requests closureStart/reopeningDate (camelCase), but downstream
+    // filters (consolidator.js, filter-for-planner.js) check start_date/end_date/
+    // reopening_date (snake_case). Without normalization, multi-day closures defaulted
+    // to startDate as endDate, making spring break appear as a single-day closure.
+    const normalized = closuresArray.map((c) => ({
+      ...c,
+      start_date: c.start_date || c.closureStart || c.startDate || c.closure_date,
+      end_date: c.end_date || c.reopeningDate || c.endDate || c.closureStart,
+      reopening_date: c.reopening_date || c.reopeningDate,
+      school_name: c.school_name || c.schoolName || c.name || c.district,
+      closure_reason: c.closure_reason || c.reason,
+    }));
+
     // Enrich with distance data using Gemini-provided coordinates
-    const enriched = closuresArray.map((c) => {
+    const enriched = normalized.map((c) => {
       let distanceFromDriver = null;
       if (c.lat && c.lng && lat && lng) {
         distanceFromDriver = parseFloat(haversineDistanceMiles(lat, lng, c.lat, c.lng).toFixed(1));

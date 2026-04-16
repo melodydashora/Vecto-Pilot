@@ -153,11 +153,11 @@ function filterClosuresToToday(closures, today) {
   }
 
   return closures.filter(c => {
-    // Get start and end dates (support multiple field names)
-    const startDate = c.start_date || c.startDate || c.closure_date || c.date;
-    const endDate = c.end_date || c.endDate || c.reopening_date || startDate;
+    // 2026-04-16: Support both snake_case (normalized) and camelCase (legacy DB rows).
+    // New data is normalized at ingestion in fetchSchoolClosures(); this covers older rows.
+    const startDate = c.start_date || c.closureStart || c.startDate || c.closure_date || c.date;
+    const endDate = c.end_date || c.reopeningDate || c.endDate || c.reopening_date || startDate;
 
-    // If no dates at all, exclude
     if (!startDate) return false;
 
     // Check: TODAY >= start_date AND TODAY <= end_date (inclusive)
