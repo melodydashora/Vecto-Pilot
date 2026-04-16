@@ -457,24 +457,41 @@ function parseJsonField(field) {
  * @param {string} timezone - IANA timezone
  * @returns {Array} Filtered events within time window
  */
+// 2026-04-16 (H-2 fix): Rewritten to handle split date/time fields from discovered_events.
+// Previous version looked for event.event_start (combined ISO) which doesn't exist —
+// discovered_events has separate event_start_date + event_start_time fields. All events
+// with unparseable times passed by default, letting wrong-date events into the prompt.
 function filterEventsToTimeWindow(events, timezone) {
   if (!events || !Array.isArray(events)) return [];
 
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - 60 * 60 * 1000);  // now - 1h
-  const windowEnd = new Date(now.getTime() + 6 * 60 * 60 * 1000);  // now + 6h
+  // Compute today's date in driver's timezone for date-gating
+  const todayLocal = timezone
+    ? new Date().toLocaleDateString('en-CA', { timeZone: timezone })
+    : new Date().toISOString().split('T')[0];
 
   return events.filter(event => {
-    // Try to parse event start time
-    const eventStart = event.event_start || event.start_time || event.time;
-    if (!eventStart) return true; // Include if no time (assume relevant)
+    // HARD GATE: event_start_date must be today in driver's timezone
+    const eventDate = event.event_start_date || event.event_date || event.date;
+    if (eventDate && eventDate !== todayLocal) {
+      aiLog.info(`[event-date-gate] Dropping "${event.title}" — date ${eventDate} != today ${todayLocal}`);
+      return false;
+    }
 
-    // Parse event date/time
-    const eventDate = new Date(eventStart);
-    if (isNaN(eventDate.getTime())) return true; // Include if can't parse
+    // Time window check: try to build a parseable timestamp
+    const eventStart = event.event_start
+      || (event.event_start_date && event.event_start_time
+        ? `${event.event_start_date}T${event.event_start_time.replace(/\s*(AM|PM)/i, ' $1')}`
+        : null)
+      || event.start_time || event.time;
+    if (!eventStart) return true; // No time info — include (date already gated above)
 
-    // Check if within window
-    return eventDate >= windowStart && eventDate <= windowEnd;
+    const parsed = new Date(eventStart);
+    if (isNaN(parsed.getTime())) return true; // Can't parse — include (date already gated)
+
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 60 * 60 * 1000);  // now - 1h
+    const windowEnd = new Date(now.getTime() + 6 * 60 * 60 * 1000);  // now + 6h
+    return parsed >= windowStart && parsed <= windowEnd;
   });
 }
 
@@ -1110,7 +1127,26 @@ async function formatEventsForStrategist(events, snapshot, limit = 15) {
   if (!relevant || relevant.length === 0) {
     return 'No relevant events in the next 6 hours';
   }
-  const worthy = filterStrategyWorthyEvents(relevant);
+
+  // 2026-04-16 (H-2 fix): Belt-and-suspenders date gate — drop any event whose
+  // event_start_date doesn't match today in the driver's timezone. Catches events
+  // that Gemini stored with wrong dates (e.g., Dallas Pulse Apr 17 stored as Apr 16).
+  const todayLocal = snapshot.timezone
+    ? new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone })
+    : new Date().toISOString().split('T')[0];
+  const dateGated = relevant.filter(e => {
+    const d = e.event_start_date || e.event_date || e.date;
+    if (d && d !== todayLocal) {
+      aiLog.info(`[strategist-date-gate] Dropping "${e.title}" — stored date ${d} != today ${todayLocal}`);
+      return false;
+    }
+    return true;
+  });
+  if (dateGated.length === 0) {
+    return 'No relevant events in the next 6 hours';
+  }
+
+  const worthy = filterStrategyWorthyEvents(dateGated);
   if (worthy.length === 0) {
     return 'No significant events in the next 6 hours';
   }
