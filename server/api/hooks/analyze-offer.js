@@ -27,6 +27,43 @@ import { latLngToCell } from 'h3-js';
 
 const router = Router();
 
+// 2026-04-16: Build TTS-friendly voice line for Siri Shortcuts "Speak Text" action.
+// Composes: "<Decision>. <perMileSpoken>, <N> mile(s)[, <qualifier>]."
+// Examples:
+//   ACCEPT, $1.12, 8mi              → "Accept. dollar twelve per mile, 8 miles."
+//   REJECT, $0.78, 14mi, "too far"  → "Reject. seventy-eight cents per mile, 14 miles, too far."
+//   REJECT, no data                 → "Reject."
+// Qualifier is sniffed from the terse Phase-1 reason ("low"/"floor"/"too far"/"rating") and
+// rendered as a natural-language tail. Siri's TTS handles bare digits ("14 miles") as words.
+function buildVoiceLine(decision, perMile, totalMiles, reason) {
+  const decisionWord = decision === 'ACCEPT' ? 'Accept'
+    : decision === 'REJECT' ? 'Reject'
+    : String(decision || '').toLowerCase().replace(/^./, c => c.toUpperCase());
+
+  if (perMile == null || totalMiles == null || isNaN(perMile) || isNaN(totalMiles)) {
+    return `${decisionWord}.`;
+  }
+
+  const perMileSpoken = formatPerMileForVoice(perMile);
+  const milesRounded = Math.round(totalMiles);
+  const milesPhrase = `${milesRounded} mile${milesRounded === 1 ? '' : 's'}`;
+
+  // Map terse Phase-1 reason tokens → spoken qualifier phrases
+  const qualifierMap = [
+    ['too far', 'too far'],
+    ['rating', 'low rider rating'],
+    ['floor', 'below floor'],
+    ['low', 'rate too low'],
+  ];
+  let qualifier = '';
+  const reasonLower = (reason || '').toLowerCase();
+  for (const [token, phrase] of qualifierMap) {
+    if (reasonLower.includes(token)) { qualifier = `, ${phrase}`; break; }
+  }
+
+  return `${decisionWord}. ${perMileSpoken}, ${milesPhrase}${qualifier}.`;
+}
+
 // 2026-02-17: Multer for multipart form-data uploads (Siri sends raw image, no base64)
 // Memory storage — no disk writes, image stays in RAM as Buffer
 const upload = multer({
@@ -228,7 +265,8 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       console.log(`[hooks/analyze-offer] 🚫 Share tier auto-reject (${responseTimeMs}ms)`);
       return res.json({
         success: true,
-        voice: '',
+        // 2026-04-16: TTS line for Siri "Speak Text" — no per-mile data on share path.
+        voice: 'Reject. Share tier.',
         notification: 'REJECT: share',
         decision: 'REJECT',
         response_time_ms: responseTimeMs,
@@ -381,9 +419,14 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
     // ══════════════════════════════════════════════════════════════
     // RESPOND TO SIRI — driver is waiting, every ms counts
     // ══════════════════════════════════════════════════════════════
+    // 2026-04-16: TTS line for Siri "Speak Text" — composes decision + spoken $/mi
+    // + miles + optional reason qualifier. Uses formatPerMileForVoice() for the dollar
+    // amount and falls back to a bare decision word when pre-parse data is unavailable.
+    const voice = buildVoiceLine(decision, perMileValue, totalMi, terseReason);
+
     res.json({
       success: true,
-      voice: '',
+      voice,
       notification,
       decision,
       response_time_ms: responseTimeMs,
