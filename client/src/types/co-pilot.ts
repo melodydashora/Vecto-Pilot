@@ -54,6 +54,9 @@ export interface SmartBlock {
   upCount?: number;
   downCount?: number;
   rankingId?: string;
+  // 2026-04-16: Driver preference scoring — four-hop contract (Decision #16)
+  beyondDeadhead?: boolean;
+  distanceFromHomeMi?: number | null;
 }
 
 /**

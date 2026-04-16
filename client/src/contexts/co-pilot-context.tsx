@@ -653,7 +653,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
             eventBadge: v.eventBadge ?? null,
             // 2026-04-14: Issue X — Preserve fields from toApiBlock() that were previously dropped
             venueId: v.venueId ?? null,
-            eventSummary: v.eventSummary ?? null
+            eventSummary: v.eventSummary ?? null,
+            // 2026-04-16: Driver preference scoring — four-hop contract (Decision #16)
+            beyondDeadhead: !!v.beyondDeadhead,
+            distanceFromHomeMi: v.distanceFromHomeMi ?? null
           })) || [],
           rankingId: data.rankingId,
           metadata: {

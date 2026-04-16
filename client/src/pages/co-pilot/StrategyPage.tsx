@@ -478,6 +478,11 @@ export default function StrategyPage() {
               } else {
                 cardGradient = 'bg-gradient-to-br from-purple-50 via-violet-50 to-fuchsia-50 border-purple-300';
               }
+              // 2026-04-16: Beyond-deadhead amber tint — lowest priority override
+              // Priority: rank gradient (index-based) stays; amber only on lower-ranked cards
+              if (block.beyondDeadhead && index > 3) {
+                cardGradient = 'bg-amber-50/30 border-amber-200';
+              }
 
               return (
                 <Card
@@ -503,6 +508,13 @@ export default function StrategyPage() {
                             {block.hasEvent && block.eventBadge && (
                               <Badge className="bg-gradient-to-r from-pink-100 to-purple-200 text-purple-700 border-purple-300 text-xs font-normal">
                                 <span className="text-xs">🎫 Event: {block.eventBadge}</span>
+                              </Badge>
+                            )}
+                            {block.beyondDeadhead && (
+                              <Badge className="bg-amber-100 text-amber-700 border-0 text-xs">
+                                {block.distanceFromHomeMi != null && Number.isFinite(block.distanceFromHomeMi)
+                                  ? `${block.distanceFromHomeMi}mi from home`
+                                  : 'Beyond range'}
                               </Badge>
                             )}
                           </div>
