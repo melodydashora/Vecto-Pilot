@@ -1042,6 +1042,17 @@ function buildHomeBaseLine(snapshot, prefs) {
  * attendance. See plan file section 4 enrichment 5 for the table.
  */
 function estimateEventCapacity(event) {
+  // 2026-04-16 (H-3b): Real capacity wins if we have it
+  // venue_capacity comes from venue_catalog.capacity_estimate via the LEFT JOIN
+  // in fetchTodayDiscoveredEventsWithVenue (vc_capacity field)
+  const venueCapacity = event.venue_capacity || event.vc_capacity;
+  if (venueCapacity && Number.isFinite(venueCapacity)) {
+    const attendance = (event.expected_attendance || 'medium').toLowerCase();
+    const demandPct = attendance === 'high' ? 0.85 : attendance === 'low' ? 0.15 : 0.50;
+    return Math.round(venueCapacity * demandPct);
+  }
+
+  // Fallback: heuristic when no real capacity data exists
   const category = (event.category || '').toLowerCase();
   const venueName = (event.venue_name || '').toLowerCase();
   const attendance = (event.expected_attendance || 'medium').toLowerCase();

@@ -201,6 +201,8 @@ export async function fetchTodayDiscoveredEventsWithVenue(
       vc_state: venue_catalog.state,
       vc_lat: venue_catalog.lat,
       vc_lng: venue_catalog.lng,
+      // 2026-04-16 (H-3): Venue capacity for ranking ceiling guardrail
+      vc_capacity: venue_catalog.capacity_estimate,
     })
       .from(discovered_events)
       .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
