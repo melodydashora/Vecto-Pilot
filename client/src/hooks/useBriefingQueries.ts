@@ -1,13 +1,22 @@
 // client/src/hooks/useBriefingQueries.ts
 // Consolidated briefing data queries for Co-Pilot
 //
-// SMART CACHE PATTERN: Queries fetch as soon as snapshot exists.
-// If data is still generating (placeholder response), we retry every 5 seconds.
-// Once real data arrives, it's cached forever (staleTime: Infinity).
-// New location = new snapshotId = new fetch.
+// READINESS GATE (2026-04-17): Queries fetch once snapshotId exists AND
+// snapshot.status === 'ok' (readiness gate — see Memory #111 and
+// shared/schema.js:73-74: status defaults to 'pending', flips to 'ok' once
+// all required snapshot fields are populated). This prevents the wasted
+// "attempt N/12 success:false" retry storm where sub-queries (weather,
+// traffic, news, events, school closures, airport) previously started firing
+// the moment the client had a snapshot ID — before the server-side row had
+// been enriched.
 //
-// SSE INTEGRATION: Subscribes to briefing_ready event to immediately invalidate
-// cache when backend signals data is ready (eliminates polling delay).
+// Exception: the 'live-snapshot' sentinel bypasses the gate since it's
+// generated on-demand without a persisted DB row that could reach status='ok'.
+//
+// SSE INTEGRATION: Subscribes to briefing_ready event to trigger refetch
+// on real server-side completion (eliminates polling delay).
+// Once real data arrives, it's cached (staleTime 30s — see baseConfig below).
+// New location = new snapshotId = new fetch.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useEffect } from 'react';
@@ -20,6 +29,9 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 interface BriefingQueriesOptions {
   snapshotId: string | null;
+  // 2026-04-17: Readiness gate — queries only fire when snapshotStatus === 'ok'
+  // (or when snapshotId === 'live-snapshot' sentinel). See Memory #111.
+  snapshotStatus?: string;
   pipelinePhase?: PipelinePhase;
 }
 
@@ -181,14 +193,17 @@ function isEventsLoading(data: any): boolean {
   return events.length === 0 && !hasReason;
 }
 
-export function useBriefingQueries({ snapshotId, pipelinePhase: _pipelinePhase }: BriefingQueriesOptions) {
+export function useBriefingQueries({ snapshotId, snapshotStatus, pipelinePhase: _pipelinePhase }: BriefingQueriesOptions) {
   const queryClient = useQueryClient();
 
-  // Enable queries as soon as we have a valid snapshotId
-  // Note: 'live-snapshot' is now supported - it represents real-time location data
-  // with briefing generated on-demand. Only disable for null/empty snapshotId.
-  // ALSO disable during cooling-off period after ownership errors to prevent loops
-  const isEnabled = !!snapshotId && !shouldDisableQueries();
+  // 2026-04-17: Readiness gate — honor the server-side snapshot.status === 'ok'
+  // check before firing sub-queries. Previously we fired on snapshotId existence
+  // alone, which caused the "attempt 1/12, 2/12 ... success:false" retry storm
+  // during cold load while the server was still enriching the snapshot row.
+  // The 'live-snapshot' sentinel bypasses the gate since it's generated on-demand
+  // without a persisted row that could reach status='ok'.
+  // Also disabled during cooling-off period after ownership errors to prevent loops.
+  const isEnabled = !!snapshotId && (snapshotId === 'live-snapshot' || snapshotStatus === 'ok') && !shouldDisableQueries();
 
   // Subscribe to briefing_ready SSE event to trigger immediate refetch
   // Uses singleton SSE manager - connection is shared across all components

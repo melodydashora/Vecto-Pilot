@@ -757,7 +757,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     airportData,
     isLoading: briefingIsLoading,
     isUnavailable: briefingIsUnavailable
-  } = useBriefingQueries({ snapshotId: lastSnapshotId, pipelinePhase });
+  } = useBriefingQueries({ snapshotId: lastSnapshotId, snapshotStatus: snapshotData?.status, pipelinePhase });
 
   // Pre-load bars data as soon as location resolves (no snapshot needed)
   // This ensures bars tab has data before user navigates there

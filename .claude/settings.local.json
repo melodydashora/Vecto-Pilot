@@ -266,7 +266,8 @@
       "Bash(sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\")",
       "Bash(disown)",
       "Bash(break)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(kill 17721)"
     ],
     "deny": [],
     "ask": []
