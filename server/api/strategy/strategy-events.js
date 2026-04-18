@@ -19,8 +19,26 @@ import { sseLog, OP } from '../../logger/workflow.js';
 // Phase events use EventEmitter (high-frequency, ephemeral - no DB needed)
 // 2026-01-09: Extracted to dedicated module (eliminates legacy SSE router dependency)
 import { phaseEmitter } from '../../events/phase-emitter.js';
+// 2026-04-18 (F2): Initial-state handshake — query DB for current state on subscribe
+// so a client that arrives after a NOTIFY has fired (or after a NOTIFY was lost
+// during a LISTEN reconnect window) immediately receives a wake-up signal and
+// refetches. Closes G3 from NOTIFY_LOSS_RECON_2026-04-18.md.
+import { db } from '../../db/drizzle.js';
+import { briefings, strategies, rankings } from '../../../shared/schema.js';
+import { eq, and, isNotNull, desc, or, sql as drizzleSql } from 'drizzle-orm';
 
 const router = express.Router();
+
+// 2026-04-18 (F2): Helper to write the initial-state SSE event after subscribe.
+// Each per-channel handler calls a tailored variant below; this wraps the wire format.
+function writeStateEvent(res, payload) {
+  try {
+    res.write(`event: state\n`);
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  } catch {
+    // Socket closed mid-write — caller's req.on('close') will clean up.
+  }
+}
 
 // Track active SSE connections for debugging
 let strategyConnections = 0;
@@ -77,6 +95,35 @@ router.get('/events/strategy', async (req, res) => {
     }
   });
 
+  // 2026-04-18 (F2): Initial-state handshake. If client passed ?snapshot_id=,
+  // query strategies for current readiness and emit a `state` event so a client
+  // that missed the original strategy_ready NOTIFY catches up immediately.
+  const handshakeSnapshotId = typeof req.query.snapshot_id === 'string' ? req.query.snapshot_id : null;
+  if (handshakeSnapshotId) {
+    try {
+      const [row] = await db.select({
+        snapshot_id: strategies.snapshot_id,
+        status: strategies.status,
+        has_strategy_for_now: drizzleSql`(${strategies.strategy_for_now} IS NOT NULL AND length(${strategies.strategy_for_now}) > 0)`,
+        has_consolidated: drizzleSql`(${strategies.consolidated_strategy} IS NOT NULL AND length(${strategies.consolidated_strategy}) > 0)`,
+      })
+        .from(strategies)
+        .where(eq(strategies.snapshot_id, handshakeSnapshotId))
+        .limit(1);
+      if (!cleanedUp && row) {
+        writeStateEvent(res, {
+          snapshot_id: row.snapshot_id,
+          status: row.status,
+          has_strategy_for_now: !!row.has_strategy_for_now,
+          has_consolidated: !!row.has_consolidated,
+          ts: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      sseLog.warn(1, `Strategy handshake lookup failed: ${err.message}`, OP.SSE);
+    }
+  }
+
   try {
     // Use shared notification dispatcher - ONE handler, many subscribers
     unsubscribe = await subscribeToChannel('strategy_ready', (payload) => {
@@ -123,6 +170,41 @@ router.get('/events/briefing', async (req, res) => {
     }
   });
 
+  // 2026-04-18 (F2): Initial-state handshake. If client passed ?snapshot_id=,
+  // query briefings for current readiness and emit a `state` event so a client
+  // that missed the original briefing_ready NOTIFY catches up immediately. This
+  // is the primary fix for the "infinite spinner after LISTEN reconnect window"
+  // symptom documented in NOTIFY_LOSS_RECON_2026-04-18.md.
+  const handshakeBriefingSnapshotId = typeof req.query.snapshot_id === 'string' ? req.query.snapshot_id : null;
+  if (handshakeBriefingSnapshotId) {
+    try {
+      const [row] = await db.select({
+        snapshot_id: briefings.snapshot_id,
+        has_traffic: drizzleSql`(${briefings.traffic_conditions} IS NOT NULL)`,
+        has_news: drizzleSql`(${briefings.news} IS NOT NULL)`,
+        has_airport: drizzleSql`(${briefings.airport_conditions} IS NOT NULL)`,
+        has_school_closures: drizzleSql`(${briefings.school_closures} IS NOT NULL)`,
+        has_weather: drizzleSql`(${briefings.weather_current} IS NOT NULL)`,
+      })
+        .from(briefings)
+        .where(eq(briefings.snapshot_id, handshakeBriefingSnapshotId))
+        .limit(1);
+      if (!cleanedUp && row) {
+        writeStateEvent(res, {
+          snapshot_id: row.snapshot_id,
+          has_traffic: !!row.has_traffic,
+          has_news: !!row.has_news,
+          has_airport: !!row.has_airport,
+          has_school_closures: !!row.has_school_closures,
+          has_weather: !!row.has_weather,
+          ts: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      sseLog.warn(1, `Briefing handshake lookup failed: ${err.message}`, OP.SSE);
+    }
+  }
+
   try {
     unsubscribe = await subscribeToChannel('briefing_ready', (payload) => {
       if (cleanedUp) return;
@@ -166,6 +248,32 @@ router.get('/events/blocks', async (req, res) => {
       await unsubscribe();
     }
   });
+
+  // 2026-04-18 (F2): Initial-state handshake — query rankings for the latest
+  // ranking_id linked to this snapshot and emit a `state` event so a client
+  // that missed blocks_ready catches up immediately.
+  const handshakeBlocksSnapshotId = typeof req.query.snapshot_id === 'string' ? req.query.snapshot_id : null;
+  if (handshakeBlocksSnapshotId) {
+    try {
+      const [row] = await db.select({
+        ranking_id: rankings.ranking_id,
+        snapshot_id: rankings.snapshot_id,
+      })
+        .from(rankings)
+        .where(eq(rankings.snapshot_id, handshakeBlocksSnapshotId))
+        .orderBy(desc(rankings.created_at))
+        .limit(1);
+      if (!cleanedUp && row) {
+        writeStateEvent(res, {
+          snapshot_id: row.snapshot_id,
+          ranking_id: row.ranking_id,
+          ts: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      sseLog.warn(1, `Blocks handshake lookup failed: ${err.message}`, OP.SSE);
+    }
+  }
 
   try {
     unsubscribe = await subscribeToChannel('blocks_ready', (payload) => {

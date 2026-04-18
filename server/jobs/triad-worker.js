@@ -2,10 +2,17 @@
 // LISTEN-only background worker: reacts to Postgres NOTIFY events and generates SmartBlocks.
 // Strategy generation now happens synchronously in blocks-fast.js - this worker only handles SmartBlocks.
 // Removes hot polling, infinite loops, and adds graceful shutdown.
+//
+// 2026-04-18 (F2): Migrated from direct `pgClient.on('notification', ...)` to the
+// shared `subscribeToChannel(...)` dispatcher. Closes G6 from NOTIFY_LOSS_RECON_2026-04-18.md
+// (worker handler was killed by `pgClient.removeAllListeners()` on every reconnect
+// and never restored). The dispatcher's `resubscribeChannels()` now owns the
+// reconnect lifecycle, so the worker survives DB disconnects.
 
 import { db } from '../db/drizzle.js';
 import { strategies, snapshots, briefings } from '../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { subscribeToChannel } from '../db/db-client.js';
 
 // Single-process guard
 if (global.__TRIAD_WORKER_STARTED__) {
@@ -14,7 +21,7 @@ if (global.__TRIAD_WORKER_STARTED__) {
   global.__TRIAD_WORKER_STARTED__ = true;
 }
 
-let pgClient = null;
+let unsubscribe = null;
 let shuttingDown = false;
 
 /**
@@ -27,22 +34,20 @@ let shuttingDown = false;
  * NOTE: This worker does NOT do consolidation - that's handled synchronously by blocks-fast.js
  */
 export async function startConsolidationListener() {
-  const { getListenClient } = await import('../db/db-client.js');
   const { generateEnhancedSmartBlocks } = await import('../lib/venue/enhanced-smart-blocks.js');
 
   try {
-    pgClient = await getListenClient();
-
-    // Graceful shutdown
+    // 2026-04-18 (F2): Graceful shutdown closes the dispatcher subscription
+    // instead of touching pgClient directly. The dispatcher (db-client.js) now
+    // owns the underlying LISTEN connection and survives reconnects.
     const shutdown = async (signal) => {
       if (shuttingDown) return;
       shuttingDown = true;
       console.log(`[consolidation-listener] 🛑 Received ${signal}, closing listener...`);
       try {
-        if (pgClient) {
-          pgClient.removeAllListeners('notification');
-          try { await pgClient.query('UNLISTEN strategy_ready'); } catch {}
-          try { await pgClient.end(); } catch {}
+        if (unsubscribe) {
+          await unsubscribe();
+          unsubscribe = null;
         }
       } catch (e) {
         console.error('[consolidation-listener] ❌ Error during shutdown:', e?.message || e);
@@ -54,18 +59,20 @@ export async function startConsolidationListener() {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    // Notification handler
-    pgClient.on('notification', async (msg) => {
-      if (msg.channel !== 'strategy_ready' || !msg.payload) return;
+    // 2026-04-18 (F2): Subscribe via the shared dispatcher. The dispatcher
+    // re-issues LISTEN and re-attaches its handler on reconnect, so this
+    // callback survives DB disconnects automatically (closes G6).
+    unsubscribe = await subscribeToChannel('strategy_ready', async (rawPayload) => {
+      if (shuttingDown || !rawPayload) return;
 
       // Parse JSON payload from trigger
       let snapshotId;
       try {
-        const payload = JSON.parse(msg.payload);
+        const payload = JSON.parse(rawPayload);
         snapshotId = payload.snapshot_id;
       } catch (e) {
         // Fallback to raw string if not JSON
-        snapshotId = msg.payload;
+        snapshotId = rawPayload;
       }
 
       console.log(`[consolidation-listener] 📢 Notification: strategy_ready -> ${snapshotId}`);
@@ -128,14 +135,16 @@ export async function startConsolidationListener() {
           });
           console.log(`[consolidation-listener] ✅ Enhanced smart blocks generated for ${snapshotId}`);
 
-          // CRITICAL: Notify SSE listeners that blocks are ready
+          // CRITICAL: Notify SSE listeners that blocks are ready.
+          // 2026-04-18 (F2): Emit via the main pool with parameterized pg_notify
+          // (decoupled from the LISTEN client + safe vs. payload injection).
           try {
             const payload = JSON.stringify({
               snapshot_id: snapshotId,
               ranking_id: null,
               timestamp: new Date().toISOString()
             });
-            await pgClient.query(`NOTIFY blocks_ready, '${payload}'`);
+            await db.execute(sql`SELECT pg_notify('blocks_ready', ${payload})`);
             console.log(`[consolidation-listener] 📢 NOTIFY blocks_ready sent for ${snapshotId}`);
           } catch (notifyErr) {
             console.error(`[consolidation-listener] ⚠️ Failed to send NOTIFY:`, notifyErr.message);
@@ -148,9 +157,9 @@ export async function startConsolidationListener() {
       }
     });
 
-    // Start listening
-    await pgClient.query('LISTEN strategy_ready');
-    console.log('[consolidation-listener] 🎧 Listening on channel: strategy_ready');
+    // 2026-04-18 (F2): subscribeToChannel above already issued the LISTEN via the
+    // shared dispatcher; no separate pgClient.query('LISTEN ...') needed.
+    console.log('[consolidation-listener] 🎧 Listening on channel: strategy_ready (via shared dispatcher)');
   } catch (err) {
     console.error('[consolidation-listener] ❌ Failed to start listener:', err?.message || err);
     throw err;

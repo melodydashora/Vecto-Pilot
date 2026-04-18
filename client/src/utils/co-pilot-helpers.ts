@@ -70,6 +70,20 @@ function subscribeSSE(
       }
     });
 
+    // 2026-04-18 (F2): Also listen for the `state` initial-state handshake event
+    // emitted by the server immediately after connect when ?snapshot_id= is passed.
+    // Treat it as the same wake-up signal so the existing subscriber callback fires
+    // and triggers an immediate refetch — closes the NOTIFY-loss reconnect gap.
+    eventSource.addEventListener('state', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log(`[SSE Manager] 🤝 Initial-state handshake: ${endpoint}`, data.snapshot_id?.slice(0, 8) || 'no-id');
+        subscription!.subscribers.forEach(sub => sub(data));
+      } catch (e) {
+        console.warn(`[SSE Manager] Failed to parse state event:`, e);
+      }
+    });
+
     eventSource.onerror = (e) => {
       // FIX: SSE disconnect triggers reconnect, not auth clearing. Only HTTP 401/403 clears auth.
       // EventSource has native automatic reconnection (browser handles the exponential backoff
@@ -186,13 +200,31 @@ export async function logAction(
 }
 
 /**
- * Subscribe to SSE strategy_ready events
- * Uses Postgres LISTEN/NOTIFY via /events/strategy endpoint
- *
- * Uses singleton connection manager - multiple components share one connection
+ * 2026-04-18 (F2): Build an SSE endpoint URL with optional ?snapshot_id= query param.
+ * Passing snapshot_id opts the subscription into the server-side initial-state
+ * handshake — server emits a `state` event with current readiness immediately
+ * after connect. This is what closes the NOTIFY-loss reconnect gap.
  */
-export function subscribeStrategyReady(callback: (snapshotId: string) => void): () => void {
-  return subscribeSSE('/events/strategy', 'strategy_ready', (data) => {
+function withSnapshotParam(base: string, snapshotId?: string | null): string {
+  if (!snapshotId) return base;
+  return `${base}?snapshot_id=${encodeURIComponent(snapshotId)}`;
+}
+
+/**
+ * Subscribe to SSE strategy_ready events.
+ * Uses Postgres LISTEN/NOTIFY via /events/strategy endpoint.
+ *
+ * Uses singleton connection manager - multiple components share one connection.
+ *
+ * 2026-04-18 (F2): Pass snapshotId so the server emits an initial `state` event
+ * on connect with the snapshot's current readiness — guarantees recovery from
+ * any NOTIFY lost during the LISTEN reconnect window.
+ */
+export function subscribeStrategyReady(
+  snapshotId: string | null | undefined,
+  callback: (snapshotId: string) => void
+): () => void {
+  return subscribeSSE(withSnapshotParam('/events/strategy', snapshotId), 'strategy_ready', (data) => {
     if (data.snapshot_id) {
       callback(data.snapshot_id);
     }
@@ -200,13 +232,17 @@ export function subscribeStrategyReady(callback: (snapshotId: string) => void): 
 }
 
 /**
- * Subscribe to SSE blocks_ready events
- * Uses Postgres LISTEN/NOTIFY via /events/blocks endpoint
+ * Subscribe to SSE blocks_ready events.
+ * Uses Postgres LISTEN/NOTIFY via /events/blocks endpoint.
  *
- * Uses singleton connection manager - multiple components share one connection
+ * 2026-04-18 (F2): Pass snapshotId so the server emits an initial `state` event
+ * on connect.
  */
-export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ranking_id?: string }) => void): () => void {
-  return subscribeSSE('/events/blocks', 'blocks_ready', (data) => {
+export function subscribeBlocksReady(
+  snapshotId: string | null | undefined,
+  callback: (data: { snapshot_id: string; ranking_id?: string }) => void
+): () => void {
+  return subscribeSSE(withSnapshotParam('/events/blocks', snapshotId), 'blocks_ready', (data) => {
     if (data.snapshot_id) {
       callback(data);
     }
@@ -214,14 +250,19 @@ export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ran
 }
 
 /**
- * Subscribe to SSE briefing_ready events
- * Uses Postgres LISTEN/NOTIFY via /events/briefing endpoint
- * Fires when briefing data (weather, traffic, events, news) is fully generated
+ * Subscribe to SSE briefing_ready events.
+ * Uses Postgres LISTEN/NOTIFY via /events/briefing endpoint.
+ * Fires when briefing data (weather, traffic, events, news) is fully generated.
  *
- * Uses singleton connection manager - multiple components share one connection
+ * 2026-04-18 (F2): Pass snapshotId so the server emits an initial `state` event
+ * on connect — the primary fix for the "infinite spinner after LISTEN reconnect"
+ * symptom (NOTIFY_LOSS_RECON_2026-04-18.md).
  */
-export function subscribeBriefingReady(callback: (snapshotId: string) => void): () => void {
-  return subscribeSSE('/events/briefing', 'briefing_ready', (data) => {
+export function subscribeBriefingReady(
+  snapshotId: string | null | undefined,
+  callback: (snapshotId: string) => void
+): () => void {
+  return subscribeSSE(withSnapshotParam('/events/briefing', snapshotId), 'briefing_ready', (data) => {
     if (data.snapshot_id) {
       callback(data.snapshot_id);
     }

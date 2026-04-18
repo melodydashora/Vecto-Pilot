@@ -223,7 +223,10 @@ export function useBriefingQueries({ snapshotId, snapshotStatus, pipelinePhase: 
       queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_AIRPORT(snapshotId) });
     };
 
-    const unsubscribe = subscribeBriefingReady((readySnapshotId) => {
+    // 2026-04-18 (F2): Pass snapshotId so the server emits an initial `state`
+    // event on connect — guarantees recovery from any briefing_ready NOTIFY lost
+    // during a LISTEN reconnect window (NOTIFY_LOSS_RECON_2026-04-18.md).
+    const unsubscribe = subscribeBriefingReady(snapshotId, (readySnapshotId) => {
       if (readySnapshotId === snapshotId) {
         refetchAllBriefingQueries();
       }

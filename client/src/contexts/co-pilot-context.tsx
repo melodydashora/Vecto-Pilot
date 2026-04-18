@@ -440,7 +440,9 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
-    const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
+    // 2026-04-18 (F2): Pass lastSnapshotId so the server emits an initial `state`
+    // event on connect (NOTIFY_LOSS_RECON_2026-04-18.md handshake fix).
+    const unsubscribe = subscribeStrategyReady(lastSnapshotId, (readySnapshotId) => {
       if (readySnapshotId === lastSnapshotId) {
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), type: 'active' });
       }
@@ -453,7 +455,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
-    const unsubscribe = subscribeBlocksReady((data) => {
+    // 2026-04-18 (F2): Pass lastSnapshotId for the initial-state handshake.
+    const unsubscribe = subscribeBlocksReady(lastSnapshotId, (data) => {
       if (data.snapshot_id === lastSnapshotId) {
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_FAST(lastSnapshotId), type: 'active' });
       }
