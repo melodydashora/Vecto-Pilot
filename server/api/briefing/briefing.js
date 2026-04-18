@@ -549,12 +549,12 @@ router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async 
     // 2026-04-05: Self-heal zombie placeholder rows (NULL fields from crashed generation)
     triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
 
-    // Fail hard if no data - don't mask with placeholder
+    // 2026-04-18 Phase 0a: flip 202 → 200 + _coverageEmpty (see FRISCO_LOCK_DIAGNOSIS_2026-04-18.md)
     if (!briefing?.traffic_conditions) {
-      return res.status(202).json({
-        success: false,
-        error: 'Traffic data not yet available',
-        traffic: null,
+      return res.status(200).json({
+        success: true,
+        _coverageEmpty: true,
+        reason: 'no_traffic_events',
         timestamp: new Date().toISOString()
       });
     }
@@ -594,12 +594,12 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
     // 2026-04-05: Self-heal zombie placeholder rows
     triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
 
-    // Fail hard if no data - don't mask with placeholder
+    // 2026-04-18 Phase 0a: flip 202 → 200 + _coverageEmpty (see FRISCO_LOCK_DIAGNOSIS_2026-04-18.md)
     if (!briefing?.news) {
-      return res.status(202).json({
-        success: false,
-        error: 'News data not yet available',
-        news: null,
+      return res.status(200).json({
+        success: true,
+        _coverageEmpty: true,
+        reason: 'no_rideshare_news',
         timestamp: new Date().toISOString()
       });
     }
@@ -941,12 +941,12 @@ router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership
     // FETCH-ONCE: Just read cached data from DB
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
 
-    // Fail hard if no data
+    // 2026-04-18 Phase 0a: flip 202 → 200 + _coverageEmpty (see FRISCO_LOCK_DIAGNOSIS_2026-04-18.md)
     if (!briefing?.school_closures) {
-      return res.status(202).json({
-        success: false,
-        error: 'School closures data not yet available',
-        school_closures: null,
+      return res.status(200).json({
+        success: true,
+        _coverageEmpty: true,
+        reason: 'no_school_closures',
         timestamp: new Date().toISOString()
       });
     }
@@ -999,12 +999,12 @@ router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async 
     // 2026-04-05: Self-heal zombie placeholder rows
     triggerZombieRecoveryIfNeeded(briefing, req.snapshot);
 
-    // Fail hard if no data
+    // 2026-04-18 Phase 0a: flip 202 → 200 + _coverageEmpty (see FRISCO_LOCK_DIAGNOSIS_2026-04-18.md)
     if (!briefing?.airport_conditions) {
-      return res.status(202).json({
-        success: false,
-        error: 'Airport data not yet available',
-        airport_conditions: null,
+      return res.status(200).json({
+        success: true,
+        _coverageEmpty: true,
+        reason: 'no_airport_events',
         timestamp: new Date().toISOString()
       });
     }
