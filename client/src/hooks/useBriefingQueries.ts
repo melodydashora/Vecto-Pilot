@@ -164,6 +164,7 @@ function shouldDisableQueries(): boolean {
 
 // Check if traffic data is still loading/placeholder
 function isTrafficLoading(data: any): boolean {
+  if (data?._coverageEmpty) return false;
   if (!data?.traffic) return true;
   // Server returns "Loading traffic..." as placeholder
   return data.traffic.summary === 'Loading traffic...' || data.traffic.summary === null;
@@ -171,12 +172,14 @@ function isTrafficLoading(data: any): boolean {
 
 // Check if airport data is still loading/placeholder
 function isAirportLoading(data: any): boolean {
+  if (data?._coverageEmpty) return false;
   if (!data?.airport_conditions) return true;
   return data.airport_conditions.isFallback === true;
 }
 
 // Check if news data is still loading/placeholder
 function isNewsLoading(data: any): boolean {
+  if (data?._coverageEmpty) return false;
   if (!data?.news) return true;
   // Empty news with no reason usually means still generating
   const items = data.news.items || [];
