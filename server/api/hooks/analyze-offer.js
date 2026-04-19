@@ -125,7 +125,19 @@ reason: terse. "$1.21 13.7mi" or "$1.05 18mi low". No sentences.
 
 // 2026-02-28: Phase 2 deep prompt — full reasoning for DB enrichment.
 // Runs async after Siri response is sent. No time pressure.
-const PHASE2_SYSTEM_PROMPT = `You are a rideshare offer analyst for a Dallas-Fort Worth DFW-area driver based in Frisco, TX.
+// 2026-04-18: Converted const → builder function. Previously this const baked in
+// "Frisco, TX" home base + DFW-specific rejection zones ("west of DFW Airport,
+// Fort Worth, Denton outskirts, Anna"), which anchored the LLM's offer analysis
+// to Frisco for every driver regardless of actual location. Rule 8 was actively
+// wrong for any non-DFW user (and explicitly violated the "never code location
+// into code" project rule). The builder now describes deadhead/rural zones in
+// generic terms and relies on the driver's GPS (injected via locationContext at
+// the call site) plus optional city/state passed via the `location` arg.
+function buildPhase2SystemPrompt(location) {
+  const homeLine = location?.city && location?.state
+    ? `The driver's current location is ${location.city}, ${location.state} (see GPS below).`
+    : `The driver's GPS is provided below.`;
+  return `You are a rideshare offer analyst. ${homeLine}
 Provide DEEP analysis. Return ONLY valid JSON.
 
 {
@@ -162,11 +174,14 @@ PREMIUM (Comfort/VIP/Black/XL):
 SHARE: Always REJECT.
 GENERAL:
   7. Rider rating < 4.85 → REJECT. Short rides with good $/mi = GOOD.
-  8. Home base: Frisco, TX. Reject rides west of DFW Airport, Fort Worth, Denton outskirts, Anna, rural areas.
-  9. Deadhead zones (west of airport or south of 635) need >= $2.00/mi.
-  10. Consider driver's CURRENT LOCATION when evaluating deadhead. If already near dropoff area, deadhead is near-zero.
+  8. Rides to rural outskirts or areas with difficult return trips need >= $2.00/mi.
+     Use the driver's GPS (provided below) to judge what counts as deadhead/rural
+     RELATIVE to the driver's actual location — do NOT assume any specific metro.
+  9. Consider driver's CURRENT LOCATION when evaluating deadhead. If already near
+     dropoff area, deadhead is near-zero.
 
 Trust pre-parsed numbers if provided. Focus on ADDRESSES and DESTINATION QUALITY.`;
+}
 
 // POST /api/hooks/analyze-offer
 // Accepts THREE input modes:
@@ -473,7 +488,8 @@ PRE-PARSED DATA (server-verified):
 
         // 2026-03-29: Inject tier so Phase 2 applies correct rule set
         const tierContext = `\nTIER: ${tier.toUpperCase()} (${preParsed?.product_type || 'unknown'}). Apply ${tier} rules above.`;
-        const phase2System = PHASE2_SYSTEM_PROMPT + locationContext + tierContext + preParseBlock;
+        // 2026-04-18: Use builder function (not const) to avoid hardcoded Frisco/DFW anchoring.
+        const phase2System = buildPhase2SystemPrompt() + locationContext + tierContext + preParseBlock;
 
         const phase2UserMessage = text
           ? `Offer text: "${text}"`

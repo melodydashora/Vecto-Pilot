@@ -172,6 +172,17 @@ const BriefingTab = memo(function BriefingTab({
             </div>
           </CardContent>
         </Card>
+      ) : allEvents.length === 0 && eventsData?.reason ? (
+        // 2026-04-19: H4 fix — when events generation completed but returned
+        // nothing (e.g., "No events found for this location"), surface the
+        // server-provided reason instead of an empty silent card. Was previously
+        // a blank EventsComponent render — users had no signal whether events
+        // were still loading, broken, or genuinely empty.
+        <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+          <CardContent className="p-6">
+            <div className="text-sm text-gray-600">{eventsData.reason}</div>
+          </CardContent>
+        </Card>
       ) : (
         <EventsComponent events={allEvents} isLoading={false} timezone={timezone} />
       )}

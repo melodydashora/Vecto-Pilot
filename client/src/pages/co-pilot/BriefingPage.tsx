@@ -22,6 +22,9 @@ function BriefingPage() {
   } = useCoPilot();
 
   // Destructure briefing data for easier access
+  // 2026-04-19: H3 + C2 — pull through `weatherFailed` and `schoolClosuresReason`
+  // so cards can render explicit "section unavailable" / server-provided-reason
+  // states. Both were previously dropped at the context unwrap step.
   const {
     weather: weatherData,
     traffic: trafficData,
@@ -29,9 +32,11 @@ function BriefingPage() {
     events: eventsData,
     marketEvents: marketEventsData,
     schoolClosures: schoolClosuresData,
+    schoolClosuresReason,
     airport: airportData,
+    weatherFailed,
     isLoading
-  } = briefingData;
+  } = briefingData as any;
 
   // Debug logging: Only log when snapshotId changes (not on every render)
   // 2026-01-06: Moved from inline to useEffect to prevent excessive logs
@@ -45,9 +50,12 @@ function BriefingPage() {
 
   // 2026-01-14: Memoize wrapped props to prevent BriefingTab re-renders
   // Without useMemo, inline objects like { weather: weatherData } are recreated on every render
+  // 2026-04-19: H3 — carry `_generationFailed` flag through to WeatherCard so
+  // it can render an explicit "weather temporarily unavailable" state instead
+  // of silently hiding when the provider permanently failed.
   const wrappedWeatherData = useMemo(
-    () => weatherData ? { weather: weatherData } : undefined,
-    [weatherData]
+    () => weatherData ? { weather: weatherData, _generationFailed: !!weatherFailed } : undefined,
+    [weatherData, weatherFailed]
   );
   const wrappedTrafficData = useMemo(
     () => trafficData ? { traffic: trafficData } : undefined,
@@ -64,9 +72,12 @@ function BriefingPage() {
     () => eventsData ? { events: eventsData, marketEvents: marketEventsData || [] } : undefined,
     [eventsData, marketEventsData]
   );
+  // 2026-04-19: C2 follow-through — include `reason` so SchoolClosuresCard
+  // can show the server-provided message (e.g., "No data source for this region")
+  // instead of always falling back to the generic "No school closures reported".
   const wrappedSchoolClosuresData = useMemo(
-    () => schoolClosuresData ? { school_closures: schoolClosuresData } : undefined,
-    [schoolClosuresData]
+    () => schoolClosuresData ? { school_closures: schoolClosuresData, reason: schoolClosuresReason } : undefined,
+    [schoolClosuresData, schoolClosuresReason]
   );
   const wrappedAirportData = useMemo(
     () => airportData ? { airport_conditions: airportData } : undefined,
@@ -75,7 +86,17 @@ function BriefingPage() {
 
   // 2026-03-28: Gate strategy card on all critical briefing data including events
   // Events now have proper polling/retry, so they participate in the loading lifecycle
-  const areCriticalBriefingsLoading = isLoading.traffic || isLoading.news || isLoading.airport || isLoading.events;
+  // 2026-04-19: H5 fix — include weather + schoolClosures so the strategy card
+  // honors the user's contract that the briefing tab is the transparency window
+  // onto what the strategist receives. Strategy should not render until ALL
+  // briefing sections have either resolved or explicitly failed.
+  const areCriticalBriefingsLoading =
+    isLoading.weather ||
+    isLoading.traffic ||
+    isLoading.news ||
+    isLoading.airport ||
+    isLoading.events ||
+    isLoading.schoolClosures;
 
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="briefing-page">

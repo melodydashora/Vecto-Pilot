@@ -760,7 +760,15 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     airportData,
     isLoading: briefingIsLoading,
     isUnavailable: briefingIsUnavailable
-  } = useBriefingQueries({ snapshotId: lastSnapshotId, snapshotStatus: snapshotData?.status, pipelinePhase });
+  } = useBriefingQueries({
+    snapshotId: lastSnapshotId,
+    snapshotStatus: snapshotData?.status,
+    pipelinePhase,
+    // 2026-04-19: M3 fix — gate the briefing query on the same isAuthenticated
+    // signal that strategy/blocks/bars use. Eliminates the post-logout window
+    // where the briefing hook saw a missing localStorage token and froze.
+    isAuthenticated,
+  });
 
   // Pre-load bars data as soon as location resolves (no snapshot needed)
   // This ensures bars tab has data before user navigates there
@@ -837,11 +845,21 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       events: Array.isArray(eventsData?.events) ? eventsData.events : [],
       marketEvents: Array.isArray(eventsData?.marketEvents) ? eventsData.marketEvents : [],
       // 2026-01-10: Snake/camel tolerant - accept both server response formats
+      // 2026-04-18: Preserve `reason` alongside the items array so SchoolClosuresCard
+      // can render the server-provided reason (e.g., "No data source for this region")
+      // instead of the generic "No school closures reported" fallback. Pre-fix the
+      // reason was silently dropped at this layer, breaking transparency of the tab.
       schoolClosures: (() => {
         const raw = schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures;
         return Array.isArray(raw) ? raw : [];
       })(),
+      schoolClosuresReason: schoolClosuresData?.reason ?? null,
       airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
+      // 2026-04-19: H3 fix — expose per-section _generationFailed flags so cards
+      // can render explicit "section unavailable" states. Was previously dropped
+      // at the unwrap step, so a permanently-failed weather section silently
+      // hid instead of saying so.
+      weatherFailed: !!(weatherData as any)?._generationFailed,
       isLoading: briefingIsLoading,
       // 2026-04-05: Expose "gave up" state so UI can show "Briefing data unavailable"
       isUnavailable: briefingIsUnavailable,

@@ -25,12 +25,41 @@ interface AskConciergeProps {
 
 const MAX_QUESTIONS_PER_SESSION = 5;
 
-const SUGGESTED_QUESTIONS = [
-  "What's nearby?",
-  'Best places to eat',
-  'Events happening now',
-  'Things to do here',
-];
+// 2026-04-18: Replaced the static SUGGESTED_QUESTIONS array with a daypart-aware
+// builder per the Coach inbox request (2026-04-09 "Dynamic Time-Aware Concierge
+// Prompts"). Uses the driver's timezone (already passed via props) to compute
+// local hour and serve morning / afternoon / evening / late-night prompts.
+function getDaypart(timezone: string): 'morning' | 'afternoon' | 'evening' | 'late-night' {
+  try {
+    const hourStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      hour12: false,
+    }).format(new Date());
+    const hour = parseInt(hourStr, 10);
+    if (Number.isNaN(hour)) return 'afternoon';
+    if (hour >= 5 && hour < 11) return 'morning';
+    if (hour >= 11 && hour < 17) return 'afternoon';
+    if (hour >= 17 && hour < 22) return 'evening';
+    return 'late-night';
+  } catch {
+    return 'afternoon';
+  }
+}
+
+function getSuggestedQuestions(timezone: string): string[] {
+  switch (getDaypart(timezone)) {
+    case 'morning':
+      return ['Coffee nearby?', 'Quick breakfast spots', "What's open now?", 'Morning commute tips'];
+    case 'afternoon':
+      return ['Lunch spots nearby', 'Things to do here', "What's nearby?", 'Sightseeing ideas'];
+    case 'evening':
+      return ['Dinner spots nearby', 'Events happening now', 'Best places to eat', 'Nightlife options'];
+    case 'late-night':
+    default:
+      return ['Late-night food', "What's open now?", 'Safe spots nearby', 'Events happening now'];
+  }
+}
 
 export function AskConcierge({ token, lat, lng, timezone, venueContext, eventContext }: AskConciergeProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -178,9 +207,9 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
               Ask me about restaurants, events, safety, directions — anything about the area.
             </p>
 
-            {/* Suggested questions — wrapped centered grid */}
+            {/* Suggested questions — daypart-aware (2026-04-18) */}
             <div className="flex flex-wrap justify-center gap-2 max-w-sm">
-              {SUGGESTED_QUESTIONS.map((q, i) => (
+              {getSuggestedQuestions(timezone).map((q, i) => (
                 <button
                   key={i}
                   onClick={() => sendQuestion(q)}

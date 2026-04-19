@@ -77,13 +77,15 @@ export const API_ROUTES = {
   // Briefing
   // =========================================================================
   BRIEFING: {
-    WEATHER: (snapshotId: string) => `/api/briefing/weather/${snapshotId}`,
-    TRAFFIC: (snapshotId: string) => `/api/briefing/traffic/${snapshotId}`,
-    EVENTS: (snapshotId: string) => `/api/briefing/events/${snapshotId}`,
+    // 2026-04-19: Per-section route helpers (WEATHER/TRAFFIC/RIDESHARE_NEWS/
+    // SCHOOL_CLOSURES/AIRPORT/EVENTS) deleted — `useBriefingQueries` was the
+    // only consumer and now uses AGGREGATE. The corresponding server endpoints
+    // remain in `server/api/briefing/briefing.js` for any external/legacy
+    // callers (Siri shortcuts, admin tools), but the client should not hit
+    // them — going through AGGREGATE preserves the transparency contract
+    // between the briefing tab and what the strategist receives.
+    AGGREGATE: (snapshotId: string) => `/api/briefing/snapshot/${snapshotId}`,
     EVENTS_ACTIVE: (snapshotId: string) => `/api/briefing/events/${snapshotId}?filter=active`,
-    RIDESHARE_NEWS: (snapshotId: string) => `/api/briefing/rideshare-news/${snapshotId}`,
-    SCHOOL_CLOSURES: (snapshotId: string) => `/api/briefing/school-closures/${snapshotId}`,
-    AIRPORT: (snapshotId: string) => `/api/briefing/airport/${snapshotId}`,
     DISCOVERED_EVENTS: (snapshotId: string) => `/api/briefing/discovered-events/${snapshotId}`,
     EVENT_DEACTIVATE: (eventId: string) => `/api/briefing/event/${eventId}/deactivate`,
   },
@@ -264,13 +266,13 @@ export const QUERY_KEYS = {
   // =========================================================================
   // Briefing
   // =========================================================================
-  BRIEFING_WEATHER: (snapshotId: string) => ['/api/briefing/weather', snapshotId] as const,
-  BRIEFING_TRAFFIC: (snapshotId: string) => ['/api/briefing/traffic', snapshotId] as const,
-  BRIEFING_EVENTS: (snapshotId: string) => ['/api/briefing/events', snapshotId] as const,
+  // 2026-04-18: Phase B — single aggregate key for the briefing tab's one-shot fetch.
+  // 2026-04-19: Per-section query keys (BRIEFING_WEATHER/TRAFFIC/EVENTS/
+  // RIDESHARE_NEWS/SCHOOL_CLOSURES/AIRPORT) deleted — they had no consumers
+  // after the Phase B refactor. BRIEFING_EVENTS_ACTIVE retained for MapPage's
+  // useActiveEventsQuery (real-time active events filter, separate from the tab).
+  BRIEFING_AGGREGATE: (snapshotId: string) => ['/api/briefing/snapshot', snapshotId] as const,
   BRIEFING_EVENTS_ACTIVE: (snapshotId: string) => ['/api/briefing/events', snapshotId, 'active'] as const,
-  BRIEFING_RIDESHARE_NEWS: (snapshotId: string) => ['/api/briefing/rideshare-news', snapshotId] as const,
-  BRIEFING_SCHOOL_CLOSURES: (snapshotId: string) => ['/api/briefing/school-closures', snapshotId] as const,
-  BRIEFING_AIRPORT: (snapshotId: string) => ['/api/briefing/airport', snapshotId] as const,
 
   // =========================================================================
   // Auth

@@ -206,11 +206,50 @@ router.get('/events/briefing', async (req, res) => {
   }
 
   try {
-    unsubscribe = await subscribeToChannel('briefing_ready', (payload) => {
+    // 2026-04-18: PHASE A — also subscribe to the six per-section channels emitted
+    // by briefing-service.js (writeSectionAndNotify). Each per-section NOTIFY is
+    // forwarded to the client as a `briefing_ready` event so the client's existing
+    // refetch-on-briefing_ready hook re-pulls the aggregate endpoint whenever a
+    // section lands. Net UX: the briefing tab populates section-by-section as
+    // providers resolve (weather first, then traffic, then events), instead of
+    // all-or-nothing at t=52s. The final `briefing_ready` still fires at the end
+    // of generation as the "fully complete" signal.
+    const perSectionChannels = [
+      'briefing_weather_ready',
+      'briefing_traffic_ready',
+      'briefing_events_ready',
+      'briefing_news_ready',
+      'briefing_airport_ready',
+      'briefing_school_closures_ready',
+    ];
+    const unsubscribers = [];
+
+    // Final (complete) NOTIFY — preserved as the authoritative "all sections done"
+    // signal. Downstream consumers (strategist pipeline, tests) still key off it.
+    unsubscribers.push(await subscribeToChannel('briefing_ready', (payload) => {
       if (cleanedUp) return;
       res.write(`event: briefing_ready\n`);
       res.write(`data: ${payload}\n\n`);
-    });
+    }));
+
+    // Per-section NOTIFYs — each forwarded as a briefing_ready SSE event so the
+    // client refetches the aggregate endpoint progressively. The client sees the
+    // same event name it already handles; payload adds `section` for observability.
+    for (const channel of perSectionChannels) {
+      unsubscribers.push(await subscribeToChannel(channel, (payload) => {
+        if (cleanedUp) return;
+        res.write(`event: briefing_ready\n`);
+        res.write(`data: ${payload}\n\n`);
+      }));
+    }
+
+    // Bundle all unsubscribes into a single cleanup to keep the outer req.on('close')
+    // handler simple.
+    unsubscribe = async () => {
+      for (const u of unsubscribers) {
+        try { await u(); } catch { /* swallow — we're tearing down */ }
+      }
+    };
 
     // 2026-02-18: FIX - Post-subscribe cleanup for race condition
     if (cleanedUp && unsubscribe) {

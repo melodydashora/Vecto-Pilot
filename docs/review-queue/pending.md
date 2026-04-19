@@ -64,11 +64,13 @@ ALTER TABLE ranking_candidates
 
 ---
 
-## 2026-04-11: Driver Preferences Schema Migration — ✅ APPLIED (Dev)
+## 2026-04-11: Driver Preferences Schema Migration — ✅ APPLIED (Dev) + ✅ Drizzle schema synced 2026-04-18
 
 **Author:** Claude Opus 4.6 | **Scope:** `driver_profiles` — add 4 columns for strategist enrichment
 
 **Migration applied to dev DB on 2026-04-16.** File: `migrations/20260416_driver_preference_columns.sql`. The consolidator and tactical planner now read real column values (falling back to `DRIVER_PREF_DEFAULTS` when null).
+
+**2026-04-18 update:** `shared/schema.js:1028-1031` now declares these four columns in Drizzle so the ORM can read/write them. Previously the migration existed on disk but the Drizzle schema file wasn't updated — the runtime graceful fallback (PG 42703 → defaults) masked the drift. No behaviour change for prod until prod migration is run; the Drizzle sync just makes TypeScript/Drizzle aware of columns that dev already has.
 
 ### Migration SQL
 

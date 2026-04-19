@@ -17,43 +17,14 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// SIMULATION MODE: Run workflow simulation and exit
-// This must be checked FIRST, before any server setup
-// 2026-02-25: Fixed race condition — process.exit(0) was killing child before its event handlers fired
+// SIMULATION MODE: removed 2026-04-18 — scripts/simulate-workflow.js was referenced
+// but never existed in the repo, so setting SIMULATE=1 would crash with ENOENT at
+// spawn. Fail fast with an actionable error instead of a latent ENOENT trap.
 const isSimulation = process.env.SIMULATE === '1';
 if (isSimulation) {
-  console.log('[boot] 📊 Simulation mode detected - running workflow simulation');
-  
-  const simulationEnv = {
-    ...process.env,
-    LOG_FILE: process.env.LOG_FILE || '/tmp/workflow.ndjson',
-    SNAPSHOT_ID: process.env.SNAPSHOT_ID || 'sim-0001',
-    CLIENT_ID: process.env.CLIENT_ID || 'client-dev',
-    SIM_DELAY_MS: process.env.SIM_DELAY_MS || '300',
-  };
-
-  const child = spawn('node', ['scripts/simulate-workflow.js'], {
-    stdio: 'inherit',
-    env: simulationEnv
-  });
-
-  child.on('exit', (code) => {
-    process.exit(code || 0);
-  });
-
-  child.on('error', (err) => {
-    console.error('[boot:simulation:error]', err.message);
-    process.exit(1);
-  });
-
-  // Simulation handles its own lifecycle
-  // Child process event handlers (exit/error above) will handle termination
-  // Don't continue with normal boot - process will exit via child handlers above
-  process.on('SIGINT', () => child.kill('SIGINT'));
-  process.on('SIGTERM', () => child.kill('SIGTERM'));
-  
-  // Child process event handlers (exit/error) will call process.exit()
-  // Do NOT call process.exit(0) here — it races with the child process
+  console.error('[boot] SIMULATE=1 is not supported — scripts/simulate-workflow.js does not exist in this repo.');
+  console.error('[boot] If you need simulation mode, unset SIMULATE or create scripts/simulate-workflow.js first.');
+  process.exit(1);
 }
 
 // Guard: skip normal boot when running simulation

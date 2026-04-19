@@ -25,6 +25,11 @@ interface WeatherData {
     };
     forecast?: ForecastItem[];
   };
+  // 2026-04-19: H3 fix — when the briefing pipeline's weather subsystem
+  // permanently fails, the aggregate endpoint marks the section with
+  // _generationFailed: true. Surface that here as an explicit "unavailable"
+  // state instead of silently hiding the card.
+  _generationFailed?: boolean;
 }
 
 interface WeatherCardProps {
@@ -34,6 +39,26 @@ interface WeatherCardProps {
 
 export function WeatherCard({ weatherData, timezone }: WeatherCardProps) {
   const weather = weatherData?.weather;
+
+  // 2026-04-19: H3 fix — explicit "weather unavailable" state when the section
+  // permanently failed (e.g., Google Weather API outage). Without this, a failed
+  // weather generation rendered as a hidden card and the user had no signal that
+  // the strategist was missing weather context.
+  if (weatherData?._generationFailed) {
+    return (
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Cloud className="w-5 h-5 text-blue-600" />
+            6-Hour Forecast
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-gray-600">Weather temporarily unavailable for this snapshot — strategy is using fallback context.</div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // 2026-02-18: FIX - Show loading state instead of silent null when data hasn't arrived yet
   if (!weather?.forecast || weather.forecast.length === 0) {

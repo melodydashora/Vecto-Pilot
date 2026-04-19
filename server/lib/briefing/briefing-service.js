@@ -1406,11 +1406,15 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
               }
 
               // Flag venue as event venue if not already
+              // 2026-04-18: Replaced silent catch with logged warning. Per CLAUDE.md
+              // NO SILENT FAILURES rule: errors must reach logs even if non-fatal.
               if (resolvedVenue && resolvedVenue.is_event_venue !== true) {
                 try {
                   await db.update(venue_catalog).set({ is_event_venue: true, updated_at: new Date() })
                     .where(eq(venue_catalog.venue_id, resolvedVenue.venue_id));
-                } catch (flagErr) { /* non-fatal */ }
+                } catch (flagErr) {
+                  briefingLog.warn(2, `Failed to flag venue ${resolvedVenue.venue_id?.slice(0,8)} as event venue (non-fatal): ${flagErr.message}`, OP.DB);
+                }
               }
             } catch (venueErr) {
               // Non-fatal - continue without link
@@ -2686,6 +2690,46 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   return briefingPromise;
 }
 
+/**
+ * 2026-04-18: PHASE A — progressive section write + per-section NOTIFY.
+ *
+ * Writes a partial update to the briefings row (just the columns belonging to
+ * one subsystem) and fires a per-section pg_notify so the SSE layer can push
+ * a progress event to the client. Enables the streaming briefing-tab UX
+ * (weather appears first because Google Weather is fastest, then traffic,
+ * then events as each provider resolves) that was regressed on 2026-02-17
+ * when the partial-NOTIFY trigger was dropped.
+ *
+ * Errors are swallowed — the authoritative write is the final atomic
+ * reconciliation at the end of generateBriefingInternal. Progress signals
+ * failing should never fail the main pipeline.
+ *
+ * Channels emitted:
+ *   briefing_weather_ready, briefing_traffic_ready, briefing_events_ready,
+ *   briefing_news_ready, briefing_airport_ready, briefing_school_closures_ready
+ * The SSE forwarder (strategy-events.js /events/briefing) subscribes to each
+ * and emits them as `briefing_ready` events so existing client code (which
+ * refetches on briefing_ready) progressively re-queries the aggregate endpoint
+ * as each section lands.
+ */
+async function writeSectionAndNotify(snapshotId, updates, notifyChannel) {
+  try {
+    await db.update(briefings)
+      .set({ ...updates, updated_at: new Date() })
+      .where(eq(briefings.snapshot_id, snapshotId));
+  } catch (err) {
+    briefingLog.warn(1, `Progressive write failed for ${notifyChannel}: ${err.message}`, OP.DB);
+    return;
+  }
+  try {
+    const payload = JSON.stringify({ snapshot_id: snapshotId, section: notifyChannel });
+    await db.execute(sql`SELECT pg_notify(${notifyChannel}, ${payload})`);
+    briefingLog.info(`📢 NOTIFY ${notifyChannel} for ${snapshotId.slice(0, 8)}`, OP.SSE);
+  } catch (notifyErr) {
+    briefingLog.warn(1, `Failed to send ${notifyChannel}: ${notifyErr.message}`, OP.SSE);
+  }
+}
+
 async function generateBriefingInternal({ snapshotId, snapshot }) {
   // Use pre-fetched snapshot if provided, otherwise fetch from DB
   if (!snapshot) {
@@ -2774,14 +2818,86 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // Previously used Promise.all (all-or-nothing) which meant one crash (e.g., events) killed
   // ALL results, leaving traffic/news/airport as NULLs in the DB forever.
   // Now each subsystem succeeds or fails independently.
+  //
+  // 2026-04-18: PHASE A — wrap each fetch with progressive section write + per-section
+  // NOTIFY so the briefing tab can populate section-by-section as providers resolve
+  // instead of blinking from empty→everything at t=52s. Each wrapper returns the
+  // original provider result so the extraction and assembly logic below is unchanged;
+  // the DB write + NOTIFY are side effects. The final atomic write at the end of
+  // this function is the authoritative reconciliation (idempotent).
   let weatherResult, trafficResult, eventsResult, airportResult, newsResult;
 
+  const errorMarker = (err) => ({ _generationFailed: true, error: err.message, failedAt: new Date().toISOString() });
+
+  const weatherPromise = fetchWeatherConditions({ snapshot })
+    .then(async (r) => {
+      await writeSectionAndNotify(snapshotId, {
+        weather_current: r?.current || { temperature: 'N/A', conditions: 'Weather data could not be retrieved', reason: 'Weather API returned no current conditions' },
+        weather_forecast: r?.forecast || [],
+      }, 'briefing_weather_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { weather_current: errorMarker(err) }, 'briefing_weather_ready');
+      throw err;
+    });
+
+  const trafficPromise = fetchTrafficConditions({ snapshot })
+    .then(async (r) => {
+      await writeSectionAndNotify(snapshotId, {
+        traffic_conditions: r || { summary: 'No traffic data available for this area', incidents: [], congestionLevel: 'unknown', reason: 'Traffic data could not be retrieved' },
+      }, 'briefing_traffic_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { traffic_conditions: errorMarker(err) }, 'briefing_traffic_ready');
+      throw err;
+    });
+
+  const eventsPromise = (snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')))
+    .then(async (r) => {
+      const items = Array.isArray(r?.items) ? r.items : [];
+      await writeSectionAndNotify(snapshotId, {
+        events: items.length > 0 ? items : { items: [], reason: r?.reason || 'No events found for this area' },
+      }, 'briefing_events_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { events: errorMarker(err) }, 'briefing_events_ready');
+      throw err;
+    });
+
+  const airportPromise = fetchAirportConditions({ snapshot })
+    .then(async (r) => {
+      await writeSectionAndNotify(snapshotId, {
+        airport_conditions: r || { airports: [], busyPeriods: [], recommendations: 'No airport data available for this area', reason: 'Airport conditions could not be retrieved' },
+      }, 'briefing_airport_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { airport_conditions: errorMarker(err) }, 'briefing_airport_ready');
+      throw err;
+    });
+
+  const newsPromise = fetchRideshareNews({ snapshot })
+    .then(async (r) => {
+      const items = Array.isArray(r?.items) ? r.items : [];
+      await writeSectionAndNotify(snapshotId, {
+        news: { items, reason: r?.reason || (items.length === 0 ? 'No rideshare news found for this area' : null) },
+      }, 'briefing_news_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { news: errorMarker(err) }, 'briefing_news_ready');
+      throw err;
+    });
+
   const fetchResults = await Promise.allSettled([
-    fetchWeatherConditions({ snapshot }),
-    fetchTrafficConditions({ snapshot }),
-    snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
-    fetchAirportConditions({ snapshot }),
-    fetchRideshareNews({ snapshot })
+    weatherPromise,
+    trafficPromise,
+    eventsPromise,
+    airportPromise,
+    newsPromise,
   ]);
 
   // 2026-04-05: Extract results with REASON for every outcome (NO NULLS rule).
@@ -2827,6 +2943,13 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       schoolClosuresReason = `School closures fetch failed: ${dailyErr.message}`;
     }
   }
+
+  // 2026-04-18: PHASE A — progressive write for school_closures as soon as we have
+  // a value (whether from cache hit or fresh fetch). Lets the tab populate this
+  // section before the final atomic write lands.
+  await writeSectionAndNotify(snapshotId, {
+    school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: schoolClosuresReason },
+  }, 'briefing_school_closures_ready');
 
   // 2026-04-05: Defensive extraction — each subsystem may be null if its fetch failed.
   // NO NULLS: every field gets a typed value + reason. Empty arrays are valid; null is not.

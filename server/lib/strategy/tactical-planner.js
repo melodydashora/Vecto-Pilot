@@ -183,10 +183,15 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     "    15 mi of the driver (not at the event). Recommend the closest high-impact venues",
     "    within 15 mi that fans would depart from (hotels near freeway on-ramps, dining",
     "    hubs, residential/entertainment centers).",
-    "- GOAL: Closest high-impact venues first. Examples of the RIGHT answer for a Plano/",
-    "  Frisco driver: The Star in Frisco, Legacy West in Plano, Grandscape in The Colony,",
-    "  Stonebriar Centre. The WRONG answer: AAC, Dickies Arena, Fair Park — these are",
-    "  30-40+ mi away, they are intel about surge flow, not destinations.",
+    // 2026-04-18: Removed hardcoded DFW venue examples (The Star, Legacy West,
+    // Grandscape, Stonebriar, AAC, Dickies, Fair Park). Those anchored the LLM's
+    // venue selection to Frisco/Plano regardless of actual driver location and
+    // violated the "never code location into code" project rule.
+    "- GOAL: Closest high-impact venues first. The RIGHT answer: venues ≤15 mi from",
+    "  the driver's GPS — mixed-use entertainment complexes, dining/shopping hubs,",
+    "  hotel clusters near freeway on-ramps, residential/entertainment centers that",
+    "  pre-load for evening events. The WRONG answer: venues 30-40+ mi away — those",
+    "  are surge-flow intelligence (pick-up demand flowing toward them), not destinations.",
     "- WHEN NO EVENTS ARE LISTED: recommend 4-6 general venues as usual.",
     "",
     "STAGING LOCATIONS:",
@@ -278,9 +283,14 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
           `  in the driver's 15-mi radius that fans would depart from — hotels near freeway`,
           `  on-ramps heading toward the far event, dining hubs, residential/entertainment`,
           `  centers that pre-load for evening events.`,
-          `- Closest high-impact venues WIN. Think The Star in Frisco, Legacy West in Plano,`,
-          `  Grandscape in The Colony, Stonebriar Centre — venues that are genuinely near the`,
-          `  driver AND will see event-driven surge. NOT AAC or Dickies Arena 30-40 mi away.`
+          // 2026-04-18: Removed hardcoded DFW venue examples — they anchored the
+          // LLM to Frisco for every non-DFW driver. Kept the PATTERN (closest
+          // high-impact venues ≤15 mi) without naming specific venues.
+          `- Closest high-impact venues WIN. Think mixed-use entertainment complexes,`,
+          `  dining/shopping hubs, hotel clusters near freeway on-ramps, and residential`,
+          `  / entertainment centers — venues genuinely within 15 mi of the driver's GPS`,
+          `  AND likely to see event-driven surge. NOT distant arenas 30-40+ mi away;`,
+          `  those are surge-flow intel (demand flowing toward them), not destinations.`
         ].join("\n")
       : "Focus on venues with ACTIVE demand RIGHT NOW — dining, airport, hotels, shopping.",
     briefingContext?.traffic?.avoidAreas?.length > 0

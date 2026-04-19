@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar, serial } from "drizzle-orm/pg-core";
+import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar, serial, numeric } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
 // Users table: SESSION TRACKING ONLY (Ephemeral)
@@ -1025,6 +1025,16 @@ export const driver_profiles = pgTable("driver_profiles", {
   email_verified: boolean("email_verified").default(false),
   phone_verified: boolean("phone_verified").default(false),
   profile_complete: boolean("profile_complete").default(false),
+
+  // Strategist enrichment preferences (2026-04-11 migration applied via
+  // migrations/20260416_driver_preference_columns.sql). Synced into schema
+  // 2026-04-18 — the code in consolidator.js:861 reads these columns with a
+  // graceful fallback (PG error 42703 → DRIVER_PREF_DEFAULTS) so prod keeps
+  // working whether the migration has been applied or not.
+  fuel_economy_mpg: integer("fuel_economy_mpg"),
+  earnings_goal_daily: numeric("earnings_goal_daily", { precision: 10, scale: 2 }),
+  shift_hours_target: numeric("shift_hours_target", { precision: 4, scale: 1 }),
+  max_deadhead_mi: integer("max_deadhead_mi"),
 
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

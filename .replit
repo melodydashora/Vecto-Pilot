@@ -21,6 +21,11 @@ deploymentTarget = "cloudrun"
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 24282
+externalPort = 5000
+exposeLocalhost = true
+
 [workflows]
 runButton = "Project"
 
@@ -56,7 +61,7 @@ You have web_search and web_fetch tools via Anthropic API.
 If asked who you are, respond: 'I am Replit Assistant Enhanced with web search, web fetch, and full shell capabilities.'
 DO NOT say you cannot run shell commands or search the web - you CAN and SHOULD do both.
 """
-model = "claude-opus-4-6"
+model = "claude-opus-4-7"
 web_search = true
 web_fetch = true
 shell_exec = true

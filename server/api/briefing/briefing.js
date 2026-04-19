@@ -332,6 +332,18 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
   }
 });
 
+// 2026-04-18: AGGREGATE endpoint — returns the entire briefing row in ONE round-trip.
+// Purpose: collapse the 6-way race in the UI (weather/traffic/events/news/airport/
+// school-closures were each fetched separately with independent retry states, causing
+// the briefing tab to desync from what the strategist actually received). One query
+// returns everything, so the tab can be a true transparency window onto Phase 1 data.
+//
+// Per-section _generationFailed sentinels are surfaced inline so the UI can render
+// a "this section failed" state instead of staying in perpetual loading.
+//
+// Phase B of the briefing UI restoration plan:
+//   B (this): single aggregate fetch — eliminates UI-level race
+//   A (next): progressive writes + per-section NOTIFYs — restores streaming UX
 router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   try {
     const briefing = await getBriefingBySnapshotId(req.snapshot.snapshot_id);
@@ -340,42 +352,165 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
       return res.status(404).json({ error: 'Briefing not yet generated - please wait a moment' });
     }
 
-    // Filter stale events from briefing data (2026-01-05)
-    // 2026-01-05: Pass snapshot timezone for proper local time parsing
     // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
     if (!req.snapshot.timezone) {
       console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: req.snapshot.snapshot_id });
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const tz3 = req.snapshot.timezone;
-    const freshEvents = filterFreshEvents(
-      Array.isArray(briefing.events) ? briefing.events : briefing.events?.items || [],
-      new Date(),
-      tz3
-    );
+
+    // Per-section generation-failure detection — mirrors each individual endpoint's
+    // sentinel handling so the aggregate response has the same guarantees.
+    const sectionFailed = (v) => !!(v && typeof v === 'object' && v._generationFailed);
+
+    // Filter stale events from briefing data (2026-01-05)
+    const rawLocalEvents = Array.isArray(briefing.events)
+      ? briefing.events
+      : (briefing.events?.items || []);
+    const localEventsFailed = sectionFailed(briefing.events);
+    const freshEvents = localEventsFailed ? [] : filterFreshEvents(rawLocalEvents, new Date(), tz3);
 
     // Filter stale news - only today's news with valid publication dates (2026-01-05)
-    const newsItems = Array.isArray(briefing.news) ? briefing.news : briefing.news?.items || [];
-    const freshNews = filterFreshNews(newsItems, new Date(), tz3);
+    const newsFailed = sectionFailed(briefing.news);
+    const rawNewsItems = Array.isArray(briefing.news) ? briefing.news : (briefing.news?.items || []);
+    const freshNews = newsFailed ? [] : filterFreshNews(rawNewsItems, new Date(), tz3);
+
+    // 2026-04-18: Market-wide events lookup — high-value events from other cities in
+    // the driver's metro. Ported from /events/:snapshotId so the aggregate endpoint
+    // returns the same events data the per-section endpoint did.
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: tz3 });
+    const endDateObj = new Date();
+    endDateObj.setDate(endDateObj.getDate() + 7);
+    const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: tz3 });
+
+    let marketEvents = [];
+    let marketName = null;
+    try {
+      const stateCondition = req.snapshot.state.length === 2
+        ? eq(market_cities.state_abbr, req.snapshot.state.toUpperCase())
+        : ilike(market_cities.state, req.snapshot.state);
+      const [marketMapping] = await db
+        .select()
+        .from(market_cities)
+        .where(and(ilike(market_cities.city, req.snapshot.city), stateCondition))
+        .limit(1);
+      if (marketMapping) {
+        marketName = marketMapping.market_name;
+        const otherMarketCities = await db
+          .select({ city: market_cities.city, state: market_cities.state })
+          .from(market_cities)
+          .where(and(
+            eq(market_cities.market_name, marketMapping.market_name),
+            not(ilike(market_cities.city, req.snapshot.city))
+          ));
+        if (otherMarketCities.length > 0) {
+          const cityConditions = otherMarketCities.map(c =>
+            and(ilike(discovered_events.city, c.city), ilike(discovered_events.state, c.state))
+          );
+          const rawMarketEvents = await db.select({
+            id: discovered_events.id,
+            title: discovered_events.title,
+            venue_name: discovered_events.venue_name,
+            address: discovered_events.address,
+            city: discovered_events.city,
+            state: discovered_events.state,
+            event_start_date: discovered_events.event_start_date,
+            event_end_date: discovered_events.event_end_date,
+            event_start_time: discovered_events.event_start_time,
+            event_end_time: discovered_events.event_end_time,
+            category: discovered_events.category,
+            expected_attendance: discovered_events.expected_attendance,
+            venue_lat: venue_catalog.lat,
+            venue_lng: venue_catalog.lng,
+          })
+            .from(discovered_events)
+            .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
+            .where(and(
+              or(...cityConditions),
+              or(
+                eq(discovered_events.expected_attendance, 'high'),
+                sql`${discovered_events.category} IN ('sports', 'concert', 'festival')`
+              ),
+              gte(discovered_events.event_start_date, today),
+              lte(discovered_events.event_start_date, endDate),
+              eq(discovered_events.is_active, true)
+            ))
+            .orderBy(discovered_events.event_start_date)
+            .limit(20);
+          marketEvents = rawMarketEvents.map(e => ({
+            title: e.title,
+            summary: [e.title, e.venue_name, e.event_start_date, e.event_start_time].filter(Boolean).join(' • '),
+            impact: 'high',
+            source: 'discovered',
+            event_type: e.category,
+            subtype: e.category,
+            event_start_date: e.event_start_date,
+            event_end_date: e.event_end_date,
+            event_start_time: e.event_start_time,
+            event_end_time: e.event_end_time,
+            address: e.address,
+            venue: e.venue_name,
+            location: e.venue_name ? `${e.venue_name}, ${e.address || ''}`.trim() : e.address,
+            latitude: e.venue_lat,
+            longitude: e.venue_lng,
+            city: e.city,
+          }));
+          marketEvents = deduplicateEvents(marketEvents);
+          const { deduplicated: marketDeduped } = deduplicateEventsSemantic(marketEvents);
+          marketEvents = marketDeduped;
+          marketEvents = filterFreshEvents(marketEvents, new Date(), tz3);
+        }
+      }
+    } catch (marketErr) {
+      briefingLog ?? console.error(`[BriefingRoute] Market events lookup failed (non-fatal): ${marketErr.message}`);
+    }
 
     res.json({
       snapshot_id: req.snapshot.snapshot_id,
       briefing: {
-        news: freshNews,
         weather: {
           current: briefing.weather_current,
-          forecast: briefing.weather_forecast
+          forecast: briefing.weather_forecast,
+          _generationFailed: sectionFailed(briefing.weather_current),
         },
-        traffic: briefing.traffic_conditions,
-        events: freshEvents,
-        school_closures: briefing.school_closures,
-        airport_conditions: briefing.airport_conditions
+        traffic: {
+          ...(briefing.traffic_conditions || {}),
+          _generationFailed: sectionFailed(briefing.traffic_conditions),
+        },
+        news: {
+          items: freshNews,
+          reason: newsFailed
+            ? (briefing.news?.error || 'News generation failed')
+            : (briefing.news?.reason || (freshNews.length === 0 ? 'No rideshare news for this area' : null)),
+          _generationFailed: newsFailed,
+        },
+        events: {
+          items: freshEvents,
+          marketEvents,
+          market_name: marketName,
+          reason: localEventsFailed
+            ? (briefing.events?.error || 'Events generation failed')
+            : (briefing.events?.reason || (freshEvents.length === 0 ? 'No events found for this location' : null)),
+          _generationFailed: localEventsFailed,
+        },
+        school_closures: {
+          items: Array.isArray(briefing.school_closures)
+            ? briefing.school_closures
+            : (briefing.school_closures?.items || []),
+          reason: briefing.school_closures?.reason || null,
+          _generationFailed: sectionFailed(briefing.school_closures),
+        },
+        airport_conditions: {
+          ...(briefing.airport_conditions || {}),
+          _generationFailed: sectionFailed(briefing.airport_conditions),
+        },
       },
       created_at: briefing.created_at,
-      updated_at: briefing.updated_at
+      updated_at: briefing.updated_at,
+      generated_at: briefing.generated_at,
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching briefing:', error);
+    console.error('[BriefingRoute] Error fetching briefing aggregate:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -683,6 +818,29 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     // Read events directly from discovered_events table for this snapshot's location
     const snapshot = req.snapshot;
     const { filter } = req.query; // ?filter=active for currently happening events
+
+    // 2026-04-18: FIX — check if events generation failed on this briefing. Previously
+    // this endpoint queried discovered_events directly and returned success:true,
+    // events:[] even when the briefing row's events JSONB was {_generationFailed: true}.
+    // That made isEventsLoading() stay true forever client-side (infinite briefing spinner).
+    // Now we surface the sentinel so the client honors its _generationFailed branch.
+    const [briefingRow] = await db
+      .select({ events: briefings.events })
+      .from(briefings)
+      .where(eq(briefings.snapshot_id, snapshot.snapshot_id))
+      .limit(1);
+    if (briefingRow?.events?._generationFailed) {
+      return res.status(200).json({
+        success: false,
+        _generationFailed: true,
+        error: briefingRow.events.error || 'Events generation failed',
+        events: [],
+        marketEvents: [],
+        market_name: null,
+        reason: 'Events generation failed — check server logs',
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     // 2026-01-14: FIX - Use snapshot timezone to calculate "today" (not UTC)
     // At 8:20 PM CST on Jan 14, UTC is already Jan 15 - this was causing 0 events to return

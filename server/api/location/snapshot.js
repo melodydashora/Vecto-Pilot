@@ -258,8 +258,15 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
     });
     
     // Return all snapshot fields for Coach context
+    // 2026-04-18: Include `status` so the client-side briefing readiness gate
+    // (`useBriefingQueries` isEnabled check on snapshotStatus === 'ok') actually
+    // works. Before today this field was silently omitted, which made the gate
+    // permanently closed for every real (UUID) snapshot and froze the briefing
+    // tab spinner forever. Root cause of the "briefing tab spins after login"
+    // symptom per the UI audit on 2026-04-18.
     return res.json({
       snapshot_id: snapshot.snapshot_id,
+      status: snapshot.status,
       city: snapshot.city,
       state: snapshot.state,
       country: snapshot.country,
