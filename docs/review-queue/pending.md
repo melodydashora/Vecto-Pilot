@@ -4,6 +4,70 @@ Items requiring action. For completed session logs and historical analysis, see 
 
 ---
 
+## 2026-04-24: Commit C (db connection-manager comment) queued behind 57P01 work — ⏸️ DEPENDENCY NOTE
+
+**Author:** Claude Opus 4.7 (1M context) | **Scope:** Dependency note, not a code change.
+
+As part of Phase 0.11 doc reconciliation from `docs/architecture/full-audit-2026-04-23-REMEDIATION-PLAN.md`, three of four intended commits shipped on 2026-04-24:
+
+- ✅ Commit D (`docs(rule-12)`: contested-fact read-order amendment) — `0002b20c`
+- ✅ Commit A (`docs(rule-13)`: correct DB provider — dev=Helium, prod=Neon) — `1eae0a14`
+- ✅ Commit B (`docs(database-environments)`: correct record; prod is Neon) — `95c69833`
+- ⏸️ **Commit C** (`chore(db)`: `connection-manager.js` inline comment fix) — **DEFERRED**
+
+**Why Commit C was deferred:** `server/db/connection-manager.js` carries the uncommitted 2026-04-23 57P01 retry + `idleTimeoutMillis` changes described in the entry below. Staging the file for a comment-only fix would sweep those unreviewed changes into the commit, violating Rule 1. **Option Z** was chosen (see remediation plan Appendix A "Deferred items from Phase 0" section).
+
+**Acceptable interim state:** CLAUDE.md Rule 13, `DATABASE_ENVIRONMENTS.md`, and the remediation plan all agree prod is Neon. The `connection-manager.js` inline comment temporarily lags, still reading `Helium PostgreSQL 16`. Low-urgency inconsistency, explicit and tracked here.
+
+**Next action:** Melody test-approves the 2026-04-23 entry below → commit the 57P01 / CORS / venue work → immediately land Commit C (comment fix) as its own micro-commit. Plan's Phase 0.11 section will then read "3+1 shipped" after both commits land.
+
+---
+
+## 2026-04-23: Three Server-Log Fixes — ⚠️ AWAITING TEST APPROVAL
+
+**Author:** Claude Opus 4.7 (1M context) | **Scope:** 23505 venue promotion, CORS error propagation, 57P01 pool resilience
+
+### What changed
+
+1. **`server/lib/venue/venue-cache.js` — `insertVenue`**
+   Root cause: `venue_catalog` has three unique constraints (`venue_id` PK, `coord_key`, `place_id`) but Postgres only supports one `ON CONFLICT` target per INSERT. When Google Places returned drifted coords for the same `place_id`, the existing `ON CONFLICT (coord_key) DO UPDATE` clause didn't match the conflict dimension and `place_id` fired 23505.
+   Fix: wrap the insert in try/catch; on 23505 fall back to a `place_id` lookup, update access stats on the existing row, and return it. Happy path unchanged.
+
+2. **`server/lib/ai/rideshare-coach-dal.js` — `saveVenueCatalogEntry`**
+   The coach's pre-check + insert had a race window where two concurrent saves of the same `place_id` both saw "no existing" and both attempted INSERT; loser threw 23505.
+   Fix: added `.onConflictDoNothing()` to the INSERT and a post-conflict `SELECT ... WHERE place_id = ?` that returns the winner's row. No data change; just eliminates the raised error under concurrency.
+
+3. **`server/bootstrap/middleware.js` — CORS origin callback**
+   Root cause: `callback(new Error(\`CORS blocked: ${origin}\`))` was being forwarded by the `cors` package through `next(err)` and landed in the global error handler, producing 500s for scanner traffic from origins like `https://prodguard.invalid`.
+   Fix: extracted an `isAllowedOrigin(origin)` predicate, added a pre-middleware that returns a clean `403 {error:'Origin not allowed', code:'cors_blocked'}` for blocked origins, and reduced the `cors()` callback to `callback(null, isAllowedOrigin(origin))` which never throws. Per-unique-origin log dedup prevents log spam under scanner floods.
+
+4. **`server/db/connection-manager.js` — pool tuning + transient-error retry**
+   - `idleTimeoutMillis`: 10000 → **30000** (10s churned connections aggressively against server-side idle timeouts; with `keepAlive` already enabled, 30s keeps warm connections without eviction thrash).
+   - `allowExitOnIdle: false` made explicit.
+   - Monkey-patched `pool.query` to retry once on transient Postgres error codes (`57P01`, `57P02`, `57P03`, `08000`, `08001`, `08003`, `08004`, `08006`). Callback-style invocations pass through unchanged to preserve pg's contract. Drizzle (via `server/db/drizzle.js` which imports `getPool()`) inherits this because we patch the instance method on the shared pool object.
+
+### Test plan — Melody to verify after workflow restart
+
+| Test | Command | Expected |
+|------|---------|----------|
+| Gateway boots clean | Press Play, watch logs for `[gateway] ✅ Middleware configured` | No errors |
+| CORS blocks invalid origin with 403 | `curl -si -H "Origin: https://prodguard.invalid" http://localhost:5000/api/health` | `HTTP/1.1 403`, body `{"error":"Origin not allowed","code":"cors_blocked"}`; no `http.500` line in ndjson |
+| CORS allows Replit domain | `curl -si -H "Origin: https://workspace.replit.dev" http://localhost:5000/api/health` | `HTTP/1.1 200`, `access-control-allow-origin` header present |
+| CORS allows no-origin (curl default) | `curl -si http://localhost:5000/api/health` | `HTTP/1.1 200` |
+| Pool survives a 57P01 | `psql $DATABASE_URL -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'node-postgres' AND pid != pg_backend_pid();"` then hit any DB-backed endpoint | Logs show `[pool] Transient 57P01 on query; retrying once`, request succeeds (no 500) |
+| Venue promotion tolerates place_id drift | Monitor briefing pipeline logs during normal traffic | No more `Catalog promotion failed for "…": 23505` lines; instead (at most) `[venue-cache] insertVenue 23505 on … — falling back to existing venue …` warnings |
+
+### Residual risks / follow-ups
+
+- **`upsertVenue` UPDATE path (venue-cache.js:312–338)** still overwrites `coord_key` unconditionally. If the new coord_key collides with another row's coord_key, the UPDATE would throw 23505. Not fixed in this batch because no logs point at it; flagged for a future tighten-up.
+- **Other INSERT sites into venue_catalog** (`venue-address-resolver.js:330`, `venue-intelligence.js:934`) already have `.onConflictDoNothing()`. Verified, no change.
+- **`seed-dfw-venues.js:252`** is a one-shot seed script with a pre-check; left alone.
+- **Test approval required per Rule 1 before marking these resolved.**
+
+### Commits: (pending Melody's test approval before commit)
+
+---
+
 ## 2026-04-16: Strategy Hallucination Session (H-1/H-2/H-3)
 
 **Doctrine rules added:** DECISIONS.md #17 (heuristic-as-fact), #18 (driver-local time), #19 (capacity ceiling)
