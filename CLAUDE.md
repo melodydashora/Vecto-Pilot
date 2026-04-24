@@ -109,6 +109,8 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 
 **This is your memory layer.** These documents persist across sessions and are your primary source of truth for the current state of the project. When you learn something important during a session, update the relevant document so future sessions benefit.
 
+**Contested-fact rule (added 2026-04-24):** When docs disagree on verifiable facts (DB provider, API routing, schema shape, model IDs, etc.), trust the newest timestamped audit document over older doctrine files. Specifically: if a file under `docs/architecture/audits/` has a timestamped finding that contradicts a claim in this CLAUDE.md or a standing `docs/` file, the audit wins until the doctrine file is updated. Update the doctrine file within the same session that consumed the audit; reference the audit in your commit message so future sessions follow the same precedence. This amendment was triggered by a 2026-04-18 Neon-vs-Helium drift where three doctrine files said "both Helium" while the `NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` audit correctly identified prod as Neon serverless.
+
 ### Rule 13: Database Environment Awareness (2026-02-25, updated 2026-04-05)
 - **Dev and Prod are TWO SEPARATE Replit Helium (PostgreSQL 16) instances** with completely isolated data
 - **Dev:** Replit Helium — used in the workspace editor (no SSL)
