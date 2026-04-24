@@ -146,7 +146,7 @@ Close the live credential exposure. Reconcile the three docs that disagree about
 - `openssl sha256 keys/private.pem` no longer matches the incident hash.
 - `git log --all -- keys/private.pem` returns nothing.
 - GitHub visibility = Private.
-- Pre-commit hook blocks a fake GCP-key-format test string (format intentionally omitted from this doc to avoid scanner triggers — use any literal matching `/AIzaSy[A-Za-z0-9_-]{33}/` during hook testing).
+- Pre-commit hook blocks a fake GCP-key-format test string. (Format intentionally omitted from this doc to avoid scanner triggers. See gitleaks' `google-api-key` rule or truffleHog's GCP detector for the pattern used during hook testing.)
 - CLAUDE.md Rule 13, DATABASE_ENVIRONMENTS.md, and connection-manager.js comment all agree: dev=Helium, prod=Neon.
 - Auto-deploy unpaused with a clean boot log against Neon with `rejectUnauthorized: true`.
 - Appendix A lists reconciled prior-audit open items.
@@ -163,7 +163,7 @@ Close the live credential exposure. Reconcile the three docs that disagree about
 | (0.4d) k1-signed JWT after grace ends | Rejected |
 | (0.6) Commit a `.env` file | Blocked by gitignore |
 | (0.7 mirror) `git filter-repo` on mirror | Mirror has no PEM history |
-| (0.8) Commit a fake `AIzaSy...` line | Pre-commit hook blocks |
+| (0.8) Commit a fake GCP-key-format line | Pre-commit hook blocks |
 | (0.9) Deploy to prod Neon with `rejectUnauthorized: true` | DB connects; `/health` 200 |
 | (0.9) Dev against Helium | Unchanged |
 | (0.11) Grep `"both Replit Helium"` or `"both.*Helium"` across repo | Zero hits (all three docs reconciled) |

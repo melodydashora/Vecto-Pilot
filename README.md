@@ -208,11 +208,11 @@ DATABASE_URL="postgresql://user:pass@host:5432/db"
 # AI Providers
 OPENAI_API_KEY="sk-..."
 ANTHROPIC_API_KEY="sk-ant-..."
-GEMINI_API_KEY="AIza..."
+GEMINI_API_KEY="<your-gemini-key>"
 PERPLEXITY_API_KEY="pplx-..."
 
 # Google Maps
-GOOGLE_MAPS_API_KEY="AIza..."
+GOOGLE_MAPS_API_KEY="<your-maps-key>"
 
 # OAuth (optional)
 GOOGLE_CLIENT_ID="..."
