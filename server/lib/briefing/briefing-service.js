@@ -2407,8 +2407,11 @@ export async function fetchRideshareNews({ snapshot }) {
     const result = await callModel('BRIEFING_NEWS', { system, user: newsPrompt });
 
     if (!result.ok) {
+      // 2026-04-24: SECURITY — client-facing `reason` is a sentinel string so raw
+      // upstream errors (which may echo API keys) cannot reach the HTTP response.
+      // Full error stays in the server log only.
       briefingLog.warn(2, `News fetch failed: ${result.error}`, OP.AI);
-      return { items: [], reason: `News fetch failed: ${result.error}`, provider: 'briefer' };
+      return { items: [], reason: 'news-fetch-failed', provider: 'briefer' };
     }
 
     const parsed = safeJsonParse(result.output);
@@ -2997,8 +3000,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     snapshot_id: snapshotId,
     news: {
       items: newsItems,
+      // 2026-04-24: SECURITY — do not interpolate raw failure reasons into the
+      // client-facing `reason` field; upstream errors may contain credential
+      // material. Use sentinel on failure path; preserve non-error messages.
       reason: failedReasons.news
-        ? `News fetch failed: ${failedReasons.news}`
+        ? 'news-fetch-failed'
         : newsResult?.reason || (newsItems.length === 0 ? 'No rideshare news found for this area' : null)
     },
     weather_current: weatherCurrent,
