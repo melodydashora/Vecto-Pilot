@@ -124,7 +124,7 @@ Close the live credential exposure. Reconcile the three docs that disagree about
 | 0.0 | **Pause auto-deploy** in Replit Deployments panel. Record timestamp. | Replit UI | Melody |
 | 0.1 | Confirm Neon RLS status in **prod Neon DB**. Run on prod Neon: `\df+ neon_identity.*`, `SELECT * FROM pg_policies WHERE qual::text ILIKE '%jwt.claims%' OR qual::text ILIKE '%current_setting%jwt%';`, `SELECT * FROM pg_proc WHERE proname ILIKE '%jwt%';`. Record result. | `migrations/004_jwt_helpers.sql` (read-only), prod Neon DB | Melody |
 | **0.1a (new)** | **Neon Console JWKS registration check.** Open Neon Console → project `ep-noisy-cake-afv3ojg3` → Settings → RLS / Auth providers. Record: (a) is there a JWKS URL registered? (b) does it point at `https://vectopilot.app/.well-known/jwks.json` or equivalent? (c) what kids are trusted? **This step resolves §1.1 active-exploit confidence from 50% → 100%.** | Neon Console | Melody |
-| 0.2 | Neon Console: rotate DB passwords (all 3 leaked generations), revoke Neon API token `<LEAKED-NEON-API-TOKEN>...`, refresh prod `DATABASE_URL` in Replit Secrets (only prod — dev Helium `DATABASE_URL` is local and unrelated). | Replit Secrets | Melody |
+| 0.2 | Neon Console: rotate DB passwords (all 3 leaked generations), revoke Neon API token `<LEAKED-NEON-API-TOKEN>`, refresh prod `DATABASE_URL` in Replit Secrets (only prod — dev Helium `DATABASE_URL` is local and unrelated). | Replit Secrets | Melody |
 | 0.3 | GCP Console: delete service-account key for `vertex-express@quantum-fusion-486920-p2.iam.gserviceaccount.com`, delete API key `<LEAKED-GCP-KEY-A>`, issue new restricted replacements (HTTP referrer / IP allowlist). Submit suspension appeal. | GCP Console | Melody |
 | 0.4a | **If Neon RLS is live (per 0.1 + 0.1a):** update `scripts/make-jwks.mjs` to emit a JWKS containing BOTH `vectopilot-rs256-k1` and `vectopilot-rs256-k2`. Local test: run, confirm 2 entries in `public/.well-known/jwks.json`. | `scripts/make-jwks.mjs` | Claude (1 commit) |
 | 0.4b | Generate new keypair (`openssl genrsa -out keys/private-k2.pem 2048`); update `scripts/sign-token.mjs` to accept `--kid`. | `keys/private-k2.pem`, `keys/public-k2.pem`, `scripts/sign-token.mjs` | Claude (1 commit) |
@@ -146,7 +146,7 @@ Close the live credential exposure. Reconcile the three docs that disagree about
 - `openssl sha256 keys/private.pem` no longer matches the incident hash.
 - `git log --all -- keys/private.pem` returns nothing.
 - GitHub visibility = Private.
-- Pre-commit hook blocks a fake `AIzaSyExampleKey123456789012345678901234567` commit.
+- Pre-commit hook blocks a fake GCP-key-format test string (format intentionally omitted from this doc to avoid scanner triggers — use any literal matching `/AIzaSy[A-Za-z0-9_-]{33}/` during hook testing).
 - CLAUDE.md Rule 13, DATABASE_ENVIRONMENTS.md, and connection-manager.js comment all agree: dev=Helium, prod=Neon.
 - Auto-deploy unpaused with a clean boot log against Neon with `rejectUnauthorized: true`.
 - Appendix A lists reconciled prior-audit open items.

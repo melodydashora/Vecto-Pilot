@@ -1,7 +1,21 @@
 # Security Incident  Vecto-Pilot Credential Leak Audit
 **Generated:** 2026-04-23 (during Claude Code agent session that exited mid-task)
+**Updated:** 2026-04-24 (redacted, AQ key added per prod-log discovery)
 **Repo:** github.com/melodydashora/Vecto-Pilot (PUBLIC)
 **Trigger:** GCP project suspended ("abusive activity consistent with hijacking")
+
+## REDACTION LEGEND (added 2026-04-24)
+
+All leaked credential literals in this document have been replaced with scanner-safe placeholders of the form `<TYPE-ending-SUFFIX>` where SUFFIX is the last 4-6 characters of the original key. The full key values exist only in GCP Console / Neon Console audit logs and in the repo's git history (until the filter-repo scrub completes). Placeholders are NOT valid key formats and will not trigger credential-leak scanners.
+
+| Placeholder | What it refers to |
+|---|---|
+| `<LEAKED-GCP-KEY-A>` | Gemini + Maps API key; leaked in commits `43b2ae09`, `0ff72024` et al; suspended by Google |
+| `<LEAKED-GCP-KEY-B>` | Air Quality API key; never in git history — only Replit Secrets; suspended by Google 2026-04-23 18:59 UTC (discovered via prod logs 2026-04-24, NOT in original audit scope) |
+| `<LEAKED-NEON-PW-CURRENT>` | Current Neon DB password (leaked) |
+| `<LEAKED-NEON-PW-PRIOR-1>` | Prior-generation Neon DB password (leaked) |
+| `<LEAKED-NEON-PW-PRIOR-2>` | Prior-generation Neon DB password (leaked) |
+| `<LEAKED-NEON-API-TOKEN>` | Neon API token (leaked) |
 
 ## Confirmed Leak Surface
 The repo is pushed to a PUBLIC GitHub mirror  Google's automated scanners (and any attacker) can index it. The "remove hardcoded key" commits do NOT scrub git history; old blobs remain reachable forever via commit SHAs and GitHub events API.
@@ -13,6 +27,16 @@ The repo is pushed to a PUBLIC GitHub mirror  Google's automated scanners (and a
 - Used as: `GEMINI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_MAPS_API_KEY`
 - Introduction commits: `43b2ae09`, `0ff72024`, `e9e37cdd`, others
 - Removal commit: `796e6b4d` "Remove hardcoded Gemini API key"  but the blob remains in history
+
+### 1a. GCP / Google Air Quality API Key (discovered 2026-04-24 via prod logs)
+- Key: `<LEAKED-GCP-KEY-B>`
+- Used as: `GOOGLEAQ_API_KEY` env var only
+- **NOT in git history** per `git log -S` across all branches + `git fsck --lost-found`. Only ever held in Replit Secrets.
+- Suspended by Google 2026-04-23 18:59 UTC per prod log at `server/api/location/location.js:1354`:
+  `Permission denied: Consumer 'api_key:<LEAKED-GCP-KEY-B>' has been suspended.`
+- **Why missed in original audit:** original scope was git-history-as-public-surface via grep. This key was environment-only, invisible to grep. Surfaced only when prod started failing and the Google error response echoed the key back in the log.
+- **Likely root cause of suspension:** project-wide GCP suspension cascading from the first leak (`<LEAKED-GCP-KEY-A>`), not an independent leak of this key. Google typically suspends all keys under a flagged project.
+- **Implication for remediation:** rotation needed via GCP Console (delete + reissue restricted); **scrub not needed for THIS key because it is not in public git.** Update `GOOGLEAQ_API_KEY` in Replit Secrets post-rotation.
 - Project: `quantum-fusion-486920-p2`
 - Service account email: `vertex-express@quantum-fusion-486920-p2.iam.gserviceaccount.com`
 
@@ -68,7 +92,7 @@ The repo is pushed to a PUBLIC GitHub mirror  Google's automated scanners (and a
 1. **In Google Cloud Console:** Disable / delete the leaked service-account key for `vertex-express@quantum-fusion-486920-p2.iam.gserviceaccount.com`
 2. **In Google Cloud Console:** Delete the leaked Google API key `<LEAKED-GCP-KEY-A>` and create new restricted ones
 3. **In Neon Console:** Rotate the database password (currently exposed: `<LEAKED-NEON-PW-CURRENT>` and previous generations)
-4. **In Neon Console:** Revoke and rotate the Neon API token `<LEAKED-NEON-API-TOKEN>...`
+4. **In Neon Console:** Revoke and rotate the Neon API token `<LEAKED-NEON-API-TOKEN>`
 5. **Delete `keys/private.pem` and `keys/public.pem`** from disk; regenerate a NEW JWT signing keypair; add `keys/` to `.gitignore`
 6. **Review commits `413d94c4` (client_secret) and `37bb1714` (Uber)** for additional leaks; rotate those too
 
@@ -82,7 +106,7 @@ The repo is pushed to a PUBLIC GitHub mirror  Google's automated scanners (and a
     - `keys/private.pem`, `keys/public.pem`
     - `.env`, `.env.unified`, `.env.local`, `mono-mode.env`
     - `env/neon-resilience.env`, `env/shared.env`, `env/webservice.env`, `env/worker.env`
-    - any commit with literal `<LEAKED-GCP-KEY-A>`, `<LEAKED-NEON-API-TOKEN>...`, `npg_*`
+    - any commit with literal `<LEAKED-GCP-KEY-A>`, `<LEAKED-NEON-API-TOKEN>`, `npg_*`
 11. Force-push the rewritten history; notify any collaborators they must re-clone
 12. Even after history scrub, **assume every leaked credential is permanently compromised**  GitHub events API caches commit blobs for 90+ days and Google's scanners have already seen them. Rotation is the only real fix.
 
