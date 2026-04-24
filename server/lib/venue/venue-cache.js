@@ -234,25 +234,63 @@ export async function insertVenue(venue) {
 
   // 2026-01-10: AUDIT FIX - Use onConflictDoUpdate to always return a record
   // Conflict on coord_key ensures we don't create duplicate venues at same location
-  const [result] = await db
-    .insert(venue_catalog)
-    .values(insertValues)
-    .onConflictDoUpdate({
-      target: venue_catalog.coord_key,
-      set: {
-        // Update access stats and potentially missing fields on conflict
-        access_count: sql`COALESCE(${venue_catalog.access_count}, 0) + 1`,
-        last_accessed_at: new Date(),
-        updated_at: new Date(),
-        // Update place_id if we have one and existing doesn't (backfill)
-        place_id: sql`COALESCE(${venue_catalog.place_id}, ${venue.placeId})`,
-        // Update formatted_address if we have one and existing doesn't
-        formatted_address: sql`COALESCE(${venue_catalog.formatted_address}, ${venue.formattedAddress})`
-      }
-    })
-    .returning();
+  // 2026-04-23: FIX — venue_catalog has THREE unique constraints (venue_id PK, coord_key,
+  // place_id). PostgreSQL only supports ONE ON CONFLICT target per INSERT. If Google Places
+  // returns drifted coords for the same place_id (common for re-resolved venues), the
+  // coord_key target doesn't match and the place_id constraint throws 23505. Wrap in
+  // try/catch and fall back to a place_id lookup so promotion never raises a raw constraint
+  // violation to callers.
+  try {
+    const [result] = await db
+      .insert(venue_catalog)
+      .values(insertValues)
+      .onConflictDoUpdate({
+        target: venue_catalog.coord_key,
+        set: {
+          // Update access stats and potentially missing fields on conflict
+          access_count: sql`COALESCE(${venue_catalog.access_count}, 0) + 1`,
+          last_accessed_at: new Date(),
+          updated_at: new Date(),
+          // Update place_id if we have one and existing doesn't (backfill)
+          place_id: sql`COALESCE(${venue_catalog.place_id}, ${venue.placeId})`,
+          // Update formatted_address if we have one and existing doesn't
+          formatted_address: sql`COALESCE(${venue_catalog.formatted_address}, ${venue.formattedAddress})`
+        }
+      })
+      .returning();
 
-  return result;
+    return result;
+  } catch (err) {
+    // Drizzle wraps pg errors in .cause/.original; unwrap to find the real PG code
+    const pgCode = err?.cause?.code || err?.original?.code || err?.code;
+    const constraint = err?.cause?.constraint || err?.original?.constraint || err?.constraint;
+
+    if (pgCode === '23505' && venue.placeId) {
+      // Most likely: place_id unique constraint collided because coord drifted for the
+      // same place. Return the existing venue (skip duplicate) and bump access stats.
+      const [byPlaceId] = await db
+        .select()
+        .from(venue_catalog)
+        .where(eq(venue_catalog.place_id, venue.placeId))
+        .limit(1);
+
+      if (byPlaceId) {
+        console.warn(
+          `[venue-cache] insertVenue 23505 on ${constraint || 'unique'} — falling back to existing venue ${byPlaceId.venue_id} (place_id=${venue.placeId.slice(0, 12)}…)`
+        );
+        await db
+          .update(venue_catalog)
+          .set({
+            access_count: sql`COALESCE(${venue_catalog.access_count}, 0) + 1`,
+            last_accessed_at: new Date()
+          })
+          .where(eq(venue_catalog.venue_id, byPlaceId.venue_id))
+          .catch(() => {}); // non-blocking stats update
+        return byPlaceId;
+      }
+    }
+    throw err;
+  }
 }
 
 /**

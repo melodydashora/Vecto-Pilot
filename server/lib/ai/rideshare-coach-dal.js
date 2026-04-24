@@ -2228,6 +2228,10 @@ export class RideshareCoachDAL {
       }
 
       // Create new venue entry
+      // 2026-04-23: FIX — onConflictDoNothing protects against concurrent coach saves racing
+      // on place_id (unique). If the pre-check at line ~2206 misses (race window between
+      // SELECT and INSERT), the conflict returns no row; we then re-fetch the winning row
+      // and return it. Without this guard, the loser raised 23505 all the way to the caller.
       const [venue] = await db
         .insert(venue_catalog)
         .values({
@@ -2246,10 +2250,28 @@ export class RideshareCoachDAL {
           ai_estimated_hours,
           discovery_source,
         })
+        .onConflictDoNothing()
         .returning();
 
-      console.log(`[RideshareCoach] Created venue: ${venue.venue_id} (${venue_name})`);
-      return venue;
+      if (venue) {
+        console.log(`[RideshareCoach] Created venue: ${venue.venue_id} (${venue_name})`);
+        return venue;
+      }
+
+      // Conflict (race with another concurrent save) — fetch the winner and return it.
+      if (place_id) {
+        const [existing] = await db
+          .select()
+          .from(venue_catalog)
+          .where(eq(venue_catalog.place_id, place_id))
+          .limit(1);
+        if (existing) {
+          console.log(`[RideshareCoach] Venue already created concurrently: ${existing.venue_id} (${venue_name})`);
+          return existing;
+        }
+      }
+      console.warn(`[RideshareCoach] Venue insert returned no row and no place_id to recover (${venue_name})`);
+      return null;
     } catch (error) {
       console.error('[RideshareCoach] saveVenueCatalogEntry error:', error);
       return null;

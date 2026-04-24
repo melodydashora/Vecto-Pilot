@@ -287,7 +287,8 @@
       "Bash(LISTEN_MS=1000 node /tmp/pid2ws-probe.mjs probe-all)",
       "Bash(/nix/store/dd093s6q1w4zkmhxm4160pgdg5n61hsz-replit-cli-0.0.1/bin/replit ai *)",
       "Bash(/nix/store/dd093s6q1w4zkmhxm4160pgdg5n61hsz-replit-cli-0.0.1/bin/replit run *)",
-      "Read(//home/runner/**)"
+      "Read(//home/runner/**)",
+      "Bash(git ls-tree *)"
     ],
     "deny": [],
     "ask": []

@@ -10,6 +10,10 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, '..', '..');
 
+// 2026-04-23: De-dup log noise when scanners hammer us with blocked origins.
+// Set is per-process; acceptable since worst case is one log line per unique origin.
+const blockedOriginSeen = new Set();
+
 /**
  * Configure security and parsing middleware
  * @param {Express} app - Express app
@@ -58,22 +62,47 @@ export async function configureMiddleware(app) {
   const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
     ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : [];
+
+  // 2026-04-23: FIX — extracted origin-allow logic into a single predicate so both
+  // the pre-middleware 403 short-circuit and the cors() callback share the same rules.
+  // Previously the cors() callback called `callback(new Error(...))` for blocked
+  // origins, which the cors package forwards via next(err), landing in the global
+  // error handler and producing noisy 500s for attacker/scanner traffic. Now blocked
+  // origins get a clean 403 at the edge and the cors() callback never throws.
+  const isAllowedOrigin = (origin) => {
+    // Allow requests with no origin (server-to-server, Siri Shortcuts, curl)
+    if (!origin) return true;
+    if (allowedOrigins.includes(origin)) return true;
+    if (/\.(replit\.dev|repl\.co|replit\.app)$/.test(origin)) return true;
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return true;
+    // 2026-03-18: Allow production custom domain
+    if (/^https?:\/\/(www\.)?vectopilot\.com$/.test(origin)) return true;
+    return false;
+  };
+
+  // 2026-04-23: Pre-middleware — reject cross-origin requests from disallowed origins
+  // with a proper 403 before they reach cors() or any route handler.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && !isAllowedOrigin(origin)) {
+      // Log once per unique origin per process to avoid log spam under scanner floods.
+      if (!blockedOriginSeen.has(origin)) {
+        blockedOriginSeen.add(origin);
+        console.warn(`[gateway] CORS blocked origin: ${origin} (${req.method} ${req.originalUrl})`);
+      }
+      return res.status(403).json({
+        error: 'Origin not allowed',
+        code: 'cors_blocked'
+      });
+    }
+    next();
+  });
+
   app.use(cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (server-to-server, Siri Shortcuts, curl)
-      if (!origin) return callback(null, true);
-      // Check explicit whitelist from env
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      // Allow Replit domains (*.replit.dev, *.repl.co, *.replit.app) and localhost
-      if (/\.(replit\.dev|repl\.co|replit\.app)$/.test(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-      // 2026-03-18: Allow production custom domain
-      if (/^https?:\/\/(www\.)?vectopilot\.com$/.test(origin)) {
-        return callback(null, true);
-      }
-      callback(new Error(`CORS blocked: ${origin}`));
-    },
+    // Callback never throws: allowed origins get CORS headers; blocked origins were
+    // already handled by the pre-middleware above, so the `false` branch is only
+    // reachable for no-origin / same-origin paths where CORS headers are simply omitted.
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
     credentials: true
   }));
 

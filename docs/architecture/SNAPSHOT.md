@@ -55,6 +55,8 @@ A snapshot is a **point-in-time capture of the driver's context** — location, 
 | `is_holiday` | boolean (default false) | Holiday flag |
 | `permissions` | jsonb | GPS permission state |
 
+Actual (
+
 ### Linked Tables
 
 - `users.current_snapshot_id` → Points to the ONE active snapshot per user

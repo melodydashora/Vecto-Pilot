@@ -1,3 +1,6 @@
 - [Melody](user_melody.md) — rideshare driver, no-code background, building AI reference implementation
 - [Melody ops](user_melody_driver_ops.md) — driving strategies, DFW market knowledge, vehicle, personal preferences
+- [Melody effort/model default](user_melody_effort_max.md) — house default is Opus 4.7 with `/effort max`; nudge at session start if lower
 - [No soft failures](feedback_no_soft_failures.md) — never dismiss broken features as "non-fatal warnings"
+- [feature-dev opus override](feedback_feature_dev_opus_override.md) — pass `model: "opus"` on every `feature-dev:*` Agent invocation (plugin ships them hardcoded to sonnet)
+- [Agent model audit 2026-04-23](project_agent_model_audit_2026_04_23.md) — snapshot of every subagent's model; don't re-audit unless plugins change
