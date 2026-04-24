@@ -125,7 +125,7 @@ export async function callModelStream(role, { system, messageHistory })
 - **NO temperature parameter** (400 error)
 - Web search model doesn't support `reasoningEffort`
 
-**Mock client** for development: detects `sk-dummy` API key prefix.
+**Mock client** for development: detects a fixed sentinel prefix (see `server/lib/ai/mock-client.js` for the exact string).
 
 ### Vertex AI Adapter
 
