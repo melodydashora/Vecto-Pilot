@@ -111,15 +111,16 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 
 **Contested-fact rule (added 2026-04-24):** When docs disagree on verifiable facts (DB provider, API routing, schema shape, model IDs, etc.), trust the newest timestamped audit document over older doctrine files. Specifically: if a file under `docs/architecture/audits/` has a timestamped finding that contradicts a claim in this CLAUDE.md or a standing `docs/` file, the audit wins until the doctrine file is updated. Update the doctrine file within the same session that consumed the audit; reference the audit in your commit message so future sessions follow the same precedence. This amendment was triggered by a 2026-04-18 Neon-vs-Helium drift where three doctrine files said "both Helium" while the `NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` audit correctly identified prod as Neon serverless.
 
-### Rule 13: Database Environment Awareness (2026-02-25, updated 2026-04-05)
-- **Dev and Prod are TWO SEPARATE Replit Helium (PostgreSQL 16) instances** with completely isolated data
-- **Dev:** Replit Helium — used in the workspace editor (no SSL)
-- **Prod:** Replit Helium — used in published deployments (SSL required)
+### Rule 13: Database Environment Awareness (2026-02-25, updated 2026-04-24)
+- **Dev and Prod use DIFFERENT providers** with completely isolated data
+- **Dev:** Replit Helium (PostgreSQL 16, local) — used in the workspace editor (no SSL, `sslmode=disable`)
+- **Prod:** Neon serverless (PostgreSQL) — used in published deployments (SSL required, valid certs → `rejectUnauthorized: true`)
+- **Authoritative source:** `docs/architecture/audits/NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` (the 2026-04-05 "both Helium" claim that previously lived here was incorrect; see DATABASE_ENVIRONMENTS.md changelog 2026-04-24)
 - Replit **automatically injects** `DATABASE_URL` for the correct instance — this is the ONLY database variable
 - **Do NOT** create custom env-swapping logic — Replit handles this natively
 - **Do NOT** reference PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE — only `DATABASE_URL` exists
 - **Do NOT** assume data from dev exists in prod or vice versa
-- See `docs/architecture/database-environments.md` for full details
+- See `docs/architecture/DATABASE_ENVIRONMENTS.md` for full details
 
 ### Rule 14: Model-Agnostic Adapter Architecture (2026-02-25)
 - The system uses a **model-agnostic adapter pattern** (`server/lib/ai/adapters/` + `model-registry.js`)
