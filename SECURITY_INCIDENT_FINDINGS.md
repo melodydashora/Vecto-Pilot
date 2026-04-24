@@ -1,8 +1,25 @@
 # Security Incident  Vecto-Pilot Credential Leak Audit
 **Generated:** 2026-04-23 (during Claude Code agent session that exited mid-task)
 **Updated:** 2026-04-24 (redacted, AQ key added per prod-log discovery)
-**Repo:** github.com/melodydashora/Vecto-Pilot (PUBLIC)
+**Scrub completed:** 2026-04-24 via `git filter-repo`. All leaked literals purged from 4209 commits; force-pushed to `origin/main`. PEM files deleted from disk. `gitsafe-backup` remote retains pre-scrub history as recovery path.
+**Repo:** github.com/melodydashora/Vecto-Pilot (**PUBLIC** — should be flipped to private per required-actions §7)
 **Trigger:** GCP project suspended ("abusive activity consistent with hijacking")
+
+## 🔴 STATUS AFTER 2026-04-24 SESSION
+
+What's done:
+- [x] **Git history scrubbed** (filter-repo, 2026-04-24) — all real-key literals removed from commits
+- [x] **Force-push to `origin/main`** — public GitHub mirror now clean
+- [x] `keys/private.pem` + `keys/public.pem` deleted from workspace filesystem
+- [x] `.gitignore` already contains `keys/` and `*.pem` (verified 2026-04-24)
+
+What remains (all Melody-at-consoles):
+- [ ] **Submit Google appeal** citing the scrubbed commits; include the force-push timestamp as proof source is clean
+- [ ] **GitHub Settings → make repo private** (stops further scanner indexing during appeal window)
+- [ ] **Rotate ALL GCP API keys** in the suspended project — list below in §Required Actions / Full GCP-Key Inventory
+- [ ] **Rotate Neon password + API token** (see §3 and §4 below)
+- [ ] **Update ALL Replit Secrets** with new values (keep env var NAMES unchanged — verified non-breaking in 2026-04-24 session)
+- [ ] **Republish** Replit Deployment — picks up rotated Secrets; prod resumes functionality
 
 ## REDACTION LEGEND (added 2026-04-24)
 
@@ -93,8 +110,38 @@ The repo is pushed to a PUBLIC GitHub mirror  Google's automated scanners (and a
 2. **In Google Cloud Console:** Delete the leaked Google API key `<LEAKED-GCP-KEY-A>` and create new restricted ones
 3. **In Neon Console:** Rotate the database password (currently exposed: `<LEAKED-NEON-PW-CURRENT>` and previous generations)
 4. **In Neon Console:** Revoke and rotate the Neon API token `<LEAKED-NEON-API-TOKEN>`
-5. **Delete `keys/private.pem` and `keys/public.pem`** from disk; regenerate a NEW JWT signing keypair; add `keys/` to `.gitignore`
+5. **`keys/private.pem` + `keys/public.pem`** — deleted from disk 2026-04-24. If Neon RLS is activated in the future, generate a fresh RS256 keypair then and re-register JWKS with Neon.
 6. **Review commits `413d94c4` (client_secret) and `37bb1714` (Uber)** for additional leaks; rotate those too
+
+### IMMEDIATE — Full GCP-Key Inventory to rotate (added 2026-04-24 from Replit Secrets audit)
+
+All of the following likely share the suspended GCP project (`quantum-fusion-486920-p2`). Google's project-level suspension cascades to ALL keys under the project — **rotate every one of them** during the same GCP Console session:
+
+| Replit Secret name | Likely use | Rotation action |
+|---|---|---|
+| `GOOGLE_CLOUD_API_KEY` | Unknown — generic Google key | Delete + reissue restricted |
+| `GOOGLE_API_KEY` | Unknown — possibly duplicate of above | Delete or deduplicate |
+| `GEMINI_API_KEY` | Gemini 3.1 Pro (briefing pipeline) | Delete + reissue; restrict to Generative Language API only |
+| `GOOGLE_MAPS_API_KEY` | Maps JS / geocoding | Delete + reissue; restrict to HTTP-referrer + Maps APIs |
+| `VITE_GOOGLE_MAPS_API_KEY` | Frontend Maps | Delete + reissue; same restriction as above (may share with MAPS key) |
+| `GOOGLEAQ_API_KEY` | Air Quality API (prod-log-confirmed suspended) | Delete + reissue; restrict to Air Quality API only |
+| `VERTEX_API_KEY` | Vertex AI | Delete + reissue; restrict to Vertex AI |
+| `VERTEXAI_API_KEY` | Duplicate of above? | Deduplicate — if truly unused, delete entirely |
+| Service account JSON (`type`, `project_id`, `private_key_id`, `private_key`, `client_email`, `client_id`, `auth_uri`, `token_uri`, `auth_provider_x509_cert_url`, `client_x509_cert_url`, `universe_domain`) | GCP service account auth (`vertex-express@...`) | Generate new service-account JSON; update all 11 Replit Secret fields |
+
+**Consolidation note:** Melody's Replit Secrets currently holds 7+ separate Google-key slots. Post-rotation, consider consolidating to ONE per API-purpose (Gemini, Maps, AQ, Vertex). Duplicates increase the attack surface and the "rotate on breach" surface.
+
+### IMMEDIATE — Related credentials flagged during 2026-04-24 audit
+
+| Replit Secret name | Status | Action |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Not leaked per this audit; change only if precautionary | Optional precautionary rotation |
+| `ANTHROPIC_API_KEY1` | Vestigial naming — test/backup? | Audit use; delete if dead |
+| `STRATEGIST_ANTHROPIC_API_KEY` | Role-specific key | Keep if distinct purpose; rotate if shares value with main |
+| `your_dev_test_key` | Template-name leftover | Audit — likely dead, delete |
+| `NEON_DATABASE_URL` | Separate from auto-injected `DATABASE_URL` | If prod uses `DATABASE_URL` only, this is redundant — delete. Otherwise rotate Neon password covers both. |
+| `VECTO_AGENT_SECRET` | Flagged in DOC_DISCREPANCIES.md D-092 as missing in prod | Generate + set in prod Replit Secrets |
+| `TOKEN_ENCRYPTION_KEY` | Flagged in DOC_DISCREPANCIES.md D-093 as missing in prod | Generate + set in prod Replit Secrets (needed for Uber OAuth token encryption) |
 
 ### SHORT TERM
 7. **Make the GitHub repo PRIVATE** (Settings  Danger Zone  Change visibility)  this stops further indexing
