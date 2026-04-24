@@ -1,7 +1,7 @@
 # Database Environments: Dev vs. Prod
 
-> **Last Updated:** 2026-04-05
-> **Status:** Verified — both environments use Replit Helium (PostgreSQL 16)
+> **Last Updated:** 2026-04-24
+> **Status:** Verified — **dev = Replit Helium local**; **prod = Neon serverless**. The 2026-04-05 "both Helium" claim was incorrect; see changelog.
 > **Priority:** CRITICAL — Read this document at every session start
 
 ---
@@ -10,13 +10,13 @@
 
 | Aspect | Development | Production |
 |--------|-------------|------------|
-| **Provider** | Replit Helium (PostgreSQL 16, local) | Replit Helium (PostgreSQL 16, deployed) |
+| **Provider** | Replit Helium (PostgreSQL 16, local) | **Neon serverless** (PostgreSQL, direct endpoint) |
 | **When active** | Replit workspace / editor | Published deployment (Cloud Run) |
-| **DATABASE_URL** | Auto-injected by Replit (dev Helium) | Auto-injected by Replit (prod Helium) |
+| **DATABASE_URL** | Auto-injected by Replit (dev Helium: `host=helium`) | Auto-injected by Replit (prod Neon: `host=ep-noisy-cake-afv3ojg3.c-2.us-...`) |
 | **Data** | Test data, dev accounts | Real driver data, real conversations |
 | **Schema** | Identical to prod | Identical to dev |
 | **Data sync** | None — completely isolated | None — completely isolated |
-| **SSL** | **No** (Helium runs locally) | **Yes** (production requires SSL) |
+| **SSL** | **No** (Helium runs locally, `sslmode=disable`) | **Yes** (Neon requires SSL; valid certs → `rejectUnauthorized: true`) |
 
 **Golden Rule:** `DATABASE_URL` is the ONLY variable that matters. Replit injects it automatically. The application code does NOT need to know which database it's talking to.
 
@@ -37,9 +37,10 @@
 │                        │                                 │    │
 │                        ▼                                 ▼    │
 │  ┌──────────────────────┐    ┌────────────────────────────┐  │
-│  │  Replit Helium (Dev)  │    │  Replit Helium (Prod)       │  │
-│  │  PostgreSQL 16        │    │  PostgreSQL 16              │  │
-│  │  Local, no SSL        │    │  SSL required               │  │
+│  │  Replit Helium (Dev)  │    │  Neon Serverless (Prod)     │  │
+│  │  PostgreSQL 16        │    │  PostgreSQL (direct endpt)  │  │
+│  │  host=helium          │    │  host=ep-noisy-cake-...     │  │
+│  │  sslmode=disable      │    │  SSL required, valid certs  │  │
 │  │                       │    │                             │  │
 │  │  - Test data          │    │  - Real driver data         │  │
 │  │  - Dev accounts       │    │  - Coach conversations      │  │
@@ -56,8 +57,8 @@
 
 Replit determines the environment at deployment time, not at runtime in our code:
 
-- **Workspace (Dev):** `DATABASE_URL` → Replit's internal Helium PostgreSQL (local, no SSL)
-- **Deployment (Prod):** `DATABASE_URL` → Replit's production Helium PostgreSQL (SSL required)
+- **Workspace (Dev):** `DATABASE_URL` → Replit's internal Helium PostgreSQL (local, `sslmode=disable`)
+- **Deployment (Prod):** `DATABASE_URL` → Neon serverless (PostgreSQL, SSL required, valid certs)
 
 The application code reads `process.env.DATABASE_URL` and connects. That's it. No branching, no env-file cascading needed.
 
@@ -131,6 +132,7 @@ The application code reads `process.env.DATABASE_URL` and connects. That's it. N
 
 ## Changelog
 
-- **2026-04-05:** Removed all Neon references. Both dev and prod confirmed as Replit Helium. Cleaned stale comments from connection-manager.js and db-client.js.
+- **2026-04-24:** **CORRECTION.** The 2026-04-05 entry incorrectly stated "both dev and prod confirmed as Replit Helium." The 2026-04-18 NEON_AUTOSCALE audit (`docs/architecture/audits/NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md`) proved prod runs Neon serverless (direct endpoint `ep-noisy-cake-afv3ojg3`). This doc, CLAUDE.md Rule 13, and `server/db/connection-manager.js` inline comments have been updated to match reality. The "removed all Neon references" in the 2026-04-05 entry was premature — Neon was still the prod provider.
+- **2026-04-05:** Removed Neon references from `connection-manager.js` and `db-client.js` on the incorrect assumption that prod had also migrated to Helium. See 2026-04-24 correction above. Prod remained on Neon throughout.
 - **2026-02-26:** Dev database migrated from Neon Serverless to Replit Helium. SSL made conditional.
 - **2026-02-25:** Created document. Confirmed dual-instance architecture.
