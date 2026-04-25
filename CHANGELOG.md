@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased] — 2026-04-25 (P0 Security Audit Fixes)
+
+### Security
+
+- **gateway-server.js — middleware ordering (P0-1).** `configureMiddleware` (helmet, cors, body parsing) now runs BEFORE `configureHealthEndpoints` and BEFORE the `express.static(distDir)` mount. Previously, security headers were not applied to health probes or the SPA bundle, leaving the static assets and `/api/health` without CSP / HSTS / X-Content-Type-Options.
+- **`/api/diagnostic/db-info` removed (P0-2).** The unauthenticated endpoint at this path leaked `database_host` (masked-but-resolvable) plus environment-detection metadata (`REPLIT_DEPLOYMENT`, `NODE_ENV`, app mode). Authenticated diagnostics under `/api/diagnostics/*` remain available.
+- **JWKS endpoint and scaffolding removed (P0-3, follow-up).** `public/.well-known/jwks.json`, `scripts/sign-token.mjs`, and `scripts/make-jwks.mjs` were deleted. The originally-committed `kid: vectopilot-rs256-k1` had been published publicly but had **zero consumers**: no JWT verification middleware referenced it, no Neon Console JWKS URL was registered, and no `keys/` directory existed in the repo. Deletion was preferred over rotation because rotation would have required provisioning a verifier downstream that does not yet exist. The bot-blocker `/.well-known/` allow-list added in the same audit was also reverted, since the endpoint is now intentionally absent.
+
+---
+
 ## [Unreleased] — 2026-04-11 (Strategist Data Enrichment — "Change Lives")
 
 ### Summary

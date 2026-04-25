@@ -79,7 +79,13 @@ process.on('unhandledRejection', (reason, promise) => {
     // 2026-02-17: Removed startEventSyncJob — events sync per-snapshot via briefing pipeline
     const { startStrategyWorker, shouldStartWorker, killAllChildren } = await import('./server/bootstrap/workers.js');
 
-    // Health endpoints FIRST (before any heavy imports)
+    // 2026-04-25: SECURITY (P0-1) — Middleware (helmet/cors/body) MUST be mounted
+    // FIRST so every response (including health and static) carries CSP / HSTS /
+    // X-Content-Type-Options. Previously these were applied after health + static,
+    // leaving the SPA bundle and probe endpoints unprotected.
+    await configureMiddleware(app);
+
+    // Health endpoints (now wrapped by helmet/cors)
     configureHealthEndpoints(app, distDir, MODE);
     await mountHealthRouter(app);
 
@@ -105,25 +111,10 @@ process.on('unhandledRejection', (reason, promise) => {
     // Static assets
     app.use(express.static(distDir));
 
-    // Middleware (CORS, Helmet, body parsing — must be ready before first request)
-    await configureMiddleware(app);
-
-    // Diagnostic endpoint
-    app.get('/api/diagnostic/db-info', (_req, res) => {
-      const dbUrl = process.env.DATABASE_URL;
-      const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@').split('@')[1] : 'NOT_SET';
-      res.json({
-        environment_detection: {
-          REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT || 'not set',
-          NODE_ENV: process.env.NODE_ENV || 'not set',
-          mode: MODE,
-        },
-        database_target: 'REPLIT_POSTGRES',
-        database_host: maskedUrl,
-        has_database_url: !!process.env.DATABASE_URL,
-        timestamp: new Date().toISOString(),
-      });
-    });
+    // 2026-04-25: SECURITY (P0-2) — `/api/diagnostic/db-info` removed. It leaked
+    // database_host (masked but resolvable) plus environment-detection metadata
+    // (REPLIT_DEPLOYMENT, NODE_ENV, mode). Use authenticated diagnostics under
+    // /api/diagnostics/* instead.
 
     // SSE (not in autoscale mode)
     if (!isAutoscaleMode) {
