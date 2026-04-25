@@ -33,6 +33,9 @@
 |----|----------|-------|------------|--------|
 | D-099 | Briefing pipeline | Event search `high_impact` timeout at 90s — returns empty | External API or query exceeds timeout; events silently dropped | PENDING |
 | D-100 | `server/bootstrap/middleware.js` | Payload too large (3x consecutive 413s) | Client doesn't validate upload size pre-flight; user retries with no helpful error | PENDING |
+| D-101 | `scripts/check-standards.js:470` | `max_tokens` deprecation regex is provider-agnostic — false-positives on `server/lib/ai/adapters/anthropic-adapter.js:28,72` where `max_tokens` is the **correct** Anthropic parameter | Surfaced 2026-04-25 during the GPT-5.5 swap. Standards check exits non-zero. Fix: scope the regex to OpenAI files only, or whitelist anthropic-adapter.js | PENDING |
+| D-102 | `server/lib/strategy/planner-gpt5.js:53` | Comment says "Registry config: gpt-5.2, medium reasoning_effort, 32000 max_tokens" — stale by two model generations and now contradicts the registry | Surfaced 2026-04-25. Either update the comment to reflect current registry state, or remove (registry is the single source of truth — Rule 14) | PENDING |
+| D-103 | `scripts/check-standards.js:430-454` | Three pre-existing standards failures (duplicate exports, non-ISO country codes, max_tokens false positives) cause `node scripts/check-standards.js` to exit non-zero independent of any current change | Surfaced 2026-04-25 during the GPT-5.5 swap. Pre-existing issues unrelated to this PR. Fix each finding on its own merits — do not bundle | PENDING |
 
 ### AI COACH (P1 — Remaining from 2026-03-18 Audit)
 

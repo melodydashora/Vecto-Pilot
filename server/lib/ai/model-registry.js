@@ -10,53 +10,14 @@
 // - UTIL_*: Utility roles for validation/parsing (no direct DB write)
 //
 // ============================================================================
-// AVAILABLE MODELS — Verified via API 2026-03-28
+// AVAILABLE MODELS
 // ============================================================================
+// This file IS the source of truth for active model assignments per role
+// (see MODEL_ROLES below). For the live API state per provider, run:
+//   node scripts/verify-models.mjs
 //
-// ANTHROPIC (9 models):
-//   claude-opus-4-6                (Latest flagship, best reasoning + code)
-//   claude-sonnet-4-6              (Fast + intelligent)
-//   claude-opus-4-5-20251101       (Previous gen flagship)
-//   claude-sonnet-4-5-20250929     (Previous gen fast)
-//   claude-opus-4-1-20250805       (Legacy)
-//   claude-opus-4-20250514         (Legacy)
-//   claude-sonnet-4-20250514       (Legacy)
-//   claude-haiku-4-5-20251001      (Fastest, cheapest — filtering/classification)
-//   claude-3-haiku-20240307        (Legacy Haiku)
-//
-// OPENAI (chat/reasoning models — 128 total including image/audio/embedding):
-//   gpt-5.4           (2026-03-05)  — Latest flagship
-//   gpt-5.4-pro       (2026-03-04)  — Latest extended reasoning
-//   gpt-5.4-mini      (2026-03-14)  — Latest fast/cheap
-//   gpt-5.4-nano      (2026-03-14)  — Latest ultra-cheap
-//   gpt-5.3-chat-latest             — Previous gen
-//   gpt-5.4           (2026-03-05)  — Current default for venue/tactical roles
-//   gpt-5.4-pro       (2026-03-04)  — Extended reasoning
-//   gpt-5.2           (2025-12-09)  — Previous default
-//   gpt-5.1 / gpt-5                 — Older generations
-//   o3-pro / o3 / o4-mini           — Reasoning-specialized
-//   gpt-5-search-api                — Web search grounded
-//
-// GOOGLE GEMINI (generation models — 48 total including image/video/audio):
-//   gemini-3.1-pro-preview          (Latest Pro, 1M input, 65K output, thinking)
-//   gemini-3.1-flash-lite-preview   (Latest ultra-cheap)
-//   gemini-3-pro-preview            (Previous Pro)
-//   gemini-3-flash-preview          (Fast/cheap, thinking supports LOW/MED/HIGH)
-//   gemini-2.5-pro                  (Stable release, 1M input, 65K output)
-//   gemini-2.5-flash                (Stable flash, 1M input)
-//   gemini-2.0-flash                (Legacy fast)
-//
-// SPECIALTY MODELS (available but not assigned to roles):
-//   gemini-2.5-flash-native-audio-*    (Realtime voice via bidiGenerateContent)
-//   gemini-3-pro-image-preview         (Vision-optimized, "Nano Banana Pro")
-//   gemini-3.1-flash-image-preview     (Image generation, "Nano Banana 2")
-//   gemini-3.1-pro-preview-customtools (Custom tool use)
-//   gpt-5.2-codex / gpt-5.4-pro       (Code-specialized)
-//   o3-deep-research                   (Long-form research)
-//
-// ============================================================================
-//
-// Last updated: 2026-03-28 (verified via scripts/verify-models.mjs)
+// Last upgraded: 2026-04-25 — OpenAI flagship → gpt-5.5-2026-04-23
+//   (verified live via /v1/models listing + chat completion ping)
 
 /**
  * Model roles following {TABLE}_{FUNCTION} convention.
@@ -193,10 +154,10 @@ export const MODEL_ROLES = {
   // ==========================
   // 3. RANKING_CANDIDATES (VENUES)
   // ==========================
-  // 2026-03-28: Upgraded gpt-5.2 → gpt-5.4 (verified via API, released 2026-03-05)
+  // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23 (verified live via /v1/models + chat completion ping)
   VENUE_SCORER: {
     envKey: 'VENUE_SCORER_MODEL',
-    default: 'gpt-5.4',
+    default: 'gpt-5.5-2026-04-23',
     purpose: 'SmartBlocks venue scoring and selection',
     maxTokens: 16000,
     reasoningEffort: 'medium',
@@ -269,10 +230,10 @@ export const MODEL_ROLES = {
     maxTokens: 2048,
     temperature: 0.1,
   },
-  // 2026-03-28: Upgraded gpt-5.2 → gpt-5.4
+  // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23
   UTIL_MARKET_PARSER: {
     envKey: 'UTIL_PARSER_MODEL',
-    default: 'gpt-5.4',
+    default: 'gpt-5.5-2026-04-23',
     purpose: 'Parsing unstructured market research data',
     maxTokens: 16000,
     reasoningEffort: 'low',
@@ -448,9 +409,9 @@ export function getFallbackConfig(primaryProvider) {
   if (primaryProvider === 'google') {
     // Google primary → OpenAI fallback (cross-provider redundancy)
     // Uses gpt-5-search-api via callOpenAIWithWebSearch for roles needing web search
-    // 2026-03-28: Upgraded gpt-5.2 → gpt-5.4
+    // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23
     return {
-      model: 'gpt-5.4',
+      model: 'gpt-5.5-2026-04-23',
       maxTokens: 8192,
       reasoningEffort: 'low',
     };
@@ -461,7 +422,7 @@ export function getFallbackConfig(primaryProvider) {
 
 /**
  * Get provider for a model name
- * @param {string} model - Model name (e.g., 'gpt-5.4', 'claude-opus-4-6')
+ * @param {string} model - Model name (e.g., 'gpt-5.5-2026-04-23', 'claude-opus-4-6')
  * @returns {string} Provider name ('openai', 'anthropic', 'google', 'unknown')
  */
 export function getProviderForModel(model) {
@@ -733,7 +694,7 @@ export function getLLMDiagnostics() {
 
   // Check OpenAI
   if (process.env.OPENAI_API_KEY) {
-    const model = process.env.OPENAI_MODEL || 'gpt-5.4';
+    const model = process.env.OPENAI_MODEL || 'gpt-5.5-2026-04-23';
     providers.push({ key: 'openai', model });
   }
 
@@ -746,7 +707,7 @@ export function getLLMDiagnostics() {
   return {
     providers,
     preferred: process.env.PREFERRED_MODEL || 'google:gemini-3.1-pro-preview',
-    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.4,anthropic:claude-opus-4-6',
+    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-opus-4-6',
   };
 }
 

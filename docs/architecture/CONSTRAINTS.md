@@ -81,9 +81,10 @@ The documentation should be updated to include these additional environment vari
 - **Env Var:** `STRATEGY_BRIEFER`
 - **Auth:** `GEMINI_API_KEY`
 
-**Consolidator (GPT-5):**
-- **Default Model:** `gpt-5.2`
+**Consolidator (OpenAI):**
+- **Provider:** OpenAI (GPT-5 family — chat/reasoning class).
 - **Env Var:** `STRATEGY_CONSOLIDATOR`
+- **Active model assignment:** `server/lib/ai/model-registry.js` (single source of truth — this doc intentionally does NOT hardcode the version per Rule 14).
 - **Role:** Synthesis and final output generation.
 
 **Event Validator (Claude Opus):**
@@ -91,9 +92,10 @@ The documentation should be updated to include these additional environment vari
 - **Env Var:** `STRATEGY_EVENT_VALIDATOR`
 - **Role:** Event validation (with web search).
 
-**Venue Planner (GPT-5):**
-- **Default Model:** `gpt-5.2`
+**Venue Planner (OpenAI):**
+- **Provider:** OpenAI (GPT-5 family — chat/reasoning class).
 - **Env Var:** `STRATEGY_VENUE_PLANNER`
+- **Active model assignment:** `server/lib/ai/model-registry.js` (single source of truth).
 - **Role:** Venue planning.
 
 **Agent Policy Budgets & Tokens:**
@@ -103,9 +105,10 @@ The documentation should be updated to include these additional environment vari
 ### Voice Configuration
 
 **Voice Model:**
-- **Default Model:** `gpt-5.2`
+- **Provider:** OpenAI Realtime API (must be a realtime-class model — chat-class models like `gpt-5.x` will fail against `/v1/realtime/sessions`).
 - **Env Var:** `VOICE_MODEL`
-- **Role:** OpenAI Realtime voice processing.
+- **Active model assignment:** `server/config/env-registry.js` (`VOICE_MODEL` default) and `server/api/chat/realtime.js`.
+- **Role:** Real-time voice-to-voice for the Rideshare Coach (separate model class from text/reasoning paths — do not collapse).
 
 ### Holiday Detector
 

@@ -85,7 +85,7 @@ export function validateEnvironment() {
   // Defaults come from env-registry.js; adapter layer validates credentials at runtime
   const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-6';
   const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3.1-pro-preview';
-  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.4';
+  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.5-2026-04-23';
 
   console.log('[env-validation] AI Model Configuration:', {
     strategist,

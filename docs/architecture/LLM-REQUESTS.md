@@ -107,7 +107,7 @@ Provides cross-provider fallback:
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `VENUE_SCORER` | gpt-5.4 | reasoningEffort=medium | Venue scoring |
+| `VENUE_SCORER` | OpenAI (GPT-5 reasoning) — see registry | reasoningEffort=medium | Venue scoring |
 | `VENUE_FILTER` | claude-haiku-4-5-20251001 | — | Fast venue classification |
 | `VENUE_TRAFFIC` | gemini-3.1-pro-preview | — | Venue traffic analysis |
 | `VENUE_EVENT_VERIFIER` | gemini-3.1-pro-preview | — | Event verification |
@@ -131,7 +131,7 @@ Provides cross-provider fallback:
 |------|-------|----------|---------|
 | `UTIL_TRANSLATION` | gemini-3.1-flash-lite-preview | — | Driver-rider translation |
 | `UTIL_RESEARCH` | gemini-3.1-pro-preview | search | General research |
-| `UTIL_MARKET_PARSER` | gpt-5.4 | reasoningEffort=low | Market data parsing |
+| `UTIL_MARKET_PARSER` | OpenAI (GPT-5 reasoning) — see registry | reasoningEffort=low | Market data parsing |
 
 #### Offer Analysis
 

@@ -21,14 +21,14 @@
 
 ## 1. Current Model Versions
 
-| Provider | Model | Roles Using It |
-|----------|-------|---------------|
-| **Google** | `gemini-3.1-pro-preview` | All BRIEFING_*, AI_COACH, CONCIERGE_*, STRATEGY_CONTEXT, VENUE_TRAFFIC, VENUE_EVENT_VERIFIER, UTIL_RESEARCH, OFFER_ANALYZER_DEEP |
-| **Google** | `gemini-3-flash-preview` | OFFER_ANALYZER (Phase 1, vision) |
-| **Google** | `gemini-3.1-flash-lite-preview` | UTIL_TRANSLATION |
-| **Anthropic** | `claude-opus-4-6` | STRATEGY_CORE, STRATEGY_TACTICAL, STRATEGY_DAILY |
-| **Anthropic** | `claude-haiku-4-5-20251001` | VENUE_FILTER |
-| **OpenAI** | `gpt-5.4` | VENUE_SCORER, UTIL_MARKET_PARSER |
+> **Specific model versions are not enumerated here** — this doc describes upgrade strategy, not the current registry state. Per Rule 14 (model-agnostic adapter architecture), the registry at `server/lib/ai/model-registry.js` is the single source of truth for what model each role uses today.
+>
+> To see the current per-role assignment: open `MODEL_ROLES` in `server/lib/ai/model-registry.js`, or run `node scripts/verify-models.mjs` to verify against the live `/v1/models` endpoint per provider.
+>
+> **Active providers and role classes:**
+> - **Google Gemini** (Pro / Flash / Flash Lite) — briefings, coach, concierge, vision-based offer analysis, translation
+> - **Anthropic Claude** (flagship + Haiku) — strategy generation, fast venue classification
+> - **OpenAI** (GPT-5 chat/reasoning + Realtime voice class) — venue scoring, market parsing, voice-to-voice coach
 
 ---
 
@@ -46,10 +46,11 @@
 - **Instruction following** — Claude produces consistently structured output (GO/AVOID/WHEN/WHY format).
 - **Reliability** — Claude Opus is the most reliable for long-form generation.
 
-### Why GPT-5.4 for Venue Scoring?
+### Why OpenAI GPT-5 family for Venue Scoring?
 
-- **Structured JSON output** — GPT-5.4 with `reasoningEffort: medium` produces well-formed venue recommendation JSON.
+- **Structured JSON output** — OpenAI reasoning models (GPT-5 family) with `reasoningEffort: medium` produce well-formed venue recommendation JSON.
 - **Reasoning capability** — Venue scoring requires spatial reasoning and multi-factor analysis.
+- **Specific version assignment** lives in the registry (`server/lib/ai/model-registry.js` → `VENUE_SCORER.default`).
 
 ### Why Haiku for Venue Filtering?
 
@@ -118,13 +119,15 @@ Changing a model name automatically routes to the correct adapter.
 
 ## 5. Cost Comparison
 
-| Model | Input Cost | Output Cost | Primary Use | Volume |
-|-------|-----------|-------------|-------------|--------|
-| Gemini 3.1 Pro | ~$1.25/1M tokens | ~$5.00/1M | Briefing (7 calls/snapshot) | HIGH |
-| Claude Opus 4.6 | ~$15/1M tokens | ~$75/1M | Strategy (1-2 calls/snapshot) | LOW |
-| GPT-5.4 | ~$2.50/1M tokens | ~$10/1M | Venue scoring (1 call/snapshot) | LOW |
-| Haiku 4.5 | ~$0.25/1M tokens | ~$1.25/1M | Venue filter (1 call/request) | MEDIUM |
-| Flash Lite | ~$0.075/1M tokens | ~$0.30/1M | Translation (many/ride) | HIGH |
+| Provider tier | Input Cost | Output Cost | Primary Use | Volume |
+|---------------|-----------|-------------|-------------|--------|
+| Gemini Pro (current) | ~$1.25/1M tokens | ~$5.00/1M | Briefing (7 calls/snapshot) | HIGH |
+| Claude flagship (current) | ~$15/1M tokens | ~$75/1M | Strategy (1-2 calls/snapshot) | LOW |
+| OpenAI GPT-5 reasoning | ~$2.50/1M tokens | ~$10/1M | Venue scoring (1 call/snapshot) | LOW |
+| Claude Haiku | ~$0.25/1M tokens | ~$1.25/1M | Venue filter (1 call/request) | MEDIUM |
+| Gemini Flash Lite | ~$0.075/1M tokens | ~$0.30/1M | Translation (many/ride) | HIGH |
+
+> Costs are tier-level estimates (per-token pricing differs by exact model version). For exact pricing, consult each provider's pricing page; specific model assignment lives in the registry.
 
 **Cost driver:** Briefing pipeline is highest volume (7+ LLM calls per snapshot, all Gemini with Google Search). Strategy is highest per-call cost (Claude Opus) but low volume.
 

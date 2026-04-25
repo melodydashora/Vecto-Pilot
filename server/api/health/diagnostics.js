@@ -516,7 +516,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const modelId = process.env.OPENAI_MODEL || 'gpt-5.4';
+        const modelId = process.env.OPENAI_MODEL || 'gpt-5.5-2026-04-23';
         // 2026-01-07: GPT-5 family requires max_completion_tokens (not max_tokens)
         // See LESSONS_LEARNED.md: "max_tokens is DEPRECATED - use max_completion_tokens"
         const response = await openai.chat.completions.create({

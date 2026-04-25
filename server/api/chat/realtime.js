@@ -15,7 +15,11 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Voice model configuration
 // COACH_VOICE role: Real-time voice chat with snapshot context
-const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-5.4';
+// 2026-04-25: Switched default 'gpt-5.4' → 'gpt-realtime'. The Realtime API
+// (/v1/realtime/sessions) only accepts realtime-class models; chat models like
+// gpt-5.x will fail. Text/reasoning paths use OPENAI_MODEL=gpt-5.5-2026-04-23,
+// which is intentionally distinct from the voice loop.
+const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-realtime';
 const TOKEN_EXPIRY_SECONDS = 3600; // 1 hour
 
 /**

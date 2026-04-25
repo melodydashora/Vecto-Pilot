@@ -33,17 +33,22 @@ Each role in `MODEL_ROLES` defines:
 *   **features**: Capabilities array (e.g., `['google_search', 'vision']`).
 *   **reasoningEffort**: (GPT-5.2/o1 only) `low`, `medium`, or `high`.
 
-## Current Model Landscape (February 2026)
+## Active Provider Tiers
 
-| Provider | Model | ID | Context | Max Output | Primary Use |
-|----------|-------|----|---------|------------|-------------|
-| Anthropic | Claude Opus 4.6 | `claude-opus-4-6` | 1M (beta) | 128K | Strategy core, event validation |
-| Anthropic | Claude Sonnet 4.6 | `claude-sonnet-4-6` | 1M (beta) | 64K | Fast + intelligent (available) |
-| Anthropic | Claude Haiku 4.5 | `claude-haiku-4-5-20251001` | 200K | 8K | Venue classification |
-| Google | Gemini 3.1 Pro | `gemini-3.1-pro-preview` | 1M | 65K | Briefings, Rideshare Coach, context |
-| Google | Gemini 3 Flash | `gemini-3-flash-preview` | 1M | 65K | Offer analyzer, fallbacks |
-| OpenAI | GPT-5.2 | `gpt-5.2` | 400K | 128K | Tactical strategy, venue scoring |
-| Perplexity | Sonar Pro | `sonar-pro` | 200K | 8K | Web-grounded research |
+> **Specific model IDs and context/output limits live in the registry** — see `server/lib/ai/model-registry.js` (`MODEL_ROLES`) for the current default per role. This document tracks provider/tier choices and architectural intent, not specific versions (per Rule 14).
+>
+> To verify current API availability per provider, run: `node scripts/verify-models.mjs`
+
+| Provider | Tier | Primary Use |
+|----------|------|-------------|
+| Anthropic | Claude flagship | Strategy core, tactical strategy, daily strategy, event validation |
+| Anthropic | Claude Haiku | Fast venue classification (P/S/X) |
+| Google | Gemini Pro | Briefings (weather/traffic/news/events/schools/airport/holiday), AI Coach, concierge, context, vision deep analysis |
+| Google | Gemini Flash | Offer analyzer (Phase 1, vision), cross-provider fallback |
+| Google | Gemini Flash Lite | Real-time driver-rider translation |
+| OpenAI | GPT-5 chat/reasoning | Venue scoring, market parsing, search-grounded fallback |
+| OpenAI | GPT Realtime (voice class) | Voice-to-voice Rideshare Coach (separate model class — chat models will fail against `/v1/realtime/sessions`) |
+| Perplexity | Sonar Pro | Web-grounded research (event/venue research only) |
 
 ### Specialty Models (Available, Not Yet Assigned to Roles)
 
@@ -54,10 +59,11 @@ Each role in `MODEL_ROLES` defines:
 
 > **Critical:** Each provider has different parameter requirements. The adapters handle this automatically, but these constraints matter when configuring roles.
 
-### OpenAI (GPT-5.2 / o1)
+### OpenAI (GPT-5 family / o1 / o3 / o4)
 *   Use `max_completion_tokens` (NOT `max_tokens`)
 *   Use `reasoning_effort` (`low`/`medium`/`high`) instead of `temperature`
 *   `temperature` is NOT supported when reasoning is enabled
+*   The OpenAI adapter (`server/lib/ai/adapters/openai-adapter.js`) detects this family by prefix (`gpt-5`, `o1-`, `o3`, `o4-`) and applies the constraints automatically — no per-version branching needed.
 
 ### Anthropic (Claude 4.6)
 *   Use `max_tokens` (this is the CURRENT parameter — NOT deprecated)

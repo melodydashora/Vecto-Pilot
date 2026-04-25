@@ -84,7 +84,7 @@ export const ENV_VARS = {
   },
   STRATEGY_CONSOLIDATOR: {
     required: false,
-    default: 'gpt-5.4',
+    default: 'gpt-5.5-2026-04-23',
     description: 'Model for immediate strategy consolidation',
   },
   STRATEGY_EVENT_VALIDATOR: {
@@ -94,7 +94,7 @@ export const ENV_VARS = {
   },
   STRATEGY_VENUE_PLANNER: {
     required: false,
-    default: 'gpt-5.4',
+    default: 'gpt-5.5-2026-04-23',
     description: 'Model for venue planning',
   },
 
@@ -116,10 +116,12 @@ export const ENV_VARS = {
   },
 
   // === Voice ===
+  // 2026-04-25: Realtime API requires a realtime-class model, not a chat model.
+  // Previous default 'gpt-5.4' was wrong-class and would 4xx against /v1/realtime/sessions.
   VOICE_MODEL: {
     required: false,
-    default: 'gpt-5.4',
-    description: 'OpenAI Realtime voice model',
+    default: 'gpt-realtime',
+    description: 'OpenAI Realtime voice-to-voice model (must be realtime class)',
   },
 
   // === External APIs ===

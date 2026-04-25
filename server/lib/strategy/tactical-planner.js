@@ -563,7 +563,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       degraded,
       degradedReason,
       metadata: {
-        model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.4",
+        model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.5-2026-04-23",
         duration_ms: Date.now() - startTime, // includes resolution time
         venues_from_llm: llmVenues.length,
         venues_resolved: resolvedVenues.length,

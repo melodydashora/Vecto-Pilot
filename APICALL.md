@@ -75,15 +75,15 @@
 - **Purpose**: Strategic analysis and planning
 - **UI Location**: StrategyPage strategy display
 
-#### OpenAI (GPT-5.2)
+#### OpenAI
 - **Files**:
   - [server/lib/ai/adapters/openai-adapter.js](/server/lib/ai/adapters/openai-adapter.js)
   - [server/lib/strategy/planner-gpt5.js](/server/lib/strategy/planner-gpt5.js)
-- **Endpoints**: `https://api.openai.com/v1/chat/completions`
-- **Models**:
-  - `gpt-5.2` (primary — STRATEGY_TACTICAL, VENUE_SCORER, UTIL_MARKET_PARSER)
-- **Purpose**: Tactical venue planning, strategy consolidation, venue scoring
-- **UI Location**: SmartBlocks venue recommendations, BarsTable venue list
+- **Endpoints**: `https://api.openai.com/v1/chat/completions`, `https://api.openai.com/v1/realtime/sessions`
+- **Roles using OpenAI:** `VENUE_SCORER`, `UTIL_MARKET_PARSER`, voice loop (Realtime API).
+- **Active model assignment:** see `server/lib/ai/model-registry.js` (`MODEL_ROLES`). This file no longer hardcodes specific model versions per Rule 14 (model-agnostic adapter architecture).
+- **Purpose**: Venue scoring, market data parsing, Realtime voice-to-voice (`gpt-realtime` class — distinct from chat-class models).
+- **UI Location**: SmartBlocks venue recommendations, voice coach session.
 
 #### Google Gemini
 - **Files**:
