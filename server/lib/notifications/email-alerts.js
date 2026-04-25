@@ -168,3 +168,76 @@ export async function sendTestEmail() {
     return { success: false, error: err.message };
   }
 }
+
+// 2026-04-25: Event signup alerts for hosted_events POC.
+// Plan: docs/plans/PLAN_event-signup-page-2026-04-25.md
+/**
+ * Notify Melody whenever someone signs up for a hosted event.
+ * @param {Object} params
+ * @param {Object} params.event        hosted_events row (title, slug, event_date, etc.)
+ * @param {Object} params.signup       new event_signups row
+ * @param {string} params.signup.status  'confirmed' | 'waitlist'
+ * @param {number} params.confirmedCount roster count after this signup landed
+ * @param {number} params.maxAttendees   event cap
+ * @param {number} params.priceCentsAtSignup price the attendee committed to
+ */
+export async function sendEventSignupAlert({
+  event,
+  signup,
+  confirmedCount,
+  maxAttendees,
+  priceCentsAtSignup,
+}) {
+  if (!resend) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('[email-alerts] Skipping signup alert (no API key):', signup?.email);
+    }
+    return { success: false, error: 'RESEND_API_KEY not configured' };
+  }
+
+  const isWaitlist = signup.status === 'waitlist';
+  const statusEmoji = isWaitlist ? '🕓' : '🎉';
+  const statusLabel = isWaitlist ? 'WAITLIST' : 'CONFIRMED';
+  const priceUSD = priceCentsAtSignup != null
+    ? `$${(priceCentsAtSignup / 100).toFixed(2)}`
+    : '—';
+
+  const subject = `${statusEmoji} New signup: ${event.title} — ${signup.full_name} (${statusLabel})`;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: ${isWaitlist ? '#f59e0b' : '#16a34a'};">${statusEmoji} ${statusLabel} — ${event.title}</h2>
+      <p style="color:#374151;">A new attendee just signed up.</p>
+
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr><td style="padding:6px;border-bottom:1px solid #e5e7eb;font-weight:bold;width:160px;">Event:</td><td style="padding:6px;border-bottom:1px solid #e5e7eb;">${event.title} <small style="color:#6b7280;">(${event.event_date})</small></td></tr>
+        <tr><td style="padding:6px;border-bottom:1px solid #e5e7eb;font-weight:bold;">Name:</td><td style="padding:6px;border-bottom:1px solid #e5e7eb;">${signup.full_name}</td></tr>
+        <tr><td style="padding:6px;border-bottom:1px solid #e5e7eb;font-weight:bold;">Email:</td><td style="padding:6px;border-bottom:1px solid #e5e7eb;"><a href="mailto:${signup.email}">${signup.email}</a></td></tr>
+        <tr><td style="padding:6px;border-bottom:1px solid #e5e7eb;font-weight:bold;">Phone:</td><td style="padding:6px;border-bottom:1px solid #e5e7eb;">${signup.phone || '—'}</td></tr>
+        <tr><td style="padding:6px;border-bottom:1px solid #e5e7eb;font-weight:bold;">Pickup:</td><td style="padding:6px;border-bottom:1px solid #e5e7eb;">${signup.pickup_address || '—'}</td></tr>
+        <tr><td style="padding:6px;border-bottom:1px solid #e5e7eb;font-weight:bold;">Notes:</td><td style="padding:6px;border-bottom:1px solid #e5e7eb;">${signup.notes || '—'}</td></tr>
+        <tr><td style="padding:6px;border-bottom:1px solid #e5e7eb;font-weight:bold;">Status:</td><td style="padding:6px;border-bottom:1px solid #e5e7eb;"><strong>${statusLabel}</strong></td></tr>
+        <tr><td style="padding:6px;border-bottom:1px solid #e5e7eb;font-weight:bold;">Price committed:</td><td style="padding:6px;border-bottom:1px solid #e5e7eb;">${priceUSD}</td></tr>
+        <tr><td style="padding:6px;font-weight:bold;">Roster:</td><td style="padding:6px;">${confirmedCount} / ${maxAttendees} confirmed</td></tr>
+      </table>
+
+      <p style="color:#6b7280;font-size:12px;margin-top:16px;">
+        Manage attendees in the admin view: <code>/co-pilot/events-admin</code>
+      </p>
+    </div>
+  `;
+
+  try {
+    const result = await resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: ALERT_EMAIL,
+      subject,
+      html,
+    });
+    console.log(`📧 [EMAIL] Signup alert sent for ${signup.email}:`, result?.id);
+    return { success: true, id: result?.id };
+  } catch (err) {
+    console.error(`📧 [EMAIL] Signup alert failed:`, err.message);
+    return { success: false, error: err.message };
+  }
+}

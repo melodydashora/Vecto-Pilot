@@ -31,6 +31,10 @@ import AuthRedirect from '@/components/auth/AuthRedirect';
 import ConciergePage from '@/pages/co-pilot/ConciergePage';
 import PublicConciergePage from '@/pages/concierge/PublicConciergePage';
 import LandingPage from '@/pages/landing/LandingPage';
+// 2026-04-25: Hosted-event signup POC — see docs/plans/PLAN_event-signup-page-2026-04-25.md
+import PublicEventsListPage from '@/pages/events/PublicEventsListPage';
+import PublicEventSignupPage from '@/pages/events/PublicEventSignupPage';
+import EventsAdminPage from '@/pages/co-pilot/EventsAdminPage';
 
 export const router = createBrowserRouter([
   // ═══════════════════════════════════════════════════════════════════════════
@@ -78,6 +82,16 @@ export const router = createBrowserRouter([
   {
     path: '/demo',
     element: <LandingPage />,
+  },
+
+  // 2026-04-25: Public event sign-up (POC) — hosted_events table
+  {
+    path: '/events',
+    element: <PublicEventsListPage />,
+  },
+  {
+    path: '/events/:slug',
+    element: <PublicEventSignupPage />,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -173,6 +187,11 @@ export const router = createBrowserRouter([
       {
         path: 'help',
         element: <HelpPage />,
+      },
+      // 2026-04-25: Hosted-event admin (POC) — manage paid mentor sessions
+      {
+        path: 'events-admin',
+        element: <EventsAdminPage />,
       },
     ],
   },

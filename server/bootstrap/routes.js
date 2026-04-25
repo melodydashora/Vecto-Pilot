@@ -110,6 +110,11 @@ export async function mountRoutes(app, server) {
     { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
     { path: '/api/hooks', module: './server/api/hooks/translate.js', desc: 'Siri Translation Hook' },
 
+    // Hosted Events (server/api/events/) — 2026-04-25: POC public event signup
+    // Plan: docs/plans/PLAN_event-signup-page-2026-04-25.md
+    { path: '/api/public/events', module: './server/api/events/public-events.js', desc: 'Public Events (signup)' },
+    { path: '/api/admin/events',  module: './server/api/events/admin-events.js',  desc: 'Admin Events (CRUD + itinerary)' },
+
     // 2026-01-09: Removed EventEmitter SSE - DB NOTIFY SSE is canonical (mountSSE)
     // The /events mount was duplicating /events/strategy, /events/blocks with EventEmitter
     // while mountSSE() mounts DB-backed versions at same paths. See LESSONS_LEARNED.md.
