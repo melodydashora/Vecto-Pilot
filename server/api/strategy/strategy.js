@@ -23,6 +23,52 @@ const router = Router();
 // Previously these were completely open, allowing anyone to fetch/run strategies for any snapshotId
 router.use(requireAuth);
 
+// 2026-04-25 (P2-9): /history MUST be declared BEFORE /:snapshotId or Express
+// matches the param route first and "history" is treated as a snapshotId.
+
+/** GET /api/strategy/history?user_id=X - Get all strategy attempts for a user */
+router.get('/history', async (req, res) => {
+  const { user_id } = req.query;
+
+  if (!user_id) {
+    return res.status(400).json({ error: 'user_id_required' });
+  }
+
+  try {
+    console.log(`[strategy] GET /api/strategy/history?user_id=${user_id}`);
+
+    const attempts = await db.select({
+      snapshot_id: strategies.snapshot_id,
+      status: strategies.status,
+      created_at: strategies.created_at,
+      updated_at: strategies.updated_at,
+      has_consolidated: strategies.consolidated_strategy,
+      has_strategy_for_now: strategies.strategy_for_now,
+      error_message: strategies.error_message
+    })
+      .from(strategies)
+      .where(eq(strategies.user_id, user_id))
+      .orderBy(desc(strategies.created_at))
+      .limit(50);
+
+    // Map database status to UI status
+    const mappedAttempts = attempts.map(a => ({
+      snapshot_id: a.snapshot_id,
+      status: a.has_consolidated ? 'complete' :
+              a.status === 'failed' ? 'failed' :
+              a.error_message ? 'write_failed' :
+              'pending',
+      created_at: a.created_at,
+      updated_at: a.updated_at
+    }));
+
+    res.json({ ok: true, attempts: mappedAttempts });
+  } catch (error) {
+    console.error(`[strategy] GET history error:`, error);
+    res.status(500).json({ error: 'internal_error', message: error.message });
+  }
+});
+
 /** GET /api/strategy/:snapshotId */
 router.get('/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
@@ -249,49 +295,6 @@ router.post('/:snapshotId/retry', async (req, res) => {
     });
   } catch (error) {
     console.error(`[strategy] Retry error:`, error);
-    res.status(500).json({ error: 'internal_error', message: error.message });
-  }
-});
-
-/** GET /api/strategy/history?user_id=X - Get all strategy attempts for a user */
-router.get('/history', async (req, res) => {
-  const { user_id } = req.query;
-  
-  if (!user_id) {
-    return res.status(400).json({ error: 'user_id_required' });
-  }
-  
-  try {
-    console.log(`[strategy] GET /api/strategy/history?user_id=${user_id}`);
-    
-    const attempts = await db.select({
-      snapshot_id: strategies.snapshot_id,
-      status: strategies.status,
-      created_at: strategies.created_at,
-      updated_at: strategies.updated_at,
-      has_consolidated: strategies.consolidated_strategy,
-      has_strategy_for_now: strategies.strategy_for_now,
-      error_message: strategies.error_message
-    })
-      .from(strategies)
-      .where(eq(strategies.user_id, user_id))
-      .orderBy(desc(strategies.created_at))
-      .limit(50);
-    
-    // Map database status to UI status
-    const mappedAttempts = attempts.map(a => ({
-      snapshot_id: a.snapshot_id,
-      status: a.has_consolidated ? 'complete' : 
-              a.status === 'failed' ? 'failed' : 
-              a.error_message ? 'write_failed' : 
-              'pending',
-      created_at: a.created_at,
-      updated_at: a.updated_at
-    }));
-    
-    res.json({ ok: true, attempts: mappedAttempts });
-  } catch (error) {
-    console.error(`[strategy] GET history error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
