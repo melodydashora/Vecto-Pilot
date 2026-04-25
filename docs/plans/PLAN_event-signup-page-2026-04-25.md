@@ -19,7 +19,7 @@ Ship a public-facing event sign-up flow on Vecto Pilot so Melody can run paid dr
 
 ## 2. Non-goals (deferred to v2)
 
-- **Payment collection.** v1 displays price only — Melody collects payment off-platform (Cash App / Zelle / etc.) per Next Door norms. Stripe Checkout integration is out of scope.
+- **Payment collection.** v1 displays price only — Melody collects payment off-platform (Cash App / Zelle / etc.) per Next Door norms. v2 will integrate **Square** (not Stripe) — likely Square Invoices API, sending a per-attendee invoice link from inside the existing `sendEventSignupAlert` fire-and-forget block. No schema change required (`price_cents_at_signup` is already captured at signup time).
 - **Auto-promotion of waitlist on cancellation.** v1 = manual promote button.
 - **Recurring events / templates.** v1 = each event is a standalone row.
 - **Per-attendee individual itineraries.** v1 = one shared itinerary per event for the whole roster.
@@ -37,7 +37,7 @@ Ship a public-facing event sign-up flow on Vecto Pilot so Melody can run paid dr
 | Itinerary trigger | Admin-only, manual button | Avoids wasting AI calls on cancellable signups |
 | Itinerary model | `claude-haiku-4-5` ("fastest model" per ask) | Simple summarization-class task, sub-second responses |
 | Waitlist promotion | Manual button in admin | Simpler than auto-promote; no email-on-promote in v1 |
-| Payments | RSVP only, display price | Defer Stripe to v2 |
+| Payments | RSVP only, display price | Defer Square integration to v2 |
 | Auth on signup form | None (public) | POC; rely on email uniqueness + admin moderation |
 | Auth on admin views | `requireAuth` middleware (any logged-in user) | Acceptable for single-operator POC; tighten to role check in v2 |
 
