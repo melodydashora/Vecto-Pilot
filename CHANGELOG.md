@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased] — 2026-04-25 (P3 DB Sanity + Audit Verification)
+
+### Database / Audit
+
+- **`server/scripts/seed-dfw-venues.js`** — schema-mismatch fix. The script referenced `venue_catalog.name` and `{ name }` on the insert payload, but the Drizzle schema column is `venue_name`. Drizzle generated `WHERE  = $1` (empty column) and the seed 42601'd before inserting anything. Fixed inline so the seed completes; the local `dfwVenues` records keep `name` for readability and are mapped to `venue_name` at insert time.
+- **`AUDIT_DB_COUNTS.md`** (new, top-level) — snapshot of `COUNT(*)` for the 15 audit-watch tables on the active DB. Documents that `pg_stat_user_tables.n_live_tup` was stale (autovacuum had not run; reported 0 for tables that actually held thousands of rows). Real `COUNT(*)` is the source of truth in this report.
+- **`VERIFICATION.md`** (new, top-level) — per-item verification table for the 13 audit-fix items, including the verify command and observed output for each.
+
+### Trigger conditions not met (logged for next run)
+
+- The P3-13 catch-block instrumentation directive triggers when `users`, `snapshots`, `strategies`, `briefings`, `rankings`, or `triad_jobs` are 0 in a DB known to have been used. None were 0 in dev (Helium) at the time of this audit. A separate prod-recheck script (`scripts/p3-13-prod-recheck.mjs`, added in a follow-up commit) is provided so the same trigger condition can be evaluated against Neon prod, where dev/prod have isolated data per Rule 13.
+
+---
+
 ## [Unreleased] — 2026-04-25 (P0 Security Audit Fixes)
 
 ### Security
