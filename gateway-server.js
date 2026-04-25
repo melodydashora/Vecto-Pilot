@@ -70,6 +70,10 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // Create Express app
     app = express();
+    // 2026-04-25 (helmet-hardening): kill the X-Powered-By: Express leak at the
+    // Express level. helmet().hidePoweredBy strips the header after the fact;
+    // app.disable() prevents it from ever being emitted, race-free.
+    app.disable('x-powered-by');
     app.set('trust proxy', 1);
 
     // Import bootstrap modules

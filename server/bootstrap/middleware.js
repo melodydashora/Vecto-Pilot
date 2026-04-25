@@ -56,6 +56,25 @@ export async function configureMiddleware(app) {
     hsts: { maxAge: 31536000, includeSubDomains: true },
   }));
 
+  // 2026-04-25: Permissions-Policy — scope browser feature access for monetization
+  // and for upcoming Coach voice work. Helmet 8 doesn't set this directly.
+  //
+  //   microphone=(self):  Coach voice tab needs mic. Strategy and other tabs do NOT.
+  //   camera=():          no camera access anywhere (deny).
+  //   geolocation=(self): Strategy/Snapshot needs GPS.
+  //   payment=():         deny. Flip to ('self') when Stripe ships.
+  //   usb=(), bluetooth=(), midi=(): hard-deny.
+  //   display-capture=(), clipboard-read=(): hard-deny (no screen-share, no clip-read).
+  //   clipboard-write=(self): allow copy actions in Coach answers.
+  //   fullscreen=(self):  allow fullscreen for Map / Coach driving mode.
+  app.use((req, res, next) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'microphone=(self), camera=(), geolocation=(self), payment=(), usb=(), bluetooth=(), midi=(), display-capture=(), clipboard-read=(), clipboard-write=(self), fullscreen=(self)'
+    );
+    next();
+  });
+
   // 2026-03-17: SECURITY FIX (F-2) — CORS origin whitelist replaces reflect-all.
   // Previously `origin: true` reflected any origin with credentials, enabling CSRF.
   // Now only Replit deployment domains and localhost are allowed.
@@ -110,13 +129,17 @@ export async function configureMiddleware(app) {
   // Applied before JSON parsing to reject floods early and save CPU on body parsing.
   try {
     const rateLimitPath = path.join(rootDir, 'server/middleware/rate-limit.js');
-    const { globalApiLimiter, healthLimiter } = await import(pathToFileURL(rateLimitPath).href);
+    const { globalApiLimiter, healthLimiter, realtimeMintLimiter } = await import(pathToFileURL(rateLimitPath).href);
     app.use('/api', globalApiLimiter);
     app.use('/api/health', healthLimiter);
     app.use('/api/ml-health', healthLimiter);
     app.use('/api/diagnostics', healthLimiter);
     app.use('/api/diagnostic', healthLimiter);
-    console.log('[gateway] ✅ Global rate limiting enabled (100/min API, 200/min health)');
+    // 2026-04-25 (helmet-hardening): each /api/realtime/token call mints a
+    // billable OpenAI client_secret. 5/min/user is generous for legit voice
+    // session starts; anything above is bug or abuse.
+    app.use('/api/realtime/token', realtimeMintLimiter);
+    console.log('[gateway] ✅ Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)');
   } catch (e) {
     console.warn('[gateway] Rate limiting not available:', e?.message);
   }
