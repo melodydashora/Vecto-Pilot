@@ -32,7 +32,7 @@ export const UberCallbackPage: React.FC = () => {
         await exchangeUberCode(code);
         setStatus('success');
         // Redirect back to settings or dashboard after short delay
-        setTimeout(() => navigate('/settings'), 2000);
+        setTimeout(() => navigate('/co-pilot/settings'), 2000);
       } catch (err) {
         setStatus('error');
         setErrorMsg('Failed to connect Uber account. Please try again.');
@@ -73,8 +73,8 @@ export const UberCallbackPage: React.FC = () => {
               <div className="text-center">
                 <p className="font-medium text-lg text-red-600">Connection Failed</p>
                 <p className="text-sm text-gray-500 mt-2">{errorMsg}</p>
-                <button 
-                  onClick={() => navigate('/settings')}
+                <button
+                  onClick={() => navigate('/co-pilot/settings')}
                   className="mt-4 px-4 py-2 text-sm text-blue-600 hover:underline"
                 >
                   Return to Settings

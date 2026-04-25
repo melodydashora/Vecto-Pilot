@@ -490,19 +490,19 @@ export default function SignUpPage() {
                   <span className="ml-2">Continue with Google</span>
                 </Button>
 
+                {/* 2026-04-25 (P1-5): Apple sign-up disabled until OAuth is wired up.
+                    onClick removed (was hitting /api/auth/apple which is not implemented).
+                    Will be re-enabled when Sign In with Apple support ships. */}
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full bg-black hover:bg-gray-900 text-white border-gray-700"
-                  onClick={handleAppleSignUp}
-                  disabled={isLoading || socialLoading !== null}
+                  className="w-full bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
+                  disabled
+                  aria-disabled="true"
+                  title="Sign Up with Apple is coming soon"
                 >
-                  {socialLoading === 'apple' ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <AppleIcon />
-                  )}
-                  <span className="ml-2">Continue with Apple</span>
+                  <AppleIcon />
+                  <span className="ml-2">Apple — Coming soon</span>
                 </Button>
               </div>
 
