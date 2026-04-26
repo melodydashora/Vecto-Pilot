@@ -26,6 +26,8 @@ import { FeedbackModal } from '@/components/FeedbackModal';
 // route and bottom-nav Map tab were deleted in this phase.
 import StrategyMap from '@/components/strategy/StrategyMap';
 import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
+// 2026-04-26 PHASE F: traffic incidents layer source
+import { useTrafficIncidents } from '@/hooks/useTrafficIncidents';
 import type { Venue } from '@/hooks/useBarsQuery';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 // 2026-01-09: Renamed from BarsTable for disambiguation
@@ -120,6 +122,9 @@ export default function StrategyPage() {
   // marker sets. Refactor into a shared hook only when a third consumer
   // shows up (currently 2: this page + MapPage).
   const { data: activeEventsData } = useActiveEventsQuery(lastSnapshotId);
+  // 2026-04-26 PHASE F: TomTom traffic incidents from briefing payload
+  // (filtered to incidents that have coords; off-by-default in the map UI).
+  const trafficIncidents = useTrafficIncidents();
 
   const filteredBars = React.useMemo(() => {
     const allBars: Venue[] = [...(barsData?.venues || []), ...(barsData?.lastCallVenues || [])];
@@ -1004,6 +1009,7 @@ export default function StrategyPage() {
             venues={mapVenues}
             bars={filteredBars}
             events={mapEvents}
+            incidents={trafficIncidents}
             snapshotId={lastSnapshotId ?? undefined}
             isLoading={isBlocksLoading}
           />

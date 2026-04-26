@@ -2032,6 +2032,12 @@ export async function fetchTrafficConditions({ snapshot }) {
         });
 
         // Format incidents for display (prioritized, within 10mi)
+        // 2026-04-26 PHASE F: preserve incidentLat/incidentLon so the client
+        // StrategyMap can render incident markers. The TomTom parser already
+        // extracts these from inc.geometry.coordinates (tomtom.js:311-323) and
+        // attaches them to the parsed incident object; without surfacing them
+        // here, the briefing payload kept distanceFromDriver but dropped the
+        // raw coords needed for plotting.
         const prioritizedIncidents = traffic.incidents.slice(0, 10).map(inc => ({
           description: inc.displayDescription || `${inc.category}: ${inc.location}`,
           severity: inc.magnitude === 'Major' ? 'high' : inc.magnitude === 'Moderate' ? 'medium' : 'low',
@@ -2042,7 +2048,9 @@ export async function fetchTrafficConditions({ snapshot }) {
           priority: inc.priority,
           delayMinutes: inc.delayMinutes,
           lengthMiles: inc.lengthMiles,
-          distanceFromDriver: inc.distanceFromDriver  // Distance in miles from driver's position
+          distanceFromDriver: inc.distanceFromDriver,  // Distance in miles from driver's position
+          incidentLat: inc.incidentLat ?? null,        // PHASE F: for map plotting
+          incidentLon: inc.incidentLon ?? null         // PHASE F: for map plotting
         }));
 
         // Separate closures for expandable section (also filtered by distance)

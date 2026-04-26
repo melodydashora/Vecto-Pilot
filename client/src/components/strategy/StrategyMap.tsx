@@ -164,12 +164,29 @@ interface MapBar {
   closedReason?: string | null;
 }
 
+// 2026-04-26 PHASE F: TomTom traffic-incident shape (subset of useTrafficIncidents
+// shape — kept inline to avoid a hooks→types coupling in this component file).
+interface MapIncident {
+  description: string;
+  severity: 'high' | 'medium' | 'low';
+  category: string;            // 'Accident' | 'Jam' | 'Road Closed' | 'Lane Closed' | 'Road Works' | etc.
+  road: string;
+  location: string;
+  isHighway: boolean;
+  delayMinutes: number;
+  lengthMiles: number | null;
+  distanceFromDriver: number | null;
+  incidentLat: number;
+  incidentLon: number;
+}
+
 interface StrategyMapProps {
   driverLat: number;
   driverLng: number;
   venues: Venue[];
   bars?: MapBar[];
   events?: MapEvent[];
+  incidents?: MapIncident[];   // PHASE F: live TomTom incidents
   snapshotId?: string;
   isLoading?: boolean;
 }
@@ -184,7 +201,23 @@ const MARKER_COLORS = {
   barOpen: '#16a34a',    // green-600
   barClosingSoon: '#dc2626', // red-600
   barClosedGoAnyway: '#ea580c', // orange-600
+  incidentHigh: '#b91c1c',     // red-700 (severity high)
+  incidentMedium: '#d97706',   // amber-600 (severity medium)
+  incidentLow: '#f59e0b',      // amber-500 (severity low)
 } as const;
+
+// PHASE F: Triangle warning glyph for traffic incidents — visually distinct
+// from the teardrop venue/event/bar pins so drivers can tell at a glance
+// "this is a hazard, not a destination".
+function makeIncidentContent(color: string, size: number = 26): HTMLDivElement {
+  const div = document.createElement('div');
+  div.style.cssText = `width: ${size}px; height: ${size}px; cursor: pointer; transform: translate(-50%, -50%);`;
+  div.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">
+    <path d="M12 2 L22 21 L2 21 Z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+    <text x="12" y="17" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="13" font-weight="700" fill="white">!</text>
+  </svg>`;
+  return div;
+}
 
 // Build an SVG teardrop pin as an HTMLElement for AdvancedMarkerElement.content.
 // Pattern lifted from ConciergeMap so all maps in the app render visually consistent pins.
@@ -198,12 +231,32 @@ function makePinContent(color: string, size: number = 32): HTMLDivElement {
   return div;
 }
 
+// PHASE F: visibility persistence key for layer toggles (currently just incidents,
+// future phases will add zone subtypes). Reads + writes happen inside the toggle
+// hook below so consumers don't have to know about localStorage.
+const LAYER_VISIBILITY_KEY = 'vecto:map-layers';
+type LayerVisibility = { incidents: boolean };
+const DEFAULT_LAYER_VISIBILITY: LayerVisibility = { incidents: false }; // off by default to keep map quiet
+
+function readLayerVisibility(): LayerVisibility {
+  if (typeof window === 'undefined') return DEFAULT_LAYER_VISIBILITY;
+  try {
+    const stored = window.localStorage.getItem(LAYER_VISIBILITY_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { ...DEFAULT_LAYER_VISIBILITY, ...parsed };
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_LAYER_VISIBILITY;
+}
+
 const StrategyMap: React.FC<StrategyMapProps> = ({
   driverLat,
   driverLng,
   venues,
   bars = [],
   events = [],
+  incidents = [],
   snapshotId: _snapshotId,
   isLoading = false
 }) => {
@@ -212,7 +265,19 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const barMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const eventMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const incidentMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+
+  // PHASE F: per-layer visibility state, persisted to localStorage so a driver
+  // who hides incidents stays hidden across reloads.
+  const [layerVisibility, setLayerVisibility] = useState<LayerVisibility>(readLayerVisibility);
+  useEffect(() => {
+    try { window.localStorage.setItem(LAYER_VISIBILITY_KEY, JSON.stringify(layerVisibility)); }
+    catch { /* ignore */ }
+  }, [layerVisibility]);
+
+  // PHASE F: dedup ref for incidents — same pattern as lastEventKeyRef.
+  const lastIncidentKeyRef = useRef<string>('');
   // Phase B fix: store the diagnostic warning timeout so unmount cleanup can
   // clear it. Without this, StrictMode dev double-invocation (and any genuine
   // unmount before tiles arrive) leaked the timer, producing duplicate
@@ -311,6 +376,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
       // PHASE B: cancel any in-flight init, clear the tile-load timer so
       // it doesn't fire after unmount, detach all markers from the map.
       // Singleton loader owns the <script> tag — do NOT remove it here.
+      // PHASE F: incident markers added to the cleanup sweep.
       cancelled = true;
       if (tilesTimeoutRef.current !== null) {
         window.clearTimeout(tilesTimeoutRef.current);
@@ -319,6 +385,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
       markersRef.current.forEach((m) => { m.map = null; });
       barMarkersRef.current.forEach((m) => { m.map = null; });
       eventMarkersRef.current.forEach((m) => { m.map = null; });
+      incidentMarkersRef.current.forEach((m) => { m.map = null; });
       infoWindowRef.current?.close();
     };
   }, [driverLat, driverLng, mapReady]);
@@ -678,6 +745,128 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
     console.log(`[StrategyMap] Added ${bars.length} bar markers ($$+): ${bars.filter((b) => !b.closingSoon).length} open, ${bars.filter((b) => b.closingSoon).length} closing soon`);
   }, [mapReady, bars]);
 
+  // PHASE F: Add traffic incident markers (red/amber triangle warning glyphs).
+  // Visibility gated by layerVisibility.incidents (defaults OFF; persisted to
+  // localStorage). When toggled off, all incident markers are detached and the
+  // dedup key is reset so the next toggle-on re-creates them.
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !window.google) return;
+    const map = mapInstanceRef.current;
+    const { AdvancedMarkerElement } = window.google.maps.marker;
+
+    // If layer toggled off, detach all + reset dedup so next toggle-on rebuilds.
+    if (!layerVisibility.incidents) {
+      if (incidentMarkersRef.current.length > 0) {
+        incidentMarkersRef.current.forEach((m) => { m.map = null; });
+        incidentMarkersRef.current = [];
+        lastIncidentKeyRef.current = '';
+      }
+      return;
+    }
+
+    // Per-layer dedup — same pattern as lastEventKeyRef. Skip if data unchanged
+    // to avoid thrashing markers on every parent re-render.
+    const incidentKey = incidents
+      .map((i) => `${i.category}|${i.incidentLat}|${i.incidentLon}|${i.severity}|${i.delayMinutes}`)
+      .join(';');
+    if (incidentKey === lastIncidentKeyRef.current) return;
+    lastIncidentKeyRef.current = incidentKey;
+
+    incidentMarkersRef.current.forEach((m) => { m.map = null; });
+    incidentMarkersRef.current = [];
+
+    incidents.forEach((inc) => {
+      const color =
+        inc.severity === 'high' ? MARKER_COLORS.incidentHigh :
+        inc.severity === 'medium' ? MARKER_COLORS.incidentMedium :
+        MARKER_COLORS.incidentLow;
+
+      const marker = new AdvancedMarkerElement({
+        position: { lat: inc.incidentLat, lng: inc.incidentLon },
+        map,
+        title: `${inc.category}${inc.road ? ` on ${inc.road}` : ''}`,
+        content: makeIncidentContent(color, 26),
+        zIndex: 700, // above bars (600), below events (800)
+      });
+
+      const getCategoryIcon = (category: string) => {
+        const c = category.toLowerCase();
+        if (c.includes('accident')) return '💥';
+        if (c.includes('road closed') || c.includes('closure')) return '🚧';
+        if (c.includes('lane closed')) return '🚧';
+        if (c.includes('jam')) return '🐢';
+        if (c.includes('flooding')) return '🌊';
+        if (c.includes('construction') || c.includes('road works')) return '🚜';
+        if (c.includes('dangerous')) return '⚠️';
+        return '⚠️';
+      };
+
+      const severityStyle =
+        inc.severity === 'high' ? 'background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;' :
+        inc.severity === 'medium' ? 'background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;' :
+        'background: #fef9c3; color: #854d0e; border: 1px solid #fde68a;';
+
+      marker.addListener('gmp-click', () => {
+        infoWindowRef.current?.close();
+        const safeCategory = escapeHtml(inc.category);
+        const safeRoad = inc.road ? escapeHtml(inc.road) : '';
+        const safeLocation = inc.location ? escapeHtml(inc.location) : '';
+        const safeDescription = inc.description ? escapeHtml(inc.description) : '';
+
+        const content = `
+          <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 280px;">
+            <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px;">
+              <span style="font-size: 20px;">${getCategoryIcon(inc.category)}</span>
+              <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.3;">
+                  ${safeCategory}${safeRoad ? ` on ${safeRoad}` : ''}
+                </div>
+                ${safeLocation ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">${safeLocation}</div>` : ''}
+              </div>
+              <span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; ${severityStyle}">
+                ${escapeHtml(inc.severity.toUpperCase())}
+              </span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; padding: 8px; background: #fffbeb; border-radius: 6px; border: 1px solid #fde68a;">
+              ${inc.delayMinutes > 0 ? `
+                <div>
+                  <span style="color: #6b7280; display: block; font-size: 10px; text-transform: uppercase;">Delay</span>
+                  <span style="font-weight: 600; color: #92400e; font-size: 13px;">${inc.delayMinutes} min</span>
+                </div>
+              ` : ''}
+              ${inc.distanceFromDriver != null ? `
+                <div>
+                  <span style="color: #6b7280; display: block; font-size: 10px; text-transform: uppercase;">From You</span>
+                  <span style="font-weight: 600; color: #92400e; font-size: 13px;">${inc.distanceFromDriver.toFixed(1)} mi</span>
+                </div>
+              ` : ''}
+            </div>
+
+            ${inc.isHighway ? `
+              <div style="display: inline-block; padding: 2px 8px; background: #dbeafe; color: #1e40af; border-radius: 4px; font-size: 11px; font-weight: 500; margin-bottom: 8px;">
+                HIGHWAY
+              </div>
+            ` : ''}
+
+            ${safeDescription && safeDescription !== safeCategory ? `
+              <div style="font-size: 12px; color: #4b5563; margin-top: 4px;">
+                ${safeDescription}
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        infoWindowRef.current?.setContent(content);
+        infoWindowRef.current?.open(map, marker);
+      });
+
+      incidentMarkersRef.current.push(marker);
+    });
+
+    console.log(`[StrategyMap] Added ${incidents.length} incident markers (${incidents.filter((i) => i.severity === 'high').length} high severity)`);
+  }, [mapReady, incidents, layerVisibility.incidents]);
+
   return (
     <div className="mb-24" data-testid="map-tab">
       {isLoading && (
@@ -687,18 +876,45 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         </div>
       )}
 
-      <div
-        ref={mapRef}
-        style={{
-          width: '100%',
-          height: '600px',
-          borderRadius: '8px',
-          overflow: 'hidden',
-          border: '1px solid #e5e7eb',
-        }}
-        className="shadow-md"
-        data-testid="google-map-container"
-      />
+      {/* PHASE F: map container wrapped in a positioned parent so layer-toggle
+          chips can float top-right without affecting map sizing. */}
+      <div className="relative">
+        <div
+          ref={mapRef}
+          style={{
+            width: '100%',
+            height: '600px',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            border: '1px solid #e5e7eb',
+          }}
+          className="shadow-md"
+          data-testid="google-map-container"
+        />
+
+        {/* Layer toggle chips (top-right). Currently just incidents; future
+            phases will add zone subtypes here. */}
+        <div className="absolute top-3 right-3 flex gap-2 z-10" data-testid="map-layer-toggles">
+          <button
+            type="button"
+            onClick={() => setLayerVisibility((prev) => ({ ...prev, incidents: !prev.incidents }))}
+            aria-pressed={layerVisibility.incidents}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md border transition-colors backdrop-blur ${
+              layerVisibility.incidents
+                ? 'bg-red-600 text-white border-red-700'
+                : 'bg-white/90 text-gray-700 border-gray-200 hover:bg-white'
+            }`}
+            data-testid="toggle-incidents"
+            title={
+              layerVisibility.incidents
+                ? `Hide traffic incidents${incidents.length ? ` (${incidents.length} active)` : ''}`
+                : `Show traffic incidents${incidents.length ? ` (${incidents.length} active)` : ''}`
+            }
+          >
+            ⚠️ Incidents{incidents.length > 0 ? ` · ${incidents.length}` : ''}
+          </button>
+        </div>
+      </div>
 
       {/* Legend */}
       <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -753,6 +969,15 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 flex items-start gap-2">
           <span className="mt-0.5">🚦</span>
           <span>Traffic overlay shows real-time road conditions (green=flowing, yellow=slow, red=congested)</span>
+        </div>
+        {/* PHASE F: incident layer legend (visible regardless of toggle state
+            so drivers know what the triangle glyph means before turning it on). */}
+        <div className="mt-2 text-xs text-gray-500 flex items-start gap-2">
+          <span className="mt-0.5">⚠️</span>
+          <span>
+            Triangle warning glyphs (top-right toggle) show TomTom traffic incidents — accidents, road closures, jams.
+            Color is severity (red=high, amber=medium, yellow=low). Off by default; click the chip to enable.
+          </span>
         </div>
       </div>
 
