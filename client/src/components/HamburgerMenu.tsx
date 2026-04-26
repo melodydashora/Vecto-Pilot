@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Settings, Calendar, Info, Heart, HelpCircle, LogOut, X } from 'lucide-react';
+import { Menu, Settings, Calendar, Info, Heart, HelpCircle, LogOut, TrendingUp, X } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,7 +16,12 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 
+// 2026-04-25 (Phase A Pass 1 polish): Market Intel moved out of bottom nav
+// into the hamburger menu — surge/occupancy/demand sub-tabs deserve a hub
+// rather than competing for thumb-space at the bottom. Placed first so it
+// stays the most-discoverable item moving out of the bottom nav.
 const MENU_ITEMS = [
+  { label: 'Market Intel', icon: TrendingUp, path: '/co-pilot/intel' },
   { label: 'Preferences', icon: Settings, path: '/co-pilot/settings' },
   { label: 'Schedule', icon: Calendar, path: '/co-pilot/schedule' },
   { label: 'About', icon: Info, path: '/co-pilot/about' },
