@@ -24,6 +24,7 @@ This revision integrates 9 corrections from `MapResearch.md` peer review plus 1 
 | C8 | `MarketBoundaryGrid` and `MarketDeadheadCalculator` are `false &&` dormant in `RideshareIntelTab.tsx:504,604` | MapResearch + verified | Added to taxonomy as open decision |
 | C9 | TomTom incidents (`server/lib/traffic/tomtom.js`) are produced server-side and fed to the AI tactical planner but NEVER visualized on the map | MapResearch + confirmed grep | New Phase F |
 | C10 | **NEW finding from verification:** `market_intelligence` and `zone_intelligence` are different tables. The API at `/api/intelligence/*` reads from `market_intelligence` (`intel_type`/`intel_subtype`). The `zone_intelligence` table I cited in my draft has its own schema with `zone_type` and is nearly empty (1 row in live dev DB) | My verification pass | Phase D data source fork |
+| C11 | **Phase C deviation (post-implementation):** Plan called for fold-then-delete; actually shipped pure delete. Reasoning in §6 Phase C section and commit `3383354c` body. Net: −1003 LOC instead of +300 LOC restored capability. Mission concept can be reintroduced as a focused phase if usage signal emerges | Code-state review during implementation | Phase D unblocked sooner; original Phase C "fold" targets removed |
 
 Net effect: **plan is more rigorous, three new open design forks for Melody to settle (§4.6).**
 
@@ -237,15 +238,25 @@ Each phase is small enough to approve, test, and ship independently.
 
 **Test:** All routes still resolve; no broken imports at any commit (verify by running `tsc --noEmit` after each step); bottom nav shows 6 tabs (down from 7); Strategy still shows the map.
 
-### Phase C — Fold TacticalStagingMap capabilities into StrategyMap (references-first ordering)
-13. Extract mission-selector + staging/avoid zone rendering from `TacticalStagingMap.tsx`
-14. Add as new layer types in StrategyMap with `lastMissionKeyRef` / `lastStagingKeyRef` dedup
-15. **(C1 fix)** Wire staging fetch to `/api/intelligence/staging-areas?snapshotId=${snapshotId}` via `apiRoutes.INTELLIGENCE.STAGING_AREAS(snapshotId)`. Use the existing client constant — do not hardcode the URL.
-16. Wire AI Tactical Plan button to existing `/api/strategy/tactical-plan` (unchanged contract)
-17. **Detach references** in `RideshareIntelTab.tsx`: remove the disabled render block (lines 455-465) AND the `import TacticalStagingMap from "@/components/intel/TacticalStagingMap"` line (54). Same commit.
-18. Now safe: delete `TacticalStagingMap.tsx` and `client/src/types/tactical-map.ts` (types relocated into StrategyMap or a new layer-types module per fork #3 decision).
+### Phase C — DELETE TacticalStagingMap (deviated from original "fold then delete" plan)
 
-**Test:** Mission selector dropdown works; selecting an event-mission renders staging zones (green) and avoid zones (red) sourced via `snapshotId`; AI Tactical Plan button still hits its endpoint and renders results; verify staging layer re-fetches when snapshot changes (snapshot-scoped endpoint); `tsc --noEmit` clean after step 17 and again after step 18.
+**Shipped 2026-04-26 as `feat(strategy-map): Phase C` (commit `3383354c`, merged `725e2600`). Original plan called for folding TacticalStagingMap's mission selector + staging/avoid zone capabilities into StrategyMap before deleting the file. After reading the actual state of the code, the implementation deviated to pure delete. The deviation is documented in the implementation commit body and is auditable in the git history.**
+
+**Why delete rather than fold:**
+
+1. **The feature has been off, not just disabled.** `RideshareIntelTab.tsx:457` gated the entire mission UI behind `null && latitude && longitude`, meaning drivers haven't seen this surface for an unknown duration. No usage signal indicates it was missed.
+2. **Phase D substantially overlaps the value.** Phase D's 5 zone subtypes from `market_intelligence` (`honey_hole`, `dead_zone`, `danger_zone`, `safe_corridor`, `caution_zone`) express the same "stage here / avoid this" semantics market-wide, no mission selector required.
+3. **Code-debt math.** Folding would have added ~300 lines to StrategyMap to restore an unproven feature; deleting removed 1003 lines (TacticalStagingMap.tsx + tactical-map.ts) and unblocked Phase D.
+
+**What actually shipped:**
+
+13. **DELETED** `client/src/components/intel/TacticalStagingMap.tsx` (778 lines)
+14. **DELETED** `client/src/types/tactical-map.ts` (225 lines)
+15. **MODIFIED** `client/src/components/RideshareIntelTab.tsx`: removed `TacticalStagingMap` + `EventMission`/`AirportMission`/`useCoPilot`/`formatEventTime` imports; removed `latitude`/`longitude`/`timezone` extraction; removed `eventMissions`/`airportMissions`/`trafficContext` useMemo blocks; removed `tacticalMap` key from expandedSections; replaced disabled render block with explanatory comment.
+
+**If a focused mission/staging UI proves valuable later**, it can be reintroduced as its own phase using StrategyMap's singleton-loader / `AdvancedMarkerElement` infrastructure. The Phase A foundations make the rebuild substantially cheaper than the original implementation.
+
+**Test approval (Rule 1):** Melody confirmed visuals clear on 2026-04-26 ("everything visually clear please continue").
 
 ### Phase D — New zone layers (consume existing endpoints)
 19. **(C10 — FORK 2)** Decide `zone_intelligence` vs `market_intelligence` table fate. Defaulting to `market_intelligence` (the table the API already serves).
