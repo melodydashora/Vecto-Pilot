@@ -38,15 +38,51 @@ export async function configureMiddleware(app) {
   // 2026-04-05: SECURITY — Enable CSP with SPA-compatible directives (CodeQL fix)
   // Previously disabled entirely; now allows inline styles (Vite/React), self scripts,
   // and required external domains for Google Maps, AI APIs, and analytics.
+  //
+  // 2026-04-26 PHASE B follow-through: Google Maps Platform mapId-based vector
+  // tiles need FOUR things the original CSP blocked. Each was found by an
+  // explicit DevTools console error after the prior fix unblocked the next
+  // layer:
+  //
+  //   1. workerSrc 'self' blob: — Google's WebGL renderer spawns Web Workers
+  //      from blob: URLs to draw vector tiles. Without this, the map shows pins
+  //      on a grey void (markers are plain DOM and unaffected; tiles aren't).
+  //
+  //   2. connectSrc wildcard for *.googleapis.com — map style resources for a
+  //      Cloud Console mapId come from mapsresources-pa.googleapis.com, which
+  //      the previous explicit subdomain list (maps/places/routes) did not
+  //      cover. Collapsing to a wildcard here is appropriate because (a) we
+  //      already trust Google with the API key, (b) all *.googleapis.com hosts
+  //      are first-party Google services, and (c) Phase D/E/F may add more
+  //      Google APIs — wildcard avoids whack-a-mole subdomain maintenance.
+  //
+  //   3. scriptSrc 'unsafe-eval' — Google's shared-label-worker.js compiles
+  //      WebAssembly via WebAssembly.instantiateStreaming() to render street
+  //      names smoothly. CSP3 has 'wasm-unsafe-eval' as a tighter alternative
+  //      (allows WASM without enabling general eval), but Google's own Maps
+  //      Platform CSP docs canonically recommend 'unsafe-eval'. We don't have
+  //      independent verification that the Maps SDK doesn't use eval()
+  //      elsewhere, so shipping the verified-working flag now. Future hardening
+  //      could attempt 'wasm-unsafe-eval' alone after a real test pass.
+  //
+  //   4. connectSrc 'data:' — Google Maps packages tiny text icon and font
+  //      sprites as base64 data: URIs to load them inline without extra network
+  //      round-trips. connect-src enforces these as if they were network
+  //      requests; without 'data:' allowed, label sprites fail to load.
+  //
+  // Diagnostic process: after each restart the previously-blocked layer
+  // unblocked, exposing the next CSP error in the console. Phase B's commit
+  // history (b7b1c7f5 → c765ce22 → THIS) is the audit trail.
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://maps.googleapis.com", "https://maps.gstatic.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://maps.googleapis.com", "https://maps.gstatic.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.ggpht.com", "https://places.googleapis.com"],
-        connectSrc: ["'self'", "https://maps.googleapis.com", "https://places.googleapis.com", "https://routes.googleapis.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
+        connectSrc: ["'self'", "data:", "https://*.googleapis.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
+        workerSrc: ["'self'", "blob:"],
         frameSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],

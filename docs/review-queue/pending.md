@@ -4,6 +4,38 @@ Items requiring action. For completed session logs and historical analysis, see 
 
 ---
 
+## 2026-04-26: Strategy Map Consolidation — ✅ PHASES A + B SHIPPED on `feat/strategy-map-phase-b` (visually approved; awaiting merge)
+
+**Author:** Claude Opus 4.7 (1M context) | **Scope:** Comprehensive plan to consolidate ALL Google-Maps surfaces into a single StrategyMap inside the Strategy tab. **No code changes yet** — Rule 1 hold.
+
+**Revision history:**
+- 2026-04-26 initial plan
+- 2026-04-26 revised after `.claude/plans/MapResearch.md` peer review caught 9 contract bugs + 1 new finding from verification pass (now plan §0)
+
+**Deliverables:**
+- [`docs/strategy-map-consolidation-plan.md`](../strategy-map-consolidation-plan.md) — phased implementation plan, now Phases A–F (added Phase F TomTom incidents)
+- [`docs/strategy-map-consolidation-findings.md`](../strategy-map-consolidation-findings.md) — raw inventory + 10 verification commands
+- `.claude/plans/MapResearch.md` — peer-review audit (external)
+- `claude_memory` rows #185, #186 — cross-session pointers
+
+**Headline decisions in plan (all reversible until approval):**
+- KEEP & rename `MapTab.tsx` → `client/src/components/strategy/StrategyMap.tsx`
+- DELETE 3 files (verified zero consumers): `MapPage.tsx`, `ConciergeMap.tsx`, `EventsExplorer.tsx`
+- FOLD `TacticalStagingMap.tsx` capabilities (mission selector + staging/avoid zones) into StrategyMap, then delete
+- ADD new layers via verified endpoint contracts: `market_intelligence` zone overlays (5 supported subtypes), staging-areas (snapshot-scoped), demand-patterns, market boundary + Code 6 warning, TomTom incidents
+- ZERO required server-side changes (all data sources already exist; one fork could trigger an optional server change)
+- Architectural fixes: singleton Google Maps loader, `loading=async`, `AdvancedMarkerElement`, `mapId`, per-layer `lastXKeyRef` dedup, `escapeHtml` for ALL InfoWindows, layer-aware `fitBounds`
+
+**4 open design forks for Melody (plan §4.6) — pick or accept all defaults:**
+1. Market boundary source (default: hardcode in client config)
+2. `zone_intelligence` vs `market_intelligence` table fate (default: deprecate `zone_intelligence`)
+3. Dormant Intel components — `MarketBoundaryGrid` + `MarketDeadheadCalculator` (default: delete)
+4. TomTom incidents routing (default: piggyback briefing payload)
+
+**Status (2026-04-26 update):** Phases A + B implemented on branch `feat/strategy-map-phase-b` (6 commits, +1300/−1000 vs main). Two follow-up CSP commits unblocked Google Maps Platform vector tile rendering (worker-src blob:, connect-src wildcard + data:, script-src unsafe-eval for WASM label engine). Melody confirmed visuals all clear on 2026-04-26. Awaiting merge instruction. Phase C (TacticalStagingMap fold-and-delete) ready to start.
+
+---
+
 ## 2026-04-24: Commit C (db connection-manager comment) queued behind 57P01 work — ⏸️ DEPENDENCY NOTE
 
 **Author:** Claude Opus 4.7 (1M context) | **Scope:** Dependency note, not a code change.

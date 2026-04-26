@@ -21,11 +21,10 @@ import {
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/useToast';
 import { FeedbackModal } from '@/components/FeedbackModal';
-// 2026-04-26 (Phase A Pass 1 follow-through): the launcher card was removed;
-// the slot now hosts an embedded MapTab (which renders both the live Google
-// Map and the inline Map Legend). Drivers get a live visual on Strategy
-// without having to switch tabs. The Coach tab in the bottom nav is unaffected.
-import MapTab from '@/components/MapTab';
+// 2026-04-26 PHASE B: MapTab renamed to StrategyMap and moved into a strategy/
+// subdirectory. Strategy is the only consumer; the standalone /co-pilot/map
+// route and bottom-nav Map tab were deleted in this phase.
+import StrategyMap from '@/components/strategy/StrategyMap';
 import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
 import type { Venue } from '@/hooks/useBarsQuery';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
@@ -989,17 +988,17 @@ export default function StrategyPage() {
         </Card>
       )}
 
-      {/* 2026-04-26: render the map as soon as coords land — MapTab paints
+      {/* 2026-04-26: render the map as soon as coords land — StrategyMap paints
           the driver-position marker first, then bars/events/venues layer in
           as each data source resolves (progressive enhancement). The earlier
           version of this conditional also gated on lastSnapshotId, which
           forced a blank map until the snapshot existed — broke the
           "watch data land" UX Melody specifically wants. snapshotId is
           coerced from `string | null` to `string | undefined` to satisfy
-          MapTab's optional-prop type without holding the whole render. */}
+          StrategyMap's optional-prop type without holding the whole render. */}
       {coords && (
         <div data-testid="strategy-embedded-map" className="my-4">
-          <MapTab
+          <StrategyMap
             driverLat={coords.latitude}
             driverLng={coords.longitude}
             venues={mapVenues}
