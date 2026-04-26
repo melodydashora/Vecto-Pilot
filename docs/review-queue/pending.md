@@ -4,7 +4,7 @@ Items requiring action. For completed session logs and historical analysis, see 
 
 ---
 
-## 2026-04-26: Strategy Map Consolidation — ⏸️ AWAITING MELODY REVIEW (REVISED)
+## 2026-04-26: Strategy Map Consolidation — ✅ PHASES A + B SHIPPED on `feat/strategy-map-phase-b` (visually approved; awaiting merge)
 
 **Author:** Claude Opus 4.7 (1M context) | **Scope:** Comprehensive plan to consolidate ALL Google-Maps surfaces into a single StrategyMap inside the Strategy tab. **No code changes yet** — Rule 1 hold.
 
@@ -32,7 +32,7 @@ Items requiring action. For completed session logs and historical analysis, see 
 3. Dormant Intel components — `MarketBoundaryGrid` + `MarketDeadheadCalculator` (default: delete)
 4. TomTom incidents routing (default: piggyback briefing payload)
 
-**Status:** Holding for manual verification by Melody before any code work or branch creation.
+**Status (2026-04-26 update):** Phases A + B implemented on branch `feat/strategy-map-phase-b` (6 commits, +1300/−1000 vs main). Two follow-up CSP commits unblocked Google Maps Platform vector tile rendering (worker-src blob:, connect-src wildcard + data:, script-src unsafe-eval for WASM label engine). Melody confirmed visuals all clear on 2026-04-26. Awaiting merge instruction. Phase C (TacticalStagingMap fold-and-delete) ready to start.
 
 ---
 
