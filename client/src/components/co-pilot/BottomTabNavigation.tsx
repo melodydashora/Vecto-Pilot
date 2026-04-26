@@ -81,6 +81,15 @@ const tabs: TabConfig[] = [
     icon: QrCode,
     activeColor: 'text-teal-600',
     activeBg: 'bg-teal-50'
+  },
+  {
+    // 2026-04-25 (Phase A, Pass 1): Coach lives on its own route now.
+    id: 'coach',
+    path: '/co-pilot/coach',
+    label: 'Coach',
+    icon: MessageSquare,
+    activeColor: 'text-blue-600',
+    activeBg: 'bg-blue-50',
   }
 ];
 

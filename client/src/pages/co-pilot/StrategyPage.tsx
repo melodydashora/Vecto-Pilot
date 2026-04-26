@@ -21,7 +21,9 @@ import {
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/useToast';
 import { FeedbackModal } from '@/components/FeedbackModal';
-import RideshareCoach from '@/components/RideshareCoach';
+// 2026-04-25 (Phase A, Pass 1): the full coach component moved to
+// /co-pilot/coach; Strategy now renders only a compact launcher card.
+import CoachLaunchCard from '@/components/coach/CoachLaunchCard';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 // 2026-01-09: Renamed from BarsTable for disambiguation
 import BarsDataGrid from '@/components/BarsDataGrid';
@@ -862,30 +864,13 @@ export default function StrategyPage() {
         </Card>
       )}
 
-      {/* AI Coach */}
+      {/* 2026-04-25 (Phase A, Pass 1): AI Coach moved to /co-pilot/coach.
+          Wrapping div retains data-testid="ai-coach-section" so existing
+          E2E selectors still resolve. Conditional on `coords` is preserved
+          for behavioral parity with the previous mount lifecycle. */}
       {coords && (
-        <div className="mb-6" data-testid="ai-coach-section">
-          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">AI Coach</h2>
-              {!persistentStrategy && (
-                <Badge variant="secondary" className="text-xs">Strategy Generating...</Badge>
-              )}
-            </div>
-            <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">Live Chat</Badge>
-          </div>
-          <div className="mt-4">
-            <RideshareCoach
-              userId={localStorage.getItem('vecto_user_id') || 'default'}
-              snapshotId={lastSnapshotId || undefined}
-              strategyId={strategyData?.strategyId || undefined}
-              strategy={persistentStrategy}
-              snapshot={snapshotData}
-              blocks={blocks}
-              strategyReady={!!persistentStrategy}
-            />
-          </div>
+        <div data-testid="ai-coach-section">
+          <CoachLaunchCard />
         </div>
       )}
 
