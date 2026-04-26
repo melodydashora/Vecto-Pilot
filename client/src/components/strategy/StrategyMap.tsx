@@ -1,17 +1,39 @@
 /**
- * MapTab - Interactive Google Map with live traffic overlay and venue pins
- * Displays SmartBlocks venues as markers with drive time and earnings info
- * Events are filtered to show only TODAY's events with valid start/end times
+ * StrategyMap - The single map surface for the app.
  *
- * 2026-04-26 PHASE A consolidation:
- *   - Now loads the Maps JS API via the singleton google-maps-loader
- *     (root-cause fix for the historical removeChild bug — see loader doc).
- *   - Migrated google.maps.Marker → google.maps.marker.AdvancedMarkerElement.
- *     Marker styling is now SVG teardrops in DOM rather than Google CDN PNGs.
- *   - All InfoWindow.setContent() interpolations escaped via escapeHtml().
- *   - fitBounds is now layer-aware: includes driver, venues, events, AND bars
- *     (previously only venues and events influenced the auto-zoom).
- *   - Explicit cleanup on unmount to detach markers from the map.
+ * Renamed from MapTab as of 2026-04-26 PHASE B. Strategy is now the only
+ * consumer; the standalone /co-pilot/map route + bottom-nav Map tab were
+ * deleted in this phase. Future map-related capabilities (zone overlays,
+ * market boundary, TomTom incidents, mission/staging mode) all land here
+ * as additional layers in subsequent phases.
+ *
+ * Renders driver pin, SmartBlocks venue markers (color-coded by Grade A/B/C),
+ * premium $$+ bar markers (green/orange/red by open status), today's event
+ * markers, and Google's live traffic overlay. InfoWindows expose distance,
+ * drive time, earnings, and Google/Apple navigation links.
+ *
+ * 2026-04-26 PHASE A foundations preserved here:
+ *   - Singleton google-maps-loader (never removes the script tag — root-cause
+ *     fix for the historical removeChild bug).
+ *   - google.maps.marker.AdvancedMarkerElement (SVG teardrop pins in DOM
+ *     instead of deprecated google.maps.Marker + CDN PNG icons).
+ *   - escapeHtml on every InfoWindow.setContent() interpolation.
+ *   - Layer-aware fitBounds (driver, venues, events, bars all participate).
+ *
+ * 2026-04-26 PHASE B bug fixes:
+ *   - tilesTimeoutRef so unmount cleanup actually clears the timer (the
+ *     prior version leaked under React StrictMode dev double-invocation).
+ *   - tilesloaded diagnostic message rewritten — Melody verified end-to-end
+ *     that the Cloud Console map style was published, associated, and
+ *     covered all zooms; the "needs zoom-level coverage" message was
+ *     biasing diagnosis toward a non-issue. New message lists the actual
+ *     candidate causes (zero-dimension container, missing mapId, WebGL
+ *     init failure) so future debugging starts in the right place.
+ *   - Container dimension check at construct time. Most common React +
+ *     Maps JS bug: parent layout hasn't computed when google.maps.Map
+ *     fires; viewport is 0×0; zero tile requests; tilesloaded never
+ *     fires. We now log the bounding rect on init and warn if either
+ *     dimension is zero.
  */
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
@@ -142,7 +164,7 @@ interface MapBar {
   closedReason?: string | null;
 }
 
-interface MapTabProps {
+interface StrategyMapProps {
   driverLat: number;
   driverLng: number;
   venues: Venue[];
@@ -176,7 +198,7 @@ function makePinContent(color: string, size: number = 32): HTMLDivElement {
   return div;
 }
 
-const MapTab: React.FC<MapTabProps> = ({
+const StrategyMap: React.FC<StrategyMapProps> = ({
   driverLat,
   driverLng,
   venues,
@@ -191,6 +213,11 @@ const MapTab: React.FC<MapTabProps> = ({
   const barMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const eventMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  // Phase B fix: store the diagnostic warning timeout so unmount cleanup can
+  // clear it. Without this, StrictMode dev double-invocation (and any genuine
+  // unmount before tiles arrive) leaked the timer, producing duplicate
+  // "Tiles still not loaded" warnings that biased diagnosis.
+  const tilesTimeoutRef = useRef<number | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   // 2026-04-04: Track last processed event data to prevent infinite re-render loop.
@@ -210,11 +237,21 @@ const MapTab: React.FC<MapTabProps> = ({
       .then((googleApi) => {
         if (cancelled || !mapRef.current) return;
 
-        // 2026-04-26 PHASE A hot-fix: lowered initial zoom from 12 → 11 because
-        // the new mapId-based vector tiles can render blank at higher zoom when
-        // the published Cloud Console map style has sparse zoom-level coverage.
-        // Lower zoom gives more context immediately and lands the user at a level
-        // where most styles render cleanly. fitBounds takes over once venues load.
+        // PHASE B: container-dimension check at construct time. Most common
+        // React + Maps JS bug: the parent layout hasn't computed its size
+        // when google.maps.Map fires; the map gets a 0×0 viewport, makes
+        // zero tile requests, and tilesloaded never fires (no tiles to load
+        // means nothing to "load"). If we see zero here we know to look at
+        // the parent layout, not at Google's services.
+        const containerRect = mapRef.current.getBoundingClientRect();
+        if (containerRect.width === 0 || containerRect.height === 0) {
+          console.warn(
+            `[StrategyMap] Map container is ${containerRect.width}×${containerRect.height} at construct time — `
+            + 'tiles will likely never load. Parent layout has not computed its size yet. '
+            + 'Verify the parent has explicit height (not flex:1 alone).'
+          );
+        }
+
         const mapOptions: google.maps.MapOptions = {
           center: { lat: driverLat, lng: driverLng },
           zoom: 11,
@@ -237,28 +274,48 @@ const MapTab: React.FC<MapTabProps> = ({
         infoWindowRef.current = new googleApi.maps.InfoWindow();
         setMapReady(true);
 
-        // Diagnostic: log tile load status so we can tell whether "blank map"
-        // means tiles aren't loading at all vs the style is rendering blank.
-        const tilesTimeout = window.setTimeout(() => {
-          console.warn('[MapTab] Tiles still not loaded after 5s — likely Cloud Console map style needs zoom-level coverage at zoom 11+');
+        // PHASE B: tilesloaded diagnostic. Stored in a ref so the unmount
+        // cleanup can clear it (the prior version leaked under StrictMode
+        // dev double-invocation). Diagnostic message rewritten to list the
+        // real candidate causes — Cloud Console hypotheses were exonerated
+        // end-to-end on 2026-04-26 (style published, mapId associated, all
+        // zooms covered, API key authorized). Future "tiles not loaded"
+        // signals should be triaged from this list, not the cloud side.
+        tilesTimeoutRef.current = window.setTimeout(() => {
+          console.warn(
+            `[StrategyMap] tilesloaded did not fire within 5s. Container: ${containerRect.width}×${containerRect.height}, mapId: ${mapId || '<none>'}. `
+            + 'Likely causes: (a) container has zero dimensions at construct (see container size above; React + Maps JS classic), '
+            + '(b) WebGL context creation failed (run `!!document.createElement("canvas").getContext("webgl2")` in console), '
+            + '(c) mapId not in mapOptions (raster fallback would still tile-request, so this is least likely if (a)+(b) check out), '
+            + '(d) Maps JS bundle blocked by referrer restriction (DevTools Network → look for vt? and AuthenticationService.Authenticate).'
+          );
+          tilesTimeoutRef.current = null;
         }, 5000);
         (googleApi.maps as unknown as { event: { addListenerOnce: (target: object, event: string, handler: () => void) => void } })
           .event.addListenerOnce(map as unknown as object, 'tilesloaded', () => {
-            window.clearTimeout(tilesTimeout);
-            console.log('[MapTab] Tiles loaded successfully (mapId:', mapId || '<none>', ')');
+            if (tilesTimeoutRef.current !== null) {
+              window.clearTimeout(tilesTimeoutRef.current);
+              tilesTimeoutRef.current = null;
+            }
+            console.log(`[StrategyMap] Tiles loaded successfully (mapId: ${mapId || '<none>'})`);
           });
 
-        console.log('[MapTab] Google Map initialized (singleton loader, AdvancedMarkerElement, traffic layer)');
+        console.log(`[StrategyMap] Google Map initialized — container ${containerRect.width}×${containerRect.height}, mapId ${mapId || '<none>'}`);
       })
       .catch((err) => {
         if (cancelled) return;
-        console.error('[MapTab] Failed to initialize Google Maps:', err);
+        console.error('[StrategyMap] Failed to initialize Google Maps:', err);
       });
 
     return () => {
-      // PHASE A: cancel any in-flight init; explicit marker cleanup on unmount.
+      // PHASE B: cancel any in-flight init, clear the tile-load timer so
+      // it doesn't fire after unmount, detach all markers from the map.
       // Singleton loader owns the <script> tag — do NOT remove it here.
       cancelled = true;
+      if (tilesTimeoutRef.current !== null) {
+        window.clearTimeout(tilesTimeoutRef.current);
+        tilesTimeoutRef.current = null;
+      }
       markersRef.current.forEach((m) => { m.map = null; });
       barMarkersRef.current.forEach((m) => { m.map = null; });
       eventMarkersRef.current.forEach((m) => { m.map = null; });
@@ -512,7 +569,7 @@ const MapTab: React.FC<MapTabProps> = ({
     });
 
     if (eventsWithCoords.length > 0) {
-      console.log(`[MapTab] Added ${eventsWithCoords.length} event markers to map`);
+      console.log(`[StrategyMap] Added ${eventsWithCoords.length} event markers to map`);
     }
   }, [mapReady, todayEvents]);
 
@@ -618,7 +675,7 @@ const MapTab: React.FC<MapTabProps> = ({
       barMarkersRef.current.push(marker);
     });
 
-    console.log(`[MapTab] Added ${bars.length} bar markers ($$+): ${bars.filter((b) => !b.closingSoon).length} open, ${bars.filter((b) => b.closingSoon).length} closing soon`);
+    console.log(`[StrategyMap] Added ${bars.length} bar markers ($$+): ${bars.filter((b) => !b.closingSoon).length} open, ${bars.filter((b) => b.closingSoon).length} closing soon`);
   }, [mapReady, bars]);
 
   return (
@@ -708,4 +765,4 @@ const MapTab: React.FC<MapTabProps> = ({
   );
 };
 
-export default MapTab;
+export default StrategyMap;

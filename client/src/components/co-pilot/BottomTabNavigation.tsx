@@ -8,7 +8,6 @@ import {
   Sparkles,
   Wine,
   MessageSquare,
-  Map as MapIcon,
   QrCode,
   Languages
 } from 'lucide-react';
@@ -68,14 +67,9 @@ const tabs: TabConfig[] = [
     activeColor: 'text-indigo-600',
     activeBg: 'bg-indigo-50'
   },
-  {
-    id: 'map',
-    path: '/co-pilot/map',
-    label: 'Map',
-    icon: MapIcon,
-    activeColor: 'text-green-600',
-    activeBg: 'bg-green-50'
-  },
+  // 2026-04-26 PHASE B: Map tab removed. The map now lives embedded in
+  // StrategyPage. Drivers navigate to /co-pilot/strategy for both strategy
+  // and the map — no more duplicate render path.
   {
     // 2026-03-17: Added for FIFA World Cup real-time rider translation feature
     id: 'translate',
