@@ -210,6 +210,7 @@ shared.env
 # Runtime data files (change on every run, not source code)
 sent-to-strategist.txt
 snapshot.txt
+tomtom.txt
 briefing-output.json
 
 # AI session artifacts (one-time analysis outputs)
