@@ -43,9 +43,15 @@ function hasCoords(inc: TrafficIncident): inc is PlottableTrafficIncident {
 
 export function useTrafficIncidents(): PlottableTrafficIncident[] {
   const { briefingData } = useCoPilot();
-  const trafficObj = briefingData?.traffic as { incidents?: TrafficIncident[] } | null | undefined;
+  // PHASE F.1: prefer the wider mapIncidents field (all 10mi + highway 10-25mi).
+  // Falls back to the legacy 10mi top-10 `incidents` field for briefings
+  // generated before this change shipped.
+  const trafficObj = briefingData?.traffic as {
+    mapIncidents?: TrafficIncident[];
+    incidents?: TrafficIncident[];
+  } | null | undefined;
   return useMemo(() => {
-    const incidents = trafficObj?.incidents ?? [];
-    return incidents.filter(hasCoords);
-  }, [trafficObj?.incidents]);
+    const source = trafficObj?.mapIncidents ?? trafficObj?.incidents ?? [];
+    return source.filter(hasCoords);
+  }, [trafficObj?.mapIncidents, trafficObj?.incidents]);
 }

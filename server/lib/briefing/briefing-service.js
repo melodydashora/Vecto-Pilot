@@ -1997,13 +1997,20 @@ export async function fetchTrafficConditions({ snapshot }) {
       // This enables the "Briefer Model" to see patterns invisible to standard aggregation
       const rawTraffic = await fetchRawTraffic(lat, lng, 10 * 1609); // 10 miles in meters
 
+      // 2026-04-26 PHASE F.1: widened TomTom bbox from 15mi → 25mi and the
+      // distance-filter from 10mi → 25mi so the map can surface major-artery
+      // closures up to 25mi away (the kind drivers wish they'd known about
+      // before routing). The BRIEFING pipeline is unchanged: we filter back
+      // down to the original 10mi subset before feeding Gemini, so its input
+      // is byte-identical to what it saw at radiusMiles:15/maxDistance:10.
+      // Only the new mapIncidents field surfaces the wider set.
       const tomtomResult = await getTomTomTraffic({
         lat,
         lon: lng,
         city,
         state,
-        radiusMiles: 15,        // 15-mile bounding box for API query
-        maxDistanceMiles: 10    // Filter to 10 miles from driver's actual position
+        radiusMiles: 25,        // 25-mile bounding box for API query (PHASE F.1)
+        maxDistanceMiles: 25    // Keep parser output through 25mi; we subset below
       });
 
       if (tomtomResult.traffic && !tomtomResult.error) {
@@ -2018,11 +2025,41 @@ export async function fetchTrafficConditions({ snapshot }) {
         const traffic = tomtomResult.traffic;
         const formattedAddress = snapshot?.formatted_address || `${city}, ${state}`;
 
+        // PHASE F.1: derive the 10mi-only briefing subset. Gemini analysis
+        // runs against this subset to preserve identical briefing-text quality
+        // (Melody: "I like the briefing the way it is, don't change it").
+        const allParsed = traffic.allIncidents || traffic.incidents || [];
+        const tenMileIncidents = allParsed
+          .filter(i => i.distanceFromDriver != null && i.distanceFromDriver <= 10)
+          .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+        // Recompute stats over the 10mi subset so Gemini's prompt sees the
+        // same numbers it would have seen at the old maxDistanceMiles:10.
+        const briefingStats = {
+          total: tenMileIncidents.length,
+          highways: tenMileIncidents.filter(i => i.isHighway).length,
+          construction: tenMileIncidents.filter(i => i.category === 'Road Works').length,
+          closures: tenMileIncidents.filter(i => i.category === 'Road Closed' || i.category === 'Lane Closed').length,
+          jams: tenMileIncidents.filter(i => i.category === 'Jam').length,
+          accidents: tenMileIncidents.filter(i => i.category === 'Accident').length,
+          major: tenMileIncidents.filter(i => i.magnitude === 'Major').length,
+        };
+
+        // Substituted view for the AI: same shape Gemini saw before this change.
+        const briefingTraffic = {
+          ...traffic,
+          incidents: tenMileIncidents.slice(0, 15),
+          allIncidents: tenMileIncidents,
+          totalIncidents: tenMileIncidents.length,
+          stats: briefingStats,
+        };
+
         // Analyze traffic with AI for strategic, driver-focused briefing
         // Uses configured model (default: Gemini Flash - fast & cost-effective)
         // 2026-02-10: Pass rawTraffic for Phase 3 analysis
+        // PHASE F.1: pass briefingTraffic (10mi subset), not the wider traffic.
         const analysis = await analyzeTrafficWithAI({
-          tomtomData: traffic,
+          tomtomData: briefingTraffic,
           rawTraffic,
           city,
           state,
@@ -2031,14 +2068,16 @@ export async function fetchTrafficConditions({ snapshot }) {
           driverLon: lng
         });
 
-        // Format incidents for display (prioritized, within 10mi)
+        // Format incidents for display (prioritized, within 10mi). Built from
+        // the 10mi briefing subset, so the briefing UI shows exactly what it
+        // showed before this phase.
         // 2026-04-26 PHASE F: preserve incidentLat/incidentLon so the client
         // StrategyMap can render incident markers. The TomTom parser already
         // extracts these from inc.geometry.coordinates (tomtom.js:311-323) and
         // attaches them to the parsed incident object; without surfacing them
         // here, the briefing payload kept distanceFromDriver but dropped the
         // raw coords needed for plotting.
-        const prioritizedIncidents = traffic.incidents.slice(0, 10).map(inc => ({
+        const formatIncidentForPayload = (inc) => ({
           description: inc.displayDescription || `${inc.category}: ${inc.location}`,
           severity: inc.magnitude === 'Major' ? 'high' : inc.magnitude === 'Moderate' ? 'medium' : 'low',
           category: inc.category,
@@ -2048,10 +2087,29 @@ export async function fetchTrafficConditions({ snapshot }) {
           priority: inc.priority,
           delayMinutes: inc.delayMinutes,
           lengthMiles: inc.lengthMiles,
-          distanceFromDriver: inc.distanceFromDriver,  // Distance in miles from driver's position
-          incidentLat: inc.incidentLat ?? null,        // PHASE F: for map plotting
-          incidentLon: inc.incidentLon ?? null         // PHASE F: for map plotting
-        }));
+          distanceFromDriver: inc.distanceFromDriver,
+          incidentLat: inc.incidentLat ?? null,
+          incidentLon: inc.incidentLon ?? null
+        });
+
+        const prioritizedIncidents = tenMileIncidents.slice(0, 10).map(formatIncidentForPayload);
+
+        // PHASE F.1: build the wider map subset.
+        //   = (all incidents within 10mi) ∪ (highway-only incidents 10-25mi)
+        // Deduped by stable id. Only items with coords reach the map (the
+        // hook also enforces this client-side, but stripping here keeps the
+        // payload tighter).
+        const tenMileIds = new Set(tenMileIncidents.map(i => i.id).filter(Boolean));
+        const farHighwayIncidents = allParsed.filter(i =>
+          i.isHighway === true &&
+          i.distanceFromDriver != null &&
+          i.distanceFromDriver > 10 &&
+          i.distanceFromDriver <= 25 &&
+          (!i.id || !tenMileIds.has(i.id))
+        );
+        const mapIncidents = [...tenMileIncidents, ...farHighwayIncidents]
+          .filter(i => typeof i.incidentLat === 'number' && typeof i.incidentLon === 'number')
+          .map(formatIncidentForPayload);
 
         // Separate closures for expandable section (also filtered by distance)
         const allClosures = (traffic.allIncidents || traffic.incidents)
@@ -2080,6 +2138,11 @@ export async function fetchTrafficConditions({ snapshot }) {
           // Prioritized incidents (top 10 by impact) - for collapsed "Active Incidents" section
           incidents: prioritizedIncidents,
           incidentsCount: traffic.totalIncidents,
+
+          // PHASE F.1: wider set for the StrategyMap layer — all 10mi
+          // incidents PLUS major-artery (highway) incidents 10-25mi away.
+          // Briefing UI keeps reading `incidents` (top 10); map reads this.
+          mapIncidents,
 
           // Expandable closures list
           closures: allClosures,
