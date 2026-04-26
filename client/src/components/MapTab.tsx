@@ -210,9 +210,14 @@ const MapTab: React.FC<MapTabProps> = ({
       .then((googleApi) => {
         if (cancelled || !mapRef.current) return;
 
+        // 2026-04-26 PHASE A hot-fix: lowered initial zoom from 12 → 11 because
+        // the new mapId-based vector tiles can render blank at higher zoom when
+        // the published Cloud Console map style has sparse zoom-level coverage.
+        // Lower zoom gives more context immediately and lands the user at a level
+        // where most styles render cleanly. fitBounds takes over once venues load.
         const mapOptions: google.maps.MapOptions = {
           center: { lat: driverLat, lng: driverLng },
-          zoom: 12,
+          zoom: 11,
           mapTypeControl: true,
           fullscreenControl: true,
           zoomControl: false,
@@ -231,6 +236,17 @@ const MapTab: React.FC<MapTabProps> = ({
         mapInstanceRef.current = map;
         infoWindowRef.current = new googleApi.maps.InfoWindow();
         setMapReady(true);
+
+        // Diagnostic: log tile load status so we can tell whether "blank map"
+        // means tiles aren't loading at all vs the style is rendering blank.
+        const tilesTimeout = window.setTimeout(() => {
+          console.warn('[MapTab] Tiles still not loaded after 5s — likely Cloud Console map style needs zoom-level coverage at zoom 11+');
+        }, 5000);
+        (googleApi.maps as unknown as { event: { addListenerOnce: (target: object, event: string, handler: () => void) => void } })
+          .event.addListenerOnce(map as unknown as object, 'tilesloaded', () => {
+            window.clearTimeout(tilesTimeout);
+            console.log('[MapTab] Tiles loaded successfully (mapId:', mapId || '<none>', ')');
+          });
 
         console.log('[MapTab] Google Map initialized (singleton loader, AdvancedMarkerElement, traffic layer)');
       })
