@@ -2,13 +2,28 @@
  * MapTab - Interactive Google Map with live traffic overlay and venue pins
  * Displays SmartBlocks venues as markers with drive time and earnings info
  * Events are filtered to show only TODAY's events with valid start/end times
+ *
+ * 2026-04-26 PHASE A consolidation:
+ *   - Now loads the Maps JS API via the singleton google-maps-loader
+ *     (root-cause fix for the historical removeChild bug — see loader doc).
+ *   - Migrated google.maps.Marker → google.maps.marker.AdvancedMarkerElement.
+ *     Marker styling is now SVG teardrops in DOM rather than Google CDN PNGs.
+ *   - All InfoWindow.setContent() interpolations escaped via escapeHtml().
+ *   - fitBounds is now layer-aware: includes driver, venues, events, AND bars
+ *     (previously only venues and events influenced the auto-zoom).
+ *   - Explicit cleanup on unmount to detach markers from the map.
  */
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Loader } from 'lucide-react';
 import { filterTodayEvents, formatEventDate, formatEventTimeRange } from '@/utils/co-pilot-helpers';
+import { loadGoogleMaps, getMapId } from '@/lib/maps/google-maps-loader';
+import { escapeHtml } from '@/lib/maps/escape-html';
 
-// Google Maps type declarations (loaded dynamically via script)
+// Google Maps type declarations (loaded dynamically; not shipped with @types).
+// 2026-04-26 PHASE A: replaced Marker class with AdvancedMarkerElement under
+// google.maps.marker namespace. Kept inline declaration approach to avoid
+// pulling @types/google.maps into Phase A (separate concern).
 declare global {
   interface Window {
     google: typeof google;
@@ -17,25 +32,25 @@ declare global {
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 declare namespace google.maps {
+  interface MapsEventListener {
+    remove(): void;
+  }
   class Map {
     constructor(element: HTMLElement, options: MapOptions);
-    fitBounds(bounds: LatLngBounds, padding?: number | { top?: number; right?: number; bottom?: number; left?: number; padding?: number }): void;
-  }
-  class Marker {
-    constructor(options: MarkerOptions);
-    setMap(map: Map | null): void;
-    getPosition(): LatLng | null;
-    addListener(event: string, handler: () => void): void;
+    fitBounds(
+      bounds: LatLngBounds,
+      padding?: number | { top?: number; right?: number; bottom?: number; left?: number; padding?: number }
+    ): void;
   }
   class InfoWindow {
     constructor();
     setContent(content: string): void;
-    open(map: Map, marker: Marker): void;
+    open(map: Map, anchor?: unknown): void;
     close(): void;
   }
   class LatLngBounds {
     constructor();
-    extend(point: LatLng): void;
+    extend(point: LatLng | { lat: number; lng: number }): void;
   }
   class LatLng {
     constructor(lat: number, lng: number);
@@ -49,6 +64,7 @@ declare namespace google.maps {
   interface MapOptions {
     center: { lat: number; lng: number };
     zoom: number;
+    mapId?: string;
     mapTypeControl?: boolean;
     fullscreenControl?: boolean;
     zoomControl?: boolean;
@@ -56,12 +72,27 @@ declare namespace google.maps {
     minZoom?: number;
     maxZoom?: number;
   }
-  interface MarkerOptions {
-    position: { lat: number; lng: number };
-    map: Map;
-    title?: string;
-    icon?: string;
-    zIndex?: number;
+
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace marker {
+    interface AdvancedMarkerElementOptions {
+      position?: { lat: number; lng: number };
+      map?: Map | null;
+      title?: string;
+      content?: HTMLElement;
+      zIndex?: number;
+      gmpClickable?: boolean;
+    }
+    class AdvancedMarkerElement {
+      constructor(options?: AdvancedMarkerElementOptions);
+      position: { lat: number; lng: number } | null;
+      map: Map | null;
+      title: string;
+      content: HTMLElement | null;
+      zIndex: number | null;
+      gmpClickable: boolean;
+      addListener(event: 'gmp-click', handler: (event: { domEvent: Event }) => void): MapsEventListener;
+    }
   }
 }
 
@@ -83,7 +114,7 @@ interface MapEvent {
   venue?: string;
   address?: string;
   event_start_date?: string;
-  event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
+  event_end_date?: string;
   event_start_time?: string;
   event_end_time?: string;
   latitude?: number;
@@ -94,8 +125,6 @@ interface MapEvent {
 
 // Bar type for map markers (green=open, orange=closed but worth it, red=closing soon)
 // Only shows $$ and above (expenseRank >= 2)
-// 2026-01-10: Updated to camelCase to match useBarsQuery API response
-// 2026-01-14: Added closedGoAnyway for orange marker support
 interface MapBar {
   name: string;
   type: string;
@@ -109,18 +138,42 @@ interface MapBar {
   lng: number;
   placeId?: string;
   rating?: number | null;
-  closedGoAnyway?: boolean;       // High-value closed venues worth staging near
-  closedReason?: string | null;   // Reason to visit anyway
+  closedGoAnyway?: boolean;
+  closedReason?: string | null;
 }
 
 interface MapTabProps {
   driverLat: number;
   driverLng: number;
   venues: Venue[];
-  bars?: MapBar[];  // Premium bars ($$+) with open/closing status
+  bars?: MapBar[];
   events?: MapEvent[];
   snapshotId?: string;
   isLoading?: boolean;
+}
+
+// Marker palette — Tailwind 600-shade hex codes; matches the legend swatches.
+const MARKER_COLORS = {
+  driver: '#1d4ed8',     // blue-700 (slightly darker for prominence)
+  gradeA: '#dc2626',     // red-600
+  gradeB: '#ea580c',     // orange-600
+  gradeC: '#eab308',     // yellow-500
+  event: '#9333ea',      // purple-600
+  barOpen: '#16a34a',    // green-600
+  barClosingSoon: '#dc2626', // red-600
+  barClosedGoAnyway: '#ea580c', // orange-600
+} as const;
+
+// Build an SVG teardrop pin as an HTMLElement for AdvancedMarkerElement.content.
+// Pattern lifted from ConciergeMap so all maps in the app render visually consistent pins.
+function makePinContent(color: string, size: number = 32): HTMLDivElement {
+  const div = document.createElement('div');
+  div.style.cssText = `width: ${size}px; height: ${Math.round(size * 1.4)}px; cursor: pointer; transform: translate(-50%, -100%);`;
+  div.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 40" width="100%" height="100%" aria-hidden="true">
+    <path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.268 21.732 0 14 0z" fill="${color}" stroke="white" stroke-width="2"/>
+    <circle cx="14" cy="14" r="6" fill="white"/>
+  </svg>`;
+  return div;
 }
 
 const MapTab: React.FC<MapTabProps> = ({
@@ -134,9 +187,9 @@ const MapTab: React.FC<MapTabProps> = ({
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
-  const barMarkersRef = useRef<google.maps.Marker[]>([]);  // Bar markers (green/red)
-  const eventMarkersRef = useRef<google.maps.Marker[]>([]);
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const barMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const eventMarkersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
@@ -146,30 +199,18 @@ const MapTab: React.FC<MapTabProps> = ({
   const lastEventKeyRef = useRef<string>('');
 
   // Filter events to only show TODAY's events with valid start/end times
-  const todayEvents = useMemo(() => {
-    const filtered = filterTodayEvents(events);
-    return filtered;
-  }, [events]);
+  const todayEvents = useMemo(() => filterTodayEvents(events), [events]);
 
-  // Initialize Google Map
+  // Initialize Google Map via singleton loader (Phase A.1/A.3/A.4).
   useEffect(() => {
     if (!mapRef.current || mapReady) return;
 
-    const script = document.createElement('script');
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    
-    if (!apiKey) {
-      console.error('❌ VITE_GOOGLE_MAPS_API_KEY not configured');
-      return;
-    }
+    let cancelled = false;
+    loadGoogleMaps({ libraries: ['maps', 'marker', 'geometry'] })
+      .then((googleApi) => {
+        if (cancelled || !mapRef.current) return;
 
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=maps`;
-    script.async = true;
-    script.defer = true;
-
-    script.onload = () => {
-      if (mapRef.current && window.google) {
-        const map = new window.google.maps.Map(mapRef.current, {
+        const mapOptions: google.maps.MapOptions = {
           center: { lat: driverLat, lng: driverLng },
           zoom: 12,
           mapTypeControl: true,
@@ -178,74 +219,78 @@ const MapTab: React.FC<MapTabProps> = ({
           streetViewControl: false,
           minZoom: 10,
           maxZoom: 18,
-        });
+        };
+        const mapId = getMapId();
+        if (mapId) mapOptions.mapId = mapId;
 
-        // Enable traffic layer
-        const trafficLayer = new window.google.maps.TrafficLayer();
+        const map = new googleApi.maps.Map(mapRef.current, mapOptions);
+
+        const trafficLayer = new googleApi.maps.TrafficLayer();
         trafficLayer.setMap(map);
 
         mapInstanceRef.current = map;
-        infoWindowRef.current = new window.google.maps.InfoWindow();
+        infoWindowRef.current = new googleApi.maps.InfoWindow();
         setMapReady(true);
 
-        console.log('✅ Google Map initialized with traffic layer');
-      }
-    };
-
-    document.head.appendChild(script);
+        console.log('[MapTab] Google Map initialized (singleton loader, AdvancedMarkerElement, traffic layer)');
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[MapTab] Failed to initialize Google Maps:', err);
+      });
 
     return () => {
-      if (document.head.contains(script)) {
-        document.head.removeChild(script);
-      }
+      // PHASE A: cancel any in-flight init; explicit marker cleanup on unmount.
+      // Singleton loader owns the <script> tag — do NOT remove it here.
+      cancelled = true;
+      markersRef.current.forEach((m) => { m.map = null; });
+      barMarkersRef.current.forEach((m) => { m.map = null; });
+      eventMarkersRef.current.forEach((m) => { m.map = null; });
+      infoWindowRef.current?.close();
     };
   }, [driverLat, driverLng, mapReady]);
 
-  // Add driver location marker
+  // Add driver location + venue markers
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !window.google) return;
 
-    // Clear existing markers
-    markersRef.current.forEach(marker => marker.setMap(null));
+    const map = mapInstanceRef.current;
+    const { AdvancedMarkerElement } = window.google.maps.marker;
+
+    // Clear existing driver/venue markers
+    markersRef.current.forEach((m) => { m.map = null; });
     markersRef.current = [];
 
-    // Add driver marker (blue)
-    const driverMarker = new window.google.maps.Marker({
+    // Driver marker (blue, larger)
+    const driverMarker = new AdvancedMarkerElement({
       position: { lat: driverLat, lng: driverLng },
-      map: mapInstanceRef.current,
+      map,
       title: 'Your Location',
-      icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+      content: makePinContent(MARKER_COLORS.driver, 40),
       zIndex: 1000,
+      gmpClickable: false,
     });
-
     markersRef.current.push(driverMarker);
 
-    // Add venue markers
+    // Venue markers (Grade A/B/C colors)
     venues.forEach((venue, index) => {
       const isTopVenue = (venue.rank || 999) <= 3;
-      const color = venue.value_grade === 'A' 
-        ? 'red' 
-        : venue.value_grade === 'B' 
-        ? 'orange' 
-        : 'yellow';
+      const color =
+        venue.value_grade === 'A' ? MARKER_COLORS.gradeA :
+        venue.value_grade === 'B' ? MARKER_COLORS.gradeB :
+        MARKER_COLORS.gradeC;
 
-      const icon = `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
-
-      const marker = new window.google.maps.Marker({
+      const marker = new AdvancedMarkerElement({
         position: { lat: venue.lat, lng: venue.lng },
-        map: mapInstanceRef.current,
+        map,
         title: venue.name,
-        icon: icon,
+        content: makePinContent(color, 32),
         zIndex: isTopVenue ? 999 : 500,
       });
 
-      // Info window on click
-      marker.addListener('click', () => {
-        if (infoWindowRef.current) {
-          infoWindowRef.current.close();
-        }
+      marker.addListener('gmp-click', () => {
+        infoWindowRef.current?.close();
 
-        // Get grade badge color
         const getGradeBadgeStyle = (grade?: string) => {
           switch (grade?.toUpperCase()) {
             case 'A': return 'background: #dcfce7; color: #166534; border: 1px solid #86efac;';
@@ -254,15 +299,18 @@ const MapTab: React.FC<MapTabProps> = ({
           }
         };
 
+        const safeName = escapeHtml(venue.name);
+        const safeGrade = venue.value_grade ? escapeHtml(venue.value_grade) : '';
+
         const content = `
           <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 260px;">
             <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px;">
               <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.3;">
-                ${venue.name}
+                ${safeName}
               </div>
-              ${venue.value_grade ? `
+              ${safeGrade ? `
                 <span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; ${getGradeBadgeStyle(venue.value_grade)}">
-                  Grade ${venue.value_grade}
+                  Grade ${safeGrade}
                 </span>
               ` : ''}
             </div>
@@ -270,11 +318,11 @@ const MapTab: React.FC<MapTabProps> = ({
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; padding: 10px; background: #f8fafc; border-radius: 6px;">
               <div>
                 <span style="color: #6b7280; display: block; font-size: 10px; text-transform: uppercase; margin-bottom: 2px;">Distance</span>
-                <span style="font-weight: 600; color: #1f2937; font-size: 14px;">${venue.distance_miles?.toFixed(1) || 'N/A'} mi</span>
+                <span style="font-weight: 600; color: #1f2937; font-size: 14px;">${venue.distance_miles?.toFixed(1) ?? 'N/A'} mi</span>
               </div>
               <div>
                 <span style="color: #6b7280; display: block; font-size: 10px; text-transform: uppercase; margin-bottom: 2px;">Drive Time</span>
-                <span style="font-weight: 600; color: #1f2937; font-size: 14px;">${venue.drive_time_min || 'N/A'} min</span>
+                <span style="font-weight: 600; color: #1f2937; font-size: 14px;">${venue.drive_time_min ?? 'N/A'} min</span>
               </div>
             </div>
 
@@ -291,12 +339,12 @@ const MapTab: React.FC<MapTabProps> = ({
 
             <div style="display: flex; gap: 8px;">
               <a href="https://maps.google.com/maps?daddr=${venue.lat},${venue.lng}&directionsmode=driving"
-                 target="_blank"
+                 target="_blank" rel="noopener noreferrer"
                  style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);">
                 🧭 Navigate
               </a>
               <a href="https://maps.apple.com/?daddr=${venue.lat},${venue.lng}&dirflg=d"
-                 target="_blank"
+                 target="_blank" rel="noopener noreferrer"
                  style="display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 12px; background: #f1f5f9; color: #475569; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid #e2e8f0;">
                 🍎
               </a>
@@ -305,60 +353,59 @@ const MapTab: React.FC<MapTabProps> = ({
         `;
 
         infoWindowRef.current?.setContent(content);
-        infoWindowRef.current?.open(mapInstanceRef.current, marker);
+        infoWindowRef.current?.open(map, marker);
       });
 
       markersRef.current.push(marker);
     });
 
-    // Fit bounds to show all markers (venues + events)
-    if ((markersRef.current.length > 0 || eventMarkersRef.current.length > 0) && window.google) {
+    // Layer-aware fitBounds: include driver, venues, events, AND bars (Phase A.6).
+    // Previously bars were excluded, so a bar outside the venue/event envelope
+    // wouldn't influence the initial viewport.
+    const allMarkers = [
+      ...markersRef.current,
+      ...eventMarkersRef.current,
+      ...barMarkersRef.current,
+    ];
+    if (allMarkers.length > 0) {
       const bounds = new window.google.maps.LatLngBounds();
-      markersRef.current.forEach(marker => {
-        bounds.extend(marker.getPosition()!);
+      allMarkers.forEach((m) => {
+        if (m.position) bounds.extend(m.position);
       });
-      eventMarkersRef.current.forEach(marker => {
-        bounds.extend(marker.getPosition()!);
-      });
-      mapInstanceRef.current?.fitBounds(bounds, { padding: 60 });
+      map.fitBounds(bounds, { padding: 60 });
     }
   }, [mapReady, venues, driverLat, driverLng]);
 
-  // Add event markers with flag icons (TODAY'S EVENTS ONLY)
+  // Add event markers (TODAY'S EVENTS ONLY) — purple pins
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !window.google) return;
 
     // 2026-04-04: Dedup check — skip if event data hasn't actually changed.
     // Prevents clearing and re-adding identical markers on every parent re-render.
-    const eventKey = todayEvents.map(e => `${e.title}|${e.latitude}|${e.longitude}`).join(';');
+    const eventKey = todayEvents.map((e) => `${e.title}|${e.latitude}|${e.longitude}`).join(';');
     if (eventKey === lastEventKeyRef.current) return;
     lastEventKeyRef.current = eventKey;
 
-    // Clear existing event markers
-    eventMarkersRef.current.forEach(marker => marker.setMap(null));
+    const map = mapInstanceRef.current;
+    const { AdvancedMarkerElement } = window.google.maps.marker;
+
+    eventMarkersRef.current.forEach((m) => { m.map = null; });
     eventMarkersRef.current = [];
 
-    // Use filtered today events with valid coordinates
-    const eventsWithCoords = todayEvents.filter(e => e.latitude && e.longitude);
+    const eventsWithCoords = todayEvents.filter((e) => e.latitude && e.longitude);
 
     eventsWithCoords.forEach((event) => {
-      // Use purple marker for events (distinct from venue colors)
-      const icon = 'http://maps.google.com/mapfiles/ms/icons/purple-dot.png';
-
-      const marker = new window.google.maps.Marker({
+      const marker = new AdvancedMarkerElement({
         position: { lat: event.latitude!, lng: event.longitude! },
-        map: mapInstanceRef.current,
+        map,
         title: event.title,
-        icon: icon,
-        zIndex: 800, // Below top venues but visible
+        content: makePinContent(MARKER_COLORS.event, 28),
+        zIndex: 800,
       });
 
-      // Build date and time display
-      // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
       const dateDisplay = formatEventDate(event.event_start_date);
       const timeDisplay = formatEventTimeRange(event.event_start_time, event.event_end_time);
 
-      // Get event category icon
       const getCategoryIcon = (subtype?: string) => {
         if (!subtype) return '📍';
         const sub = subtype.toLowerCase();
@@ -371,7 +418,6 @@ const MapTab: React.FC<MapTabProps> = ({
         return '📍';
       };
 
-      // Impact badge color
       const getImpactStyle = (impact?: string) => {
         switch (impact) {
           case 'high': return 'background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;';
@@ -380,11 +426,15 @@ const MapTab: React.FC<MapTabProps> = ({
         }
       };
 
-      // Info window on click
-      marker.addListener('click', () => {
-        if (infoWindowRef.current) {
-          infoWindowRef.current.close();
-        }
+      marker.addListener('gmp-click', () => {
+        infoWindowRef.current?.close();
+
+        const safeTitle = escapeHtml(event.title);
+        const safeVenue = event.venue ? escapeHtml(event.venue) : '';
+        const safeAddress = event.address ? escapeHtml(event.address) : '';
+        const safeImpact = event.impact ? escapeHtml(event.impact.toUpperCase()) : '';
+        const safeDateDisplay = escapeHtml(dateDisplay);
+        const safeTimeDisplay = timeDisplay ? escapeHtml(timeDisplay) : '';
 
         const content = `
           <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 280px;">
@@ -392,46 +442,45 @@ const MapTab: React.FC<MapTabProps> = ({
               <span style="font-size: 20px;">${getCategoryIcon(event.subtype)}</span>
               <div style="flex: 1;">
                 <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.3;">
-                  ${event.title}
+                  ${safeTitle}
                 </div>
-                ${event.venue ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">@ ${event.venue}</div>` : ''}
+                ${safeVenue ? `<div style="font-size: 12px; color: #6b7280; margin-top: 2px;">@ ${safeVenue}</div>` : ''}
               </div>
             </div>
 
-            <!-- Date & Time Section (Required for all displayed events) -->
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; padding: 10px; background: linear-gradient(135deg, #f3e8ff, #e0f2fe); border-radius: 8px;">
               <div style="display: flex; align-items: center; gap: 4px;">
                 <span style="font-size: 14px;">📅</span>
-                <span style="font-weight: 600; color: ${dateDisplay === 'Today' ? '#059669' : '#7c3aed'}; font-size: 13px;">${dateDisplay}</span>
+                <span style="font-weight: 600; color: ${dateDisplay === 'Today' ? '#059669' : '#7c3aed'}; font-size: 13px;">${safeDateDisplay}</span>
               </div>
-              ${timeDisplay ? `
+              ${safeTimeDisplay ? `
                 <div style="display: flex; align-items: center; gap: 4px;">
                   <span style="font-size: 14px;">🕐</span>
-                  <span style="font-weight: 600; color: #7c3aed; font-size: 13px;">${timeDisplay}</span>
+                  <span style="font-weight: 600; color: #7c3aed; font-size: 13px;">${safeTimeDisplay}</span>
                 </div>
               ` : ''}
             </div>
 
-            ${event.address ? `
+            ${safeAddress ? `
               <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
-                📍 ${event.address}
+                📍 ${safeAddress}
               </div>
             ` : ''}
 
-            ${event.impact ? `
+            ${safeImpact ? `
               <div style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; ${getImpactStyle(event.impact)}">
-                ${event.impact.toUpperCase()} IMPACT
+                ${safeImpact} IMPACT
               </div>
             ` : ''}
 
             <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px;">
               <a href="https://maps.google.com/maps?daddr=${event.latitude},${event.longitude}&directionsmode=driving"
-                 target="_blank"
+                 target="_blank" rel="noopener noreferrer"
                  style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: #8b5cf6; color: white; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;">
                 🧭 Navigate
               </a>
               <a href="https://maps.apple.com/?daddr=${event.latitude},${event.longitude}&dirflg=d"
-                 target="_blank"
+                 target="_blank" rel="noopener noreferrer"
                  style="display: flex; align-items: center; justify-content: center; padding: 8px 12px; background: #f3e8ff; color: #7c3aed; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid #ddd6fe;">
                 🍎
               </a>
@@ -440,51 +489,48 @@ const MapTab: React.FC<MapTabProps> = ({
         `;
 
         infoWindowRef.current?.setContent(content);
-        infoWindowRef.current?.open(mapInstanceRef.current, marker);
+        infoWindowRef.current?.open(map, marker);
       });
 
       eventMarkersRef.current.push(marker);
     });
 
     if (eventsWithCoords.length > 0) {
-      console.log(`[MapTab] ✅ Added ${eventsWithCoords.length} event markers to map`);
+      console.log(`[MapTab] Added ${eventsWithCoords.length} event markers to map`);
     }
   }, [mapReady, todayEvents]);
 
-  // Add bar markers with color coding (green=open, red=closing soon)
-  // Bars are $$+ venues separate from strategy blocks
+  // Add bar markers ($$+ venues; green=open, orange=closed-go-anyway, red=closing-soon)
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !window.google) return;
 
-    // Clear existing bar markers
-    barMarkersRef.current.forEach(marker => marker.setMap(null));
+    const map = mapInstanceRef.current;
+    const { AdvancedMarkerElement } = window.google.maps.marker;
+
+    barMarkersRef.current.forEach((m) => { m.map = null; });
     barMarkersRef.current = [];
 
     bars.forEach((bar) => {
-      // 2026-01-14: Color coding:
-      // - Orange = closedGoAnyway (closed but worth staging near)
-      // - Red = closing soon
-      // - Green = open
       const isClosedGoAnyway = bar.closedGoAnyway === true;
       const isClosingSoon = bar.closingSoon;
-      const color = isClosedGoAnyway ? 'orange' : isClosingSoon ? 'red' : 'green';
+      const color =
+        isClosedGoAnyway ? MARKER_COLORS.barClosedGoAnyway :
+        isClosingSoon ? MARKER_COLORS.barClosingSoon :
+        MARKER_COLORS.barOpen;
       const statusLabel = isClosedGoAnyway
         ? (bar.closedReason || 'Closed (Worth It)')
         : isClosingSoon
         ? (bar.minutesUntilClose ? `Closing in ${bar.minutesUntilClose}min` : 'Closing soon')
         : 'Open';
 
-      const icon = `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
-
-      const marker = new window.google.maps.Marker({
+      const marker = new AdvancedMarkerElement({
         position: { lat: bar.lat, lng: bar.lng },
-        map: mapInstanceRef.current,
+        map,
         title: `${bar.name} (${bar.expenseLevel})`,
-        icon: icon,
-        zIndex: 600, // Below venues and events
+        content: makePinContent(color, 28),
+        zIndex: 600,
       });
 
-      // Get venue type icon
       const getTypeIcon = (type: string) => {
         switch (type) {
           case 'nightclub': return '🎉';
@@ -494,33 +540,34 @@ const MapTab: React.FC<MapTabProps> = ({
         }
       };
 
-      // Info window on click
-      marker.addListener('click', () => {
-        if (infoWindowRef.current) {
-          infoWindowRef.current.close();
-        }
+      marker.addListener('gmp-click', () => {
+        infoWindowRef.current?.close();
 
-        // 2026-01-14: Status style: orange for closedGoAnyway, red for closing soon, green for open
         const statusStyle = isClosedGoAnyway
-          ? 'background: #fff7ed; color: #c2410c; border: 1px solid #fdba74;'  // Orange for closedGoAnyway
+          ? 'background: #fff7ed; color: #c2410c; border: 1px solid #fdba74;'
           : isClosingSoon
-          ? 'background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5;'  // Red for closing soon
-          : 'background: #dcfce7; color: #166534; border: 1px solid #86efac;'; // Green for open
+          ? 'background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5;'
+          : 'background: #dcfce7; color: #166534; border: 1px solid #86efac;';
+
+        const safeName = escapeHtml(bar.name);
+        const safeStatusLabel = escapeHtml(statusLabel);
+        const safeExpense = escapeHtml(bar.expenseLevel);
+        const safeAddress = escapeHtml(bar.address);
 
         const content = `
           <div style="padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 260px;">
             <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
               <div style="font-weight: 600; font-size: 14px; color: #1f2937; line-height: 1.3;">
-                ${getTypeIcon(bar.type)} ${bar.name}
+                ${getTypeIcon(bar.type)} ${safeName}
               </div>
               <span style="padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; ${statusStyle}">
-                ${statusLabel}
+                ${safeStatusLabel}
               </span>
             </div>
 
             <div style="display: flex; gap: 8px; margin-bottom: 8px;">
               <span style="padding: 2px 8px; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 11px; font-weight: 600;">
-                ${bar.expenseLevel}
+                ${safeExpense}
               </span>
               ${bar.rating ? `
                 <span style="padding: 2px 8px; background: #e0f2fe; color: #0369a1; border-radius: 4px; font-size: 11px;">
@@ -530,17 +577,17 @@ const MapTab: React.FC<MapTabProps> = ({
             </div>
 
             <div style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">
-              📍 ${bar.address}
+              📍 ${safeAddress}
             </div>
 
             <div style="display: flex; gap: 8px;">
               <a href="https://maps.google.com/maps?daddr=${bar.lat},${bar.lng}&directionsmode=driving"
-                 target="_blank"
+                 target="_blank" rel="noopener noreferrer"
                  style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: linear-gradient(135deg, #10b981, #059669); color: white; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500;">
                 🧭 Navigate
               </a>
               <a href="https://maps.apple.com/?daddr=${bar.lat},${bar.lng}&dirflg=d"
-                 target="_blank"
+                 target="_blank" rel="noopener noreferrer"
                  style="display: flex; align-items: center; justify-content: center; padding: 8px 12px; background: #f1f5f9; color: #475569; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 500; border: 1px solid #e2e8f0;">
                 🍎
               </a>
@@ -549,13 +596,13 @@ const MapTab: React.FC<MapTabProps> = ({
         `;
 
         infoWindowRef.current?.setContent(content);
-        infoWindowRef.current?.open(mapInstanceRef.current, marker);
+        infoWindowRef.current?.open(map, marker);
       });
 
       barMarkersRef.current.push(marker);
     });
 
-    console.log(`✅ Added ${bars.length} open bar markers ($$+): ${bars.filter(b => !b.closingSoon).length} open (green), ${bars.filter(b => b.closingSoon).length} closing soon (red)`);
+    console.log(`[MapTab] Added ${bars.length} bar markers ($$+): ${bars.filter((b) => !b.closingSoon).length} open, ${bars.filter((b) => b.closingSoon).length} closing soon`);
   }, [mapReady, bars]);
 
   return (
@@ -588,23 +635,23 @@ const MapTab: React.FC<MapTabProps> = ({
           <div className="space-y-2">
             <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Strategy Venues</div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-blue-400 border border-blue-500" />
+              <div className="w-5 h-5 rounded-full bg-blue-700 border border-white shadow" />
               <span className="text-gray-700">Your location</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-red-400 border border-red-500" />
+              <div className="w-5 h-5 rounded-full bg-red-600 border border-white shadow" />
               <span className="text-gray-700">Top venue (Grade A)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-orange-400 border border-orange-500" />
+              <div className="w-5 h-5 rounded-full bg-orange-600 border border-white shadow" />
               <span className="text-gray-700">Good venue (Grade B)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-yellow-400 border border-yellow-500" />
+              <div className="w-5 h-5 rounded-full bg-yellow-500 border border-white shadow" />
               <span className="text-gray-700">Standard venue (Grade C+)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-purple-400 border border-purple-500" />
+              <div className="w-5 h-5 rounded-full bg-purple-600 border border-white shadow" />
               <span className="text-gray-700">Event (today only)</span>
             </div>
           </div>
@@ -613,15 +660,15 @@ const MapTab: React.FC<MapTabProps> = ({
           <div className="space-y-2">
             <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Bars & Lounges ($$+)</div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-green-500 border border-green-600" />
+              <div className="w-5 h-5 rounded-full bg-green-600 border border-white shadow" />
               <span className="text-gray-700">Open bar</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-orange-400 border border-orange-500" />
+              <div className="w-5 h-5 rounded-full bg-orange-600 border border-white shadow" />
               <span className="text-gray-700">Closed (worth staging near)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-red-500 border border-red-600" />
+              <div className="w-5 h-5 rounded-full bg-red-600 border border-white shadow" />
               <span className="text-gray-700">Closing soon (last call!)</span>
             </div>
             <div className="text-xs text-gray-500 mt-1">
