@@ -4,7 +4,7 @@
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { triadLog, OP } from '../../logger/workflow.js';
+import { triadLog, OP, tagLog } from '../../logger/workflow.js';
 
 /**
  * CRITICAL: Create strategy row with snapshot location data
@@ -247,14 +247,13 @@ export async function updatePhase(snapshotId, phase, options = {}) {
         .catch(err => triadLog.warn(1, `Failed to update triad_job status: ${err.message}`));
     }
 
-    // Log phase transition with confirmation
-    const statusNote = phase === 'complete' ? ' (status→ok)' : '';
-    console.log(`[PHASE-UPDATE] ${snapshotId.slice(0, 8)} → ${phase}${statusNote} (updated at ${now.toISOString()})`);
-
-    // Map phase to TRIAD type for clearer logging
-    const triadType = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'Strategy' :
-                      ['venues', 'routing', 'places', 'verifying', 'enriching'].includes(phase) ? 'Venue' : 'Pipeline';
-    triadLog.info(`[strategy-utils] ${triadType}|${snapshotId.slice(0, 8)} → ${phase}`, OP.DB);
+    // 2026-04-27 (Commit 7 of CLEAR_CONSOLE_WORKFLOW): collapsed three lines
+    // (caller [PHASE], updatePhase [PHASE-UPDATE], [strategy-utils] file-tag)
+    // into ONE canonical emission per phase transition. Caller no longer pre-logs.
+    const statusNote = phase === 'complete' ? ' (status->ok)' : '';
+    const main = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'STRATEGY' :
+                 ['venues', 'routing', 'places', 'verifying', 'enriching'].includes(phase) ? 'VENUE' : 'WATERFALL';
+    tagLog([main, 'PHASE-UPDATE'], `${snapshotId.slice(0, 8)} -> ${phase}${statusNote} (updated at ${now.toISOString()})`);
 
     // Emit phase_change SSE event if emitter provided
     if (options.phaseEmitter) {

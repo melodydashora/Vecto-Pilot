@@ -87,7 +87,7 @@ export function validateEnvironment() {
   const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3.1-pro-preview';
   const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.5-2026-04-23';
 
-  console.log('[env-validation] AI Model Configuration:', {
+  console.log('[CONFIG] [ENV] [VALIDATION] AI Model Configuration:', {
     strategist,
     briefer,
     consolidator,
@@ -138,14 +138,14 @@ export function validateEnvironment() {
 export function validateOrExit() {
   // Skip exit in test mode to allow test runner to mock env or handle errors
   if (process.env.NODE_ENV === 'test') {
-    console.log('[env-validation] Test mode detected - skipping fatal exit');
+    console.log('[CONFIG] [ENV] [VALIDATION] Test mode detected - skipping fatal exit');
     return { valid: true, errors: [], warnings: [] };
   }
 
   const result = validateEnvironment();
   
   if (!result.valid) {
-    console.error('[env-validation] Server startup aborted due to configuration errors');
+    console.error('[CONFIG] [ENV] [VALIDATION] Server startup aborted due to configuration errors');
     process.exit(1);
   }
   

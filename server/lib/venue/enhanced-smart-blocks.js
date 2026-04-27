@@ -413,7 +413,8 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
     // Phase: 'routing' - Google Routes + Places APIs
-    console.log(`[PHASE] ${snapshotId.slice(0, 8)} venues → routing`);
+    // 2026-04-27 (Commit 7): caller pre-log removed — updatePhase emits the canonical
+    // [VENUE] [PHASE-UPDATE] line. Avoids three-lines-per-transition duplication.
     await updatePhase(snapshotId, 'routing', { phaseEmitter });
 
     const enrichmentStart = Date.now();
@@ -438,7 +439,6 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // 2026-04-11: matchVenuesToEvents no longer queries the DB or accepts city/state/date —
     // it takes the pre-fetched `todayEvents` directly and matches on place_id (primary) +
     // venue_id (secondary, dormant at this call site) + name (tertiary fallback).
-    console.log(`[PHASE] ${snapshotId.slice(0, 8)} routing → places`);
     await updatePhase(snapshotId, 'places', { phaseEmitter });
 
     const eventMatches = matchVenuesToEvents(enrichedVenues, todayEvents);
@@ -446,7 +446,6 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     // Step 2.5: Verify venue events using Gemini 2.5 Pro
     // Phase: 'verifying' - Gemini event verification
-    console.log(`[PHASE] ${snapshotId.slice(0, 8)} places → verifying`);
     await updatePhase(snapshotId, 'verifying', { phaseEmitter });
 
     venuesLog.phase(3, `Places API: Fetching hours + verifying events for ${enrichedVenues.length} venues`);
@@ -510,7 +509,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       );
       const hasEvent = matchedEvents.length > 0;
 
-      console.log(`🏢 [VENUE "${enriched.name}"] ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}${hasEvent ? `, 🎫 EVENT: ${matchedEvents[0].title}` : (allMatchedEvents.length > 0 ? ' (event stale)' : '')}`);
+      // 2026-04-27 (Commit 7): demoted per-venue line from info to debug. Set
+      // LOG_VERBOSE_COMPONENTS=VENUE to see one line per enriched venue.
+      venuesLog.debug(`"${enriched.name}" ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}${hasEvent ? `, EVENT: ${matchedEvents[0].title}` : (allMatchedEvents.length > 0 ? ' (event stale)' : '')}`);
 
       // Grade venues: A = $1+/min, B = $0.50-$1/min, C = <$0.50/min
       let valueGrade = 'C';
