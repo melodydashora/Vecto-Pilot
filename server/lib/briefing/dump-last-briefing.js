@@ -181,6 +181,49 @@ END OF VERIFICATION FILE
     const filePath = join(process.cwd(), 'sent-to-strategist.txt');
     await writeFile(filePath, output, 'utf-8');
     console.log('[DumpStrategist] ✅ Written to sent-to-strategist.txt');
+
+    // 2026-04-26: also write a briefing-only dump (briefing.txt). Same source
+    // data, but ONLY the briefing row — no snapshot, no strategy. Lets Melody
+    // see exactly what landed in the briefing on each cycle without wading
+    // through the full verification rollup.
+    const briefingOnly = `════════════════════════════════════════════════════════════════════════════════
+BRIEFING ROW — what actually landed on this snapshot's briefing
+════════════════════════════════════════════════════════════════════════════════
+Generated: ${new Date().toISOString()}
+Briefing ID:  ${lastBriefing.id}
+Snapshot ID:  ${lastBriefing.snapshot_id}
+created_at:   ${lastBriefing.created_at}
+updated_at:   ${lastBriefing.updated_at}
+════════════════════════════════════════════════════════════════════════════════
+
+NEWS (${Array.isArray(lastBriefing.news?.items) ? lastBriefing.news.items.length : 0} items):
+${lastBriefing.news ? JSON.stringify(lastBriefing.news, null, 2) : '(null)'}
+
+WEATHER_CURRENT:
+${lastBriefing.weather_current ? JSON.stringify(lastBriefing.weather_current, null, 2) : '(null)'}
+
+WEATHER_FORECAST (${Array.isArray(lastBriefing.weather_forecast) ? lastBriefing.weather_forecast.length : 0} hours):
+${lastBriefing.weather_forecast ? JSON.stringify(lastBriefing.weather_forecast, null, 2) : '(null)'}
+
+TRAFFIC_CONDITIONS:
+${lastBriefing.traffic_conditions ? JSON.stringify(lastBriefing.traffic_conditions, null, 2) : '(null)'}
+
+EVENTS (${Array.isArray(lastBriefing.events) ? lastBriefing.events.length : 0} total):
+${lastBriefing.events ? JSON.stringify(lastBriefing.events, null, 2) : '(null)'}
+
+SCHOOL_CLOSURES (${Array.isArray(lastBriefing.school_closures) ? lastBriefing.school_closures.length : 0} total):
+${lastBriefing.school_closures ? JSON.stringify(lastBriefing.school_closures, null, 2) : '(null)'}
+
+AIRPORT_CONDITIONS:
+${lastBriefing.airport_conditions ? JSON.stringify(lastBriefing.airport_conditions, null, 2) : '(null)'}
+
+════════════════════════════════════════════════════════════════════════════════
+END
+════════════════════════════════════════════════════════════════════════════════
+`;
+    const briefingFilePath = join(process.cwd(), 'briefing.txt');
+    await writeFile(briefingFilePath, briefingOnly, 'utf-8');
+    console.log('[DumpStrategist] ✅ Also written to briefing.txt (briefing row only)');
   } catch (err) {
     console.error('[DumpStrategist] ❌ Failed to dump:', err.message);
   }

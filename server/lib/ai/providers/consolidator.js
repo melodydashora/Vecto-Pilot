@@ -23,6 +23,8 @@ import { eq, inArray, or, ilike, sql } from 'drizzle-orm';
 // 2026-02-13: Removed direct callOpenAI import — now uses callModel adapter
 // 2026-02-11: Route through callModel adapter for registry config (thinkingLevel, tokens, features)
 import { callModel } from '../adapters/index.js';
+// 2026-04-26: capture exact LLM input to strategist-input.txt for token-bloat audit
+import { captureStrategistInput } from '../dump-strategist-input.js';
 import { triadLog, aiLog, dbLog, OP } from '../../../logger/workflow.js';
 import { isOpenNow } from '../../venue/venue-hours.js';
 // 2026-02-17: Use canonical timezone module for ALL time resolution (single source of truth)
@@ -270,8 +272,8 @@ PRINCIPLES:
     // 2026-04-11: System prompt expanded with the 5 owner directives (dollar-specific
     // advice, NEAR/FAR event reasoning, hour-by-hour phasing, specific roads, fuel-cost
     // repositioning math).
-    const response = await callModel('STRATEGY_TACTICAL', {
-      system: `You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your guidance. You have access to real-time traffic, events, weather, airport conditions, news, AND the driver's preferences (vehicle type, fuel costs, earnings goal, home base). Every recommendation must be actionable, specific, and dollar-aware.
+    // 2026-04-26: capture the exact {system, user} payload to strategist-input.txt
+    const __strategyTacticalSystem = `You are the Rideshare Strategist Dispatch Authority. A driver and their family depend on the quality of your guidance. You have access to real-time traffic, events, weather, airport conditions, news, AND the driver's preferences (vehicle type, fuel costs, earnings goal, home base). Every recommendation must be actionable, specific, and dollar-aware.
 
 CORE DIRECTIVES:
 - You have the driver's vehicle type, fuel costs, and earnings goal. Use these to give DOLLAR-SPECIFIC advice. Quote expected earnings and fuel costs in your recommendations. "Drive to X (12mi, ~$2.40 fuel) for $40-60 in surge rides" beats "go north for surge."
@@ -281,7 +283,18 @@ CORE DIRECTIVES:
 - Include fuel cost estimates for any repositioning move. A 12-mile drive at 25 mpg and $3.50/gal costs ~$1.70 in fuel — factor that against expected surge revenue before recommending the drive.
 - Attendance numbers are heuristic estimates only — never cite attendance numbers, crowd sizes, or capacity figures to the driver. Reason about event impact qualitatively using the high/medium/low demand signal. Use phrases like 'high-demand concert' or 'private event energy' instead of fabricated numbers.
 
-You understand demand patterns: events create surge at END times (exit crowds), airports follow flight schedules, nightlife clusters outperform isolated venues, and sometimes the smartest move is heading home with destination filter on. Every recommendation directly impacts someone's livelihood. Be precise, be honest, be actionable, be dollar-aware.`,
+You understand demand patterns: events create surge at END times (exit crowds), airports follow flight schedules, nightlife clusters outperform isolated venues, and sometimes the smartest move is heading home with destination filter on. Every recommendation directly impacts someone's livelihood. Be precise, be honest, be actionable, be dollar-aware.`;
+
+    // 2026-04-26: capture exact LLM input to strategist-input.txt before the call
+    captureStrategistInput({
+      role: 'STRATEGY_TACTICAL',
+      snapshotId,
+      system: __strategyTacticalSystem,
+      user: prompt,
+    });
+
+    const response = await callModel('STRATEGY_TACTICAL', {
+      system: __strategyTacticalSystem,
       user: prompt
     });
 
@@ -326,6 +339,18 @@ async function generateDailyStrategy({ prompt, maxTokens = 4096, temperature = 0
       }
 
       // 2026-02-11: Use callModel adapter - picks up thinkingLevel HIGH + google_search from registry
+      // 2026-04-26: capture exact LLM input to strategist-input.txt before the call
+      try {
+        // snapshotId may not be in scope here — pass undefined and let the
+        // capture function handle it; the file just won't have a snapshot ID.
+        captureStrategistInput({
+          role: 'STRATEGY_DAILY',
+          snapshotId: arguments[0]?.snapshotId,
+          system,
+          user: prompt,
+          extra: { attempt },
+        });
+      } catch { /* capture is best-effort, never block the strategy call */ }
       const response = await callModel('STRATEGY_DAILY', { system, user: prompt });
 
       // Handle Overloaded (503) or Rate Limited (429) from adapter

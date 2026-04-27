@@ -211,6 +211,8 @@ shared.env
 sent-to-strategist.txt
 snapshot.txt
 tomtom.txt
+briefing.txt
+strategist-input.txt
 briefing-output.json
 
 # AI session artifacts (one-time analysis outputs)
