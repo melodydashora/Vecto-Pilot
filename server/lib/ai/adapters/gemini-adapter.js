@@ -259,7 +259,8 @@ export async function callGeminiStream({
   temperature,
   useSearch = false,
   thinkingLevel = null, // Gemini 3: "low", "high" - null = disabled
-  timeoutMs = 90000
+  timeoutMs = 90000,
+  signal              // Optional caller AbortSignal — forwarded so client disconnect cancels the upstream Gemini call
 }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -315,9 +316,15 @@ export async function callGeminiStream({
     requestBody.tools = [{ google_search: {} }];
   }
 
-  // Create abort controller with timeout
+  // Create abort controller with timeout. If the caller passes a signal
+  // (e.g., chat.js wires req.on('close') for client-disconnect cancellation),
+  // chain it so external aborts also propagate to the upstream Gemini call.
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+  if (signal) {
+    if (signal.aborted) abortController.abort();
+    else signal.addEventListener('abort', () => abortController.abort(), { once: true });
+  }
 
   try {
     const response = await fetch(

@@ -1236,9 +1236,16 @@ Full transparency. Maximum insight.
       // Import adapter at runtime to avoid circular dependencies
       const { callModelStream } = await import('../../lib/ai/adapters/index.js');
 
+      // Cancel the upstream Gemini call if the client disconnects mid-stream
+      // (browser tab closed, mic-driven barge-in, etc). Without this the
+      // server keeps generating + billing after the client is gone.
+      const ac = new AbortController();
+      req.on('close', () => ac.abort());
+
       const response = await callModelStream('AI_COACH', {
         system: systemPrompt,
-        messageHistory
+        messageHistory,
+        signal: ac.signal
       });
 
       if (!response.ok) {

@@ -244,7 +244,7 @@ export async function callModel(role, params) {
  * @param {Object} params - { system, messageHistory }
  * @returns {Promise<Response>} - Fetch Response with readable stream body
  */
-export async function callModelStream(role, { system, messageHistory }) {
+export async function callModelStream(role, { system, messageHistory, signal }) {
   // 1. Get configuration from registry
   let config;
   try {
@@ -263,8 +263,8 @@ export async function callModelStream(role, { system, messageHistory }) {
     throw new Error(`Streaming not supported for provider: ${provider}. Only Gemini models support streaming via callModelStream()`);
   }
 
-  // 3. Call the streaming adapter
-  // 2026-02-11: Pass thinkingLevel from registry for Gemini 3 Pro support
+  // 3. Call the streaming adapter — forward optional caller signal so that
+  // a client disconnect (req.on('close')) can cancel the upstream call.
   const response = await callGeminiStream({
     model,
     system,
@@ -273,7 +273,8 @@ export async function callModelStream(role, { system, messageHistory }) {
     temperature,
     useSearch,
     thinkingLevel,
-    timeoutMs: 90000 // 90 seconds for streaming responses
+    timeoutMs: 90000,
+    signal
   });
 
   return response;
