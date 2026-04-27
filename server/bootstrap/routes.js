@@ -49,6 +49,9 @@ export async function mountRoutes(app, server) {
     { path: '/api/health', module: './server/api/health/health.js', desc: 'Health Check' },
     { path: '/api/ml-health', module: './server/api/health/ml-health.js', desc: 'ML Health' },
     { path: '/api/job-metrics', module: './server/api/health/job-metrics.js', desc: 'Job Metrics' },
+    // 2026-04-27: Mobile log viewer — auth-gated tail/stream + embedded HTML page.
+    // Open /api/logs/viewer on a phone to monitor server logs while away from desk.
+    { path: '/api/logs', module: './server/api/health/logs.js', desc: 'Mobile Log Viewer' },
 
     // Chat & Voice (server/api/chat/)
     { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Coach' },

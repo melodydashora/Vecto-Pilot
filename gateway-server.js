@@ -5,6 +5,12 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
+// 2026-04-27: Install console-tee FIRST so every subsequent log line is
+// mirrored to logs/server-current.log for the mobile log-viewer endpoint.
+// Must run before any other server output to capture the full session.
+import { installFileTee } from './server/logger/file-tee.js';
+installFileTee();
+
 import { loadEnvironment } from './server/config/load-env.js';
 import { validateOrExit } from './server/config/validate-env.js';
 import { unifiedAI, UNIFIED_CAPABILITIES } from './server/lib/ai/unified-ai-capabilities.js';
