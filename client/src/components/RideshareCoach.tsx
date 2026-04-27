@@ -5,9 +5,11 @@ import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { useCoachChat } from "@/hooks/coach/useCoachChat";
 import { useCoachAudioState } from "@/hooks/coach/useCoachAudioState";
+import { useStreamingReadAloud } from "@/hooks/coach/useStreamingReadAloud";
 import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
+import { COACH_STREAMING_TTS_ENABLED } from "@/constants/featureFlags";
 import { API_ROUTES } from "@/constants/apiRoutes";
 
 // 2026-01-05: Added for AI Coach notes panel feature
@@ -85,6 +87,10 @@ export default function RideshareCoach({
   // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
   const sentViaVoiceRef = useRef(false);
 
+  // 2026-04-27: Step 5 — streaming TTS chunks. Flag-gated OFF by default;
+  // Step 6 flips the default. When OFF, pushDelta/flush are never called.
+  const streaming = useStreamingReadAloud({ speak, stopSpeak });
+
   const [input, setInput] = useState("");
 
   // 2026-01-05: Notes panel state for AI Coach memory feature
@@ -116,15 +122,31 @@ export default function RideshareCoach({
 
   // 2026-04-26: Audio policy — gate post-stream auto-speak on read-aloud toggle OR mic-sourced send.
   // The mic-sourced bypass preserves the "you spoke, you want to hear the answer" UX even when muted.
+  // 2026-04-27 (Step 5): when COACH_STREAMING_TTS_ENABLED, flush() drains the
+  // remaining streamed buffer instead of speaking the full blob.
   const handleStreamComplete = useCallback((fullResponse: string) => {
     if (!readAloudEnabled && !sentViaVoiceRef.current) return;
-    const spokenText = cleanTextForTTS(fullResponse);
-    if (spokenText.length > 0) {
-      console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars`);
-      speak(spokenText.slice(0, 4000), 'en');
+
+    if (COACH_STREAMING_TTS_ENABLED) {
+      streaming.flush();
+    } else {
+      const spokenText = cleanTextForTTS(fullResponse);
+      if (spokenText.length > 0) {
+        console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars`);
+        speak(spokenText.slice(0, 4000), 'en');
+      }
     }
     sentViaVoiceRef.current = false;
-  }, [readAloudEnabled, speak]);
+  }, [readAloudEnabled, speak, streaming]);
+
+  // 2026-04-27 (Step 5): per-delta hook for chunked TTS. Same gate as
+  // handleStreamComplete — duplication is intentional (keeps streaming hook
+  // generic; coach UX policy stays in the component).
+  const handleStreamDelta = useCallback((delta: string) => {
+    if (!COACH_STREAMING_TTS_ENABLED) return;
+    if (!readAloudEnabled && !sentViaVoiceRef.current) return;
+    streaming.pushDelta(delta);
+  }, [readAloudEnabled, streaming]);
 
   // 2026-04-26: Step 3 — chat lifecycle (SSE stream, action tags, persistence,
   // attachments, abort) extracted to useCoachChat. Component now owns only
@@ -147,6 +169,7 @@ export default function RideshareCoach({
     snapshot,
     strategyReady,
     onStreamComplete: handleStreamComplete,
+    onStreamDelta: handleStreamDelta,
     onNotesSaved: fetchNotes,
   });
   void _setMsgs;
@@ -253,12 +276,17 @@ export default function RideshareCoach({
         clearTranscript();
       }, 300);
     } else {
-      // Interrupt coach TTS if it's speaking when driver starts talking
-      if (isSpeaking) stopSpeak();
+      // Interrupt coach TTS if it's speaking when driver starts talking.
+      // 2026-04-27 (Step 5): with streaming flag, abort() also clears the chunk queue.
+      if (COACH_STREAMING_TTS_ENABLED) {
+        streaming.abort();
+      } else if (isSpeaking) {
+        stopSpeak();
+      }
       clearTranscript();
       startMic('en');
     }
-  }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send]);
+  }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send, streaming]);
 
   // 2026-04-26: Submit handler — gates and clears input, then delegates to chat.send.
   // Preserves the original semantics: empty input + no attachments → no-op (input untouched);

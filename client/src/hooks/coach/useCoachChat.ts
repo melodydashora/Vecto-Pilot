@@ -38,6 +38,8 @@ export interface UseCoachChatParams {
   strategyReady?: boolean;
   /** Fired once SSE stream completes successfully with the assembled assistant response. */
   onStreamComplete?: (fullResponse: string) => void;
+  /** Fired on each SSE delta as it arrives (for streaming consumers like read-aloud chunks). */
+  onStreamDelta?: (delta: string) => void;
   /** Fired when the server reports notes were saved via action tags (caller refetches). */
   onNotesSaved?: () => void;
 }
@@ -68,6 +70,7 @@ export function useCoachChat({
   snapshot,
   strategyReady = false,
   onStreamComplete,
+  onStreamDelta,
   onNotesSaved,
 }: UseCoachChatParams): UseCoachChatReturn {
   const { messages: msgs, setMessages: setMsgs, isLoaded: _isChatLoaded } = useChatPersistence(userId, snapshotId);
@@ -231,6 +234,7 @@ export function useCoachChat({
                 return copy;
               });
               setTimeout(scrollToBottom, 10);
+              onStreamDelta?.(msg.delta);
             }
             if (msg.error) {
               setMsgs((m) => {
@@ -285,6 +289,7 @@ export function useCoachChat({
     scrollToBottom,
     onNotesSaved,
     onStreamComplete,
+    onStreamDelta,
   ]);
 
   return {
