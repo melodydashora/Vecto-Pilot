@@ -12,7 +12,7 @@ import { useCoPilot } from '@/contexts/co-pilot-context';
 import { MessageSquare } from 'lucide-react';
 
 export default function CoachPage() {
-  const { lastSnapshotId, strategyData, persistentStrategy, snapshotData, blocks } = useCoPilot();
+  const { lastSnapshotId, strategyData, immediateStrategy, snapshotData, blocks } = useCoPilot();
   return (
     <div className="px-4 pt-4 pb-24 max-w-4xl mx-auto" data-testid="coach-page">
       <header className="mb-4 flex items-center gap-2">
@@ -23,10 +23,10 @@ export default function CoachPage() {
         userId={localStorage.getItem('vecto_user_id') || 'default'}
         snapshotId={lastSnapshotId || undefined}
         strategyId={strategyData?.strategyId || undefined}
-        strategy={persistentStrategy}
+        strategy={immediateStrategy}
         snapshot={snapshotData}
         blocks={blocks}
-        strategyReady={!!persistentStrategy}
+        strategyReady={!!immediateStrategy}
       />
     </div>
   );

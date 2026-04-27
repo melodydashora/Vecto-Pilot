@@ -610,8 +610,8 @@ function BriefingScreen() {
         <div className="flex items-center gap-3">
           <div className="bg-white/20 p-2 rounded-xl"><FileText className="w-5 h-5 text-white" /></div>
           <div>
-            <h2 className="font-bold text-base leading-tight">Daily Strategy Report</h2>
-            <p className="text-[10px] text-blue-200 mt-0.5">Generated for your shift</p>
+            <h2 className="font-bold text-base leading-tight">Driver Briefing</h2>
+            <p className="text-[10px] text-blue-200 mt-0.5">Live conditions for your shift</p>
           </div>
         </div>
       </div>

@@ -97,7 +97,6 @@ export default function StrategyPage() {
     coords,
     lastSnapshotId,
     strategyData,
-    persistentStrategy,
     immediateStrategy,
     isStrategyFetching,
     snapshotData,

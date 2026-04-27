@@ -3,7 +3,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Newspaper, Loader, MapPin, ChevronUp, ChevronDown } from "lucide-react";
 import EventsComponent from "./EventsComponent";
-import { StrategyCard } from "./briefing/StrategyCard";
 import { WeatherCard } from "./briefing/WeatherCard";
 import { TrafficCard } from "./briefing/TrafficCard";
 import { NewsCard } from "./briefing/NewsCard";
@@ -45,10 +44,8 @@ interface BriefingTabProps {
   isNewsLoading?: boolean;
   isAirportLoading?: boolean;
   isSchoolClosuresLoading?: boolean;
-  areCriticalBriefingsLoading?: boolean;
   schoolClosuresData?: any;
   airportData?: any;
-  consolidatedStrategy?: string;
 }
 
 const BriefingTab = memo(function BriefingTab({
@@ -62,10 +59,8 @@ const BriefingTab = memo(function BriefingTab({
   isNewsLoading,
   isAirportLoading,
   isSchoolClosuresLoading,
-  areCriticalBriefingsLoading,
   schoolClosuresData,
   airportData,
-  consolidatedStrategy,
   timezone
 }: BriefingTabProps) {
   const [expandedMarketEvents, setExpandedMarketEvents] = useState(false);
@@ -138,12 +133,6 @@ const BriefingTab = memo(function BriefingTab({
           )}
         </div>
       </div>
-
-      <StrategyCard 
-        snapshotId={snapshotId}
-        consolidatedStrategy={consolidatedStrategy}
-        areCriticalBriefingsLoading={!!areCriticalBriefingsLoading}
-      />
 
       <WeatherCard weatherData={weatherData} timezone={timezone} />
 
