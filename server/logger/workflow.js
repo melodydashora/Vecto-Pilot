@@ -105,33 +105,102 @@ const DECO_WARN = LOG_NO_EMOJI ? '' : '⚠️ ';
 // 2026-04-27 refinement (Commit 5): TRIAD aliased to Strategy (no [Triad] in
 // logs — strategy umbrella replaces it). VENUE_PLANNING aliased to Venues so
 // waterfall phase reads as the same name as venue sub-steps.
+// 2026-04-27 (Commit 6 refinement): UPPERCASE per Melody's most-recent example
+// log. Matches the canonical format in
+// .rules-and-requirements/2026-04-27-format-target-example.md.
 const COMPONENT_LABELS = {
-  LOCATION: 'Location',
-  USER: 'User',
-  SNAPSHOT: 'Snapshot',
-  TRIAD: 'Strategy',           // collapsed: TRIAD is a strategy concept, not its own bucket
-  VENUES: 'Venue',             // singular per spec ("[Venue] Called Venue Planner")
-  VENUE: 'Venue',              // waterfall phase key (renamed from VENUE_PLANNING)
-  BARS: 'Bars',
-  BRIEFING: 'Briefing',
-  EVENTS: 'Events',
-  WEATHER: 'Weather',
+  LOCATION: 'LOCATION',
+  USER: 'USER',
+  SNAPSHOT: 'SNAPSHOT',
+  TRIAD: 'STRATEGY',           // collapsed: TRIAD is a strategy concept, not its own bucket
+  VENUES: 'VENUE',             // singular per spec ("[VENUE] Called Venue Planner")
+  VENUE: 'VENUE',
+  BARS: 'BARS',
+  BRIEFING: 'BRIEFING',
+  EVENTS: 'EVENTS',
+  WEATHER: 'WEATHER',
   AI: 'AI',
   DB: 'DB',
-  AUTH: 'Auth',
+  AUTH: 'AUTH',
   SSE: 'SSE',
-  PHASE: 'Phase',
-  PLACES: 'Places',
-  ROUTES: 'Routes',
-  WATERFALL: 'Waterfall',
-  STRATEGY: 'Strategy',
-  MODEL_REGISTRY: 'Models',    // one-word per spec ("[Example]" not "[Two Words]")
-  CACHE: 'Cache',
+  PHASE: 'PHASE',
+  PLACES: 'PLACES',
+  ROUTES: 'ROUTES',
+  WATERFALL: 'WATERFALL',
+  STRATEGY: 'STRATEGY',
+  MODEL_REGISTRY: 'MODELS',
+  CACHE: 'CACHE',
   API: 'API',
+  GATEWAY: 'GATEWAY',
+  BOOT: 'BOOT',
+  CONFIG: 'CONFIG',
+  AGENT: 'AGENT',
 };
 function _componentLabel(component) {
   const upper = String(component || '').toUpperCase();
-  return COMPONENT_LABELS[upper] || component;
+  return COMPONENT_LABELS[upper] || upper;
+}
+
+// 2026-04-27 (Commit 6): Hierarchical bracket emit. Lets callers compose
+// "[BRIEFING] [EVENTS] [DEDUP] [EXECUTED] message" — chain of category tags
+// where the leftmost is a main category and subsequent tags narrow context.
+// Foundational rule (claude_memory row 205): every log line MUST start with a
+// main category. The first element of `tags` is the main category; rest are
+// sub-categories.
+//
+// Usage:
+//   tagLog(['BRIEFING', 'EVENTS', 'DEDUP', 'EXECUTED'], '3 variants of "..."');
+//   tagLog(['BRIEFING', 'WEATHER', 'DB', 'LISTEN/NOTIFY'], 'briefing_weather_ready (first subscriber)');
+//   tagLog(['STRATEGY'], 'Calling Strategist');
+//
+// Optional: { level, request_id, snapshot_id } as third arg.
+const _MAIN_CATEGORIES = new Set([
+  'BOOT', 'CONFIG', 'GATEWAY', 'AGENT',
+  'AUTH',
+  'SNAPSHOT', 'BRIEFING', 'STRATEGY', 'VENUE', 'WATERFALL',
+  'EVENTS', 'BARS',
+  // 'AI' is tolerated for adapter-level infrastructure logs that don't
+  // know their caller's main category. Prefer threading the main category
+  // through (e.g., [STRATEGY] [AI] not [AI]) when the call site knows it.
+  'AI', 'MODELS',
+]);
+
+export function tagLog(tags, message, opts = {}) {
+  if (!Array.isArray(tags) || tags.length === 0) {
+    tags = ['GATEWAY']; // fail-safe: orphan logs become [GATEWAY]
+  }
+  const upper = tags.map((t) => String(t).toUpperCase());
+  const main = upper[0];
+  const level = opts.level || 'info';
+
+  // Enforce the foundational rule — leftmost MUST be a main category
+  if (!_MAIN_CATEGORIES.has(main)) {
+    // Don't throw; emit a warning so the caller can fix it without breaking prod
+    process.stderr.write(
+      `[LOGGER WARN] tagLog called with non-main leftmost category "${main}". ` +
+      `Valid mains: ${[..._MAIN_CATEGORIES].join(', ')}\n`
+    );
+  }
+
+  if (!shouldEmit(level, main)) return;
+
+  const ctxStr = formatContextStr(opts);
+  const bracketChain = upper.map((t) => `[${t}]`).join(' ');
+  const ctxSuffix = ctxStr ? ` ${ctxStr}` : '';
+
+  if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
+    const sink = level === 'error' ? console.error
+               : level === 'warn'  ? console.warn
+               : level === 'debug' ? console.debug
+               : console.log;
+    sink(`${bracketChain}${ctxSuffix} ${message}`);
+  }
+  emitJSON(level, main, message, {
+    tags: upper,
+    request_id: opts.request_id,
+    snapshot_id: opts.snapshot_id,
+    route: opts.route,
+  });
 }
 
 const QUIET_COMPONENTS = new Set(

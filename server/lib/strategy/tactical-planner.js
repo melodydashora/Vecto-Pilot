@@ -42,6 +42,9 @@ import { searchPlaceByText } from "../venue/venue-enrichment.js";
 import { getVenuesByType } from "../venue/venue-cache.js";
 // 2026-04-16: Import driver preferences for prompt injection + deadhead flagging
 import { loadDriverPreferences, buildDriverPreferencesSection } from "../ai/providers/consolidator.js";
+// 2026-04-27 (Commit 6 of CLEAR_CONSOLE_WORKFLOW): emoji-prefixed raw console.log
+// migrated to venuesLog (renders as [VENUE] per UPPERCASE COMPONENT_LABELS).
+import { venuesLog } from "../../logger/workflow.js";
 
 // 2026-04-16 (P0-6): Coordinates REMOVED from LLM schema. The LLM emits venue
 // names + district; coordinates are resolved post-LLM via Google Places API (New)
@@ -98,7 +101,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
   const prefs = await loadDriverPreferences(snapshot?.user_id);
   const hasPrefs = prefs.profile_loaded;
 
-  console.log(`🏢 [VENUES 1/4 - Tactical Planner] Input: "${strategy.slice(0, 80)}..." at ${driverAddress}${hasPrefs ? ` (prefs: ${prefs.vehicle_class}, deadhead ${prefs.max_deadhead_mi}mi)` : ' (no prefs)'}`);
+  venuesLog.info(`Tactical Planner Input: "${strategy.slice(0, 80)}..." at ${driverAddress}${hasPrefs ? ` (prefs: ${prefs.vehicle_class}, deadhead ${prefs.max_deadhead_mi}mi)` : ' (no prefs)'}`);
 
   // Get day name from dow
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -311,7 +314,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     "Return JSON with venue coords, staging coords, category, pro tips, and tactical summary."
   ].filter(Boolean).join("\n");
 
-  console.log(`🏢 [VENUES 1/4 - Tactical Planner] Calling AI for venue recommendations...`);
+  venuesLog.info(`Calling Venue Planner for recommendations...`);
 
   // 2026-04-11: Debug log — verify event data is reaching VENUE_SCORER. Dumps the
   // first 3 events as they appear in briefingContext so we can verify distance
@@ -348,9 +351,9 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       const venue = e.vc_venue_name || e.venue_name || '?';
       return `  - [${bucket}] "${e.title}" @ "${venue}" (${dist}, state=${e.state}, coords=${coords})`;
     });
-    console.log(`🏢 [VENUE_SCORER DEBUG] First ${dbgSample.length} events (closest-first):\n${dbgSample.join('\n')}`);
+    venuesLog.debug(`Venue Scorer first ${dbgSample.length} events (closest-first):\n${dbgSample.join('\n')}`);
   } else {
-    console.log(`🏢 [VENUE_SCORER DEBUG] briefingContext has 0 events in prompt`);
+    venuesLog.debug(`Venue Scorer briefingContext has 0 events in prompt`);
   }
 
   // Call VENUE_SCORER role with temperature instead of reasoning_effort
@@ -398,7 +401,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     const state = snapshot?.state || null;
     const tz = snapshot?.timezone || null;
 
-    console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ LLM returned ${llmVenues.length} venue names in ${duration}ms — resolving via Places API...`);
+    venuesLog.info(`Venue Planner returned ${llmVenues.length} venue names in ${duration}ms - resolving via Places API...`);
 
     const resolvedVenues = [];
     const resolvedNames = new Set(); // track resolved names to avoid duplicates in replacement
@@ -412,7 +415,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
       // Step 2: RETRY — drop district from query string
       if (!placeResult && venue.district) {
-        console.log(`🏢 [VENUES 1/4] Retry without district: "${venue.name}" (was: ${venue.district})`);
+        venuesLog.debug(`Retry without district: "${venue.name}" (was: ${venue.district})`);
         placeResult = await searchPlaceByText(venue.name, null, city, state, tz);
       }
 
@@ -458,7 +461,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
       // Failed — log and track for replacement
       failedVenues.push(venue);
-      console.warn(`🏢 [VENUES 1/4] ❌ Failed to resolve: "${venue.name}"${districtInfo} (${city}, ${state})`);
+      venuesLog.warn(0, `Failed to resolve: "${venue.name}"${districtInfo} (${city}, ${state})`);
     }
 
     // Step 4: LLM REPLACEMENT — ask for replacements for unresolved venues
@@ -467,7 +470,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       const alreadyResolved = [...resolvedNames].join(', ');
       const failedSummary = failedVenues.map(v => `${v.name} (${v.category}${v.district ? `, ${v.district}` : ''})`).join('; ');
 
-      console.log(`🏢 [VENUES 1/4] Requesting ${needed} replacement venue(s) — failed: ${failedSummary}`);
+      venuesLog.info(`Requesting ${needed} replacement venue(s) - failed: ${failedSummary}`);
 
       try {
         const replacementResult = await callModel('VENUE_SCORER', {
@@ -501,7 +504,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
           }
         }
       } catch (replacementError) {
-        console.warn(`🏢 [VENUES 1/4] Replacement LLM call failed: ${replacementError.message}`);
+        venuesLog.warn(0, `Replacement Venue Planner call failed: ${replacementError.message}`);
       }
     }
 
@@ -543,7 +546,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       }
     }
 
-    console.log(`🏢 [VENUES 1/4 - Tactical Planner] ✅ ${resolvedVenues.length} venues resolved${degraded ? ' (DEGRADED)' : ''}:`);
+    venuesLog.info(`${resolvedVenues.length} venues resolved${degraded ? ' (DEGRADED)' : ''}:`);
     resolvedVenues.forEach((v, i) => {
       const tag = v.catalog_fallback ? ' [catalog]' : v.llm_replacement ? ' [replacement]' : '';
       const deadheadTag = v.beyond_deadhead ? ' ⚠️ BEYOND DEADHEAD' : '';
