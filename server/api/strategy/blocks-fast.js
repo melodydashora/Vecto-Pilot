@@ -430,7 +430,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     } : null;
 
     // Fetch snapshot for holiday status check
-    const [SNAPSHOT] = await db.select().from(snapshots)
+    const [snapshot] = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
 
     if (!snapshot) {
@@ -543,7 +543,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // LLMs cannot reverse geocode - we must provide formatted_address
     // 2026-04-05: Changed from const to let — briefing readiness gate re-reads snapshot
     // after briefing completes to get enriched weather data (line ~745).
-    let [SNAPSHOT] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    let [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
@@ -937,7 +937,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Job already exists - use shared helper to ensure blocks exist
         triadLog.info(`Job already exists for ${snapshotId.slice(0, 8)}, checking if blocks need generation`);
 
-        const [STRATEGY] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
+        const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
         // If strategy is complete but ranking missing, generate SmartBlocks now
         // 2026-01-10: S-004 FIX - Use isStrategyComplete() (includes legacy 'complete')

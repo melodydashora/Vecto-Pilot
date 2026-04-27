@@ -58,7 +58,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
 
   try {
     // Fetch strategy and snapshot data
-    const [STRATEGY] = await db
+    const [strategy] = await db
       .select()
       .from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId))
@@ -74,7 +74,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       });
     }
 
-    const [SNAPSHOT] = await db
+    const [snapshot] = await db
       .select()
       .from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId))

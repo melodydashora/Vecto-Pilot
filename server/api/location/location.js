@@ -2334,7 +2334,7 @@ router.get('/snapshots/:snapshotId', async (req, res) => {
       return res.status(400).json({ error: 'snapshot_id_required' });
     }
     
-    const [SNAPSHOT] = await db
+    const [snapshot] = await db
       .select()
       .from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId))

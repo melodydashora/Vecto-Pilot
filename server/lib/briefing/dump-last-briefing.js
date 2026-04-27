@@ -26,13 +26,13 @@ export async function dumpLastBriefingRow() {
     }
 
     // Fetch the corresponding snapshot row
-    const [SNAPSHOT] = await db.select()
+    const [snapshot] = await db.select()
       .from(snapshots)
       .where(eq(snapshots.snapshot_id, lastBriefing.snapshot_id))
       .limit(1);
 
     // Fetch the strategy row
-    const [STRATEGY] = await db.select()
+    const [strategy] = await db.select()
       .from(strategies)
       .where(eq(strategies.snapshot_id, lastBriefing.snapshot_id))
       .limit(1);

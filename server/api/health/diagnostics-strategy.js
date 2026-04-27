@@ -19,7 +19,7 @@ router.post('/test-immediate/:snapshotId', requireAuth, async (req, res) => {
 
   try {
     // Check snapshot exists
-    const [SNAPSHOT] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
       return res.status(404).json({ error: 'snapshot_not_found', snapshot_id: snapshotId });
     }
@@ -53,7 +53,7 @@ router.post('/test-briefing/:snapshotId', requireAuth, async (req, res) => {
 
   try {
     // Check snapshot exists
-    const [SNAPSHOT] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
       return res.status(404).json({ error: 'snapshot_not_found', snapshot_id: snapshotId });
     }
@@ -92,7 +92,7 @@ router.get('/strategy-status/:snapshotId', requireAuth, async (req, res) => {
     const [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
 
     // Fetch snapshot for location context
-    const [SNAPSHOT] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
 
     const hasStrategyForNow = !!(row.strategy_for_now && row.strategy_for_now.trim().length);
     const hasBriefing = !!briefingRow;

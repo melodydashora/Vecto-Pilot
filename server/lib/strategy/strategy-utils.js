@@ -25,7 +25,7 @@ export async function ensureStrategyRow(snapshotId) {
     
     // Fetch snapshot to get location data
     const { snapshots } = await import('../../../shared/schema.js');
-    const [SNAPSHOT] = await db.select().from(snapshots)
+    const [snapshot] = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId))
       .limit(1);
     
@@ -107,7 +107,7 @@ export async function getStrategyContext(snapshotId) {
 
   // Fetch snapshot with full context
   const { snapshots } = await import('../../../shared/schema.js');
-  const [SNAPSHOT] = await db
+  const [snapshot] = await db
     .select()
     .from(snapshots)
     .where(eq(snapshots.snapshot_id, snapshotId))

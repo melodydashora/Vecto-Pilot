@@ -37,7 +37,7 @@ async function generateEmbedding(text) {
  */
 export async function indexStrategy(strategyId, snapshotId) {
   try {
-    const [STRATEGY] = await db
+    const [strategy] = await db
       .select()
       .from(strategies)
       .where(eq(strategies.id, strategyId))
@@ -71,7 +71,7 @@ export async function indexStrategy(strategyId, snapshotId) {
  */
 export async function indexFeedback(feedbackId) {
   try {
-    const [FEEDBACK] = await db
+    const [feedback] = await db
       .select()
       .from(venue_feedback)
       .where(eq(venue_feedback.id, feedbackId))

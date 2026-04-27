@@ -188,7 +188,7 @@ export class RideshareCoachDAL {
       if (!strat) return null;
 
       // Fetch snapshot for location/holiday context
-      const [SNAPSHOT] = await db
+      const [snapshot] = await db
         .select({
           formatted_address: snapshots.formatted_address,
           city: snapshots.city,
@@ -719,7 +719,7 @@ export class RideshareCoachDAL {
       console.log(`[COACH] getDriverProfile: Found profile for ${profile.first_name} ${profile.last_name}`);
 
       // Get primary vehicle
-      const [VEHICLE] = await db
+      const [vehicle] = await db
         .select({
           id: driver_vehicles.id,
           year: driver_vehicles.year,

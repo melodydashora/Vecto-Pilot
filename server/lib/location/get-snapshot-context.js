@@ -92,7 +92,7 @@ export async function getSnapshotContext(snapshotId, options = {}) {
  * Used by: consolidator, briefing service, venue generator
  */
 export async function getFullSnapshot(snapshotId) {
-  const [SNAPSHOT] = await db
+  const [snapshot] = await db
     .select()
     .from(snapshots)
     .where(eq(snapshots.snapshot_id, snapshotId))

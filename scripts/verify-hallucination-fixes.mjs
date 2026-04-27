@@ -13,7 +13,7 @@ const SNAPSHOT_ID = 'fb3c383e-5534-4c0d-a633-07574b7a08ce'; // Latest Frisco sna
 async function run() {
   try {
     // 1. Load snapshot
-    const [SNAPSHOT] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, SNAPSHOT_ID)).limit(1);
+    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, SNAPSHOT_ID)).limit(1);
     if (!snapshot) { console.error('Snapshot not found'); process.exit(1); }
     console.log(`\n=== SNAPSHOT ===`);
     console.log(`City: ${snapshot.city}, State: ${snapshot.state}, TZ: ${snapshot.timezone}`);
