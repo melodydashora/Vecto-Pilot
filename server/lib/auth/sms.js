@@ -58,7 +58,7 @@ export function formatPhoneE164(phone) {
  */
 export async function sendPasswordResetSMS(phone, code) {
   if (!isSmsConfigured()) {
-    console.warn('[sms] Twilio not configured - skipping password reset SMS');
+    console.warn('[NOTIFY] [SMS] Twilio not configured - skipping password reset SMS');
     return { sent: false, reason: 'not_configured' };
   }
 
@@ -72,10 +72,10 @@ export async function sendPasswordResetSMS(phone, code) {
       to: formattedPhone
     });
 
-    console.log('[sms] Password reset SMS sent:', { to: formattedPhone, sid: result.sid });
+    console.log('[NOTIFY] [SMS] Password reset SMS sent:', { to: formattedPhone, sid: result.sid });
     return { sent: true, sid: result.sid };
   } catch (error) {
-    console.error('[sms] Failed to send password reset SMS:', error.message);
+    console.error('[NOTIFY] [SMS] Failed to send password reset SMS:', error.message);
     throw new Error('Failed to send password reset SMS');
   }
 }
@@ -87,7 +87,7 @@ export async function sendPasswordResetSMS(phone, code) {
  */
 export async function sendPhoneVerificationSMS(phone, code) {
   if (!isSmsConfigured()) {
-    console.warn('[sms] Twilio not configured - skipping phone verification SMS');
+    console.warn('[NOTIFY] [SMS] Twilio not configured - skipping phone verification SMS');
     return { sent: false, reason: 'not_configured' };
   }
 
@@ -101,10 +101,10 @@ export async function sendPhoneVerificationSMS(phone, code) {
       to: formattedPhone
     });
 
-    console.log('[sms] Verification SMS sent:', { to: formattedPhone, sid: result.sid });
+    console.log('[NOTIFY] [SMS] Verification SMS sent:', { to: formattedPhone, sid: result.sid });
     return { sent: true, sid: result.sid };
   } catch (error) {
-    console.error('[sms] Failed to send verification SMS:', error.message);
+    console.error('[NOTIFY] [SMS] Failed to send verification SMS:', error.message);
     throw new Error('Failed to send verification SMS');
   }
 }
@@ -116,7 +116,7 @@ export async function sendPhoneVerificationSMS(phone, code) {
  */
 export async function sendSMS(phone, message) {
   if (!isSmsConfigured()) {
-    console.warn('[sms] Twilio not configured - skipping SMS');
+    console.warn('[NOTIFY] [SMS] Twilio not configured - skipping SMS');
     return { sent: false, reason: 'not_configured' };
   }
 
@@ -129,10 +129,10 @@ export async function sendSMS(phone, message) {
       to: formattedPhone
     });
 
-    console.log('[sms] SMS sent:', { to: formattedPhone, sid: result.sid });
+    console.log('[NOTIFY] [SMS] SMS sent:', { to: formattedPhone, sid: result.sid });
     return { sent: true, sid: result.sid };
   } catch (error) {
-    console.error('[sms] Failed to send SMS:', error.message);
+    console.error('[NOTIFY] [SMS] Failed to send SMS:', error.message);
     throw new Error('Failed to send SMS');
   }
 }

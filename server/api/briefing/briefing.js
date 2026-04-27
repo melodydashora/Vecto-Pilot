@@ -40,14 +40,14 @@ function triggerZombieRecoveryIfNeeded(briefing, snapshot) {
   if (hasTraffic && hasNews && hasAirport) return; // Data exists — not a zombie
 
   // Trigger background regeneration
-  console.log(`[BriefingRoute] Zombie recovery: triggering regeneration for ${snapshotId.slice(0, 8)} (age: ${Math.round(ageMs / 1000)}s)`);
+  console.log(`[BRIEFING] Zombie recovery: triggering regeneration for ${snapshotId.slice(0, 8)} (age: ${Math.round(ageMs / 1000)}s)`);
   zombieRecoveryInFlight.add(snapshotId);
   generateAndStoreBriefing({ snapshotId, snapshot })
     .then((result) => {
-      console.log(`[BriefingRoute] Zombie recovery complete for ${snapshotId.slice(0, 8)}: success=${result?.success}`);
+      console.log(`[BRIEFING] Zombie recovery complete for ${snapshotId.slice(0, 8)}: success=${result?.success}`);
     })
     .catch((err) => {
-      console.error(`[BriefingRoute] Zombie recovery failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
+      console.error(`[BRIEFING] Zombie recovery failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
     })
     .finally(() => {
       zombieRecoveryInFlight.delete(snapshotId);
@@ -98,7 +98,7 @@ async function getDeactivatedNewsHashes(userId) {
 
     return new Set(deactivations.map(d => d.news_hash));
   } catch (error) {
-    console.error('[briefing] getDeactivatedNewsHashes error:', error);
+    console.error('[BRIEFING] getDeactivatedNewsHashes error:', error);
     return new Set();
   }
 }
@@ -230,7 +230,7 @@ router.get('/current', requireAuth, async (req, res) => {
     // 2026-01-05: Pass snapshot timezone for proper local time parsing
     // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
     if (!snapshot.timezone) {
-      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
+      console.error('[BRIEFING] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const tz = snapshot.timezone;
@@ -267,7 +267,7 @@ router.get('/current', requireAuth, async (req, res) => {
       updated_at: briefing.updated_at
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching current briefing:', error);
+    console.error('[BRIEFING] Error fetching current briefing:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -298,7 +298,7 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
     // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
     const snapshot = snapshotCheck[0];
     if (!snapshot.timezone) {
-      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
+      console.error('[BRIEFING] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const tz2 = snapshot.timezone;
@@ -327,7 +327,7 @@ router.post('/generate', expensiveEndpointLimiter, requireAuth, async (req, res)
       }
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error retrieving briefing:', error);
+    console.error('[BRIEFING] Error retrieving briefing:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -354,7 +354,7 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
 
     // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
     if (!req.snapshot.timezone) {
-      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: req.snapshot.snapshot_id });
+      console.error('[BRIEFING] CRITICAL: Snapshot missing timezone', { snapshot_id: req.snapshot.snapshot_id });
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const tz3 = req.snapshot.timezone;
@@ -462,7 +462,7 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
         }
       }
     } catch (marketErr) {
-      briefingLog ?? console.error(`[BriefingRoute] Market events lookup failed (non-fatal): ${marketErr.message}`);
+      briefingLog ?? console.error(`[BRIEFING] Market events lookup failed (non-fatal): ${marketErr.message}`);
     }
 
     res.json({
@@ -510,7 +510,7 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
       generated_at: briefing.generated_at,
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching briefing aggregate:', error);
+    console.error('[BRIEFING] Error fetching briefing aggregate:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -538,7 +538,7 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
       // 2026-01-05: Pass snapshot timezone for proper local time parsing
       // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
       if (!snapshot.timezone) {
-        console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
+        console.error('[BRIEFING] CRITICAL: Snapshot missing timezone', { snapshot_id: snapshot.snapshot_id });
         return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
       }
       const tz4 = snapshot.timezone;
@@ -571,7 +571,7 @@ router.post('/refresh', expensiveEndpointLimiter, requireAuth, async (req, res) 
       res.status(500).json({ success: false, error: result.error });
     }
   } catch (error) {
-    console.error('[BriefingRoute] Error refreshing briefing:', error);
+    console.error('[BRIEFING] Error refreshing briefing:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -599,7 +599,7 @@ router.get('/traffic/realtime', requireAuth, async (req, res) => {
 
     res.json({ success: true, traffic });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching realtime traffic:', error);
+    console.error('[BRIEFING] Error fetching realtime traffic:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -624,7 +624,7 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
 
     res.json({ success: true, weather });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching realtime weather:', error);
+    console.error('[BRIEFING] Error fetching realtime weather:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -638,7 +638,7 @@ router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 
     // If we have cached weather in briefings table, return it
     if (briefing?.weather_current) {
-      console.log(`[BriefingRoute] ✅ Weather: returning cached data for ${req.snapshot.snapshot_id.slice(0, 8)}`);
+      console.log(`[BRIEFING] Weather: returning cached data for ${req.snapshot.snapshot_id.slice(0, 8)}`);
       return res.json({
         success: true,
         weather: {
@@ -650,7 +650,7 @@ router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async 
     }
 
     // No cached weather - fetch fresh (this should be rare, only on first request)
-    console.log(`[BriefingRoute] ⚡ Weather: no cached data, fetching fresh for ${req.snapshot.snapshot_id.slice(0, 8)}`);
+    console.log(`[BRIEFING] ⚡ Weather: no cached data, fetching fresh for ${req.snapshot.snapshot_id.slice(0, 8)}`);
     const freshWeather = await fetchWeatherConditions({ snapshot: req.snapshot });
 
     const weatherResponse = freshWeather ? {
@@ -670,7 +670,7 @@ router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async 
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching weather:', error);
+    console.error('[BRIEFING] Error fetching weather:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -711,7 +711,7 @@ router.get('/traffic/:snapshotId', requireAuth, requireSnapshotOwnership, async 
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching traffic:', error);
+    console.error('[BRIEFING] Error fetching traffic:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -769,7 +769,7 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
             const isDeactivated = deactivatedHashes.has(itemHash);
 
             if (isDeactivated) {
-              console.log(`[briefing] Filtering deactivated news: "${item.title?.slice(0, 50)}..."`);
+              console.log(`[BRIEFING] Filtering deactivated news: "${item.title?.slice(0, 50)}..."`);
             }
 
             return !isDeactivated;
@@ -783,7 +783,7 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
           }
 
           if (filteredItems.length < originalCount) {
-            console.log(`[briefing] News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
+            console.log(`[BRIEFING] News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
           }
         }
       }
@@ -803,7 +803,7 @@ router.get('/rideshare-news/:snapshotId', requireAuth, requireSnapshotOwnership,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching rideshare news:', error);
+    console.error('[BRIEFING] Error fetching rideshare news:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -846,7 +846,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     // At 8:20 PM CST on Jan 14, UTC is already Jan 15 - this was causing 0 events to return
     // 2026-01-15: ACTUAL FIX - toISOString() still converts to UTC! Use toLocaleDateString instead.
     if (!snapshot.timezone) {
-      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for events query', { snapshot_id: snapshot.snapshot_id });
+      console.error('[BRIEFING] CRITICAL: Snapshot missing timezone for events query', { snapshot_id: snapshot.snapshot_id });
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const userTimezone = snapshot.timezone;
@@ -858,7 +858,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     endDateObj.setDate(endDateObj.getDate() + 7);
     const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: userTimezone });
 
-    console.log(`[BriefingRoute] GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
+    console.log(`[BRIEFING] GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
 
     // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
     const events = await db.select({
@@ -916,7 +916,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     const beforeDedup = allEvents.length;
     allEvents = deduplicateEvents(allEvents);
     if (beforeDedup > allEvents.length) {
-      console.log(`[BriefingRoute] Dedup: ${beforeDedup} → ${allEvents.length} events (removed ${beforeDedup - allEvents.length} duplicates)`);
+      console.log(`[BRIEFING] Dedup: ${beforeDedup} → ${allEvents.length} events (removed ${beforeDedup - allEvents.length} duplicates)`);
     }
 
     // 2026-04-11: Title-similarity dedup safety net — catches "Jon Wolfe Concert" vs "Jon Wolfe"
@@ -926,7 +926,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     const { deduplicated: semanticDeduped } = deduplicateEventsSemantic(allEvents);
     allEvents = semanticDeduped;
     if (beforeSemantic > allEvents.length) {
-      console.log(`[BriefingRoute] Semantic dedup: ${beforeSemantic} → ${allEvents.length} events (removed ${beforeSemantic - allEvents.length} title-variant duplicates)`);
+      console.log(`[BRIEFING] Semantic dedup: ${beforeSemantic} → ${allEvents.length} events (removed ${beforeSemantic - allEvents.length} title-variant duplicates)`);
     }
 
     // CRITICAL: Filter stale events and events without date info (2026-01-05)
@@ -935,14 +935,14 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     // 2026-01-05: Pass snapshot timezone for proper local time parsing
     // 2026-01-09: NO FALLBACKS - fail explicitly if timezone is missing
     if (!snapshot.timezone) {
-      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for events filter', { snapshot_id: snapshot.snapshot_id });
+      console.error('[BRIEFING] CRITICAL: Snapshot missing timezone for events filter', { snapshot_id: snapshot.snapshot_id });
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const snapshotTz = snapshot.timezone;
     const beforeFreshFilter = allEvents.length;
     allEvents = filterFreshEvents(allEvents, new Date(), snapshotTz);
     if (beforeFreshFilter > allEvents.length) {
-      console.log(`[BriefingRoute] Freshness filter: ${beforeFreshFilter} → ${allEvents.length} events (removed ${beforeFreshFilter - allEvents.length} stale/invalid)`);
+      console.log(`[BRIEFING] Freshness filter: ${beforeFreshFilter} → ${allEvents.length} events (removed ${beforeFreshFilter - allEvents.length} stale/invalid)`);
     }
 
     // Apply "active" filter: show only events happening RIGHT NOW (during their duration)
@@ -952,7 +952,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       const now = new Date();
       const beforeCount = allEvents.length;
       allEvents = allEvents.filter(e => isEventActiveNow(e, now, snapshotTz));
-      console.log(`[BriefingRoute] Events filter=active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTz}`);
+      console.log(`[BRIEFING] Events filter=active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTz}`);
     }
 
     // 2026-01-08: Fetch high-value events from the user's market (beyond local city)
@@ -1064,13 +1064,13 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
           marketEvents = filterFreshEvents(marketEvents, new Date(), snapshotTz);
 
           if (marketEvents.length > 0) {
-            console.log(`[BriefingRoute] Market events: ${marketEvents.length} high-value events from ${marketName} market (${otherMarketCities.length} cities)`);
+            console.log(`[BRIEFING] Market events: ${marketEvents.length} high-value events from ${marketName} market (${otherMarketCities.length} cities)`);
           }
         }
       }
     } catch (marketError) {
       // Graceful degradation: if market lookup fails, just return local events
-      console.error('[BriefingRoute] Market events lookup failed (non-blocking):', marketError.message);
+      console.error('[BRIEFING] Market events lookup failed (non-blocking):', marketError.message);
     }
 
     res.json({
@@ -1082,7 +1082,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching events:', error);
+    console.error('[BRIEFING] Error fetching events:', error);
     res.json({
       success: true,
       events: [],
@@ -1139,7 +1139,7 @@ router.get('/school-closures/:snapshotId', requireAuth, requireSnapshotOwnership
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching school closures:', error);
+    console.error('[BRIEFING] Error fetching school closures:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -1184,7 +1184,7 @@ router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async 
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching airport conditions:', error);
+    console.error('[BRIEFING] Error fetching airport conditions:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -1204,7 +1204,7 @@ router.post('/filter-invalid-events', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'events array is required' });
     }
 
-    console.log(`[BriefingRoute] Filtering ${events.length} events (removing TBD/Unknown)`);
+    console.log(`[BRIEFING] Filtering ${events.length} events (removing TBD/Unknown)`);
     const filtered = filterInvalidEvents(events);
 
     res.json({
@@ -1215,7 +1215,7 @@ router.post('/filter-invalid-events', requireAuth, async (req, res) => {
       events: filtered
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error filtering events:', error);
+    console.error('[BRIEFING] Error filtering events:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1294,7 +1294,7 @@ router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
       .set(updatePayload)
       .where(eq(discovered_events.id, eventId));
 
-    console.log(`[BriefingRoute] ✅ Event deactivated: ${event.title} (${reason})`);
+    console.log(`[BRIEFING] Event deactivated: ${event.title} (${reason})`);
 
     res.json({
       ok: true,
@@ -1305,7 +1305,7 @@ router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
       message: `Event "${event.title}" has been marked as inactive and will no longer appear on the map.`
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error deactivating event:', error);
+    console.error('[BRIEFING] Error deactivating event:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1350,7 +1350,7 @@ router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
       })
       .where(eq(discovered_events.id, eventId));
 
-    console.log(`[BriefingRoute] ✅ Event reactivated: ${event.title}`);
+    console.log(`[BRIEFING] Event reactivated: ${event.title}`);
 
     res.json({
       ok: true,
@@ -1359,7 +1359,7 @@ router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
       message: `Event "${event.title}" has been reactivated and will appear on the map again.`
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error reactivating event:', error);
+    console.error('[BRIEFING] Error reactivating event:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1371,7 +1371,7 @@ router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnersh
     // 2026-01-14: FIX - Use snapshot timezone to calculate "today" (not UTC)
     // At 8:20 PM CST on Jan 14, UTC is already Jan 15 - this was causing events to not match
     if (!snapshot.timezone) {
-      console.error('[BriefingRoute] CRITICAL: Snapshot missing timezone for discovered-events query', { snapshot_id: snapshot.snapshot_id });
+      console.error('[BRIEFING] CRITICAL: Snapshot missing timezone for discovered-events query', { snapshot_id: snapshot.snapshot_id });
       return res.status(500).json({ error: 'Snapshot timezone is required but missing - this is a data integrity bug' });
     }
     const userTimezone = snapshot.timezone;
@@ -1385,7 +1385,7 @@ router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnersh
     endDateObj.setDate(endDateObj.getDate() + 7);
     const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: userTimezone });
 
-    console.log(`[BriefingRoute] GET /discovered-events for ${snapshot.city}, ${snapshot.state} (${today} to ${endDate}, tz=${userTimezone})`);
+    console.log(`[BRIEFING] GET /discovered-events for ${snapshot.city}, ${snapshot.state} (${today} to ${endDate}, tz=${userTimezone})`);
 
     // 2026-01-10: Use symmetric field names (event_start_date)
     // 2026-04-10: FIX — Query by state (metro-wide), same as /events endpoint above
@@ -1409,7 +1409,7 @@ router.get('/discovered-events/:snapshotId', requireAuth, requireSnapshotOwnersh
       events
     });
   } catch (error) {
-    console.error('[BriefingRoute] Error fetching discovered events:', error);
+    console.error('[BRIEFING] Error fetching discovered events:', error);
     res.status(500).json({ error: error.message });
   }
 });

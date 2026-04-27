@@ -19,12 +19,12 @@ export async function dumpLastStrategyRow() {
       .limit(1);
 
     if (!lastStrategy) {
-      console.log('[DumpStrategy] No strategy rows found');
+      console.log('[AGENT] [DUMP] No strategy rows found');
       return;
     }
 
     // Format the output nicely
-    const output = `✅ Last Strategy Record
+    const output = `Last Strategy Record
 ================================================================================
 
 id:
@@ -66,8 +66,8 @@ updated_at:
 
     const filePath = join(process.cwd(), 'strategy-last-row.txt');
     await writeFile(filePath, output, 'utf-8');
-    console.log('[DumpStrategy] ✅ Written to strategy-last-row.txt');
+    console.log('[AGENT] [DUMP] Written to strategy-last-row.txt');
   } catch (err) {
-    console.error('[DumpStrategy] ❌ Failed to dump strategy:', err.message);
+    console.error('[AGENT] [DUMP] Failed to dump strategy:', err.message);
   }
 }

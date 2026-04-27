@@ -28,7 +28,7 @@ let consecutiveFailures = 0;
  * @returns {ChildProcess} The spawned child process
  */
 export function spawnChild(name, command, args, env = {}) {
-  console.log(`[gateway] Starting ${name}...`);
+  console.log(`[GATEWAY] Starting ${name}...`);
 
   const child = spawn(command, args, {
     env: { ...process.env, ...env },
@@ -44,7 +44,7 @@ export function spawnChild(name, command, args, env = {}) {
   );
 
   child.on('error', (err) => {
-    console.error(`[gateway] ${name} spawn error:`, err.message);
+    console.error(`[GATEWAY] ${name} spawn error:`, err.message);
     children.delete(name);
     if (!isShuttingDown) {
       setTimeout(() => spawnChild(name, command, args, env), 2000);
@@ -54,14 +54,14 @@ export function spawnChild(name, command, args, env = {}) {
   child.on('exit', (code, signal) => {
     children.delete(name);
     if (isShuttingDown) {
-      console.log(`[gateway] ${name} stopped (${signal || code})`);
+      console.log(`[GATEWAY] ${name} stopped (${signal || code})`);
       return;
     }
     if (code === 0) {
-      console.warn(`[gateway] ${name} exited cleanly (code 0) - not restarting`);
+      console.warn(`[GATEWAY] ${name} exited cleanly (code 0) - not restarting`);
       return;
     }
-    console.error(`[gateway] ${name} exited with code ${code ?? 'null'}, restarting...`);
+    console.error(`[GATEWAY] ${name} exited with code ${code ?? 'null'}, restarting...`);
     setTimeout(() => spawnChild(name, command, args, env), 2000);
   });
 
@@ -82,7 +82,7 @@ export function spawnChild(name, command, args, env = {}) {
 export function startStrategyWorker(options = {}) {
   const { useLogFile = false } = options;
 
-  console.log('[gateway] 🚀 Starting strategy generator worker...');
+  console.log('[GATEWAY] Starting strategy generator worker...');
 
   try {
     if (useLogFile) {
@@ -101,11 +101,11 @@ export function startStrategyWorker(options = {}) {
       worker.on('exit', (code, signal) => {
         children.delete('strategy-worker');
         if (isShuttingDown) {
-          console.log(`[gateway] strategy-worker stopped (${signal || code})`);
+          console.log(`[GATEWAY] strategy-worker stopped (${signal || code})`);
           return;
         }
         if (code === 0) {
-          console.warn('[gateway] strategy-worker exited cleanly (code 0) - not restarting');
+          console.warn('[GATEWAY] strategy-worker exited cleanly (code 0) - not restarting');
           consecutiveFailures = 0;
           return;
         }
@@ -114,16 +114,16 @@ export function startStrategyWorker(options = {}) {
       });
 
       children.set('strategy-worker', worker);
-      console.log(`[gateway] ✅ Worker started (PID: ${worker.pid})`);
-      console.log(`[gateway] Worker logs: ${workerLogPath}`);
-      console.log(`[gateway] 🔄 Auto-restart enabled (max ${MAX_WORKER_RESTARTS} consecutive failures)`);
+      console.log(`[GATEWAY] Worker started (PID: ${worker.pid})`);
+      console.log(`[GATEWAY] Worker logs: ${workerLogPath}`);
+      console.log(`[GATEWAY] Auto-restart enabled (max ${MAX_WORKER_RESTARTS} consecutive failures)`);
       return worker;
     } else {
       // Use spawnChild for auto-restart with stdout/stderr piped
       return spawnChild('strategy-generator', 'node', ['strategy-generator.js'], {});
     }
   } catch (e) {
-    console.error('[gateway] ❌ Failed to start worker:', e?.message);
+    console.error('[GATEWAY] Failed to start worker:', e?.message);
     return null;
   }
 }
@@ -140,9 +140,9 @@ function scheduleWorkerRestart(options) {
   consecutiveFailures++;
 
   if (consecutiveFailures >= MAX_WORKER_RESTARTS) {
-    console.error(`[gateway] ❌ Worker hit ${MAX_WORKER_RESTARTS} consecutive failures — stopping restarts`);
-    console.error('[gateway] ❌ Strategy generation is OFFLINE — manual intervention required');
-    console.error('[gateway] ❌ Check /tmp/worker.log for crash details');
+    console.error(`[GATEWAY] Worker hit ${MAX_WORKER_RESTARTS} consecutive failures — stopping restarts`);
+    console.error('[GATEWAY] Strategy generation is OFFLINE — manual intervention required');
+    console.error('[GATEWAY] Check /tmp/worker.log for crash details');
     return;
   }
 
@@ -207,7 +207,7 @@ export function getChildren() {
 export function killAllChildren(signal = 'SIGTERM') {
   isShuttingDown = true;
   children.forEach((child, name) => {
-    console.log(`[gateway] Stopping ${name}...`);
+    console.log(`[GATEWAY] Stopping ${name}...`);
     child.kill(signal);
   });
 

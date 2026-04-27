@@ -111,7 +111,7 @@ export function validateEnvironment() {
   const hasWarnings = warnings.length > 0;
   
   if (hasErrors) {
-    console.error('\n❌ ENVIRONMENT VALIDATION FAILED\n');
+    console.error('\nENVIRONMENT VALIDATION FAILED\n');
     errors.forEach((err, i) => {
       console.error(`  ${i + 1}. ${err}`);
     });
@@ -120,14 +120,14 @@ export function validateEnvironment() {
   }
   
   if (hasWarnings) {
-    console.warn('\n⚠️  ENVIRONMENT WARNINGS\n');
+    console.warn('\n ENVIRONMENT WARNINGS\n');
     warnings.forEach((warn, i) => {
       console.warn(`  ${i + 1}. ${warn}`);
     });
     console.warn('\n');
   }
   
-  console.log('✅ Environment validation passed');
+  console.log('Environment validation passed');
   return { valid: true, errors: [], warnings };
 }
 

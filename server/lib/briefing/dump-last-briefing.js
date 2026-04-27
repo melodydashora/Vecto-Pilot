@@ -21,18 +21,18 @@ export async function dumpLastBriefingRow() {
       .limit(1);
 
     if (!lastBriefing) {
-      console.log('[DumpStrategist] No briefing rows found');
+      console.log('[AGENT] [DUMP] No briefing rows found');
       return;
     }
 
     // Fetch the corresponding snapshot row
-    const [snapshot] = await db.select()
+    const [SNAPSHOT] = await db.select()
       .from(snapshots)
       .where(eq(snapshots.snapshot_id, lastBriefing.snapshot_id))
       .limit(1);
 
     // Fetch the strategy row
-    const [strategy] = await db.select()
+    const [STRATEGY] = await db.select()
       .from(strategies)
       .where(eq(strategies.snapshot_id, lastBriefing.snapshot_id))
       .limit(1);
@@ -174,8 +174,8 @@ END OF VERIFICATION FILE
 
     const filePath = join(process.cwd(), 'sent-to-strategist.txt');
     await writeFile(filePath, output, 'utf-8');
-    console.log('[DumpStrategist] ✅ Written to sent-to-strategist.txt');
+    console.log('[AGENT] [DUMP] Written to sent-to-strategist.txt');
   } catch (err) {
-    console.error('[DumpStrategist] ❌ Failed to dump:', err.message);
+    console.error('[AGENT] [DUMP] Failed to dump:', err.message);
   }
 }

@@ -7,12 +7,12 @@
  * - RIGHT icon = What operation type (AI call, API call, DB, etc.)
  *
  * Example output:
- *   🎯 [TRIAD 1/4] Calling strategist                    ← 🤖
- *   🎯 [TRIAD 1/4] ✅ Strategist complete (2341ms)       ← 🤖
- *   🏢 [VENUES 2/4] Calculating routes                   ← 🌐
- *   🏢 [VENUES 3/4] Fetching place details               ← 🌐
- *   📰 [BRIEFING 1/3] Fetching traffic                   ← 🌐
- *   💾 [DB] Saved strategy                               ← 💾
+ *   [TRIAD 1/4] Calling strategist                    ← 🤖
+ *   [TRIAD 1/4] Strategist complete (2341ms)       ← 🤖
+ *   [VENUES 2/4] Calculating routes                   ← 🌐
+ *   [VENUES 3/4] Fetching place details               ← 🌐
+ *   [BRIEFING 1/3] Fetching traffic                   ← 🌐
+ *   [DB] Saved strategy                               ← 💾
  *
  * WORKFLOW STAGES:
  *
@@ -94,9 +94,9 @@ function _opSuffix(opIcon) {
   if (!opIcon) return '';
   return LOG_NO_EMOJI ? '' : `  ← ${opIcon}`;
 }
-const DECO_DONE = LOG_NO_EMOJI ? '' : '✅ ';
-const DECO_ERR  = LOG_NO_EMOJI ? '' : '❌ ';
-const DECO_WARN = LOG_NO_EMOJI ? '' : '⚠️ ';
+const DECO_DONE = LOG_NO_EMOJI ? '' : '';
+const DECO_ERR  = LOG_NO_EMOJI ? '' : '';
+const DECO_WARN = LOG_NO_EMOJI ? '' : '';
 
 // 2026-04-27: Title-Case display labels per CLEAR_CONSOLE_WORKFLOW format spec:
 // "[Briefing] calling news from Briefer" — category in title case, role/service
@@ -135,6 +135,17 @@ const COMPONENT_LABELS = {
   BOOT: 'BOOT',
   CONFIG: 'CONFIG',
   AGENT: 'AGENT',
+  COACH: 'COACH',
+  TRANSLATION: 'TRANSLATION',
+  HEALTH: 'HEALTH',
+  TTS: 'TTS',
+  ROUTES: 'ROUTES',
+  FEEDBACK: 'FEEDBACK',
+  VEHICLE: 'VEHICLE',
+  HOOKS: 'HOOKS',
+  MEMORY: 'MEMORY',
+  NOTIFY: 'NOTIFY',
+  CONCIERGE: 'CONCIERGE',
 };
 function _componentLabel(component) {
   const upper = String(component || '').toUpperCase();
@@ -163,6 +174,12 @@ const _MAIN_CATEGORIES = new Set([
   // know their caller's main category. Prefer threading the main category
   // through (e.g., [STRATEGY] [AI] not [AI]) when the call site knows it.
   'AI', 'MODELS',
+  // User-facing feature mains
+  'COACH', 'TRANSLATION', 'HEALTH', 'TTS',
+  // Other features
+  'FEEDBACK', 'VEHICLE', 'HOOKS', 'MEMORY', 'NOTIFY', 'CONCIERGE',
+  // Generic infra fallback
+  'API',
 ]);
 
 export function tagLog(tags, message, opts = {}) {
@@ -278,14 +295,14 @@ export const OP = {
  *
  * SECTION ICON REFERENCE (left side - shows workflow section):
  *   📍 LOCATION  - GPS, geocoding, header resolution
- *   👤 USER      - User table, auth, device tracking
- *   📸 SNAPSHOT  - Snapshot creation and enrichment
- *   🎯 TRIAD     - Main strategy pipeline orchestration
- *   📰 BRIEFING  - Events, traffic, news gathering
- *   🏢 VENUES    - Venue discovery, enrichment, validation
- *   🍺 BARS      - Bar-specific operations (subset of venues)
+ *   USER      - User table, auth, device tracking
+ *   SNAPSHOT  - Snapshot creation and enrichment
+ *   TRIAD     - Main strategy pipeline orchestration
+ *   BRIEFING  - Events, traffic, news gathering
+ *   VENUES    - Venue discovery, enrichment, validation
+ *   BARS      - Bar-specific operations (subset of venues)
  *   🌤️ WEATHER   - Weather API calls
- *   🔑 AUTH      - Authentication/authorization
+ *   AUTH      - Authentication/authorization
  */
 const WORKFLOWS = {
   LOCATION: { phases: 3, emoji: '📍' },

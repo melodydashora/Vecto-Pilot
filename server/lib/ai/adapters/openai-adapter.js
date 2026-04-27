@@ -17,12 +17,12 @@ function getClient() {
     
     // MOCK FOR DEVELOPMENT/TESTING
     if (process.env.OPENAI_API_KEY.startsWith('sk-dummy')) {
-        console.log('[OpenAI] Using MOCK client for dummy key');
+        console.log('[AI] Using MOCK client for dummy key');
         return {
             chat: {
                 completions: {
                     create: async (body) => {
-                        console.log('[OpenAI Mock] Received request:', JSON.stringify(body, null, 2));
+                        console.log('[AI] Received request:', JSON.stringify(body, null, 2));
                         return {
                             choices: [{
                                 message: {

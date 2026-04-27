@@ -271,7 +271,7 @@ async function seedCountries() {
       }
     }
 
-    console.log(`✅ Countries seeded: ${inserted} inserted, ${updated} updated`);
+    console.log(`Countries seeded: ${inserted} inserted, ${updated} updated`);
     console.log(`🌐 Total countries: ${countriesData.length}`);
 
     // Show summary
@@ -283,13 +283,13 @@ async function seedCountries() {
       FROM countries
     `);
 
-    console.log('\n📈 Summary:');
+    console.log('\nSummary:');
     console.log(`   Total countries: ${summary.rows[0].total}`);
     console.log(`   With platform data: ${summary.rows[0].with_platform_data}`);
     console.log(`   Priority countries: ${summary.rows[0].priority_countries}`);
 
   } catch (error) {
-    console.error('❌ Error seeding countries:', error);
+    console.error('Error seeding countries:', error);
     throw error;
   } finally {
     client.release();
@@ -299,7 +299,7 @@ async function seedCountries() {
 
 seedCountries()
   .then(() => {
-    console.log('\n✨ Done!');
+    console.log('\nDone!');
     process.exit(0);
   })
   .catch((error) => {

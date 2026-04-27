@@ -88,10 +88,10 @@ export function getTriggerMessage(triggerReason, details) {
       return `⏰ ${details.to} shift detected - Updating strategy...`;
     
     case 'coord_delta':
-      return `🚗 You've moved ${details.distance_miles} mi - Finding new hotspots...`;
+      return `You've moved ${details.distance_miles} mi - Finding new hotspots...`;
     
     case 'manual_refresh':
-      return '🔄 Refreshing strategy with latest data...';
+      return 'Refreshing strategy with latest data...';
     
     default:
       return '💡 Analyzing current conditions...';

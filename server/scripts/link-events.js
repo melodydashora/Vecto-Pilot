@@ -38,7 +38,7 @@ async function linkEvents() {
   console.log('');
 
   if (unlinkedEvents.length === 0) {
-    console.log('✅ All events are already linked!');
+    console.log('All events are already linked!');
     process.exit(0);
   }
 
@@ -96,10 +96,10 @@ async function linkEvents() {
         })
         .where(eq(discovered_events.id, event.id));
 
-      console.log(`✅ Linked "${event.title}" → "${match.venue_name}" (${match.city})`);
+      console.log(`Linked "${event.title}" → "${match.venue_name}" (${match.city})`);
       linkedCount++;
     } else {
-      console.log(`❌ No match for "${event.venue_name}" (${event.city}) - event: "${event.title}"`);
+      console.log(`No match for "${event.venue_name}" (${event.city}) - event: "${event.title}"`);
       noMatchCount++;
     }
   }
@@ -107,9 +107,9 @@ async function linkEvents() {
   console.log('');
   console.log('═══════════════════════════════════════════════════════');
   console.log(`🔗 LINKING COMPLETE`);
-  console.log(`   ✅ Linked: ${linkedCount}`);
-  console.log(`   ❌ No match: ${noMatchCount}`);
-  console.log(`   ⚠️  No venue name: ${noVenueNameCount}`);
+  console.log(`   Linked: ${linkedCount}`);
+  console.log(`   No match: ${noMatchCount}`);
+  console.log(`    No venue name: ${noVenueNameCount}`);
   console.log(`   📊 Total processed: ${unlinkedEvents.length}`);
   console.log('═══════════════════════════════════════════════════════');
 
@@ -117,6 +117,6 @@ async function linkEvents() {
 }
 
 linkEvents().catch(err => {
-  console.error('❌ Linking failed:', err);
+  console.error('Linking failed:', err);
   process.exit(1);
 });

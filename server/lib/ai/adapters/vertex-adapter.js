@@ -30,7 +30,7 @@ function getVertexClient() {
     throw new Error("GOOGLE_CLOUD_PROJECT environment variable is required for Vertex AI");
   }
 
-  console.log(`[vertex-adapter] Initializing Vertex AI client for project=${project}, location=${location}`);
+  console.log(`[AI] Initializing Vertex AI client for project=${project}, location=${location}`);
 
   vertexClient = new VertexAI({
     project,
@@ -67,7 +67,7 @@ export async function callVertexAI({
   try {
     // Check if Vertex AI is enabled
     if (process.env.VERTEX_AI_ENABLED !== "true") {
-      console.warn("[vertex-adapter] ⚠️ Vertex AI not enabled (set VERTEX_AI_ENABLED=true)");
+      console.warn("[AI] Vertex AI not enabled (set VERTEX_AI_ENABLED=true)");
       return { ok: false, error: "Vertex AI not enabled" };
     }
 
@@ -97,7 +97,7 @@ export async function callVertexAI({
       ],
     });
 
-    console.log(`[vertex-adapter] Calling ${model} with maxTokens=${maxTokens}, temp=${temperature}`);
+    console.log(`[AI] Calling ${model} with maxTokens=${maxTokens}, temp=${temperature}`);
 
     // Build request with optional tools
     const request = {
@@ -112,7 +112,7 @@ export async function callVertexAI({
     // Add Google Search grounding if requested
     if (useSearch) {
       request.tools = [{ googleSearchRetrieval: {} }];
-      console.log("[vertex-adapter] 🔍 Google Search grounding enabled");
+      console.log("[AI] Google Search grounding enabled");
     }
 
     // Generate content
@@ -134,7 +134,7 @@ export async function callVertexAI({
       const codeBlockMatch = output.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (codeBlockMatch) {
         output = codeBlockMatch[1].trim();
-        console.log(`[vertex-adapter] 🧹 Removed markdown code block (${rawLength} → ${output.length} chars)`);
+        console.log(`[AI] Removed markdown code block (${rawLength} → ${output.length} chars)`);
       }
 
       // Extract JSON if requested
@@ -144,7 +144,7 @@ export async function callVertexAI({
           try {
             JSON.parse(jsonMatch[0]);
             output = jsonMatch[0];
-            console.log(`[vertex-adapter] 🧹 Extracted JSON (${rawLength} → ${output.length} chars)`);
+            console.log(`[AI] Extracted JSON (${rawLength} → ${output.length} chars)`);
           } catch {
             // Keep original if JSON parsing fails
           }
@@ -152,7 +152,7 @@ export async function callVertexAI({
       }
     }
 
-    console.log("[vertex-adapter] Response:", {
+    console.log("[AI] Response:", {
       model,
       outputLength: output?.length || 0,
       hasGrounding: useSearch,
@@ -163,7 +163,7 @@ export async function callVertexAI({
       : { ok: false, output: "", error: "Empty response from Vertex AI" };
 
   } catch (err) {
-    console.error("[vertex-adapter] Error:", err?.message || err);
+    console.error("[AI] Error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };
   }
 }
@@ -207,7 +207,7 @@ export async function* callVertexAIStream({
     }),
   });
 
-  console.log(`[vertex-adapter] Streaming ${model} with ${messageHistory.length} messages`);
+  console.log(`[AI] Streaming ${model} with ${messageHistory.length} messages`);
 
   const request = {
     contents: messageHistory,

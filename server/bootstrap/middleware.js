@@ -24,9 +24,9 @@ export async function configureMiddleware(app) {
     const botBlockerPath = path.join(rootDir, 'server/middleware/bot-blocker.js');
     const { botBlocker } = await import(pathToFileURL(botBlockerPath).href);
     app.use(botBlocker);
-    console.log('[gateway] ✅ Bot blocker enabled (full protection)');
+    console.log('[GATEWAY] Bot blocker enabled (full protection)');
   } catch (e) {
-    console.warn('[gateway] Bot blocker not available:', e?.message);
+    console.warn('[GATEWAY] Bot blocker not available:', e?.message);
   }
 
   // X-Robots-Tag header - prevent indexing at HTTP level
@@ -158,7 +158,7 @@ export async function configureMiddleware(app) {
       // Log once per unique origin per process to avoid log spam under scanner floods.
       if (!blockedOriginSeen.has(origin)) {
         blockedOriginSeen.add(origin);
-        console.warn(`[gateway] CORS blocked origin: ${origin} (${req.method} ${req.originalUrl})`);
+        console.warn(`[GATEWAY] CORS blocked origin: ${origin} (${req.method} ${req.originalUrl})`);
       }
       return res.status(403).json({
         error: 'Origin not allowed',
@@ -190,9 +190,9 @@ export async function configureMiddleware(app) {
     // billable OpenAI client_secret. 5/min/user is generous for legit voice
     // session starts; anything above is bug or abuse.
     app.use('/api/realtime/token', realtimeMintLimiter);
-    console.log('[gateway] ✅ Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)');
+    console.log('[GATEWAY] Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)');
   } catch (e) {
-    console.warn('[gateway] Rate limiting not available:', e?.message);
+    console.warn('[GATEWAY] Rate limiting not available:', e?.message);
   }
 
   // Correlation ID middleware (before JSON parsing)
@@ -201,7 +201,7 @@ export async function configureMiddleware(app) {
     const { correlationId } = await import(pathToFileURL(correlationPath).href);
     app.use(correlationId);
   } catch (e) {
-    console.warn('[gateway] Correlation ID middleware not available:', e?.message);
+    console.warn('[GATEWAY] Correlation ID middleware not available:', e?.message);
   }
 
   // JSON body parsing for API and agent routes
@@ -213,7 +213,7 @@ export async function configureMiddleware(app) {
   app.use('/api', express.json({ limit: '1mb' }));
   app.use('/agent', express.json({ limit: '1mb' }));
 
-  console.log('[gateway] ✅ Middleware configured');
+  console.log('[GATEWAY] Middleware configured');
 }
 
 /**
@@ -222,14 +222,14 @@ export async function configureMiddleware(app) {
  */
 export async function configureErrorHandler(app) {
   try {
-    console.log('[gateway] Loading error middleware...');
+    console.log('[GATEWAY] Loading error middleware...');
     const errorPath = path.join(rootDir, 'server/middleware/error-handler.js');
     const { errorTo503 } = await import(pathToFileURL(errorPath).href);
     app.use(errorTo503);
-    console.log('[gateway] ✅ Error middleware configured');
+    console.log('[GATEWAY] Error middleware configured');
     return true;
   } catch (e) {
-    console.error('[gateway] ❌ Error middleware failed:', e?.message);
+    console.error('[GATEWAY] Error middleware failed:', e?.message);
     return false;
   }
 }

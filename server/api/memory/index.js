@@ -33,7 +33,7 @@ router.get('/', async (req, res) => {
 
     res.json(results);
   } catch (err) {
-    console.error('[memory] GET / error:', err.message);
+    console.error('[MEMORY] GET / error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -52,7 +52,7 @@ router.get('/stats', async (req, res) => {
 
     res.json(stats);
   } catch (err) {
-    console.error('[memory] GET /stats error:', err.message);
+    console.error('[MEMORY] GET /stats error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -71,7 +71,7 @@ router.get('/rules', async (req, res) => {
 
     res.json(rules);
   } catch (err) {
-    console.error('[memory] GET /rules error:', err.message);
+    console.error('[MEMORY] GET /rules error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -87,7 +87,7 @@ router.get('/session/:sessionId', async (req, res) => {
 
     res.json(results);
   } catch (err) {
-    console.error('[memory] GET /session error:', err.message);
+    console.error('[MEMORY] GET /session error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -105,7 +105,7 @@ router.post('/', async (req, res) => {
     const entry = await db.insert(claudeMemory).values(req.body).returning();
     res.json(entry[0]);
   } catch (err) {
-    console.error('[memory] POST / error:', err.message);
+    console.error('[MEMORY] POST / error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -125,7 +125,7 @@ router.patch('/:id', async (req, res) => {
     }
     res.json(entry[0]);
   } catch (err) {
-    console.error('[memory] PATCH /:id error:', err.message);
+    console.error('[MEMORY] PATCH /:id error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

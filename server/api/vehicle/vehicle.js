@@ -66,7 +66,7 @@ router.get('/makes', async (req, res) => {
     }
 
     // Fetch from NHTSA API
-    console.log('[vehicle] Fetching makes from NHTSA API...');
+    console.log('[VEHICLE] Fetching makes from NHTSA API...');
     const response = await fetch(`${NHTSA_API_BASE}/vehicles/GetAllMakes?format=json`);
 
     if (!response.ok) {
@@ -96,7 +96,7 @@ router.get('/makes', async (req, res) => {
       await db.insert(vehicle_makes_cache).values(makes);
     }
 
-    console.log(`[vehicle] Cached ${makes.length} makes from NHTSA`);
+    console.log(`[VEHICLE] Cached ${makes.length} makes from NHTSA`);
 
     // Return with common makes first
     const commonMakes = makes.filter(m => m.is_common);
@@ -113,7 +113,7 @@ router.get('/makes', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[vehicle] Failed to fetch makes:', err.message);
+    console.error('[VEHICLE] Failed to fetch makes:', err.message);
 
     // Fall back to cached data if available
     const cachedMakes = await db.select().from(vehicle_makes_cache).orderBy(vehicle_makes_cache.make_name);
@@ -168,7 +168,7 @@ router.get('/models', async (req, res) => {
     }
 
     // Fetch from NHTSA API
-    console.log(`[vehicle] Fetching models for ${make} ${modelYear} from NHTSA API...`);
+    console.log(`[VEHICLE] Fetching models for ${make} ${modelYear} from NHTSA API...`);
     const response = await fetch(
       `${NHTSA_API_BASE}/vehicles/GetModelsForMakeYear/make/${encodeURIComponent(make)}/modelyear/${modelYear}?format=json`
     );
@@ -201,7 +201,7 @@ router.get('/models', async (req, res) => {
       await db.insert(vehicle_models_cache).values(models);
     }
 
-    console.log(`[vehicle] Cached ${models.length} models for ${make} ${modelYear}`);
+    console.log(`[VEHICLE] Cached ${models.length} models for ${make} ${modelYear}`);
 
     res.json({
       models: models.map(m => ({
@@ -215,7 +215,7 @@ router.get('/models', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[vehicle] Failed to fetch models:', err.message);
+    console.error('[VEHICLE] Failed to fetch models:', err.message);
 
     // Fall back to cached data
     const { make, year } = req.query;

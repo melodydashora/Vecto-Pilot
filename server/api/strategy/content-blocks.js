@@ -58,7 +58,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
 
   try {
     // Fetch strategy and snapshot data
-    const [strategy] = await db
+    const [STRATEGY] = await db
       .select()
       .from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId))
@@ -74,7 +74,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       });
     }
 
-    const [snapshot] = await db
+    const [SNAPSHOT] = await db
       .select()
       .from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId))
@@ -115,7 +115,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       // Log when phase is NULL (should not happen after fix)
       const currentPhase = strategy.phase || 'starting';
       if (!strategy.phase) {
-        console.warn(`[content-blocks] WARNING: phase is NULL for ${snapshotId.slice(0, 8)} - falling back to 'starting'`);
+        console.warn(`[VENUE] WARNING: phase is NULL for ${snapshotId.slice(0, 8)} - falling back to 'starting'`);
       }
 
       // Calculate phase timing for dynamic progress
@@ -206,7 +206,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
 
     // Auto-correct phase if blocks exist but phase stuck (Fix #15.2)
     if (strategy.phase !== 'complete') {
-      console.log(`[content-blocks] Auto-correcting phase: ${strategy.phase} → complete for ${snapshotId.slice(0, 8)}`);
+      console.log(`[VENUE] Auto-correcting phase: ${strategy.phase} → complete for ${snapshotId.slice(0, 8)}`);
       await updatePhase(snapshotId, 'complete');
     }
 
@@ -226,7 +226,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       rankingId: ranking.ranking_id,
     });
   } catch (error) {
-    console.error(`[content-blocks] Error:`, error);
+    console.error(`[VENUE] Error:`, error);
     res.status(500).json({
       status: "error",
       error: "internal_error",

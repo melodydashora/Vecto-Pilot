@@ -142,7 +142,7 @@ router.post('/', requireAuth, async (req, res) => {
     console.log(`[TACTICAL] Starting analysis for ${mission.type}: ${mission.name}`);
 
     // Get snapshot context for location info
-    const [snapshot] = await db
+    const [SNAPSHOT] = await db
       .select({
         city: snapshots.city,
         state: snapshots.state,

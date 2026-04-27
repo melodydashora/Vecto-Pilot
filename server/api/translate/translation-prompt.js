@@ -87,6 +87,6 @@ export function parseTranslationResponse(responseText) {
   } catch { /* fall through */ }
 
   // Log the raw response for debugging before throwing
-  console.error('[translate] All parse attempts failed. Raw response (first 300 chars):', responseText.substring(0, 300));
+  console.error('[TRANSLATION] All parse attempts failed. Raw response (first 300 chars):', responseText.substring(0, 300));
   throw new Error('Failed to parse translation response');
 }

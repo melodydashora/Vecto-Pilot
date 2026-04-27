@@ -113,7 +113,7 @@ function analyzeTable(tableName) {
 }
 
 // Main analysis
-console.log('🔍 Analyzing data flow across codebase...\n');
+console.log('Analyzing data flow across codebase...\n');
 
 const dataFlow = {};
 let totalPush = 0;
@@ -130,7 +130,7 @@ for (const table of DRIZZLE_TABLES) {
 
 // Write JSON output
 writeFileSync(OUTPUT_FILE, JSON.stringify(dataFlow, null, 2));
-console.log(`\n✅ Analysis complete: ${OUTPUT_FILE}`);
+console.log(`\nAnalysis complete: ${OUTPUT_FILE}`);
 console.log(`   Tables: ${DRIZZLE_TABLES.length}`);
 console.log(`   Total push references: ${totalPush}`);
 console.log(`   Total fetch references: ${totalFetch}`);

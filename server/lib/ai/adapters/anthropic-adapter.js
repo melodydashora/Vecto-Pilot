@@ -18,7 +18,7 @@ function getClient() {
 export async function callAnthropic({ model, system, user, messages, maxTokens, temperature }) {
   try {
     const anthropic = getClient();
-    console.log(`[model/anthropic] calling ${model} with max_tokens=${maxTokens}`);
+    console.log(`[AI] calling ${model} with max_tokens=${maxTokens}`);
 
     // Allow passing full messages array (for chat history) OR simple user string
     const finalMessages = messages || [{ role: "user", content: user }];
@@ -33,7 +33,7 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
 
     const output = res?.content?.[0]?.text?.trim() || "";
 
-    console.log("[model/anthropic] resp:", {
+    console.log("[AI] resp:", {
       model,
       content: !!res?.content,
       len: output?.length ?? 0
@@ -43,7 +43,7 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
       ? { ok: true, output }
       : { ok: false, output: "", error: "Empty response from Anthropic" };
   } catch (err) {
-    console.error("[model/anthropic] error:", err?.message || err);
+    console.error("[AI] error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };
   }
 }
@@ -56,7 +56,7 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
  */
 export async function callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature, jsonMode = true }) {
   try {
-    console.log(`[model/anthropic-web] calling ${model} with web_search tool, max_tokens=${maxTokens}, jsonMode=${jsonMode}`);
+    console.log(`[AI] calling ${model} with web_search tool, max_tokens=${maxTokens}, jsonMode=${jsonMode}`);
 
     // Build messages - use assistant prefill to force JSON when jsonMode is enabled
     const messages = [{ role: "user", content: user }];
@@ -103,7 +103,7 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
       output = "[" + output;
     }
 
-    console.log("[model/anthropic-web] resp:", {
+    console.log("[AI] resp:", {
       model,
       content: !!res?.content,
       len: output?.length ?? 0,
@@ -115,7 +115,7 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
       ? { ok: true, output, citations }
       : { ok: false, output: "", error: "Empty response from Anthropic" };
   } catch (err) {
-    console.error("[model/anthropic-web] error:", err?.message || err);
+    console.error("[AI] error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };
   }
 }

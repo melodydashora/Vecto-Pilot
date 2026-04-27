@@ -188,7 +188,7 @@ export function getEnv(key, { throwOnMissing = false } = {}) {
   const spec = ENV_VARS[key];
 
   if (!spec) {
-    console.warn(`[env-registry] Unknown env var: ${key}`);
+    console.warn(`[CONFIG] [ENV] Unknown env var: ${key}`);
     return process.env[key];
   }
 
@@ -199,7 +199,7 @@ export function getEnv(key, { throwOnMissing = false } = {}) {
     if (throwOnMissing) {
       throw new Error(msg);
     }
-    console.error(`[env-registry] ${msg}`);
+    console.error(`[CONFIG] [ENV] ${msg}`);
   }
 
   return value;
@@ -236,7 +236,7 @@ export function validateEnv() {
  * Log environment configuration (safe - no secrets)
  */
 export function logEnvConfig() {
-  console.log('[env-registry] Configuration:');
+  console.log('[CONFIG] [ENV] Configuration:');
 
   for (const [key, spec] of Object.entries(ENV_VARS)) {
     const value = process.env[key];

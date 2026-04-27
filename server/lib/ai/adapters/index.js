@@ -225,11 +225,11 @@ export async function callModel(role, params) {
           };
         }
       } catch (retryErr) {
-        console.error(`🤖 [AI RETRY FAIL] ❌ ${primaryConfig.role} ${GEMINI_FALLBACK_MODEL} also failed: ${retryErr.message}`);
+        console.error(`[AI RETRY FAIL] ${primaryConfig.role} ${GEMINI_FALLBACK_MODEL} also failed: ${retryErr.message}`);
       }
     }
 
-    console.error(`🤖 [AI FAIL] ❌ ${primaryConfig.role} failed after ${durationMs}ms: ${err.message}`);
+    console.error(`[AI FAIL] ${primaryConfig.role} failed after ${durationMs}ms: ${err.message}`);
     // Return a structured error object instead of throwing
     return {
       success: false,

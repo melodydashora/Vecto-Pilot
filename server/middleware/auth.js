@@ -200,7 +200,7 @@ export async function requireAuth(req, res, next) {
       db.update(users)
         .set({ last_active_at: new Date(), updated_at: new Date() })
         .where(eq(users.user_id, userId))
-        .catch(err => console.warn('[auth] Failed to update last_active_at:', err.message));
+        .catch(err => console.warn('[AUTH] Failed to update last_active_at:', err.message));
 
       // Attach session info to request
       req.auth = {
@@ -214,7 +214,7 @@ export async function requireAuth(req, res, next) {
       // Previously this set req.auth and called next(), allowing requests through
       // when the database was unreachable. This bypassed session enforcement
       // (expiry, logout, hard limits). Security must win over availability here.
-      console.error('[auth] Session check failed — rejecting request:', sessionErr.message);
+      console.error('[AUTH] Session check failed — rejecting request:', sessionErr.message);
       return res.status(503).json({
         error: 'auth_service_unavailable',
         message: 'Authentication service temporarily unavailable. Please try again.'
@@ -245,7 +245,7 @@ export function optionalAuth(req, res, next) {
         currentSnapshotId: null,
         phantom: false
       };
-      console.log(`[optionalAuth] ✅ Agent authenticated as ${agentUserId.slice(0, 8)}`);
+      console.log(`[AUTH] Agent authenticated as ${agentUserId.slice(0, 8)}`);
       return next();
     }
 
@@ -254,22 +254,22 @@ export function optionalAuth(req, res, next) {
 
     // Debug: log request path and auth status
     const path = req.path || req.url || 'unknown';
-    console.log(`[optionalAuth] ${path} - token: ${token ? 'present' : 'none'}`);
+    console.log(`[AUTH] ${path} - token: ${token ? 'present' : 'none'}`);
 
     if (token) {
       // Token provided - verify it
       try {
         const payload = verifyAppToken(token);
         req.auth = { userId: payload.userId, phantom: isPhantom(payload.userId, payload.tetherSig) };
-        console.log(`[optionalAuth] ✅ Token verified for user ${payload.userId.slice(0, 8)}`);
+        console.log(`[AUTH] Token verified for user ${payload.userId.slice(0, 8)}`);
       } catch (e) {
         authLog.warn(1, `Token provided but invalid: ${e?.message}`);
-        console.log(`[optionalAuth] ❌ Token INVALID: ${e?.message} - returning 401`);
+        console.log(`[AUTH] Token INVALID: ${e?.message} - returning 401`);
         // Token was provided but invalid - reject the request
         return res.status(401).json({ error: 'unauthorized', detail: e?.message });
       }
     } else {
-      console.log(`[optionalAuth] No token - proceeding as anonymous`);
+      console.log(`[AUTH] No token - proceeding as anonymous`);
     }
     // Continue regardless of whether auth was provided or verified
     next();

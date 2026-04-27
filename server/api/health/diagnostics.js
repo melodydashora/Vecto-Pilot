@@ -147,7 +147,7 @@ router.get('/', requireAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[diagnostics] System check failed', { 
+    console.error('[AGENT] [DIAGNOSTICS] System check failed', { 
       correlation_id: correlationId, 
       error: error.message 
     });

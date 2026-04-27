@@ -1,0 +1,245 @@
+TOMTOM TRAFFIC CAPTURE — 2026-04-26T23:20:11.245Z
+══════════════════════════════════════════════════════════════════════
+
+LOCATION
+──────────────────────────────────────────────────────────────────────
+  Coords:  33.127694700333066, -96.87637267258037
+  Source:  Frisco, TX (latest snapshot)
+
+RAW TOMTOM RESPONSE  (fetchRawTraffic)
+──────────────────────────────────────────────────────────────────────
+  flow:               present
+  incidents (raw):    56
+  bbox:               null
+
+PARSED + PRIORITIZED  (getTomTomTraffic — feeds BRIEFING_TRAFFIC)
+──────────────────────────────────────────────────────────────────────
+  totalIncidents:           44
+  congestionLevel:          heavy
+  prioritized count:        15  (top 15 by priority for AI input)
+  allIncidents count:       44  (full deduplicated set)
+  stats:                    {"total":44,"highways":22,"construction":9,"closures":19,"jams":16,"accidents":0,"major":11}
+  source:                   tomtom
+  city / state:             null / null
+
+COORD COVERAGE
+──────────────────────────────────────────────────────────────────────
+  Total incidents:                 44
+  Have coords (Phase F plottable): 44
+  Missing coords:                  0
+
+PRIORITIZED TOP-15  (this array is sent to Gemini BRIEFING_TRAFFIC as input)
+──────────────────────────────────────────────────────────────────────
+  Format:  N. CATEGORY     SEV       DIST    DELAY  HWY  [LAT,LON]
+           road:
+           loc:
+
+   1. Jam          Major      7.1mi    7min HWY  [33.2285,-96.8971]
+      road: FM-1385
+      loc:  FM-428 (Aubrey) (FM-1385) to US-380 (FM-1385)
+   2. Jam          Moderate   7.1mi    1min HWY  [33.0335,-96.9261]
+      road: (no road)
+      loc:  TX-121 (Sam Rayburn Tollway) to TX-121 Bus/FM-2281/Old Denton Rd (Sam Rayburn Tollway)
+   3. Road Works   Unknown    9.5mi    0min HWY  [33.0463,-97.0094]
+      road: FM-1171
+      loc:  Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)
+   4. Jam          Major        4mi    3min HWY  [33.0705,-96.8854]
+      road: (no road)
+      loc:  Memorial Dr to State Highway 121
+   5. Jam          Major      9.8mi    6min HWY  [33.2604,-96.8175]
+      road: (no road)
+      loc:  Dallas Pkwy to W Frontier Pkwy / County Road 50
+   6. Lane Closed  Unknown    9.3mi    0min HWY  [33.0545,-97.0111]
+      road: I-35E N, US-77 S, US-77 N, I-35E S
+      loc:  FM-1171/W Main St (Texpress Lanes/I-35) to W Valley Ridge Blvd (Texpress Lanes/I-35)
+   7. Road Closed  Undefined   9.8mi    0min HWY  [33.0185,-96.9838]
+      road: (no road)
+      loc:  S Stemmons Fwy to E Corporate Dr
+   8. Jam          Major        4mi    2min HWY  [33.1775,-96.8426]
+      road: (no road)
+      loc:  Eldorado Pkwy to Dallas Pkwy
+   9. Jam          Major      7.2mi    4min  [33.2205,-96.9329]
+      road: (no road)
+      loc:  S Paloma Creek Blvd to Navo Rd
+  10. Jam          Major      7.3mi    1min  [33.2214,-96.9346]
+      road: (no road)
+      loc:  E University Dr to Paloma Creek Blvd / Morning Dove Dr
+  11. Jam          Moderate   8.2mi    1min HWY  [33.2049,-96.7678]
+      road: (no road)
+      loc:  Hardy Dr to Rockhill Pkwy
+  12. Road Closed  Undefined   8.1mi    0min HWY  [33.0117,-96.8918]
+      road: (no road)
+      loc:  E Rosemeade Pkwy to Clear Creek Ln
+  13. Road Closed  Undefined   9.5mi    0min HWY  [33.2619,-96.8378]
+      road: (no road)
+      loc:  CR-5/W Frontier Pkwy (Legacy Dr/CR-6) to Parvin Rd (Legacy Dr/CR-6)
+  14. Road Closed  Undefined     5mi    0min HWY  [33.1910,-96.8353]
+      road: (no road)
+      loc:  McKinney to Everwell Ln / Universal Pkwy
+  15. Road Closed  Undefined   5.3mi    0min HWY  [33.1967,-96.8351]
+      road: (no road)
+      loc:  Legacy Dr (Fields Pkwy) to Dallas Pkwy (Fields Pkwy)
+
+ALL INCIDENTS — full deduplicated set, sorted by priority
+──────────────────────────────────────────────────────────────────────
+(Anything below position 15 was dropped before Gemini saw it.)
+
+   1. Jam          Major      7.1mi    7min HWY  [33.2285,-96.8971]
+      road: FM-1385
+      loc:  FM-428 (Aubrey) (FM-1385) to US-380 (FM-1385)
+   2. Jam          Moderate   7.1mi    1min HWY  [33.0335,-96.9261]
+      road: (no road)
+      loc:  TX-121 (Sam Rayburn Tollway) to TX-121 Bus/FM-2281/Old Denton Rd (Sam Rayburn Tollway)
+   3. Road Works   Unknown    9.5mi    0min HWY  [33.0463,-97.0094]
+      road: FM-1171
+      loc:  Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)
+   4. Jam          Major        4mi    3min HWY  [33.0705,-96.8854]
+      road: (no road)
+      loc:  Memorial Dr to State Highway 121
+   5. Jam          Major      9.8mi    6min HWY  [33.2604,-96.8175]
+      road: (no road)
+      loc:  Dallas Pkwy to W Frontier Pkwy / County Road 50
+   6. Lane Closed  Unknown    9.3mi    0min HWY  [33.0545,-97.0111]
+      road: I-35E N, US-77 S, US-77 N, I-35E S
+      loc:  FM-1171/W Main St (Texpress Lanes/I-35) to W Valley Ridge Blvd (Texpress Lanes/I-35)
+   7. Road Closed  Undefined   9.8mi    0min HWY  [33.0185,-96.9838]
+      road: (no road)
+      loc:  S Stemmons Fwy to E Corporate Dr
+   8. Jam          Major        4mi    2min HWY  [33.1775,-96.8426]
+      road: (no road)
+      loc:  Eldorado Pkwy to Dallas Pkwy
+   9. Jam          Major      7.2mi    4min  [33.2205,-96.9329]
+      road: (no road)
+      loc:  S Paloma Creek Blvd to Navo Rd
+  10. Jam          Major      7.3mi    1min  [33.2214,-96.9346]
+      road: (no road)
+      loc:  E University Dr to Paloma Creek Blvd / Morning Dove Dr
+  11. Jam          Moderate   8.2mi    1min HWY  [33.2049,-96.7678]
+      road: (no road)
+      loc:  Hardy Dr to Rockhill Pkwy
+  12. Road Closed  Undefined   8.1mi    0min HWY  [33.0117,-96.8918]
+      road: (no road)
+      loc:  E Rosemeade Pkwy to Clear Creek Ln
+  13. Road Closed  Undefined   9.5mi    0min HWY  [33.2619,-96.8378]
+      road: (no road)
+      loc:  CR-5/W Frontier Pkwy (Legacy Dr/CR-6) to Parvin Rd (Legacy Dr/CR-6)
+  14. Road Closed  Undefined     5mi    0min HWY  [33.1910,-96.8353]
+      road: (no road)
+      loc:  McKinney to Everwell Ln / Universal Pkwy
+  15. Road Closed  Undefined   5.3mi    0min HWY  [33.1967,-96.8351]
+      road: (no road)
+      loc:  Legacy Dr (Fields Pkwy) to Dallas Pkwy (Fields Pkwy)
+
+  --- CUTOFF: incidents below this line are NOT sent to Gemini ---
+
+  16. Road Closed  Undefined   3.5mi    0min HWY  [33.1024,-96.8232]
+      road: (no road)
+      loc:  Warren Pkwy to Warren Pkwy
+  17. Road Closed  Undefined   3.8mi    0min HWY  [33.0951,-96.8224]
+      road: (no road)
+      loc:  Dallas Pkwy to Avenue of the Stars
+  18. Road Closed  Undefined   3.8mi    0min HWY  [33.0975,-96.8208]
+      road: (no road)
+      loc:  Dallas Pkwy / Diamond Dr to Ikea Dr
+  19. Road Closed  Undefined   4.6mi    0min HWY  [33.1054,-96.8011]
+      road: (no road)
+      loc:  Ohio Dr (Gaylord Pkwy) to TX-289/Preston Rd (Gaylord Pkwy)
+  20. Road Closed  Undefined   7.5mi    0min HWY  [33.2013,-96.7816]
+      road: (no road)
+      loc:  Ortega St to PGA Pkwy / Rockhill Pkwy
+  21. Road Closed  Undefined   7.7mi    0min HWY  [33.2024,-96.7764]
+      road: (no road)
+      loc:  Chapel Hill Ln to Rockhill Pkwy
+  22. Road Works   Unknown    5.1mi    0min HWY  [33.2017,-96.8684]
+      road: (no road)
+      loc:  Fields Pkwy (Teel Pkwy) to Rockhill Pkwy/Pga Pkwy (Teel Pkwy)
+  23. Road Works   Unknown    7.9mi    0min HWY  [33.2338,-96.8238]
+      road: (no road)
+      loc:  Dallas Pkwy (1st St) to CR-6/S Legacy Dr (1st St)
+  24. Road Works   Unknown    4.5mi    0min HWY  [33.1085,-96.8013]
+      road: (no road)
+      loc:  Warren Pkwy (Ohio Dr) to TX-121 (Ohio Dr)
+  25. Road Closed  Undefined   9.4mi    0min  [33.0492,-97.0093]
+      road: (no road)
+      loc:  Valley Ridge Blvd exit [453] to Valley Ridge Blvd exit [453]
+  26. Jam          Major      9.4mi    5min  [33.1518,-96.7168]
+      road: (no road)
+      loc:  Alma Rd to Stacy Rd / Canyon Springs Dr
+  27. Road Works   Unknown    1.1mi    0min  [33.1183,-96.8609]
+      road: (no road)
+      loc:  Torrance Blvd to Lebanon Rd
+  28. Jam          Major      9.1mi    4min  [33.1565,-96.7226]
+      road: (no road)
+      loc:  Blacktail Trl to White Stallion Trl
+  29. Jam          Major      7.4mi    3min  [33.0534,-96.7851]
+      road: (no road)
+      loc:  Charlemagne Dr to Naples Dr
+  30. Jam          Major      8.6mi    2min  [33.0463,-96.9880]
+      road: (no road)
+      loc:  E Main St to E Church St
+  31. Jam          Minor        4mi    2min  [33.0826,-96.9204]
+      road: (no road)
+      loc:  Sparks Rd to Sparks Rd / N Colony Blvd
+  32. Jam          Major      7.9mi    3min  [33.0172,-96.9127]
+      road: (no road)
+      loc:  Carrollton to Indian Creek Apartments
+  33. Road Closed  Undefined   8.7mi    0min  [33.0493,-96.9942]
+      road: (no road)
+      loc:  N Mill St / W College St to N Railroad St
+  34. Road Closed  Undefined   2.3mi    0min  [33.1547,-96.8996]
+      road: (no road)
+      loc:  Witt Rd to Crystal Ln
+  35. Jam          Moderate   6.6mi    1min  [33.2209,-96.8970]
+      road: (no road)
+      loc:  E University Dr to FM 1385
+  36. Road Closed  Undefined   8.6mi    0min  [33.1224,-97.0244]
+      road: (no road)
+      loc:  E Hundley Dr to Sycamore St
+  37. Road Closed  Undefined   9.1mi    0min  [33.1226,-97.0328]
+      road: (no road)
+      loc:  S Lake Dallas Dr to N Lakeview Dr / S Lakeview Dr
+  38. Road Works   Unknown    0.8mi    0min  [33.1208,-96.8648]
+      road: (no road)
+      loc:  Legacy Dr (Lebanon Rd) to TX-423 (Lebanon Rd)
+  39. Road Closed  Undefined     3mi    0min  [33.1533,-96.8339]
+      road: (no road)
+      loc:  Main St to Lamar Hunt Way
+  40. Road Closed  Undefined   3.3mi    0min  [33.1523,-96.8283]
+      road: (no road)
+      loc:  Main St to Main St
+  41. Road Works   Unknown    8.8mi    0min  [33.2239,-96.9759]
+      road: (no road)
+      loc:  E University Dr to E University Dr
+  42. Road Works   Unknown    7.2mi    0min  [33.2277,-96.8430]
+      road: (no road)
+      loc:  Highland St to W 1st St
+  43. Jam          Minor      5.2mi    2min  [33.1452,-96.7894]
+      road: (no road)
+      loc:  Quest Dr to Castle Dr
+  44. Road Works   Unknown    8.8mi    0min  [33.2236,-96.9771]
+      road: (no road)
+      loc:  Pilot Point-Aubrey to Pilot Point-Aubrey
+
+KEYWORD AUDIT  (arterial roads commonly mentioned in strategy text)
+──────────────────────────────────────────────────────────────────────
+  "toll":  1 match(es)
+     [TOP15      ] # 2. Jam on (no road) — TX-121 (Sam Rayburn Tollway) to TX-121 Bus/FM-2281/Old Denton Rd (Sam Rayburn Tollway)
+  "I-35":  2 match(es)
+     [TOP15      ] # 3. Road Works on FM-1171 — Valley Pkwy (Cross Timbers Rd/FM-1171) to I-35E/US-77/Stemmons Fwy (Cross Timbers Rd/FM-1171)
+     [TOP15      ] # 6. Lane Closed on I-35E N, US-77 S, US-77 N, I-35E S — FM-1171/W Main St (Texpress Lanes/I-35) to W Valley Ridge Blvd (Texpress Lanes/I-35)
+  "Dallas Pkwy":  6 match(es)
+     [TOP15      ] # 5. Jam on (no road) — Dallas Pkwy to W Frontier Pkwy / County Road 50
+     [TOP15      ] # 8. Jam on (no road) — Eldorado Pkwy to Dallas Pkwy
+     [TOP15      ] #15. Road Closed on (no road) — Legacy Dr (Fields Pkwy) to Dallas Pkwy (Fields Pkwy)
+     [FILTERED OUT] #17. Road Closed on (no road) — Dallas Pkwy to Avenue of the Stars
+     [FILTERED OUT] #18. Road Closed on (no road) — Dallas Pkwy / Diamond Dr to Ikea Dr
+     [FILTERED OUT] #23. Road Works on (no road) — Dallas Pkwy (1st St) to CR-6/S Legacy Dr (1st St)
+  "Frontier":  2 match(es)
+     [TOP15      ] # 5. Jam on (no road) — Dallas Pkwy to W Frontier Pkwy / County Road 50
+     [TOP15      ] #13. Road Closed on (no road) — CR-5/W Frontier Pkwy (Legacy Dr/CR-6) to Parvin Rd (Legacy Dr/CR-6)
+  "Tollway":  1 match(es)
+     [TOP15      ] # 2. Jam on (no road) — TX-121 (Sam Rayburn Tollway) to TX-121 Bus/FM-2281/Old Denton Rd (Sam Rayburn Tollway)
+  "US-380":  1 match(es)
+     [TOP15      ] # 1. Jam on FM-1385 — FM-428 (Aubrey) (FM-1385) to US-380 (FM-1385)
+
+Capture written: /home/runner/workspace/tomtom.txt

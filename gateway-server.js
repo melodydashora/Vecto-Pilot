@@ -40,11 +40,11 @@ const isAutoscaleMode = process.env.CLOUD_RUN_AUTOSCALE === '1' || process.env.R
 
 // Safety guardrail: loud warning when autoscale is active
 if (isAutoscaleMode) {
-  console.warn('[gateway] ═══════════════════════════════════════════════════════════════');
-  console.warn('[gateway] ⚠️  AUTOSCALE MODE ACTIVE');
-  console.warn('[gateway]    Background workers: DISABLED (must deploy as separate services)');
-  console.warn('[gateway]    SSE: DISABLED | Snapshot observer: DISABLED');
-  console.warn('[gateway] ═══════════════════════════════════════════════════════════════');
+  console.warn('[GATEWAY] ═══════════════════════════════════════════════════════════════');
+  console.warn('[GATEWAY]  AUTOSCALE MODE ACTIVE');
+  console.warn('[GATEWAY]    Background workers: DISABLED (must deploy as separate services)');
+  console.warn('[GATEWAY]    SSE: DISABLED | Snapshot observer: DISABLED');
+  console.warn('[GATEWAY] ═══════════════════════════════════════════════════════════════');
 }
 
 // Exported app reference for tests/importers (live binding)
@@ -52,21 +52,21 @@ export let app = null;
 
 // Global error handlers
 process.on('uncaughtException', (err) => {
-  console.error('[gateway] ❌ Uncaught exception:', err);
+  console.error('[GATEWAY] Uncaught exception:', err);
   if (process.env.NODE_ENV !== 'production') process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[gateway] ❌ Unhandled rejection at:', promise, 'reason:', reason);
+  console.error('[GATEWAY] Unhandled rejection at:', promise, 'reason:', reason);
 });
 
 // Main bootstrap
 (async function main() {
   try {
     const startTime = Date.now();
-    console.log(`[gateway] Starting bootstrap (PID: ${process.pid})`);
-    console.log(`[gateway] Mode: ${MODE.toUpperCase()}, Port: ${PORT}`);
-    console.log(`[gateway] Deployment: ${isDeployment}, Autoscale: ${isAutoscaleMode}`);
+    console.log(`[GATEWAY] Starting bootstrap (PID: ${process.pid})`);
+    console.log(`[GATEWAY] Mode: ${MODE.toUpperCase()}, Port: ${PORT}`);
+    console.log(`[GATEWAY] Deployment: ${isDeployment}, Autoscale: ${isAutoscaleMode}`);
 
     // Create Express app
     app = express();
@@ -100,7 +100,7 @@ process.on('unhandledRejection', (reason, promise) => {
     server.requestTimeout = 5000;
 
     server.on('error', (err) => {
-      console.error('[gateway] ❌ Server error:', err);
+      console.error('[GATEWAY] Server error:', err);
       process.exit(1);
     });
 
@@ -110,7 +110,7 @@ process.on('unhandledRejection', (reason, promise) => {
     // 2026-03-17: SECURITY FIX (F-4) — Mount ALL middleware and routes BEFORE listening.
     // Previously, setImmediate() deferred middleware/routes after server.listen(), creating
     // a window where requests arrived with no CORS, Helmet, auth, or route handlers.
-    console.log('[gateway] Loading modules and mounting routes...');
+    console.log('[GATEWAY] Loading modules and mounting routes...');
 
     // Static assets
     app.use(express.static(distDir));
@@ -124,7 +124,7 @@ process.on('unhandledRejection', (reason, promise) => {
     if (!isAutoscaleMode) {
       await mountSSE(app);
     } else {
-      console.log('[gateway] ⏩ SSE disabled (autoscale mode)');
+      console.log('[GATEWAY] ⏩ SSE disabled (autoscale mode)');
     }
 
     // Mount all routes (mono mode)
@@ -158,15 +158,15 @@ process.on('unhandledRejection', (reason, promise) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
 
-    console.log('[gateway] ✅ All routes and middleware loaded');
+    console.log('[GATEWAY] All routes and middleware loaded');
 
     // 2026-03-17: server.listen() AFTER all middleware and routes are mounted.
     // Previously called before setImmediate(), creating a security bypass window.
     const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
     if (entryUrl && import.meta.url === entryUrl) {
       server.listen(PORT, '0.0.0.0', () => {
-        console.log(`🌐 [gateway] HTTP listening on 0.0.0.0:${PORT}`);
-        console.log(`[gateway] Bootstrap completed in ${Date.now() - startTime}ms`);
+        console.log(`🌐 [GATEWAY] HTTP listening on 0.0.0.0:${PORT}`);
+        console.log(`[GATEWAY] Bootstrap completed in ${Date.now() - startTime}ms`);
         startUnifiedAIMonitoring();
       });
     }
@@ -174,10 +174,10 @@ process.on('unhandledRejection', (reason, promise) => {
     // Background tasks (non-blocking, safe to start after listen)
     const workerConfig = shouldStartWorker({ isAutoscaleMode });
     if (workerConfig.shouldStart) {
-      console.log(`[gateway] ${workerConfig.reason}`);
+      console.log(`[GATEWAY] ${workerConfig.reason}`);
       startStrategyWorker({ useLogFile: workerConfig.useLogFile });
     } else {
-      console.log(`[gateway] ⏸️ Worker not started: ${workerConfig.reason}`);
+      console.log(`[GATEWAY] ⏸️ Worker not started: ${workerConfig.reason}`);
     }
 
     // 2026-02-17: Event sync removed from server start — events sync per-snapshot via briefing pipeline
@@ -187,10 +187,10 @@ process.on('unhandledRejection', (reason, promise) => {
       import('./scripts/test-snapshot-workflow.js')
         .then(({ observeSnapshotWorkflow }) => {
           observeSnapshotWorkflow().catch(err =>
-            console.warn(`[gateway] snapshot-observer error: ${err.message}`)
+            console.warn(`[GATEWAY] snapshot-observer error: ${err.message}`)
           );
         })
-        .catch(err => console.warn(`[gateway] snapshot-observer load failed: ${err.message}`));
+        .catch(err => console.warn(`[GATEWAY] snapshot-observer load failed: ${err.message}`));
     }
 
     // Graceful shutdown
@@ -204,7 +204,7 @@ process.on('unhandledRejection', (reason, promise) => {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
   } catch (err) {
-    console.error('[gateway] ❌ Fatal startup error:', err);
+    console.error('[GATEWAY] Fatal startup error:', err);
     process.exit(1);
   }
 })();
@@ -220,13 +220,13 @@ function startUnifiedAIMonitoring() {
     try {
       await unifiedAI.checkHealth();
     } catch (err) {
-      console.error('❌ [Unified AI] Health check failed:', err.message);
+      console.error('[Unified AI] Health check failed:', err.message);
     }
   }, 30000);
 
   // Initial health check
   unifiedAI.checkHealth().then(health => {
-    console.log(`[Unified AI] Initial health: ${health.healthy ? '✅ Healthy' : '⚠️ Issues detected'}`);
+    console.log(`[Unified AI] Initial health: ${health.healthy ? 'Healthy' : 'Issues detected'}`);
     if (!health.healthy) {
       console.log('[Unified AI] Issues:', health.issues);
     }

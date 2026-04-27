@@ -49,7 +49,7 @@ async function backfillUsMarketCities() {
 
       const count = result.rowCount || 0;
       updated += count;
-      console.log(`  ✅ ${market_name} → ${market.timezone} (${count} cities)`);
+      console.log(`  ${market_name} → ${market.timezone} (${count} cities)`);
     } else {
       // Try alias matching
       const aliasMarket = await db
@@ -68,10 +68,10 @@ async function backfillUsMarketCities() {
 
         const count = result.rowCount || 0;
         updated += count;
-        console.log(`  ✅ ${market_name} → ${aliasMarket[0].timezone} (${count} cities, via alias)`);
+        console.log(`  ${market_name} → ${aliasMarket[0].timezone} (${count} cities, via alias)`);
       } else {
         skipped++;
-        console.log(`  ⚠️ ${market_name} — no matching market found`);
+        console.log(`  ${market_name} — no matching market found`);
       }
     }
   }
@@ -155,10 +155,10 @@ async function backfillVenueCatalog() {
         }
       }
       updated += venueIds.length;
-      console.log(`  ✅ ${city}, ${state} → ${timezone} (${venueIds.length} venues)`);
+      console.log(`  ${city}, ${state} → ${timezone} (${venueIds.length} venues)`);
     } else {
       skipped += venueIds.length;
-      console.log(`  ⚠️ ${city}, ${state} — no market match (${venueIds.length} venues)`);
+      console.log(`  ${city}, ${state} — no market match (${venueIds.length} venues)`);
     }
   }
 
@@ -209,7 +209,7 @@ async function backfillDriverProfiles() {
           .where(eq(driver_profiles.user_id, uid));
       }
       updated += userIds.length;
-      console.log(`  ✅ Market "${marketName}" → ${market.timezone} (${userIds.length} profiles)`);
+      console.log(`  Market "${marketName}" → ${market.timezone} (${userIds.length} profiles)`);
     }
   }
 
@@ -227,10 +227,10 @@ async function main() {
     await backfillDriverProfiles();
 
     console.log('\n========================================');
-    console.log('✅ Backfill complete!');
+    console.log('Backfill complete!');
     process.exit(0);
   } catch (err) {
-    console.error('\n❌ Backfill failed:', err);
+    console.error('\nBackfill failed:', err);
     process.exit(1);
   }
 }

@@ -58,7 +58,7 @@ router.get('/nearby', async (req, res) => {
       data: toApiVenueData(venueData)
     });
   } catch (error) {
-    console.error('[VenueRoutes] Error fetching nearby venues:', error);
+    console.error('[VENUE] Error fetching nearby venues:', error);
     res.status(500).json({
       error: 'Failed to fetch venue intelligence',
       message: error.message
@@ -93,7 +93,7 @@ router.get('/traffic', async (req, res) => {
       data: trafficData
     });
   } catch (error) {
-    console.error('[VenueRoutes] Error fetching traffic:', error);
+    console.error('[VENUE] Error fetching traffic:', error);
     res.status(500).json({ 
       error: 'Failed to fetch traffic intelligence',
       message: error.message 
@@ -130,7 +130,7 @@ router.get('/smart-blocks', async (req, res) => {
       data: intelligence
     });
   } catch (error) {
-    console.error('[VenueRoutes] Error fetching smart blocks:', error);
+    console.error('[VENUE] Error fetching smart blocks:', error);
     res.status(500).json({ 
       error: 'Failed to fetch smart blocks intelligence',
       message: error.message 
@@ -175,7 +175,7 @@ router.get('/last-call', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[VenueRoutes] Error fetching last-call venues:', error);
+    console.error('[VENUE] Error fetching last-call venues:', error);
     res.status(500).json({ 
       error: 'Failed to fetch last-call venues',
       message: error.message 

@@ -95,7 +95,7 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('[CoachNotes] List error:', err.message);
+    console.error('[COACH] [NOTES] List error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to fetch notes' });
   }
 });
@@ -125,7 +125,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({ ok: true, note });
   } catch (err) {
-    console.error('[CoachNotes] Get error:', err.message);
+    console.error('[COACH] [NOTES] Get error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to fetch note' });
   }
 });
@@ -181,11 +181,11 @@ router.post('/', async (req, res) => {
       })
       .returning();
 
-    console.log(`[CoachNotes] Created note ${note.id} for user ${userId}`);
+    console.log(`[COACH] [NOTES] Created note ${note.id} for user ${userId}`);
 
     res.status(201).json({ ok: true, note });
   } catch (err) {
-    console.error('[CoachNotes] Create error:', err.message);
+    console.error('[COACH] [NOTES] Create error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to create note' });
   }
 });
@@ -244,11 +244,11 @@ router.put('/:id', async (req, res) => {
       .where(eq(user_intel_notes.id, id))
       .returning();
 
-    console.log(`[CoachNotes] Updated note ${id} for user ${userId}`);
+    console.log(`[COACH] [NOTES] Updated note ${id} for user ${userId}`);
 
     res.json({ ok: true, note });
   } catch (err) {
-    console.error('[CoachNotes] Update error:', err.message);
+    console.error('[COACH] [NOTES] Update error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to update note' });
   }
 });
@@ -290,11 +290,11 @@ router.delete('/:id', async (req, res) => {
       })
       .where(eq(user_intel_notes.id, id));
 
-    console.log(`[CoachNotes] Soft-deleted note ${id} for user ${userId}`);
+    console.log(`[COACH] [NOTES] Soft-deleted note ${id} for user ${userId}`);
 
     res.json({ ok: true, message: 'Note deleted' });
   } catch (err) {
-    console.error('[CoachNotes] Delete error:', err.message);
+    console.error('[COACH] [NOTES] Delete error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to delete note' });
   }
 });
@@ -335,11 +335,11 @@ router.post('/:id/pin', async (req, res) => {
       .where(eq(user_intel_notes.id, id))
       .returning();
 
-    console.log(`[CoachNotes] ${newPinned ? 'Pinned' : 'Unpinned'} note ${id} for user ${userId}`);
+    console.log(`[COACH] [NOTES] ${newPinned ? 'Pinned' : 'Unpinned'} note ${id} for user ${userId}`);
 
     res.json({ ok: true, note, pinned: newPinned });
   } catch (err) {
-    console.error('[CoachNotes] Pin error:', err.message);
+    console.error('[COACH] [NOTES] Pin error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to toggle pin' });
   }
 });
@@ -382,11 +382,11 @@ router.post('/:id/restore', async (req, res) => {
       .where(eq(user_intel_notes.id, id))
       .returning();
 
-    console.log(`[CoachNotes] Restored note ${id} for user ${userId}`);
+    console.log(`[COACH] [NOTES] Restored note ${id} for user ${userId}`);
 
     res.json({ ok: true, note });
   } catch (err) {
-    console.error('[CoachNotes] Restore error:', err.message);
+    console.error('[COACH] [NOTES] Restore error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to restore note' });
   }
 });
@@ -440,7 +440,7 @@ router.get('/stats/summary', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('[CoachNotes] Stats error:', err.message);
+    console.error('[COACH] [NOTES] Stats error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to fetch stats' });
   }
 });

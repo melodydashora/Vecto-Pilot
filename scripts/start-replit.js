@@ -121,12 +121,12 @@ if (!isCloudRun) {
   // Verify client build exists
   const clientDistPath = path.join(__dirname, '..', 'client', 'dist', 'index.html');
   if (!existsSync(clientDistPath)) {
-    console.error('❌ [BOOT] Client build missing! Building now...');
+    console.error('[BOOT] Client build missing! Building now...');
     try {
       execSync('cd client && npm install && npm run build', { stdio: 'inherit' });
       console.log('[BOOT] Client build complete');
     } catch (err) {
-      console.error('❌ [BOOT] Client build failed:', err.message);
+      console.error('[BOOT] Client build failed:', err.message);
       process.exit(1);
     }
   }
@@ -198,7 +198,7 @@ waitHealth(healthUrl)
     console.log(`[BOOT] Server ready at http://0.0.0.0:${PORT}`);
   })
   .catch((e) => {
-    console.error('[BOOT] ❌ Health check failed:', e.message);
+    console.error('[BOOT] Health check failed:', e.message);
     server.kill();
     process.exit(1);
   });

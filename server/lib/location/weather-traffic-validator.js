@@ -38,7 +38,7 @@ export async function validateWeather(snapshot) {
     });
 
     if (!result.ok) {
-      console.warn('[weather-validator] Model failed:', result.error);
+      console.warn('[BRIEFING] [WEATHER] Model failed:', result.error);
       return { valid: true, conditions: 'error', reason: 'Validation service unavailable', severity: 'unknown' };
     }
 
@@ -47,7 +47,7 @@ export async function validateWeather(snapshot) {
     try {
       parsed = JSON.parse(result.output);
     } catch (e) {
-      console.error('[weather-validator] JSON parse failed:', e.message);
+      console.error('[BRIEFING] [WEATHER] JSON parse failed:', e.message);
       return { valid: true, conditions: 'parse_error', reason: 'Invalid AI response', severity: 'unknown' };
     }
 
@@ -59,7 +59,7 @@ export async function validateWeather(snapshot) {
     };
 
   } catch (err) {
-    console.error('[weather-validator] Error:', err.message);
+    console.error('[BRIEFING] [WEATHER] Error:', err.message);
     // Fail open (allow driving) if validator breaks, but log it
     return { valid: true, conditions: 'validation_error', reason: 'Validator crashed', severity: 'unknown' };
   }

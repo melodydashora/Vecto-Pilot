@@ -246,7 +246,7 @@ async function resubscribeChannels() {
           try {
             cb(msg.payload);
           } catch (err) {
-            console.error(`[NotificationDispatcher] Subscriber error:`, err);
+            console.error(`[NOTIFY] Subscriber error:`, err);
           }
         });
       }
@@ -290,7 +290,7 @@ export async function subscribeToChannel(channel, callback) {
           try {
             cb(msg.payload);
           } catch (err) {
-            console.error(`[NotificationDispatcher] Subscriber error:`, err);
+            console.error(`[NOTIFY] Subscriber error:`, err);
           }
         });
       }

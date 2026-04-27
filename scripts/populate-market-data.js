@@ -422,7 +422,7 @@ async function populateMarkets() {
         }
       }
     }
-    console.log(`   ✅ ${metro.market}: processed`);
+    console.log(`   ${metro.market}: processed`);
     marketsProcessed++;
   }
 
@@ -445,12 +445,12 @@ async function populateMarkets() {
     const rowCount = result.rowCount || 0;
     if (rowCount > 0) {
       timezoneUpdated += rowCount;
-      console.log(`   ✅ ${state}: ${rowCount} cities got timezone`);
+      console.log(`   ${state}: ${rowCount} cities got timezone`);
     }
   }
 
   console.log(`\n📊 Timezone updates: ${timezoneUpdated} additional cities`);
-  console.log(`\n✅ Total updates: ${totalUpdated + timezoneUpdated} cities`);
+  console.log(`\nTotal updates: ${totalUpdated + timezoneUpdated} cities`);
 }
 
 async function showSummary() {
@@ -466,7 +466,7 @@ async function showSummary() {
     LIMIT 20
   `);
 
-  console.log(`\n📈 Top US Markets by City Count:`);
+  console.log(`\nTop US Markets by City Count:`);
   for (const row of marketStats.rows) {
     console.log(`   ${row.market}: ${row.cities}`);
   }
@@ -490,7 +490,7 @@ async function showSummary() {
 // Run
 async function main() {
   if (dryRun) {
-    console.log(`🔍 DRY RUN - Showing current state only\n`);
+    console.log(`DRY RUN - Showing current state only\n`);
     await showSummary();
   } else {
     await populateMarkets();
@@ -504,7 +504,7 @@ main()
     process.exit(0);
   })
   .catch(error => {
-    console.error(`\n❌ Error: ${error.message}`);
+    console.error(`\nError: ${error.message}`);
     console.error(error.stack);
     process.exit(1);
   });

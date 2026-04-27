@@ -43,7 +43,7 @@ export function configureHealthEndpoints(app, distDir, mode) {
   app.head('/health', (_req, res) => res.status(200).end());
   app.head('/ready', (_req, res) => res.status(200).end());
 
-  console.log('[gateway] ✅ Health endpoints configured (/health, /ready, /healthz)');
+  console.log('[GATEWAY] Health endpoints configured (/health, /ready, /healthz)');
 }
 
 /**
@@ -55,10 +55,10 @@ export async function mountHealthRouter(app) {
     const healthPath = path.join(rootDir, 'server/api/health/health.js');
     const { default: healthRouter } = await import(pathToFileURL(healthPath).href);
     app.use('/api/health', healthRouter);
-    console.log('[gateway] ✅ Health API router mounted at /api/health');
+    console.log('[GATEWAY] Health API router mounted at /api/health');
     return true;
   } catch (e) {
-    console.error('[gateway] ❌ Health router failed:', e?.message);
+    console.error('[GATEWAY] Health router failed:', e?.message);
     return false;
   }
 }

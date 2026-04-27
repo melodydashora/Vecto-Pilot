@@ -34,7 +34,7 @@ router.get('/history', async (req, res) => {
   }
 
   try {
-    console.log(`[strategy] GET /api/strategy/history?user_id=${user_id}`);
+    console.log(`[STRATEGY] GET /api/strategy/history?user_id=${user_id}`);
 
     const attempts = await db.select({
       snapshot_id: strategies.snapshot_id,
@@ -62,7 +62,7 @@ router.get('/history', async (req, res) => {
 
     res.json({ ok: true, attempts: mappedAttempts });
   } catch (error) {
-    console.error(`[strategy] GET history error:`, error);
+    console.error(`[STRATEGY] GET history error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -72,15 +72,15 @@ router.get('/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
-    console.log(`[strategy] GET /api/strategy/${snapshotId} - Fetching from DB...`);
+    console.log(`[STRATEGY] GET /api/strategy/${snapshotId} - Fetching from DB...`);
     const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
     if (!row) {
-      console.log(`[strategy] ❌ Strategy not found for snapshot ${snapshotId}`);
+      console.log(`[STRATEGY] Strategy not found for snapshot ${snapshotId}`);
       return res.status(404).json({ error: 'not_found', snapshot_id: snapshotId });
     }
     
-    console.log(`[strategy] ✅ Strategy found: status=${row.status}, has_strategy_for_now=${!!row.strategy_for_now}`);
+    console.log(`[STRATEGY] Strategy found: status=${row.status}, has_strategy_for_now=${!!row.strategy_for_now}`);
 
     const hasStrategyForNow = !!(row.strategy_for_now && row.strategy_for_now.trim().length);
 
@@ -113,7 +113,7 @@ router.get('/:snapshotId', async (req, res) => {
       timeElapsedMs
     });
   } catch (error) {
-    console.error(`[strategy] GET error:`, error);
+    console.error(`[STRATEGY] GET error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -130,7 +130,7 @@ router.post('/seed', validateBody(strategyRequestSchema), async (req, res) => {
     await ensureStrategyRow(snapshot_id);
     res.json({ ok: true, snapshot_id });
   } catch (error) {
-    console.error(`[strategy] Seed error:`, error);
+    console.error(`[STRATEGY] Seed error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -142,7 +142,7 @@ router.post('/run/:snapshotId', async (req, res) => {
   try {
     await ensureStrategyRow(snapshotId);
 
-    console.log(`[strategy] ⚠️  POST /run endpoint deprecated - use POST /api/blocks-fast instead for complete pipeline`);
+    console.log(`[STRATEGY]  POST /run endpoint deprecated - use POST /api/blocks-fast instead for complete pipeline`);
     
     res.status(202).json({ 
       status: 'deprecated', 
@@ -150,7 +150,7 @@ router.post('/run/:snapshotId', async (req, res) => {
       snapshot_id: snapshotId 
     });
   } catch (error) {
-    console.error(`[strategy] Run error:`, error);
+    console.error(`[STRATEGY] Run error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -160,12 +160,12 @@ router.get('/briefing/:snapshotId', async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
-    console.log(`[strategy] GET /api/strategy/briefing/${snapshotId} - Fetching briefing...`);
+    console.log(`[STRATEGY] GET /api/strategy/briefing/${snapshotId} - Fetching briefing...`);
     const [briefingRow] = await db.select().from(briefings)
       .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
 
     if (!briefingRow) {
-      console.log(`[strategy] ❌ Briefing not found for snapshot ${snapshotId}`);
+      console.log(`[STRATEGY] Briefing not found for snapshot ${snapshotId}`);
       return res.status(404).json({ 
         error: 'not_found', 
         snapshot_id: snapshotId,
@@ -173,7 +173,7 @@ router.get('/briefing/:snapshotId', async (req, res) => {
       });
     }
     
-    console.log(`[strategy] ✅ Briefing found for ${snapshotId}`);
+    console.log(`[STRATEGY] Briefing found for ${snapshotId}`);
 
     // 2026-04-14: Issue U — Added airport_conditions (was missing from response, see Issue K)
     res.json({
@@ -192,7 +192,7 @@ router.get('/briefing/:snapshotId', async (req, res) => {
       updated_at: briefingRow.updated_at
     });
   } catch (error) {
-    console.error(`[strategy] GET briefing error:`, error);
+    console.error(`[STRATEGY] GET briefing error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -202,7 +202,7 @@ router.post('/:snapshotId/retry', async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
-    console.log(`[strategy] POST /api/strategy/${snapshotId}/retry - Retrying strategy generation...`);
+    console.log(`[STRATEGY] POST /api/strategy/${snapshotId}/retry - Retrying strategy generation...`);
     
     // Fetch the original snapshot and strategy
     const [originalSnapshot] = await db.select().from(snapshots)
@@ -279,9 +279,9 @@ router.post('/:snapshotId/retry', async (req, res) => {
     await ensureStrategyRow(newSnapshotId);
 
     // Retry uses the same blocks-fast pipeline
-    console.log(`[strategy] ℹ️  Retry: Use POST /api/blocks-fast with snapshot_id=${newSnapshotId} for complete pipeline`);
+    console.log(`[STRATEGY] ℹ️  Retry: Use POST /api/blocks-fast with snapshot_id=${newSnapshotId} for complete pipeline`);
     
-    console.log(`[strategy] ✅ Retry triggered: new snapshot ${newSnapshotId}`);
+    console.log(`[STRATEGY] Retry triggered: new snapshot ${newSnapshotId}`);
     
     res.status(202).json({ 
       ok: true,
@@ -290,7 +290,7 @@ router.post('/:snapshotId/retry', async (req, res) => {
       status: 'pending'
     });
   } catch (error) {
-    console.error(`[strategy] Retry error:`, error);
+    console.error(`[STRATEGY] Retry error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });

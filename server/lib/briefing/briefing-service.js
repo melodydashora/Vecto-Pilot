@@ -824,9 +824,9 @@ function safeJsonParse(jsonString) {
         return JSON.parse(fixedExtracted);
       } catch (e4) {
         // 2026-02-17: Enhanced logging — show BOTH raw extraction and post-fix to diagnose
-        console.error('[BriefingService] All 4 parse attempts failed:', e4.message);
-        console.error('[BriefingService] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
-        console.error('[BriefingService] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
+        console.error('[BRIEFING] All 4 parse attempts failed:', e4.message);
+        console.error('[BRIEFING] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
+        console.error('[BRIEFING] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
       }
     }
   }
@@ -856,12 +856,12 @@ function safeJsonParse(jsonString) {
     }
   }
   if (objects.length > 0) {
-    console.log(`[BriefingService] 🧹 Attempt 5: Extracted ${objects.length} individual JSON objects via brace matching`);
+    console.log(`[BRIEFING] Attempt 5: Extracted ${objects.length} individual JSON objects via brace matching`);
     return objects.length === 1 ? objects[0] : objects;
   }
 
   // 2026-02-17: Log the raw input that caused total parse failure
-  console.error('[BriefingService] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
+  console.error('[BRIEFING] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
   throw new Error(`JSON parse failed after 5 attempts - raw AI response is malformed JSON`);
 }
 
@@ -1439,7 +1439,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
               city: resolvedCity
             });
             if (!addrValid) {
-              briefingLog.warn(2, `[VENUE-VALIDATE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
+              briefingLog.warn(2, `[VENUE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
             }
           }
 
@@ -2177,7 +2177,7 @@ function extractAirportJson(rawText) {
   // Strategy 1: Find {"airports" and extract the balanced object
   const airportsIdx = rawText.indexOf('"airports"');
   if (airportsIdx === -1) {
-    console.warn('[Airport] No "airports" key found in response');
+    console.warn('[BRIEFING] [AIRPORT] No "airports" key found in response');
     return { airports: [] };
   }
 
@@ -2207,7 +2207,7 @@ function extractAirportJson(rawText) {
               .replace(/,\s*([}\]])/g, '$1');  // Strip trailing commas
             return JSON.parse(cleaned);
           } catch {
-            console.warn('[Airport] Manual extraction found object but parse failed');
+            console.warn('[BRIEFING] [AIRPORT] Manual extraction found object but parse failed');
           }
         }
         break;
@@ -2285,8 +2285,8 @@ Find airports within 50 miles. Return ONLY this JSON structure (no other text):
       parsed = safeJsonParse(result.output);
     } catch (parseErr) {
       // Manual extraction: find {"airports" or [{"code" in the raw text
-      console.warn(`[Airport] safeJsonParse failed (${parseErr.message}), trying manual extraction...`);
-      console.log(`[Airport] Raw (first 300):`, result.output?.substring(0, 300));
+      console.warn(`[BRIEFING] [AIRPORT] safeJsonParse failed (${parseErr.message}), trying manual extraction...`);
+      console.log(`[BRIEFING] [AIRPORT] Raw (first 300):`, result.output?.substring(0, 300));
       parsed = extractAirportJson(result.output);
     }
     briefingLog.done(2, `Gemini airport: ${parsed.airports?.length || 0} airports`, OP.AI);
@@ -2663,7 +2663,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   // and GET endpoints return success:false indefinitely → client infinite retry loop.
   const briefingPromise = generateBriefingInternal({ snapshotId, snapshot })
     .catch(async (err) => {
-      console.error(`[BriefingService] ❌ Generation failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
+      console.error(`[BRIEFING] Generation failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
       // Mark the placeholder row with error sentinel so endpoints return _generationFailed
       // instead of "not yet available" (which causes clients to keep polling)
       const errorMarker = { _generationFailed: true, error: err.message, failedAt: new Date().toISOString() };
@@ -2679,7 +2679,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
           .where(eq(briefings.snapshot_id, snapshotId));
         briefingLog.warn(1, `Marked briefing ${snapshotId.slice(0, 8)} as permanently failed`, OP.DB);
       } catch (markErr) {
-        console.error(`[BriefingService] Could not mark failed briefing: ${markErr.message}`);
+        console.error(`[BRIEFING] Could not mark failed briefing: ${markErr.message}`);
       }
       return { success: false, error: err.message, _generationFailed: true };
     });
@@ -2752,7 +2752,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   // Require valid location data - no fallbacks for global app
   if (!snapshot.city || !snapshot.state || !snapshot.timezone) {
-    console.error(`[BriefingService] ⚠️ Snapshot ${snapshotId} missing required location data (city/state/timezone)`);
+    console.error(`[BRIEFING] Snapshot ${snapshotId} missing required location data (city/state/timezone)`);
     return { success: false, error: 'Snapshot missing required location data' };
   }
 
@@ -2912,7 +2912,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       return result.value;
     }
     const reason = result.reason?.message || 'Unknown error';
-    console.error(`[BriefingService] ❌ ${subsystemNames[i]} fetch failed independently: ${reason}`);
+    console.error(`[BRIEFING] ${subsystemNames[i]} fetch failed independently: ${reason}`);
     failedReasons[subsystemNames[i]] = reason;
     return null;
   });
@@ -2941,7 +2941,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       schoolClosuresReason = schoolClosures.length > 0 ? null : 'No school closures found for this area';
     } catch (dailyErr) {
       // Non-fatal — closures failing shouldn't prevent other data from being stored
-      console.error(`[BriefingService] ❌ Closures fetch failed (non-fatal): ${dailyErr.message}`);
+      console.error(`[BRIEFING] Closures fetch failed (non-fatal): ${dailyErr.message}`);
       schoolClosures = [];
       schoolClosuresReason = `School closures fetch failed: ${dailyErr.message}`;
     }
@@ -3095,7 +3095,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     });
     const isComplete = missingFields.length === 0;
     if (!isComplete) {
-      console.warn('[Briefing] ⚠️ Incomplete briefing — missing fields:', missingFields);
+      console.warn('[Briefing] Incomplete briefing — missing fields:', missingFields);
     }
 
     return {
@@ -3105,7 +3105,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       missingFields
     };
   } catch (error) {
-    console.error('[BriefingService] Database error:', error);
+    console.error('[BRIEFING] Database error:', error);
     return {
       success: false,
       error: error.message,
@@ -3119,7 +3119,7 @@ export async function getBriefingBySnapshotId(snapshotId) {
     const result = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error('[BriefingService] Error fetching briefing:', error);
+    console.error('[BRIEFING] Error fetching briefing:', error);
     return null;
   }
 }

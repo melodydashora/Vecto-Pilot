@@ -26,7 +26,7 @@ function validateThinkingLevel(model, thinkingLevel) {
   if (model.includes('flash')) {
     const flashLevels = ['LOW', 'MEDIUM', 'HIGH'];
     if (!flashLevels.includes(normalized)) {
-      console.warn(`[model/gemini] ⚠️ Invalid thinkingLevel "${thinkingLevel}" for ${model}. Valid: ${flashLevels.join(', ')}. Defaulting to LOW.`);
+      console.warn(`[AI] Invalid thinkingLevel "${thinkingLevel}" for ${model}. Valid: ${flashLevels.join(', ')}. Defaulting to LOW.`);
       return 'LOW';
     }
     return normalized;
@@ -35,7 +35,7 @@ function validateThinkingLevel(model, thinkingLevel) {
   // Pro models only support LOW and HIGH — MEDIUM is not valid
   const proLevels = ['LOW', 'HIGH'];
   if (!proLevels.includes(normalized)) {
-    console.warn(`[model/gemini] ⚠️ thinkingLevel "${thinkingLevel}" is NOT supported on ${model} (Pro only supports LOW, HIGH). Auto-correcting to HIGH.`);
+    console.warn(`[AI] thinkingLevel "${thinkingLevel}" is NOT supported on ${model} (Pro only supports LOW, HIGH). Auto-correcting to HIGH.`);
     return 'HIGH';
   }
 
@@ -58,7 +58,7 @@ export async function callGemini({
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error('[model/gemini] ❌ GEMINI_API_KEY not configured');
+      console.error('[AI] GEMINI_API_KEY not configured');
       return { ok: false, error: 'GEMINI_API_KEY not configured' };
     }
 
@@ -76,7 +76,7 @@ export async function callGemini({
       process.env.GOOGLE_API_KEY = conflictingKey;
     }
 
-    console.log(`[model/gemini] calling ${model} with max_tokens=${maxTokens}`);
+    console.log(`[AI] calling ${model} with max_tokens=${maxTokens}`);
 
     // Use lower temperature for JSON responses
     const expectsJson = user.toLowerCase().includes('json') ||
@@ -110,7 +110,7 @@ export async function callGemini({
       config.thinkingConfig = {
         thinkingLevel: validatedLevel.toLowerCase() // SDK expects lowercase
       };
-      console.log(`[model/gemini] 🧠 Thinking enabled: ${validatedLevel}`);
+      console.log(`[AI] Thinking enabled: ${validatedLevel}`);
     }
 
     // Add Google Search if requested
@@ -145,7 +145,7 @@ export async function callGemini({
           }
         });
       }
-      console.log(`[model/gemini] 🖼️ Attached ${images.length} image(s) for vision analysis`);
+      console.log(`[AI] Attached ${images.length} image(s) for vision analysis`);
     }
 
     const contents = [{ role: "user", parts: userParts }];
@@ -173,7 +173,7 @@ export async function callGemini({
       const codeBlockMatch = output.match(/^\s*```(?:\w+)?\s*([\s\S]*?)\s*```\s*$/);
       if (codeBlockMatch) {
         output = codeBlockMatch[1].trim();
-        console.log(`[model/gemini] 🧹 Removed wrapping markdown code block (${rawLength} → ${output.length} chars)`);
+        console.log(`[AI] Removed wrapping markdown code block (${rawLength} → ${output.length} chars)`);
       }
 
       // 2026-02-26: FIX - Removed isMarkdown check that skipped JSON extraction when
@@ -192,7 +192,7 @@ export async function callGemini({
           // Only strip if preamble is pure prose (no JSON-like characters)
           if (!preamble.includes('"') && !preamble.includes(':')) {
             extractTarget = output.substring(firstBrace);
-            console.log(`[model/gemini] 🧹 Stripped ${firstBrace} chars of preamble before JSON`);
+            console.log(`[AI] Stripped ${firstBrace} chars of preamble before JSON`);
           }
         }
 
@@ -219,16 +219,16 @@ export async function callGemini({
             try {
               JSON.parse(extracted);
               output = extracted;
-              console.log(`[model/gemini] 🧹 Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
+              console.log(`[AI] Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
             } catch (e) {
-              console.warn(`[model/gemini] ⚠️ JSON extraction failed, keeping original output`);
+              console.warn(`[AI] JSON extraction failed, keeping original output`);
             }
           }
         }
       }
     }
 
-    console.log("[model/gemini] resp:", {
+    console.log("[AI] resp:", {
       model,
       response: !!result?.response,
       len: output?.length ?? 0
@@ -238,7 +238,7 @@ export async function callGemini({
       ? { ok: true, output }
       : { ok: false, output: "", error: "Empty response from Gemini" };
   } catch (err) {
-    console.error("[model/gemini] error:", err?.message || err);
+    console.error("[AI] error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };
   }
 }
@@ -267,7 +267,7 @@ export async function callGeminiStream({
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  console.log(`[model/gemini-stream] Calling ${model} with ${messageHistory.length} messages, maxTokens=${maxTokens}`);
+  console.log(`[AI] Calling ${model} with ${messageHistory.length} messages, maxTokens=${maxTokens}`);
 
   // Build the request body
   const generationConfig = {
@@ -284,7 +284,7 @@ export async function callGeminiStream({
     generationConfig.thinkingConfig = {
       thinkingLevel: validatedStreamLevel // Already uppercase from validator; REST API expects uppercase
     };
-    console.log(`[model/gemini-stream] 🧠 Thinking enabled: ${validatedStreamLevel}`);
+    console.log(`[AI] Thinking enabled: ${validatedStreamLevel}`);
   }
 
   const requestBody = {
@@ -341,15 +341,15 @@ export async function callGeminiStream({
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[model/gemini-stream] API error ${response.status}: ${errText.substring(0, 200)}`);
+      console.error(`[AI] API error ${response.status}: ${errText.substring(0, 200)}`);
       throw new Error(`Gemini API error ${response.status}: ${errText.substring(0, 100)}`);
     }
 
-    console.log(`[model/gemini-stream] ✅ Stream started for ${model}`);
+    console.log(`[AI] Stream started for ${model}`);
     return response;
   } catch (err) {
     clearTimeout(timeoutId);
-    console.error(`[model/gemini-stream] Error: ${err.message}`);
+    console.error(`[AI] Error: ${err.message}`);
     throw err;
   }
 }

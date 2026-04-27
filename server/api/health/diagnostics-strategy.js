@@ -19,7 +19,7 @@ router.post('/test-immediate/:snapshotId', requireAuth, async (req, res) => {
 
   try {
     // Check snapshot exists
-    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    const [SNAPSHOT] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
       return res.status(404).json({ error: 'snapshot_not_found', snapshot_id: snapshotId });
     }
@@ -42,7 +42,7 @@ router.post('/test-immediate/:snapshotId', requireAuth, async (req, res) => {
       strategy_for_now: row.strategy_for_now
     });
   } catch (error) {
-    console.error(`[diagnostics] test-immediate error:`, error);
+    console.error(`[AGENT] [DIAGNOSTICS] test-immediate error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -53,7 +53,7 @@ router.post('/test-briefing/:snapshotId', requireAuth, async (req, res) => {
 
   try {
     // Check snapshot exists
-    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    const [SNAPSHOT] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
       return res.status(404).json({ error: 'snapshot_not_found', snapshot_id: snapshotId });
     }
@@ -72,7 +72,7 @@ router.post('/test-briefing/:snapshotId', requireAuth, async (req, res) => {
       briefing: briefingData
     });
   } catch (error) {
-    console.error(`[diagnostics] test-briefing error:`, error);
+    console.error(`[AGENT] [DIAGNOSTICS] test-briefing error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -92,7 +92,7 @@ router.get('/strategy-status/:snapshotId', requireAuth, async (req, res) => {
     const [briefingRow] = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
 
     // Fetch snapshot for location context
-    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    const [SNAPSHOT] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
 
     const hasStrategyForNow = !!(row.strategy_for_now && row.strategy_for_now.trim().length);
     const hasBriefing = !!briefingRow;
@@ -108,7 +108,7 @@ router.get('/strategy-status/:snapshotId', requireAuth, async (req, res) => {
       briefing: briefingRow || null
     });
   } catch (error) {
-    console.error(`[diagnostics] strategy-status error:`, error);
+    console.error(`[AGENT] [DIAGNOSTICS] strategy-status error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });

@@ -177,7 +177,7 @@ export function validateVenueAddress({ formattedAddress, venueName, lat, lng, ci
   const valid = !hasHardFail && softFailCount < 2;
 
   if (!valid && issues.length > 0) {
-    console.warn(`[VENUE-VALIDATE] Address quality FAILED for "${venueName || 'unknown'}": "${formattedAddress}" — ${issues.join('; ')}`);
+    console.warn(`[VENUE] Address quality FAILED for "${venueName || 'unknown'}": "${formattedAddress}" — ${issues.join('; ')}`);
   }
 
   return { valid, issues };

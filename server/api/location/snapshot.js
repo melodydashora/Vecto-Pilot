@@ -62,7 +62,7 @@ router.post("/", requireAuth, async (req, res) => {
     // If resolved data missing from request, lookup coords_cache
     if ((!city || !formatted_address) && typeof lat === 'number' && typeof lng === 'number') {
       coordKey = coordKey || makeCoordsKey(lat, lng);
-      console.log(`[snapshot] 🔍 Still missing resolved data, checking coords_cache for ${coordKey}`);
+      console.log(`[SNAPSHOT] Still missing resolved data, checking coords_cache for ${coordKey}`);
       try {
         const [cacheRow] = await db.select().from(coords_cache).where(eq(coords_cache.coord_key, coordKey)).limit(1);
         if (cacheRow) {
@@ -71,14 +71,14 @@ router.post("/", requireAuth, async (req, res) => {
           country = country || cacheRow.country;
           formatted_address = formatted_address || cacheRow.formatted_address;
           timezone = timezone || cacheRow.timezone;
-          console.log(`[snapshot] ✅ Got resolved data from coords_cache:`, {
+          console.log(`[SNAPSHOT] Got resolved data from coords_cache:`, {
             city, state, country, formatted_address, timezone
           });
         } else {
-          console.error(`[snapshot] ❌ CRITICAL: coords_cache miss for ${coordKey} - location not resolved!`);
+          console.error(`[SNAPSHOT] CRITICAL: coords_cache miss for ${coordKey} - location not resolved!`);
         }
       } catch (cacheLookupErr) {
-        console.warn(`[snapshot] ⚠️ Coords cache lookup failed:`, cacheLookupErr.message);
+        console.warn(`[SNAPSHOT] Coords cache lookup failed:`, cacheLookupErr.message);
       }
     }
 
@@ -99,7 +99,7 @@ router.post("/", requireAuth, async (req, res) => {
     // This ensures Hawaii, Alaska, etc. get the correct date
     // NO FALLBACK - timezone is required for accurate date calculation
     if (!timezone) {
-      console.error('[snapshot] ❌ Cannot create snapshot: timezone is required');
+      console.error('[SNAPSHOT] Cannot create snapshot: timezone is required');
       return res.status(400).json({
         ok: false,
         error: 'timezone_required',
@@ -144,7 +144,7 @@ router.post("/", requireAuth, async (req, res) => {
       permissions: snap.permissions || null,
     };
 
-    console.log('[snapshot] 🔥 INSERTING:', {
+    console.log('[SNAPSHOT] 🔥 INSERTING:', {
       lat: dbSnapshot.lat,
       lng: dbSnapshot.lng,
       city: dbSnapshot.city,
@@ -158,14 +158,14 @@ router.post("/", requireAuth, async (req, res) => {
 
     // Insert to DB
     await db.insert(snapshots).values(dbSnapshot);
-    console.log('[snapshot] ✅ SAVED TO DB:', { snapshot_id, lat, lng, city, state, formatted_address, timezone, coord_key: coordKey });
+    console.log('[SNAPSHOT] SAVED TO DB:', { snapshot_id, lat, lng, city, state, formatted_address, timezone, coord_key: coordKey });
 
     // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
     // This prevents race conditions and ensures model_name attribution is preserved
     
     // Generate briefing data BEFORE responding (so data is ready when frontend queries)
     if (lat && lng) {
-      console.log(`[briefing] starting`, { snapshot_id, city, state });
+      console.log(`[BRIEFING] starting`, { snapshot_id, city, state });
       // Pass the full DB record (not individual fields) so all snapshot context is available
       // fullSnapshot uses already-validated timezone (validated above)
       const fullSnapshot = {
@@ -188,9 +188,9 @@ router.post("/", requireAuth, async (req, res) => {
         snapshot: fullSnapshot
       }).catch(err => {
         // 2026-02-13: Upgraded from console.warn → console.error (briefing failure cascades to strategy)
-        console.error(`[briefing] generation.failed`, { snapshot_id, err: String(err) });
+        console.error(`[BRIEFING] generation.failed`, { snapshot_id, err: String(err) });
       });
-      console.log(`[briefing] ✅ complete`, { snapshot_id });
+      console.log(`[BRIEFING] complete`, { snapshot_id });
     }
 
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
@@ -199,16 +199,16 @@ router.post("/", requireAuth, async (req, res) => {
     // strategy failure means user gets no recommendations, which is a visible UX impact
     queueMicrotask(() => {
       try {
-        console.log(`[triad] enqueue`, { snapshot_id, formatted_address });
+        console.log(`[STRATEGY] enqueue`, { snapshot_id, formatted_address });
         generateStrategyForSnapshot(snapshot_id, { snapshot: dbSnapshot }).catch(err => {
-          console.error(`[triad] enqueue.failed`, { snapshot_id, err: String(err) });
+          console.error(`[STRATEGY] enqueue.failed`, { snapshot_id, err: String(err) });
         });
       } catch (e) {
-        console.error(`[triad] enqueue.err`, { snapshot_id, err: String(e) });
+        console.error(`[STRATEGY] enqueue.err`, { snapshot_id, err: String(e) });
       }
     });
 
-    console.log("[snapshot] ✅ OK", { snapshot_id, city, timezone, hour, dow, ms: Date.now() - started });
+    console.log("[SNAPSHOT] OK", { snapshot_id, city, timezone, hour, dow, ms: Date.now() - started });
     
     return res.status(201).json({ 
       ok: true, 
@@ -223,7 +223,7 @@ router.post("/", requireAuth, async (req, res) => {
   } catch (err) {
     const msg = String(err && err.message || err);
     const code = msg.startsWith("missing:") || msg.startsWith("invalid:") ? 400 : 500;
-    console.warn("[snapshot] ERR", { msg, code, ms: Date.now() - started, req_id: reqId });
+    console.warn("[SNAPSHOT] ERR", { msg, code, ms: Date.now() - started, req_id: reqId });
     return res.status(code).json({ ok: false, error: msg, req_id: reqId });
   }
 });
@@ -249,7 +249,7 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
       return res.status(404).json({ ok: false, error: 'SNAPSHOT_NOT_FOUND' });
     }
     
-    console.log('[snapshot-get]', {
+    console.log('[SNAPSHOT]', {
       snapshot_id: snapshot.snapshot_id,
       city: snapshot.city,
       weather: !!snapshot.weather,
@@ -286,7 +286,7 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
       created_at: snapshot.created_at?.toISOString()
     });
   } catch (err) {
-    console.error('[snapshot-get] Error:', err);
+    console.error('[SNAPSHOT] Error:', err);
     return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR', message: String(err) });
   }
 });

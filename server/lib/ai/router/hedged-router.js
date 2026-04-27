@@ -228,7 +228,7 @@ export class HedgedRouter {
       // "provider: upstream request failed" strings) are attached as .providerErrors
       // for structured logging but NOT joined into the thrown message.
       const errors = aggregateError.errors.map(e => e.message);
-      console.error('[HedgedRouter] All providers failed details:', JSON.stringify(errors, null, 2));
+      console.error('[AI] All providers failed details:', JSON.stringify(errors, null, 2));
       const aggError = new Error('All hedged providers failed');
       aggError.providerErrors = errors;
       aggError.cause = aggregateError;

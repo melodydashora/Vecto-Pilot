@@ -64,7 +64,7 @@ Respond with JSON: {
       reasoning: parsed.reasoning
     };
   } catch (err) {
-    console.error('[event-verifier] Error:', err.message);
+    console.error('[VENUE] Error:', err.message);
     return { verified: false, confidence: 0, impact: 'low', reasoning: err.message };
   }
 }
@@ -107,7 +107,7 @@ export async function verifyVenueEventsBatch(blocks) {
         );
         return { key, verification };
       } catch (err) {
-        console.warn(`[event-verifier] Failed for ${b.name}:`, err.message);
+        console.warn(`[VENUE] Failed for ${b.name}:`, err.message);
         return { key, verification: { verified: false, confidence: 0, impact: 'low', reasoning: err.message } };
       }
     });

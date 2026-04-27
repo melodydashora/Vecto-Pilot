@@ -1201,7 +1201,7 @@ function formatTrafficIntelForStrategist(traffic) {
 /**
  * Build a compact weather block with current conditions + 6-hour forecast
  * timeline. Reads briefings.weather_forecast (already populated — see
- * briefing-service.js:1680–1708). Adds a ⚠️ STORM RISK warning line when
+ * briefing-service.js:1680–1708). Adds a STORM RISK warning line when
  * any hour's precipitationProbability > 30%.
  *
  * Fallback: if weather_forecast is empty/missing, emits only the driverImpact
@@ -1249,7 +1249,7 @@ function formatWeatherForStrategist(weatherCurrent, weatherForecast, timezone) {
   // Storm risk detection — first hour with precip > 30%
   const stormHour = hoursToShow.find(h => (h.precipitationProbability || 0) > 30);
   if (stormHour) {
-    lines.push(`⚠️ STORM RISK: ${formatHourLabel(stormHour.time)} (${Math.round(stormHour.precipitationProbability)}% precip) — factor into positioning`);
+    lines.push(`STORM RISK: ${formatHourLabel(stormHour.time)} (${Math.round(stormHour.precipitationProbability)}% precip) — factor into positioning`);
   }
 
   return lines.join('\n');

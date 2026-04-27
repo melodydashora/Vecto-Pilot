@@ -48,7 +48,7 @@ router.post('/token', requireAuth, async (req, res) => {
 
     // 2026-01-07: Truncate user ID to avoid PII in logs (first 8 chars only)
     console.log(
-      '[realtime] token request',
+      '[COACH] [REALTIME] token request',
       'snapshot:', snapshotId?.substring(0, 8) || 'none',
       '| user:', userId?.substring(0, 8) || 'none',
       '| model:', VOICE_MODEL
@@ -75,7 +75,7 @@ router.post('/token', requireAuth, async (req, res) => {
           });
         }
       } catch (ownerErr) {
-        console.warn('[realtime] ownership check failed:', ownerErr.message);
+        console.warn('[COACH] [REALTIME] ownership check failed:', ownerErr.message);
         return res.status(500).json({ error: 'ownership_check_failed' });
       }
     }
@@ -106,7 +106,7 @@ router.post('/token', requireAuth, async (req, res) => {
           };
         }
       } catch (err) {
-        console.warn('[realtime] could not fetch snapshot context:', err.message);
+        console.warn('[COACH] [REALTIME] could not fetch snapshot context:', err.message);
       }
     }
 
@@ -142,7 +142,7 @@ router.post('/token', requireAuth, async (req, res) => {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json().catch(() => ({}));
-      console.error('[realtime] OpenAI client_secrets error:', errorData);
+      console.error('[COACH] [REALTIME] OpenAI client_secrets error:', errorData);
       throw new Error(errorData.error?.message || 'Failed to mint client_secret');
     }
 
@@ -151,7 +151,7 @@ router.post('/token', requireAuth, async (req, res) => {
     // beta sessions endpoint nested it under `client_secret.value`; fall
     // back to that shape defensively in case the endpoint is rolled back.
     const token = response.value ?? response.client_secret?.value;
-    console.log('[realtime] ✅ client_secret minted', {
+    console.log('[COACH] [REALTIME] client_secret minted', {
       id: response.id,
       has_token: !!token,
       expires_at: response.expires_at,
@@ -165,7 +165,7 @@ router.post('/token', requireAuth, async (req, res) => {
       context,
     });
   } catch (err) {
-    console.error('[realtime] token generation failed:', err.message);
+    console.error('[COACH] [REALTIME] token generation failed:', err.message);
     res.status(500).json({
       ok: false,
       error: err.message || 'Token generation failed',

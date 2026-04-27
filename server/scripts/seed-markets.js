@@ -373,10 +373,10 @@ async function seedMarkets() {
 
       if (result.rows[0]?.inserted) {
         inserted++;
-        console.log(`  ✅ Added: ${market_name} (${timezone})`);
+        console.log(`  Added: ${market_name} (${timezone})`);
       } else {
         updated++;
-        console.log(`  🔄 Updated: ${market_name}`);
+        console.log(`  Updated: ${market_name}`);
       }
     }
 
@@ -402,14 +402,14 @@ async function seedMarkets() {
 
       if (result.rows[0]?.inserted) {
         inserted++;
-        console.log(`  ✅ Added: ${market_name}, ${country_code} (${timezone})`);
+        console.log(`  Added: ${market_name}, ${country_code} (${timezone})`);
       } else {
         updated++;
-        console.log(`  🔄 Updated: ${market_name}, ${country_code}`);
+        console.log(`  Updated: ${market_name}, ${country_code}`);
       }
     }
 
-    console.log(`\n✅ Markets seeded: ${inserted} inserted, ${updated} updated`);
+    console.log(`\nMarkets seeded: ${inserted} inserted, ${updated} updated`);
     console.log(`🌐 Total markets: ${marketsData.length}`);
 
     // Show summary by timezone
@@ -420,7 +420,7 @@ async function seedMarkets() {
       ORDER BY market_count DESC
     `);
 
-    console.log('\n📈 Markets by Timezone:');
+    console.log('\nMarkets by Timezone:');
     for (const row of summary.rows) {
       console.log(`   ${row.timezone}: ${row.market_count} markets`);
     }
@@ -434,7 +434,7 @@ async function seedMarkets() {
     console.log(`\n📍 Total city aliases for matching: ${aliasCount.rows[0].total_aliases || 0}`);
 
   } catch (error) {
-    console.error('❌ Error seeding markets:', error);
+    console.error('Error seeding markets:', error);
     throw error;
   } finally {
     client.release();
@@ -444,7 +444,7 @@ async function seedMarkets() {
 
 seedMarkets()
   .then(() => {
-    console.log('\n✨ Done!');
+    console.log('\nDone!');
     process.exit(0);
   })
   .catch((error) => {

@@ -138,7 +138,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     "Your job: Convert the IMMEDIATE action plan into specific venue NAMES.",
     "Do NOT generate lat/lng coordinates — they will be resolved via Google Places API.",
     "",
-    "🎯 MISSION: Where should this driver go RIGHT NOW (next 1-2 hours) to maximize earnings?",
+    "MISSION: Where should this driver go RIGHT NOW (next 1-2 hours) to maximize earnings?",
     "",
     "CRITICAL REQUIREMENTS:",
     "1. Provide 6 SPECIFIC venue names (not districts or areas). Exactly 6.",
@@ -250,7 +250,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     "CURRENT DATE/TIME:",
     `${dayName}, ${dateStr} at ${timeStr}`,
     "",
-    "🎯 IMMEDIATE ACTION PLAN (What to do RIGHT NOW):",
+    "IMMEDIATE ACTION PLAN (What to do RIGHT NOW):",
     strategy,
     briefingSection,
     "DRIVER CURRENT LOCATION:",
@@ -334,7 +334,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     ).length;
     const dbgUnknown = dbgEventCount - dbgNear - dbgFar;
     console.log(
-      `🏢 [VENUE_SCORER DEBUG] ${dbgEventCount} events in prompt ` +
+      `[VENUE_SCORER DEBUG] ${dbgEventCount} events in prompt ` +
       `(${dbgNear} near ≤15mi candidates, ${dbgFar} far >15mi surge intel` +
       (dbgUnknown > 0 ? `, ${dbgUnknown} unbucketed` : '') + `)`
     );
@@ -379,7 +379,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     const parsed = safeJsonParse(rawResponse.output);
 
     if (!parsed) {
-      console.error('🏢 [VENUES 1/4 - Tactical Planner] ❌ Failed to parse JSON response');
+      console.error('[VENUES 1/4 - Tactical Planner] Failed to parse JSON response');
       throw new Error('Invalid JSON response from AI');
     }
 
@@ -387,7 +387,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     const validation = GPT5ResponseSchema.safeParse(parsed);
 
     if (!validation.success) {
-      console.error('🏢 [VENUES 1/4 - Tactical Planner] ❌ Validation failed:', validation.error.format());
+      console.error('[VENUES 1/4 - Tactical Planner] Validation failed:', validation.error.format());
       throw new Error(`AI response validation failed: ${validation.error.message}`);
     }
 
@@ -428,7 +428,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
           google_name: placeResult.google_name,
         });
         resolvedNames.add(venue.name);
-        console.log(`   ✅ "${venue.name}"${districtInfo} → ${placeResult.google_name} (${placeResult.google_lat.toFixed(6)},${placeResult.google_lng.toFixed(6)})`);
+        console.log(`   "${venue.name}"${districtInfo} → ${placeResult.google_name} (${placeResult.google_lat.toFixed(6)},${placeResult.google_lng.toFixed(6)})`);
         continue;
       }
 
@@ -454,7 +454,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
             catalog_fallback: true,
           });
           resolvedNames.add(fallback.name);
-          console.log(`   🔄 "${venue.name}"${districtInfo} → catalog fallback: "${fallback.name}" (${fallback.lat},${fallback.lng})`);
+          console.log(`   "${venue.name}"${districtInfo} → catalog fallback: "${fallback.name}" (${fallback.lat},${fallback.lng})`);
           continue;
         }
       }
@@ -515,7 +515,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       : null;
 
     if (degraded) {
-      console.error(`🏢 [VENUES 1/4] ⚠️ DEGRADED: ${degradedReason} | snapshot: ${snapshot?.id?.slice(0, 8)} | ${city}, ${state}`);
+      console.error(`[VENUES 1/4] DEGRADED: ${degradedReason} | snapshot: ${snapshot?.id?.slice(0, 8)} | ${city}, ${state}`);
 
       // 2026-04-16: Fire-and-forget degradation memory entry for catalog gap tracking
       try {
@@ -549,7 +549,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     venuesLog.info(`${resolvedVenues.length} venues resolved${degraded ? ' (DEGRADED)' : ''}:`);
     resolvedVenues.forEach((v, i) => {
       const tag = v.catalog_fallback ? ' [catalog]' : v.llm_replacement ? ' [replacement]' : '';
-      const deadheadTag = v.beyond_deadhead ? ' ⚠️ BEYOND DEADHEAD' : '';
+      const deadheadTag = v.beyond_deadhead ? ' BEYOND DEADHEAD' : '';
       const homeDistTag = v.distance_from_home_mi != null ? ` (${v.distance_from_home_mi}mi from home)` : '';
       const districtInfo = v.district ? ` @ ${v.district}` : '';
       console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category}) at ${v.lat.toFixed(6)},${v.lng.toFixed(6)}${tag}${homeDistTag}${deadheadTag}`);
@@ -579,7 +579,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     return normalized;
 
   } catch (error) {
-    console.error('🏢 [VENUES 1/4 - Tactical Planner] ❌ Error:', error.message);
+    console.error('[VENUES 1/4 - Tactical Planner] Error:', error.message);
     throw error;
   } finally {
     clearTimeout(timeout);

@@ -25,7 +25,7 @@ export async function ensureStrategyRow(snapshotId) {
     
     // Fetch snapshot to get location data
     const { snapshots } = await import('../../../shared/schema.js');
-    const [snapshot] = await db.select().from(snapshots)
+    const [SNAPSHOT] = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId))
       .limit(1);
     
@@ -86,7 +86,7 @@ export async function isStrategyReady(snapshotId) {
       status: strategyRow.status
     };
   } catch (error) {
-    console.error('[isStrategyReady] Error:', error);
+    console.error('[STRATEGY] Error:', error);
     return { ready: false, error: error.message };
   }
 }
@@ -107,7 +107,7 @@ export async function getStrategyContext(snapshotId) {
 
   // Fetch snapshot with full context
   const { snapshots } = await import('../../../shared/schema.js');
-  const [snapshot] = await db
+  const [SNAPSHOT] = await db
     .select()
     .from(snapshots)
     .where(eq(snapshots.snapshot_id, snapshotId))

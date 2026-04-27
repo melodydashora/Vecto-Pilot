@@ -157,10 +157,10 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
     // 2026-01-05: With valid lat/lng, geocoding should ALWAYS return a result
     // If we reach here, something is wrong upstream (API key, network, rate limit)
     // Throw instead of returning null - fail loudly per NO FALLBACKS rule
-    throw new Error(`[venue-address-resolver] Failed to resolve address for coords (${lat}, ${lng}) with name "${venueName}" - all resolution methods exhausted`);
+    throw new Error(`[VENUE] Failed to resolve address for coords (${lat}, ${lng}) with name "${venueName}" - all resolution methods exhausted`);
   } catch (err) {
     // Re-throw with context - don't mask the error
-    console.error('[venue-address-resolver] Address resolution failed:', err.message);
+    console.error('[VENUE] Address resolution failed:', err.message);
     throw err;
   }
 }
@@ -204,7 +204,7 @@ export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {
     });
 
     if (!response.ok) {
-      console.warn(`[venue-address-resolver] Places API error: ${response.status}`);
+      console.warn(`[VENUE] Places API error: ${response.status}`);
       return null;
     }
 
@@ -238,7 +238,7 @@ export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {
       parsed
     };
   } catch (err) {
-    console.warn('[venue-address-resolver] Places API search failed:', err.message);
+    console.warn('[VENUE] Places API search failed:', err.message);
     return null;
   }
 }
@@ -282,7 +282,7 @@ async function reverseGeocode(lat, lng) {
       parsed
     };
   } catch (err) {
-    console.warn('[venue-address-resolver] Geocoding failed:', err.message);
+    console.warn('[VENUE] Geocoding failed:', err.message);
     return null;
   }
 }
@@ -363,7 +363,7 @@ async function upsertVenueCatalog(venue) {
     }
   } catch (err) {
     // Non-blocking - log and continue
-    console.warn('[venue-address-resolver] Upsert failed:', err.message);
+    console.warn('[VENUE] Upsert failed:', err.message);
   }
 }
 

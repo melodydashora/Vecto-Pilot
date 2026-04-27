@@ -27,7 +27,7 @@ router.get('/context', requireAuth, async (req, res) => {
     const db = getDb();
     
     // Get latest strategy for this snapshot
-    const [strategy] = await db
+    const [STRATEGY] = await db
       .select()
       .from(strategies)
       .where(eq(strategies.snapshot_id, sid))

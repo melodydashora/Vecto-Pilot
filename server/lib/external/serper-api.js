@@ -25,7 +25,7 @@ const USE_SERPAPI = !!process.env.SERP_API_KEY;
  */
 export async function serperSearch(query, options = {}) {
   if (!SERP_API_KEY) {
-    console.warn('[SerpAPI] No SERP_API_KEY configured');
+    console.warn('[AI] No SERP_API_KEY configured');
     return { error: 'SerpAPI key not configured', results: [] };
   }
 
@@ -80,20 +80,20 @@ export async function serperSearch(query, options = {}) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[SerpAPI] API error: ${response.status} - ${errorText}`);
+        console.error(`[AI] API error: ${response.status} - ${errorText}`);
         return { error: `SerpAPI error: ${response.status}`, results: [] };
       }
 
       data = await response.json();
 
       if (data.error) {
-        console.error(`[SerpAPI] Error:`, data.error);
+        console.error(`[AI] Error:`, data.error);
         return { error: data.error, results: [] };
       }
 
       const elapsedMs = Date.now() - startTime;
       const resultCount = data.organic_results?.length || data.news_results?.length || 0;
-      console.log(`[SerpAPI] ${type} query "${query.slice(0, 50)}..." returned ${resultCount} results in ${elapsedMs}ms`);
+      console.log(`[AI] ${type} query "${query.slice(0, 50)}..." returned ${resultCount} results in ${elapsedMs}ms`);
 
       // Normalize SerpAPI response to match expected format
       return {
@@ -124,13 +124,13 @@ export async function serperSearch(query, options = {}) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[Serper] API error: ${response.status} - ${errorText}`);
+        console.error(`[AI] API error: ${response.status} - ${errorText}`);
         return { error: `Serper API error: ${response.status}`, results: [] };
       }
 
       data = await response.json();
       const elapsedMs = Date.now() - startTime;
-      console.log(`[Serper] ${type} query "${query.slice(0, 50)}..." returned ${data.organic?.length || data.news?.length || 0} results in ${elapsedMs}ms`);
+      console.log(`[AI] ${type} query "${query.slice(0, 50)}..." returned ${data.organic?.length || data.news?.length || 0} results in ${elapsedMs}ms`);
 
       return {
         organic: data.organic || [],
@@ -142,7 +142,7 @@ export async function serperSearch(query, options = {}) {
       };
     }
   } catch (error) {
-    console.error('[SerpAPI] Request failed:', error.message);
+    console.error('[AI] Request failed:', error.message);
     return { error: error.message, results: [] };
   }
 }
@@ -264,7 +264,7 @@ export async function searchTrafficWithSerper({ city, state, formattedAddress })
       citations: incidents.map(i => i.link).filter(Boolean),
     };
   } catch (error) {
-    console.error('[SerpAPI] Traffic search error:', error);
+    console.error('[AI] Traffic search error:', error);
     briefingLog.warn(1, `SerpAPI traffic error: ${error.message}`, OP.AI);
 
     return {

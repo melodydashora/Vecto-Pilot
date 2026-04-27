@@ -92,9 +92,9 @@ for (const [key, group] of groups) {
   if (group.length > 1) {
     console.log(`📦 GROUP (${group.length} duplicates) - Key: "${key}"`);
     group.forEach((e, i) => console.log(`   ${i + 1}. "${e.title}" (${e.impact})`));
-    console.log(`   ✅ KEPT: "${group.sort((a,b) => (b.impact === 'high' ? 1 : 0) - (a.impact === 'high' ? 1 : 0))[0].title}"\n`);
+    console.log(`   KEPT: "${group.sort((a,b) => (b.impact === 'high' ? 1 : 0) - (a.impact === 'high' ? 1 : 0))[0].title}"\n`);
   } else {
-    console.log(`✅ UNIQUE: "${group[0].title}"`);
+    console.log(`UNIQUE: "${group[0].title}"`);
   }
 }
 

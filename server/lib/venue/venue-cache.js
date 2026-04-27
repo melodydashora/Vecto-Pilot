@@ -280,7 +280,7 @@ export async function insertVenue(venue) {
 
       if (byPlaceId) {
         console.warn(
-          `[venue-cache] insertVenue 23505 on ${constraint || 'unique'} — falling back to existing venue ${byPlaceId.venue_id} (place_id=${venue.placeId.slice(0, 12)}…)`
+          `[VENUE] insertVenue 23505 on ${constraint || 'unique'} — falling back to existing venue ${byPlaceId.venue_id} (place_id=${venue.placeId.slice(0, 12)}…)`
         );
         await db
           .update(venue_catalog)
@@ -609,7 +609,7 @@ export async function findOrCreateVenue(eventData, source) {
   // Fire-and-forget: event processing continues immediately
   if (created && placeId) {
     enrichVenueFromPlaceId(created.venue_id, placeId).catch(err => {
-      console.warn(`[venue-cache] Non-blocking enrichment failed for ${venueName}: ${err.message}`);
+      console.warn(`[VENUE] Non-blocking enrichment failed for ${venueName}: ${err.message}`);
     });
   }
 
@@ -651,7 +651,7 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
   if (valid) return null; // Address is fine, no action needed
 
   // Address failed validation — attempt Places API re-resolution
-  console.warn(`[VENUE-VALIDATE] Re-resolving "${venue.venue_name}" (${venue.venue_id?.slice(0, 8)}): ${issues.join('; ')}`);
+  console.warn(`[VENUE] Re-resolving "${venue.venue_name}" (${venue.venue_id?.slice(0, 8)}): ${issues.join('; ')}`);
 
   try {
     // Use venue's own coords if available, otherwise caller's coords
@@ -665,7 +665,7 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
     const placeResult = await searchPlaceWithTextSearch(searchLat, searchLng, searchName, { radius: 50000 });
 
     if (!placeResult || !placeResult.formattedAddress) {
-      console.warn(`[VENUE-VALIDATE] Re-resolution returned no result for "${searchName}"`);
+      console.warn(`[VENUE] Re-resolution returned no result for "${searchName}"`);
       return null;
     }
 
@@ -676,7 +676,7 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
     });
 
     if (!recheck.valid) {
-      console.warn(`[VENUE-VALIDATE] Re-resolution also failed for "${searchName}": "${placeResult.formattedAddress}" — ${recheck.issues.join('; ')}`);
+      console.warn(`[VENUE] Re-resolution also failed for "${searchName}": "${placeResult.formattedAddress}" — ${recheck.issues.join('; ')}`);
       return null;
     }
 
@@ -708,7 +708,7 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
     }
   } catch (err) {
     // Non-fatal — return null so caller uses original venue
-    console.warn(`[VENUE-VALIDATE] Re-resolution error for "${venue.venue_name}": ${err.message}`);
+    console.warn(`[VENUE] Re-resolution error for "${venue.venue_name}": ${err.message}`);
   }
 
   return null;
@@ -815,7 +815,7 @@ function maybeBackfillVenue(venue, placeId) {
 
   // Trigger non-blocking enrichment
   enrichVenueFromPlaceId(venue.venue_id, placeId).catch(err => {
-    console.warn(`[venue-cache] Backfill failed for venue ${venue.venue_id}: ${err.message}`);
+    console.warn(`[VENUE] Backfill failed for venue ${venue.venue_id}: ${err.message}`);
   });
 }
 

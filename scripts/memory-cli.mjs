@@ -43,7 +43,7 @@ async function getContext() {
     console.log(`   Strategies: ${data.context.recentStrategies?.length || 0} recent`);
     console.log(`   Actions: ${data.context.recentActions?.length || 0} recent`);
 
-    console.log('\n🧠 Memory Stats:');
+    console.log('\nMemory Stats:');
     console.log(`   Preferences: ${Object.keys(data.context.agentPreferences || {}).length} entries`);
     console.log(`   Session History: ${Object.keys(data.context.sessionHistory || {}).length} entries`);
     console.log(`   Project State: ${Object.keys(data.context.projectState || {}).length} entries`);
@@ -54,7 +54,7 @@ async function getContext() {
     const enabled = Object.entries(caps).filter(([_, v]) => v).length;
     console.log(`   ${enabled}/${Object.keys(caps).length} capabilities enabled`);
 
-    console.log('\n🔄 Self-Healing:');
+    console.log('\nSelf-Healing:');
     const sh = data.context.selfHealing || {};
     console.log(`   Enabled: ${sh.enabled}`);
     console.log(`   Health Score: ${sh.healthScore}`);
@@ -79,7 +79,7 @@ async function getStats() {
     console.log(`   Strategies (24h): ${db.strategies24h || 0}`);
 
     const mem = data.summary.memoryStats || {};
-    console.log('\n🧠 Memory Tables:');
+    console.log('\nMemory Tables:');
     console.log(`   agent_memory: ${mem.agentEntries || 0} entries`);
     console.log(`   assistant_memory: ${mem.assistantEntries || 0} entries`);
     console.log(`   eidolon_memory: ${mem.eidolonEntries || 0} entries`);
@@ -114,7 +114,7 @@ async function logConversation(topic, summary) {
     body: JSON.stringify({ topic, summary, userId: 'cli' })
   });
   if (data.ok) {
-    console.log(`✅ Conversation logged: "${topic}"`);
+    console.log(`Conversation logged: "${topic}"`);
   } else {
     console.error('Failed to log conversation:', data.error);
   }
@@ -134,7 +134,7 @@ async function setPreference(key, value) {
     body: JSON.stringify({ key, value: parsedValue, userId: 'system' })
   });
   if (data.ok) {
-    console.log(`✅ Preference saved: ${key}`);
+    console.log(`Preference saved: ${key}`);
   } else {
     console.error('Failed to save preference:', data.error);
   }
@@ -153,7 +153,7 @@ async function setSession(key, value) {
     body: JSON.stringify({ key, data: parsedValue, userId: 'system' })
   });
   if (data.ok) {
-    console.log(`✅ Session state saved: ${key}`);
+    console.log(`Session state saved: ${key}`);
   } else {
     console.error('Failed to save session state:', data.error);
   }
@@ -172,7 +172,7 @@ async function setProject(key, value) {
     body: JSON.stringify({ key, data: parsedValue, userId: 'system' })
   });
   if (data.ok) {
-    console.log(`✅ Project state saved: ${key}`);
+    console.log(`Project state saved: ${key}`);
   } else {
     console.error('Failed to save project state:', data.error);
   }

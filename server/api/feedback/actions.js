@@ -72,7 +72,7 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
       snapshot_id = ranking[0]?.snapshot_id || null;
 
       if (snapshot_id) {
-        console.log(`📸 Action anchored to ranking's snapshot: ${snapshot_id}`);
+        console.log(`Action anchored to ranking's snapshot: ${snapshot_id}`);
       }
     }
 
@@ -124,10 +124,10 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
                 AND (vc.venue_id::text = ${block_id} OR vc.place_id = ${block_id})
             `);
             if (result.rowCount > 0) {
-              console.log(`📈 Bumped times_chosen for ${block_id}`);
+              console.log(`Bumped times_chosen for ${block_id}`);
             }
           } catch (metricsErr) {
-            console.warn(`⚠️ Metrics bump skipped for ${block_id}:`, metricsErr.message);
+            console.warn(`Metrics bump skipped for ${block_id}:`, metricsErr.message);
           }
         }
 
@@ -157,7 +157,7 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
             // Exponential backoff with jitter: 150ms, 300ms, 600ms, 1200ms, 2400ms, 4800ms, 9600ms
             const delay = Math.min(retryDelayMs * Math.pow(2, attempt - 1), 10000);
             const constraint = isRankingFKError ? 'ranking_id' : 'snapshot_id';
-            console.warn(`⚠️ Foreign key error on ${constraint} (replication lag), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+            console.warn(`Foreign key error on ${constraint} (replication lag), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
@@ -165,7 +165,7 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
           // If all retries exhausted
           if (isRankingFKError) {
             // For ranking_id, log action without it
-            console.warn(`⚠️ Replication lag persists after ${maxRetries} retries, logging without ranking_id`);
+            console.warn(`Replication lag persists after ${maxRetries} retries, logging without ranking_id`);
             actionData.ranking_id = null;
             try {
               await db.insert(actions).values(actionData);
@@ -191,7 +191,7 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
             }
           } else {
             // For snapshot_id, we can't log without it (it's required), so fail
-            console.error(`❌ Snapshot ${snapshot_id} not found after ${maxRetries} retries - cannot log action without snapshot`);
+            console.error(`Snapshot ${snapshot_id} not found after ${maxRetries} retries - cannot log action without snapshot`);
             break;
           }
         }
@@ -204,7 +204,7 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
     throw lastError;
 
   } catch (error) {
-    console.error('❌ Action logging error:', error);
+    console.error('Action logging error:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message
