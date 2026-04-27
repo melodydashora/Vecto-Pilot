@@ -70,9 +70,23 @@ export async function configureMiddleware(app) {
   //      round-trips. connect-src enforces these as if they were network
   //      requests; without 'data:' allowed, label sprites fail to load.
   //
+  //   5. mediaSrc 'self' data: blob: (added 2026-04-27, Coach Pass 2 Phase B)
+  //      Coach TTS (client/src/hooks/useTTS.ts) does two things the implicit
+  //      default-src 'self' was blocking, which caused the audio element to
+  //      throw NotSupportedError and silently fall back to
+  //      window.speechSynthesis (OS robotic voice, not OpenAI TTS-1-HD):
+  //        (a) warmUp() loads a silent data:audio/wav;base64,... buffer to
+  //            unlock the audio element inside the user-gesture; data: required.
+  //        (b) speak() fetches /api/tts, wraps the response in blob:https://...
+  //            via URL.createObjectURL, and assigns it to audio.src; blob: required.
+  //      Without media-src declared, CSP falls back to default-src ('self'
+  //      only), which forbids both. Diagnosed via DevTools console errors
+  //      that explicitly cited "Loading media from 'data:audio/wav;base64,...'
+  //      violates ... default-src 'self'".
+  //
   // Diagnostic process: after each restart the previously-blocked layer
   // unblocked, exposing the next CSP error in the console. Phase B's commit
-  // history (b7b1c7f5 → c765ce22 → THIS) is the audit trail.
+  // history (b7b1c7f5 → c765ce22 → e371c757 → THIS) is the audit trail.
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -81,6 +95,7 @@ export async function configureMiddleware(app) {
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.ggpht.com", "https://places.googleapis.com"],
+        mediaSrc: ["'self'", "data:", "blob:"],
         connectSrc: ["'self'", "data:", "https://*.googleapis.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
         workerSrc: ["'self'", "blob:"],
         frameSrc: ["'self'"],

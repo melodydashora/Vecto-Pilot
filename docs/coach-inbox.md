@@ -117,3 +117,7 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 - **Priority:** medium | **Date:** 2026-04-10 07:07
 - Logs from /co-pilot/map indicate two issues that need fixing: 1. Google Maps JS API is loaded directly without loading=async, which impacts performance. 2. google.maps.Marker is deprecated and needs to be updated to google.maps.marker.AdvancedMarkerElement.
   - Files: client/src/pages/copilot/MapPage.tsx
+
+### [CODE_SUGGESTION] Implement TTS streaming to reduce audio latency
+- **Priority:** medium | **Date:** 2026-04-27 08:22
+- Melody noted a delay where OpenAI TTS only plays after the full text response completes. Transitioning from a blocking request to a streaming architecture (chunking text by sentence to the TTS API, or using OpenAI Realtime WebSocket API) will significantly reduce audio latency.
