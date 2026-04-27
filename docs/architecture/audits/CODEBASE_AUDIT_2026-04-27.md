@@ -16,7 +16,7 @@ Five top findings, ordered by impact:
 
 4. **The "immediate strategy" concept has four naming surfaces** (the user's call-out is justified). Same logical thing, four spellings: function `runImmediateStrategy` / `generateImmediateStrategy`, parameter `immediateStrategy`, DB column `strategy_for_now`, comments call it "immediate 1-hour tactical." This is the dominant naming-conflict pattern in the codebase. (Section 5.1)
 
-5. **AI registry vs callsites is otherwise clean.** All 25 roles in `MODEL_ROLES` are reachable from at least one live caller. Naming-lag exists but is contained in dead code (`fetchNewsWithClaudeWebSearch`, `fetchEventsWithClaudeWebSearch`, `_fetchEventsWithGemini3ProPreviewLegacy` — all uncalled, retained for emergency rollback). (Sections 2 and 5.6)
+5. **AI registry vs callsites is otherwise clean.** All 26 roles in `MODEL_ROLES` are reachable from at least one live caller. Naming-lag exists but is contained in dead code (`fetchNewsWithClaudeWebSearch`, `fetchEventsWithClaudeWebSearch`, `_fetchEventsWithGemini3ProPreviewLegacy` — all uncalled, retained for emergency rollback). (Sections 2 and 5.6)
 
 The codebase itself is in good shape; **the docs lag is what bites a new reader (or an LLM agent) the hardest**.
 
@@ -122,7 +122,7 @@ Response: { strategy_for_now, blocks }
 
 The registry at `server/lib/ai/model-registry.js` is **the source of truth**. Every role passes through `getRoleConfig(role)` in `adapters/index.js`, which throws if the role is undefined — so phantom roles would crash at runtime, not silently work.
 
-**25 roles defined in `MODEL_ROLES`** (post-daily-removal count). All 25 have ≥1 live caller. **Zero orphans, zero phantoms.**
+**26 roles defined in `MODEL_ROLES`** (post-daily-removal count). All 26 have ≥1 live caller. **Zero orphans, zero phantoms.**
 
 | Role | Provider / Model | Callers (file:line) | Streaming? |
 |---|---|---|---|
@@ -327,7 +327,97 @@ DB columns, function names, and AI roles align cleanly: `briefings.news` ↔ `fe
 
 ### 5.5 Hook naming patterns — consistent
 
-`useBriefingQueries`, `useStrategyPolling`, `useStrategy`, `usePlatformData`, `useMarketIntelligence` — all `use*` prefix, all camelCase, no mixing of `useFooQuery` vs `useFooData` patterns within the same domain. Fine.
+All hooks under `client/src/hooks/` follow the `use*` prefix, camelCase convention. No mixing of `useFooQuery` vs `useFooData` patterns within the same domain. Fine.
+
+The full hook inventory and their consumers / data sources is in **Section 5A — Client Hook & Page → API Map** below; this section addresses the *naming convention* of hooks specifically.
+
+### 5A. Client hook & page → API map
+
+The user explicitly asked for hook coverage. Here it is, with the same "live / dead / drift" lens applied to the client.
+
+**Provider stack** (`client/src/App.tsx:25-40`):
+
+```
+ErrorBoundary
+  → QueryClientProvider (TanStack Query, staleTime 5min, gcTime 30min, retry 1)
+    → AuthProvider                     [@/contexts/auth-context]
+      → LocationProvider               [@/contexts/location-context-clean]
+        → CoPilotProvider              [@/contexts/co-pilot-context]
+          (wraps RouterProvider so it persists across route changes)
+          → RouterProvider             [@/routes]
+```
+
+**Authenticated routes** (under `/co-pilot/*`, gated by `ProtectedRoute`):
+
+| Route | Page file | What it shows |
+|---|---|---|
+| `/co-pilot/strategy` (default) | `StrategyPage.tsx` | Strategy + embedded MapTab + SmartBlocks (post-2026-04-26 Phase B; Map merged into Strategy) |
+| `/co-pilot/coach` | `CoachPage.tsx` | Rideshare Coach (relocated 2026-04-25 Phase A Pass 1, was previously embedded in StrategyPage) |
+| `/co-pilot/briefing` | `BriefingPage.tsx` | Weather, traffic, events, news, airport, school closures |
+| `/co-pilot/bars` (or similar) | `VenueManagerPage.tsx` | Renamed from `BarsPage` 2026-01-09 — venue intelligence (lounges, bars, late-night) |
+| `/co-pilot/intel` | `IntelPage.tsx` | Market intelligence |
+| `/co-pilot/concierge` | `ConciergePage.tsx` | Driver-facing concierge surface |
+| `/co-pilot/translation` | `TranslationPage.tsx` | UTIL_TRANSLATION endpoint |
+| `/co-pilot/settings` | `SettingsPage.tsx` | User settings |
+| `/co-pilot/schedule` | `SchedulePage.tsx` | Weekly availability (added 2026-04-05) |
+| `/co-pilot/about`, `/donate`, `/help` | `AboutPage.tsx`, `DonatePage.tsx`, `HelpPage.tsx` | Static / hamburger-menu pages |
+
+**Removed routes** (recent), per `routes.tsx` comments:
+- `/co-pilot/map` — removed 2026-04-26 Phase B; map now embedded in `StrategyPage`. Bottom-nav Map tab also removed in `BottomTabNavigation.tsx`.
+
+**Public / auth routes:** `/policy`, `/auth/sign-in`, `/auth/sign-up`, `/auth/forgot-password`, `/auth/reset-password`, `/auth/uber/callback`, `/auth/google/callback`, `/c/:token` (public concierge QR), `/demo` (landing).
+
+**Hook → API surface:**
+
+| Hook | Consumes | Notes |
+|---|---|---|
+| `useStrategy.ts` | `/api/strategy/:snapshotId` (status), `/api/blocks-fast` (trigger / poll) | Strategy page primary data hook |
+| `useStrategyPolling.ts` | `/api/strategy/:snapshotId`, `/api/strategy/events` (SSE) | TRIAD/blocks-fast progress UI |
+| `useStrategyLoadingMessages.ts` | None — pure UI string rotation | Loading-state copy |
+| `useBriefingQueries.ts` | `/api/briefing/snapshot/:snapshotId` (aggregate), historical `/api/snapshot/:snapshotId` | TanStack Query hook for briefing sections |
+| `useBarsQuery.ts` | `/api/venues/*` (bars / lounges intelligence) | Venue Manager page |
+| `useMarketIntelligence.ts` | `/api/intelligence/for-location` (current), `/api/intelligence/lookup` (legacy, present in code) | Intel page; doc drift candidate (two endpoint generations live in same hook) |
+| `usePlatformData.ts` | `/api/platform/*` | Platform reference data (Uber/Lyft/etc.) |
+| `useMemory.ts` | `/api/memory/*` | Coach memory / conversation logging |
+| `useChatPersistence.ts` | `localStorage` only (no API) — chat thread persistence | Coach client-side persistence |
+| `useEnrichmentProgress.ts` | SSE — venue enrichment progress (likely `/api/venues/enrichment-progress` or similar) | Smart Blocks loading UX |
+| `useVenueLoadingMessages.ts` | None — pure UI string rotation | Loading-state copy |
+| `useTTS.ts` | `POST /api/tts` (OpenAI TTS-1-HD) + browser `speechSynthesis` fallback | Coach voice playback |
+| `useSpeechRecognition.ts` | Browser Web Speech API only — no server | Coach mic input |
+| `useToast.ts` | None | Toast UI primitive |
+| `useMobile.tsx` | None | Viewport detection |
+| `coach/useCoachChat.ts` | `POST /api/chat/send` (SSE) | Coach chat orchestration (post-2026-04-26 extraction, see coach-pass2-phase-b branch) |
+| `coach/useCoachAudioState.ts` | None — wraps `useTTS` + `useSpeechRecognition` + localStorage | Coach audio aggregator |
+| `coach/useStreamingReadAloud.ts` | None — chunks deltas to `useTTS` | Coach streaming TTS (flag-gated) |
+
+**Page → API rough map** (which hooks each top-level page invokes):
+
+| Page | Hooks invoked | Net API surface |
+|---|---|---|
+| `StrategyPage.tsx` | `useStrategy`, `useStrategyPolling`, `useStrategyLoadingMessages`, `useEnrichmentProgress`, plus the embedded MapTab's hooks | `/api/blocks-fast`, `/api/strategy/*`, `/api/venues/*` |
+| `CoachPage.tsx` | `coach/useCoachChat`, `coach/useCoachAudioState`, `coach/useStreamingReadAloud`, `useTTS`, `useSpeechRecognition`, `useChatPersistence`, `useMemory` | `/api/chat/send` (SSE), `/api/tts`, `/api/memory/*` |
+| `BriefingPage.tsx` | `useBriefingQueries` | `/api/briefing/snapshot/:snapshotId` |
+| `VenueManagerPage.tsx` | `useBarsQuery` | `/api/venues/*` |
+| `IntelPage.tsx` | `useMarketIntelligence`, `usePlatformData` | `/api/intelligence/for-location`, `/api/platform/*` |
+| `ConciergePage.tsx` | (concierge-specific hooks; not enumerated in this audit) | `/api/concierge/*` |
+| `TranslationPage.tsx` | (translation-specific) | `/api/translate` |
+| `SchedulePage.tsx`, `Settings`, `Help`, `About`, `Donate`, `Policy` | Mostly static or local-only state | Minimal API surface |
+
+**Findings on the client side:**
+
+1. **No hook duplication.** No two hooks fetch the same endpoint. `useStrategy` and `useStrategyPolling` are intentionally split (data vs polling progress).
+2. **One hook with mixed-generation endpoints.** `useMarketIntelligence.ts` references both `/api/intelligence/for-location` (current, 2026-01-05) and `/api/intelligence/lookup` (legacy). Lines 60, 95, 440, 452, 598, 607 mix references. Likely safe (legacy left as fallback) but worth a separate verify-and-prune sweep.
+3. **One client-side route removal that may need doc cleanup.** The `/co-pilot/map` route was deleted 2026-04-26. Search docs for any "/co-pilot/map" references; `routes.tsx:13-14` already calls this out. `SYSTEM_MAP.md` (last updated 2026-02-19) probably still mentions it.
+4. **Coach hooks are recent and well-organized** under `client/src/hooks/coach/`. The single-folder pattern (`coach/use*`) is a good convention; no other domain has its own subfolder yet (briefing, strategy, venue hooks are all flat in `hooks/`).
+
+**What this audit did NOT verify on the client:**
+
+- Concierge, Translate, Schedule, Settings hooks: not enumerated. Deferred to a follow-up client-side audit if desired.
+- Whether `useMarketIntelligence`'s legacy `/api/intelligence/lookup` reference is reachable or just a comment.
+- Whether `useEnrichmentProgress`'s SSE endpoint name matches the server-side mount.
+- Provider context internals (`AuthProvider`, `LocationProvider`, `CoPilotProvider`) — only their position in the stack was confirmed.
+
+**Recommendation:** the client side is in materially better shape than the docs suggest. The dominant client-side cleanup is the `useMarketIntelligence` legacy-endpoint sweep and a `SYSTEM_MAP.md` refresh that drops the removed `/co-pilot/map` route.
 
 ### 5.6 Naming-lag in dead code (low priority)
 
@@ -477,7 +567,8 @@ Schema and shared:
 
 - **Runtime behavior.** "Live" = "call graph intact + registry resolves." Not verified by running tests or live traffic.
 - **`assistant-proxy.ts` launch path.** Couldn't determine via static import-graph alone whether it runs as a subprocess.
-- **Client-side hook implementations.** Sampled but not exhaustively audited.
+- **Client-side hooks: Strategy, Coach, Briefing, Venue Manager, Intel pages were mapped (Section 5A).** Concierge, Translation, Schedule, Settings, Help/About/Donate hooks were NOT enumerated — narrow follow-up sweep recommended if needed.
+- **Hook *internals* (TanStack Query keys, retry policies, cache invalidation) were not audited; only their consumed endpoints were captured.**
 - **Database state.** Whether the `strategies.consolidated_strategy` column has been dropped from the live DB (or just stopped being written) needs DB inspection.
 - **CI / build pipeline.** Not audited.
 - **Test coverage.** Not surveyed.
