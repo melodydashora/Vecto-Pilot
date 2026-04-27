@@ -7,6 +7,11 @@
 //
 // Updated 2026-01-05: Migrated to Google Places API (New) and venue_catalog integration
 // See: /home/runner/.claude/plans/noble-purring-yeti.md
+//
+// 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): plus-code rejection
+// log demoted to debug. Set LOG_VERBOSE_COMPONENTS=VENUES to see it again.
+import { createWorkflowLogger } from '../../logger/workflow.js';
+const resolverLog = createWorkflowLogger('VENUES');
 
 import { db } from '../../db/drizzle.js';
 import { eq, and, sql } from 'drizzle-orm';
@@ -213,7 +218,7 @@ export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {
 
     // Reject plus codes
     if (place.formattedAddress && isPlusCode(place.formattedAddress)) {
-      console.log(`[venue-address-resolver] Rejecting plus code: ${place.formattedAddress}`);
+      resolverLog.debug(`Rejecting plus code: ${place.formattedAddress}`);
       return null;
     }
 

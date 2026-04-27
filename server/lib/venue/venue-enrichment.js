@@ -307,10 +307,11 @@ function calculateIsOpenFromGoogleWeekdayText(weekdayTexts, timezone = null) {
 
   const status = getOpenStatus(parseResult.schedule, timezone);
 
-  // Debug log for backward compatibility (same info as before)
+  // 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): demoted from info to
+  // debug — fires for every venue's hours computation, was significant noise.
   if (status.is_open !== null) {
-    console.log(
-      `[calculateIsOpenFromGoogleWeekdayText] ${status.reason} → ${status.is_open ? "OPEN" : "CLOSED"}`
+    venuesLog.debug(
+      `calculateIsOpenFromGoogleWeekdayText: ${status.reason} -> ${status.is_open ? "OPEN" : "CLOSED"}`
     );
   }
 

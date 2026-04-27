@@ -18,6 +18,10 @@ import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-
 // 2026-02-17: Shared timezone resolution — set timezone + market_slug on venue creation
 import { resolveTimezoneFromMarket } from '../location/resolveTimezone.js';
 // 2026-04-11: Address quality validation — catches bad Places API results before they persist
+// 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): per-venue enrichment lines
+// demoted from info to debug. Set LOG_VERBOSE_COMPONENTS=VENUES to see them again.
+import { createWorkflowLogger } from '../../logger/workflow.js';
+const venueCacheLog = createWorkflowLogger('VENUES');
 import { validateVenueAddress } from './venue-address-validator.js';
 // 2026-04-11: Places API re-resolution when cached address fails validation
 import { searchPlaceWithTextSearch } from './venue-address-resolver.js';
@@ -699,7 +703,7 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
       .returning();
 
     if (updated) {
-      console.log(`[VENUE-VALIDATE] Fixed "${venue.venue_name}" address: "${addrToCheck}" → "${placeResult.formattedAddress}"`);
+      venueCacheLog.debug(`Fixed "${venue.venue_name}" address: "${addrToCheck}" -> "${placeResult.formattedAddress}"`);
       return updated;
     }
   } catch (err) {
@@ -908,5 +912,5 @@ export async function enrichVenueFromPlaceId(venueId, placeId) {
     .set(updates)
     .where(eq(venue_catalog.venue_id, venueId));
 
-  console.log(`[venue-cache] Enriched venue ${venueId} from Places API: phone=${!!updates.phone_number}, rating=${updates.google_rating || 'n/a'}, hours=${!!updates.business_hours}`);
+  venueCacheLog.debug(`Enriched venue ${venueId} from Places API: phone=${!!updates.phone_number}, rating=${updates.google_rating || 'n/a'}, hours=${!!updates.business_hours}`);
 }

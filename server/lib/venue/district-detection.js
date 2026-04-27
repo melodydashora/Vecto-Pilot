@@ -11,7 +11,12 @@
  *
  * Usage:
  *   import { detectDistricts, normalizeDistrictSlug, calculateDistrictCentroid } from './district-detection.js';
+ *
+ * 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): per-cluster/per-venue
+ * lines demoted to debug. Set LOG_VERBOSE_COMPONENTS=VENUES to see them again.
  */
+import { createWorkflowLogger } from '../../logger/workflow.js';
+const districtLog = createWorkflowLogger('VENUES');
 
 import { db } from '../../db/drizzle.js';
 import { venue_catalog } from '../../../shared/schema.js';
@@ -128,7 +133,7 @@ export function detectDistrictClusters(venues, radiusMeters = 500, minVenuesForC
         venueCount: group.venues.length
       });
 
-      console.log(`[district-detection] Found cluster: "${group.name}" (${group.venues.length} venues, centroid: ${centroid.lat.toFixed(6)}, ${centroid.lng.toFixed(6)})`);
+      districtLog.debug(`Found cluster: "${group.name}" (${group.venues.length} venues, centroid: ${centroid.lat.toFixed(6)}, ${centroid.lng.toFixed(6)})`);
     }
   }
 
@@ -215,7 +220,7 @@ export async function updateVenueDistrict(venueId, district, centroid = null) {
     .set(updateData)
     .where(eq(venue_catalog.venue_id, venueId));
 
-  console.log(`[district-detection] Updated venue ${venueId} with district: "${district}" (${slug})`);
+  districtLog.debug(`Updated venue ${venueId} with district: "${district}" (${slug})`);
 }
 
 /**
@@ -254,7 +259,7 @@ export function deduplicateByDistrict(venues, maxPerDistrict = 2) {
     const count = districtCounts.get(district) || 0;
 
     if (count >= maxPerDistrict) {
-      console.log(`[district-dedup] Skipping "${venue.name}" - already ${count} venues from "${district}"`);
+      districtLog.debug(`Skipping "${venue.name}" - already ${count} venues from "${district}"`);
       continue;
     }
 
@@ -264,7 +269,7 @@ export function deduplicateByDistrict(venues, maxPerDistrict = 2) {
 
   const skipped = venues.length - result.length;
   if (skipped > 0) {
-    console.log(`[district-dedup] Kept ${result.length} venues, skipped ${skipped} duplicates`);
+    districtLog.debug(`Kept ${result.length} venues, skipped ${skipped} duplicates`);
   }
 
   return result;
