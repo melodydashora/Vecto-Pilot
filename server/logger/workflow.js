@@ -86,15 +86,32 @@ function _emojiPrefix(emoji) {
   return LOG_NO_EMOJI ? '' : `${emoji} `;
 }
 
+// 2026-04-27 (Commit 5): When LOG_NO_EMOJI is set, also strip the trailing
+// "  ← {opIcon}" suffix and the inline ✓/✗/⚠ status indicators from done(),
+// error(), and warn(). These are decorative emojis with the same readability
+// concern as the section icon — partial stripping leaves visible emojis.
+function _opSuffix(opIcon) {
+  if (!opIcon) return '';
+  return LOG_NO_EMOJI ? '' : `  ← ${opIcon}`;
+}
+const DECO_DONE = LOG_NO_EMOJI ? '' : '✅ ';
+const DECO_ERR  = LOG_NO_EMOJI ? '' : '❌ ';
+const DECO_WARN = LOG_NO_EMOJI ? '' : '⚠️ ';
+
 // 2026-04-27: Title-Case display labels per CLEAR_CONSOLE_WORKFLOW format spec:
 // "[Briefing] calling news from Briefer" — category in title case, role/service
 // names not model names. Falls through to component name unchanged for unmapped.
+//
+// 2026-04-27 refinement (Commit 5): TRIAD aliased to Strategy (no [Triad] in
+// logs — strategy umbrella replaces it). VENUE_PLANNING aliased to Venues so
+// waterfall phase reads as the same name as venue sub-steps.
 const COMPONENT_LABELS = {
   LOCATION: 'Location',
   USER: 'User',
   SNAPSHOT: 'Snapshot',
-  TRIAD: 'Triad',
-  VENUES: 'Venues',
+  TRIAD: 'Strategy',           // collapsed: TRIAD is a strategy concept, not its own bucket
+  VENUES: 'Venue',             // singular per spec ("[Venue] Called Venue Planner")
+  VENUE: 'Venue',              // waterfall phase key (renamed from VENUE_PLANNING)
   BARS: 'Bars',
   BRIEFING: 'Briefing',
   EVENTS: 'Events',
@@ -107,9 +124,8 @@ const COMPONENT_LABELS = {
   PLACES: 'Places',
   ROUTES: 'Routes',
   WATERFALL: 'Waterfall',
-  VENUE_PLANNING: 'Venue Planning',
   STRATEGY: 'Strategy',
-  MODEL_REGISTRY: 'Model Registry',
+  MODEL_REGISTRY: 'Models',    // one-word per spec ("[Example]" not "[Two Words]")
   CACHE: 'Cache',
   API: 'API',
 };
@@ -219,12 +235,10 @@ const WORKFLOWS = {
   PHASE: { phases: 1, emoji: '🔄' },
   PLACES: { phases: 1, emoji: '📍' },
   ROUTES: { phases: 1, emoji: '🚗' },
-  // 2026-04-27: Waterfall taxonomy components for top-level 5-stage pipeline
-  // (Commit 2 of CLEAR_CONSOLE_WORKFLOW). SNAPSHOT and BRIEFING already have
-  // entries above; STRATEGY/VENUE_PLANNING/WATERFALL are added here for visual
-  // consistency in withContext()/markPhaseStart()/markPhaseComplete() output.
+  // 2026-04-27: Waterfall taxonomy components for top-level 5-stage pipeline.
+  // Commit 5: VENUE_PLANNING renamed to VENUE per "one word in [Example]" spec.
   STRATEGY: { phases: 1, emoji: '🎯' },
-  VENUE_PLANNING: { phases: 1, emoji: '🏢' },
+  VENUE:    { phases: 1, emoji: '🏢' },
   WATERFALL: { phases: 5, emoji: '🌊' },
   // Generic fallback for misc emitters
   GENERIC: { phases: 1, emoji: '📋' },
@@ -299,10 +313,10 @@ export function createWorkflowLogger(component) {
       if (!shouldEmit('info', component)) return;
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
-      const prefix = `[${_componentLabel(component)} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const prefix = `[${_componentLabel(component)}]`;
 
       const isOpIcon = typeof dataOrOp === 'string' && Object.values(OP).includes(dataOrOp);
-      const opSuffix = isOpIcon ? `  ← ${dataOrOp}` : '';
+      const opSuffix = isOpIcon ? _opSuffix(dataOrOp) : '';
       const data = isOpIcon ? null : dataOrOp;
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
@@ -322,7 +336,7 @@ export function createWorkflowLogger(component) {
       if (!shouldEmit('info', component)) return;
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
-      const prefix = `[${_componentLabel(component)} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const prefix = `[${_componentLabel(component)}]`;
 
       let durationMs = null;
       let opIcon = null;
@@ -334,10 +348,10 @@ export function createWorkflowLogger(component) {
       }
 
       const timeStr = durationMs ? ` (${durationMs}ms)` : '';
-      const opSuffix = opIcon ? `  ← ${opIcon}` : '';
+      const opSuffix = _opSuffix(opIcon);
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-        console.log(`${_emojiPrefix(config.emoji)}${prefix} ✅ ${message}${timeStr}${opSuffix}`);
+        console.log(`${_emojiPrefix(config.emoji)}${prefix} ${DECO_DONE}${message}${timeStr}${opSuffix}`);
       }
       emitJSON('info', component, message, { phase: phaseStr, phase_label: label, duration_ms: durationMs, status: 'done' });
     },
@@ -349,12 +363,12 @@ export function createWorkflowLogger(component) {
       if (!shouldEmit('error', component)) return;
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
-      const prefix = `[${_componentLabel(component)} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const prefix = `[${_componentLabel(component)}]`;
       const errMsg = err?.message || err || '';
-      const opSuffix = op ? `  ← ${op}` : '';
+      const opSuffix = _opSuffix(op);
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-        console.error(`${_emojiPrefix(config.emoji)}${prefix} ❌ ${message}${errMsg ? `: ${errMsg}` : ''}${opSuffix}`);
+        console.error(`${_emojiPrefix(config.emoji)}${prefix} ${DECO_ERR}${message}${errMsg ? `: ${errMsg}` : ''}${opSuffix}`);
       }
       emitJSON('error', component, message, { phase: phaseStr, error: errMsg ? String(errMsg) : null });
     },
@@ -366,11 +380,11 @@ export function createWorkflowLogger(component) {
       if (!shouldEmit('warn', component)) return;
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
-      const prefix = `[${_componentLabel(component)} ${phaseStr}${label ? ` - ${label}` : ''}]`;
-      const opSuffix = op ? `  ← ${op}` : '';
+      const prefix = `[${_componentLabel(component)}]`;
+      const opSuffix = _opSuffix(op);
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-        console.warn(`${_emojiPrefix(config.emoji)}${prefix} ⚠️ ${message}${opSuffix}`);
+        console.warn(`${_emojiPrefix(config.emoji)}${prefix} ${DECO_WARN}${message}${opSuffix}`);
       }
       emitJSON('warn', component, message, { phase: phaseStr });
     },
@@ -396,7 +410,7 @@ export function createWorkflowLogger(component) {
       const timeStr = totalMs ? ` (${totalMs}ms)` : '';
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
         console.log(`${_emojiPrefix(config.emoji)}───────────────────────────────────────────────────────`);
-        console.log(`${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ✅ COMPLETE: ${summary}${timeStr}`);
+        console.log(`${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${DECO_DONE}COMPLETE: ${summary}${timeStr}`);
         console.log(`${_emojiPrefix(config.emoji)}───────────────────────────────────────────────────────\n`);
       }
       emitJSON('info', component, summary, { status: 'complete', duration_ms: totalMs });
@@ -408,7 +422,7 @@ export function createWorkflowLogger(component) {
     info: (message, dataOrOp = null) => {
       if (!shouldEmit('info', component)) return;
       const isOpIcon = typeof dataOrOp === 'string' && Object.values(OP).includes(dataOrOp);
-      const opSuffix = isOpIcon ? `  ← ${dataOrOp}` : '';
+      const opSuffix = isOpIcon ? _opSuffix(dataOrOp) : '';
       const data = isOpIcon ? null : dataOrOp;
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
@@ -429,7 +443,7 @@ export function createWorkflowLogger(component) {
     debug: (message, dataOrOp = null) => {
       if (!shouldEmit('debug', component)) return;
       const isOpIcon = typeof dataOrOp === 'string' && Object.values(OP).includes(dataOrOp);
-      const opSuffix = isOpIcon ? `  ← ${dataOrOp}` : '';
+      const opSuffix = isOpIcon ? _opSuffix(dataOrOp) : '';
       const data = isOpIcon ? null : dataOrOp;
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
@@ -449,11 +463,11 @@ export function createWorkflowLogger(component) {
       if (!shouldEmit('info', component)) return;
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
-      const prefix = `[${_componentLabel(component)} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const prefix = `[${_componentLabel(component)}]`;
       const contextStr = context ? `: ${context}` : '';
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-        console.log(`${_emojiPrefix(config.emoji)}${prefix} ${apiName}${contextStr}  ← ${OP.API}`);
+        console.log(`${_emojiPrefix(config.emoji)}${prefix} ${apiName}${contextStr}${_opSuffix(OP.API)}`);
       }
       emitJSON('info', component, apiName, { phase: phaseStr, op: 'api', context: String(context) });
     },
@@ -465,11 +479,11 @@ export function createWorkflowLogger(component) {
       if (!shouldEmit('info', component)) return;
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
-      const prefix = `[${_componentLabel(component)} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const prefix = `[${_componentLabel(component)}]`;
       const contextStr = context ? `: ${context}` : '';
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-        console.log(`${_emojiPrefix(config.emoji)}${prefix} Calling ${role}${contextStr}  ← ${OP.AI}`);
+        console.log(`${_emojiPrefix(config.emoji)}${prefix} Calling ${role}${contextStr}${_opSuffix(OP.AI)}`);
       }
       emitJSON('info', component, `Calling ${role}`, { phase: phaseStr, op: 'ai', role: String(role), context: String(context) });
     },
@@ -481,11 +495,11 @@ export function createWorkflowLogger(component) {
       if (!shouldEmit('info', component)) return;
       const label = PHASE_LABELS[`${component}:${phase}`] || '';
       const phaseStr = `${phase}/${config.phases}`;
-      const prefix = `[${_componentLabel(component)} ${phaseStr}${label ? ` - ${label}` : ''}]`;
+      const prefix = `[${_componentLabel(component)}]`;
       const contextStr = context ? `: ${context}` : '';
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-        console.log(`${_emojiPrefix(config.emoji)}${prefix} ${operation}${contextStr}  ← ${OP.DB}`);
+        console.log(`${_emojiPrefix(config.emoji)}${prefix} ${operation}${contextStr}${_opSuffix(OP.DB)}`);
       }
       emitJSON('info', component, operation, { phase: phaseStr, op: 'db', context: String(context) });
     },
@@ -537,11 +551,11 @@ function emitContextual(level, context, payload) {
   const merged = { ...context, ...meta };
   const ctxStr = formatContextStr(merged);
   // 2026-04-27: Title-Case display label per CLEAR_CONSOLE_WORKFLOW format spec.
+  // Commit 5 refinement: drop phase numbering from pretty bracket. Phase index
+  // and total are still in JSON output for queryability.
   const labelSource = phase || component;
   const display = _componentLabel(labelSource);
-  const phaseStr = phase_index && phase_total
-    ? `${phase_index}/${phase_total} ${display}`
-    : display;
+  const phaseStr = display;
 
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
     const compConfig = WORKFLOWS[component] || { emoji: '📋' };
@@ -579,7 +593,7 @@ export function withContext(context = {}) {
 export function logAICall(role, model, purpose) {
   if (!shouldEmit('info', 'AI')) return;
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-    console.log(`${_emojiPrefix('🤖')}[AI] Calling ${role} (${model}): ${purpose}  ← ${OP.AI}`);
+    console.log(`${_emojiPrefix('🤖')}[AI] Calling ${role} (${model}): ${purpose}${_opSuffix(OP.AI)}`);
   }
   emitJSON('info', 'AI', `Calling ${role}`, { role: String(role), model: String(model), purpose: String(purpose) });
 }
@@ -590,7 +604,7 @@ export function logAICall(role, model, purpose) {
 export function logAIResponse(role, model, responseLen, durationMs) {
   if (!shouldEmit('info', 'AI')) return;
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-    console.log(`${_emojiPrefix('🤖')}[AI] ${role} responded: ${responseLen} chars (${durationMs}ms)  ← ${OP.AI}`);
+    console.log(`${_emojiPrefix('🤖')}[AI] ${role} responded: ${responseLen} chars (${durationMs}ms)${_opSuffix(OP.AI)}`);
   }
   emitJSON('info', 'AI', `${role} responded`, { role: String(role), model: String(model), response_len: responseLen, duration_ms: durationMs });
 }
@@ -601,7 +615,7 @@ export function logAIResponse(role, model, responseLen, durationMs) {
 export function logVenue(venueName, operation, result, op = null) {
   if (!shouldEmit('info', 'VENUES')) return;
   const shortName = String(venueName).length > 30 ? String(venueName).slice(0, 27) + '...' : String(venueName);
-  const opSuffix = op ? `  ← ${op}` : '';
+  const opSuffix = _opSuffix(op);
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
     console.log(`${_emojiPrefix('🏢')}[Venue "${shortName}"] ${operation}: ${result}${opSuffix}`);
   }
@@ -614,7 +628,7 @@ export function logVenue(venueName, operation, result, op = null) {
 export function logAPICall(apiName, context) {
   if (!shouldEmit('info', 'API')) return;
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-    console.log(`${_emojiPrefix('🌐')}[API] ${apiName}: ${context}  ← ${OP.API}`);
+    console.log(`${_emojiPrefix('🌐')}[API] ${apiName}: ${context}${_opSuffix(OP.API)}`);
   }
   emitJSON('info', 'API', String(apiName), { context: String(context) });
 }
@@ -626,7 +640,7 @@ export function logAPIResponse(apiName, result, durationMs = null) {
   if (!shouldEmit('info', 'API')) return;
   const timeStr = durationMs ? ` (${durationMs}ms)` : '';
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-    console.log(`${_emojiPrefix('🌐')}[API] ${apiName}: ${result}${timeStr}  ← ${OP.API}`);
+    console.log(`${_emojiPrefix('🌐')}[API] ${apiName}: ${result}${timeStr}${_opSuffix(OP.API)}`);
   }
   emitJSON('info', 'API', String(apiName), { result: String(result), duration_ms: durationMs });
 }
@@ -638,7 +652,7 @@ export function logDB(operation, table, context = '') {
   if (!shouldEmit('info', 'DB')) return;
   const contextStr = context ? `: ${context}` : '';
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-    console.log(`${_emojiPrefix('💾')}[DB] ${operation} ${table}${contextStr}  ← ${OP.DB}`);
+    console.log(`${_emojiPrefix('💾')}[DB] ${operation} ${table}${contextStr}${_opSuffix(OP.DB)}`);
   }
   emitJSON('info', 'DB', String(operation), { table: String(table), context: String(context) });
 }
@@ -650,7 +664,7 @@ export function logCache(type, key) {
   if (!shouldEmit('info', 'CACHE')) return;
   const icon = type === 'HIT' ? '⚡' : '🔍';
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-    console.log(`${_emojiPrefix(icon)}[Cache] ${type}: ${key}  ← ${OP.CACHE}`);
+    console.log(`${_emojiPrefix(icon)}[Cache] ${type}: ${key}${_opSuffix(OP.CACHE)}`);
   }
   emitJSON('info', 'CACHE', String(type), { key: String(key) });
 }
@@ -672,12 +686,15 @@ export function logCache(type, key) {
 // the goal is to make duplicate/out-of-order traffic impossible to miss in logs.
 // ==========================================================
 
+// 2026-04-27 (Commit 5): Renamed VENUE_PLANNING -> VENUE. Bracket reads as
+// "[Venue] Called Venue Planner" — main category is one word, "Venue Planner"
+// is the role surfaced in the message.
 export const WATERFALL_PHASES = {
-  SNAPSHOT:       { index: 1, total: 5, label: 'SNAPSHOT' },
-  BRIEFING:       { index: 2, total: 5, label: 'BRIEFING' },
-  STRATEGY:       { index: 3, total: 5, label: 'STRATEGY' },
-  VENUE_PLANNING: { index: 4, total: 5, label: 'VENUE_PLANNING' },
-  WATERFALL:      { index: 5, total: 5, label: 'WATERFALL' },
+  SNAPSHOT: { index: 1, total: 5, label: 'SNAPSHOT' },
+  BRIEFING: { index: 2, total: 5, label: 'BRIEFING' },
+  STRATEGY: { index: 3, total: 5, label: 'STRATEGY' },
+  VENUE:    { index: 4, total: 5, label: 'VENUE' },
+  WATERFALL:{ index: 5, total: 5, label: 'WATERFALL' },
 };
 
 // Per-(request, snapshot) state. Cleared 5s after WATERFALL completes
