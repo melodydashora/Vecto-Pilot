@@ -665,37 +665,6 @@ router.get('/workflow-dry-run', requireAuth, async (req, res) => {
   }
 });
 
-// SECURITY: Require authentication for test endpoints
-// POST /api/diagnostics/test-consolidate/:snapshotId - Manually test consolidation logic
-router.post('/test-consolidate/:snapshotId', requireAuth, async (req, res) => {
-  try {
-    const { snapshotId } = req.params;
-    
-    // Import and call maybeConsolidate directly
-    const { maybeConsolidate } = await import('../../jobs/triad-worker.js');
-    
-    await maybeConsolidate(snapshotId);
-    
-    // Check result
-    const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
-    // Check briefing from separate briefings table
-    const [briefingRow] = await db.select().from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-
-    res.json({
-      ok: true,
-      snapshotId,
-      consolidationComplete: row?.consolidated_strategy != null,
-      status: row?.status,
-      hasStrategyForNow: row?.strategy_for_now != null,
-      hasBriefing: !!briefingRow
-    });
-  } catch (err) {
-    console.error('[diagnostics/test-consolidate] Error:', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
 
 // GET /api/diagnostics/test-traffic
 // Compare traffic data from all providers

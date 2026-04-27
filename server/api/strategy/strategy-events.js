@@ -105,7 +105,6 @@ router.get('/events/strategy', async (req, res) => {
         snapshot_id: strategies.snapshot_id,
         status: strategies.status,
         has_strategy_for_now: drizzleSql`(${strategies.strategy_for_now} IS NOT NULL AND length(${strategies.strategy_for_now}) > 0)`,
-        has_consolidated: drizzleSql`(${strategies.consolidated_strategy} IS NOT NULL AND length(${strategies.consolidated_strategy}) > 0)`,
       })
         .from(strategies)
         .where(eq(strategies.snapshot_id, handshakeSnapshotId))
@@ -115,7 +114,6 @@ router.get('/events/strategy', async (req, res) => {
           snapshot_id: row.snapshot_id,
           status: row.status,
           has_strategy_for_now: !!row.has_strategy_for_now,
-          has_consolidated: !!row.has_consolidated,
           ts: new Date().toISOString(),
         });
       }

@@ -56,9 +56,9 @@ export async function ensureStrategyRow(snapshotId) {
 }
 
 /**
- * Check if consolidated strategy is ready for a snapshot
- * Used by blocks-fast to gate rendering until strategy exists
- * 
+ * Check if the immediate strategy (strategy_for_now) is ready for a snapshot.
+ * Used by blocks-fast to gate rendering until strategy exists.
+ *
  * @param {string} snapshotId - UUID of snapshot
  * @returns {Promise<{ready: boolean, strategy?: string}>}
  */
@@ -78,9 +78,6 @@ export async function isStrategyReady(snapshotId) {
       return { ready: false };
     }
 
-    // Ready when strategy_for_now exists (immediate 1-hour tactical strategy)
-    // NOTE: consolidated_strategy is the "daily" strategy generated on-demand
-    // The pipeline generates strategy_for_now first, then blocks
     const ready = Boolean(strategyRow.strategy_for_now);
 
     return {

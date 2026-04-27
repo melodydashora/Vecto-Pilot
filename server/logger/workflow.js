@@ -141,7 +141,6 @@ const WORKFLOWS = {
  * NOTE: Use ROLE names not model names (Strategist not Claude, Briefer not Gemini)
  *
  * STRATEGY TERMS:
- *   - "Daily Strategy" = consolidated_strategy (8-12hr overview)
  *   - "NOW Strategy" = strategy_for_now (1hr tactical)
  */
 const PHASE_LABELS = {

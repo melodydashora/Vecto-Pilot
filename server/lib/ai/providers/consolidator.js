@@ -707,7 +707,7 @@ function optimizeAirportForLLM(airport) {
 // ============================================================================
 // See server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md for full design.
 //
-// These helpers enrich the STRATEGY_TACTICAL / STRATEGY_DAILY prompts with:
+// These helpers enrich the STRATEGY_TACTICAL prompt with:
 //   1. Driver preferences (vehicle class, fuel economy, earnings goal, etc.)
 //   2. Full traffic intelligence (incidents/closures/avoid/highDemandZones)
 //   3. Event distance annotation with NEAR/FAR bucketing (15-mile threshold)

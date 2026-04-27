@@ -102,7 +102,7 @@ router.post('/token', requireAuth, async (req, res) => {
             hour: fullContext.snapshot.hour,
             address: fullContext.snapshot.formatted_address,
             timezone: fullContext.snapshot.timezone,
-            strategy: fullContext.strategy?.consolidated_strategy?.substring(0, 500),
+            strategy: fullContext.strategy?.strategy_for_now?.substring(0, 500),
           };
         }
       } catch (err) {

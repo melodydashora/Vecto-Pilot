@@ -19,9 +19,6 @@
 //   4. Google APIs → distances, business hours, enrichment
 //   5. VENUE_EVENT_VERIFIER role → event verification
 //
-// NOTE: Daily strategy (STRATEGY_DAILY) is NOT generated automatically.
-//       It's on-demand via POST /api/strategy/daily/:snapshotId when user requests it.
-//
 // RACE CONDITION PREVENTION:
 //   Uses PostgreSQL Advisory Locks to prevent duplicate AI calls when
 //   multiple requests arrive simultaneously for the same snapshot.
@@ -416,8 +413,6 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     venuesLog.info(`[blocks-fast] Strategy check: ready=${ready}, status=${status}`);
 
     if (!ready) {
-      // 2026-01-10: S-003 FIX - Error message was misleading
-      // isStrategyReady() checks strategy_for_now, NOT consolidated_strategy
       return res.status(202).json({
         ok: false,
         reason: 'strategy_pending',
@@ -430,10 +425,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     const [strategyRow] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
-    // 2026-01-10: D-027 - Use camelCase for API response (single contract)
-    // consolidatedStrategy = Briefing tab 6-12hr shift strategy (differs from strategy.consolidated)
     const briefing = strategyRow ? {
-      consolidatedStrategy: strategyRow.consolidated_strategy || null,
       strategyForNow: strategyRow.strategy_for_now || null
     } : null;
 
@@ -687,8 +679,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           rankingId: ranking.ranking_id,
           // 2026-01-10: D-027 - Use camelCase for API response (single contract)
           strategy: {
-            strategyForNow: currentStrategy.strategy_for_now || '',
-            consolidated: currentStrategy.consolidated_strategy || ''
+            strategyForNow: currentStrategy.strategy_for_now || ''
           }
         });
       }
@@ -849,7 +840,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
         // 2026-01-10: Use fresh briefing captured earlier, only fetch strategy row
         // This ensures freshBriefing (not stale DB read) is passed to SmartBlocks
-        const [consolidatedRow] = await db.select().from(strategies)
+        const [strategyRow] = await db.select().from(strategies)
           .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
         // =========================================================================
@@ -858,10 +849,10 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         triadLog.phase(4, `[VERIFY] Sending to VENUE_SCORER (Tactical Planner):`);
         triadLog.phase(4, `[VERIFY]   • snapshot_id: ${snapshotId.slice(0, 8)}`);
         triadLog.phase(4, `[VERIFY]   • snapshot.lat/lng: ${snapshot.lat?.toFixed(6)}, ${snapshot.lng?.toFixed(6)}`);
-        triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${consolidatedRow?.strategy_for_now ? `${consolidatedRow.strategy_for_now.length} chars` : 'NULL'}`);
+        triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${strategyRow?.strategy_for_now ? `${strategyRow.strategy_for_now.length} chars` : 'NULL'}`);
         triadLog.phase(4, `[VERIFY]   • briefing.events: ${Array.isArray(freshBriefing?.events) ? `${freshBriefing.events.length} items` : 'NULL'}`);
 
-        if (!consolidatedRow?.strategy_for_now) {
+        if (!strategyRow?.strategy_for_now) {
           triadLog.warn(4, `[VERIFY] CRITICAL: strategy_for_now is NULL - SmartBlocks may fail`);
         }
 
@@ -869,7 +860,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
         // 2026-01-10: Pass freshBriefing directly (captured from runBriefing above)
         const { ranking, error: blocksError } = await ensureSmartBlocksExist(snapshotId, {
-          strategyRow: consolidatedRow,
+          strategyRow: strategyRow,
           briefingRow: freshBriefing,
           snapshot,
           phaseEmitter,
@@ -917,8 +908,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             rankingId: ranking.ranking_id,
             // 2026-01-10: D-027 - Use camelCase for API response (single contract)
             strategy: {
-              strategyForNow: strategyRow?.strategy_for_now || '',
-              consolidated: strategyRow?.consolidated_strategy || ''
+              strategyForNow: strategyRow?.strategy_for_now || ''
             },
             message: 'Smart blocks generated successfully'
           });
@@ -937,10 +927,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             status: 'ok',
             snapshotId: snapshotId,
             blocks: [],
-            // 2026-01-10: D-027 - Use camelCase for API response (single contract)
             strategy: {
-              strategyForNow: strategyRow?.strategy_for_now || '',
-              consolidated: strategyRow?.consolidated_strategy || ''
+              strategyForNow: strategyRow?.strategy_for_now || ''
             },
             message: 'Smart blocks generated (details pending)'
           });
