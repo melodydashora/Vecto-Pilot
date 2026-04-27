@@ -7,6 +7,7 @@ import { useMemory } from "@/hooks/useMemory";
 import { useChatPersistence } from "@/hooks/useChatPersistence";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useTTS } from "@/hooks/useTTS";
+import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { API_ROUTES } from "@/constants/apiRoutes";
@@ -265,20 +266,6 @@ export default function RideshareCoach({
       speech.start('en');
     }
   }, [speech, tts]);
-
-  // 2026-04-13: Strip markdown/action tags from coach response for clean TTS playback
-  function cleanTextForTTS(text: string): string {
-    return text
-      .replace(/\[[\w_]+:\s*\{[\s\S]*?\}\s*\]/g, '')  // Remove action tags [SAVE_NOTE: {...}]
-      .replace(/\*\*([^*]+)\*\*/g, '$1')                // Remove markdown bold
-      .replace(/\*([^*]+)\*/g, '$1')                     // Remove markdown italic
-      .replace(/```[\s\S]*?```/g, '')                    // Remove code blocks
-      .replace(/`([^`]+)`/g, '$1')                       // Remove inline code
-      .replace(/#{1,6}\s/g, '')                          // Remove headers
-      .replace(/\n{2,}/g, '. ')                          // Paragraphs → pauses
-      .replace(/\s{2,}/g, ' ')                           // Collapse whitespace
-      .trim();
-  }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.currentTarget.files;
