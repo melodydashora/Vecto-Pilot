@@ -41,6 +41,9 @@ import { Loader } from 'lucide-react';
 import { filterTodayEvents, formatEventDate, formatEventTimeRange } from '@/utils/co-pilot-helpers';
 import { loadGoogleMaps, getMapId } from '@/lib/maps/google-maps-loader';
 import { escapeHtml } from '@/lib/maps/escape-html';
+// 2026-04-27 (Commit 4 of CLEAR_CONSOLE_WORKFLOW spec): gate noisy diagnostic
+// console.log lines behind debug flags. Default off.
+import { DEBUG_MAP_ENABLED, DEBUG_VENUES_ENABLED } from '@/constants/featureFlags';
 
 // Google Maps type declarations (loaded dynamically; not shipped with @types).
 // 2026-04-26 PHASE A: replaced Marker class with AdvancedMarkerElement under
@@ -297,10 +300,10 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
               window.clearTimeout(tilesTimeoutRef.current);
               tilesTimeoutRef.current = null;
             }
-            console.log(`[StrategyMap] Tiles loaded successfully (mapId: ${mapId || '<none>'})`);
+            if (DEBUG_MAP_ENABLED) console.log(`[StrategyMap] Tiles loaded successfully (mapId: ${mapId || '<none>'})`);
           });
 
-        console.log(`[StrategyMap] Google Map initialized — container ${containerRect.width}×${containerRect.height}, mapId ${mapId || '<none>'}`);
+        if (DEBUG_MAP_ENABLED) console.log(`[StrategyMap] Google Map initialized — container ${containerRect.width}×${containerRect.height}, mapId ${mapId || '<none>'}`);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -569,7 +572,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
     });
 
     if (eventsWithCoords.length > 0) {
-      console.log(`[StrategyMap] Added ${eventsWithCoords.length} event markers to map`);
+      if (DEBUG_VENUES_ENABLED) console.log(`[StrategyMap] Added ${eventsWithCoords.length} event markers to map`);
     }
   }, [mapReady, todayEvents]);
 
@@ -675,7 +678,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
       barMarkersRef.current.push(marker);
     });
 
-    console.log(`[StrategyMap] Added ${bars.length} bar markers ($$+): ${bars.filter((b) => !b.closingSoon).length} open, ${bars.filter((b) => b.closingSoon).length} closing soon`);
+    if (DEBUG_VENUES_ENABLED) console.log(`[StrategyMap] Added ${bars.length} bar markers ($$+): ${bars.filter((b) => !b.closingSoon).length} open, ${bars.filter((b) => b.closingSoon).length} closing soon`);
   }, [mapReady, bars]);
 
   return (

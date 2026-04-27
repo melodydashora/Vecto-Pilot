@@ -21,3 +21,24 @@ export const COACH_STREAMING_TTS_ENABLED: boolean = (() => {
   if (override === 'false') return false;
   return false; // default — Step 6 flips this to true
 })();
+
+// 2026-04-27 (Commit 4 of CLEAR_CONSOLE_WORKFLOW spec):
+// Frontend debug flags for noisy diagnostic console.log lines that should be
+// off by default in normal operation. Each flag defaults to false. Set the
+// matching VITE_DEBUG_* in `.env.local` and rebuild to enable.
+
+function _readBoolFlag(envValue: string | undefined): boolean {
+  return envValue === 'true';
+}
+
+/** Gate Strategy map lifecycle logs (init, tiles, container size). Default false. */
+export const DEBUG_MAP_ENABLED: boolean = _readBoolFlag(import.meta.env.VITE_DEBUG_MAP);
+
+/** Gate venue/bars marker-count and prefetch logs (StrategyMap, useBarsQuery). Default false. */
+export const DEBUG_VENUES_ENABLED: boolean = _readBoolFlag(import.meta.env.VITE_DEBUG_VENUES);
+
+/** Gate SSE Manager connection-churn logs (subscribers, reuses, handshakes). Default false. */
+export const DEBUG_SSE_ENABLED: boolean = _readBoolFlag(import.meta.env.VITE_DEBUG_SSE);
+
+/** Gate BlockFilter decision logs (per-block selection rationale). Default false. */
+export const DEBUG_BLOCKS_ENABLED: boolean = _readBoolFlag(import.meta.env.VITE_DEBUG_BLOCKS);
