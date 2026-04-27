@@ -179,9 +179,13 @@ const WORKFLOWS = {
   PHASE: { phases: 1, emoji: '🔄' },
   PLACES: { phases: 1, emoji: '📍' },
   ROUTES: { phases: 1, emoji: '🚗' },
-  // 2026-04-27: WATERFALL component for the top-level 5-stage pipeline taxonomy
-  WATERFALL: { phases: 5, emoji: '🌊' },
+  // 2026-04-27: Waterfall taxonomy components for top-level 5-stage pipeline
+  // (Commit 2 of CLEAR_CONSOLE_WORKFLOW). SNAPSHOT and BRIEFING already have
+  // entries above; STRATEGY/VENUE_PLANNING/WATERFALL are added here for visual
+  // consistency in withContext()/markPhaseStart()/markPhaseComplete() output.
+  STRATEGY: { phases: 1, emoji: '🎯' },
   VENUE_PLANNING: { phases: 1, emoji: '🏢' },
+  WATERFALL: { phases: 5, emoji: '🌊' },
   // Generic fallback for misc emitters
   GENERIC: { phases: 1, emoji: '📋' },
 };
@@ -606,4 +610,152 @@ export function logCache(type, key) {
     console.log(`${icon} [CACHE] ${type}: ${key}  ← ${OP.CACHE}`);
   }
   emitJSON('info', 'CACHE', String(type), { key: String(key) });
+}
+
+// ==========================================================
+// WATERFALL PHASE CONTRACT
+// 2026-04-27 (Commit 2 of CLEAR_CONSOLE_WORKFLOW spec):
+// Numbered 5-phase pipeline taxonomy + per-(request,snapshot) order guard.
+// Emits warnings on duplicate phase-starts and out-of-order phase-starts.
+//
+// Usage:
+//   markPhaseStart({ request_id, snapshot_id, phase: 'SNAPSHOT', meta: { route } });
+//   ... do snapshot work ...
+//   markPhaseComplete({ request_id, snapshot_id, phase: 'SNAPSHOT', meta: { city, state } });
+//
+// Strict order: SNAPSHOT → BRIEFING → STRATEGY → VENUE_PLANNING → WATERFALL
+// Any phase that starts while an earlier phase is incomplete logs a warning;
+// duplicate starts of the same phase log a warning. Execution is NOT blocked —
+// the goal is to make duplicate/out-of-order traffic impossible to miss in logs.
+// ==========================================================
+
+export const WATERFALL_PHASES = {
+  SNAPSHOT:       { index: 1, total: 5, label: 'SNAPSHOT' },
+  BRIEFING:       { index: 2, total: 5, label: 'BRIEFING' },
+  STRATEGY:       { index: 3, total: 5, label: 'STRATEGY' },
+  VENUE_PLANNING: { index: 4, total: 5, label: 'VENUE_PLANNING' },
+  WATERFALL:      { index: 5, total: 5, label: 'WATERFALL' },
+};
+
+// Per-(request, snapshot) state. Cleared 5s after WATERFALL completes
+// so long-running processes don't accumulate Map entries indefinitely.
+const _phaseState = new Map();
+
+function _phaseKey(request_id, snapshot_id) {
+  return `${request_id || 'unknown'}:${snapshot_id || 'unknown'}`;
+}
+
+function _getOrCreatePhaseState(key) {
+  let state = _phaseState.get(key);
+  if (!state) {
+    state = { completed: new Set(), started: new Set(), startTimes: new Map() };
+    _phaseState.set(key, state);
+  }
+  return state;
+}
+
+/**
+ * Mark a waterfall phase as started. Emits the start line plus any
+ * applicable WARN lines (duplicate-start, out-of-order).
+ *
+ * @param {Object} args
+ * @param {string} [args.request_id] - request correlation id
+ * @param {string} [args.snapshot_id] - snapshot correlation id
+ * @param {keyof WATERFALL_PHASES} args.phase - one of SNAPSHOT|BRIEFING|STRATEGY|VENUE_PLANNING|WATERFALL
+ * @param {string} [args.message='Start'] - message to emit (typically 'Start' or a sub-step name)
+ * @param {Object} [args.meta] - additional structured fields (route, etc.)
+ */
+export function markPhaseStart({ request_id, snapshot_id, phase, message = 'Start', meta = {} }) {
+  const cfg = WATERFALL_PHASES[phase];
+  if (!cfg) {
+    emitContextual('warn', { request_id, snapshot_id }, {
+      component: 'WATERFALL',
+      message: `markPhaseStart: unknown phase "${phase}"`,
+    });
+    return;
+  }
+
+  const key = _phaseKey(request_id, snapshot_id);
+  const state = _getOrCreatePhaseState(key);
+
+  // Duplicate-start detection
+  if (state.started.has(phase) && !state.completed.has(phase)) {
+    emitContextual('warn', { request_id, snapshot_id }, {
+      component: 'WATERFALL',
+      phase,
+      phase_index: cfg.index,
+      phase_total: cfg.total,
+      message: `Duplicate start detected for ${phase}`,
+    });
+  }
+
+  // Out-of-order detection: every lower-index phase must be completed
+  for (const [name, otherCfg] of Object.entries(WATERFALL_PHASES)) {
+    if (otherCfg.index < cfg.index && !state.completed.has(name)) {
+      emitContextual('warn', { request_id, snapshot_id }, {
+        component: 'WATERFALL',
+        phase,
+        phase_index: cfg.index,
+        phase_total: cfg.total,
+        message: `${phase} started before ${name} complete`,
+      });
+    }
+  }
+
+  state.started.add(phase);
+  state.startTimes.set(phase, Date.now());
+
+  // Emit the start line itself
+  emitContextual('info', { request_id, snapshot_id, ...meta }, {
+    component: phase,
+    phase,
+    phase_index: cfg.index,
+    phase_total: cfg.total,
+    message,
+  });
+}
+
+/**
+ * Mark a waterfall phase as complete. Emits the complete line with duration_ms
+ * computed from the matching markPhaseStart call. When phase==='WATERFALL',
+ * the per-(request, snapshot) state is GC'd 5s later.
+ */
+export function markPhaseComplete({ request_id, snapshot_id, phase, message = 'Complete', meta = {} }) {
+  const cfg = WATERFALL_PHASES[phase];
+  if (!cfg) return;
+
+  const key = _phaseKey(request_id, snapshot_id);
+  const state = _getOrCreatePhaseState(key);
+  const startTime = state.startTimes.get(phase);
+  const duration_ms = startTime ? Date.now() - startTime : null;
+
+  state.completed.add(phase);
+
+  emitContextual('info', { request_id, snapshot_id, duration_ms, ...meta }, {
+    component: phase,
+    phase,
+    phase_index: cfg.index,
+    phase_total: cfg.total,
+    message,
+  });
+
+  // GC after WATERFALL completes so long-running servers don't leak
+  if (phase === 'WATERFALL') {
+    setTimeout(() => _phaseState.delete(key), 5000);
+  }
+}
+
+/**
+ * Test/debug helper — returns a snapshot of the in-memory phase state.
+ * Not part of the production API.
+ */
+export function _debugPhaseState() {
+  const out = {};
+  for (const [key, state] of _phaseState.entries()) {
+    out[key] = {
+      started: Array.from(state.started),
+      completed: Array.from(state.completed),
+    };
+  }
+  return out;
 }
