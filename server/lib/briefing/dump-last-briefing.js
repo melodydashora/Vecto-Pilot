@@ -129,14 +129,9 @@ error_message: ${strategy?.error_message || '(none)'}
 created_at: ${strategy?.created_at || '(null)'}
 updated_at: ${strategy?.updated_at || '(null)'}
 
-STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
+STRATEGY_FOR_NOW (Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
 ${strategy?.strategy_for_now || '(null or empty)'}
-────────────────────────────────────────────────────────────────────────────────
-
-CONSOLIDATED_STRATEGY (Gemini Daily Strategy):
-────────────────────────────────────────────────────────────────────────────────
-${strategy?.consolidated_strategy || '(null or empty)'}
 ────────────────────────────────────────────────────────────────────────────────
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -149,7 +144,6 @@ Data Integrity:
   ✓ Briefing has events: ${lastBriefing.events ? 'YES' : 'NO'}
   ✓ Strategy status: ${strategy?.status || 'MISSING'}
   ✓ Strategy has immediate: ${strategy?.strategy_for_now ? 'YES (' + strategy.strategy_for_now.length + ' chars)' : 'NO'}
-  ✓ Strategy has daily: ${strategy?.consolidated_strategy ? 'YES (' + strategy.consolidated_strategy.length + ' chars)' : 'NO'}
   ✓ IDs match: ${lastBriefing.snapshot_id === snapshot?.snapshot_id ? 'YES' : 'MISMATCH!'}
 
 School Closures Filter Check:

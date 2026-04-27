@@ -16,7 +16,6 @@ function BriefingPage() {
   // This prevents duplicate useBriefingQueries calls which create extra SSE subscriptions
   const {
     lastSnapshotId,
-    persistentStrategy,
     timezone,
     briefingData
   } = useCoPilot();
@@ -86,18 +85,6 @@ function BriefingPage() {
 
   // 2026-03-28: Gate strategy card on all critical briefing data including events
   // Events now have proper polling/retry, so they participate in the loading lifecycle
-  // 2026-04-19: H5 fix — include weather + schoolClosures so the strategy card
-  // honors the user's contract that the briefing tab is the transparency window
-  // onto what the strategist receives. Strategy should not render until ALL
-  // briefing sections have either resolved or explicitly failed.
-  const areCriticalBriefingsLoading =
-    isLoading.weather ||
-    isLoading.traffic ||
-    isLoading.news ||
-    isLoading.airport ||
-    isLoading.events ||
-    isLoading.schoolClosures;
-
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="briefing-page">
       <BriefingTab
@@ -112,10 +99,8 @@ function BriefingPage() {
         isNewsLoading={isLoading.news}
         isAirportLoading={isLoading.airport}
         isSchoolClosuresLoading={isLoading.schoolClosures}
-        areCriticalBriefingsLoading={areCriticalBriefingsLoading}
         schoolClosuresData={wrappedSchoolClosuresData}
         airportData={wrappedAirportData}
-        consolidatedStrategy={persistentStrategy || undefined}
       />
     </div>
   );

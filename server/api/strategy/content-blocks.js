@@ -106,7 +106,6 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       : 0;
 
     // Check if immediate strategy is ready (strategy_for_now)
-    // NOTE: consolidated_strategy is for the daily briefing tab (user-request only)
     const hasStrategyForNow = !!(
       strategy.strategy_for_now && strategy.strategy_for_now.trim().length
     );
@@ -143,7 +142,6 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         },
         waitFor: ["strategy"],
         strategy: {
-          consolidated: strategy.consolidated_strategy || "",
           strategyForNow: "",
           holiday: snapshot?.holiday || 'none',
           briefing: briefingData,
@@ -198,7 +196,6 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         },
         waitFor: ["blocks"],
         strategy: {
-          consolidated: strategy.consolidated_strategy || "",
           strategyForNow: strategy.strategy_for_now || "",
           holiday: snapshot?.holiday || 'none',
           briefing: briefingData,
@@ -221,7 +218,6 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       timeElapsedMs,
       phase: 'complete',
       strategy: {
-        consolidated: strategy.consolidated_strategy || "",
         strategyForNow: strategy.strategy_for_now || "",
         holiday: snapshot?.holiday || null,
         briefing: briefingData,

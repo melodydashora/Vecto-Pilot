@@ -142,15 +142,6 @@ export const MODEL_ROLES = {
     maxTokens: 16000,
     temperature: 0.5,
   },
-  // 2026-02-26: Switched Gemini → Claude Opus 4.6 — all strategy roles use Claude
-  STRATEGY_DAILY: {
-    envKey: 'STRATEGY_DAILY_MODEL',
-    default: 'claude-opus-4-6',
-    purpose: 'Long-term 8-12hr daily strategy generation',
-    maxTokens: 16000,
-    temperature: 0.5,
-  },
-
   // ==========================
   // 3. RANKING_CANDIDATES (VENUES)
   // ==========================
@@ -369,7 +360,6 @@ export const PROVIDERS = {
 export const FALLBACK_ENABLED_ROLES = [
   'STRATEGY_TACTICAL',
   'STRATEGY_CONTEXT',
-  'STRATEGY_DAILY',
   'VENUE_FILTER',           // 2026-01-14: Added for Anthropic credit fallback
   'STRATEGY_CORE',          // 2026-01-14: Added for Anthropic credit fallback
   'BRIEFING_WEATHER',       // 2026-04-04: H-3 — weather must not silently fail

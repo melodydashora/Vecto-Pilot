@@ -282,8 +282,7 @@ export function toApiBlocksResponse(data) {
     blocks: (data.blocks || []).map(toApiBlock),
     rankingId: data.ranking_id,
     strategy: data.strategy ? {
-      strategyForNow: data.strategy.strategy_for_now || data.strategy.strategyForNow || '',
-      consolidated: data.strategy.consolidated_strategy || data.strategy.consolidated || ''
+      strategyForNow: data.strategy.strategy_for_now || data.strategy.strategyForNow || ''
     } : undefined,
     message: data.message,
     audit: data.audit
@@ -315,14 +314,10 @@ export function toApiStrategyPolling(data) {
     expectedDurations: data.timing.expected_durations
   } : undefined;
 
-  // Transform strategy object
-  // 2026-01-10: Snake/camel tolerant for all briefing fields
+  // Transform strategy object (snake/camel tolerant)
   const strategy = data.strategy ? {
-    consolidated: data.strategy.consolidated || '',
     strategyForNow: data.strategy.strategyForNow ?? data.strategy.strategy_for_now ?? '',
     holiday: data.strategy.holiday,
-    // 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
-    // Holiday info is now in snapshots table (holiday, is_holiday) - see 'holiday' field above
     briefing: data.strategy.briefing ? {
       events: data.strategy.briefing.events ?? [],
       news: data.strategy.briefing.news ?? [],

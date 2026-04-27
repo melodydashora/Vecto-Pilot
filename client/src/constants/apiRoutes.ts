@@ -61,8 +61,6 @@ export const API_ROUTES = {
   },
 
   STRATEGY: {
-    // Current — active routes
-    DAILY: (snapshotId: string) => `/api/strategy/daily/${snapshotId}`,
     TACTICAL_PLAN: '/api/strategy/tactical-plan',
     RETRY: (snapshotId: string) => `/api/strategy/${snapshotId}/retry`,
     HISTORY: '/api/strategy/history',
