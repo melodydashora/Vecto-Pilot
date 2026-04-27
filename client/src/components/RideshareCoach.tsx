@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
-import { useMemory } from "@/hooks/useMemory";
-import { useChatPersistence } from "@/hooks/useChatPersistence";
+import { useCoachChat } from "@/hooks/coach/useCoachChat";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useTTS } from "@/hooks/useTTS";
 import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
@@ -25,11 +24,6 @@ interface UserNote {
   created_by: string;
   created_at: string;
   updated_at: string;
-}
-
-interface ValidationError {
-  field: string;
-  message: string;
 }
 
 interface SnapshotData {
@@ -69,46 +63,28 @@ export default function RideshareCoach({
   blocks: _blocks = [],
   strategyReady = false
 }: RideshareCoachProps) {
-  // Use persistent state hook
-  const { messages: msgs, setMessages: setMsgs, isLoaded: _isChatLoaded } = useChatPersistence(userId, snapshotId);
-  
-  const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [attachments, setAttachments] = useState<Array<{ name: string; type: string; data: string; }>>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const controllerRef = useRef<AbortController | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
   // 2026-04-13: Voice integration — reuses Translation feature's proven hooks
   // STT: free on-device Web Speech API, TTS: OpenAI TTS-1-HD via /api/tts
   const speech = useSpeechRecognition();
   const tts = useTTS();
   const latestTranscriptRef = useRef('');
+  // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
+  const sentViaVoiceRef = useRef(false);
   const [voiceEnabled, setVoiceEnabled] = useState(() =>
     localStorage.getItem(STORAGE_KEYS.COACH_VOICE_ENABLED) === 'true'
   );
+
+  const [input, setInput] = useState("");
 
   // 2026-01-05: Notes panel state for AI Coach memory feature
   const [notes, setNotes] = useState<UserNote[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesLoading, setNotesLoading] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
 
-  // Memory integration for conversation logging (context not used, so no loadOnMount)
-  // 2026-01-06: Removed loadOnMount=true - was fetching /agent/context but result was unused (_context)
-  const { logConversation, summarizeConversation } = useMemory({
-    userId,
-    loadOnMount: false  // Only load when explicitly needed
-  });
-
-  // 2026-04-13: Sync speech transcript to ref to avoid stale closure in setTimeout
-  useEffect(() => {
-    latestTranscriptRef.current = speech.transcript;
-  }, [speech.transcript]);
-
-  // 2026-01-05: Notes CRUD functions with optimistic UI
+  // 2026-01-05: Notes CRUD functions with optimistic UI — defined before useCoachChat
+  // so the hook's onNotesSaved callback can reference fetchNotes directly.
   const fetchNotes = useCallback(async () => {
     setNotesLoading(true);
     try {
@@ -126,6 +102,48 @@ export default function RideshareCoach({
       setNotesLoading(false);
     }
   }, []);
+
+  // 2026-04-26: Audio policy — gate post-stream auto-speak on voice toggle OR mic-sourced send.
+  // Step 4 will move this into useCoachAudioState; for Step 3 it stays in the component.
+  const handleStreamComplete = useCallback((fullResponse: string) => {
+    if (!voiceEnabled && !sentViaVoiceRef.current) return;
+    const spokenText = cleanTextForTTS(fullResponse);
+    if (spokenText.length > 0) {
+      console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars`);
+      tts.speak(spokenText.slice(0, 4000), 'en');
+    }
+    sentViaVoiceRef.current = false;
+  }, [voiceEnabled, tts]);
+
+  // 2026-04-26: Step 3 — chat lifecycle (SSE stream, action tags, persistence,
+  // attachments, abort) extracted to useCoachChat. Component now owns only
+  // input field state, audio state (until step 4), and notes panel state.
+  const {
+    messages: msgs,
+    setMessages: _setMsgs,
+    isStreaming,
+    send,
+    validationErrors,
+    attachments,
+    setAttachments,
+    fileInputRef,
+    handleFileSelect,
+    messagesEndRef,
+  } = useCoachChat({
+    userId,
+    snapshotId,
+    strategyId,
+    snapshot,
+    strategyReady,
+    onStreamComplete: handleStreamComplete,
+    onNotesSaved: fetchNotes,
+  });
+  void _setMsgs;
+
+  // 2026-04-13: Sync speech transcript to ref to avoid stale closure in setTimeout
+  useEffect(() => {
+    latestTranscriptRef.current = speech.transcript;
+  }, [speech.transcript]);
 
   // 2026-03-18: FIX (C-4) — Always refetch when panel opens (was only fetching when empty)
   useEffect(() => {
@@ -203,44 +221,8 @@ export default function RideshareCoach({
     setEditContent("");
   }, [notes, editContent]);
 
-  // Handle validation errors from chat API (ready for future use)
-  const _handleValidationErrors = useCallback((errors: ValidationError[]) => {
-    setValidationErrors(errors);
-    // Clear after 5 seconds
-    setTimeout(() => setValidationErrors([]), 5000);
-  }, []);
-
   // 2026-04-14: Client-side handleEventDeactivation removed (was duplicate of server-side action tag parsing).
   // Server path (chat.js → coach-dal.js) handles DEACTIVATE_EVENT with Zod validation. See RIDESHARE_COACH.md §3.
-
-  // Log conversation when it ends (after assistant response completes)
-  const logCurrentConversation = useCallback(async () => {
-    if (msgs.length < 2) return; // Need at least one exchange
-
-    const { topic, summary } = summarizeConversation(msgs);
-    if (topic && summary) {
-      await logConversation(topic, summary);
-      console.log('[RideshareCoach] Conversation logged to memory');
-    }
-  }, [msgs, logConversation, summarizeConversation]);
-
-  // Log conversation when streaming ends
-  useEffect(() => {
-    if (!isStreaming && msgs.length >= 2) {
-      // Small delay to ensure last message is complete
-      const timer = setTimeout(() => {
-        logCurrentConversation();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isStreaming, msgs.length, logCurrentConversation]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
-  const sentViaVoiceRef = useRef(false);
 
   // 2026-04-13: Mic toggle — start/stop speech recognition, auto-send transcript
   // Same pattern as TranslationOverlay: latestTranscriptRef avoids stale closure in setTimeout
@@ -265,185 +247,18 @@ export default function RideshareCoach({
       speech.clear();
       speech.start('en');
     }
-  }, [speech, tts]);
+  }, [speech, tts, send]);
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.currentTarget.files;
-    if (!files) return;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const reader = new FileReader();
-      
-      reader.onload = (evt) => {
-        const data = evt.target?.result as string;
-        setAttachments(prev => [...prev, {
-          name: file.name,
-          type: file.type,
-          data: data
-        }]);
-      };
-      
-      reader.readAsDataURL(file);
-    }
-    
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }
-
-  // 2026-04-13: Added overrideMessage param so handleMicToggle can send transcript directly
-  // without going through the input state (avoids stale closure race condition)
-  async function send(overrideMessage?: string) {
-    const messageText = overrideMessage || input.trim();
-    if (!messageText && attachments.length === 0 || isStreaming) return;
-
+  // 2026-04-26: Submit handler — gates and clears input, then delegates to chat.send.
+  // Preserves the original semantics: empty input + no attachments → no-op (input untouched);
+  // mid-stream click → no-op (typing preserved).
+  const handleSubmit = useCallback(() => {
+    const text = input.trim();
+    if (!text && attachments.length === 0) return;
+    if (isStreaming) return;
     setInput("");
-    const filesToSend = attachments;
-    setAttachments([]);
-    setMsgs((m) => [...m, { role: "user", content: messageText || "(uploaded files)", attachments: filesToSend }, { role: "assistant", content: "" }]);
-    setIsStreaming(true);
-
-    controllerRef.current?.abort();
-    controllerRef.current = new AbortController();
-
-    try {
-      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      const headers: Record<string, string> = { "content-type": "application/json" };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      const res = await fetch(API_ROUTES.CHAT.SEND, {
-        method: "POST",
-        headers,
-        // 2026-01-06: P1-C - Reduced payload size
-        // Server uses CoachDAL to rebuild full context from IDs
-        // Only send: IDs + message + history + attachments + minimal snapshot for timezone
-        body: JSON.stringify({
-          userId,
-          message: messageText || "(analyzing files)",
-          threadHistory: msgs,  // Conversation context
-          snapshotId,           // Server fetches full snapshot via CoachDAL
-          strategyId,           // Server fetches strategy + blocks via CoachDAL
-          attachments: filesToSend,
-          // Minimal snapshot - only timezone (required) and city/state for early engagement
-          snapshot: snapshot ? {
-            city: snapshot.city,
-            state: snapshot.state,
-            timezone: snapshot.timezone,
-            hour: snapshot.hour,
-            day_part_key: snapshot.day_part_key
-          } : undefined,
-          strategyReady
-        }),
-        signal: controllerRef.current.signal,
-      });
-
-      if (!res.ok && res.headers.get("content-type")?.includes("text/event-stream") === false) {
-        try {
-          const errData = await res.json();
-          // 2026-01-06: Handle specific error codes with user-friendly messages
-          if (errData.code === 'missing_timezone') {
-            setMsgs((m) => [...m.slice(0, -1), {
-              role: "assistant",
-              content: "I need your location to give you accurate advice! Please enable GPS in your browser settings and refresh the page."
-            }]);
-          } else {
-            setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${errData.message || errData.error}` }]);
-          }
-        } catch {
-          const t = await res.text();
-          setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${t}` }]);
-        }
-        setIsStreaming(false);
-        return;
-      }
-
-      const reader = res.body!.getReader();
-      const dec = new TextDecoder();
-      let acc = "";
-      // 2026-04-13: Accumulate full response locally for TTS (avoids side-effect in setState)
-      let fullResponse = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        acc += dec.decode(value, { stream: true });
-
-        // parse SSE lines
-        for (const line of acc.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const msg = JSON.parse(line.slice(5).trim());
-            if (msg.delta) {
-              fullResponse += msg.delta;
-              setMsgs((m) => {
-                const copy = [...m];
-                const last = copy[copy.length - 1];
-                if (last?.role === "assistant") {
-                  last.content += msg.delta;
-                }
-                return copy;
-              });
-              setTimeout(scrollToBottom, 10);
-            }
-            if (msg.error) {
-              setMsgs((m) => {
-                const copy = [...m];
-                const last = copy[copy.length - 1];
-                if (last?.role === "assistant") {
-                  last.content = `Error: ${msg.error}`;
-                }
-                return copy;
-              });
-            }
-            // 2026-03-18: FIX (C-4, H-4) — Handle action results from done event
-            if (msg.actions_result) {
-              // Refresh notes panel if any notes were saved
-              if (msg.actions_result.saved > 0) {
-                fetchNotes();
-              }
-              // Wire existing validation error banner (was dead code)
-              if (msg.actions_result.errors?.length > 0) {
-                setValidationErrors(
-                  msg.actions_result.errors.map((e: string) => ({ field: 'action', message: e }))
-                );
-                setTimeout(() => setValidationErrors([]), 8000);
-              }
-            }
-          } catch (_err) {
-            // Ignore parse errors for partial SSE data
-          }
-        }
-        // keep only last partial line in buffer
-        const lastNl = acc.lastIndexOf("\n");
-        if (lastNl >= 0) acc = acc.slice(lastNl + 1);
-      }
-
-      // 2026-04-13: Auto-speak coach response after streaming completes
-      // Triggers if: voice toggle is ON, OR if the user spoke this message via mic
-      // (If you spoke your question, you want to hear the answer — no toggle needed)
-      if ((voiceEnabled || sentViaVoiceRef.current) && fullResponse) {
-        const spokenText = cleanTextForTTS(fullResponse);
-        if (spokenText.length > 0) {
-          console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars`);
-          tts.speak(spokenText.slice(0, 4000), 'en');
-        }
-        sentViaVoiceRef.current = false;
-      }
-    } catch (err: unknown) {
-      const error = err as Error;
-      if (error.name !== 'AbortError') {
-        setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Connection error: ${error.message}` }]);
-      }
-    } finally {
-      setIsStreaming(false);
-
-      // 2026-04-14: Event deactivation is handled server-side via action tag parsing in chat.js.
-      // No client-side duplicate processing needed.
-    }
-  }
+    send(text);
+  }, [input, attachments, isStreaming, send]);
 
   const suggestedQuestions = [
     "Where should I go right now?",
@@ -657,7 +472,10 @@ export default function RideshareCoach({
                   className="text-xs bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900 hover:border-blue-400 shadow-sm"
                   onClick={() => {
                     setInput(q);
-                    setTimeout(() => send(), 100);
+                    setTimeout(() => {
+                      send(q);
+                      setInput("");
+                    }, 100);
                   }}
                   data-testid={`button-suggested-${i}`}
                 >
@@ -745,7 +563,7 @@ export default function RideshareCoach({
           placeholder={speech.isListening ? "Listening..." : "Ask anything - rideshare tips, life advice, or just chat..."}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !isStreaming && send()}
+          onKeyDown={(e) => e.key === "Enter" && !isStreaming && handleSubmit()}
           disabled={isStreaming || speech.isListening}
           autoComplete="off"
           data-testid="input-chat-message"
@@ -796,7 +614,7 @@ export default function RideshareCoach({
 
         {/* Send Button */}
         <Button
-          onClick={() => send()}
+          onClick={handleSubmit}
           disabled={(!input.trim() && !speech.isListening) || isStreaming}
           size="icon"
           className="rounded-full h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
