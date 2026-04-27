@@ -4,8 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { useCoachChat } from "@/hooks/coach/useCoachChat";
-import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { useTTS } from "@/hooks/useTTS";
+import { useCoachAudioState } from "@/hooks/coach/useCoachAudioState";
 import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
@@ -63,16 +62,28 @@ export default function RideshareCoach({
   blocks: _blocks = [],
   strategyReady = false
 }: RideshareCoachProps) {
-  // 2026-04-13: Voice integration — reuses Translation feature's proven hooks
-  // STT: free on-device Web Speech API, TTS: OpenAI TTS-1-HD via /api/tts
-  const speech = useSpeechRecognition();
-  const tts = useTTS();
+  // 2026-04-27: Step 4 — audio state (read-aloud toggle, TTS, STT, derived flags)
+  // consolidated into useCoachAudioState. Component destructures the surface it
+  // actually uses for stable useCallback deps.
+  const audio = useCoachAudioState();
+  const {
+    readAloudEnabled,
+    setReadAloudEnabled,
+    isSpeaking,
+    isListening,
+    micSupported,
+    transcript,
+    speak,
+    stopSpeak,
+    warmUp,
+    startMic,
+    stopMic,
+    clearTranscript,
+  } = audio;
+
   const latestTranscriptRef = useRef('');
   // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
   const sentViaVoiceRef = useRef(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(() =>
-    localStorage.getItem(STORAGE_KEYS.COACH_VOICE_ENABLED) === 'true'
-  );
 
   const [input, setInput] = useState("");
 
@@ -103,17 +114,17 @@ export default function RideshareCoach({
     }
   }, []);
 
-  // 2026-04-26: Audio policy — gate post-stream auto-speak on voice toggle OR mic-sourced send.
-  // Step 4 will move this into useCoachAudioState; for Step 3 it stays in the component.
+  // 2026-04-26: Audio policy — gate post-stream auto-speak on read-aloud toggle OR mic-sourced send.
+  // The mic-sourced bypass preserves the "you spoke, you want to hear the answer" UX even when muted.
   const handleStreamComplete = useCallback((fullResponse: string) => {
-    if (!voiceEnabled && !sentViaVoiceRef.current) return;
+    if (!readAloudEnabled && !sentViaVoiceRef.current) return;
     const spokenText = cleanTextForTTS(fullResponse);
     if (spokenText.length > 0) {
       console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars`);
-      tts.speak(spokenText.slice(0, 4000), 'en');
+      speak(spokenText.slice(0, 4000), 'en');
     }
     sentViaVoiceRef.current = false;
-  }, [voiceEnabled, tts]);
+  }, [readAloudEnabled, speak]);
 
   // 2026-04-26: Step 3 — chat lifecycle (SSE stream, action tags, persistence,
   // attachments, abort) extracted to useCoachChat. Component now owns only
@@ -142,8 +153,8 @@ export default function RideshareCoach({
 
   // 2026-04-13: Sync speech transcript to ref to avoid stale closure in setTimeout
   useEffect(() => {
-    latestTranscriptRef.current = speech.transcript;
-  }, [speech.transcript]);
+    latestTranscriptRef.current = transcript;
+  }, [transcript]);
 
   // 2026-03-18: FIX (C-4) — Always refetch when panel opens (was only fetching when empty)
   useEffect(() => {
@@ -227,11 +238,11 @@ export default function RideshareCoach({
   // 2026-04-13: Mic toggle — start/stop speech recognition, auto-send transcript
   // Same pattern as TranslationOverlay: latestTranscriptRef avoids stale closure in setTimeout
   const handleMicToggle = useCallback(() => {
-    if (speech.isListening) {
+    if (isListening) {
       // 2026-04-13: Warm up audio element NOW (user gesture context) so TTS can
       // play later after streaming completes (browsers block delayed audio.play())
-      tts.warmUp();
-      speech.stop();
+      warmUp();
+      stopMic();
       // 300ms delay lets final onresult events commit before we read the ref
       setTimeout(() => {
         const text = latestTranscriptRef.current.trim();
@@ -239,15 +250,15 @@ export default function RideshareCoach({
           sentViaVoiceRef.current = true;
           send(text);
         }
-        speech.clear();
+        clearTranscript();
       }, 300);
     } else {
       // Interrupt coach TTS if it's speaking when driver starts talking
-      if (tts.isSpeaking) tts.stop();
-      speech.clear();
-      speech.start('en');
+      if (isSpeaking) stopSpeak();
+      clearTranscript();
+      startMic('en');
     }
-  }, [speech, tts, send]);
+  }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send]);
 
   // 2026-04-26: Submit handler — gates and clears input, then delegates to chat.send.
   // Preserves the original semantics: empty input + no attachments → no-op (input untouched);
@@ -280,19 +291,18 @@ export default function RideshareCoach({
         {/* 2026-04-13: Voice Output Toggle */}
         <Button
           onClick={() => {
-            const next = !voiceEnabled;
-            setVoiceEnabled(next);
-            localStorage.setItem(STORAGE_KEYS.COACH_VOICE_ENABLED, String(next));
-            if (next) tts.warmUp(); // Unlock audio on enable gesture
-            else tts.stop();
+            const next = !readAloudEnabled;
+            setReadAloudEnabled(next);  // hook persists to localStorage (new key)
+            if (next) warmUp(); // Unlock audio on enable gesture
+            else stopSpeak();
           }}
           size="sm"
           variant="ghost"
           className="text-white hover:bg-white/20"
-          title={voiceEnabled ? 'Mute coach voice' : 'Enable coach voice'}
+          title={readAloudEnabled ? 'Mute coach voice' : 'Enable coach voice'}
           data-testid="button-voice-toggle"
         >
-          {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          {readAloudEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
         </Button>
         {/* 2026-01-05: Notes Panel Toggle */}
         <Button
@@ -539,11 +549,11 @@ export default function RideshareCoach({
       )}
 
       {/* 2026-04-13: Listening indicator — shows real-time transcript while mic is active */}
-      {speech.isListening && (
+      {isListening && (
         <div className="px-4 py-2 bg-green-50 dark:bg-green-900/30 border-t border-green-200 dark:border-green-800 flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
           <p className="text-sm text-green-800 dark:text-green-200 flex-1 truncate">
-            {speech.transcript || 'Listening...'}
+            {transcript || 'Listening...'}
           </p>
           <button
             onClick={handleMicToggle}
@@ -560,11 +570,11 @@ export default function RideshareCoach({
           id="coach-chat-message"
           name="coach-chat-message"
           className="flex-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          placeholder={speech.isListening ? "Listening..." : "Ask anything - rideshare tips, life advice, or just chat..."}
+          placeholder={isListening ? "Listening..." : "Ask anything - rideshare tips, life advice, or just chat..."}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !isStreaming && handleSubmit()}
-          disabled={isStreaming || speech.isListening}
+          disabled={isStreaming || isListening}
           autoComplete="off"
           data-testid="input-chat-message"
         />
@@ -588,34 +598,34 @@ export default function RideshareCoach({
           size="icon"
           className="rounded-full h-10 w-10 bg-gray-500 hover:bg-gray-600 text-white"
           title="Upload files (images, PDFs, documents)"
-          disabled={isStreaming || speech.isListening}
+          disabled={isStreaming || isListening}
           data-testid="button-upload-file"
         >
           <Paperclip className="h-4 w-4" />
         </Button>
 
         {/* 2026-04-13: Mic Button — big, prominent, pulses red while listening */}
-        {speech.isSupported && (
+        {micSupported && (
           <Button
             onClick={handleMicToggle}
             size="icon"
             className={`rounded-full h-10 w-10 text-white transition-colors ${
-              speech.isListening
+              isListening
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse'
                 : 'bg-green-600 hover:bg-green-700'
             }`}
-            title={speech.isListening ? 'Stop listening & send' : 'Speak to coach'}
+            title={isListening ? 'Stop listening & send' : 'Speak to coach'}
             disabled={isStreaming}
             data-testid="button-mic-toggle"
           >
-            {speech.isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </Button>
         )}
 
         {/* Send Button */}
         <Button
           onClick={handleSubmit}
-          disabled={(!input.trim() && !speech.isListening) || isStreaming}
+          disabled={(!input.trim() && !isListening) || isStreaming}
           size="icon"
           className="rounded-full h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
           data-testid="button-send-message"
