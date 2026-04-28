@@ -12,6 +12,7 @@
 //   POST   /:id/promote-waitlist   → move oldest waitlist row to confirmed (if seat available)
 
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { getPool } from '../../db/connection-manager.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { computePrice } from '../../lib/events/pricing.js';
@@ -19,7 +20,16 @@ import { generateItinerary } from '../../lib/events/itinerary.js';
 
 const router = express.Router();
 
+const adminEventsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'too many requests' },
+});
+
 router.use(requireAuth);
+router.use(adminEventsLimiter);
 
 // GET /api/admin/events
 router.get('/', async (_req, res) => {
