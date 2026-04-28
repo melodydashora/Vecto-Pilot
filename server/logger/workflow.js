@@ -519,9 +519,9 @@ export function createWorkflowLogger(component) {
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
         if (data) {
-          console.log(`${_emojiPrefix(config.emoji)}${prefix} ${message}`, typeof data === 'object' ? JSON.stringify(data, null, 0).slice(0, 200) : data);
+          console.log('%s', `${_emojiPrefix(config.emoji)}${prefix} ${message}`, typeof data === 'object' ? JSON.stringify(data, null, 0).slice(0, 200) : data);
         } else {
-          console.log(`${_emojiPrefix(config.emoji)}${prefix} ${message}${opSuffix}`);
+          console.log('%s', `${_emojiPrefix(config.emoji)}${prefix} ${message}${opSuffix}`);
         }
       }
       emitJSON('info', component, message, { phase: phaseStr, phase_label: label });
