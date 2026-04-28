@@ -72,7 +72,7 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
       snapshot_id = ranking[0]?.snapshot_id || null;
 
       if (snapshot_id) {
-        console.log(`Action anchored to ranking's snapshot: ${snapshot_id}`);
+        console.log(`[WORKFLOW] [ACTION] Anchored to ranking snapshot: ${snapshot_id}`);
       }
     }
 
@@ -111,7 +111,7 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         await db.insert(actions).values(actionData);
-        console.log(`📊 Action logged: ${action}${block_id ? ` on ${block_id}` : ''}${dwell_ms ? ` (${dwell_ms}ms)` : ''}${attempt > 1 ? ` (retry ${attempt})` : ''}`);
+        console.log(`[WORKFLOW] [ACTION] [DB] [actions] Logged: ${action}${block_id ? ` on ${block_id}` : ''}${dwell_ms ? ` (${dwell_ms}ms)` : ''}${attempt > 1 ? ` (retry ${attempt})` : ''}`);
 
         // Bump venue_metrics.times_chosen for clicks (best-effort, non-blocking)
         if (action === 'click' && block_id) {
@@ -169,7 +169,7 @@ router.post('/', requireAuth, validate(schemas.action), async (req, res) => {
             actionData.ranking_id = null;
             try {
               await db.insert(actions).values(actionData);
-              console.log(`📊 Action logged (no ranking): ${action}${block_id ? ` on ${block_id}` : ''}`);
+              console.log(`[WORKFLOW] [ACTION] [DB] [actions] Logged (no ranking): ${action}${block_id ? ` on ${block_id}` : ''}`);
 
               const response = { 
                 success: true, 

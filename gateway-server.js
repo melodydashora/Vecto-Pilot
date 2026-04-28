@@ -171,7 +171,7 @@ process.on('unhandledRejection', (reason, promise) => {
     const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
     if (entryUrl && import.meta.url === entryUrl) {
       server.listen(PORT, '0.0.0.0', () => {
-        console.log(`🌐 [GATEWAY] HTTP listening on 0.0.0.0:${PORT}`);
+        console.log(`[GATEWAY] HTTP listening on 0.0.0.0:${PORT}`);
         console.log(`[GATEWAY] Bootstrap completed in ${Date.now() - startTime}ms`);
         startUnifiedAIMonitoring();
       });

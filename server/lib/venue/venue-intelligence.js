@@ -405,7 +405,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         !v.hours_full_week && !v.business_hours
       );
       if (venuesMissingHours.length > 0) {
-        barsLog.phase(0, `[BARS] Backfilling hours for ${venuesMissingHours.length} venues missing data`);
+        barsLog.phase(0, `Backfilling hours for ${venuesMissingHours.length} venues missing data`);
         // Rate limit: max 5 concurrent, fire-and-forget
         const batch = venuesMissingHours.slice(0, 5);
         for (const v of batch) {

@@ -453,13 +453,13 @@ router.get('/resolve', async (req, res) => {
         const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
 
         // 2026-01-07: DEBUG - Log signature comparison
-        console.log('[Location API] Secret source:', process.env.JWT_SECRET ? 'JWT_SECRET' : (process.env.REPLIT_DEVSERVER_INTERNAL_ID ? 'REPLIT_ID' : 'fallback'));
-        console.log('[Location API] Sig match:', signature === expectedSig);
+        console.log('[LOCATION] [API] Secret source:', process.env.JWT_SECRET ? 'JWT_SECRET' : (process.env.REPLIT_DEVSERVER_INTERNAL_ID ? 'REPLIT_ID' : 'fallback'));
+        console.log('[LOCATION] [API] Sig match:', signature === expectedSig);
 
         if (signature !== expectedSig) {
-          console.error('[Location API] Signature mismatch!');
-          console.error('[Location API] Expected sig prefix:', expectedSig.substring(0, 20));
-          console.error('[Location API] Received sig prefix:', signature.substring(0, 20));
+          console.error('[LOCATION] [API] Signature mismatch!');
+          console.error('[LOCATION] [API] Expected sig prefix:', expectedSig.substring(0, 20));
+          console.error('[LOCATION] [API] Received sig prefix:', signature.substring(0, 20));
           throw new Error('Invalid signature');
         }
 
@@ -469,9 +469,9 @@ router.get('/resolve', async (req, res) => {
         }
 
         authenticatedUserId = userId;
-        console.log(`🔐 [Location API] Authenticated user: ${authenticatedUserId}`);
+        console.log(`[LOCATION] [API] Authenticated user: ${authenticatedUserId}`);
       } catch (tokenErr) {
-        console.warn('[Location API] Invalid auth token:', tokenErr.message);
+        console.warn('[LOCATION] [API] Invalid auth token:', tokenErr.message);
         // Token was provided but invalid - reject to prevent orphan snapshots
         return res.status(401).json({
           error: 'INVALID_TOKEN',
@@ -490,7 +490,7 @@ router.get('/resolve', async (req, res) => {
     // If no authenticated user, reject the request
     // ═══════════════════════════════════════════════════════════════════════════
     if (!authenticatedUserId) {
-      console.warn('[Location API] No authenticated user - rejecting anonymous request');
+      console.warn('[LOCATION] [API] No authenticated user - rejecting anonymous request');
       return res.status(401).json({
         error: 'AUTHENTICATION_REQUIRED',
         message: 'You must be signed in to use this feature.',
@@ -515,7 +515,7 @@ router.get('/resolve', async (req, res) => {
     const coordSource = req.query.coord_source || (deviceId?.startsWith('dev-') ? 'dev-coords' : 'gps');
 
     if (!isFinite(lat) || !isFinite(lng)) {
-      console.error('[Location API] INVALID COORDINATES - lat/lng required for precise location resolution', {
+      console.error('[LOCATION] [API] INVALID COORDINATES - lat/lng required for precise location resolution', {
         lat,
         lng,
         isLatFinite: isFinite(lat),
@@ -528,7 +528,7 @@ router.get('/resolve', async (req, res) => {
 
     // 2026-02-01: Validate coordinate ranges
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      console.error('[Location API] COORDINATES OUT OF RANGE', { lat, lng });
+      console.error('[LOCATION] [API] COORDINATES OUT OF RANGE', { lat, lng });
       return res.status(400).json({
         error: 'COORDINATES_OUT_OF_RANGE',
         message: `Coordinates [${lat}, ${lng}] are outside valid range`,
@@ -538,7 +538,7 @@ router.get('/resolve', async (req, res) => {
 
     // 2026-02-01: Warn about suspicious coordinates (might be GPS error)
     if (lat === 0 && lng === 0) {
-      console.warn('[Location API] Suspicious coordinates (0,0) - possible GPS error');
+      console.warn('[LOCATION] [API] Suspicious coordinates (0,0) - possible GPS error');
     }
 
     locationLog.phase(1, `Resolving ${lat.toFixed(6)}, ${lng.toFixed(6)}`, OP.API);
@@ -569,7 +569,7 @@ router.get('/resolve', async (req, res) => {
         where: eq(coords_cache.coord_key, coordKey),
       });
     } catch (cacheErr) {
-      console.warn(`[Location API] Cache lookup failed (continuing with API):`, cacheErr.message);
+      console.warn(`[LOCATION] [API] Cache lookup failed (continuing with API):`, cacheErr.message);
     }
     
     if (cacheHit) {
@@ -577,7 +577,7 @@ router.get('/resolve', async (req, res) => {
       // 2026-02-01: STRICT VALIDATION - No partial cache entries allowed
       // Rule: Cache MUST have timezone, city, state, AND formatted_address
       if (!cacheHit.timezone || !cacheHit.city || !cacheHit.state || !cacheHit.formatted_address) {
-        console.warn(`[Location API] Cache entry incomplete, forcing fresh API lookup`, {
+        console.warn(`[LOCATION] [API] Cache entry incomplete, forcing fresh API lookup`, {
           hasTimezone: !!cacheHit.timezone,
           hasCity: !!cacheHit.city,
           hasState: !!cacheHit.state,
@@ -586,7 +586,7 @@ router.get('/resolve', async (req, res) => {
         });
         cacheHit = null; // Force API lookup - no partial data allowed
       } else {
-        locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state} ✓`, OP.CACHE);
+        locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state}`, OP.CACHE);
         city = cacheHit.city;
         state = cacheHit.state;
         country = cacheHit.country;
@@ -635,7 +635,7 @@ router.get('/resolve', async (req, res) => {
         formattedAddress = best.formatted_address;
 
         // 2026-02-01: DEBUG - Log what was extracted to diagnose geocode_incomplete errors
-        console.log(`[Location API] Geocode extraction for [${lat}, ${lng}]:`, {
+        console.log(`[LOCATION] [API] Geocode extraction for [${lat}, ${lng}]:`, {
           city,
           state,
           country,
@@ -649,7 +649,7 @@ router.get('/resolve', async (req, res) => {
         // If ANY required field is missing, FAIL HARD immediately
 
         if (!formattedAddress || formattedAddress.trim() === '') {
-          console.error(`[Location API] FAIL HARD: No formatted_address for coords [${lat}, ${lng}]`);
+          console.error(`[LOCATION] [API] FAIL HARD: No formatted_address for coords [${lat}, ${lng}]`);
           return res.status(502).json({
             error: 'GEOCODE_NO_ADDRESS',
             message: 'Google Geocode did not return a formatted address for these coordinates',
@@ -659,7 +659,7 @@ router.get('/resolve', async (req, res) => {
         }
 
         if (!city) {
-          console.error(`[Location API] FAIL HARD: No city extracted for coords [${lat}, ${lng}]`);
+          console.error(`[LOCATION] [API] FAIL HARD: No city extracted for coords [${lat}, ${lng}]`);
           return res.status(502).json({
             error: 'GEOCODE_NO_CITY',
             message: 'Could not extract city from geocode response',
@@ -670,7 +670,7 @@ router.get('/resolve', async (req, res) => {
         }
 
         if (!state) {
-          console.error(`[Location API] FAIL HARD: No state extracted for coords [${lat}, ${lng}]`);
+          console.error(`[LOCATION] [API] FAIL HARD: No state extracted for coords [${lat}, ${lng}]`);
           return res.status(502).json({
             error: 'GEOCODE_NO_STATE',
             message: 'Could not extract state from geocode response',
@@ -860,7 +860,7 @@ router.get('/resolve', async (req, res) => {
             where: eq(users.user_id, authenticatedUserId),
           }).catch(() => null);
           if (existingUser) {
-            console.log(`🔐 [Location API] Found user by user_id (different device): ${authenticatedUserId.slice(0, 8)}`);
+            console.log(`🔐 [LOCATION] [API] Found user by user_id (different device): ${authenticatedUserId.slice(0, 8)}`);
           }
         }
 
@@ -870,7 +870,7 @@ router.get('/resolve', async (req, res) => {
 
           // If authenticated user differs from device's current user, update the user_id
           if (authenticatedUserId && existingUser.user_id !== authenticatedUserId) {
-            console.log(`🔐 [Location API] Linking device ${deviceId.slice(0, 8)} to authenticated user ${authenticatedUserId}`);
+            console.log(`🔐 [LOCATION] [API] Linking device ${deviceId.slice(0, 8)} to authenticated user ${authenticatedUserId}`);
           }
           
           try {
@@ -939,7 +939,7 @@ router.get('/resolve', async (req, res) => {
         } else {
           // Use authenticated user_id if logged in, otherwise generate new UUID
           userId = authenticatedUserId || crypto.randomUUID();
-          console.log(`🔐 [Location API] Creating user record with ${authenticatedUserId ? 'authenticated' : 'anonymous'} user_id: ${userId.slice(0, 8)}`);
+          console.log(`🔐 [LOCATION] [API] Creating user record with ${authenticatedUserId ? 'authenticated' : 'anonymous'} user_id: ${userId.slice(0, 8)}`);
           // 2026-01-07: CRITICAL FIX - Do NOT set session_id here!
           // session_id must only be managed by login/logout/auth middleware.
           // For authenticated users, login should have already created the users row.
@@ -1091,7 +1091,7 @@ router.get('/resolve', async (req, res) => {
                 .limit(1);
               userMarket = profileResult?.market || null;
               if (userMarket) {
-                console.log(`[SNAPSHOT] 🌆 User market from profile: ${userMarket}`);
+                console.log(`[SNAPSHOT] User market from profile: ${userMarket}`);
               }
 
               // 2026-02-17: Google OAuth backfill — set market + timezone on first GPS use

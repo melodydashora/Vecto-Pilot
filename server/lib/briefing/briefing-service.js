@@ -2727,7 +2727,13 @@ async function writeSectionAndNotify(snapshotId, updates, notifyChannel) {
   try {
     const payload = JSON.stringify({ snapshot_id: snapshotId, section: notifyChannel });
     await db.execute(sql`SELECT pg_notify(${notifyChannel}, ${payload})`);
-    briefingLog.info(`📢 NOTIFY ${notifyChannel} for ${snapshotId.slice(0, 8)}`, OP.SSE);
+    // 2026-04-28: SEND-side NOTIFY emit demoted to debug — db-client.js
+    // dispatcher already emits the canonical [BRIEFING] [<sub>] [DB]
+    // [LISTEN/NOTIFY] [<channel>] line on the receive side. The two were
+    // a visible duplicate.
+    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+      briefingLog.info(`NOTIFY ${notifyChannel} for ${snapshotId.slice(0, 8)} (sent)`, OP.SSE);
+    }
   } catch (notifyErr) {
     briefingLog.warn(1, `Failed to send ${notifyChannel}: ${notifyErr.message}`, OP.SSE);
   }
@@ -3076,7 +3082,10 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     try {
       const payload = JSON.stringify({ snapshot_id: snapshotId });
       await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
-      briefingLog.info(`📢 NOTIFY briefing_ready sent for ${snapshotId.slice(0, 8)}`, OP.SSE);
+      // 2026-04-28: send-side NOTIFY demoted; dispatcher logs the canonical receive-side line.
+      if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+        briefingLog.info(`NOTIFY briefing_ready sent for ${snapshotId.slice(0, 8)}`, OP.SSE);
+      }
     } catch (notifyErr) {
       briefingLog.warn(1, `Failed to send NOTIFY: ${notifyErr.message}`, OP.SSE);
     }

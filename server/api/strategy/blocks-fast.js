@@ -250,7 +250,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
   }
 
   // Phase 2: Generate SmartBlocks (outside transaction - makes external API calls)
-  venuesLog.info(`[VENUE] Generating venue cards for ${snapshotId.slice(0, 8)}`);
+  venuesLog.info(`Generating venue cards for ${snapshotId.slice(0, 8)}`);
 
   try {
     // 2026-01-09: P0-3 FIX - Pass authenticated userId instead of null
@@ -401,7 +401,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   const snapshotId = sanitizeString(req.query.snapshotId || req.query.snapshot_id);
   // 2026-01-09: P0-3 FIX - Get authenticated userId for ownership check
   const authUserId = req.auth?.userId;
-  venuesLog.info(`[VENUE] GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
+  venuesLog.info(`GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
 
   if (!snapshotId) {
     return res.status(400).json({ error: 'snapshot_required' });
@@ -410,7 +410,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   try {
     // GATE 1: Strategy must be ready before blocks
     const { ready, strategy, status } = await isStrategyReady(snapshotId);
-    venuesLog.info(`[VENUE] Strategy check: ready=${ready}, status=${status}`);
+    venuesLog.info(`Strategy check: ready=${ready}, status=${status}`);
 
     if (!ready) {
       return res.status(202).json({
@@ -440,7 +440,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
     // User can only access blocks for their own snapshots
     if (snapshot.user_id && snapshot.user_id !== authUserId) {
-      venuesLog.warn(`[VENUE] Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
+      venuesLog.warn(`Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
 

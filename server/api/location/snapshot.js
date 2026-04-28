@@ -144,14 +144,15 @@ router.post("/", requireAuth, async (req, res) => {
       permissions: snap.permissions || null,
     };
 
-    console.log('[SNAPSHOT] 🔥 INSERTING:', {
-      lat: dbSnapshot.lat,
-      lng: dbSnapshot.lng,
-      city: dbSnapshot.city,
-      timezone: dbSnapshot.timezone,
-      hour: dbSnapshot.hour,
-      dow: dbSnapshot.dow
-    });
+    // 2026-04-28: pre-INSERT snapshot dump demoted to debug (memory 230 — chain
+    // + snapshot ID locate the row; this object dump was repeating city/lat/lng
+    // info already in the snapshot itself).
+    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+      console.log('[SNAPSHOT] [DB] [snapshots] INSERTING:', {
+        lat: dbSnapshot.lat, lng: dbSnapshot.lng, city: dbSnapshot.city,
+        timezone: dbSnapshot.timezone, hour: dbSnapshot.hour, dow: dbSnapshot.dow
+      });
+    }
 
     // Validate all required fields are present before INSERT (schema has NOT NULL constraints)
     validateSnapshotFields(dbSnapshot);
@@ -249,13 +250,15 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
       return res.status(404).json({ ok: false, error: 'SNAPSHOT_NOT_FOUND' });
     }
     
-    console.log('[SNAPSHOT]', {
-      snapshot_id: snapshot.snapshot_id,
-      city: snapshot.city,
-      weather: !!snapshot.weather,
-      aqi: snapshot.air?.aqi || null,
-      dayPart: snapshot.day_part_key
-    });
+    // 2026-04-28: snapshot-fetch debug dump demoted; chain + snapshot ID
+    // already locate the row, and this fired on every GET (noisy).
+    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+      console.log('[SNAPSHOT] GET fetched:', {
+        snapshot_id: snapshot.snapshot_id, city: snapshot.city,
+        weather: !!snapshot.weather, aqi: snapshot.air?.aqi || null,
+        dayPart: snapshot.day_part_key
+      });
+    }
     
     // Return all snapshot fields for Coach context
     // 2026-04-18: Include `status` so the client-side briefing readiness gate

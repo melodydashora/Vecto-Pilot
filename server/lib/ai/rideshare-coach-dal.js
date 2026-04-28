@@ -1701,7 +1701,7 @@ export class RideshareCoachDAL {
       if (snapshot_id && deactivation) {
         const payload = JSON.stringify({ snapshot_id, type: 'news_update' });
         await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
-        console.log(`[COACH] 📢 Sent briefing_ready notification for news update (snapshot: ${snapshot_id.slice(0, 8)})`);
+        console.log(`[RIDESHARE COACH] [DB] [LISTEN/NOTIFY] [briefing_ready] Sent notification for news update (snapshot: ${snapshot_id.slice(0, 8)})`);
       }
 
       return deactivation;
@@ -1821,7 +1821,7 @@ export class RideshareCoachDAL {
       if (snapshot_id && event) {
         const payload = JSON.stringify({ snapshot_id, type: 'event_update' });
         await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
-        console.log(`[COACH] 📢 Sent briefing_ready notification for event deactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
+        console.log(`[RIDESHARE COACH] [DB] [LISTEN/NOTIFY] [briefing_ready] Sent notification for event deactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
       }
 
       return event;
@@ -1923,7 +1923,7 @@ export class RideshareCoachDAL {
       if (snapshot_id && event) {
         const payload = JSON.stringify({ snapshot_id, type: 'event_update' });
         await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
-        console.log(`[COACH] 📢 Sent briefing_ready notification for event reactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
+        console.log(`[RIDESHARE COACH] [DB] [LISTEN/NOTIFY] [briefing_ready] Sent notification for event reactivation (snapshot: ${snapshot_id.slice(0, 8)})`);
       }
 
       return event;

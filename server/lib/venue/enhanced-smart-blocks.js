@@ -375,7 +375,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // 2026-04-14: Issue N — Require timezone per NO FALLBACKS rule.
     // UTC fallback near midnight can shift event selection by one day.
     if (!snapshot.timezone) {
-      venuesLog.warn(1, `[VENUE] snapshot.timezone is missing for ${snapshotId} — cannot compute today's date. Skipping event fetch.`);
+      venuesLog.warn(1, `snapshot.timezone is missing for ${snapshotId} — cannot compute today's date. Skipping event fetch.`);
       // Continue pipeline with empty events rather than wrong-day events
     }
     const todayDate = snapshot.timezone
