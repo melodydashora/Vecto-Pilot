@@ -19,11 +19,38 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import { requireAuth } from '../../middleware/auth.js';
 import { getLogFilePaths } from '../../logger/file-tee.js';
+// 2026-04-28: chainLog used by the production-refusal log line in
+// requireAuthFromQueryOrHeader below.
+import { chainLog } from '../../logger/workflow.js';
 
 // 2026-04-27: SSE-friendly auth wrapper. EventSource doesn't send custom
 // headers, so this wrapper accepts ?token=<bearer> query param and forwards
 // it as Authorization header before delegating to requireAuth.
+//
+// 2026-04-28: Refuse query-param token in production. Tokens in URLs leak via
+// access logs (Cloud Run, Replit, nginx), browser history, Referer headers, and
+// shared bookmarks. The HMAC tokens used here are session-permanent — there is
+// no short-lived JWT layer, only a 60-min sliding window plus a 2-hour hard cap
+// (auth.js:200-203). A continually-active SSE stream defeats the sliding window,
+// so a leaked token grants live driver PII (lat/lng, snapshot IDs, full briefing
+// + strategy text) for up to two hours. Phase 2 (tracked separately) introduces
+// an HttpOnly cookie ticket via POST /api/logs/ticket. Until that lands, prod
+// accepts only Authorization: Bearer. The viewer page's existing 3-second
+// SSE-failure fallback to polling works transparently because /api/logs and
+// /api/logs/raw use requireAuth (header-only) and the polling code path already
+// sends Authorization: Bearer (see VIEWER_HTML lines ~396-398, 443).
 function requireAuthFromQueryOrHeader(req, res, next) {
+  const isProd = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
+  if (isProd && req.query.token && !req.headers.authorization) {
+    chainLog(
+      { parent: 'HEALTH', sub: 'LOGS', callTypes: ['AUTH'], callName: 'reject-query-token' },
+      `Refused query-param token in production from ${req.ip || 'unknown'} (prevents URL-leak of HMAC session token)`
+    );
+    return res.status(401).json({
+      error: 'query-param tokens not accepted in production',
+      hint: 'use Authorization: Bearer <token> header; the mobile viewer falls back to polling automatically after a brief SSE timeout',
+    });
+  }
   if (!req.headers.authorization && req.query.token) {
     req.headers.authorization = 'Bearer ' + String(req.query.token);
   }
