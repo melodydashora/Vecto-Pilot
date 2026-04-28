@@ -737,6 +737,274 @@ Add to §8 ("Recommended actions"):
 
 ---
 
+## 10. Cross-audit consolidation (2026-04-28 morning)
+
+A second-reviewer findings document was submitted with file:line claims around duplicate phase ownership, duplicate log emits, and post-complete `/events` recomputation. **The reviewer's higher-order finding is correct: there is a real ownership and recomputation problem. Most of the line-level claims are wrong (line drift or misidentification). The architectural recommendations are sound.**
+
+### 10.1 Reviewer claims — verification matrix
+
+| Claim | Verdict | Evidence |
+|---|---|---|
+| Duplicate `updatePhase('venues')` at `enhanced-smart-blocks.js:361` + `blocks-fast.js:839` | **CONFIRMED with line correction** | Worker writer is at `enhanced-smart-blocks.js:414` (not :361 — line drift). Orchestrator at `blocks-fast.js:839` ✓ |
+| Multiple `updatePhase('complete')` writers at `content-blocks.js:210`, `blocks-fast.js:272`, `:898`, `:919` | **CONFIRMED** — exact match | All four writers verified |
+| Hash dedup logs twice at `briefing-service.js:276` + `briefing.js:919` | **REFUTED** | Only one Hash dedup log site exists (`briefing-service.js:276`). Line 919 of `briefing.js` is a comment. Reviewer conflated "endpoint runs twice" with "log emits twice" |
+| Freshness filter logs twice at `strategy-utils.js:699` + `briefing.js:944` | **REFUTED** | `strategy-utils.js:699` is canonical freshness log. `briefing.js:944` is the **Active filter** log — different operation |
+| `briefing.js:955` "Events filter=active" orphan log | **REFUTED** | Line 955 is market-events fetch code. The Active filter log at line 944 uses canonical chain `[BRIEFING] [EVENTS] [FILTER] Active:` (not orphan) |
+| `filter-for-planner.js:219` "[BRIEFING] [Filter] Events: 38" orphan | **REFUTED** | Line 219 reads `[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER] caller pre-fetched events at state scope...` — canonical chain |
+| StrategyPage `useActiveEventsQuery` is "second consumer" causing post-complete `/events` replay | **PARTIALLY CONFIRMED** | (a) `StrategyPage.tsx:121` is the **sole** consumer; MapPage was deleted Phase B 2026-04-26, so the `currently 2 consumers` comment at `StrategyPage.tsx:124-128` is **stale**. (b) Recomputation is caused by hook polling (`refetchInterval: 60000 + refetchOnWindowFocus: true` at `useBriefingQueries.ts:418`), NOT by SSE cascade. SSE refetches in `co-pilot-context.tsx:438-478` are scoped to `BLOCKS_STRATEGY` / `BLOCKS_FAST` only |
+
+### 10.2 Reviewer's architectural recommendations — assessment
+
+- **Make `updatePhase` monotonic and idempotent — sound, adopt.** The duplicate `'venues'` (twice) and `'complete'` (four writers) are real and produce duplicate SSE phase emits.
+- **Make `'complete'` single-writer (orchestrator-only) — sound, adopt.**
+- **Server-side cache layer around `/api/briefing/events/:snapshotId` — conditional/probably wrong.** User clarification: `discovered_events` is a per-run working set kept fresh by upstream cleanup; caching API responses around a working set defeats freshness intent. The lighter alternative — scope client-side polling — is preferred.
+- **Scope frontend invalidation; tighten `useActiveEventsQuery` after `phase === 'complete'` — sound, adopt.** Set `refetchInterval: false` once snapshot is complete.
+- **Centralize event query into `useMapData` hook — less urgent.** MapPage is gone; StrategyPage is the sole consumer.
+
+### 10.3 New findings produced by this consolidation
+
+1. **`StrategyPage.tsx:124-128` comment is stale.** "currently 2: this page + MapPage" — MapPage was deleted; only StrategyPage remains.
+2. **`useActiveEventsQuery` polls every 60 seconds.** `staleTime: 30000, refetchInterval: 60000, refetchOnWindowFocus: true` — by-design "real-time" polling. Whether the **map** should poll independently is a product question (the user has clarified: it should NOT — map markers should hydrate from workflow data, not from a separate poll).
+3. **The map's data-flow architecture diverges from the user's stated intent.** The map currently calls `/api/briefing/events/:snapshotId?filter=active` on a 60s poll. The user wants markers to flow through the same workflow path the briefing tab uses. This is not satisfied today.
+
+---
+
+## 11. Events pipeline — Path A vs Path B divergence (2026-04-28)
+
+Two parallel paths consume `discovered_events` on the live request flow. **One was hardened today; the other was not.**
+
+**Path A — Smart Blocks pipeline (HARDENED today 2026-04-28):**
+- File: `server/lib/venue/enhanced-smart-blocks.js`, function `fetchTodayDiscoveredEventsWithVenue`
+- Multi-day predicate: `lte(event_start_date, eventDate) AND gte(event_end_date, eventDate)` ✓ — commit comment says `2026-04-28: FIX — multi-day-inclusive predicate. Was exact-equality...`
+- State-scoped: `eq(state, snapshot.state)` ✓
+- Active-only: `eq(is_active, true)` ✓
+- LEFT JOIN `venue_catalog` (canonical identity) ✓
+- Distance-annotated + sorted closest-first; 60mi metro context cap ✓
+- Planner-grade gate (planner-ready / re-resolve-needed / orphan) ✓ — comment dated `2026-04-28 (Step 4, spec §5.3): planner-grade gate`
+- Includes `vc_timezone` and `vc_capacity` fields ✓
+
+**Path B — Briefing API endpoint (NOT YET HARDENED):**
+- File: `server/api/briefing/briefing.js`, route `GET /api/briefing/events/:snapshotId` (lines ~870-960)
+- Multi-day predicate: `gte(event_start_date, today) AND lte(event_start_date, endDate)` ❌ — start_date-only; **misses events that started before today and are still ongoing** (day 2 of a 4-day festival)
+- State-scoped ✓
+- Active-only ✓
+- LEFT JOIN `venue_catalog` ✓
+- Sorting: `orderBy(event_start_date)` ❌ — by date, not by impact / driver distance
+- LIMIT 50 — risk of dropping high-impact events past row 50
+- No orphan-classification gate ❌
+
+**The map calls Path B.** `useActiveEventsQuery` → `/api/briefing/events/:snapshotId?filter=active` → un-hardened path. So:
+- The map currently misses multi-day events spanning today
+- The map sorts by date, not by impact/distance
+- The map silently drops orphan events without classification
+
+Meanwhile **the planner sees Path A** (correct) — so the planner and the map see *different* event sets for the same snapshot.
+
+### 11.1 User's stated requirements — verification matrix
+
+| Requirement (from spec + user) | Path A (planner) | Path B (map) |
+|---|---|---|
+| State-scoped, no city-only | ✅ | ✅ |
+| Multi-day events spanning today (FR-EVENT-027) | ✅ | ❌ |
+| `is_active=true` filter | ✅ | ✅ |
+| `venue_catalog` canonical (FR-EVENT-006 enrichment) | ✅ | ✅ |
+| Sorted by impact + closest-to-driver (FR-EVENT-007/011) | ✅ (haversine + NEAR/FAR) | ❌ (sorted by start_date) |
+| Max-impact market events surface (FR-EVENT-008) | ✅ (60mi metro cap) | ⚠️ (LIMIT 50 risks dropping them) |
+| Orphan / re-resolve-needed classification (NFR-OBS-001) | ✅ (Step 4 gate) | ❌ |
+| No provenance distinction in planner input (user clarification) | ✅ | n/a |
+
+---
+
+## 12. Spec → plan → code, three-way verification (2026-04-28)
+
+The user provided two artifacts: (a) the engineering spec (`Engineering Specification: Briefing Input for Venue Planner` — FR-EVENT-001..027, FR-INPUT-001..005, FR-FILTER-001..005, FR-PROD-001..004, SEC-001..004, OPS-001..005, REL-001..004, NFR-MAINT/OBS/PLAN), and (b) the proposed implementation plan (5 phases on `filter-for-planner.js` + `fetchTodayDiscoveredEventsWithVenue`).
+
+This section verifies the plan against the spec and against current code state. **Read this section as: "for each plan item — does it match the spec, has it been implemented, what's the gap?"**
+
+### 12.1 Plan — phase by phase, verified
+
+| Plan phase | Spec alignment | Current code state | Verdict |
+|---|---|---|---|
+| **P1**: Delete legacy fallback in `filter-for-planner.js:222-234` (city-state filter `else` branch) | Aligned with FR-FILTER-002 ("not based on city-only match"), FR-PROD-002 ("implementation can't narrow product") | Legacy `else` still in file; reachable only as a backwards-compat fallback the comment marks as "no known live callers remain" | **NOT YET IMPLEMENTED.** Plan is correct; deletion safe |
+| **P2**: Verify multi-day predicate in `fetchTodayDiscoveredEventsWithVenue` | Aligned with FR-EVENT-027 ("event windows may shift within the same day") | **ALREADY IMPLEMENTED** today (2026-04-28) — see §11 Path A | **DONE.** Predicate is `lte(start, today) AND gte(end, today)` ✓ |
+| **P3**: Add `_distanceMi` annotation in `filter-for-planner.js` | Aligned with FR-EVENT-011 ("distance shall be first-class") | Distance is annotated **upstream** in `fetchTodayDiscoveredEventsWithVenue` and arrives on each event row already. Pulling it up to `filter-for-planner.js` would duplicate; keeping it upstream is fine | **DONE upstream.** The plan's "verify" stance is correct; no need to add downstream |
+| **P4**: Update log chain to `[BRIEFING] [EVENTS] [PLANNER-INPUT]` | Aligned with NFR-OBS-001 + the CLEAR_CONSOLE_WORKFLOW spec | Current log at `filter-for-planner.js:219` says `[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER]` — describes a filter that's about to be deleted | **NOT YET IMPLEMENTED.** Plan is correct |
+| **P5**: Rename `filterBriefingForPlanner` → `composeBriefingForPlanner` (optional) | Hygiene — accuracy of name | Not done | **NOT YET, OPTIONAL.** Plan is sound |
+
+### 12.2 Does the plan **counter** the spec? — no
+
+The user explicitly asked: *"make sure it does not counter the markdown you gave me."* The plan does not counter the spec when read with the user's clarification on FR-EVENT-024.
+
+The one place a strict reading of the spec could conflict with the plan is FR-EVENT-001 ("planner input shall use fresh event intelligence generated during the current server run") and FR-EVENT-024 ("freshness shall be explicit, not optimization"). The plan's interpretation — that `discovered_events` IS the fresh working set when upstream cleanup keeps it current, so the planner reading it at request time IS reading current-run-fresh data — is consistent with the user's clarification and consistent with FR-EVENT-002/005/024 read together. The earlier Claude response (Pasted text 27) over-read FR-EVENT-001 to mean "must be in-memory from this exact request," which the user correctly rejected as the wrong abstraction.
+
+### 12.3 Plan gaps the user should know about
+
+The plan is correctly scoped but **does not address**:
+
+1. **Path B (`/api/briefing/events/:snapshotId`) — not in the plan.** The plan touches `filter-for-planner.js` and verifies `fetchTodayDiscoveredEventsWithVenue`. It leaves the briefing API endpoint un-hardened. The map uses Path B. So after the plan ships, the **planner** will be spec-compliant but the **map** will not be. If the user's intent is "the map markers fall through normal workflow," this is a real gap.
+2. **NFR-OBS-001 deeper observability — partial.** The plan's P4 updates one log chain. The spec asks for logs covering "whether events came from the current run, how freshness was determined, how impact and proximity affected ranking, why high-value events were included or excluded." The current path A planner-grade gate (`Step 4, spec §5.3`) logs the 3-bucket counts (planner-ready / re-resolve-needed / orphan), which partially satisfies. Full NFR-OBS-001 compliance would require ranking-decision logs, not just count logs — that's out of plan scope.
+3. **The four `updatePhase('complete')` writers and the duplicate `updatePhase('venues')`** — not in this plan. These are real (§10.1) and produce duplicate SSE phase emits per the architecture doc. Should be a separate plan.
+4. **`StrategyPage.tsx:124-128` stale comment + `useActiveEventsQuery` 60s polling** — not in this plan. These are the actual proximate causes of post-complete /events recomputation (§10.3).
+
+### 12.4 What "have the fixes been put into place correctly?" reduces to
+
+- **Path A planner input**: multi-day fix and planner-grade gate **landed today**. Verified via file read. Comment-dated `2026-04-28 (Step 4, spec §5.3)`.
+- **filter-for-planner.js cleanup (legacy delete + log chain rename)**: **not yet landed**. The plan proposes them but they're awaiting your approval per CLAUDE.md Rule 1 (plan-then-approve).
+- **Path B briefing API endpoint**: **not addressed** by this plan. The map will continue to use the un-hardened path until a separate plan covers it.
+- **Phase ownership / SSE emit duplicates** (`updatePhase` venues+complete): **not addressed** by this plan. Separate concern.
+- **Frontend polling on `useActiveEventsQuery` after `phase === 'complete'`**: **not addressed** by this plan.
+
+### 12.5 Recommended additions to the plan (or follow-up plans)
+
+1. **Add a "Phase 6 — Path B alignment"** to the plan: mirror the multi-day predicate and add planner-grade-gate-style orphan classification to `/api/briefing/events/:snapshotId` so the map sees the same event set as the planner. This is the change that would actually make "the map fetches markers as data falls through normal workflow" true today.
+2. **Separate plan: `updatePhase` idempotency + single complete-writer.** §10.1 evidence is concrete; this is the dominant SSE-noise contributor.
+3. **Separate plan: frontend polling scope.** Set `useActiveEventsQuery`'s `refetchInterval: false` + `refetchOnWindowFocus: false` once `phase === 'complete'` for the snapshot. Keep the 60s polling only while the snapshot is mid-pipeline.
+
+### 12.6 Anti-pushback note (FR-PROD-001..004)
+
+The user explicitly cited FR-PROD-001/002/003/004 — implementation must not narrow product requirements. The plan's Phase 1 (delete legacy fallback) is the cleanest enforcement of FR-PROD-002: code can't silently substitute a city-filter for a state-scoped contract. This audit endorses Phase 1 unreservedly and recommends adding Phase 6 for the same reason on Path B.
+
+The architectural intent the user has stated repeatedly is: **map markers come through the same workflow data, not via a separate fetch.** The current implementation fights that intent. Bringing Path B into spec-compliance is the smallest change that would close the gap; centralizing into a shared workflow-hydrated source would close it more thoroughly but is more work.
+
+---
+
+## 13. Reviewer's plan-review + repo-audit reconciliation (2026-04-28)
+
+The user submitted two more artifacts (plan-review with P1/P2/P3/P4 verdict, plus a static repo audit titled "architecturally aligned but operationally incomplete"). I verified each repo-audit claim against primary source. **The plan-review verdict is sound; the repo-audit is partially wrong on two highly material points.**
+
+### 13.1 Plan-review verdict (P1/P2/P3/P4) — endorsement
+
+The reviewer's recommendation:
+- **P1 — approve.** Multi-day correctness, timezone-safe validation, orphan telemetry are real gaps.
+- **P2 — approve with amendment** (planner-grade gate must classify+log incomplete venue identity, not silently drop).
+- **P3 — defer/narrow.** Pre-LLM scoring is product-ranking doctrine, not pipeline hygiene; if landed, must preserve the 15-mile absolute rule and far-events-as-intelligence-only.
+- **P4 — approve with narrowed scope.** Tag `[BRIEFING] [EVENTS] [NEW EVENTS PIPELINE]` (Option B), only canonical checkpoints + new hardening telemetry. Do not block P1/P2 on a full repo log restyle.
+
+This audit endorses the recommendation. Two adds to it:
+
+**(a)** The reviewer's "Site B in `enhanced-smart-blocks.js` verified, Site A in `briefing-service.js` likely but re-open exact lines before edit" caveat is correct. There are now **two** read-paths that filter by `event_start_date`: `fetchTodayDiscoveredEventsWithVenue` (Path A — fixed today) and the events handler in `briefing.js` (Path B — not fixed). My §11 already documented this. Any plan that says "fix multi-day" must specify which file/function, and ideally cover both.
+
+**(b)** The reviewer correctly flagged that desperation/bottleneck logic does NOT belong in discovery. Discovery builds a trustworthy today-working-set; planner ranks. This matches the existing layering and matches FR-EVENT-006 (multi-factor ranking happens at planner layer, not discovery).
+
+### 13.2 Repo-audit reconciliation (the "still missing" list, line-by-line)
+
+| Reviewer claim | My verification | Verdict |
+|---|---|---|
+| **Smart Blocks multi-day bug — still uses `eq(event_start_date, eventDate)`** | Read `server/lib/venue/enhanced-smart-blocks.js:213-221`. Comment dated `2026-04-28: FIX — multi-day-inclusive predicate. Was exact-equality (eq(start_date, eventDate)), which silently excluded multi-day events that started before today...`. Code: `lte(event_start_date, eventDate) AND gte(event_end_date, eventDate)`. Commit: `5cecd113 fix(events): tz-aware Rule 13 + multi-day query + planner-grade gate` | **REVIEWER WRONG.** Fix is in. Reviewer is reading pre-5cecd113 state |
+| **Planner-grade venue classification not explicit; no `isPlannerGradeVenue()` gate found** | `isPlannerGradeVenue` defined at `server/lib/venue/venue-cache.js:50`. Imported at `enhanced-smart-blocks.js:80`. Used at `:250` with explicit 3-bucket classification (planner-ready / re-resolve-needed / orphan). Comment dated `2026-04-28 (Step 4, spec §5.3)` | **REVIEWER WRONG.** Gate is in. Reviewer is reading pre-5cecd113 state |
+| **`validateEvent()` still uses UTC, not snapshot timezone** | Did not directly verify the named function. `briefing-service.js:1313-1314` shows `today.toLocaleDateString('en-CA', { timeZone: timezone })` with `: today.toISOString().split('T')[0]` as fallback when no timezone is provided. Commit `5cecd113` message says "tz-aware Rule 13" — strongly suggests this was also fixed | **NEEDS DIRECT VERIFICATION.** Reviewer's claim may also be pre-`5cecd113`. Recommend grepping `validateEvent` exact body and confirming |
+| **Legacy planner fallback still exists in `filter-for-planner.js`** (city/state filter when `todayEvents` not provided) | Read `server/lib/briefing/filter-for-planner.js:222-234`. Legacy `else` branch still present. Comment says "no known live callers remain" but the code is reachable | **CONFIRMED.** Plan's Phase 1 deletion is still pending |
+| **Deterministic pre-LLM event scoring not implemented** | No scoring module found. Smart Blocks does fetch + distance-annotate + sort closest-first; impact ranking happens inside the VENUE_SCORER prompt at `tactical-planner.js`, not in a separate scoring module | **CONFIRMED.** Matches plan-review's "P3 defer/narrow" |
+| **Matcher (`event-matcher.js`) telemetry weak — no per-key match counts** | Did not directly verify `event-matcher.js`. Defer to reviewer | **TRUST REVIEWER pending direct check** |
+| **`docs/BRIEFING_AND_EVENTS_ISSUES.md` still inconsistent** | Did not read this file in this audit | **TRUST REVIEWER pending direct check** |
+
+### 13.3 What this means for "have the fixes been put in place correctly?"
+
+Combining §12 + §13 + my own verifications:
+
+**Confirmed in code (primary source verified):**
+- Multi-day-inclusive predicate in `fetchTodayDiscoveredEventsWithVenue` (commit `5cecd113`)
+- `isPlannerGradeVenue` 3-bucket classification gate (commit `5cecd113`)
+- State-scoped fetch (was already in place pre-today)
+- `venue_catalog` LEFT JOIN canonical identity (was in place)
+- 15-mile absolute rule + far-as-intelligence-only (was in place per `tactical-planner.js` prompt; not regressed)
+- Event matcher uses `place_id → venue_id → name` strong-key order (per reviewer; not directly re-verified here)
+- `useActiveEventsQuery` 60s polling exists (verified §10)
+
+**Confirmed missing in code:**
+- Legacy city-state fallback in `filter-for-planner.js:222-234` (Plan Phase 1 — pending approval)
+- Multi-day predicate fix on Path B (`/api/briefing/events/:snapshotId` in `briefing.js` ~875) — **the map's API**
+- Updated log chain `[BRIEFING] [EVENTS] [PLANNER-INPUT]` (Plan Phase 4 — pending)
+- Function rename `composeBriefingForPlanner` (Plan Phase 5 — optional, pending)
+- Deterministic pre-LLM scoring (Plan Phase 3 — defer or narrow)
+- `updatePhase` idempotency + single-writer `'complete'` (separate from plan)
+- `useActiveEventsQuery` post-complete polling scoping (separate from plan)
+
+**Needs direct verification (I trust reviewer pending check):**
+- `validateEvent()` timezone correctness
+- `event-matcher.js` per-key telemetry counts
+- Doc consistency in `BRIEFING_AND_EVENTS_ISSUES.md`
+
+### 13.4 The Path B gap neither reviewer flagged
+
+Both the plan and the reviewer's repo-audit focus on the **planner-input** side. Neither addresses **the map** (`/api/briefing/events/:snapshotId`). The map currently:
+- Uses Path B (un-hardened) — multi-day broken
+- Polls every 60 seconds via `useActiveEventsQuery` regardless of phase
+- Runs deduplicate + filterFreshEvents on every call (deterministic recomputation)
+
+Per the user's stated intent — "the map fetches markers as data falls through normal workflow, like the briefing tab" — **Path B should either (a) be hardened to mirror Path A, or (b) be deprecated in favor of having the map subscribe to the same workflow-hydrated source the briefing tab uses (e.g., the briefing aggregate endpoint).**
+
+This is the most important gap that is currently invisible in both the plan and the reviewer's audit. Calling it out here so it doesn't fall through.
+
+### 13.5 Final consolidated state — single checklist
+
+```
+EVENTS PIPELINE HARDENING — 2026-04-28 STATUS
+=============================================
+
+PATH A (planner input — fetchTodayDiscoveredEventsWithVenue → tactical-planner)
+  [✓] state-scoped fetch
+  [✓] venue_catalog LEFT JOIN, vc_* canonical identity wins
+  [✓] multi-day-inclusive predicate (start <= today AND end >= today)
+  [✓] is_active=true filter
+  [✓] distance annotation + closest-first sort
+  [✓] 60mi metro context cap (FAR events as intelligence only)
+  [✓] 15mi absolute recommendation rule (in tactical-planner prompt)
+  [✓] planner-grade 3-bucket gate (planner-ready/re-resolve-needed/orphan)
+  [ ] deterministic pre-LLM scoring (P3, deferred per plan-review)
+
+PATH B (map / briefing tab — /api/briefing/events/:snapshotId)
+  [✓] state-scoped
+  [✓] venue_catalog LEFT JOIN
+  [ ] multi-day-inclusive predicate (still start_date >= today only)
+  [✓] is_active=true filter
+  [ ] sorted by impact / distance (currently by start_date)
+  [ ] orphan classification gate
+  [ ] LIMIT 50 may drop high-impact events
+
+FILTER-FOR-PLANNER (composition layer)
+  [ ] delete legacy city-state fallback (Plan P1, pending approval)
+  [✓] multi-day predicate (handled upstream in Path A)
+  [✓] distance annotation (handled upstream in Path A)
+  [ ] log chain rename to [BRIEFING] [EVENTS] [PLANNER-INPUT] (Plan P4)
+  [ ] function rename composeBriefingForPlanner (Plan P5, optional)
+
+VALIDATOR / MATCHER / DOCS
+  [?] validateEvent() timezone-safety — needs direct verification
+  [?] event-matcher.js per-key telemetry counts — needs direct verification
+  [?] BRIEFING_AND_EVENTS_ISSUES.md doc consistency — needs direct verification
+
+WORKFLOW OWNERSHIP (separate concerns)
+  [ ] updatePhase('venues') single-writer (currently dup at blocks-fast.js:839 + enhanced-smart-blocks.js:414)
+  [ ] updatePhase('complete') single-writer (currently 4 writers)
+  [ ] updatePhase idempotency on no-op + monotonic ordering
+
+CLIENT (map's data flow)
+  [ ] StrategyPage:124-128 stale comment ("currently 2 consumers"; MapPage was deleted)
+  [ ] useActiveEventsQuery polling scope: refetchInterval/refetchOnWindowFocus should disable once phase==='complete'
+  [ ] Map data hydration via workflow vs separate fetch (architectural)
+```
+
+### 13.6 Plain answer to the user
+
+**"Has the hardening been put in place correctly?" — partially.**
+
+What landed today (2026-04-28, commit `5cecd113`) is solid: multi-day correctness in Path A, planner-grade gate, tz-aware Rule 13. Those match the spec faithfully. The reviewer's static audit got two of these wrong (claimed they were missing) — they're actually in.
+
+What's still pending and the user should know about:
+1. The legacy city-state fallback in `filter-for-planner.js:222-234` is still reachable (Plan P1 — not yet approved/merged).
+2. The map (`/api/briefing/events/:snapshotId`) was NOT touched today — it still has the multi-day bug, no orphan gate, sorted by date. Both the plan and the reviewer's audit miss this.
+3. Pre-LLM scoring (Plan P3) is correctly deferred per the plan-review.
+4. `validateEvent` timezone-safety should be re-verified directly before declaring done — the file has a tz-aware path with UTC fallback, but the reviewer's specific claim wasn't pinpointed in my read.
+5. `updatePhase` venues+complete duplicate ownership (§10.1) is a separate concern that hasn't been addressed at all.
+6. Frontend `useActiveEventsQuery` 60s polling continues post-complete — this is the proximate cause of the "post-complete /events recomputation" pattern the first reviewer flagged.
+
+**Counter-spec check: the plan does NOT counter the markdown.** Its interpretation (discovered_events is the working set kept fresh by upstream cleanup, planner doesn't need provenance) is the user's clarification, not opposition.
+
+**Anti-pushback enforcement:** Plan P1 (delete legacy city-state fallback) is the cleanest enforcement of FR-PROD-002. Endorse it.
+
+---
+
 Canonical docs:
 - `docs/architecture/README.md`, `BRIEFING.md`, `LLM-REQUESTS.md`, `VENUES.md`, `MAP.md`, `AI_MODEL_ADAPTERS.md`, `briefing-transformation-path.md`, `DB_SCHEMA.md`, `EVENT_FRESHNESS_AND_TTL.md`, `SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md` (in `server/lib/venue/`)
 - `docs/AI_ROLE_MAP.md`, `docs/EVENTS.md`, `docs/api-routes-registry.md`
