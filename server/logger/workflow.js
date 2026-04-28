@@ -450,14 +450,17 @@ const PHASE_LABELS = {
   'SNAPSHOT:1': 'Create Record',
   'SNAPSHOT:2': 'Enrich (Airport/Holiday)',
 
-  // TRIAD phases (use ROLE names, not model names)
+  // STRATEGY phases (legacy "TRIAD:N" keys retained for back-compat — values
+  // are user-facing emit text and match the canonical role names per
+  // memory 224/229. SmartBlocks term retired 2026-04-28 per Melody —
+  // canonical name is VenueComponentCard.)
   'TRIAD:1': 'Strategy|Strategist',
   'TRIAD:2': 'Strategy|Briefer',
   'TRIAD:3': 'Strategy|NOW',
-  'TRIAD:4': 'Venue|SmartBlocks',
+  'TRIAD:4': 'Venue|VenueComponentCard',
 
   // VENUES phases
-  'VENUES:1': 'Tactical Planner',
+  'VENUES:1': 'Planner',
   'VENUES:2': 'Routes API',
   'VENUES:3': 'Places API',
   'VENUES:4': 'DB Store',

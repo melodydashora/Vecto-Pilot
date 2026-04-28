@@ -91,7 +91,7 @@ async function getDeactivatedNewsHashes(userId) {
 
     return new Set(deactivations.map(d => d.news_hash));
   } catch (error) {
-    console.error('Consolidator: getDeactivatedNewsHashes error:', error);
+    console.error('Strategist: getDeactivatedNewsHashes error:', error);
     return new Set();
   }
 }
@@ -124,7 +124,7 @@ async function filterDeactivatedNews(newsData, userId) {
   });
 
   if (filteredItems.length < originalCount) {
-    triadLog.phase(3, `Consolidator: News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
+    triadLog.phase(3, `Strategist: News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
   }
 
   // Return in the same format as received
@@ -1328,7 +1328,7 @@ async function batchLookupVenueHours(venueNames, timezone) {
  */
 export async function runImmediateStrategy(snapshotId, options = {}) {
   const startTime = Date.now();
-  triadLog.phase(3, `Consolidator: Starting immediate strategy for ${snapshotId.slice(0, 8)}`);
+  triadLog.phase(3, `Strategist: Starting immediate strategy for ${snapshotId.slice(0, 8)}`);
 
   try {
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
@@ -1416,7 +1416,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    triadLog.done(3, `Consolidator: Immediate strategy saved (${result.strategy.length} chars)`, totalDuration);
+    triadLog.done(3, `Strategist: Immediate strategy saved`, totalDuration);
 
     return {
       ok: true,

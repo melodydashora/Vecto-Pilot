@@ -250,7 +250,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
   }
 
   // Phase 2: Generate SmartBlocks (outside transaction - makes external API calls)
-  venuesLog.info(`[VENUE] Generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
+  venuesLog.info(`[VENUE] Generating venue cards for ${snapshotId.slice(0, 8)}`);
 
   try {
     // 2026-01-09: P0-3 FIX - Pass authenticated userId instead of null
@@ -268,11 +268,11 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
 
     if (newRanking) {
-      venuesLog.done(4, `SmartBlocks generated for ${snapshotId.slice(0, 8)}`);
+      venuesLog.done(4, `Venue cards generated for ${snapshotId.slice(0, 8)}`);
       await updatePhase(snapshotId, 'complete', { phaseEmitter: options.phaseEmitter });
       return { ranking: newRanking, generated: true, error: null };
     } else {
-      venuesLog.warn(4, `SmartBlocks generated but no ranking found`);
+      venuesLog.warn(4, `Venue cards generated but no ranking found`);
       return { ranking: null, generated: true, error: 'ranking_not_created' };
     }
   } catch (err) {
@@ -684,7 +684,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         });
       }
       // Strategy is ready but blocks don't exist yet - generate them
-      venuesLog.info(`Strategy status=${currentStrategy.status}, generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
+      venuesLog.info(`Strategy status=${currentStrategy.status}, generating venue cards for ${snapshotId.slice(0, 8)}`);
     }
 
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
@@ -846,7 +846,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // =========================================================================
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 4 - PRE-SMARTBLOCKS
         // =========================================================================
-        triadLog.phase(4, `[VERIFY] Sending to VENUE_SCORER (Tactical Planner):`);
+        triadLog.phase(4, `[VERIFY] Sending to Planner:`);
         triadLog.phase(4, `[VERIFY]   • snapshot_id: ${snapshotId.slice(0, 8)}`);
         triadLog.phase(4, `[VERIFY]   • snapshot.lat/lng: ${snapshot.lat?.toFixed(6)}, ${snapshot.lng?.toFixed(6)}`);
         triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${strategyRow?.strategy_for_now ? `${strategyRow.strategy_for_now.length} chars` : 'NULL'}`);
@@ -959,7 +959,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           }
 
           if (ranking) {
-            venuesLog.done(4, `SmartBlocks generated for existing job ${snapshotId.slice(0, 8)}`);
+            venuesLog.done(4, `Venue cards generated for existing job ${snapshotId.slice(0, 8)}`);
           }
         }
 

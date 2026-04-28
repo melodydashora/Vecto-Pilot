@@ -801,7 +801,7 @@ Return ONLY valid JSON:
  */
 export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, holiday = null, timezone = null, localIso = null }) {
   try {
-    venuesLog.start(`SmartBlocks for ${city}, ${state} (${radiusMiles} mile radius)`);
+    venuesLog.start(`Venue cards for ${city}, ${state} (${radiusMiles} mile radius)`);
 
     // Run venue discovery and traffic intelligence in parallel
     const venuePromise = discoverNearbyVenues({ lat, lng, city, state, radiusMiles, holiday, timezone, localIso });

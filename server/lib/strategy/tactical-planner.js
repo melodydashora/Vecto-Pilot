@@ -101,7 +101,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
   const prefs = await loadDriverPreferences(snapshot?.user_id);
   const hasPrefs = prefs.profile_loaded;
 
-  venuesLog.info(`Tactical Planner Input: "${strategy.slice(0, 80)}..." at ${driverAddress}${hasPrefs ? ` (prefs: ${prefs.vehicle_class}, deadhead ${prefs.max_deadhead_mi}mi)` : ' (no prefs)'}`);
+  venuesLog.info(`Planner input: "${strategy.slice(0, 80)}..." at ${driverAddress}${hasPrefs ? ` (prefs: ${prefs.vehicle_class}, deadhead ${prefs.max_deadhead_mi}mi)` : ' (no prefs)'}`);
 
   // Get day name from dow
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -379,7 +379,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     const parsed = safeJsonParse(rawResponse.output);
 
     if (!parsed) {
-      console.error('[VENUES 1/4 - Tactical Planner] Failed to parse JSON response');
+      console.error('[VENUE] [AI] [Planner] Failed to parse JSON response');
       throw new Error('Invalid JSON response from AI');
     }
 
@@ -387,7 +387,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     const validation = GPT5ResponseSchema.safeParse(parsed);
 
     if (!validation.success) {
-      console.error('[VENUES 1/4 - Tactical Planner] Validation failed:', validation.error.format());
+      console.error('[VENUE] [AI] [Planner] Validation failed:', validation.error.format());
       throw new Error(`AI response validation failed: ${validation.error.message}`);
     }
 
@@ -579,7 +579,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     return normalized;
 
   } catch (error) {
-    console.error('[VENUES 1/4 - Tactical Planner] Error:', error.message);
+    console.error('[VENUE] [AI] [Planner] Error:', error.message);
     throw error;
   } finally {
     clearTimeout(timeout);
