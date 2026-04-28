@@ -2060,7 +2060,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // This ensures: 1) No race conditions, 2) model_name preserved, 3) Full snapshot context available
 
     // Call parallel providers directly instead of enqueueing job
-    console.log(`[LOCATION] 📍 Snapshot created: ${snapshotV1.snapshot_id}`, {
+    console.log('[LOCATION] 📍 Snapshot created: %s', snapshotV1.snapshot_id, {
       hasAddress: !!snapshotV1.resolved?.formattedAddress,
       hasCity: !!snapshotV1.resolved?.city,
       address: snapshotV1.resolved?.formattedAddress,
