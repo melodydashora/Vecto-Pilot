@@ -1200,7 +1200,7 @@ Full transparency. Maximum insight.
           }
         } catch (err) {
           // 2026-04-05: SECURITY — sanitize att.name to prevent format string injection (CodeQL)
-          console.warn(`[COACH] Failed to process attachment "${safeName}":`, err.message);
+          console.warn('[COACH] Failed to process attachment "%s": %s', safeName, err.message);
           userParts.push({ text: `[Attachment: ${safeName} — could not process]` });
         }
       }
