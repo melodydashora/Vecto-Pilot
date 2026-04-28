@@ -205,10 +205,40 @@ export const PHASE_EXPECTED_DURATIONS = {
 // Total expected pipeline duration (sum of all phases)
 export const TOTAL_EXPECTED_DURATION = Object.values(PHASE_EXPECTED_DURATIONS).reduce((a, b) => a + b, 0);
 
+// 2026-04-28: Canonical pipeline phase order, used by updatePhase for monotonic
+// ordering enforcement. Strategy phases come first (starting → immediate), then
+// the SmartBlocks tail (venues → complete). Any updatePhase() call attempting to
+// move BACKWARD in this list is refused with a WARN log — that's how silent
+// duplicate emits (4 'complete' writers, 2 'venues' writers — see audit §10.1)
+// stop being a problem: the second write idempotently no-ops instead of
+// re-emitting an SSE phase_change event the client has already processed.
+const PIPELINE_PHASE_ORDER = [
+  'starting',
+  'resolving',
+  'analyzing',
+  'immediate',
+  'venues',
+  'routing',
+  'places',
+  'verifying',
+  'enriching',
+  'complete',
+];
+
 /**
  * Update pipeline phase for a snapshot's strategy with timing metadata
  * Strategy phases: starting → resolving → analyzing → immediate
  * SmartBlocks phases: venues → routing → places → verifying → complete
+ *
+ * 2026-04-28: Idempotent + monotonic. If the strategy row's phase already equals
+ * the requested phase, this is a no-op — no DB write, no SSE emit. If the
+ * requested phase is BEFORE the current phase in PIPELINE_PHASE_ORDER, the
+ * call is refused with a WARN log (prevents accidental phase regression). Both
+ * checks address the duplicate-writer pattern documented in audit §10.1
+ * (`enhanced-smart-blocks.js:414` + `blocks-fast.js:839` both write 'venues';
+ * four sites write 'complete'). The auto-correct path at content-blocks.js:208
+ * remains effective because moving forward to 'complete' from any earlier phase
+ * is a valid monotonic transition.
  *
  * @param {string} snapshotId - UUID of snapshot
  * @param {string} phase - Phase name
@@ -219,6 +249,35 @@ export const TOTAL_EXPECTED_DURATION = Object.values(PHASE_EXPECTED_DURATIONS).r
 export async function updatePhase(snapshotId, phase, options = {}) {
   try {
     const now = new Date();
+
+    // 2026-04-28: Read current row to enforce idempotency + monotonic ordering.
+    // Single-row SELECT keyed on PRIMARY/UNIQUE column — cheap. If no row
+    // exists yet (ensureStrategyRow hasn't run), the existing UPDATE below
+    // will no-op naturally; we tolerate that by treating undefined as 'starting'.
+    const [currentRow] = await db.select({ phase: strategies.phase })
+      .from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId))
+      .limit(1);
+    const currentPhase = currentRow?.phase;
+
+    if (currentPhase === phase) {
+      // Idempotency: same phase, no-op. Caller may be the 2nd of N duplicate
+      // writers (audit §10.1) or the auto-correct path (content-blocks.js:210)
+      // hitting an already-complete row. Either way: no DB write, no SSE emit.
+      return;
+    }
+
+    if (currentPhase) {
+      const currentIdx = PIPELINE_PHASE_ORDER.indexOf(currentPhase);
+      const targetIdx = PIPELINE_PHASE_ORDER.indexOf(phase);
+      // Both must be known phases for the comparison to be meaningful. If
+      // either is unknown, fall through to the write — defensive, doesn't
+      // refuse a transition we can't reason about.
+      if (currentIdx >= 0 && targetIdx >= 0 && targetIdx < currentIdx) {
+        triadLog.warn(1, `Refusing backward phase transition: ${currentPhase} → ${phase} for ${snapshotId.slice(0, 8)} (monotonic ordering)`);
+        return;
+      }
+    }
 
     // 2026-01-15: FIX - When phase='complete', also update status to 'ok'
     // This was missing, causing strategies to stay in 'pending_blocks' status forever
