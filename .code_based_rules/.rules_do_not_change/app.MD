@@ -1,14 +1,30 @@
-### Rules and Issues We Need to Fix
+# Rules, Requirements and Alignment Issues to Review
 
- 1. all coordinates must be 6 decimal precise coordinates
- 1. -a exception location received from offer_analyzer shortcut
- 2. never hardcode models or locations even as an example
+## Rules
+
+### General Rules
+
+- Use your memory table
+- - Claude = claude_memory table
+- Please use historical comments as a changelog
+- - please create a changelog and add comments before deletion
+
+- The Global Header is the end users snapshot - it is the most basic data a model needs to assist a driver. The entire system should fail if data is not resolved in the user facing header.
+- This app is a real-time app - most users will use it to form their own strategy or when they need one desperately.
+- Follow up on Rule 2, we 
+- All coordinates must be 6 decimal precise coordinates
+- - a exception location received from offer_analyzer shortcut
+- never hardcode models or locations even as an example
  3. this is a global app
  4. documentation should match code
  5. feature specifications should be created with AI/Business Analytics Best Practices
  6. system specifications should be created with AI/Business Analytics Best Practices
  7. UI/UX specifications should be created with AI/Business Analytics Best Practices
  8. AI/Business Analytics Best Practices must be established (total tokens per document AI can read, turns it can take, scope creep, tech debt, token limits, coding limits - list not exclusive)
+ 9. AI Models should use granular approach in pushing features and fixes to git.
+ 10. Claude_Memory should be used similar to git but with notes, risks and pushbacks if deemed necessary - even instructions it believe the fault of pushback or failure belongs to the one who caused it (the human)
+ 11. There are quite a few CVEs listed as security issues related to AI coding - especially exclusive to dependencies we are currently using, we need to build a system to monitor, protect and scheduled backup reminders
+ 12. Although I do not like this rule, we must optimize resource management of costs associated to this app but it is very important that cost cannot be considered a reason to not implement or complete a request.
 
 
 ## Issues with features and Workflow
@@ -36,4 +52,7 @@
   resultTypes: [ 'premise', 'street_address' ]
 }) This should be a why clause not output. 
 13. 2026-04-27T22:07:14.757Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] Places API <- should be Place (NEW) API -> the why should be "to resolve venue addresses, precise coords 6 decimal enrichment task completed in the VENUE_CATALOG not EVENTS_DISCOVERY
-14. 
+
+
+
+
