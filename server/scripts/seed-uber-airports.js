@@ -180,7 +180,7 @@ async function seedUberAirports() {
           market_slug
         ]);
         updated++;
-        console.log(`  🔄 Updated: ${market_name} (${primary_airport}${secondary_airports.length > 0 ? '+' + secondary_airports.join(',') : ''})`);
+        console.log(`  Updated: ${market_name} (${primary_airport}${secondary_airports.length > 0 ? '+' + secondary_airports.join(',') : ''})`);
       } else {
         // Insert new market
         await client.query(`
@@ -201,11 +201,11 @@ async function seedUberAirports() {
           JSON.stringify(aliases)
         ]);
         inserted++;
-        console.log(`  ✅ Added: ${market_name}, ${state} (${primary_airport})`);
+        console.log(`  Added: ${market_name}, ${state} (${primary_airport})`);
       }
     }
 
-    console.log(`\n✅ Uber airports synced: ${inserted} new markets, ${updated} updated`);
+    console.log(`\nUber airports synced: ${inserted} new markets, ${updated} updated`);
 
     // Show summary
     const summary = await client.query(`
@@ -239,7 +239,7 @@ async function seedUberAirports() {
     }
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('Error:', error);
     throw error;
   } finally {
     client.release();
@@ -249,7 +249,7 @@ async function seedUberAirports() {
 
 seedUberAirports()
   .then(() => {
-    console.log('\n✨ Done!');
+    console.log('\nDone!');
     process.exit(0);
   })
   .catch((error) => {

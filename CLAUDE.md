@@ -89,25 +89,29 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 - **Do not** create ad-hoc AI implementations in individual services if they can be centralized.
 - Ensure `startUnifiedAIMonitoring()` is active in the gateway bootstrap to maintain AI health.
 
-### Rule 11: Event Sync Architecture (2026-02-17)
-- **Background event syncing (`startEventSyncJob`) is STRICTLY FORBIDDEN.**
-- Events must sync **per-snapshot** via the briefing pipeline.
-- This architecture ensures data consistency with the user's current context and reduces unnecessary API load.
-- **Do not** re-enable or reimplement background workers for event fetching.
+### Rule 11: Event Sync Architecture (2026-02-17, reframed as principle 2026-04-26)
+- **Principle: snapshot fidelity.** Events should reflect the user's current snapshot context, not stale background state. The briefing pipeline that drives a snapshot is where event discovery belongs, because that's where the user's location, time, and driving context are authoritative.
+- **Current implementation:** event discovery runs per-snapshot via `fetchEventsForBriefing({ snapshot })` at `briefing-service.js:1280`. The legacy `startEventSyncJob` background worker was removed on 2026-02-17 because background-fetched events drifted from the snapshot context they were meant to inform.
+- **Applying the principle to new work:** before adding asynchronous event handling, ask — *would a user receive events that don't reflect their current snapshot?* If yes, that work belongs inside the per-snapshot path. If async work genuinely preserves snapshot fidelity (e.g., a webhook that updates an event in-place after a snapshot fired, or a scheduled refresh that re-keys to the latest snapshot), it can be considered on its merits. The constraint to honor is **snapshot fidelity**, not "no async, ever."
+- **Cross-references:** EVENTS.md, LOCATION.md, FRISCO_LOCK_DIAGNOSIS_2026-04-18.md, RECON_2026-04-17_HANDLES_LOCALITY.md, and BRIEFING-DATA-MODEL.md cite this rule by number — amendments stay under Rule 11 to preserve those links.
 
-### Rule 12: Session-Start Review Protocol (2026-02-25)
+### Rule 12: Session-Start Review Protocol (2026-02-25, expanded 2026-04-28)
 **At the start of EVERY session, review these documents before doing any work:**
 
 | Priority | Document | Why |
 |----------|----------|-----|
-| 1 | `docs/review-queue/pending.md` | Unfinished doc updates from prior sessions |
-| 2 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
-| 3 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
-| 4 | `docs/coach-inbox.md` | Memos from the Rideshare Coach (Gemini) for Claude Code |
-| 5 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
-| 6 | `docs/architecture/full-audit-2026-04-04.md` | Latest comprehensive audit findings (37 issues) |
+| 1 | `claude_memory` table (Postgres) | Cross-session memory of prior work, decisions, and lessons — query before relying on git/docs alone (see Rule 15) |
+| 2 | `.code_based_rules/` directory | Hard-rule layer: `.rules_do_not_change/` (immutable rules + annotated workflow logs, including `Up to Venue console wish.txt` with Melody's inline corrections), `engineering_specs/`, `startup_rules/`. **Read this directory before assuming any other rule source is exhaustive.** `app.MD` explicitly forbids substituting grep / agent / code-sweep searches for actual file reading. |
+| 3 | `docs/review-queue/pending.md` | Unfinished doc updates from prior sessions |
+| 4 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
+| 5 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
+| 6 | `docs/coach-inbox.md` | Memos from the Rideshare Coach (Gemini) for Claude Code |
+| 7 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
+| 8 | `docs/architecture/audits/` (whole directory) + `CODEBASE_AUDIT_2026-04-27.md` (most recent — see note below) | 14 audit files including `FRISCO_LOCK_DIAGNOSIS_2026-04-18.md`, `GEOGRAPHIC_ANCHOR_AUDIT_2026-04-18.md`, `NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` (cited by Rule 13 as authoritative on Neon SSL behavior), `NOTIFY_LOSS_RECON_2026-04-18.md`, `RECON_2026-04-17_HANDLES_LOCALITY.md`, `pass-c/d/e/f-*.md` series, `verification-2026-04-16-hallucination-fixes.md`, `HANDOFF_2026-04-24.md`, plus the older `full-audit-2026-04-04.md` (37 issues). Read the most recent first; others give deeper context for specific incidents and topics. **2026-04-28 note:** `CODEBASE_AUDIT_2026-04-27.md` lives on the sibling branch `audit/codebase-2026-04-27` (off `main` at `d39d570f`), not on the current working branch. To read it without checking out the branch: `git fetch origin audit/codebase-2026-04-27 && git show audit/codebase-2026-04-27:docs/architecture/audits/CODEBASE_AUDIT_2026-04-27.md`. The audit IS canonical input — its findings drove the 2026-04-28 fixes (PR-review master plan, schema v6 read-path tz fix, updatePhase idempotency, Path B multi-day predicate, filter-for-planner legacy delete). |
 
 **This is your memory layer.** These documents persist across sessions and are your primary source of truth for the current state of the project. When you learn something important during a session, update the relevant document so future sessions benefit.
+
+**Audit headline (added 2026-04-28, per `CODEBASE_AUDIT_2026-04-27.md`):** Codebase is in good shape — doc drift around the daily-strategy removal is the dominant issue, not functional duplication; live paths are single-sourced. Per the audit's Section 6.3: duplications that exist are idiom duplication (e.g., the 7-route inline freshness filter in `briefing.js`) and intentional defense-in-depth (e.g., dedup at write + read time per `EVENTS.md` §3), not "two pipelines" patterns. AI registry has 26 roles, all live, zero orphans.
 
 **Contested-fact rule (added 2026-04-24):** When docs disagree on verifiable facts (DB provider, API routing, schema shape, model IDs, etc.), trust the newest timestamped audit document over older doctrine files. Specifically: if a file under `docs/architecture/audits/` has a timestamped finding that contradicts a claim in this CLAUDE.md or a standing `docs/` file, the audit wins until the doctrine file is updated. Update the doctrine file within the same session that consumed the audit; reference the audit in your commit message so future sessions follow the same precedence. This amendment was triggered by a 2026-04-18 Neon-vs-Helium drift where three doctrine files said "both Helium" while the `NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` audit correctly identified prod as Neon serverless.
 
@@ -128,6 +132,13 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 - **Do NOT** hardcode model-name-to-API-key mappings (e.g., `claude- → ANTHROPIC_API_KEY`) in validation or config
 - Environment validation checks **general** API key presence; **per-model** credential validation happens at runtime through the adapter layer
 - When in doubt about model routing, consult the adapter layer — it owns that responsibility
+
+### Rule 15: Use the claude_memory Table (added 2026-04-26)
+- **Use this to have a memory of tasks, and issues you find or anything you would like to remember** — the rules and issues in CLAUDE.md are drifting so use your table and build it and extend it or make it into a dream memory for an AI to quickly ascertain context of session work, intention as well as needs or todo items.
+- **Schema:** `shared/schema.js:2102` (`claudeMemory`). Columns: `id, session_id, category, priority, status, title, content, source, tags(jsonb), related_files(jsonb), parent_id, metadata(jsonb), created_at, updated_at`. API: `server/api/memory/index.js`. Indexes on `session_id`, `category`, `status`.
+- **Read at session start (Rule 12), write throughout the session.** Quick recent overview: `psql "$DATABASE_URL" -c "SELECT id, session_id, category, priority, status, title, created_at FROM claude_memory WHERE status = 'active' ORDER BY id DESC LIMIT 20;"` — then `psql "$DATABASE_URL" -tAc "SELECT content FROM claude_memory WHERE id = N;"` for the full body of a row.
+- **Status hygiene:** flip rows to `resolved` when the work lands; `superseded` when newer rows replace them. Keep the `active` set lean so future sessions can scan it quickly.
+- **Common categories in practice:** `engineering-pattern`, `design-decision-resolved`, `audit`, `fix`, `doctrine-candidate`, `user-shared-context`. Default `source` is `claude-code`. Use `parent_id` to thread follow-ups under a prior row.
 
 ---
 

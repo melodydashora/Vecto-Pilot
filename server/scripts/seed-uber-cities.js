@@ -413,7 +413,7 @@ async function seedUberCities() {
     // Insert remaining batch
     await insertBatch();
 
-    console.log(`\n\n✅ Successfully inserted ${totalInserted} Uber cities across ${Object.keys(uberCitiesData).length} countries!`);
+    console.log(`\n\nSuccessfully inserted ${totalInserted} Uber cities across ${Object.keys(uberCitiesData).length} countries!`);
 
     // Show summary by country
     const summary = await client.query(`

@@ -33,14 +33,14 @@ function loadConfig() {
 
 function saveConfig(config) {
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
-  console.log(`\n✅ Config saved to: ${CONFIG_PATH}`);
+  console.log(`\nConfig saved to: ${CONFIG_PATH}`);
 }
 
 function listOverrides() {
   const config = loadConfig();
   console.log('\n📋 Holiday Override Configuration');
   console.log('─'.repeat(60));
-  console.log(`System Status: ${config.active ? '✅ ENABLED' : '❌ DISABLED'}`);
+  console.log(`System Status: ${config.active ? 'ENABLED' : 'DISABLED'}`);
   console.log('─'.repeat(60));
 
   if (config.overrides.length === 0) {
@@ -72,7 +72,7 @@ function addOverride(args) {
   const [holidayName, startDate, endDate] = args;
 
   if (!holidayName || !startDate || !endDate) {
-    console.error('❌ Usage: add <holiday_name> <start_date> <end_date>');
+    console.error('Usage: add <holiday_name> <start_date> <end_date>');
     console.error('   Example: add "Happy Holidays" "2024-12-01" "2026-01-02"');
     process.exit(1);
   }
@@ -104,7 +104,7 @@ function addOverride(args) {
       end.setHours(23, 59, 59, 999);
     }
   } catch {
-    console.error('❌ Invalid date format. Use YYYY-MM-DD or ISO 8601.');
+    console.error('Invalid date format. Use YYYY-MM-DD or ISO 8601.');
     process.exit(1);
   }
 
@@ -121,7 +121,7 @@ function addOverride(args) {
   config.overrides.push(newOverride);
   saveConfig(config);
 
-  console.log(`\n✅ Added holiday override:`);
+  console.log(`\nAdded holiday override:`);
   console.log(`   ID: ${id}`);
   console.log(`   Holiday: ${holidayName}`);
   console.log(`   Period: ${start.toLocaleDateString()} → ${end.toLocaleDateString()}`);
@@ -131,7 +131,7 @@ function addOverride(args) {
 
 function removeOverride(id) {
   if (!id) {
-    console.error('❌ Usage: remove <override_id>');
+    console.error('Usage: remove <override_id>');
     process.exit(1);
   }
 
@@ -139,21 +139,21 @@ function removeOverride(id) {
   const idx = config.overrides.findIndex(o => o.id === id);
 
   if (idx === -1) {
-    console.error(`❌ Override not found: ${id}`);
+    console.error(`Override not found: ${id}`);
     process.exit(1);
   }
 
   const removed = config.overrides.splice(idx, 1)[0];
   saveConfig(config);
 
-  console.log(`\n✅ Removed override: ${removed.holiday_name} (${id})`);
+  console.log(`\nRemoved override: ${removed.holiday_name} (${id})`);
 }
 
 function setEnabled(enabled) {
   const config = loadConfig();
   config.active = enabled;
   saveConfig(config);
-  console.log(`\n✅ Holiday override system ${enabled ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`\nHoliday override system ${enabled ? 'ENABLED' : 'DISABLED'}`);
 }
 
 async function testDetection() {
@@ -188,7 +188,7 @@ async function testDetection() {
     }
 
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
+    console.error('Test failed:', error.message);
     process.exit(1);
   }
 }

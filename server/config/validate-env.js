@@ -85,9 +85,9 @@ export function validateEnvironment() {
   // Defaults come from env-registry.js; adapter layer validates credentials at runtime
   const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-6';
   const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3.1-pro-preview';
-  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.4';
+  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.5-2026-04-23';
 
-  console.log('[env-validation] AI Model Configuration:', {
+  console.log('[CONFIG] [ENV] [VALIDATION] AI Model Configuration:', {
     strategist,
     briefer,
     consolidator,
@@ -111,7 +111,7 @@ export function validateEnvironment() {
   const hasWarnings = warnings.length > 0;
   
   if (hasErrors) {
-    console.error('\n❌ ENVIRONMENT VALIDATION FAILED\n');
+    console.error('\nENVIRONMENT VALIDATION FAILED\n');
     errors.forEach((err, i) => {
       console.error(`  ${i + 1}. ${err}`);
     });
@@ -120,14 +120,14 @@ export function validateEnvironment() {
   }
   
   if (hasWarnings) {
-    console.warn('\n⚠️  ENVIRONMENT WARNINGS\n');
+    console.warn('\n ENVIRONMENT WARNINGS\n');
     warnings.forEach((warn, i) => {
       console.warn(`  ${i + 1}. ${warn}`);
     });
     console.warn('\n');
   }
   
-  console.log('✅ Environment validation passed');
+  console.log('Environment validation passed');
   return { valid: true, errors: [], warnings };
 }
 
@@ -138,14 +138,14 @@ export function validateEnvironment() {
 export function validateOrExit() {
   // Skip exit in test mode to allow test runner to mock env or handle errors
   if (process.env.NODE_ENV === 'test') {
-    console.log('[env-validation] Test mode detected - skipping fatal exit');
+    console.log('[CONFIG] [ENV] [VALIDATION] Test mode detected - skipping fatal exit');
     return { valid: true, errors: [], warnings: [] };
   }
 
   const result = validateEnvironment();
   
   if (!result.valid) {
-    console.error('[env-validation] Server startup aborted due to configuration errors');
+    console.error('[CONFIG] [ENV] [VALIDATION] Server startup aborted due to configuration errors');
     process.exit(1);
   }
   

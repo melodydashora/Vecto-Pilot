@@ -23,24 +23,24 @@ export async function generateStrategyForSnapshot(snapshot_id, options = {}) {
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
     let snap = options.snapshot;
     if (!snap) {
-      console.log(`[strategy-generator] ⚠️ No snapshot passed, fetching from DB (prefer passing snapshot)`);
+      console.log(`[STRATEGY] No snapshot passed, fetching from DB (prefer passing snapshot)`);
       const [row] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshot_id));
       snap = row;
     }
 
     if (!snap) {
-      console.error(`[strategy-generator] Snapshot not found: ${snapshot_id}`);
+      console.error(`[STRATEGY] Snapshot not found: ${snapshot_id}`);
       return null;
     }
 
     // CRITICAL: Validate formatted_address exists - LLMs cannot reverse geocode
     if (!snap.formatted_address) {
-      console.error(`[strategy-generator] ❌ CRITICAL: Missing formatted_address in snapshot ${snapshot_id}`);
-      console.error(`[strategy-generator] Snapshot has: city=${snap.city}, state=${snap.state}, lat=${snap.lat}, lng=${snap.lng}`);
+      console.error(`[STRATEGY] CRITICAL: Missing formatted_address in snapshot ${snapshot_id}`);
+      console.error(`[STRATEGY] Snapshot has: city=${snap.city}, state=${snap.state}, lat=${snap.lat}, lng=${snap.lng}`);
       return null;
     }
 
-    console.log(`[strategy-generator] 📍 Using snapshot with resolved address:`, {
+    console.log(`[STRATEGY] 📍 Using snapshot with resolved address:`, {
       snapshot_id: snap.snapshot_id,
       formatted_address: snap.formatted_address,
       city: snap.city,
@@ -62,11 +62,11 @@ export async function generateStrategyForSnapshot(snapshot_id, options = {}) {
     if (strategyResult.ok) {
       return strategyResult.strategy;
     } else {
-      console.error(`[strategy-generator] Strategy generation failed: ${strategyResult.reason}`);
+      console.error(`[STRATEGY] Strategy generation failed: ${strategyResult.reason}`);
       return null;
     }
   } catch (error) {
-    console.error(`[strategy-generator] Error:`, error.message);
+    console.error(`[STRATEGY] Error:`, error.message);
     return null;
   }
 }

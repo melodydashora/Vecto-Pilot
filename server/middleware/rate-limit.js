@@ -78,3 +78,21 @@ export const healthLimiter = rateLimit({
   standardHeaders: true,
   validate: { keyGeneratorIpFallback: false },
 });
+
+// 2026-04-25: Stricter limit for endpoints that mint billable OpenAI tokens.
+// 5 mints/min per user is generous for legit voice-session start; anything
+// beyond is bug or abuse. Keys by req.auth.userId when available (post-auth)
+// and falls back to req.ip for pre-auth attempts (which auth itself rejects,
+// but limiting unauthenticated floods to the route is still cheap insurance).
+// validate.keyGeneratorIpFallback=false matches the existing pattern in this
+// file — express-rate-limit v7 throws ERR_ERL_KEY_GEN_IPV6 on raw req.ip
+// without that flag.
+export const realtimeMintLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
+  keyGenerator: (req) => req.auth?.userId || req.ip,
+  message: { error: 'realtime_rate_limited', message: 'Too many voice-session starts. Slow down.' },
+});

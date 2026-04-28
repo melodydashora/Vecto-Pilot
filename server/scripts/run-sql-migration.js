@@ -13,9 +13,9 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 (async () => {
   try {
     await pool.query(sql);
-    console.log("✅ migration applied:", file);
+    console.log("migration applied:", file);
   } catch (e) {
-    console.error("❌ migration failed:", e.message);
+    console.error("migration failed:", e.message);
     process.exit(1);
   } finally {
     await pool.end();

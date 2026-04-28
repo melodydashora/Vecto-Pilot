@@ -190,7 +190,7 @@ async function migrateVenueHours(dryRun = false) {
     const parsed = parseBusinessHours(business_hours);
 
     if (parsed) {
-      console.log(`✅ ${venue_name}`);
+      console.log(`${venue_name}`);
       console.log(`   Input: ${JSON.stringify(business_hours)}`);
       console.log(`   Output: ${JSON.stringify(parsed)}\n`);
 
@@ -204,7 +204,7 @@ async function migrateVenueHours(dryRun = false) {
       }
       successCount++;
     } else {
-      console.log(`❌ ${venue_name} - Could not parse: ${JSON.stringify(business_hours)}\n`);
+      console.log(`${venue_name} - Could not parse: ${JSON.stringify(business_hours)}\n`);
       failCount++;
     }
   }
@@ -212,12 +212,12 @@ async function migrateVenueHours(dryRun = false) {
   console.log('\n═══════════════════════════════════════════════════════════════');
   console.log('MIGRATION SUMMARY');
   console.log('═══════════════════════════════════════════════════════════════');
-  console.log(`✅ Parsed successfully: ${successCount}`);
+  console.log(`Parsed successfully: ${successCount}`);
   console.log(`⏭️  Already had hours_full_week: ${skipCount}`);
-  console.log(`❌ Failed to parse: ${failCount}`);
+  console.log(`Failed to parse: ${failCount}`);
   console.log(`Total processed: ${venues.length}`);
   if (dryRun) {
-    console.log('\n⚠️  DRY RUN - No changes made. Run without --dry-run to apply.');
+    console.log('\n DRY RUN - No changes made. Run without --dry-run to apply.');
   }
 }
 

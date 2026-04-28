@@ -6,6 +6,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-04-27 (Commit 4 of CLEAR_CONSOLE_WORKFLOW spec): gate prefetch logs.
+import { DEBUG_VENUES_ENABLED } from '@/constants/featureFlags';
 
 /**
  * Venue type - matches server/validation/response-schemas.js VenueSchema
@@ -106,7 +108,7 @@ export function useBarsQuery({
       });
 
       // 2026-01-10: Use 6-decimal precision per CLAUDE.md ABSOLUTE PRECISION rule (D-017 fix)
-      console.log('[useBarsQuery] Prefetching bars data for:', { city, state, lat: latitude?.toFixed(6) });
+      if (DEBUG_VENUES_ENABLED) console.log('[useBarsQuery] Prefetching bars data for:', { city, state, lat: latitude?.toFixed(6) });
 
       const response = await fetch(API_ROUTES.VENUES.NEARBY_WITH_PARAMS(params), {
         headers: getAuthHeader()
@@ -117,7 +119,7 @@ export function useBarsQuery({
       }
 
       const result = await response.json();
-      console.log('[useBarsQuery] Prefetch complete:', result.data?.totalVenues, 'venues');
+      if (DEBUG_VENUES_ENABLED) console.log('[useBarsQuery] Prefetch complete:', result.data?.totalVenues, 'venues');
       return result.data;
     },
     // Only fetch when location is fully resolved with all required data

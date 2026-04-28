@@ -609,10 +609,10 @@ async function main() {
     }
 
     console.log('\n========================================');
-    console.log('✅ Market consolidation complete!');
+    console.log('Market consolidation complete!');
     process.exit(0);
   } catch (err) {
-    console.error('\n❌ Migration failed:', err);
+    console.error('\nMigration failed:', err);
     process.exit(1);
   }
 }

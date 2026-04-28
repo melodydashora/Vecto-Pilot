@@ -50,20 +50,20 @@ export class DocPublisher {
         await fs.unlink(backupPath);
       } catch (e) {
         // 2026-02-12: Log backup cleanup failures (previously silent)
-        console.warn(`[DocPublisher] Failed to cleanup backup ${backupPath}: ${e.message}`);
+        console.warn(`[AGENT] [DOCS] Failed to cleanup backup ${backupPath}: ${e.message}`);
       }
 
       return { success: true, action: 'updated', commitHash };
 
     } catch (error) {
-      console.error('[DocPublisher] Error publishing:', error);
+      console.error('[AGENT] [DOCS] Error publishing:', error);
       
       // Rollback
       try {
         await fs.copyFile(`${filePath}.bak`, filePath);
-        console.log('[DocPublisher] Rolled back changes to', filePath);
+        console.log('[AGENT] [DOCS] Rolled back changes to', filePath);
       } catch (rollbackError) {
-        console.error('[DocPublisher] Rollback failed:', rollbackError);
+        console.error('[AGENT] [DOCS] Rollback failed:', rollbackError);
       }
 
       return { success: false, error: error.message };
@@ -83,7 +83,7 @@ export class DocPublisher {
       const { stdout } = await execPromise('git rev-parse --short HEAD');
       return stdout.trim();
     } catch (error) {
-      console.warn('[DocPublisher] Git commit failed (likely no changes or auth issue):', error.message);
+      console.warn('[AGENT] [DOCS] Git commit failed (likely no changes or auth issue):', error.message);
       return null;
     }
   }

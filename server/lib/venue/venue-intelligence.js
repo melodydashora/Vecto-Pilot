@@ -42,7 +42,7 @@ function getPriceDisplay(priceLevel) {
 function calculateOpenStatus(place, timezone) {
   const hours = place.currentOpeningHours || place.regularOpeningHours;
   if (!hours) {
-    barsLog.info(`No hours data for "${place.displayName?.text}" - Google didn't return opening hours`);
+    barsLog.debug(`No hours data for "${place.displayName?.text}" - Google didn't return opening hours`);
     return { is_open: null, hours_today: null, closing_soon: false, minutes_until_close: null, opens_in_minutes: null };
   }
 
@@ -57,7 +57,7 @@ function calculateOpenStatus(place, timezone) {
     if (parseResult.ok) {
       canonicalStatus = getOpenStatus(parseResult.schedule, timezone);
       is_open = canonicalStatus.is_open;
-      barsLog.info(`"${place.displayName?.text}" - Calculated is_open=${is_open} from weekdayDescriptions (canonical)`);
+      barsLog.debug(`"${place.displayName?.text}" - Calculated is_open=${is_open} from weekdayDescriptions (canonical)`);
     }
   }
 
@@ -73,7 +73,7 @@ function calculateOpenStatus(place, timezone) {
   } else if (is_open === null && hours.openNow !== undefined) {
     // No canonical data — use openNow as fallback (better than dropping the venue entirely)
     is_open = hours.openNow;
-    barsLog.info(`"${place.displayName?.text}" - Using openNow=${hours.openNow} as fallback (no weekdayDescriptions)`);
+    barsLog.debug(`"${place.displayName?.text}" - Using openNow=${hours.openNow} as fallback (no weekdayDescriptions)`);
   }
 
   // Get today's hours - NO FALLBACK, timezone required for accurate venue status
@@ -109,7 +109,7 @@ function calculateOpenStatus(place, timezone) {
 
   // Debug log for hours parsing
   if (!hours_today && weekdayDescs.length > 0) {
-    barsLog.info(`"${place.displayName?.text}" - Could not find ${todayName} in weekdayDescriptions`);
+    barsLog.debug(`"${place.displayName?.text}" - Could not find ${todayName} in weekdayDescriptions`);
   }
 
   // 2026-02-26: Fallback — generate hours_today from periods when weekdayDescriptions is missing
@@ -133,7 +133,7 @@ function calculateOpenStatus(place, timezone) {
       } else {
         hours_today = `${openStr} – Open 24 hours`;
       }
-      barsLog.info(`"${place.displayName?.text}" - Generated hours_today from periods: ${hours_today}`);
+      barsLog.debug(`"${place.displayName?.text}" - Generated hours_today from periods: ${hours_today}`);
     }
   }
 
@@ -405,7 +405,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
         !v.hours_full_week && !v.business_hours
       );
       if (venuesMissingHours.length > 0) {
-        barsLog.phase(0, `[BARS] Backfilling hours for ${venuesMissingHours.length} venues missing data`);
+        barsLog.phase(0, `Backfilling hours for ${venuesMissingHours.length} venues missing data`);
         // Rate limit: max 5 concurrent, fire-and-forget
         const batch = venuesMissingHours.slice(0, 5);
         for (const v of batch) {
@@ -574,7 +574,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
       const venueName = place.displayName?.text || 'Unknown Venue';
 
       // Debug: Log hours for each venue
-      barsLog.info(`"${venueName}" - is_open=${openStatus.is_open}, hours_today="${openStatus.hours_today || 'none'}"`);
+      barsLog.debug(`"${venueName}" - is_open=${openStatus.is_open}, hours_today="${openStatus.hours_today || 'none'}"`);
 
       return {
         name: venueName,
@@ -643,7 +643,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
       // Quality tier confirms venue TYPE, not operating STATUS. If Google Places
       // has no hours, we cannot claim "open now". See ARCHITECTURE_REQUIREMENTS.md §1.
       if (v.isOpen === null) {
-        barsLog.info(`Dropping "${v.name}" (tier: ${v.venue_quality_tier || 'none'}) - hours unknown, cannot confirm open`);
+        barsLog.debug(`Dropping "${v.name}" (tier: ${v.venue_quality_tier || 'none'}) - hours unknown, cannot confirm open`);
         return false;
       }
 
@@ -801,7 +801,7 @@ Return ONLY valid JSON:
  */
 export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, holiday = null, timezone = null, localIso = null }) {
   try {
-    venuesLog.start(`SmartBlocks for ${city}, ${state} (${radiusMiles} mile radius)`);
+    venuesLog.start(`Venue cards for ${city}, ${state} (${radiusMiles} mile radius)`);
 
     // Run venue discovery and traffic intelligence in parallel
     const venuePromise = discoverNearbyVenues({ lat, lng, city, state, radiusMiles, holiday, timezone, localIso });

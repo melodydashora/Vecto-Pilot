@@ -4,6 +4,80 @@ Items requiring action. For completed session logs and historical analysis, see 
 
 ---
 
+## 2026-04-28: PR Review Master Fixes — ✅ CODE LANDED on `coach-pass2-phase-b` (uncommitted; awaiting commit + push approval)
+
+**Author:** Claude Opus 4.7 (1M context) | **Scope:** Implements 5 Critical findings (C1, C2+§11.1, C3, C4) + §13-P1 legacy delete from the `/pr-review-toolkit:review-pr` aggregate + `CODEBASE_AUDIT_2026-04-27.md` (sibling-branch audit). Rule 1 was bypassed by Melody for this session per memory `feedback_dont_overvalidate_when_scope_is_clear`.
+
+**Plan reference:** [`PLAN_pr-review-master-fixes-2026-04-28.md`](PLAN_pr-review-master-fixes-2026-04-28.md)
+
+**Files modified (7 code + 2 doc; all `node --check` clean; +214/-62):**
+- `server/api/briefing/briefing.js` — C3 (briefingLog ?? ReferenceError), C2 API timezone threading + WARN, §11.1 Path B multi-day predicate
+- `server/lib/briefing/briefing-service.js` — C2 `filterInvalidEvents(events, {timezone})` signature + read-path caller
+- `server/lib/events/pipeline/validateEvent.js` — VALIDATION_SCHEMA_VERSION 5 → 6
+- `server/lib/briefing/dump-last-briefing.js` — C2 caller (debug dump)
+- `server/api/health/logs.js` — C1 production refusal of `?token=<bearer>` query param
+- `server/lib/strategy/strategy-utils.js` — C4 idempotency + monotonic phase ordering in `updatePhase`
+- `server/lib/briefing/filter-for-planner.js` — §13-P1 legacy `else` deleted, contract requires `Array.isArray(todayEvents)`
+- `docs/EVENTS.md` — schema 4 → 6, §9.2 Known Gap #1 closed, change log entries
+- `CLAUDE.md` Rule 12 row #8 — sibling-branch note for `CODEBASE_AUDIT_2026-04-27.md`
+
+**Deferred to follow-up plans (F1-F18 in master plan, all tracked-only):**
+- F1: Logging refactor sed overshoot (`workflow.js` DECO branches, duplicate `ROUTES`, `events/pipeline/types.js` JSDoc rename, unguarded `JSON.stringify`)
+- F2: Logger control-plane bypass (raw `console.log` regressions in 9+ files)
+- F3: Log endpoint hardening Phase 2 — HttpOnly cookie ticket; SSE primer/tail race; sync-IO interval; backoff; `res.writableEnded` guards
+- F4: Coach client refactor bugs (SSE chunk-boundary; `reader.cancel()`; `setIsStreaming`; localStorage try/catch; empty-bubble-on-cancel)
+- F5: Coach state machine type-design (discriminated union via `useReducer`)
+- F6: Strategy/DAL silent-failure cluster (6 separate sites)
+- F7: Auth dev-fallback assertion
+- F8: `tomtom.txt` gitignore + `git rm --cached`
+- F9: ~~CLAUDE.md Rule 12 audit-path~~ ✅ DONE in this commit set
+- F10: `jest` not pinned in devDependencies
+- F11: Test gaps (validate-event-tz mock-clock; logs.js zero coverage; sentenceBoundary/cleanTextForTTS units)
+- F12: Daily-strategy doc sweep (7 docs)
+- F13: `api-routes-registry.md` regeneration (~5 months stale)
+- F14: `server/lib/strategy/` dead-code disambiguation
+- F15: `server/types/driving-plan.ts` intent comment
+- F16: `useActiveEventsQuery` polling scope post-complete
+- F17: `StrategyPage.tsx:124-128` stale comment
+- F18: TRIAD branding policy (operational keep, doc decommission)
+- §13-P1 helper cleanup: `filterEventsForPlanner` / `isLargeEvent` / `LARGE_EVENT_*` constants now unreachable but `@deprecated`-marked; delete after test-fixture imports verified by Read
+
+**Status:** Code complete, syntax-clean, awaiting commit + push approval. CLAUDE.md says "NEVER commit unless explicitly asked" — Rule 1 bypass covered the plan-then-approve gate, NOT the commit gate. Diff surfaced; Melody to confirm.
+
+---
+
+## 2026-04-26: Strategy Map Consolidation — ✅ PHASES A + B SHIPPED on `feat/strategy-map-phase-b` (visually approved; awaiting merge)
+
+**Author:** Claude Opus 4.7 (1M context) | **Scope:** Comprehensive plan to consolidate ALL Google-Maps surfaces into a single StrategyMap inside the Strategy tab. **No code changes yet** — Rule 1 hold.
+
+**Revision history:**
+- 2026-04-26 initial plan
+- 2026-04-26 revised after `.claude/plans/MapResearch.md` peer review caught 9 contract bugs + 1 new finding from verification pass (now plan §0)
+
+**Deliverables:**
+- [`docs/strategy-map-consolidation-plan.md`](../strategy-map-consolidation-plan.md) — phased implementation plan, now Phases A–F (added Phase F TomTom incidents)
+- [`docs/strategy-map-consolidation-findings.md`](../strategy-map-consolidation-findings.md) — raw inventory + 10 verification commands
+- `.claude/plans/MapResearch.md` — peer-review audit (external)
+- `claude_memory` rows #185, #186 — cross-session pointers
+
+**Headline decisions in plan (all reversible until approval):**
+- KEEP & rename `MapTab.tsx` → `client/src/components/strategy/StrategyMap.tsx`
+- DELETE 3 files (verified zero consumers): `MapPage.tsx`, `ConciergeMap.tsx`, `EventsExplorer.tsx`
+- FOLD `TacticalStagingMap.tsx` capabilities (mission selector + staging/avoid zones) into StrategyMap, then delete
+- ADD new layers via verified endpoint contracts: `market_intelligence` zone overlays (5 supported subtypes), staging-areas (snapshot-scoped), demand-patterns, market boundary + Code 6 warning, TomTom incidents
+- ZERO required server-side changes (all data sources already exist; one fork could trigger an optional server change)
+- Architectural fixes: singleton Google Maps loader, `loading=async`, `AdvancedMarkerElement`, `mapId`, per-layer `lastXKeyRef` dedup, `escapeHtml` for ALL InfoWindows, layer-aware `fitBounds`
+
+**4 open design forks for Melody (plan §4.6) — pick or accept all defaults:**
+1. Market boundary source (default: hardcode in client config)
+2. `zone_intelligence` vs `market_intelligence` table fate (default: deprecate `zone_intelligence`)
+3. Dormant Intel components — `MarketBoundaryGrid` + `MarketDeadheadCalculator` (default: delete)
+4. TomTom incidents routing (default: piggyback briefing payload)
+
+**Status (2026-04-26 update):** Phases A + B implemented on branch `feat/strategy-map-phase-b` (6 commits, +1300/−1000 vs main). Two follow-up CSP commits unblocked Google Maps Platform vector tile rendering (worker-src blob:, connect-src wildcard + data:, script-src unsafe-eval for WASM label engine). Melody confirmed visuals all clear on 2026-04-26. Awaiting merge instruction. Phase C (TacticalStagingMap fold-and-delete) ready to start.
+
+---
+
 ## 2026-04-24: Commit C (db connection-manager comment) queued behind 57P01 work — ⏸️ DEPENDENCY NOTE
 
 **Author:** Claude Opus 4.7 (1M context) | **Scope:** Dependency note, not a code change.

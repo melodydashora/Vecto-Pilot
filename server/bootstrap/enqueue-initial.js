@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
 
 export async function seedJobIfEmpty() {
   if (process.env.SEED_JOB_ON_BOOT !== 'true') {
-    console.log('[boot] Job seeding disabled (SEED_JOB_ON_BOOT not set)');
+    console.log('[BOOT] Job seeding disabled (SEED_JOB_ON_BOOT not set)');
     return;
   }
 
@@ -20,7 +20,7 @@ export async function seedJobIfEmpty() {
     const queuedCount = parseInt(queued.rows[0]?.count || 0);
     
     if (queuedCount > 0) {
-      console.log(`[boot] ✓ ${queuedCount} queued jobs found, skipping seed`);
+      console.log(`[BOOT] ✓ ${queuedCount} queued jobs found, skipping seed`);
       return;
     }
 
@@ -32,7 +32,7 @@ export async function seedJobIfEmpty() {
     `);
 
     if (!latestSnap.rows || latestSnap.rows.length === 0) {
-      console.log('[boot] ⚠️  No snapshots found, cannot seed job');
+      console.log('[BOOT]  No snapshots found, cannot seed job');
       return;
     }
 
@@ -45,8 +45,8 @@ export async function seedJobIfEmpty() {
       status: 'queued'
     }).onConflictDoNothing();
 
-    console.log(`[boot] ✅ Seeded triad job for snapshot ${snapshotId}`);
+    console.log(`[BOOT] Seeded triad job for snapshot ${snapshotId}`);
   } catch (err) {
-    console.error('[boot] Failed to seed job:', err.message);
+    console.error('[BOOT] Failed to seed job:', err.message);
   }
 }

@@ -27,7 +27,7 @@ async function importIntelligence() {
   console.log(`📊 Found ${records.length} intelligence records`);
 
   if (dryRun) {
-    console.log('\n🔍 DRY RUN - No changes will be made\n');
+    console.log('\nDRY RUN - No changes will be made\n');
   }
 
   let added = 0, skipped = 0;
@@ -69,16 +69,16 @@ async function importIntelligence() {
       });
     }
 
-    console.log(`  ✅ ADD: ${rec.market} - "${rec.title}"`);
+    console.log(`  ADD: ${rec.market} - "${rec.title}"`);
     added++;
   }
 
-  console.log('\n📈 Summary:');
+  console.log('\nSummary:');
   console.log(`  Added: ${added}`);
   console.log(`  Skipped (existing): ${skipped}`);
 
   if (dryRun) {
-    console.log('\n⚠️ DRY RUN complete - run without --dry-run to apply changes');
+    console.log('\nDRY RUN complete - run without --dry-run to apply changes');
   }
 
   process.exit(0);

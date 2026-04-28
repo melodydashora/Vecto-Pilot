@@ -1,13 +1,9 @@
 // server/lib/strategy-generator-parallel.js
-// LEGACY: Parallel multi-model strategy orchestration
-//
-// 2026-02-26: All functions in this file are DEAD CODE.
-// The active strategy pipeline is:
-//   - STRATEGY_TACTICAL: blocks-fast.js → consolidator.js → runImmediateStrategy()
-//   - STRATEGY_DAILY:    POST /api/strategy/daily → consolidator.js → runConsolidator()
-//
-// These stubs are kept so that snapshot.js → generateStrategyForSnapshot() → generateMultiStrategy()
-// doesn't crash. That path returns null gracefully (feature_disabled).
+// LEGACY: Parallel multi-model strategy orchestration. All functions in this
+// file are DEAD CODE; the active pipeline is blocks-fast.js → consolidator.js
+// → runImmediateStrategy(). Stubs kept so that snapshot.js →
+// generateStrategyForSnapshot() → generateMultiStrategy() doesn't crash.
+// That path returns null gracefully (feature_disabled).
 // TODO: Remove strategy-generator.js + snapshot.js references in a future cleanup pass.
 
 /**

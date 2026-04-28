@@ -42,7 +42,7 @@ router.post('/test-immediate/:snapshotId', requireAuth, async (req, res) => {
       strategy_for_now: row.strategy_for_now
     });
   } catch (error) {
-    console.error(`[diagnostics] test-immediate error:`, error);
+    console.error(`[AGENT] [DIAGNOSTICS] test-immediate error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -72,7 +72,7 @@ router.post('/test-briefing/:snapshotId', requireAuth, async (req, res) => {
       briefing: briefingData
     });
   } catch (error) {
-    console.error(`[diagnostics] test-briefing error:`, error);
+    console.error(`[AGENT] [DIAGNOSTICS] test-briefing error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });
@@ -96,13 +96,11 @@ router.get('/strategy-status/:snapshotId', requireAuth, async (req, res) => {
 
     const hasStrategyForNow = !!(row.strategy_for_now && row.strategy_for_now.trim().length);
     const hasBriefing = !!briefingRow;
-    const hasConsolidated = !!(row.consolidated_strategy && row.consolidated_strategy.trim().length);
 
     res.json({
       snapshot_id: snapshotId,
       has_strategy_for_now: hasStrategyForNow,
       has_briefing: hasBriefing,
-      has_consolidated: hasConsolidated,
       formatted_address: snapshot?.formatted_address || null,
       city: snapshot?.city || null,
       state: snapshot?.state || null,
@@ -110,7 +108,7 @@ router.get('/strategy-status/:snapshotId', requireAuth, async (req, res) => {
       briefing: briefingRow || null
     });
   } catch (error) {
-    console.error(`[diagnostics] strategy-status error:`, error);
+    console.error(`[AGENT] [DIAGNOSTICS] strategy-status error:`, error);
     res.status(500).json({ error: 'internal_error', message: error.message });
   }
 });

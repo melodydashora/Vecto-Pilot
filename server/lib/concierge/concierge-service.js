@@ -96,7 +96,7 @@ export async function generateShareToken(profileId) {
     .set({ concierge_share_token: token })
     .where(eq(driver_profiles.id, profileId));
 
-  console.log(`[concierge] Generated share token for profile ${profileId.slice(0, 8)}...`);
+  console.log(`[CONCIERGE] Generated share token for profile ${profileId.slice(0, 8)}...`);
   return token;
 }
 
@@ -340,7 +340,7 @@ async function queryNearbyVenues({ lat, lng, filter }) {
         source: 'db',
       }));
   } catch (err) {
-    console.error('[concierge] Venue DB query error:', err.message);
+    console.error('[CONCIERGE] Venue DB query error:', err.message);
     return [];
   }
 }
@@ -418,7 +418,7 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       source: 'db',
     }));
   } catch (err) {
-    console.error('[concierge] Events DB query error:', err.message);
+    console.error('[CONCIERGE] Events DB query error:', err.message);
     return [];
   }
 }
@@ -543,16 +543,16 @@ You are a local concierge assistant helping someone discover great places nearby
 Return ONLY a valid JSON object with "venues" and "events" arrays. No explanation text.`;
 
   try {
-    console.log(`[concierge] Gemini fallback: "${filter}" near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log(`[CONCIERGE] Gemini fallback: "${filter}" near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
     const startTime = Date.now();
 
     const result = await callModel('CONCIERGE_SEARCH', { system, user: prompt });
 
     const elapsed = Date.now() - startTime;
-    console.log(`[concierge] Gemini complete in ${elapsed}ms`);
+    console.log(`[CONCIERGE] Gemini complete in ${elapsed}ms`);
 
     if (!result.ok) {
-      console.error(`[concierge] Gemini search failed:`, result.error);
+      console.error(`[CONCIERGE] Gemini search failed:`, result.error);
       return { venues: [], events: [] };
     }
 
@@ -573,7 +573,7 @@ Return ONLY a valid JSON object with "venues" and "events" arrays. No explanatio
 
     // 2026-02-13: Persist new discoveries to DB (non-blocking, don't fail the response)
     persistGeminiResults({ venues: geminiVenues, events: geminiEvents, todayDate }).catch(err => {
-      console.error('[concierge] Persist error (non-blocking):', err.message);
+      console.error('[CONCIERGE] Persist error (non-blocking):', err.message);
     });
 
     // Format for response
@@ -607,10 +607,10 @@ Return ONLY a valid JSON object with "venues" and "events" arrays. No explanatio
       source: 'gemini',
     }));
 
-    console.log(`[concierge] Gemini found ${formattedVenues.length} venues, ${formattedEvents.length} events`);
+    console.log(`[CONCIERGE] Gemini found ${formattedVenues.length} venues, ${formattedEvents.length} events`);
     return { venues: formattedVenues, events: formattedEvents };
   } catch (err) {
-    console.error(`[concierge] Gemini fallback error:`, err.message);
+    console.error(`[CONCIERGE] Gemini fallback error:`, err.message);
     return { venues: [], events: [] };
   }
 }
@@ -642,7 +642,7 @@ async function persistGeminiResults({ venues, events, todayDate }) {
     } catch (err) {
       // Dedup conflicts are fine — venue already exists
       if (err.code !== '23505') {
-        console.error(`[concierge] Persist venue "${v.name}" error:`, err.message);
+        console.error(`[CONCIERGE] Persist venue "${v.name}" error:`, err.message);
       }
     }
   }
@@ -688,13 +688,13 @@ async function persistGeminiResults({ venues, events, todayDate }) {
     } catch (err) {
       // Hash conflicts expected — event already exists
       if (err.code !== '23505') {
-        console.error(`[concierge] Persist event "${e.title}" error:`, err.message);
+        console.error(`[CONCIERGE] Persist event "${e.title}" error:`, err.message);
       }
     }
   }
 
   if (venuesSaved > 0 || eventsSaved > 0) {
-    console.log(`[concierge] Persisted ${venuesSaved} venues, ${eventsSaved} events from Gemini`);
+    console.log(`[CONCIERGE] Persisted ${venuesSaved} venues, ${eventsSaved} events from Gemini`);
   }
 }
 
@@ -718,7 +718,7 @@ export async function searchNearby({ lat, lng, filter = 'all', timezone }) {
   const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: timezone || 'UTC' });
   const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone || 'UTC' });
 
-  console.log(`[concierge] Search "${filter}" near ${lat.toFixed(4)}, ${lng.toFixed(4)} (${todayDate})`);
+  console.log(`[CONCIERGE] Search "${filter}" near ${lat.toFixed(4)}, ${lng.toFixed(4)} (${todayDate})`);
   const startTime = Date.now();
 
   // ─── STEP 1: Query DB for existing data ───────────────────────────────
@@ -728,11 +728,11 @@ export async function searchNearby({ lat, lng, filter = 'all', timezone }) {
   ]);
 
   const dbTotal = dbVenues.length + dbEvents.length;
-  console.log(`[concierge] DB: ${dbVenues.length} venues, ${dbEvents.length} events (${Date.now() - startTime}ms)`);
+  console.log(`[CONCIERGE] DB: ${dbVenues.length} venues, ${dbEvents.length} events (${Date.now() - startTime}ms)`);
 
   // ─── STEP 2: If DB has enough results, return immediately ─────────────
   if (dbTotal >= MIN_DB_RESULTS) {
-    console.log(`[concierge] DB-first hit: ${dbTotal} results, skipping Gemini`);
+    console.log(`[CONCIERGE] DB-first hit: ${dbTotal} results, skipping Gemini`);
     return {
       venues: dbVenues,
       events: dbEvents,
@@ -742,7 +742,7 @@ export async function searchNearby({ lat, lng, filter = 'all', timezone }) {
   }
 
   // ─── STEP 3: DB sparse → call Gemini as fallback ──────────────────────
-  console.log(`[concierge] DB sparse (${dbTotal} results), calling Gemini fallback`);
+  console.log(`[CONCIERGE] DB sparse (${dbTotal} results), calling Gemini fallback`);
 
   const geminiResults = await geminiDiscoverAndPersist({
     lat, lng, filter, timezone, todayDate, dayOfWeek,
@@ -753,7 +753,7 @@ export async function searchNearby({ lat, lng, filter = 'all', timezone }) {
   const mergedEvents = [...dbEvents, ...geminiResults.events];
 
   const elapsed = Date.now() - startTime;
-  console.log(`[concierge] Total: ${mergedVenues.length} venues, ${mergedEvents.length} events (${elapsed}ms)`);
+  console.log(`[CONCIERGE] Total: ${mergedVenues.length} venues, ${mergedEvents.length} events (${elapsed}ms)`);
 
   return {
     venues: mergedVenues,
@@ -838,16 +838,16 @@ export async function askConcierge({ question, lat, lng, timezone, venueContext,
   const prompt = safeQuestion;
 
   try {
-    console.log(`[concierge] Ask: "${safeQuestion.slice(0, 50)}..." near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    console.log(`[CONCIERGE] Ask: "${safeQuestion.slice(0, 50)}..." near ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
     const startTime = Date.now();
 
     const result = await callModel('CONCIERGE_CHAT', { system, user: prompt });
 
     const elapsed = Date.now() - startTime;
-    console.log(`[concierge] Ask complete in ${elapsed}ms (${result.ok ? 'ok' : 'error'})`);
+    console.log(`[CONCIERGE] Ask complete in ${elapsed}ms (${result.ok ? 'ok' : 'error'})`);
 
     if (!result.ok) {
-      console.error('[concierge] Ask failed:', result.error);
+      console.error('[CONCIERGE] Ask failed:', result.error);
       return { ok: false, answer: 'Sorry, I could not process your question right now. Please try again.' };
     }
 
@@ -859,7 +859,7 @@ export async function askConcierge({ question, lat, lng, timezone, venueContext,
 
     return { ok: true, answer };
   } catch (err) {
-    console.error('[concierge] Ask error:', err.message);
+    console.error('[CONCIERGE] Ask error:', err.message);
     return { ok: false, answer: 'Sorry, something went wrong. Please try again.' };
   }
 }
@@ -902,10 +902,10 @@ export async function submitFeedback({ token, rating, comment }) {
       comment: safeComment || null,
     });
 
-    console.log(`[concierge] Feedback: ${rating}/5 for profile ${profile.id.slice(0, 8)}...${safeComment ? ' (with comment)' : ''}`);
+    console.log(`[CONCIERGE] Feedback: ${rating}/5 for profile ${profile.id.slice(0, 8)}...${safeComment ? ' (with comment)' : ''}`);
     return { ok: true };
   } catch (err) {
-    console.error('[concierge] Feedback error:', err.message);
+    console.error('[CONCIERGE] Feedback error:', err.message);
     return { ok: false, error: 'Failed to submit feedback' };
   }
 }
@@ -955,7 +955,7 @@ export async function getFeedbackSummary(userId) {
       recentComments,
     };
   } catch (err) {
-    console.error('[concierge] Feedback summary error:', err.message);
+    console.error('[CONCIERGE] Feedback summary error:', err.message);
     return { ok: true, avgRating: null, totalReviews: 0, recentComments: [] };
   }
 }

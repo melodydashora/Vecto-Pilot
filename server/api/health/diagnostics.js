@@ -147,7 +147,7 @@ router.get('/', requireAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[diagnostics] System check failed', { 
+    console.error('[AGENT] [DIAGNOSTICS] System check failed', { 
       correlation_id: correlationId, 
       error: error.message 
     });
@@ -516,7 +516,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const modelId = process.env.OPENAI_MODEL || 'gpt-5.4';
+        const modelId = process.env.OPENAI_MODEL || 'gpt-5.5-2026-04-23';
         // 2026-01-07: GPT-5 family requires max_completion_tokens (not max_tokens)
         // See LESSONS_LEARNED.md: "max_tokens is DEPRECATED - use max_completion_tokens"
         const response = await openai.chat.completions.create({
@@ -665,37 +665,6 @@ router.get('/workflow-dry-run', requireAuth, async (req, res) => {
   }
 });
 
-// SECURITY: Require authentication for test endpoints
-// POST /api/diagnostics/test-consolidate/:snapshotId - Manually test consolidation logic
-router.post('/test-consolidate/:snapshotId', requireAuth, async (req, res) => {
-  try {
-    const { snapshotId } = req.params;
-    
-    // Import and call maybeConsolidate directly
-    const { maybeConsolidate } = await import('../../jobs/triad-worker.js');
-    
-    await maybeConsolidate(snapshotId);
-    
-    // Check result
-    const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
-    // Check briefing from separate briefings table
-    const [briefingRow] = await db.select().from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-
-    res.json({
-      ok: true,
-      snapshotId,
-      consolidationComplete: row?.consolidated_strategy != null,
-      status: row?.status,
-      hasStrategyForNow: row?.strategy_for_now != null,
-      hasBriefing: !!briefingRow
-    });
-  } catch (err) {
-    console.error('[diagnostics/test-consolidate] Error:', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
 
 // GET /api/diagnostics/test-traffic
 // Compare traffic data from all providers

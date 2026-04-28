@@ -49,11 +49,11 @@ export async function synthesizeSpeech(text, language) {
 
     // Convert response to buffer
     const buffer = Buffer.from(await response.arrayBuffer());
-    console.log(`[TTS] ✅ Generated ${buffer.length} bytes of audio`);
+    console.log(`[TTS] Generated ${buffer.length} bytes of audio`);
     
     return buffer;
   } catch (err) {
-    console.error('[TTS] ❌ Speech synthesis failed:', err.message);
+    console.error('[TTS] Speech synthesis failed:', err.message);
     throw new Error(`TTS failed: ${err.message}`);
   }
 }

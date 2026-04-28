@@ -16,7 +16,7 @@ import { subscribeToChannel } from '../db/db-client.js';
 
 // Single-process guard
 if (global.__TRIAD_WORKER_STARTED__) {
-  console.warn('[triad-worker] ⚠️ Duplicate start suppressed (already running)');
+  console.warn('[triad-worker] Duplicate start suppressed (already running)');
 } else {
   global.__TRIAD_WORKER_STARTED__ = true;
 }
@@ -43,16 +43,16 @@ export async function startConsolidationListener() {
     const shutdown = async (signal) => {
       if (shuttingDown) return;
       shuttingDown = true;
-      console.log(`[consolidation-listener] 🛑 Received ${signal}, closing listener...`);
+      console.log(`[STRATEGY] 🛑 Received ${signal}, closing listener...`);
       try {
         if (unsubscribe) {
           await unsubscribe();
           unsubscribe = null;
         }
       } catch (e) {
-        console.error('[consolidation-listener] ❌ Error during shutdown:', e?.message || e);
+        console.error('[STRATEGY] Error during shutdown:', e?.message || e);
       } finally {
-        console.log('[consolidation-listener] ✅ Listener closed cleanly');
+        console.log('[STRATEGY] Listener closed cleanly');
       }
     };
 
@@ -75,7 +75,7 @@ export async function startConsolidationListener() {
         snapshotId = rawPayload;
       }
 
-      console.log(`[consolidation-listener] 📢 Notification: strategy_ready -> ${snapshotId}`);
+      console.log(`[STRATEGY] 📢 Notification: strategy_ready -> ${snapshotId}`);
 
       try {
         // Fetch strategy row
@@ -85,7 +85,7 @@ export async function startConsolidationListener() {
           .limit(1);
 
         if (!row) {
-          console.warn(`[consolidation-listener] ⚠️ No strategy row for ${snapshotId}`);
+          console.warn(`[STRATEGY] No strategy row for ${snapshotId}`);
           return;
         }
 
@@ -99,7 +99,7 @@ export async function startConsolidationListener() {
         const hasStrategyForNow = row.strategy_for_now != null && row.strategy_for_now.length > 0;
         const hasBriefing = briefingRow != null;
 
-        console.log(`[consolidation-listener] Status for ${snapshotId}:`, {
+        console.log(`[STRATEGY] Status for ${snapshotId}:`, {
           hasStrategyForNow,
           hasBriefing,
           status: row.status
@@ -107,7 +107,7 @@ export async function startConsolidationListener() {
 
         // Early exit if data isn't ready
         if (!hasStrategyForNow || !hasBriefing) {
-          console.log(`[consolidation-listener] ⏭️ Skipping ${snapshotId} - missing strategy_for_now or briefing`);
+          console.log(`[STRATEGY] ⏭️ Skipping ${snapshotId} - missing strategy_for_now or briefing`);
           return;
         }
 
@@ -118,14 +118,14 @@ export async function startConsolidationListener() {
           .limit(1);
 
         if (!snap) {
-          console.warn(`[consolidation-listener] ⚠️ No snapshot for ${snapshotId}`);
+          console.warn(`[STRATEGY] No snapshot for ${snapshotId}`);
           return;
         }
 
         // Generate enhanced smart blocks using IMMEDIATE strategy for "where to go NOW"
         try {
-          console.log(`[consolidation-listener] 🎯 Generating enhanced smart blocks for ${snapshotId}...`);
-          console.log(`[consolidation-listener] Using strategy_for_now: "${row.strategy_for_now?.slice(0, 80)}..."`);
+          console.log(`[STRATEGY] Generating enhanced smart blocks for ${snapshotId}...`);
+          console.log(`[STRATEGY] Using strategy_for_now: "${row.strategy_for_now?.slice(0, 80)}..."`);
           await generateEnhancedSmartBlocks({
             snapshotId,
             immediateStrategy: row.strategy_for_now,
@@ -133,7 +133,7 @@ export async function startConsolidationListener() {
             snapshot: snap,
             user_id: row.user_id || snap?.user_id
           });
-          console.log(`[consolidation-listener] ✅ Enhanced smart blocks generated for ${snapshotId}`);
+          console.log(`[STRATEGY] Enhanced smart blocks generated for ${snapshotId}`);
 
           // CRITICAL: Notify SSE listeners that blocks are ready.
           // 2026-04-18 (F2): Emit via the main pool with parameterized pg_notify
@@ -145,23 +145,23 @@ export async function startConsolidationListener() {
               timestamp: new Date().toISOString()
             });
             await db.execute(sql`SELECT pg_notify('blocks_ready', ${payload})`);
-            console.log(`[consolidation-listener] 📢 NOTIFY blocks_ready sent for ${snapshotId}`);
+            console.log(`[STRATEGY] 📢 NOTIFY blocks_ready sent for ${snapshotId}`);
           } catch (notifyErr) {
-            console.error(`[consolidation-listener] ⚠️ Failed to send NOTIFY:`, notifyErr.message);
+            console.error(`[STRATEGY] Failed to send NOTIFY:`, notifyErr.message);
           }
         } catch (blocksErr) {
-          console.error(`[consolidation-listener] ⚠️ Blocks generation failed (non-blocking):`, blocksErr.message);
+          console.error(`[STRATEGY] Blocks generation failed (non-blocking):`, blocksErr.message);
         }
       } catch (err) {
-        console.error(`[consolidation-listener] ❌ Error handling notification for ${snapshotId}:`, err?.message || err);
+        console.error(`[STRATEGY] Error handling notification for ${snapshotId}:`, err?.message || err);
       }
     });
 
     // 2026-04-18 (F2): subscribeToChannel above already issued the LISTEN via the
     // shared dispatcher; no separate pgClient.query('LISTEN ...') needed.
-    console.log('[consolidation-listener] 🎧 Listening on channel: strategy_ready (via shared dispatcher)');
+    console.log('[STRATEGY] 🎧 Listening on channel: strategy_ready (via shared dispatcher)');
   } catch (err) {
-    console.error('[consolidation-listener] ❌ Failed to start listener:', err?.message || err);
+    console.error('[STRATEGY] Failed to start listener:', err?.message || err);
     throw err;
   }
 }

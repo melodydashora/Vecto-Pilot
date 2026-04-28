@@ -47,7 +47,7 @@ async function loadMarketResearch() {
     // Look for the first data line (e.g., "AL,Adamsville,Birmingham,Satellite")
     const dataStart = lines.findIndex(line => line.match(/^[A-Z]{2},[^,]+,[^,]+,(Core|Satellite|Rural)/));
     if (dataStart === -1) {
-      console.error('❌ Could not find CSV data in research file');
+      console.error('Could not find CSV data in research file');
       process.exit(1);
     }
   }
@@ -131,15 +131,15 @@ async function loadMarketResearch() {
         inserted++;
       }
     } catch (err) {
-      console.error(`❌ Error processing ${record.city}, ${record.stateName}:`, err.message);
+      console.error(`Error processing ${record.city}, ${record.stateName}:`, err.message);
       errors++;
     }
   }
 
   console.log('\n📊 Results:');
-  console.log(`   ✅ Updated: ${updated}`);
+  console.log(`   Updated: ${updated}`);
   console.log(`   ➕ Inserted: ${inserted}`);
-  if (errors > 0) console.log(`   ❌ Errors: ${errors}`);
+  if (errors > 0) console.log(`   Errors: ${errors}`);
 
   // Show sample of data
   console.log('\n📋 Sample data (first 10 records by market):');

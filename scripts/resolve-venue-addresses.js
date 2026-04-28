@@ -184,14 +184,14 @@ async function findAddressForVenue(venueName, lat, lng) {
     // --- VERIFICATION GATES ---
     // Gate 1: Distance must be within threshold
     if (bestDetails.distance > MAX_DISTANCE_METERS) {
-      console.log(`   ⚠️  Distance check FAILED: ${bestDetails.distance}m > ${MAX_DISTANCE_METERS}m`);
+      console.log(`    Distance check FAILED: ${bestDetails.distance}m > ${MAX_DISTANCE_METERS}m`);
       return null;
     }
 
     // Gate 2: Name must have minimum similarity (unless very close)
     const nameScoreDecimal = bestDetails.nameSimilarity / 100;
     if (nameScoreDecimal < MIN_NAME_SIMILARITY && bestDetails.distance > 200) {
-      console.log(`   ⚠️  Name check FAILED: "${bestDetails.googleName}" (${bestDetails.nameSimilarity}% match, ${bestDetails.distance}m away)`);
+      console.log(`    Name check FAILED: "${bestDetails.googleName}" (${bestDetails.nameSimilarity}% match, ${bestDetails.distance}m away)`);
       return null;
     }
 
@@ -213,11 +213,11 @@ async function findAddressForVenue(venueName, lat, lng) {
  * Main function - process venues with missing addresses
  */
 async function main() {
-  console.log('🏢 Venue Address Resolver');
+  console.log('Venue Address Resolver');
   console.log('─────────────────────────────────────────────');
 
   if (!GOOGLE_API_KEY) {
-    console.error('❌ GOOGLE_MAPS_API_KEY environment variable not set');
+    console.error('GOOGLE_MAPS_API_KEY environment variable not set');
     process.exit(1);
   }
 
@@ -233,7 +233,7 @@ async function main() {
       isNotNull(venue_catalog.lat),
       isNotNull(venue_catalog.lng)
     );
-    console.log('🔄 FORCE MODE - Re-resolving all venues with coordinates\n');
+    console.log('FORCE MODE - Re-resolving all venues with coordinates\n');
   } else {
     // Only venues missing addresses but having coordinates
     // Check for NULL OR empty string (common in this database)
@@ -265,7 +265,7 @@ async function main() {
   console.log(`📊 Found ${venues.length} venues to process${LIMIT ? ` (limited to ${LIMIT})` : ''}\n`);
 
   if (venues.length === 0) {
-    console.log('✅ No venues need address resolution!');
+    console.log('No venues need address resolution!');
     process.exit(0);
   }
 
@@ -278,13 +278,13 @@ async function main() {
     const venue = venues[i];
     const progress = `[${i + 1}/${venues.length}]`;
 
-    console.log(`${progress} 🔍 Searching: ${venue.venue_name} (${venue.city || 'unknown city'})`);
+    console.log(`${progress} Searching: ${venue.venue_name} (${venue.city || 'unknown city'})`);
     console.log(`   📍 Coords: ${venue.lat.toFixed(6)}, ${venue.lng.toFixed(6)}`);
 
     const result = await findAddressForVenue(venue.venue_name, venue.lat, venue.lng);
 
     if (result) {
-      console.log(`   ✅ Found: ${result.address}`);
+      console.log(`   Found: ${result.address}`);
       console.log(`   📏 Distance: ${result.distance}m | Name: ${result.nameSimilarity}% match | Score: ${result.combinedScore}%`);
       if (result.displayName !== venue.venue_name) {
         console.log(`   🏷️  Google name: "${result.displayName}"`);
@@ -301,7 +301,7 @@ async function main() {
             .where(eq(venue_catalog.venue_id, venue.venue_id));
           updated++;
         } catch (dbErr) {
-          console.log(`   ❌ DB Error: ${dbErr.message}`);
+          console.log(`   DB Error: ${dbErr.message}`);
           errors++;
         }
       } else {
@@ -319,9 +319,9 @@ async function main() {
   // Summary
   console.log('\n─────────────────────────────────────────────');
   console.log('📊 Summary');
-  console.log(`   ✅ Updated: ${updated}`);
+  console.log(`   Updated: ${updated}`);
   console.log(`   ⏭️  Skipped: ${skipped}`);
-  console.log(`   ❌ Errors: ${errors}`);
+  console.log(`   Errors: ${errors}`);
 
   if (DRY_RUN) {
     console.log('\n📋 This was a dry run. Run without --dry-run to apply changes.');

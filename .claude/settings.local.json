@@ -288,13 +288,43 @@
       "Bash(/nix/store/dd093s6q1w4zkmhxm4160pgdg5n61hsz-replit-cli-0.0.1/bin/replit ai *)",
       "Bash(/nix/store/dd093s6q1w4zkmhxm4160pgdg5n61hsz-replit-cli-0.0.1/bin/replit run *)",
       "Read(//home/runner/**)",
-      "Bash(git ls-tree *)"
+      "Bash(git ls-tree *)",
+      "Bash(sed -n '14,32p' /home/runner/workspace/server/lib/ai/index.js)",
+      "Bash(sed -n '142,154p' /home/runner/workspace/server/lib/ai/model-registry.js)",
+      "Bash(sed -n '368,378p' /home/runner/workspace/server/lib/ai/model-registry.js)",
+      "Bash(git -C /home/runner/workspace status --short)",
+      "Bash(git -C /home/runner/workspace add client/src/components/briefing/StrategyCard.tsx client/src/components/BriefingTab.tsx client/src/pages/co-pilot/BriefingPage.tsx client/src/pages/co-pilot/CoachPage.tsx client/src/pages/co-pilot/StrategyPage.tsx client/src/contexts/co-pilot-context.tsx client/src/constants/apiRoutes.ts client/src/pages/landing/LandingPage.tsx server/api/strategy/strategy.js server/api/health/diagnostics-strategy.js server/lib/ai/providers/consolidator.js server/lib/ai/index.js server/lib/ai/model-registry.js server/lib/ai/rideshare-coach-dal.js server/lib/briefing/dump-last-briefing.js)",
+      "Bash(git -C /home/runner/workspace add client/src/components/BriefingTab.tsx client/src/pages/co-pilot/BriefingPage.tsx client/src/pages/co-pilot/CoachPage.tsx client/src/pages/co-pilot/StrategyPage.tsx client/src/contexts/co-pilot-context.tsx client/src/constants/apiRoutes.ts client/src/pages/landing/LandingPage.tsx server/api/strategy/strategy.js server/api/health/diagnostics-strategy.js server/lib/ai/providers/consolidator.js server/lib/ai/index.js server/lib/ai/model-registry.js server/lib/ai/rideshare-coach-dal.js server/lib/briefing/dump-last-briefing.js)",
+      "Bash(git -C /home/runner/workspace add server/api/chat/realtime.js server/api/health/diagnostics.js server/api/rideshare-coach/schema.js server/api/strategy/blocks-fast.js server/api/strategy/content-blocks.js server/api/strategy/strategy-events.js server/lib/ai/providers/consolidator.js server/lib/strategy/dump-last-strategy.js server/lib/strategy/strategy-generator-parallel.js server/lib/strategy/strategy-utils.js server/logger/workflow.js server/validation/response-schemas.js server/validation/transformers.js)",
+      "Bash(git -C /home/runner/workspace commit -m ' *)",
+      "Bash(git -C /home/runner/workspace branch --show-current)",
+      "Bash(git -C /home/runner/workspace stash list)",
+      "Bash(git -C /home/runner/workspace checkout main)",
+      "Bash(git -C /home/runner/workspace merge --no-ff chore/remove-daily-strategy -m 'Merge branch '\\\\''chore/remove-daily-strategy'\\\\'' — Daily 8-12hr strategy removed end-to-end *)",
+      "Bash(git -C /home/runner/workspace log --oneline --graph -8)",
+      "Bash(git -C /home/runner/workspace log --oneline origin/main..main)",
+      "Bash(git -C /home/runner/workspace push origin main)",
+      "Bash(git -C /home/runner/workspace status -sb)",
+      "Bash(git -C /home/runner/workspace checkout -b coach-pass2-phase-b)",
+      "Bash(git -C /home/runner/workspace add client/src/utils/coach/cleanTextForTTS.ts client/src/components/RideshareCoach.tsx)",
+      "Bash(git -C /home/runner/workspace commit -m \"refactor\\(coach\\): lift cleanTextForTTS to shared util \\(no behavior change\\)\")",
+      "Bash(git -C /home/runner/workspace add server/lib/ai/adapters/gemini-adapter.js server/lib/ai/adapters/index.js server/api/chat/chat.js)",
+      "Bash(git -C /home/runner/workspace commit -m \"feat\\(chat\\): plumb AbortSignal through callModelStream + req.on\\(close\\) → cancel Gemini\")",
+      "Bash(bin/vecto-runner status *)",
+      "Bash(bin/vecto-runner restart *)",
+      "Bash(cp /home/runner/workspace/.claude/settings.local.json /tmp/settings.local.json.backup)",
+      "Bash(sed -i '/mcp__plugin_serena_serena/d' /home/runner/workspace/.claude/settings.local.json)",
+      "Bash(cp /tmp/settings.local.json.backup /home/runner/workspace/.claude/settings.local.json)",
+      "Bash(jq 'walk\\(if type == \"array\" then map\\(select\\(type != \"string\" or \\(test\\(\"mcp__plugin_serena_serena\"\\) | not\\)\\)\\) else . end\\)' /home/runner/workspace/.claude/settings.local.json)",
+      "Bash(cp /tmp/settings.local.json.cleaned /home/runner/workspace/.claude/settings.local.json)",
+      "Bash(LOG_NO_EMOJI=true node -e \"import\\('./server/logger/workflow.js'\\).then\\(m => { m.barsLog.info\\('no-emoji test'\\); m.markPhaseStart\\({ request_id:'r1', snapshot_id:'s1', phase:'SNAPSHOT' }\\); m.logAICall\\('Strategist','claude-opus','test'\\); }\\);\")"
     ],
     "deny": [],
     "ask": []
   },
   "enabledPlugins": {
-    "feature-dev@claude-plugins-official": true
+    "feature-dev@claude-plugins-official": true,
+    "serena@claude-plugins-official": false
   },
   "outputStyle": "Explanatory"
 }

@@ -44,14 +44,14 @@ async function isGitRepo() {
  */
 export async function runAnalysis() {
   if (isRunning) {
-    console.log('[ChangeAnalyzer] Analysis already running, skipping...');
+    console.log('[AGENT] Analysis already running, skipping...');
     return { skipped: true, reason: 'Already running' };
   }
 
   // Skip in non-git environments (e.g., production deployments)
   const hasGit = await isGitRepo();
   if (!hasGit) {
-    console.log('[ChangeAnalyzer] Skipped - not a git repository (production deployment)');
+    console.log('[AGENT] Skipped - not a git repository (production deployment)');
     return { skipped: true, reason: 'Not a git repository' };
   }
 
@@ -59,7 +59,7 @@ export async function runAnalysis() {
   const startTime = Date.now();
 
   try {
-    console.log('[ChangeAnalyzer] Starting analysis...');
+    console.log('[AGENT] Starting analysis...');
 
     // Gather git information
     const [uncommittedChanges, recentCommits, currentBranch, lastCommit] = await Promise.all([
@@ -111,11 +111,11 @@ export async function runAnalysis() {
     let autoUpdateResults = [];
     if (process.env.ENABLE_DOCS_AGENT !== 'false') {
       try {
-        console.log('[ChangeAnalyzer] Triggering Docs Auto-Alignment...');
+        console.log('[AGENT] Triggering Docs Auto-Alignment...');
         autoUpdateResults = await docsOrchestrator.processChanges(allChanges);
-        console.log(`[ChangeAnalyzer] Auto-Alignment complete: ${autoUpdateResults.length} docs processed`);
+        console.log(`[AGENT] Auto-Alignment complete: ${autoUpdateResults.length} docs processed`);
       } catch (agentErr) {
-        console.error('[ChangeAnalyzer] Docs Agent failed:', agentErr);
+        console.error('[AGENT] Docs Agent failed:', agentErr);
       }
     }
 
@@ -136,7 +136,7 @@ export async function runAnalysis() {
     lastAnalysisTime = new Date();
     const duration = Date.now() - startTime;
 
-    console.log(`[ChangeAnalyzer] ✅ Complete (${duration}ms) - ${allChanges.length} changes, ${docImpacts.high.length} high priority`);
+    console.log(`[AGENT] Complete (${duration}ms) - ${allChanges.length} changes, ${docImpacts.high.length} high priority`);
 
     return {
       success: true,
@@ -148,7 +148,7 @@ export async function runAnalysis() {
     };
 
   } catch (err) {
-    console.error('[ChangeAnalyzer] ❌ Error:', err.message);
+    console.error('[AGENT] Error:', err.message);
     return { success: false, error: err.message };
   } finally {
     isRunning = false;
@@ -169,7 +169,7 @@ async function getUncommittedChanges() {
       type: 'uncommitted'
     }));
   } catch (err) {
-    console.warn('[ChangeAnalyzer] Could not get uncommitted changes:', err.message);
+    console.warn('[AGENT] Could not get uncommitted changes:', err.message);
     return [];
   }
 }
@@ -194,7 +194,7 @@ async function getRecentCommitChanges() {
       };
     });
   } catch (err) {
-    console.warn('[ChangeAnalyzer] Could not get recent commits:', err.message);
+    console.warn('[AGENT] Could not get recent commits:', err.message);
     return [];
   }
 }
@@ -374,7 +374,7 @@ async function writeToReviewQueue(report) {
 
   await fs.writeFile(pendingPath, pendingContent);
 
-  console.log(`[ChangeAnalyzer] Written to ${dailyLogPath} and pending.md`);
+  console.log(`[AGENT] Written to ${dailyLogPath} and pending.md`);
 }
 
 /**
@@ -382,13 +382,13 @@ async function writeToReviewQueue(report) {
  * @returns {Object} { runNow: Function, stop: Function }
  */
 export function startChangeAnalyzerJob() {
-  console.log('[ChangeAnalyzer] Initializing...');
+  console.log('[AGENT] Initializing...');
 
   // Check if enabled (default: true)
   const enabled = process.env.RUN_CHANGE_ANALYZER !== 'false';
 
   if (!enabled) {
-    console.log('[ChangeAnalyzer] Disabled via RUN_CHANGE_ANALYZER=false');
+    console.log('[AGENT] Disabled via RUN_CHANGE_ANALYZER=false');
     return {
       runNow: runAnalysis,
       stop: () => {}
@@ -398,7 +398,7 @@ export function startChangeAnalyzerJob() {
   // Run initial analysis after a short delay (let server finish starting)
   const initialTimer = setTimeout(() => {
     runAnalysis().catch(err => {
-      console.error('[ChangeAnalyzer] Initial analysis failed:', err.message);
+      console.error('[AGENT] Initial analysis failed:', err.message);
     });
   }, 3000);
 
@@ -406,7 +406,7 @@ export function startChangeAnalyzerJob() {
     runNow: runAnalysis,
     stop: () => {
       clearTimeout(initialTimer);
-      console.log('[ChangeAnalyzer] Stopped');
+      console.log('[AGENT] Stopped');
     }
   };
 }

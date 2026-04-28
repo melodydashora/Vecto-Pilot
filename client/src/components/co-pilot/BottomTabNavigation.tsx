@@ -4,12 +4,11 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
+  Compass,
   Sparkles,
   Wine,
   MessageSquare,
-  Map as MapIcon,
   QrCode,
-  Target,
   Languages
 } from 'lucide-react';
 
@@ -23,14 +22,33 @@ interface TabConfig {
   showPulse?: boolean;
 }
 
+// 2026-04-25 (Phase A Pass 1 polish): tab order updated per browser-test feedback.
+// Coach moved to position 2 (right of Strategy) — drivers reach the AI surface
+// faster when they have a question while looking at strategy.
+// Coach icon: Sparkles (the de-facto "AI" icon) — was MessageSquare which
+// collided with Briefing's icon.
+// Intel moved to hamburger menu as "Market Intel" — forecasting sub-tabs
+// (surge zones, hotel occupancy, demand patterns) that warrant a hub page.
 const tabs: TabConfig[] = [
   {
+    // 2026-04-26: Strategy icon Sparkles → Compass to disambiguate from Coach.
+    // Compass reads as real-time bearing / "next move" — fits Strategy's
+    // 1–4 hour tactical-dispatch role, not long-term planning.
+    // Color stays text-blue-600 / bg-blue-50 — blue remains the entry-point anchor.
     id: 'strategy',
     path: '/co-pilot/strategy',
     label: 'Strategy',
-    icon: Sparkles,
+    icon: Compass,
     activeColor: 'text-blue-600',
     activeBg: 'bg-blue-50'
+  },
+  {
+    id: 'coach',
+    path: '/co-pilot/coach',
+    label: 'Coach',
+    icon: Sparkles,
+    activeColor: 'text-blue-600',
+    activeBg: 'bg-blue-50',
   },
   {
     id: 'bars',
@@ -49,22 +67,9 @@ const tabs: TabConfig[] = [
     activeColor: 'text-indigo-600',
     activeBg: 'bg-indigo-50'
   },
-  {
-    id: 'map',
-    path: '/co-pilot/map',
-    label: 'Map',
-    icon: MapIcon,
-    activeColor: 'text-green-600',
-    activeBg: 'bg-green-50'
-  },
-  {
-    id: 'intel',
-    path: '/co-pilot/intel',
-    label: 'Intel',
-    icon: Target,
-    activeColor: 'text-amber-600',
-    activeBg: 'bg-amber-50'
-  },
+  // 2026-04-26 PHASE B: Map tab removed. The map now lives embedded in
+  // StrategyPage. Drivers navigate to /co-pilot/strategy for both strategy
+  // and the map — no more duplicate render path.
   {
     // 2026-03-17: Added for FIFA World Cup real-time rider translation feature
     id: 'translate',

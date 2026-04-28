@@ -9,7 +9,7 @@
 //   1. Input: immediateStrategy (strategy_for_now) + briefing + snapshot
 //   2. VENUE_SCORER role → 4-6 venue recommendations with coords
 //   3. Google Routes API → accurate distances and drive times
-//   4. Google Places API → business hours, addresses, open/closed status
+//   4. Google Places (NEW) API → business hours, addresses, open/closed status
 //   5. Catalog promotion → verified venues upserted to venue_catalog (venue_id returned)
 //   6. Output: rankings + ranking_candidates tables populated (with venue_id FK)
 //
@@ -69,13 +69,15 @@ function isEventTimeRelevant(eventStartTime, snapshotTimezone) {
   return (minutesUntilStart >= 0 && minutesUntilStart <= 120) ||
          (minutesSinceStart >= 0 && minutesSinceStart <= 240);
 }
-import { eq, and } from 'drizzle-orm';
+// 2026-04-28: added lte, gte for the multi-day-inclusive predicate (Step 2b)
+import { eq, and, lte, gte } from 'drizzle-orm';
 import { generateTacticalPlan } from '../strategy/tactical-planner.js';
 import { hasRenderableBriefing, updatePhase } from '../strategy/strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
 import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
 import { matchVenuesToEvents } from './event-matcher.js';
-import { upsertVenue } from './venue-cache.js';
+// 2026-04-28: Step 4 — planner-grade gate predicate (spec §5.3)
+import { upsertVenue, isPlannerGradeVenue } from './venue-cache.js';
 import { venuesLog } from '../../logger/workflow.js';
 // 2026-04-14: Issue O — Use role config for accurate model telemetry in rankings.model_name
 import { getRoleConfig } from '../ai/model-registry.js';
@@ -203,12 +205,20 @@ export async function fetchTodayDiscoveredEventsWithVenue(
       vc_lng: venue_catalog.lng,
       // 2026-04-16 (H-3): Venue capacity for ranking ceiling guardrail
       vc_capacity: venue_catalog.capacity_estimate,
+      // 2026-04-28 (Step 4): timezone needed for isPlannerGradeVenue gate (spec §5.3)
+      vc_timezone: venue_catalog.timezone,
     })
       .from(discovered_events)
       .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
+      // 2026-04-28: FIX — multi-day-inclusive predicate. Was exact-equality
+      // (`eq(start_date, eventDate)`), which silently excluded multi-day events that
+      // started before today (e.g. day 2 of a 4-day festival). Now: any event whose
+      // [start, end] window contains eventDate. Active-only filter still gates
+      // already-ended events because deactivatePastEvents() runs first.
       .where(and(
         eq(discovered_events.state, state),
-        eq(discovered_events.event_start_date, eventDate),
+        lte(discovered_events.event_start_date, eventDate),
+        gte(discovered_events.event_end_date, eventDate),
         eq(discovered_events.is_active, true)
       ));
 
@@ -221,28 +231,71 @@ export async function fetchTodayDiscoveredEventsWithVenue(
     // Events beyond 60mi are dropped as out-of-metro noise (Austin/Houston for a
     // DFW driver). Orphan events (null venue_catalog coords) fall out because
     // haversineMiles returns Infinity for them.
-    if (driverLat != null && driverLng != null) {
-      const withDistance = rows
-        .map(row => ({
-          ...row,
-          _distanceMiles: haversineMiles(driverLat, driverLng, row.vc_lat, row.vc_lng)
-        }))
-        .filter(row => row._distanceMiles <= maxDistanceMiles)
-        .sort((a, b) => a._distanceMiles - b._distanceMiles);
+    // 2026-04-28 (Step 4, spec §5.3): planner-grade gate. Classify every row into
+    // planner-ready / re-resolve-needed / orphan, log the 3-bucket counts, then
+    // continue downstream with planner-ready rows only. Subsumes Step 3's null-coords
+    // orphan check with a more granular predicate that also catches missing place_id,
+    // timezone, etc. — venues that look "complete" by coords alone but lack identity
+    // needed for the matcher / map / planner.
+    const classified = rows.map(row => {
+      const venueShape = {
+        place_id: row.vc_place_id,
+        formatted_address: row.vc_formatted_address,
+        city: row.vc_city,
+        state: row.vc_state,
+        lat: row.vc_lat,
+        lng: row.vc_lng,
+        timezone: row.vc_timezone,
+      };
+      const { ok, missing } = isPlannerGradeVenue(venueShape);
+      let _bucket;
+      if (ok) _bucket = 'planner-ready';
+      else if (row.vc_place_id) _bucket = 're-resolve-needed';
+      else _bucket = 'orphan';
+      return { ...row, _bucket, _missingFields: missing };
+    });
 
-      const droppedFar = rows.length - withDistance.length;
-      const nearCount = withDistance.filter(r => r._distanceMiles <= 15).length;
-      const farCount = withDistance.length - nearCount;
+    const gateCounts = {
+      'planner-ready': classified.filter(r => r._bucket === 'planner-ready').length,
+      're-resolve-needed': classified.filter(r => r._bucket === 're-resolve-needed').length,
+      'orphan': classified.filter(r => r._bucket === 'orphan').length,
+    };
+
+    console.log(
+      `[VENUE CATALOG] [GATE] [PLANNER-GRADE] [NEW EVENTS PIPELINE] ` +
+      `planner-ready=${gateCounts['planner-ready']}, ` +
+      `re-resolve-needed=${gateCounts['re-resolve-needed']}, ` +
+      `orphan=${gateCounts.orphan} — ` +
+      `spec §5.3: planner-grade requires {place_id, formatted_address, city, state, lat, lng, timezone}; ` +
+      `re-resolve-needed has place_id (recoverable via Places (NEW) API), orphan lacks place_id`
+    );
+
+    const plannerReady = classified.filter(r => r._bucket === 'planner-ready');
+
+    if (driverLat != null && driverLng != null) {
+      const annotated = plannerReady.map(row => ({
+        ...row,
+        _distanceMiles: haversineMiles(driverLat, driverLng, row.vc_lat, row.vc_lng),
+      }));
+
+      const reachable = annotated
+        .filter(r => r._distanceMiles <= maxDistanceMiles)
+        .sort((a, b) => a._distanceMiles - b._distanceMiles);
+      const beyondMetro = annotated.length - reachable.length;
+
+      const nearCount = reachable.filter(r => r._distanceMiles <= 15).length;
+      const farCount = reachable.length - nearCount;
+
       console.log(
-        `[enhanced-smart-blocks] fetchTodayDiscoveredEventsWithVenue: ` +
-        `${rows.length} state-wide → ${withDistance.length} within ${maxDistanceMiles}mi metro context ` +
+        `[VENUE] [EVENTS] [DB] [discovered_events] [METRO-CONTEXT] [NEW EVENTS PIPELINE] ` +
+        `${plannerReady.length} planner-ready → ${reachable.length} within ${maxDistanceMiles}mi ` +
         `(${nearCount} near ≤15mi candidates, ${farCount} far >15mi surge intel, ` +
-        `dropped ${droppedFar} out-of-metro/orphan)`
+        `${beyondMetro} beyond-metro) — multi-day inclusive, distance-annotated, closest-first`
       );
-      return withDistance;
+      return reachable;
     }
 
-    return rows;
+    return plannerReady;
   } catch (err) {
     // Non-fatal — return empty array so the pipeline continues with generic venues.
     // The alternative (throwing) would block blocks-fast on any transient DB issue,
@@ -267,7 +320,7 @@ export async function fetchTodayDiscoveredEventsWithVenue(
  */
 async function promoteToVenueCatalog(enrichedVenues, snapshot) {
   // 2026-04-02: FIX - Also require a valid address to avoid NOT NULL constraint violations.
-  // Address can be null when geocode/Places API fails to resolve during enrichment.
+  // Address can be null when geocode/Places (NEW) API fails to resolve during enrichment.
   const promotable = enrichedVenues.filter(v =>
     v.placeVerified === true &&
     v.placeId &&
@@ -375,7 +428,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // 2026-04-14: Issue N — Require timezone per NO FALLBACKS rule.
     // UTC fallback near midnight can shift event selection by one day.
     if (!snapshot.timezone) {
-      venuesLog.warn(1, `[VENUE] snapshot.timezone is missing for ${snapshotId} — cannot compute today's date. Skipping event fetch.`);
+      venuesLog.warn(1, `snapshot.timezone is missing for ${snapshotId} — cannot compute today's date. Skipping event fetch.`);
       // Continue pipeline with empty events rather than wrong-day events
     }
     const todayDate = snapshot.timezone
@@ -412,8 +465,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     venuesLog.done(1, `VENUE_SCORER returned ${venuesPlan.recommended_venues.length} venues`, plannerMs);
 
     // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
-    // Phase: 'routing' - Google Routes + Places APIs
-    console.log(`[PHASE] ${snapshotId.slice(0, 8)} venues → routing`);
+    // Phase: 'routing' - Google Routes + Places (NEW) APIs
+    // 2026-04-27 (Commit 7): caller pre-log removed — updatePhase emits the canonical
+    // [VENUE] [PHASE-UPDATE] line. Avoids three-lines-per-transition duplication.
     await updatePhase(snapshotId, 'routing', { phaseEmitter });
 
     const enrichmentStart = Date.now();
@@ -434,11 +488,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     venuesLog.done(2, `Routes API: ${enrichedVenues.map(v => `${v.name.slice(0,20)}=${v.distanceMiles}mi`).join(', ')}`, enrichmentMs);
 
     // Step 2.3: Match venues to discovered events from DB
-    // Phase: 'places' - Google Places API (event matching happens here too)
+    // Phase: 'places' - Google Places (NEW) API (event matching happens here too)
     // 2026-04-11: matchVenuesToEvents no longer queries the DB or accepts city/state/date —
     // it takes the pre-fetched `todayEvents` directly and matches on place_id (primary) +
     // venue_id (secondary, dormant at this call site) + name (tertiary fallback).
-    console.log(`[PHASE] ${snapshotId.slice(0, 8)} routing → places`);
     await updatePhase(snapshotId, 'places', { phaseEmitter });
 
     const eventMatches = matchVenuesToEvents(enrichedVenues, todayEvents);
@@ -446,10 +499,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     // Step 2.5: Verify venue events using Gemini 2.5 Pro
     // Phase: 'verifying' - Gemini event verification
-    console.log(`[PHASE] ${snapshotId.slice(0, 8)} places → verifying`);
     await updatePhase(snapshotId, 'verifying', { phaseEmitter });
 
-    venuesLog.phase(3, `Places API: Fetching hours + verifying events for ${enrichedVenues.length} venues`);
+    venuesLog.phase(3, `Places (NEW) API: Fetching hours + verifying events for ${enrichedVenues.length} venues`);
     const verificationStart = Date.now();
     const eventVerificationMap = await verifyVenueEventsBatch(
       enrichedVenues.map(v => ({
@@ -510,7 +562,9 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       );
       const hasEvent = matchedEvents.length > 0;
 
-      console.log(`🏢 [VENUE "${enriched.name}"] ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}${hasEvent ? `, 🎫 EVENT: ${matchedEvents[0].title}` : (allMatchedEvents.length > 0 ? ' (event stale)' : '')}`);
+      // 2026-04-27 (Commit 7): demoted per-venue line from info to debug. Set
+      // LOG_VERBOSE_COMPONENTS=VENUE to see one line per enriched venue.
+      venuesLog.debug(`"${enriched.name}" ${distanceMiles}mi, ${driveMinutes}min, isOpen=${enriched.isOpen}, hours=${enriched.businessHours || 'unknown'}${hasEvent ? `, EVENT: ${matchedEvents[0].title}` : (allMatchedEvents.length > 0 ? ' (event stale)' : '')}`);
 
       // Grade venues: A = $1+/min, B = $0.50-$1/min, C = <$0.50/min
       let valueGrade = 'C';

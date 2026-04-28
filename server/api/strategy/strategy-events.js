@@ -15,7 +15,7 @@
 
 import express from 'express';
 import { subscribeToChannel } from '../../db/db-client.js';
-import { sseLog, OP } from '../../logger/workflow.js';
+import { sseLog, chainLog, OP } from '../../logger/workflow.js';
 // Phase events use EventEmitter (high-frequency, ephemeral - no DB needed)
 // 2026-01-09: Extracted to dedicated module (eliminates legacy SSE router dependency)
 import { phaseEmitter } from '../../events/phase-emitter.js';
@@ -67,7 +67,7 @@ function startHeartbeat(res) {
 
 router.get('/events/strategy', async (req, res) => {
   strategyConnections++;
-  sseLog.phase(1, `SSE /events/strategy connected (${strategyConnections} active)`, OP.SSE);
+  chainLog({ parent: 'STRATEGY', callTypes: ['SSE'] }, `connected (${strategyConnections} active) - /events/strategy`);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -89,7 +89,7 @@ router.get('/events/strategy', async (req, res) => {
     cleanedUp = true;
     clearInterval(heartbeat);
     strategyConnections--;
-    sseLog.info(`SSE /events/strategy closed (${strategyConnections} remaining)`, OP.SSE);
+    chainLog({ parent: 'STRATEGY', callTypes: ['SSE'] }, `closed (${strategyConnections} remaining) - /events/strategy`);
     if (unsubscribe) {
       await unsubscribe();
     }
@@ -105,7 +105,6 @@ router.get('/events/strategy', async (req, res) => {
         snapshot_id: strategies.snapshot_id,
         status: strategies.status,
         has_strategy_for_now: drizzleSql`(${strategies.strategy_for_now} IS NOT NULL AND length(${strategies.strategy_for_now}) > 0)`,
-        has_consolidated: drizzleSql`(${strategies.consolidated_strategy} IS NOT NULL AND length(${strategies.consolidated_strategy}) > 0)`,
       })
         .from(strategies)
         .where(eq(strategies.snapshot_id, handshakeSnapshotId))
@@ -115,7 +114,6 @@ router.get('/events/strategy', async (req, res) => {
           snapshot_id: row.snapshot_id,
           status: row.status,
           has_strategy_for_now: !!row.has_strategy_for_now,
-          has_consolidated: !!row.has_consolidated,
           ts: new Date().toISOString(),
         });
       }
@@ -145,7 +143,7 @@ router.get('/events/strategy', async (req, res) => {
 
 router.get('/events/briefing', async (req, res) => {
   briefingConnections++;
-  sseLog.phase(1, `SSE /events/briefing connected (${briefingConnections} active)`, OP.SSE);
+  chainLog({ parent: 'BRIEFING', callTypes: ['SSE'] }, `connected (${briefingConnections} active) - /events/briefing`);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -164,7 +162,7 @@ router.get('/events/briefing', async (req, res) => {
     cleanedUp = true;
     clearInterval(heartbeat);
     briefingConnections--;
-    sseLog.info(`SSE /events/briefing closed (${briefingConnections} remaining)`, OP.SSE);
+    chainLog({ parent: 'BRIEFING', callTypes: ['SSE'] }, `closed (${briefingConnections} remaining) - /events/briefing`);
     if (unsubscribe) {
       await unsubscribe();
     }
@@ -263,7 +261,7 @@ router.get('/events/briefing', async (req, res) => {
 
 router.get('/events/blocks', async (req, res) => {
   blocksConnections++;
-  sseLog.phase(1, `SSE /events/blocks connected (${blocksConnections} active)`, OP.SSE);
+  chainLog({ parent: 'VENUE', callTypes: ['SSE'] }, `connected (${blocksConnections} active) - /events/blocks`);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -282,7 +280,7 @@ router.get('/events/blocks', async (req, res) => {
     cleanedUp = true;
     clearInterval(heartbeat);
     blocksConnections--;
-    sseLog.info(`SSE /events/blocks closed (${blocksConnections} remaining)`, OP.SSE);
+    chainLog({ parent: 'VENUE', callTypes: ['SSE'] }, `closed (${blocksConnections} remaining) - /events/blocks`);
     if (unsubscribe) {
       await unsubscribe();
     }
@@ -335,7 +333,7 @@ router.get('/events/blocks', async (req, res) => {
 // Phase updates are high-frequency ephemeral events - no DB NOTIFY needed
 router.get('/events/phase', (req, res) => {
   phaseConnections++;
-  sseLog.phase(1, `SSE /events/phase connected (${phaseConnections} active)`, OP.SSE);
+  chainLog({ parent: 'WATERFALL', callTypes: ['SSE'] }, `connected (${phaseConnections} active) - /events/phase`);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -361,7 +359,7 @@ router.get('/events/phase', (req, res) => {
     cleanedUp = true;
     clearInterval(heartbeat);
     phaseConnections--;
-    sseLog.info(`SSE /events/phase closed (${phaseConnections} remaining)`, OP.SSE);
+    chainLog({ parent: 'WATERFALL', callTypes: ['SSE'] }, `closed (${phaseConnections} remaining) - /events/phase`);
     phaseEmitter.removeListener('change', onChange);
     res.end();
   });
@@ -378,7 +376,7 @@ let offerConnections = 0;
 
 router.get('/events/offers', async (req, res) => {
   offerConnections++;
-  sseLog.phase(1, `SSE /events/offers connected (${offerConnections} active)`, OP.SSE);
+  chainLog({ parent: 'STRATEGY', sub: 'OFFERS', callTypes: ['SSE'] }, `connected (${offerConnections} active) - /events/offers`);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -397,7 +395,7 @@ router.get('/events/offers', async (req, res) => {
     cleanedUp = true;
     clearInterval(heartbeat);
     offerConnections--;
-    sseLog.info(`SSE /events/offers closed (${offerConnections} remaining)`, OP.SSE);
+    chainLog({ parent: 'STRATEGY', sub: 'OFFERS', callTypes: ['SSE'] }, `closed (${offerConnections} remaining) - /events/offers`);
     if (unsubscribe) {
       await unsubscribe();
     }

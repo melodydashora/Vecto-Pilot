@@ -61,8 +61,6 @@ export const API_ROUTES = {
   },
 
   STRATEGY: {
-    // Current — active routes
-    DAILY: (snapshotId: string) => `/api/strategy/daily/${snapshotId}`,
     TACTICAL_PLAN: '/api/strategy/tactical-plan',
     RETRY: (snapshotId: string) => `/api/strategy/${snapshotId}/retry`,
     HISTORY: '/api/strategy/history',
@@ -129,11 +127,10 @@ export const API_ROUTES = {
     STATS: (platform: string) => `/api/platform/stats?platform=${platform}`,
     SEARCH: (query: string, platform: string, limit: number) =>
       `/api/platform/search?q=${encodeURIComponent(query)}&platform=${platform}&limit=${limit}`,
-    UBER: {
-      YEARS: '/api/platform/uber/years',
-      MAKES: (year: string) => `/api/platform/uber/makes?year=${year}`,
-      MODELS: (year: string, make: string) => `/api/platform/uber/models?year=${year}&make=${encodeURIComponent(make)}`,
-    },
+    // 2026-04-25 (P2-8): UBER.{YEARS,MAKES,MODELS} block removed.
+    // No server implementation existed at /api/platform/uber/{years,makes,models}
+    // and no client code referenced these constants. The VEHICLE block below
+    // (/api/vehicle/*) is the live vehicle-lookup path.
   },
 
   // =========================================================================
@@ -219,12 +216,10 @@ export const API_ROUTES = {
   },
 
   // =========================================================================
-  // User
+  // User block removed 2026-04-25 (P2-7): /api/users/me had zero callers and
+  // was unreachable at the documented path (server route was mounted at
+  // /api/location/users/me). Re-introduce only when an actual consumer exists.
   // =========================================================================
-  USER: {
-    PROFILE: '/api/users/me',
-    UPDATE: '/api/users/me',
-  },
 
   // =========================================================================
   // Agent (internal/dev)

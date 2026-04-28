@@ -97,7 +97,7 @@ This strategy is valid for the next 60 minutes based on current conditions.`;
 
     // 3. Insert briefing data (Gemini + Google Search)
     // Location (city, state) available via snapshot_id JOIN to snapshots table
-    console.log('📰 Creating briefing data...');
+    console.log('Creating briefing data...');
     await db.insert(briefings)
       .values({
         snapshot_id: testSnapshotId,
@@ -122,7 +122,7 @@ This strategy is valid for the next 60 minutes based on current conditions.`;
       })
       .onConflictDoNothing();
 
-    console.log('✅ Seed complete!');
+    console.log('Seed complete!');
     console.log('');
     console.log('📋 Test Data Created:');
     console.log(`   Snapshot ID: ${testSnapshotId}`);
@@ -137,7 +137,7 @@ This strategy is valid for the next 60 minutes based on current conditions.`;
     console.log('');
 
   } catch (error) {
-    console.error('❌ Seed failed:', error);
+    console.error('Seed failed:', error);
     console.error('Error details:', error.message);
     process.exit(1);
   }

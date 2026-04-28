@@ -24,7 +24,42 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // 2026-04-27: Verbose, defensive logging. The previous one-line console.error
+    // produced empty {} in production logs whenever the thrown value wasn't an
+    // Error instance, because Chrome's console formatter only surfaces enumerable
+    // own properties — and Error.message / Error.stack are NON-enumerable, plus
+    // non-Error throws (bare objects, undefined, Promises from Suspense) have no
+    // useful own properties at all. The fix: probe shape, JSON-snapshot the value
+    // forcing inclusion of non-enumerable props, and log structured fields a log
+    // aggregator can search.
+    const err = error as unknown;
+    let snapshot: string;
+    try {
+      if (err == null) {
+        snapshot = String(err); // 'null' or 'undefined'
+      } else if (err instanceof Error) {
+        // Force include non-enumerable .message and .stack
+        snapshot = JSON.stringify(err, Object.getOwnPropertyNames(err));
+      } else {
+        snapshot = JSON.stringify(err);
+      }
+    } catch (snapErr) {
+      snapshot = `(snapshot failed: ${String(snapErr)})`;
+    }
+
+    const diagnostic = {
+      type: typeof err,
+      ctor: err == null
+        ? null
+        : (err as { constructor?: { name?: string } })?.constructor?.name ?? null,
+      message: (err as { message?: unknown })?.message,
+      stack: (err as { stack?: unknown })?.stack,
+      componentStack: errorInfo?.componentStack,
+      snapshot,
+      rawValue: err, // for Chrome DevTools' inspectable display
+    };
+
+    console.error('[ErrorBoundary] caught:', diagnostic);
 
     this.setState({
       error,
@@ -34,7 +69,7 @@ class ErrorBoundary extends Component<Props, State> {
     // Log to external service in production
     if (import.meta.env.PROD) {
       // TODO: Send to error tracking service
-      console.error('Production error:', { error, errorInfo });
+      console.error('[ErrorBoundary] PROD error:', diagnostic);
     }
   }
 

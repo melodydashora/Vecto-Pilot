@@ -206,9 +206,14 @@ export class HedgedRouter {
         if (classified.affectsCircuit) {
           this._recordProviderFailure(provider);
         }
-        // Enhance error with provider name for debugging
-        const enhancedError = new Error(`${provider}: ${error.message}`);
+        // 2026-04-24: SECURITY — do NOT include raw upstream error.message in the
+        // thrown error's message; upstream errors (e.g., Google's 403 response) echo
+        // the API key back, and that message bubbles up to client responses via
+        // callModel result.error. Keep the detail on a property for structured
+        // logging; use a generic message string.
+        const enhancedError = new Error(`${provider}: upstream request failed`);
         enhancedError.provider = provider;
+        enhancedError.originalError = error;
         throw enhancedError;
       } finally {
         this.concurrencyGate.release(provider);
@@ -218,10 +223,16 @@ export class HedgedRouter {
     try {
       return await Promise.any(promises);
     } catch (aggregateError) {
-      // Log individual provider errors for debugging
+      // 2026-04-24: SECURITY — emit a generic Error.message. The individual provider
+      // errors (which, after the per-provider sanitization above, contain only generic
+      // "provider: upstream request failed" strings) are attached as .providerErrors
+      // for structured logging but NOT joined into the thrown message.
       const errors = aggregateError.errors.map(e => e.message);
-      console.error('[HedgedRouter] All providers failed details:', JSON.stringify(errors, null, 2));
-      throw new Error(`All promises were rejected: ${errors.join(' | ')}`);
+      console.error('[AI] All providers failed details:', JSON.stringify(errors, null, 2));
+      const aggError = new Error('All hedged providers failed');
+      aggError.providerErrors = errors;
+      aggError.cause = aggregateError;
+      throw aggError;
     }
   }
 

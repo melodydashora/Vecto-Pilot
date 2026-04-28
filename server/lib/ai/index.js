@@ -13,7 +13,7 @@ export { callGemini } from './adapters/gemini-adapter.js';
 
 // Strategy providers
 export { runBriefing } from './providers/briefing.js';
-export { runImmediateStrategy, runConsolidator } from './providers/consolidator.js';
+export { runImmediateStrategy } from './providers/consolidator.js';
 
 // Data access
 export { rideshareCoachDAL } from './rideshare-coach-dal.js';
@@ -26,7 +26,7 @@ export { unifiedCapabilities } from './unified-ai-capabilities.js';
 // - adapters/index.js: Main dispatcher - callModel(role, {system, user})
 // - adapters/*: Provider-specific adapters
 // - providers/briefing.js: Gemini-based briefing generation
-// - providers/consolidator.js: Strategy consolidation (STRATEGY_TACTICAL + STRATEGY_DAILY roles)
+// - providers/consolidator.js: Strategy consolidation (STRATEGY_TACTICAL role)
 // - coach-dal.js: Data access layer for AI Coach
 // - model-registry.js: Role configuration, LLM status and diagnostics (SINGLE SOURCE OF TRUTH)
 // - unified-ai-capabilities.js: AI capability manager

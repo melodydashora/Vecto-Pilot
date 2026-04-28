@@ -5,7 +5,7 @@ export class DeepThinkingEngine {
   private maxIterations = 5;
 
   async think(query: string, context: any = {}) {
-    console.log(`🧠 [DeepThinking] Starting comprehensive analysis for: "${query}"`);
+    console.log(`[AI] Starting comprehensive analysis for: "${query}"`);
     
     const thinking: {
       query: string;
@@ -30,7 +30,7 @@ export class DeepThinkingEngine {
       
       // Check if we've reached sufficient confidence
       if (iteration.confidence >= this.confidenceThreshold) {
-        console.log(`✅ [DeepThinking] Reached confidence threshold at iteration ${i + 1}`);
+        console.log(`[AI] Reached confidence threshold at iteration ${i + 1}`);
         break;
       }
     }
@@ -38,7 +38,7 @@ export class DeepThinkingEngine {
     thinking.finalAnalysis = await this.synthesizeFinalAnalysis(thinking.iterations);
     thinking.confidence = this.calculateOverallConfidence(thinking.iterations);
 
-    console.log(`🎯 [DeepThinking] Analysis complete. Confidence: ${thinking.confidence.toFixed(2)}`);
+    console.log(`[AI] Analysis complete. Confidence: ${thinking.confidence.toFixed(2)}`);
     return thinking;
   }
 

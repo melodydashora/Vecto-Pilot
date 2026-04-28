@@ -211,11 +211,11 @@ node scripts/generate-schema-docs.js && git diff --exit-code docs/DATABASE_SCHEM
 // ═══════════════════════════════════════════════════════════════════════════
 
 function main() {
-  console.log('📚 Schema Documentation Generator\n');
+  console.log('Schema Documentation Generator\n');
 
   // Read schema file
   if (!fs.existsSync(SCHEMA_PATH)) {
-    console.error(`❌ Schema file not found: ${SCHEMA_PATH}`);
+    console.error(`Schema file not found: ${SCHEMA_PATH}`);
     process.exit(1);
   }
 
@@ -235,7 +235,7 @@ function main() {
   console.log(`Writing: ${path.relative(ROOT, OUTPUT_PATH)}`);
   fs.writeFileSync(OUTPUT_PATH, markdown);
 
-  console.log('\n✅ Schema documentation generated successfully!');
+  console.log('\nSchema documentation generated successfully!');
   console.log('\nTo verify no drift in CI:');
   console.log('  git diff --exit-code docs/DATABASE_SCHEMA.md');
 }

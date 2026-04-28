@@ -78,7 +78,7 @@ router.get('/token', requireAuth, async (req, res) => {
     const { token, profileId } = await getShareToken(req.auth.userId);
     res.json({ ok: true, token, profileId });
   } catch (err) {
-    console.error('[concierge] Get token error:', err.message);
+    console.error('[CONCIERGE] Get token error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to get share token' });
   }
 });
@@ -93,7 +93,7 @@ router.post('/token', requireAuth, async (req, res) => {
     const token = await generateShareToken(profileId);
     res.json({ ok: true, token });
   } catch (err) {
-    console.error('[concierge] Generate token error:', err.message);
+    console.error('[CONCIERGE] Generate token error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to generate share token' });
   }
 });
@@ -116,10 +116,10 @@ router.delete('/token', requireAuth, async (req, res) => {
     await db.update(driver_profiles)
       .set({ concierge_share_token: null })
       .where(eq(driver_profiles.id, profileId));
-    console.log('[concierge] Token revoked for profile:', profileId);
+    console.log('[CONCIERGE] Token revoked for profile:', profileId);
     res.json({ ok: true, message: 'Share token revoked' });
   } catch (err) {
-    console.error('[concierge] Revoke token error:', err.message);
+    console.error('[CONCIERGE] Revoke token error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to revoke share token' });
   }
 });
@@ -133,7 +133,7 @@ router.get('/preview', requireAuth, async (req, res) => {
     const preview = await getDriverPreview(req.auth.userId);
     res.json({ ok: true, ...preview });
   } catch (err) {
-    console.error('[concierge] Preview error:', err.message);
+    console.error('[CONCIERGE] Preview error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to load preview' });
   }
 });
@@ -161,7 +161,7 @@ router.get('/p/:token', publicProfileLimiter, async (req, res) => {
 
     res.json({ ok: true, driver: profile });
   } catch (err) {
-    console.error('[concierge] Public profile error:', err.message);
+    console.error('[CONCIERGE] Public profile error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to load profile' });
   }
 });
@@ -234,7 +234,7 @@ router.get('/p/:token/weather', weatherLimiter, validateShareToken, async (req, 
 
     res.json({ weather, airQuality });
   } catch (err) {
-    console.error('[concierge] Weather error:', err.message);
+    console.error('[CONCIERGE] Weather error:', err.message);
     res.status(500).json({ error: 'weather-fetch-failed' });
   }
 });
@@ -262,7 +262,7 @@ router.post('/p/:token/explore', exploreLimiter, validateShareToken, async (req,
 
     res.json({ ok: true, ...result });
   } catch (err) {
-    console.error('[concierge] Explore error:', err.message);
+    console.error('[CONCIERGE] Explore error:', err.message);
     res.status(500).json({ ok: false, error: 'Search failed. Please try again.' });
   }
 });
@@ -312,7 +312,7 @@ router.post('/p/:token/ask', askLimiter, validateShareToken, async (req, res) =>
 
     res.json(result);
   } catch (err) {
-    console.error('[concierge] Ask error:', err.message);
+    console.error('[CONCIERGE] Ask error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to process question. Please try again.' });
   }
 });
@@ -347,7 +347,7 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, 
   res.setHeader('Connection', 'keep-alive');
 
   try {
-    console.log(`[concierge] Stream ask: "${safeQuestion.slice(0, 50)}..." near ${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`);
+    console.log(`[CONCIERGE] Stream ask: "${safeQuestion.slice(0, 50)}..." near ${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`);
     const startTime = Date.now();
 
     // 2026-04-10: SECURITY FIX (H-2) — Sanitize client-supplied context in streaming endpoint too
@@ -369,7 +369,7 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, 
     });
 
     if (!response.ok) {
-      console.error(`[concierge] Stream API error: ${response.status}`);
+      console.error(`[CONCIERGE] Stream API error: ${response.status}`);
       res.write(`data: ${JSON.stringify({ error: 'AI service unavailable' })}\n\n`);
       return res.end();
     }
@@ -407,7 +407,7 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, 
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[concierge] Stream complete in ${elapsed}ms (${totalText.length} chars)`);
+    console.log(`[CONCIERGE] Stream complete in ${elapsed}ms (${totalText.length} chars)`);
 
     if (!totalText) {
       res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
@@ -416,7 +416,7 @@ router.post('/p/:token/ask-stream', askLimiter, validateShareToken, async (req, 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err) {
-    console.error('[concierge] Stream error:', err.message);
+    console.error('[CONCIERGE] Stream error:', err.message);
     res.write(`data: ${JSON.stringify({ error: 'Something went wrong. Please try again.' })}\n\n`);
     res.end();
   }
@@ -460,7 +460,7 @@ router.post('/p/:token/feedback', feedbackLimiter, async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    console.error('[concierge] Feedback error:', err.message);
+    console.error('[CONCIERGE] Feedback error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to submit feedback' });
   }
 });
@@ -478,7 +478,7 @@ router.get('/feedback', requireAuth, async (req, res) => {
     const summary = await getFeedbackSummary(req.auth.userId);
     res.json(summary);
   } catch (err) {
-    console.error('[concierge] Feedback summary error:', err.message);
+    console.error('[CONCIERGE] Feedback summary error:', err.message);
     res.status(500).json({ ok: false, error: 'Failed to load feedback' });
   }
 });

@@ -212,7 +212,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       longitude = req.body.longitude ? parseFloat(req.body.longitude) : undefined;
       source = req.body.source || 'siri_vision';
       const sizeKB = Math.round(req.file.size / 1024);
-      console.log(`[hooks/analyze-offer] 📸 Multipart upload: ${sizeKB}KB ${image_type} (server-encoded base64 in <1ms)`);
+      console.log(`[HOOKS] Multipart upload: ${sizeKB}KB ${image_type} (server-encoded base64 in <1ms)`);
     } else {
       // JSON PATH — existing flow (base64 image or OCR text in JSON body)
       ({ text, image, image_type, device_id, latitude, longitude, source = 'siri_shortcut' } = req.body);
@@ -222,7 +222,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'Missing text or image payload' });
     }
 
-    console.log(`[hooks/analyze-offer] 📱 Incoming from ${device_id || 'anonymous'} (${source})`);
+    console.log(`[HOOKS] 📱 Incoming from ${device_id || 'anonymous'} (${source})`);
 
     // 2026-02-16: Use 6-decimal precision (~11cm) per codebase standard (coords-key.js)
     // Previous 3-decimal (~110m) was too imprecise for algorithm learning
@@ -237,7 +237,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
     // LLM still gets raw text for addresses, platform, and destination quality analysis.
     const preParsed = text ? parseOfferText(text) : null;
     if (preParsed) {
-      console.log(`[hooks/analyze-offer] 📊 Pre-parsed: $${preParsed.price || '?'} / ${preParsed.total_miles || '?'}mi = $${preParsed.per_mile || '?'}/mi (${preParsed.parse_confidence})`);
+      console.log(`[HOOKS] 📊 Pre-parsed: $${preParsed.price || '?'} / ${preParsed.total_miles || '?'}mi = $${preParsed.per_mile || '?'}/mi (${preParsed.parse_confidence})`);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -271,7 +271,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       // Remove any whitespace/newlines that break base64 decoding
       imageData = imageData.replace(/\s/g, '');
       images.push({ mimeType, data: imageData });
-      console.log(`[hooks/analyze-offer] 🖼️ Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})`);
+      console.log(`[HOOKS] Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})`);
     }
 
     // 2026-03-29: Tier-aware prompt selection — share/standard/premium
@@ -281,7 +281,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
     // Share = instant reject, skip AI call entirely
     if (tier === 'share') {
       const responseTimeMs = Date.now() - startTime;
-      console.log(`[hooks/analyze-offer] 🚫 Share tier auto-reject (${responseTimeMs}ms)`);
+      console.log(`[HOOKS] Share tier auto-reject (${responseTimeMs}ms)`);
       return res.json({
         success: true,
         // 2026-04-16: TTS line for Siri "Speak Text" — no per-mile data on share path.
@@ -297,7 +297,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
     }
 
     // Phase 1 AI call — OFFER_ANALYZER (Flash) for speed
-    console.log(`[hooks/analyze-offer] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash) [${tier}]${images.length ? ' [vision]' : ''}...`);
+    console.log(`[HOOKS] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash) [${tier}]${images.length ? ' [vision]' : ''}...`);
     const phase1Response = await callModel('OFFER_ANALYZER', {
       system: phase1SystemPrompt,
       user: phase1UserMessage,
@@ -325,13 +325,13 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
           const extracted = cleaned.slice(firstBrace, lastBrace + 1);
           const raw = JSON.parse(extracted);
           phase1Result = raw.parsed_data || raw;
-          console.log(`[hooks/analyze-offer] 🧹 Extracted JSON from preamble (${firstBrace} chars stripped)`);
+          console.log(`[HOOKS] Extracted JSON from preamble (${firstBrace} chars stripped)`);
         } else {
           throw new Error('No JSON object found in response');
         }
       }
     } catch (_parseErr) {
-      console.warn('[hooks/analyze-offer] ⚠️ Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
+      console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
       // Tier 3: Deterministic rule engine using pre-parsed data
       // 2026-03-02: When AI fails to return JSON, apply the user's rules in code.
       // Pre-parser already has price, miles, minutes — we just need the decision.
@@ -397,7 +397,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
           }
         }
 
-        console.log(`[hooks/analyze-offer] 🔧 Deterministic fallback: ${fallbackDecision} — ${fallbackReason}`);
+        console.log(`[HOOKS] 🔧 Deterministic fallback: ${fallbackDecision} — ${fallbackReason}`);
         phase1Result = {
           decision: fallbackDecision,
           reason: fallbackReason,
@@ -459,7 +459,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       reason: terseReason || '',
     });
 
-    console.log(`[hooks/analyze-offer] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi [${tier}]`);
+    console.log(`[HOOKS] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi [${tier}]`);
 
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2 — ASYNC: Deep Pro 3.1 analysis for DB enrichment
@@ -499,7 +499,7 @@ PRE-PARSED DATA (server-verified):
         // 2026-02-28: 45s timeout — callGemini SDK has no built-in timeout, so we wrap with Promise.race
         // to prevent the async IIFE from hanging forever if Pro 3.1 is slow or unresponsive.
         const PHASE2_TIMEOUT_MS = 45000;
-        console.log(`[hooks/analyze-offer] 🔬 PHASE 2: Calling OFFER_ANALYZER_DEEP (Pro 3.1, ${PHASE2_TIMEOUT_MS / 1000}s timeout)...`);
+        console.log(`[HOOKS] 🔬 PHASE 2: Calling OFFER_ANALYZER_DEEP (Pro 3.1, ${PHASE2_TIMEOUT_MS / 1000}s timeout)...`);
         const phase2Start = Date.now();
 
         let deepResult = null;
@@ -523,12 +523,12 @@ PRE-PARSED DATA (server-verified):
               .replace(/```json/g, '').replace(/```/g, '').trim();
             deepResult = JSON.parse(cleaned);
             aiModelUsed = 'gemini-3.1-pro';
-            console.log(`[hooks/analyze-offer] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
+            console.log(`[HOOKS] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
           } else {
-            console.warn(`[hooks/analyze-offer] ⚠️ Phase 2 AI call failed: ${phase2Response.error} — falling back to Phase 1 result`);
+            console.warn(`[HOOKS] Phase 2 AI call failed: ${phase2Response.error} — falling back to Phase 1 result`);
           }
         } catch (phase2Err) {
-          console.warn(`[hooks/analyze-offer] ⚠️ Phase 2 error: ${phase2Err.message} — falling back to Phase 1 result`);
+          console.warn(`[HOOKS] Phase 2 error: ${phase2Err.message} — falling back to Phase 1 result`);
         }
 
         // Use deep result if available, otherwise fall back to Phase 1
@@ -560,7 +560,7 @@ PRE-PARSED DATA (server-verified):
           try {
             driverTimezone = await resolveTimezoneFromCoords(lat, lng);
           } catch (tzErr) {
-            console.warn(`[hooks/analyze-offer] Timezone resolution failed (${tzErr.message}) — falling back to UTC`);
+            console.warn(`[HOOKS] Timezone resolution failed (${tzErr.message}) — falling back to UTC`);
           }
         }
 
@@ -599,7 +599,7 @@ PRE-PARSED DATA (server-verified):
             }
           }
         } catch (seqErr) {
-          console.warn(`[hooks/analyze-offer] Session tracking failed (non-fatal): ${seqErr.message}`);
+          console.warn(`[HOOKS] Session tracking failed (non-fatal): ${seqErr.message}`);
         }
 
         // 2026-02-28: INSERT with Phase 2 deep data (or Phase 1 fallback)
@@ -665,7 +665,7 @@ PRE-PARSED DATA (server-verified):
           parsed_data_json: mergedParsedData,
         });
 
-        console.log(`[hooks/analyze-offer] ✅ Saved: ${dbDecision} (Phase1: ${responseTimeMs}ms, Phase2: ${Date.now() - phase2Start}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [ai_model: ${aiModelUsed}]`);
+        console.log(`[HOOKS] Saved: ${dbDecision} (Phase1: ${responseTimeMs}ms, Phase2: ${Date.now() - phase2Start}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [ai_model: ${aiModelUsed}]`);
 
         // SSE broadcast for web app
         const notifyPayload = JSON.stringify({
@@ -680,13 +680,13 @@ PRE-PARSED DATA (server-verified):
         });
         await db.execute(sql`SELECT pg_notify('offer_analyzed', ${notifyPayload})`);
       } catch (err) {
-        console.error(`[hooks/analyze-offer] ⚠️ Phase 2 background error: ${err.message}`);
+        console.error(`[HOOKS] Phase 2 background error: ${err.message}`);
       }
     })();
 
   } catch (error) {
     const responseTimeMs = Date.now() - startTime;
-    console.error(`[hooks/analyze-offer] ❌ Error (${responseTimeMs}ms):`, error.message);
+    console.error(`[HOOKS] Error (${responseTimeMs}ms):`, error.message);
     res.status(500).json({
       success: false,
       // 2026-04-16: TTS line for Siri — em-dash in notification doesn't speak well, so use period.
@@ -798,7 +798,7 @@ router.post('/offer-override', async (req, res) => {
     }
 
     const record = updated.rows[0];
-    console.log(`[hooks/offer-override] 🔄 Override: AI said ${record.decision}, driver says ${user_override}`);
+    console.log(`[hooks/offer-override] Override: AI said ${record.decision}, driver says ${user_override}`);
 
     res.json({
       success: true,

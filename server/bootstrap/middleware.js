@@ -24,9 +24,9 @@ export async function configureMiddleware(app) {
     const botBlockerPath = path.join(rootDir, 'server/middleware/bot-blocker.js');
     const { botBlocker } = await import(pathToFileURL(botBlockerPath).href);
     app.use(botBlocker);
-    console.log('[gateway] ✅ Bot blocker enabled (full protection)');
+    console.log('[GATEWAY] Bot blocker enabled (full protection)');
   } catch (e) {
-    console.warn('[gateway] Bot blocker not available:', e?.message);
+    console.warn('[GATEWAY] Bot blocker not available:', e?.message);
   }
 
   // X-Robots-Tag header - prevent indexing at HTTP level
@@ -38,15 +38,66 @@ export async function configureMiddleware(app) {
   // 2026-04-05: SECURITY — Enable CSP with SPA-compatible directives (CodeQL fix)
   // Previously disabled entirely; now allows inline styles (Vite/React), self scripts,
   // and required external domains for Google Maps, AI APIs, and analytics.
+  //
+  // 2026-04-26 PHASE B follow-through: Google Maps Platform mapId-based vector
+  // tiles need FOUR things the original CSP blocked. Each was found by an
+  // explicit DevTools console error after the prior fix unblocked the next
+  // layer:
+  //
+  //   1. workerSrc 'self' blob: — Google's WebGL renderer spawns Web Workers
+  //      from blob: URLs to draw vector tiles. Without this, the map shows pins
+  //      on a grey void (markers are plain DOM and unaffected; tiles aren't).
+  //
+  //   2. connectSrc wildcard for *.googleapis.com — map style resources for a
+  //      Cloud Console mapId come from mapsresources-pa.googleapis.com, which
+  //      the previous explicit subdomain list (maps/places/routes) did not
+  //      cover. Collapsing to a wildcard here is appropriate because (a) we
+  //      already trust Google with the API key, (b) all *.googleapis.com hosts
+  //      are first-party Google services, and (c) Phase D/E/F may add more
+  //      Google APIs — wildcard avoids whack-a-mole subdomain maintenance.
+  //
+  //   3. scriptSrc 'unsafe-eval' — Google's shared-label-worker.js compiles
+  //      WebAssembly via WebAssembly.instantiateStreaming() to render street
+  //      names smoothly. CSP3 has 'wasm-unsafe-eval' as a tighter alternative
+  //      (allows WASM without enabling general eval), but Google's own Maps
+  //      Platform CSP docs canonically recommend 'unsafe-eval'. We don't have
+  //      independent verification that the Maps SDK doesn't use eval()
+  //      elsewhere, so shipping the verified-working flag now. Future hardening
+  //      could attempt 'wasm-unsafe-eval' alone after a real test pass.
+  //
+  //   4. connectSrc 'data:' — Google Maps packages tiny text icon and font
+  //      sprites as base64 data: URIs to load them inline without extra network
+  //      round-trips. connect-src enforces these as if they were network
+  //      requests; without 'data:' allowed, label sprites fail to load.
+  //
+  //   5. mediaSrc 'self' data: blob: (added 2026-04-27, Coach Pass 2 Phase B)
+  //      Coach TTS (client/src/hooks/useTTS.ts) does two things the implicit
+  //      default-src 'self' was blocking, which caused the audio element to
+  //      throw NotSupportedError and silently fall back to
+  //      window.speechSynthesis (OS robotic voice, not OpenAI TTS-1-HD):
+  //        (a) warmUp() loads a silent data:audio/wav;base64,... buffer to
+  //            unlock the audio element inside the user-gesture; data: required.
+  //        (b) speak() fetches /api/tts, wraps the response in blob:https://...
+  //            via URL.createObjectURL, and assigns it to audio.src; blob: required.
+  //      Without media-src declared, CSP falls back to default-src ('self'
+  //      only), which forbids both. Diagnosed via DevTools console errors
+  //      that explicitly cited "Loading media from 'data:audio/wav;base64,...'
+  //      violates ... default-src 'self'".
+  //
+  // Diagnostic process: after each restart the previously-blocked layer
+  // unblocked, exposing the next CSP error in the console. Phase B's commit
+  // history (b7b1c7f5 → c765ce22 → e371c757 → THIS) is the audit trail.
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://maps.googleapis.com", "https://maps.gstatic.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://maps.googleapis.com", "https://maps.gstatic.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.ggpht.com", "https://places.googleapis.com"],
-        connectSrc: ["'self'", "https://maps.googleapis.com", "https://places.googleapis.com", "https://routes.googleapis.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
+        mediaSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'", "data:", "https://*.googleapis.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
+        workerSrc: ["'self'", "blob:"],
         frameSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
@@ -55,6 +106,25 @@ export async function configureMiddleware(app) {
     // Ensure HSTS and X-Frame-Options are enabled (helmet defaults)
     hsts: { maxAge: 31536000, includeSubDomains: true },
   }));
+
+  // 2026-04-25: Permissions-Policy — scope browser feature access for monetization
+  // and for upcoming Coach voice work. Helmet 8 doesn't set this directly.
+  //
+  //   microphone=(self):  Coach voice tab needs mic. Strategy and other tabs do NOT.
+  //   camera=():          no camera access anywhere (deny).
+  //   geolocation=(self): Strategy/Snapshot needs GPS.
+  //   payment=():         deny. Flip to ('self') when Stripe ships.
+  //   usb=(), bluetooth=(), midi=(): hard-deny.
+  //   display-capture=(), clipboard-read=(): hard-deny (no screen-share, no clip-read).
+  //   clipboard-write=(self): allow copy actions in Coach answers.
+  //   fullscreen=(self):  allow fullscreen for Map / Coach driving mode.
+  app.use((req, res, next) => {
+    res.setHeader(
+      'Permissions-Policy',
+      'microphone=(self), camera=(), geolocation=(self), payment=(), usb=(), bluetooth=(), midi=(), display-capture=(), clipboard-read=(), clipboard-write=(self), fullscreen=(self)'
+    );
+    next();
+  });
 
   // 2026-03-17: SECURITY FIX (F-2) — CORS origin whitelist replaces reflect-all.
   // Previously `origin: true` reflected any origin with credentials, enabling CSRF.
@@ -88,7 +158,7 @@ export async function configureMiddleware(app) {
       // Log once per unique origin per process to avoid log spam under scanner floods.
       if (!blockedOriginSeen.has(origin)) {
         blockedOriginSeen.add(origin);
-        console.warn(`[gateway] CORS blocked origin: ${origin} (${req.method} ${req.originalUrl})`);
+        console.warn(`[GATEWAY] CORS blocked origin: ${origin} (${req.method} ${req.originalUrl})`);
       }
       return res.status(403).json({
         error: 'Origin not allowed',
@@ -110,15 +180,19 @@ export async function configureMiddleware(app) {
   // Applied before JSON parsing to reject floods early and save CPU on body parsing.
   try {
     const rateLimitPath = path.join(rootDir, 'server/middleware/rate-limit.js');
-    const { globalApiLimiter, healthLimiter } = await import(pathToFileURL(rateLimitPath).href);
+    const { globalApiLimiter, healthLimiter, realtimeMintLimiter } = await import(pathToFileURL(rateLimitPath).href);
     app.use('/api', globalApiLimiter);
     app.use('/api/health', healthLimiter);
     app.use('/api/ml-health', healthLimiter);
     app.use('/api/diagnostics', healthLimiter);
     app.use('/api/diagnostic', healthLimiter);
-    console.log('[gateway] ✅ Global rate limiting enabled (100/min API, 200/min health)');
+    // 2026-04-25 (helmet-hardening): each /api/realtime/token call mints a
+    // billable OpenAI client_secret. 5/min/user is generous for legit voice
+    // session starts; anything above is bug or abuse.
+    app.use('/api/realtime/token', realtimeMintLimiter);
+    console.log('[GATEWAY] Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)');
   } catch (e) {
-    console.warn('[gateway] Rate limiting not available:', e?.message);
+    console.warn('[GATEWAY] Rate limiting not available:', e?.message);
   }
 
   // Correlation ID middleware (before JSON parsing)
@@ -127,7 +201,7 @@ export async function configureMiddleware(app) {
     const { correlationId } = await import(pathToFileURL(correlationPath).href);
     app.use(correlationId);
   } catch (e) {
-    console.warn('[gateway] Correlation ID middleware not available:', e?.message);
+    console.warn('[GATEWAY] Correlation ID middleware not available:', e?.message);
   }
 
   // JSON body parsing for API and agent routes
@@ -139,7 +213,7 @@ export async function configureMiddleware(app) {
   app.use('/api', express.json({ limit: '1mb' }));
   app.use('/agent', express.json({ limit: '1mb' }));
 
-  console.log('[gateway] ✅ Middleware configured');
+  console.log('[GATEWAY] Middleware configured');
 }
 
 /**
@@ -148,14 +222,14 @@ export async function configureMiddleware(app) {
  */
 export async function configureErrorHandler(app) {
   try {
-    console.log('[gateway] Loading error middleware...');
+    console.log('[GATEWAY] Loading error middleware...');
     const errorPath = path.join(rootDir, 'server/middleware/error-handler.js');
     const { errorTo503 } = await import(pathToFileURL(errorPath).href);
     app.use(errorTo503);
-    console.log('[gateway] ✅ Error middleware configured');
+    console.log('[GATEWAY] Error middleware configured');
     return true;
   } catch (e) {
-    console.error('[gateway] ❌ Error middleware failed:', e?.message);
+    console.error('[GATEWAY] Error middleware failed:', e?.message);
     return false;
   }
 }

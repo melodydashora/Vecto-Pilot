@@ -461,10 +461,13 @@ function checkDeprecatedAI() {
   // 2026-02-04: AI-Native Standards
   const deprecatedPatterns = [
     // Models
-    { regex: /['"]gpt-4['"]/g, message: "Deprecated model 'gpt-4'. Use 'gpt-5.2' or 'o1'." },
-    { regex: /['"]gpt-4-turbo['"]/g, message: "Deprecated model 'gpt-4-turbo'. Use 'gpt-5.2'." },
-    { regex: /['"]claude-3-5-sonnet['"]/g, message: "Deprecated model 'claude-3-5-sonnet'. Use 'claude-sonnet-4-5'." },
-    { regex: /['"]gemini-pro['"]/g, message: "Ambiguous model 'gemini-pro'. Use 'gemini-3.1-pro-preview'." },
+    // 2026-04-25: Recommendation messages no longer hardcode a specific successor model.
+    // Per Rule 14 (model-agnostic adapter), model identity lives in
+    // server/lib/ai/model-registry.js — that's the single source of truth.
+    { regex: /['"]gpt-4['"]/g, message: "Deprecated model 'gpt-4'. Consult server/lib/ai/model-registry.js for the active OpenAI flagship default." },
+    { regex: /['"]gpt-4-turbo['"]/g, message: "Deprecated model 'gpt-4-turbo'. Consult server/lib/ai/model-registry.js for the active OpenAI flagship default." },
+    { regex: /['"]claude-3-5-sonnet['"]/g, message: "Deprecated model 'claude-3-5-sonnet'. Consult server/lib/ai/model-registry.js for the active Anthropic Sonnet default." },
+    { regex: /['"]gemini-pro['"]/g, message: "Ambiguous model 'gemini-pro'. Consult server/lib/ai/model-registry.js for the active Gemini Pro default." },
     
     // Parameters
     { regex: /max_tokens(?=:)/g, message: "Deprecated parameter 'max_tokens' (OpenAI). Use 'max_completion_tokens'." },
@@ -603,7 +606,7 @@ function printReport() {
 }
 
 function main() {
-  console.log('\n🔍 Repository Standards Checker');
+  console.log('\nRepository Standards Checker');
   console.log('   See docs/architecture/standards.md for rules\n');
 
   // Parse arguments

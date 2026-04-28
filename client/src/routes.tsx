@@ -5,10 +5,13 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import CoPilotLayout from '@/layouts/CoPilotLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import StrategyPage from '@/pages/co-pilot/StrategyPage';
+// 2026-04-25 (Phase A, Pass 1): Coach now has its own route.
+import CoachPage from '@/pages/co-pilot/CoachPage';
 // 2026-01-09: Renamed from BarsPage for disambiguation
 import VenueManagerPage from '@/pages/co-pilot/VenueManagerPage';
 import BriefingPage from '@/pages/co-pilot/BriefingPage';
-import MapPage from '@/pages/co-pilot/MapPage';
+// 2026-04-26 PHASE B: MapPage removed — the map now lives only inside StrategyPage.
+// /co-pilot/map route deleted; bottom-nav Map tab deleted in BottomTabNavigation.tsx.
 import IntelPage from '@/pages/co-pilot/IntelPage';
 import AboutPage from '@/pages/co-pilot/AboutPage';
 import PolicyPage from '@/pages/co-pilot/PolicyPage';
@@ -133,10 +136,6 @@ export const router = createBrowserRouter([
         element: <BriefingPage />,
       },
       {
-        path: 'map',
-        element: <MapPage />,
-      },
-      {
         path: 'intel',
         element: <IntelPage />,
       },
@@ -151,6 +150,11 @@ export const router = createBrowserRouter([
       {
         path: 'concierge',
         element: <ConciergePage />,
+      },
+      {
+        // 2026-04-25 (Phase A, Pass 1): dedicated Coach surface
+        path: 'coach',
+        element: <CoachPage />,
       },
       {
         path: 'settings',

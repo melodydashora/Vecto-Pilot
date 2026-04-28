@@ -21,7 +21,12 @@ import {
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/useToast';
 import { FeedbackModal } from '@/components/FeedbackModal';
-import RideshareCoach from '@/components/RideshareCoach';
+// 2026-04-26 PHASE B: MapTab renamed to StrategyMap and moved into a strategy/
+// subdirectory. Strategy is the only consumer; the standalone /co-pilot/map
+// route and bottom-nav Map tab were deleted in this phase.
+import StrategyMap from '@/components/strategy/StrategyMap';
+import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
+import type { Venue } from '@/hooks/useBarsQuery';
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 // 2026-01-09: Renamed from BarsTable for disambiguation
 import BarsDataGrid from '@/components/BarsDataGrid';
@@ -30,6 +35,57 @@ import { useCoPilot } from '@/contexts/co-pilot-context';
 import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
 import { logAction as logActionHelper, filterHighValueSpacedBlocks } from '@/utils/co-pilot-helpers';
 import type { SmartBlock } from '@/types/co-pilot';
+
+// 2026-04-26: Type shapes mirrored from MapPage.tsx for the embedded MapTab.
+// Inline-duplicated rather than extracted into a shared module — the brief
+// flagged this as deliberate; can be DRY'd into a shared types file once a
+// third consumer appears.
+interface MapEvent {
+  title: string;
+  venue?: string;
+  address?: string;
+  event_start_date?: string;
+  event_end_date?: string;
+  event_start_time?: string;
+  event_end_time?: string;
+  latitude?: number;
+  longitude?: number;
+  impact?: 'high' | 'medium' | 'low';
+  subtype?: string;
+}
+
+interface BriefingEvent {
+  event_start_date?: string;
+  event_type?: string;
+  subtype?: string;
+  title?: string;
+  venue?: string;
+  location?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  impact?: 'high' | 'medium' | 'low';
+  event_start_time?: string;
+  event_end_time?: string;
+  [key: string]: unknown;
+}
+
+interface MapBar {
+  name: string;
+  type: string;
+  address: string;
+  expenseLevel: string;
+  expenseRank: number;
+  isOpen: boolean;
+  closingSoon: boolean;
+  minutesUntilClose: number | null;
+  lat: number;
+  lng: number;
+  placeId?: string;
+  rating?: number | null;
+  closedGoAnyway?: boolean;
+  closedReason?: string | null;
+}
 
 export default function StrategyPage() {
   const locationContext = useLocationContext();
@@ -41,7 +97,6 @@ export default function StrategyPage() {
     coords,
     lastSnapshotId,
     strategyData,
-    persistentStrategy,
     immediateStrategy,
     isStrategyFetching,
     snapshotData,
@@ -49,6 +104,7 @@ export default function StrategyPage() {
     blocksData,
     isBlocksLoading,
     blocksError,
+    barsData,
     refetchBlocks,
     enrichmentProgress,
     strategyProgress,
@@ -56,6 +112,75 @@ export default function StrategyPage() {
     pipelinePhase,
     timeRemainingText
   } = useCoPilot();
+
+  // 2026-04-26: Embedded-MapTab data prep. Memos lifted from MapPage.tsx
+  // verbatim — same field names, same dedup logic, same type shapes — so
+  // the embedded map and the standalone /co-pilot/map page produce identical
+  // marker sets. Refactor into a shared hook only when a third consumer
+  // shows up (currently 2: this page + MapPage).
+  const { data: activeEventsData } = useActiveEventsQuery(lastSnapshotId);
+
+  const filteredBars = React.useMemo(() => {
+    const allBars: Venue[] = [...(barsData?.venues || []), ...(barsData?.lastCallVenues || [])];
+
+    const seen = new Set<string>();
+    const uniqueBars = allBars.filter(bar => {
+      const key = bar.placeId || `${bar.name}-${bar.lat}-${bar.lng}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const openPremiumBars = uniqueBars.filter(bar => {
+      if (bar.expenseRank < 2) return false;
+      return bar.isOpen === true || bar.closedGoAnyway === true;
+    });
+
+    const mappedBars: MapBar[] = openPremiumBars.map(bar => ({
+      name: bar.name,
+      type: bar.type,
+      address: bar.address,
+      expenseLevel: bar.expenseLevel,
+      expenseRank: bar.expenseRank,
+      isOpen: bar.isOpen === true,
+      closingSoon: bar.closingSoon,
+      minutesUntilClose: bar.minutesUntilClose,
+      lat: bar.lat,
+      lng: bar.lng,
+      placeId: bar.placeId,
+      rating: bar.rating,
+      closedGoAnyway: bar.closedGoAnyway,
+      closedReason: bar.closedReason,
+    }));
+
+    return mappedBars;
+  }, [barsData]);
+
+  const mapVenues = useMemo(() => blocks.map((block, idx) => ({
+    id: `${idx}`,
+    name: block.name,
+    lat: block.coordinates.lat,
+    lng: block.coordinates.lng,
+    distance_miles: block.estimatedDistanceMiles,
+    drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
+    est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? null,
+    rank: idx + 1,
+    value_grade: block.valueGrade,
+  })), [blocks]);
+
+  const mapEvents: MapEvent[] = useMemo(() => (activeEventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
+    title: e.title as string,
+    venue: e.venue as string | undefined,
+    address: e.address as string | undefined,
+    event_start_date: e.event_start_date as string | undefined,
+    event_end_date: (e as BriefingEvent & { event_end_date?: string }).event_end_date,
+    event_start_time: e.event_start_time as string | undefined,
+    event_end_time: e.event_end_time as string | undefined,
+    latitude: e.latitude as number | undefined,
+    longitude: e.longitude as number | undefined,
+    impact: e.impact as 'high' | 'medium' | 'low' | undefined,
+    subtype: e.subtype as string | undefined,
+  })), [activeEventsData?.events]);
 
   // Filter blocks to show only top 3 Grade A venues that are >= 1 mile apart
   // This is the "NOW strategy" - focused, actionable recommendations
@@ -862,30 +987,25 @@ export default function StrategyPage() {
         </Card>
       )}
 
-      {/* AI Coach */}
+      {/* 2026-04-26: render the map as soon as coords land — StrategyMap paints
+          the driver-position marker first, then bars/events/venues layer in
+          as each data source resolves (progressive enhancement). The earlier
+          version of this conditional also gated on lastSnapshotId, which
+          forced a blank map until the snapshot existed — broke the
+          "watch data land" UX Melody specifically wants. snapshotId is
+          coerced from `string | null` to `string | undefined` to satisfy
+          StrategyMap's optional-prop type without holding the whole render. */}
       {coords && (
-        <div className="mb-6" data-testid="ai-coach-section">
-          <div className="sticky top-20 z-10 bg-gradient-to-b from-slate-50 to-white/95 backdrop-blur-sm py-3 -mx-4 px-4 flex items-center justify-between border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-purple-600" />
-              <h2 className="text-lg font-semibold text-gray-800">AI Coach</h2>
-              {!persistentStrategy && (
-                <Badge variant="secondary" className="text-xs">Strategy Generating...</Badge>
-              )}
-            </div>
-            <Badge className="bg-purple-100 text-purple-700 border-0 text-xs">Live Chat</Badge>
-          </div>
-          <div className="mt-4">
-            <RideshareCoach
-              userId={localStorage.getItem('vecto_user_id') || 'default'}
-              snapshotId={lastSnapshotId || undefined}
-              strategyId={strategyData?.strategyId || undefined}
-              strategy={persistentStrategy}
-              snapshot={snapshotData}
-              blocks={blocks}
-              strategyReady={!!persistentStrategy}
-            />
-          </div>
+        <div data-testid="strategy-embedded-map" className="my-4">
+          <StrategyMap
+            driverLat={coords.latitude}
+            driverLng={coords.longitude}
+            venues={mapVenues}
+            bars={filteredBars}
+            events={mapEvents}
+            snapshotId={lastSnapshotId ?? undefined}
+            isLoading={isBlocksLoading}
+          />
         </div>
       )}
 

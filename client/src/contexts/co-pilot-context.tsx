@@ -35,7 +35,6 @@ interface CoPilotContextValue {
 
   // Strategy
   strategyData: StrategyData | null;
-  persistentStrategy: string | null;
   immediateStrategy: string | null;
   isStrategyFetching: boolean;
   snapshotData: any;
@@ -115,8 +114,6 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Track which snapshot the current strategy belongs to (for future refresh optimization)
   const [_strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null);
 
-  // Strategy state
-  const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null);
   const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null);
 
   // Enriched reasonings for closed venues
@@ -152,7 +149,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       // User just logged out
       console.log('[CoPilotContext] Auth lost — clearing snapshot and stopping queries');
       setLastSnapshotId(null);
-      setPersistentStrategy(null);
+      // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
+      // refactor but the setter call sites were missed, causing a ReferenceError
+      // that the (now instrumented) ErrorBoundary surfaced. localStorage cleanup
+      // for the persistent-strategy slot still happens via STORAGE_KEYS.
       setImmediateStrategy(null);
       waterfallTriggeredRef.current.clear();
       // 2026-04-10: Abort any in-flight waterfall POST (Window 3 race fix)
@@ -229,7 +229,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
 
       // Clear React state - MUST clear lastSnapshotId so new snapshot triggers waterfall
-      setPersistentStrategy(null);
+      // 2026-04-27: setPersistentStrategy removed — see auth-lost cleanup above for why.
       setImmediateStrategy(null);
       setStrategySnapshotId(null);
       setLastSnapshotId(null);  // CRITICAL: Clear snapshot ID so new one triggers waterfall
@@ -424,7 +424,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       console.log(`🔄 [CoPilotContext] Snapshot changed from ${prevSnapshotIdRef.current?.slice(0, 8)} to ${lastSnapshotId.slice(0, 8)}, clearing old strategy`);
       localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
       localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-      setPersistentStrategy(null);
+      // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
+      // refactor; localStorage cleanup above is sufficient.
       setImmediateStrategy(null);
       setStrategySnapshotId(null);
       queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(null) });
@@ -560,24 +561,13 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Update persistent strategy when new strategy arrives
   useEffect(() => {
-    const consolidatedStrategy = strategyData?.strategy?.consolidated;
-    // 2026-01-14: FIX - Server returns camelCase 'strategyForNow', not snake_case 'strategy_for_now'
-    // This was causing strategy_for_now to always be undefined in the UI
     const strategyForNow = strategyData?.strategy?.strategyForNow;
-
-    if (consolidatedStrategy && consolidatedStrategy !== persistentStrategy) {
-      localStorage.setItem(STORAGE_KEYS.PERSISTENT_STRATEGY, consolidatedStrategy);
-      localStorage.setItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID, lastSnapshotId || '');
-      setPersistentStrategy(consolidatedStrategy);
-      setStrategySnapshotId(lastSnapshotId);
-    }
-
     if (strategyForNow && strategyForNow !== immediateStrategy) {
       setImmediateStrategy(strategyForNow);
+      setStrategySnapshotId(lastSnapshotId);
     }
-  }, [strategyData, lastSnapshotId, persistentStrategy, immediateStrategy]);
+  }, [strategyData, lastSnapshotId, immediateStrategy]);
 
   // Fetch blocks
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
@@ -813,7 +803,6 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     // Strategy
     strategyData: strategyData as StrategyData | null,
-    persistentStrategy,
     immediateStrategy,
     isStrategyFetching,
     snapshotData,
@@ -881,7 +870,6 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     // setCriticalError is stable (useState setter), no need in deps
     lastSnapshotId,
     strategyData,
-    persistentStrategy,
     immediateStrategy,
     isStrategyFetching,
     snapshotData,

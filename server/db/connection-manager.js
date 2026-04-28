@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 // Dev: local, no SSL. Production: SSL required.
 
 if (!process.env.DATABASE_URL) {
-  console.error("❌ Fatal: DATABASE_URL is missing. Ensure Replit Postgres is enabled.");
+  console.error("Fatal: DATABASE_URL is missing. Ensure Replit Postgres is enabled.");
   if (process.env.NODE_ENV !== 'test') {
     process.exit(1);
   }
@@ -64,7 +64,7 @@ pool.query = function retryablePoolQuery(textOrConfig, paramsOrCallback, maybeCa
   return originalPoolQuery(textOrConfig, paramsOrCallback).catch(async (err) => {
     if (!TRANSIENT_PG_ERROR_CODES.has(err?.code)) throw err;
     const sqlPreview = String(textOrConfig?.text || textOrConfig || '').slice(0, 80).replace(/\s+/g, ' ');
-    console.warn(`[pool] Transient ${err.code} on query; retrying once — "${sqlPreview}…"`);
+    console.warn(`[DB] Transient ${err.code} on query; retrying once — "${sqlPreview}…"`);
     await new Promise((resolve) => setTimeout(resolve, 150));
     return originalPoolQuery(textOrConfig, paramsOrCallback);
   });
@@ -89,7 +89,7 @@ setInterval(() => {
   
   // Warn if pool is getting full
   if (stats.total >= connectionWarningThreshold && Date.now() - lastWarningTime > 60000) {
-    console.warn(`⚠️ Connection pool nearing capacity: ${stats.total}/${stats.max} connections in use, ${stats.waiting} waiting`);
+    console.warn(`Connection pool nearing capacity: ${stats.total}/${stats.max} connections in use, ${stats.waiting} waiting`);
     lastWarningTime = Date.now();
   }
 }, 30000); // Check every 30 seconds
@@ -98,9 +98,9 @@ pool.on('error', (err) => {
   // 57P01 = admin_shutdown (connection terminated by server).
   // Pool auto-recovers (evicts dead connection, creates new one on next query).
   if (err?.code === '57P01') {
-    console.warn(`[pool] Connection terminated by server (57P01) — pool will auto-recover`);
+    console.warn(`[DB] Connection terminated by server (57P01) — pool will auto-recover`);
   } else {
-    console.error('[pool] Unexpected error on idle client:', err?.message || err);
+    console.error('[DB] Unexpected error on idle client:', err?.message || err);
   }
 });
 

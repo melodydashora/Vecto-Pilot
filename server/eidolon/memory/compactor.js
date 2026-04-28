@@ -9,9 +9,9 @@ export function startMemoryCompactor(policy) {
       await memoryCompact({ table: policy?.memory?.override_assistant?.table || "assistant_memory" });
       await memoryCompact({ table: policy?.memory?.eidolon?.tables?.memory || "eidolon_memory" });
       // snapshots are append-only; no compaction needed unless you add a TTL
-      console.info("[memory] compaction complete");
+      console.info("[MEMORY] compaction complete");
     } catch (e) {
-      console.error("[memory] compaction error:", e?.message || e);
+      console.error("[MEMORY] compaction error:", e?.message || e);
     }
   };
   run(); // run at boot

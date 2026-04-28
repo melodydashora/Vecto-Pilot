@@ -32,10 +32,10 @@ import { deduplicateEventsSemantic } from '../events/pipeline/deduplicateEventsS
 // - Precise location data in strategies
 import { findOrCreateVenue, lookupVenue } from '../venue/venue-cache.js';
 import { geocodeEventAddress } from '../events/pipeline/geocodeEvent.js';
-// 2026-04-10: Google Places API (New) is the authoritative source for venue data.
+// 2026-04-10: Google Places (NEW) API (New) is the authoritative source for venue data.
 // Used in event pipeline to resolve venue address, coordinates, and city after Gemini discovery.
 import { searchPlaceWithTextSearch } from '../venue/venue-address-resolver.js';
-// 2026-04-11: Address quality validation — catches bad Places API results before they persist
+// 2026-04-11: Address quality validation — catches bad Places (NEW) API results before they persist
 import { validateVenueAddress } from '../venue/venue-address-validator.js';
 
 // 2026-02-17: FIX Issue 3 (Past Event Cleanup)
@@ -263,16 +263,17 @@ export function deduplicateEvents(events) {
       });
       deduplicated.push(group[0]);
 
-      // Log deduplication for debugging
-      if (group.length > 1) {
-        briefingLog.info(`[Dedup] Merged ${group.length} variants of "${group[0].title?.slice(0, 40)}..."`);
+      // 2026-04-28: per-variant dedup debug — demoted to debug since the
+      // summary at line 275 reports the count (memory 236 — duplicate emits).
+      if (group.length > 1 && String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+        briefingLog.info(`[EVENTS] [DEDUP] Merged ${group.length} variants of "${group[0].title?.slice(0, 40)}..."`);
       }
     }
   }
 
   const removed = events.length - deduplicated.length;
   if (removed > 0) {
-    briefingLog.done(2, `Events deduped: ${events.length} → ${deduplicated.length} (${removed} duplicates removed)`, OP.DB);
+    briefingLog.done(2, `[EVENTS] [DEDUP] Hash dedup: ${events.length} → ${deduplicated.length} (${removed} duplicates removed)`, OP.DB);
   }
 
   return deduplicated;
@@ -281,6 +282,11 @@ export function deduplicateEvents(events) {
 /**
  * 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
  * 2026-01-09: DEPRECATED - Delegates to canonical validateEventsHard module
+ * 2026-04-28: Now accepts { timezone } so Rule 13 (today-or-yesterday window) runs in
+ *   the driver's local timezone instead of UTC. Without this, AHEAD-timezone drivers
+ *   (HST/JST/AEST/Pacific/Kiritimati) saw today's stored events stripped on every read
+ *   during the 9-14h UTC window where local-today equals UTC-tomorrow. Closes the
+ *   read-path gap that commit 5cecd113 left open (write path was already tz-aware).
  *
  * This function is kept for backwards compatibility. New code should use:
  * import { validateEventsHard } from '../events/pipeline/validateEvent.js';
@@ -288,22 +294,28 @@ export function deduplicateEvents(events) {
  * @deprecated Compatibility shim — use validateEventsHard() directly.
  * Scheduled for removal after all callers are migrated.
  *
- * Active callers (as of 2026-04-14):
- *   1. server/api/briefing/briefing.js:1050       — imported at line 4
- *   2. server/lib/briefing/briefing-service.js:1548 — internal call (this file)
- *   3. server/lib/briefing/dump-last-briefing.js:171,173,174 — imported at line 8
+ * Active callers (verified via Read 2026-04-28):
+ *   1. server/api/briefing/briefing.js (POST /filter-invalid-events) — imported at line 4
+ *   2. server/lib/briefing/briefing-service.js:1603 — internal call (this file)
+ *   3. server/lib/briefing/dump-last-briefing.js — imported at line 8
  *
  * @param {Array} events - Array of events to filter
+ * @param {Object} [options={}] - Options
+ * @param {string} [options.timezone] - IANA timezone for Rule 13. When omitted,
+ *   falls back to UTC (backwards-compat). Pass `snapshot.timezone` from callers.
  * @returns {Array} Clean events with no TBD/Unknown values
  */
-export function filterInvalidEvents(events) {
+export function filterInvalidEvents(events, { timezone } = {}) {
   if (!events || events.length === 0) return events;
 
   // 2026-01-09: Delegate to canonical validateEventsHard module
   // This ensures consistent validation rules across the entire pipeline
+  // 2026-04-28: Forward timezone via context so validateEvent's Rule 13 today-check
+  // honors the driver's local timezone (spec §9.2 — global-app correctness).
   const result = validateEventsHard(events, {
     logRemovals: true,
-    phase: 'BRIEFING_SERVICE_COMPAT'  // Indicates legacy caller for debugging
+    phase: 'BRIEFING_SERVICE_COMPAT',  // Indicates legacy caller for debugging
+    context: { timezone }
   });
 
   return result.valid;
@@ -824,9 +836,9 @@ function safeJsonParse(jsonString) {
         return JSON.parse(fixedExtracted);
       } catch (e4) {
         // 2026-02-17: Enhanced logging — show BOTH raw extraction and post-fix to diagnose
-        console.error('[BriefingService] All 4 parse attempts failed:', e4.message);
-        console.error('[BriefingService] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
-        console.error('[BriefingService] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
+        console.error('[BRIEFING] All 4 parse attempts failed:', e4.message);
+        console.error('[BRIEFING] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
+        console.error('[BRIEFING] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
       }
     }
   }
@@ -856,12 +868,12 @@ function safeJsonParse(jsonString) {
     }
   }
   if (objects.length > 0) {
-    console.log(`[BriefingService] 🧹 Attempt 5: Extracted ${objects.length} individual JSON objects via brace matching`);
+    console.log(`[BRIEFING] Attempt 5: Extracted ${objects.length} individual JSON objects via brace matching`);
     return objects.length === 1 ? objects[0] : objects;
   }
 
   // 2026-02-17: Log the raw input that caused total parse failure
-  console.error('[BriefingService] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
+  console.error('[BRIEFING] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
   throw new Error(`JSON parse failed after 5 attempts - raw AI response is malformed JSON`);
 }
 
@@ -1143,9 +1155,14 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     deduplicateEventsSemantic(rawEvents);
 
   if (semanticRemoved.length > 0) {
-    briefingLog.done(2, `[DEDUP] Semantic dedup: ${rawEvents.length} → ${allEvents.length} (${semanticRemoved.length} title-variant duplicates removed)`, OP.AI);
-    for (const logLine of mergeLog) {
-      briefingLog.info(logLine);
+    briefingLog.done(2, `[EVENTS] [DEDUP] Semantic dedup: ${rawEvents.length} → ${allEvents.length} (${semanticRemoved.length} title-variant duplicates removed)`, OP.AI);
+    // 2026-04-28: per-merge mergeLog demoted — deduplicateEventsSemantic
+    // already emits each [BRIEFING] [EVENTS] [DEDUP] line directly to console
+    // (memory 236 — same line was firing twice).
+    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+      for (const logLine of mergeLog) {
+        briefingLog.info(logLine);
+      }
     }
   }
 
@@ -1330,15 +1347,19 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // breaking downstream filtering and event hash consistency
       const normalized = discoveryResult.items.map(e => normalizeEvent(e, { city, state }));
       // 2026-01-10: validateEventsHard returns { valid, invalid, stats } - extract .valid array
-      const { valid: validatedEvents } = validateEventsHard(normalized);
+      // 2026-04-28: thread snapshot.timezone so Rule 13 today-check uses driver's local tz
+      // (spec §9.2 — global-app correctness for far-east / Hawaii callers near midnight UTC)
+      const { valid: validatedEvents } = validateEventsHard(normalized, {
+        context: { timezone: timezone }
+      });
 
       for (const event of validatedEvents) {
         try {
           const hash = generateEventHash(event);
 
-          // 2026-04-10: Venue Resolution via Google Places API (New).
+          // 2026-04-10: Venue Resolution via Google Places (NEW) API (New).
           // Google Places is the ONLY source of truth for venue addresses, coordinates, and cities.
-          // Priority chain: (a) place_id cache hit → (b) Places API search → (c) geocode fallback
+          // Priority chain: (a) place_id cache hit → (b) Places (NEW) API search → (c) geocode fallback
           let venueId = null;
           let resolvedVenue = null;  // Will hold venue_catalog record with authoritative data
 
@@ -1350,7 +1371,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
               if (placeId && placeId.startsWith('ChIJ')) {
                 const cached = await lookupVenue({ placeId });
                 if (cached && cached.formatted_address && cached.lat && cached.lng) {
-                  // Venue exists with complete Places API data — use it directly
+                  // Venue exists with complete Places (NEW) API data — use it directly
                   resolvedVenue = cached;
                   venueId = cached.venue_id;
                   briefingLog.info(`Cache hit (place_id) for "${event.venue_name}": ${cached.venue_name}`);
@@ -1358,13 +1379,13 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
                 // If cached but MISSING formatted_address/lat/lng, fall through to step (b)
               }
 
-              // Step (b): No cached venue — resolve via Google Places API (New)
+              // Step (b): No cached venue — resolve via Google Places (NEW) API (New)
               // Uses snapshot lat/lng as location bias with 50km radius for metro-wide discovery
               if (!resolvedVenue) {
                 const placeResult = await searchPlaceWithTextSearch(lat, lng, event.venue_name, { radius: 50000 });
 
                 if (placeResult) {
-                  // Places API returned authoritative venue data
+                  // Places (NEW) API returned authoritative venue data
                   const venue = await findOrCreateVenue({
                     venue: event.venue_name,
                     address: placeResult.formattedAddress,
@@ -1379,10 +1400,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
                   if (venue) {
                     resolvedVenue = venue;
                     venueId = venue.venue_id;
-                    briefingLog.info(`Places API resolved "${event.venue_name}" → "${venue.venue_name}" in ${placeResult.parsed?.city || '?'} (${venue.venue_id?.slice(0, 8)})`);
+                    briefingLog.info(`Places (NEW) API resolved "${event.venue_name}" → "${venue.venue_name}" in ${placeResult.parsed?.city || '?'} (${venue.venue_id?.slice(0, 8)})`);
                   }
                 } else {
-                  // Step (c): Places API returned nothing — fall back to geocode with snapshot context
+                  // Step (c): Places (NEW) API returned nothing — fall back to geocode with snapshot context
                   const geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
                   if (geocodeResult) {
                     const venue = await findOrCreateVenue({
@@ -1439,11 +1460,11 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
               city: resolvedCity
             });
             if (!addrValid) {
-              briefingLog.warn(2, `[VENUE-VALIDATE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
+              briefingLog.warn(2, `[VENUE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
             }
           }
 
-          // Store event with venue_catalog truth (city/address from Places API, not Gemini guess)
+          // Store event with venue_catalog truth (city/address from Places (NEW) API, not Gemini guess)
           await db.insert(discovered_events).values({
             title: event.title,
             venue_name: event.venue_name,  // Keep Gemini's name for display
@@ -1467,7 +1488,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             // Previously only updated updated_at + venue_id, silently dropping corrected data
             // (title, times, venue name) from re-discovery.
             // 2026-04-11: FIX — Use resolved venue data for address/city/state on conflict too.
-            // Previously used raw event.address on conflict, bypassing Places API resolution.
+            // Previously used raw event.address on conflict, bypassing Places (NEW) API resolution.
             set: {
               title: event.title,
               venue_name: event.venue_name,
@@ -1532,10 +1553,16 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // 2026-04-10: FIX — Query by STATE (metro-wide), not city. Events now store their
       // actual venue city (e.g., "Fort Worth", "Arlington") so filtering by snapshot city
       // ("Dallas") would miss all metro events outside the driver's exact city.
+      // 2026-04-28: FIX — multi-day-inclusive predicate. Was forward-only on event_start_date
+      // (`gte(start_date, today) AND lte(start_date, horizon)`), which silently excluded
+      // multi-day events that started before today (e.g. a 4-day festival running through
+      // today was missed on day 2). Now: any event whose [start, end] window overlaps the
+      // [today, horizon] window. Active-only filter still gates already-ended events
+      // because deactivatePastEvents() runs first.
       .where(and(
         eq(discovered_events.state, state),
-        gte(discovered_events.event_start_date, todayStr),
         lte(discovered_events.event_start_date, endDateStr),
+        gte(discovered_events.event_end_date, todayStr),
         eq(discovered_events.is_active, true),
         // STRICT FILTER: Hide events with NULL times from UI
         isNotNull(discovered_events.event_start_time),
@@ -1543,6 +1570,12 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       ))
       .orderBy(discovered_events.event_start_date)
       .limit(50);
+
+    console.log(
+      `[BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [READ] [ACTIVE-TODAY] [NEW EVENTS PIPELINE] ` +
+      `state=${state}, today=${todayStr}, horizon=${endDateStr}, count=${events.length} — ` +
+      `multi-day inclusive (start<=horizon AND end>=today)`
+    );
 
     if (events.length > 0) {
       // Map discovered_events format to the briefing events format
@@ -1578,7 +1611,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
       // 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
       // Replaces old "smart" confirmTBDEventDetails - we no longer try to repair, just remove
-      const cleanEvents = filterInvalidEvents(deduplicatedEvents);
+      // 2026-04-28: Thread timezone so the read-path Rule 13 today-check honors the
+      // driver's local tz. Without this, AHEAD-timezone drivers (HST/JST/AEST/Kiritimati)
+      // saw their own stored events stripped on every read during the 9-14h UTC window.
+      const cleanEvents = filterInvalidEvents(deduplicatedEvents, { timezone });
 
       briefingLog.done(2, `Events: ${cleanEvents.length} from discovered_events table`, OP.DB);
       return { items: cleanEvents, reason: null, provider: 'discovered_events' };
@@ -2177,7 +2213,7 @@ function extractAirportJson(rawText) {
   // Strategy 1: Find {"airports" and extract the balanced object
   const airportsIdx = rawText.indexOf('"airports"');
   if (airportsIdx === -1) {
-    console.warn('[Airport] No "airports" key found in response');
+    console.warn('[BRIEFING] [AIRPORT] No "airports" key found in response');
     return { airports: [] };
   }
 
@@ -2207,7 +2243,7 @@ function extractAirportJson(rawText) {
               .replace(/,\s*([}\]])/g, '$1');  // Strip trailing commas
             return JSON.parse(cleaned);
           } catch {
-            console.warn('[Airport] Manual extraction found object but parse failed');
+            console.warn('[BRIEFING] [AIRPORT] Manual extraction found object but parse failed');
           }
         }
         break;
@@ -2285,8 +2321,8 @@ Find airports within 50 miles. Return ONLY this JSON structure (no other text):
       parsed = safeJsonParse(result.output);
     } catch (parseErr) {
       // Manual extraction: find {"airports" or [{"code" in the raw text
-      console.warn(`[Airport] safeJsonParse failed (${parseErr.message}), trying manual extraction...`);
-      console.log(`[Airport] Raw (first 300):`, result.output?.substring(0, 300));
+      console.warn(`[BRIEFING] [AIRPORT] safeJsonParse failed (${parseErr.message}), trying manual extraction...`);
+      console.log(`[BRIEFING] [AIRPORT] Raw (first 300):`, result.output?.substring(0, 300));
       parsed = extractAirportJson(result.output);
     }
     briefingLog.done(2, `Gemini airport: ${parsed.airports?.length || 0} airports`, OP.AI);
@@ -2407,8 +2443,11 @@ export async function fetchRideshareNews({ snapshot }) {
     const result = await callModel('BRIEFING_NEWS', { system, user: newsPrompt });
 
     if (!result.ok) {
+      // 2026-04-24: SECURITY — client-facing `reason` is a sentinel string so raw
+      // upstream errors (which may echo API keys) cannot reach the HTTP response.
+      // Full error stays in the server log only.
       briefingLog.warn(2, `News fetch failed: ${result.error}`, OP.AI);
-      return { items: [], reason: `News fetch failed: ${result.error}`, provider: 'briefer' };
+      return { items: [], reason: 'news-fetch-failed', provider: 'briefer' };
     }
 
     const parsed = safeJsonParse(result.output);
@@ -2660,7 +2699,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   // and GET endpoints return success:false indefinitely → client infinite retry loop.
   const briefingPromise = generateBriefingInternal({ snapshotId, snapshot })
     .catch(async (err) => {
-      console.error(`[BriefingService] ❌ Generation failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
+      console.error(`[BRIEFING] Generation failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
       // Mark the placeholder row with error sentinel so endpoints return _generationFailed
       // instead of "not yet available" (which causes clients to keep polling)
       const errorMarker = { _generationFailed: true, error: err.message, failedAt: new Date().toISOString() };
@@ -2676,7 +2715,7 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
           .where(eq(briefings.snapshot_id, snapshotId));
         briefingLog.warn(1, `Marked briefing ${snapshotId.slice(0, 8)} as permanently failed`, OP.DB);
       } catch (markErr) {
-        console.error(`[BriefingService] Could not mark failed briefing: ${markErr.message}`);
+        console.error(`[BRIEFING] Could not mark failed briefing: ${markErr.message}`);
       }
       return { success: false, error: err.message, _generationFailed: true };
     });
@@ -2724,7 +2763,13 @@ async function writeSectionAndNotify(snapshotId, updates, notifyChannel) {
   try {
     const payload = JSON.stringify({ snapshot_id: snapshotId, section: notifyChannel });
     await db.execute(sql`SELECT pg_notify(${notifyChannel}, ${payload})`);
-    briefingLog.info(`📢 NOTIFY ${notifyChannel} for ${snapshotId.slice(0, 8)}`, OP.SSE);
+    // 2026-04-28: SEND-side NOTIFY emit demoted to debug — db-client.js
+    // dispatcher already emits the canonical [BRIEFING] [<sub>] [DB]
+    // [LISTEN/NOTIFY] [<channel>] line on the receive side. The two were
+    // a visible duplicate.
+    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+      briefingLog.info(`NOTIFY ${notifyChannel} for ${snapshotId.slice(0, 8)} (sent)`, OP.SSE);
+    }
   } catch (notifyErr) {
     briefingLog.warn(1, `Failed to send ${notifyChannel}: ${notifyErr.message}`, OP.SSE);
   }
@@ -2749,7 +2794,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   // Require valid location data - no fallbacks for global app
   if (!snapshot.city || !snapshot.state || !snapshot.timezone) {
-    console.error(`[BriefingService] ⚠️ Snapshot ${snapshotId} missing required location data (city/state/timezone)`);
+    console.error(`[BRIEFING] Snapshot ${snapshotId} missing required location data (city/state/timezone)`);
     return { success: false, error: 'Snapshot missing required location data' };
   }
 
@@ -2909,7 +2954,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       return result.value;
     }
     const reason = result.reason?.message || 'Unknown error';
-    console.error(`[BriefingService] ❌ ${subsystemNames[i]} fetch failed independently: ${reason}`);
+    console.error(`[BRIEFING] ${subsystemNames[i]} fetch failed independently: ${reason}`);
     failedReasons[subsystemNames[i]] = reason;
     return null;
   });
@@ -2938,7 +2983,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       schoolClosuresReason = schoolClosures.length > 0 ? null : 'No school closures found for this area';
     } catch (dailyErr) {
       // Non-fatal — closures failing shouldn't prevent other data from being stored
-      console.error(`[BriefingService] ❌ Closures fetch failed (non-fatal): ${dailyErr.message}`);
+      console.error(`[BRIEFING] Closures fetch failed (non-fatal): ${dailyErr.message}`);
       schoolClosures = [];
       schoolClosuresReason = `School closures fetch failed: ${dailyErr.message}`;
     }
@@ -2997,8 +3042,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     snapshot_id: snapshotId,
     news: {
       items: newsItems,
+      // 2026-04-24: SECURITY — do not interpolate raw failure reasons into the
+      // client-facing `reason` field; upstream errors may contain credential
+      // material. Use sentinel on failure path; preserve non-error messages.
       reason: failedReasons.news
-        ? `News fetch failed: ${failedReasons.news}`
+        ? 'news-fetch-failed'
         : newsResult?.reason || (newsItems.length === 0 ? 'No rideshare news found for this area' : null)
     },
     weather_current: weatherCurrent,
@@ -3070,7 +3118,10 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     try {
       const payload = JSON.stringify({ snapshot_id: snapshotId });
       await db.execute(sql`SELECT pg_notify('briefing_ready', ${payload})`);
-      briefingLog.info(`📢 NOTIFY briefing_ready sent for ${snapshotId.slice(0, 8)}`, OP.SSE);
+      // 2026-04-28: send-side NOTIFY demoted; dispatcher logs the canonical receive-side line.
+      if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+        briefingLog.info(`NOTIFY briefing_ready sent for ${snapshotId.slice(0, 8)}`, OP.SSE);
+      }
     } catch (notifyErr) {
       briefingLog.warn(1, `Failed to send NOTIFY: ${notifyErr.message}`, OP.SSE);
     }
@@ -3089,7 +3140,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     });
     const isComplete = missingFields.length === 0;
     if (!isComplete) {
-      console.warn('[Briefing] ⚠️ Incomplete briefing — missing fields:', missingFields);
+      console.warn('[Briefing] Incomplete briefing — missing fields:', missingFields);
     }
 
     return {
@@ -3099,7 +3150,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       missingFields
     };
   } catch (error) {
-    console.error('[BriefingService] Database error:', error);
+    console.error('[BRIEFING] Database error:', error);
     return {
       success: false,
       error: error.message,
@@ -3113,7 +3164,7 @@ export async function getBriefingBySnapshotId(snapshotId) {
     const result = await db.select().from(briefings).where(eq(briefings.snapshot_id, snapshotId)).limit(1);
     return result[0] || null;
   } catch (error) {
-    console.error('[BriefingService] Error fetching briefing:', error);
+    console.error('[BRIEFING] Error fetching briefing:', error);
     return null;
   }
 }

@@ -38,7 +38,7 @@ export const ValidationVerdict = {
  */
 export async function validateAddress({ address1, address2, city, state, zipCode, country = 'US' }) {
   if (!GOOGLE_MAPS_API_KEY) {
-    console.warn('[address-validation] GOOGLE_MAPS_API_KEY not set - skipping validation');
+    console.warn('[VENUE] GOOGLE_MAPS_API_KEY not set - skipping validation');
     return {
       valid: true, // Don't block registration if API key not set
       skipped: true,
@@ -73,7 +73,7 @@ export async function validateAddress({ address1, address2, city, state, zipCode
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[address-validation] API error:', response.status, errorText);
+      console.error('[VENUE] API error:', response.status, errorText);
       return {
         valid: true, // Don't block on API errors
         skipped: true,
@@ -157,7 +157,7 @@ export async function validateAddress({ address1, address2, city, state, zipCode
       warnings.push(`Unconfirmed: ${unconfirmedComponents.join(', ')}`);
     }
 
-    console.log(`[address-validation] ${validationStatus}: ${formattedAddress || address1}`);
+    console.log(`[VENUE] ${validationStatus}: ${formattedAddress || address1}`);
 
     return {
       valid: addressComplete || hasInferredComponents, // Allow inferred but valid addresses
@@ -182,7 +182,7 @@ export async function validateAddress({ address1, address2, city, state, zipCode
       geocodePrecision: geocode?.placeType || null, // ROOFTOP, RANGE_INTERPOLATED, etc.
     };
   } catch (err) {
-    console.error('[address-validation] Exception:', err.message);
+    console.error('[VENUE] Exception:', err.message);
     return {
       valid: true, // Don't block on errors
       skipped: true,

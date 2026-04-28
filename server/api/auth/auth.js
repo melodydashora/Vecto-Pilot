@@ -42,7 +42,7 @@ const router = Router();
 // REPLIT_DEVSERVER_INTERNAL_ID is per-workspace (not predictable), acceptable for dev.
 const JWT_SECRET = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
 if (!JWT_SECRET) {
-  console.error('[auth] FATAL: No JWT_SECRET or REPLIT_DEVSERVER_INTERNAL_ID — token signing will fail');
+  console.error('[AUTH] FATAL: No JWT_SECRET or REPLIT_DEVSERVER_INTERNAL_ID — token signing will fail');
 }
 
 /**
@@ -293,11 +293,11 @@ router.post('/register', async (req, res) => {
 
         // Log warnings if any
         if (addressValidation.warnings?.length > 0) {
-          console.warn('[auth] Address warnings:', addressValidation.warnings);
+          console.warn('[AUTH] Address warnings:', addressValidation.warnings);
         }
       }
     } catch (validationErr) {
-      console.warn('[auth] Address validation failed (non-fatal):', validationErr.message);
+      console.warn('[AUTH] Address validation failed (non-fatal):', validationErr.message);
     }
 
     // Fallback to geocoding if validation didn't provide coordinates
@@ -315,7 +315,7 @@ router.post('/register', async (req, res) => {
           authLog.done(1, `Address geocoded (fallback): ${geocodeResult.lat}, ${geocodeResult.lng}`);
         }
       } catch (geoErr) {
-        console.warn('[auth] Geocoding failed (non-fatal):', geoErr.message);
+        console.warn('[AUTH] Geocoding failed (non-fatal):', geoErr.message);
       }
     }
 
@@ -338,10 +338,10 @@ router.post('/register', async (req, res) => {
         resolvedMarket = marketData.market_anchor;
         authLog.done(1, `Market resolved: ${resolvedMarket} (${marketData.region_type})`);
       } else {
-        console.log(`[auth] No market found for city: ${finalAddress.city}, using provided: ${market}`);
+        console.log(`[AUTH] No market found for city: ${finalAddress.city}, using provided: ${market}`);
       }
     } catch (marketErr) {
-      console.warn('[auth] Market lookup failed (non-fatal):', marketErr.message);
+      console.warn('[AUTH] Market lookup failed (non-fatal):', marketErr.message);
     }
 
     // 2026-01-05: Simplified session architecture - users table is session-only
@@ -443,7 +443,7 @@ router.post('/register', async (req, res) => {
 
     // Send welcome email (non-blocking)
     sendWelcomeEmail(email, firstName).catch(err => {
-      console.warn('[auth] Welcome email failed:', err.message);
+      console.warn('[AUTH] Welcome email failed:', err.message);
     });
 
     // Fetch the created vehicle
@@ -1189,7 +1189,7 @@ router.put('/profile', requireAuth, async (req, res) => {
         }
       } catch (geoErr) {
         // Non-fatal - log and continue with profile update
-        console.warn('[auth] Re-geocoding failed (non-fatal):', geoErr.message);
+        console.warn('[AUTH] Re-geocoding failed (non-fatal):', geoErr.message);
       }
 
       // Re-lookup market based on new city
@@ -1212,7 +1212,7 @@ router.put('/profile', requireAuth, async (req, res) => {
           authLog.done(1, `Market updated: ${marketData.market_anchor} (${marketData.region_type})`);
         }
       } catch (marketErr) {
-        console.warn('[auth] Market re-lookup failed (non-fatal):', marketErr.message);
+        console.warn('[AUTH] Market re-lookup failed (non-fatal):', marketErr.message);
       }
     }
 

@@ -169,7 +169,7 @@ function parseCli() {
       },
     });
   } catch (err) {
-    console.error(`❌ Bad arguments: ${err.message}\n`);
+    console.error(`Bad arguments: ${err.message}\n`);
     printHelpAndExit(2);
   }
 
@@ -265,7 +265,7 @@ async function listThreads() {
 async function showThread(name) {
   const thread = await loadThread(name);
   if (!thread) {
-    console.error(`❌ Thread "${name}" not found.`);
+    console.error(`Thread "${name}" not found.`);
     process.exit(3);
   }
   console.log(`\n━━ Thread: ${thread.name} ━━`);
@@ -284,11 +284,11 @@ async function showThread(name) {
 async function resetThread(name) {
   const file = threadPath(name);
   if (!existsSync(file)) {
-    console.error(`❌ Thread "${name}" not found.`);
+    console.error(`Thread "${name}" not found.`);
     process.exit(3);
   }
   await unlink(file);
-  console.log(`✅ Deleted thread "${name}".`);
+  console.log(`Deleted thread "${name}".`);
 }
 
 // ---------- Context assembly ----------
@@ -308,7 +308,7 @@ function safeGitDiff(ref) {
     return out;
   } catch (err) {
     // Not a git repo, or bad ref — return null rather than blowing up
-    console.error(`⚠️  git diff ${ref} failed (${err.message.split('\n')[0]}); continuing without diff`);
+    console.error(` git diff ${ref} failed (${err.message.split('\n')[0]}); continuing without diff`);
     return null;
   }
 }
@@ -318,7 +318,7 @@ async function readFileContext(filePath) {
     const content = await readFile(filePath, 'utf8');
     return content;
   } catch (err) {
-    console.error(`❌ Cannot read --file ${filePath}: ${err.message}`);
+    console.error(`Cannot read --file ${filePath}: ${err.message}`);
     process.exit(3);
   }
 }
@@ -333,25 +333,25 @@ async function loadImage(imagePath) {
   try {
     buffer = await readFile(imagePath);
   } catch (err) {
-    console.error(`❌ Cannot read --image ${imagePath}: ${err.message}`);
+    console.error(`Cannot read --image ${imagePath}: ${err.message}`);
     process.exit(3);
   }
   const ext = path.extname(imagePath).toLowerCase();
   const mimeType = IMAGE_MIME_TYPES[ext];
   if (!mimeType) {
-    console.error(`❌ Unsupported image extension "${ext}" for ${imagePath}.`);
+    console.error(`Unsupported image extension "${ext}" for ${imagePath}.`);
     console.error(`   Supported: ${Object.keys(IMAGE_MIME_TYPES).join(', ')}`);
     process.exit(3);
   }
   if (buffer.length > IMAGE_HARD_LIMIT_BYTES) {
     const mb = (buffer.length / 1024 / 1024).toFixed(1);
-    console.error(`❌ Image ${imagePath} is ${mb}MB — exceeds 15MB limit for Gemini inline data.`);
+    console.error(`Image ${imagePath} is ${mb}MB — exceeds 15MB limit for Gemini inline data.`);
     console.error(`   Resize/compress it (e.g., pngquant, sips, or macOS Preview export) and retry.`);
     process.exit(3);
   }
   if (buffer.length > IMAGE_WARN_BYTES) {
     const mb = (buffer.length / 1024 / 1024).toFixed(1);
-    console.error(`⚠️  Image ${imagePath} is ${mb}MB — consider downscaling for faster responses.`);
+    console.error(` Image ${imagePath} is ${mb}MB — consider downscaling for faster responses.`);
   }
   return {
     filename: path.basename(imagePath),
@@ -416,7 +416,7 @@ async function assembleUserMessage(opts, thread, loadedImages) {
 function validateThinkLevel(model, think) {
   const levels = model.includes('flash') ? VALID_FLASH_THINK : VALID_PRO_THINK;
   if (!levels.includes(think)) {
-    console.error(`⚠️  thinkingLevel "${think}" not valid for ${model}. Valid: ${levels.join('|')}. Using "high".`);
+    console.error(` thinkingLevel "${think}" not valid for ${model}. Valid: ${levels.join('|')}. Using "high".`);
     return levels.includes('high') ? 'high' : levels[levels.length - 1];
   }
   return think;
@@ -425,7 +425,7 @@ function validateThinkLevel(model, think) {
 async function callGeminiDirect({ model, system, user, maxTokens, think, useSearch, skipJsonCleanup, images = [] }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error('❌ GEMINI_API_KEY is not set in environment.');
+    console.error('GEMINI_API_KEY is not set in environment.');
     process.exit(1);
   }
 
@@ -473,7 +473,7 @@ async function callGeminiDirect({ model, system, user, maxTokens, think, useSear
   try {
     result = await ai.models.generateContent({ model, contents, config });
   } catch (err) {
-    console.error(`❌ Gemini API call failed: ${err.message}`);
+    console.error(`Gemini API call failed: ${err.message}`);
     if (err.stack) console.error(err.stack.split('\n').slice(0, 3).join('\n'));
     process.exit(1);
   }
@@ -481,7 +481,7 @@ async function callGeminiDirect({ model, system, user, maxTokens, think, useSear
 
   let text = (result?.text || result?.response?.text?.() || '').trim();
   if (!text) {
-    console.error('❌ Gemini returned an empty response.');
+    console.error('Gemini returned an empty response.');
     // Dump any available metadata to help diagnose
     try {
       console.error('Debug: candidates=', JSON.stringify(result?.candidates || [], null, 2).slice(0, 1000));
@@ -509,7 +509,7 @@ async function main() {
   if (opts.meta.reset) { await resetThread(opts.meta.reset); return; }
 
   if (!opts.prompt) {
-    console.error('❌ No prompt given. Pass a prompt as the last argument, or use --help.');
+    console.error('No prompt given. Pass a prompt as the last argument, or use --help.');
     process.exit(2);
   }
 
@@ -539,11 +539,11 @@ async function main() {
 
   // Log to stderr so stdout stays clean for Gemini's reply (pipe-friendly)
   const imageSuffix = loadedImages.length > 0 ? ` · images=${loadedImages.length}` : '';
-  console.error(`\n🤖 Calling ${opts.model} · think=${opts.think} · search=${opts.useSearch ? 'on' : 'off'}${opts.thread ? ` · thread=${opts.thread}` : ''}${imageSuffix}`);
+  console.error(`\nCalling ${opts.model} · think=${opts.think} · search=${opts.useSearch ? 'on' : 'off'}${opts.thread ? ` · thread=${opts.thread}` : ''}${imageSuffix}`);
   console.error(`   prompt=${userMessage.length} chars · max_tokens=${opts.maxTokens}`);
   if (loadedImages.length > 0) {
     for (const img of loadedImages) {
-      console.error(`   🖼️  ${img.filename} (${img.mimeType}, ${formatBytes(img.bytes)})`);
+      console.error(`    ${img.filename} (${img.mimeType}, ${formatBytes(img.bytes)})`);
     }
   }
 
@@ -571,7 +571,7 @@ async function main() {
     thread.turns.push({ role: 'user', content: opts.prompt + imageNote });
     thread.turns.push({ role: 'gemini', content: text });
     await saveThread(thread);
-    console.error(`   💾 Saved to .gemini-threads/${opts.thread}.json (${thread.turns.length} turns total)\n`);
+    console.error(`   Saved to .gemini-threads/${opts.thread}.json (${thread.turns.length} turns total)\n`);
   }
 
   // Reply to stdout — clean so I can pipe it or read it directly
@@ -579,6 +579,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`❌ Unhandled error: ${err.stack || err.message}`);
+  console.error(`Unhandled error: ${err.stack || err.message}`);
   process.exit(1);
 });
