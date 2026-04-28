@@ -2,8 +2,43 @@
 
 **Status:** PROPOSED — awaiting Melody's per-phase approval
 **Created:** 2026-04-28
-**Source spec:** GPT merged-log target shared by Melody on 2026-04-27 (in conversation history)
+**Canonical source spec:** `.code_based_rules/.rules_do_not_change/Up to Venue console wish.txt` (Melody's edited target log; lines 1–358 finalized, lines 363–554 are raw unedited reference)
 **Sibling doc:** `docs/architecture/LOGGING.md` (existing logging reference)
+
+## Canonical chain template (memory 229)
+
+**`[Parent] [Sub] [CallType…] [CallName] — why-description`**
+
+| Position | Purpose | Examples |
+|----------|---------|----------|
+| Parent | Top-level workflow stage. **Required.** | BRIEFING, VENUE, STRATEGY, RIDESHARE COACH, BARS, LOCATION, SNAPSHOT |
+| Sub | Narrower function within parent. Optional. | TRAFFIC, AIRPORT, NEWS, EVENTS, TTS, PLACES, ROUTES |
+| CallType | One or more brackets describing the operation footprint. Stackable. | AI, API, DB |
+| CallName | Specific target of the call. | Role for AI: Briefer, Planner, Strategist, AI_COACH_Voice. Table for DB: discovered_events, venue_catalog. Service for API: TomTom, GoogleRoutes, GooglePlaces. |
+| Description | Starts with WHY, not WHAT. | "Calling TomTom for traffic and sent to Briefer for consolidation" |
+
+**Canonical example:** `[BRIEFING] [TRAFFIC] [API] [AI] [Briefer] Calling TomTom for traffic and sent to Briefer for consolidation`
+
+This single chain replaces what would otherwise be two emit lines (one for the TomTom API call, one for the AI handoff). The chain encodes the cross-system flow.
+
+## Naming rules (referenced from memory rows)
+
+- **Role-name doctrine (memory 224):** primary stream emits role names not model names.
+- **Multi-category stacking (memory 224):** CallTypes stack — `[API] [AI]`, `[DB] [API]`, etc.
+- **Coach label rule (memory 225):** **OPTION A LOCKED** — `[RIDESHARE COACH]` everywhere. Concierge stays `[CONCIERGE ASSISTANT]`.
+- **Outcome not metrics (memory 226):** response lines describe what was accomplished, not byte/char counts.
+- **Coach role split (memory 228):** AI_COACH_Voice (voice streaming) and AI_COACH (text streaming) are distinct CallNames.
+- **Lexicon cleanup pending (memory 227):** "Tactical Planner" vs "Planner" vs `VENUE_SCORER` — audit-flagged.
+
+## Implementation note for Phase B
+
+`server/logger/workflow.js` should expose a positional helper:
+
+```js
+tagChain({ parent, sub, callTypes = [], callName }) → "[Parent] [Sub] [CallType...] [CallName]"
+```
+
+NOT an arbitrary `tags = []` array. The positional template enforces the rule at the API surface.
 
 ---
 
