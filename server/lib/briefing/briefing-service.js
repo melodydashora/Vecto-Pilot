@@ -32,10 +32,10 @@ import { deduplicateEventsSemantic } from '../events/pipeline/deduplicateEventsS
 // - Precise location data in strategies
 import { findOrCreateVenue, lookupVenue } from '../venue/venue-cache.js';
 import { geocodeEventAddress } from '../events/pipeline/geocodeEvent.js';
-// 2026-04-10: Google Places API (New) is the authoritative source for venue data.
+// 2026-04-10: Google Places (NEW) API (New) is the authoritative source for venue data.
 // Used in event pipeline to resolve venue address, coordinates, and city after Gemini discovery.
 import { searchPlaceWithTextSearch } from '../venue/venue-address-resolver.js';
-// 2026-04-11: Address quality validation — catches bad Places API results before they persist
+// 2026-04-11: Address quality validation — catches bad Places (NEW) API results before they persist
 import { validateVenueAddress } from '../venue/venue-address-validator.js';
 
 // 2026-02-17: FIX Issue 3 (Past Event Cleanup)
@@ -1336,15 +1336,19 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // breaking downstream filtering and event hash consistency
       const normalized = discoveryResult.items.map(e => normalizeEvent(e, { city, state }));
       // 2026-01-10: validateEventsHard returns { valid, invalid, stats } - extract .valid array
-      const { valid: validatedEvents } = validateEventsHard(normalized);
+      // 2026-04-28: thread snapshot.timezone so Rule 13 today-check uses driver's local tz
+      // (spec §9.2 — global-app correctness for far-east / Hawaii callers near midnight UTC)
+      const { valid: validatedEvents } = validateEventsHard(normalized, {
+        context: { timezone: timezone }
+      });
 
       for (const event of validatedEvents) {
         try {
           const hash = generateEventHash(event);
 
-          // 2026-04-10: Venue Resolution via Google Places API (New).
+          // 2026-04-10: Venue Resolution via Google Places (NEW) API (New).
           // Google Places is the ONLY source of truth for venue addresses, coordinates, and cities.
-          // Priority chain: (a) place_id cache hit → (b) Places API search → (c) geocode fallback
+          // Priority chain: (a) place_id cache hit → (b) Places (NEW) API search → (c) geocode fallback
           let venueId = null;
           let resolvedVenue = null;  // Will hold venue_catalog record with authoritative data
 
@@ -1356,7 +1360,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
               if (placeId && placeId.startsWith('ChIJ')) {
                 const cached = await lookupVenue({ placeId });
                 if (cached && cached.formatted_address && cached.lat && cached.lng) {
-                  // Venue exists with complete Places API data — use it directly
+                  // Venue exists with complete Places (NEW) API data — use it directly
                   resolvedVenue = cached;
                   venueId = cached.venue_id;
                   briefingLog.info(`Cache hit (place_id) for "${event.venue_name}": ${cached.venue_name}`);
@@ -1364,13 +1368,13 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
                 // If cached but MISSING formatted_address/lat/lng, fall through to step (b)
               }
 
-              // Step (b): No cached venue — resolve via Google Places API (New)
+              // Step (b): No cached venue — resolve via Google Places (NEW) API (New)
               // Uses snapshot lat/lng as location bias with 50km radius for metro-wide discovery
               if (!resolvedVenue) {
                 const placeResult = await searchPlaceWithTextSearch(lat, lng, event.venue_name, { radius: 50000 });
 
                 if (placeResult) {
-                  // Places API returned authoritative venue data
+                  // Places (NEW) API returned authoritative venue data
                   const venue = await findOrCreateVenue({
                     venue: event.venue_name,
                     address: placeResult.formattedAddress,
@@ -1385,10 +1389,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
                   if (venue) {
                     resolvedVenue = venue;
                     venueId = venue.venue_id;
-                    briefingLog.info(`Places API resolved "${event.venue_name}" → "${venue.venue_name}" in ${placeResult.parsed?.city || '?'} (${venue.venue_id?.slice(0, 8)})`);
+                    briefingLog.info(`Places (NEW) API resolved "${event.venue_name}" → "${venue.venue_name}" in ${placeResult.parsed?.city || '?'} (${venue.venue_id?.slice(0, 8)})`);
                   }
                 } else {
-                  // Step (c): Places API returned nothing — fall back to geocode with snapshot context
+                  // Step (c): Places (NEW) API returned nothing — fall back to geocode with snapshot context
                   const geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
                   if (geocodeResult) {
                     const venue = await findOrCreateVenue({
@@ -1449,7 +1453,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             }
           }
 
-          // Store event with venue_catalog truth (city/address from Places API, not Gemini guess)
+          // Store event with venue_catalog truth (city/address from Places (NEW) API, not Gemini guess)
           await db.insert(discovered_events).values({
             title: event.title,
             venue_name: event.venue_name,  // Keep Gemini's name for display
@@ -1473,7 +1477,7 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             // Previously only updated updated_at + venue_id, silently dropping corrected data
             // (title, times, venue name) from re-discovery.
             // 2026-04-11: FIX — Use resolved venue data for address/city/state on conflict too.
-            // Previously used raw event.address on conflict, bypassing Places API resolution.
+            // Previously used raw event.address on conflict, bypassing Places (NEW) API resolution.
             set: {
               title: event.title,
               venue_name: event.venue_name,
@@ -1538,10 +1542,16 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       // 2026-04-10: FIX — Query by STATE (metro-wide), not city. Events now store their
       // actual venue city (e.g., "Fort Worth", "Arlington") so filtering by snapshot city
       // ("Dallas") would miss all metro events outside the driver's exact city.
+      // 2026-04-28: FIX — multi-day-inclusive predicate. Was forward-only on event_start_date
+      // (`gte(start_date, today) AND lte(start_date, horizon)`), which silently excluded
+      // multi-day events that started before today (e.g. a 4-day festival running through
+      // today was missed on day 2). Now: any event whose [start, end] window overlaps the
+      // [today, horizon] window. Active-only filter still gates already-ended events
+      // because deactivatePastEvents() runs first.
       .where(and(
         eq(discovered_events.state, state),
-        gte(discovered_events.event_start_date, todayStr),
         lte(discovered_events.event_start_date, endDateStr),
+        gte(discovered_events.event_end_date, todayStr),
         eq(discovered_events.is_active, true),
         // STRICT FILTER: Hide events with NULL times from UI
         isNotNull(discovered_events.event_start_time),
@@ -1549,6 +1559,12 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
       ))
       .orderBy(discovered_events.event_start_date)
       .limit(50);
+
+    console.log(
+      `[BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [READ] [ACTIVE-TODAY] [NEW EVENTS PIPELINE] ` +
+      `state=${state}, today=${todayStr}, horizon=${endDateStr}, count=${events.length} — ` +
+      `multi-day inclusive (start<=horizon AND end>=today)`
+    );
 
     if (events.length > 0) {
       // Map discovered_events format to the briefing events format
