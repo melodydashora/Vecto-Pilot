@@ -17,6 +17,7 @@
 import express from 'express';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../../middleware/auth.js';
 import { getLogFilePaths } from '../../logger/file-tee.js';
 // 2026-04-28: chainLog used by the production-refusal log line in
@@ -58,6 +59,12 @@ function requireAuthFromQueryOrHeader(req, res, next) {
 }
 
 const router = express.Router();
+const logsRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 const { current: LOG_FILE } = getLogFilePaths();
 
 // ----- helpers -----
@@ -72,14 +79,14 @@ async function readLastLines(n) {
 }
 
 // ----- /api/logs (JSON) -----
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', logsRateLimiter, requireAuth, async (req, res) => {
   const last = Math.min(parseInt(req.query.last, 10) || 500, 5000);
   const lines = await readLastLines(last);
   res.json({ count: lines.length, file: LOG_FILE, lines });
 });
 
 // ----- /api/logs/raw (plain text) -----
-router.get('/raw', requireAuth, async (req, res) => {
+router.get('/raw', logsRateLimiter, requireAuth, async (req, res) => {
   const last = Math.min(parseInt(req.query.last, 10) || 500, 5000);
   const lines = await readLastLines(last);
   res.type('text/plain').send(lines.join('\n'));
@@ -87,7 +94,7 @@ router.get('/raw', requireAuth, async (req, res) => {
 
 // ----- /api/logs/stream (SSE live tail) -----
 // Uses query-param auth fallback because EventSource can't send headers.
-router.get('/stream', requireAuthFromQueryOrHeader, async (req, res) => {
+router.get('/stream', logsRateLimiter, requireAuthFromQueryOrHeader, async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
