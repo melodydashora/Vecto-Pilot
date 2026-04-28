@@ -100,6 +100,15 @@ function isLargeEvent(event) {
  * - FILTER: Small events to user's city only
  * - FILTER: Only today's events
  *
+ * @deprecated 2026-04-28: No longer reachable from filterBriefingForPlanner. The
+ *   legacy `else` branch that called this was deleted because it silently substituted
+ *   a city-scope filter for the spec's required state-scope contract (FR-PROD-002).
+ *   All live callers pre-fetch state-scoped events at the DB query level
+ *   (enhanced-smart-blocks.js :: fetchTodayDiscoveredEventsWithVenue) and pass them
+ *   to filterBriefingForPlanner directly. Kept exported for backwards compatibility
+ *   with any test fixtures that import it; scheduled for removal in a follow-up
+ *   commit after test imports are verified by Read.
+ *
  * @param {Array} events - Array of event objects
  * @param {Object} options - Filter options
  * @param {string} options.today - Today's date in YYYY-MM-DD format
@@ -169,32 +178,31 @@ function filterClosuresToToday(closures, today) {
  * Filter briefing data for venue planner consumption
  *
  * Reduces token usage by:
- * - Using pre-fetched state-scoped events (preferred) or falling back to briefing.events
+ * - Passing through pre-fetched state-scoped events (the only event source path)
  * - Summarizing traffic (briefing + top issues + avoid areas)
  * - Including only essential weather info
  * - Filtering school closures to today
  *
- * 2026-04-11: Added `todayEvents` parameter. When provided, it is used directly
- * as the event set (no further filtering). This is the source of truth for the
- * Smart Blocks pipeline, which fetches state-scoped discovered_events with a
- * venue_catalog join *before* calling this function. The legacy `briefing.events`
- * fallback is kept for callers that haven't been migrated.
+ * 2026-04-11: Added `todayEvents` parameter. State-scoped events with venue_catalog
+ * join are pre-fetched by the Smart Blocks pipeline (enhanced-smart-blocks.js ::
+ * fetchTodayDiscoveredEventsWithVenue) before calling this function.
  *
- * The 2026-01-31 city/state split (`isLargeEvent` branching) is deprecated. After
- * the 2026-04-11 venue address correctness work, events carry their *venue's*
- * city (Arlington, Fort Worth, Frisco) rather than the driver's snapshot city, so
- * the city-match branch dropped metro-wide events that were legitimately driver-
- * relevant. The Smart Blocks pipeline now state-scopes at the DB query level
- * instead — see enhanced-smart-blocks.js :: fetchTodayDiscoveredEventsWithVenue.
+ * 2026-04-28: `todayEvents` is now REQUIRED (must be an array). The legacy
+ * fallback to briefing.events with a city/state split via filterEventsForPlanner
+ * was deleted. That fallback violated FR-PROD-002 by silently substituting a
+ * city filter for the spec's state-scoped event contract — it dropped metro-wide
+ * events whose Google-Places-resolved city differed from the driver's snapshot
+ * city. All live callers pre-fetch and pass todayEvents; this validation surfaces
+ * any unmigrated caller as a clear TypeError instead of a silent narrower scope.
  *
  * @param {Object} briefing - Full briefing row from database
  * @param {Object} snapshot - Snapshot with location context
- * @param {Array} [todayEvents] - Pre-fetched state-scoped events with venue_catalog join.
- *   When provided, replaces briefing.events as the event source. Expected shape: array of
- *   objects with discovered_events fields + vc_* prefixed venue_catalog fields.
+ * @param {Array} todayEvents - REQUIRED. Pre-fetched state-scoped events with
+ *   venue_catalog join. Expected shape: array of objects with discovered_events
+ *   fields + vc_* prefixed venue_catalog fields. Throws TypeError if not an array.
  * @returns {Object} Filtered briefing for venue planner
  */
-export function filterBriefingForPlanner(briefing, snapshot, todayEvents = null) {
+export function filterBriefingForPlanner(briefing, snapshot, todayEvents) {
   if (!briefing || !snapshot) {
     return {
       events: [],
@@ -205,33 +213,32 @@ export function filterBriefingForPlanner(briefing, snapshot, todayEvents = null)
     };
   }
 
+  // 2026-04-28: Hard contract — caller MUST supply todayEvents as an array. The
+  // legacy fallback that silently re-derived events from briefing.events with a
+  // city/state filter was deleted (it violated FR-PROD-002 by narrowing scope
+  // from state-wide to city-only without notifying the caller). This throw makes
+  // any unmigrated caller fail loudly at the contract boundary instead of
+  // returning a silently narrower event set.
+  if (!Array.isArray(todayEvents)) {
+    throw new TypeError(
+      `filterBriefingForPlanner: todayEvents must be an array (got ${typeof todayEvents}). ` +
+      `Live callers pre-fetch state-scoped events via fetchTodayDiscoveredEventsWithVenue ` +
+      `before calling this function. The legacy fallback was deleted on 2026-04-28; see ` +
+      `docs/review-queue/PLAN_pr-review-master-fixes-2026-04-28.md §13-P1.`
+    );
+  }
+
   const today = getLocalDate(snapshot.timezone);
   const userCity = snapshot.city || '';
   const userState = snapshot.state || '';
 
-  // 2026-04-11: Prefer pre-fetched state-scoped events when caller provides them.
-  // Legacy path: fall back to briefing.events (city-scoped filter kept only for
-  // the unmigrated call path — no known live callers remain).
-  let filteredEvents;
-  if (Array.isArray(todayEvents)) {
-    filteredEvents = todayEvents;
-    if (filteredEvents.length > 0) {
-      console.log(`[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER] caller pre-fetched events at state scope, passing through to planner without further filtering: ${filteredEvents.length} events`);
-    }
-  } else {
-    // Legacy path — kept for backward compatibility. See filterEventsForPlanner for the
-    // deprecated city/state split logic.
-    const rawEvents = briefing.events;
-    const eventItems = Array.isArray(rawEvents) ? rawEvents : (rawEvents?.items || []);
-    filteredEvents = filterEventsForPlanner(eventItems, { today, userCity, userState });
-
-    const totalEvents = eventItems.length;
-    const keptEvents = filteredEvents.length;
-    if (totalEvents > 0) {
-      const largeEvents = filteredEvents.filter(e => isLargeEvent(e)).length;
-      const localEvents = keptEvents - largeEvents;
-      console.log(`[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER] no pre-fetched events provided, applying legacy city/state filter to briefing.events as backwards-compat fallback: ${totalEvents} → ${keptEvents} events (${largeEvents} large, ${localEvents} local for ${userCity})`);
-    }
+  // 2026-04-11: Pre-fetched state-scoped events flow through without further
+  // filtering — the DB query already applied state + active + multi-day window.
+  // 2026-04-28: This is now the ONLY path; the legacy else branch that handled
+  // !Array.isArray(todayEvents) was deleted, replaced by the throw above.
+  const filteredEvents = todayEvents;
+  if (filteredEvents.length > 0) {
+    console.log(`[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER] caller pre-fetched events at state scope, passing through to planner without further filtering: ${filteredEvents.length} events`);
   }
 
   // Extract traffic summary - only essential fields
