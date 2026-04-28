@@ -216,7 +216,7 @@ export function filterBriefingForPlanner(briefing, snapshot, todayEvents = null)
   if (Array.isArray(todayEvents)) {
     filteredEvents = todayEvents;
     if (filteredEvents.length > 0) {
-      briefingLog.phase(2, `[EVENTS] [FILTER] State-scoped: ${filteredEvents.length} pre-fetched`);
+      console.log(`[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER] caller pre-fetched events at state scope, passing through to planner without further filtering: ${filteredEvents.length} events`);
     }
   } else {
     // Legacy path — kept for backward compatibility. See filterEventsForPlanner for the
@@ -230,7 +230,7 @@ export function filterBriefingForPlanner(briefing, snapshot, todayEvents = null)
     if (totalEvents > 0) {
       const largeEvents = filteredEvents.filter(e => isLargeEvent(e)).length;
       const localEvents = keptEvents - largeEvents;
-      briefingLog.phase(2, `[EVENTS] [FILTER] Legacy: ${totalEvents} → ${keptEvents} events (${largeEvents} large, ${localEvents} local for ${userCity})`);
+      console.log(`[BRIEFING] [EVENTS] [DB] [discovered_events] [FILTER] no pre-fetched events provided, applying legacy city/state filter to briefing.events as backwards-compat fallback: ${totalEvents} → ${keptEvents} events (${largeEvents} large, ${localEvents} local for ${userCity})`);
     }
   }
 
