@@ -2,7 +2,7 @@
  * server/lib/venue/venue-address-validator.js
  *
  * Lightweight address quality validation for venue pipeline.
- * String-parsing only — no API calls. Designed to catch bad Places API results
+ * String-parsing only — no API calls. Designed to catch bad Places (NEW) API results
  * like "Theatre, Frisco, TX 75034" (venue name fragment leaked into address)
  * or "Frisco, TX, USA" (city-only, no street).
  *

@@ -2,10 +2,10 @@
 //
 // Resolve venue coordinates to addresses using:
 // 1. venue_catalog cache (by coord_key)
-// 2. Google Places API (New) with 50m locationBias
+// 2. Google Places (NEW) API (New) with 50m locationBias
 // 3. Fallback to Google Geocoding API
 //
-// Updated 2026-01-05: Migrated to Google Places API (New) and venue_catalog integration
+// Updated 2026-01-05: Migrated to Google Places (NEW) API (New) and venue_catalog integration
 // See: /home/runner/.claude/plans/noble-purring-yeti.md
 //
 // 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): plus-code rejection
@@ -31,7 +31,7 @@ const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchTe
  *
  * Flow:
  * 1. Check venue_catalog cache by coord_key (6 decimal precision)
- * 2. If not cached, call Google Places API (New) with 50m radius
+ * 2. If not cached, call Google Places (NEW) API (New) with 50m radius
  * 3. Parse address components into granular fields
  * 4. Upsert into venue_catalog for future lookups
  *
@@ -86,7 +86,7 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
       }
     }
 
-    // Step 2: Try Google Places API (New) with 50m radius
+    // Step 2: Try Google Places (NEW) API (New) with 50m radius
     if (venueName && GOOGLE_MAPS_API_KEY) {
       const placeResult = await searchPlaceWithTextSearch(lat, lng, venueName);
 
@@ -166,7 +166,7 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
 }
 
 /**
- * Search for a place using Google Places API (New) with configurable locationBias.
+ * Search for a place using Google Places (NEW) API (New) with configurable locationBias.
  *
  * @param {number} lat - Latitude for location bias center
  * @param {number} lng - Longitude for location bias center
@@ -204,7 +204,7 @@ export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {
     });
 
     if (!response.ok) {
-      console.warn(`[VENUE] Places API error: ${response.status}`);
+      console.warn(`[VENUE] Places (NEW) API error: ${response.status}`);
       return null;
     }
 
@@ -238,7 +238,7 @@ export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {
       parsed
     };
   } catch (err) {
-    console.warn('[VENUE] Places API search failed:', err.message);
+    console.warn('[VENUE] Places (NEW) API search failed:', err.message);
     return null;
   }
 }

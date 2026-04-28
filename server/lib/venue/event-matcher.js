@@ -29,7 +29,7 @@ const matcherLog = createWorkflowLogger('VENUES');
 //        before catalog promotion, so neither side had a shared venue_id.
 //
 //   The fix uses place_id as the primary key (both sides call the same Google
-//   Places API (New), so place_id is a stable identity), falls back to
+//   Places (NEW) API (New), so place_id is a stable identity), falls back to
 //   venue_id (available after catalog promotion), and finally to substantial
 //   name matching for venues without Google identity. DB fetching is moved
 //   up to the caller (enhanced-smart-blocks.js :: fetchTodayDiscoveredEventsWithVenue),
@@ -94,7 +94,7 @@ function venueNamesMatch(name1, name2) {
  * shape that enhanced-smart-blocks.js expects for ranking_candidates.venue_events[].
  *
  * Prefers venue_catalog canonical name (vc_venue_name) when joined, since
- * the catalog name is the authoritative display form after Places API
+ * the catalog name is the authoritative display form after Places (NEW) API
  * resolution. Falls back to discovered_events.venue_name for orphan events
  * (null venue_id, no join row).
  *
@@ -148,7 +148,7 @@ export function matchVenuesToEvents(venues, todayEvents) {
     for (const event of todayEvents) {
       let matchType = null;
 
-      // Primary: place_id (Google Places API identity on both sides)
+      // Primary: place_id (Google Places (NEW) API identity on both sides)
       if (venue.placeId && event.vc_place_id && venue.placeId === event.vc_place_id) {
         matchType = 'place_id';
       }
