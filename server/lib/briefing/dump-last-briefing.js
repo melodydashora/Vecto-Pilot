@@ -162,10 +162,10 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in venue: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.venue || '')).length : 0}
   Events with TBD in time: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.filter(e => /tbd|unknown/i.test(e.event_start_time || e.event_time || '')).length : 0}
 
-Events AFTER filterInvalidEvents (what LLM actually receives):
+Events AFTER filterInvalidEvents (what LLM actually receives, tz=${snapshot?.timezone || 'UTC-fallback'}):
   Raw events in DB: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.length : 0}
-  Filtered events (sent to LLM): ${Array.isArray(lastBriefing.events) ? filterInvalidEvents(lastBriefing.events).length : 0}
-  TBD events removed: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.length - filterInvalidEvents(lastBriefing.events).length : 0}
+  Filtered events (sent to LLM): ${Array.isArray(lastBriefing.events) ? filterInvalidEvents(lastBriefing.events, { timezone: snapshot?.timezone }).length : 0}
+  TBD events removed: ${Array.isArray(lastBriefing.events) ? lastBriefing.events.length - filterInvalidEvents(lastBriefing.events, { timezone: snapshot?.timezone }).length : 0}
 
 ════════════════════════════════════════════════════════════════════════════════
 END OF VERIFICATION FILE

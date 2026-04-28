@@ -282,6 +282,11 @@ export function deduplicateEvents(events) {
 /**
  * 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
  * 2026-01-09: DEPRECATED - Delegates to canonical validateEventsHard module
+ * 2026-04-28: Now accepts { timezone } so Rule 13 (today-or-yesterday window) runs in
+ *   the driver's local timezone instead of UTC. Without this, AHEAD-timezone drivers
+ *   (HST/JST/AEST/Pacific/Kiritimati) saw today's stored events stripped on every read
+ *   during the 9-14h UTC window where local-today equals UTC-tomorrow. Closes the
+ *   read-path gap that commit 5cecd113 left open (write path was already tz-aware).
  *
  * This function is kept for backwards compatibility. New code should use:
  * import { validateEventsHard } from '../events/pipeline/validateEvent.js';
@@ -289,22 +294,28 @@ export function deduplicateEvents(events) {
  * @deprecated Compatibility shim — use validateEventsHard() directly.
  * Scheduled for removal after all callers are migrated.
  *
- * Active callers (as of 2026-04-14):
- *   1. server/api/briefing/briefing.js:1050       — imported at line 4
- *   2. server/lib/briefing/briefing-service.js:1548 — internal call (this file)
- *   3. server/lib/briefing/dump-last-briefing.js:171,173,174 — imported at line 8
+ * Active callers (verified via Read 2026-04-28):
+ *   1. server/api/briefing/briefing.js (POST /filter-invalid-events) — imported at line 4
+ *   2. server/lib/briefing/briefing-service.js:1603 — internal call (this file)
+ *   3. server/lib/briefing/dump-last-briefing.js — imported at line 8
  *
  * @param {Array} events - Array of events to filter
+ * @param {Object} [options={}] - Options
+ * @param {string} [options.timezone] - IANA timezone for Rule 13. When omitted,
+ *   falls back to UTC (backwards-compat). Pass `snapshot.timezone` from callers.
  * @returns {Array} Clean events with no TBD/Unknown values
  */
-export function filterInvalidEvents(events) {
+export function filterInvalidEvents(events, { timezone } = {}) {
   if (!events || events.length === 0) return events;
 
   // 2026-01-09: Delegate to canonical validateEventsHard module
   // This ensures consistent validation rules across the entire pipeline
+  // 2026-04-28: Forward timezone via context so validateEvent's Rule 13 today-check
+  // honors the driver's local timezone (spec §9.2 — global-app correctness).
   const result = validateEventsHard(events, {
     logRemovals: true,
-    phase: 'BRIEFING_SERVICE_COMPAT'  // Indicates legacy caller for debugging
+    phase: 'BRIEFING_SERVICE_COMPAT',  // Indicates legacy caller for debugging
+    context: { timezone }
   });
 
   return result.valid;
@@ -1600,7 +1611,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
       // 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
       // Replaces old "smart" confirmTBDEventDetails - we no longer try to repair, just remove
-      const cleanEvents = filterInvalidEvents(deduplicatedEvents);
+      // 2026-04-28: Thread timezone so the read-path Rule 13 today-check honors the
+      // driver's local tz. Without this, AHEAD-timezone drivers (HST/JST/AEST/Kiritimati)
+      // saw their own stored events stripped on every read during the 9-14h UTC window.
+      const cleanEvents = filterInvalidEvents(deduplicatedEvents, { timezone });
 
       briefingLog.done(2, `Events: ${cleanEvents.length} from discovered_events table`, OP.DB);
       return { items: cleanEvents, reason: null, provider: 'discovered_events' };

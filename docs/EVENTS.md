@@ -2,8 +2,8 @@
 
 > **This is the single source of truth** for event discovery, venue matching, deduplication, freshness, and driver-relevant event logic. Supersedes: `EVENT_FRESHNESS_AND_TTL.md`, `VENUELOGIC.md` (event sections), `BRIEFING_AND_EVENTS_ISSUES.md`.
 
-**Last Updated:** 2026-04-11
-**Schema Version:** `VALIDATION_SCHEMA_VERSION = 4` (validateEvent.js)
+**Last Updated:** 2026-04-28
+**Schema Version:** `VALIDATION_SCHEMA_VERSION = 6` (validateEvent.js)
 
 ---
 
@@ -656,7 +656,7 @@ User:   "Find [category] happening TODAY ({date}) in the {market} metro area..."
 
 ### Known Gaps
 
-1. **validateEvent.js date check** uses server UTC for "today" — may reject valid events in far-east timezones
+1. ~~**validateEvent.js date check** uses server UTC for "today" — may reject valid events in far-east timezones~~ **CLOSED 2026-04-28** — `validateEvent` now accepts `context.timezone`; both write and read paths thread driver tz (schema_version=6).
 2. **Event times as text** — no ISO 8601 storage means parsing is always needed
 3. **Country not in event discovery prompt** — assumes Gemini infers from metro area name
 4. **No multi-language event title support** — normalization assumes Latin characters
@@ -812,7 +812,7 @@ Both layers share `NEAR_EVENT_RADIUS_MILES = 15` as the single source of truth. 
 
 ## Validation Rules (13 Hard Filters)
 
-Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION = 4`.
+Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION = 6`.
 
 | # | Rule | Field | Rejection Reason |
 |---|------|-------|-----------------|
@@ -834,7 +834,7 @@ Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION
 
 **Rule 12 fuzzy rescue (2026-04-05, self-healing):** If `event.category` is missing or not in the allowed list, `validateEvent` calls `normalizeCategory(event.category, event.subtype)` as a last-ditch remap before rejecting. This handles cases where Gemini returns unmapped values like `"live_music"`, `"game"`, `"hockey"`, `"concert_live"`. If the remap produces an allowed category, `event.category` is mutated in place and validation continues. Only unrecoverable values fall through to `missing_or_invalid_category`.
 
-**Rule 13 window:** `today` OR `yesterday` (UTC). Yesterday is allowed to cover late-night events discovered before midnight that cross into the next day.
+**Rule 13 window:** `today` OR `yesterday` in the driver's local timezone (passed via `context.timezone`). Yesterday is allowed to cover late-night events discovered before midnight that cross into the next day. Without `context.timezone`, falls back to UTC for backwards compatibility — but every live caller now threads timezone (schema v6 confirms both write and read paths are tz-aware).
 
 ---
 
@@ -907,6 +907,8 @@ These files are referenced in older docs but are NOT active in the pipeline:
 
 | Date | Change | Files |
 |------|--------|-------|
+| 2026-04-28 | **Read-path Rule 13 tz-awareness (schema v5 → v6)**: `filterInvalidEvents` shim now accepts `{ timezone }`; threaded by `briefing-service.js:1607` (read-after-fetch revalidation), `briefing.js:1216` (`POST /filter-invalid-events` API — WARN-on-missing), and `dump-last-briefing.js`. Also fixed Path B (`GET /api/briefing/events/:snapshotId`) multi-day predicate from start-only to overlap window. Closes the gap commit 5cecd113 left open. | validateEvent.js, briefing-service.js, briefing.js, dump-last-briefing.js |
+| 2026-04-28 | **Write-path Rule 13 tz-awareness (schema v4 → v5) + multi-day predicate (Path A) + planner-grade gate**: `validateEvent` accepts `context.timezone`; `briefing-service.js:1339` threads `snapshot.timezone`; `enhanced-smart-blocks.js:213-272` uses `lte/gte` overlap predicate + `isPlannerGradeVenue` 3-bucket classification. Five hardening steps from `PLAN_events-pipeline-verification-2026-04-28.md` landed atomically as commit `5cecd113`. | validateEvent.js, briefing-service.js, enhanced-smart-blocks.js, venue-cache.js |
 | 2026-04-11 | **Address quality validation layer**: `venue-address-validator.js` (4 checks, hard fail + soft signals, international patterns). `maybeReResolveAddress()` gate on all 4 `findOrCreateVenue` return paths — re-resolves bad addresses via Places (NEW) API 50km search, re-validates to refuse replacing bad with bad. | venue-address-validator.js, venue-cache.js |
 | 2026-04-11 | **Semantic title-similarity dedup**: `deduplicateEventsSemantic.js` with `titlesMatch`, `scoreEventPreference` (+10 for non-stadium venue), `LARGE_VENUE_PATTERNS` regex. Integrated at write time in `fetchEventsWithGemini3ProPreview` and read time in `briefing.js`. Two-phase with hash dedup. | deduplicateEventsSemantic.js, briefing-service.js, briefing.js |
 | 2026-04-11 | **`onConflictDoUpdate` fix**: conflict branch now uses resolved address/city/state (was silently reverting corrections to raw Gemini data on every re-discovery). | briefing-service.js |

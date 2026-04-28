@@ -11,6 +11,9 @@ import { requireAuth } from '../../middleware/auth.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { filterFreshEvents, filterFreshNews } from '../../lib/strategy/strategy-utils.js';
+// 2026-04-28: Added chainLog import to fix the broken `briefingLog ?? console.error`
+// expression at the market-events catch handler below — see edit at line ~466.
+import { chainLog } from '../../logger/workflow.js';
 
 // 2026-04-05: Self-healing for zombie placeholder rows.
 // When a briefing generation crashes (e.g., RC-1 db.execute destructuring bug), the
@@ -462,7 +465,18 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
         }
       }
     } catch (marketErr) {
-      briefingLog ?? console.error(`[BRIEFING] Market events lookup failed (non-fatal): ${marketErr.message}`);
+      // 2026-04-28: Replaced broken `briefingLog ?? console.error(...)` expression.
+      // Two bugs in the previous line: (1) `briefingLog` was never imported in this
+      // file, so the `??` left-operand threw ReferenceError inside the catch and
+      // propagated to the outer 500 handler, masking the actual marketErr; (2) the
+      // `??` operator short-circuits on truthy values — even if briefingLog had been
+      // imported, console.error would never have fired as a fallback. Replaced with
+      // chainLog so this emit goes through the workflow logger control plane (per
+      // the canonical chain template, claude_memory #229).
+      chainLog(
+        { parent: 'BRIEFING', sub: 'EVENTS', callTypes: ['DB'], table: 'market_events', callName: 'lookup' },
+        `Market events lookup failed (non-fatal): ${marketErr.message}`
+      );
     }
 
     res.json({
@@ -870,10 +884,18 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       // 2026-04-10: FIX — Query by STATE (metro-wide), not city. Events now store their
       // venue's actual city from Google Places API (e.g., "Fort Worth", "Arlington"), so
       // filtering by snapshot city ("Dallas") would miss metro events outside the driver's city.
+      // 2026-04-28: FIX — multi-day-inclusive predicate. Was forward-only on
+      // event_start_date (`gte/lte` both keyed on start), silently excluding multi-day
+      // events that started before today (e.g. day 2 of a 4-day festival was dropped
+      // from the map even though Path A's planner saw it). Now: any event whose
+      // [start, end] window overlaps the [today, endDate] window. Mirrors the Path A
+      // fix landed at briefing-service.js:1551-1559 in commit 5cecd113. Active-only
+      // filter still gates already-ended events because deactivatePastEvents() runs
+      // upstream in the briefing pipeline.
       .where(and(
         eq(discovered_events.state, snapshot.state),
-        gte(discovered_events.event_start_date, today),
         lte(discovered_events.event_start_date, endDate),
+        gte(discovered_events.event_end_date, today),
         eq(discovered_events.is_active, true)
       ))
       .orderBy(discovered_events.event_start_date)
@@ -1192,14 +1214,25 @@ router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 // Events with TBD/Unknown in critical fields are now REMOVED, not repaired
 router.post('/filter-invalid-events', requireAuth, async (req, res) => {
   try {
-    const { events } = req.body;
+    // 2026-04-28: Accept optional `timezone` in the body so Rule 13 today-check
+    // honors the driver's local tz. WARN-on-missing surfaces clients that haven't
+    // migrated to the new contract; UTC fallback is preserved for backwards compat
+    // but logs a clear note explaining the silent-failure mode it masks.
+    const { events, timezone } = req.body;
 
     if (!events || !Array.isArray(events)) {
       return res.status(400).json({ error: 'events array is required' });
     }
 
-    console.log(`[BRIEFING] Filtering ${events.length} events (removing TBD/Unknown)`);
-    const filtered = filterInvalidEvents(events);
+    if (!timezone) {
+      chainLog(
+        { parent: 'BRIEFING', sub: 'EVENTS', callTypes: ['API', 'FILTER'], callName: 'filter-invalid-events' },
+        `WARN: client did not supply timezone — Rule 13 falling back to UTC; AHEAD-timezone events may be incorrectly stripped`
+      );
+    }
+
+    console.log(`[BRIEFING] Filtering ${events.length} events (removing TBD/Unknown, tz=${timezone || 'UTC-fallback'})`);
+    const filtered = filterInvalidEvents(events, { timezone });
 
     res.json({
       success: true,

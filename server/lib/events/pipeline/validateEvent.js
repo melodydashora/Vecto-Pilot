@@ -27,7 +27,14 @@ import { normalizeCategory } from './normalizeEvent.js';
 // 2026-04-28: bumped to v5 — Rule 13 today-check is now timezone-aware via
 // context.timezone (driver's snapshot timezone). Stored rows with schema_version=4
 // pass needsReadTimeValidation correctly because v4<v5; new writes stamp v5.
-export const VALIDATION_SCHEMA_VERSION = 5;
+// 2026-04-28 (later same day): bumped to v6 — read-path callers (filterInvalidEvents
+// shim in briefing-service.js, the POST /filter-invalid-events API endpoint, and
+// dump-last-briefing.js) now thread `{ timezone }` too. Previously v5 was set when
+// only the write path was tz-aware; the read path silently re-applied UTC fallback
+// to AHEAD-tz drivers, recurring the bug v5 was meant to fix. v6 marks the moment
+// both paths honor driver tz; v5-stamped rows still revalidate correctly because
+// v5<v6 satisfies needsReadTimeValidation.
+export const VALIDATION_SCHEMA_VERSION = 6;
 
 /**
  * Patterns that indicate incomplete/invalid data
