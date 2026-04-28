@@ -136,6 +136,7 @@ const COMPONENT_LABELS = {
   CONFIG: 'CONFIG',
   AGENT: 'AGENT',
   COACH: 'COACH',
+  'RIDESHARE COACH': 'RIDESHARE COACH',
   TRANSLATION: 'TRANSLATION',
   HEALTH: 'HEALTH',
   TTS: 'TTS',
@@ -175,7 +176,10 @@ const _MAIN_CATEGORIES = new Set([
   // through (e.g., [STRATEGY] [AI] not [AI]) when the call site knows it.
   'AI', 'MODELS',
   // User-facing feature mains
-  'COACH', 'TRANSLATION', 'HEALTH', 'TTS',
+  // 2026-04-28 (memory 225): RIDESHARE COACH is the canonical label for the
+  // rideshare-driver coach. Plain COACH is retained for back-compat during the
+  // Phase B sweep but should be migrated.
+  'RIDESHARE COACH', 'COACH', 'TRANSLATION', 'HEALTH', 'TTS',
   // Other features
   'FEEDBACK', 'VEHICLE', 'HOOKS', 'MEMORY', 'NOTIFY', 'CONCIERGE',
   // Generic infra fallback
@@ -217,6 +221,104 @@ export function tagLog(tags, message, opts = {}) {
     request_id: opts.request_id,
     snapshot_id: opts.snapshot_id,
     route: opts.route,
+  });
+}
+
+/**
+ * 2026-04-28 (memory 229 + 230): canonical chain helper.
+ *
+ * Builds a positional bracket chain per doctrine:
+ *   [Parent] [Sub] [CallType...] [CallName] message
+ *
+ * Slots (parent required, rest optional):
+ *   parent     - Top-level stage (e.g. 'BRIEFING', 'VENUE'). UPPERCASED.
+ *   sub        - Narrower function (e.g. 'TRAFFIC', 'NEWS', 'TTS'). UPPERCASED.
+ *   callTypes  - Op footprint, stackable: ['AI'], ['API','AI'], ['DB']. UPPERCASED.
+ *   callName   - Target identity. CASE PRESERVED. Roles TitleCase ('Briefer',
+ *                'Planner', 'Strategist'); tables snake_case ('venue_cards');
+ *                services TitleCase ('TomTom', 'GooglePlaces').
+ *   table      - alias for callName when DB is in callTypes (clarity at call sites).
+ *
+ * Validators:
+ *   - DB in callTypes requires table/callName (memory 230). Missing -> warn.
+ *   - parent must be a registered main category. Missing -> warn.
+ *
+ * Description rule (doctrine, not enforced):
+ *   - Start with WHY (why this is happening) — chain encodes WHAT.
+ *   - No city/state in description; chain + snapshot_id locate the line (memory 230).
+ *
+ * Usage:
+ *   chainLog({ parent: 'BRIEFING', sub: 'NEWS', callTypes: ['AI'], callName: 'Briefer' },
+ *            'Fetching news for Dallas-Fort Worth');
+ *   // -> [BRIEFING] [NEWS] [AI] [Briefer] Fetching news for Dallas-Fort Worth
+ *
+ *   chainLog({ parent: 'VENUE', callTypes: ['DB'], table: 'venue_cards' },
+ *            'Stored 6 records');
+ *   // -> [VENUE] [DB] [venue_cards] Stored 6 records
+ *
+ *   chainLog({ parent: 'BRIEFING', sub: 'TRAFFIC', callTypes: ['API','AI'],
+ *              callName: 'Briefer' },
+ *            'Calling TomTom for traffic and sent to Briefer for consolidation');
+ *   // -> [BRIEFING] [TRAFFIC] [API] [AI] [Briefer] Calling TomTom for traffic ...
+ */
+export function chainLog(spec, message, opts = {}) {
+  const { parent, sub, callTypes, callName, table } = spec || {};
+  const level = opts.level || spec?.level || 'info';
+  const types = Array.isArray(callTypes) ? callTypes : (callTypes ? [callTypes] : []);
+  const name = table || callName;
+
+  const includesDB = types.some((t) => String(t).toUpperCase() === 'DB');
+  if (includesDB && !name) {
+    process.stderr.write(
+      `[LOGGER WARN] chainLog: callTypes contains 'DB' but no table/callName provided. ` +
+      `Per memory 230, DB CallType MUST carry the table or channel name. ` +
+      `parent=${parent} sub=${sub ?? '-'} callTypes=${JSON.stringify(types)}\n`
+    );
+  }
+
+  const upperParent = String(parent || '').toUpperCase();
+  if (!parent) {
+    process.stderr.write(`[LOGGER WARN] chainLog: parent is required\n`);
+  } else if (!_MAIN_CATEGORIES.has(upperParent)) {
+    process.stderr.write(
+      `[LOGGER WARN] chainLog: parent "${parent}" is not a registered main category.\n`
+    );
+  }
+
+  if (!shouldEmit(level, upperParent)) return;
+
+  // Parent/sub/callTypes UPPERCASE per doctrine; callName preserves case.
+  const parts = [];
+  if (parent) parts.push(`[${upperParent}]`);
+  if (sub) parts.push(`[${String(sub).toUpperCase()}]`);
+  for (const t of types) parts.push(`[${String(t).toUpperCase()}]`);
+  if (name) parts.push(`[${name}]`);
+
+  const ctxStr = formatContextStr({
+    request_id: opts.request_id || spec?.request_id,
+    snapshot_id: opts.snapshot_id || spec?.snapshot_id,
+    route: opts.route || spec?.route,
+  });
+  const bracketChain = parts.join(' ');
+  const ctxSuffix = ctxStr ? ` ${ctxStr}` : '';
+
+  if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
+    const sink = level === 'error' ? console.error
+               : level === 'warn'  ? console.warn
+               : level === 'debug' ? console.debug
+               : console.log;
+    sink(`${bracketChain}${ctxSuffix} ${message}`);
+  }
+  emitJSON(level, upperParent, message, {
+    chain: {
+      parent: upperParent,
+      sub: sub ? String(sub).toUpperCase() : null,
+      callTypes: types.map((t) => String(t).toUpperCase()),
+      callName: name || null,
+    },
+    request_id: opts.request_id || spec?.request_id,
+    snapshot_id: opts.snapshot_id || spec?.snapshot_id,
+    route: opts.route || spec?.route,
   });
 }
 
