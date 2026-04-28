@@ -2,7 +2,9 @@
 
 > **Branch:** `audit/codebase-2026-04-27` off `main` at `d39d570f` (Merge: `chore/remove-daily-strategy` — Daily 8-12hr strategy removed end-to-end).
 > **Scope:** Working/broken state, naming conventions, duplications. Static analysis only — runtime behavior not verified.
-> **Author:** Audit run via SSH from external Claude Code session, 2026-04-27.
+> **Initial snapshot:** 2026-04-27 ~17:00 UTC.
+> **Re-sweep:** 2026-04-27 ~22:30 UTC — see **Section 9** for what changed in the intervening hours (16 new commits, including a CLEAR_CONSOLE_WORKFLOW log-system overhaul, a hedged-router extraction, a new diagnostics endpoint family, a coach TTS unblock fix, and a `setPersistentStrategy` runtime-bug fix that surfaced from improved error logging).
+> **Snapshot now covers:** `main` (`d39d570f`) **plus the post-audit working state of `coach-pass2-phase-b`** through commit `8eb18081`. Original sections describe state at initial snapshot; Section 9 marks where they've been superseded.
 
 ## Executive summary
 
@@ -17,6 +19,14 @@ Five top findings, ordered by impact:
 4. **The "immediate strategy" concept has four naming surfaces** (the user's call-out is justified). Same logical thing, four spellings: function `runImmediateStrategy` / `generateImmediateStrategy`, parameter `immediateStrategy`, DB column `strategy_for_now`, comments call it "immediate 1-hour tactical." This is the dominant naming-conflict pattern in the codebase. (Section 5.1)
 
 5. **AI registry vs callsites is otherwise clean.** All 26 roles in `MODEL_ROLES` are reachable from at least one live caller. Naming-lag exists but is contained in dead code (`fetchNewsWithClaudeWebSearch`, `fetchEventsWithClaudeWebSearch`, `_fetchEventsWithGemini3ProPreviewLegacy` — all uncalled, retained for emergency rollback). (Sections 2 and 5.6)
+
+**Update findings added 2026-04-27 evening (Section 9):**
+
+6. **A CLEAR_CONSOLE_WORKFLOW spec landed in 8 commits today.** Workflow logger now drives a numbered-stage convention (`[TRIAD 1/4]`, `[VENUES 2/4]`, etc.); `server/lib/ai/router/` was extracted from `adapters/index.js`; new `/api/logs/*` mobile diagnostics endpoint family (file-tee + auth-gated tail/stream/viewer). My initial recommendation to decommission "TRIAD" branding (§5.2) is now **in tension with the new logging convention** — see §11.4 for the revised recommendation.
+
+7. **New dead-code candidate: `server/types/driving-plan.ts`** (166 lines, 15 types/interfaces, **zero importers** anywhere in `server/` or `client/`). Unimplemented "shift planning" feature scaffolding. Not breaking anything but worth flagging now before it accretes more.
+
+8. **Improved error-boundary logging immediately surfaced one real client-side runtime bug** (`setPersistentStrategy` references in `co-pilot-context.tsx` after the state setter was deleted). Pattern: this is the type of dead-code residue my audit's static analysis can find, but only if it lives at the file-import level, not at the variable-reference level inside a file. Two more commits today (`fa23e3af`, `e3c66a7a`) demonstrate this exact diagnosis pipeline working in real time.
 
 The codebase itself is in good shape; **the docs lag is what bites a new reader (or an LLM agent) the hardest**.
 
@@ -297,6 +307,8 @@ Same exercise for the briefing concept (much cleaner — see 5.3) and for venue/
 
 ### 5.2 "TRIAD" vs "blocks-fast" vs "strategy pipeline" branding
 
+> **NOTE (re-sweep):** see §9.4 for an important update. The CLEAR_CONSOLE_WORKFLOW commits this evening **doubled down on TRIAD branding** in the workflow logger. The recommendation in this section is rebalanced there.
+
 The same pipeline has three brandings active in the codebase right now:
 
 | Surface | Branding |
@@ -536,7 +548,194 @@ What "TRIAD" means today:
 
 ---
 
-## Appendix A — files read for this audit
+---
+
+## 9. Updates since initial audit (re-sweep — same day, +5 hours)
+
+This section was added on a re-sweep at ~22:30 UTC, 2026-04-27. Sixteen commits landed on `coach-pass2-phase-b` between the initial audit (`4ee36cc8` at ~17:00) and the re-sweep. Two of the sixteen are this audit's own refinements; the remaining fourteen are real product/infra work.
+
+### 9.1 Commits since `4e9a3380` (timeline)
+
+```
+8eb18081  fix(logs): revert sed-clobbered JS destructuring patterns from Commit 8
+e3c66a7a  fix(copilot): remove setPersistentStrategy dead-code refs (was throwing ReferenceError)
+0072816c  Published your App
+aaa466f6  feat(diagnostics): mobile log viewer — file-tee + auth-gated tail/stream + HTML page
+129ef243  chore(logs): mass-migrate orphan tags to main categories + strip emojis        ┐
+50879fc7  chore(logs): migrate boot/config/phase orphan logs and collapse phase duplicates │
+590ceab2  chore(logs): UPPERCASE labels + hierarchical brackets + raw emoji migration     │ CLEAR_CONSOLE_WORKFLOW
+415165d8  chore(logs): refine bracket format per "one word in [Example]" spec             │ spec — 8 commits
+714831f1  chore(logs): gate frontend diagnostics behind debug flags                       │ totaling a workflow-
+122dc99e  Published your App                                                              │ logger overhaul
+126e4d73  chore(logs): migrate noisy backend emitters to workflow logger                  │
+124651c9  chore(logs): enforce numbered waterfall phases                                  │
+ee9f095d  chore(logs): add workflow levels and component filters                          ┘
+fa23e3af  fix(error-boundary): log error shape and non-enumerable props (was empty {})
+4e9a3380  docs(audit): expand client hook+page→API map, fix role count                    ← initial audit refinement
+4ee36cc8  docs(audit): comprehensive codebase audit 2026-04-27                            ← initial audit
+```
+
+The remaining changes group into five logical buckets:
+
+### 9.2 New: `server/lib/ai/router/` directory (clean extraction, not duplication)
+
+The hedged-router logic that previously lived inline in `server/lib/ai/adapters/index.js` was extracted into its own module:
+
+| File | LOC | Role |
+|---|---|---|
+| `server/lib/ai/router/index.js` | 88 | Public surface |
+| `server/lib/ai/router/hedged-router.js` | 317 | Core router (was inline in adapters/index.js) |
+| `server/lib/ai/router/concurrency-gate.js` | 157 | Concurrency limiting |
+| `server/lib/ai/router/error-classifier.js` | 134 | Retry/fallback classification |
+
+`adapters/index.js` (now 288 lines) imports `HedgedRouter from "../router/hedged-router.js"`. **Clean refactor; not a duplication.** Original Section 2 ("AI registry — live state") still describes the dispatch flow correctly, but now references the new module.
+
+**Where this updates the original audit:**
+- §2 — Add note that hedged-router lives in its own directory now.
+- §6 ("Duplications") — No new duplication; the extraction is the kind of cleanup the audit recommended elsewhere.
+
+### 9.3 New endpoint family: `/api/logs/*` — mobile log viewer
+
+Mounted via `server/bootstrap/routes.js:54` → `server/api/health/logs.js`. Four endpoints:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/logs?last=N` | JSON log lines, requires Bearer auth header |
+| GET | `/api/logs/raw?last=N` | Plain text, curl-friendly, requires Bearer |
+| GET | `/api/logs/stream?token=X` | SSE live tail, token via query (EventSource limitation) |
+| GET | `/api/logs/viewer` | Mobile-optimized HTML page; uses localStorage `vectopilot_auth_token` |
+
+Backed by `server/logger/file-tee.js`, which patches `console.log/info/warn/error/debug` to also append to `logs/server-current.log`. Auto-rotates at 10MB → `logs/server-prev.log`. ~20MB total disk cap. Defensive (never throws from patched console methods).
+
+**No client React app callers** — the HTML viewer at `/api/logs/viewer` is the only consumer. This is a **driver-mobile diagnostic tool**, not a product feature.
+
+**Where this updates the original audit:**
+- §4.2 — `api-routes-registry.md` is now stale by **one more endpoint family**. The list of missing routes grows.
+- Add to "live route mount catalog" when that registry is regenerated.
+
+### 9.4 CLEAR_CONSOLE_WORKFLOW spec — workflow logger overhaul
+
+Eight commits (listed in §9.1) implementing a "clear-console" specification on the workflow logger. The expanded `server/logger/workflow.js` now defines a **numbered-stage convention with hierarchical bracketing**:
+
+```
+[LOCATION 1/3]  GPS coordinates received
+[LOCATION 2/3]  Geocoding/cache lookup
+[LOCATION 3/3]  Weather + air quality fetched
+[SNAPSHOT 1/2]  Creating snapshot record
+[SNAPSHOT 2/2]  Enrichment (airport, holiday)
+[TRIAD 1/4 - STRATEGY_CORE]      Core strategic analysis
+[TRIAD 2/4 - STRATEGY_CONTEXT]   Events/traffic/news gathering
+[TRIAD 3/4 - STRATEGY_TACTICAL]  Immediate strategy synthesis
+[TRIAD 4/4 - SmartBlocks]        Venue planning + enrichment
+[VENUES 1/4]  VENUE_SCORER role
+[VENUES 2/4]  Google Routes API (distances)
+[VENUES 3/4]  Google Places API (hours/status)
+[VENUES 4/4]  DB store
+[BRIEFING 1/3] Traffic analysis
+[BRIEFING 2/3] Events discovery
+[BRIEFING 3/3] Event validation
+[EVENTS 1/5 - Extract|Providers]
+[EVENTS 2/5 - Transform|Normalize]
+[EVENTS 3/5 - Transform|Geocode]
+[EVENTS 4/5 - Load|Store]
+[EVENTS 5/5 - Assemble|Briefing]
+```
+
+Plus: env-driven level filter (`LOG_LEVEL=debug`), component quiet/verbose lists (`LOG_VERBOSE_COMPONENTS=AI`), structured JSON output to stderr, `withContext()` correlation binding, and a first-class `debug()` method on every logger. The existing positional API (`phase/done/error/warn/start/complete/info/api/ai/db`) is unchanged — every method now gates through `shouldEmit()`.
+
+**Frontend gating** added in `client/src/constants/featureFlags.ts` — four new debug flags:
+- `DEBUG_MAP_ENABLED` (`VITE_DEBUG_MAP`)
+- `DEBUG_VENUES_ENABLED` (`VITE_DEBUG_VENUES`)
+- `DEBUG_SSE_ENABLED` (`VITE_DEBUG_SSE`)
+- `DEBUG_BLOCKS_ENABLED` (`VITE_DEBUG_BLOCKS`)
+
+Default false. Set in `.env.local` and rebuild to enable.
+
+One commit (`8eb18081`) **reverts a sed-driven mass migration that clobbered JS destructuring**. Mass-rename via sed broke patterns like `const { foo } = bar` because the regex was too aggressive. Worth noting as a pattern to watch when chaining `chore(logs):` mass refactors.
+
+**This materially updates Section 5.2 (TRIAD branding):**
+
+My initial recommendation was to "decide and stick with one label" and *consider* decommissioning TRIAD. **The CLEAR_CONSOLE_WORKFLOW spec doubled down on TRIAD as the workflow-stage label.** The phrase `[TRIAD 1/4 - STRATEGY_CORE]` is now baked into operational logging that engineers will see every request. Decommissioning it would mean re-renaming all those log lines.
+
+**Revised recommendation:** TRIAD is now the canonical *internal* brand for the four-stage waterfall (Core → Context → Tactical → SmartBlocks). The original three-role meaning ("triad" = three) is **historical**; the new meaning is "the four-phase workflow." Update `api-routes-registry.md` to match (drop the "Daily + Immediate Consolidator" phase 2 description; replace with the 4-phase TRIAD). Drop only the *user-facing* TRIAD phrasing in docs that describe what the *route does*; keep TRIAD in operational logs.
+
+### 9.5 Coach pipeline progress
+
+Two commits affect the coach plan I documented in `coach-plan.md` and `coach-session-2026-04-27.md`:
+
+- `eb9a3c1c` — `fix(coach-tts): unblock sentence-chunked streaming end-to-end`. Four fixes:
+  1. Helmet CSP: added `media-src 'self' data: blob:` (was blocking `data:`/`blob:` audio URLs, falling back to browser speechSynthesis silently).
+  2. `useTTS.speak()`: Promise now resolves on `audio.onended` (was play-start) — streaming drain worker now serializes chunks instead of stopping mid-playback.
+  3. Vite `envDir`: project root (was `client/`, where no `.env` files lived). `VITE_COACH_STREAMING_TTS=true` was being silently dropped at build before this fix.
+  4. (Fourth fix in commit body — read commit message for full detail.)
+
+  This **does NOT change the coach plan progress**: still 5 of 8 steps done. `COACH_STREAMING_TTS_ENABLED` defaults to `false` in `client/src/constants/featureFlags.ts:23`. Step 6 (the flag flip) is still pending. The fix unblocks Step 6's UAT — when the user does flip the flag, streaming TTS now actually works end-to-end on the happy path.
+
+- `fa23e3af` — `fix(error-boundary): log error shape and non-enumerable props`. ErrorBoundary previously logged `{}` on caught errors because the spread operator skips non-enumerable properties (which is most of `Error`). Fix logs `type`, `ctor`, `message`, `stack` explicitly.
+
+**Where this updates the original audit:**
+- §2 (AI roles) — unchanged.
+- The coach side artifacts (`coach-plan.md`, `coach-session-2026-04-27.md` in `C:\Users\Melody\AppData\Local\Temp\`) **remain accurate**; the streaming-TTS Smoke Test A I flagged is now resolved (the path was broken in 4 places, all fixed in `eb9a3c1c`).
+
+### 9.6 Real runtime bug surfaced via better logging — `setPersistentStrategy`
+
+`e3c66a7a` removed three call sites in `client/src/contexts/co-pilot-context.tsx` that called `setPersistentStrategy(null)` — but the `persistentStrategy` `useState` had been deleted in a prior refactor without removing the setter calls. Three locations: line ~152 (auth-lost cleanup), ~229 (manual refresh), ~424 (snapshot changed). Every time auth was lost or snapshot changed, the page threw `ReferenceError: setPersistentStrategy is not defined`. The error was hiding behind ErrorBoundary's empty-`{}` log; the `fa23e3af` ErrorBoundary fix made it visible; this commit fixed it.
+
+**Pattern this exposes — relevant to future audits:** import-graph dead-code analysis (the kind this audit performs in §6.1) finds **whole files** that are dead. It does NOT find **dead variable references** inside an otherwise-live file. The static-analysis approach has a known floor: any audit recommending "delete file X" is high-confidence; any audit recommending "delete variable Y inside live file X" needs runtime verification or AST-aware tooling.
+
+**Recommendation:** add a short note to `LESSONS_LEARNED.md` or `MISMATCHED.md` capturing the diagnosis chain (state setter deleted → callsites left → caught by improved error logging). It's a textbook case worth preserving. If `LESSONS_LEARNED.md` already has a 2026-04-27 entry on this, this audit duplicates rather than supplements; verify before adding.
+
+### 9.7 New dead code: `server/types/driving-plan.ts`
+
+Created today. 166 lines. Defines 4 types and 11 interfaces:
+
+```ts
+PlanStatus, LocationCategory, SurgeSensitivity, RiskLevel
+Coordinates, StagingLocation, PlanBlock, DrivingPlan,
+PlanGenerationRequest, PlanGenerationResponse, PlanUpdateRequest,
+TrafficConditions, WeatherConditions, RealTimeContext, PlanAdjustment
+```
+
+**Zero importers across `server/` and `client/`.** Verified via:
+```
+rg -n "from .*driving-plan|require.*driving-plan|import.*DrivingPlan|import.*PlanGeneration"
+```
+
+The only references inside the file are self-references (`plan?: DrivingPlan` referring to its own definition). This is **scaffolding for an unimplemented "shift planning" feature** — comment in file says "AI-powered shift planning system. All data is variable-based with zero hardcoded values."
+
+**Adds to §6 (Dead Code Candidates).** Worth deciding:
+- (a) leave as design seed — fine, but date-stamp the file with intent ("// 2026-04-27: scaffolding for planned `/api/strategy/plan/*` endpoints; no current consumers")
+- (b) move under `server/types/_planned/driving-plan.ts` to clearly signal "not wired" status
+- (c) delete and re-create when implementation begins
+
+My recommendation: **(a) — add an intent comment**. Cheapest, prevents future-me audit from flagging it again.
+
+### 9.8 What did NOT change
+
+- AI registry: still 26 roles, all live, zero orphans/phantoms (re-counted).
+- `server/lib/strategy/` dead code: all 6 dead files still present (`strategy-generator.js`, `providers.js`, `assert-safe.js`, `planner-gpt5.js`, `strategy-generator-parallel.js`, `strategyPrompt.js`). All file mtimes touched today (likely log-statement migrations) but **import-graph status unchanged** — still zero importers. §6.1 recommendation stands.
+- Briefing dead helpers: `fetchNewsWithClaudeWebSearch`, `fetchEventsWithClaudeWebSearch`, `consolidateNewsItems` still present and uncalled. §6.2 recommendation stands.
+- `docs/api-routes-registry.md` still says "Last Updated: 2025-12-14." No doc fixes have started. §4.2 recommendation stands and **gets bigger** (now also missing `/api/logs/*`).
+- Daily-strategy doc lag: still present in all seven docs cataloged in §4.1.
+- `assistant-proxy.ts` runtime status: still unverified.
+- `COACH_STREAMING_TTS_ENABLED`: still defaults `false`. Step 6 of the coach plan is still pending despite the TTS unblock fix in `eb9a3c1c`.
+
+### 9.9 Re-sweep recommended actions delta
+
+Add to §8 ("Recommended actions"):
+
+**High priority (new):**
+- Add an intent comment to `server/types/driving-plan.ts` (or move to `_planned/` subfolder).
+- Re-do `api-routes-registry.md` regeneration to ALSO include `/api/logs/*` (4 new endpoints).
+
+**Medium priority (new):**
+- Document the CLEAR_CONSOLE_WORKFLOW spec somewhere persistent. The 8 commits are the only record; if a future engineer doesn't read every commit message, they'll be confused by the `[TRIAD 1/4]` log format and the new debug-flag scheme. A short `docs/architecture/LOGGING.md` (or update to existing) covering the conventions would help.
+- Capture the `setPersistentStrategy` diagnosis pipeline as a `LESSONS_LEARNED.md` entry if not already there. Pattern: "deleted state → orphan setter → invisible until ErrorBoundary improved → traceable now."
+
+**Low priority (revised):**
+- §5.2 TRIAD-decommission recommendation **revised** to "decommission only in user-facing route docs, keep in operational logging." The CLEAR_CONSOLE_WORKFLOW spec made TRIAD operational again.
+
+---
 
 Canonical docs:
 - `docs/architecture/README.md`, `BRIEFING.md`, `LLM-REQUESTS.md`, `VENUES.md`, `MAP.md`, `AI_MODEL_ADAPTERS.md`, `briefing-transformation-path.md`, `DB_SCHEMA.md`, `EVENT_FRESHNESS_AND_TTL.md`, `SMART_BLOCKS_EVENT_ALIGNMENT_PLAN.md` (in `server/lib/venue/`)
@@ -560,6 +759,14 @@ Server backbone:
 
 Schema and shared:
 - `shared/schema.js` (strategies, briefings, rankings, ranking_candidates, venue_catalog, discovered_events, triad_jobs)
+
+**Added during re-sweep (2026-04-27 evening):**
+- `server/lib/ai/router/index.js`, `hedged-router.js`, `concurrency-gate.js`, `error-classifier.js`
+- `server/api/health/logs.js` + `server/logger/file-tee.js` + `server/logger/workflow.js` (re-read for CLEAR_CONSOLE_WORKFLOW spec)
+- `client/src/constants/featureFlags.ts` (re-read; expanded with debug flags)
+- `server/types/driving-plan.ts` (new file)
+- `server/bootstrap/routes.js` lines 53-54 (logs mount)
+- Commits inspected: `aaa466f6`, `eb9a3c1c`, `e3c66a7a`, `fa23e3af`, plus the 8-commit CLEAR_CONSOLE_WORKFLOW series
 
 ---
 
