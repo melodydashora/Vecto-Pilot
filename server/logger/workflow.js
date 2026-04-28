@@ -625,9 +625,9 @@ export function createWorkflowLogger(component) {
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
         if (data) {
-          console.log(`${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${message}`, data);
+          console.log('%s', `${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${message}`, data);
         } else {
-          console.log(`${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${message}${opSuffix}`);
+          console.log('%s', `${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${message}${opSuffix}`);
         }
       }
       emitJSON('info', component, message);
@@ -646,9 +646,9 @@ export function createWorkflowLogger(component) {
 
       if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
         if (data) {
-          console.debug(`${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${message}`, data);
+          console.debug('%s', `${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${message}`, data);
         } else {
-          console.debug(`${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${message}${opSuffix}`);
+          console.debug('%s', `${_emojiPrefix(config.emoji)}[${_componentLabel(component)}] ${message}${opSuffix}`);
         }
       }
       emitJSON('debug', component, message);
