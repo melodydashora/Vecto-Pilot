@@ -174,7 +174,11 @@ END OF VERIFICATION FILE
 
     const filePath = join(process.cwd(), 'sent-to-strategist.txt');
     await writeFile(filePath, output, 'utf-8');
-    console.log('[AGENT] [DUMP] Written to sent-to-strategist.txt');
+    // 2026-04-28 (memory 218): the dump-file write is a side-effect artifact —
+    // its existence on disk is the signal, not a console line. Demoted to debug.
+    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+      console.log('[AGENT] [DUMP] Written to sent-to-strategist.txt');
+    }
   } catch (err) {
     console.error('[AGENT] [DUMP] Failed to dump:', err.message);
   }

@@ -66,7 +66,11 @@ updated_at:
 
     const filePath = join(process.cwd(), 'strategy-last-row.txt');
     await writeFile(filePath, output, 'utf-8');
-    console.log('[AGENT] [DUMP] Written to strategy-last-row.txt');
+    // 2026-04-28 (memory 218): dump-file write is a side-effect artifact;
+    // its existence on disk is the signal, not a console line. Demoted to debug.
+    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+      console.log('[AGENT] [DUMP] Written to strategy-last-row.txt');
+    }
   } catch (err) {
     console.error('[AGENT] [DUMP] Failed to dump strategy:', err.message);
   }
