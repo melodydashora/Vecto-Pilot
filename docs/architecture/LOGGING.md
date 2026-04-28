@@ -39,7 +39,36 @@ Creates module-specific logger instances with:
 
 ### Pre-configured Loggers
 
-`triadLog`, `venuesLog`, `briefingLog`, `eventsLog`, `weatherLog`, `authLog`, `sseLog`, `routesLog`, `placesLog` — each scoped to a domain.
+`strategyLog` (canonical, since 2026-04-28), `triadLog` (back-compat alias for `strategyLog`), `venuesLog`, `briefingLog`, `eventsLog`, `weatherLog`, `authLog`, `sseLog`, `routesLog`, `placesLog` — each scoped to a domain.
+
+### Canonical Chain Helper — `chainLog` (2026-04-28)
+
+For new code, prefer `chainLog({ parent, sub, callTypes, callName, table })` over the legacy domain-loggers. It enforces the canonical positional template (memory 229):
+
+```
+[Parent] [Sub] [CallType...] [CallName] message
+```
+
+**Slots:**
+- `parent` — required. Top-level workflow stage. UPPERCASED. `BRIEFING`, `VENUE`, `STRATEGY`, `RIDESHARE COACH`, etc.
+- `sub` — optional. Narrower function (`TRAFFIC`, `NEWS`, `TTS`, `WEATHER`). UPPERCASED.
+- `callTypes` — optional array. Operation footprint, stackable: `['AI']`, `['API','AI']`, `['DB','LISTEN/NOTIFY']`. UPPERCASED.
+- `callName` — optional. Target identity. **Case preserved** so roles emit `TitleCase` (`Briefer`, `Planner`, `Strategist`), tables `snake_case` (`venue_cards`), services `TitleCase` (`TomTom`, `GooglePlaces`).
+- `table` — alias for `callName` when DB is present (clarity at call sites).
+
+**Validators (warn-loudly, don't throw):**
+- DB in `callTypes` requires `table`/`callName` (memory 230). Once enforced, `grep "[DB] [table]"` finds every call site touching that table → duplicate-finding lever.
+- `parent` must be a registered main category.
+
+**Example:**
+```js
+chainLog({
+  parent: 'BRIEFING', sub: 'TRAFFIC', callTypes: ['API','AI'], callName: 'Briefer'
+}, 'Calling TomTom for traffic and sent to Briefer for consolidation');
+// emits: [BRIEFING] [TRAFFIC] [API] [AI] [Briefer] Calling TomTom for traffic and sent to Briefer for consolidation
+```
+
+See also: `docs/architecture/log-format-merge-plan.md` for the full migration plan.
 
 ---
 

@@ -5,7 +5,7 @@ import { SelfHealingMonitor } from './self-healing-monitor.js';
 const MONITOR_INTERVAL_MS = 60000; // Run every 60 seconds
 
 async function continuousMonitor() {
-  console.log('🔄 Starting continuous monitoring (60s intervals)...\n');
+  console.log('Starting continuous monitoring (60s intervals)...\n');
 
   while (true) {
     const monitor = new SelfHealingMonitor();
@@ -13,7 +13,7 @@ async function continuousMonitor() {
     try {
       await monitor.run();
     } catch (err) {
-      console.error('❌ Monitor cycle failed:', err.message);
+      console.error('Monitor cycle failed:', err.message);
     }
 
     // Wait for next cycle

@@ -27,7 +27,7 @@ export function assertStrategies() {
     }
   }
   
-  console.log(`✅ Strategy providers validated: ${Object.keys(providers).join(', ')}`);
+  console.log(`Strategy providers validated: ${Object.keys(providers).join(', ')}`);
 }
 
 // Get a strategy provider by name with validation

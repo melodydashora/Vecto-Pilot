@@ -76,7 +76,7 @@ const PHASE_BADGES: Record<string, string> = {
   resolving: 'Location',
   analyzing: 'Analyzing',
   immediate: 'AI Processing',
-  venues: 'Tactical Planner',
+  venues: 'Planner',
   routing: 'Routes API',
   places: 'Places API',
   verifying: 'Verifying',

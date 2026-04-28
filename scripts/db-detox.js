@@ -34,9 +34,9 @@ const log = {
   header: (msg) => console.log(`\n${'═'.repeat(60)}\n${msg}\n${'═'.repeat(60)}`),
   section: (msg) => console.log(`\n${'─'.repeat(50)}\n${msg}\n${'─'.repeat(50)}`),
   info: (msg) => console.log(`  ℹ️  ${msg}`),
-  success: (msg) => console.log(`  ✅ ${msg}`),
-  warning: (msg) => console.log(`  ⚠️  ${msg}`),
-  error: (msg) => console.error(`  ❌ ${msg}`),
+  success: (msg) => console.log(`  ${msg}`),
+  warning: (msg) => console.log(`   ${msg}`),
+  error: (msg) => console.error(`  ${msg}`),
   stat: (label, value) => console.log(`  📊 ${label}: ${value}`),
   affected: (count, type) => console.log(`  🗑️  ${count} ${type} ${DRY_RUN ? 'would be' : 'were'} affected`),
 };

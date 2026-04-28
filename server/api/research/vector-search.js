@@ -24,7 +24,7 @@ router.post('/upsert', async (req, res) => {
     await upsertDoc({ id, content, metadata, embedding });
     res.json({ success: true, id });
   } catch (err) {
-    console.error('[vector] Upsert error:', err);
+    console.error('[BRIEFING] Upsert error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -43,7 +43,7 @@ router.post('/search', async (req, res) => {
     const results = await knnSearch({ queryEmbedding, k, minScore });
     res.json({ results, count: results.length });
   } catch (err) {
-    console.error('[vector] Search error:', err);
+    console.error('[BRIEFING] Search error:', err);
     res.status(500).json({ error: err.message });
   }
 });

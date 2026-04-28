@@ -72,11 +72,11 @@ function parseActions(responseText) {
         }
         // Use the response field if present, otherwise remove the JSON block
         cleanedText = envelope.response || responseText.replace(jsonEnvelopeMatch[0], '').trim();
-        console.log(`[chat] Parsed JSON envelope: ${envelope.actions.length} actions`);
+        console.log(`[COACH] Parsed JSON envelope: ${envelope.actions.length} actions`);
         return { actions, cleanedText };
       }
     } catch (e) {
-      console.warn(`[chat] JSON envelope parse failed, falling back to regex:`, e.message);
+      console.warn(`[COACH] JSON envelope parse failed, falling back to regex:`, e.message);
     }
   }
 
@@ -107,7 +107,7 @@ function parseActions(responseText) {
 
       if (!jsonResult.json) {
         // 2026-03-18: FIX (M-3) — Log when AI generates malformed action tags
-        console.warn(`[chat] ⚠️ ${prefix} action tag found but JSON extraction failed (malformed/unclosed braces)`);
+        console.warn(`[COACH] ${prefix} action tag found but JSON extraction failed (malformed/unclosed braces)`);
       } else {
         try {
           const parsed = JSON.parse(jsonResult.json);
@@ -117,7 +117,7 @@ function parseActions(responseText) {
           // 2026-03-18: FIX (M-2) — replaceAll so duplicate tags are both removed
           cleanedText = cleanedText.replaceAll(fullMatch, '');
         } catch (e) {
-          console.warn(`[chat] Failed to parse ${key} JSON:`, e.message);
+          console.warn(`[COACH] Failed to parse ${key} JSON:`, e.message);
         }
       }
     }
@@ -215,7 +215,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (noteResult) {
         results.saved++;
-        console.log(`[chat/actions] Saved note: ${validation.data.title}`);
+        console.log(`[COACH] [ACTIONS] Saved note: ${validation.data.title}`);
       } else {
         results.errors.push(`Note "${validation.data.title}": write returned null`);
       }
@@ -248,7 +248,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (deactResult) {
         results.saved++;
-        console.log(`[chat/actions] Deactivated event: ${validation.data.event_title}`);
+        console.log(`[COACH] [ACTIONS] Deactivated event: ${validation.data.event_title}`);
       } else {
         results.errors.push(`DeactivateEvent "${validation.data.event_title}": write returned null`);
       }
@@ -281,7 +281,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (reactResult) {
         results.saved++;
-        console.log(`[chat/actions] Reactivated event: ${validation.data.event_title}`);
+        console.log(`[COACH] [ACTIONS] Reactivated event: ${validation.data.event_title}`);
       } else {
         results.errors.push(`ReactivateEvent "${validation.data.event_title}": write returned null`);
       }
@@ -312,7 +312,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (newsResult) {
         results.saved++;
-        console.log(`[chat/actions] Deactivated news: ${validation.data.news_title}`);
+        console.log(`[COACH] [ACTIONS] Deactivated news: ${validation.data.news_title}`);
       } else {
         results.errors.push(`DeactivateNews "${validation.data.news_title}": write returned null`);
       }
@@ -348,7 +348,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (sysResult) {
         results.saved++;
-        console.log(`[chat/actions] Saved system note: ${validation.data.title}`);
+        console.log(`[COACH] [ACTIONS] Saved system note: ${validation.data.title}`);
       } else {
         results.errors.push(`SystemNote "${validation.data.title}": write returned null`);
       }
@@ -393,7 +393,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (addResult) {
         results.saved++;
-        console.log(`[chat/actions] Added event: ${validation.data.title}`);
+        console.log(`[COACH] [ACTIONS] Added event: ${validation.data.title}`);
       } else {
         results.errors.push(`AddEvent "${validation.data.title}": write returned null`);
       }
@@ -428,7 +428,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (updateResult) {
         results.saved++;
-        console.log(`[chat/actions] Updated event: ${validation.data.event_title}`);
+        console.log(`[COACH] [ACTIONS] Updated event: ${validation.data.event_title}`);
       } else {
         results.errors.push(`UpdateEvent "${validation.data.event_title}": write returned null`);
       }
@@ -462,7 +462,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
 
       await appendFile(coachInboxPath, entry, 'utf-8');
       results.saved++;
-      console.log(`[chat/actions] 📝 Coach memo saved to inbox: "${title}" (${type})`);
+      console.log(`[COACH] [ACTIONS] 📝 Coach memo saved to inbox: "${title}" (${type})`);
     } catch (e) {
       results.errors.push(`CoachMemo: ${e.message}`);
     }
@@ -500,7 +500,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (zoneResult) {
         results.saved++;
-        console.log(`[chat/actions] Saved zone intel: ${validation.data.zone_name} (${validation.data.zone_type})`);
+        console.log(`[COACH] [ACTIONS] Saved zone intel: ${validation.data.zone_name} (${validation.data.zone_type})`);
       } else {
         results.errors.push(`ZoneIntel "${validation.data.zone_name}": write returned null`);
       }
@@ -535,7 +535,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (miResult) {
         results.saved++;
-        console.log(`[chat/actions] Saved market intel: ${validation.data.title} (${validation.data.market})`);
+        console.log(`[COACH] [ACTIONS] Saved market intel: ${validation.data.title} (${validation.data.market})`);
       } else {
         results.errors.push(`MarketIntel "${validation.data.title}": write returned null`);
       }
@@ -569,7 +569,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       });
       if (viResult) {
         results.saved++;
-        console.log(`[chat/actions] Saved venue intel: ${validation.data.venue_name}`);
+        console.log(`[COACH] [ACTIONS] Saved venue intel: ${validation.data.venue_name}`);
       } else {
         results.errors.push(`VenueIntel "${validation.data.venue_name}": write returned null`);
       }
@@ -579,7 +579,7 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
   }
 
   if (results.errors.length > 0) {
-    console.warn(`[chat/actions] ${results.errors.length} errors:`, results.errors);
+    console.warn(`[COACH] [ACTIONS] ${results.errors.length} errors:`, results.errors);
   }
 
   return results;
@@ -611,13 +611,13 @@ router.post('/notes', requireAuth, async (req, res) => {
 
     if (note) {
       // 2026-01-07: Truncate user ID to avoid PII in logs
-      console.log(`[chat/notes] Saved note ${note.id?.substring(0, 8)} for user ${userId?.substring(0, 8)}`);
+      console.log(`[COACH] [NOTES] Saved note ${note.id?.substring(0, 8)} for user ${userId?.substring(0, 8)}`);
       res.json({ success: true, note_id: note.id });
     } else {
       res.status(500).json({ error: 'Failed to save note' });
     }
   } catch (error) {
-    console.error('[chat/notes] Error saving note:', error);
+    console.error('[COACH] [NOTES] Error saving note:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -632,7 +632,7 @@ router.get('/notes', requireAuth, async (req, res) => {
     const notes = await rideshareCoachDAL.getUserNotes(userId, limit);
     res.json({ notes, count: notes.length });
   } catch (error) {
-    console.error('[chat/notes] Error fetching notes:', error);
+    console.error('[COACH] [NOTES] Error fetching notes:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -663,7 +663,7 @@ router.delete('/notes/:noteId', requireAuth, async (req, res) => {
       res.status(404).json({ error: 'Note not found or not authorized' });
     }
   } catch (error) {
-    console.error('[chat/notes] Error deleting note:', error);
+    console.error('[COACH] [NOTES] Error deleting note:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -712,7 +712,7 @@ router.post('/', requireAuth, async (req, res) => {
   // If req.auth.userId is somehow missing, that's a bug in auth middleware
   const authUserId = req.auth?.userId;
   if (!authUserId) {
-    console.error('[chat] CRITICAL: No userId despite requireAuth middleware - auth bug');
+    console.error('[COACH] CRITICAL: No userId despite requireAuth middleware - auth bug');
     return res.status(401).json({ error: 'Authentication required', code: 'auth_missing' });
   }
   const isAuthenticated = true; // Always true - requireAuth guarantees this
@@ -724,7 +724,7 @@ router.post('/', requireAuth, async (req, res) => {
   // Timezone MUST come from snapshot. If missing, we cannot provide accurate time-based advice.
   const userTimezone = clientSnapshot?.timezone;
   if (!userTimezone) {
-    console.warn('[chat] Missing timezone in snapshot - cannot provide accurate time context');
+    console.warn('[COACH] Missing timezone in snapshot - cannot provide accurate time context');
     return res.status(400).json({
       error: 'TIMEZONE_REQUIRED',
       message: 'Location snapshot with timezone required for coach. Please enable GPS and refresh.',
@@ -750,8 +750,8 @@ router.post('/', requireAuth, async (req, res) => {
 
   // 2026-01-06: SECURITY - Redact sensitive data from logs
   // Log only metadata, never message content or PII
-  console.log(`[chat] Request: user=${authUserId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} thread=${threadHistory.length}msgs attachments=${attachments.length}`);
-  console.log(`[chat] Context: strategy=${strategyId?.slice(0, 8) || 'none'} snapshot=${snapshotId?.slice(0, 8) || 'none'} tz=${userTimezone}`);
+  console.log(`[COACH] Request: user=${authUserId.slice(0, 8)}... conv=${conversationId.slice(0, 8)} thread=${threadHistory.length}msgs attachments=${attachments.length}`);
+  console.log(`[COACH] Context: strategy=${strategyId?.slice(0, 8) || 'none'} snapshot=${snapshotId?.slice(0, 8) || 'none'} tz=${userTimezone}`);
 
   try {
     // Use CoachDAL for full schema read access with ALL tables
@@ -768,14 +768,14 @@ router.post('/', requireAuth, async (req, res) => {
       if (snapshotId) activeSnapshotId = snapshotId;
       
       if (activeSnapshotId) {
-        console.log('[chat] Using snapshot from UI:', activeSnapshotId);
+        console.log('[COACH] Using snapshot from UI:', activeSnapshotId);
       } else if (strategyId) {
         // Fallback: resolve strategy to snapshot if no direct snapshotId
-        console.log('[chat] Resolving strategy_id:', strategyId);
+        console.log('[COACH] Resolving strategy_id:', strategyId);
         const resolution = await rideshareCoachDAL.resolveStrategyToSnapshot(strategyId);
         if (resolution) {
           activeSnapshotId = resolution.snapshot_id;
-          console.log('[chat] Resolved strategy_id to snapshot_id:', activeSnapshotId);
+          console.log('[COACH] Resolved strategy_id to snapshot_id:', activeSnapshotId);
         }
       } else {
         // 2026-03-17: SECURITY FIX (F-6) — Use authenticated userId, not body userId.
@@ -790,7 +790,7 @@ router.post('/', requireAuth, async (req, res) => {
 
         if (latestSnap) {
           activeSnapshotId = latestSnap.snapshot_id;
-          console.log('[chat] Using latest snapshot for authenticated user:', activeSnapshotId);
+          console.log('[COACH] Using latest snapshot for authenticated user:', activeSnapshotId);
         }
       }
 
@@ -800,8 +800,8 @@ router.post('/', requireAuth, async (req, res) => {
         fullContext = await rideshareCoachDAL.getCompleteContext(activeSnapshotId, null, authUserId !== 'anonymous' ? authUserId : null);
         contextInfo = rideshareCoachDAL.formatContextForPrompt(fullContext);
 
-        console.log(`[chat] Full context loaded - Status: ${fullContext.status} | Snapshot: ${activeSnapshotId}`);
-        console.log(`[chat] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, driverProfile=${!!fullContext.driverProfile}, vehicle=${!!fullContext.driverVehicle}`);
+        console.log(`[COACH] Full context loaded - Status: ${fullContext.status} | Snapshot: ${activeSnapshotId}`);
+        console.log(`[COACH] Context includes: ${fullContext.smartBlocks?.length || 0} venues, briefing=${!!fullContext.briefing}, driverProfile=${!!fullContext.driverProfile}, vehicle=${!!fullContext.driverVehicle}`);
       } else {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
@@ -822,7 +822,7 @@ router.post('/', requireAuth, async (req, res) => {
             }
           }
         } catch (e) {
-          console.warn('[chat] Failed to load snapshot history:', e.message);
+          console.warn('[COACH] Failed to load snapshot history:', e.message);
         }
       }
 
@@ -838,12 +838,12 @@ router.post('/', requireAuth, async (req, res) => {
             }
           }
         } catch (e) {
-          console.warn('[chat] Failed to load zone intelligence:', e.message);
+          console.warn('[COACH] Failed to load zone intelligence:', e.message);
         }
       }
     } catch (err) {
-      console.warn('[chat] Could not fetch context:', err.message);
-      contextInfo = '\n\n⚠️ Context temporarily unavailable';
+      console.warn('[COACH] Could not fetch context:', err.message);
+      contextInfo = '\n\nContext temporarily unavailable';
     }
 
     // activeSnapshotId already hoisted above (line ~615) with strategy→snapshot resolution
@@ -859,10 +859,10 @@ router.post('/', requireAuth, async (req, res) => {
         
         if (profile?.email === 'melodydashora@gmail.com') {
           isSuperUser = true;
-          console.log(`[chat] 🚀 Super User detected: ${profile.email} - Enabling Agent Capabilities`);
+          console.log(`[COACH] Super User detected: ${profile.email} - Enabling Agent Capabilities`);
         }
       } catch (e) {
-        console.warn('[chat] Failed to check user profile:', e.message);
+        console.warn('[COACH] Failed to check user profile:', e.message);
       }
     }
 
@@ -890,7 +890,7 @@ router.post('/', requireAuth, async (req, res) => {
         });
         userMessageId = userMsg?.id;
       } catch (e) {
-        console.warn('[chat] Failed to save user message:', e.message);
+        console.warn('[COACH] Failed to save user message:', e.message);
       }
     }
 
@@ -916,13 +916,13 @@ You are much more than just a rideshare assistant. You're a frontier AI model wi
 - Compare before/after screenshots
 - When you receive an image attachment, ALWAYS analyze it in detail
 
-🚗 **Rideshare Strategy (Your Specialty):**
+**Rideshare Strategy (Your Specialty):**
 - Real-time venue recommendations with business hours, events, pro tips, staging locations
 - Location and timing advice using traffic, weather, and event data
 - Earnings optimization and market pattern analysis
 - Analyzing uploaded heat maps, screenshots, and documents
 
-🧠 **Market Intelligence (Your Knowledge Base):**
+**Market Intelligence (Your Knowledge Base):**
 - You have access to RESEARCH-BACKED market intelligence including:
   • The Gravity Model: How Core/Satellite/Rural markets work
   • Deadhead risk calculation and avoidance strategies
@@ -947,13 +947,13 @@ You are much more than just a rideshare assistant. You're a frontier AI model wi
 - Your previous notes about this driver are shown in context below
 - USE NOTES to give increasingly personalized advice over time!
 
-🔍 **Web Search & Verification (via Google Search):**
+**Web Search & Verification (via Google Search):**
 - You have LIVE Google Search access - use it proactively to verify events, check facts, find current information
 - When users ask you to verify something or look something up, SEARCH THE WEB for current information
 - Cross-reference briefing data with live web searches for accuracy
 - Do NOT list sources or citations at the end of your responses - just provide the information naturally
 
-📚 **General Knowledge & Life Help:**
+**General Knowledge & Life Help:**
 - Career advice: going back to college, changing careers, certifications, financial planning
 - Local recommendations: restaurants, services, things to do
 - General questions: anything the driver wants to know or discuss
@@ -1005,11 +1005,11 @@ You have FULL event management capabilities — add, update, deactivate, and rea
 - Format: \`[UPDATE_EVENT: {"event_title": "Event Name", "event_start_time": "8:00 PM", "event_end_time": "11:00 PM", "notes": "Driver corrected the time"}]\`
 - Only include fields you want to change (event_start_time, event_end_time, venue_name, address, category, expected_attendance)
 
-❌ **Deactivate Event** (remove):
+**Deactivate Event** (remove):
 - Format: \`[DEACTIVATE_EVENT: {"event_title": "Event Name", "reason": "event_ended", "notes": "Optional"}]\`
 - Reasons: event_ended, incorrect_time, cancelled, no_longer_relevant, duplicate
 
-🔄 **Reactivate Event** (undo removal):
+**Reactivate Event** (undo removal):
 - Format: \`[REACTIVATE_EVENT: {"event_title": "Event Name", "reason": "why reactivating", "notes": "Optional correction"}]\`
 - ALWAYS check current date/time before deactivating — if a driver corrects you, reactivate immediately
 
@@ -1022,7 +1022,7 @@ You have FULL event management capabilities — add, update, deactivate, and rea
 - related_files: optional array of file paths this relates to
 - USE THIS whenever Melody says "remember this", "we should add...", "don't forget...", or you notice something worth flagging for development
 
-📰 **News Article Deactivation:**
+**News Article Deactivation:**
 - When a driver reports news is outdated, irrelevant, or incorrect, you can hide it for them
 - To deactivate a news item, format your response with:
   \`[DEACTIVATE_NEWS: {"news_title": "Article Title", "reason": "your reason here"}]\`
@@ -1034,7 +1034,7 @@ You have FULL event management capabilities — add, update, deactivate, and rea
 - Format: \`[SYSTEM_NOTE: {"type": "feature_request|pain_point|bug_report|aha_moment", "category": "ui|strategy|briefing|venues|coach|map|earnings", "title": "Short title", "description": "What you observed", "user_quote": "Optional verbatim quote"}]\`
 - This helps the development team improve Vecto Pilot based on real user needs
 
-🗺️ **Zone Intelligence (Crowd-Sourced Learning):**
+**Zone Intelligence (Crowd-Sourced Learning):**
 - When drivers share intel about specific areas (dead zones, dangerous spots, honey holes, staging spots), SAVE IT!
 - This builds a crowd-sourced knowledge base that helps ALL drivers in this market
 - Format: \`[ZONE_INTEL: {"zone_type": "dead_zone|danger_zone|honey_hole|surge_trap|staging_spot|event_zone", "zone_name": "Human-readable area name", "market_slug": "${fullContext?.snapshot ? rideshareCoachDAL.generateMarketSlug(fullContext.snapshot.city, fullContext.snapshot.state) : 'unknown'}", "reason": "What the driver said", "time_constraints": "after 10pm weeknights", "address_hint": "near the Target on Main"}]\`
@@ -1086,7 +1086,7 @@ You're a powerful AI companion with research-backed market intelligence and pers
 
 **CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.`;
 
-    // 🚀 SUPER USER ENHANCEMENT: Inject Agent Capabilities & Memory
+    // SUPER USER ENHANCEMENT: Inject Agent Capabilities & Memory
     if (isSuperUser) {
       try {
         const agentContext = await getEnhancedProjectContext();
@@ -1099,7 +1099,7 @@ You're a powerful AI companion with research-backed market intelligence and pers
       systemPrompt += `
 
 ══════════════════════════════════════════════════════════════════════════
-🚀 **SUPER USER DETECTED: ELEVATED CONTEXT ENABLED**
+**SUPER USER DETECTED: ELEVATED CONTEXT ENABLED**
 ══════════════════════════════════════════════════════════════════════════
 You are interacting with Melody — the architect and developer of Vecto Pilot.
 You have elevated context access for deeper system insight.
@@ -1124,7 +1124,7 @@ You have elevated context access for deeper system insight.
 - Venue catalog — staging spots, GPS dead zones, venue intel
 - Coach memos — feature requests, TODOs, bugs (docs/coach-inbox.md)
 
-🧠 Memory & Context:
+Memory & Context:
 - Persistent conversation history (cross-session via coach_conversations)
 - Google Search via Gemini tools for real-time research
 
@@ -1154,7 +1154,7 @@ Full transparency. Maximum insight.
 **CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.
 ══════════════════════════════════════════════════════════════════════════`;
       } catch (err) {
-        console.warn('[chat] Failed to inject Super User context:', err.message);
+        console.warn('[COACH] Failed to inject Super User context:', err.message);
       }
     }
 
@@ -1165,7 +1165,7 @@ Full transparency. Maximum insight.
 
     // 2026-02-13: Process attachments into Gemini multimodal format (vision/OCR)
     // Gemini expects: parts: [{ text: "..." }, { inline_data: { mime_type: "image/png", data: "base64..." } }]
-    console.log(`[chat] Processing ${attachments.length} attachments for Gemini coach`);
+    console.log(`[COACH] Processing ${attachments.length} attachments for Gemini coach`);
 
     // Build the current user message parts (text + any image attachments)
     const userParts = [];
@@ -1193,14 +1193,14 @@ Full transparency. Maximum insight.
                 data: base64Data,
               }
             });
-            console.log(`[chat] Attached image: ${safeName} (${mimeType}, ${Math.round(base64Data.length / 1024)}KB base64)`);
+            console.log(`[COACH] Attached image: ${safeName} (${mimeType}, ${Math.round(base64Data.length / 1024)}KB base64)`);
           } else {
             // Non-data-URL attachment — include as text reference
             userParts.push({ text: `[Attachment: ${safeName} (${att.type})]` });
           }
         } catch (err) {
           // 2026-04-05: SECURITY — sanitize att.name to prevent format string injection (CodeQL)
-          console.warn(`[chat] Failed to process attachment "${safeName}":`, err.message);
+          console.warn(`[COACH] Failed to process attachment "${safeName}":`, err.message);
           userParts.push({ text: `[Attachment: ${safeName} — could not process]` });
         }
       }
@@ -1225,25 +1225,32 @@ Full transparency. Maximum insight.
         }
       ]);
 
-    console.log(`[chat] Sending ${messageHistory.length} messages to Gemini...`);
+    console.log(`[COACH] Sending ${messageHistory.length} messages to Gemini...`);
 
     // 2026-01-06: Use adapter pattern for AI_COACH role (P1-A fix)
     // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing branding
     // Model config (gemini-3.1-pro-preview, temp=0.7, google_search) is now in model-registry.js
     try {
-      console.log(`[chat] Calling AI_COACH role via adapter with streaming...`);
+      console.log(`[COACH] Calling AI_COACH role via adapter with streaming...`);
 
       // Import adapter at runtime to avoid circular dependencies
       const { callModelStream } = await import('../../lib/ai/adapters/index.js');
 
+      // Cancel the upstream Gemini call if the client disconnects mid-stream
+      // (browser tab closed, mic-driven barge-in, etc). Without this the
+      // server keeps generating + billing after the client is gone.
+      const ac = new AbortController();
+      req.on('close', () => ac.abort());
+
       const response = await callModelStream('AI_COACH', {
         system: systemPrompt,
-        messageHistory
+        messageHistory,
+        signal: ac.signal
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error(`[chat] Gemini API error ${response.status}: ${errText.substring(0, 200)}`);
+        console.error(`[COACH] Gemini API error ${response.status}: ${errText.substring(0, 200)}`);
         res.write(`data: ${JSON.stringify({ error: `API error ${response.status}` })}\n\n`);
         return res.end();
       }
@@ -1282,7 +1289,7 @@ Full transparency. Maximum insight.
               // Check for safety blocking
               const finishReason = data.candidates?.[0]?.finishReason;
               if (finishReason === 'SAFETY') {
-                console.warn('[chat] Response blocked by safety filter');
+                console.warn('[COACH] Response blocked by safety filter');
                 res.write(`data: ${JSON.stringify({ delta: '\n\nI apologize, but I cannot continue with that response.' })}\n\n`);
               }
             } catch (parseErr) {
@@ -1296,24 +1303,24 @@ Full transparency. Maximum insight.
       let actionsResult = null;
 
       if (totalText) {
-        console.log(`[chat] ✅ Gemini streamed response: ${totalText.length} chars`);
+        console.log(`[COACH] Gemini streamed response: ${totalText.length} chars`);
 
         // 2026-03-18: Parse actions and execute them (awaited for client feedback)
         const { actions, cleanedText } = parseActions(totalText);
         const hasActions = Object.values(actions).some(arr => arr.length > 0);
 
         if (hasActions) {
-          console.log(`[chat] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, addEvents=${actions.addEvents.length}, updateEvents=${actions.updateEvents.length}, memos=${actions.coachMemos.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}, marketIntel=${actions.marketIntel.length}, venueIntel=${actions.venueIntel.length}`);
+          console.log(`[COACH] Found actions: notes=${actions.notes.length}, events=${actions.events.length}, addEvents=${actions.addEvents.length}, updateEvents=${actions.updateEvents.length}, memos=${actions.coachMemos.length}, news=${actions.news.length}, systemNotes=${actions.systemNotes.length}, zoneIntel=${actions.zoneIntel.length}, marketIntel=${actions.marketIntel.length}, venueIntel=${actions.venueIntel.length}`);
 
           // 2026-03-18: FIX (C-1) — Await actions so results can be sent to client.
           // DB writes are sub-50ms each; minor latency is worth guaranteed feedback.
           try {
             actionsResult = await executeActions(actions, authUserId, activeSnapshotId, conversationId);
             if (actionsResult.saved > 0) {
-              console.log(`[chat] ✅ Executed ${actionsResult.saved} actions`);
+              console.log(`[COACH] Executed ${actionsResult.saved} actions`);
             }
           } catch (e) {
-            console.error('[chat] Action execution error:', e.message);
+            console.error('[COACH] Action execution error:', e.message);
             actionsResult = { saved: 0, errors: [e.message] };
           }
         }
@@ -1351,11 +1358,11 @@ Full transparency. Maximum insight.
               } : null
             });
           } catch (e) {
-            console.warn('[chat] Failed to save assistant message:', e.message);
+            console.warn('[COACH] Failed to save assistant message:', e.message);
           }
         }
       } else {
-        console.warn('[chat] Empty streaming response from Gemini');
+        console.warn('[COACH] Empty streaming response from Gemini');
         res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
       }
 
@@ -1367,13 +1374,13 @@ Full transparency. Maximum insight.
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error) {
-      console.error('[chat] Gemini request error:', error.message);
+      console.error('[COACH] Gemini request error:', error.message);
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
     }
 
   } catch (error) {
-    console.error('[chat] Error:', error);
+    console.error('[COACH] Error:', error);
     
     if (!res.headersSent) {
       return res.status(500).json({ error: error.message });
@@ -1398,7 +1405,7 @@ router.get('/conversations', requireAuth, async (req, res) => {
     const conversations = await rideshareCoachDAL.getConversations(userId, limit);
     res.json({ conversations, count: conversations.length });
   } catch (error) {
-    console.error('[chat/conversations] Error fetching conversations:', error);
+    console.error('[COACH] Error fetching conversations:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1414,7 +1421,7 @@ router.get('/conversations/:conversationId', requireAuth, async (req, res) => {
     const messages = await rideshareCoachDAL.getConversationHistory(userId, conversationId, limit);
     res.json({ conversation_id: conversationId, messages, count: messages.length });
   } catch (error) {
-    console.error('[chat/conversations] Error fetching conversation history:', error);
+    console.error('[COACH] Error fetching conversation history:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1433,7 +1440,7 @@ router.post('/conversations/:messageId/star', requireAuth, async (req, res) => {
       res.status(404).json({ error: 'Message not found' });
     }
   } catch (error) {
-    console.error('[chat/conversations] Error toggling star:', error);
+    console.error('[COACH] Error toggling star:', error);
     res.status(500).json({ error: error.message });
   }
 });

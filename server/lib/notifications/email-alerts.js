@@ -9,12 +9,12 @@ if (process.env.RESEND_API_KEY) {
   try {
     resend = new Resend(process.env.RESEND_API_KEY);
   } catch (e) {
-    console.warn('[email-alerts] Failed to initialize Resend client:', e.message);
+    console.warn('[NOTIFY] [EMAIL] Failed to initialize Resend client:', e.message);
   }
 } else {
   // Only warn once at startup if not in test mode
   if (process.env.NODE_ENV !== 'test') {
-    console.warn('[email-alerts] RESEND_API_KEY not set - email alerts disabled');
+    console.warn('[NOTIFY] [EMAIL] RESEND_API_KEY not set - email alerts disabled');
   }
 }
 
@@ -41,7 +41,7 @@ export async function sendModelErrorAlert({
 }) {
   if (!resend) {
     if (process.env.NODE_ENV !== 'test') {
-      console.warn('[email-alerts] Skipping alert (no API key):', errorType, errorMessage);
+      console.warn('[NOTIFY] [EMAIL] Skipping alert (no API key):', errorType, errorMessage);
     }
     return { success: false, error: 'RESEND_API_KEY not configured' };
   }
@@ -132,7 +132,7 @@ export async function sendModelErrorAlert({
  */
 export async function sendTestEmail() {
   if (!resend) {
-    console.warn('[email-alerts] Skipping test email (no API key)');
+    console.warn('[NOTIFY] [EMAIL] Skipping test email (no API key)');
     return { success: false, error: 'RESEND_API_KEY not configured' };
   }
 
@@ -147,10 +147,10 @@ export async function sendTestEmail() {
     const result = await resend.emails.send({
       from: 'onboarding@resend.dev',
       to: ALERT_EMAIL,
-      subject: '✅ Vecto Pilot Email Alerts - Test Successful',
+      subject: 'Vecto Pilot Email Alerts - Test Successful',
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #16a34a;">✅ Email Alerts Working!</h2>
+          <h2 style="color: #16a34a;">Email Alerts Working!</h2>
           <p>Your Vecto Pilot email notification system is configured correctly.</p>
           <p><strong>Test sent at:</strong> ${timestamp}</p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />

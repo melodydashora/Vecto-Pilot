@@ -149,7 +149,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       // User just logged out
       console.log('[CoPilotContext] Auth lost — clearing snapshot and stopping queries');
       setLastSnapshotId(null);
-      setPersistentStrategy(null);
+      // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
+      // refactor but the setter call sites were missed, causing a ReferenceError
+      // that the (now instrumented) ErrorBoundary surfaced. localStorage cleanup
+      // for the persistent-strategy slot still happens via STORAGE_KEYS.
       setImmediateStrategy(null);
       waterfallTriggeredRef.current.clear();
       // 2026-04-10: Abort any in-flight waterfall POST (Window 3 race fix)
@@ -226,7 +229,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
 
       // Clear React state - MUST clear lastSnapshotId so new snapshot triggers waterfall
-      setPersistentStrategy(null);
+      // 2026-04-27: setPersistentStrategy removed — see auth-lost cleanup above for why.
       setImmediateStrategy(null);
       setStrategySnapshotId(null);
       setLastSnapshotId(null);  // CRITICAL: Clear snapshot ID so new one triggers waterfall
@@ -421,7 +424,8 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       console.log(`🔄 [CoPilotContext] Snapshot changed from ${prevSnapshotIdRef.current?.slice(0, 8)} to ${lastSnapshotId.slice(0, 8)}, clearing old strategy`);
       localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
       localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-      setPersistentStrategy(null);
+      // 2026-04-27: setPersistentStrategy removed — state was deleted in a prior
+      // refactor; localStorage cleanup above is sufficient.
       setImmediateStrategy(null);
       setStrategySnapshotId(null);
       queryClient.resetQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(null) });

@@ -38,7 +38,7 @@ export async function safeAssertStrategies(options = {}) {
     }
   }
   
-  console.log(`✅ Strategy providers validated: ${allProviders.join(', ')}`);
+  console.log(`Strategy providers validated: ${allProviders.join(', ')}`);
   return true;
 }
 
@@ -50,12 +50,12 @@ export async function maybeWarmCaches() {
   const fastBoot = process.env.FAST_BOOT === '1';
   
   if (fastBoot) {
-    console.log('[warmup] Skipping cache warmup (FAST_BOOT enabled)');
+    console.log('[BOOT] Skipping cache warmup (FAST_BOOT enabled)');
     return;
   }
   
   // Add any cache warming logic here
-  console.log('[warmup] Cache warmup complete (no-op for now)');
+  console.log('[BOOT] Cache warmup complete (no-op for now)');
 }
 
 /**

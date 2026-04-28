@@ -73,7 +73,7 @@ function requireAgentAdmin(req, res, next) {
 
   // In development without config, allow all authenticated users (for testing)
   if (adminUsers.length === 0 && !isProduction) {
-    console.warn(`[agent embed] ⚠️ Dev mode: allowing ${req.auth.userId.substring(0, 8)} as admin (no AGENT_ADMIN_USERS set)`);
+    console.warn(`[agent embed] Dev mode: allowing ${req.auth.userId.substring(0, 8)} as admin (no AGENT_ADMIN_USERS set)`);
     return next();
   }
 
@@ -95,7 +95,7 @@ export function mountAgent({ app, basePath, wsPath, server }) {
   // 2026-01-06: SECURITY - Agent must be explicitly enabled
   // This prevents accidental exposure of powerful admin endpoints
   if (process.env.AGENT_ENABLED !== 'true') {
-    console.log(`[agent embed] ⚠️ Agent DISABLED (set AGENT_ENABLED=true to enable)`);
+    console.log(`[agent embed] Agent DISABLED (set AGENT_ENABLED=true to enable)`);
 
     // Mount a stub that returns 503 to indicate the feature is disabled
     app.use(basePath, (_req, res) => {
@@ -112,7 +112,7 @@ export function mountAgent({ app, basePath, wsPath, server }) {
   // 2026-01-06: SECURITY - Agent routes require authentication + IP allowlist
   // These routes expose powerful operations (env updates, config reads, shell access)
   app.use(basePath, checkAgentAllowlist, requireAuth, agentRoutes);
-  console.log(`[agent embed] ✅ Agent routes mounted at ${basePath} (auth + IP allowlist required)`);
+  console.log(`[agent embed] Agent routes mounted at ${basePath} (auth + IP allowlist required)`);
 
   // Agent health endpoint - PUBLIC (for load balancer checks)
   // 2026-01-06: Intentionally unauthenticated for infrastructure health checks

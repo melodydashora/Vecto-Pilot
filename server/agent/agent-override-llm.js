@@ -74,9 +74,9 @@ export async function agentAsk({ system, user, json = false }) {
   const fn = PROVIDERS.anthropic;
   
   try {
-    console.log(`[Atlas] Using Claude Opus 4.6 (unified configuration)...`);
+    console.log(`[AGENT] [ATLAS] Using Claude Opus 4.6 (unified configuration)...`);
     const result = await fn({ system, user, json });
-    console.log(`✅ [Atlas] Claude succeeded in ${result.elapsed_ms}ms`);
+    console.log(`[AGENT] [ATLAS] Claude succeeded in ${result.elapsed_ms}ms`);
     
     // Self-healing: Reset failure counters on success
     healingState.consecutiveFailures = 0;
@@ -86,14 +86,14 @@ export async function agentAsk({ system, user, json = false }) {
     return result;
   } catch (err) {
     const errorMsg = err.message || String(err);
-    console.error(`❌ [Atlas] Claude failed:`, errorMsg);
+    console.error(`[AGENT] [ATLAS] Claude failed:`, errorMsg);
     
     // Self-healing: Track failures
     healingState.consecutiveFailures++;
     
     // Self-healing: Open circuit breaker after threshold
     if (healingState.consecutiveFailures >= 3) {
-      console.error(`🚨 [Atlas Self-Healing] Circuit breaker triggered after ${healingState.consecutiveFailures} failures`);
+      console.error(`[Atlas Self-Healing] Circuit breaker triggered after ${healingState.consecutiveFailures} failures`);
       healingState.circuitBreakerOpen = true;
     }
     

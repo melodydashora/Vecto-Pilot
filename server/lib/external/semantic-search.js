@@ -53,15 +53,15 @@ export async function indexStrategy(strategyId, snapshotId) {
     
     // TODO: Implement vector storage when upsertDoc is available
     // For now, just log that we would index it
-    console.log('[semantic] Would index strategy with embedding:', {
+    console.log('[BRIEFING] [SEMANTIC] Would index strategy with embedding:', {
       id: `strategy:${strategyId}`,
       embedding_length: embedding.length
     });
     
-    console.log('[semantic] Indexed strategy:', strategyId);
+    console.log('[BRIEFING] [SEMANTIC] Indexed strategy:', strategyId);
     return strategyId;
   } catch (err) {
-    console.error('[semantic] Failed to index strategy:', err.message);
+    console.error('[BRIEFING] [SEMANTIC] Failed to index strategy:', err.message);
     return null;
   }
 }
@@ -88,15 +88,15 @@ export async function indexFeedback(feedbackId) {
     const embedding = await generateEmbedding(content);
     
     // TODO: Implement vector storage when upsertDoc is available
-    console.log('[semantic] Would index feedback with embedding:', {
+    console.log('[BRIEFING] [SEMANTIC] Would index feedback with embedding:', {
       id: `feedback:${feedbackId}`,
       embedding_length: embedding.length
     });
     
-    console.log('[semantic] Indexed feedback:', feedbackId);
+    console.log('[BRIEFING] [SEMANTIC] Indexed feedback:', feedbackId);
     return feedbackId;
   } catch (err) {
-    console.error('[semantic] Failed to index feedback:', err.message);
+    console.error('[BRIEFING] [SEMANTIC] Failed to index feedback:', err.message);
     return null;
   }
 }
@@ -111,10 +111,10 @@ export async function findSimilarStrategies(queryText, k = 5, minScore = 0.7) {
     // For now, return empty array
     const strategies = [];
     
-    console.log('[semantic] Found similar strategies:', strategies.length);
+    console.log('[BRIEFING] [SEMANTIC] Found similar strategies:', strategies.length);
     return strategies;
   } catch (err) {
-    console.error('[semantic] Similarity search failed:', err.message);
+    console.error('[BRIEFING] [SEMANTIC] Similarity search failed:', err.message);
     return [];
   }
 }
@@ -129,10 +129,10 @@ export async function findSimilarFeedback(queryText, k = 10, minScore = 0.6) {
     // For now, return empty array
     const feedback = [];
     
-    console.log('[semantic] Found similar feedback:', feedback.length);
+    console.log('[BRIEFING] [SEMANTIC] Found similar feedback:', feedback.length);
     return feedback;
   } catch (err) {
-    console.error('[semantic] Feedback search failed:', err.message);
+    console.error('[BRIEFING] [SEMANTIC] Feedback search failed:', err.message);
     return [];
   }
 }
@@ -144,7 +144,7 @@ export { generateEmbedding };
  * TODO: Implement actual vector storage (Pinecone, pgvector, etc.)
  */
 export async function upsertDoc({ id, content, metadata, embedding }) {
-  console.log('[semantic] Would upsert doc:', { id, content_length: content?.length, embedding_length: embedding?.length });
+  console.log('[BRIEFING] [SEMANTIC] Would upsert doc:', { id, content_length: content?.length, embedding_length: embedding?.length });
   return { success: true, id };
 }
 
@@ -153,6 +153,6 @@ export async function upsertDoc({ id, content, metadata, embedding }) {
  * TODO: Implement actual vector search
  */
 export async function knnSearch({ queryEmbedding, k = 10, minScore = 0.6 }) {
-  console.log('[semantic] Would knnSearch:', { k, minScore, embedding_length: queryEmbedding?.length });
+  console.log('[BRIEFING] [SEMANTIC] Would knnSearch:', { k, minScore, embedding_length: queryEmbedding?.length });
   return [];
 }

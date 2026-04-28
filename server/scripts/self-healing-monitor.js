@@ -34,17 +34,17 @@ class SelfHealingMonitor {
     
     if (type === 'warning') {
       this.warnings.push(entry);
-      console.warn(`⚠️  [HEAL] ${message}`, data);
+      console.warn(` [HEAL] ${message}`, data);
     } else if (type === 'fix') {
       this.fixes.push(entry);
-      console.log(`✅ [HEAL] ${message}`, data);
+      console.log(`[HEAL] ${message}`, data);
     } else {
       console.log(`ℹ️  [HEAL] ${message}`, data);
     }
   }
 
   async validateDatabaseSchema() {
-    console.log('\n🔍 Validating database schema...\n');
+    console.log('\nValidating database schema...\n');
 
     try {
       // Check snapshots table
@@ -89,7 +89,7 @@ class SelfHealingMonitor {
   }
 
   async validatePipelineFlow() {
-    console.log('\n🔄 Validating snapshot → strategy → GPT-5 pipeline...\n');
+    console.log('\nValidating snapshot → strategy → GPT-5 pipeline...\n');
 
     try {
       // Get recent snapshots
@@ -239,12 +239,12 @@ class SelfHealingMonitor {
     console.log('\n📊 Self-Healing Report\n');
     console.log('='.repeat(60));
     
-    console.log(`\n✅ Fixes Applied: ${this.fixes.length}`);
+    console.log(`\nFixes Applied: ${this.fixes.length}`);
     this.fixes.forEach(fix => {
       console.log(`   - ${fix.message}`);
     });
 
-    console.log(`\n⚠️  Warnings: ${this.warnings.length}`);
+    console.log(`\n Warnings: ${this.warnings.length}`);
     this.warnings.forEach(warn => {
       console.log(`   - ${warn.message}`);
       if (Object.keys(warn.data).length > 0) {
@@ -277,7 +277,7 @@ class SelfHealingMonitor {
   }
 
   async run() {
-    console.log('\n🚀 Starting Self-Healing Monitor...\n');
+    console.log('\nStarting Self-Healing Monitor...\n');
     
     try {
       // 1. Validate schema
@@ -297,11 +297,11 @@ class SelfHealingMonitor {
 
       // Exit with error code if critical issues found
       if (report.summary.critical > 0) {
-        console.error('❌ Critical issues detected - manual intervention required\n');
+        console.error('Critical issues detected - manual intervention required\n');
         process.exit(1);
       }
 
-      console.log('✅ Self-healing complete\n');
+      console.log('Self-healing complete\n');
       process.exit(0);
     } catch (err) {
       console.error('💥 Self-healing failed:', err.message);

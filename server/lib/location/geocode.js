@@ -17,7 +17,7 @@ const GEOCODE_API_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
  */
 export async function geocodeAddress(address) {
   if (!GOOGLE_MAPS_API_KEY) {
-    console.warn('[geocode] Google Maps API key not configured');
+    console.warn('[LOCATION] [GEOCODE] Google Maps API key not configured');
     return null;
   }
 
@@ -39,14 +39,14 @@ export async function geocodeAddress(address) {
     const response = await fetch(geocodeUrl);
 
     if (!response.ok) {
-      console.error('[geocode] API request failed:', response.status);
+      console.error('[LOCATION] [GEOCODE] API request failed:', response.status);
       return null;
     }
 
     const data = await response.json();
 
     if (data.status !== 'OK' || !data.results || data.results.length === 0) {
-      console.warn('[geocode] No results for address:', addressString, 'Status:', data.status);
+      console.warn('[LOCATION] [GEOCODE] No results for address:', addressString, 'Status:', data.status);
       return null;
     }
 
@@ -57,7 +57,7 @@ export async function geocodeAddress(address) {
     // Get timezone for the coordinates
     const timezone = await getTimezoneForCoords(lat, lng);
 
-    console.log('[geocode] Address geocoded:', {
+    console.log('[LOCATION] [GEOCODE] Address geocoded:', {
       input: addressString,
       lat,
       lng,
@@ -72,7 +72,7 @@ export async function geocodeAddress(address) {
       timezone
     };
   } catch (error) {
-    console.error('[geocode] Failed to geocode address:', error.message);
+    console.error('[LOCATION] [GEOCODE] Failed to geocode address:', error.message);
     return null;
   }
 }
@@ -105,7 +105,7 @@ export async function getTimezoneForCoords(lat, lng) {
 
     return null;
   } catch (error) {
-    console.error('[geocode] Failed to get timezone:', error.message);
+    console.error('[LOCATION] [GEOCODE] Failed to get timezone:', error.message);
     return null;
   }
 }

@@ -274,7 +274,7 @@ router.post("/config/backup/:filename", requireAgentAdmin, async (req, res) => {
     const { filename } = req.params;
 
     // Log admin action for audit trail
-    console.log(`[agent config] 💾 Admin ${req.auth?.userId?.substring(0, 8)} backing up: ${filename}`);
+    console.log(`[agent config] Admin ${req.auth?.userId?.substring(0, 8)} backing up: ${filename}`);
 
     const result = await backupConfigFile(filename);
     res.json(result);

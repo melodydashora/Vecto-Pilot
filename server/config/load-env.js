@@ -63,7 +63,7 @@ function loadEnvFile(filePath) {
 function reconstructGcpCredentials() {
   // Skip if already configured
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    console.log('[env-loader] GOOGLE_APPLICATION_CREDENTIALS already set, skipping reconstruction');
+    console.log('[CONFIG] [ENV] GOOGLE_APPLICATION_CREDENTIALS already set, skipping reconstruction');
     return;
   }
 
@@ -72,11 +72,11 @@ function reconstructGcpCredentials() {
   const hasRequired = requiredFields.every(field => !!process.env[field]);
 
   if (!hasRequired) {
-    console.log('[env-loader] No individual GCP service account env vars found, skipping credential reconstruction');
+    console.log('[CONFIG] [ENV] No individual GCP service account env vars found, skipping credential reconstruction');
     return;
   }
 
-  console.log('[env-loader] 🔑 Reconstructing GCP service account credentials from individual env vars...');
+  console.log('[CONFIG] [ENV] Reconstructing GCP service account credentials from individual env vars...');
 
   // Handle private_key: Replit Secrets may store \n as literal two-char sequence
   let privateKey = process.env.private_key || '';
@@ -102,8 +102,8 @@ function reconstructGcpCredentials() {
   fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2), { mode: 0o600 });
   process.env.GOOGLE_APPLICATION_CREDENTIALS = credPath;
 
-  console.log(`[env-loader] ✅ GCP credentials written to ${credPath}`);
-  console.log(`[env-loader]    project_id=${credentials.project_id}, client_email=${credentials.client_email}`);
+  console.log(`[CONFIG] [ENV] GCP credentials written to ${credPath}`);
+  console.log(`[CONFIG] [ENV]    project_id=${credentials.project_id}, client_email=${credentials.client_email}`);
 }
 
 /**
@@ -116,7 +116,7 @@ function reconstructGcpCredentials() {
 function ensureGoogleCloudProject() {
   if (!process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT_ID) {
     process.env.GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT_ID;
-    console.log(`[env-loader] ✅ Set GOOGLE_CLOUD_PROJECT=${process.env.GOOGLE_CLOUD_PROJECT_ID} (from GOOGLE_CLOUD_PROJECT_ID)`);
+    console.log(`[CONFIG] [ENV] Set GOOGLE_CLOUD_PROJECT=${process.env.GOOGLE_CLOUD_PROJECT_ID} (from GOOGLE_CLOUD_PROJECT_ID)`);
   }
 }
 
@@ -137,14 +137,14 @@ export function loadEnvironment() {
 
   const isReplitDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
 
-  console.log('[env-loader] ========================================');
-  console.log('[env-loader] Environment Loader');
-  console.log('[env-loader] ========================================');
+  console.log('[CONFIG] [ENV] ========================================');
+  console.log('[CONFIG] [ENV] Environment Loader');
+  console.log('[CONFIG] [ENV] ========================================');
 
   // In Replit deployment, skip file loading — Replit Secrets are the sole source of truth
   if (isReplitDeployment) {
-    console.log('[env-loader] ✅ Replit deployment detected - using Replit Secrets (skipping .env files)');
-    console.log('[env-loader] ========================================');
+    console.log('[CONFIG] [ENV] Replit deployment detected - using Replit Secrets (skipping .env files)');
+    console.log('[CONFIG] [ENV] ========================================');
     return;
   }
 
@@ -152,8 +152,8 @@ export function loadEnvironment() {
   // Renamed from mono-mode.env to align with .replit shell source and industry convention
   const envLocalPath = path.join(rootDir, '.env.local');
   if (loadEnvFile(envLocalPath)) {
-    console.log('[env-loader] ✅ Loaded: .env.local');
+    console.log('[CONFIG] [ENV] Loaded: .env.local');
   } else {
-    console.warn('[env-loader] ⚠️  .env.local not found (dev baseline)');
+    console.warn('[CONFIG] [ENV] .env.local not found (dev baseline)');
   }
 }

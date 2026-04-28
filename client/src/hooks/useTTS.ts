@@ -13,7 +13,10 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 
 interface UseTTSReturn {
   isSpeaking: boolean;
-  /** Speak text aloud. Optionally specify a language for multilingual TTS. */
+  /** Speak text aloud. Optionally specify a language for multilingual TTS.
+   *  Returns a Promise that resolves when audio playback ENDS (onended, browser-TTS
+   *  completion, or stop()-initiated cancellation) — NOT when playback starts.
+   *  Required by useStreamingReadAloud's drain worker for sequential chunked playback. */
   speak: (text: string, language?: string) => Promise<void>;
   stop: () => void;
   /** Call from a user gesture (click/tap) to unlock audio for later programmatic playback. */
@@ -47,6 +50,11 @@ function speakWithBrowserTTS(text: string, language?: string): boolean {
 export function useTTS(): UseTTSReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // 2026-04-27: Tracks the in-flight speak()'s Promise resolver so stop() can release
+  // awaiters when playback is interrupted. Without this, useStreamingReadAloud's drain
+  // worker hangs forever on a chunk whose audio.onended never fires (because audio.src
+  // got reassigned, or because window.speechSynthesis.cancel() killed the fallback).
+  const currentResolverRef = useRef<(() => void) | null>(null);
   const { toast } = useToast();
 
   const stop = useCallback(() => {
@@ -60,6 +68,12 @@ export function useTTS(): UseTTSReturn {
       window.speechSynthesis.cancel();
     }
     setIsSpeaking(false);
+    // 2026-04-27: Release any in-flight speak() Promise. Interrupted ≠ completed,
+    // but a hung Promise stalls the streaming drain worker forever.
+    if (currentResolverRef.current) {
+      currentResolverRef.current();
+      currentResolverRef.current = null;
+    }
   }, []);
 
   // 2026-04-13: Unlock audio for later programmatic playback.
@@ -82,93 +96,118 @@ export function useTTS(): UseTTSReturn {
   // 2026-03-16: Added optional language parameter for multilingual translation TTS
   // 2026-03-28: Changed to interrupt-and-replace
   // 2026-04-13: Falls back to browser speechSynthesis if Audio element playback fails (iOS)
-  const speak = useCallback(async (text: string, language?: string) => {
+  // 2026-04-27: Promise contract changed — resolves on END of playback (onended /
+  //   fallback-completion / stop()-cancel) instead of on play() START. Required so
+  //   useStreamingReadAloud's drain worker plays chunks sequentially instead of
+  //   N+1 calling stop() on N mid-playback. Existing non-awaiting callers
+  //   (Translation, Coach post-stream) are unaffected — they fire-and-forget.
+  const speak = useCallback(async (text: string, language?: string): Promise<void> => {
     if (!text) return;
 
     if (isSpeaking) {
       stop();
     }
 
-    try {
-      setIsSpeaking(true);
-      console.log(`[TTS] Requesting audio synthesis...${language ? ` (lang: ${language})` : ''}`);
-
-      // 2026-03-18: FIX (B-2) — Add auth header for authenticated TTS endpoint
-      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      const response = await fetch(API_ROUTES.TTS, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({ text, ...(language && { language }) })
-      });
-
-      if (!response.ok) {
-        throw new Error(`TTS failed: ${response.statusText}`);
-      }
-
-      const audioBlob = await response.blob();
-      console.log(`[TTS] Received ${audioBlob.size} bytes`);
-      const audioUrl = URL.createObjectURL(audioBlob);
-
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-      }
-
-      const audio = audioRef.current;
-      audio.src = audioUrl;
-      audio.volume = 1;
-
-      audio.onended = () => {
-        setIsSpeaking(false);
-        URL.revokeObjectURL(audioUrl);
+    return new Promise<void>((resolve) => {
+      let resolved = false;
+      const finish = () => {
+        if (resolved) return;
+        resolved = true;
+        // Only null the ref if it still points at THIS finish — guards against a
+        // later speak() that already replaced the pointer with its own resolver.
+        if (currentResolverRef.current === finish) currentResolverRef.current = null;
+        resolve();
       };
+      currentResolverRef.current = finish;
 
-      audio.onerror = () => {
-        URL.revokeObjectURL(audioUrl);
-        // 2026-04-13: Audio element failed (iOS autoplay restriction) — fall back to browser TTS
-        console.log('[TTS] Audio element failed, falling back to browser speechSynthesis');
-        if (speakWithBrowserTTS(text, language)) {
-          // Track when browser TTS finishes
-          const checkInterval = setInterval(() => {
-            if (!window.speechSynthesis.speaking) {
-              clearInterval(checkInterval);
-              setIsSpeaking(false);
-            }
-          }, 200);
-        } else {
-          setIsSpeaking(false);
-          toast({
-            title: 'Voice Unavailable',
-            description: 'Unable to play audio on this device.',
-            variant: 'destructive',
+      void (async () => {
+        try {
+          setIsSpeaking(true);
+          console.log(`[TTS] Requesting audio synthesis...${language ? ` (lang: ${language})` : ''}`);
+
+          // 2026-03-18: FIX (B-2) — Add auth header for authenticated TTS endpoint
+          const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+          const response = await fetch(API_ROUTES.TTS, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
+            body: JSON.stringify({ text, ...(language && { language }) })
           });
-        }
-      };
 
-      await audio.play();
-      console.log('[TTS] Playing audio via OpenAI TTS');
-    } catch (err) {
-      // 2026-04-13: Network/API error — try browser TTS as fallback
-      console.warn('[TTS] OpenAI TTS failed, trying browser fallback:', err);
-      if (speakWithBrowserTTS(text, language)) {
-        console.log('[TTS] Playing audio via browser speechSynthesis (fallback)');
-        const checkInterval = setInterval(() => {
-          if (!window.speechSynthesis.speaking) {
-            clearInterval(checkInterval);
-            setIsSpeaking(false);
+          if (!response.ok) {
+            throw new Error(`TTS failed: ${response.statusText}`);
           }
-        }, 200);
-      } else {
-        setIsSpeaking(false);
-        toast({
-          title: 'Text-to-Speech Failed',
-          description: err instanceof Error ? err.message : 'Unable to read aloud.',
-          variant: 'destructive',
-        });
-      }
-    }
+
+          const audioBlob = await response.blob();
+          console.log(`[TTS] Received ${audioBlob.size} bytes`);
+          const audioUrl = URL.createObjectURL(audioBlob);
+
+          if (!audioRef.current) {
+            audioRef.current = new Audio();
+          }
+
+          const audio = audioRef.current;
+          audio.src = audioUrl;
+          audio.volume = 1;
+
+          audio.onended = () => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+            finish();
+          };
+
+          audio.onerror = () => {
+            URL.revokeObjectURL(audioUrl);
+            // 2026-04-13: Audio element failed (iOS autoplay restriction) — fall back to browser TTS
+            console.log('[TTS] Audio element failed, falling back to browser speechSynthesis');
+            if (speakWithBrowserTTS(text, language)) {
+              // Track when browser TTS finishes
+              const checkInterval = setInterval(() => {
+                if (!window.speechSynthesis.speaking) {
+                  clearInterval(checkInterval);
+                  setIsSpeaking(false);
+                  finish();
+                }
+              }, 200);
+            } else {
+              setIsSpeaking(false);
+              toast({
+                title: 'Voice Unavailable',
+                description: 'Unable to play audio on this device.',
+                variant: 'destructive',
+              });
+              finish();
+            }
+          };
+
+          await audio.play();
+          console.log('[TTS] Playing audio via OpenAI TTS');
+        } catch (err) {
+          // 2026-04-13: Network/API error — try browser TTS as fallback
+          console.warn('[TTS] OpenAI TTS failed, trying browser fallback:', err);
+          if (speakWithBrowserTTS(text, language)) {
+            console.log('[TTS] Playing audio via browser speechSynthesis (fallback)');
+            const checkInterval = setInterval(() => {
+              if (!window.speechSynthesis.speaking) {
+                clearInterval(checkInterval);
+                setIsSpeaking(false);
+                finish();
+              }
+            }, 200);
+          } else {
+            setIsSpeaking(false);
+            toast({
+              title: 'Text-to-Speech Failed',
+              description: err instanceof Error ? err.message : 'Unable to read aloud.',
+              variant: 'destructive',
+            });
+            finish();
+          }
+        }
+      })();
+    });
   }, [isSpeaking, stop, toast]);
 
   return { isSpeaking, speak, stop, warmUp };

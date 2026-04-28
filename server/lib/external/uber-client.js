@@ -53,7 +53,7 @@ class UberClient {
 
       return await response.json();
     } catch (error) {
-      console.error(`[UberClient] Request failed: ${endpoint}`, error.message);
+      console.error(`[AUTH] [UBER] Request failed: ${endpoint}`, error.message);
       throw error;
     }
   }
@@ -91,7 +91,7 @@ class UberClient {
   // Mock Data (For Development/Sandbox)
   // ═══════════════════════════════════════════════════════════════════════════
   _mockResponse(endpoint) {
-    console.log(`[UberClient] Returning MOCK data for ${endpoint}`);
+    console.log(`[AUTH] [UBER] Returning MOCK data for ${endpoint}`);
     
     if (endpoint.includes('/partners/me')) {
       return {

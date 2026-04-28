@@ -25,7 +25,7 @@
  * @property {string} [name] - Alternative title field
  * @property {string} [venue] - Venue name (provider format)
  * @property {string} [venue_name] - Alternative venue field
- * @property {string} [location] - Location string (format varies)
+ * @property {string} [LOCATION] - Location string (format varies)
  * @property {string} [address] - Address (format varies)
  * @property {string} [event_date] - Date string (format varies: YYYY-MM-DD, MM/DD/YYYY, etc.)
  * @property {string} [date] - Alternative date field

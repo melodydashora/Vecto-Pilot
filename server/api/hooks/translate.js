@@ -50,7 +50,7 @@ router.post('/translate', translationLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Missing device_id' });
     }
 
-    console.log(`[hooks/translate] 🌐 From ${device_id}: "${text.substring(0, 60)}..." (${source_lang} → ${target_lang})`);
+    console.log(`[HOOKS] 🌐 From ${device_id}: "${text.substring(0, 60)}..." (${source_lang} → ${target_lang})`);
 
     const userMessage = `Translate the following text.
 Source language: ${source_lang === 'auto' ? 'detect automatically' : source_lang}
@@ -75,7 +75,7 @@ Text: "${text}"`;
     // Siri extracts this field and reads it aloud to the driver.
     const voice = `They said: ${result.translatedText}`;
 
-    console.log(`[hooks/translate] ✅ ${result.detectedLang} → ${result.targetLang} in ${responseTimeMs}ms`);
+    console.log(`[HOOKS] ${result.detectedLang} → ${result.targetLang} in ${responseTimeMs}ms`);
 
     res.json({
       success: true,
@@ -89,7 +89,7 @@ Text: "${text}"`;
 
   } catch (error) {
     const responseTimeMs = Date.now() - startTime;
-    console.error(`[hooks/translate] ❌ Error (${responseTimeMs}ms):`, error.message);
+    console.error(`[HOOKS] Error (${responseTimeMs}ms):`, error.message);
     res.status(500).json({
       success: false,
       voice: 'Translation failed. Please try again.',

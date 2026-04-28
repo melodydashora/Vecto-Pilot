@@ -3,6 +3,11 @@
 // EVENT MATCHER — Venue ↔ Discovered Events Alignment
 // ============================================================================
 //
+// 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): per-match lines demoted
+// to debug. Set LOG_VERBOSE_COMPONENTS=VENUES to see them again.
+import { createWorkflowLogger } from '../../logger/workflow.js';
+const matcherLog = createWorkflowLogger('VENUES');
+//
 // PURPOSE: Given a list of venues (from enrichVenues) and a list of today's
 //          discovered events (pre-fetched by caller with venue_catalog join),
 //          produce a Map<venueName, matchedEvents> using strong identity keys.
@@ -24,7 +29,7 @@
 //        before catalog promotion, so neither side had a shared venue_id.
 //
 //   The fix uses place_id as the primary key (both sides call the same Google
-//   Places API (New), so place_id is a stable identity), falls back to
+//   Places (NEW) API (New), so place_id is a stable identity), falls back to
 //   venue_id (available after catalog promotion), and finally to substantial
 //   name matching for venues without Google identity. DB fetching is moved
 //   up to the caller (enhanced-smart-blocks.js :: fetchTodayDiscoveredEventsWithVenue),
@@ -89,7 +94,7 @@ function venueNamesMatch(name1, name2) {
  * shape that enhanced-smart-blocks.js expects for ranking_candidates.venue_events[].
  *
  * Prefers venue_catalog canonical name (vc_venue_name) when joined, since
- * the catalog name is the authoritative display form after Places API
+ * the catalog name is the authoritative display form after Places (NEW) API
  * resolution. Falls back to discovered_events.venue_name for orphan events
  * (null venue_id, no join row).
  *
@@ -143,7 +148,7 @@ export function matchVenuesToEvents(venues, todayEvents) {
     for (const event of todayEvents) {
       let matchType = null;
 
-      // Primary: place_id (Google Places API identity on both sides)
+      // Primary: place_id (Google Places (NEW) API identity on both sides)
       if (venue.placeId && event.vc_place_id && venue.placeId === event.vc_place_id) {
         matchType = 'place_id';
       }
@@ -158,7 +163,7 @@ export function matchVenuesToEvents(venues, todayEvents) {
 
       if (matchType) {
         matches.push(toEventMatch(event));
-        console.log(`[event-matcher] ✅ MATCH (${matchType}): "${venue.name}" ↔ "${event.title}"`);
+        matcherLog.debug(`MATCH (${matchType}): "${venue.name}" <-> "${event.title}"`);
       }
     }
 
@@ -168,9 +173,9 @@ export function matchVenuesToEvents(venues, todayEvents) {
   }
 
   if (matchMap.size === 0) {
-    console.log(`[event-matcher] No matches for ${venues.length} venues against ${todayEvents.length} events`);
+    matcherLog.debug(`No matches for ${venues.length} venues against ${todayEvents.length} events`);
   } else {
-    console.log(`[event-matcher] Matched ${matchMap.size}/${venues.length} venues to events`);
+    matcherLog.debug(`Matched ${matchMap.size}/${venues.length} venues to events`);
   }
 
   return matchMap;

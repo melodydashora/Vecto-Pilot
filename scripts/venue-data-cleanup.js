@@ -59,8 +59,8 @@ async function main() {
       .where(like(venue_catalog.place_id, 'Ei%'));
 
     console.log(`   Count: ${syntheticIds.count} venues with Ei* place_id`);
-    console.log('   ⚠️  These IDs are Base64-encoded addresses, not valid Google Place IDs');
-    console.log('   ⚠️  They often point to wrong locations and should be re-resolved');
+    console.log('    These IDs are Base64-encoded addresses, not valid Google Place IDs');
+    console.log('    They often point to wrong locations and should be re-resolved');
 
     // ========================================================================
     // AUDIT QUERY 3: Events linked to venues without place_id
@@ -93,7 +93,7 @@ async function main() {
       .from(places_cache);
 
     console.log(`   Count: ${cacheRows.count} total rows in places_cache`);
-    console.log('   ✅  Column renamed to coords_key (D-013) - semantically correct now');
+    console.log('    Column renamed to coords_key (D-013) - semantically correct now');
 
     // ========================================================================
     // AUDIT QUERY 5: Duplicate venues (same normalized_name + city + state)
@@ -119,7 +119,7 @@ async function main() {
         console.log(`   - "${row.normalized_name}" in ${row.city}, ${row.state}: ${row.cnt} records`);
       }
     } else {
-      console.log('   ✅  No duplicate venues found');
+      console.log('    No duplicate venues found');
     }
 
     // ========================================================================
@@ -167,7 +167,7 @@ async function main() {
         .set({ place_id: null })
         .where(like(venue_catalog.place_id, 'Ei%'));
 
-      console.log(`   ✅  Cleared ${syntheticIds.count} Ei* IDs`);
+      console.log(`    Cleared ${syntheticIds.count} Ei* IDs`);
 
       console.log('');
       console.log('='.repeat(70));

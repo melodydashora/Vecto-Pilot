@@ -36,7 +36,7 @@ export async function capturelearning(eventType, data, userId = null) {
     // TODO: Store in assistant_memory when rememberContext is available
     // For now, just log the event
     // 2026-01-15: Removed 'anonymous' fallback - callers should always provide userId
-    console.log(`[learning] Captured: ${eventType}`, {
+    console.log(`[AGENT] [LEARNING] Captured: ${eventType}`, {
       event_id: eventId,
       user_id: userId || '[MISSING - BUG]', // Flag missing userId as bug, don't mask with 'anonymous'
       data_keys: Object.keys(data)
@@ -44,7 +44,7 @@ export async function capturelearning(eventType, data, userId = null) {
     
     return eventId;
   } catch (err) {
-    console.error('[learning] Failed to capture event:', err.message);
+    console.error('[AGENT] [LEARNING] Failed to capture event:', err.message);
     // Don't throw - learning capture failure shouldn't break the request
     return null;
   }
@@ -71,7 +71,7 @@ export function learningMiddleware(eventType) {
             response_keys: Object.keys(body),
             request_id: res.get('x-req-id') || res.get('x-correlation-id')
           }, userId).catch(err => {
-            console.error('[learning] Middleware capture failed:', err.message);
+            console.error('[AGENT] [LEARNING] Middleware capture failed:', err.message);
           });
         });
       }

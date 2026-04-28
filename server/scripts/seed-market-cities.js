@@ -919,13 +919,13 @@ async function seedMarketCities() {
     }
   });
 
-  console.log('\n✅ Seeding complete!\n');
+  console.log('\nSeeding complete!\n');
 }
 
 // Run the seed
 seedMarketCities()
   .then(() => process.exit(0))
   .catch((err) => {
-    console.error('❌ Seeding failed:', err);
+    console.error('Seeding failed:', err);
     process.exit(1);
   });

@@ -56,7 +56,7 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
   // UTC fallback was wrong for global app (Tokyo user would see wrong open/closed status)
   const timezone = snapshot?.timezone || null;
   if (!timezone) {
-    venuesLog.warn(1, `[venue-enrichment] ⚠️ No timezone in snapshot - isOpen will be null`);
+    venuesLog.warn(1, `[venue-enrichment] No timezone in snapshot - isOpen will be null`);
   }
   venuesLog.start(`${venues.length} venues (tz: ${timezone || 'UNKNOWN'})`);
 
@@ -301,16 +301,17 @@ function calculateIsOpenFromGoogleWeekdayText(weekdayTexts, timezone = null) {
   const parseResult = parseGoogleWeekdayText(weekdayTexts);
 
   if (!parseResult.ok) {
-    console.warn(`[calculateIsOpenFromGoogleWeekdayText] Parse failed: ${parseResult.error}`);
+    console.warn(`[VENUE] Parse failed: ${parseResult.error}`);
     return null;
   }
 
   const status = getOpenStatus(parseResult.schedule, timezone);
 
-  // Debug log for backward compatibility (same info as before)
+  // 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): demoted from info to
+  // debug — fires for every venue's hours computation, was significant noise.
   if (status.is_open !== null) {
-    console.log(
-      `[calculateIsOpenFromGoogleWeekdayText] ${status.reason} → ${status.is_open ? "OPEN" : "CLOSED"}`
+    venuesLog.debug(
+      `calculateIsOpenFromGoogleWeekdayText: ${status.reason} -> ${status.is_open ? "OPEN" : "CLOSED"}`
     );
   }
 
@@ -401,7 +402,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
         if ((response.status === 429 || response.status >= 500) && attempt < maxRetries - 1) {
           const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
           console.warn(
-            `[Places API] HTTP ${response.status} for "${name}" - Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`,
+            `[VENUE] [PLACES] HTTP ${response.status} for "${name}" - Retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`,
           );
           await new Promise(resolve => setTimeout(resolve, delay));
           continue; // Retry
@@ -409,7 +410,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
 
         const errorText = await response.text();
         console.error(
-          `[Places API (New)] HTTP ${response.status} for "${name}":`,
+          `[VENUE] [PLACES] HTTP ${response.status} for "${name}":`,
           errorText,
         );
         throw new Error(

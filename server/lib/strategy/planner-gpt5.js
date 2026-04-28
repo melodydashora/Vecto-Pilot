@@ -43,7 +43,7 @@ export async function runPlannerGPT5({
   stream = true,
   onPreview
 }) {
-  console.log(`🔍 [planner-gpt5] PLANNER_DEADLINE_MS env: ${process.env.PLANNER_DEADLINE_MS}, using timeoutMs: ${timeoutMs}`);
+  console.log(`[planner-gpt5] PLANNER_DEADLINE_MS env: ${process.env.PLANNER_DEADLINE_MS}, using timeoutMs: ${timeoutMs}`);
   if (!Array.isArray(shortlist) || !shortlist.length) throw new Error("Empty shortlist.");
 
   const t0 = Date.now();

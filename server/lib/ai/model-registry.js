@@ -2,6 +2,14 @@
 // Centralized model configuration registry
 // Single source of truth for AI model settings
 //
+// 2026-04-27: Migrated noisy info-level role-resolution box to debug-level
+// single-line via workflow logger (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec).
+// Set LOG_LEVEL=debug or LOG_VERBOSE_COMPONENTS=MODEL_REGISTRY to see the
+// per-role lines that previously cluttered every request.
+
+import { createWorkflowLogger } from '../../logger/workflow.js';
+const registryLog = createWorkflowLogger('MODEL_REGISTRY');
+//
 // NAMING CONVENTION: {TABLE}_{FUNCTION}
 // - BRIEFING_*: Roles that populate the 'briefings' table
 // - STRATEGY_*: Roles that populate the 'strategies' table
@@ -437,7 +445,7 @@ export function resolveRoleName(role) {
   const lower = role.toLowerCase();
   if (LEGACY_ROLE_MAP[lower]) {
     const mapped = LEGACY_ROLE_MAP[lower];
-    console.log(`📋 [REGISTRY] Legacy role "${role}" → "${mapped}"`);
+    registryLog.debug(`Legacy role "${role}" -> "${mapped}"`);
     return mapped;
   }
   return upper; // Return as-is, will fail in getRoleConfig if invalid
@@ -497,27 +505,18 @@ export function getRoleConfig(role) {
   // If an env override resolved to a non-Gemini model, reject it and use the default.
   // This prevents AI_COACH_OVERRIDE_MODEL=claude-opus-4-6 from breaking AI_COACH streaming.
   if (roleConfig.requiresStreaming && !model.startsWith('gemini-')) {
-    console.warn(`📋 [REGISTRY] ⚠️ ${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
+    registryLog.warn(0, `${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
     model = roleConfig.default;
     sourceInfo = 'default (streaming fallback)';
   }
 
   const provider = getProviderForModel(model);
 
-  // Log role configuration resolution
-  const features = roleConfig.features?.join(', ') || 'none';
-  const tablePrefix = canonicalRole.split('_')[0];
-
-  console.log(`📋 [REGISTRY] ┌─────────────────────────────────────────────`);
-  console.log(`📋 [REGISTRY] │ Role:     ${canonicalRole}`);
-  console.log(`📋 [REGISTRY] │ Purpose:  ${roleConfig.purpose}`);
-  console.log(`📋 [REGISTRY] │ Model:    ${model} (${sourceInfo})`);
-  console.log(`📋 [REGISTRY] │ Provider: ${provider}`);
-  console.log(`📋 [REGISTRY] │ Table:    ${tablePrefix.toLowerCase()}s`);
-  console.log(`📋 [REGISTRY] │ Features: ${features}`);
-  if (roleConfig.maxTokens) console.log(`📋 [REGISTRY] │ Tokens:   ${roleConfig.maxTokens}`);
-  if (roleConfig.reasoningEffort) console.log(`📋 [REGISTRY] │ Effort:   ${roleConfig.reasoningEffort}`);
-  console.log(`📋 [REGISTRY] └─────────────────────────────────────────────`);
+  // 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW): demoted from a 10-line info
+  // box (which fired per-call and looked like duplicate registrations) to a single
+  // debug line. Run with LOG_LEVEL=debug or LOG_VERBOSE_COMPONENTS=MODEL_REGISTRY
+  // to see per-role resolutions.
+  registryLog.debug(`Resolved role=${canonicalRole} provider=${provider} model=${model} source=${sourceInfo}`);
 
   return {
     ...roleConfig,

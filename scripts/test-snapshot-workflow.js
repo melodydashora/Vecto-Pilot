@@ -26,13 +26,16 @@ const OUTPUT_FILE = path.resolve(
 let lines = [];
 
 function out(line = '') {
+  // 2026-04-28 (Melody): observer is a file-only debug artifact (snapshot.txt
+  // for in-repo row-output review). The per-line console emit polluted the
+  // primary workflow stream — removed. Errors below still emit to console
+  // because connect/fatal failures are real diagnostic signal.
   lines.push(line);
-  console.log(`[snapshot-observer] ${line}`);
 }
 
 function writeFile() {
   try { fs.writeFileSync(OUTPUT_FILE, lines.join('\n') + '\n', 'utf-8'); }
-  catch (err) { console.error(`[snapshot-observer] Write failed: ${err.message}`); }
+  catch (err) { console.error(`[SNAPSHOT] [OBSERVER] Write failed: ${err.message}`); }
 }
 
 function formatVal(val) {
@@ -61,7 +64,7 @@ function printRow(row) {
 export async function observeSnapshotWorkflow() {
   const connStr = process.env.DATABASE_URL;
   if (!connStr) {
-    console.error('[snapshot-observer] No DATABASE_URL — skipping');
+    console.error('[SNAPSHOT] [OBSERVER] No DATABASE_URL — skipping');
     return;
   }
 
@@ -74,7 +77,7 @@ export async function observeSnapshotWorkflow() {
     client = new pg.Client({ connectionString: connStr, application_name: 'snap-observer', ssl: isProduction ? { rejectUnauthorized: false } : false });
     await client.connect();
   } catch (err) {
-    console.error(`[snapshot-observer] DB connect failed: ${err.message}`);
+    console.error(`[SNAPSHOT] [OBSERVER] DB connect failed: ${err.message}`);
     return;
   }
 
@@ -223,7 +226,7 @@ if (isMain) {
   const kill = setTimeout(() => { writeFile(); process.exit(1); }, (TIMEOUT_S + 10) * 1000);
   kill.unref();
   observeSnapshotWorkflow().then(() => process.exit(0)).catch(err => {
-    console.error(`[snapshot-observer] Fatal: ${err.message}`);
+    console.error(`[SNAPSHOT] [OBSERVER] Fatal: ${err.message}`);
     writeFile();
     process.exit(1);
   });

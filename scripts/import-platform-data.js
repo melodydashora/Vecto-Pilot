@@ -27,7 +27,7 @@ const dryRun = args.includes('--dry-run');
 const platformArg = args.find(a => a.startsWith('--platform='));
 const platform = platformArg ? platformArg.split('=')[1] : 'uber';
 
-console.log(`\n🚀 Platform Data Import Script`);
+console.log(`\nPlatform Data Import Script`);
 console.log(`   Platform: ${platform}`);
 console.log(`   Dry Run: ${dryRun ? 'YES (no writes)' : 'NO (will write to DB)'}\n`);
 
@@ -113,7 +113,7 @@ async function insertBatch(batch) {
 
     return batch.length;
   } catch (error) {
-    console.error(`  ❌ Batch insert error: ${error.message}`);
+    console.error(`  Batch insert error: ${error.message}`);
     // Try inserting one by one to identify problematic rows
     let successCount = 0;
     for (const row of batch) {
@@ -123,7 +123,7 @@ async function insertBatch(batch) {
           .onConflictDoNothing();
         successCount++;
       } catch (rowError) {
-        console.error(`  ⚠️ Failed to insert: ${row.city}, ${row.region}, ${row.country}`);
+        console.error(`  Failed to insert: ${row.city}, ${row.region}, ${row.country}`);
       }
     }
     return successCount;
@@ -138,7 +138,7 @@ async function importPlatformData() {
 
   // Check if data directory exists
   if (!fs.existsSync(dataDir)) {
-    console.error(`❌ Data directory not found: ${dataDir}`);
+    console.error(`Data directory not found: ${dataDir}`);
     process.exit(1);
   }
 
@@ -156,7 +156,7 @@ async function importPlatformData() {
     console.log(`📄 Reading JSON: ${path.basename(jsonFile)}`);
     rawData = readJsonData(jsonFile);
   } else {
-    console.error(`❌ No data file found in ${dataDir}`);
+    console.error(`No data file found in ${dataDir}`);
     console.error(`   Expected: ${platform}_cities_data.json or ${platform}_cities_data.csv`);
     process.exit(1);
   }
@@ -190,7 +190,7 @@ async function importPlatformData() {
   console.log();
 
   if (dryRun) {
-    console.log(`🔍 DRY RUN - No data will be written to database\n`);
+    console.log(`DRY RUN - No data will be written to database\n`);
     console.log(`   Would insert ${normalizedData.length} entries`);
     return;
   }
@@ -199,7 +199,7 @@ async function importPlatformData() {
   const BATCH_SIZE = 500;
   let totalInserted = 0;
 
-  console.log(`💾 Inserting data in batches of ${BATCH_SIZE}...`);
+  console.log(`Inserting data in batches of ${BATCH_SIZE}...`);
 
   for (let i = 0; i < normalizedData.length; i += BATCH_SIZE) {
     const batch = normalizedData.slice(i, i + BATCH_SIZE);
@@ -211,7 +211,7 @@ async function importPlatformData() {
     process.stdout.write(`\r   Progress: ${progress}/${normalizedData.length} (${percent}%) - Inserted: ${totalInserted}`);
   }
 
-  console.log(`\n\n✅ Import complete!`);
+  console.log(`\n\nImport complete!`);
   console.log(`   Total entries processed: ${normalizedData.length}`);
   console.log(`   Total entries inserted: ${totalInserted}`);
   console.log(`   Duplicates skipped: ${normalizedData.length - totalInserted}`);
@@ -224,7 +224,7 @@ importPlatformData()
     process.exit(0);
   })
   .catch(error => {
-    console.error(`\n❌ Import failed: ${error.message}`);
+    console.error(`\nImport failed: ${error.message}`);
     console.error(error.stack);
     process.exit(1);
   });

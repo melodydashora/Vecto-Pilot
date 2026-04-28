@@ -267,7 +267,7 @@ async function seedVenues() {
           reliability_score: 0.5,
         });
       
-      console.log(`✅ Added: ${venue.name}`);
+      console.log(`Added: ${venue.name}`);
       added++;
     }
     
@@ -277,7 +277,7 @@ async function seedVenues() {
     console.log(`   Total in catalog: ${added + skipped} venues\n`);
     
   } catch (error) {
-    console.error('❌ Seeding error:', error);
+    console.error('Seeding error:', error);
     throw error;
   }
 }

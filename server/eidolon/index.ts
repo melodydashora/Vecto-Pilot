@@ -37,5 +37,5 @@ export interface EidolonSession {
   lastActivity: number;
 }
 
-export const EIDOLON_IDENTITY = "🧠 Eidolon (Claude Opus 4.1 Enhanced SDK)";
+export const EIDOLON_IDENTITY = "Eidolon (Claude Opus 4.1 Enhanced SDK)";
 export const EIDOLON_VERSION = "4.1.0";

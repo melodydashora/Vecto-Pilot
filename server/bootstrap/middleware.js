@@ -24,9 +24,9 @@ export async function configureMiddleware(app) {
     const botBlockerPath = path.join(rootDir, 'server/middleware/bot-blocker.js');
     const { botBlocker } = await import(pathToFileURL(botBlockerPath).href);
     app.use(botBlocker);
-    console.log('[gateway] ✅ Bot blocker enabled (full protection)');
+    console.log('[GATEWAY] Bot blocker enabled (full protection)');
   } catch (e) {
-    console.warn('[gateway] Bot blocker not available:', e?.message);
+    console.warn('[GATEWAY] Bot blocker not available:', e?.message);
   }
 
   // X-Robots-Tag header - prevent indexing at HTTP level
@@ -70,9 +70,23 @@ export async function configureMiddleware(app) {
   //      round-trips. connect-src enforces these as if they were network
   //      requests; without 'data:' allowed, label sprites fail to load.
   //
+  //   5. mediaSrc 'self' data: blob: (added 2026-04-27, Coach Pass 2 Phase B)
+  //      Coach TTS (client/src/hooks/useTTS.ts) does two things the implicit
+  //      default-src 'self' was blocking, which caused the audio element to
+  //      throw NotSupportedError and silently fall back to
+  //      window.speechSynthesis (OS robotic voice, not OpenAI TTS-1-HD):
+  //        (a) warmUp() loads a silent data:audio/wav;base64,... buffer to
+  //            unlock the audio element inside the user-gesture; data: required.
+  //        (b) speak() fetches /api/tts, wraps the response in blob:https://...
+  //            via URL.createObjectURL, and assigns it to audio.src; blob: required.
+  //      Without media-src declared, CSP falls back to default-src ('self'
+  //      only), which forbids both. Diagnosed via DevTools console errors
+  //      that explicitly cited "Loading media from 'data:audio/wav;base64,...'
+  //      violates ... default-src 'self'".
+  //
   // Diagnostic process: after each restart the previously-blocked layer
   // unblocked, exposing the next CSP error in the console. Phase B's commit
-  // history (b7b1c7f5 → c765ce22 → THIS) is the audit trail.
+  // history (b7b1c7f5 → c765ce22 → e371c757 → THIS) is the audit trail.
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -81,6 +95,7 @@ export async function configureMiddleware(app) {
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.ggpht.com", "https://places.googleapis.com"],
+        mediaSrc: ["'self'", "data:", "blob:"],
         connectSrc: ["'self'", "data:", "https://*.googleapis.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
         workerSrc: ["'self'", "blob:"],
         frameSrc: ["'self'"],
@@ -143,7 +158,7 @@ export async function configureMiddleware(app) {
       // Log once per unique origin per process to avoid log spam under scanner floods.
       if (!blockedOriginSeen.has(origin)) {
         blockedOriginSeen.add(origin);
-        console.warn(`[gateway] CORS blocked origin: ${origin} (${req.method} ${req.originalUrl})`);
+        console.warn(`[GATEWAY] CORS blocked origin: ${origin} (${req.method} ${req.originalUrl})`);
       }
       return res.status(403).json({
         error: 'Origin not allowed',
@@ -175,9 +190,9 @@ export async function configureMiddleware(app) {
     // billable OpenAI client_secret. 5/min/user is generous for legit voice
     // session starts; anything above is bug or abuse.
     app.use('/api/realtime/token', realtimeMintLimiter);
-    console.log('[gateway] ✅ Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)');
+    console.log('[GATEWAY] Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)');
   } catch (e) {
-    console.warn('[gateway] Rate limiting not available:', e?.message);
+    console.warn('[GATEWAY] Rate limiting not available:', e?.message);
   }
 
   // Correlation ID middleware (before JSON parsing)
@@ -186,7 +201,7 @@ export async function configureMiddleware(app) {
     const { correlationId } = await import(pathToFileURL(correlationPath).href);
     app.use(correlationId);
   } catch (e) {
-    console.warn('[gateway] Correlation ID middleware not available:', e?.message);
+    console.warn('[GATEWAY] Correlation ID middleware not available:', e?.message);
   }
 
   // JSON body parsing for API and agent routes
@@ -198,7 +213,7 @@ export async function configureMiddleware(app) {
   app.use('/api', express.json({ limit: '1mb' }));
   app.use('/agent', express.json({ limit: '1mb' }));
 
-  console.log('[gateway] ✅ Middleware configured');
+  console.log('[GATEWAY] Middleware configured');
 }
 
 /**
@@ -207,14 +222,14 @@ export async function configureMiddleware(app) {
  */
 export async function configureErrorHandler(app) {
   try {
-    console.log('[gateway] Loading error middleware...');
+    console.log('[GATEWAY] Loading error middleware...');
     const errorPath = path.join(rootDir, 'server/middleware/error-handler.js');
     const { errorTo503 } = await import(pathToFileURL(errorPath).href);
     app.use(errorTo503);
-    console.log('[gateway] ✅ Error middleware configured');
+    console.log('[GATEWAY] Error middleware configured');
     return true;
   } catch (e) {
-    console.error('[gateway] ❌ Error middleware failed:', e?.message);
+    console.error('[GATEWAY] Error middleware failed:', e?.message);
     return false;
   }
 }

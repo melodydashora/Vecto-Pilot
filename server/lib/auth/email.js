@@ -32,7 +32,7 @@ export function isEmailConfigured() {
  */
 export async function sendPasswordResetEmail(email, resetToken, firstName = 'Driver') {
   if (!isEmailConfigured()) {
-    console.warn('[email] SendGrid not configured - skipping password reset email');
+    console.warn('[NOTIFY] [EMAIL] SendGrid not configured - skipping password reset email');
     return { sent: false, reason: 'not_configured' };
   }
 
@@ -93,10 +93,10 @@ If you didn't request this, you can safely ignore this email.
 
   try {
     await sgMail.send(msg);
-    console.log('[email] Password reset email sent to:', email);
+    console.log('[NOTIFY] [EMAIL] Password reset email sent to:', email);
     return { sent: true };
   } catch (error) {
-    console.error('[email] Failed to send password reset email:', error.message);
+    console.error('[NOTIFY] [EMAIL] Failed to send password reset email:', error.message);
     throw new Error('Failed to send password reset email');
   }
 }
@@ -109,7 +109,7 @@ If you didn't request this, you can safely ignore this email.
  */
 export async function sendEmailVerification(email, code, firstName = 'Driver') {
   if (!isEmailConfigured()) {
-    console.warn('[email] SendGrid not configured - skipping email verification');
+    console.warn('[NOTIFY] [EMAIL] SendGrid not configured - skipping email verification');
     return { sent: false, reason: 'not_configured' };
   }
 
@@ -167,10 +167,10 @@ If you didn't request this, you can safely ignore this email.
 
   try {
     await sgMail.send(msg);
-    console.log('[email] Verification email sent to:', email);
+    console.log('[NOTIFY] [EMAIL] Verification email sent to:', email);
     return { sent: true };
   } catch (error) {
-    console.error('[email] Failed to send verification email:', error.message);
+    console.error('[NOTIFY] [EMAIL] Failed to send verification email:', error.message);
     throw new Error('Failed to send verification email');
   }
 }
@@ -182,7 +182,7 @@ If you didn't request this, you can safely ignore this email.
  */
 export async function sendWelcomeEmail(email, firstName = 'Driver') {
   if (!isEmailConfigured()) {
-    console.warn('[email] SendGrid not configured - skipping welcome email');
+    console.warn('[NOTIFY] [EMAIL] SendGrid not configured - skipping welcome email');
     return { sent: false, reason: 'not_configured' };
   }
 
@@ -238,10 +238,10 @@ Get started: ${APP_URL}
 
   try {
     await sgMail.send(msg);
-    console.log('[email] Welcome email sent to:', email);
+    console.log('[NOTIFY] [EMAIL] Welcome email sent to:', email);
     return { sent: true };
   } catch (error) {
-    console.error('[email] Failed to send welcome email:', error.message);
+    console.error('[NOTIFY] [EMAIL] Failed to send welcome email:', error.message);
     // Don't throw - welcome email is not critical
     return { sent: false, reason: error.message };
   }

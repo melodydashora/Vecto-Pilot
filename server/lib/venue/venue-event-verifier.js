@@ -1,7 +1,12 @@
 // server/lib/venue-event-verifier.js
 // Verify venue events using AI after SmartBlocks enrichment
 // Updated 2026-01-05: Migrated from gemini-2.5-pro.js to callModel with VENUE_EVENT_VERIFIER role
+//
+// 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): per-event verification
+// lines demoted to debug. Set LOG_VERBOSE_COMPONENTS=VENUES to see them again.
 import { callModel } from '../ai/adapters/index.js';
+import { createWorkflowLogger } from '../../logger/workflow.js';
+const verifierLog = createWorkflowLogger('VENUES');
 
 /**
  * Verify a single venue event - confirm it's real and relevant
@@ -50,7 +55,7 @@ Respond with JSON: {
     }
 
     const parsed = JSON.parse(result.output);
-    console.log(`[event-verifier] Verified ${venueName}: ${parsed.verified} (confidence=${parsed.confidence}, impact=${parsed.impact})`);
+    verifierLog.debug(`Verified ${venueName}: ${parsed.verified} (confidence=${parsed.confidence}, impact=${parsed.impact})`);
     
     return {
       verified: parsed.verified === true,
@@ -59,7 +64,7 @@ Respond with JSON: {
       reasoning: parsed.reasoning
     };
   } catch (err) {
-    console.error('[event-verifier] Error:', err.message);
+    console.error('[VENUE] Error:', err.message);
     return { verified: false, confidence: 0, impact: 'low', reasoning: err.message };
   }
 }
@@ -76,11 +81,11 @@ export async function verifyVenueEventsBatch(blocks) {
   const blocksWithEvents = blocks.filter(b => b.eventBadge && b.eventSummary);
   
   if (blocksWithEvents.length === 0) {
-    console.log('[event-verifier] No events to verify');
+    verifierLog.debug('No events to verify');
     return results;
   }
 
-  console.log(`[event-verifier] Verifying ${blocksWithEvents.length} events in parallel...`);
+  verifierLog.debug(`Verifying ${blocksWithEvents.length} events in parallel...`);
   
   // Process in parallel chunks (max 3 concurrent)
   const chunks = [];
@@ -102,7 +107,7 @@ export async function verifyVenueEventsBatch(blocks) {
         );
         return { key, verification };
       } catch (err) {
-        console.warn(`[event-verifier] Failed for ${b.name}:`, err.message);
+        console.warn(`[VENUE] Failed for ${b.name}:`, err.message);
         return { key, verification: { verified: false, confidence: 0, impact: 'low', reasoning: err.message } };
       }
     });

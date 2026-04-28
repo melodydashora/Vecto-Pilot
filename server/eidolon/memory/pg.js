@@ -8,7 +8,7 @@ let pool = getSharedPool();
 
 if (!pool) {
   // Fallback: Only used if DATABASE_URL not set (development/testing edge case)
-  console.warn('[memory] Shared pool unavailable - creating fallback pool');
+  console.warn('[MEMORY] Shared pool unavailable - creating fallback pool');
   pool = new Pool({
     connectionString: dsn,
     max: 35, // Increased pool size to handle concurrent traffic spikes
