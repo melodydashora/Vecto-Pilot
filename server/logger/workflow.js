@@ -410,7 +410,10 @@ const WORKFLOWS = {
   LOCATION: { phases: 3, emoji: '📍' },
   USER: { phases: 2, emoji: '👤' },
   SNAPSHOT: { phases: 2, emoji: '📸' },
+  // 2026-04-28 (memory 233): TRIAD retired. STRATEGY is canonical.
+  // TRIAD entry retained for back-compat with any direct WORKFLOWS lookups.
   TRIAD: { phases: 4, emoji: '🎯' },
+  STRATEGY: { phases: 4, emoji: '🎯' },
   VENUES: { phases: 4, emoji: '🏢' },
   BARS: { phases: 2, emoji: '🍺' },
   BRIEFING: { phases: 3, emoji: '📰' },
@@ -450,10 +453,14 @@ const PHASE_LABELS = {
   'SNAPSHOT:1': 'Create Record',
   'SNAPSHOT:2': 'Enrich (Airport/Holiday)',
 
-  // STRATEGY phases (legacy "TRIAD:N" keys retained for back-compat — values
-  // are user-facing emit text and match the canonical role names per
-  // memory 224/229. SmartBlocks term retired 2026-04-28 per Melody —
-  // canonical name is VenueComponentCard.)
+  // STRATEGY phases. Both 'STRATEGY:N' (canonical, memory 233) and
+  // 'TRIAD:N' (legacy back-compat) keys retained — values match canonical
+  // role names per memory 224/229. VenueComponentCard replaced SmartBlocks
+  // 2026-04-28 per Melody.
+  'STRATEGY:1': 'Strategy|Strategist',
+  'STRATEGY:2': 'Strategy|Briefer',
+  'STRATEGY:3': 'Strategy|NOW',
+  'STRATEGY:4': 'Venue|VenueComponentCard',
   'TRIAD:1': 'Strategy|Strategist',
   'TRIAD:2': 'Strategy|Briefer',
   'TRIAD:3': 'Strategy|NOW',
@@ -701,7 +708,12 @@ export function createWorkflowLogger(component) {
 export const locationLog = createWorkflowLogger('LOCATION');
 export const userLog = createWorkflowLogger('USER');
 export const snapshotLog = createWorkflowLogger('SNAPSHOT');
-export const triadLog = createWorkflowLogger('TRIAD');
+// 2026-04-28 (memory 233): TRIAD retired in favor of STRATEGY. The triadLog
+// export is now a back-compat alias pointing at strategyLog so the 3 caller
+// files (consolidator.js, strategy-utils.js, blocks-fast.js) continue to
+// work without code changes. Visible emit bracket is now [STRATEGY].
+export const strategyLog = createWorkflowLogger('STRATEGY');
+export const triadLog = strategyLog;
 export const venuesLog = createWorkflowLogger('VENUES');
 export const barsLog = createWorkflowLogger('BARS');
 export const briefingLog = createWorkflowLogger('BRIEFING');
