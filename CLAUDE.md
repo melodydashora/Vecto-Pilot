@@ -95,20 +95,23 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 - **Applying the principle to new work:** before adding asynchronous event handling, ask — *would a user receive events that don't reflect their current snapshot?* If yes, that work belongs inside the per-snapshot path. If async work genuinely preserves snapshot fidelity (e.g., a webhook that updates an event in-place after a snapshot fired, or a scheduled refresh that re-keys to the latest snapshot), it can be considered on its merits. The constraint to honor is **snapshot fidelity**, not "no async, ever."
 - **Cross-references:** EVENTS.md, LOCATION.md, FRISCO_LOCK_DIAGNOSIS_2026-04-18.md, RECON_2026-04-17_HANDLES_LOCALITY.md, and BRIEFING-DATA-MODEL.md cite this rule by number — amendments stay under Rule 11 to preserve those links.
 
-### Rule 12: Session-Start Review Protocol (2026-02-25)
+### Rule 12: Session-Start Review Protocol (2026-02-25, expanded 2026-04-28)
 **At the start of EVERY session, review these documents before doing any work:**
 
 | Priority | Document | Why |
 |----------|----------|-----|
 | 1 | `claude_memory` table (Postgres) | Cross-session memory of prior work, decisions, and lessons — query before relying on git/docs alone (see Rule 15) |
-| 2 | `docs/review-queue/pending.md` | Unfinished doc updates from prior sessions |
-| 3 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
-| 4 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
-| 5 | `docs/coach-inbox.md` | Memos from the Rideshare Coach (Gemini) for Claude Code |
-| 6 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
-| 7 | `docs/architecture/full-audit-2026-04-04.md` | Latest comprehensive audit findings (37 issues) |
+| 2 | `.code_based_rules/` directory | Hard-rule layer: `.rules_do_not_change/` (immutable rules + annotated workflow logs, including `Up to Venue console wish.txt` with Melody's inline corrections), `engineering_specs/`, `startup_rules/`. **Read this directory before assuming any other rule source is exhaustive.** `app.MD` explicitly forbids substituting grep / agent / code-sweep searches for actual file reading. |
+| 3 | `docs/review-queue/pending.md` | Unfinished doc updates from prior sessions |
+| 4 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
+| 5 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
+| 6 | `docs/coach-inbox.md` | Memos from the Rideshare Coach (Gemini) for Claude Code |
+| 7 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
+| 8 | `docs/architecture/audits/` (whole directory) + `CODEBASE_AUDIT_2026-04-27.md` (most recent) | 14 audit files including `FRISCO_LOCK_DIAGNOSIS_2026-04-18.md`, `GEOGRAPHIC_ANCHOR_AUDIT_2026-04-18.md`, `NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` (cited by Rule 13 as authoritative on Neon SSL behavior), `NOTIFY_LOSS_RECON_2026-04-18.md`, `RECON_2026-04-17_HANDLES_LOCALITY.md`, `pass-c/d/e/f-*.md` series, `verification-2026-04-16-hallucination-fixes.md`, `HANDOFF_2026-04-24.md`, plus the older `full-audit-2026-04-04.md` (37 issues). Read the most recent first; others give deeper context for specific incidents and topics. |
 
 **This is your memory layer.** These documents persist across sessions and are your primary source of truth for the current state of the project. When you learn something important during a session, update the relevant document so future sessions benefit.
+
+**Audit headline (added 2026-04-28, per `CODEBASE_AUDIT_2026-04-27.md`):** Codebase is in good shape — doc drift around the daily-strategy removal is the dominant issue, not functional duplication; live paths are single-sourced. Per the audit's Section 6.3: duplications that exist are idiom duplication (e.g., the 7-route inline freshness filter in `briefing.js`) and intentional defense-in-depth (e.g., dedup at write + read time per `EVENTS.md` §3), not "two pipelines" patterns. AI registry has 26 roles, all live, zero orphans.
 
 **Contested-fact rule (added 2026-04-24):** When docs disagree on verifiable facts (DB provider, API routing, schema shape, model IDs, etc.), trust the newest timestamped audit document over older doctrine files. Specifically: if a file under `docs/architecture/audits/` has a timestamped finding that contradicts a claim in this CLAUDE.md or a standing `docs/` file, the audit wins until the doctrine file is updated. Update the doctrine file within the same session that consumed the audit; reference the audit in your commit message so future sessions follow the same precedence. This amendment was triggered by a 2026-04-18 Neon-vs-Helium drift where three doctrine files said "both Helium" while the `NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` audit correctly identified prod as Neon serverless.
 
