@@ -3,6 +3,14 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
+// 2026-04-28 (Phase A of log format merge plan): gate per-call adapter logs
+// behind LOG_LEVEL=debug. Adapter-level [AI] noise (model names, raw resp
+// shapes) leaks into the primary stream and duplicates caller-side emits.
+// Errors and warnings stay visible at all levels.
+function _aiDebug(...args) {
+  if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') console.log(...args);
+}
+
 let client;
 
 function getClient() {
@@ -18,7 +26,7 @@ function getClient() {
 export async function callAnthropic({ model, system, user, messages, maxTokens, temperature }) {
   try {
     const anthropic = getClient();
-    console.log(`[AI] calling ${model} with max_tokens=${maxTokens}`);
+    _aiDebug(`[AI] calling ${model} with max_tokens=${maxTokens}`);
 
     // Allow passing full messages array (for chat history) OR simple user string
     const finalMessages = messages || [{ role: "user", content: user }];
@@ -33,7 +41,7 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
 
     const output = res?.content?.[0]?.text?.trim() || "";
 
-    console.log("[AI] resp:", {
+    _aiDebug("[AI] resp:", {
       model,
       content: !!res?.content,
       len: output?.length ?? 0
@@ -56,7 +64,7 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
  */
 export async function callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature, jsonMode = true }) {
   try {
-    console.log(`[AI] calling ${model} with web_search tool, max_tokens=${maxTokens}, jsonMode=${jsonMode}`);
+    _aiDebug(`[AI] calling ${model} with web_search tool, max_tokens=${maxTokens}, jsonMode=${jsonMode}`);
 
     // Build messages - use assistant prefill to force JSON when jsonMode is enabled
     const messages = [{ role: "user", content: user }];
@@ -103,7 +111,7 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
       output = "[" + output;
     }
 
-    console.log("[AI] resp:", {
+    _aiDebug("[AI] resp:", {
       model,
       content: !!res?.content,
       len: output?.length ?? 0,

@@ -3,8 +3,15 @@
 // Updated 2026-01-05: Migrated to @google/genai SDK for Gemini 3 thinkingLevel support
 // Updated 2026-01-06: Added streaming support via callGeminiStream()
 // Updated 2026-02-15: F-002 fix — Enforce MODEL_QUIRKS thinkingLevel validation
+// Updated 2026-04-28 (Phase A of log format merge plan): per-call adapter
+//   diagnostics gated behind LOG_LEVEL=debug so model names and resp shapes do
+//   not leak into the primary stream. Errors/warnings stay visible at all levels.
 
 import { GoogleGenAI } from "@google/genai";
+
+function _aiDebug(...args) {
+  if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') console.log(...args);
+}
 
 /**
  * 2026-02-15: F-002 fix — Validate and normalize thinkingLevel for Gemini 3 models.
@@ -76,7 +83,7 @@ export async function callGemini({
       process.env.GOOGLE_API_KEY = conflictingKey;
     }
 
-    console.log(`[AI] calling ${model} with max_tokens=${maxTokens}`);
+    _aiDebug(`[AI] calling ${model} with max_tokens=${maxTokens}`);
 
     // Use lower temperature for JSON responses
     const expectsJson = user.toLowerCase().includes('json') ||
@@ -110,7 +117,7 @@ export async function callGemini({
       config.thinkingConfig = {
         thinkingLevel: validatedLevel.toLowerCase() // SDK expects lowercase
       };
-      console.log(`[AI] Thinking enabled: ${validatedLevel}`);
+      _aiDebug(`[AI] Thinking enabled: ${validatedLevel}`);
     }
 
     // Add Google Search if requested
@@ -145,7 +152,7 @@ export async function callGemini({
           }
         });
       }
-      console.log(`[AI] Attached ${images.length} image(s) for vision analysis`);
+      _aiDebug(`[AI] Attached ${images.length} image(s) for vision analysis`);
     }
 
     const contents = [{ role: "user", parts: userParts }];
@@ -173,7 +180,7 @@ export async function callGemini({
       const codeBlockMatch = output.match(/^\s*```(?:\w+)?\s*([\s\S]*?)\s*```\s*$/);
       if (codeBlockMatch) {
         output = codeBlockMatch[1].trim();
-        console.log(`[AI] Removed wrapping markdown code block (${rawLength} → ${output.length} chars)`);
+        _aiDebug(`[AI] Removed wrapping markdown code block (${rawLength} → ${output.length} chars)`);
       }
 
       // 2026-02-26: FIX - Removed isMarkdown check that skipped JSON extraction when
@@ -192,7 +199,7 @@ export async function callGemini({
           // Only strip if preamble is pure prose (no JSON-like characters)
           if (!preamble.includes('"') && !preamble.includes(':')) {
             extractTarget = output.substring(firstBrace);
-            console.log(`[AI] Stripped ${firstBrace} chars of preamble before JSON`);
+            _aiDebug(`[AI] Stripped ${firstBrace} chars of preamble before JSON`);
           }
         }
 
@@ -219,7 +226,7 @@ export async function callGemini({
             try {
               JSON.parse(extracted);
               output = extracted;
-              console.log(`[AI] Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
+              _aiDebug(`[AI] Extracted JSON (${rawLength} → ${output.length} chars, ${isArray ? 'array' : 'object'})`);
             } catch (e) {
               console.warn(`[AI] JSON extraction failed, keeping original output`);
             }
@@ -228,7 +235,7 @@ export async function callGemini({
       }
     }
 
-    console.log("[AI] resp:", {
+    _aiDebug("[AI] resp:", {
       model,
       response: !!result?.response,
       len: output?.length ?? 0
@@ -267,7 +274,7 @@ export async function callGeminiStream({
     throw new Error('GEMINI_API_KEY not configured');
   }
 
-  console.log(`[AI] Calling ${model} with ${messageHistory.length} messages, maxTokens=${maxTokens}`);
+  _aiDebug(`[AI] Calling ${model} with ${messageHistory.length} messages, maxTokens=${maxTokens}`);
 
   // Build the request body
   const generationConfig = {
@@ -284,7 +291,7 @@ export async function callGeminiStream({
     generationConfig.thinkingConfig = {
       thinkingLevel: validatedStreamLevel // Already uppercase from validator; REST API expects uppercase
     };
-    console.log(`[AI] Thinking enabled: ${validatedStreamLevel}`);
+    _aiDebug(`[AI] Thinking enabled: ${validatedStreamLevel}`);
   }
 
   const requestBody = {
@@ -345,7 +352,7 @@ export async function callGeminiStream({
       throw new Error(`Gemini API error ${response.status}: ${errText.substring(0, 100)}`);
     }
 
-    console.log(`[AI] Stream started for ${model}`);
+    _aiDebug(`[AI] Stream started for ${model}`);
     return response;
   } catch (err) {
     clearTimeout(timeoutId);

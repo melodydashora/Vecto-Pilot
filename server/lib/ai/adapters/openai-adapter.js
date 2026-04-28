@@ -3,9 +3,16 @@
 //
 // 2026-01-05: Added callOpenAIWithWebSearch for GPT-5.2 web search capability
 // Used by BRIEFING_NEWS_GPT role for parallel news fetching
+// 2026-04-28 (Phase A of log format merge plan): MOCK-client diagnostics gated
+//   behind LOG_LEVEL=debug. The aiLog.phase/done emits below remain at info for
+//   now — Phase B will address model-name leakage in those callsites.
 
 import OpenAI from "openai";
 import { aiLog, OP } from "../../../logger/workflow.js";
+
+function _aiDebug(...args) {
+  if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') console.log(...args);
+}
 
 let client;
 
@@ -17,12 +24,12 @@ function getClient() {
     
     // MOCK FOR DEVELOPMENT/TESTING
     if (process.env.OPENAI_API_KEY.startsWith('sk-dummy')) {
-        console.log('[AI] Using MOCK client for dummy key');
+        _aiDebug('[AI] Using MOCK client for dummy key');
         return {
             chat: {
                 completions: {
                     create: async (body) => {
-                        console.log('[AI] Received request:', JSON.stringify(body, null, 2));
+                        _aiDebug('[AI] Received request:', JSON.stringify(body, null, 2));
                         return {
                             choices: [{
                                 message: {

@@ -10,8 +10,15 @@
 //   GOOGLE_CLOUD_LOCATION - Region (default: us-central1)
 //   GOOGLE_APPLICATION_CREDENTIALS - Path to service account JSON (optional, uses ADC if not set)
 //   VERTEX_AI_ENABLED - Set to 'true' to enable Vertex AI adapter
+// 2026-04-28 (Phase A of log format merge plan): per-call adapter diagnostics
+//   gated behind LOG_LEVEL=debug. Model names and raw response shapes do not
+//   leak into the primary stream. Errors/warnings stay visible at all levels.
 
 import { VertexAI } from "@google-cloud/vertexai";
+
+function _aiDebug(...args) {
+  if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') console.log(...args);
+}
 
 // Lazy-initialized client
 let vertexClient = null;
@@ -30,7 +37,7 @@ function getVertexClient() {
     throw new Error("GOOGLE_CLOUD_PROJECT environment variable is required for Vertex AI");
   }
 
-  console.log(`[AI] Initializing Vertex AI client for project=${project}, location=${location}`);
+  _aiDebug(`[AI] Initializing Vertex AI client for project=${project}, location=${location}`);
 
   vertexClient = new VertexAI({
     project,
@@ -97,7 +104,7 @@ export async function callVertexAI({
       ],
     });
 
-    console.log(`[AI] Calling ${model} with maxTokens=${maxTokens}, temp=${temperature}`);
+    _aiDebug(`[AI] Calling ${model} with maxTokens=${maxTokens}, temp=${temperature}`);
 
     // Build request with optional tools
     const request = {
@@ -112,7 +119,7 @@ export async function callVertexAI({
     // Add Google Search grounding if requested
     if (useSearch) {
       request.tools = [{ googleSearchRetrieval: {} }];
-      console.log("[AI] Google Search grounding enabled");
+      _aiDebug("[AI] Google Search grounding enabled");
     }
 
     // Generate content
@@ -134,7 +141,7 @@ export async function callVertexAI({
       const codeBlockMatch = output.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (codeBlockMatch) {
         output = codeBlockMatch[1].trim();
-        console.log(`[AI] Removed markdown code block (${rawLength} → ${output.length} chars)`);
+        _aiDebug(`[AI] Removed markdown code block (${rawLength} → ${output.length} chars)`);
       }
 
       // Extract JSON if requested
@@ -144,7 +151,7 @@ export async function callVertexAI({
           try {
             JSON.parse(jsonMatch[0]);
             output = jsonMatch[0];
-            console.log(`[AI] Extracted JSON (${rawLength} → ${output.length} chars)`);
+            _aiDebug(`[AI] Extracted JSON (${rawLength} → ${output.length} chars)`);
           } catch {
             // Keep original if JSON parsing fails
           }
@@ -152,7 +159,7 @@ export async function callVertexAI({
       }
     }
 
-    console.log("[AI] Response:", {
+    _aiDebug("[AI] Response:", {
       model,
       outputLength: output?.length || 0,
       hasGrounding: useSearch,
@@ -207,7 +214,7 @@ export async function* callVertexAIStream({
     }),
   });
 
-  console.log(`[AI] Streaming ${model} with ${messageHistory.length} messages`);
+  _aiDebug(`[AI] Streaming ${model} with ${messageHistory.length} messages`);
 
   const request = {
     contents: messageHistory,
