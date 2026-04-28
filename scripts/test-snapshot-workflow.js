@@ -26,8 +26,11 @@ const OUTPUT_FILE = path.resolve(
 let lines = [];
 
 function out(line = '') {
+  // 2026-04-28 (Melody): observer is a file-only debug artifact (snapshot.txt
+  // for in-repo row-output review). The per-line console emit polluted the
+  // primary workflow stream — removed. Errors below still emit to console
+  // because connect/fatal failures are real diagnostic signal.
   lines.push(line);
-  console.log(`[SNAPSHOT] [OBSERVER] ${line}`);
 }
 
 function writeFile() {
