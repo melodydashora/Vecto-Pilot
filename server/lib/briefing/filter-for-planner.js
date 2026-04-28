@@ -216,7 +216,7 @@ export function filterBriefingForPlanner(briefing, snapshot, todayEvents = null)
   if (Array.isArray(todayEvents)) {
     filteredEvents = todayEvents;
     if (filteredEvents.length > 0) {
-      briefingLog.phase(2, `[Filter] Events: ${filteredEvents.length} (state-scoped, pre-fetched)`);
+      briefingLog.phase(2, `[EVENTS] [FILTER] State-scoped: ${filteredEvents.length} pre-fetched`);
     }
   } else {
     // Legacy path — kept for backward compatibility. See filterEventsForPlanner for the
@@ -230,7 +230,7 @@ export function filterBriefingForPlanner(briefing, snapshot, todayEvents = null)
     if (totalEvents > 0) {
       const largeEvents = filteredEvents.filter(e => isLargeEvent(e)).length;
       const localEvents = keptEvents - largeEvents;
-      briefingLog.phase(2, `[Filter] Events (legacy): ${totalEvents} → ${keptEvents} (${largeEvents} large, ${localEvents} local for ${userCity})`);
+      briefingLog.phase(2, `[EVENTS] [FILTER] Legacy: ${totalEvents} → ${keptEvents} events (${largeEvents} large, ${localEvents} local for ${userCity})`);
     }
   }
 

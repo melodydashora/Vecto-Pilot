@@ -858,7 +858,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     endDateObj.setDate(endDateObj.getDate() + 7);
     const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: userTimezone });
 
-    console.log(`[BRIEFING] GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
+    console.log(`[BRIEFING] [API] [EVENTS] GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
 
     // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
     const events = await db.select({
@@ -915,9 +915,6 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     // Matches the logic in briefing-service.js fetchEventsForBriefing
     const beforeDedup = allEvents.length;
     allEvents = deduplicateEvents(allEvents);
-    if (beforeDedup > allEvents.length) {
-      console.log(`[BRIEFING] Dedup: ${beforeDedup} → ${allEvents.length} events (removed ${beforeDedup - allEvents.length} duplicates)`);
-    }
 
     // 2026-04-11: Title-similarity dedup safety net — catches "Jon Wolfe Concert" vs "Jon Wolfe"
     // and wrong-stadium assignments that survived hash-based dedup.
@@ -926,7 +923,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     const { deduplicated: semanticDeduped } = deduplicateEventsSemantic(allEvents);
     allEvents = semanticDeduped;
     if (beforeSemantic > allEvents.length) {
-      console.log(`[BRIEFING] Semantic dedup: ${beforeSemantic} → ${allEvents.length} events (removed ${beforeSemantic - allEvents.length} title-variant duplicates)`);
+      console.log(`[BRIEFING] [EVENTS] [DEDUP] Semantic dedup: ${beforeSemantic} → ${allEvents.length} events (removed ${beforeSemantic - allEvents.length} title-variant duplicates)`);
     }
 
     // CRITICAL: Filter stale events and events without date info (2026-01-05)
@@ -941,9 +938,6 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     const snapshotTz = snapshot.timezone;
     const beforeFreshFilter = allEvents.length;
     allEvents = filterFreshEvents(allEvents, new Date(), snapshotTz);
-    if (beforeFreshFilter > allEvents.length) {
-      console.log(`[BRIEFING] Freshness filter: ${beforeFreshFilter} → ${allEvents.length} events (removed ${beforeFreshFilter - allEvents.length} stale/invalid)`);
-    }
 
     // Apply "active" filter: show only events happening RIGHT NOW (during their duration)
     // Used by MapPage for real-time event display
@@ -952,7 +946,7 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       const now = new Date();
       const beforeCount = allEvents.length;
       allEvents = allEvents.filter(e => isEventActiveNow(e, now, snapshotTz));
-      console.log(`[BRIEFING] Events filter=active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTz}`);
+      console.log(`[BRIEFING] [EVENTS] [FILTER] Active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTz}`);
     }
 
     // 2026-01-08: Fetch high-value events from the user's market (beyond local city)

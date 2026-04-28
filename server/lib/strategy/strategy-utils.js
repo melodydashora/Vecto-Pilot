@@ -696,7 +696,7 @@ export function filterFreshEvents(events, now = new Date(), timezone = null) {
 
   // Log filtering stats if we removed events
   if (staleCount > 0 || noDateCount > 0) {
-    console.log(`[filterFreshEvents] Filtered: ${staleCount} stale, ${noDateCount} missing dates (kept ${freshEvents.length}/${events.length}) tz=${timezone || 'local'}`);
+    console.log(`[BRIEFING] [EVENTS] [FRESHNESS] [filterFreshEvents] Filtered: ${staleCount} stale, ${noDateCount} missing dates (kept ${freshEvents.length}/${events.length}) tz=${timezone || 'local'}`);
   }
 
   return freshEvents;

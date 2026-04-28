@@ -263,16 +263,17 @@ export function deduplicateEvents(events) {
       });
       deduplicated.push(group[0]);
 
-      // Log deduplication for debugging
-      if (group.length > 1) {
-        briefingLog.info(`[Dedup] Merged ${group.length} variants of "${group[0].title?.slice(0, 40)}..."`);
+      // 2026-04-28: per-variant dedup debug — demoted to debug since the
+      // summary at line 275 reports the count (memory 236 — duplicate emits).
+      if (group.length > 1 && String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+        briefingLog.info(`[EVENTS] [DEDUP] Merged ${group.length} variants of "${group[0].title?.slice(0, 40)}..."`);
       }
     }
   }
 
   const removed = events.length - deduplicated.length;
   if (removed > 0) {
-    briefingLog.done(2, `Events deduped: ${events.length} → ${deduplicated.length} (${removed} duplicates removed)`, OP.DB);
+    briefingLog.done(2, `[EVENTS] [DEDUP] Hash dedup: ${events.length} → ${deduplicated.length} (${removed} duplicates removed)`, OP.DB);
   }
 
   return deduplicated;
@@ -1143,9 +1144,14 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     deduplicateEventsSemantic(rawEvents);
 
   if (semanticRemoved.length > 0) {
-    briefingLog.done(2, `[DEDUP] Semantic dedup: ${rawEvents.length} → ${allEvents.length} (${semanticRemoved.length} title-variant duplicates removed)`, OP.AI);
-    for (const logLine of mergeLog) {
-      briefingLog.info(logLine);
+    briefingLog.done(2, `[EVENTS] [DEDUP] Semantic dedup: ${rawEvents.length} → ${allEvents.length} (${semanticRemoved.length} title-variant duplicates removed)`, OP.AI);
+    // 2026-04-28: per-merge mergeLog demoted — deduplicateEventsSemantic
+    // already emits each [BRIEFING] [EVENTS] [DEDUP] line directly to console
+    // (memory 236 — same line was firing twice).
+    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
+      for (const logLine of mergeLog) {
+        briefingLog.info(logLine);
+      }
     }
   }
 
