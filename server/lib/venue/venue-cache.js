@@ -14,6 +14,9 @@ import {
   generateCoordKey,
   mergeVenueTypes
 } from './venue-utils.js';
+// 2026-04-28: normalizeCoord enforces 6-decimal precision at the storage gate
+// (matches coord_key normalization; prevents lat/lng drift from cache key).
+import { normalizeCoord } from '../location/coords-key.js';
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 // 2026-02-17: Shared timezone resolution — set timezone + market_slug on venue creation
 import { resolveTimezoneFromMarket } from '../location/resolveTimezone.js';
@@ -232,8 +235,9 @@ export async function insertVenue(venue) {
     zip: venue.zip,
     // 2026-01-10: D-004 Fix - Use ISO-3166-1 alpha-2 code
     country: venue.country || 'US',
-    lat: venue.lat,
-    lng: venue.lng,
+    // 2026-04-28: Normalize at storage gate so lat/lng numeric columns match coord_key precision.
+    lat: normalizeCoord(venue.lat),
+    lng: normalizeCoord(venue.lng),
     coord_key: coordKey,
     formatted_address: venue.formattedAddress,
     place_id: venue.placeId,
@@ -379,8 +383,9 @@ export async function upsertVenue(venue, options = {}) {
     const [updated] = await db
       .update(venue_catalog)
       .set({
-        lat: venue.lat,
-        lng: venue.lng,
+        // 2026-04-28: Normalize at storage gate so lat/lng numeric columns match coord_key precision.
+        lat: normalizeCoord(venue.lat),
+        lng: normalizeCoord(venue.lng),
         coord_key: coordKey || existing.coord_key,
         address: venue.address || existing.address,
         formatted_address: venue.formattedAddress || existing.formatted_address,
@@ -707,8 +712,9 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
 
     // Good address — update venue_catalog
     // 2026-04-11: Round coords to 6 decimal places (~11cm precision) to match coord_key
-    const fixedLat = placeResult.lat ? parseFloat(Number(placeResult.lat).toFixed(6)) : venue.lat;
-    const fixedLng = placeResult.lng ? parseFloat(Number(placeResult.lng).toFixed(6)) : venue.lng;
+    // 2026-04-28: Use canonical normalizeCoord helper instead of inline parseFloat(Number(x).toFixed(6))
+    const fixedLat = normalizeCoord(placeResult.lat) ?? normalizeCoord(venue.lat);
+    const fixedLng = normalizeCoord(placeResult.lng) ?? normalizeCoord(venue.lng);
 
     const [updated] = await db.update(venue_catalog)
       .set({

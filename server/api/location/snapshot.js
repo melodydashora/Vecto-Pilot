@@ -10,7 +10,9 @@ import { uuidOrNull } from "../../util/uuid.js";
 import { generateAndStoreBriefing } from "../../lib/briefing/briefing-service.js";
 import { httpError } from "../utils/http-helpers.js";
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
-import { makeCoordsKey } from "../../lib/location/coords-key.js";
+// 2026-04-28: normalizeCoord enforces 6-decimal precision at storage gate
+// (matches coord_key normalization; prevents lat/lng drift from cache key).
+import { makeCoordsKey, normalizeCoord } from "../../lib/location/coords-key.js";
 // 2026-03-17: Moved import to top — now used by both POST and GET routes
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -43,8 +45,13 @@ router.post("/", requireAuth, async (req, res) => {
 
     // Direct extraction from request body
     const snapshot_id = snap.snapshot_id || uuid();
-    const lat = snap.coord?.lat;
-    const lng = snap.coord?.lng;
+    // 2026-04-28: Normalize lat/lng to 6 decimals at the storage gate so the
+    // numeric columns match coord_key precision. Browser GPS returns ~13-14
+    // decimals; without this, the snapshots.lat / .lng columns drift away from
+    // the matching coord_key and queries that filter on lat/lng miss rows that
+    // join correctly via coord_key.
+    const lat = normalizeCoord(snap.coord?.lat);
+    const lng = normalizeCoord(snap.coord?.lng);
 
     // ═══════════════════════════════════════════════════════════════════════════
     // LOCATION RESOLUTION: Get resolved address from coords_cache

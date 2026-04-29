@@ -69,6 +69,32 @@ export function isValidCoordKey(key) {
          lng >= -180 && lng <= 180;
 }
 
+/**
+ * Normalize a coordinate value to 6 decimal precision (~11cm accuracy).
+ *
+ * Use this at every storage gate that writes lat/lng to a `doublePrecision`
+ * column (snapshots.lat/lng, venue_catalog.lat/lng, coords_cache.lat/lng).
+ * Without it, the numeric columns drift away from the matching `coord_key`
+ * cache key — `coord_key` rounds to 6 decimals, raw inserts don't, and a
+ * query like `WHERE lat = 33.127913` misses a snapshot stored as `33.1279135`
+ * even though their coord_keys match.
+ *
+ * Returns null for null/undefined/NaN; otherwise a Number rounded to 6 decimals.
+ *
+ * @param {number|string|null} value - Coordinate value
+ * @returns {number|null}
+ *
+ * @example
+ * normalizeCoord(33.1279135)  // 33.127914
+ * normalizeCoord(-96.8762)    // -96.8762  (stored as -96.876200 in 6-decimal coord_key)
+ * normalizeCoord("33.08")     // 33.08
+ * normalizeCoord(null)        // null
+ */
+export function normalizeCoord(value) {
+  if (value == null || isNaN(Number(value))) return null;
+  return Number(Number(value).toFixed(6));
+}
+
 // Legacy aliases for backward compatibility
 // These will be deprecated in future versions
 export const makeCoordsKey = coordsKey;
@@ -79,6 +105,7 @@ export default {
   coordsKey,
   parseCoordKey,
   isValidCoordKey,
+  normalizeCoord,
   // Legacy aliases
   makeCoordsKey,
   getCoordsKey,
