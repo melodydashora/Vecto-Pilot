@@ -4,6 +4,9 @@
 
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-04-27 (Commit 4 of CLEAR_CONSOLE_WORKFLOW spec): gate SSE Manager
+// connection-churn logs and BlockFilter decision logs behind debug flags.
+import { DEBUG_SSE_ENABLED, DEBUG_BLOCKS_ENABLED } from '@/constants/featureFlags';
 
 // ============================================================================
 // Singleton SSE Connection Manager
@@ -45,7 +48,7 @@ function subscribeSSE(
 
   if (!subscription) {
     // Create new connection - first subscriber for this endpoint
-    console.log(`[SSE Manager] 🔌 Creating singleton connection: ${endpoint} (${eventName})`);
+    if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 🔌 Creating singleton connection: ${endpoint} (${eventName})`);
 
     const eventSource = new EventSource(endpoint);
     subscription = {
@@ -55,14 +58,14 @@ function subscribeSSE(
     };
 
     eventSource.onopen = () => {
-      console.log(`[SSE Manager] ✅ Connected: ${endpoint}`);
+      if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] ✅ Connected: ${endpoint}`);
       subscription!.isConnected = true;
     };
 
     eventSource.addEventListener(eventName, (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log(`[SSE Manager] 📢 Event received: ${eventName}`, data.snapshot_id?.slice(0, 8) || 'no-id');
+        if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 📢 Event received: ${eventName}`, data.snapshot_id?.slice(0, 8) || 'no-id');
         // Broadcast to all subscribers
         subscription!.subscribers.forEach(sub => sub(data));
       } catch (e) {
@@ -82,7 +85,7 @@ function subscribeSSE(
     eventSource.addEventListener('state', (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log(`[SSE Manager] 🤝 Initial-state handshake: ${endpoint}`, data.snapshot_id?.slice(0, 8) || 'no-id');
+        if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 🤝 Initial-state handshake: ${endpoint}`, data.snapshot_id?.slice(0, 8) || 'no-id');
         subscription!.subscribers.forEach(sub => sub(data));
       } catch (e) {
         console.warn(`[SSE Manager] Failed to parse state event:`, e);
@@ -104,23 +107,23 @@ function subscribeSSE(
 
     sseConnections.set(key, subscription);
   } else {
-    console.log(`[SSE Manager] ♻️ Reusing existing connection: ${endpoint} (${subscription.subscribers.size} existing subscribers)`);
+    if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] ♻️ Reusing existing connection: ${endpoint} (${subscription.subscribers.size} existing subscribers)`);
   }
 
   // Add this callback to subscribers
   subscription.subscribers.add(callback);
-  console.log(`[SSE Manager] 👥 Subscribers for ${key}: ${subscription.subscribers.size}`);
+  if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 👥 Subscribers for ${key}: ${subscription.subscribers.size}`);
 
   // Return unsubscribe function
   return () => {
     const sub = sseConnections.get(key);
     if (sub) {
       sub.subscribers.delete(callback);
-      console.log(`[SSE Manager] 👤 Unsubscribed from ${key}, ${sub.subscribers.size} remaining`);
+      if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 👤 Unsubscribed from ${key}, ${sub.subscribers.size} remaining`);
 
       // Close connection when last subscriber leaves
       if (sub.subscribers.size === 0) {
-        console.log(`[SSE Manager] 🔌 Closing connection: ${endpoint} (no subscribers left)`);
+        if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 🔌 Closing connection: ${endpoint} (no subscribers left)`);
         sub.eventSource.close();
         sseConnections.delete(key);
       }
@@ -138,11 +141,11 @@ function subscribeSSE(
  * from receiving events after auth is invalidated (Window 2 race condition fix).
  */
 export function closeAllSSE(): void {
-  console.log(`[SSE Manager] 🔌 Closing ALL connections (${sseConnections.size} active)`);
+  if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 🔌 Closing ALL connections (${sseConnections.size} active)`);
   for (const [key, sub] of sseConnections) {
     sub.eventSource.close();
     sub.subscribers.clear();
-    console.log(`[SSE Manager] 🔌 Closed: ${key}`);
+    if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 🔌 Closed: ${key}`);
   }
   sseConnections.clear();
 }
@@ -802,10 +805,10 @@ export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
   });
 
   const allHighValue = [...gradeABlocks, ...gradeBBlocks];
-  console.log(`[BlockFilter] Available: ${gradeABlocks.length} Grade A, ${gradeBBlocks.length} Grade B (of ${blocks.length} total)`);
+  if (DEBUG_BLOCKS_ENABLED) console.log(`[BlockFilter] Available: ${gradeABlocks.length} Grade A, ${gradeBBlocks.length} Grade B (of ${blocks.length} total)`);
 
   if (allHighValue.length === 0) {
-    console.log(`[BlockFilter] No high-value venues found`);
+    if (DEBUG_BLOCKS_ENABLED) console.log(`[BlockFilter] No high-value venues found`);
     return [];
   }
 
@@ -823,13 +826,13 @@ export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
       result.push(block);
       used.add(key);
       const grade = block.valueGrade?.toUpperCase();
-      console.log(`[BlockFilter] ✅ Kept "${block.name}" (Grade ${grade}, spaced, ${result.length}/${maxVenues})`);
+      if (DEBUG_BLOCKS_ENABLED) console.log(`[BlockFilter] ✅ Kept "${block.name}" (Grade ${grade}, spaced, ${result.length}/${maxVenues})`);
     }
   }
 
   // Step 3: Second pass - fill remaining slots with any high-value venues (ignore spacing)
   if (result.length < maxVenues) {
-    console.log(`[BlockFilter] Only ${result.length} spaced venues, filling with remaining high-value...`);
+    if (DEBUG_BLOCKS_ENABLED) console.log(`[BlockFilter] Only ${result.length} spaced venues, filling with remaining high-value...`);
 
     for (const block of allHighValue) {
       if (result.length >= maxVenues) break;
@@ -840,13 +843,13 @@ export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
       result.push(block);
       used.add(key);
       const grade = block.valueGrade?.toUpperCase();
-      console.log(`[BlockFilter] ✅ Kept "${block.name}" (Grade ${grade}, close but high-value, ${result.length}/${maxVenues})`);
+      if (DEBUG_BLOCKS_ENABLED) console.log(`[BlockFilter] ✅ Kept "${block.name}" (Grade ${grade}, close but high-value, ${result.length}/${maxVenues})`);
     }
   }
 
   const gradeACnt = result.filter(b => b.valueGrade?.toUpperCase() === 'A').length;
   const gradeBCnt = result.filter(b => b.valueGrade?.toUpperCase() === 'B').length;
-  console.log(`[BlockFilter] Final: ${result.length} venues (${gradeACnt} Grade A, ${gradeBCnt} Grade B)`);
+  if (DEBUG_BLOCKS_ENABLED) console.log(`[BlockFilter] Final: ${result.length} venues (${gradeACnt} Grade A, ${gradeBCnt} Grade B)`);
 
   return result;
 }

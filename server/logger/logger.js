@@ -31,27 +31,27 @@ export function createLogger(module) {
     
     warn: (message, data = {}) => {
       const correlationId = getCorrelationId();
-      console.warn(`[${module}:${correlationId}] ⚠️  ${message}`, data && Object.keys(data).length > 0 ? data : '');
+      console.warn(`[${module}:${correlationId}]  ${message}`, data && Object.keys(data).length > 0 ? data : '');
     },
     
     error: (message, err = null, data = {}) => {
       const correlationId = getCorrelationId();
       const errorMsg = err?.message || (typeof err === 'string' ? err : '');
-      console.error(`[${module}:${correlationId}] ❌ ${message}`, errorMsg, data && Object.keys(data).length > 0 ? data : '');
+      console.error(`[${module}:${correlationId}] ${message}`, errorMsg, data && Object.keys(data).length > 0 ? data : '');
       if (err?.stack) console.error(`   Stack: ${err.stack.split('\n').slice(0, 3).join('\n   ')}`);
     },
     
     debug: (message, data = {}) => {
       if (process.env.DEBUG === 'true') {
         const correlationId = getCorrelationId();
-        console.debug(`[${module}:${correlationId}] 🔍 ${message}`, data && Object.keys(data).length > 0 ? data : '');
+        console.debug(`[${module}:${correlationId}] ${message}`, data && Object.keys(data).length > 0 ? data : '');
       }
     },
     
     // For SSE and streaming responses
     stream: (message, data = {}) => {
       const correlationId = getCorrelationId();
-      console.log(`[${module}:${correlationId}] 📡 ${message}`, data && Object.keys(data).length > 0 ? data : '');
+      console.log(`[${module}:${correlationId}] ${message}`, data && Object.keys(data).length > 0 ? data : '');
     }
   };
 }

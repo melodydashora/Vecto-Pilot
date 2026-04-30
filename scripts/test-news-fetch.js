@@ -21,7 +21,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\n🔍 Testing dual-model news fetch for ${city}, ${state}\n`);
+  console.log(`\nTesting dual-model news fetch for ${city}, ${state}\n`);
   console.log('═'.repeat(60));
 
   // Create a mock snapshot with the test location
@@ -39,7 +39,7 @@ async function main() {
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
-    console.log('\n📰 NEWS FETCH RESULT');
+    console.log('\nNEWS FETCH RESULT');
     console.log('═'.repeat(60));
     console.log(`Provider(s): ${result.provider}`);
     console.log(`Items: ${result.items?.length || 0}`);
@@ -59,23 +59,23 @@ async function main() {
         console.log(`   📅 Date: ${item.published_date || 'N/A'}`);
         console.log(`   🏷️  Category: ${item.category || 'N/A'}`);
         console.log(`   ⚡ Impact: ${item.impact || 'N/A'}`);
-        console.log(`   📰 Source: ${item.source || 'N/A'}`);
+        console.log(`   Source: ${item.source || 'N/A'}`);
         console.log(`   📝 ${item.summary?.substring(0, 100)}${item.summary?.length > 100 ? '...' : ''}`);
         if (item._provider) {
-          console.log(`   🤖 Provider: ${item._provider}`);
+          console.log(`   Provider: ${item._provider}`);
         }
       }
     }
 
     console.log('\n' + '═'.repeat(60));
-    console.log('✅ Test complete\n');
+    console.log('Test complete\n');
 
     // Output raw JSON for debugging
     console.log('\n📄 RAW JSON OUTPUT:');
     console.log(JSON.stringify(result, null, 2));
 
   } catch (err) {
-    console.error('\n❌ Error:', err.message);
+    console.error('\nError:', err.message);
     console.error(err.stack);
     process.exit(1);
   }

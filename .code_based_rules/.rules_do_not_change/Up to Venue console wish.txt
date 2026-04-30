@@ -1,0 +1,555 @@
+[BOOT] file-tee installed (rotation at 10485760 bytes)
+[CONFIG] [ENV] Reconstructing GCP service account credentials from individual env vars...
+[CONFIG] [ENV] GCP credentials written to /tmp/gcp-credentials.json
+[CONFIG] [ENV] ========================================
+[CONFIG] [ENV] Environment Loader
+[CONFIG] [ENV] ========================================
+[CONFIG] [ENV] Loaded: .env.local
+[CONFIG] [ENV] [VALIDATION] AI Model Configuration
+[CONFIG] [ENV] [VALIDATION] Environment validation passed
+[GATEWAY] [BOOTSTRAP] Starting bootstrap (PID: 39973)
+[GATEWAY] Mode: MONO, Port: 5000
+[GATEWAY] Deployment: false, Autoscale: false
+[GATEWAY] [BOT BLOCKER] Bot blocker enabled (full protection)
+[GATEWAY] Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)
+[GATEWAY] Middleware configured
+[GATEWAY] [HEALTH] Health endpoints configured (/health, /ready, /healthz)
+2026-04-27T22:06:17.080Z INFO  [GATEWAY] [HEALTH] Health API router mounted at /api/health
+2026-04-27T22:06:17.081Z INFO  [GATEWAY] Loading modules and mounting routes...
+2026-04-27T22:06:17.081Z INFO  [GATEWAY] [SSE] [STRATEGY] Loading SSE strategy events...
+2026-04-27T22:06:17.084Z INFO  [GATEWAY] [SSE] [EVENTS] strategy events endpoint mounted <
+2026-04-27T22:06:17.084Z INFO  [GATEWAY] [DIAGNOSTICS] Loading Diagnostics...
+2026-04-27T22:06:17.086Z INFO  [GATEWAY] [DIAGNOSTICS] Diagnostics mounted at /api/diagnostics
+2026-04-27T22:06:17.086Z INFO  [GATEWAY] [DIAGNOSTICS] Loading Diagnostic Identity...
+2026-04-27T22:06:17.087Z INFO  [GATEWAY] [DIAGNOSTICS] Diagnostic Identity mounted at /api/diagnostic
+2026-04-27T22:06:17.087Z INFO  [GATEWAY] [HEALTH] Loading Health Check...
+2026-04-27T22:06:17.087Z INFO  [GATEWAY] [HEALTH] Health Check mounted at /api/health
+2026-04-27T22:06:17.087Z INFO  [GATEWAY] [HEALTH] Loading ML Health...
+2026-04-27T22:06:17.089Z INFO  [GATEWAY] [HEALTH] ML Health mounted at /api/ml-health
+2026-04-27T22:06:17.089Z INFO  [GATEWAY] [METRICS] Loading Job Metrics...
+2026-04-27T22:06:17.090Z INFO  [GATEWAY] [METRICS] Job Metrics mounted at /api/job-metrics
+2026-04-27T22:06:17.090Z INFO  [GATEWAY] [METRICS] Loading Mobile Log Viewer...
+2026-04-27T22:06:17.092Z INFO  [GATEWAY] [LOGS] Mobile Log Viewer mounted at /api/logs
+2026-04-27T22:06:17.092Z INFO  [GATEWAY] [RIDESHARE COACH] Loading AI Coach...
+2026-04-27T22:06:17.168Z INFO  [GATEWAY] [RIDESHARE COACH] AI Coach mounted at /api/chat
+2026-04-27T22:06:17.168Z INFO  [GATEWAY] [RIDESHARE COACH] Loading TTS endpoint...
+2026-04-27T22:06:17.208Z INFO  [GATEWAY] [RIDESHARE COACH] TTS endpoint mounted at /api/tts
+2026-04-27T22:06:17.208Z INFO  [GATEWAY] [RIDESHARE COACH] Loading OpenAI Realtime voice... 
+2026-04-27T22:06:17.209Z INFO  [GATEWAY] [RIDESHARE COACH] OpenAI Realtime voice mounted at /api/realtime
+2026-04-27T22:06:17.209Z INFO  [GATEWAY] [RIDESHARE COACH] Loading Rideshare Coach API (schema, validate, notes)...
+2026-04-27T22:06:17.216Z INFO  [GATEWAY] [RIDESHARE COACH] Rideshare Coach API (schema, validate, notes) mounted at /api/coach
+2026-04-27T22:06:17.216Z INFO  [GATEWAY] [VENUE] [INTELLIGENCE] Loading Venue Intelligence...
+2026-04-27T22:06:17.329Z INFO  [GATEWAY] [VENUE] [INTELLIGENCE] Venue Intelligence mounted at /api/venues
+2026-04-27T22:06:17.329Z INFO  [GATEWAY] [BRIEFING] Loading Briefing...
+2026-04-27T22:06:17.396Z INFO  [GATEWAY] [BRIEFING] Briefing mounted at /api/briefing
+2026-04-27T22:06:17.396Z INFO  [GATEWAY] [AUTH] Loading Auth...
+2026-04-27T22:06:17.472Z INFO  [GATEWAY] [AUTH] Auth mounted at /api/auth /////////Can we move this up in mounting order
+2026-04-27T22:06:17.472Z INFO  [GATEWAY] [AUTH] Loading Uber OAuth... ////////Can we remove UberOAuth from entire codebase
+2026-04-27T22:06:17.473Z INFO  [GATEWAY] [AUTH] Uber OAuth mounted at /api/auth/uber ////////Can we remove UberOAuth from entire codebase
+2026-04-27T22:06:17.473Z INFO  [GATEWAY] [LOCATION] Loading Location...
+2026-04-27T22:06:17.538Z INFO  [GATEWAY] [LOCATION] Location mounted at /api/location
+2026-04-27T22:06:17.540Z INFO  [GATEWAY] [SNAPSHOT] Loading Snapshot...
+2026-04-27T22:06:17.546Z INFO  [GATEWAY] [SNAPSHOT] Snapshot mounted at /api/snapshot
+2026-04-27T22:06:17.547Z INFO  [GATEWAY] [BLOCKS] Loading Blocks Fast...
+2026-04-27T22:06:17.556Z INFO  [GATEWAY] [BLOCKS] Blocks Fast mounted at /api/blocks-fast
+2026-04-27T22:06:17.557Z INFO  [GATEWAY] [BLOCKS] Loading Content Blocks...
+2026-04-27T22:06:17.558Z INFO  [GATEWAY] [BLOCKS] Content Blocks mounted at /api/blocks
+2026-04-27T22:06:17.558Z INFO  [GATEWAY] [STRATEGY] Loading Strategy...
+2026-04-27T22:06:17.560Z INFO  [GATEWAY] [STRATEGY] Strategy mounted at /api/strategy
+2026-04-27T22:06:17.560Z INFO  [GATEWAY] [TACTICAL PLANNNER] Loading Tactical Plan...
+2026-04-27T22:06:17.567Z INFO  [GATEWAY] [TACTICAL PLANNNER] Tactical Plan mounted at /api/strategy/tactical-plan
+2026-04-27T22:06:17.567Z INFO  [GATEWAY] [FEEDBACK] Loading Feedback...
+2026-04-27T22:06:17.569Z INFO  [GATEWAY] [FEEDBACK] Feedback mounted at /api/feedback
+2026-04-27T22:06:17.569Z INFO  [GATEWAY] [RIDESHARE COACH] Loading Actions...
+2026-04-27T22:06:17.574Z INFO  [GATEWAY] [RIDESHARE COACH] Actions mounted at /api/actions
+2026-04-27T22:06:17.574Z INFO  [GATEWAY] [RIDESHARE COACH] Loading Research...
+2026-04-27T22:06:17.575Z INFO  [GATEWAY] [RIDESHARE COACH] Research mounted at /api/research
+2026-04-27T22:06:17.575Z INFO  [GATEWAY] [MARKET INTELLIGENCE] Loading Vector Search...
+2026-04-27T22:06:17.575Z INFO  [GATEWAY] [MARKET INTELLIGENCE] Vector Search mounted at /api/vector-search
+2026-04-27T22:06:17.575Z INFO  [GATEWAY] [PLATFORM] Loading Platform Data...
+2026-04-27T22:06:17.577Z INFO  [GATEWAY] [PLATFORM] Platform Data mounted at /api/platform
+2026-04-27T22:06:17.577Z INFO  [GATEWAY] [MARKET INTELLIGENCE] Loading Market Intelligence...
+2026-04-27T22:06:17.579Z INFO  [GATEWAY] [MARKET INTELLIGENCE] Market Intelligence mounted at /api/intelligence
+2026-04-27T22:06:17.579Z INFO  [GATEWAY] [USER PREFERENCES] Loading Vehicle Data...
+2026-04-27T22:06:17.580Z INFO  [GATEWAY] [USER PREFERENCES] Vehicle Data mounted at /api/vehicle
+2026-04-27T22:06:17.580Z INFO  [GATEWAY] [CONCIERGE ASSISTANT] Loading Concierge...
+2026-04-27T22:06:17.583Z INFO  [GATEWAY] [CONCIERGE ASSISTANT] Concierge mounted at /api/concierge
+2026-04-27T22:06:17.583Z INFO  [GATEWAY] [TRANSLATION] Loading Translation API...
+2026-04-27T22:06:17.585Z INFO  [GATEWAY] [TRANSLATION] Translation API mounted at /api/translate
+2026-04-27T22:06:17.585Z INFO  [GATEWAY] [CLAUDE MEMORY] Loading Claude Memory API...
+2026-04-27T22:06:17.587Z INFO  [GATEWAY] [CLAUDE MEMORY] Claude Memory API mounted at /api/memory
+2026-04-27T22:06:17.587Z INFO  [GATEWAY] [SIRI SHORTCUT] Loading External Hooks (OCR/Signals)...
+2026-04-27T22:06:17.602Z INFO  [GATEWAY] [SIRI SHORTCUT]External Hooks (OCR/Signals) mounted at /api/hooks
+2026-04-27T22:06:17.602Z INFO  [GATEWAY] [TRANSLATION] Loading Siri Translation Hook...
+2026-04-27T22:06:17.603Z INFO  [GATEWAY] [TRANSLATION] Siri Translation Hook mounted at /api/hooks
+2026-04-27T22:06:17.603Z INFO  [GATEWAY] [AGENT] Loading Agent embed...
+2026-04-27T22:06:17.607Z INFO  [AGENT] Mounting Agent at /agent, WS at /agent/ws
+2026-04-27T22:06:17.607Z INFO  [AGENT] Agent routes mounted at /agent (auth + IP allowlist required)
+2026-04-27T22:06:17.608Z INFO  [AGENT] WebSocket server ready for /agent/ws
+2026-04-27T22:06:17.608Z INFO  [GATEWAY] Agent mounted at /agent
+2026-04-27T22:06:17.608Z INFO  [GATEWAY] Loading SDK embed (catch-all fallback)...
+2026-04-27T22:06:17.613Z INFO  [GATEWAY] SDK routes mounted at /api (catch-all fallback)
+2026-04-27T22:06:17.613Z INFO  [GATEWAY] Loading error middleware...
+2026-04-27T22:06:17.613Z INFO  [GATEWAY] Error middleware configured
+2026-04-27T22:06:17.615Z INFO  [GATEWAY] Unified capabilities routes mounted
+2026-04-27T22:06:17.615Z INFO  [GATEWAY] All routes and middleware loaded
+2026-04-27T22:06:17.616Z INFO  [GATEWAY] ENABLE_BACKGROUND_WORKER=true (explicit opt-in)
+2026-04-27T22:06:17.616Z INFO  [GATEWAY] Starting strategy generator worker...
+2026-04-27T22:06:17.624Z INFO  [GATEWAY] Worker started (PID: 39988)
+2026-04-27T22:06:17.624Z INFO  [GATEWAY] Worker logs: /tmp/worker.log
+2026-04-27T22:06:17.624Z INFO  [GATEWAY] Auto-restart enabled (max 10 consecutive failures)
+2026-04-27T22:06:17.647Z INFO  [GATEWAY] HTTP listening on 0.0.0.0:5000
+2026-04-27T22:06:17.647Z INFO  [GATEWAY] Bootstrap completed in 705ms
+2026-04-27T22:06:17.647Z INFO  [HEALTH] Starting health monitoring...
+2026-04-27T22:06:17.657Z INFO  [HEALTH] Initial health: Healthy
+2026-04-27T22:06:17.667Z INFO  [SNAPSHOT] [OBSERVER] SNAPSHOT WORKFLOW OBSERVER — 2026-04-27T22:06:17.667Z
+2026-04-27T22:06:17.667Z INFO  [SNAPSHOT] [OBSERVER] ════════════════════════════════════════════════════════════
+2026-04-27T22:06:17.671Z INFO  [SNAPSHOT] [OBSERVER] 
+2026-04-27T22:06:17.671Z INFO  [SNAPSHOT] [OBSERVER] BEFORE (server boot)
+2026-04-27T22:06:17.671Z INFO  [SNAPSHOT] [OBSERVER] ────────────────────────────────────────────────────────────
+2026-04-27T22:06:17.671Z INFO  [SNAPSHOT] [OBSERVER]   user_id                 2f22004b-c5cc-43c9-a5a6-02f50ccff571
+2026-04-27T22:06:17.671Z INFO  [SNAPSHOT] [OBSERVER]   current_snapshot_id     8d996f20-0da7-4f4f-bd18-74efe59ff4d6
+2026-04-27T22:06:17.671Z INFO  [SNAPSHOT] [OBSERVER]   session_id              05568e6c-bc3b-4e0f-b1e6-5882e79ee211
+2026-04-27T22:06:17.671Z INFO  [SNAPSHOT] [OBSERVER]   last_active_at          2026-04-27T19:20:36.027Z
+2026-04-27T22:06:17.673Z INFO  [SNAPSHOT] [OBSERVER]   old snapshot city       Plano, TX
+2026-04-27T22:06:17.673Z INFO  [SNAPSHOT] [OBSERVER]   old snapshot age        165.9 min
+2026-04-27T22:06:17.674Z INFO  [SNAPSHOT] [OBSERVER] 
+2026-04-27T22:06:17.674Z INFO  [SNAPSHOT] [OBSERVER] Waiting for snapshot change...
+2026-04-27T22:06:17.674Z INFO  [SNAPSHOT] [OBSERVER]   (log in → GPS resolves → new snapshot created)
+2026-04-27T22:06:26.528Z INFO  [AUTH] Found credentials for: melodydashora@gmail.com (hash length: 60)
+2026-04-27T22:06:26.529Z INFO  [AUTH] Verifying password for: melodydashora@gmail.com
+2026-04-27T22:06:26.770Z INFO  [AUTH] Password verification: success
+2026-04-27T22:06:27.286Z INFO  [AUTH] Session created for user: 2f22004b (session: 403c2d1f)
+2026-04-27T22:06:27.287Z INFO  [AUTH] Token generated for: melodydashora@gmail.com
+2026-04-27T22:06:27.289Z INFO  [AUTH] Driver logged in: melodydashora@gmail.com
+2026-04-27T22:06:27.707Z INFO  [SNAPSHOT] [OBSERVER] [22:06:27.706] OLD SNAPSHOT RELEASED (current_snapshot_id → null) <-- Observer shows this but logs do not show actual drop before location is resolved
+2026-04-27T22:06:31.294Z INFO  [LOCATION] [API] Secret source: JWT_SECRET
+2026-04-27T22:06:31.294Z INFO  [LOCATION] [API] Sig match: true
+2026-04-27T22:06:31.294Z INFO  [LOCATION] [API] Authenticated user: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
+2026-04-27T22:06:31.297Z INFO  [LOCATION] [API] Resolving 33.127309, -96.877004
+2026-04-27T22:06:31.304Z INFO  [LOCATION] [API] Coords cache hit: Frisco, TX ✓ <------------------ not what COORDS CACHE is for
+2026-04-27T22:06:31.321Z INFO  [LOCATION] [API] Found user by user_id (different device): 2f22004b
+2026-04-27T22:06:31.326Z INFO  [LOCATION] [GET USERS TABLE] Users table: Frisco, TX <--------------------------------Is this an API call to where? We are not to pull location from users table
+2026-04-27T22:06:31.326Z INFO  [SNAPSHOT] [STATE CHANGE] Force refresh: true, current_snapshot_id: null <---------Snapshot should already be null before location is fetched
+2026-04-27T22:06:31.326Z INFO  [SNAPSHOT] [CITY, STATE] Creating for Frisco, TX <--------- Why, you have the data on ok fetch via script parse it for easy digestion to LLM
+2026-04-27T22:06:31.328Z INFO  [SNAPSHOT] [MARKET] User market from profile: Dallas-Fort Worth
+2026-04-27T22:06:31.404Z INFO  [LOCATION] [WEATHER] Weather: 91°F Sunny
+2026-04-27T22:06:31.468Z INFO  [SNAPSHOT] [DB] 51f41bcb (parallel write)<-----------Not Yet Permissions in session table need to be set to granted before any of this
+2026-04-27T22:06:31.581Z INFO  [LOCATION] [AIR QUALITY] Air Quality: AQI 42 (Moderate air quality)
+2026-04-27T22:06:31.718Z INFO  [SNAPSHOT] [OBSERVER] [22:06:31.718] NEW SNAPSHOT DETECTED: 51f41bcb-26e0-4dd1-b66e-597802ff2f77
+2026-04-27T22:06:31.720Z INFO  [SNAPSHOT] [OBSERVER] 
+2026-04-27T22:06:31.720Z INFO  [SNAPSHOT] [OBSERVER] NEW SNAPSHOT
+2026-04-27T22:06:31.720Z INFO  [SNAPSHOT] [OBSERVER] ════════════════════════════════════════════════════════════
+2026-04-27T22:06:31.720Z INFO  [SNAPSHOT] [OBSERVER]   snapshot_id        51f41bcb-26e0-4dd1-b66e-597802ff2f77
+2026-04-27T22:06:31.720Z INFO  [SNAPSHOT] [OBSERVER]   created_at         2026-04-27T22:06:31.304Z
+2026-04-27T22:06:31.720Z INFO  [SNAPSHOT] [OBSERVER]   device_id          ba9e8e6e-bd59-4008-8c77-8f3194db83a6
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   session_id         0e175525-541d-40ae-bbfa-bbd6b26f0f39
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   h3_r8              8826c87297fffff
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   weather            null
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   air                null
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   permissions        ┐
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]                      │ {
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]                      │   "geolocation": "granted"
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]                      │ }
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   holiday            none
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   is_holiday         false
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   lat                33.127308992127666
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   lng                -96.87700371129148
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   city               Frisco
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   state              TX
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   country            US
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   formatted_address  5880 Midnight Moon Dr, Frisco, TX 75036, USA
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   timezone           America/Chicago
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   local_iso          2026-04-27T17:06:31.000Z
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   dow                1
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   hour               17
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   day_part_key       early_evening
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   date               2026-04-27
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   coord_key          33.127309_-96.877004
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   user_id            2f22004b-c5cc-43c9-a5a6-02f50ccff571
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   market             Dallas-Fort Worth
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER]   status             pending
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER] 
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER] TIMING
+2026-04-27T22:06:31.721Z INFO  [SNAPSHOT] [OBSERVER] ────────────────────────────────────────────────────────────
+2026-04-27T22:06:31.722Z INFO  [SNAPSHOT] [OBSERVER]   Old snapshot created:   2026-04-27T19:20:21.255Z
+2026-04-27T22:06:31.722Z INFO  [SNAPSHOT] [OBSERVER]   Old snapshot released:  2026-04-27T22:06:27.706Z
+2026-04-27T22:06:31.722Z INFO  [SNAPSHOT] [OBSERVER]   New snapshot created:   2026-04-27T22:06:31.304Z
+2026-04-27T22:06:31.722Z INFO  [SNAPSHOT] [OBSERVER]   Release → Create gap:   3.6s
+2026-04-27T22:06:31.723Z INFO  [SNAPSHOT] [OBSERVER]   Old snapshot row:       STILL IN DB (not deleted, just dereferenced)
+2026-04-27T22:06:31.771Z INFO  [SNAPSHOT] Enriched 51f41bcb: weather, air
+2026-04-27T22:06:31.815Z INFO  
+═══════════════════════════════════════════════════════
+2026-04-27T22:06:31.815Z INFO  [BARS] START: Frisco, TX (25 mile radius)
+2026-04-27T22:06:31.815Z INFO  ═══════════════════════════════════════════════════════
+2026-04-27T22:06:31.837Z INFO  [BARS] Found 24 cached venues in Frisco, TX
+2026-04-27T22:06:31.837Z INFO  [BARS] 24 venues within 25 mile radius
+2026-04-27T22:06:31.837Z INFO  [BARS] [BARS] Backfilling hours for 4 venues missing data <------this should only have happened once as we are no longer requesting bars/lounges without hours
+2026-04-27T22:06:31.844Z INFO  [BARS] Using 24 cached venues (Cache First, 20 have hours) <------our system is not mature enough to decide this - always call shows open lounges/bars with high ratings only
+2026-04-27T22:06:31.854Z INFO  ───────────────────────────────────────────────────────
+2026-04-27T22:06:31.854Z INFO  [BARS] COMPLETE: 3 venues from cache (3 open)<-----we have not verified cached locations yet nor hours always call for open=now and closing time to filter by
+2026-04-27T22:06:31.854Z INFO  ───────────────────────────────────────────────────────
+2026-04-27T22:06:31.946Z INFO  [SNAPSHOT] All required fields populated — status set to ok 51f41bcb-26e0-4dd1-b66e-597802ff2f77 <-----dow is missing from snapshot and holiday was never called
+2026-04-27T22:06:32.111Z INFO  
+═══════════════════════════════════════════════════════
+2026-04-27T22:06:32.111Z INFO  [STRATEGY] START: POST request for 51f41bcb <--------------------------------------------------Strategy should not be started
+2026-04-27T22:06:32.111Z INFO  ═══════════════════════════════════════════════════════
+2026-04-27T22:06:32.118Z INFO  [STRATEGY] Snapshot resolved: Frisco, TX <--------------------------------------------------Strategy should not be started
+2026-04-27T22:06:32.155Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] GET /events: today=2026-04-27, endDate=2026-05-04, tz=America/Chicago
+2026-04-27T22:06:32.177Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 4 variants of "Distinguished Speaker Series: Jimmy Smit..."
+2026-04-27T22:06:32.178Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants of "Grand Park Groundbreaking..."
+2026-04-27T22:06:32.178Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants of "Karaoke Night..."
+2026-04-27T22:06:32.178Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Events deduped: 50 → 45 (5 duplicates removed)
+2026-04-27T22:06:32.178Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Dedup: 50 → 45 events (removed 5 duplicates)
+2026-04-27T22:06:32.186Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants → kept "NO LIMITS Karaoke & Open Mic Night!" @ The Revel Patio Grill | dropped "Karaoke Night" @ Mama Tried
+2026-04-27T22:06:32.186Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants → kept "Frisco ISD Community Input Meeting" @ Emerson High School | dropped "Community Input Meeting" @ Emerson High School
+2026-04-27T22:06:32.186Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants → kept "MANIC MONDAY | Cheerful Bouquet" @ Painting with a Twist | dropped "MANIC MONDAY | Cheerful Bouquet Painting" @ Painting with a Twist
+2026-04-27T22:06:32.186Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants → kept "NHL Western Conference First Round: Dallas Stars v" @ American Airlines Center | dropped "NHL Western Conference First Round: Dallas Stars v" @ American Airlines Center
+2026-04-27T22:06:32.186Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants → kept "Grand Park Groundbreaking" @ Grand Park | dropped "Grand Park Groundbreaking Ceremony" @ Grand Park
+2026-04-27T22:06:32.187Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants → kept "Live Music Trivia Night" @ Voodoo Brewing Co. | dropped "Music Trivia Night" @ Voodoo Brewing Co.
+2026-04-27T22:06:32.187Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants → kept "GOTH - NEW WAVE - 80s" @ Ladylove Lounge and Sound | dropped "GOTH - NEW WAVE - 80s DJ Night" @ Ladylove Lounge and Sound
+2026-04-27T22:06:32.187Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] Semantic dedup: 45 → 38 events (removed 7 title-variant duplicates)
+2026-04-27T22:06:32.204Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [DEDUP] [filterFreshEvents] Filtered: 3 stale, 0 missing dates (kept 35/38) tz=America/Chicago
+2026-04-27T22:06:32.204Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [FRESHNESS] filter: 38 → 35 events (removed 3 stale/invalid)
+2026-04-27T22:06:32.230Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] [FRESHNESS] [SUMMARY] Events filter=active: 4/35 events currently happening in America/Chicago
+2026-04-27T22:06:32.244Z INFO  [EVENTS] [DB] [EVENTS_DISCOVERY] [SSE] SSE /events/strategy connected (1 active)
+2026-04-27T22:06:32.268Z INFO  [SNAPSHOT] { <--------------------------cached in memory snapshot data is not the full requirement
+  snapshot_id: '51f41bcb-26e0-4dd1-b66e-597802ff2f77',
+  city: 'Frisco',
+  weather: true,
+  aqi: 42,
+  dayPart: 'early_evening'
+}
+[STRATEGY] <------no reason to begin until BRIEFING STATUS FIELD = "ok" just like SNAPSHOT
+2026-04-27T22:06:32.269Z INFO  [STRATEGY] Strategy row created: Frisco, TX <-------------not yet (wait until briefing ok and why do you need city and state you are sending the snapshot row to strategist with completed briefing row
+2026-04-27T22:06:32.272Z INFO  [LISTEN/NOTIFY] [DB] LISTEN client connecting to Replit PostgreSQL
+2026-04-27T22:06:32.280Z INFO  [STRATEGY] [PHASE-UPDATE] 51f41bcb -> resolving (updated at 2026-04-27T22:06:32.270Z)
+2026-04-27T22:06:32.312Z INFO  [STRATEGY] [PHASE-UPDATE] 51f41bcb -> analyzing (updated at 2026-04-27T22:06:32.291Z)
+2026-04-27T22:06:32.312Z INFO  [STRATEGY] [LISTEN/NOTIFY] [VERIFY] Snapshot row ready: city=Frisco, state=TX, lat=33.127309, lng=-96.877004 
+2026-04-27T22:06:32.312Z INFO  [STRATEGY] [LISTEN/NOTIFY] [VERIFY] Snapshot context: timezone=America/Chicago, day_part=early_evening, is_holiday=false
+2026-04-27T22:06:32.319Z INFO  [STRATEGY] [LISTEN/NOTIFY] [DB] LISTEN client connected
+2026-04-27T22:06:32.321Z INFO  [STRATEGY] [SSE] SSE /events/blocks connected (1 active) <-------------------Is this even supposed to be here or is blocks briefing component cards (Smartblocks were venues when we only had one page, change to venueCard <----------------------------------------------------------------------------------------The decided case, bar card, event card, strategy card no more "blocks"
+2026-04-27T22:06:32.322Z INFO  [STRATEGY] [LISTEN/NOTIFY] [DB] LISTEN strategy_ready (first subscriber)
+2026-04-27T22:06:32.322Z INFO  [STRATEGY] [LISTEN/NOTIFY] [DB] Channel strategy_ready: 1 subscriber(s)
+2026-04-27T22:06:32.322Z INFO  [STRATEGY] [DISPATCH] [DB] Notification dispatcher attached
+2026-04-27T22:06:32.324Z INFO  [BLOCKS] [LISTEN/NOTIFY] [DB] LISTEN blocks_ready (first subscriber)
+2026-04-27T22:06:32.324Z INFO  [BLOCKS] [LISTEN/NOTIFY] [DB] Channel blocks_ready: 1 subscriber(s)
+2026-04-27T22:06:32.378Z INFO  
+═══════════════════════════════════════════════════════
+2026-04-27T22:06:32.378Z INFO  [BRIEFING] START: Frisco, TX (51f41bcb)
+2026-04-27T22:06:32.378Z INFO  ═══════════════════════════════════════════════════════
+2026-04-27T22:06:32.382Z INFO  [BRIEFING] [TRAFFIC] Cache hit: closures=2 ?
+2026-04-27T22:06:32.382Z INFO  [BRIEFING] [EVERYTHING] Fetching weather + traffic + events + airport + news ???????
+2026-04-27T22:06:32.387Z INFO  [BRIEFING] [AI] [AIRPORT] Calling Gemini: airport conditions for Frisco, TX
+2026-04-27T22:06:32.389Z INFO  [BRIEFING] [NEWS] News fetch: Frisco, TX (market: Dallas-Fort Worth) ?
+2026-04-27T22:06:32.391Z INFO  [BRIEFING] [AI] calling gemini-3.1-pro-preview with max_tokens=4096
+2026-04-27T22:06:32.391Z INFO  [BRIEFING] [AI] gpt-5-search-api web-search request (8192 tokens) 
+2026-04-27T22:06:32.392Z INFO  [BRIEFING] [AI] calling gemini-3.1-pro-preview with max_tokens=8192
+2026-04-27T22:06:32.392Z INFO  [BRIEFING] [AI] Thinking enabled: HIGH
+2026-04-27T22:06:32.405Z INFO  [BRIEFING] [DB] [EVENTS] [SSE] SSE /events/phase connected (1 active)
+2026-04-27T22:06:32.454Z INFO  [BRIEFING] [DB] [EVENTS] [SSE] SSE /events/briefing connected (1 active)
+2026-04-27T22:06:32.457Z INFO  [BRIEFING] [DB] [LISTEN/NOTIFY] [SSE] LISTEN briefing_ready (first subscriber)
+2026-04-27T22:06:32.457Z INFO  [BRIEFING] [DB] [LISTEN/NOTIFY] [SSE]] Channel briefing_ready: 1 subscriber(s)
+2026-04-27T22:06:32.457Z INFO  [BRIEFING] [DB] [WEATHER] [LISTEN/NOTIFY] [SSE]] LISTEN briefing_weather_ready (first subscriber)
+2026-04-27T22:06:32.457Z INFO  [BRIEFING] [DB] [WEATHER] [LISTEN/NOTIFY]  Channel briefing_weather_ready: 1 subscriber(s)
+2026-04-27T22:06:32.458Z INFO  [BRIEFING] [DB] [TRAFFIC] [LISTEN/NOTIFY] LISTEN briefing_traffic_ready (first subscriber)
+2026-04-27T22:06:32.458Z INFO  [BRIEFING] [DB] [TRAFFIC] [LISTEN/NOTIFY] Channel briefing_traffic_ready: 1 subscriber(s)
+2026-04-27T22:06:32.458Z INFO  [BRIEFING] [DB] [EVENTS] [LISTEN/NOTIFY] LISTEN briefing_events_ready (first subscriber)
+2026-04-27T22:06:32.458Z INFO  [BRIEFING] [DB] [EVENTS] [LISTEN/NOTIFY] Channel briefing_events_ready: 1 subscriber(s)
+2026-04-27T22:06:32.459Z INFO  [BRIEFING] [DB] [NEWS] [LISTEN/NOTIFY] LISTEN briefing_news_ready (first subscriber)
+2026-04-27T22:06:32.459Z INFO  [BRIEFING] [DB] [NEWS] [LISTEN/NOTIFY] Channel briefing_news_ready: 1 subscriber(s)
+2026-04-27T22:06:32.459Z INFO  [BRIEFING] [DB] [AIRPORT] [LISTEN/NOTIFY] LISTEN briefing_airport_ready (first subscriber)
+2026-04-27T22:06:32.459Z INFO  [BRIEFING] [DB] [AIRPORT] [LISTEN/NOTIFY] Channel briefing_airport_ready: 1 subscriber(s)
+2026-04-27T22:06:32.459Z INFO  [BRIEFING] [DB] [SCHOOL CLOSURES] [LISTEN/NOTIFY] LISTEN briefing_school_closures_ready (first subscriber)
+2026-04-27T22:06:32.459Z INFO  [BRIEFING] [DB] [SCHOOL CLOSURES] [LISTEN/NOTIFY] Channel briefing_school_closures_ready: 1 subscriber(s)
+2026-04-27T22:06:32.644Z INFO  [BRIEFING] [API] [TRAFFIC] TomTom raw: flow=true, incidents=112 <------ AI is sent traffic above, fetched and stale? Why are we listening for traffic readiness when TOMTOM is just being called - it makes sense that traffic events are incorrect (gemini is being given stale traffic to work with}
+2026-04-27T22:06:32.645Z INFO  [BRIEFING] [API] [TRAFFIC] Calling TomTom: traffic for Frisco, TX
+2026-04-27T22:06:32.714Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] Deactivated 27 past events (tz=America/Chicago)
+2026-04-27T22:06:32.715Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY] Cleaned up 27 past events
+2026-04-27T22:06:32.715Z INFO  [BRIEFING] [EVENTS] [DB] [EVENTS_DISCOVERY]  Event discovery for Frisco, TX (2026-04-27)
+2026-04-27T22:06:32.715Z INFO  [BRIEFING] [EVENTS] [AI] [EVENTS_DISCOVERY] Calling Gemini: events for Dallas-Fort Worth market (driver in Frisco) - 2 focused searches (90s timeout each)
+2026-04-27T22:06:32.716Z INFO  [AI] calling gemini-3.1-pro-preview with max_tokens=8192
+2026-04-27T22:06:32.716Z INFO  [AI] Thinking enabled: HIGH
+2026-04-27T22:06:32.716Z INFO  [AI] calling gemini-3.1-pro-preview with max_tokens=8192
+2026-04-27T22:06:32.716Z INFO  [AI] Thinking enabled: HIGH
+2026-04-27T22:06:32.724Z INFO  [BRIEFING] [DB] [WEATHER] [LISTEN/NOTIFY] briefing_weather_ready for 51f41bcb
+2026-04-27T22:06:32.725Z INFO  [BRIEFING] [DB] [WEATHER] [LISTEN/NOTIFY] briefing_weather_ready → 1 subscriber(s)
+2026-04-27T22:06:32.779Z INFO  [BRIEFING] [TRAFFIC] Traffic: filtered 144 incidents beyond 10 mi
+2026-04-27T22:06:32.779Z INFO  [BRIEFING] [TRAFFIC] Traffic: heavy, 93 incidents (134ms)
+2026-04-27T22:06:32.780Z INFO  [BRIEFING] [TRAFFIC] [AI] Calling Gemini Pro: analyzing traffic for Frisco, TX <-----(are these events sent after stale ones are fetched?)
+2026-04-27T22:06:32.780Z INFO  [AI] calling gemini-3-flash-preview with max_tokens=8192
+2026-04-27T22:06:32.780Z INFO  [AI] Thinking enabled: HIGH
+2026-04-27T22:06:32.781Z INFO  [AI] gpt-5-search-api web-search request (8192 tokens)
+2026-04-27T22:06:37.855Z INFO  [AI] gpt-5-search-api web-search response (1515 chars, 0 citations)
+2026-04-27T22:06:37.856Z INFO  [BRIEFING] [TRAFFIC] [AI] Gemini Pro traffic analysis (5076ms)
+2026-04-27T22:06:38.004Z INFO  [BRIEFING] [DB] [TRAFFIC] [LISTEN/NOTIFY] briefing_traffic_ready for 51f41bcb
+2026-04-27T22:06:38.004Z INFO  [BRIEFING] [DB] [TRAFFIC] [LISTEN/NOTIFY] briefing_traffic_ready → 1 subscriber(s)
+2026-04-27T22:06:38.607Z INFO  [AI] resp: { model: 'gemini-3-flash-preview', response: false, len: 1274 }
+2026-04-27T22:06:42.241Z INFO  [AI] gpt-5-search-api web-search response (681 chars, 0 citations)
+2026-04-27T22:06:42.241Z INFO  [BRIEFING] [AI] [AIRPORT] [ Gemini airport: 2 airports
+2026-04-27T22:06:42.247Z INFO  [BRIEFING] [DB] [AIRPORT] [LISTEN/NOTIFY] briefing_airport_ready for 51f41bcb
+2026-04-27T22:06:42.247Z INFO  [BRIEFING] [DB] [AIRPORT] [LISTEN/NOTIFY]  NOTIFY briefing_airport_ready → 1 subscriber(s)
+2026-04-27T22:06:42.438Z INFO  [AI] resp: { model: 'gemini-3.1-pro-preview', response: false, len: 720 }
+2026-04-27T22:07:03.299Z INFO  [AI] resp: { model: 'gemini-3.1-pro-preview', response: false, len: 2037 }
+2026-04-27T22:07:03.300Z INFO  [BRIEFING] [AI] [NEWS] News: 4 items for Dallas-Fort Worth
+2026-04-27T22:07:03.304Z INFO  [BRIEFING] [DB] [NEWS] [LISTEN/NOTIFY] briefing_news_ready for 51f41bcb
+2026-04-27T22:07:03.304Z INFO  [BRIEFING] [DB] [NEWS] [LISTEN/NOTIFY] briefing_news_ready → 1 subscriber(s)
+2026-04-27T22:07:13.104Z INFO  [AI] resp: { model: 'gemini-3.1-pro-preview', response: false, len: 2189 }
+2026-04-27T22:07:14.488Z INFO  [AI] resp: { model: 'gemini-3.1-pro-preview', response: false, len: 2533 }
+2026-04-27T22:07:14.489Z INFO  [BRIEFING] [EVENTS] [AI] [EVENTS_DISCOVERY] Gemini: 11 unique events (13 total from 2 searches) in 41774ms
+2026-04-27T22:07:14.489Z INFO  [BRIEFING] [EVENTS] [AI] [EVENTS_DISCOVERY] Events: 11 discovered
+2026-04-27T22:07:14.757Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] Places API resolved "Grand Park" → "Grand Park" in Frisco (931fcf87)
+2026-04-27T22:07:14.917Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION]"Globe Life Field" → "Globe Life Field" in Arlington (0f9be83a)
+2026-04-27T22:07:15.094Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] "American Airlines Center" → "American Airlines Center" in Dallas (ca6f9618)
+2026-04-27T22:07:15.259Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] "The Echo Lounge & Music Hall" → "The Echo Lounge & Music Hall" in Dallas (37f9178b)
+2026-04-27T22:07:15.420Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] "Club Dada" → "Club Dada" in Dallas (c947856e)
+2026-04-27T22:07:15.666Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] "Ladylove Lounge and Sound" → "Ladylove Lounge and Sound" in Dallas (46bf88d7)
+2026-04-27T22:07:15.921Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] "The Common Table Frisco" → "The Common Table" in Frisco (41323447)
+2026-04-27T22:07:16.076Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] "Revel Patio Grill" → "The Revel Patio Grill" in Frisco (67d63cb6)
+2026-04-27T22:07:16.285Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] "The Common Table McKinney" → "The Common Table - McKinney" in McKinney (fb0238ba)
+2026-04-27T22:07:16.405Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION]d "Club Dada" → "Club Dada" in Dallas (c947856e)
+2026-04-27T22:07:16.606Z INFO  [BRIEFING] [VENUE CATALOG] [API] [EVENTS_DISCOVERY] [RSOLUTION] "City Park (Old City Park)" → "City Park" in Dallas (e9353e84)
+2026-04-27T22:07:16.613Z INFO  [BRIEFING] [EVENTS] [AI] [DB] [EVENTS_DISCOVERY] [DEDUP] Merged 2 variants of "Karaoke Night..."
+2026-04-27T22:07:16.613Z INFO  [BRIEFING] [EVENTS] [AI] [DB] [EVENTS_DISCOVERY] [DEDUP] Events deduped: 50 → 49 (1 duplicates removed)
+2026-04-27T22:07:16.614Z INFO  [BRIEFING] [EVENTS] [AI] [DB] [EVENTS_DISCOVERY] [SUMMARY]: 49 from discovered_events table
+2026-04-27T22:07:16.620Z INFO  [BRIEFING] [DB] [EVENTS] [LISTEN/NOTIFY] briefing_events_ready for 51f41bcb
+2026-04-27T22:07:16.621Z INFO  [BRIEFING] [DB] [EVENTS] [LISTEN/NOTIFY] briefing_events_ready → 1 subscriber(s)
+2026-04-27T22:07:16.624Z INFO  [BRIEFING] [DB] [SCHOOL CLOSURES] [LISTEN/NOTIFY] briefing_school_closures_ready for 51f41bcb
+2026-04-27T22:07:16.625Z INFO  [BRIEFING] [DB] [SUMMARY] weather=6hr, events=49, news=4, traffic=high, airports=2
+2026-04-27T22:07:16.625Z INFO  [BRIEFING] [DB] [SCHOOL CLOSURES] [LISTEN/NOTIFY] briefing_school_closures_ready → 1 subscriber(s)
+2026-04-27T22:07:16.631Z INFO  ───────────────────────────────────────────────────────
+2026-04-27T22:07:16.631Z INFO  [BRIEFING] COMPLETE: Frisco, TX (44253ms)
+2026-04-27T22:07:16.631Z INFO  ───────────────────────────────────────────────────────
+
+2026-04-27T22:07:16.632Z INFO  [BRIEFING] [DB] [LISTEN/NOTIFY]  briefing_ready sent for 51f41bcb
+2026-04-27T22:07:16.633Z INFO  [BRIEFING] [briefing.js] Briefing stored for 51f41bcb
+2026-04-27T22:07:16.634Z INFO  [BRIEFING] [DB] [LISTEN/NOTIFY]  NOTIFY briefing_ready → 1 subscriber(s)
+2026-04-27T22:07:16.635Z INFO  [STRATEGY] [VERIFY] Briefing row populated: traffic=true, events=true, news=true, weather=true, schools=true, airport=true
+2026-04-27T22:07:16.635Z INFO  [STRATEGY] [VERIFY] Snapshot weather: YES, holiday: none
+2026-04-27T22:07:16.644Z INFO  [STRATEGY] [PHASE-UPDATE] 51f41bcb -> immediate (updated at 2026-04-27T22:07:16.635Z)
+2026-04-27T22:07:16.644Z INFO  [STRATEGY] [VERIFY] Sending to STRATEGIST: <---------------no model names
+2026-04-27T22:07:16.644Z INFO  [STRATEGY] [VERIFY]   • snapshot_id: 51f41bcb
+2026-04-27T22:07:16.644Z INFO  [STRATEGY] [VERIFY]   • snapshot.city: Frisco, snapshot.state: TX
+2026-04-27T22:07:16.644Z INFO  [STRATEGY] [VERIFY]   • briefing_id: N/A
+2026-04-27T22:07:16.644Z INFO  [STRATEGY] [VERIFY]   • briefing.traffic: YES
+2026-04-27T22:07:16.644Z INFO  [STRATEGY] [VERIFY]   • briefing.events: 49 items
+2026-04-27T22:07:16.645Z INFO  [STRATEGY] [AI]: Starting immediate strategy for 51f41bcb
+2026-04-27T22:07:16.645Z INFO  [STRATEGY] [BRIEFING] [DATA CHECK] traffic=true, events=true, weather=true, news=true, airport=true
+2026-04-27T22:07:16.646Z INFO  [AGENT] [DUMP] Written to sent-to-strategist.txt <-------------------------------------------------------********Supposed to be finite everything sent to strategist already so we should not see anything but returned strategy from Strategist.
+2026-04-27T22:07:16.648Z INFO  [STRATEGY] 5880 Midnight Moon Dr, Frisco, TX 75036, USA
+2026-04-27T22:07:16.648Z INFO  [STRATEGY] [BRIEFING] [DATA CHECK]: traffic=true, events=true, news=true, closures=true, airport=true
+2026-04-27T22:07:16.656Z INFO  [STRATEGY] [venue-hours] Looked up 2/2 venues
+2026-04-27T22:07:16.659Z INFO  [AI] PLANNER
+2026-04-27T22:07:16.659Z INFO  [AI] calling gemini-3-flash-preview with max_tokens=8192 <---didn't know the chain
+2026-04-27T22:07:16.740Z INFO  [STRATEGY] [DB] [BRIEFING] [EVENTS] [filterFreshEvents] Filtered: 2 stale, 0 missing dates (kept 47/49) tz=America/Chicago
+2026-04-27T22:07:17.040Z INFO  [STRATEGY] [DB] [BRIEFING] [EVENTS] [filterFreshEvents] Filtered: 2 stale, 0 missing dates (kept 47/49) tz=America/Chicago
+2026-04-27T22:07:17.120Z INFO  [STRATEGY] [DB] [BRIEFING] [EVENTS] [filterFreshEvents] Filtered: 2 stale, 0 missing dates (kept 47/49) tz=America/Chicago
+2026-04-27T22:07:28.450Z INFO  [AI] resp: { model: 'gemini-3-flash-preview', response: false, len: 2541 }
+2026-04-27T22:07:28.450Z INFO  [STRATEGY] [AI] [STRATEGIST] Immediate strategy (2541 chars)
+2026-04-27T22:07:28.455Z INFO  [STRATEGY] Consolidator: Immediate strategy saved (2541 chars) (11805ms) <-------------------no such thing
+2026-04-27T22:07:28.455Z INFO  [VENUE] [SSE] [STRATEGY] [LISTEN/NOTIFY] strategy_ready (DB NOTIFY) for 51f41bcb
+2026-04-27T22:07:28.456Z INFO  [VENUE] [SSE] [STRATEGY] [LISTEN/NOTIFY] NOTIFY strategy_ready → 1 subscriber(s)
+2026-04-27T22:07:28.459Z INFO  [VENUE] [PHASE-UPDATE] 51f41bcb -> venues (updated at 2026-04-27T22:07:28.455Z)
+2026-04-27T22:07:28.460Z INFO  [VENUE] [AI] [STRATEGY] [VERIFY] Sending to VENUE_SCORER (Tactical Planner):
+2026-04-27T22:07:28.460Z INFO  [VENUE] [SNAPSHOT] [STRATEGY] [VERIFY]   • snapshot_id: 51f41bcb
+2026-04-27T22:07:28.460Z INFO  [VENUE] [SNAPSHOT] [STRATEGY] [VERIFY]   • snapshot.lat/lng: 33.127309, -96.877004
+2026-04-27T22:07:28.460Z INFO  [VENUE] [STRATEGY] [VERIFY]   • strategy_for_now: 2541 chars
+2026-04-27T22:07:28.460Z INFO  [VENUE] [BRIEFING] [VERIFY]   • briefing.events: 49 items
+2026-04-27T22:07:28.466Z INFO  [VENUE] [VENUE] Generating VENUE CARDS for 51f41bcb <------water fall Venue Workflow
+
+
+Did not rework ye
+2026-04-27T22:07:28.466Z INFO  
+═══════════════════════════════════════════════════════
+2026-04-27T22:07:28.466Z INFO  [VENUE] START: 5880 Midnight Moon Dr, Frisco, TX 75036, USA (51f41bcb)
+2026-04-27T22:07:28.466Z INFO  ═══════════════════════════════════════════════════════
+2026-04-27T22:07:28.466Z INFO  [VENUE] Input ready: strategy=2541chars, briefing=11 fields
+2026-04-27T22:07:28.469Z INFO  [VENUE] [PHASE-UPDATE] 51f41bcb -> venues (updated at 2026-04-27T22:07:28.466Z)
+2026-04-27T22:07:28.475Z INFO  [enhanced-smart-blocks] fetchTodayDiscoveredEventsWithVenue: 130 state-wide → 130 within 60mi metro context (36 near ≤15mi candidates, 94 far >15mi surge intel, dropped 0 out-of-metro/orphan)
+2026-04-27T22:07:28.475Z INFO  [VENUE] Fetched 130 reachable events for TX on 2026-04-27
+2026-04-27T22:07:28.475Z INFO  [BRIEFING] [Filter] Events: 130 (state-scoped, pre-fetched)
+2026-04-27T22:07:28.478Z INFO  [VENUE] Tactical Planner Input: "**GO:** Position immediately at the Legacy West and The Star in Frisco cluster. ..." at 5880 Midnight Moon Dr, Frisco, TX 75036, USA (prefs: UberXL, deadhead 15mi)
+2026-04-27T22:07:28.479Z INFO  [VENUE] Calling Venue Planner for recommendations...
+2026-04-27T22:07:28.480Z INFO  [VENUE_SCORER DEBUG] 130 events in prompt (36 near ≤15mi candidates, 94 far >15mi surge intel)
+2026-04-27T22:07:28.480Z INFO  [AI] gpt-5.5 request (16000 tokens)
+2026-04-27T22:07:28.864Z INFO  [VENUE] [VENUE] GET request for 51f41bcb
+2026-04-27T22:07:28.865Z INFO  [VENUE] [VENUE] Strategy check: ready=true, status=pending_blocks
+2026-04-27T22:07:28.868Z INFO  [VENUE] [S-002] Status already pending_blocks for 51f41bcb
+2026-04-27T22:07:28.869Z INFO  [VENUE] [S-002] Waiting for other process to complete 51f41bcb
+2026-04-27T22:07:44.111Z INFO  [AI] gpt-5.5 response (3083 chars)
+2026-04-27T22:08:04.618Z INFO  [AI] gpt-5.5 response (5050 chars)
+2026-04-27T22:08:04.620Z INFO  [VENUE] Venue Planner returned 6 venue names in 36142ms - resolving via Places API...
+2026-04-27T22:08:04.620Z INFO  [VENUE] [Places Text Search] Trying: "Toyota Stadium Frisco Square / Toyota Stadium District Frisco TX"
+2026-04-27T22:08:04.915Z INFO  [VENUE] [Places Text Search] Found: "Toyota Stadium" (100% match)
+2026-04-27T22:08:04.916Z INFO     "Toyota Stadium" @ Frisco Square / Toyota Stadium District → Toyota Stadium (33.154333,-96.835193)
+2026-04-27T22:08:04.917Z INFO  [VENUE] [Places Text Search] Trying: "Omni Frisco Hotel at The Star The Star District Frisco TX"
+2026-04-27T22:08:05.480Z INFO  [VENUE] [Places Text Search] Found: "Omni Frisco Hotel at The Star" (100% match)
+2026-04-27T22:08:05.481Z INFO     "Omni Frisco Hotel at The Star" @ The Star District → Omni Frisco Hotel at The Star (33.109589,-96.827681)
+2026-04-27T22:08:05.481Z INFO  [VENUE] [Places Text Search] Trying: "The Common Table The Star District Frisco TX"
+2026-04-27T22:08:05.682Z INFO  [VENUE] [Places Text Search] Found: "The Common Table" (100% match)
+2026-04-27T22:08:05.682Z INFO     "The Common Table" @ The Star District → The Common Table (33.107769,-96.827673)
+2026-04-27T22:08:05.683Z INFO  [VENUE] [Places Text Search] Trying: "Stonebriar Centre Stonebriar Centre / Frisco Bridges Frisco TX"
+2026-04-27T22:08:05.872Z INFO  [VENUE] [Places Text Search] Found: "Stonebriar Centre" (100% match)
+2026-04-27T22:08:05.873Z INFO     "Stonebriar Centre" @ Stonebriar Centre / Frisco Bridges → Stonebriar Centre (33.099101,-96.811356)
+2026-04-27T22:08:05.873Z INFO  [VENUE] [Places Text Search] Trying: "Legacy Hall Legacy West Frisco TX"
+2026-04-27T22:08:06.082Z INFO  [VENUE] [Places Text Search] Found: "Legacy Hall" (100% match)
+2026-04-27T22:08:06.083Z INFO     "Legacy Hall" @ Legacy West → Legacy Hall (33.083193,-96.825834)
+2026-04-27T22:08:06.083Z INFO  [VENUE] [Places Text Search] Trying: "Renaissance Dallas at Plano Legacy West Hotel Legacy West Frisco TX"
+2026-04-27T22:08:06.434Z INFO  [VENUE] [Places Text Search] Found: "Renaissance Dallas at Plano Legacy West Hotel" (100% match)
+2026-04-27T22:08:06.434Z INFO     "Renaissance Dallas at Plano Legacy West Hotel" @ Legacy West → Renaissance Dallas at Plano Legacy West Hotel (33.078364,-96.827406)
+2026-04-27T22:08:06.434Z INFO  [VENUE] 6 venues resolved:
+2026-04-27T22:08:06.434Z INFO     1. "Toyota Stadium" @ Frisco Square / Toyota Stadium District (sports_venue) at 33.154333,-96.835193 (3mi from home)
+2026-04-27T22:08:06.434Z INFO     2. "Omni Frisco Hotel at The Star" @ The Star District (hotel) at 33.109589,-96.827681 (3.1mi from home)
+2026-04-27T22:08:06.434Z INFO     3. "The Common Table" @ The Star District (dining) at 33.107769,-96.827673 (3.1mi from home)
+2026-04-27T22:08:06.434Z INFO     4. "Stonebriar Centre" @ Stonebriar Centre / Frisco Bridges (shopping) at 33.099101,-96.811356 (4.2mi from home)
+2026-04-27T22:08:06.434Z INFO     5. "Legacy Hall" @ Legacy West (dining) at 33.083193,-96.825834 (4.3mi from home)
+2026-04-27T22:08:06.434Z INFO     6. "Renaissance Dallas at Plano Legacy West Hotel" @ Legacy West (hotel) at 33.078364,-96.827406 (4.5mi from home)
+2026-04-27T22:08:06.435Z INFO  [VENUE] VENUE_SCORER returned 6 venues (37959ms)
+2026-04-27T22:08:06.467Z INFO  [VENUE] [PHASE-UPDATE] 51f41bcb -> routing (updated at 2026-04-27T22:08:06.435Z)
+2026-04-27T22:08:06.468Z INFO  [VENUE] Driver at 33.127309,-96.877004 - calling Google Routes API
+2026-04-27T22:08:06.468Z INFO  
+═══════════════════════════════════════════════════════
+2026-04-27T22:08:06.468Z INFO  [VENUE] START: 6 venues (tz: America/Chicago)
+2026-04-27T22:08:06.468Z INFO  ═══════════════════════════════════════════════════════
+2026-04-27T22:08:06.468Z INFO  [VENUE] [venue-enrichment] Batch routes for 6 venues
+2026-04-27T22:08:06.549Z INFO  [VENUE] [venue-enrichment] Batch routes complete: 4.0mi, 4.1mi, 6.1mi, 5.7mi, 7.3mi, 4.3mi (81ms)
+2026-04-27T22:08:06.549Z INFO  [VENUE] [venue-enrichment] Batch resolving 6 addresses
+2026-04-27T22:08:06.581Z INFO  [VENUE] [venue-enrichment] Batch address resolution complete
+2026-04-27T22:08:06.583Z INFO  [VENUE] Places CACHE HIT (db): "Omni Frisco Hotel at The Star"
+2026-04-27T22:08:06.584Z INFO  [VENUE] Match confirmed: "Omni Frisco Hotel at The Star" ↔ "Omni Frisco Hotel at The Star"
+2026-04-27T22:08:06.585Z INFO  [VENUE] "Omni Frisco Hotel at The Star" → OPEN, Mon-Sun: Open24hours
+2026-04-27T22:08:06.585Z INFO  [VENUE] Places CACHE HIT (db): "Legacy Hall"
+2026-04-27T22:08:06.586Z INFO  [VENUE] Match confirmed: "Legacy Hall" ↔ "Legacy Hall"
+2026-04-27T22:08:06.586Z INFO  [VENUE] "Legacy Hall" → OPEN, Mon-Thu: 10AM-10PM, Fri-Sat: 10AM-1AM, Sun: 10AM-10PM
+2026-04-27T22:08:06.586Z INFO  [VENUE] Places CACHE HIT (db): "The Common Table"
+2026-04-27T22:08:06.587Z INFO  [VENUE] Match confirmed: "The Common Table" ↔ "The Common Table"
+2026-04-27T22:08:06.587Z INFO  [VENUE] "The Common Table" → OPEN, Mon: 11AM-1AM, Tue-Fri: 11AM-2AM, Sat: 10AM-2AM, Sun: 10AM-12AM
+2026-04-27T22:08:06.588Z INFO  [VENUE] Places CACHE HIT (db): "Stonebriar Centre"
+2026-04-27T22:08:06.588Z INFO  [VENUE] Match confirmed: "Stonebriar Centre" ↔ "Stonebriar Centre"
+2026-04-27T22:08:06.588Z INFO  [VENUE] "Stonebriar Centre" → OPEN, Mon-Thu: 11AM-8PM, Fri-Sat: 10AM-9PM, Sun: 12-6PM
+2026-04-27T22:08:06.599Z INFO  [VENUE] Places CACHE HIT (db): "Renaissance Dallas at Plano Legacy West Hotel"
+2026-04-27T22:08:06.599Z INFO  [VENUE] Match confirmed: "Renaissance Dallas at Plano Legacy West Hotel" ↔ "Renaissance Dallas at Plano Legacy West Hotel"
+2026-04-27T22:08:06.599Z INFO  [VENUE] "Renaissance Dallas at Plano Lega..." → UNKNOWN, no hours
+2026-04-27T22:08:06.665Z INFO  [VENUE] Match confirmed: "Toyota Stadium" ↔ "Toyota Stadium"
+2026-04-27T22:08:06.666Z INFO  [VENUE] "Toyota Stadium" → CLOSED, Mon-Fri: 9AM-5PM
+2026-04-27T22:08:06.666Z INFO  [VENUE] Enriched 6 venues (0 permanently closed filtered)
+2026-04-27T22:08:06.666Z INFO  [VENUE] Routes API: Toyota Stadium=4.0mi, Omni Frisco Hotel at=4.1mi, The Common Table=4.3mi, Stonebriar Centre=5.7mi, Legacy Hall=6.1mi, Renaissance Dallas a=7.3mi (198ms)
+2026-04-27T22:08:06.672Z INFO  [VENUE] [PHASE-UPDATE] 51f41bcb -> places (updated at 2026-04-27T22:08:06.666Z)
+2026-04-27T22:08:06.675Z INFO  [VENUE] Event matching: 3 venues matched to events
+2026-04-27T22:08:06.678Z INFO  [VENUE] [PHASE-UPDATE] 51f41bcb -> verifying (updated at 2026-04-27T22:08:06.675Z)
+2026-04-27T22:08:06.679Z INFO  [VENUE] Places API: Fetching hours + verifying events for 6 venues
+2026-04-27T22:08:06.679Z INFO  [VENUE] 0 verified events extracted
+2026-04-27T22:08:06.715Z WARN  [VENUE] Catalog promotion failed for "Omni Frisco Hotel at The Star": 23505 — Key (coord_key)=(33.109589_-96.827681) already exists.
+2026-04-27T22:08:06.715Z WARN  [VENUE] Catalog promotion failed for "Stonebriar Centre": 23505 — Key (coord_key)=(33.099101_-96.811356) already exists.
+2026-04-27T22:08:06.715Z WARN  [VENUE] Catalog promotion failed for "Legacy Hall": 23505 — Key (coord_key)=(33.083193_-96.825834) already exists.
+2026-04-27T22:08:06.715Z WARN  [VENUE] Catalog promotion failed for "Renaissance Dallas at Plano Legacy West Hotel": 23505 — Key (coord_key)=(33.078364_-96.827406) already exists.
+2026-04-27T22:08:06.715Z INFO  [VENUE] Promoted 2/6 venues to catalog, storing 6 candidates
+2026-04-27T22:08:06.723Z INFO  [VENUE] Stored 6 candidates (38257ms)
+2026-04-27T22:08:06.723Z INFO  ───────────────────────────────────────────────────────
+2026-04-27T22:08:06.723Z INFO  [VENUE] COMPLETE: 6 venues for 5880 Midnight Moon Dr, Frisco, TX 75036, USA (38257ms)
+2026-04-27T22:08:06.723Z INFO  ───────────────────────────────────────────────────────
+
+2026-04-27T22:08:06.727Z INFO  [VENUE] SmartBlocks generated for 51f41bcb
+2026-04-27T22:08:06.742Z INFO  [WATERFALL] [PHASE-UPDATE] 51f41bcb -> complete (status->ok) (updated at 2026-04-27T22:08:06.727Z)
+2026-04-27T22:08:06.772Z INFO  [STRATEGY] Returning 6 blocks for 51f41bcb
+2026-04-27T22:08:06.779Z INFO  [WATERFALL] [PHASE-UPDATE] 51f41bcb -> complete (status->ok) (updated at 2026-04-27T22:08:06.772Z)
+2026-04-27T22:08:06.779Z INFO  [SSE] blocks_ready (DB NOTIFY) for 51f41bcb (6 blocks)
+2026-04-27T22:08:06.779Z INFO  [STRATEGY] Response: 200 ok
+2026-04-27T22:08:07.063Z INFO  [BRIEFING] GET /events: today=2026-04-27, endDate=2026-05-04, tz=America/Chicago
+2026-04-27T22:08:07.072Z INFO  [BRIEFING] [Dedup] Merged 2 variants of "Karaoke Night..."
+2026-04-27T22:08:07.072Z INFO  [BRIEFING] Events deduped: 50 → 49 (1 duplicates removed)
+2026-04-27T22:08:07.072Z INFO  [BRIEFING] Dedup: 50 → 49 events (removed 1 duplicates)
+2026-04-27T22:08:07.078Z INFO  [DEDUP] Merged 2 variants → kept "NO LIMITS Karaoke & Open Mic Night!" @ The Revel Patio Grill | dropped "Karaoke Night" @ Mama Tried
+2026-04-27T22:08:07.078Z INFO  [DEDUP] Merged 2 variants → kept "Frisco ISD Community Input Meeting" @ Emerson High School | dropped "Community Input Meeting" @ Emerson High School
+2026-04-27T22:08:07.078Z INFO  [DEDUP] Merged 2 variants → kept "MANIC MONDAY | Cheerful Bouquet" @ Painting with a Twist | dropped "MANIC MONDAY | Cheerful Bouquet Painting" @ Painting with a Twist
+2026-04-27T22:08:07.078Z INFO  [DEDUP] Merged 2 variants → kept "NHL Western Conference First Round: Dallas Stars v" @ American Airlines Center | dropped "NHL Western Conference First Round: Dallas Stars v" @ American Airlines Center
+2026-04-27T22:08:07.078Z INFO  [DEDUP] Merged 2 variants → kept "Live Music Trivia Night" @ Voodoo Brewing Co. | dropped "Music Trivia Night" @ Voodoo Brewing Co.
+2026-04-27T22:08:07.078Z INFO  [DEDUP] Merged 2 variants → kept "GOTH - NEW WAVE - 80s" @ Ladylove Lounge and Sound | dropped "GOTH - NEW WAVE - 80s DJ Night" @ Ladylove Lounge and Sound
+2026-04-27T22:08:07.078Z INFO  [BRIEFING] Semantic dedup: 49 → 43 events (removed 6 title-variant duplicates)
+2026-04-27T22:08:07.087Z INFO  [filterFreshEvents] Filtered: 2 stale, 0 missing dates (kept 41/43) tz=America/Chicago
+2026-04-27T22:08:07.087Z INFO  [BRIEFING] Freshness filter: 43 → 41 events (removed 2 stale/invalid)
+2026-04-27T22:08:07.107Z INFO  [BRIEFING] Events filter=active: 5/41 events currently happening in America/Chicago
+2026-04-27T22:08:09.091Z INFO  Action anchored to ranking's snapshot: 51f41bcb-26e0-4dd1-b66e-597802ff2f77
+2026-04-27T22:08:09.102Z INFO  📊 Action logged: blocks_viewed
+2026-04-27T22:08:23.146Z INFO  [COACH] Request: user=2f22004b... conv=0a9b3344 thread=0msgs attachments=0
+2026-04-27T22:08:23.146Z INFO  [COACH] Context: strategy=none snapshot=51f41bcb tz=America/Chicago
+2026-04-27T22:08:23.146Z INFO  [COACH] Using snapshot from UI: 51f41bcb-26e0-4dd1-b66e-597802ff2f77
+2026-04-27T22:08:23.174Z INFO  [COACH] getCompleteContext: Snapshot user_id = 2f22004b-c5cc-43c9-a5a6-02f50ccff571, authenticated = 2f22004b-c5cc-43c9-a5a6-02f50ccff571, effective = 2f22004b-c5cc-43c9-a5a6-02f50ccff571, city = Frisco
+2026-04-27T22:08:23.175Z INFO  [COACH] getDriverProfile: Looking up profile for user 2f22004b...
+2026-04-27T22:08:23.179Z INFO  [COACH] getDriverProfile: Found profile for Melody Dashora
+2026-04-27T22:08:23.181Z INFO  [COACH] getOfferHistory: 20 offers, 0% accept rate
+2026-04-27T22:08:23.181Z INFO  [COACH] getDriverProfile: Found vehicle 2025 Volkswagen Atlas
+2026-04-27T22:08:23.183Z INFO  [COACH] Full context loaded - Status: ready | Snapshot: 51f41bcb-26e0-4dd1-b66e-597802ff2f77
+2026-04-27T22:08:23.183Z INFO  [COACH] Context includes: 6 venues, briefing=true, driverProfile=true, vehicle=true
+2026-04-27T22:08:23.197Z INFO  [COACH] getSnapshotHistory: Found 10 snapshots for user 2f22004b
+2026-04-27T22:08:23.200Z INFO  [COACH] getZoneIntelligence: Found 0 zones in frisco-tx
+2026-04-27T22:08:23.201Z INFO  [COACH] Super User detected: melodydashora@gmail.com - Enabling Agent Capabilities
+2026-04-27T22:08:23.206Z INFO  [COACH] Saved conversation message: e2ba8271-8c4a-4fa4-8e59-86320c77e94b (user)
+2026-04-27T22:08:23.211Z WARN  [agent Enhanced Context] Failed to load preferences: relation "agent_memory" does not exist
+2026-04-27T22:08:23.211Z WARN  [agent Enhanced Context] Failed to load session history: relation "agent_memory" does not exist
+2026-04-27T22:08:23.212Z WARN  [agent Enhanced Context] Failed to load project state: relation "agent_memory" does not exist
+2026-04-27T22:08:23.213Z WARN  [agent Enhanced Context] Failed to load conversation history: relation "agent_memory" does not exist
+2026-04-27T22:08:23.216Z INFO  [COACH] Processing 0 attachments for Gemini coach
+2026-04-27T22:08:23.216Z INFO  [COACH] Sending 1 messages to Gemini...
+2026-04-27T22:08:23.216Z INFO  [COACH] Calling AI_COACH role via adapter with streaming...
+2026-04-27T22:08:23.217Z INFO  [AI] Calling gemini-3.1-pro-preview with 1 messages, maxTokens=8192
+2026-04-27T22:08:24.210Z INFO  [DB] NOTIFY blocks_ready → 1 subscriber(s)
+2026-04-27T22:08:24.308Z INFO  [VENUE] [VENUE] GET request for 51f41bcb
+2026-04-27T22:08:24.309Z INFO  [VENUE] [VENUE] Strategy check: ready=true, status=ok
+2026-04-27T22:08:30.479Z INFO  [AI] Stream started for gemini-3.1-pro-preview
+2026-04-27T22:08:34.900Z INFO  [COACH] Gemini streamed response: 1918 chars
+2026-04-27T22:08:34.906Z INFO  [COACH] Saved conversation message: 32c499f8-7fd8-4ea1-bd6b-1599a6cb9823 (assistant)
+2026-04-27T22:08:34.959Z INFO  [TTS] Processing request: 98 characters (lang: en)
+2026-04-27T22:08:34.959Z INFO  [TTS] Generating speech for 98 characters (voice: alloy, lang: en)...
+2026-04-27T22:08:39.147Z INFO  [TTS] Generated 123840 bytes of audio
+2026-04-27T22:08:45.951Z INFO  [TTS] Processing request: 114 characters (lang: en)
+2026-04-27T22:08:45.951Z INFO  [TTS] Generating speech for 114 characters (voice: alloy, lang: en)...
+2026-04-27T22:08:48.961Z INFO  [TTS] Generated 144000 bytes of audio
+2026-04-27T22:08:56.388Z INFO  [TTS] Processing request: 50 characters (lang: en)
+2026-04-27T22:08:56.388Z INFO  [TTS] Generating speech for 50 characters (voice: alloy, lang: en)...
+2026-04-27T22:08:58.569Z INFO  [TTS] Generated 62880 bytes of audio
+2026-04-27T22:09:01.935Z INFO  [TTS] Processing request: 4 characters (lang: en)
+2026-04-27T22:09:01.935Z INFO  [TTS] Generating speech for 4 characters (voice: alloy, lang: en)...
+2026-04-27T22:09:05.337Z INFO  [TTS] Generated 9600 bytes of audio
+2026-04-27T22:09:05.966Z INFO  [TTS] Processing request: 157 characters (lang: en)
+2026-04-27T22:09:05.966Z INFO  [TTS] Generating speech for 157 characters (voice: alloy, lang: en)...
+2026-04-27T22:09:10.648Z INFO  [TTS] Generated 217920 bytes of audio
+2026-04-27T22:09:21.836Z INFO  [TTS] Processing request: 115 characters (lang: en)
+2026-04-27T22:09:21.836Z INFO  [TTS] Generating speech for 115 characters (voice: alloy, lang: en)...
+2026-04-27T22:09:25.477Z INFO  [TTS] Generated 163680 bytes of audio
+2026-04-27T22:09:33.910Z INFO  [TTS] Processing request: 155 characters (lang: en)
+2026-04-27T22:09:33.910Z INFO  [TTS] Generating speech for 155 characters (voice: alloy, lang: en)...
+2026-04-27T22:09:38.059Z INFO  [TTS] Generated 194880 bytes of audio
+2026-04-27T22:09:48.053Z INFO  [TTS] Processing request: 4 characters (lang: en)
+2026-04-27T22:09:48.053Z INFO  [TTS] Generating speech for 4 characters (voice: alloy, lang: en)...
+2026-04-27T22:09:50.035Z INFO  [TTS] Generated 8640 bytes of audio
+2026-04-27T22:09:50.622Z INFO  [TTS] Processing request: 185 characters (lang: en)
+2026-04-27T22:09:50.622Z INFO  [TTS] Generating speech for 185 characters (voice: alloy, lang: en)...
+2026-04-27T22:09:55.519Z INFO  [TTS] Generated 246240 bytes of audio
+2026-04-27T22:10:08.290Z INFO  [TTS] Processing request: 151 characters (lang: en)
+2026-04-27T22:10:08.290Z INFO  [TTS] Generating speech for 151 characters (voice: alloy, lang: en)...
+2026-04-27T22:10:11.912Z INFO  [TTS] Generated 189120 bytes of audio
+2026-04-27T22:10:21.598Z INFO  [TTS] Processing request: 79 characters (lang: en)
+2026-04-27T22:10:21.598Z INFO  [TTS] Generating speech for 79 characters (voice: alloy, lang: en)...
+2026-04-27T22:10:24.675Z INFO  [TTS] Generated 86880 bytes of audio
+2026-04-27T22:10:29.280Z INFO  [TTS] Processing request: 4 characters (lang: en)
+2026-04-27T22:10:29.280Z INFO  [TTS] Generating speech for 4 characters (voice: alloy, lang: en)...
+2026-04-27T22:10:31.496Z INFO  [TTS] Generated 11040 bytes of audio
+2026-04-27T22:10:32.250Z INFO  [TTS] Processing request: 69 characters (lang: en)
+2026-04-27T22:10:32.250Z INFO  [TTS] Generating speech for 69 characters (voice: alloy, lang: en)...
+2026-04-27T22:10:34.236Z INFO  [TTS] Generated 81120 bytes of audio
+2026-04-27T22:10:38.512Z INFO  [TTS] Processing request: 142 characters (lang: en)
+2026-04-27T22:10:38.512Z INFO  [TTS] Generating speech for 142 characters (voice: alloy, lang: en)...
+2026-04-27T22:10:42.364Z INFO  [TTS] Generated 201600 bytes of audio
+2026-04-27T22:10:52.672Z INFO  [TTS] Processing request: 98 characters (lang: en)
+2026-04-27T22:10:52.672Z INFO  [TTS] Generating speech for 98 characters (voice: alloy, lang: en)...
+2026-04-27T22:10:55.247Z INFO  [TTS] Generated 122880 bytes of audio
+2026-04-27T22:11:01.631Z INFO  [TTS] Processing request: 47 characters (lang: en)
+2026-04-27T22:11:01.631Z INFO  [TTS] Generating speech for 47 characters (voice: alloy, lang: en)...
+2026-04-27T22:11:04.021Z INFO  [TTS] Generated 58080 bytes of audio
+2026-04-27T22:11:07.170Z INFO  [TTS] Processing request: 156 characters (lang: en)
+2026-04-27T22:11:07.170Z INFO  [TTS] Generating speech for 156 characters (voice: alloy, lang: en)...
+2026-04-27T22:11:10.631Z INFO  [TTS] Generated 207840 bytes of audio
+2026-04-27T22:11:21.267Z INFO  [TTS] Processing request: 159 characters (lang: en)
+2026-04-27T22:11:21.267Z INFO  [TTS] Generating speech for 159 characters (voice: alloy, lang: en)...
+2026-04-27T22:11:25.613Z INFO  [TTS] Generated 204000 bytes of audio

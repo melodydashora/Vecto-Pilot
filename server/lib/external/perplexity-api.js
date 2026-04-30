@@ -81,7 +81,7 @@ export async function callPerplexitySonar({
       if ([502, 503, 429].includes(response.status)) {
         if (attempt <= MAX_RETRIES) {
           const delay = BASE_DELAY_MS * attempt;
-          console.log(`[Perplexity] ${response.status} error - retry ${attempt}/${MAX_RETRIES} in ${delay}ms`);
+          console.log(`[AI] ${response.status} error - retry ${attempt}/${MAX_RETRIES} in ${delay}ms`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
@@ -102,11 +102,11 @@ export async function callPerplexitySonar({
       const citations = data.citations || [];
 
       // Debug logging to see what Perplexity returns
-      console.log(`[Perplexity] Response in ${elapsedMs}ms: ${output.length} chars, ${citations.length} citations`);
+      console.log(`[AI] Response in ${elapsedMs}ms: ${output.length} chars, ${citations.length} citations`);
       if (output.length < 500) {
-        console.log(`[Perplexity] Full output: ${output}`);
+        console.log(`[AI] Full output: ${output}`);
       } else {
-        console.log(`[Perplexity] Output preview: ${output.substring(0, 300)}...`);
+        console.log(`[AI] Output preview: ${output.substring(0, 300)}...`);
       }
 
       if (!output) {
@@ -119,7 +119,7 @@ export async function callPerplexitySonar({
       // Network errors - retry if we have attempts left
       if (attempt <= MAX_RETRIES) {
         const delay = BASE_DELAY_MS * attempt;
-        console.log(`[Perplexity] Network error - retry ${attempt}/${MAX_RETRIES} in ${delay}ms: ${error.message}`);
+        console.log(`[AI] Network error - retry ${attempt}/${MAX_RETRIES} in ${delay}ms: ${error.message}`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -168,7 +168,7 @@ Return the JSON array:`;
   });
 
   if (!result.ok) {
-    console.log(`[Perplexity] ${category} search failed: ${result.error}`);
+    console.log(`[AI] ${category} search failed: ${result.error}`);
     return { category, items: [], citations: [], error: result.error };
   }
 
@@ -186,18 +186,18 @@ Return the JSON array:`;
       cleanOutput = jsonMatch[0];
     } else if (!cleanOutput.startsWith('[')) {
       // Perplexity returned prose, not JSON - extract any event-like data
-      console.log(`[Perplexity] ${category} returned prose instead of JSON: ${cleanOutput.substring(0, 100)}...`);
+      console.log(`[AI] ${category} returned prose instead of JSON: ${cleanOutput.substring(0, 100)}...`);
       return { category, items: [], citations: result.citations, error: 'Response was prose, not JSON array' };
     }
 
     const parsed = JSON.parse(cleanOutput);
     const items = Array.isArray(parsed) ? parsed.filter(e => e.title && e.venue) : [];
 
-    console.log(`[Perplexity] ${category}: parsed ${items.length} events`);
+    console.log(`[AI] ${category}: parsed ${items.length} events`);
     return { category, items, citations: result.citations };
   } catch (parseErr) {
-    console.log(`[Perplexity] ${category} parse error: ${parseErr.message}`);
-    console.log(`[Perplexity] ${category} raw output: ${result.output.substring(0, 200)}`);
+    console.log(`[AI] ${category} parse error: ${parseErr.message}`);
+    console.log(`[AI] ${category} raw output: ${result.output.substring(0, 200)}`);
     return { category, items: [], citations: result.citations, error: `Parse error: ${parseErr.message}` };
   }
 }
@@ -299,9 +299,9 @@ export async function searchEventsParallel({ city, state, date, lat, lng, format
   const elapsedMs = Date.now() - startTime;
 
   // Detailed logging for debugging
-  console.log(`[Perplexity] Event search results: ${categoryResults.join(', ')}`);
+  console.log(`[AI] Event search results: ${categoryResults.join(', ')}`);
   if (errors.length > 0) {
-    console.log(`[Perplexity] Errors: ${errors.join('; ')}`);
+    console.log(`[AI] Errors: ${errors.join('; ')}`);
   }
 
   briefingLog.done(2, `${allEvents.length} events (${categoryResults.join(', ')}), ${allCitations.length} citations in ${elapsedMs}ms`, OP.AI);
@@ -359,7 +359,7 @@ DO NOT include any explanation, just the JSON array.`;
     if (jsonMatch) {
       cleanOutput = jsonMatch[0];
     } else if (!cleanOutput.startsWith('[')) {
-      console.log(`[Perplexity] news returned prose instead of JSON: ${cleanOutput.substring(0, 100)}...`);
+      console.log(`[AI] news returned prose instead of JSON: ${cleanOutput.substring(0, 100)}...`);
       return { items: [], citations: result.citations, error: 'Response was prose, not JSON array' };
     }
 
@@ -371,8 +371,8 @@ DO NOT include any explanation, just the JSON array.`;
 
     return { items, citations: result.citations };
   } catch (parseErr) {
-    console.log(`[Perplexity] news parse error: ${parseErr.message}`);
-    console.log(`[Perplexity] news raw output: ${result.output.substring(0, 200)}`);
+    console.log(`[AI] news parse error: ${parseErr.message}`);
+    console.log(`[AI] news raw output: ${result.output.substring(0, 200)}`);
     briefingLog.warn(2, `News parse failed: ${parseErr.message}`, OP.AI);
     return { items: [], citations: result.citations, error: parseErr.message };
   }
@@ -457,7 +457,7 @@ Return ONLY the JSON object.`;
     }
 
     if (!jsonStr) {
-      console.log(`[Perplexity] traffic returned prose instead of JSON: ${cleanOutput.substring(0, 100)}...`);
+      console.log(`[AI] traffic returned prose instead of JSON: ${cleanOutput.substring(0, 100)}...`);
       return {
         traffic: {
           summary: `Traffic data format error for ${city}, ${state}`,
@@ -492,8 +492,8 @@ Return ONLY the JSON object.`;
       citations: []
     };
   } catch (parseErr) {
-    console.log(`[Perplexity] traffic parse error: ${parseErr.message}`);
-    console.log(`[Perplexity] traffic raw output: ${result.output.substring(0, 200)}`);
+    console.log(`[AI] traffic parse error: ${parseErr.message}`);
+    console.log(`[AI] traffic raw output: ${result.output.substring(0, 200)}`);
     briefingLog.warn(1, `Traffic parse failed: ${parseErr.message}`, OP.AI);
     return {
       traffic: {
@@ -609,7 +609,7 @@ Return ONLY the JSON object.`;
     }
 
     if (!jsonStr) {
-      console.log(`[Perplexity] airport returned prose instead of JSON: ${cleanOutput.substring(0, 100)}...`);
+      console.log(`[AI] airport returned prose instead of JSON: ${cleanOutput.substring(0, 100)}...`);
       return {
         airport: {
           airports: [],
@@ -636,8 +636,8 @@ Return ONLY the JSON object.`;
       }
     };
   } catch (parseErr) {
-    console.log(`[Perplexity] airport parse error: ${parseErr.message}`);
-    console.log(`[Perplexity] airport raw output: ${result.output.substring(0, 200)}`);
+    console.log(`[AI] airport parse error: ${parseErr.message}`);
+    console.log(`[AI] airport raw output: ${result.output.substring(0, 200)}`);
     briefingLog.warn(2, `Airport parse failed: ${parseErr.message}`, OP.AI);
     return {
       airport: {

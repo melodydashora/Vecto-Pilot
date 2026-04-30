@@ -250,7 +250,7 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
   }
 
   // Phase 2: Generate SmartBlocks (outside transaction - makes external API calls)
-  venuesLog.info(`[blocks-fast] Generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
+  venuesLog.info(`Generating venue cards for ${snapshotId.slice(0, 8)}`);
 
   try {
     // 2026-01-09: P0-3 FIX - Pass authenticated userId instead of null
@@ -268,11 +268,11 @@ async function ensureSmartBlocksExist(snapshotId, options = {}) {
       .where(eq(rankings.snapshot_id, snapshotId)).limit(1);
 
     if (newRanking) {
-      venuesLog.done(4, `SmartBlocks generated for ${snapshotId.slice(0, 8)}`);
+      venuesLog.done(4, `Venue cards generated for ${snapshotId.slice(0, 8)}`);
       await updatePhase(snapshotId, 'complete', { phaseEmitter: options.phaseEmitter });
       return { ranking: newRanking, generated: true, error: null };
     } else {
-      venuesLog.warn(4, `SmartBlocks generated but no ranking found`);
+      venuesLog.warn(4, `Venue cards generated but no ranking found`);
       return { ranking: null, generated: true, error: 'ranking_not_created' };
     }
   } catch (err) {
@@ -324,7 +324,7 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
     // Filter Plus Codes
     if (resolvedAddress && isPlusCode(resolvedAddress)) {
       if (logPlusCodes) {
-        console.log(`[blocks-fast] ⚠️ Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);
+        console.log(`[VENUE] Filtering Plus Code: "${resolvedAddress}" for ${c.name}`);
       }
       resolvedAddress = null;
     }
@@ -337,7 +337,7 @@ async function mapCandidatesToBlocks(candidates, options = {}) {
     // Final Plus Code check
     if (resolvedAddress && isPlusCode(resolvedAddress)) {
       if (logPlusCodes) {
-        console.log(`[blocks-fast] ⚠️ Filtering Plus Code from candidate: "${resolvedAddress}" for ${c.name}`);
+        console.log(`[VENUE] Filtering Plus Code from candidate: "${resolvedAddress}" for ${c.name}`);
       }
       resolvedAddress = null;
     }
@@ -401,7 +401,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   const snapshotId = sanitizeString(req.query.snapshotId || req.query.snapshot_id);
   // 2026-01-09: P0-3 FIX - Get authenticated userId for ownership check
   const authUserId = req.auth?.userId;
-  venuesLog.info(`[blocks-fast] GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
+  venuesLog.info(`GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
 
   if (!snapshotId) {
     return res.status(400).json({ error: 'snapshot_required' });
@@ -410,7 +410,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
   try {
     // GATE 1: Strategy must be ready before blocks
     const { ready, strategy, status } = await isStrategyReady(snapshotId);
-    venuesLog.info(`[blocks-fast] Strategy check: ready=${ready}, status=${status}`);
+    venuesLog.info(`Strategy check: ready=${ready}, status=${status}`);
 
     if (!ready) {
       return res.status(202).json({
@@ -440,7 +440,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
     // User can only access blocks for their own snapshots
     if (snapshot.user_id && snapshot.user_id !== authUserId) {
-      venuesLog.warn(`[blocks-fast] Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
+      venuesLog.warn(`Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
 
@@ -584,7 +584,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       });
 
       if (retryCount >= MAX_SNAPSHOT_RETRIES) {
-        console.error(`[blocks-fast] HARD FAIL: snapshot ${snapshotId.slice(0, 8)} still pending after ${retryCount} retries. Missing: ${missingFields.join(', ') || '(unknown)'}`);
+        console.error(`[VENUE] HARD FAIL: snapshot ${snapshotId.slice(0, 8)} still pending after ${retryCount} retries. Missing: ${missingFields.join(', ') || '(unknown)'}`);
         triadLog.error(1, `HARD FAIL snapshot=${snapshotId.slice(0, 8)} retries=${retryCount} missing=${missingFields.join(',')}`);
         return sendOnce(503, {
           error: 'snapshot_incomplete',
@@ -684,7 +684,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         });
       }
       // Strategy is ready but blocks don't exist yet - generate them
-      venuesLog.info(`Strategy status=${currentStrategy.status}, generating SmartBlocks for ${snapshotId.slice(0, 8)}`);
+      venuesLog.info(`Strategy status=${currentStrategy.status}, generating venue cards for ${snapshotId.slice(0, 8)}`);
     }
 
     // CRITICAL: Create triad_job AND run synchronous waterfall (autoscale compatible)
@@ -829,7 +829,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
           // 2026-01-09: Removed strategyEmitter.emit - DB NOTIFY 'strategy_ready' is canonical
           // SSE clients receive via subscribeToChannel('strategy_ready') in strategy-events.js
-          sseLog.info(`[blocks-fast] strategy_ready (DB NOTIFY) for ${snapshotId.slice(0, 8)}`);
+          sseLog.info(`[VENUE] strategy_ready (DB NOTIFY) for ${snapshotId.slice(0, 8)}`);
         } catch (immediateErr) {
           triadLog.error(3, `runImmediateStrategy failed`, immediateErr);
           throw immediateErr;
@@ -846,7 +846,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // =========================================================================
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 4 - PRE-SMARTBLOCKS
         // =========================================================================
-        triadLog.phase(4, `[VERIFY] Sending to VENUE_SCORER (Tactical Planner):`);
+        triadLog.phase(4, `[VERIFY] Sending to Planner:`);
         triadLog.phase(4, `[VERIFY]   • snapshot_id: ${snapshotId.slice(0, 8)}`);
         triadLog.phase(4, `[VERIFY]   • snapshot.lat/lng: ${snapshot.lat?.toFixed(6)}, ${snapshot.lng?.toFixed(6)}`);
         triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${strategyRow?.strategy_for_now ? `${strategyRow.strategy_for_now.length} chars` : 'NULL'}`);
@@ -959,7 +959,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           }
 
           if (ranking) {
-            venuesLog.done(4, `SmartBlocks generated for existing job ${snapshotId.slice(0, 8)}`);
+            venuesLog.done(4, `Venue cards generated for existing job ${snapshotId.slice(0, 8)}`);
           }
         }
 

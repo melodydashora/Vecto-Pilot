@@ -816,7 +816,7 @@ const timingIntel = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function seedIntelligence() {
-  console.log('🧠 Seeding Market Intelligence from Research...\n');
+  console.log('Seeding Market Intelligence from Research...\n');
 
   const allIntel = [
     ...universalIntel,
@@ -871,7 +871,7 @@ async function seedIntelligence() {
         console.log(`  ➕ Inserted: ${intel.title}`);
       }
     } catch (err) {
-      console.error(`  ❌ Error with "${intel.title}":`, err.message);
+      console.error(`  Error with "${intel.title}":`, err.message);
       errors++;
     }
   }
@@ -879,7 +879,7 @@ async function seedIntelligence() {
   console.log('\n📊 Seeding Complete:');
   console.log(`   ➕ Inserted: ${inserted}`);
   console.log(`   ✏️  Updated: ${updated}`);
-  if (errors > 0) console.log(`   ❌ Errors: ${errors}`);
+  if (errors > 0) console.log(`   Errors: ${errors}`);
 
   // Show summary
   const summary = await db.execute(`

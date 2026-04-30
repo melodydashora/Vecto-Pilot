@@ -1,5 +1,33 @@
 import pg from 'pg';
-import { dbLog, OP } from '../logger/workflow.js';
+import { dbLog, chainLog, OP } from '../logger/workflow.js';
+
+// 2026-04-28 (memory 208 + 230): derive parent stage + sub from PostgreSQL
+// channel name so [DB] [LISTEN/NOTIFY] lines emit under the correct workflow
+// stage (e.g. briefing_weather_ready -> [BRIEFING] [WEATHER] [DB] [LISTEN/NOTIFY]
+// [briefing_weather_ready]).
+function _chainFromChannel(channel) {
+  if (!channel) return { parent: 'WORKFLOW', sub: null };
+  const parts = String(channel).split('_');
+  const head = parts[0]?.toLowerCase();
+  if (head === 'briefing') {
+    if (parts.length >= 3 && parts[parts.length - 1] === 'ready') {
+      const subParts = parts.slice(1, -1);
+      const sub = subParts.length > 0 ? subParts.join('_').toUpperCase() : null;
+      return { parent: 'BRIEFING', sub };
+    }
+    return { parent: 'BRIEFING', sub: null };
+  }
+  if (head === 'strategy') return { parent: 'STRATEGY', sub: null };
+  if (head === 'venue' || head === 'venuecards') return { parent: 'VENUE', sub: null };
+  if (head === 'blocks') return { parent: 'VENUE', sub: null };
+  if (head === 'events') return { parent: 'EVENTS', sub: null };
+  return { parent: 'WORKFLOW', sub: null };
+}
+
+function _emitChannel(channel, message, level = 'info') {
+  const { parent, sub } = _chainFromChannel(channel);
+  chainLog({ parent, sub, callTypes: ['DB', 'LISTEN/NOTIFY'], table: channel, level }, message);
+}
 
 let pgClient = null;
 let reconnectTimer = null;
@@ -230,7 +258,7 @@ async function resubscribeChannels() {
     }
     try {
       await pgClient.query(`LISTEN ${channel}`);
-      dbLog.phase(1, `Re-LISTENed ${channel} (${subs.size} subscriber(s))`, OP.DB);
+      _emitChannel(channel, `Re-LISTENed (${subs.size} subscriber(s))`);
     } catch (err) {
       dbLog.error(1, `Failed to re-LISTEN ${channel}: ${err.message}`, err, OP.DB);
     }
@@ -241,12 +269,12 @@ async function resubscribeChannels() {
     pgClient.on('notification', (msg) => {
       const subscribers = channelSubscribers.get(msg.channel);
       if (subscribers && subscribers.size > 0) {
-        dbLog.done(1, `NOTIFY ${msg.channel} → ${subscribers.size} subscriber(s)`, OP.SSE);
+        _emitChannel(msg.channel, `NOTIFY → ${subscribers.size} subscriber(s)`);
         subscribers.forEach(cb => {
           try {
             cb(msg.payload);
           } catch (err) {
-            console.error(`[NotificationDispatcher] Subscriber error:`, err);
+            console.error(`[NOTIFY] Subscriber error:`, err);
           }
         });
       }
@@ -271,13 +299,13 @@ export async function subscribeToChannel(channel, callback) {
   if (!channelSubscribers.has(channel)) {
     channelSubscribers.set(channel, new Set());
     await client.query(`LISTEN ${channel}`);
-    dbLog.phase(1, `LISTEN ${channel} (first subscriber)`, OP.DB);
+    _emitChannel(channel, 'first subscriber - LISTEN');
   }
 
   // Add callback to subscribers
   channelSubscribers.get(channel).add(callback);
   const subscriberCount = channelSubscribers.get(channel).size;
-  dbLog.info(`Channel ${channel}: ${subscriberCount} subscriber(s)`, OP.DB);
+  _emitChannel(channel, `${subscriberCount} subscriber(s)`);
 
   // Attach single notification handler if not already attached
   if (!notificationHandlerAttached) {
@@ -285,12 +313,12 @@ export async function subscribeToChannel(channel, callback) {
       const subscribers = channelSubscribers.get(msg.channel);
       if (subscribers && subscribers.size > 0) {
         // Parse payload once, dispatch to all subscribers
-        dbLog.done(1, `NOTIFY ${msg.channel} → ${subscribers.size} subscriber(s)`, OP.SSE);
+        _emitChannel(msg.channel, `NOTIFY → ${subscribers.size} subscriber(s)`);
         subscribers.forEach(cb => {
           try {
             cb(msg.payload);
           } catch (err) {
-            console.error(`[NotificationDispatcher] Subscriber error:`, err);
+            console.error(`[NOTIFY] Subscriber error:`, err);
           }
         });
       }
@@ -304,7 +332,7 @@ export async function subscribeToChannel(channel, callback) {
     const subs = channelSubscribers.get(channel);
     if (subs) {
       subs.delete(callback);
-      dbLog.info(`Channel ${channel}: ${subs.size} subscriber(s) remaining`, OP.DB);
+      _emitChannel(channel, `${subs.size} subscriber(s) remaining`);
 
       // Last subscriber? UNLISTEN
       if (subs.size === 0) {
@@ -312,7 +340,7 @@ export async function subscribeToChannel(channel, callback) {
         try {
           const cl = await getListenClient();
           await cl.query(`UNLISTEN ${channel}`);
-          dbLog.phase(1, `UNLISTEN ${channel} (no subscribers)`, OP.DB);
+          _emitChannel(channel, 'no subscribers - UNLISTEN');
         } catch (err) {
           // Connection may be closed
         }

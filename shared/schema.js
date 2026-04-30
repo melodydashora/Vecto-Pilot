@@ -636,6 +636,36 @@ export const discovered_events = pgTable("discovered_events", {
   idxVenueId: sql`create index if not exists idx_discovered_events_venue_id on ${table} (venue_id) where venue_id is not null`,
 }));
 
+// 2026-04-29: Plan G — discovered_traffic cache table.
+// Snapshot-scoped TomTom incident cache. Decouples map render from briefing
+// consolidation. lat/lng NOT NULL is the structural defense against the Phase F
+// regression class (briefing-service silently dropping coords).
+// Lifecycle: ON DELETE CASCADE from snapshots → traffic rows live and die with
+// their snapshot. Same pattern as discovered_events; aligns with Rule 11 snapshot fidelity.
+export const discovered_traffic = pgTable("discovered_traffic", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  snapshot_id: uuid("snapshot_id").notNull(), // FK enforced at DB level via migration
+  device_id: text("device_id").notNull(),
+  incident_id: text("incident_id").notNull(), // TomTom's stable id; per-snapshot dedup
+  category: text("category").notNull(), // 'Jam' | 'Lane Closed' | 'Road Works' | 'Accident' | etc.
+  severity: text("severity").notNull(), // 'high' | 'medium' | 'low'
+  description: text("description"),
+  road: text("road"),
+  location: text("location"),
+  is_highway: boolean("is_highway").notNull().default(false),
+  delay_minutes: integer("delay_minutes"),
+  length_miles: doublePrecision("length_miles"),
+  distance_miles: doublePrecision("distance_miles"), // from driver's snapshot position
+  lat: doublePrecision("lat").notNull(), // enforce coords at write time
+  lng: doublePrecision("lng").notNull(),
+  raw_payload: jsonb("raw_payload"), // full TomTom incident object (forensics)
+  fetched_at: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  uniqSnapshotIncident: sql`create unique index if not exists discovered_traffic_snapshot_incident_unique on ${table} (snapshot_id, incident_id)`,
+  idxSnapshot: sql`create index if not exists idx_discovered_traffic_snapshot on ${table} (snapshot_id)`,
+  idxDevice: sql`create index if not exists idx_discovered_traffic_device on ${table} (device_id)`,
+}));
+
 // Traffic zones for real-time traffic intelligence
 export const traffic_zones = pgTable("traffic_zones", {
   id: uuid("id").primaryKey().defaultRandom(),

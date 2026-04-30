@@ -150,11 +150,7 @@
       "Bash(server/api/chat/chat.js )",
       "Bash(server/bootstrap/routes.js )",
       "Bash(server/lib/ai/coach-dal.js )",
-<<<<<<< HEAD
-      "Bash(client/src/components/CoachChat.tsx )",
-=======
       "Bash(client/src/components/AICoach.tsx )",
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       "Bash(docs/architecture/ai-coach.md )",
       "Bash(tests/coach-validation.test.js )",
       "Bash(tests/coach-schema.test.js)",
@@ -173,11 +169,7 @@
       "Bash(gemini:*)",
       "Bash(gcloud --version:*)",
       "Bash(git rm:*)",
-<<<<<<< HEAD
-      "Bash(Catch Anti-Pattern\" lesson explaining why catching 23505 with ON\n  CONFLICT masks bugs\n- progress-bar-and-snapshot-flow.md: Fixed SSE endpoint path to\n  strategy-events.js \\(was events.js\\)\n- briefing/README.md: Noted events.js deletion, SSE consolidation\n- CHANGES.md: Documented all 2026-01-09 commits \\(e00c031, 4c8c037,\n  a7d5589\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-=======
       "Bash(Catch Anti-Pattern\" lesson explaining why catching 23505 with ON\n  CONFLICT masks bugs\n- progress-bar-and-snapshot-flow.md: Fixed SSE endpoint path to\n  strategy-events.js \\(was events.js\\)\n- briefing/README.md: Noted events.js deletion, SSE consolidation\n- CHANGES.md: Documented all 2026-01-09 commits \\(e00c031, 4c8c037,\n  a7d5589\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       "mcp__plugin_serena_serena__get_symbols_overview",
       "mcp__plugin_serena_serena__read_memory",
       "mcp__plugin_serena_serena__check_onboarding_performed",
@@ -202,9 +194,6 @@
       "Bash(for i in 1 2 3 4 5 6 7 8)",
       "Bash(do sleep 1)",
       "Bash(for i in 1 2 3 4 5 6 7 8 9 10)",
-<<<<<<< HEAD
-      "Bash(source .env)"
-=======
       "Bash(source .env)",
       "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node:*)",
       "Bash(UBER_WEBHOOK_SECRET=\"ad1d0f6f5d1a73565aff6f17500b290bc1d832ce94d7fb342fffc687fea4eca7\" node scripts/test-uber-webhook.js:*)",
@@ -299,17 +288,51 @@
       "Bash(/nix/store/dd093s6q1w4zkmhxm4160pgdg5n61hsz-replit-cli-0.0.1/bin/replit ai *)",
       "Bash(/nix/store/dd093s6q1w4zkmhxm4160pgdg5n61hsz-replit-cli-0.0.1/bin/replit run *)",
       "Read(//home/runner/**)",
-      "Bash(git ls-tree *)"
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
+      "Bash(git ls-tree *)",
+      "Bash(sed -n '14,32p' /home/runner/workspace/server/lib/ai/index.js)",
+      "Bash(sed -n '142,154p' /home/runner/workspace/server/lib/ai/model-registry.js)",
+      "Bash(sed -n '368,378p' /home/runner/workspace/server/lib/ai/model-registry.js)",
+      "Bash(git -C /home/runner/workspace status --short)",
+      "Bash(git -C /home/runner/workspace add client/src/components/briefing/StrategyCard.tsx client/src/components/BriefingTab.tsx client/src/pages/co-pilot/BriefingPage.tsx client/src/pages/co-pilot/CoachPage.tsx client/src/pages/co-pilot/StrategyPage.tsx client/src/contexts/co-pilot-context.tsx client/src/constants/apiRoutes.ts client/src/pages/landing/LandingPage.tsx server/api/strategy/strategy.js server/api/health/diagnostics-strategy.js server/lib/ai/providers/consolidator.js server/lib/ai/index.js server/lib/ai/model-registry.js server/lib/ai/rideshare-coach-dal.js server/lib/briefing/dump-last-briefing.js)",
+      "Bash(git -C /home/runner/workspace add client/src/components/BriefingTab.tsx client/src/pages/co-pilot/BriefingPage.tsx client/src/pages/co-pilot/CoachPage.tsx client/src/pages/co-pilot/StrategyPage.tsx client/src/contexts/co-pilot-context.tsx client/src/constants/apiRoutes.ts client/src/pages/landing/LandingPage.tsx server/api/strategy/strategy.js server/api/health/diagnostics-strategy.js server/lib/ai/providers/consolidator.js server/lib/ai/index.js server/lib/ai/model-registry.js server/lib/ai/rideshare-coach-dal.js server/lib/briefing/dump-last-briefing.js)",
+      "Bash(git -C /home/runner/workspace add server/api/chat/realtime.js server/api/health/diagnostics.js server/api/rideshare-coach/schema.js server/api/strategy/blocks-fast.js server/api/strategy/content-blocks.js server/api/strategy/strategy-events.js server/lib/ai/providers/consolidator.js server/lib/strategy/dump-last-strategy.js server/lib/strategy/strategy-generator-parallel.js server/lib/strategy/strategy-utils.js server/logger/workflow.js server/validation/response-schemas.js server/validation/transformers.js)",
+      "Bash(git -C /home/runner/workspace commit -m ' *)",
+      "Bash(git -C /home/runner/workspace branch --show-current)",
+      "Bash(git -C /home/runner/workspace stash list)",
+      "Bash(git -C /home/runner/workspace checkout main)",
+      "Bash(git -C /home/runner/workspace merge --no-ff chore/remove-daily-strategy -m 'Merge branch '\\\\''chore/remove-daily-strategy'\\\\'' — Daily 8-12hr strategy removed end-to-end *)",
+      "Bash(git -C /home/runner/workspace log --oneline --graph -8)",
+      "Bash(git -C /home/runner/workspace log --oneline origin/main..main)",
+      "Bash(git -C /home/runner/workspace push origin main)",
+      "Bash(git -C /home/runner/workspace status -sb)",
+      "Bash(git -C /home/runner/workspace checkout -b coach-pass2-phase-b)",
+      "Bash(git -C /home/runner/workspace add client/src/utils/coach/cleanTextForTTS.ts client/src/components/RideshareCoach.tsx)",
+      "Bash(git -C /home/runner/workspace commit -m \"refactor\\(coach\\): lift cleanTextForTTS to shared util \\(no behavior change\\)\")",
+      "Bash(git -C /home/runner/workspace add server/lib/ai/adapters/gemini-adapter.js server/lib/ai/adapters/index.js server/api/chat/chat.js)",
+      "Bash(git -C /home/runner/workspace commit -m \"feat\\(chat\\): plumb AbortSignal through callModelStream + req.on\\(close\\) → cancel Gemini\")",
+      "Bash(bin/vecto-runner status *)",
+      "Bash(bin/vecto-runner restart *)",
+      "Bash(cp /home/runner/workspace/.claude/settings.local.json /tmp/settings.local.json.backup)",
+      "Bash(sed -i '/mcp__plugin_serena_serena/d' /home/runner/workspace/.claude/settings.local.json)",
+      "Bash(cp /tmp/settings.local.json.backup /home/runner/workspace/.claude/settings.local.json)",
+      "Bash(jq 'walk\\(if type == \"array\" then map\\(select\\(type != \"string\" or \\(test\\(\"mcp__plugin_serena_serena\"\\) | not\\)\\)\\) else . end\\)' /home/runner/workspace/.claude/settings.local.json)",
+      "Bash(cp /tmp/settings.local.json.cleaned /home/runner/workspace/.claude/settings.local.json)",
+      "Bash(LOG_NO_EMOJI=true node -e \"import\\('./server/logger/workflow.js'\\).then\\(m => { m.barsLog.info\\('no-emoji test'\\); m.markPhaseStart\\({ request_id:'r1', snapshot_id:'s1', phase:'SNAPSHOT' }\\); m.logAICall\\('Strategist','claude-opus','test'\\); }\\);\")",
+      "Bash(sed -n '203,215p' client/src/components/strategy/StrategyMap.tsx)",
+      "Bash(sed -n '900,925p' client/src/components/strategy/StrategyMap.tsx)",
+      "Bash(sed -n '349,375p' client/src/components/RideshareCoach.tsx)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/events/pipeline.test.js --verbose)",
+      "Bash(pg_dump --version)"
     ],
     "deny": [],
     "ask": []
   },
-<<<<<<< HEAD
-=======
   "enabledPlugins": {
-    "feature-dev@claude-plugins-official": true
+    "feature-dev@claude-plugins-official": true,
+    "serena@claude-plugins-official": false
   },
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
-  "outputStyle": "Explanatory"
+  "outputStyle": "Explanatory",
+  "remote": {
+    "defaultEnvironmentId": "env_01CtSSe8JnV9GQvnwiG3K5Ab"
+  }
 }

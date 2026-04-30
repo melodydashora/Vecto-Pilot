@@ -169,9 +169,9 @@ export class UnifiedAIManager {
             break;
         }
         
-        console.log(`✅ [Unified AI] ${issue.system} healed`);
+        console.log(`[Unified AI] ${issue.system} healed`);
       } catch (err) {
-        console.error(`❌ [Unified AI] Failed to heal ${issue.system}:`, err.message);
+        console.error(`[Unified AI] Failed to heal ${issue.system}:`, err.message);
       }
     }
   }

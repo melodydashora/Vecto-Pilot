@@ -41,7 +41,7 @@ async function loadPolicy() {
   try {
     const raw = await fs.readFile(policyPath, 'utf8');
     const policy = JSON.parse(raw);
-    console.log('[DocsOrchestrator] Loaded policy from config/docs-policy.json');
+    console.log('[AGENT] [DOCS] Loaded policy from config/docs-policy.json');
     return {
       auto_update_enabled: policy.auto_update_enabled ?? true,
       auto_commit: policy.agents?.publisher?.create_branch === false && false, // Never auto-commit by default
@@ -52,7 +52,7 @@ async function loadPolicy() {
       agents: policy.agents || {},  // 2026-02-17: Preserve full agents config for allowed_paths enforcement
     };
   } catch (e) {
-    console.warn('[DocsOrchestrator] Could not load docs-policy.json, using defaults:', e.message);
+    console.warn('[AGENT] [DOCS] Could not load docs-policy.json, using defaults:', e.message);
     return {
       auto_update_enabled: true,
       auto_commit: false,
@@ -94,7 +94,7 @@ export class DocsOrchestrator {
    */
   async processChanges(changes) {
     await this._ensureInitialized();
-    console.log(`[DocsOrchestrator] Processing ${changes.length} changes...`);
+    console.log(`[AGENT] [DOCS] Processing ${changes.length} changes...`);
 
     // 2026-02-15: Deduplicate — collect unique doc targets across all changes
     const docTargets = new Map(); // targetDoc -> { triggeredBy: string[], status: string }
@@ -109,17 +109,17 @@ export class DocsOrchestrator {
       }
     }
 
-    console.log(`[DocsOrchestrator] ${docTargets.size} unique docs to update from ${changes.length} changes`);
+    console.log(`[AGENT] [DOCS] ${docTargets.size} unique docs to update from ${changes.length} changes`);
 
     const results = [];
 
     for (const [targetDoc, meta] of docTargets) {
-      console.log(`[DocsOrchestrator] Processing ${targetDoc} (triggered by ${meta.triggeredBy.length} files)`);
+      console.log(`[AGENT] [DOCS] Processing ${targetDoc} (triggered by ${meta.triggeredBy.length} files)`);
 
       // 2026-02-17: FIX - Skip protected files (project instructions, not docs)
       const normalizedTarget = targetDoc.replace(/\\/g, '/');
       if (PROTECTED_FILES.has(normalizedTarget)) {
-        console.warn(`[DocsOrchestrator] ⛔ SKIPPED ${targetDoc} — protected file (not auto-updatable)`);
+        console.warn(`[AGENT] [DOCS] ⛔ SKIPPED ${targetDoc} — protected file (not auto-updatable)`);
         results.push({ file: targetDoc, status: 'skipped (protected file)' });
         continue;
       }
@@ -131,7 +131,7 @@ export class DocsOrchestrator {
       if (allowedPaths.length > 0) {
         const isAllowed = allowedPaths.some(p => normalizedTarget.startsWith(p));
         if (!isAllowed) {
-          console.warn(`[DocsOrchestrator] ⛔ SKIPPED ${targetDoc} — outside allowed_paths: [${allowedPaths.join(', ')}]`);
+          console.warn(`[AGENT] [DOCS] ⛔ SKIPPED ${targetDoc} — outside allowed_paths: [${allowedPaths.join(', ')}]`);
           results.push({ file: targetDoc, status: 'skipped (outside allowed_paths)' });
           continue;
         }
@@ -146,20 +146,20 @@ export class DocsOrchestrator {
         const docContent = await this.readFileSafe(docFilePath);
 
         if (!codeContent) {
-          console.warn(`[DocsOrchestrator] Skipping ${targetDoc} - code file unreadable: ${codeFilePath}`);
+          console.warn(`[AGENT] [DOCS] Skipping ${targetDoc} - code file unreadable: ${codeFilePath}`);
           results.push({ file: targetDoc, status: 'skipped (code unreadable)' });
           continue;
         }
 
         if (!docContent) {
-          console.warn(`[DocsOrchestrator] Skipping ${targetDoc} - doc file unreadable: ${docFilePath}`);
+          console.warn(`[AGENT] [DOCS] Skipping ${targetDoc} - doc file unreadable: ${docFilePath}`);
           results.push({ file: targetDoc, status: 'skipped (doc unreadable)' });
           continue;
         }
 
         // 2. Generate updated doc content
         const context = `Files changed: ${meta.triggeredBy.join(', ')} (${meta.status})`;
-        console.log(`[DocsOrchestrator] Generating update for ${targetDoc}...`);
+        console.log(`[AGENT] [DOCS] Generating update for ${targetDoc}...`);
         const newContent = await this.generator.generateUpdate(
           meta.triggeredBy[0],
           codeContent,
@@ -173,16 +173,16 @@ export class DocsOrchestrator {
         }
 
         // 3. Validate (pass original content for size comparison)
-        console.log(`[DocsOrchestrator] Validating update for ${targetDoc}...`);
+        console.log(`[AGENT] [DOCS] Validating update for ${targetDoc}...`);
         const validation = await this.validator.validate(newContent, docContent);
         if (!validation.valid) {
-          console.error(`[DocsOrchestrator] Validation failed for ${targetDoc}:`, validation.errors);
+          console.error(`[AGENT] [DOCS] Validation failed for ${targetDoc}:`, validation.errors);
           results.push({ file: targetDoc, status: 'failed validation', errors: validation.errors });
           continue;
         }
 
         // 4. Publish (write to disk)
-        console.log(`[DocsOrchestrator] Publishing ${targetDoc}...`);
+        console.log(`[AGENT] [DOCS] Publishing ${targetDoc}...`);
         const publishResult = await this.publisher.publish(docFilePath, newContent);
 
         results.push({
@@ -193,7 +193,7 @@ export class DocsOrchestrator {
         });
 
       } catch (error) {
-        console.error(`[DocsOrchestrator] Error processing ${targetDoc}:`, error.message);
+        console.error(`[AGENT] [DOCS] Error processing ${targetDoc}:`, error.message);
         results.push({ file: targetDoc, status: 'error', error: error.message });
       }
     }
@@ -201,7 +201,7 @@ export class DocsOrchestrator {
     const updated = results.filter(r => r.status === 'updated').length;
     const skipped = results.filter(r => r.status.startsWith('skipped')).length;
     const failed = results.filter(r => r.status === 'error' || r.status.includes('failed')).length;
-    console.log(`[DocsOrchestrator] Done: ${updated} updated, ${skipped} skipped, ${failed} failed`);
+    console.log(`[AGENT] [DOCS] Done: ${updated} updated, ${skipped} skipped, ${failed} failed`);
 
     return results;
   }

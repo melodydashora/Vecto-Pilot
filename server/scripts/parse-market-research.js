@@ -86,9 +86,9 @@ async function parseDocument(filePath, platform) {
     try {
       const intelligence = await extractIntelligence(section, platform, sourceFile);
       allIntelligence.push(...intelligence);
-      console.log(`      ✅ Extracted ${intelligence.length} intelligence items`);
+      console.log(`      Extracted ${intelligence.length} intelligence items`);
     } catch (error) {
-      console.error(`      ❌ Error extracting intelligence: ${error.message}`);
+      console.error(`      Error extracting intelligence: ${error.message}`);
     }
   }
 
@@ -193,7 +193,7 @@ Return a JSON array of intelligence objects. Be thorough - extract ALL actionabl
     // Parse the JSON response
     const jsonMatch = response.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
-      console.warn('      ⚠️ No JSON array found in response');
+      console.warn('      No JSON array found in response');
       return [];
     }
 
@@ -227,7 +227,7 @@ Return a JSON array of intelligence objects. Be thorough - extract ALL actionabl
       created_by: 'system',
     }));
   } catch (error) {
-    console.error(`      ❌ LLM extraction failed: ${error.message}`);
+    console.error(`      LLM extraction failed: ${error.message}`);
     return [];
   }
 }
@@ -237,11 +237,11 @@ Return a JSON array of intelligence objects. Be thorough - extract ALL actionabl
  */
 async function insertIntelligence(records) {
   if (records.length === 0) {
-    console.log('\n⚠️ No records to insert');
+    console.log('\nNo records to insert');
     return;
   }
 
-  console.log(`\n💾 Inserting ${records.length} intelligence records...`);
+  console.log(`\nInserting ${records.length} intelligence records...`);
 
   try {
     // Insert in batches of 50
@@ -249,12 +249,12 @@ async function insertIntelligence(records) {
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
       await db.insert(market_intelligence).values(batch);
-      console.log(`   ✅ Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(records.length / batchSize)}`);
+      console.log(`   Inserted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(records.length / batchSize)}`);
     }
 
-    console.log(`\n✅ Successfully inserted ${records.length} intelligence records`);
+    console.log(`\nSuccessfully inserted ${records.length} intelligence records`);
   } catch (error) {
-    console.error(`\n❌ Database insert failed: ${error.message}`);
+    console.error(`\nDatabase insert failed: ${error.message}`);
     throw error;
   }
 }
@@ -290,7 +290,7 @@ async function main() {
       const researchDir = path.join(platformDir, 'research-findings');
 
       if (!fs.existsSync(researchDir)) {
-        console.log(`\n⚠️ No research-findings directory for ${platform}`);
+        console.log(`\nNo research-findings directory for ${platform}`);
         continue;
       }
 
@@ -311,19 +311,19 @@ async function main() {
   for (const item of allIntelligence) {
     byMarket[item.market] = (byMarket[item.market] || 0) + 1;
   }
-  console.log('\n📈 By Market:');
+  console.log('\nBy Market:');
   for (const [market, count] of Object.entries(byMarket)) {
     console.log(`   ${market}: ${count} items`);
   }
 
   if (dryRun) {
-    console.log('\n🔍 DRY RUN - Sample output (first 3 items):');
+    console.log('\nDRY RUN - Sample output (first 3 items):');
     console.log(JSON.stringify(allIntelligence.slice(0, 3), null, 2));
   } else {
     await insertIntelligence(allIntelligence);
   }
 
-  console.log('\n✅ Done!');
+  console.log('\nDone!');
 }
 
 // Run

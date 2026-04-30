@@ -88,7 +88,7 @@ async function main() {
       WHERE venue_id = ANY(${Array.from(barVenueIds)})
         AND is_bar = false
     `);
-    console.log(`  ✅ Updated ${barVenueIds.size} venues to is_bar=true`);
+    console.log(`  Updated ${barVenueIds.size} venues to is_bar=true`);
     stats.barsSet = barVenueIds.size;
   } else if (dryRun && barVenueIds.size > 0) {
     console.log(`  [DRY RUN] Would set is_bar=true for ${barVenueIds.size} venues`);
@@ -133,7 +133,7 @@ async function main() {
       WHERE venue_id = ANY(${idsToUpdate})
         AND is_event_venue = false
     `);
-    console.log(`  ✅ Updated ${unmarkedEventVenues.length} venues to is_event_venue=true`);
+    console.log(`  Updated ${unmarkedEventVenues.length} venues to is_event_venue=true`);
     stats.eventVenuesSet = unmarkedEventVenues.length;
   } else if (dryRun && unmarkedEventVenues.length > 0) {
     console.log(`  [DRY RUN] Would set is_event_venue=true for ${unmarkedEventVenues.length} venues`);
@@ -169,7 +169,7 @@ async function main() {
       WHERE venue_id = ANY(${idsToUpdate})
         AND record_status IN ('stub', 'enriched')
     `);
-    console.log(`  ✅ Upgraded ${verifiedCandidates.length} venues to record_status='verified'`);
+    console.log(`  Upgraded ${verifiedCandidates.length} venues to record_status='verified'`);
     stats.statusUpgraded += verifiedCandidates.length;
   } else if (dryRun && verifiedCandidates.length > 0) {
     console.log(`  [DRY RUN] Would upgrade ${verifiedCandidates.length} venues to 'verified'`);
@@ -198,7 +198,7 @@ async function main() {
       WHERE venue_id = ANY(${idsToUpdate})
         AND record_status = 'stub'
     `);
-    console.log(`  ✅ Upgraded ${enrichedCandidates.length} venues to record_status='enriched'`);
+    console.log(`  Upgraded ${enrichedCandidates.length} venues to record_status='enriched'`);
     stats.statusUpgraded += enrichedCandidates.length;
   } else if (dryRun && enrichedCandidates.length > 0) {
     console.log(`  [DRY RUN] Would upgrade ${enrichedCandidates.length} venues to 'enriched'`);
@@ -219,10 +219,10 @@ async function main() {
   console.log('');
 
   if (dryRun) {
-    console.log('  ⚠️  DRY RUN - No changes were made');
+    console.log('   DRY RUN - No changes were made');
     console.log('  Run with --apply to execute these changes');
   } else {
-    console.log('  ✅ All changes applied successfully');
+    console.log('  All changes applied successfully');
   }
   console.log('');
 
@@ -230,6 +230,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('❌ Script failed:', err);
+  console.error('Script failed:', err);
   process.exit(1);
 });

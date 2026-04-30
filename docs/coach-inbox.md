@@ -117,3 +117,20 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 - **Priority:** medium | **Date:** 2026-04-10 07:07
 - Logs from /co-pilot/map indicate two issues that need fixing: 1. Google Maps JS API is loaded directly without loading=async, which impacts performance. 2. google.maps.Marker is deprecated and needs to be updated to google.maps.marker.AdvancedMarkerElement.
   - Files: client/src/pages/copilot/MapPage.tsx
+
+### [CODE_SUGGESTION] Implement TTS streaming to reduce audio latency
+- **Priority:** medium | **Date:** 2026-04-27 08:22
+- Melody noted a delay where OpenAI TTS only plays after the full text response completes. Transitioning from a blocking request to a streaming architecture (chunking text by sentence to the TTS API, or using OpenAI Realtime WebSocket API) will significantly reduce audio latency.
+
+### [BUG] Enforce strict today date filtering for weather/air traffic news and fix weather widget
+- **Priority:** high | **Date:** 2026-04-29 00:15
+- Weather and air traffic news are pulling yesterdays data, causing a mismatch with actual current conditions. Additionally, the real-time weather widget is failing to display the weather data. Need to update the news fetching logic to strictly filter for todays date on weather/flight queries, and debug the weather widget data pipeline.
+
+### [FEATURE_REQUEST] Add severe weather alerts to UI banner
+- **Priority:** high | **Date:** 2026-04-29 00:18
+- Implement a prominent banner in the app UI to display active severe weather alerts (like Tornado Watches, Severe Thunderstorm Warnings, etc.) based on the driver's current location. This is critical for driver safety and real-time strategy adjustments.
+  - Files: client/src/components/layout/AppBanner.tsx, client/src/features/weather/WeatherWidget.tsx
+
+### [BUG] TTS playback lag between sentences
+- **Priority:** medium | **Date:** 2026-04-30 00:12
+- Noticed a slight lag between sentences during voice playback. Might need to tweak the TTS engine settings, adjust the pause duration for punctuation, or pre-buffer the audio chunks more aggressively.

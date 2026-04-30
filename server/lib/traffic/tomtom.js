@@ -181,12 +181,12 @@ export async function fetchRawTraffic(lat, lng, radiusMeters = 5000) {
   // 2026-01-14: Phase 3 Intelligence Hardening - simplified raw data fetch for Gemini
   // Returns null instead of throwing to allow graceful degradation
   if (!TOMTOM_API_KEY) {
-    console.warn('[TomTom] API Key missing. Returning null.');
+    console.warn('[BRIEFING] [TRAFFIC] API Key missing. Returning null.');
     return null;
   }
 
   if (!lat || !lng) {
-    console.warn('[TomTom] Coordinates required. Returning null.');
+    console.warn('[BRIEFING] [TRAFFIC] Coordinates required. Returning null.');
     return null;
   }
 
@@ -213,7 +213,7 @@ export async function fetchRawTraffic(lat, lng, radiusMeters = 5000) {
       incidents: incData?.incidents || []
     };
   } catch (error) {
-    console.error('[TomTom] Error fetching traffic:', error);
+    console.error('[BRIEFING] [TRAFFIC] Error fetching traffic:', error);
     return null;
   }
 }
@@ -281,7 +281,7 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[TomTom] API error: ${response.status} - ${errorText}`);
+      console.error(`[BRIEFING] [TRAFFIC] API error: ${response.status} - ${errorText}`);
       return {
         traffic: {
           summary: `Traffic data error for ${location}`,
@@ -434,7 +434,7 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
       },
     };
   } catch (error) {
-    console.error('[TomTom] Traffic request failed:', error);
+    console.error('[BRIEFING] [TRAFFIC] Traffic request failed:', error);
     briefingLog.warn(1, `TomTom error: ${error.message}`, OP.AI);
 
     return {

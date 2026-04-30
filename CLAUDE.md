@@ -17,13 +17,14 @@ This file provides guidance to Claude Code when working with this repository.
 ### Rule 2: Documentation Synchronization (revised 2026-04-18)
 - **Sub-READMEs have been removed.** 109 sub-READMEs across `server/`, `client/`, `shared/`, `migrations/`, `scripts/`, `tests/`, `platform-data/`, `data/`, `tools/`, `config/`, `schema/`, `public/`, `keys/`, `attached_assets/` were deleted because they rotted faster than they could be maintained. Only the root `README.md` and everything under `docs/` survive.
 - **When files are modified**, update the relevant document under `docs/` — not a sub-README.
-- **Canonical living docs:** root `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `LESSONS_LEARNED.md`, `docs/architecture/BRIEFING.md`, `docs/EVENT_FRESHNESS_AND_TTL.md`, `docs/VENUELOGIC.md`, `docs/architecture/AUTH.md`, `docs/review-queue/pending.md`, `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`.
+- **Canonical living docs:** root `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `LESSONS_LEARNED.md`, `docs/architecture/BRIEFING.md`, `docs/EVENT_FRESHNESS_AND_TTL.md`, `docs/VENUELOGIC.md`, `docs/architecture/AUTH.md`, `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`. (`docs/review-queue/pending.md` was retired 2026-04-29; `claude_memory` rows are now the canonical "unfinished work" surface — see Rule 12 row #3 and Rule 15.)
 - **If something was buried in a deleted sub-README that still matters**, move it into the appropriate `docs/` doc (don't recreate the sub-README).
-- If a doc edit is skipped during a code change, log it in `docs/review-queue/pending.md`.
+- If a doc edit is skipped during a code change, log it as a `claude_memory` row (`category='audit', status='active'`) per Rule 15. The Markdown `pending.md` was retired 2026-04-29 in favor of the queryable `claude_memory` table.
 
-### Rule 3: Pending.md Verification
-- If `docs/review-queue/pending.md` has information, **verify those changes first**
+### Rule 3: claude_memory Active-Rows Verification (revised 2026-04-29; was "Pending.md Verification")
+- At session start, **verify any `claude_memory` rows with `status='active'`** that look load-bearing for the work you're about to do (use the Rule 15 canonical query)
 - Ensure root documents (CLAUDE.md, ARCHITECTURE.md, LESSONS_LEARNED.md) and the relevant `docs/` files reflect those changes before proceeding with new work
+- **History note:** the Markdown `docs/review-queue/pending.md` was retired 2026-04-29; this rule used to point there. Other rules and docs that say "pending.md" should be updated as you encounter them.
 
 ### Rule 4: Documentation Currency
 - Understand the repo in its current state before making changes
@@ -96,20 +97,23 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 - **Applying the principle to new work:** before adding asynchronous event handling, ask — *would a user receive events that don't reflect their current snapshot?* If yes, that work belongs inside the per-snapshot path. If async work genuinely preserves snapshot fidelity (e.g., a webhook that updates an event in-place after a snapshot fired, or a scheduled refresh that re-keys to the latest snapshot), it can be considered on its merits. The constraint to honor is **snapshot fidelity**, not "no async, ever."
 - **Cross-references:** EVENTS.md, LOCATION.md, FRISCO_LOCK_DIAGNOSIS_2026-04-18.md, RECON_2026-04-17_HANDLES_LOCALITY.md, and BRIEFING-DATA-MODEL.md cite this rule by number — amendments stay under Rule 11 to preserve those links.
 
-### Rule 12: Session-Start Review Protocol (2026-02-25)
+### Rule 12: Session-Start Review Protocol (2026-02-25, expanded 2026-04-28)
 **At the start of EVERY session, review these documents before doing any work:**
 
 | Priority | Document | Why |
 |----------|----------|-----|
 | 1 | `claude_memory` table (Postgres) | Cross-session memory of prior work, decisions, and lessons — query before relying on git/docs alone (see Rule 15) |
-| 2 | `docs/review-queue/pending.md` | Unfinished doc updates from prior sessions |
-| 3 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
-| 4 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
-| 5 | `docs/coach-inbox.md` | Memos from the Rideshare Coach (Gemini) for Claude Code |
-| 6 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
-| 7 | `docs/architecture/full-audit-2026-04-04.md` | Latest comprehensive audit findings (37 issues) |
+| 2 | `.code_based_rules/` directory | Hard-rule layer: `.rules_do_not_change/` (immutable rules + annotated workflow logs, including `Up to Venue console wish.txt` with Melody's inline corrections), `engineering_specs/`, `startup_rules/`. **Read this directory before assuming any other rule source is exhaustive.** `app.MD` explicitly forbids substituting grep / agent / code-sweep searches for actual file reading. |
+| 3 | `claude_memory` active rows (replaces retired `docs/review-queue/pending.md` as of 2026-04-29) | Query: `psql "$DATABASE_URL" -c "SELECT id, category, priority, status, title, created_at FROM claude_memory WHERE status='active' ORDER BY id DESC LIMIT 30;"` per Rule 15. The Markdown queue was retired because manual sweep discipline rotted; `claude_memory` provides queryable status hygiene + parent_id threading. |
+| 4 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
+| 5 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
+| 6 | `docs/coach-inbox.md` | Memos from the Rideshare Coach (Gemini) for Claude Code |
+| 7 | `LESSONS_LEARNED.md` | Critical production mistakes to never repeat |
+| 8 | `docs/architecture/audits/` (whole directory) + `CODEBASE_AUDIT_2026-04-27.md` (most recent — see note below) | 14 audit files including `FRISCO_LOCK_DIAGNOSIS_2026-04-18.md`, `GEOGRAPHIC_ANCHOR_AUDIT_2026-04-18.md`, `NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` (cited by Rule 13 as authoritative on Neon SSL behavior), `NOTIFY_LOSS_RECON_2026-04-18.md`, `RECON_2026-04-17_HANDLES_LOCALITY.md`, `pass-c/d/e/f-*.md` series, `verification-2026-04-16-hallucination-fixes.md`, `HANDOFF_2026-04-24.md`, plus the older `full-audit-2026-04-04.md` (37 issues). Read the most recent first; others give deeper context for specific incidents and topics. **2026-04-28 note:** `CODEBASE_AUDIT_2026-04-27.md` lives on the sibling branch `audit/codebase-2026-04-27` (off `main` at `d39d570f`), not on the current working branch. To read it without checking out the branch: `git fetch origin audit/codebase-2026-04-27 && git show audit/codebase-2026-04-27:docs/architecture/audits/CODEBASE_AUDIT_2026-04-27.md`. The audit IS canonical input — its findings drove the 2026-04-28 fixes (PR-review master plan, schema v6 read-path tz fix, updatePhase idempotency, Path B multi-day predicate, filter-for-planner legacy delete). |
 
 **This is your memory layer.** These documents persist across sessions and are your primary source of truth for the current state of the project. When you learn something important during a session, update the relevant document so future sessions benefit.
+
+**Audit headline (added 2026-04-28, per `CODEBASE_AUDIT_2026-04-27.md`):** Codebase is in good shape — doc drift around the daily-strategy removal is the dominant issue, not functional duplication; live paths are single-sourced. Per the audit's Section 6.3: duplications that exist are idiom duplication (e.g., the 7-route inline freshness filter in `briefing.js`) and intentional defense-in-depth (e.g., dedup at write + read time per `EVENTS.md` §3), not "two pipelines" patterns. AI registry has 26 roles, all live, zero orphans.
 
 **Contested-fact rule (added 2026-04-24):** When docs disagree on verifiable facts (DB provider, API routing, schema shape, model IDs, etc.), trust the newest timestamped audit document over older doctrine files. Specifically: if a file under `docs/architecture/audits/` has a timestamped finding that contradicts a claim in this CLAUDE.md or a standing `docs/` file, the audit wins until the doctrine file is updated. Update the doctrine file within the same session that consumed the audit; reference the audit in your commit message so future sessions follow the same precedence. This amendment was triggered by a 2026-04-18 Neon-vs-Helium drift where three doctrine files said "both Helium" while the `NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md` audit correctly identified prod as Neon serverless.
 
@@ -137,6 +141,15 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 - **Read at session start (Rule 12), write throughout the session.** Quick recent overview: `psql "$DATABASE_URL" -c "SELECT id, session_id, category, priority, status, title, created_at FROM claude_memory WHERE status = 'active' ORDER BY id DESC LIMIT 20;"` — then `psql "$DATABASE_URL" -tAc "SELECT content FROM claude_memory WHERE id = N;"` for the full body of a row.
 - **Status hygiene:** flip rows to `resolved` when the work lands; `superseded` when newer rows replace them. Keep the `active` set lean so future sessions can scan it quickly.
 - **Common categories in practice:** `engineering-pattern`, `design-decision-resolved`, `audit`, `fix`, `doctrine-candidate`, `user-shared-context`. Default `source` is `claude-code`. Use `parent_id` to thread follow-ups under a prior row.
+- **Threading discipline (added 2026-04-29):** when titling a row with `Followup:`, `Resolution:`, or `Update:`, see skill `threading-claude-memory-followups` at `.claude/skills/threading-claude-memory-followups/SKILL.md`. The skill teaches the antecedent-check that decides between **Shape A** (thread under a memory row → set `parent_id`) and **Shape B** (antecedent is external → `parent_id` NULL, body MUST start with `Antecedent: <kind> — <description>`). Complementary soft DB trigger at `migrations/20260429_claude_memory_antecedent_trigger.sql` emits a `RAISE NOTICE` when neither shape is present (applied to dev 2026-04-29; prod migration pending). Spec: `docs/superpowers/specs/2026-04-29-threading-claude-memory-followups.md`.
+
+### Rule 16: Events Deduplication Architecture (2026-04-30)
+- **Principle: dedup at write, never at read.** Identity is computed at INSERT via `generateEventHash` (`server/lib/events/pipeline/hashEvent.js` v3); the DB unique constraint on `discovered_events.event_hash` enforces it structurally. Read paths are pure SELECT + clock-dependent filters (`filterFreshEvents`, `isEventActiveNow`, `filterInvalidEvents` for TBD/Unknown removal).
+- **Identity decoupled from presentation.** The hash is a derived property over normalized event attributes (title prefixes/parentheticals/suffixes stripped, normalized street name extracted from address); the stored `title`/`venue_name`/`address` columns retain Gemini's original strings for UI fidelity. Updating `generateEventHash` does NOT require a schema migration — re-run `node server/scripts/migrate-event-hashes.js` to consolidate rows whose new hash differs.
+- **Choice A doctrine** (rejected Choice B composite-key on 2026-04-30): see `docs/review-queue/PLAN_events-dedup-architectural-2026-04-30.md` (Course Correction Log + Decision Log) and claude_memory rows 268–271. A composite-key UNIQUE on `(state, lower(title), event_start_date, venue_id)` was rejected because `lower(title)` requires exact match — would not catch "Live Music: X" vs "X" without mangling stored titles in the DB, degrading UI presentation.
+- **Anti-pattern: dedup at read.** Memoizing/caching/suppressing read-path dedup hides taxonomy violations; relocate the operation to its correct stage instead. Per claude_memory row 269 ("workarounds for stage-placement violations entrench drift").
+- **Canonical identity fields (v3):** `(stripped_normalized_title, venue_name, normalized_street_name, city, event_start_date)`. Time, attendance, category, expected_attendance are presentation/metadata, not identity.
+- **Pre-INSERT pass location:** `briefing-service.js` runs `deduplicateEvents` + `deduplicateEventsSemantic` on the validated Gemini batch BEFORE the per-event upsert loop; emits `[BRIEFING] [EVENTS] [DEDUP] [WRITE] hash: N → M, semantic: M → P`. The DB UNIQUE on `event_hash` is the race-safety backstop, not the primary defense.
 
 ### Rule 16: MELODY IS THE ARCHITECT
 

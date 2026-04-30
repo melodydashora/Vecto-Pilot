@@ -24,7 +24,17 @@ import { normalizeCategory } from './normalizeEvent.js';
  * Increment when validation rules change.
  * Rows with version >= this do not need read-time revalidation.
  */
-export const VALIDATION_SCHEMA_VERSION = 4; // 2026-02-26: Added category required (Rule 12) + today-only date (Rule 13)
+// 2026-04-28: bumped to v5 — Rule 13 today-check is now timezone-aware via
+// context.timezone (driver's snapshot timezone). Stored rows with schema_version=4
+// pass needsReadTimeValidation correctly because v4<v5; new writes stamp v5.
+// 2026-04-28 (later same day): bumped to v6 — read-path callers (filterInvalidEvents
+// shim in briefing-service.js, the POST /filter-invalid-events API endpoint, and
+// dump-last-briefing.js) now thread `{ timezone }` too. Previously v5 was set when
+// only the write path was tz-aware; the read path silently re-applied UTC fallback
+// to AHEAD-tz drivers, recurring the bug v5 was meant to fix. v6 marks the moment
+// both paths honor driver tz; v5-stamped rows still revalidate correctly because
+// v5<v6 satisfies needsReadTimeValidation.
+export const VALIDATION_SCHEMA_VERSION = 6;
 
 /**
  * Patterns that indicate incomplete/invalid data
@@ -66,9 +76,15 @@ function hasInvalidPattern(value) {
  * Returns validation result with reason for failure.
  *
  * @param {Object} event - NormalizedEvent to validate
+ * @param {Object} [context={}] - Optional context for timezone-aware checks
+ * @param {string} [context.timezone] - IANA timezone for Rule 13 today/yesterday check.
+ *   When provided, today/yesterday are computed in the driver's local timezone instead
+ *   of UTC. Required for global-app correctness — a Pacific/Honolulu driver at 11:30 PM
+ *   local has UTC tomorrow, and the UTC-only check would reject all of today's events.
+ *   Without context.timezone, falls back to UTC for backwards compatibility.
  * @returns {ValidationResult} Validation result
  */
-export function validateEvent(event) {
+export function validateEvent(event, context = {}) {
   // Rule 1: Must have title
   if (!event.title || event.title.trim() === '') {
     return { valid: false, reason: 'missing_title', field: 'title' };
@@ -143,11 +159,19 @@ export function validateEvent(event) {
     }
   }
 
-  // Rule 13: Date must be today or yesterday (for late-night events past midnight)
+  // Rule 13: Date must be today or yesterday in the driver's local timezone
   // 2026-02-26: We only ask Gemini for today's events. Future-dated events are noise.
   // Allow yesterday to handle events discovered before midnight that end after midnight.
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  // 2026-04-28: tz-aware via context.timezone. UTC fallback preserved for legacy callers
+  // (without context). Spec §9.2 — global-app correctness for far-east / Hawaii / etc.
+  const tz = context.timezone;
+  const today = tz
+    ? new Date().toLocaleDateString('en-CA', { timeZone: tz })
+    : new Date().toISOString().split('T')[0];
+  const yesterdayDate = new Date(Date.now() - 86400000);
+  const yesterday = tz
+    ? yesterdayDate.toLocaleDateString('en-CA', { timeZone: tz })
+    : yesterdayDate.toISOString().split('T')[0];
   if (event.event_start_date !== today && event.event_start_date !== yesterday) {
     return { valid: false, reason: 'not_today', field: 'event_start_date' };
   }
@@ -164,10 +188,12 @@ export function validateEvent(event) {
  * @param {Object} options - Options
  * @param {boolean} [options.logRemovals=true] - Whether to log removed events
  * @param {string} [options.phase='VALIDATE'] - Phase label for logging
+ * @param {Object} [options.context={}] - Threaded to validateEvent for tz-aware Rule 13.
+ *   Pass `{ timezone: snapshot.timezone }` from briefing-service callers (2026-04-28).
  * @returns {Object} { valid: ValidatedEvent[], invalid: { event, reason }[], stats }
  */
 export function validateEventsHard(events, options = {}) {
-  const { logRemovals = true, phase = 'VALIDATE' } = options;
+  const { logRemovals = true, phase = 'VALIDATE', context = {} } = options;
 
   if (!events || !Array.isArray(events)) {
     return { valid: [], invalid: [], stats: { total: 0, valid: 0, invalid: 0 } };
@@ -177,7 +203,7 @@ export function validateEventsHard(events, options = {}) {
   const invalid = [];
 
   for (const event of events) {
-    const result = validateEvent(event);
+    const result = validateEvent(event, context);
 
     if (result.valid) {
       valid.push(event);

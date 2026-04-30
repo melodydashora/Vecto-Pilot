@@ -2,7 +2,9 @@
 
 Complete reference of all API endpoints organized by domain.
 
-**Last Updated:** 2025-12-14
+**Last Updated:** 2026-04-30
+
+> **Note:** This registry is known to be missing entries for several routes (memory, translate, hooks, tactical-plan, coach updates, realtime). A completeness pass is on the follow-up list.
 
 ---
 
@@ -12,7 +14,7 @@ Complete reference of all API endpoints organized by domain.
 |--------|-----------|------|---------|
 | Health | `/`, `/health`, `/ready` | No | Health probes |
 | Location | `/api/location/*` | No | GPS, geocoding, weather |
-| Strategy | `/api/blocks-fast`, `/api/strategy/*` | No | TRIAD pipeline |
+| Strategy | `/api/blocks-fast`, `/api/strategy/*` | Yes | Briefing → Strategy → Blocks pipeline (single STRATEGY_TACTICAL strategy) |
 | Briefing | `/api/briefing/*` | No | Events, traffic, news |
 | Chat | `/api/chat/*` | Yes | Rideshare Coach |
 | Voice | `/api/realtime/*`, `/api/tts` | **Yes** | Voice + TTS |
@@ -50,28 +52,33 @@ Complete reference of all API endpoints organized by domain.
 
 ---
 
-## Strategy Endpoints (TRIAD Pipeline)
+## Strategy Endpoints
 
 | Method | Path | Handler | Purpose |
 |--------|------|---------|---------|
-| POST | `/api/blocks-fast` | `blocks-fast.js` | **Main entry** - Trigger TRIAD pipeline |
+| POST | `/api/blocks-fast` | `blocks-fast.js` | **Main entry** — trigger Briefing → Strategy → Blocks pipeline |
 | GET | `/api/blocks-fast` | `blocks-fast.js` | Get blocks for snapshot |
 | GET | `/api/blocks/strategy/:snapshotId` | `content-blocks.js` | Get strategy with timing metadata |
 | GET | `/api/strategy/:snapshotId` | `strategy.js` | Get strategy status |
 | GET | `/api/strategy/events` | `strategy-events.js` | SSE for progress updates |
 
-### TRIAD Pipeline Flow
+### Pipeline Flow
 ```
 POST /api/blocks-fast
     ↓
-Phase 1: Strategist + Briefer + Holiday (parallel)
+Phase 1: Briefing — parallel fetch (weather, traffic, events,
+         news, schools, airport) → briefings table
     ↓
-Phase 2: Daily + Immediate Consolidator (parallel)
+Phase 2: Immediate Strategy — STRATEGY_TACTICAL via
+         consolidator.js:157 → strategies.strategy_for_now
     ↓
-Phase 3: Venue Planner + Enrichment
+Phase 3: Smart Blocks — VENUE_SCORER + Google Places +
+         Google Routes → rankings, ranking_candidates
+         → pg_notify('blocks_ready')
     ↓
-Response: { strategy, blocks }
+Response: { strategy_for_now, blocks }
 ```
+
 
 ---
 

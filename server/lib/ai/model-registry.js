@@ -2,6 +2,14 @@
 // Centralized model configuration registry
 // Single source of truth for AI model settings
 //
+// 2026-04-27: Migrated noisy info-level role-resolution box to debug-level
+// single-line via workflow logger (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec).
+// Set LOG_LEVEL=debug or LOG_VERBOSE_COMPONENTS=MODEL_REGISTRY to see the
+// per-role lines that previously cluttered every request.
+
+import { createWorkflowLogger } from '../../logger/workflow.js';
+const registryLog = createWorkflowLogger('MODEL_REGISTRY');
+//
 // NAMING CONVENTION: {TABLE}_{FUNCTION}
 // - BRIEFING_*: Roles that populate the 'briefings' table
 // - STRATEGY_*: Roles that populate the 'strategies' table
@@ -357,15 +365,19 @@ export const PROVIDERS = {
 // Since getFallbackConfig() now routes Google → GPT-5.4 for cross-provider redundancy,
 // having NO fallback means complete data loss on Gemini outage. Some data with possible
 // format variance is better than zero data.
+// 2026-04-30: H-3 partially reverted. Re-removed BRIEFING_WEATHER/TRAFFIC/SCHOOLS/AIRPORT
+// from this list. Reason: each one was firing a parallel `gpt-5-search-api` web-search
+// call alongside its Gemini call (the hedged-router races both providers and uses
+// whichever returns first). Briefings were ~2× more expensive than necessary while
+// Gemini was healthy. Trade-off restored: a Gemini outage now degrades briefing data
+// for these 4 fields rather than crossing to OpenAI. If reliability becomes a problem,
+// re-add the entries here — the surrounding plumbing (getFallbackConfig, hedged-router,
+// callOpenAIWithWebSearch) is unchanged and will pick them up immediately.
 export const FALLBACK_ENABLED_ROLES = [
   'STRATEGY_TACTICAL',
   'STRATEGY_CONTEXT',
   'VENUE_FILTER',           // 2026-01-14: Added for Anthropic credit fallback
   'STRATEGY_CORE',          // 2026-01-14: Added for Anthropic credit fallback
-  'BRIEFING_WEATHER',       // 2026-04-04: H-3 — weather must not silently fail
-  'BRIEFING_TRAFFIC',       // 2026-04-04: H-3 — traffic analysis is driver-critical
-  'BRIEFING_SCHOOLS',       // 2026-04-04: H-3 — school closures affect traffic patterns
-  'BRIEFING_AIRPORT',       // 2026-04-04: H-3 — airport conditions for airport drivers
   // 2026-02-26: OFFER_ANALYZER removed — vision mode can't be hedged to non-vision fallback.
   // OpenAI adapter doesn't pass images → GPT-5.2 responds first with empty data, discarding
   // Gemini's actual vision analysis. Gemini-only is correct for image-based offer analysis.
@@ -437,7 +449,7 @@ export function resolveRoleName(role) {
   const lower = role.toLowerCase();
   if (LEGACY_ROLE_MAP[lower]) {
     const mapped = LEGACY_ROLE_MAP[lower];
-    console.log(`📋 [REGISTRY] Legacy role "${role}" → "${mapped}"`);
+    registryLog.debug(`Legacy role "${role}" -> "${mapped}"`);
     return mapped;
   }
   return upper; // Return as-is, will fail in getRoleConfig if invalid
@@ -497,27 +509,18 @@ export function getRoleConfig(role) {
   // If an env override resolved to a non-Gemini model, reject it and use the default.
   // This prevents AI_COACH_OVERRIDE_MODEL=claude-opus-4-6 from breaking AI_COACH streaming.
   if (roleConfig.requiresStreaming && !model.startsWith('gemini-')) {
-    console.warn(`📋 [REGISTRY] ⚠️ ${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
+    registryLog.warn(0, `${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
     model = roleConfig.default;
     sourceInfo = 'default (streaming fallback)';
   }
 
   const provider = getProviderForModel(model);
 
-  // Log role configuration resolution
-  const features = roleConfig.features?.join(', ') || 'none';
-  const tablePrefix = canonicalRole.split('_')[0];
-
-  console.log(`📋 [REGISTRY] ┌─────────────────────────────────────────────`);
-  console.log(`📋 [REGISTRY] │ Role:     ${canonicalRole}`);
-  console.log(`📋 [REGISTRY] │ Purpose:  ${roleConfig.purpose}`);
-  console.log(`📋 [REGISTRY] │ Model:    ${model} (${sourceInfo})`);
-  console.log(`📋 [REGISTRY] │ Provider: ${provider}`);
-  console.log(`📋 [REGISTRY] │ Table:    ${tablePrefix.toLowerCase()}s`);
-  console.log(`📋 [REGISTRY] │ Features: ${features}`);
-  if (roleConfig.maxTokens) console.log(`📋 [REGISTRY] │ Tokens:   ${roleConfig.maxTokens}`);
-  if (roleConfig.reasoningEffort) console.log(`📋 [REGISTRY] │ Effort:   ${roleConfig.reasoningEffort}`);
-  console.log(`📋 [REGISTRY] └─────────────────────────────────────────────`);
+  // 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW): demoted from a 10-line info
+  // box (which fired per-call and looked like duplicate registrations) to a single
+  // debug line. Run with LOG_LEVEL=debug or LOG_VERBOSE_COMPONENTS=MODEL_REGISTRY
+  // to see per-role resolutions.
+  registryLog.debug(`Resolved role=${canonicalRole} provider=${provider} model=${model} source=${sourceInfo}`);
 
   return {
     ...roleConfig,

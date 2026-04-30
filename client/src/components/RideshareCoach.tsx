@@ -3,15 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
-import { useMemory } from "@/hooks/useMemory";
-import { useChatPersistence } from "@/hooks/useChatPersistence";
-import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { useTTS } from "@/hooks/useTTS";
+import { useCoachChat } from "@/hooks/coach/useCoachChat";
+import { useCoachAudioState, type CoachPlaybackSpeed } from "@/hooks/coach/useCoachAudioState";
+import { useStreamingReadAloud } from "@/hooks/coach/useStreamingReadAloud";
+import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
+
+// 2026-04-29: TTS speed-selector tier values, used in the chip UI.
+const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
+import { COACH_STREAMING_TTS_ENABLED } from "@/constants/featureFlags";
 import { API_ROUTES } from "@/constants/apiRoutes";
 
-// 2026-01-05: Added for AI Coach notes panel feature
+// 2026-01-05: Added for Coach notes panel feature
 interface UserNote {
   id: string;
   note_type: 'preference' | 'insight' | 'tip' | 'feedback' | 'pattern' | 'market_update';
@@ -24,11 +28,6 @@ interface UserNote {
   created_by: string;
   created_at: string;
   updated_at: string;
-}
-
-interface ValidationError {
-  field: string;
-  message: string;
 }
 
 interface SnapshotData {
@@ -68,46 +67,46 @@ export default function RideshareCoach({
   blocks: _blocks = [],
   strategyReady = false
 }: RideshareCoachProps) {
-  // Use persistent state hook
-  const { messages: msgs, setMessages: setMsgs, isLoaded: _isChatLoaded } = useChatPersistence(userId, snapshotId);
-  
-  const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [attachments, setAttachments] = useState<Array<{ name: string; type: string; data: string; }>>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const controllerRef = useRef<AbortController | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // 2026-04-27: Step 4 — audio state (read-aloud toggle, TTS, STT, derived flags)
+  // consolidated into useCoachAudioState. Component destructures the surface it
+  // actually uses for stable useCallback deps.
+  const audio = useCoachAudioState();
+  const {
+    readAloudEnabled,
+    setReadAloudEnabled,
+    playbackSpeed,
+    setPlaybackSpeed,
+    isSpeaking,
+    isListening,
+    micSupported,
+    transcript,
+    speak,
+    stopSpeak,
+    warmUp,
+    startMic,
+    stopMic,
+    clearTranscript,
+  } = audio;
 
-  // 2026-04-13: Voice integration — reuses Translation feature's proven hooks
-  // STT: free on-device Web Speech API, TTS: OpenAI TTS-1-HD via /api/tts
-  const speech = useSpeechRecognition();
-  const tts = useTTS();
   const latestTranscriptRef = useRef('');
-  const [voiceEnabled, setVoiceEnabled] = useState(() =>
-    localStorage.getItem(STORAGE_KEYS.COACH_VOICE_ENABLED) === 'true'
-  );
+  // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
+  const sentViaVoiceRef = useRef(false);
 
-  // 2026-01-05: Notes panel state for AI Coach memory feature
+  // 2026-04-27: Step 5 — streaming TTS chunks. Flag-gated OFF by default;
+  // Step 6 flips the default. When OFF, pushDelta/flush are never called.
+  const streaming = useStreamingReadAloud({ speak, stopSpeak, playbackSpeed });
+
+  const [input, setInput] = useState("");
+
+  // 2026-01-05: Notes panel state for Coach memory feature
   const [notes, setNotes] = useState<UserNote[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesLoading, setNotesLoading] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
 
-  // Memory integration for conversation logging (context not used, so no loadOnMount)
-  // 2026-01-06: Removed loadOnMount=true - was fetching /agent/context but result was unused (_context)
-  const { logConversation, summarizeConversation } = useMemory({
-    userId,
-    loadOnMount: false  // Only load when explicitly needed
-  });
-
-  // 2026-04-13: Sync speech transcript to ref to avoid stale closure in setTimeout
-  useEffect(() => {
-    latestTranscriptRef.current = speech.transcript;
-  }, [speech.transcript]);
-
-  // 2026-01-05: Notes CRUD functions with optimistic UI
+  // 2026-01-05: Notes CRUD functions with optimistic UI — defined before useCoachChat
+  // so the hook's onNotesSaved callback can reference fetchNotes directly.
   const fetchNotes = useCallback(async () => {
     setNotesLoading(true);
     try {
@@ -125,6 +124,65 @@ export default function RideshareCoach({
       setNotesLoading(false);
     }
   }, []);
+
+  // 2026-04-26: Audio policy — gate post-stream auto-speak on read-aloud toggle OR mic-sourced send.
+  // The mic-sourced bypass preserves the "you spoke, you want to hear the answer" UX even when muted.
+  // 2026-04-27 (Step 5): when COACH_STREAMING_TTS_ENABLED, flush() drains the
+  // remaining streamed buffer instead of speaking the full blob.
+  const handleStreamComplete = useCallback((fullResponse: string) => {
+    if (!readAloudEnabled && !sentViaVoiceRef.current) return;
+
+    if (COACH_STREAMING_TTS_ENABLED) {
+      streaming.flush();
+    } else {
+      const spokenText = cleanTextForTTS(fullResponse);
+      if (spokenText.length > 0) {
+        console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars at ${playbackSpeed}×`);
+        speak(spokenText.slice(0, 4000), 'en', playbackSpeed);
+      }
+    }
+    sentViaVoiceRef.current = false;
+  }, [readAloudEnabled, speak, streaming, playbackSpeed]);
+
+  // 2026-04-27 (Step 5): per-delta hook for chunked TTS. Same gate as
+  // handleStreamComplete — duplication is intentional (keeps streaming hook
+  // generic; coach UX policy stays in the component).
+  const handleStreamDelta = useCallback((delta: string) => {
+    if (!COACH_STREAMING_TTS_ENABLED) return;
+    if (!readAloudEnabled && !sentViaVoiceRef.current) return;
+    streaming.pushDelta(delta);
+  }, [readAloudEnabled, streaming]);
+
+  // 2026-04-26: Step 3 — chat lifecycle (SSE stream, action tags, persistence,
+  // attachments, abort) extracted to useCoachChat. Component now owns only
+  // input field state, audio state (until step 4), and notes panel state.
+  const {
+    messages: msgs,
+    setMessages: _setMsgs,
+    isStreaming,
+    send,
+    validationErrors,
+    attachments,
+    setAttachments,
+    fileInputRef,
+    handleFileSelect,
+    messagesEndRef,
+  } = useCoachChat({
+    userId,
+    snapshotId,
+    strategyId,
+    snapshot,
+    strategyReady,
+    onStreamComplete: handleStreamComplete,
+    onStreamDelta: handleStreamDelta,
+    onNotesSaved: fetchNotes,
+  });
+  void _setMsgs;
+
+  // 2026-04-13: Sync speech transcript to ref to avoid stale closure in setTimeout
+  useEffect(() => {
+    latestTranscriptRef.current = transcript;
+  }, [transcript]);
 
   // 2026-03-18: FIX (C-4) — Always refetch when panel opens (was only fetching when empty)
   useEffect(() => {
@@ -202,53 +260,17 @@ export default function RideshareCoach({
     setEditContent("");
   }, [notes, editContent]);
 
-  // Handle validation errors from chat API (ready for future use)
-  const _handleValidationErrors = useCallback((errors: ValidationError[]) => {
-    setValidationErrors(errors);
-    // Clear after 5 seconds
-    setTimeout(() => setValidationErrors([]), 5000);
-  }, []);
-
   // 2026-04-14: Client-side handleEventDeactivation removed (was duplicate of server-side action tag parsing).
   // Server path (chat.js → coach-dal.js) handles DEACTIVATE_EVENT with Zod validation. See RIDESHARE_COACH.md §3.
-
-  // Log conversation when it ends (after assistant response completes)
-  const logCurrentConversation = useCallback(async () => {
-    if (msgs.length < 2) return; // Need at least one exchange
-
-    const { topic, summary } = summarizeConversation(msgs);
-    if (topic && summary) {
-      await logConversation(topic, summary);
-      console.log('[RideshareCoach] Conversation logged to memory');
-    }
-  }, [msgs, logConversation, summarizeConversation]);
-
-  // Log conversation when streaming ends
-  useEffect(() => {
-    if (!isStreaming && msgs.length >= 2) {
-      // Small delay to ensure last message is complete
-      const timer = setTimeout(() => {
-        logCurrentConversation();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isStreaming, msgs.length, logCurrentConversation]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
-  const sentViaVoiceRef = useRef(false);
 
   // 2026-04-13: Mic toggle — start/stop speech recognition, auto-send transcript
   // Same pattern as TranslationOverlay: latestTranscriptRef avoids stale closure in setTimeout
   const handleMicToggle = useCallback(() => {
-    if (speech.isListening) {
+    if (isListening) {
       // 2026-04-13: Warm up audio element NOW (user gesture context) so TTS can
       // play later after streaming completes (browsers block delayed audio.play())
-      tts.warmUp();
-      speech.stop();
+      warmUp();
+      stopMic();
       // 300ms delay lets final onresult events commit before we read the ref
       setTimeout(() => {
         const text = latestTranscriptRef.current.trim();
@@ -256,207 +278,31 @@ export default function RideshareCoach({
           sentViaVoiceRef.current = true;
           send(text);
         }
-        speech.clear();
+        clearTranscript();
       }, 300);
     } else {
-      // Interrupt coach TTS if it's speaking when driver starts talking
-      if (tts.isSpeaking) tts.stop();
-      speech.clear();
-      speech.start('en');
+      // Interrupt coach TTS if it's speaking when driver starts talking.
+      // 2026-04-27 (Step 5): with streaming flag, abort() also clears the chunk queue.
+      if (COACH_STREAMING_TTS_ENABLED) {
+        streaming.abort();
+      } else if (isSpeaking) {
+        stopSpeak();
+      }
+      clearTranscript();
+      startMic('en');
     }
-  }, [speech, tts]);
+  }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send, streaming]);
 
-  // 2026-04-13: Strip markdown/action tags from coach response for clean TTS playback
-  function cleanTextForTTS(text: string): string {
-    return text
-      .replace(/\[[\w_]+:\s*\{[\s\S]*?\}\s*\]/g, '')  // Remove action tags [SAVE_NOTE: {...}]
-      .replace(/\*\*([^*]+)\*\*/g, '$1')                // Remove markdown bold
-      .replace(/\*([^*]+)\*/g, '$1')                     // Remove markdown italic
-      .replace(/```[\s\S]*?```/g, '')                    // Remove code blocks
-      .replace(/`([^`]+)`/g, '$1')                       // Remove inline code
-      .replace(/#{1,6}\s/g, '')                          // Remove headers
-      .replace(/\n{2,}/g, '. ')                          // Paragraphs → pauses
-      .replace(/\s{2,}/g, ' ')                           // Collapse whitespace
-      .trim();
-  }
-
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.currentTarget.files;
-    if (!files) return;
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const reader = new FileReader();
-      
-      reader.onload = (evt) => {
-        const data = evt.target?.result as string;
-        setAttachments(prev => [...prev, {
-          name: file.name,
-          type: file.type,
-          data: data
-        }]);
-      };
-      
-      reader.readAsDataURL(file);
-    }
-    
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }
-
-  // 2026-04-13: Added overrideMessage param so handleMicToggle can send transcript directly
-  // without going through the input state (avoids stale closure race condition)
-  async function send(overrideMessage?: string) {
-    const messageText = overrideMessage || input.trim();
-    if (!messageText && attachments.length === 0 || isStreaming) return;
-
+  // 2026-04-26: Submit handler — gates and clears input, then delegates to chat.send.
+  // Preserves the original semantics: empty input + no attachments → no-op (input untouched);
+  // mid-stream click → no-op (typing preserved).
+  const handleSubmit = useCallback(() => {
+    const text = input.trim();
+    if (!text && attachments.length === 0) return;
+    if (isStreaming) return;
     setInput("");
-    const filesToSend = attachments;
-    setAttachments([]);
-    setMsgs((m) => [...m, { role: "user", content: messageText || "(uploaded files)", attachments: filesToSend }, { role: "assistant", content: "" }]);
-    setIsStreaming(true);
-
-    controllerRef.current?.abort();
-    controllerRef.current = new AbortController();
-
-    try {
-      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      const headers: Record<string, string> = { "content-type": "application/json" };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      const res = await fetch(API_ROUTES.CHAT.SEND, {
-        method: "POST",
-        headers,
-        // 2026-01-06: P1-C - Reduced payload size
-        // Server uses CoachDAL to rebuild full context from IDs
-        // Only send: IDs + message + history + attachments + minimal snapshot for timezone
-        body: JSON.stringify({
-          userId,
-          message: messageText || "(analyzing files)",
-          threadHistory: msgs,  // Conversation context
-          snapshotId,           // Server fetches full snapshot via CoachDAL
-          strategyId,           // Server fetches strategy + blocks via CoachDAL
-          attachments: filesToSend,
-          // Minimal snapshot - only timezone (required) and city/state for early engagement
-          snapshot: snapshot ? {
-            city: snapshot.city,
-            state: snapshot.state,
-            timezone: snapshot.timezone,
-            hour: snapshot.hour,
-            day_part_key: snapshot.day_part_key
-          } : undefined,
-          strategyReady
-        }),
-        signal: controllerRef.current.signal,
-      });
-
-      if (!res.ok && res.headers.get("content-type")?.includes("text/event-stream") === false) {
-        try {
-          const errData = await res.json();
-          // 2026-01-06: Handle specific error codes with user-friendly messages
-          if (errData.code === 'missing_timezone') {
-            setMsgs((m) => [...m.slice(0, -1), {
-              role: "assistant",
-              content: "I need your location to give you accurate advice! Please enable GPS in your browser settings and refresh the page."
-            }]);
-          } else {
-            setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${errData.message || errData.error}` }]);
-          }
-        } catch {
-          const t = await res.text();
-          setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${t}` }]);
-        }
-        setIsStreaming(false);
-        return;
-      }
-
-      const reader = res.body!.getReader();
-      const dec = new TextDecoder();
-      let acc = "";
-      // 2026-04-13: Accumulate full response locally for TTS (avoids side-effect in setState)
-      let fullResponse = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        acc += dec.decode(value, { stream: true });
-
-        // parse SSE lines
-        for (const line of acc.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          try {
-            const msg = JSON.parse(line.slice(5).trim());
-            if (msg.delta) {
-              fullResponse += msg.delta;
-              setMsgs((m) => {
-                const copy = [...m];
-                const last = copy[copy.length - 1];
-                if (last?.role === "assistant") {
-                  last.content += msg.delta;
-                }
-                return copy;
-              });
-              setTimeout(scrollToBottom, 10);
-            }
-            if (msg.error) {
-              setMsgs((m) => {
-                const copy = [...m];
-                const last = copy[copy.length - 1];
-                if (last?.role === "assistant") {
-                  last.content = `Error: ${msg.error}`;
-                }
-                return copy;
-              });
-            }
-            // 2026-03-18: FIX (C-4, H-4) — Handle action results from done event
-            if (msg.actions_result) {
-              // Refresh notes panel if any notes were saved
-              if (msg.actions_result.saved > 0) {
-                fetchNotes();
-              }
-              // Wire existing validation error banner (was dead code)
-              if (msg.actions_result.errors?.length > 0) {
-                setValidationErrors(
-                  msg.actions_result.errors.map((e: string) => ({ field: 'action', message: e }))
-                );
-                setTimeout(() => setValidationErrors([]), 8000);
-              }
-            }
-          } catch (_err) {
-            // Ignore parse errors for partial SSE data
-          }
-        }
-        // keep only last partial line in buffer
-        const lastNl = acc.lastIndexOf("\n");
-        if (lastNl >= 0) acc = acc.slice(lastNl + 1);
-      }
-
-      // 2026-04-13: Auto-speak coach response after streaming completes
-      // Triggers if: voice toggle is ON, OR if the user spoke this message via mic
-      // (If you spoke your question, you want to hear the answer — no toggle needed)
-      if ((voiceEnabled || sentViaVoiceRef.current) && fullResponse) {
-        const spokenText = cleanTextForTTS(fullResponse);
-        if (spokenText.length > 0) {
-          console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars`);
-          tts.speak(spokenText.slice(0, 4000), 'en');
-        }
-        sentViaVoiceRef.current = false;
-      }
-    } catch (err: unknown) {
-      const error = err as Error;
-      if (error.name !== 'AbortError') {
-        setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Connection error: ${error.message}` }]);
-      }
-    } finally {
-      setIsStreaming(false);
-
-      // 2026-04-14: Event deactivation is handled server-side via action tag parsing in chat.js.
-      // No client-side duplicate processing needed.
-    }
-  }
+    send(text);
+  }, [input, attachments, isStreaming, send]);
 
   const suggestedQuestions = [
     "Where should I go right now?",
@@ -472,26 +318,57 @@ export default function RideshareCoach({
           <Zap className="h-4 w-4" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-sm">Rideshare Coach</h3>
+          <h3 className="font-semibold text-sm">Coach</h3>
           <p className="text-xs text-white/80">Powered by Gemini 3 Pro</p>
         </div>
         {/* 2026-04-13: Voice Output Toggle */}
         <Button
           onClick={() => {
-            const next = !voiceEnabled;
-            setVoiceEnabled(next);
-            localStorage.setItem(STORAGE_KEYS.COACH_VOICE_ENABLED, String(next));
-            if (next) tts.warmUp(); // Unlock audio on enable gesture
-            else tts.stop();
+            const next = !readAloudEnabled;
+            setReadAloudEnabled(next);  // hook persists to localStorage (new key)
+            if (next) warmUp(); // Unlock audio on enable gesture
+            else stopSpeak();
           }}
           size="sm"
           variant="ghost"
           className="text-white hover:bg-white/20"
-          title={voiceEnabled ? 'Mute coach voice' : 'Enable coach voice'}
+          title={readAloudEnabled ? 'Mute coach voice' : 'Enable coach voice'}
           data-testid="button-voice-toggle"
         >
-          {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          {readAloudEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
         </Button>
+        {/* 2026-04-29: TTS speed selector — visible only when read-aloud is on.
+            Browser timestretch preserves pitch up to ~2× cleanly for speech. */}
+        {readAloudEnabled && (
+          <div
+            className="flex items-center gap-0.5 bg-white/10 rounded-full px-1 py-0.5"
+            data-testid="speed-selector"
+            role="group"
+            aria-label="Playback speed"
+          >
+            {/* 2026-04-30: chip polish — text-[10px]→text-xs (AA-readable), px-1.5
+                py-0.5→px-2 py-1 (better hit target + matches sibling Button height),
+                hover:bg-white/10→hover:bg-white/20 (visible against the bg-white/10
+                parent), inactive text-white/70→text-white (passes AA-small contrast). */}
+            {SPEED_OPTIONS.map((speed) => (
+              <button
+                key={speed}
+                type="button"
+                aria-pressed={playbackSpeed === speed}
+                onClick={() => setPlaybackSpeed(speed)}
+                className={`text-xs px-2 py-1 rounded-full transition ${
+                  playbackSpeed === speed
+                    ? 'bg-white text-blue-700 font-bold shadow-sm'
+                    : 'text-white hover:bg-white/20'
+                }`}
+                title={`Playback speed ${speed}×`}
+                data-testid={`button-speed-${speed}`}
+              >
+                {speed === 1.0 ? '1×' : `${speed}×`}
+              </button>
+            ))}
+          </div>
+        )}
         {/* 2026-01-05: Notes Panel Toggle */}
         <Button
           onClick={() => setNotesOpen(!notesOpen)}
@@ -656,7 +533,7 @@ export default function RideshareCoach({
               <MessageSquare className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your Rideshare Coach</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your Coach</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300 max-w-sm mx-auto leading-relaxed">
                 Ask me anything - rideshare strategy, life advice, or just chat. I can search the web too!
               </p>
@@ -670,7 +547,10 @@ export default function RideshareCoach({
                   className="text-xs bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900 hover:border-blue-400 shadow-sm"
                   onClick={() => {
                     setInput(q);
-                    setTimeout(() => send(), 100);
+                    setTimeout(() => {
+                      send(q);
+                      setInput("");
+                    }, 100);
                   }}
                   data-testid={`button-suggested-${i}`}
                 >
@@ -734,11 +614,11 @@ export default function RideshareCoach({
       )}
 
       {/* 2026-04-13: Listening indicator — shows real-time transcript while mic is active */}
-      {speech.isListening && (
+      {isListening && (
         <div className="px-4 py-2 bg-green-50 dark:bg-green-900/30 border-t border-green-200 dark:border-green-800 flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
           <p className="text-sm text-green-800 dark:text-green-200 flex-1 truncate">
-            {speech.transcript || 'Listening...'}
+            {transcript || 'Listening...'}
           </p>
           <button
             onClick={handleMicToggle}
@@ -755,11 +635,11 @@ export default function RideshareCoach({
           id="coach-chat-message"
           name="coach-chat-message"
           className="flex-1 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          placeholder={speech.isListening ? "Listening..." : "Ask anything - rideshare tips, life advice, or just chat..."}
+          placeholder={isListening ? "Listening..." : "Ask anything - rideshare tips, life advice, or just chat..."}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !isStreaming && send()}
-          disabled={isStreaming || speech.isListening}
+          onKeyDown={(e) => e.key === "Enter" && !isStreaming && handleSubmit()}
+          disabled={isStreaming || isListening}
           autoComplete="off"
           data-testid="input-chat-message"
         />
@@ -783,34 +663,34 @@ export default function RideshareCoach({
           size="icon"
           className="rounded-full h-10 w-10 bg-gray-500 hover:bg-gray-600 text-white"
           title="Upload files (images, PDFs, documents)"
-          disabled={isStreaming || speech.isListening}
+          disabled={isStreaming || isListening}
           data-testid="button-upload-file"
         >
           <Paperclip className="h-4 w-4" />
         </Button>
 
         {/* 2026-04-13: Mic Button — big, prominent, pulses red while listening */}
-        {speech.isSupported && (
+        {micSupported && (
           <Button
             onClick={handleMicToggle}
             size="icon"
             className={`rounded-full h-10 w-10 text-white transition-colors ${
-              speech.isListening
+              isListening
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse'
                 : 'bg-green-600 hover:bg-green-700'
             }`}
-            title={speech.isListening ? 'Stop listening & send' : 'Speak to coach'}
+            title={isListening ? 'Stop listening & send' : 'Speak to coach'}
             disabled={isStreaming}
             data-testid="button-mic-toggle"
           >
-            {speech.isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </Button>
         )}
 
         {/* Send Button */}
         <Button
-          onClick={() => send()}
-          disabled={(!input.trim() && !speech.isListening) || isStreaming}
+          onClick={handleSubmit}
+          disabled={(!input.trim() && !isListening) || isStreaming}
           size="icon"
           className="rounded-full h-10 w-10 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
           data-testid="button-send-message"

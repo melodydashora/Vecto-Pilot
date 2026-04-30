@@ -50,7 +50,7 @@ class JobQueue {
         this.metrics.succeeded++;
         if (attempt > 1) this.metrics.retrying--;
         
-        console.log(`[job-queue] ✅ ${jobId} succeeded (attempt ${attempt})`);
+        console.log(`[AGENT] [JOBS] ${jobId} succeeded (attempt ${attempt})`);
         return;
 
       } catch (error) {
@@ -58,7 +58,7 @@ class JobQueue {
         
         if (attempt < maxRetries) {
           const delayMs = this.retryDelayMs * Math.pow(2, attempt - 1);
-          console.warn(`[job-queue] ⚠️ ${jobId} failed attempt ${attempt}, retrying in ${delayMs}ms...`);
+          console.warn(`[AGENT] [JOBS] ${jobId} failed attempt ${attempt}, retrying in ${delayMs}ms...`);
           await new Promise(resolve => setTimeout(resolve, delayMs));
         } else {
           // Final failure
@@ -67,7 +67,7 @@ class JobQueue {
           this.metrics.failed++;
           if (attempt > 1) this.metrics.retrying--;
           
-          console.error(`[job-queue] ❌ ${jobId} failed permanently after ${attempt} attempts:`, job.lastError);
+          console.error(`[AGENT] [JOBS] ${jobId} failed permanently after ${attempt} attempts:`, job.lastError);
           
           // Move to dead letter queue
           this._moveToDeadLetter(jobId, job);
@@ -80,7 +80,7 @@ class JobQueue {
     // In production, this would write to a database table or external queue
     // For now, keep in memory with DLQ flag
     job.deadLetter = true;
-    console.error(`[job-queue] 💀 Dead letter: ${jobId}`, {
+    console.error(`[AGENT] [JOBS] Dead letter: ${jobId}`, {
       context: job.context,
       attempts: job.attempts,
       lastError: job.lastError
@@ -121,7 +121,7 @@ class JobQueue {
     }
 
     if (cleaned > 0) {
-      console.log(`[job-queue] 🧹 Cleaned up ${cleaned} old jobs`);
+      console.log(`[AGENT] [JOBS] Cleaned up ${cleaned} old jobs`);
     }
   }
 }

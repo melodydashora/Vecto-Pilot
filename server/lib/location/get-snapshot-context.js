@@ -66,7 +66,7 @@ export async function getSnapshotContext(snapshotId, options = {}) {
     // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
   };
 
-  console.log('[getSnapshotContext] ✅ Retrieved snapshot context:', {
+  console.log('[getSnapshotContext] Retrieved snapshot context:', {
     snapshot_id: ctx.snapshot_id,
     formatted_address: ctx.formatted_address,
     city: ctx.city,
@@ -143,7 +143,7 @@ export async function getFullSnapshot(snapshotId) {
     // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
   };
 
-  console.log('[getFullSnapshot] ✅ Retrieved FULL snapshot:', {
+  console.log('[getFullSnapshot] Retrieved FULL snapshot:', {
     snapshot_id: ctx.snapshot_id,
     city: ctx.city,
     state: ctx.state,

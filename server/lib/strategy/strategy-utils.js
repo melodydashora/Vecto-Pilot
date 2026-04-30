@@ -4,7 +4,7 @@
 import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { triadLog, OP } from '../../logger/workflow.js';
+import { triadLog, OP, tagLog } from '../../logger/workflow.js';
 
 /**
  * CRITICAL: Create strategy row with snapshot location data
@@ -86,7 +86,7 @@ export async function isStrategyReady(snapshotId) {
       status: strategyRow.status
     };
   } catch (error) {
-    console.error('[isStrategyReady] Error:', error);
+    console.error('[STRATEGY] Error:', error);
     return { ready: false, error: error.message };
   }
 }
@@ -205,10 +205,40 @@ export const PHASE_EXPECTED_DURATIONS = {
 // Total expected pipeline duration (sum of all phases)
 export const TOTAL_EXPECTED_DURATION = Object.values(PHASE_EXPECTED_DURATIONS).reduce((a, b) => a + b, 0);
 
+// 2026-04-28: Canonical pipeline phase order, used by updatePhase for monotonic
+// ordering enforcement. Strategy phases come first (starting → immediate), then
+// the SmartBlocks tail (venues → complete). Any updatePhase() call attempting to
+// move BACKWARD in this list is refused with a WARN log — that's how silent
+// duplicate emits (4 'complete' writers, 2 'venues' writers — see audit §10.1)
+// stop being a problem: the second write idempotently no-ops instead of
+// re-emitting an SSE phase_change event the client has already processed.
+const PIPELINE_PHASE_ORDER = [
+  'starting',
+  'resolving',
+  'analyzing',
+  'immediate',
+  'venues',
+  'routing',
+  'places',
+  'verifying',
+  'enriching',
+  'complete',
+];
+
 /**
  * Update pipeline phase for a snapshot's strategy with timing metadata
  * Strategy phases: starting → resolving → analyzing → immediate
  * SmartBlocks phases: venues → routing → places → verifying → complete
+ *
+ * 2026-04-28: Idempotent + monotonic. If the strategy row's phase already equals
+ * the requested phase, this is a no-op — no DB write, no SSE emit. If the
+ * requested phase is BEFORE the current phase in PIPELINE_PHASE_ORDER, the
+ * call is refused with a WARN log (prevents accidental phase regression). Both
+ * checks address the duplicate-writer pattern documented in audit §10.1
+ * (`enhanced-smart-blocks.js:414` + `blocks-fast.js:839` both write 'venues';
+ * four sites write 'complete'). The auto-correct path at content-blocks.js:208
+ * remains effective because moving forward to 'complete' from any earlier phase
+ * is a valid monotonic transition.
  *
  * @param {string} snapshotId - UUID of snapshot
  * @param {string} phase - Phase name
@@ -219,6 +249,35 @@ export const TOTAL_EXPECTED_DURATION = Object.values(PHASE_EXPECTED_DURATIONS).r
 export async function updatePhase(snapshotId, phase, options = {}) {
   try {
     const now = new Date();
+
+    // 2026-04-28: Read current row to enforce idempotency + monotonic ordering.
+    // Single-row SELECT keyed on PRIMARY/UNIQUE column — cheap. If no row
+    // exists yet (ensureStrategyRow hasn't run), the existing UPDATE below
+    // will no-op naturally; we tolerate that by treating undefined as 'starting'.
+    const [currentRow] = await db.select({ phase: strategies.phase })
+      .from(strategies)
+      .where(eq(strategies.snapshot_id, snapshotId))
+      .limit(1);
+    const currentPhase = currentRow?.phase;
+
+    if (currentPhase === phase) {
+      // Idempotency: same phase, no-op. Caller may be the 2nd of N duplicate
+      // writers (audit §10.1) or the auto-correct path (content-blocks.js:210)
+      // hitting an already-complete row. Either way: no DB write, no SSE emit.
+      return;
+    }
+
+    if (currentPhase) {
+      const currentIdx = PIPELINE_PHASE_ORDER.indexOf(currentPhase);
+      const targetIdx = PIPELINE_PHASE_ORDER.indexOf(phase);
+      // Both must be known phases for the comparison to be meaningful. If
+      // either is unknown, fall through to the write — defensive, doesn't
+      // refuse a transition we can't reason about.
+      if (currentIdx >= 0 && targetIdx >= 0 && targetIdx < currentIdx) {
+        triadLog.warn(1, `Refusing backward phase transition: ${currentPhase} → ${phase} for ${snapshotId.slice(0, 8)} (monotonic ordering)`);
+        return;
+      }
+    }
 
     // 2026-01-15: FIX - When phase='complete', also update status to 'ok'
     // This was missing, causing strategies to stay in 'pending_blocks' status forever
@@ -247,14 +306,13 @@ export async function updatePhase(snapshotId, phase, options = {}) {
         .catch(err => triadLog.warn(1, `Failed to update triad_job status: ${err.message}`));
     }
 
-    // Log phase transition with confirmation
-    const statusNote = phase === 'complete' ? ' (status→ok)' : '';
-    console.log(`[PHASE-UPDATE] ${snapshotId.slice(0, 8)} → ${phase}${statusNote} (updated at ${now.toISOString()})`);
-
-    // Map phase to TRIAD type for clearer logging
-    const triadType = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'Strategy' :
-                      ['venues', 'routing', 'places', 'verifying', 'enriching'].includes(phase) ? 'Venue' : 'Pipeline';
-    triadLog.info(`[strategy-utils] ${triadType}|${snapshotId.slice(0, 8)} → ${phase}`, OP.DB);
+    // 2026-04-27 (Commit 7 of CLEAR_CONSOLE_WORKFLOW): collapsed three lines
+    // (caller [PHASE], updatePhase [PHASE-UPDATE], [strategy-utils] file-tag)
+    // into ONE canonical emission per phase transition. Caller no longer pre-logs.
+    const statusNote = phase === 'complete' ? ' (status->ok)' : '';
+    const main = ['immediate', 'resolving', 'analyzing'].includes(phase) ? 'STRATEGY' :
+                 ['venues', 'routing', 'places', 'verifying', 'enriching'].includes(phase) ? 'VENUE' : 'WATERFALL';
+    tagLog([main, 'PHASE-UPDATE'], `${snapshotId.slice(0, 8)} -> ${phase}${statusNote} (updated at ${now.toISOString()})`);
 
     // Emit phase_change SSE event if emitter provided
     if (options.phaseEmitter) {
@@ -697,7 +755,7 @@ export function filterFreshEvents(events, now = new Date(), timezone = null) {
 
   // Log filtering stats if we removed events
   if (staleCount > 0 || noDateCount > 0) {
-    console.log(`[filterFreshEvents] Filtered: ${staleCount} stale, ${noDateCount} missing dates (kept ${freshEvents.length}/${events.length}) tz=${timezone || 'local'}`);
+    console.log(`[BRIEFING] [EVENTS] [FRESHNESS] [filterFreshEvents] Filtered: ${staleCount} stale, ${noDateCount} missing dates (kept ${freshEvents.length}/${events.length}) tz=${timezone || 'local'}`);
   }
 
   return freshEvents;

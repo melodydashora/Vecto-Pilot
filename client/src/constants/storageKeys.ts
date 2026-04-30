@@ -26,15 +26,19 @@ export const STORAGE_KEYS = {
   // Strategy persistence (survives app switches)
   PERSISTENT_STRATEGY: 'vecto_persistent_strategy',
   STRATEGY_SNAPSHOT_ID: 'vecto_strategy_snapshot_id',
-<<<<<<< HEAD
-=======
 
   // Schedule (weekly driving availability)
   SCHEDULE: 'vectopilot_schedule',
 
-  // AI Coach voice preference (2026-04-13)
+  // Coach voice preference (2026-04-13)
+  // 2026-04-27: COACH_VOICE_ENABLED is the LEGACY key (kept for one release as
+  // migration fallback). New writes go to COACH_READ_ALOUD_ENABLED.
   COACH_VOICE_ENABLED: 'vectopilot_coach_voice',
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
+  COACH_READ_ALOUD_ENABLED: 'vectopilot_coach_read_aloud',
+
+  // 2026-04-29: TTS playback speed (1.0 / 1.25 / 1.5 / 2.0×) — per-device,
+  // persists across reloads.
+  COACH_PLAYBACK_SPEED: 'vectopilot_coach_playback_speed',
 } as const;
 
 /**

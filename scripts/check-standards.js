@@ -606,7 +606,7 @@ function printReport() {
 }
 
 function main() {
-  console.log('\n🔍 Repository Standards Checker');
+  console.log('\nRepository Standards Checker');
   console.log('   See docs/architecture/standards.md for rules\n');
 
   // Parse arguments

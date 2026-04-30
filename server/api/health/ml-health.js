@@ -222,7 +222,7 @@ router.get('/health', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('[ml-health] Health check failed:', error.message);
+    console.error('[HEALTH] Health check failed:', error.message);
     res.status(500).json({
       ok: false,
       error: 'Failed to fetch ML health metrics',
@@ -245,7 +245,7 @@ router.get('/memory/:scope', async (req, res) => {
       memories: memories || []
     });
   } catch (error) {
-    console.error('[ml-health] Memory query failed:', error.message);
+    console.error('[HEALTH] Memory query failed:', error.message);
     res.status(500).json({
       ok: false,
       error: 'Failed to query memory',
@@ -278,7 +278,7 @@ router.get('/search', async (req, res) => {
       results
     });
   } catch (error) {
-    console.error('[ml-health] Search failed:', error.message);
+    console.error('[HEALTH] Search failed:', error.message);
     res.status(500).json({
       ok: false,
       error: 'Search failed',

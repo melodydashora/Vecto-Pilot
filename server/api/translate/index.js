@@ -39,7 +39,7 @@ router.post('/', translationLimiter, requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Text too long (max 2000 characters)' });
     }
 
-    console.log(`[translate] 🌐 Translating ${text.length} chars: ${sourceLang} → ${targetLang}`);
+    console.log(`[TRANSLATION] 🌐 Translating ${text.length} chars: ${sourceLang} → ${targetLang}`);
 
     const userMessage = `Translate the following text.
 Source language: ${sourceLang === 'auto' ? 'detect automatically' : sourceLang}
@@ -59,7 +59,7 @@ Text: "${text}"`;
     const result = parseTranslationResponse(response.text);
 
     const responseTimeMs = Date.now() - startTime;
-    console.log(`[translate] ✅ ${result.detectedLang} → ${result.targetLang} in ${responseTimeMs}ms`);
+    console.log(`[TRANSLATION] ${result.detectedLang} → ${result.targetLang} in ${responseTimeMs}ms`);
 
     res.json({
       success: true,
@@ -72,7 +72,7 @@ Text: "${text}"`;
 
   } catch (error) {
     const responseTimeMs = Date.now() - startTime;
-    console.error(`[translate] ❌ Error (${responseTimeMs}ms):`, error.message);
+    console.error(`[TRANSLATION] Error (${responseTimeMs}ms):`, error.message);
     res.status(500).json({
       success: false,
       error: error.message,

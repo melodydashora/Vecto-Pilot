@@ -2,8 +2,8 @@
 
 > **This is the single source of truth** for event discovery, venue matching, deduplication, freshness, and driver-relevant event logic. Supersedes: `EVENT_FRESHNESS_AND_TTL.md`, `VENUELOGIC.md` (event sections), `BRIEFING_AND_EVENTS_ISSUES.md`.
 
-**Last Updated:** 2026-04-11
-**Schema Version:** `VALIDATION_SCHEMA_VERSION = 4` (validateEvent.js)
+**Last Updated:** 2026-04-28
+**Schema Version:** `VALIDATION_SCHEMA_VERSION = 6` (validateEvent.js)
 
 ---
 
@@ -15,7 +15,7 @@
 Gemini discovers event NAMES and CATEGORIES
          │
          ▼
-Google Places API (New) resolves VENUE ADDRESSES and COORDINATES
+Google Places (NEW) API (New) resolves VENUE ADDRESSES and COORDINATES
          │
          ▼
 Address quality VALIDATOR rejects or re-resolves garbage results
@@ -24,12 +24,12 @@ Address quality VALIDATOR rejects or re-resolves garbage results
 Two-phase DEDUP (hash → semantic) removes duplicates
          │
          ▼
-DB store with venue_catalog truth (city/address/coords from Places API, not Gemini)
+DB store with venue_catalog truth (city/address/coords from Places (NEW) API, not Gemini)
 ```
 
 **Invariant:** Gemini is treated as untrusted input for anything location-shaped. Gemini's
 role is naming ("what event is happening") and classification ("what category"). Google
-Places API is the *only* source of truth for venue address, city, state, zip, coordinates,
+Places (NEW) API is the *only* source of truth for venue address, city, state, zip, coordinates,
 and `place_id`.
 
 ### Full Pipeline Diagram
@@ -93,7 +93,7 @@ Driver Snapshot (city, state, lat, lng, timezone, market)
           │
           ▼
  ╔════════════════════════╗
- ║ 4. VENUE RESOLUTION    ║  THE CRITICAL STEP — Google Places API (New) is source of truth
+ ║ 4. VENUE RESOLUTION    ║  THE CRITICAL STEP — Google Places (NEW) API (New) is source of truth
  ║    (ETL Phase 4)       ║
  ║                        ║  THREE-STEP PRIORITY CHAIN (briefing-service.js):
  ║                        ║
@@ -105,16 +105,16 @@ Driver Snapshot (city, state, lat, lng, timezone, market)
  ║                        ║      searchPlaceWithTextSearch(snapshot.lat, snapshot.lng,
  ║                        ║                                 venue_name, { radius: 50000 })
  ║                        ║      Returns: placeId, formattedAddress, lat, lng, parsed.city
- ║                        ║      → findOrCreateVenue() with Places API data
+ ║                        ║      → findOrCreateVenue() with Places (NEW) API data
  ║                        ║
  ║                        ║  (c) GEOCODE FALLBACK
  ║                        ║      geocodeEventAddress(venue_name, city, state)
- ║                        ║      Only if Places API returned nothing
+ ║                        ║      Only if Places (NEW) API returned nothing
  ║                        ║
  ║  ┌──────────────────────────────────────────────────────────────────┐
  ║  │ VALIDATION GATE (venue-cache.js: maybeReResolveAddress)          │
  ║  │ After EVERY findOrCreateVenue() return, validate address quality │
- ║  │ via venue-address-validator.js. If bad → Places API re-resolve   │
+ ║  │ via venue-address-validator.js. If bad → Places (NEW) API re-resolve   │
  ║  │ (50km radius) → re-validate new result → update venue_catalog    │
  ║  │ in place. Refuses to replace bad with bad.                       │
  ║  └──────────────────────────────────────────────────────────────────┘
@@ -123,7 +123,7 @@ Driver Snapshot (city, state, lat, lng, timezone, market)
           ▼
  ┌────────────────────┐
  │ 5. STORE           │  discovered_events table (ON CONFLICT event_hash DO UPDATE)
- │    (ETL Phase 5)   │  • city/address/state from venue_catalog (Places API), not Gemini
+ │    (ETL Phase 5)   │  • city/address/state from venue_catalog (Places (NEW) API), not Gemini
  │                    │  • venue_name kept as-is from Gemini for display
  │                    │  • venue_id FK to venue_catalog for coordinates
  │                    │  • onConflict updates ALL content fields including resolved
@@ -166,7 +166,7 @@ Events are discovered **per-snapshot** as Phase 1 of the `blocks-fast` waterfall
 | `server/lib/events/pipeline/deduplicateEventsSemantic.js` | **Title-similarity dedup + venue plausibility scoring** |
 | `server/lib/events/pipeline/geocodeEvent.js` | Google Geocoding API (fallback only) |
 | `server/lib/events/pipeline/types.js` | JSDoc type definitions |
-| `server/lib/venue/venue-address-resolver.js` | **Google Places API (New)** — authoritative venue resolution (`searchPlaceWithTextSearch`) |
+| `server/lib/venue/venue-address-resolver.js` | **Google Places (NEW) API (New)** — authoritative venue resolution (`searchPlaceWithTextSearch`) |
 | `server/lib/venue/venue-address-validator.js` | **Address quality validation** (string-only, no API calls) |
 | `server/lib/venue/venue-cache.js` | `findOrCreateVenue()`, `maybeReResolveAddress()` validation gate |
 | `server/lib/briefing/briefing-service.js` | Orchestrator: Gemini prompt, three-step venue chain, DB storage |
@@ -179,18 +179,18 @@ Events are discovered **per-snapshot** as Phase 1 of the `blocks-fast` waterfall
 
 ## 2. Venue Verification & Matching Rules
 
-**This is the critical correctness area.** Events MUST be matched to their correct venues with correct addresses and cities. All venue data comes from Google Places API (New), never from Gemini.
+**This is the critical correctness area.** Events MUST be matched to their correct venues with correct addresses and cities. All venue data comes from Google Places (NEW) API (New), never from Gemini.
 
 ### Core Principle
 
-**Google Places API (New) is the ONLY source of truth for venue data.** Gemini hallucinates city, address, and sometimes place_id. The snapshot provides metro-area context; Places API resolves authoritative venue information.
+**Google Places (NEW) API (New) is the ONLY source of truth for venue data.** Gemini hallucinates city, address, and sometimes place_id. The snapshot provides metro-area context; Places (NEW) API resolves authoritative venue information.
 
 ### The Bugs This Fixes
 
 1. **Wrong venue coordinates** — geocoding `"Dickies Arena, Dallas, TX"` returns wrong lat/lng
 2. **No authoritative address source** — venues stored with whatever Gemini guessed
 3. **Stale venue_catalog lat/lng** — causing navigation to wrong places (e.g., `"Globe Life Field"` → `"Hair salon in Frisco"`)
-4. **Garbage Places API results leaking through** — `"Theatre, Frisco, TX 75034"` (venue name fragment in address) or `"Frisco, TX, USA"` (city-only, no street)
+4. **Garbage Places (NEW) API results leaking through** — `"Theatre, Frisco, TX 75034"` (venue name fragment in address) or `"Frisco, TX, USA"` (city-only, no street)
 5. **onConflict reverting corrections** — insert branch wrote resolved address, conflict branch wrote raw Gemini address, so every re-discovery wiped fixes
 
 ### Three-Step Venue Resolution Priority Chain
@@ -228,10 +228,10 @@ Event from Gemini: { venue_name, place_id (maybe), title, category, date, time }
         │   • lat, lng (6-decimal rounded, ~11cm precision)  │
         │   • parsed.{city, state, zip, country, address_1}  │
         │                                                    │
-        │ Then: findOrCreateVenue() with Places API data     │
+        │ Then: findOrCreateVenue() with Places (NEW) API data     │
         └────────────────────────────────────────────────────┘
                                     │
-                          (Places API returned nothing)
+                          (Places (NEW) API returned nothing)
                                     │
                                     ▼
         ┌────────────────────────────────────────────────────┐
@@ -239,7 +239,7 @@ Event from Gemini: { venue_name, place_id (maybe), title, category, date, time }
         │ geocodeEventAddress(venue_name, city, state)       │
         │                                                    │
         │ Uses snapshot city/state as context hint.          │
-        │ Last resort — only if Places API failed.           │
+        │ Last resort — only if Places (NEW) API failed.           │
         └────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -256,7 +256,7 @@ Event from Gemini: { venue_name, place_id (maybe), title, category, date, time }
                        and onConflictDoUpdate.set)
 ```
 
-**Radius parameter contract:** `searchPlaceWithTextSearch(lat, lng, textQuery, options)` accepts `options.radius` in meters. Default `50` (50 m) for precise venue-coordinate lookups where you already have the venue's true location. Pass `50000` (50 km) for metro-wide event discovery where the bias point is the driver's snapshot location. Never pass values > 50,000 — Google Places API rejects with a 400 error.
+**Radius parameter contract:** `searchPlaceWithTextSearch(lat, lng, textQuery, options)` accepts `options.radius` in meters. Default `50` (50 m) for precise venue-coordinate lookups where you already have the venue's true location. Pass `50000` (50 km) for metro-wide event discovery where the bias point is the driver's snapshot location. Never pass values > 50,000 — Google Places (NEW) API rejects with a 400 error.
 
 ### Validation Gate: `maybeReResolveAddress` (venue-cache.js)
 
@@ -308,7 +308,7 @@ UPDATE venue_catalog
 
 **Non-throwing:** Any error in the gate (API failure, DB error) falls through to `return null`, which the caller treats as "use the original venue record." The gate never rejects the event — it's a quality-improvement step, not a filter.
 
-**No-op on good data:** `validateVenueAddress` is string-only (no API calls), so the common case of a good cached address costs only a regex/string-comparison pass. Places API is only hit when validation fails.
+**No-op on good data:** `validateVenueAddress` is string-only (no API calls), so the common case of a good cached address costs only a regex/string-comparison pass. Places (NEW) API is only hit when validation fails.
 
 ### Address Quality Validator (`venue-address-validator.js`)
 
@@ -336,13 +336,13 @@ Failed validations log `[VENUE-VALIDATE] Address quality FAILED for "<name>": "<
 
 ### Hard Rules
 
-- **Google Places API is the venue authority** — city, address, state, zip, coordinates all come from Places API
+- **Google Places (NEW) API is the venue authority** — city, address, state, zip, coordinates all come from Places (NEW) API
 - **Gemini provides venue NAME and event identity ONLY** — do NOT trust Gemini for city, address, coordinates, or place_id accuracy
-- **ALWAYS store venue_catalog city** in `discovered_events.city` (from Places API, not snapshot, not Gemini)
+- **ALWAYS store venue_catalog city** in `discovered_events.city` (from Places (NEW) API, not snapshot, not Gemini)
 - **ALWAYS store venue_catalog formatted_address** in `discovered_events.address`
 - **New venues get** `is_event_venue = true`, `record_status = 'enriched'`, `venue_types = ['event_host']`
 - **`onConflictDoUpdate` MUST use resolved address/city/state**, not raw Gemini event fields — otherwise corrections are reverted on every re-discovery
-- **This is a GLOBAL pattern** — Google Places API handles Tokyo, London, Dallas identically; the validator's street regex supports German, French, Spanish, and UK patterns
+- **This is a GLOBAL pattern** — Google Places (NEW) API handles Tokyo, London, Dallas identically; the validator's street regex supports German, French, Spanish, and UK patterns
 
 ---
 
@@ -360,11 +360,11 @@ Three dedup layers run in sequence. Each catches different failure modes.
 |-----------|-----|
 | `title` | Core event identity. Stripped of `" at Venue"`, `" @ Venue"`, `" - Venue"` suffixes by `stripVenueSuffix()`. Lowercased, non-alphanumerics removed. |
 | `venue_name` | Stable across discovery runs (unlike `address`, which varies). `"American Airlines Center"` stays consistent. |
-| `city` | Prevents collisions: `"Fair Park, Dallas"` != `"Fair Park, Houston"`. City comes from `venue_catalog` (Places API) or snapshot context. |
+| `city` | Prevents collisions: `"Fair Park, Dallas"` != `"Fair Park, Houston"`. City comes from `venue_catalog` (Places (NEW) API) or snapshot context. |
 | `event_start_date` | Same event on different dates = different events. |
 | ~~`time`~~ | **Excluded.** Time corrections should UPDATE the existing row, not create a duplicate. `"Bruno Mars 7:00 PM"` and `"Bruno Mars 7:30 PM"` at same venue/date → same hash → UPDATE path. |
 
-**On conflict:** `ON CONFLICT (event_hash) DO UPDATE` — all content fields (`title`, `venue_name`, `address`, `city`, `state`, `event_start_date`, `event_start_time`, `event_end_time`, `category`, `venue_id`, `updated_at`) are updated with fresher data. **The conflict branch uses resolved venue data** (from Places API), not raw Gemini event fields — this was a bug pre-2026-04-11.
+**On conflict:** `ON CONFLICT (event_hash) DO UPDATE` — all content fields (`title`, `venue_name`, `address`, `city`, `state`, `event_start_date`, `event_start_time`, `event_end_time`, `category`, `venue_id`, `updated_at`) are updated with fresher data. **The conflict branch uses resolved venue data** (from Places (NEW) API), not raw Gemini event fields — this was a bug pre-2026-04-11.
 
 ### Layer 2: Semantic Title-Similarity Dedup (Write Level)
 
@@ -483,17 +483,17 @@ Past events are soft-deactivated (`is_active = false`, `deactivated_at = NOW()`)
 
 A new `venue_catalog` entry is created when:
 - An event's venue doesn't match any existing venue by `place_id`, `coord_key`, or fuzzy name
-- Google Places API returned authoritative data (lat/lng required for new venue creation)
+- Google Places (NEW) API returned authoritative data (lat/lng required for new venue creation)
 
 New event-discovered venues get:
 - `is_event_venue = true`
-- `record_status = 'enriched'` (Places API address + coords, not full bar details)
+- `record_status = 'enriched'` (Places (NEW) API address + coords, not full bar details)
 - `venue_types = ['event_host']`
-- Non-blocking enrichment from Google Places API (phone, hours, rating, business status)
+- Non-blocking enrichment from Google Places (NEW) API (phone, hours, rating, business status)
 
 ### Validation Gate on Venue Creation
 
-**Every new and returned venue passes through `maybeReResolveAddress` before reaching the caller** (see section 2 for full gate logic). This means even brand-new venues are validated for address quality, and if the Places API result that created them is garbage, the gate will re-resolve via a second Places API call with a wider radius.
+**Every new and returned venue passes through `maybeReResolveAddress` before reaching the caller** (see section 2 for full gate logic). This means even brand-new venues are validated for address quality, and if the Places (NEW) API result that created them is garbage, the gate will re-resolve via a second Places (NEW) API call with a wider radius.
 
 ### When to Flag Existing Venues
 
@@ -509,14 +509,14 @@ Venue data quality follows the "Best Write Wins" pattern:
 
 ### Coordinate Precision
 
-All latitude/longitude values stored in `venue_catalog` are rounded to **6 decimal places** (~11 cm precision). This matches `coord_key` precision and eliminates floating-point noise from Google Places API, which returns arbitrary precision values like `32.782698100000005`. Rounding happens in:
+All latitude/longitude values stored in `venue_catalog` are rounded to **6 decimal places** (~11 cm precision). This matches `coord_key` precision and eliminates floating-point noise from Google Places (NEW) API, which returns arbitrary precision values like `32.782698100000005`. Rounding happens in:
 - `searchPlaceWithTextSearch()` (return value)
 - `maybeReResolveAddress()` (update values)
 - `scripts/backfill-venue-addresses.js` (update values)
 
 ### One-Time Backfill Script
 
-`scripts/backfill-venue-addresses.js` fixes existing bad venue data using a two-pass Places API search:
+`scripts/backfill-venue-addresses.js` fixes existing bad venue data using a two-pass Places (NEW) API search:
 
 - **Pass 1:** Unbiased search by venue name alone (handles well-known venues where stored coords may be wrong)
 - **Pass 2:** Metro-biased fallback (50 km radius) for ambiguous venue names
@@ -597,8 +597,8 @@ The strategy LLM generates tips like:
 const snapshot = {
   city: 'Dallas',                        // Driver's current city (hint only)
   state: 'TX',                           // Driver's state (used for DB filter)
-  lat: 32.7767,                          // Driver's latitude (used for Places API bias)
-  lng: -96.7970,                         // Driver's longitude (used for Places API bias)
+  lat: 32.7767,                          // Driver's latitude (used for Places (NEW) API bias)
+  lng: -96.7970,                         // Driver's longitude (used for Places (NEW) API bias)
   timezone: 'America/Chicago',           // IANA timezone (REQUIRED, no fallback)
   market: 'Dallas-Fort Worth',           // Metro market name
   local_iso: '2026-04-11T14:30:00-05:00', // Local ISO timestamp
@@ -612,7 +612,7 @@ const snapshot = {
 2. **Date computed from snapshot timezone** — not server UTC
 3. **Market determines search area** — broader than just the driver's city
 4. **No cross-provider fallback** — Gemini-only, to avoid format incompatibility
-5. **Gemini returns names/categories/times; Places API returns everything else** — do not trust Gemini's `address`, `city`, `state`, or `lat/lng` fields
+5. **Gemini returns names/categories/times; Places (NEW) API returns everything else** — do not trust Gemini's `address`, `city`, `state`, or `lat/lng` fields
 
 ### Gemini Prompt Structure
 
@@ -621,7 +621,7 @@ System: Strict categorization rules + allowed category list
 User:   "Find [category] happening TODAY ({date}) in the {market} metro area..."
         - Requires: title, venue_name, place_id (best effort), category,
           event_start_date, event_start_time, event_end_time
-        - Does NOT rely on: address, city (these come from Places API)
+        - Does NOT rely on: address, city (these come from Places (NEW) API)
         - Market-agnostic search terms (no hardcoded league names)
 ```
 
@@ -641,7 +641,7 @@ User:   "Find [category] happening TODAY ({date}) in the {market} metro area..."
 ### Locale Considerations
 
 - Event times stored as text strings (`"7:00 PM"`) — locale-agnostic
-- Addresses from Google Places API respect the locale of the API key region
+- Addresses from Google Places (NEW) API respect the locale of the API key region
 - Category names are English-only (`concert`, `sports`, etc.) — for internal use, not display
 - Address validator supports international street patterns (German, French, Spanish, UK)
 
@@ -652,11 +652,11 @@ User:   "Find [category] happening TODAY ({date}) in the {market} metro area..."
 - Market names support international metros (not hardcoded to US)
 - Search terms in Gemini prompt are market-agnostic (no US-specific league names)
 - Address validator's `GENERIC_VENUE_WORDS` list uses English venue-type words — may need localization for non-English regions
-- `searchPlaceWithTextSearch` passes Google Places API standard params, so Tokyo/London/Berlin work identically to Dallas
+- `searchPlaceWithTextSearch` passes Google Places (NEW) API standard params, so Tokyo/London/Berlin work identically to Dallas
 
 ### Known Gaps
 
-1. **validateEvent.js date check** uses server UTC for "today" — may reject valid events in far-east timezones
+1. ~~**validateEvent.js date check** uses server UTC for "today" — may reject valid events in far-east timezones~~ **CLOSED 2026-04-28** — `validateEvent` now accepts `context.timezone`; both write and read paths thread driver tz (schema_version=6).
 2. **Event times as text** — no ISO 8601 storage means parsing is always needed
 3. **Country not in event discovery prompt** — assumes Gemini infers from metro area name
 4. **No multi-language event title support** — normalization assumes Latin characters
@@ -774,7 +774,7 @@ This coordination model is the result of three waves of work on 2026-04-11:
 
 Event distance annotation and NEAR/FAR bucketing now happen at **two** layers of the pipeline, both using the same 15-mile threshold to keep the mental model consistent across the system:
 
-1. **Strategist layer** — `server/lib/ai/providers/consolidator.js` annotates events with `distance_mi` + `estimated_attendance` and tags them `[NEAR X.Xmi]` / `[FAR X.Xmi]` before the STRATEGY_TACTICAL / STRATEGY_DAILY prompt is built. The strategist uses this to phase advice hour by hour, recommend NEAR event venues directly, and reason about surge flow from FAR events.
+1. **Strategist layer** — `server/lib/ai/providers/consolidator.js` annotates events with `distance_mi` + `estimated_attendance` and tags them `[NEAR X.Xmi]` / `[FAR X.Xmi]` before the STRATEGY_TACTICAL prompt is built. The strategist uses this to phase advice hour by hour, recommend NEAR event venues directly, and reason about surge flow from FAR events.
 2. **Smart Blocks / VENUE_SCORER layer** — `server/lib/briefing/filter-for-planner.js` + `server/lib/venue/enhanced-smart-blocks.js` annotate events the same way before the VENUE_SCORER prompt is built. VENUE_SCORER enforces the 15-mile rule as the supreme venue-eligibility constraint.
 
 Both layers share `NEAR_EVENT_RADIUS_MILES = 15` as the single source of truth. They both read `venue_lat` / `venue_lng` from the same source — `briefings.events` for the strategist, `discovered_events` JOIN `venue_catalog` for VENUE_SCORER — so distance computations agree. This gives the strategist and VENUE_SCORER the same event data and the same mental model: if the strategist says "recommend The Downtown Theater (NEAR, 3.2mi)," VENUE_SCORER will see the same event with the same distance and make the same call.
@@ -799,10 +799,10 @@ Both layers share `NEAR_EVENT_RADIUS_MILES = 15` as the single source of truth. 
 | `event_start_time` | `HH:MM` (24h) or `h:mm AM/PM` | Yes | Event start time |
 | `event_end_date` | `YYYY-MM-DD` | No | Defaults to `event_start_date` for single-day |
 | `event_end_time` | `HH:MM` (24h) or `h:mm AM/PM` | Yes | Required since schema v3 |
-| `city` | Text | Yes | **Venue's actual city (from Google Places API, NOT Gemini)** |
-| `state` | 2-letter code | Yes | State code (from Places API, NOT Gemini) |
+| `city` | Text | Yes | **Venue's actual city (from Google Places (NEW) API, NOT Gemini)** |
+| `state` | 2-letter code | Yes | State code (from Places (NEW) API, NOT Gemini) |
 | `venue_name` | Text | Yes | Actual venue name (kept from Gemini for display) |
-| `address` | Text | Yes | **Venue's street address (from Google Places API, NOT Gemini)** |
+| `address` | Text | Yes | **Venue's street address (from Google Places (NEW) API, NOT Gemini)** |
 | `place_id` | `ChIJ…` or null | No | Google Places ID |
 | `category` | Enum | Yes | `concert` / `sports` / `comedy` / `theater` / `festival` / `nightlife` / `convention` / `community` / `other` |
 | `expected_attendance` | Enum | No | `high` / `medium` / `low` (default: `medium`) |
@@ -812,7 +812,7 @@ Both layers share `NEAR_EVENT_RADIUS_MILES = 15` as the single source of truth. 
 
 ## Validation Rules (13 Hard Filters)
 
-Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION = 4`.
+Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION = 6`.
 
 | # | Rule | Field | Rejection Reason |
 |---|------|-------|-----------------|
@@ -834,7 +834,7 @@ Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION
 
 **Rule 12 fuzzy rescue (2026-04-05, self-healing):** If `event.category` is missing or not in the allowed list, `validateEvent` calls `normalizeCategory(event.category, event.subtype)` as a last-ditch remap before rejecting. This handles cases where Gemini returns unmapped values like `"live_music"`, `"game"`, `"hockey"`, `"concert_live"`. If the remap produces an allowed category, `event.category` is mutated in place and validation continues. Only unrecoverable values fall through to `missing_or_invalid_category`.
 
-**Rule 13 window:** `today` OR `yesterday` (UTC). Yesterday is allowed to cover late-night events discovered before midnight that cross into the next day.
+**Rule 13 window:** `today` OR `yesterday` in the driver's local timezone (passed via `context.timezone`). Yesterday is allowed to cover late-night events discovered before midnight that cross into the next day. Without `context.timezone`, falls back to UTC for backwards compatibility — but every live caller now threads timezone (schema v6 confirms both write and read paths are tz-aware).
 
 ---
 
@@ -846,9 +846,9 @@ Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION
 id                  UUID PRIMARY KEY
 title               TEXT NOT NULL
 venue_name          TEXT                 -- From Gemini (display name)
-address             TEXT                 -- From Google Places API via venue_catalog
-city                TEXT NOT NULL        -- From Google Places API, NOT Gemini, NOT snapshot
-state               TEXT NOT NULL        -- From Google Places API, NOT Gemini
+address             TEXT                 -- From Google Places (NEW) API via venue_catalog
+city                TEXT NOT NULL        -- From Google Places (NEW) API, NOT Gemini, NOT snapshot
+state               TEXT NOT NULL        -- From Google Places (NEW) API, NOT Gemini
 venue_id            UUID FK -> venue_catalog  -- Enables map pins, coordinates
 event_start_date    TEXT NOT NULL        -- YYYY-MM-DD
 event_start_time    TEXT                 -- "7:00 PM" or "19:00"
@@ -875,7 +875,7 @@ normalized_name     TEXT                -- Lowercase alphanumeric for fuzzy matc
 address             VARCHAR(500) NOT NULL
 address_1           TEXT                -- Street line only
 formatted_address   TEXT                -- Google-formatted full address (validated)
-city                TEXT                -- From Google Places API
+city                TEXT                -- From Google Places (NEW) API
 state               TEXT
 zip                 TEXT
 country             TEXT DEFAULT 'US'
@@ -907,12 +907,14 @@ These files are referenced in older docs but are NOT active in the pipeline:
 
 | Date | Change | Files |
 |------|--------|-------|
-| 2026-04-11 | **Address quality validation layer**: `venue-address-validator.js` (4 checks, hard fail + soft signals, international patterns). `maybeReResolveAddress()` gate on all 4 `findOrCreateVenue` return paths — re-resolves bad addresses via Places API 50km search, re-validates to refuse replacing bad with bad. | venue-address-validator.js, venue-cache.js |
+| 2026-04-28 | **Read-path Rule 13 tz-awareness (schema v5 → v6)**: `filterInvalidEvents` shim now accepts `{ timezone }`; threaded by `briefing-service.js:1607` (read-after-fetch revalidation), `briefing.js:1216` (`POST /filter-invalid-events` API — WARN-on-missing), and `dump-last-briefing.js`. Also fixed Path B (`GET /api/briefing/events/:snapshotId`) multi-day predicate from start-only to overlap window. Closes the gap commit 5cecd113 left open. | validateEvent.js, briefing-service.js, briefing.js, dump-last-briefing.js |
+| 2026-04-28 | **Write-path Rule 13 tz-awareness (schema v4 → v5) + multi-day predicate (Path A) + planner-grade gate**: `validateEvent` accepts `context.timezone`; `briefing-service.js:1339` threads `snapshot.timezone`; `enhanced-smart-blocks.js:213-272` uses `lte/gte` overlap predicate + `isPlannerGradeVenue` 3-bucket classification. Five hardening steps from `PLAN_events-pipeline-verification-2026-04-28.md` landed atomically as commit `5cecd113`. | validateEvent.js, briefing-service.js, enhanced-smart-blocks.js, venue-cache.js |
+| 2026-04-11 | **Address quality validation layer**: `venue-address-validator.js` (4 checks, hard fail + soft signals, international patterns). `maybeReResolveAddress()` gate on all 4 `findOrCreateVenue` return paths — re-resolves bad addresses via Places (NEW) API 50km search, re-validates to refuse replacing bad with bad. | venue-address-validator.js, venue-cache.js |
 | 2026-04-11 | **Semantic title-similarity dedup**: `deduplicateEventsSemantic.js` with `titlesMatch`, `scoreEventPreference` (+10 for non-stadium venue), `LARGE_VENUE_PATTERNS` regex. Integrated at write time in `fetchEventsWithGemini3ProPreview` and read time in `briefing.js`. Two-phase with hash dedup. | deduplicateEventsSemantic.js, briefing-service.js, briefing.js |
 | 2026-04-11 | **`onConflictDoUpdate` fix**: conflict branch now uses resolved address/city/state (was silently reverting corrections to raw Gemini data on every re-discovery). | briefing-service.js |
 | 2026-04-11 | **Coordinate precision**: 6-decimal rounding (~11cm) in `searchPlaceWithTextSearch`, `maybeReResolveAddress`, and backfill script to match `coord_key` precision and eliminate FP noise. | venue-address-resolver.js, venue-cache.js, backfill-venue-addresses.js |
 | 2026-04-11 | **One-time backfill script**: `scripts/backfill-venue-addresses.js` with two-pass search (unbiased → metro-biased), distance sanity check, cascade to `discovered_events`. Opt-in, not wired into boot. | backfill-venue-addresses.js |
-| 2026-04-10 | **Venue resolution via Google Places API (New)**: three-step priority chain (place-ID cache → `searchPlaceWithTextSearch` 50km radius → geocode fallback). City, address, coordinates all come from Places API, not Gemini. DB queries by state (metro-wide). `searchPlaceWithTextSearch` exported with configurable radius. | briefing-service.js, venue-address-resolver.js, briefing.js |
+| 2026-04-10 | **Venue resolution via Google Places (NEW) API (New)**: three-step priority chain (place-ID cache → `searchPlaceWithTextSearch` 50km radius → geocode fallback). City, address, coordinates all come from Places (NEW) API, not Gemini. DB queries by state (metro-wide). `searchPlaceWithTextSearch` exported with configurable radius. | briefing-service.js, venue-address-resolver.js, briefing.js |
 | 2026-04-10 | **Freshness: 1hr post-surge window** for driver relevance; default duration 3h (was 4h) | strategy-utils.js |
 | 2026-04-10 | **Hash v2**: `title\|venue_name\|city\|date` (removed time, added city, venue_name instead of venue_address) | hashEvent.js |
 | 2026-04-05 | `ALLOWED_CATEGORIES` aligned in Gemini prompt and `validateEvent.js`; Rule 12 gains fuzzy rescue via `normalizeCategory` | briefing-service.js, validateEvent.js |

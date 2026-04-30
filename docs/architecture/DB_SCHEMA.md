@@ -92,8 +92,8 @@
 | `snapshot_id` | UUID FK (unique, cascade) | One strategy per snapshot |
 | `status` | text | pending → running → ok / failed |
 | `phase` | text | Pipeline phase |
-| `strategy_for_now` | text | 1-hour tactical (NOW) |
-| `consolidated_strategy` | text | 8-12hr daily |
+| `strategy_for_now` | text | 1-hour tactical (NOW) — single live strategy output |
+| `consolidated_strategy` | text | unused |
 
 ### `briefings` — 1:1 with snapshots
 

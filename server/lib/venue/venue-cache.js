@@ -17,13 +17,42 @@ import {
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 // 2026-02-17: Shared timezone resolution — set timezone + market_slug on venue creation
 import { resolveTimezoneFromMarket } from '../location/resolveTimezone.js';
-// 2026-04-11: Address quality validation — catches bad Places API results before they persist
+// 2026-04-11: Address quality validation — catches bad Places (NEW) API results before they persist
+// 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): per-venue enrichment lines
+// demoted from info to debug. Set LOG_VERBOSE_COMPONENTS=VENUES to see them again.
+import { createWorkflowLogger } from '../../logger/workflow.js';
+const venueCacheLog = createWorkflowLogger('VENUES');
 import { validateVenueAddress } from './venue-address-validator.js';
-// 2026-04-11: Places API re-resolution when cached address fails validation
+// 2026-04-11: Places (NEW) API re-resolution when cached address fails validation
 import { searchPlaceWithTextSearch } from './venue-address-resolver.js';
 
 // Re-export utils for backward compatibility
 export { normalizeVenueName };
+
+/**
+ * 2026-04-28 (Step 4, spec §5.3): Planner-grade venue completeness predicate.
+ *
+ * A venue is "planner-grade" only when it carries the full identity needed for
+ * the planner / matcher / map: place_id (Google identity), formatted_address,
+ * city, state, lat, lng, and timezone. Anything missing means the planner
+ * input would degrade silently (e.g., haversine distance becomes Infinity for
+ * null coords, the matcher loses its primary key without place_id, the map
+ * cannot pin without lat/lng).
+ *
+ * This is a pure predicate — does not mutate, does not call APIs, does not
+ * decide whether to drop or re-resolve. Callers use the result to classify
+ * into planner-ready / re-resolve-needed / orphan buckets and log telemetry
+ * before downstream filtering.
+ *
+ * @param {Object|null|undefined} venue - Venue-shaped object with the seven required fields
+ * @returns {{ ok: boolean, missing: string[] }} Predicate result + missing field names
+ */
+export function isPlannerGradeVenue(venue) {
+  if (!venue) return { ok: false, missing: ['venue (null)'] };
+  const required = ['place_id', 'formatted_address', 'city', 'state', 'lat', 'lng', 'timezone'];
+  const missing = required.filter(f => venue[f] == null || venue[f] === '');
+  return { ok: missing.length === 0, missing };
+}
 
 /**
  * Look up a venue in the catalog.
@@ -276,7 +305,7 @@ export async function insertVenue(venue) {
 
       if (byPlaceId) {
         console.warn(
-          `[venue-cache] insertVenue 23505 on ${constraint || 'unique'} — falling back to existing venue ${byPlaceId.venue_id} (place_id=${venue.placeId.slice(0, 12)}…)`
+          `[VENUE] insertVenue 23505 on ${constraint || 'unique'} — falling back to existing venue ${byPlaceId.venue_id} (place_id=${venue.placeId.slice(0, 12)}…)`
         );
         await db
           .update(venue_catalog)
@@ -601,11 +630,11 @@ export async function findOrCreateVenue(eventData, source) {
     marketSlug: venueMarketSlug
   });
 
-  // 2026-02-26: Non-blocking enrichment — fetch phone, hours, rating from Google Places API
+  // 2026-02-26: Non-blocking enrichment — fetch phone, hours, rating from Google Places (NEW) API
   // Fire-and-forget: event processing continues immediately
   if (created && placeId) {
     enrichVenueFromPlaceId(created.venue_id, placeId).catch(err => {
-      console.warn(`[venue-cache] Non-blocking enrichment failed for ${venueName}: ${err.message}`);
+      console.warn(`[VENUE] Non-blocking enrichment failed for ${venueName}: ${err.message}`);
     });
   }
 
@@ -619,15 +648,15 @@ export async function findOrCreateVenue(eventData, source) {
 }
 
 /**
- * 2026-04-11: Validate a venue's address quality and re-resolve via Places API if it fails.
+ * 2026-04-11: Validate a venue's address quality and re-resolve via Places (NEW) API if it fails.
  * This prevents bad cached data (e.g., "Theatre, Frisco, TX 75034") from propagating.
  *
- * Only triggers a Places API call when validation FAILS — no extra cost for good addresses.
+ * Only triggers a Places (NEW) API call when validation FAILS — no extra cost for good addresses.
  *
  * @param {Object} venue - Venue record from venue_catalog
  * @param {string} venueName - Venue name for search
- * @param {number} lat - Latitude hint for Places API location bias
- * @param {number} lng - Longitude hint for Places API location bias
+ * @param {number} lat - Latitude hint for Places (NEW) API location bias
+ * @param {number} lng - Longitude hint for Places (NEW) API location bias
  * @param {string} city - City context
  * @param {string} state - State context
  * @returns {Promise<Object|null>} Updated venue record if re-resolved, null if address was valid
@@ -646,8 +675,8 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
 
   if (valid) return null; // Address is fine, no action needed
 
-  // Address failed validation — attempt Places API re-resolution
-  console.warn(`[VENUE-VALIDATE] Re-resolving "${venue.venue_name}" (${venue.venue_id?.slice(0, 8)}): ${issues.join('; ')}`);
+  // Address failed validation — attempt Places (NEW) API re-resolution
+  console.warn(`[VENUE] Re-resolving "${venue.venue_name}" (${venue.venue_id?.slice(0, 8)}): ${issues.join('; ')}`);
 
   try {
     // Use venue's own coords if available, otherwise caller's coords
@@ -661,7 +690,7 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
     const placeResult = await searchPlaceWithTextSearch(searchLat, searchLng, searchName, { radius: 50000 });
 
     if (!placeResult || !placeResult.formattedAddress) {
-      console.warn(`[VENUE-VALIDATE] Re-resolution returned no result for "${searchName}"`);
+      console.warn(`[VENUE] Re-resolution returned no result for "${searchName}"`);
       return null;
     }
 
@@ -672,7 +701,7 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
     });
 
     if (!recheck.valid) {
-      console.warn(`[VENUE-VALIDATE] Re-resolution also failed for "${searchName}": "${placeResult.formattedAddress}" — ${recheck.issues.join('; ')}`);
+      console.warn(`[VENUE] Re-resolution also failed for "${searchName}": "${placeResult.formattedAddress}" — ${recheck.issues.join('; ')}`);
       return null;
     }
 
@@ -699,12 +728,12 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
       .returning();
 
     if (updated) {
-      console.log(`[VENUE-VALIDATE] Fixed "${venue.venue_name}" address: "${addrToCheck}" → "${placeResult.formattedAddress}"`);
+      venueCacheLog.debug(`Fixed "${venue.venue_name}" address: "${addrToCheck}" -> "${placeResult.formattedAddress}"`);
       return updated;
     }
   } catch (err) {
     // Non-fatal — return null so caller uses original venue
-    console.warn(`[VENUE-VALIDATE] Re-resolution error for "${venue.venue_name}": ${err.message}`);
+    console.warn(`[VENUE] Re-resolution error for "${venue.venue_name}": ${err.message}`);
   }
 
   return null;
@@ -784,7 +813,7 @@ export async function getVenuesByType(options) {
 }
 
 // ─────────────────────────────────────────────────
-// 2026-02-26: Venue Enrichment via Google Places API
+// 2026-02-26: Venue Enrichment via Google Places (NEW) API
 // ─────────────────────────────────────────────────
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
@@ -811,12 +840,12 @@ function maybeBackfillVenue(venue, placeId) {
 
   // Trigger non-blocking enrichment
   enrichVenueFromPlaceId(venue.venue_id, placeId).catch(err => {
-    console.warn(`[venue-cache] Backfill failed for venue ${venue.venue_id}: ${err.message}`);
+    console.warn(`[VENUE] Backfill failed for venue ${venue.venue_id}: ${err.message}`);
   });
 }
 
 /**
- * 2026-02-26: Enrich a venue with data from Google Places API using place_id.
+ * 2026-02-26: Enrich a venue with data from Google Places (NEW) API using place_id.
  * Fetches: phone, rating, business hours, business status, venue types.
  * Updates the venue_catalog row directly.
  *
@@ -853,7 +882,7 @@ export async function enrichVenueFromPlaceId(venueId, placeId) {
 
   if (!response.ok) {
     const errText = await response.text().catch(() => 'unknown');
-    throw new Error(`Places API ${response.status}: ${errText.slice(0, 200)}`);
+    throw new Error(`Places (NEW) API ${response.status}: ${errText.slice(0, 200)}`);
   }
 
   const place = await response.json();
@@ -897,7 +926,7 @@ export async function enrichVenueFromPlaceId(venueId, placeId) {
     updates.venue_types = place.types;
   }
 
-  // Mark as verified since we confirmed via Places API
+  // Mark as verified since we confirmed via Places (NEW) API
   updates.record_status = 'verified';
 
   // Only update if we actually got useful data
@@ -908,5 +937,5 @@ export async function enrichVenueFromPlaceId(venueId, placeId) {
     .set(updates)
     .where(eq(venue_catalog.venue_id, venueId));
 
-  console.log(`[venue-cache] Enriched venue ${venueId} from Places API: phone=${!!updates.phone_number}, rating=${updates.google_rating || 'n/a'}, hours=${!!updates.business_hours}`);
+  venueCacheLog.debug(`Enriched venue ${venueId} from Places (NEW) API: phone=${!!updates.phone_number}, rating=${updates.google_rating || 'n/a'}, hours=${!!updates.business_hours}`);
 }

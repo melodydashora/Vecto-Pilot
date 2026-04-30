@@ -26,9 +26,9 @@ The product centers everything on snapshot_id. A snapshot captures exact driver 
 
 Generates market context for a snapshot: news, weather, forecast, traffic, local events, school closures, airport conditions — stored in briefings.
 
-### C. Immediate and daily strategist
+### C. Immediate strategist
 
-Produces strategy_for_now (near-term tactical) and consolidated_strategy (longer-horizon planning) using snapshot context plus transformed briefing context.
+Produces strategy_for_now (near-term 1-hour tactical) using snapshot context plus transformed briefing context.
 
 ### D. Smart Blocks / venue recommendations
 

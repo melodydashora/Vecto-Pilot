@@ -10,7 +10,6 @@ import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
 // 2026-02-17: Daypart extracted to shared module for reuse in offer_intelligence
 import { getDayPartKey } from '../../lib/location/daypart.js';
-import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
 import { validateLocationFreshness } from '../../lib/location/validation-gates.js';
@@ -95,7 +94,7 @@ function pickAddressParts(components) {
   if (!city) {
     city = sublocality || neighborhood || adminLevel2;
     if (city) {
-      console.log(`[location] 📍 Using fallback for city: "${city}" (no locality found)`);
+      console.log(`[LOCATION] 📍 Using fallback for city: "${city}" (no locality found)`);
     }
   }
 
@@ -138,7 +137,7 @@ function pickBestGeocodeResult(results) {
     const addr = result.formatted_address || '';
     // Skip Plus Codes - they start with alphanumeric pattern like "35WJ+64"
     if (/^[A-Z0-9]{4}\+[A-Z0-9]{2,}/.test(addr)) {
-      console.log(`[location] Skipping Plus Code result: ${addr}`);
+      console.log(`[LOCATION] Skipping Plus Code result: ${addr}`);
       return false;
     }
     // Prefer street_address, premise, route, or establishment types
@@ -150,9 +149,9 @@ function pickBestGeocodeResult(results) {
   const best = streetAddress || results[0];
 
   if (streetAddress) {
-    console.log(`[location] Selected street address: ${best.formatted_address}`);
+    console.log(`[LOCATION] Selected street address: ${best.formatted_address}`);
   } else {
-    console.log(`[location] Using fallback result (no street address found): ${best.formatted_address}`);
+    console.log(`[LOCATION] Using fallback result (no street address found): ${best.formatted_address}`);
   }
 
   return best;
@@ -171,7 +170,7 @@ router.post('/release-snapshot', async (req, res) => {
       .set({ current_snapshot_id: null, updated_at: new Date() })
       .where(eq(users.user_id, userId));
 
-    snapshotLog.info(`🔄 Snapshot released for user ${userId.substring(0, 8)} (manual refresh)`, OP.DB);
+    snapshotLog.info(`Snapshot released for user ${userId.substring(0, 8)} (manual refresh)`, OP.DB);
     res.json({ ok: true, message: 'Snapshot released' });
   } catch (err) {
     snapshotLog.error(1, `Failed to release snapshot`, err, OP.DB);
@@ -191,7 +190,7 @@ router.get('/geocode/reverse', async (req, res) => {
     // Rate limiting check
     const rateCheck = checkGeoRateLimit(clientIp);
     if (!rateCheck.allowed) {
-      console.warn(`[location] Rate limit exceeded for IP: ${clientIp}`);
+      console.warn(`[LOCATION] Rate limit exceeded for IP: ${clientIp}`);
       return res.status(429).json({
         error: 'RATE_LIMIT_EXCEEDED',
         message: `Too many geocoding requests. Try again in ${rateCheck.resetIn} seconds.`,
@@ -204,7 +203,7 @@ router.get('/geocode/reverse', async (req, res) => {
     }
 
     if (!GOOGLE_MAPS_API_KEY) {
-      console.warn('[location] No Google Maps API key configured');
+      console.warn('[LOCATION] No Google Maps API key configured');
       return res.json({
         city: undefined,
         state: undefined,
@@ -227,8 +226,8 @@ router.get('/geocode/reverse', async (req, res) => {
     });
 
     if (data.status !== 'OK') {
-      console.error('[location] Geocoding error:', data.status);
-      console.error('[location] Google API response:', JSON.stringify(data, null, 2));
+      console.error('[LOCATION] Geocoding error:', data.status);
+      console.error('[LOCATION] Google API response:', JSON.stringify(data, null, 2));
       return res.status(500).json({ error: `Geocoding failed: ${data.status}`, details: data.error_message });
     }
 
@@ -249,7 +248,7 @@ router.get('/geocode/reverse', async (req, res) => {
       lng: best?.geometry?.location?.lng || lng,
     });
   } catch (err) {
-    console.error('[location] reverse geocode error', err);
+    console.error('[LOCATION] reverse geocode error', err);
     res.status(500).json({ error: 'reverse-geocode-failed' });
   }
 });
@@ -265,7 +264,7 @@ router.get('/geocode/forward', async (req, res) => {
     // Rate limiting check
     const rateCheck = checkGeoRateLimit(clientIp);
     if (!rateCheck.allowed) {
-      console.warn(`[location] Rate limit exceeded for IP: ${clientIp}`);
+      console.warn(`[LOCATION] Rate limit exceeded for IP: ${clientIp}`);
       return res.status(429).json({
         error: 'RATE_LIMIT_EXCEEDED',
         message: `Too many geocoding requests. Try again in ${rateCheck.resetIn} seconds.`,
@@ -278,7 +277,7 @@ router.get('/geocode/forward', async (req, res) => {
     }
 
     if (!GOOGLE_MAPS_API_KEY) {
-      console.warn('[location] No Google Maps API key configured');
+      console.warn('[LOCATION] No Google Maps API key configured');
       return res.status(500).json({ error: 'Google Maps API key not configured' });
     }
 
@@ -295,7 +294,7 @@ router.get('/geocode/forward', async (req, res) => {
     });
 
     if (data.status !== 'OK') {
-      console.error('[location] Forward geocoding error:', data.status);
+      console.error('[LOCATION] Forward geocoding error:', data.status);
       return res.status(404).json({ error: `City not found: ${data.status}` });
     }
 
@@ -319,7 +318,7 @@ router.get('/geocode/forward', async (req, res) => {
       formattedAddress: best.formatted_address
     });
   } catch (err) {
-    console.error('[location] forward geocode error', err);
+    console.error('[LOCATION] forward geocode error', err);
     res.status(500).json({ error: 'forward-geocode-failed' });
   }
 });
@@ -337,7 +336,7 @@ router.get('/timezone', async (req, res) => {
 
     if (!GOOGLE_MAPS_API_KEY) {
       // 2026-01-06: NO FALLBACKS - Cannot guess timezone from server
-      console.error('[location] No Google Maps API key configured - cannot resolve timezone');
+      console.error('[LOCATION] No Google Maps API key configured - cannot resolve timezone');
       return res.status(503).json({
         error: 'TIMEZONE_UNAVAILABLE',
         message: 'Google Maps API key not configured. Timezone lookup unavailable.',
@@ -361,7 +360,7 @@ router.get('/timezone', async (req, res) => {
 
     if (data.status !== 'OK') {
       // 2026-01-06: NO FALLBACKS - Return error, don't guess
-      console.error('[location] Timezone API error:', data.status, data.errorMessage);
+      console.error('[LOCATION] Timezone API error:', data.status, data.errorMessage);
       return res.status(502).json({
         error: 'TIMEZONE_LOOKUP_FAILED',
         message: `Google Timezone API returned: ${data.status}`,
@@ -378,7 +377,7 @@ router.get('/timezone', async (req, res) => {
     // 2026-01-09: P0-1 FIX - NO FALLBACKS - Return error instead of server timezone
     // Server timezone would silently poison all downstream strategy/briefing logic
     // Client must retry or surface a "GPS/timezone required" state
-    console.error('[location] timezone error', err);
+    console.error('[LOCATION] timezone error', err);
     return res.status(502).json({
       error: 'TIMEZONE_LOOKUP_FAILED',
       message: 'Failed to resolve timezone from coordinates',
@@ -453,13 +452,13 @@ router.get('/resolve', async (req, res) => {
         const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
 
         // 2026-01-07: DEBUG - Log signature comparison
-        console.log('[Location API] 🔍 Secret source:', process.env.JWT_SECRET ? 'JWT_SECRET' : (process.env.REPLIT_DEVSERVER_INTERNAL_ID ? 'REPLIT_ID' : 'fallback'));
-        console.log('[Location API] 🔍 Sig match:', signature === expectedSig);
+        console.log('[LOCATION] [API] Secret source:', process.env.JWT_SECRET ? 'JWT_SECRET' : (process.env.REPLIT_DEVSERVER_INTERNAL_ID ? 'REPLIT_ID' : 'fallback'));
+        console.log('[LOCATION] [API] Sig match:', signature === expectedSig);
 
         if (signature !== expectedSig) {
-          console.error('[Location API] ❌ Signature mismatch!');
-          console.error('[Location API] Expected sig prefix:', expectedSig.substring(0, 20));
-          console.error('[Location API] Received sig prefix:', signature.substring(0, 20));
+          console.error('[LOCATION] [API] Signature mismatch!');
+          console.error('[LOCATION] [API] Expected sig prefix:', expectedSig.substring(0, 20));
+          console.error('[LOCATION] [API] Received sig prefix:', signature.substring(0, 20));
           throw new Error('Invalid signature');
         }
 
@@ -469,9 +468,9 @@ router.get('/resolve', async (req, res) => {
         }
 
         authenticatedUserId = userId;
-        console.log(`🔐 [Location API] Authenticated user: ${authenticatedUserId}`);
+        console.log(`[LOCATION] [API] Authenticated user: ${authenticatedUserId}`);
       } catch (tokenErr) {
-        console.warn('[Location API] Invalid auth token:', tokenErr.message);
+        console.warn('[LOCATION] [API] Invalid auth token:', tokenErr.message);
         // Token was provided but invalid - reject to prevent orphan snapshots
         return res.status(401).json({
           error: 'INVALID_TOKEN',
@@ -490,7 +489,7 @@ router.get('/resolve', async (req, res) => {
     // If no authenticated user, reject the request
     // ═══════════════════════════════════════════════════════════════════════════
     if (!authenticatedUserId) {
-      console.warn('[Location API] No authenticated user - rejecting anonymous request');
+      console.warn('[LOCATION] [API] No authenticated user - rejecting anonymous request');
       return res.status(401).json({
         error: 'AUTHENTICATION_REQUIRED',
         message: 'You must be signed in to use this feature.',
@@ -515,7 +514,7 @@ router.get('/resolve', async (req, res) => {
     const coordSource = req.query.coord_source || (deviceId?.startsWith('dev-') ? 'dev-coords' : 'gps');
 
     if (!isFinite(lat) || !isFinite(lng)) {
-      console.error('[Location API] INVALID COORDINATES - lat/lng required for precise location resolution', {
+      console.error('[LOCATION] [API] INVALID COORDINATES - lat/lng required for precise location resolution', {
         lat,
         lng,
         isLatFinite: isFinite(lat),
@@ -528,7 +527,7 @@ router.get('/resolve', async (req, res) => {
 
     // 2026-02-01: Validate coordinate ranges
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      console.error('[Location API] COORDINATES OUT OF RANGE', { lat, lng });
+      console.error('[LOCATION] [API] COORDINATES OUT OF RANGE', { lat, lng });
       return res.status(400).json({
         error: 'COORDINATES_OUT_OF_RANGE',
         message: `Coordinates [${lat}, ${lng}] are outside valid range`,
@@ -538,7 +537,7 @@ router.get('/resolve', async (req, res) => {
 
     // 2026-02-01: Warn about suspicious coordinates (might be GPS error)
     if (lat === 0 && lng === 0) {
-      console.warn('[Location API] ⚠️ Suspicious coordinates (0,0) - possible GPS error');
+      console.warn('[LOCATION] [API] Suspicious coordinates (0,0) - possible GPS error');
     }
 
     locationLog.phase(1, `Resolving ${lat.toFixed(6)}, ${lng.toFixed(6)}`, OP.API);
@@ -546,7 +545,7 @@ router.get('/resolve', async (req, res) => {
     // 2026-01-09: P0-2 FIX - NO FALLBACKS - Require Google Maps API key
     // Previous code returned fabricated data with server timezone - this poisons downstream
     if (!GOOGLE_MAPS_API_KEY) {
-      console.error('[location] CRITICAL: No Google Maps API key configured');
+      console.error('[LOCATION] CRITICAL: No Google Maps API key configured');
       return res.status(503).json({
         error: 'LOCATION_SERVICE_UNAVAILABLE',
         message: 'Location resolution service is not configured',
@@ -569,7 +568,7 @@ router.get('/resolve', async (req, res) => {
         where: eq(coords_cache.coord_key, coordKey),
       });
     } catch (cacheErr) {
-      console.warn(`[Location API] ⚠️ Cache lookup failed (continuing with API):`, cacheErr.message);
+      console.warn(`[LOCATION] [API] Cache lookup failed (continuing with API):`, cacheErr.message);
     }
     
     if (cacheHit) {
@@ -577,7 +576,7 @@ router.get('/resolve', async (req, res) => {
       // 2026-02-01: STRICT VALIDATION - No partial cache entries allowed
       // Rule: Cache MUST have timezone, city, state, AND formatted_address
       if (!cacheHit.timezone || !cacheHit.city || !cacheHit.state || !cacheHit.formatted_address) {
-        console.warn(`[Location API] ⚠️ Cache entry incomplete, forcing fresh API lookup`, {
+        console.warn(`[LOCATION] [API] Cache entry incomplete, forcing fresh API lookup`, {
           hasTimezone: !!cacheHit.timezone,
           hasCity: !!cacheHit.city,
           hasState: !!cacheHit.state,
@@ -586,7 +585,7 @@ router.get('/resolve', async (req, res) => {
         });
         cacheHit = null; // Force API lookup - no partial data allowed
       } else {
-        locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state} ✓`, OP.CACHE);
+        locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state}`, OP.CACHE);
         city = cacheHit.city;
         state = cacheHit.state;
         country = cacheHit.country;
@@ -621,7 +620,7 @@ router.get('/resolve', async (req, res) => {
 
         // 2026-02-01: FAIL HARD if no results even though status is OK
         if (!best) {
-          console.error(`[location] ❌ Geocode returned OK but no results for coords [${lat}, ${lng}]`);
+          console.error(`[LOCATION] Geocode returned OK but no results for coords [${lat}, ${lng}]`);
           return res.status(502).json({
             error: 'GEOCODE_NO_RESULTS',
             message: 'Google Geocode returned OK but no address results',
@@ -635,7 +634,7 @@ router.get('/resolve', async (req, res) => {
         formattedAddress = best.formatted_address;
 
         // 2026-02-01: DEBUG - Log what was extracted to diagnose geocode_incomplete errors
-        console.log(`[Location API] 🔍 Geocode extraction for [${lat}, ${lng}]:`, {
+        console.log(`[LOCATION] [API] Geocode extraction for [${lat}, ${lng}]:`, {
           city,
           state,
           country,
@@ -649,7 +648,7 @@ router.get('/resolve', async (req, res) => {
         // If ANY required field is missing, FAIL HARD immediately
 
         if (!formattedAddress || formattedAddress.trim() === '') {
-          console.error(`[Location API] ❌ FAIL HARD: No formatted_address for coords [${lat}, ${lng}]`);
+          console.error(`[LOCATION] [API] FAIL HARD: No formatted_address for coords [${lat}, ${lng}]`);
           return res.status(502).json({
             error: 'GEOCODE_NO_ADDRESS',
             message: 'Google Geocode did not return a formatted address for these coordinates',
@@ -659,7 +658,7 @@ router.get('/resolve', async (req, res) => {
         }
 
         if (!city) {
-          console.error(`[Location API] ❌ FAIL HARD: No city extracted for coords [${lat}, ${lng}]`);
+          console.error(`[LOCATION] [API] FAIL HARD: No city extracted for coords [${lat}, ${lng}]`);
           return res.status(502).json({
             error: 'GEOCODE_NO_CITY',
             message: 'Could not extract city from geocode response',
@@ -670,7 +669,7 @@ router.get('/resolve', async (req, res) => {
         }
 
         if (!state) {
-          console.error(`[Location API] ❌ FAIL HARD: No state extracted for coords [${lat}, ${lng}]`);
+          console.error(`[LOCATION] [API] FAIL HARD: No state extracted for coords [${lat}, ${lng}]`);
           return res.status(502).json({
             error: 'GEOCODE_NO_STATE',
             message: 'Could not extract state from geocode response',
@@ -772,7 +771,7 @@ router.get('/resolve', async (req, res) => {
     // 2026-02-01: FAIL HARD - city and state are required for downstream operations
     // If geocode failed to extract these, return error instead of undefined values
     if (!city || !state) {
-      console.error(`[location] ❌ CRITICAL: Geocode did not return city/state for coords [${lat}, ${lng}]`, {
+      console.error(`[LOCATION] CRITICAL: Geocode did not return city/state for coords [${lat}, ${lng}]`, {
         city,
         state,
         country,
@@ -812,7 +811,7 @@ router.get('/resolve', async (req, res) => {
                           field === 'city' ? city :
                           field === 'state' ? state : country;
         if (cacheValue && localValue !== cacheValue) {
-          console.warn(`[location] CONSISTENCY: ${field} mismatch - cache="${cacheValue}" vs resolved="${localValue}" - using cache value`);
+          console.warn(`[LOCATION] CONSISTENCY: ${field} mismatch - cache="${cacheValue}" vs resolved="${localValue}" - using cache value`);
           // Use cache value for consistency
           if (field === 'formatted_address') formattedAddress = cacheValue;
           else if (field === 'timezone') timeZone = cacheValue;
@@ -835,7 +834,7 @@ router.get('/resolve', async (req, res) => {
         const now = new Date();
         // NO FALLBACK - timezone is required for accurate time calculations
         if (!timeZone) {
-          console.error('[location] ❌ Cannot save user data: timezone not resolved');
+          console.error('[LOCATION] Cannot save user data: timezone not resolved');
           return res.status(400).json({
             ok: false,
             error: 'timezone_required',
@@ -860,7 +859,7 @@ router.get('/resolve', async (req, res) => {
             where: eq(users.user_id, authenticatedUserId),
           }).catch(() => null);
           if (existingUser) {
-            console.log(`🔐 [Location API] Found user by user_id (different device): ${authenticatedUserId.slice(0, 8)}`);
+            console.log(`🔐 [LOCATION] [API] Found user by user_id (different device): ${authenticatedUserId.slice(0, 8)}`);
           }
         }
 
@@ -870,13 +869,13 @@ router.get('/resolve', async (req, res) => {
 
           // If authenticated user differs from device's current user, update the user_id
           if (authenticatedUserId && existingUser.user_id !== authenticatedUserId) {
-            console.log(`🔐 [Location API] Linking device ${deviceId.slice(0, 8)} to authenticated user ${authenticatedUserId}`);
+            console.log(`🔐 [LOCATION] [API] Linking device ${deviceId.slice(0, 8)} to authenticated user ${authenticatedUserId}`);
           }
           
           try {
             // CRITICAL FIX: Validate formatted_address is not null before database write
             if (!formattedAddress) {
-              console.error('[location] ❌ CRITICAL: formattedAddress is null/empty - refusing to update users table', {
+              console.error('[LOCATION] CRITICAL: formattedAddress is null/empty - refusing to update users table', {
                 lat, lng, city, state, accuracy, deviceId, coordSource,
                 reason: 'Google API may have returned empty string or reverse-geocoding failed'
               });
@@ -939,7 +938,7 @@ router.get('/resolve', async (req, res) => {
         } else {
           // Use authenticated user_id if logged in, otherwise generate new UUID
           userId = authenticatedUserId || crypto.randomUUID();
-          console.log(`🔐 [Location API] Creating user record with ${authenticatedUserId ? 'authenticated' : 'anonymous'} user_id: ${userId.slice(0, 8)}`);
+          console.log(`🔐 [LOCATION] [API] Creating user record with ${authenticatedUserId ? 'authenticated' : 'anonymous'} user_id: ${userId.slice(0, 8)}`);
           // 2026-01-07: CRITICAL FIX - Do NOT set session_id here!
           // session_id must only be managed by login/logout/auth middleware.
           // For authenticated users, login should have already created the users row.
@@ -1000,13 +999,13 @@ router.get('/resolve', async (req, res) => {
         //   - Session expires (60 min)
         // ═══════════════════════════════════════════════════════════════════════════
         const forceRefresh = req.query.force === 'true';
-        console.log(`📸 [SNAPSHOT] Force refresh: ${forceRefresh}, current_snapshot_id: ${existingUser?.current_snapshot_id?.slice(0, 8) || 'null'}`);
+        console.log(`[SNAPSHOT] Force refresh: ${forceRefresh}, current_snapshot_id: ${existingUser?.current_snapshot_id?.slice(0, 8) || 'null'}`);
 
         // 2026-02-17: FIX - On force refresh, release old snapshot FIRST
         // This triggers a clean waterfall: null → new snapshot → new briefing → new strategy
         // Previous behavior was atomic swap (old → new) which skipped the release step
         if (forceRefresh && existingUser?.current_snapshot_id) {
-          console.log(`📸 [SNAPSHOT] 🔄 Force refresh: releasing old snapshot ${existingUser.current_snapshot_id.slice(0, 8)}`);
+          console.log(`[SNAPSHOT] Force refresh: releasing old snapshot ${existingUser.current_snapshot_id.slice(0, 8)}`);
           await db.update(users)
             .set({ current_snapshot_id: null })
             .where(eq(users.user_id, userId));
@@ -1034,10 +1033,10 @@ router.get('/resolve', async (req, res) => {
 
             if (cityChanged) {
               // City changed - must create new snapshot for fresh briefing data
-              console.log(`📸 [SNAPSHOT] 🏙️ CITY CHANGED: ${existingSnapshot.city}, ${existingSnapshot.state} → ${city}, ${state} - creating fresh snapshot`);
+              console.log(`[SNAPSHOT] 🏙️ CITY CHANGED: ${existingSnapshot.city}, ${existingSnapshot.state} → ${city}, ${state} - creating fresh snapshot`);
             } else if (snapshotAge < SNAPSHOT_TTL_MS) {
               // Snapshot is fresh AND same city - reuse it
-              console.log(`📸 [SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (age: ${Math.round(snapshotAge / 60000)}min)`);
+              console.log(`[SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (age: ${Math.round(snapshotAge / 60000)}min)`);
               resolvedData.snapshot_id = existingUser.current_snapshot_id;
               resolvedData.snapshot_reused = true;
 
@@ -1046,11 +1045,11 @@ router.get('/resolve', async (req, res) => {
               return res.json(resolvedData);
             } else {
               // Snapshot is stale - log and create new
-              console.log(`📸 [SNAPSHOT] ⏰ Existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} is STALE (age: ${Math.round(snapshotAge / 60000)}min > 60min TTL) - creating fresh`);
+              console.log(`[SNAPSHOT] ⏰ Existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} is STALE (age: ${Math.round(snapshotAge / 60000)}min > 60min TTL) - creating fresh`);
             }
           } else {
             // Snapshot not found in DB (orphaned reference) - create new
-            console.log(`📸 [SNAPSHOT] ⚠️ Existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} not found in DB - creating fresh`);
+            console.log(`[SNAPSHOT] Existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} not found in DB - creating fresh`);
           }
         }
 
@@ -1063,7 +1062,7 @@ router.get('/resolve', async (req, res) => {
         try {
           // Calculate date in user's timezone - NO FALLBACK
           if (!timeZone) {
-            console.error('[location] ❌ Cannot create snapshot: timezone not resolved');
+            console.error('[LOCATION] Cannot create snapshot: timezone not resolved');
             return res.status(400).json({
               ok: false,
               error: 'timezone_required',
@@ -1091,7 +1090,7 @@ router.get('/resolve', async (req, res) => {
                 .limit(1);
               userMarket = profileResult?.market || null;
               if (userMarket) {
-                console.log(`📸 [SNAPSHOT] 🌆 User market from profile: ${userMarket}`);
+                console.log(`[SNAPSHOT] User market from profile: ${userMarket}`);
               }
 
               // 2026-02-17: Google OAuth backfill — set market + timezone on first GPS use
@@ -1111,12 +1110,12 @@ router.get('/resolve', async (req, res) => {
                     .where(eq(driver_profiles.user_id, userId));
 
                   userMarket = backfillMarket.market_name;
-                  console.log(`📸 [SNAPSHOT] 🔗 Backfilled market+timezone on profile: ${backfillMarket.market_name} (${backfillMarket.timezone})`);
+                  console.log(`[SNAPSHOT] 🔗 Backfilled market+timezone on profile: ${backfillMarket.market_name} (${backfillMarket.timezone})`);
                 }
               }
             } catch (err) {
               // Non-fatal: market is optional enhancement for event discovery
-              console.warn(`📸 [SNAPSHOT] ⚠️ Could not lookup/backfill user market: ${err.message}`);
+              console.warn(`[SNAPSHOT] Could not lookup/backfill user market: ${err.message}`);
             }
           }
 
@@ -1196,7 +1195,7 @@ router.get('/resolve', async (req, res) => {
       } catch (err) {
         // 2026-01-15: FAIL HARD - User location save is NOT optional
         // If we can't save the user/location data, the session is broken
-        console.error('[location] ❌ Failed to save user location:', err.message);
+        console.error('[LOCATION] Failed to save user location:', err.message);
         return res.status(500).json({
           ok: false,
           error: 'user_location_save_failed',
@@ -1209,7 +1208,7 @@ router.get('/resolve', async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.json(resolvedData);
   } catch (err) {
-    console.error('[location] resolve error', err);
+    console.error('[LOCATION] resolve error', err);
     // Always set JSON content-type to prevent HTML leaks on error
     res.setHeader('Content-Type', 'application/json');
     return res.status(500).json({ error: 'location-resolve-failed', message: err.message });
@@ -1228,7 +1227,7 @@ router.get('/weather', async (req, res) => {
     }
 
     if (!GOOGLE_MAPS_API_KEY) {
-      console.warn('[location] No Google Maps API key configured');
+      console.warn('[LOCATION] No Google Maps API key configured');
       return res.json({ 
         available: false,
         error: 'API key not configured' 
@@ -1303,7 +1302,7 @@ router.get('/weather', async (req, res) => {
       res.json({ available: false, forecast, reason: 'current_conditions_unavailable' });
     }
   } catch (err) {
-    console.error('[location] weather error', err);
+    console.error('[LOCATION] weather error', err);
     res.json({
       available: false,
       forecast: [],
@@ -1324,7 +1323,7 @@ router.get('/airquality', async (req, res) => {
     }
 
     if (!GOOGLEAQ_API_KEY) {
-      console.warn('[location] No Google Air Quality API key configured');
+      console.warn('[LOCATION] No Google Air Quality API key configured');
       return res.json({ 
         available: false,
         error: 'API key not configured' 
@@ -1359,7 +1358,7 @@ router.get('/airquality', async (req, res) => {
 
     // Check if data contains an error (circuit breaker might have returned error state)
     if (data?.error) {
-      console.error('[location] Air Quality API error:', data);
+      console.error('[LOCATION] Air Quality API error:', data);
       return res.status(500).json({ 
         available: false,
         error: data.error?.message || 'Air quality fetch failed' 
@@ -1387,7 +1386,7 @@ router.get('/airquality', async (req, res) => {
 
     res.json(aqData);
   } catch (err) {
-    console.error('[location] air quality error', err);
+    console.error('[LOCATION] air quality error', err);
     res.status(500).json({ 
       available: false,
       error: 'airquality-fetch-failed' 
@@ -1409,7 +1408,7 @@ router.get('/pollen', async (req, res) => {
     }
 
     if (!GOOGLE_MAPS_API_KEY) {
-      console.warn('[location] No Google Maps API key configured for Pollen');
+      console.warn('[LOCATION] No Google Maps API key configured for Pollen');
       return res.json({
         available: false,
         error: 'API key not configured'
@@ -1422,7 +1421,7 @@ router.get('/pollen', async (req, res) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('[location] Pollen API error:', response.status, errorData);
+      console.error('[LOCATION] Pollen API error:', response.status, errorData);
       return res.json({
         available: false,
         error: errorData.error?.message || `API error: ${response.status}`
@@ -1485,7 +1484,7 @@ router.get('/pollen', async (req, res) => {
       })),
       // Summary for drivers
       driverAlert: maxSeverity >= 3
-        ? `⚠️ High ${dominantType || 'pollen'} levels today. Consider keeping windows closed.`
+        ? `High ${dominantType || 'pollen'} levels today. Consider keeping windows closed.`
         : maxSeverity >= 2
         ? `Moderate pollen levels. Allergy sufferers may want to take precautions.`
         : null
@@ -1495,7 +1494,7 @@ router.get('/pollen', async (req, res) => {
 
     res.json(pollenData);
   } catch (err) {
-    console.error('[location] pollen error', err);
+    console.error('[LOCATION] pollen error', err);
     res.status(500).json({
       available: false,
       error: 'pollen-fetch-failed'
@@ -1535,16 +1534,16 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     });
   }
 
-  console.log('[snapshot] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body, cid });
+  console.log('[SNAPSHOT] handler ENTER', { url: req.originalUrl, method: req.method, hasBody: !!req.body, cid });
   try {
-    console.log('[snapshot] processing snapshot...');
+    console.log('[SNAPSHOT] processing snapshot...');
     const snapshotV1 = req.body;
 
     // Minimal mode support for curl/preflight tests
     const isMinimalMode = snapshotV1?.lat && snapshotV1?.lng && !snapshotV1?.resolved;
     
     if (isMinimalMode) {
-      console.log('[snapshot] Minimal mode detected - resolving city/timezone server-side');
+      console.log('[SNAPSHOT] Minimal mode detected - resolving city/timezone server-side');
       const { lat, lng, userId } = snapshotV1;
       
       if (!lat || !lng) {
@@ -1578,7 +1577,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         });
         
         if (geocodeRes.status !== 'OK' || !geocodeRes.results?.[0]) {
-          console.error('[snapshot] Geocoding API error:', geocodeRes.status, geocodeRes.error_message);
+          console.error('[SNAPSHOT] Geocoding API error:', geocodeRes.status, geocodeRes.error_message);
           return httpError(res, 502, 'resolve_failed', `Google Maps API error: ${geocodeRes.error_message || geocodeRes.status}`, cid);
         }
         
@@ -1599,7 +1598,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         
         // NO FALLBACK - timezone must come from Google API
         if (tzRes.status !== 'OK' || !tzRes.timeZoneId) {
-          console.error('[location] ❌ Timezone API failed:', tzRes.status, tzRes.errorMessage);
+          console.error('[LOCATION] Timezone API failed:', tzRes.status, tzRes.errorMessage);
           return httpError(res, 502, 'timezone_resolution_failed', 'Failed to determine timezone for location', cid);
         }
         const timeZone = tzRes.timeZoneId;
@@ -1607,7 +1606,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         resolved = { city, state, country, formattedAddress, timeZone };
         
       } catch (err) {
-        console.error('[snapshot] Location resolution failed:', err.message);
+        console.error('[SNAPSHOT] Location resolution failed:', err.message);
         return httpError(res, 502, 'resolve_failed', 'Failed to resolve location', cid);
       }
       
@@ -1658,7 +1657,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         day_part_key: getDayPartKey(hour)
       };
       
-      console.log('[snapshot] Minimal mode enriched with:', { 
+      console.log('[SNAPSHOT] Minimal mode enriched with:', { 
         city: resolved.city, 
         timezone: resolved.timeZone,
         snapshot_id 
@@ -1671,7 +1670,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       const v = validateSnapshotV1(snapshotV1);
 
       if (!v.ok) {
-        console.warn('[snapshot] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', {
+        console.warn('[SNAPSHOT] INCOMPLETE_SNAPSHOT_V1 - possible web crawler or incomplete client', {
           fields_missing: v.errors,
           hasUserAgent: !!req.get("user-agent"),
           userAgent: req.get("user-agent"),
@@ -1686,7 +1685,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       // CRITICAL: If client sent resolved location data, ensure it's properly structured
       // This handles the full SnapshotV1 path where client sends complete location context
       if (snapshotV1.resolved && !snapshotV1.resolved.formattedAddress && snapshotV1.coord) {
-        console.log('[snapshot] ⚠️ Client sent resolved but missing formattedAddress - resolving server-side');
+        console.log('[SNAPSHOT] Client sent resolved but missing formattedAddress - resolving server-side');
         try {
           const { lat, lng } = snapshotV1.coord;
           const geocodeUrl = new URL('https://maps.googleapis.com/maps/api/geocode/json');
@@ -1706,15 +1705,15 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
             snapshotV1.resolved.state = state;
             snapshotV1.resolved.country = country;
             snapshotV1.resolved.formattedAddress = formattedAddress;
-            console.log('[snapshot] ✅ Resolved missing address fields:', { city, state, formattedAddress });
+            console.log('[SNAPSHOT] Resolved missing address fields:', { city, state, formattedAddress });
           }
         } catch (resolveErr) {
-          console.warn('[snapshot] Could not resolve missing address:', resolveErr.message);
+          console.warn('[SNAPSHOT] Could not resolve missing address:', resolveErr.message);
         }
       }
       
       // Log what we're about to save
-      console.log('[snapshot] Full mode - client sent resolved location:', {
+      console.log('[SNAPSHOT] Full mode - client sent resolved location:', {
         formattedAddress: snapshotV1.resolved?.formattedAddress,
         city: snapshotV1.resolved?.city,
         state: snapshotV1.resolved?.state,
@@ -1723,12 +1722,12 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       });
     }
 
-    console.log('[snapshot] Calculating H3 geohash...');
+    console.log('[SNAPSHOT] Calculating H3 geohash...');
     // Calculate H3 geohash at resolution 8 (~0.46 km² hexagons)
     const h3_r8 = latLngToCell(snapshotV1.coord.lat, snapshotV1.coord.lng, 8);
 
     // Fetch holiday and airport context in parallel (both are fast enrichments)
-    console.log('[snapshot] Fetching airport context and holiday info in parallel...');
+    console.log('[SNAPSHOT] Fetching airport context and holiday info in parallel...');
     const { getNearestMajorAirport, fetchFAADelayData } = await import('../../lib/external/faa-asws.js');
     const { detectHoliday } = await import('../../lib/location/holiday-detector.js');
     
@@ -1781,10 +1780,10 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
             } : null
           };
           
-          console.log('[Airport API] ✅ Airport context prepared for DB:', airportContext);
+          console.log('[Airport API] Airport context prepared for DB:', airportContext);
         } else {
           // Issue #29 Fix: Preserve basic airport proximity even when FAA API fails
-          console.log('[Airport API] ⚠️ No FAA data available for', nearbyAirport.code, '- saving proximity data only');
+          console.log('[Airport API] No FAA data available for', nearbyAirport.code, '- saving proximity data only');
           airportContext = {
             airport_code: nearbyAirport.code,
             airport_name: nearbyAirport.name,
@@ -1796,14 +1795,14 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
             has_closures: false,
             weather: null
           };
-          console.log('[Airport API] ✅ Basic airport context prepared (FAA unavailable):', airportContext);
+          console.log('[Airport API] Basic airport context prepared (FAA unavailable):', airportContext);
         }
       } else {
         console.log('[Airport API] ℹ️ No airports found within 25 miles');
       }
           return airportContext;
         } catch (airportErr) {
-          console.warn('[snapshot] Airport context fetch failed:', airportErr.message);
+          console.warn('[SNAPSHOT] Airport context fetch failed:', airportErr.message);
           return null;
         }
       })(),
@@ -1826,7 +1825,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       holidayInfo = holidayResult.value;
     }
     
-    console.log('[snapshot] ✅ Parallel enrichment complete:', {
+    console.log('[SNAPSHOT] Parallel enrichment complete:', {
       airport: airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi)` : 'none',
       holiday: holidayInfo.holiday || 'none',
       is_holiday: holidayInfo.is_holiday
@@ -1849,7 +1848,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // NO FALLBACK - timezone is required for accurate date calculation
     const driverTimezone = snapshotV1.resolved?.timezone;
     if (!driverTimezone) {
-      console.error('[location] ❌ Cannot convert snapshotV1 to DB: timezone not in resolved data');
+      console.error('[LOCATION] Cannot convert snapshotV1 to DB: timezone not in resolved data');
       throw new Error('Timezone required in snapshotV1.resolved.timezone');
     }
     const formatter = new Intl.DateTimeFormat('en-US', {
@@ -1930,8 +1929,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     if (!dbSnapshot.day_part_key) validationErrors.push('day_part_key');
 
     if (validationErrors.length > 0) {
-      console.error('[Snapshot] ❌ VALIDATION FAILED: Missing fields:', validationErrors);
-      console.error('[Snapshot] Received data:', {
+      console.error('[SNAPSHOT] VALIDATION FAILED: Missing fields:', validationErrors);
+      console.error('[SNAPSHOT] Received data:', {
         lat: dbSnapshot.lat,
         lng: dbSnapshot.lng,
         city: dbSnapshot.city,
@@ -1946,7 +1945,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         `Location not fully resolved. Missing: ${validationErrors.join(', ')}. Call /api/location/resolve first.`, cid);
     }
 
-    console.log('[Snapshot] ✅ Self-contained validation passed:', {
+    console.log('[SNAPSHOT] Self-contained validation passed:', {
       lat: dbSnapshot.lat,
       lng: dbSnapshot.lng,
       city: dbSnapshot.city,
@@ -1960,7 +1959,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 
     // Save to Replit PostgreSQL using Drizzle ORM
     // Uses DATABASE_URL automatically injected by Replit for both dev and production
-    console.log('[Snapshot DB] 💾 Writing SELF-CONTAINED snapshot to database:');
+    console.log('[Snapshot DB] Writing SELF-CONTAINED snapshot to database:');
     console.log('  → snapshot_id:', dbSnapshot.snapshot_id);
     console.log('  → LOCATION: lat=%s lng=%s city=%s state=%s timezone=%s', 
       dbSnapshot.lat, dbSnapshot.lng, dbSnapshot.city, dbSnapshot.state, dbSnapshot.timezone);
@@ -1974,7 +1973,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       validateSnapshotFields(dbSnapshot);
 
       await db.insert(snapshots).values(dbSnapshot);
-      console.log('[Snapshot DB] ✅ Snapshot successfully written to database');
+      console.log('[Snapshot DB] Snapshot successfully written to database');
 
       // 2026-01-05: Session Architecture - Link snapshot to user's session
       // This updates current_snapshot_id and extends the sliding window TTL
@@ -1994,20 +1993,20 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
             .returning({ user_id: users.user_id });
 
           if (updateResult.length > 0) {
-            console.log(`[Snapshot DB] ✅ Session updated: user=${snapshotUserId.substring(0, 8)}, snapshot=${dbSnapshot.snapshot_id.substring(0, 8)}`);
+            console.log(`[Snapshot DB] Session updated: user=${snapshotUserId.substring(0, 8)}, snapshot=${dbSnapshot.snapshot_id.substring(0, 8)}`);
           } else {
             // User not found in users table - session may have expired
-            console.warn(`[Snapshot DB] ⚠️ User ${snapshotUserId.substring(0, 8)} has no active session (may have expired)`);
+            console.warn(`[Snapshot DB] User ${snapshotUserId.substring(0, 8)} has no active session (may have expired)`);
           }
         } catch (sessionErr) {
           // Non-blocking - log but don't fail the snapshot
           console.warn('[Snapshot DB] Session update failed (non-blocking):', sessionErr.message);
         }
       } else {
-        console.error('[Snapshot] CRITICAL: No user_id resolved for snapshot — current_snapshot_id will NOT be updated. snapshotV1 keys:', Object.keys(snapshotV1 || {}), 'dbSnapshot.user_id:', dbSnapshot.user_id, 'req.auth?.userId:', req.auth?.userId);
+        console.error('[SNAPSHOT] CRITICAL: No user_id resolved for snapshot — current_snapshot_id will NOT be updated. snapshotV1 keys:', Object.keys(snapshotV1 || {}), 'dbSnapshot.user_id:', dbSnapshot.user_id, 'req.auth?.userId:', req.auth?.userId);
       }
     } catch (dbError) {
-      console.error('[Snapshot DB] ❌ Database insert failed:', dbError);
+      console.error('[Snapshot DB] Database insert failed:', dbError);
       console.error('[Snapshot DB] Failed snapshot data:', JSON.stringify(dbSnapshot, null, 2));
       throw dbError;
     }
@@ -2037,7 +2036,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         });
         console.log(`✈️ Travel disruption logged for ${airportContext.airport_code}: ${airportContext.delay_minutes}min delay`);
       } catch (disruptionErr) {
-        console.warn(`⚠️ Travel disruption logging failed (non-blocking):`, disruptionErr.message);
+        console.warn(`Travel disruption logging failed (non-blocking):`, disruptionErr.message);
       }
     }
 
@@ -2048,7 +2047,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // Format date from local_iso
     const localDate = snapshotV1.time_context?.local_iso ? new Date(snapshotV1.time_context.local_iso).toISOString().split('T')[0] : 'unknown';
 
-    console.log('[location] ✅ Snapshot saved - Summary:');
+    console.log('[LOCATION] Snapshot saved - Summary:');
     console.log('  📍 Location: city =', snapshotV1.resolved?.city, ', state =', snapshotV1.resolved?.state);
     console.log('  🕐 Time: date =', localDate, ', day_part =', snapshotV1.time_context?.day_part_key, ', hour =', snapshotV1.time_context?.hour);
     console.log('  🌤️ Weather: weather =', snapshotV1.weather ? `${snapshotV1.weather.tempF}°F ${snapshotV1.weather.conditions}` : 'none');
@@ -2060,7 +2059,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // This ensures: 1) No race conditions, 2) model_name preserved, 3) Full snapshot context available
 
     // Call parallel providers directly instead of enqueueing job
-    console.log(`[location] 📍 Snapshot created: ${snapshotV1.snapshot_id}`, {
+    console.log('[LOCATION] 📍 Snapshot created: %s', snapshotV1.snapshot_id, {
       hasAddress: !!snapshotV1.resolved?.formattedAddress,
       hasCity: !!snapshotV1.resolved?.city,
       address: snapshotV1.resolved?.formattedAddress,
@@ -2073,7 +2072,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // blocks-fast ensures: 1) Briefing completes before consolidation
     //                      2) Proper fail-fast if briefing fails
     //                      3) Single pipeline execution path
-    console.log(`[location] 📍 Snapshot ready for strategy pipeline: ${snapshotV1.snapshot_id} (triggered via /api/blocks-fast)`);
+    console.log(`[LOCATION] 📍 Snapshot ready for strategy pipeline: ${snapshotV1.snapshot_id} (triggered via /api/blocks-fast)`);
 
     res.json({
       success: true,
@@ -2083,7 +2082,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       req_id: cid
     });
   } catch (err) {
-    console.error('[location] snapshot error', err);
+    console.error('[LOCATION] snapshot error', err);
     return httpError(res, 500, 'snapshot_failed', String(err?.message || err), cid);
   }
 });
@@ -2144,7 +2143,7 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
     });
 
   } catch (err) {
-    console.error('[location] news-briefing error:', err);
+    console.error('[LOCATION] news-briefing error:', err);
     res.status(500).json({ 
       ok: false, 
       error: 'briefing_failed',
@@ -2309,14 +2308,14 @@ router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
         .set({ status: 'ok' })
         .where(eq(snapshots.snapshot_id, snapshotId));
       newStatus = 'ok';
-      console.log('[Snapshot] ✅ All required fields populated — status set to ok', snapshotId);
+      console.log('[SNAPSHOT] All required fields populated — status set to ok', snapshotId);
     } else {
-      console.warn('[Snapshot] ⚠️ Enrichment partial — still pending. Missing:', missingFields);
+      console.warn('[SNAPSHOT] Enrichment partial — still pending. Missing:', missingFields);
     }
 
     res.json({ ok: true, enriched: Object.keys(updatePayload), status: newStatus, missingFields });
   } catch (err) {
-    console.error('[location] snapshot enrich error:', err);
+    console.error('[LOCATION] snapshot enrich error:', err);
     res.status(500).json({
       error: 'enrich_failed',
       message: String(err?.message || err)
@@ -2346,7 +2345,7 @@ router.get('/snapshots/:snapshotId', async (req, res) => {
     
     res.json(snapshot);
   } catch (err) {
-    console.error('[location] snapshot fetch error:', err);
+    console.error('[LOCATION] snapshot fetch error:', err);
     res.status(500).json({ 
       error: 'fetch_failed',
       message: String(err?.message || err)

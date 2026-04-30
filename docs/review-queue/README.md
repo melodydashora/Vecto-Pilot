@@ -1,134 +1,37 @@
-> **Last Verified:** 2026-01-06
+# Review Queue (post-retirement)
 
-# Review Queue
+> **2026-04-29:** The Markdown tracking surface (`pending.md`, dated daily logs, `pending-history-2026-02.md`, `ai-coach-enhancements.md`, the Change Analyzer system) was retired. Active "unfinished work" tracking now lives in the `claude_memory` table per CLAUDE.md Rule 12 row #3 and Rule 15.
 
-Automated change analysis for documentation maintenance. This folder contains findings from the Change Analyzer that runs on server startup.
+## What this directory still holds
 
-## How It Works
+Implementation plans (`PLAN_*.md`). Each plan is an L3 snapshot doc tied to a specific work item:
+- objective + approach + files affected + test cases (Rule 1 contract)
+- referenced by commits and `claude_memory` rows
+- kept in version control for history
 
-1. **Server starts** → Change Analyzer runs automatically
-2. **Git analysis** → Detects modified, added, deleted files
-3. **Doc mapping** → Maps changed files to potentially affected docs
-4. **Output** → Appends findings to daily log and pending.md
+## What used to live here (no longer)
 
-## Files
+| File pattern | Replaced by |
+|---|---|
+| `pending.md` | `claude_memory` rows where `status = 'active'` |
+| `pending-history-2026-02.md` | `claude_memory` rows where `status IN ('resolved','superseded')` + git history |
+| `YYYY-MM-DD.md` daily logs | `claude_memory` rows scoped by `session_id` |
+| `ai-coach-enhancements.md` | Consolidated into `docs/architecture/RIDESHARE_COACH.md` (2026-04-14) |
 
-| File | Purpose |
-|------|---------|
-| `pending.md` | Current items needing review |
-| `YYYY-MM-DD.md` | Daily analysis logs (historical record) |
-| `ai-coach-enhancements.md` | Rideshare Coach enhancement tasks |
-| `IN_PROGRESS_WORKSTREAM.md` | Current in-progress work items |
-| `../reviewed-queue/` | **Completed work** - rules extracted, summaries archived |
-
-## Validation Workflow
-
-### For Human Review
-
-1. Check `pending.md` for flagged items
-2. Review each "Potentially Affected Doc"
-3. Decide: Does the doc need updating?
-4. If yes → Update the doc
-5. If no → Mark as "reviewed, no change needed"
-6. **Extract rules** to `../reviewed-queue/RULES_FROM_COMPLETED_WORK.md`
-7. **Delete** completed items from `pending.md`
-
-### Completion Workflow (2026-01-05)
-
-When work is completed:
-
-```
-pending.md (completed items)
-    │
-    ├──► ../reviewed-queue/RULES_FROM_COMPLETED_WORK.md  (extract actionable patterns)
-    │
-    ├──► ../reviewed-queue/YYYY-MM-DD-summary.md         (archive details)
-    │
-    └──► DELETE from pending.md                           (keep it clean)
-```
-
-**Key Principle:** Don't just archive completed work—extract actionable rules from it.
-
-### For Claude Review
-
-When starting a session, check for pending items:
-
-```javascript
-// Read pending review items
-Read({ file_path: "docs/review-queue/pending.md" })
-
-// After reviewing, update status
-Edit({
-  file_path: "docs/review-queue/pending.md",
-  old_string: "### Status: PENDING",
-  new_string: "### Status: REVIEWED - No doc changes needed"
-})
-```
-
-## Priority Levels
-
-| Priority | Meaning |
-|----------|---------|
-| **High** | Core docs likely need update (schema, API, pipeline) |
-| **Medium** | Folder READMEs may need update |
-| **Low** | Consider adding new docs |
-
-## File-to-Doc Mapping
-
-The analyzer uses these rules to map changed files to docs:
-
-| File Pattern | Documentation |
-|--------------|---------------|
-| `server/api/**` | api-reference.md, folder README |
-| `server/lib/ai/**` | ai-models.md, ai-pipeline.md |
-| `shared/schema.js` | database-schema.md |
-| `client/src/components/**` | client-structure.md |
-| `server/lib/strategy/**` | strategy-framework.md |
-
-See `server/lib/change-analyzer/file-doc-mapping.js` for full mapping.
-
-## Manual Trigger
-
-To run analysis manually:
+## Querying the new tracking layer
 
 ```bash
-# Via MCP tool
-analyze_changes
+# All currently-active items
+psql "$DATABASE_URL" -c "SELECT id, category, priority, title FROM claude_memory WHERE status = 'active' ORDER BY id DESC LIMIT 30;"
 
-# Or restart the server
-npm run dev
+# By category
+psql "$DATABASE_URL" -c "SELECT id, priority, title FROM claude_memory WHERE category = 'audit' AND status = 'active';"
+
+# Threaded follow-ups under a parent row
+psql "$DATABASE_URL" -c "SELECT id, title FROM claude_memory WHERE parent_id = N;"
 ```
 
-## Configuration
-
-| Env Variable | Default | Description |
-|--------------|---------|-------------|
-| `RUN_CHANGE_ANALYZER` | `true` | Enable/disable on startup |
-| `CHANGE_ANALYZER_COMMITS` | `5` | Commits to analyze |
-
-## Example Output
-
-```markdown
-## 2024-12-15 Analysis
-
-### Files Changed
-- `server/api/strategy/routes.js` - Modified (+20, -5)
-
-### Potentially Affected Docs
-- [ ] `docs/architecture/api-reference.md` - Strategy routes changed
-
-### Status: PENDING
-```
-
-## Maintenance
-
-- Daily logs older than 30 days can be archived/deleted
-- `pending.md` should be reviewed weekly
-- `resolved.md` can be cleared monthly
-
-## See Also
-
-- [../reviewed-queue/](../reviewed-queue/) - Completed work with extracted rules
-- [../reviewed-queue/RULES_FROM_COMPLETED_WORK.md](../reviewed-queue/RULES_FROM_COMPLETED_WORK.md) - Actionable patterns
-- [MONTHLY_REVIEW_CHECKLIST.md](../MONTHLY_REVIEW_CHECKLIST.md) - Full review process
-- [CLAUDE.md](../../CLAUDE.md) - Project guidelines
+## See also
+- `CLAUDE.md` Rule 12 (session-start review protocol)
+- `CLAUDE.md` Rule 15 (`claude_memory` table contract)
+- `docs/superpowers/specs/2026-04-29-threading-claude-memory-followups.md` (threading discipline)

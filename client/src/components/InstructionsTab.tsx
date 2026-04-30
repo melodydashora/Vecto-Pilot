@@ -81,7 +81,7 @@ const BOTTOM_TABS: GuideItem[] = [
       { label: 'AI-Generated Strategy', desc: 'Analyses your location, weather, events, and traffic to build a strategic briefing tailored to right now' },
       { label: 'Time-Based Updates', desc: 'Your strategy refreshes as conditions change — new events, weather shifts, or traffic patterns' },
       { label: 'Smart Blocks', desc: 'Scroll down for specific venue recommendations with earnings estimates and drive times' },
-      { label: 'AI Coach', desc: 'Tap the chat icon to ask questions about your strategy — by voice or text' },
+      { label: 'Coach', desc: 'Tap the chat icon to ask questions about your strategy — by voice or text' },
     ],
     tip: 'Allow location access for accurate recommendations. Strategy takes 1–2 minutes on first load.',
   },

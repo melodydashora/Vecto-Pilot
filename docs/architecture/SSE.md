@@ -66,7 +66,7 @@ NOTIFY blocks_ready, '{"snapshot_id":"034292d5-...","ranking_id":"..."}';
 | Channel | Emitted By | File | Trigger |
 |---------|-----------|------|---------|
 | `briefing_ready` | `generateAndStoreBriefing()` | `briefing-service.js:2794` | All parallel data fetches complete |
-| `strategy_ready` | PostgreSQL trigger on `strategies` table | `migrations/20260110_fix_strategy_now_notify.sql` | `strategy_for_now` or `consolidated_strategy` column updated |
+| `strategy_ready` | PostgreSQL trigger on `strategies` table | `migrations/20260110_fix_strategy_now_notify.sql` | `strategy_for_now` column updated |
 | `blocks_ready` | `startConsolidationListener()` | `jobs/triad-worker.js:138` | SmartBlocks generation complete |
 | (phase changes) | Phase updates during pipeline | `blocks-fast.js` via `updatePhase()` | Each pipeline phase transition |
 

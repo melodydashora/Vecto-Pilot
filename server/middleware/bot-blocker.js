@@ -160,13 +160,13 @@ export function botBlocker(req, res, next) {
 
   // Block suspicious paths immediately
   if (isSuspiciousPath(path)) {
-    console.log(`[bot-blocker] Blocked suspicious path: ${path} from ${req.ip}`);
+    console.log(`[AUTH] Blocked suspicious path: ${path} from ${req.ip}`);
     return res.status(404).send('Not Found');
   }
 
   // Block known bots
   if (isBot(userAgent)) {
-    console.log(`[bot-blocker] Blocked bot: "${userAgent.substring(0, 50)}..." from ${req.ip} on ${path}`);
+    console.log(`[AUTH] Blocked bot: "${userAgent.substring(0, 50)}..." from ${req.ip} on ${path}`);
     return res.status(403).json({
       error: 'Access denied',
       message: 'Automated access is not permitted'
@@ -188,7 +188,7 @@ export function apiOnlyBotBlocker(req, res, next) {
   const userAgent = req.get('user-agent') || '';
 
   if (isBot(userAgent)) {
-    console.log(`[bot-blocker] Blocked bot on API: "${userAgent.substring(0, 50)}..." from ${req.ip}`);
+    console.log(`[AUTH] Blocked bot on API: "${userAgent.substring(0, 50)}..." from ${req.ip}`);
     return res.status(403).json({
       error: 'Access denied',
       message: 'Automated access to API is not permitted'

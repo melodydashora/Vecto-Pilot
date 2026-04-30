@@ -32,6 +32,14 @@ export default defineConfig(async () => {
   return {
     base: '/',
     root: path.resolve(projectRoot, "client"),
+    // 2026-04-27: Read .env files from project root (where VITE_MCP_REPLIT_TOKEN
+    // and other VITE_* vars already live in `.env`). Without this override,
+    // envDir would default to `root` (= client/), which has no .env files,
+    // silently dropping every VITE_* var defined in `.env.local`. Surfaced when
+    // VITE_COACH_STREAMING_TTS=true was added to project-root `.env.local` and
+    // the rebuilt bundle still acted as if the flag were false because Vite
+    // was looking under client/ for env files and finding none.
+    envDir: projectRoot,
     plugins: [
       react(),
       stripDevToolsPlugin(),

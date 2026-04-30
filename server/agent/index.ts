@@ -62,7 +62,7 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`🤖 [agent] listening on ${PORT} (HTTP + WS @ /ws)`);
+  console.log(`[agent] listening on ${PORT} (HTTP + WS @ /ws)`);
 });
 
 server.on('error', (err: any) => {

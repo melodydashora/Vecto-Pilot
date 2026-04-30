@@ -64,7 +64,7 @@ const eidolonReply = async (payload: any) => {
 
   const result = finalize(validatorOutput);
   return {
-    identity: `🧠 Eidolon (Claude Opus 4.6 Enhanced) • slug=${REPL_SLUG} owner=${REPL_OWNER}`,
+    identity: `Eidolon (Claude Opus 4.6 Enhanced) • slug=${REPL_SLUG} owner=${REPL_OWNER}`,
     triad: { strategist: strategistOutput, planner: plannerOutput, validator: validatorOutput },
     result,
   };
@@ -112,7 +112,7 @@ app.post("/ops/:verb", async (req: Request, res: Response) => {
 const port = Number(process.env.GATEWAY_PORT || 5000);
 const host = process.env.HOST || '0.0.0.0';
 const server = app.listen(port, host, () =>
-  console.log(`[gateway] assistant listening on ${host}:${port}`)
+  console.log(`[GATEWAY] assistant listening on ${host}:${port}`)
 );
 
 // Tighten timeouts to prevent hung probes

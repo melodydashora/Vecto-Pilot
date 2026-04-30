@@ -341,6 +341,7 @@ describe('ETL Pipeline Integration', () => {
           title: 'Concert',
           venue_name: 'Stadium',
           address: '123 Main St',
+          city: 'Dallas',
           event_start_date: '2026-01-15',
           event_start_time: '19:00'
         };
@@ -351,8 +352,9 @@ describe('ETL Pipeline Integration', () => {
         expect(input1).toBe(input2);
         expect(input1).toContain('concert');
         expect(input1).toContain('stadium');
+        expect(input1).toContain('dallas');
         expect(input1).toContain('2026-01-15');
-        expect(input1).toContain('19:00');
+        expect(input1).not.toContain('19:00');
       });
 
       test('strips "at Venue" suffixes', () => {
@@ -378,7 +380,7 @@ describe('ETL Pipeline Integration', () => {
         expect(input1).toBe(input2);
       });
 
-      test('normalizes time for consistent hashing', () => {
+      test('time variations produce identical hash input (time excluded from key per 2026-04-10 v2)', () => {
         const event1 = {
           title: 'Concert',
           venue_name: 'Arena',
@@ -414,7 +416,7 @@ describe('ETL Pipeline Integration', () => {
         expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
       });
 
-      test('differentiates by time', () => {
+      test('does NOT differentiate by time — matinee and evening of same show merge (per 2026-04-10 v2)', () => {
         const event1 = {
           title: 'Show',
           venue_name: 'Theater',
@@ -432,7 +434,100 @@ describe('ETL Pipeline Integration', () => {
         const hash1 = generateEventHash(event1);
         const hash2 = generateEventHash(event2);
 
-        expect(hash1).not.toBe(hash2);
+        expect(hash1).toBe(hash2);
+      });
+    });
+
+    describe('Choice A normalization (2026-04-30) — variations collapse to same hash', () => {
+      const baseEvent = {
+        venue_name: "Billy Bob's Texas",
+        address: '2520 Rodeo Plaza, Fort Worth, TX 76164',
+        city: 'Fort Worth',
+        event_start_date: '2026-05-01',
+      };
+
+      test('strips "Live Music:" prefix', () => {
+        const a = { ...baseEvent, title: 'Live Music: The Band' };
+        const b = { ...baseEvent, title: 'The Band' };
+        expect(generateEventHash(a)).toBe(generateEventHash(b));
+      });
+
+      test('strips all common content prefixes (live music, live band, concert, show, event, performance, dj set, acoustic)', () => {
+        const variations = [
+          'Live Music: Jon Wolfe',
+          'Live Band: Jon Wolfe',
+          'Concert: Jon Wolfe',
+          'Show: Jon Wolfe',
+          'Event: Jon Wolfe',
+          'Performance: Jon Wolfe',
+          'DJ Set: Jon Wolfe',
+          'Acoustic: Jon Wolfe',
+        ];
+        const reference = generateEventHash({ ...baseEvent, title: 'Jon Wolfe' });
+        for (const variant of variations) {
+          const hash = generateEventHash({ ...baseEvent, title: variant });
+          expect(hash).toBe(reference);
+        }
+      });
+
+      test('strips parentheticals', () => {
+        const a = { ...baseEvent, title: '"O" by Cirque du Soleil (Shared Reality)' };
+        const b = { ...baseEvent, title: 'O by Cirque du Soleil' };
+        expect(generateEventHash(a)).toBe(generateEventHash(b));
+      });
+
+      test('preserves "at Venue" suffix-stripping (existing behavior)', () => {
+        const a = { ...baseEvent, title: 'Cirque du Soleil at Cosm' };
+        const b = { ...baseEvent, title: 'Cirque du Soleil' };
+        expect(generateEventHash(a)).toBe(generateEventHash(b));
+      });
+
+      test('different street numbers on same road collapse via street-name extraction', () => {
+        const a = { ...baseEvent, title: 'Vendor Market', address: '5776 Grandscape Blvd, The Colony, TX' };
+        const b = { ...baseEvent, title: 'Vendor Market', address: '5752 Grandscape Blvd, The Colony, TX' };
+        expect(generateEventHash(a)).toBe(generateEventHash(b));
+      });
+
+      test('different streets produce different hashes', () => {
+        const a = { ...baseEvent, title: 'Vendor Market', address: '5776 Grandscape Blvd, The Colony, TX' };
+        const b = { ...baseEvent, title: 'Vendor Market', address: '100 Main St, The Colony, TX' };
+        expect(generateEventHash(a)).not.toBe(generateEventHash(b));
+      });
+
+      test('different cities produce different hashes', () => {
+        const a = { ...baseEvent, title: 'Bruno Mars', city: 'Dallas' };
+        const b = { ...baseEvent, title: 'Bruno Mars', city: 'Houston' };
+        expect(generateEventHash(a)).not.toBe(generateEventHash(b));
+      });
+
+      test('different dates produce different hashes', () => {
+        const a = { ...baseEvent, title: 'Bruno Mars', event_start_date: '2026-05-01' };
+        const b = { ...baseEvent, title: 'Bruno Mars', event_start_date: '2026-05-02' };
+        expect(generateEventHash(a)).not.toBe(generateEventHash(b));
+      });
+
+      test('time variations produce SAME hash (per 2026-04-10 v2 — time not in key)', () => {
+        const a = { ...baseEvent, title: 'Bruno Mars', event_start_time: '7:00 PM' };
+        const b = { ...baseEvent, title: 'Bruno Mars', event_start_time: '7:30 PM' };
+        expect(generateEventHash(a)).toBe(generateEventHash(b));
+      });
+
+      test('special chars and whitespace differences collapse', () => {
+        const a = { ...baseEvent, title: 'Spring Fling Event!' };
+        const b = { ...baseEvent, title: 'Spring Fling   Event' };
+        expect(generateEventHash(a)).toBe(generateEventHash(b));
+      });
+
+      test('case differences collapse', () => {
+        const a = { ...baseEvent, title: 'Bruno Mars Concert' };
+        const b = { ...baseEvent, title: 'BRUNO MARS CONCERT' };
+        expect(generateEventHash(a)).toBe(generateEventHash(b));
+      });
+
+      test('produces 32-char MD5 hex', () => {
+        const hash = generateEventHash({ ...baseEvent, title: 'Test Event' });
+        expect(hash.length).toBe(32);
+        expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
       });
     });
 

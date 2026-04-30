@@ -16,14 +16,14 @@ const rootDir = path.join(__dirname, '..', '..');
  */
 async function mountRoute(app, routePath, modulePath, description) {
   try {
-    console.log(`[gateway] Loading ${description}...`);
+    console.log(`[GATEWAY] Loading ${description}...`);
     const fullPath = path.join(rootDir, modulePath);
     const router = (await import(pathToFileURL(fullPath).href)).default;
     app.use(routePath, router);
-    console.log(`[gateway] ✅ ${description} mounted at ${routePath}`);
+    console.log(`[GATEWAY] ${description} mounted at ${routePath}`);
     return true;
   } catch (e) {
-    console.error(`[gateway] ❌ ${description} failed:`, e?.message);
+    console.error(`[GATEWAY] ${description} failed:`, e?.message);
     return false;
   }
 }
@@ -49,6 +49,9 @@ export async function mountRoutes(app, server) {
     { path: '/api/health', module: './server/api/health/health.js', desc: 'Health Check' },
     { path: '/api/ml-health', module: './server/api/health/ml-health.js', desc: 'ML Health' },
     { path: '/api/job-metrics', module: './server/api/health/job-metrics.js', desc: 'Job Metrics' },
+    // 2026-04-27: Mobile log viewer — auth-gated tail/stream + embedded HTML page.
+    // Open /api/logs/viewer on a phone to monitor server logs while away from desk.
+    { path: '/api/logs', module: './server/api/health/logs.js', desc: 'Mobile Log Viewer' },
 
     // Chat & Voice (server/api/chat/)
     { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Coach' },
@@ -64,6 +67,10 @@ export async function mountRoutes(app, server) {
 
     // Briefing (server/api/briefing/)
     { path: '/api/briefing', module: './server/api/briefing/briefing.js', desc: 'Briefing' },
+
+    // Traffic incidents cache (server/api/traffic/) — 2026-04-29 Plan G
+    // Snapshot-scoped read API for discovered_traffic; decouples map from briefing assembly
+    { path: '/api/traffic', module: './server/api/traffic/index.js', desc: 'Traffic Incidents Cache' },
 
     // Auth (server/api/auth/)
     { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
@@ -128,7 +135,7 @@ export async function mountRoutes(app, server) {
 
   // Mount Agent (requires server for WebSocket)
   try {
-    console.log('[gateway] Loading Agent embed...');
+    console.log('[GATEWAY] Loading Agent embed...');
     const agentPath = path.join(rootDir, 'server/agent/embed.js');
     const { mountAgent } = await import(pathToFileURL(agentPath).href);
     mountAgent({
@@ -137,24 +144,24 @@ export async function mountRoutes(app, server) {
       wsPath: '/agent/ws',
       server,
     });
-    console.log('[gateway] ✅ Agent mounted at /agent');
+    console.log('[GATEWAY] Agent mounted at /agent');
     results.mounted.push('/agent');
   } catch (e) {
-    console.error('[gateway] ❌ Agent embed failed:', e?.message);
+    console.error('[GATEWAY] Agent embed failed:', e?.message);
     results.failed.push('/agent');
   }
 
   // Mount SDK catch-all router LAST
   try {
-    console.log('[gateway] Loading SDK embed (catch-all fallback)...');
+    console.log('[GATEWAY] Loading SDK embed (catch-all fallback)...');
     const sdkPath = path.join(rootDir, 'sdk-embed.js');
     const createSdkRouter = (await import(pathToFileURL(sdkPath).href)).default;
     const sdkRouter = createSdkRouter({});
     app.use(process.env.API_PREFIX || '/api', sdkRouter);
-    console.log('[gateway] ✅ SDK routes mounted at /api (catch-all fallback)');
+    console.log('[GATEWAY] SDK routes mounted at /api (catch-all fallback)');
     results.mounted.push('/api (SDK)');
   } catch (e) {
-    console.error('[gateway] ❌ SDK embed failed:', e?.message);
+    console.error('[GATEWAY] SDK embed failed:', e?.message);
     results.failed.push('/api (SDK)');
   }
 
@@ -167,14 +174,14 @@ export async function mountRoutes(app, server) {
  */
 export async function mountSSE(app) {
   try {
-    console.log('[gateway] Loading SSE strategy events...');
+    console.log('[GATEWAY] Loading SSE strategy events...');
     const ssePath = path.join(rootDir, 'server/api/strategy/strategy-events.js');
     const strategyEvents = (await import(pathToFileURL(ssePath).href)).default;
     app.use('/', strategyEvents);
-    console.log('[gateway] ✅ SSE strategy events endpoint mounted');
+    console.log('[GATEWAY] SSE strategy events endpoint mounted');
     return true;
   } catch (e) {
-    console.error('[gateway] ❌ SSE events failed:', e?.message);
+    console.error('[GATEWAY] SSE events failed:', e?.message);
     return false;
   }
 }
@@ -188,10 +195,10 @@ export async function mountUnifiedCapabilities(app) {
     const unifiedPath = path.join(rootDir, 'server/api/health/unified-capabilities.js');
     const { default: unifiedCapabilitiesRoutes } = await import(pathToFileURL(unifiedPath).href);
     unifiedCapabilitiesRoutes(app);
-    console.log('[gateway] ✅ Unified capabilities routes mounted');
+    console.log('[GATEWAY] Unified capabilities routes mounted');
     return true;
   } catch (e) {
-    console.error('[gateway] ❌ Unified capabilities routes failed:', e?.message);
+    console.error('[GATEWAY] Unified capabilities routes failed:', e?.message);
     return false;
   }
 }

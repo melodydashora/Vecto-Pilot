@@ -33,13 +33,13 @@ const WATCH_LIST = [
 const url = process.env.PROD_DATABASE_URL;
 
 if (!url) {
-  console.error('[p3-13-prod-recheck] FATAL: PROD_DATABASE_URL is not set.');
+  console.error('[AGENT] FATAL: PROD_DATABASE_URL is not set.');
   console.error('  Pass it explicitly: PROD_DATABASE_URL=postgres://… node scripts/p3-13-prod-recheck.mjs');
   process.exit(1);
 }
 
 if (!url.includes('neon.tech')) {
-  console.error('[p3-13-prod-recheck] FATAL: PROD_DATABASE_URL does not look like a Neon URL.');
+  console.error('[AGENT] FATAL: PROD_DATABASE_URL does not look like a Neon URL.');
   console.error('  Refusing to run against any host that is not neon.tech (per Rule 13, prod is Neon serverless).');
   console.error('  Got:', url.replace(/:[^:@/]*@/, ':***@'));
   process.exit(1);
@@ -49,9 +49,9 @@ const client = new Client({ connectionString: url });
 
 try {
   await client.connect();
-  console.log('[p3-13-prod-recheck] Connected to Neon prod. Querying COUNT(*) on watch list…');
+  console.log('[AGENT] Connected to Neon prod. Querying COUNT(*) on watch list…');
 } catch (err) {
-  console.error('[p3-13-prod-recheck] FATAL: connection failed:', err.message);
+  console.error('[AGENT] FATAL: connection failed:', err.message);
   process.exit(1);
 }
 
@@ -66,25 +66,25 @@ for (const table of WATCH_LIST) {
     counts[table] = n;
     if (n === 0) empty.push(table);
   } catch (err) {
-    console.error(`[p3-13-prod-recheck] query failed for ${table}: ${err.message}`);
+    console.error(`[AGENT] query failed for ${table}: ${err.message}`);
     counts[table] = null;
   }
 }
 
 await client.end();
 
-console.log('[p3-13-prod-recheck] Counts:');
+console.log('[AGENT] Counts:');
 for (const [table, n] of Object.entries(counts)) {
   console.log(`  ${table.padEnd(16)} ${n === null ? 'ERROR' : n}`);
 }
 
 if (empty.length === 0) {
-  console.log('[p3-13-prod-recheck] All watch-list tables non-zero. Catch-block instrumentation NOT triggered.');
+  console.log('[AGENT] All watch-list tables non-zero. Catch-block instrumentation NOT triggered.');
   process.exit(0);
 }
 
 console.log('');
-console.log('[p3-13-prod-recheck] EMPTY tables (instrumentation IS needed):');
+console.log('[AGENT] EMPTY tables (instrumentation IS needed):');
 for (const table of empty) {
   console.log(`  - ${table}`);
 }

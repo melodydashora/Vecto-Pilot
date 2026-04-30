@@ -66,15 +66,15 @@ try {
   console.log(`📦 Response Body:`, parsed);
 
   if (response.status === 200) {
-    console.log('\n✅ Webhook test PASSED - Server accepted and verified the signature');
+    console.log('\nWebhook test PASSED - Server accepted and verified the signature');
   } else if (response.status === 401) {
-    console.log('\n❌ Webhook test FAILED - Signature verification failed');
+    console.log('\nWebhook test FAILED - Signature verification failed');
     console.log('   Check that UBER_WEBHOOK_SECRET matches in both places');
   } else {
-    console.log(`\n⚠️  Unexpected status code: ${response.status}`);
+    console.log(`\n Unexpected status code: ${response.status}`);
   }
 } catch (err) {
-  console.error('\n❌ Request failed:', err.message);
+  console.error('\nRequest failed:', err.message);
   if (err.cause?.code === 'ECONNREFUSED') {
     console.log('   Is the server running? Try: npm run dev');
   }

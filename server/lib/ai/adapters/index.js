@@ -20,31 +20,38 @@ import {
   getFallbackConfig,
   getProviderForModel
 } from "../model-registry.js";
-import { OP } from "../../../logger/workflow.js";
+import { OP, aiLog } from "../../../logger/workflow.js";
 import HedgedRouter from "../router/hedged-router.js";
+
+// 2026-04-27 (Commit 6 of CLEAR_CONSOLE_WORKFLOW): demoted hedged-router and AI
+// call/done/retry/stream lines to debug. They're per-call adapter chatter, not
+// workflow milestones. Set LOG_LEVEL=debug or LOG_VERBOSE_COMPONENTS=AI to see them.
 
 // Initialize Hedged Router with adapters
 const router = new HedgedRouter({
   adapters: new Map([
     ['openai', async (req, { signal }) => {
-      console.log(`📡 [HedgedRouter] Calling OpenAI...`);
+      aiLog.debug(`HedgedRouter: Calling OpenAI...`);
       const config = req.configs['openai'];
       if (!config) throw new Error('No config for openai');
-      
+
       const { system, user, messages } = req.params;
       const { model, maxTokens, temperature, reasoningEffort, useWebSearch } = config;
 
+      // 2026-04-30: pass role so the adapter can chain-prefix log lines on
+      // the LEFT (e.g. [BRIEFING] [TRAFFIC] [AI] gpt-5-search-api request)
+      // instead of emitting orphan [AI] lines.
       let result;
       if (useWebSearch) {
-        result = await callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort });
+        result = await callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort, role: req.role });
       } else {
-        result = await callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort });
+        result = await callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort, role: req.role });
       }
       if (!result.ok) throw new Error(result.error);
       return result;
     }],
     ['anthropic', async (req, { signal }) => {
-      console.log(`📡 [HedgedRouter] Calling Anthropic...`);
+      aiLog.debug(`HedgedRouter: Calling Anthropic...`);
       const config = req.configs['anthropic'];
       if (!config) throw new Error('No config for anthropic');
 
@@ -61,7 +68,7 @@ const router = new HedgedRouter({
       return result;
     }],
     ['google', async (req, { signal }) => {
-      console.log(`📡 [HedgedRouter] Calling Gemini...`);
+      aiLog.debug(`HedgedRouter: Calling Gemini...`);
       const config = req.configs['google'];
       if (!config) throw new Error('No config for google');
 
@@ -75,7 +82,7 @@ const router = new HedgedRouter({
       return result;
     }],
     ['vertex', async (req, { signal }) => {
-      console.log(`📡 [HedgedRouter] Calling Vertex AI...`);
+      aiLog.debug(`HedgedRouter: Calling Vertex AI...`);
       const config = req.configs['vertex'];
       if (!config) throw new Error('No config for vertex');
 
@@ -142,7 +149,7 @@ export async function callModel(role, params) {
   }
 
   // 2026-01-06: SECURITY - Log only metadata
-  console.log(`🤖 [AI CALL] Role=${primaryConfig.role} Primary=${primaryConfig.model} Hedged=${providers.length > 1}`);
+  aiLog.debug(`CALL Role=${primaryConfig.role} Primary=${primaryConfig.model} Hedged=${providers.length > 1}`);
 
   try {
     // 3. Execute via Router
@@ -171,7 +178,7 @@ export async function callModel(role, params) {
     }
 
     const durationMs = Date.now() - callStart;
-    console.log(`🤖 [AI DONE] ✅ ${primaryConfig.role} completed by ${result.provider} in ${durationMs}ms`);
+    aiLog.debug(`DONE ${primaryConfig.role} completed by ${result.provider} in ${durationMs}ms`);
 
     // Standardize the response format
     return {
@@ -194,7 +201,7 @@ export async function callModel(role, params) {
     const is503 = err.message.includes('503') || err.message.includes('UNAVAILABLE');
     const GEMINI_FALLBACK_MODEL = 'gemini-3-pro-preview';
     if (is503 && primaryConfig.provider === 'google' && primaryConfig.model !== GEMINI_FALLBACK_MODEL) {
-      console.log(`🤖 [AI RETRY] ${primaryConfig.role} got 503 on ${primaryConfig.model} — retrying with ${GEMINI_FALLBACK_MODEL}...`);
+      aiLog.debug(`RETRY ${primaryConfig.role} got 503 on ${primaryConfig.model} - retrying with ${GEMINI_FALLBACK_MODEL}...`);
       try {
         const needsSearch = roleUsesGoogleSearch(role);
         const retryResult = await callGemini({
@@ -209,7 +216,7 @@ export async function callModel(role, params) {
         });
         if (retryResult.ok) {
           const retryDuration = Date.now() - callStart;
-          console.log(`🤖 [AI DONE] ✅ ${primaryConfig.role} completed by google-fallback (${GEMINI_FALLBACK_MODEL}) in ${retryDuration}ms`);
+          aiLog.debug(`DONE ${primaryConfig.role} completed by google-fallback (${GEMINI_FALLBACK_MODEL}) in ${retryDuration}ms`);
           return {
             success: true,
             ok: true,
@@ -221,11 +228,11 @@ export async function callModel(role, params) {
           };
         }
       } catch (retryErr) {
-        console.error(`🤖 [AI RETRY FAIL] ❌ ${primaryConfig.role} ${GEMINI_FALLBACK_MODEL} also failed: ${retryErr.message}`);
+        console.error(`[AI RETRY FAIL] ${primaryConfig.role} ${GEMINI_FALLBACK_MODEL} also failed: ${retryErr.message}`);
       }
     }
 
-    console.error(`🤖 [AI FAIL] ❌ ${primaryConfig.role} failed after ${durationMs}ms: ${err.message}`);
+    console.error(`[AI FAIL] ${primaryConfig.role} failed after ${durationMs}ms: ${err.message}`);
     // Return a structured error object instead of throwing
     return {
       success: false,
@@ -244,7 +251,7 @@ export async function callModel(role, params) {
  * @param {Object} params - { system, messageHistory }
  * @returns {Promise<Response>} - Fetch Response with readable stream body
  */
-export async function callModelStream(role, { system, messageHistory }) {
+export async function callModelStream(role, { system, messageHistory, signal }) {
   // 1. Get configuration from registry
   let config;
   try {
@@ -256,15 +263,15 @@ export async function callModelStream(role, { system, messageHistory }) {
   const { model, provider, maxTokens, temperature, thinkingLevel, role: canonicalRole } = config;
   const useSearch = roleUsesGoogleSearch(role);
 
-  console.log(`🤖 [AI STREAM] Role=${canonicalRole} Model=${model} Provider=${provider}`);
+  aiLog.debug(`STREAM Role=${canonicalRole} Model=${model} Provider=${provider}`);
 
   // 2. Currently only Gemini supports streaming via this adapter
   if (!model.startsWith('gemini-')) {
     throw new Error(`Streaming not supported for provider: ${provider}. Only Gemini models support streaming via callModelStream()`);
   }
 
-  // 3. Call the streaming adapter
-  // 2026-02-11: Pass thinkingLevel from registry for Gemini 3 Pro support
+  // 3. Call the streaming adapter — forward optional caller signal so that
+  // a client disconnect (req.on('close')) can cancel the upstream call.
   const response = await callGeminiStream({
     model,
     system,
@@ -273,7 +280,8 @@ export async function callModelStream(role, { system, messageHistory }) {
     temperature,
     useSearch,
     thinkingLevel,
-    timeoutMs: 90000 // 90 seconds for streaming responses
+    timeoutMs: 90000,
+    signal
   });
 
   return response;

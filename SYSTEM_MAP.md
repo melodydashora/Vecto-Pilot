@@ -1,8 +1,10 @@
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
-**Last Updated:** 2026-02-19 UTC
+**Last Updated:** 2026-04-30 UTC
 
 This document provides a complete visual mapping of the Vecto Pilot system, showing how every component connects from UI to database and back.
+
+> Per Rule 14 (model-agnostic adapter architecture), specific model versions are not enumerated here — consult `server/lib/ai/model-registry.js` for current model assignments. Hardcoded model names appearing in diagrams below are illustrative only.
 
 ---
 
@@ -397,8 +399,8 @@ iOS Device                      Vecto Server                    Database
    └─ Holiday Detection (at snapshot creation)
       └─ snapshots.holiday, snapshots.is_holiday ✓
    ↓
-3. Consolidator (GPT-5.2)
-   └─ strategies.consolidated_strategy ✓ (NOW strategy)
+3. Consolidator — STRATEGY_TACTICAL role (model: see registry)
+   └─ strategies.strategy_for_now ✓ (NOW strategy — sole live strategy output)
    ↓
 4. Enhanced Smart Blocks:
    ├─ GPT-5.2 Tactical Planner

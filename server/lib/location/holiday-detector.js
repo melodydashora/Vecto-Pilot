@@ -55,7 +55,7 @@ function getFromHolidayCache(key) {
     return null;
   }
 
-  console.log(`[holiday-detector] 🎯 Cache HIT: ${key}`);
+  console.log(`[BRIEFING] [HOLIDAY] Cache HIT: ${key}`);
   return cached.result;
 }
 
@@ -69,7 +69,7 @@ function setHolidayCache(key, result) {
     result,
     expiresAt: Date.now() + HOLIDAY_CACHE_TTL
   });
-  console.log(`[holiday-detector] 💾 Cache SET: ${key} (TTL: 24h)`);
+  console.log(`[BRIEFING] [HOLIDAY] Cache SET: ${key} (TTL: 24h)`);
 }
 
 /**
@@ -86,7 +86,7 @@ function cleanupHolidayCache() {
     }
   }
   if (cleaned > 0) {
-    console.log(`[holiday-detector] 🧹 Cleaned ${cleaned} expired cache entries`);
+    console.log(`[BRIEFING] [HOLIDAY] Cleaned ${cleaned} expired cache entries`);
   }
 }
 
@@ -128,7 +128,7 @@ function getHolidayOverride(date) {
     }
 
     const override = matchingOverrides[0];
-    console.log(`[holiday-detector] 🎄 Override active: "${override.holiday_name}" (${override.id})`);
+    console.log(`[BRIEFING] [HOLIDAY] 🎄 Override active: "${override.holiday_name}" (${override.id})`);
 
     return {
       holiday: override.holiday_name,
@@ -136,7 +136,7 @@ function getHolidayOverride(date) {
       superseded_by_actual: override.superseded_by_actual !== false // default true
     };
   } catch (error) {
-    console.warn('[holiday-detector] Error reading override config:', error.message);
+    console.warn('[BRIEFING] [HOLIDAY] Error reading override config:', error.message);
     return null;
   }
 }
@@ -366,7 +366,7 @@ export async function detectHoliday(context) {
     const countryCode = context.country || 'US';
     const staticResult = detectStaticHoliday(localDateStr, countryCode);
     if (staticResult) {
-      console.log(`[holiday-detector] 📅 Static detection: ${staticResult.holiday} (${localDateStr}, ${countryCode})`);
+      console.log(`[BRIEFING] [HOLIDAY] 📅 Static detection: ${staticResult.holiday} (${localDateStr}, ${countryCode})`);
       setHolidayCache(cacheKey, staticResult);
       return staticResult;
     }
@@ -374,7 +374,7 @@ export async function detectHoliday(context) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.warn('[holiday-detector] ⚠️ GEMINI_API_KEY not set - skipping holiday detection');
+    console.warn('[BRIEFING] [HOLIDAY] GEMINI_API_KEY not set - skipping holiday detection');
     // Use override if available when API key is missing
     if (override) {
       return { holiday: override.holiday, is_holiday: true };
@@ -386,7 +386,7 @@ export async function detectHoliday(context) {
   let formattedDate;
   try {
     if (!context.timezone) {
-      console.warn('[holiday-detector] Missing timezone - cannot accurately detect holidays');
+      console.warn('[BRIEFING] [HOLIDAY] Missing timezone - cannot accurately detect holidays');
       return { holiday: 'none', is_holiday: false, reason: 'timezone_missing' };
     }
     const utcTime = new Date(context.created_at || new Date());
@@ -398,7 +398,7 @@ export async function detectHoliday(context) {
       day: 'numeric'
     }).format(utcTime);
   } catch (e) {
-    console.warn('[holiday-detector] Date formatting error:', e.message);
+    console.warn('[BRIEFING] [HOLIDAY] Date formatting error:', e.message);
     formattedDate = new Date().toISOString();
   }
 
@@ -429,7 +429,7 @@ export async function detectHoliday(context) {
     });
 
     if (!response.ok) {
-      console.error(`[holiday-detector] Gemini API Error: ${response.error}`);
+      console.error(`[BRIEFING] [HOLIDAY] Gemini API Error: ${response.error}`);
       // Fall back to override if API fails
       if (override) {
         return { holiday: override.holiday, is_holiday: true };
@@ -440,7 +440,7 @@ export async function detectHoliday(context) {
     const text = response.output;
 
     if (!text) {
-      console.warn('[holiday-detector] Empty response from Gemini');
+      console.warn('[BRIEFING] [HOLIDAY] Empty response from Gemini');
       // Fall back to override if no response
       if (override) {
         return { holiday: override.holiday, is_holiday: true };
@@ -455,11 +455,11 @@ export async function detectHoliday(context) {
       const isHoliday = parsed.is_holiday === true;
       const holidayName = isHoliday ? parsed.name : 'none';
 
-      console.log(`[holiday-detector] 📅 ${formattedDate}: ${holidayName} (Is Holiday: ${isHoliday})`);
+      console.log(`[BRIEFING] [HOLIDAY] 📅 ${formattedDate}: ${holidayName} (Is Holiday: ${isHoliday})`);
 
       // If an actual holiday is detected, it supersedes the override
       if (isHoliday) {
-        console.log(`[holiday-detector] 🎉 Actual holiday "${holidayName}" supersedes any override`);
+        console.log(`[BRIEFING] [HOLIDAY] 🎉 Actual holiday "${holidayName}" supersedes any override`);
         const result = { holiday: holidayName, is_holiday: true };
         setHolidayCache(cacheKey, result); // Cache successful API result
         return result;
@@ -467,7 +467,7 @@ export async function detectHoliday(context) {
 
       // No actual holiday detected - use override if available
       if (override) {
-        console.log(`[holiday-detector] 📌 No actual holiday, using override: "${override.holiday}"`);
+        console.log(`[BRIEFING] [HOLIDAY] 📌 No actual holiday, using override: "${override.holiday}"`);
         const result = { holiday: override.holiday, is_holiday: true };
         setHolidayCache(cacheKey, result); // Cache override result
         return result;
@@ -477,7 +477,7 @@ export async function detectHoliday(context) {
       setHolidayCache(cacheKey, result); // Cache no-holiday result
       return result;
     } catch (parseErr) {
-      console.error('[holiday-detector] JSON Parse Failed:', parseErr.message, 'Raw:', text.substring(0, 100));
+      console.error('[BRIEFING] [HOLIDAY] JSON Parse Failed:', parseErr.message, 'Raw:', text.substring(0, 100));
       // Fall back to override on parse error
       if (override) {
         return { holiday: override.holiday, is_holiday: true };
@@ -486,7 +486,7 @@ export async function detectHoliday(context) {
     }
 
   } catch (error) {
-    console.error('[holiday-detector] Network/System Error:', error.message);
+    console.error('[BRIEFING] [HOLIDAY] Network/System Error:', error.message);
     // Fall back to override on network error
     if (override) {
       return { holiday: override.holiday, is_holiday: true };

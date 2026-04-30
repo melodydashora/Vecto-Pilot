@@ -338,9 +338,9 @@ export function deduplicateEventsSemantic(events, options = {}) {
       const dropped = group.slice(1).map(e =>
         `"${e.title?.slice(0, 50)}" @ ${e.venue_name || e.venue || '?'}`
       ).join(', ');
-      const msg = `[DEDUP] Merged ${group.length} variants → kept ${kept} | dropped ${dropped}`;
+      const msg = `Merged ${group.length} variants → kept ${kept} | dropped ${dropped}`;
       mergeLog.push(msg);
-      console.log(msg);
+      console.log(`[BRIEFING] [EVENTS] [DEDUP] ${msg}`);
     }
   }
 

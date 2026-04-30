@@ -151,7 +151,7 @@ export function calculateIsOpenFromHoursTextMap(hoursTextMap, timezone) {
   }
 
   if (!timezone) {
-    console.warn('[venue-utils] calculateIsOpenFromHoursTextMap called without timezone');
+    console.warn('[VENUE] calculateIsOpenFromHoursTextMap called without timezone');
     return defaultResult;
   }
 
@@ -159,7 +159,7 @@ export function calculateIsOpenFromHoursTextMap(hoursTextMap, timezone) {
   const parseResult = parseHoursTextMap(hoursTextMap);
 
   if (!parseResult.ok) {
-    console.warn(`[venue-utils] parseHoursTextMap failed: ${parseResult.error}`);
+    console.warn(`[VENUE] parseHoursTextMap failed: ${parseResult.error}`);
     return defaultResult;
   }
 

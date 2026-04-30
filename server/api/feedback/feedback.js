@@ -18,7 +18,7 @@ const RATE_WINDOW_MS = 60 * 1000; // 1 minute
 // If userId is somehow missing, throw error (data integrity bug)
 function checkRateLimit(userId) {
   if (!userId) {
-    throw new Error('[feedback] checkRateLimit called without userId - auth middleware should prevent this');
+    throw new Error('[FEEDBACK] checkRateLimit called without userId - auth middleware should prevent this');
   }
   const now = Date.now();
   const key = userId;
@@ -91,7 +91,7 @@ router.post('/venue', requireAuth, async (req, res) => {
     // 2026-01-09: Fixed rate limit bug - use authUserId not body userId
     // Using body userId collapsed all anonymous users into one bucket
     if (!checkRateLimit(authUserId)) {
-      console.warn('[feedback] Rate limit exceeded', {
+      console.warn('[FEEDBACK] Rate limit exceeded', {
         correlation_id: correlationId,
         user_id: authUserId
       });
@@ -134,10 +134,10 @@ router.post('/venue', requireAuth, async (req, res) => {
         raw: { place_id, venue_name, sentiment },
       });
     } catch (actionErr) {
-      console.warn('[feedback] Failed to log action', { error: actionErr.message });
+      console.warn('[FEEDBACK] Failed to log action', { error: actionErr.message });
     }
     
-    console.log('[feedback] upsert ok', {
+    console.log('[FEEDBACK] upsert ok', {
       corr: correlationId,
       // 2026-03-17: SECURITY FIX (F-13) — was `userId` (undefined since 2026-02-13 removal)
       user: authUserId,
@@ -150,7 +150,7 @@ router.post('/venue', requireAuth, async (req, res) => {
     if (feedbackRow?.id) {
       setImmediate(() => {
         indexFeedback(feedbackRow.id).catch(err => {
-          console.error('[feedback] Semantic indexing failed:', err.message);
+          console.error('[FEEDBACK] Semantic indexing failed:', err.message);
         });
         capturelearning(LEARNING_EVENTS.VENUE_FEEDBACK, {
           feedback_id: feedbackRow.id,
@@ -160,7 +160,7 @@ router.post('/venue', requireAuth, async (req, res) => {
           ranking_id
         // 2026-03-17: SECURITY FIX (F-13) — was `userId` (undefined)
         }, authUserId).catch(err => {
-          console.error('[feedback] Learning capture failed:', err.message);
+          console.error('[FEEDBACK] Learning capture failed:', err.message);
         });
       });
     }
@@ -168,7 +168,7 @@ router.post('/venue', requireAuth, async (req, res) => {
     res.json({ ok: true });
     
   } catch (error) {
-    console.error('[feedback] venue feedback error', { 
+    console.error('[FEEDBACK] venue feedback error', { 
       correlation_id: correlationId, 
       error: error.message 
     });
@@ -207,7 +207,7 @@ router.get('/venue/summary', requireAuth, async (req, res) => {
       .where(eq(venue_feedback.ranking_id, ranking_id))
       .groupBy(venue_feedback.place_id);
     
-    console.log('[feedback] summary', { 
+    console.log('[FEEDBACK] summary', { 
       correlation_id: correlationId,
       ranking: ranking_id, 
       rows: results.length 
@@ -219,7 +219,7 @@ router.get('/venue/summary', requireAuth, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('[feedback] summary error', { 
+    console.error('[FEEDBACK] summary error', { 
       correlation_id: correlationId, 
       error: error.message 
     });
@@ -267,7 +267,7 @@ router.post('/strategy', requireAuth, async (req, res) => {
     
     // Check rate limit
     if (!checkRateLimit(authUserId)) {
-      console.warn('[feedback] Rate limit exceeded (strategy)', { 
+      console.warn('[FEEDBACK] Rate limit exceeded (strategy)', { 
         correlation_id: correlationId, 
         user_id: authUserId 
       });
@@ -295,7 +295,7 @@ router.post('/strategy', requireAuth, async (req, res) => {
         }
       });
     
-    console.log('[feedback] strategy upsert ok', {
+    console.log('[FEEDBACK] strategy upsert ok', {
       corr: correlationId,
       user: authUserId || 'anon',
       ranking: ranking_id,
@@ -305,7 +305,7 @@ router.post('/strategy', requireAuth, async (req, res) => {
     res.json({ ok: true });
     
   } catch (error) {
-    console.error('[feedback] strategy feedback error', { 
+    console.error('[FEEDBACK] strategy feedback error', { 
       correlation_id: correlationId, 
       error: error.message 
     });
@@ -360,7 +360,7 @@ router.post('/app', requireAuth, async (req, res) => {
         comment: sanitizedComment,
       });
     
-    console.log('[feedback] app feedback ok', {
+    console.log('[FEEDBACK] app feedback ok', {
       corr: correlationId,
       snapshot: snapshot_id || 'none',
       sent: sentiment,
@@ -369,7 +369,7 @@ router.post('/app', requireAuth, async (req, res) => {
     res.json({ ok: true });
     
   } catch (error) {
-    console.error('[feedback] app feedback error', { 
+    console.error('[FEEDBACK] app feedback error', { 
       correlation_id: correlationId, 
       error: error.message 
     });

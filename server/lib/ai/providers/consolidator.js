@@ -91,7 +91,7 @@ async function getDeactivatedNewsHashes(userId) {
 
     return new Set(deactivations.map(d => d.news_hash));
   } catch (error) {
-    console.error('Consolidator: getDeactivatedNewsHashes error:', error);
+    console.error('Strategist: getDeactivatedNewsHashes error:', error);
     return new Set();
   }
 }
@@ -124,7 +124,7 @@ async function filterDeactivatedNews(newsData, userId) {
   });
 
   if (filteredItems.length < originalCount) {
-    triadLog.phase(3, `Consolidator: News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
+    triadLog.phase(3, `Strategist: News filtered: ${originalCount} → ${filteredItems.length} (${originalCount - filteredItems.length} deactivated)`);
   }
 
   // Return in the same format as received
@@ -1201,7 +1201,7 @@ function formatTrafficIntelForStrategist(traffic) {
 /**
  * Build a compact weather block with current conditions + 6-hour forecast
  * timeline. Reads briefings.weather_forecast (already populated — see
- * briefing-service.js:1680–1708). Adds a ⚠️ STORM RISK warning line when
+ * briefing-service.js:1680–1708). Adds a STORM RISK warning line when
  * any hour's precipitationProbability > 30%.
  *
  * Fallback: if weather_forecast is empty/missing, emits only the driverImpact
@@ -1249,7 +1249,7 @@ function formatWeatherForStrategist(weatherCurrent, weatherForecast, timezone) {
   // Storm risk detection — first hour with precip > 30%
   const stormHour = hoursToShow.find(h => (h.precipitationProbability || 0) > 30);
   if (stormHour) {
-    lines.push(`⚠️ STORM RISK: ${formatHourLabel(stormHour.time)} (${Math.round(stormHour.precipitationProbability)}% precip) — factor into positioning`);
+    lines.push(`STORM RISK: ${formatHourLabel(stormHour.time)} (${Math.round(stormHour.precipitationProbability)}% precip) — factor into positioning`);
   }
 
   return lines.join('\n');
@@ -1328,7 +1328,7 @@ async function batchLookupVenueHours(venueNames, timezone) {
  */
 export async function runImmediateStrategy(snapshotId, options = {}) {
   const startTime = Date.now();
-  triadLog.phase(3, `Consolidator: Starting immediate strategy for ${snapshotId.slice(0, 8)}`);
+  triadLog.phase(3, `Strategist: Starting immediate strategy for ${snapshotId.slice(0, 8)}`);
 
   try {
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
@@ -1416,7 +1416,7 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       updated_at: new Date()
     }).where(eq(strategies.snapshot_id, snapshotId));
 
-    triadLog.done(3, `Consolidator: Immediate strategy saved (${result.strategy.length} chars)`, totalDuration);
+    triadLog.done(3, `Strategist: Immediate strategy saved`, totalDuration);
 
     return {
       ok: true,

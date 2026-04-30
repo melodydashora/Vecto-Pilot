@@ -17,7 +17,7 @@ export default function CoachPage() {
     <div className="px-4 pt-4 pb-24 max-w-4xl mx-auto" data-testid="coach-page">
       <header className="mb-4 flex items-center gap-2">
         <MessageSquare className="w-5 h-5 text-blue-600" />
-        <h1 className="text-xl font-semibold">Rideshare Coach</h1>
+        <h1 className="text-xl font-semibold">Coach</h1>
       </header>
       <RideshareCoach
         userId={localStorage.getItem('vecto_user_id') || 'default'}
