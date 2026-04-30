@@ -1,8 +1,15 @@
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
-**Last Updated:** 2026-02-19 UTC
+**Last Updated:** 2026-04-30 UTC
 
 This document provides a complete visual mapping of the Vecto Pilot system, showing how every component connects from UI to database and back.
+
+> **Current architecture state (2026-04-30):**
+> - **Mode:** Mono mode active. `gateway-server.js` is the single canonical entry; `scripts/start-replit.js` spawns it; the Eidolon SDK split-mode infrastructure (`agent-server.js`, root `index.js`, `sdk-embed.js`, root `strategy-generator.js`) is retained as conditional infrastructure but not active in the live deploy.
+> - **Strategy:** Single live strategy engine — `STRATEGY_TACTICAL` via `server/lib/ai/providers/consolidator.js:157` (`generateImmediateStrategy()`), triggered synchronously by `POST /api/blocks-fast`. The legacy daily / `STRATEGY_DAILY` path was removed 2026-04-27 (`chore/remove-daily-strategy` merge `d39d570f`); the dead `strategies.consolidated_strategy` column is scheduled for removal in the Phase 3 schema fix.
+> - **Events dedup:** Choice A architecture (Rule 16 in CLAUDE.md, shipped 2026-04-30) — dedup runs at INSERT in the briefing pipeline; the DB UNIQUE on `discovered_events.event_hash` is the race-safety backstop. All 4 read-path dedup sites have been stripped.
+> - **AI capabilities:** Unified AI capability layer at `server/lib/ai/unified-ai-capabilities.js`; health monitor runs every 30s. 26 roles defined in `MODEL_ROLES` (`server/lib/ai/model-registry.js`), all live.
+> - **Specific model versions are intentionally NOT enumerated in this doc** per Rule 14 (model-agnostic adapter architecture). Names like "GPT-5.2" or "Gemini 2.5 Pro" appearing below are historical and may be stale — consult the registry for current truth.
 
 ---
 
@@ -397,8 +404,8 @@ iOS Device                      Vecto Server                    Database
    └─ Holiday Detection (at snapshot creation)
       └─ snapshots.holiday, snapshots.is_holiday ✓
    ↓
-3. Consolidator (GPT-5.2)
-   └─ strategies.consolidated_strategy ✓ (NOW strategy)
+3. Consolidator — STRATEGY_TACTICAL role (model: see registry)
+   └─ strategies.strategy_for_now ✓ (NOW strategy — sole live strategy output)
    ↓
 4. Enhanced Smart Blocks:
    ├─ GPT-5.2 Tactical Planner
