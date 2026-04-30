@@ -1,10 +1,10 @@
 # PLAN: Events Dedup — Architectural Relocation (Read → Write)
 
-**Status:** APPROVED 2026-04-30 — execution authorized by Melody after Course Correction (Choice B → Choice A).
+**Status:** EXECUTED 2026-04-30 — implementation complete; Melody-confirmed UI verification (TC-3 through TC-6 green via runtime logs); doctrine docs updated (CLAUDE.md Rule 16, LESSONS_LEARNED.md).
 **Date:** 2026-04-30
 **Author (original):** Claude (sonnet-context preserving session) → handoff to fresh session for execution.
 **Author (this revision):** Claude Opus 4.7 (1M context) — fresh session, post-audit + Melody course correction.
-**Estimated effort:** ~2 hours of focused work in this session, with checkpoints.
+**Effort:** ~2 hours of focused work in this session, with checkpoints (matched estimate).
 
 ---
 
@@ -539,9 +539,45 @@ If the read-path strip causes UI regression: revert step 4. Read path resumes ap
 
 ---
 
+## Final Outcomes (2026-04-30)
+
+**Migration applied to dev DB (heliumdb):**
+- Started: 1826 rows in `discovered_events`
+- Final: 1665 rows (161 dupes consolidated across 128 duplicate groups)
+- 1537 singleton hashes refreshed to v3 logic
+- 128 survivor hashes updated
+- Backup preserved at `/tmp/discovered_events_pre_dedup_2026-04-30.sql` (1.4 MB) for rollback
+
+**Test cases (per §Test Cases):**
+| TC | Result | How |
+|---|---|---|
+| TC-1 (hash unit tests) | ✓ GREEN | 20 tests pass via `npx jest tests/events/pipeline.test.js` (12 Choice A + 8 existing hashEvent) |
+| TC-2 (migration correctness) | ✓ GREEN | `SELECT event_hash, COUNT(*) ... HAVING COUNT(*) > 1` returned 0 rows post-migration |
+| TC-3 (write idempotency) | ✓ GREEN | Runtime log confirmed: `[BRIEFING] [EVENTS] [DEDUP] [WRITE] hash: 15 → 15, semantic: 15 → 15` (Melody UI verification) |
+| TC-4 (read-path purity) | ✓ GREEN | Multiple `/events` GETs in runtime logs; zero `[BRIEFING] [API] [EVENTS] [DEDUP]` lines (Melody UI verification) |
+| TC-5 (behavior preservation) | ✓ GREEN | 35 events successfully discovered, read back, fed to venue planner without contract violations (Melody UI verification) |
+| TC-6 (no write-path regression) | ✓ GREEN | Briefing pipeline completed cleanly; all downstream consumers received event data (Melody UI verification) |
+| TC-7 (constraint enforcement) | ✓ GREEN | psql attempted insert with existing hash → `duplicate key value violates unique constraint "discovered_events_event_hash_unique"` |
+| TC-8 (FK integrity) | ✓ N/A (vacuous) | `ranking_candidates.event_id` does not exist; no FKs into `discovered_events.id` |
+
+**Commits (8 on origin/main, 4 doctrine + 4 execution):**
+- `023e2773` — plan course correction (Choice A approved)
+- `e9937476` — plan language fix
+- `cd8745f2` — plan nuances incorporated
+- `081e314c` — refactor(hashEvent): v3 normalization parity
+- `604c59bb` — feat(scripts): migrate-event-hashes
+- `23114dbe` — refactor(briefing-service): pre-INSERT dedup pass
+- `e5b5d48f` — refactor(briefing): strip dedup from 4 read sites
+- `29287857` — chore(claude): permission allowlist updates
+
+**Doctrine captured:**
+- `CLAUDE.md` Rule 16 — Events Deduplication Architecture (late-binding identity, dedup at write)
+- `LESSONS_LEARNED.md` 2026-04-30 entry — normalization gap + 3 architectural lessons (late-binding > early-binding, audit-driven recommendation revision, log chains as stage specifications)
+- `claude_memory` rows 268–271 (architectural doctrine) plus a feedback row about the ratify-plan anti-pattern caught and corrected during this work
+
 ## Status
 
-**APPROVED 2026-04-30. Course-Correction-applied. Execution in progress.**
+**EXECUTED 2026-04-30. Course-Correction-applied. Implementation complete and verified.**
 
 **Companion claude_memory rows** (status=active):
 - **268** — Taxonomy is a stage specification, not a logging style
