@@ -1353,7 +1353,16 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         context: { timezone: timezone }
       });
 
-      for (const event of validatedEvents) {
+      const hashDeduped = deduplicateEvents(validatedEvents);
+      const { deduplicated: semanticDeduped } = deduplicateEventsSemantic(hashDeduped);
+      console.log(
+        `[BRIEFING] [EVENTS] [DEDUP] [WRITE] ` +
+        `hash: ${validatedEvents.length} → ${hashDeduped.length}, ` +
+        `semantic: ${hashDeduped.length} → ${semanticDeduped.length} ` +
+        `(pre-insert dedup before per-event upsert)`
+      );
+
+      for (const event of semanticDeduped) {
         try {
           const hash = generateEventHash(event);
 
