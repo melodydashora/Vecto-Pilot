@@ -1614,16 +1614,11 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         venue_id: e.venue_id
       }));
 
-      // 2026-01-05: Deduplicate events with similar names, addresses, and times
-      // Fixes issue where LLMs discover same event multiple times with slight name variations
-      const deduplicatedEvents = deduplicateEvents(normalizedEvents);
-
       // 2026-01-08: HARD FILTER - Remove events with TBD/Unknown in critical fields
-      // Replaces old "smart" confirmTBDEventDetails - we no longer try to repair, just remove
       // 2026-04-28: Thread timezone so the read-path Rule 13 today-check honors the
       // driver's local tz. Without this, AHEAD-timezone drivers (HST/JST/AEST/Kiritimati)
       // saw their own stored events stripped on every read during the 9-14h UTC window.
-      const cleanEvents = filterInvalidEvents(deduplicatedEvents, { timezone });
+      const cleanEvents = filterInvalidEvents(normalizedEvents, { timezone });
 
       briefingLog.done(2, `Events: ${cleanEvents.length} from discovered_events table`, OP.DB);
       return { items: cleanEvents, reason: null, provider: 'discovered_events' };

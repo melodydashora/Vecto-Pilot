@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 // 2026-04-04: FIX C-2 — Added fetchTrafficConditions (was missing, causing ReferenceError on /traffic/realtime)
-import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, filterInvalidEvents, fetchWeatherConditions, fetchTrafficConditions, fetchRideshareNews, deduplicateEvents } from '../../lib/briefing/briefing-service.js';
-// 2026-04-11: Title-similarity dedup safety net — catches duplicates that survived hash-based dedup
-import { deduplicateEventsSemantic } from '../../lib/events/pipeline/deduplicateEventsSemantic.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, filterInvalidEvents, fetchWeatherConditions, fetchTrafficConditions, fetchRideshareNews } from '../../lib/briefing/briefing-service.js';
 import { db } from '../../db/drizzle.js';
 import { snapshots, discovered_events, news_deactivations, briefings, market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte, ilike, not, or, sql } from 'drizzle-orm';
@@ -458,9 +456,6 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
             longitude: e.venue_lng,
             city: e.city,
           }));
-          marketEvents = deduplicateEvents(marketEvents);
-          const { deduplicated: marketDeduped } = deduplicateEventsSemantic(marketEvents);
-          marketEvents = marketDeduped;
           marketEvents = filterFreshEvents(marketEvents, new Date(), tz3);
         }
       }
@@ -933,21 +928,6 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       };
     });
 
-    // 2026-01-05: Deduplicate events with similar names, addresses, and times
-    // Matches the logic in briefing-service.js fetchEventsForBriefing
-    const beforeDedup = allEvents.length;
-    allEvents = deduplicateEvents(allEvents);
-
-    // 2026-04-11: Title-similarity dedup safety net — catches "Jon Wolfe Concert" vs "Jon Wolfe"
-    // and wrong-stadium assignments that survived hash-based dedup.
-    // Uses venue field (mapped from venue_name above) for venue plausibility scoring.
-    const beforeSemantic = allEvents.length;
-    const { deduplicated: semanticDeduped } = deduplicateEventsSemantic(allEvents);
-    allEvents = semanticDeduped;
-    if (beforeSemantic > allEvents.length) {
-      console.log(`[BRIEFING] [EVENTS] [DEDUP] Semantic dedup: ${beforeSemantic} → ${allEvents.length} events (removed ${beforeSemantic - allEvents.length} title-variant duplicates)`);
-    }
-
     // CRITICAL: Filter stale events and events without date info (2026-01-05)
     // This catches events with incorrect dates (e.g., Christmas events with January dates)
     // and events that lack proper start/end times
@@ -1072,11 +1052,6 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
             city: e.city // Include city for UI display
           }));
 
-          // Apply same deduplication and freshness filters
-          marketEvents = deduplicateEvents(marketEvents);
-          // 2026-04-11: Title-similarity dedup for market events too
-          const { deduplicated: marketDeduped } = deduplicateEventsSemantic(marketEvents);
-          marketEvents = marketDeduped;
           marketEvents = filterFreshEvents(marketEvents, new Date(), snapshotTz);
 
           if (marketEvents.length > 0) {
