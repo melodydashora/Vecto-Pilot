@@ -3,12 +3,20 @@
  *
  * Canonical event hashing for deduplication.
  *
- * HASH CONTRACT (2026-04-10, v2):
+ * HASH CONTRACT (2026-04-30, v3 — Choice A normalization parity):
  * ═══════════════════════════════════════════════════════════════════════════
- * Hash input = normalize(title) + "|" + normalize(venue_name) + "|" + city + "|" + date
+ * Hash input = normalize(title) | normalize(venue_name) | extract_street(address) | normalize(city) | date
  * Hash algorithm = MD5 (32-char hex)
  *
- * 2026-04-10: CHANGED from v1 (title|venue_address|date|time).
+ * 2026-04-30 (v3): EXPANDED title normalization for parity with deduplicateEvents.
+ * - Strip common content prefixes: "Live Music:", "Live Band:", "Concert:", "Show:",
+ *   "Event:", "Performance:", "DJ Set:", "Acoustic:"
+ * - Strip parentheticals: "(Shared Reality)", "(Special Edition)", etc.
+ * - ADDED street_name extraction: catches "5776 Grandscape Blvd" === "5752 Grandscape Blvd"
+ *   when same venue is reported with slight street-number variations.
+ * Companion: claude_memory rows 268-271; PLAN_events-dedup-architectural-2026-04-30.md.
+ *
+ * 2026-04-10 (v2): CHANGED from v1 (title|venue_address|date|time).
  * - ADDED city: prevents "Fair Park, Dallas" and "Fair Park, Houston" from colliding.
  * - REMOVED time: "Bruno Mars 7:00 PM" and "Bruno Mars 7:30 PM" at same venue/date
  *   are the same event with a time correction — they should UPDATE, not create duplicates.
@@ -61,6 +69,29 @@ function stripVenueSuffix(title) {
     // " - <capitalized venue>" at end (common format)
     .replace(/\s+-\s+([A-Z][A-Za-z\s&']+)$/i, '')
     .trim();
+}
+
+function stripPrefixes(title) {
+  if (!title) return '';
+  return title
+    .replace(/^(live music|live band|concert|show|event|performance|dj set|acoustic):\s*/i, '')
+    .trim();
+}
+
+function stripParentheticals(title) {
+  if (!title) return '';
+  return title
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractStreetName(address) {
+  if (!address) return '';
+  const lower = address.toLowerCase();
+  const streetMatch = lower.match(/\d+\s+(.+?)(?:,|$)/);
+  const streetName = streetMatch ? streetMatch[1].split(/[,#]/)[0].trim() : lower;
+  return streetName.split(/\s+/).slice(0, 2).join(' ');
 }
 
 /**
@@ -117,32 +148,26 @@ function normalizeTimeForHash(timeStr) {
 
 /**
  * Build the canonical hash input string.
- * Format: "normalized_title|normalized_venue_name|city|date"
+ * Format: "normalized_title | normalized_venue_name | street_name | normalized_city | date"
  *
- * 2026-04-10: v2 — Changed to title|venue_name|city|date (removed time, added city).
- * This ensures:
- * - "Bruno Mars" at same venue on same date with different times → SAME hash (UPDATE)
- * - "Fair Park" in Dallas vs "Fair Park" in Houston → DIFFERENT hashes
- * - "Cirque du Soleil at Cosm" vs "Cirque du Soleil" → SAME hash (suffix stripped)
+ * 2026-04-30 (v3): Expanded title normalization (strip prefixes + parentheticals)
+ *   and added street_name extraction for full parity with deduplicateEvents.
  *
  * @param {Object} event - NormalizedEvent or object with required fields
  * @returns {string} Hash input string
  */
 export function buildHashInput(event) {
-  // Strip venue suffix from title before normalizing
-  const titleWithoutVenue = stripVenueSuffix(event.title);
-  const title = normalizeForHash(titleWithoutVenue);
+  let titleClean = stripVenueSuffix(event.title);
+  titleClean = stripPrefixes(titleClean);
+  titleClean = stripParentheticals(titleClean);
+  const title = normalizeForHash(titleClean);
 
-  // 2026-04-10: Use venue_name only (not address) — address varies between discovery runs
-  // but venue name is stable. "American Airlines Center" stays consistent.
   const venue = normalizeForHash(event.venue_name || event.venue);
-
-  // 2026-04-10: Include city to prevent cross-city hash collisions
+  const street = extractStreetName(event.address);
   const city = normalizeForHash(event.city);
-
   const date = event.event_start_date || '';
 
-  return `${title}|${venue}|${city}|${date}`;
+  return `${title}|${venue}|${street}|${city}|${date}`;
 }
 
 /**
