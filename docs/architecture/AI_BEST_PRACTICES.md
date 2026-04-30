@@ -90,8 +90,7 @@ All prompts include current date/time in driver's timezone. Events filtered to t
 | Role | maxTokens | Reasoning |
 |------|-----------|-----------|
 | BRIEFING_* | 4,096–8,192 | Search results + analysis |
-| STRATEGY_TACTICAL | 16,000 | Long-form synthesis |
-| STRATEGY_DAILY | 16,000 | 8-12hr time blocks |
+| STRATEGY_TACTICAL | 16,000 | Long-form synthesis (1-hour tactical) |
 | VENUE_SCORER | 16,000 | Complex venue JSON |
 | VENUE_FILTER | 300 | Single-character tier (P/S/X) |
 | AI_COACH | 8,192 | Conversational response |

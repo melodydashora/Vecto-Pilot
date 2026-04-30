@@ -1,9 +1,11 @@
 
 # UI_FILE_MAP.md - Component, API, and Event Mapping
 
-**Last Updated:** 2026-02-15 UTC
+**Last Updated:** 2026-04-30 UTC
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
+
+> **Note:** The per-component mappings below have not been re-walked against current code. Trust the code when they conflict; a full re-walk is on the follow-up list.
 
 ---
 

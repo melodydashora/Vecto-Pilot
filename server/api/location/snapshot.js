@@ -4,7 +4,6 @@ import crypto from "node:crypto";
 import { db } from "../../db/drizzle.js";
 import { sql, eq } from "drizzle-orm";
 import { snapshots, strategies, coords_cache } from "../../../shared/schema.js";
-import { generateStrategyForSnapshot } from "../../lib/strategy/strategy-generator.js";
 import { validateIncomingSnapshot, validateSnapshotFields } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
 import { generateAndStoreBriefing } from "../../lib/briefing/briefing-service.js";
@@ -193,21 +192,6 @@ router.post("/", requireAuth, async (req, res) => {
       });
       console.log(`[BRIEFING] complete`, { snapshot_id });
     }
-
-    // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
-    // CRITICAL: Pass full snapshot to avoid redundant DB fetch - LLMs need formatted_address
-    // 2026-02-13: Strategy errors logged as console.error (was console.warn) —
-    // strategy failure means user gets no recommendations, which is a visible UX impact
-    queueMicrotask(() => {
-      try {
-        console.log(`[STRATEGY] enqueue`, { snapshot_id, formatted_address });
-        generateStrategyForSnapshot(snapshot_id, { snapshot: dbSnapshot }).catch(err => {
-          console.error(`[STRATEGY] enqueue.failed`, { snapshot_id, err: String(err) });
-        });
-      } catch (e) {
-        console.error(`[STRATEGY] enqueue.err`, { snapshot_id, err: String(e) });
-      }
-    });
 
     console.log("[SNAPSHOT] OK", { snapshot_id, city, timezone, hour, dow, ms: Date.now() - started });
     

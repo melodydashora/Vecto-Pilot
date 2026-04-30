@@ -10,7 +10,6 @@ import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
 // 2026-02-17: Daypart extracted to shared module for reuse in offer_intelligence
 import { getDayPartKey } from '../../lib/location/daypart.js';
-import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
 import { validateLocationFreshness } from '../../lib/location/validation-gates.js';

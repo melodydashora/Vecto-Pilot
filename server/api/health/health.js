@@ -6,7 +6,6 @@ import { Router } from "express";
 import { getLLMDiagnostics } from "../../lib/ai/model-registry.js";
 import { getPoolStats, getSharedPool } from "../../db/pool.js";
 import { getAgentState } from "../../db/connection-manager.js";
-import { providers } from "../../lib/strategy/providers.js";
 import { ndjson } from "../../logger/ndjson.js";
 import { requireAuth } from "../../middleware/auth.js";
 
@@ -44,28 +43,6 @@ router.get("/pool-stats", requireAuth, (req, res) => {
     ok: true,
     timestamp: new Date().toISOString(),
     pool: stats,
-  });
-});
-
-// Strategy provider registry health check — authenticated only
-router.get("/strategies", requireAuth, (req, res) => {
-  const providerStatus = {};
-  for (const [name, fn] of Object.entries(providers)) {
-    providerStatus[name] = {
-      registered: true,
-      isFunction: typeof fn === "function",
-      status: typeof fn === "function" ? "ready" : "invalid",
-    };
-  }
-  const allReady = Object.values(providerStatus).every(
-    (p) => p.status === "ready",
-  );
-  res.json({
-    ok: allReady,
-    status: allReady ? "ok" : "degraded",
-    providers: providerStatus,
-    availableProviders: Object.keys(providers),
-    timestamp: new Date().toISOString(),
   });
 });
 
