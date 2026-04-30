@@ -7,12 +7,8 @@
     "pr-review-toolkit@claude-plugins-official": true,
     "gitlab@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
-<<<<<<< HEAD
-    "serena@claude-plugins-official": true
-=======
     "serena@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   }
 }

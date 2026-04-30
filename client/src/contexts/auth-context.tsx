@@ -13,13 +13,10 @@ import type {
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 // 2026-01-15: Centralized API routes
 import { API_ROUTES } from '@/constants/apiRoutes';
-<<<<<<< HEAD
-=======
 // 2026-02-13: Cancel active queries on logout to prevent 401 race condition
 import { queryClient } from '@/lib/queryClient';
 // 2026-04-10: Close SSE connections on logout to prevent orphaned EventSource connections
 import { closeAllSSE } from '@/utils/co-pilot-helpers';
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
 interface AuthContextValue extends AuthState {
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
@@ -65,17 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // This handles cases where server returns 401 (no_token, session_expired, etc.)
   // Dispatched by useBriefingQueries and other hooks when API returns 401
   useEffect(() => {
-<<<<<<< HEAD
-    const handleAuthError = (event: Event) => {
-=======
     const handleAuthError = async (event: Event) => {
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       const customEvent = event as CustomEvent;
       const error = customEvent.detail?.error || 'unknown';
       console.warn(`[auth] 🔐 Auth error received: ${error} - forcing logout`);
 
-<<<<<<< HEAD
-=======
       // 2026-02-17: FIX - Call server to release snapshot on TTL-triggered logout
       // Without this, current_snapshot_id stays set and stale snapshot persists on next login
       try {
@@ -96,7 +87,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // 2026-04-10: Kill all SSE connections on forced logout (Window 2 race fix)
       closeAllSSE();
 
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       // Clear local auth state
       localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
       localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
@@ -168,8 +158,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.token) {
-<<<<<<< HEAD
-=======
         // 2026-02-17: FIX - Clear stale snapshot from previous session on login
         // Without this, sessionStorage restore in location-context serves the OLD snapshot
         // from before logout, bypassing the server entirely (never creates a new one)
@@ -177,7 +165,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
         localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
 
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
         setState({
           user: data.user || null,
@@ -220,14 +207,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-<<<<<<< HEAD
-    try {
-      if (state.token) {
-        await fetch(API_ROUTES.AUTH.LOGOUT, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${state.token}`,
-=======
     // 2026-02-13: Cancel all active queries FIRST to prevent 401 race condition.
     // Without this, in-flight queries get 401 after token is cleared,
     // which triggers setCriticalError (red FAIL HARD screen) during logout.
@@ -246,7 +225,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
           },
         });
       }
@@ -268,11 +246,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading: false,
       });
     }
-<<<<<<< HEAD
-  }, [state.token]);
-=======
   }, []);
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   const refreshProfile = useCallback(async () => {
     if (state.token) {

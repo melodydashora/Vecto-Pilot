@@ -12,15 +12,6 @@ import { getAuthHeader } from '@/utils/co-pilot-helpers';
 export default function VenueManagerPage() {
   const { coords, city, state, timezone, isLocationResolved } = useCoPilot();
 
-<<<<<<< HEAD
-  // Show placeholder if no location yet
-  if (!coords) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Wine className="w-12 h-12 text-gray-400 mb-4" />
-        <h3 className="text-lg font-semibold text-gray-700">Location Required</h3>
-        <p className="text-gray-500 mt-2">Enable location services to discover nearby bars and venues</p>
-=======
   // 2026-03-18: FIX — Gate on isLocationResolved, not just coords.
   // When coords exist but city/timezone haven't resolved, the query's enabled=false
   // causes React Query v5 to return isLoading=false + data=undefined → false "No venues found".
@@ -36,7 +27,6 @@ export default function VenueManagerPage() {
             ? 'Enable location services to discover nearby bars and venues'
             : 'Getting your city and timezone for accurate venue hours'}
         </p>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       </div>
     );
   }

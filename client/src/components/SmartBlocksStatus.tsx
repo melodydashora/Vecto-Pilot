@@ -43,12 +43,9 @@ export function SmartBlocksStatus({
   // Get cycling venue loading messages
   const venueMessages = useVenueLoadingMessages(pipelinePhase);
 
-<<<<<<< HEAD
-=======
   // 2026-04-10: Removed unconditional console.log — was firing every ~500ms causing log spam.
   // Snapshot ID is still visible in dev via the UI element gated by import.meta.env.DEV below.
 
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   return (
     <Card className="border-2 border-purple-400 bg-gradient-to-br from-purple-50 to-indigo-50 shadow-lg" data-testid="smart-blocks-status">
       <CardContent className="p-4">
@@ -180,13 +177,9 @@ export function SmartBlocksStatus({
           </div>
 
           {/* Stage 3: Location Context */}
-<<<<<<< HEAD
-          {snapshotId && (
-=======
           {/* 2026-04-09: Snapshot ID hidden in production — only shown in dev for debugging.
              Console.log retained so developers can still inspect via browser devtools. */}
           {snapshotId && import.meta.env.DEV && (
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
             <div className="flex items-start gap-3 pt-2 border-t border-purple-200">
               <MapPin className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1">

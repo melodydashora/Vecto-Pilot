@@ -4,29 +4,12 @@
 // NOTE: CoPilotProvider is now in App.tsx to persist across route changes
 
 import React from 'react';
-<<<<<<< HEAD
-import { Outlet, useLocation } from 'react-router-dom';
-=======
 import { Outlet } from 'react-router-dom';
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import GlobalHeader from '@/components/GlobalHeader';
 import { BottomTabNavigation } from '@/components/co-pilot/BottomTabNavigation';
 import { Toaster } from '@/components/ui/toaster';
 
 export default function CoPilotLayout() {
-<<<<<<< HEAD
-  const location = useLocation();
-
-  // Don't show GlobalHeader on static pages (About/Donation)
-  const isStaticPage = location.pathname === '/co-pilot/about';
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* GlobalHeader is shared except on static pages */}
-      {!isStaticPage && <GlobalHeader />}
-
-      <main className={isStaticPage ? 'pb-24' : 'main-content-with-header pb-24'}>
-=======
   // 2026-04-05: Removed isStaticPage exclusion — ALL co-pilot pages get the GlobalHeader
   // so users can navigate back from hamburger menu pages (About, Help, Donate, etc.)
   return (
@@ -41,7 +24,6 @@ export default function CoPilotLayout() {
       <GlobalHeader />
 
       <main id="main-content" className="main-content-with-header pb-24">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         <Outlet />
       </main>
 

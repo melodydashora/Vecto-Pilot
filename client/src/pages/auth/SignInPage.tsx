@@ -263,21 +263,6 @@ export default function SignInPage() {
               <span className="ml-2">Continue with Google</span>
             </Button>
 
-<<<<<<< HEAD
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full bg-black hover:bg-gray-900 text-white border-gray-700"
-              onClick={handleAppleLogin}
-              disabled={isLoading || socialLoading !== null}
-            >
-              {socialLoading === 'apple' ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <AppleIcon />
-              )}
-              <span className="ml-2">Continue with Apple</span>
-=======
             {/* 2026-04-25 (P1-5): Apple login disabled until OAuth is wired up.
                 onClick removed (was hitting /api/auth/apple which is not implemented).
                 Will be re-enabled when Sign In with Apple support ships. */}
@@ -291,7 +276,6 @@ export default function SignInPage() {
             >
               <AppleIcon />
               <span className="ml-2">Apple — Coming soon</span>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
             </Button>
           </div>
 

@@ -23,10 +23,7 @@ export const API_ROUTES = {
     RESET_PASSWORD: '/api/auth/reset-password',
     GOOGLE: '/api/auth/google',
     GOOGLE_SIGNUP: '/api/auth/google?mode=signup',
-<<<<<<< HEAD
-=======
     GOOGLE_CALLBACK: '/api/auth/google/exchange',
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     APPLE: '/api/auth/apple',
     APPLE_SIGNUP: '/api/auth/apple?mode=signup',
   },
@@ -35,10 +32,7 @@ export const API_ROUTES = {
   // Location
   // =========================================================================
   LOCATION: {
-<<<<<<< HEAD
-=======
     RELEASE_SNAPSHOT: '/api/location/release-snapshot',
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     RESOLVE: '/api/location/resolve',
     RESOLVE_WITH_PARAMS: (lat: number, lng: number, deviceId: string, accuracy: number) =>
       `/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`,
@@ -67,10 +61,6 @@ export const API_ROUTES = {
   },
 
   STRATEGY: {
-<<<<<<< HEAD
-    DAILY: (snapshotId: string) => `/api/strategy/daily/${snapshotId}`,
-    TACTICAL_PLAN: '/api/strategy/tactical-plan',
-=======
     TACTICAL_PLAN: '/api/strategy/tactical-plan',
     RETRY: (snapshotId: string) => `/api/strategy/${snapshotId}/retry`,
     HISTORY: '/api/strategy/history',
@@ -79,23 +69,12 @@ export const API_ROUTES = {
     LEGACY_BRIEFING: (snapshotId: string) => `/api/strategy/briefing/${snapshotId}`,
     LEGACY_RUN: (snapshotId: string) => `/api/strategy/run/${snapshotId}`,
     LEGACY_SEED: '/api/strategy/seed',
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   },
 
   // =========================================================================
   // Briefing
   // =========================================================================
   BRIEFING: {
-<<<<<<< HEAD
-    WEATHER: (snapshotId: string) => `/api/briefing/weather/${snapshotId}`,
-    TRAFFIC: (snapshotId: string) => `/api/briefing/traffic/${snapshotId}`,
-    EVENTS: (snapshotId: string) => `/api/briefing/events/${snapshotId}`,
-    EVENTS_ACTIVE: (snapshotId: string) => `/api/briefing/events/${snapshotId}?filter=active`,
-    RIDESHARE_NEWS: (snapshotId: string) => `/api/briefing/rideshare-news/${snapshotId}`,
-    SCHOOL_CLOSURES: (snapshotId: string) => `/api/briefing/school-closures/${snapshotId}`,
-    AIRPORT: (snapshotId: string) => `/api/briefing/airport/${snapshotId}`,
-    REFRESH_DAILY: (snapshotId: string) => `/api/briefing/refresh-daily/${snapshotId}`,
-=======
     // 2026-04-19: Per-section route helpers (WEATHER/TRAFFIC/RIDESHARE_NEWS/
     // SCHOOL_CLOSURES/AIRPORT/EVENTS) deleted — `useBriefingQueries` was the
     // only consumer and now uses AGGREGATE. The corresponding server endpoints
@@ -105,7 +84,6 @@ export const API_ROUTES = {
     // between the briefing tab and what the strategist receives.
     AGGREGATE: (snapshotId: string) => `/api/briefing/snapshot/${snapshotId}`,
     EVENTS_ACTIVE: (snapshotId: string) => `/api/briefing/events/${snapshotId}?filter=active`,
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     DISCOVERED_EVENTS: (snapshotId: string) => `/api/briefing/discovered-events/${snapshotId}`,
     EVENT_DEACTIVATE: (eventId: string) => `/api/briefing/event/${eventId}/deactivate`,
   },
@@ -149,18 +127,10 @@ export const API_ROUTES = {
     STATS: (platform: string) => `/api/platform/stats?platform=${platform}`,
     SEARCH: (query: string, platform: string, limit: number) =>
       `/api/platform/search?q=${encodeURIComponent(query)}&platform=${platform}&limit=${limit}`,
-<<<<<<< HEAD
-    UBER: {
-      YEARS: '/api/platform/uber/years',
-      MAKES: (year: string) => `/api/platform/uber/makes?year=${year}`,
-      MODELS: (year: string, make: string) => `/api/platform/uber/models?year=${year}&make=${encodeURIComponent(make)}`,
-    },
-=======
     // 2026-04-25 (P2-8): UBER.{YEARS,MAKES,MODELS} block removed.
     // No server implementation existed at /api/platform/uber/{years,makes,models}
     // and no client code referenced these constants. The VEHICLE block below
     // (/api/vehicle/*) is the live vehicle-lookup path.
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   },
 
   // =========================================================================
@@ -168,12 +138,9 @@ export const API_ROUTES = {
   // =========================================================================
   VEHICLE: {
     YEARS: '/api/vehicle/years',
-<<<<<<< HEAD
-=======
     MAKES: '/api/vehicle/makes',
     MODELS: (make: string, year?: number) =>
       `/api/vehicle/models?make=${encodeURIComponent(make)}${year ? `&year=${year}` : ''}`,
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   },
 
   // =========================================================================
@@ -194,8 +161,6 @@ export const API_ROUTES = {
   TTS: '/api/tts',
 
   // =========================================================================
-<<<<<<< HEAD
-=======
   // Translation (real-time driver-rider communication)
   // 2026-03-16: Added for FIFA World Cup rider translation feature
   // =========================================================================
@@ -205,7 +170,6 @@ export const API_ROUTES = {
   },
 
   // =========================================================================
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   // Realtime
   // =========================================================================
   REALTIME: {
@@ -229,8 +193,6 @@ export const API_ROUTES = {
   ACTIONS: '/api/actions',
 
   // =========================================================================
-<<<<<<< HEAD
-=======
   // Concierge (QR code sharing + public event discovery)
   // =========================================================================
   CONCIERGE: {
@@ -247,7 +209,6 @@ export const API_ROUTES = {
   },
 
   // =========================================================================
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   // Diagnostic
   // =========================================================================
   DIAGNOSTIC: {
@@ -255,19 +216,10 @@ export const API_ROUTES = {
   },
 
   // =========================================================================
-<<<<<<< HEAD
-  // User
-  // =========================================================================
-  USER: {
-    PROFILE: '/api/users/me',
-    UPDATE: '/api/users/me',
-  },
-=======
   // User block removed 2026-04-25 (P2-7): /api/users/me had zero callers and
   // was unreachable at the documented path (server route was mounted at
   // /api/location/users/me). Re-introduce only when an actual consumer exists.
   // =========================================================================
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // =========================================================================
   // Agent (internal/dev)
@@ -309,15 +261,6 @@ export const QUERY_KEYS = {
   // =========================================================================
   // Briefing
   // =========================================================================
-<<<<<<< HEAD
-  BRIEFING_WEATHER: (snapshotId: string) => ['/api/briefing/weather', snapshotId] as const,
-  BRIEFING_TRAFFIC: (snapshotId: string) => ['/api/briefing/traffic', snapshotId] as const,
-  BRIEFING_EVENTS: (snapshotId: string) => ['/api/briefing/events', snapshotId] as const,
-  BRIEFING_EVENTS_ACTIVE: (snapshotId: string) => ['/api/briefing/events', snapshotId, 'active'] as const,
-  BRIEFING_RIDESHARE_NEWS: (snapshotId: string) => ['/api/briefing/rideshare-news', snapshotId] as const,
-  BRIEFING_SCHOOL_CLOSURES: (snapshotId: string) => ['/api/briefing/school-closures', snapshotId] as const,
-  BRIEFING_AIRPORT: (snapshotId: string) => ['/api/briefing/airport', snapshotId] as const,
-=======
   // 2026-04-18: Phase B — single aggregate key for the briefing tab's one-shot fetch.
   // 2026-04-19: Per-section query keys (BRIEFING_WEATHER/TRAFFIC/EVENTS/
   // RIDESHARE_NEWS/SCHOOL_CLOSURES/AIRPORT) deleted — they had no consumers
@@ -325,7 +268,6 @@ export const QUERY_KEYS = {
   // useActiveEventsQuery (real-time active events filter, separate from the tab).
   BRIEFING_AGGREGATE: (snapshotId: string) => ['/api/briefing/snapshot', snapshotId] as const,
   BRIEFING_EVENTS_ACTIVE: (snapshotId: string) => ['/api/briefing/events', snapshotId, 'active'] as const,
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // =========================================================================
   // Auth

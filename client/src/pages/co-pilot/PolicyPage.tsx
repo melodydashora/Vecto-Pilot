@@ -1,15 +1,4 @@
 // client/src/pages/co-pilot/PolicyPage.tsx
-<<<<<<< HEAD
-import React from 'react';
-import { Link } from 'react-router-dom';
-
-export default function PolicyPage() {
-  return (
-    <div className="max-w-4xl mx-auto px-4 pt-6 pb-6 mb-24">
-      <Link to="/co-pilot/about" className="inline-flex items-center text-blue-500 hover:text-blue-600 mb-6">
-        ← Back to About
-      </Link>
-=======
 // 2026-02-03: Made publicly accessible at /policy for OAuth provider requirements (Uber)
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -44,7 +33,6 @@ export default function PolicyPage() {
           ← Back to About
         </Link>
       )}
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 mb-8 text-white">
         <h1 className="text-2xl font-bold mb-2">Privacy Policy</h1>

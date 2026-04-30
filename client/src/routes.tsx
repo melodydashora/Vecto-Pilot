@@ -5,12 +5,6 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import CoPilotLayout from '@/layouts/CoPilotLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import StrategyPage from '@/pages/co-pilot/StrategyPage';
-<<<<<<< HEAD
-// 2026-01-09: Renamed from BarsPage for disambiguation
-import VenueManagerPage from '@/pages/co-pilot/VenueManagerPage';
-import BriefingPage from '@/pages/co-pilot/BriefingPage';
-import MapPage from '@/pages/co-pilot/MapPage';
-=======
 // 2026-04-25 (Phase A, Pass 1): Coach now has its own route.
 import CoachPage from '@/pages/co-pilot/CoachPage';
 // 2026-01-09: Renamed from BarsPage for disambiguation
@@ -18,19 +12,15 @@ import VenueManagerPage from '@/pages/co-pilot/VenueManagerPage';
 import BriefingPage from '@/pages/co-pilot/BriefingPage';
 // 2026-04-26 PHASE B: MapPage removed — the map now lives only inside StrategyPage.
 // /co-pilot/map route deleted; bottom-nav Map tab deleted in BottomTabNavigation.tsx.
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import IntelPage from '@/pages/co-pilot/IntelPage';
 import AboutPage from '@/pages/co-pilot/AboutPage';
 import PolicyPage from '@/pages/co-pilot/PolicyPage';
 import SettingsPage from '@/pages/co-pilot/SettingsPage';
-<<<<<<< HEAD
-=======
 import TranslationPage from '@/pages/co-pilot/TranslationPage';
 // 2026-04-05: Hamburger menu pages
 import SchedulePage from '@/pages/co-pilot/SchedulePage';
 import DonatePage from '@/pages/co-pilot/DonatePage';
 import HelpPage from '@/pages/co-pilot/HelpPage';
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import {
   SignInPage,
   SignUpPage,
@@ -38,16 +28,12 @@ import {
   ResetPasswordPage,
   TermsPage,
 } from '@/pages/auth';
-<<<<<<< HEAD
-import AuthRedirect from '@/components/auth/AuthRedirect';
-=======
 import { UberCallbackPage } from '@/pages/auth/uber/Callback';
 import { GoogleCallbackPage } from '@/pages/auth/google/Callback';
 import AuthRedirect from '@/components/auth/AuthRedirect';
 import ConciergePage from '@/pages/co-pilot/ConciergePage';
 import PublicConciergePage from '@/pages/concierge/PublicConciergePage';
 import LandingPage from '@/pages/landing/LandingPage';
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
 export const router = createBrowserRouter([
   // ═══════════════════════════════════════════════════════════════════════════
@@ -61,8 +47,6 @@ export const router = createBrowserRouter([
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
-<<<<<<< HEAD
-=======
   // Public Routes (no authentication required)
   // ═══════════════════════════════════════════════════════════════════════════
   {
@@ -100,7 +84,6 @@ export const router = createBrowserRouter([
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   // Public Auth Routes (no layout)
   // ═══════════════════════════════════════════════════════════════════════════
   {
@@ -153,13 +136,6 @@ export const router = createBrowserRouter([
         element: <BriefingPage />,
       },
       {
-<<<<<<< HEAD
-        path: 'map',
-        element: <MapPage />,
-      },
-      {
-=======
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         path: 'intel',
         element: <IntelPage />,
       },
@@ -172,13 +148,6 @@ export const router = createBrowserRouter([
         element: <PolicyPage />,
       },
       {
-<<<<<<< HEAD
-        path: 'settings',
-        element: <SettingsPage />,
-      },
-    ],
-  },
-=======
         path: 'concierge',
         element: <ConciergePage />,
       },
@@ -222,5 +191,4 @@ export const router = createBrowserRouter([
     path: '*',
     element: <Navigate to="/" replace />,
   },
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 ]);

@@ -1,10 +1,6 @@
 // client/src/pages/co-pilot/SettingsPage.tsx
-<<<<<<< HEAD
-// User profile settings page with editable fields
-=======
 // 2026-02-13: User profile settings page with editable fields
 // Uses same API endpoints and patterns as SignUpPage for consistency
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,10 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
-<<<<<<< HEAD
-=======
 import { API_ROUTES } from '@/constants/apiRoutes';
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,18 +18,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/useToast';
-<<<<<<< HEAD
-import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase, AlertTriangle, Check, ChevronsUpDown } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import type { MarketOption, VehicleMake, VehicleModel } from '@/types/auth';
-import { API_ROUTES } from '@/constants/apiRoutes';
-=======
 import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase } from 'lucide-react';
 import { UberSettingsSection } from '@/components/settings/UberSettingsSection';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import type { MarketOption } from '@/types/auth';
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
 // Validation schema for settings form
 const settingsSchema = z.object({
@@ -104,24 +89,11 @@ export default function SettingsPage() {
   const [regions, setRegions] = useState<DropdownOption[]>([]);
   const [markets, setMarkets] = useState<MarketOption[]>([]);
   const [years, setYears] = useState<number[]>([]);
-<<<<<<< HEAD
-  const [makes, setMakes] = useState<VehicleMake[]>([]);
-  const [models, setModels] = useState<VehicleModel[]>([]);
-  const [isLoadingRegions, setIsLoadingRegions] = useState(false);
-  const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
-  const [isLoadingMakes, setIsLoadingMakes] = useState(false);
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
-
-  // Model autocomplete state
-  const [modelInputValue, setModelInputValue] = useState('');
-  const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
-=======
   const [isLoadingRegions, setIsLoadingRegions] = useState(false);
   const [isLoadingMarkets, setIsLoadingMarkets] = useState(false);
 
   // 2026-02-13: Custom market name when "Other" is selected
   const [customMarket, setCustomMarket] = useState('');
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   const form = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
@@ -162,21 +134,6 @@ export default function SettingsPage() {
     },
   });
 
-<<<<<<< HEAD
-  const watchYear = form.watch('vehicleYear');
-  const watchMake = form.watch('vehicleMake');
-  const _watchPlatforms = form.watch('ridesharePlatforms');
-  const watchCountry = form.watch('country');
-  const watchModel = form.watch('vehicleModel');
-
-  // Filter models based on input for autocomplete suggestions
-  const filteredModels = modelInputValue
-    ? models.filter(m => m.name.toLowerCase().includes(modelInputValue.toLowerCase()))
-    : models;
-
-  // Check if the current model value matches a known model (case-insensitive)
-  const isModelKnown = models.some(m => m.name.toLowerCase() === watchModel?.toLowerCase());
-=======
   const _watchPlatforms = form.watch('ridesharePlatforms');
   const watchCountry = form.watch('country');
   const watchMarket = form.watch('market');
@@ -184,7 +141,6 @@ export default function SettingsPage() {
 
   // 2026-02-13: Track "Other" market selection
   const isOtherMarket = watchMarket === '__OTHER__';
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // Load profile data into form when profile is available
   useEffect(() => {
@@ -224,13 +180,6 @@ export default function SettingsPage() {
         prefShared: profile.prefShared || false,
         marketingOptIn: profile.marketingOptIn || false,
       });
-<<<<<<< HEAD
-      // Set model input for autocomplete
-      if (vehicle?.model) {
-        setModelInputValue(vehicle.model);
-      }
-=======
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     }
   }, [profile, vehicle, form]);
 
@@ -242,19 +191,11 @@ export default function SettingsPage() {
       .catch(err => console.error('Failed to load countries:', err));
   }, []);
 
-<<<<<<< HEAD
-  // Fetch regions when country changes
-  useEffect(() => {
-    if (watchCountry) {
-      setIsLoadingRegions(true);
-      fetch(API_ROUTES.PLATFORM.REGIONS(watchCountry))
-=======
   // 2026-02-13: Fetch regions when country changes (using correct dropdown endpoint)
   useEffect(() => {
     if (watchCountry) {
       setIsLoadingRegions(true);
       fetch(API_ROUTES.PLATFORM.REGIONS_DROPDOWN(watchCountry))
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         .then(res => res.json())
         .then(data => {
           let regionList = data.regions || [];
@@ -274,35 +215,6 @@ export default function SettingsPage() {
           setIsLoadingRegions(false);
         });
 
-<<<<<<< HEAD
-      // Fetch markets for country
-      setIsLoadingMarkets(true);
-      fetch(API_ROUTES.PLATFORM.MARKETS_BY_COUNTRY(watchCountry))
-        .then(res => res.json())
-        .then(data => {
-          let marketList = data.markets || [];
-          // Add current profile value if not in list
-          if (profile?.market && !marketList.some((m: MarketOption) => m.value === profile.market)) {
-            marketList = [{ value: profile.market, label: profile.market }, ...marketList];
-          }
-          setMarkets(marketList);
-          setIsLoadingMarkets(false);
-        })
-        .catch(err => {
-          console.error('Failed to load markets:', err);
-          // Still show profile value if API fails
-          if (profile?.market) {
-            setMarkets([{ value: profile.market, label: profile.market }]);
-          }
-          setIsLoadingMarkets(false);
-        });
-    }
-  }, [watchCountry, profile?.stateTerritory, profile?.market]);
-
-  // Fetch vehicle years on mount
-  useEffect(() => {
-    fetch(API_ROUTES.PLATFORM.UBER.YEARS)
-=======
     }
   }, [watchCountry, profile?.stateTerritory]);
 
@@ -357,17 +269,12 @@ export default function SettingsPage() {
   // 2026-02-13: Fetch vehicle years using correct endpoint (not uber-specific)
   useEffect(() => {
     fetch(API_ROUTES.VEHICLE.YEARS)
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       .then(res => res.json())
       .then(data => {
         let yearList = data.years || [];
         // Add current vehicle year if not in list (so it displays correctly)
         if (vehicle?.year && !yearList.includes(vehicle.year)) {
-<<<<<<< HEAD
-          yearList = [vehicle.year, ...yearList].sort((a, b) => b - a);
-=======
           yearList = [vehicle.year, ...yearList].sort((a: number, b: number) => b - a);
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         }
         setYears(yearList);
       })
@@ -380,67 +287,10 @@ export default function SettingsPage() {
       });
   }, [vehicle?.year]);
 
-<<<<<<< HEAD
-  // Fetch makes when year changes
-  useEffect(() => {
-    if (watchYear) {
-      setIsLoadingMakes(true);
-      fetch(API_ROUTES.PLATFORM.UBER.MAKES(watchYear.toString()))
-        .then(res => res.json())
-        .then(data => {
-          let makeList = data.makes || [];
-          // Add current vehicle make if not in list (so it displays correctly)
-          if (vehicle?.make && !makeList.some((m: VehicleMake) => m.name === vehicle.make)) {
-            makeList = [{ id: `custom-${vehicle.make}`, name: vehicle.make }, ...makeList];
-          }
-          setMakes(makeList);
-          setIsLoadingMakes(false);
-        })
-        .catch(err => {
-          console.error('Failed to load makes:', err);
-          // Still show vehicle make if API fails
-          if (vehicle?.make) {
-            setMakes([{ id: `custom-${vehicle.make}`, name: vehicle.make }]);
-          }
-          setIsLoadingMakes(false);
-        });
-    }
-  }, [watchYear, vehicle?.make]);
-
-  // Fetch models when make changes
-  useEffect(() => {
-    if (watchYear && watchMake) {
-      setIsLoadingModels(true);
-      fetch(API_ROUTES.PLATFORM.UBER.MODELS(watchYear.toString(), watchMake))
-        .then(res => res.json())
-        .then(data => {
-          let modelList = data.models || [];
-          // Add current vehicle model if not in list (so it displays correctly)
-          if (vehicle?.model && !modelList.some((m: VehicleModel) => m.name === vehicle.model)) {
-            modelList = [{ id: `custom-${vehicle.model}`, name: vehicle.model }, ...modelList];
-          }
-          setModels(modelList);
-          setIsLoadingModels(false);
-        })
-        .catch(err => {
-          console.error('Failed to load models:', err);
-          // Still show vehicle model if API fails
-          if (vehicle?.model) {
-            setModels([{ id: `custom-${vehicle.model}`, name: vehicle.model }]);
-          }
-          setIsLoadingModels(false);
-        });
-    }
-  }, [watchYear, watchMake, vehicle?.model]);
-
-=======
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   const onSubmit = async (data: SettingsFormData) => {
     setIsSaving(true);
 
     try {
-<<<<<<< HEAD
-=======
       // 2026-02-13: Handle custom market ("Other" selection)
       let finalMarket = data.market;
       if (data.market === '__OTHER__' && customMarket.trim()) {
@@ -486,7 +336,6 @@ export default function SettingsPage() {
         return;
       }
 
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       const result = await updateProfile({
         nickname: data.nickname,
         phone: data.phone,
@@ -496,11 +345,7 @@ export default function SettingsPage() {
         stateTerritory: data.stateTerritory,
         zipCode: data.zipCode,
         country: data.country,
-<<<<<<< HEAD
-        market: data.market,
-=======
         market: finalMarket,
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         ridesharePlatforms: data.ridesharePlatforms,
         // Vehicle Class
         eligEconomy: data.eligEconomy,
@@ -587,24 +432,15 @@ export default function SettingsPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-<<<<<<< HEAD
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
-          <p className="text-slate-400 text-sm">Manage your profile and preferences</p>
-=======
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
           <p className="text-gray-500 text-sm">Manage your profile and preferences</p>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         </div>
       </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           {/* Personal Info Section */}
-<<<<<<< HEAD
-          <Card className="bg-slate-800/50 border-slate-700">
-=======
           <Card className="bg-white border-gray-200 shadow-sm">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <User className="h-5 w-5 text-blue-400" />
@@ -616,21 +452,6 @@ export default function SettingsPage() {
               {/* Read-only fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-<<<<<<< HEAD
-                  <label className="text-sm font-medium text-slate-400">First Name</label>
-                  <Input
-                    value={profile.firstName}
-                    disabled
-                    className="bg-slate-700/50 border-slate-600 text-slate-400"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-400">Last Name</label>
-                  <Input
-                    value={profile.lastName}
-                    disabled
-                    className="bg-slate-700/50 border-slate-600 text-slate-400"
-=======
                   <label className="text-sm font-medium text-gray-500">First Name</label>
                   <Input
                     value={profile.firstName}
@@ -644,24 +465,11 @@ export default function SettingsPage() {
                     value={profile.lastName}
                     disabled
                     className="bg-gray-100 border-gray-200 text-gray-500"
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-<<<<<<< HEAD
-                <label className="text-sm font-medium text-slate-400">Email</label>
-                <Input
-                  value={profile.email}
-                  disabled
-                  className="bg-slate-700/50 border-slate-600 text-slate-400"
-                />
-                <p className="text-xs text-slate-500">Contact support to change your email</p>
-              </div>
-
-              {/* Editable fields - use lighter bg-slate-600 for visibility */}
-=======
                 <label className="text-sm font-medium text-gray-500">Email</label>
                 <Input
                   value={profile.email}
@@ -672,23 +480,11 @@ export default function SettingsPage() {
               </div>
 
               {/* Editable fields */}
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
               <FormField
                 control={form.control}
                 name="nickname"
                 render={({ field }) => (
                   <FormItem>
-<<<<<<< HEAD
-                    <FormLabel>Nickname</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="How should we greet you?"
-                        className="bg-slate-600 border-slate-500 text-white placeholder:text-slate-400"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>This is what we'll use to greet you in the app</FormDescription>
-=======
                     <FormLabel className="text-gray-700">Nickname</FormLabel>
                     <FormControl>
                       <Input
@@ -698,7 +494,6 @@ export default function SettingsPage() {
                       />
                     </FormControl>
                     <FormDescription className="text-gray-500 text-xs">This is what we'll use to greet you in the app</FormDescription>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                     <FormMessage />
                   </FormItem>
                 )}
@@ -709,18 +504,6 @@ export default function SettingsPage() {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-<<<<<<< HEAD
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <div className="flex">
-                        <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-500 bg-slate-700/50 text-slate-400 text-sm">
-                          +1
-                        </span>
-                        <Input
-                          type="tel"
-                          placeholder="(555) 555-5555"
-                          className="rounded-l-none bg-slate-600 border-slate-500 text-white placeholder:text-slate-400"
-=======
                     <FormLabel className="text-gray-700">Phone Number</FormLabel>
                     <FormControl>
                       <div className="flex gap-2">
@@ -731,7 +514,6 @@ export default function SettingsPage() {
                           type="tel"
                           placeholder="(555) 555-5555"
                           className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 flex-1"
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                           {...field}
                         />
                       </div>
@@ -744,11 +526,7 @@ export default function SettingsPage() {
           </Card>
 
           {/* Base Location Section */}
-<<<<<<< HEAD
-          <Card className="bg-slate-800/50 border-slate-700">
-=======
           <Card className="bg-white border-gray-200 shadow-sm">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <MapPin className="h-5 w-5 text-green-400" />
@@ -762,19 +540,11 @@ export default function SettingsPage() {
                 name="address1"
                 render={({ field }) => (
                   <FormItem>
-<<<<<<< HEAD
-                    <FormLabel>Base Address</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Street address"
-                        className="bg-slate-600 border-slate-500 text-white placeholder:text-slate-400"
-=======
                     <FormLabel className="text-gray-700">Base Address</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Street address"
                         className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                         {...field}
                       />
                     </FormControl>
@@ -788,19 +558,11 @@ export default function SettingsPage() {
                 name="address2"
                 render={({ field }) => (
                   <FormItem>
-<<<<<<< HEAD
-                    <FormLabel>Base Address 2 (Optional)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Apt, suite, unit, etc."
-                        className="bg-slate-600 border-slate-500 text-white placeholder:text-slate-400"
-=======
                     <FormLabel className="text-gray-700">Base Address 2 (Optional)</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Apt, suite, unit, etc."
                         className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                         {...field}
                       />
                     </FormControl>
@@ -810,25 +572,12 @@ export default function SettingsPage() {
               />
 
               <div className="grid grid-cols-2 gap-4">
-<<<<<<< HEAD
-=======
                 {/* Country dropdown */}
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                 <FormField
                   control={form.control}
                   name="country"
                   render={({ field }) => (
                     <FormItem>
-<<<<<<< HEAD
-                      <FormLabel>Country</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
-                            <SelectValue placeholder="Select country" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-[300px] overflow-y-auto">
-=======
                       <FormLabel className="text-gray-700">Country</FormLabel>
                       <Select key={`country-${field.value}`} onValueChange={field.onChange} value={field.value}>
                         <FormControl>
@@ -837,7 +586,6 @@ export default function SettingsPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="max-h-[200px] overflow-y-auto">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                           {countries.map((c) => (
                             <SelectItem key={c.value} value={c.value}>
                               {c.label}
@@ -850,32 +598,12 @@ export default function SettingsPage() {
                   )}
                 />
 
-<<<<<<< HEAD
-=======
                 {/* 2026-02-13: State/Province - dropdown if regions available, text input fallback */}
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                 <FormField
                   control={form.control}
                   name="stateTerritory"
                   render={({ field }) => (
                     <FormItem>
-<<<<<<< HEAD
-                      <FormLabel>State/Province</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
-                            <SelectValue placeholder={isLoadingRegions ? "Loading..." : "Select state"} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-[300px] overflow-y-auto">
-                          {regions.map((r) => (
-                            <SelectItem key={r.value} value={r.value}>
-                              {r.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-=======
                       <FormLabel className="text-gray-700">State/Province</FormLabel>
                       {regions.length > 0 ? (
                         <Select
@@ -913,7 +641,6 @@ export default function SettingsPage() {
                           />
                         </FormControl>
                       )}
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                       <FormMessage />
                     </FormItem>
                   )}
@@ -926,19 +653,11 @@ export default function SettingsPage() {
                   name="city"
                   render={({ field }) => (
                     <FormItem>
-<<<<<<< HEAD
-                      <FormLabel>City</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="City"
-                          className="bg-slate-600 border-slate-500 text-white placeholder:text-slate-400"
-=======
                       <FormLabel className="text-gray-700">City</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="City"
                           className="bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                           {...field}
                         />
                       </FormControl>
@@ -952,13 +671,6 @@ export default function SettingsPage() {
                   name="zipCode"
                   render={({ field }) => (
                     <FormItem>
-<<<<<<< HEAD
-                      <FormLabel>ZIP/Postal Code</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="ZIP code"
-                          className="bg-slate-600 border-slate-500 text-white placeholder:text-slate-400"
-=======
                       <FormLabel className="text-gray-700">ZIP/Postal Code</FormLabel>
                       <FormControl>
                         <Input
@@ -1125,7 +837,6 @@ export default function SettingsPage() {
                           placeholder="e.g., Camry, Model 3"
                           className="bg-white border-gray-300 text-gray-800"
                           autoComplete="off"
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                           {...field}
                         />
                       </FormControl>
@@ -1137,190 +848,6 @@ export default function SettingsPage() {
 
               <FormField
                 control={form.control}
-<<<<<<< HEAD
-                name="market"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Market</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
-                          <SelectValue placeholder={isLoadingMarkets ? "Loading..." : "Select market"} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="max-h-[300px] overflow-y-auto">
-                        {markets.map((m) => (
-                          <SelectItem key={m.value} value={m.value}>
-                            {m.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>The city where you primarily drive</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Vehicle Section */}
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Car className="h-5 w-5 text-purple-400" />
-                Vehicle
-              </CardTitle>
-              <CardDescription>Your primary vehicle information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="vehicleYear"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Year</FormLabel>
-                      <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
-                            <SelectValue placeholder="Year" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-[300px] overflow-y-auto">
-                          {years.map((y) => (
-                            <SelectItem key={y} value={y.toString()}>
-                              {y}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="vehicleMake"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Make</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-slate-600 border-slate-500 text-white">
-                            <SelectValue placeholder={isLoadingMakes ? "Loading..." : "Make"} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="max-h-[300px] overflow-y-auto">
-                          {makes.map((m) => (
-                            <SelectItem key={m.id} value={m.name}>
-                              {m.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="vehicleModel"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Model</FormLabel>
-                      <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <div className="relative">
-                              <Input
-                                placeholder={
-                                  !watchMake
-                                    ? 'Select make first'
-                                    : isLoadingModels
-                                    ? 'Loading models...'
-                                    : 'Type or select model'
-                                }
-                                className="bg-slate-600 border-slate-500 text-white placeholder:text-slate-400 pr-8"
-                                disabled={!watchMake || isLoadingModels}
-                                value={field.value || ''}
-                                onChange={(e) => {
-                                  field.onChange(e.target.value);
-                                  setModelInputValue(e.target.value);
-                                  if (!modelPopoverOpen && e.target.value) {
-                                    setModelPopoverOpen(true);
-                                  }
-                                }}
-                                onFocus={() => {
-                                  if (watchMake && !isLoadingModels) {
-                                    setModelPopoverOpen(true);
-                                  }
-                                }}
-                              />
-                              <ChevronsUpDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                            </div>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                          <Command>
-                            <CommandList>
-                              <CommandEmpty>
-                                {isLoadingModels ? 'Loading...' : 'No matching models found'}
-                              </CommandEmpty>
-                              <CommandGroup>
-                                {filteredModels.slice(0, 10).map((model) => (
-                                  <CommandItem
-                                    key={model.id}
-                                    value={model.name}
-                                    onSelect={() => {
-                                      field.onChange(model.name);
-                                      setModelInputValue(model.name);
-                                      setModelPopoverOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={`mr-2 h-4 w-4 ${
-                                        field.value === model.name ? 'opacity-100' : 'opacity-0'
-                                      }`}
-                                    />
-                                    {model.name}
-                                  </CommandItem>
-                                ))}
-                                {filteredModels.length > 10 && (
-                                  <div className="px-2 py-1.5 text-xs text-slate-400">
-                                    Type to filter {filteredModels.length - 10} more models...
-                                  </div>
-                                )}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      {/* Warning when model doesn't match known list */}
-                      {field.value && !isLoadingModels && models.length > 0 && !isModelKnown && (
-                        <div className="flex items-center gap-1.5 text-amber-400 text-xs mt-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span>Model not in our database - please verify spelling</span>
-                        </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="seatbelts"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Number of Seatbelts</FormLabel>
-                    <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value?.toString()}>
-                      <FormControl>
-                        <SelectTrigger className="bg-slate-600 border-slate-500 text-white w-32">
-=======
                 name="seatbelts"
                 render={({ field }) => (
                   <FormItem>
@@ -1329,27 +856,18 @@ export default function SettingsPage() {
                     <Select key={`seatbelts-${field.value}`} onValueChange={(v) => field.onChange(parseInt(v))} value={field.value?.toString()}>
                       <FormControl>
                         <SelectTrigger className="bg-white border-gray-300 text-gray-800 w-32">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                           <SelectValue placeholder="Seatbelts" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-<<<<<<< HEAD
-                        {[4, 5, 6, 7, 8].map((n) => (
-=======
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((n) => (
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                           <SelectItem key={n} value={n.toString()}>
                             {n}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-<<<<<<< HEAD
-                    <FormDescription>Including driver seat</FormDescription>
-=======
                     <FormDescription className="text-gray-500 text-xs">Including driver seat</FormDescription>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1357,16 +875,11 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-<<<<<<< HEAD
-          {/* Rideshare Platforms Section */}
-          <Card className="bg-slate-800/50 border-slate-700">
-=======
           {/* Uber Integration Section */}
           <UberSettingsSection />
 
           {/* Rideshare Platforms Section */}
           <Card className="bg-white border-gray-200 shadow-sm">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Briefcase className="h-5 w-5 text-amber-400" />
@@ -1397,11 +910,7 @@ export default function SettingsPage() {
                               field.onChange(newValue);
                             }}
                           />
-<<<<<<< HEAD
-                          <span>{platform.label}</span>
-=======
                           <span className="text-sm text-gray-700">{platform.label}</span>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                         </label>
                       ))}
                     </div>
@@ -1411,19 +920,11 @@ export default function SettingsPage() {
               />
 
               {/* Vehicle Class Section */}
-<<<<<<< HEAD
-              <Separator className="bg-slate-700" />
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-slate-300">Vehicle Class</label>
-                <p className="text-xs text-slate-400">What type of vehicle do you drive?</p>
-                <div className="grid grid-cols-2 gap-3">
-=======
               <Separator className="bg-gray-200" />
               <div className="space-y-3">
                 <label className="text-sm font-medium text-gray-700">Vehicle Class</label>
                 <p className="text-xs text-gray-500">What type of vehicle do you drive?</p>
                 <div className="grid grid-cols-2 gap-2">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                   {[
                     { name: 'eligEconomy', label: 'Economy' },
                     { name: 'eligXl', label: 'Large (XL)' },
@@ -1437,15 +938,6 @@ export default function SettingsPage() {
                       control={form.control}
                       name={name as keyof SettingsFormData}
                       render={({ field }) => (
-<<<<<<< HEAD
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            checked={field.value as boolean}
-                            onCheckedChange={field.onChange}
-                          />
-                          <span className="text-sm">{label}</span>
-                        </label>
-=======
                         <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                           <Checkbox
                             id={`settings-${name}`}
@@ -1456,7 +948,6 @@ export default function SettingsPage() {
                             {label}
                           </label>
                         </div>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                       )}
                     />
                   ))}
@@ -1464,19 +955,11 @@ export default function SettingsPage() {
               </div>
 
               {/* Vehicle Attributes Section */}
-<<<<<<< HEAD
-              <Separator className="bg-slate-700" />
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-slate-300">Vehicle Features</label>
-                <p className="text-xs text-slate-400">Special features of your vehicle</p>
-                <div className="grid grid-cols-2 gap-3">
-=======
               <Separator className="bg-gray-200" />
               <div className="space-y-3">
                 <label className="text-sm font-medium text-gray-700">Vehicle Features</label>
                 <p className="text-xs text-gray-500">Special features of your vehicle</p>
                 <div className="grid grid-cols-2 gap-2">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                   {[
                     { name: 'attrElectric', label: 'Electric (EV)' },
                     { name: 'attrGreen', label: 'Green / Hybrid' },
@@ -1489,15 +972,6 @@ export default function SettingsPage() {
                       control={form.control}
                       name={name as keyof SettingsFormData}
                       render={({ field }) => (
-<<<<<<< HEAD
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            checked={field.value as boolean}
-                            onCheckedChange={field.onChange}
-                          />
-                          <span className="text-sm">{label}</span>
-                        </label>
-=======
                         <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                           <Checkbox
                             id={`settings-${name}`}
@@ -1508,7 +982,6 @@ export default function SettingsPage() {
                             {label}
                           </label>
                         </div>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                       )}
                     />
                   ))}
@@ -1516,19 +989,11 @@ export default function SettingsPage() {
               </div>
 
               {/* Service Preferences Section */}
-<<<<<<< HEAD
-              <Separator className="bg-slate-700" />
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-slate-300">Service Preferences</label>
-                <p className="text-xs text-slate-400">Rides you're willing to take (unchecked = avoid)</p>
-                <div className="grid grid-cols-2 gap-3">
-=======
               <Separator className="bg-gray-200" />
               <div className="space-y-3">
                 <label className="text-sm font-medium text-gray-700">Service Preferences</label>
                 <p className="text-xs text-gray-500">Rides you're willing to take (unchecked = avoid)</p>
                 <div className="grid grid-cols-2 gap-2">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                   {[
                     { name: 'prefPetFriendly', label: 'Pet Friendly' },
                     { name: 'prefTeen', label: 'Teen Rides' },
@@ -1540,15 +1005,6 @@ export default function SettingsPage() {
                       control={form.control}
                       name={name as keyof SettingsFormData}
                       render={({ field }) => (
-<<<<<<< HEAD
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            checked={field.value as boolean}
-                            onCheckedChange={field.onChange}
-                          />
-                          <span className="text-sm">{label}</span>
-                        </label>
-=======
                         <div className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                           <Checkbox
                             id={`settings-${name}`}
@@ -1559,34 +1015,18 @@ export default function SettingsPage() {
                             {label}
                           </label>
                         </div>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                       )}
                     />
                   ))}
                 </div>
               </div>
 
-<<<<<<< HEAD
-              <Separator className="bg-slate-700" />
-=======
               <Separator className="bg-gray-200" />
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
               <FormField
                 control={form.control}
                 name="marketingOptIn"
                 render={({ field }) => (
-<<<<<<< HEAD
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                    <span className="text-sm">
-                      Send me tips, updates, and promotional content
-                    </span>
-                  </label>
-=======
                   <div className="flex items-center space-x-2 p-2">
                     <Checkbox
                       id="settings-marketingOptIn"
@@ -1597,18 +1037,13 @@ export default function SettingsPage() {
                       Send me tips, updates, and promotional content
                     </label>
                   </div>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                 )}
               />
             </CardContent>
           </Card>
 
           {/* Save Button */}
-<<<<<<< HEAD
-          <div className="sticky bottom-20 bg-gradient-to-t from-slate-900 via-slate-900 to-transparent pt-4">
-=======
           <div className="sticky bottom-20 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent pt-4">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
             <Button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700"
@@ -1629,8 +1064,6 @@ export default function SettingsPage() {
           </div>
         </form>
       </Form>
-<<<<<<< HEAD
-=======
 
       {/* About link (moved from bottom nav 2026-02-13) */}
       <div className="text-center mt-6 pb-4">
@@ -1641,7 +1074,6 @@ export default function SettingsPage() {
           About Vecto Pilot
         </a>
       </div>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     </div>
   );
 }

@@ -39,12 +39,8 @@ import { useMarketIntelligence } from "@/hooks/useMarketIntelligence";
 import { useLocation } from "@/contexts/location-context-clean";
 // 2026-01-14: Removed useBriefingQueries import - now using pre-loaded data from CoPilotContext
 // This prevents duplicate SSE subscriptions to briefing_ready
-<<<<<<< HEAD
-import { useCoPilot } from "@/contexts/co-pilot-context";
-=======
 // 2026-04-26 PHASE C: useCoPilot import removed — only TacticalStagingMap
 // data prep consumed it. Re-add if a future intel surface needs briefing data.
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import {
   ZoneCards,
   UniversalZoneLogic,
@@ -56,26 +52,6 @@ import {
   MarketStrategies,
   TimingAdvice,
 } from "@/components/intel/StrategyCards";
-<<<<<<< HEAD
-import TacticalStagingMap from "@/components/intel/TacticalStagingMap";
-import { DemandRhythmChart } from "@/components/intel/DemandRhythmChart";
-import { MarketBoundaryGrid } from "@/components/intel/MarketBoundaryGrid";
-import { MarketDeadheadCalculator } from "@/components/intel/MarketDeadheadCalculator";
-import type { EventMission, AirportMission } from "@/types/tactical-map";
-import type { RegionType } from "@/types/demand-patterns";
-import { formatEventTime } from "@/utils/co-pilot-helpers";
-
-export default function RideshareIntelTab() {
-  const { refreshGPS, isUpdating, currentCoords, timeZone } = useLocation();
-  // 2026-01-14: Get ALL data from CoPilotContext (single source of truth)
-  // This prevents duplicate useBriefingQueries calls which create extra SSE subscriptions
-  const { lastSnapshotId: snapshotId, briefingData } = useCoPilot();
-
-  // Extract coords for TacticalStagingMap
-  const latitude = currentCoords?.latitude;
-  const longitude = currentCoords?.longitude;
-  const timezone = timeZone;
-=======
 // 2026-04-26 PHASE C: TacticalStagingMap deleted. The mission/staging-zone
 // concept was disabled (`null && ...` gate below) and the broader Phase D zone
 // overlay system on StrategyMap covers the staging/avoid semantics in a
@@ -95,7 +71,6 @@ export default function RideshareIntelTab() {
   // and its eventMissions/airportMissions/trafficContext assembly, all of
   // which were deleted in this phase. If a future intel surface needs them,
   // re-extract here at that time.
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // 1. Destructure RAW data from hook (may have unstable references)
   const {
@@ -139,75 +114,6 @@ export default function RideshareIntelTab() {
   const timing = useMemo(() => rawTiming || [], [rawTiming?.length]);
   // ---------------------------------------------------------------------------
 
-<<<<<<< HEAD
-  // 2026-01-14: Use pre-loaded briefing data from CoPilotContext
-  // Context provides unwrapped values: events (array), traffic (object), airport (object)
-  const eventsArray = briefingData?.events || [];
-  const trafficObj = briefingData?.traffic;
-  const airportObj = briefingData?.airport;
-
-  // Transform briefing data for TacticalStagingMap
-  // Use .length dependency to avoid loops from array reference changes
-  const eventMissions: EventMission[] = useMemo(() => {
-    return eventsArray
-      // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-      .filter((e: any) => e.latitude && e.longitude)
-      .map((e: any) => ({
-        id: `event-${e.title}`,
-        type: "event" as const,
-        name: e.venue || e.title,
-        lat: e.latitude,
-        lng: e.longitude,
-        // 2026-01-14: FIX - Format time as 12h AM/PM instead of 24h military time
-        subtitle: e.event_start_time ? `${e.title} - ${formatEventTime(e.event_start_time)}` : e.title,
-        venue: e.venue,
-        eventDate: e.event_start_date,
-        eventTime: e.event_start_time,
-        eventEndTime: e.event_end_time,
-        impact: e.impact,
-        category: e.event_type,
-        subtype: e.subtype,
-      }));
-  }, [eventsArray?.length]);
-
-  const airportMissions: AirportMission[] = useMemo(() => {
-    return (airportObj?.airports || [])
-      .filter((a: any) => a.lat && a.lng)
-      .map((a: any) => ({
-        id: `airport-${a.code}`,
-        type: "airport" as const,
-        name: a.name || a.code,
-        lat: a.lat,
-        lng: a.lng,
-        subtitle: a.status === "delays" ? `${a.code} - Delays` : a.code,
-        code: a.code,
-        status: a.status,
-        currentDelays:
-          a.arrivalDelays?.avgMinutes || a.departureDelays?.avgMinutes,
-      }));
-  }, [airportObj?.airports?.length]);
-
-  // Traffic context for AI tactical planner - use primitive deps for stability
-  // 2026-01-14: Updated to use trafficObj from CoPilotContext (unwrapped value)
-  const trafficContext = useMemo(() => {
-    if (!trafficObj) return undefined;
-    return {
-      congestionLevel: trafficObj.congestionLevel,
-      incidents: trafficObj.incidents,
-      avoidAreas: trafficObj.avoidAreas,
-    };
-  }, [
-    trafficObj?.congestionLevel,
-    trafficObj?.incidents?.length,
-  ]);
-
-  // Expand/collapse states
-  const [expandedSections, setExpandedSections] = useState({
-    marketPosition: true,
-    tacticalMap: true, // Tactical Staging Map section
-    demandRhythm: true, // NEW: Demand Rhythm Chart
-    marketGrid: true, // NEW: Market Boundary Grid
-=======
   // 2026-04-26 PHASE C: removed eventMissions/airportMissions/trafficContext
   // assembly — they only fed TacticalStagingMap, which has been deleted. The
   // raw briefingData.events/traffic/airport fields are still consumed by other
@@ -219,7 +125,6 @@ export default function RideshareIntelTab() {
     marketPosition: true,
     demandRhythm: true,
     marketGrid: true,
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     zones: true,
     strategies: true,
     calculator: true,
@@ -492,51 +397,10 @@ export default function RideshareIntelTab() {
         </Card>
       )}
 
-<<<<<<< HEAD
-      {/* Tactical Staging Map - DISABLED - Google Maps DOM conflicts with React */}
-      {/* TODO: Fix Google Maps integration to prevent removeChild errors */}
-      {/* eslint-disable-next-line no-constant-condition -- intentionally disabled */}
-      {null && latitude && longitude ? (
-        snapshotId ? (
-          <TacticalStagingMap
-            snapshotId={snapshotId}
-            driverLat={latitude}
-            driverLng={longitude}
-            timezone={timezone}
-            events={eventMissions}
-            airports={airportMissions}
-            trafficContext={trafficContext}
-          />
-        ) : (
-          <Card className="shadow-lg border-violet-200 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 border-b border-violet-100">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Target className="w-5 h-5 text-violet-600" />
-                Tactical Staging Map
-                <Badge
-                  variant="secondary"
-                  className="bg-violet-100 text-violet-700 ml-2"
-                >
-                  Loading...
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 text-center">
-              <Loader2 className="w-8 h-8 animate-spin text-violet-400 mx-auto mb-3" />
-              <p className="text-gray-600">Waiting for strategy data...</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Navigate to Strategy tab first to initialize
-              </p>
-            </CardContent>
-          </Card>
-        )
-      ) : null}
-=======
       {/* 2026-04-26 PHASE C: TacticalStagingMap render block deleted along
           with the component. Mission/staging concept now handled by Phase D
           zone overlays on StrategyMap (honey_hole, dead_zone, danger_zone,
           safe_corridor, caution_zone) sourced from market_intelligence. */}
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
       {/* Demand Rhythm Chart - Weekly demand visualization */}
       {isLocationResolved && (

@@ -23,25 +23,16 @@ interface Event {
   latitude?: number;
   longitude?: number;
   location?: string;
-<<<<<<< HEAD
-=======
   [key: string]: unknown;
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 }
 
 interface EventsComponentProps {
   events: Event[];
   isLoading?: boolean;
-<<<<<<< HEAD
-}
-
-export default function EventsComponent({ events, isLoading: _isLoading }: EventsComponentProps) {
-=======
   timezone?: string;
 }
 
 export default function EventsComponent({ events, isLoading: _isLoading, timezone }: EventsComponentProps) {
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     today: true,
     upcoming: true,
@@ -52,13 +43,8 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
     other: true,
   });
 
-<<<<<<< HEAD
-  // Filter events - only show events with valid times
-  const { todayEvents, upcomingEvents, invalidEvents } = filterValidEvents(events);
-=======
   // 2026-03-28: Pass timezone for accurate date comparison (fixes UTC mismatch near day boundaries)
   const { todayEvents, upcomingEvents, invalidEvents } = filterValidEvents(events, timezone);
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   const validEvents = [...todayEvents, ...upcomingEvents];
 
   // Log filtering results for debugging
@@ -155,23 +141,13 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
   };
 
   if (!events || events.length === 0 || validEvents.length === 0) {
-<<<<<<< HEAD
-=======
     // 2026-03-28: Differentiate between "no events at all" and "events found but invalid times"
     const noEventsAtAll = !events || events.length === 0;
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     return (
       <Card className="bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200">
         <CardContent className="p-6">
           <div className="flex items-center justify-center py-8 text-gray-500">
             <AlertCircle className="w-5 h-5 mr-2" />
-<<<<<<< HEAD
-            <span>No events found with valid times</span>
-          </div>
-          {invalidEvents.length > 0 && (
-            <p className="text-xs text-center text-gray-400 mt-2">
-              ({invalidEvents.length} events rejected - missing start/end times)
-=======
             <span>
               {noEventsAtAll
                 ? "No events found in your area"
@@ -181,7 +157,6 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
           {!noEventsAtAll && invalidEvents.length > 0 && (
             <p className="text-xs text-center text-gray-400 mt-2">
               ({invalidEvents.length} event{invalidEvents.length !== 1 ? 's' : ''} found but missing start/end times)
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
             </p>
           )}
         </CardContent>

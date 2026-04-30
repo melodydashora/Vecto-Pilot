@@ -4,21 +4,12 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-<<<<<<< HEAD
-  Sparkles,
-  Wine,
-  MessageSquare,
-  Map as MapIcon,
-  Heart,
-  Target
-=======
   Compass,
   Sparkles,
   Wine,
   MessageSquare,
   QrCode,
   Languages
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 } from 'lucide-react';
 
 interface TabConfig {
@@ -31,14 +22,6 @@ interface TabConfig {
   showPulse?: boolean;
 }
 
-<<<<<<< HEAD
-const tabs: TabConfig[] = [
-  {
-    id: 'strategy',
-    path: '/co-pilot/strategy',
-    label: 'Strategy',
-    icon: Sparkles,
-=======
 // 2026-04-25 (Phase A Pass 1 polish): tab order updated per browser-test feedback.
 // Coach moved to position 2 (right of Strategy) — drivers reach the AI surface
 // faster when they have a question while looking at strategy.
@@ -56,16 +39,10 @@ const tabs: TabConfig[] = [
     path: '/co-pilot/strategy',
     label: 'Strategy',
     icon: Compass,
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     activeColor: 'text-blue-600',
     activeBg: 'bg-blue-50'
   },
   {
-<<<<<<< HEAD
-    id: 'bars',
-    path: '/co-pilot/bars',
-    label: 'Bars',
-=======
     id: 'coach',
     path: '/co-pilot/coach',
     label: 'Coach',
@@ -77,7 +54,6 @@ const tabs: TabConfig[] = [
     id: 'bars',
     path: '/co-pilot/bars',
     label: 'Lounges & Bars',
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     icon: Wine,
     activeColor: 'text-purple-600',
     activeBg: 'bg-purple-50',
@@ -91,31 +67,6 @@ const tabs: TabConfig[] = [
     activeColor: 'text-indigo-600',
     activeBg: 'bg-indigo-50'
   },
-<<<<<<< HEAD
-  {
-    id: 'map',
-    path: '/co-pilot/map',
-    label: 'Map',
-    icon: MapIcon,
-    activeColor: 'text-green-600',
-    activeBg: 'bg-green-50'
-  },
-  {
-    id: 'intel',
-    path: '/co-pilot/intel',
-    label: 'Intel',
-    icon: Target,
-    activeColor: 'text-amber-600',
-    activeBg: 'bg-amber-50'
-  },
-  {
-    id: 'about',
-    path: '/co-pilot/about',
-    label: 'About',
-    icon: Heart,
-    activeColor: 'text-rose-600',
-    activeBg: 'bg-rose-50'
-=======
   // 2026-04-26 PHASE B: Map tab removed. The map now lives embedded in
   // StrategyPage. Drivers navigate to /co-pilot/strategy for both strategy
   // and the map — no more duplicate render path.
@@ -135,7 +86,6 @@ const tabs: TabConfig[] = [
     icon: QrCode,
     activeColor: 'text-teal-600',
     activeBg: 'bg-teal-50'
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   }
 ];
 
@@ -147,12 +97,8 @@ export function BottomTabNavigation() {
   const activeTab = tabs.find(tab => location.pathname === tab.path)?.id || 'strategy';
 
   return (
-<<<<<<< HEAD
-    <div
-=======
     <nav
       aria-label="Main navigation"
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50"
       data-testid="bottom-tabs"
     >
@@ -166,11 +112,8 @@ export function BottomTabNavigation() {
               <button
                 key={tab.id}
                 onClick={() => navigate(tab.path)}
-<<<<<<< HEAD
-=======
                 aria-current={isActive ? 'page' : undefined}
                 aria-label={tab.label}
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                 className={`flex-1 py-4 flex flex-col items-center gap-1 transition-colors ${
                   isActive
                     ? `${tab.activeColor} ${tab.activeBg}`
@@ -190,11 +133,7 @@ export function BottomTabNavigation() {
           })}
         </div>
       </div>
-<<<<<<< HEAD
-    </div>
-=======
     </nav>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   );
 }
 

@@ -1,21 +1,4 @@
 // client/src/pages/co-pilot/AboutPage.tsx
-<<<<<<< HEAD
-// Wrapper page for the About/Donation tab (static page, no header)
-
-import React from 'react';
-import { DonationTab } from '@/components/DonationTab';
-import { Link } from 'react-router-dom';
-
-export default function AboutPage() {
-  const userId = localStorage.getItem('vecto_user_id') || 'default';
-
-  return (
-    <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="about-page">
-      <DonationTab userId={userId} />
-
-      {/* Privacy Policy Link */}
-      <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
-=======
 // About page — product info, mission, and technical details
 //
 // 2026-04-05: Rewritten to show unique About content (was duplicate of Donate).
@@ -234,20 +217,16 @@ export default function AboutPage() {
 
       {/* Privacy Policy Link */}
       <div className="pt-2 border-t border-gray-200 dark:border-gray-700 text-center">
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         <Link to="/co-pilot/policy" className="text-blue-500 hover:text-blue-600 text-sm">
           Privacy Policy
         </Link>
       </div>
-<<<<<<< HEAD
-=======
 
       {/* Footer */}
       <div className="text-center text-xs text-gray-500">
         <p>Vecto Pilot™ — Built with care for rideshare drivers worldwide</p>
         <p className="mt-1">6 months of planning · 750+ hours of development · 5 advanced AI models</p>
       </div>
->>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     </div>
   );
 }
