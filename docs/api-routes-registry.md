@@ -2,7 +2,13 @@
 
 Complete reference of all API endpoints organized by domain.
 
-**Last Updated:** 2025-12-14
+**Last Updated:** 2026-04-30
+
+> **Current architecture state (2026-04-30):**
+> - **Mode:** Mono mode active — `gateway-server.js` is the single canonical entry.
+> - **Strategy:** Single live strategy engine — `STRATEGY_TACTICAL` via `server/lib/ai/providers/consolidator.js:157`. The legacy daily / `STRATEGY_DAILY` strategy was removed 2026-04-27 (`chore/remove-daily-strategy` merge `d39d570f`); this registry's TRIAD Pipeline section below has been updated accordingly.
+> - **Events dedup:** Choice A architecture (Rule 16 in CLAUDE.md, shipped 2026-04-30) — events deduplicated at INSERT in the briefing pipeline, never at read.
+> - **Known incompleteness:** Per `CODEBASE_AUDIT_2026-04-27.md`, this registry is still missing entries for several newer routes (memory, translate, hooks, tactical-plan, coach updates, realtime). A separate completeness pass is on the follow-up list.
 
 ---
 
@@ -12,7 +18,7 @@ Complete reference of all API endpoints organized by domain.
 |--------|-----------|------|---------|
 | Health | `/`, `/health`, `/ready` | No | Health probes |
 | Location | `/api/location/*` | No | GPS, geocoding, weather |
-| Strategy | `/api/blocks-fast`, `/api/strategy/*` | No | TRIAD pipeline |
+| Strategy | `/api/blocks-fast`, `/api/strategy/*` | Yes | Briefing → Strategy → Blocks pipeline (single STRATEGY_TACTICAL strategy) |
 | Briefing | `/api/briefing/*` | No | Events, traffic, news |
 | Chat | `/api/chat/*` | Yes | Rideshare Coach |
 | Voice | `/api/realtime/*`, `/api/tts` | **Yes** | Voice + TTS |
@@ -50,28 +56,34 @@ Complete reference of all API endpoints organized by domain.
 
 ---
 
-## Strategy Endpoints (TRIAD Pipeline)
+## Strategy Endpoints
 
 | Method | Path | Handler | Purpose |
 |--------|------|---------|---------|
-| POST | `/api/blocks-fast` | `blocks-fast.js` | **Main entry** - Trigger TRIAD pipeline |
+| POST | `/api/blocks-fast` | `blocks-fast.js` | **Main entry** — trigger Briefing → Strategy → Blocks pipeline |
 | GET | `/api/blocks-fast` | `blocks-fast.js` | Get blocks for snapshot |
 | GET | `/api/blocks/strategy/:snapshotId` | `content-blocks.js` | Get strategy with timing metadata |
 | GET | `/api/strategy/:snapshotId` | `strategy.js` | Get strategy status |
 | GET | `/api/strategy/events` | `strategy-events.js` | SSE for progress updates |
 
-### TRIAD Pipeline Flow
+### Pipeline Flow (post 2026-04-27 daily-strategy removal)
 ```
 POST /api/blocks-fast
     ↓
-Phase 1: Strategist + Briefer + Holiday (parallel)
+Phase 1: Briefing — parallel fetch (weather, traffic, events,
+         news, schools, airport) → briefings table
     ↓
-Phase 2: Daily + Immediate Consolidator (parallel)
+Phase 2: Immediate Strategy — STRATEGY_TACTICAL via
+         consolidator.js:157 → strategies.strategy_for_now
     ↓
-Phase 3: Venue Planner + Enrichment
+Phase 3: Smart Blocks — VENUE_SCORER + Google Places +
+         Google Routes → rankings, ranking_candidates
+         → pg_notify('blocks_ready')
     ↓
-Response: { strategy, blocks }
+Response: { strategy_for_now, blocks }
 ```
+
+> **TRIAD branding note:** The string `[TRIAD N/4]` lives on as a logging-stage convention in the workflow logger. The "TRIAD pipeline" framing as a *parallel* Strategist + Briefer + Consolidator fan-out (with a separate Daily branch) is historical — the live pipeline is the linear three-phase flow shown above.
 
 ---
 
