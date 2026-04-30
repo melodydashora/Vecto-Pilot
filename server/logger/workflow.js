@@ -1,53 +1,63 @@
 /**
  * Workflow-Aware Logging Utility
  *
- * VISUAL LOG DESIGN:
- * Each log line shows [SECTION ICON] message [OPERATION ICON]
- * - LEFT icon = Which workflow section (TRIAD, VENUES, BRIEFING)
- * - RIGHT icon = What operation type (AI call, API call, DB, etc.)
  *
  * Example output:
- *   [TRIAD 1/4] Calling strategist                    ← 🤖
- *   [TRIAD 1/4] Strategist complete (2341ms)       ← 🤖
- *   [VENUES 2/4] Calculating routes                   ← 🌐
- *   [VENUES 3/4] Fetching place details               ← 🌐
- *   [BRIEFING 1/3] Fetching traffic                   ← 🌐
- *   [DB] Saved strategy                               ← 💾
+ *   STRATEGY API Calling strategist                   
+ *   STRATEGY DB STRATEGIES.status "ok" complete (2341ms)     
+ *   VENUES Calculating routes                
+ *   VENUES API DB Fetching place details
+ *   VENUES DB BARS API Fetching place details - flagged
+ *   BARS API DB 
+ *   BRIEFING EVENTS AI DB EVENTS_DISCOVERY
+ *   VENUES DB EVENTS_DISCOVERY API Fetching place details - flagged            
+ *   BRIEFING Fetching traffic                 
+ *   STRATEGY DB Saved strategy                             
  *
  * WORKFLOW STAGES:
  *
- * 1. LOCATION RESOLUTION (Header/User Context)
- *    [LOCATION 1/3] GPS coordinates received
- *    [LOCATION 2/3] Geocoding/cache lookup
- *    [LOCATION 3/3] Weather + air quality fetched
+ * 1. [AUTH] [VALIDATION] DB users
+ *    [AUTH] [PERMISSION] DB snapshots.permission
+ *    [AUTH] [TOKEN] DB snapshots.id
+ *    DB users.user_id
+ *    DB users.market is authorized and snapshot id is created
+
  *
  * 2. SNAPSHOT CREATION
- *    [SNAPSHOT 1/2] Creating snapshot record
- *    [SNAPSHOT 2/2] Enrichment (airport, holiday)
+ *    [SNAPSHOT] Creating snapshot record
+ *    [SNAPSHOT] [DB] [USERS] fetch for snapshot.device_id
+ *    [SNAPSHOT] [DB] [USERS] fetch for snapshot.user_id
+ *    [SNAPSHOT] [LOCATION] GPS DB snapshots.lat, snapshots.lng received 
+ *    [SNAPSHOT] [LOCATION] API Geocoding for formal address snapshots.
+ *    [SNAPSHOT] [LOCATION] API Geocoding for timezone
+ *    [SNAPSHOT] [LOCATION] API Weather fetched
+ *    [SNAPSHOT] [LOCATION] API air quality fetched
+ *    [SNAPSHOT] Enrichment (airport, holiday)
  *
- * 3. STRATEGY PIPELINE (TRIAD)
- *    [TRIAD 1/4 - STRATEGY_CORE] Core strategic analysis
- *    [TRIAD 2/4 - STRATEGY_CONTEXT] Events/traffic/news gathering
- *    [TRIAD 3/4 - STRATEGY_TACTICAL] Immediate strategy synthesis
- *    [TRIAD 4/4 - SmartBlocks] Venue planning + enrichment
+ * 3. STRATEGY PIPELINE
+ *    [STRATEGY] [STRATEGY_CORE] Core strategic analysis
+ *    [STRATEGY] [STRATEGY_CONTEXT] Events/traffic/news gathering
+ *    [STRATEGY] [STRATEGY_TACTICAL] Immediate strategy synthesis
+ *    [STRATEGY] [VENUES] [SmartBlocks] Venue planning + enrichment
  *
  * 4. SMARTBLOCKS (Venue Pipeline)
- *    [VENUES 1/4] VENUE_SCORER role
- *    [VENUES 2/4] Google Routes API (distances)
- *    [VENUES 3/4] Google Places API (hours/status)
- *    [VENUES 4/4] DB store
+ *    [VENUES] VENUE_SCORER role
+ *    [VENUES] Google Routes API (distances)
+ *    [VENUES] Google Places (New) API (hours/status)
+ *    [VENUES] [DB] [venue_catalog] store
  *
- * 5. BRIEFING (Events/News)
- *    [BRIEFING 1/3] Traffic analysis
- *    [BRIEFING 2/3] Events discovery
- *    [BRIEFING 3/3] Event validation
+ * 5. BRIEFING (Events, Traffic, News, School Closures)
+ *    [BRIEFING] [API] [AI] traffic api called sent to briefier
+ *    [BRIEFING] [AI] Events discovery
+ *    [BRIEFING] [EVENTS] Event validation
  *
  * 6. EVENTS ETL (Event Discovery Pipeline)
- *    [EVENTS 1/5 - Extract|Providers] Provider calls (SerpAPI, Gemini, Claude)
- *    [EVENTS 2/5 - Transform|Normalize] normalizeEvent + validateEvent
- *    [EVENTS 3/5 - Transform|Geocode] Geocode + venue linking
- *    [EVENTS 4/5 - Load|Store] Upsert to discovered_events (event_hash dedup)
- *    [EVENTS 5/5 - Assemble|Briefing] Query from DB + shape for briefings
+ *    [BRIEFING] [EVENTS] [AI] - Briefer called for events + venue details
+ *    [EVENTS] - [Transform] normalizeEvent + validateEvent
+ *    [EVENTS] - Transform|Geocode] Geocode + venue linking
+ *    [EVENTS] [DB] [discovered_events] Upsert to discovered_events
+ *    [EVENTS] [FILTERER] [DEDUP] [DB] venue_catalog.
+ *    [EVENTS] [Assemble|Briefing] Query from DB + shape for briefings
  *
  * --------------------------------------------------------------------------
  * 2026-04-27 (Commit 1 of CLEAR_CONSOLE_WORKFLOW spec):

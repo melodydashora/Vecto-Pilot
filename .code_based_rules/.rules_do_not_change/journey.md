@@ -1,6 +1,7 @@
 ## My Thoughts On Working with AI Models and Brilliant Insignts/Quotes
 
 1. "how clearly can I architect and direct" vs "how fast can I type"
+2. "The win from triage isn't just organization — it's load reduction." - Claude 4/29/2026
 
 
 ## General Acknowledgement of Entity Theory

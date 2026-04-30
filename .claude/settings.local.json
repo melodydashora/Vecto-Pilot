@@ -317,7 +317,10 @@
       "Bash(cp /tmp/settings.local.json.backup /home/runner/workspace/.claude/settings.local.json)",
       "Bash(jq 'walk\\(if type == \"array\" then map\\(select\\(type != \"string\" or \\(test\\(\"mcp__plugin_serena_serena\"\\) | not\\)\\)\\) else . end\\)' /home/runner/workspace/.claude/settings.local.json)",
       "Bash(cp /tmp/settings.local.json.cleaned /home/runner/workspace/.claude/settings.local.json)",
-      "Bash(LOG_NO_EMOJI=true node -e \"import\\('./server/logger/workflow.js'\\).then\\(m => { m.barsLog.info\\('no-emoji test'\\); m.markPhaseStart\\({ request_id:'r1', snapshot_id:'s1', phase:'SNAPSHOT' }\\); m.logAICall\\('Strategist','claude-opus','test'\\); }\\);\")"
+      "Bash(LOG_NO_EMOJI=true node -e \"import\\('./server/logger/workflow.js'\\).then\\(m => { m.barsLog.info\\('no-emoji test'\\); m.markPhaseStart\\({ request_id:'r1', snapshot_id:'s1', phase:'SNAPSHOT' }\\); m.logAICall\\('Strategist','claude-opus','test'\\); }\\);\")",
+      "Bash(sed -n '203,215p' client/src/components/strategy/StrategyMap.tsx)",
+      "Bash(sed -n '900,925p' client/src/components/strategy/StrategyMap.tsx)",
+      "Bash(sed -n '349,375p' client/src/components/RideshareCoach.tsx)"
     ],
     "deny": [],
     "ask": []

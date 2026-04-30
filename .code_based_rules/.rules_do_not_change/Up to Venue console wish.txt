@@ -1,19 +1,19 @@
-2026-04-27T22:06:16.937Z INFO  [BOOT] file-tee installed (rotation at 10485760 bytes)
-2026-04-27T22:06:16.939Z INFO  [CONFIG] [ENV] Reconstructing GCP service account credentials from individual env vars...
-2026-04-27T22:06:16.940Z INFO  [CONFIG] [ENV] GCP credentials written to /tmp/gcp-credentials.json
-2026-04-27T22:06:16.940Z INFO  [CONFIG] [ENV] ========================================
-2026-04-27T22:06:16.940Z INFO  [CONFIG] [ENV] Environment Loader
-2026-04-27T22:06:16.940Z INFO  [CONFIG] [ENV] ========================================
-2026-04-27T22:06:16.941Z INFO  [CONFIG] [ENV] Loaded: .env.local
-2026-04-27T22:06:16.942Z INFO  [CONFIG] [ENV] [VALIDATION] AI Model Configuration
-2026-04-27T22:06:16.942Z INFO  [CONFIG] [ENV] [VALIDATION] Environment validation passed
-2026-04-27T22:06:16.942Z INFO  [GATEWAY] [BOOTSTRAP] Starting bootstrap (PID: 39973)
-2026-04-27T22:06:16.943Z INFO  [GATEWAY] Mode: MONO, Port: 5000
-2026-04-27T22:06:16.943Z INFO  [GATEWAY] Deployment: false, Autoscale: false
-2026-04-27T22:06:16.954Z INFO  [GATEWAY] [BOT BLOCKER] Bot blocker enabled (full protection)
-2026-04-27T22:06:16.964Z INFO  [GATEWAY] Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)
-2026-04-27T22:06:16.965Z INFO  [GATEWAY] Middleware configured
-2026-04-27T22:06:16.966Z INFO  [GATEWAY] [HEALTH] Health endpoints configured (/health, /ready, /healthz)
+[BOOT] file-tee installed (rotation at 10485760 bytes)
+[CONFIG] [ENV] Reconstructing GCP service account credentials from individual env vars...
+[CONFIG] [ENV] GCP credentials written to /tmp/gcp-credentials.json
+[CONFIG] [ENV] ========================================
+[CONFIG] [ENV] Environment Loader
+[CONFIG] [ENV] ========================================
+[CONFIG] [ENV] Loaded: .env.local
+[CONFIG] [ENV] [VALIDATION] AI Model Configuration
+[CONFIG] [ENV] [VALIDATION] Environment validation passed
+[GATEWAY] [BOOTSTRAP] Starting bootstrap (PID: 39973)
+[GATEWAY] Mode: MONO, Port: 5000
+[GATEWAY] Deployment: false, Autoscale: false
+[GATEWAY] [BOT BLOCKER] Bot blocker enabled (full protection)
+[GATEWAY] Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)
+[GATEWAY] Middleware configured
+[GATEWAY] [HEALTH] Health endpoints configured (/health, /ready, /healthz)
 2026-04-27T22:06:17.080Z INFO  [GATEWAY] [HEALTH] Health API router mounted at /api/health
 2026-04-27T22:06:17.081Z INFO  [GATEWAY] Loading modules and mounting routes...
 2026-04-27T22:06:17.081Z INFO  [GATEWAY] [SSE] [STRATEGY] Loading SSE strategy events...
@@ -56,8 +56,8 @@
 2026-04-27T22:06:17.558Z INFO  [GATEWAY] [BLOCKS] Content Blocks mounted at /api/blocks
 2026-04-27T22:06:17.558Z INFO  [GATEWAY] [STRATEGY] Loading Strategy...
 2026-04-27T22:06:17.560Z INFO  [GATEWAY] [STRATEGY] Strategy mounted at /api/strategy
-2026-04-27T22:06:17.560Z INFO  [GATEWAY] [TACTICAL PLAN] Loading Tactical Plan...
-2026-04-27T22:06:17.567Z INFO  [GATEWAY] [TACTICAL PLAN] Tactical Plan mounted at /api/strategy/tactical-plan
+2026-04-27T22:06:17.560Z INFO  [GATEWAY] [TACTICAL PLANNNER] Loading Tactical Plan...
+2026-04-27T22:06:17.567Z INFO  [GATEWAY] [TACTICAL PLANNNER] Tactical Plan mounted at /api/strategy/tactical-plan
 2026-04-27T22:06:17.567Z INFO  [GATEWAY] [FEEDBACK] Loading Feedback...
 2026-04-27T22:06:17.569Z INFO  [GATEWAY] [FEEDBACK] Feedback mounted at /api/feedback
 2026-04-27T22:06:17.569Z INFO  [GATEWAY] [RIDESHARE COACH] Loading Actions...

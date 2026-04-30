@@ -40,26 +40,154 @@ Client-side noisy areas include:
 The correct direction is:
 
 1. Make the waterfall visible.
-2. Number the workflow phases.
-3. Suppress auxiliary chatter by default.
+2. Do not number the waterfall.
+3. Actual Results from calls and what is sent to calls should go to tests folder with current data.
 4. Preserve warnings and errors.
-5. Make debug detail opt-in.
-6. Add enough structure to detect duplicate or out-of-order calls.
+5. Add enough structure to detect duplicate or out-of-order calls.
 
 ## Core finding
 
 The console should not show scattered subsystem activity as if it were the primary workflow.
 
-The app should emit a clear waterfall:
+# The app should emit a clear waterfall using chaining tags:
 
-1. Snapshot
-2. Briefing
-3. Strategy
-4. Venue Planning
-5. Waterfall Complete
+A. Logs should not show model names or locations, nothing except verification run successful with why
+
+***Example of what is in logs: [CONFIG] [ENV] [VALIDATION] AI Model Configuration {
+  strategist: 'claude-opus-4-7',
+  briefer: 'gemini-3.1-pro-preview',
+  consolidator: 'gpt-5.4'
+}
+*** Would instead be: [CONFIG] [ENV] [VALIDATION] AI Model Configuration: strategist, briefer, planner, filterer assigned etc (naming conventions need to be solidified and used across code and comments. Right now there is confusion around consolidator and tactical planner.
+
+B. Always on the left - they describe only the phase occurring and should not be shown in the logs out of     order as that would certify non waterall method or catagorized incorrectly
+C. Should be in all caps surrounded by brackets [] 
+D. Should start chain and categorize the actions
+
+
+### Level 1 Tags (not exclusive) - Non-Functional Catagory Name
+
+1. AUTH
+2. USERS
+3. LOCATION
+4. SNAPSHOT
+5. BARS
+6. BRIEFING
+7. EVENTS
+8. STRATEGY
+9. SIRI SHORTCUT
+10. TRANSLATION
+11. RIDESHARE COACH
+12. VENUES
+13. WATERFALL COMPLETE
+
+### Level 1 Tags - System (Always before Non-Functional Tags)
+
+1. CONFIG
+2. GATEWAY
+3. BOOT
+4. AGENT EMBED
+5. UNIFIED AI
+6. TTS (AUTH)
+7. HEALTH
+
+   
+
+### Level 2 and below Tags appear after Level 1 Tags and can be level 1 tags as well - these show what part of the workflow is causing an action to happen
+
+1. API
+2. DB
+3. AI
+4. EVENTS
+5. NEWS
+6. WEATHER FORCAST
+7. SCHOOL CLOSURES
+8. BRIEFIER
+9. STRATEGIST
+10. PLANNER
+11. VENUE SCORER
+12. FILTERING AGENT
+
+### Level 2 System Tags
+
+1. ENV
+2. TTS
+
+### Level 3 Tags and or Table names
+
+A. If its a table action should include field name 
+
+### Action Tags
+
+1. DEDUP
+2. FILTER
+3. ENRICHMENT
+4. VALIDATION
+
+
+
+Table Names
+
+1. actions 
+2. app_feedback 
+3. assistant_memory ***Delete
+4. auth_credentials 
+5. block_jobs 
+6. briefings 
+7. claude_memory 
+8. coach_conversations 
+9. coach_system_notes  
+10. concierge_feedback 
+11. connection_audit 
+12. coords_cache 
+13. countries 
+14. cross_thread_memory 
+15. discovered_events 
+16. driver_goals 
+17. driver_profiles 
+18. driver_tasks ****Delete 
+19. driver_vehicles 
+20. eidolon_memory 
+21. eidolon_snapshots 
+22. http_idem 
+23. intercepted_signals 
+24. llm_venue_suggestions 
+25. market_cities 
+26. market_intel 
+27. market_intelligence 
+28. markets 
+29. news_deactivations 
+30. oauth_states 
+31. offer_intelligence 
+32. places_cache 
+33. platform_data 
+34. ranking_candidates 
+35. rankings 
+36. safe_zones 
+37. snapshots 
+38. staging_saturation 
+39. strategies 
+40. strategy_feedback 
+41. traffic zones 
+42. travel_disruptions 
+43. triad_jobs 
+44. uber_connections 
+45. user_intel_notes
+46. users
+47. vehicle_makes_cache 
+48. vehicle_models_cache
+49. venue_catalog 
+50. venue_events 
+51. venue_feedback 
+52. venue_metrics 
+53. verification_codes
+54. zone_intelligence
+
+BRIEFING_DEDUP, EVENTS_DEDUP
 
 The ordering rule should be strict:
 
+- Snapshot cannot begin until authentication is complete
 - Briefing cannot begin until Snapshot is complete.
 - Strategy cannot begin until Briefing is complete.
 - Venue Planning cannot begin until Strategy is complete.
@@ -69,27 +197,24 @@ Bars and lounges are the exception. They are auxiliary and currently scattered t
 
 ## Desired normal console shape
 
-At normal `LOG_LEVEL=info`, the console should look like this:
+At normal `LOG_LEVEL=info`, the console should show chain of workflow
 
 ```text
-2026-04-27T15:32:10.101Z INFO [1/5 SNAPSHOT req=a91f3d2c snap=7b8c12aa] Start route=/api/snapshot
-2026-04-27T15:32:10.412Z INFO [1/5 SNAPSHOT req=a91f3d2c snap=7b8c12aa] Complete city=Frisco state=TX duration_ms=311
+AUTH -> SIGN IN -> PERMISSION GRANTED -> SNAPSHOT STARTED
+SNAPSHOT -> API -> WEATHER 
+SNAPSHOT <- WEATHER returned ok
+SNAPSHOT -> DB -> SNAPSHOTS.status ok
+BRIEFING <- SNAPSHOT id received
+BRIEFING -> AI -> EVENT_DISCOVERY -> DB -> VENUE_CATALOG -> API -> EVENT_DISCOVERY  
 
-2026-04-27T15:32:10.413Z INFO [2/5 BRIEFING req=a91f3d2c snap=7b8c12aa] Start
-2026-04-27T15:32:11.180Z INFO [2/5 BRIEFING req=a91f3d2c snap=7b8c12aa] Weather complete duration_ms=220
-2026-04-27T15:32:11.620Z INFO [2/5 BRIEFING req=a91f3d2c snap=7b8c12aa] Events complete count=38 duration_ms=440
-2026-04-27T15:32:12.084Z INFO [2/5 BRIEFING req=a91f3d2c snap=7b8c12aa] Complete duration_ms=1671
+## Desired chain definitions
 
-2026-04-27T15:32:12.085Z INFO [3/5 STRATEGY req=a91f3d2c snap=7b8c12aa] Start role=STRATEGY_STRATEGIST model=claude-opus-4-7
-2026-04-27T15:32:13.491Z INFO [3/5 STRATEGY req=a91f3d2c snap=7b8c12aa] Complete duration_ms=1406
+- Hightest Levels
 
-2026-04-27T15:32:13.492Z INFO [4/5 VENUE_PLANNING req=a91f3d2c snap=7b8c12aa] Start
-2026-04-27T15:32:14.227Z INFO [4/5 VENUE_PLANNING req=a91f3d2c snap=7b8c12aa] Complete duration_ms=735 blocks=8 venues=24
+-- Configuration labels such as gateway, boot, agent, health, pid assignment not exclussive should stay ----- exactly how it is.
 
-2026-04-27T15:32:14.228Z INFO [5/5 WATERFALL req=a91f3d2c snap=7b8c12aa] Complete total_ms=4127
-```
 
-That is the console contract.
+That is the console contract. 
 
 Every visible line should answer one of these questions:
 
@@ -98,7 +223,7 @@ Every visible line should answer one of these questions:
 - Did the phase complete?
 - Did the phase fail?
 - How long did it take?
-- Which request and snapshot does it belong to?
+
 
 Everything else belongs in debug.
 
@@ -107,23 +232,16 @@ Everything else belongs in debug.
 The following should not appear at normal info level:
 
 ```text
-🍺 [BARS] "WB's Table" - Calculated is_open=false from weekdayDescriptions
-🍺 [BARS] "The Brass Tap - Frisco" - Could not find Monday in weekdayDescriptions
-[venue-cache] Enriched venue ... from Places API
-[DEDUP] Merged 2 variants → kept ...
-[BriefingRoute] GET /events: today=...
-💾 [DB] Channel briefing_events_ready: 2 subscriber(s)
-📡 [SSE 1/1] SSE /events/strategy connected (2 active)
-[StrategyMap] Added 24 bar markers
-```
+ from weekdayDescriptions
 
-Those are diagnostics, not workflow milestones.
+
+
+Those are diagnostics which are workflow milestones as workflow is fail hard.
 
 They should become:
 
-- debug-only,
-- summarized,
-- or component-quieted.
+Chain of events that can be understood as aligned workflow and developers rules and requirements are better understood.
+
 
 ## Recommended implementation
 
@@ -132,7 +250,7 @@ They should become:
 Add:
 
 - `LOG_LEVEL=debug|info|warn|error`
-- `LOG_QUIET_COMPONENTS=BARS,VENUES,SSE,DB,BRIEFING_DEDUP`
+- `LOG_QUIET_COMPONENTS= list each of the following chain tags by single data points returned we don't want to see every bar name or venue name listed in the console BARS,VENUES,SSE,DB,BRIEFING_DEDUP`
 - `LOG_VERBOSE_COMPONENTS=BARS,VENUES,SSE,DB`
 - `LOG_FORMAT=pretty|json|both`
 - `withContext({ request_id, snapshot_id, route })`
@@ -143,7 +261,7 @@ Warnings and errors should always emit unless there is a very explicit override.
 
 ### 2. Enforce waterfall phases
 
-Use a fixed phase taxonomy:
+Use a fixed phase taxonomy but do not use numbers:
 
 ```js
 const WATERFALL_PHASES = {

@@ -130,3 +130,7 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 - **Priority:** high | **Date:** 2026-04-29 00:18
 - Implement a prominent banner in the app UI to display active severe weather alerts (like Tornado Watches, Severe Thunderstorm Warnings, etc.) based on the driver's current location. This is critical for driver safety and real-time strategy adjustments.
   - Files: client/src/components/layout/AppBanner.tsx, client/src/features/weather/WeatherWidget.tsx
+
+### [BUG] TTS playback lag between sentences
+- **Priority:** medium | **Date:** 2026-04-30 00:12
+- Noticed a slight lag between sentences during voice playback. Might need to tweak the TTS engine settings, adjust the pause duration for punctuation, or pre-buffer the audio chunks more aggressively.
