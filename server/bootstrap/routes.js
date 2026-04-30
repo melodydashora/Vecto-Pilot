@@ -68,6 +68,10 @@ export async function mountRoutes(app, server) {
     // Briefing (server/api/briefing/)
     { path: '/api/briefing', module: './server/api/briefing/briefing.js', desc: 'Briefing' },
 
+    // Traffic incidents cache (server/api/traffic/) — 2026-04-29 Plan G
+    // Snapshot-scoped read API for discovered_traffic; decouples map from briefing assembly
+    { path: '/api/traffic', module: './server/api/traffic/index.js', desc: 'Traffic Incidents Cache' },
+
     // Auth (server/api/auth/)
     { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
     // 2026-02-03: Uber OAuth

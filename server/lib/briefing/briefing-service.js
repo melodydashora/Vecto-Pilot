@@ -1,7 +1,7 @@
 
 import { db } from '../../db/drizzle.js';
 // 2026-02-17: Renamed market_cities → market_cities (market consolidation)
-import { briefings, snapshots, discovered_events, market_cities, venue_catalog } from '../../../shared/schema.js';
+import { briefings, snapshots, discovered_events, market_cities, venue_catalog, discovered_traffic } from '../../../shared/schema.js';
 import { eq, and, desc, sql, gte, lte, ilike, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 // 2026-02-17: Removed event-schedule-validator.js (dead code — Gemini handles all event discovery)
@@ -2068,6 +2068,11 @@ export async function fetchTrafficConditions({ snapshot }) {
         });
 
         // Format incidents for display (prioritized, within 10mi)
+        // 2026-04-29: PHASE F RESTORE — incidentLat/incidentLon must be preserved here
+        // so the StrategyMap incidents layer can plot triangle markers. The TomTom
+        // parser at server/lib/traffic/tomtom.js already extracts these from
+        // inc.geometry.coordinates; they were being silently dropped at this shaping
+        // step, which is the regression that disabled the map's incident layer.
         const prioritizedIncidents = traffic.incidents.slice(0, 10).map(inc => ({
           description: inc.displayDescription || `${inc.category}: ${inc.location}`,
           severity: inc.magnitude === 'Major' ? 'high' : inc.magnitude === 'Moderate' ? 'medium' : 'low',
@@ -2078,8 +2083,49 @@ export async function fetchTrafficConditions({ snapshot }) {
           priority: inc.priority,
           delayMinutes: inc.delayMinutes,
           lengthMiles: inc.lengthMiles,
-          distanceFromDriver: inc.distanceFromDriver  // Distance in miles from driver's position
+          distanceFromDriver: inc.distanceFromDriver,  // Distance in miles from driver's position
+          incidentLat: inc.incidentLat ?? null,
+          incidentLon: inc.incidentLon ?? null
         }));
+
+        // 2026-04-29: Plan G — write incidents-with-coords to discovered_traffic
+        // cache table (circuit breaker against the Phase F regression class).
+        // Best-effort: failure here is logged but does not break the briefing
+        // path. The Phase F render path (briefingData.traffic.incidents) is
+        // unchanged; this write is purely additive for the API consumer.
+        if (snapshot?.snapshot_id && snapshot?.device_id) {
+          const incidentsWithCoords = prioritizedIncidents.filter(
+            (inc) => inc.incidentLat != null && inc.incidentLon != null && inc.category
+          );
+          if (incidentsWithCoords.length > 0) {
+            try {
+              const rows = incidentsWithCoords.map((inc, idx) => ({
+                snapshot_id: snapshot.snapshot_id,
+                device_id: snapshot.device_id,
+                // TomTom doesn't expose a stable id at this layer; synthesize one
+                // from coords + category that's stable for the same incident across
+                // duplicate fetches but unique across distinct incidents.
+                incident_id: inc.incidentId || `${inc.category}|${inc.incidentLat.toFixed(5)}|${inc.incidentLon.toFixed(5)}|${idx}`,
+                category: inc.category,
+                severity: inc.severity,
+                description: inc.description ?? null,
+                road: inc.road ?? null,
+                location: inc.location ?? null,
+                is_highway: !!inc.isHighway,
+                delay_minutes: inc.delayMinutes ?? null,
+                length_miles: inc.lengthMiles ?? null,
+                distance_miles: inc.distanceFromDriver ?? null,
+                lat: inc.incidentLat,
+                lng: inc.incidentLon,
+                raw_payload: inc,
+              }));
+              // ON CONFLICT DO NOTHING: per-snapshot dedup via UNIQUE (snapshot_id, incident_id)
+              await db.insert(discovered_traffic).values(rows).onConflictDoNothing();
+            } catch (writeErr) {
+              briefingLog(OP.BRIEFING, `[traffic-cache] discovered_traffic write failed (non-fatal): ${writeErr?.message || writeErr}`);
+            }
+          }
+        }
 
         // Separate closures for expandable section (also filtered by distance)
         const allClosures = (traffic.allIncidents || traffic.incidents)
