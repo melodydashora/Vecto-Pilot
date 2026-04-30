@@ -320,7 +320,9 @@
       "Bash(LOG_NO_EMOJI=true node -e \"import\\('./server/logger/workflow.js'\\).then\\(m => { m.barsLog.info\\('no-emoji test'\\); m.markPhaseStart\\({ request_id:'r1', snapshot_id:'s1', phase:'SNAPSHOT' }\\); m.logAICall\\('Strategist','claude-opus','test'\\); }\\);\")",
       "Bash(sed -n '203,215p' client/src/components/strategy/StrategyMap.tsx)",
       "Bash(sed -n '900,925p' client/src/components/strategy/StrategyMap.tsx)",
-      "Bash(sed -n '349,375p' client/src/components/RideshareCoach.tsx)"
+      "Bash(sed -n '349,375p' client/src/components/RideshareCoach.tsx)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/events/pipeline.test.js --verbose)",
+      "Bash(pg_dump --version)"
     ],
     "deny": [],
     "ask": []
@@ -329,5 +331,8 @@
     "feature-dev@claude-plugins-official": true,
     "serena@claude-plugins-official": false
   },
-  "outputStyle": "Explanatory"
+  "outputStyle": "Explanatory",
+  "remote": {
+    "defaultEnvironmentId": "env_01CtSSe8JnV9GQvnwiG3K5Ab"
+  }
 }
