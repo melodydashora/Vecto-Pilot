@@ -34,15 +34,18 @@ const router = new HedgedRouter({
       aiLog.debug(`HedgedRouter: Calling OpenAI...`);
       const config = req.configs['openai'];
       if (!config) throw new Error('No config for openai');
-      
+
       const { system, user, messages } = req.params;
       const { model, maxTokens, temperature, reasoningEffort, useWebSearch } = config;
 
+      // 2026-04-30: pass role so the adapter can chain-prefix log lines on
+      // the LEFT (e.g. [BRIEFING] [TRAFFIC] [AI] gpt-5-search-api request)
+      // instead of emitting orphan [AI] lines.
       let result;
       if (useWebSearch) {
-        result = await callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort });
+        result = await callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort, role: req.role });
       } else {
-        result = await callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort });
+        result = await callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort, role: req.role });
       }
       if (!result.ok) throw new Error(result.error);
       return result;

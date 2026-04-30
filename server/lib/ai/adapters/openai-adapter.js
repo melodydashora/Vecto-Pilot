@@ -8,7 +8,48 @@
 //   now — Phase B will address model-name leakage in those callsites.
 
 import OpenAI from "openai";
-import { aiLog, OP } from "../../../logger/workflow.js";
+import { aiLog, chainLog, OP } from "../../../logger/workflow.js";
+
+// 2026-04-30: chain-aware logging — derive {parent, sub} from the role passed
+// down from callModel(role, ...) so adapter logs match the workflow chain on
+// the LEFT (e.g. [BRIEFING] [TRAFFIC] [AI] gpt-5-search-api request) instead
+// of orphan [AI] lines. Non-canonical roles (or direct adapter calls outside
+// the role-routed path) fall back to plain aiLog.
+function chainFromRole(role) {
+  if (!role || typeof role !== 'string') return null;
+  // Special case: AI_COACH should chain as [COACH], not [AI] [COACH]
+  if (role === 'AI_COACH') return { parent: 'COACH' };
+  const idx = role.indexOf('_');
+  if (idx === -1) return { parent: role };
+  return { parent: role.slice(0, idx), sub: role.slice(idx + 1) };
+}
+
+function logAiRequest(role, message) {
+  const chain = chainFromRole(role);
+  if (chain) {
+    chainLog({ ...chain, callTypes: ['AI'] }, message);
+  } else {
+    aiLog.phase(1, message, OP.AI);
+  }
+}
+
+function logAiDone(role, message) {
+  const chain = chainFromRole(role);
+  if (chain) {
+    chainLog({ ...chain, callTypes: ['AI'] }, message);
+  } else {
+    aiLog.done(1, message, OP.AI);
+  }
+}
+
+function logAiError(role, message, err) {
+  const chain = chainFromRole(role);
+  if (chain) {
+    chainLog({ ...chain, callTypes: ['AI'] }, `${message}: ${err?.message || err}`, { level: 'error' });
+  } else {
+    aiLog.error(1, message, err, OP.AI);
+  }
+}
 
 function _aiDebug(...args) {
   if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') console.log(...args);
@@ -60,7 +101,7 @@ function getClient() {
   return client;
 }
 
-export async function callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort }) {
+export async function callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort, role }) {
   try {
     const openai = getClient();
     // Allow passing full messages array OR build from system/user
@@ -104,19 +145,19 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
     }
 
     const shortModel = model.split('-').slice(0, 2).join('-');
-    aiLog.phase(1, `${shortModel} request (${maxTokens} tokens)`, OP.AI);
+    logAiRequest(role, `${shortModel} request (${maxTokens} tokens)`);
 
     const res = await openai.chat.completions.create(body);
 
     const output = res?.choices?.[0]?.message?.content?.trim() || "";
 
-    aiLog.done(1, `${shortModel} response (${output?.length ?? 0} chars)`, OP.AI);
+    logAiDone(role, `${shortModel} response (${output?.length ?? 0} chars)`);
 
     return output
       ? { ok: true, output }
       : { ok: false, output: "", error: "Empty response from OpenAI" };
   } catch (err) {
-    aiLog.error(1, `OpenAI error`, err, OP.AI);
+    logAiError(role, `OpenAI error`, err);
     return { ok: false, output: "", error: err?.message || String(err) };
   }
 }
@@ -137,7 +178,7 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
  * @param {string} [params.reasoningEffort='medium'] - Reasoning effort
  * @returns {Promise<{ok: boolean, output: string, error?: string, citations?: Array}>}
  */
-export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort = 'medium' }) {
+export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort = 'medium', role }) {
   try {
     const messages = [];
     if (system) messages.push({ role: "system", content: system });
@@ -167,7 +208,7 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
     // Unlike regular GPT-5 family models, the search model only accepts web_search_options
     // Removed: body.reasoning_effort = reasoningEffort;
 
-    aiLog.phase(1, `${searchModel} web-search request (${maxTokens} tokens)`, OP.AI);
+    logAiRequest(role, `${searchModel} web-search request (${maxTokens} tokens)`);
 
     const openai = getClient();
     const res = await openai.chat.completions.create(body);
@@ -187,13 +228,13 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
         endIndex: a.end_index
       }));
 
-    aiLog.done(1, `${searchModel} web-search response (${output?.length ?? 0} chars, ${citations.length} citations)`, OP.AI);
+    logAiDone(role, `${searchModel} web-search response (${output?.length ?? 0} chars, ${citations.length} citations)`);
 
     return output
       ? { ok: true, output, citations }
       : { ok: false, output: "", error: "Empty response from OpenAI web search" };
   } catch (err) {
-    aiLog.error(1, `OpenAI web-search error`, err, OP.AI);
+    logAiError(role, `OpenAI web-search error`, err);
     return { ok: false, output: "", error: err?.message || String(err) };
   }
 }
