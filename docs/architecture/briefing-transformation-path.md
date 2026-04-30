@@ -9,8 +9,6 @@
 
 Briefing data is stored as JSONB columns in the `briefings` table. The **consolidator** (`server/lib/ai/providers/consolidator.js`) reads these columns, renames/transforms them into a simpler `briefing` object, then passes that object to `generateImmediateStrategy()`. The strategist prompt functions further transform specific fields into structured text blocks.
 
-> **Note (2026-04-27):** The daily / `generateDailyStrategy()` path was removed in the `chore/remove-daily-strategy` merge (commit `d39d570f`). STRATEGY_TACTICAL via `generateImmediateStrategy()` is now the sole live strategist consumer of this transformation path. References to `consolidateForDailyStrategy()` and the daily path below are preserved for historical context only — those code paths no longer exist in `consolidator.js`.
-
 ## 1. Persisted DB Column Shape (`briefings` table)
 
 Defined in `shared/schema.js` lines 108-128.

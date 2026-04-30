@@ -100,7 +100,7 @@ Provides cross-provider fallback:
 |------|-------|----------|---------|
 | `STRATEGY_CORE` | claude-opus-4-6 | — | Core strategic plan |
 | `STRATEGY_CONTEXT` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | Real-time context gathering |
-| `STRATEGY_TACTICAL` | claude-opus-4-6 | — | 1-hour tactical consolidation (sole live strategy role post-2026-04-27) |
+| `STRATEGY_TACTICAL` | claude-opus-4-6 | — | 1-hour tactical consolidation |
 
 #### Venue/Ranking Roles
 
@@ -462,7 +462,7 @@ All read from `process.env`. No values stored in code.
 | Path | Auth | Model | Status |
 |------|------|-------|--------|
 | Rideshare Coach chat | `requireAuth` | Gemini 3.1 Pro (streaming) | Working |
-| Tactical strategy (sole live strategy) | `requireAuth` (via waterfall) | Claude Opus 4.6 | Working |
+| Tactical strategy | `requireAuth` (via waterfall) | Claude Opus 4.6 | Working |
 | Briefing (7 LLM calls) | `requireAuth` (via waterfall) | Gemini 3.1 Pro (search) | Working |
 | Concierge search | Share token | Gemini 3.1 Pro (search) | Working |
 | Concierge chat | Share token | Gemini 3.1 Pro (search) | Working |

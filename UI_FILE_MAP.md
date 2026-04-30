@@ -5,10 +5,7 @@
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
 
-> **Current architecture state (2026-04-30):**
-> - **Strategy UI:** The "Daily Strategy" / 12HR strategy button and its associated UI surfaces were removed alongside the backend `STRATEGY_DAILY` removal on 2026-04-27 (`chore/remove-daily-strategy` merge `d39d570f`). The Strategy tab now shows only the NOW (1-hour tactical) strategy via `strategies.strategy_for_now`. Mappings below describing a Daily Strategy button or `consolidated_strategy` UI binding are stale — those bindings were removed in the daily-strategy merge but this doc has not yet been re-walked.
-> - **Mode:** Mono mode active. The client always talks to `gateway-server.js` as the single backend entry.
-> - **Below mappings are the 2026-02-15 snapshot.** A full UI re-walk is on the followup list; the post-daily-removal UI state is correct in the codebase, but the explicit per-component table below has not been re-verified against the current `client/src/`. Trust the code over this doc when they conflict.
+> **Note:** The per-component mappings below have not been re-walked against current code. Trust the code when they conflict; a full re-walk is on the follow-up list.
 
 ---
 

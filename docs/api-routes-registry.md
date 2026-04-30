@@ -4,11 +4,7 @@ Complete reference of all API endpoints organized by domain.
 
 **Last Updated:** 2026-04-30
 
-> **Current architecture state (2026-04-30):**
-> - **Mode:** Mono mode active — `gateway-server.js` is the single canonical entry.
-> - **Strategy:** Single live strategy engine — `STRATEGY_TACTICAL` via `server/lib/ai/providers/consolidator.js:157`. The legacy daily / `STRATEGY_DAILY` strategy was removed 2026-04-27 (`chore/remove-daily-strategy` merge `d39d570f`); this registry's TRIAD Pipeline section below has been updated accordingly.
-> - **Events dedup:** Choice A architecture (Rule 16 in CLAUDE.md, shipped 2026-04-30) — events deduplicated at INSERT in the briefing pipeline, never at read.
-> - **Known incompleteness:** Per `CODEBASE_AUDIT_2026-04-27.md`, this registry is still missing entries for several newer routes (memory, translate, hooks, tactical-plan, coach updates, realtime). A separate completeness pass is on the follow-up list.
+> **Note:** This registry is known to be missing entries for several routes (memory, translate, hooks, tactical-plan, coach updates, realtime). A completeness pass is on the follow-up list.
 
 ---
 
@@ -66,7 +62,7 @@ Complete reference of all API endpoints organized by domain.
 | GET | `/api/strategy/:snapshotId` | `strategy.js` | Get strategy status |
 | GET | `/api/strategy/events` | `strategy-events.js` | SSE for progress updates |
 
-### Pipeline Flow (post 2026-04-27 daily-strategy removal)
+### Pipeline Flow
 ```
 POST /api/blocks-fast
     ↓
@@ -83,7 +79,6 @@ Phase 3: Smart Blocks — VENUE_SCORER + Google Places +
 Response: { strategy_for_now, blocks }
 ```
 
-> **TRIAD branding note:** The string `[TRIAD N/4]` lives on as a logging-stage convention in the workflow logger. The "TRIAD pipeline" framing as a *parallel* Strategist + Briefer + Consolidator fan-out (with a separate Daily branch) is historical — the live pipeline is the linear three-phase flow shown above.
 
 ---
 

@@ -1,7 +1,6 @@
 # STRATEGY.md — Strategy Generation Architecture
 
 > **Canonical reference** for the NOW (1-hour tactical) strategy system.
-> The daily / 12-Hour consolidated strategy was removed 2026-04-27 (`chore/remove-daily-strategy` merge `d39d570f`); STRATEGY_TACTICAL is now the singular live strategy engine. The `strategies.consolidated_strategy` column is dead-but-defined and is scheduled for removal in the Phase 3 schema fix.
 > Last updated: 2026-04-30
 
 ## Supersedes
@@ -42,7 +41,7 @@
 | Typical latency | 5–8 seconds |
 | Route | Part of `POST /api/blocks-fast` |
 
-**Key design point:** The NOW strategy is always auto-generated as part of the main pipeline. There is no separate user-initiated daily strategy — that path was removed 2026-04-27.
+**Key design point:** The NOW strategy is auto-generated as part of the main pipeline.
 
 ---
 
@@ -148,8 +147,8 @@ Before injection into LLM prompts, raw data is compressed:
 | `phase` | text | Pipeline phase (see Section 8) |
 | `phase_started_at` | timestamp | When current phase began (for progress bar) |
 | `error_message` | text | Failure reason |
-| `strategy_for_now` | text | **NOW strategy** — 1-hour tactical (sole live strategy output) |
-| `consolidated_strategy` | text | **DEAD COLUMN** — was 12HR strategy; removed 2026-04-27, column drop pending in Phase 3 schema fix |
+| `strategy_for_now` | text | **NOW strategy** — 1-hour tactical |
+| `consolidated_strategy` | text | unused |
 | `created_at` | timestamp | Row creation |
 | `updated_at` | timestamp | Last update |
 
@@ -159,7 +158,7 @@ Before injection into LLM prompts, raw data is compressed:
 
 **File:** `migrations/20260110_fix_strategy_now_notify.sql`
 
-A PostgreSQL trigger fires `pg_notify('strategy_ready', ...)` when the `strategy_for_now` column is updated. This drives the SSE notification to clients. (The trigger also fires on `consolidated_strategy` updates, but that column is dead post-2026-04-27 and the clause will be simplified in the Phase 3 schema fix.)
+A PostgreSQL trigger fires `pg_notify('strategy_ready', ...)` when the `strategy_for_now` column is updated. This drives the SSE notification to clients.
 
 ---
 
@@ -234,8 +233,6 @@ Briefing data is a **required input** to strategy generation. The flow is strict
 |-----|---------|------------|
 | `vecto_strategy_snapshot_id` | Snapshot ID the strategy belongs to | Logout, manual refresh, snapshot change |
 
-> **Note:** The legacy `vecto_persistent_strategy` localStorage key (which stored the 12HR `consolidated_strategy` text) is no longer written post-2026-04-27. Stale entries on returning clients are harmless — the value is no longer read by `co-pilot-context.tsx` after the daily strategy removal.
-
 On resume: CoPilotContext restores strategy from localStorage only if `vecto_strategy_snapshot_id` matches the current `lastSnapshotId`. Mismatched strategies are discarded.
 
 ### SSE-Driven Cache Refresh
@@ -307,7 +304,7 @@ isStrategyFetching: boolean;            // React Query isFetching flag
 
 | Area | Status |
 |------|--------|
-| NOW strategy generation (Claude Opus) | Working — auto-generated in waterfall (sole live strategy post-2026-04-27) |
+| NOW strategy generation (Claude Opus) | Working — auto-generated in waterfall |
 | Briefing → Strategy dependency | Working — 90s readiness gate |
 | Strategy polling (3s) | Working — stops on ok/error |
 | SSE strategy_ready notification | Working — pg_notify trigger |
@@ -334,7 +331,6 @@ isStrategyFetching: boolean;            // React Query isFetching flag
 ## 12. TODO — Hardening Work
 
 - [x] **Inject driver preferences into strategy prompt** — DONE 2026-04-11. Vehicle class, fuel economy, earnings goal, shift hours, max deadhead, home base.
-- [x] **Daily strategy removed** — DONE 2026-04-27 in `chore/remove-daily-strategy` merge `d39d570f`. STRATEGY_TACTICAL is now the singular live strategy engine.
 - [ ] **Add strategy quality scoring** — LLM self-evaluation or heuristic scoring of recommendation quality
 - [ ] **Add strategy diff on refresh** — Show what changed between previous and new strategy
 - [ ] **Smarter briefing gate** — Proceed with partial data after minimum threshold (e.g., traffic + events ready, skip airport)

@@ -17,9 +17,7 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
   - **Daily Briefing** (news, events, closures, construction): 24-hour cache (runs once/day)
   - **Traffic**: Always refreshes on app open or manual refresh (0 cache TTL)
   - This allows comprehensive daily research for news/events while keeping traffic conditions live throughout the day
-- **Single Strategy Engine** (post 2026-04-27): The daily / consolidated strategy was removed in the `chore/remove-daily-strategy` merge (commit `d39d570f`). The live system runs one strategy:
-  - **Right Now Strategy** (Strategy Tab): Immediate 1-hour tactical guidance via the STRATEGY_TACTICAL role at `server/lib/ai/providers/consolidator.js:157`, triggered synchronously by `POST /api/blocks-fast`. Stored in `strategies.strategy_for_now`.
-  - The `strategies.consolidated_strategy` column is dead-but-defined; column drop pending in the Phase 3 schema fix.
+- **Strategy Engine**: Single strategy — Immediate 1-hour tactical guidance via the STRATEGY_TACTICAL role at `server/lib/ai/providers/consolidator.js:157`, triggered synchronously by `POST /api/blocks-fast`. Stored in `strategies.strategy_for_now`.
 - **SmartBlocks**: SmartBlocks race condition (limbo state) fixed with Just-In-Time generation in GET endpoint Gate 2. System now detects "strategy complete but rankings missing" and auto-triggers block generation during polling.
 - **Strategy Loader**: Dynamic progress bar with real-time strategy steps. Shows Phase 1 (Strategy Analysis: 0-30%) and Phase 2 (Venue Discovery: 30-100%) with granular sub-steps during block generation (fetching, calculating distance/drive time, finalizing).
 - **Rideshare Coach**: The Rideshare Coach uses `gemini-3-pro-preview` for conversational assistance with rideshare strategy, venue interpretation, and file analysis. Note: Web search tool was attempted but causes API timeouts - coach uses Vecto Pilot's data sources (briefing, events, traffic) for instant responses instead. Coach timeout increased to 90 seconds for any future web search attempts.

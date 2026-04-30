@@ -739,10 +739,6 @@ Phase 2 Appendix A identified three columns on the `briefings` table that are de
 - **§8.3 (task-relevant subset):** COMPLIANT — only 8 fields used.
 - **Verdict:** **COMPLIANT.** The narrative is instructional and necessary; not §8.2 anti-pattern.
 
-#### E.2.2 STRATEGY_DAILY prompt — REMOVED 2026-04-27
-
-The STRATEGY_DAILY role and its prompt at `consolidator.js:1454–1499` were removed in the `chore/remove-daily-strategy` merge (commit `d39d570f`). The only live strategy role is now STRATEGY_TACTICAL — see §E.2.1 for the active immediate-strategy prompt audit. The `strategies.consolidated_strategy` column is dead-but-defined; column drop pending in the Phase 3 schema fix.
-
 #### E.2.3 `server/lib/strategy/tactical-planner.js:85–160` — VENUE_SCORER prompt
 
 - **Fields used:** `formatted_address` / `city` / `state` (→ `location`), `dow` (→ `dayName`), `created_at` + `timezone` (→ `dateStr` + `timeStr`).

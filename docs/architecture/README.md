@@ -168,7 +168,7 @@ See `server/config/validate-env.js` for the full validation logic. In production
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
 | `snapshots` | Location moment-in-time | `snapshot_id`, `formatted_address`, `user_id` |
-| `strategies` | AI-generated strategies | `strategy_for_now`, `phase` (the `consolidated_strategy` column is dead post-2026-04-27 daily-strategy removal; drop pending) |
+| `strategies` | AI-generated strategies | `strategy_for_now`, `phase` |
 | `briefings` | Real-time briefing data | `events`, `traffic_conditions`, `news` |
 | `rankings` | Venue sessions | `snapshot_id`, `ranking_id` |
 | `ranking_candidates` | Individual venues | `features`, `business_hours`, `distance_miles` |

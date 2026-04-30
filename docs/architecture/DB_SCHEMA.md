@@ -93,7 +93,7 @@
 | `status` | text | pending → running → ok / failed |
 | `phase` | text | Pipeline phase |
 | `strategy_for_now` | text | 1-hour tactical (NOW) — single live strategy output |
-| `consolidated_strategy` | text | DEAD COLUMN — daily strategy removed 2026-04-27 (`chore/remove-daily-strategy` merge `d39d570f`); column drop pending in Phase 3 schema fix |
+| `consolidated_strategy` | text | unused |
 
 ### `briefings` — 1:1 with snapshots
 
