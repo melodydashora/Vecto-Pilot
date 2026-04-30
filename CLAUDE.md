@@ -17,13 +17,14 @@ This file provides guidance to Claude Code when working with this repository.
 ### Rule 2: Documentation Synchronization (revised 2026-04-18)
 - **Sub-READMEs have been removed.** 109 sub-READMEs across `server/`, `client/`, `shared/`, `migrations/`, `scripts/`, `tests/`, `platform-data/`, `data/`, `tools/`, `config/`, `schema/`, `public/`, `keys/`, `attached_assets/` were deleted because they rotted faster than they could be maintained. Only the root `README.md` and everything under `docs/` survive.
 - **When files are modified**, update the relevant document under `docs/` — not a sub-README.
-- **Canonical living docs:** root `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `LESSONS_LEARNED.md`, `docs/architecture/BRIEFING.md`, `docs/EVENT_FRESHNESS_AND_TTL.md`, `docs/VENUELOGIC.md`, `docs/architecture/AUTH.md`, `docs/review-queue/pending.md`, `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`.
+- **Canonical living docs:** root `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `LESSONS_LEARNED.md`, `docs/architecture/BRIEFING.md`, `docs/EVENT_FRESHNESS_AND_TTL.md`, `docs/VENUELOGIC.md`, `docs/architecture/AUTH.md`, `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`. (`docs/review-queue/pending.md` was retired 2026-04-29; `claude_memory` rows are now the canonical "unfinished work" surface — see Rule 12 row #3 and Rule 15.)
 - **If something was buried in a deleted sub-README that still matters**, move it into the appropriate `docs/` doc (don't recreate the sub-README).
-- If a doc edit is skipped during a code change, log it in `docs/review-queue/pending.md`.
+- If a doc edit is skipped during a code change, log it as a `claude_memory` row (`category='audit', status='active'`) per Rule 15. The Markdown `pending.md` was retired 2026-04-29 in favor of the queryable `claude_memory` table.
 
-### Rule 3: Pending.md Verification
-- If `docs/review-queue/pending.md` has information, **verify those changes first**
+### Rule 3: claude_memory Active-Rows Verification (revised 2026-04-29; was "Pending.md Verification")
+- At session start, **verify any `claude_memory` rows with `status='active'`** that look load-bearing for the work you're about to do (use the Rule 15 canonical query)
 - Ensure root documents (CLAUDE.md, ARCHITECTURE.md, LESSONS_LEARNED.md) and the relevant `docs/` files reflect those changes before proceeding with new work
+- **History note:** the Markdown `docs/review-queue/pending.md` was retired 2026-04-29; this rule used to point there. Other rules and docs that say "pending.md" should be updated as you encounter them.
 
 ### Rule 4: Documentation Currency
 - Understand the repo in its current state before making changes
@@ -102,7 +103,7 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 |----------|----------|-----|
 | 1 | `claude_memory` table (Postgres) | Cross-session memory of prior work, decisions, and lessons — query before relying on git/docs alone (see Rule 15) |
 | 2 | `.code_based_rules/` directory | Hard-rule layer: `.rules_do_not_change/` (immutable rules + annotated workflow logs, including `Up to Venue console wish.txt` with Melody's inline corrections), `engineering_specs/`, `startup_rules/`. **Read this directory before assuming any other rule source is exhaustive.** `app.MD` explicitly forbids substituting grep / agent / code-sweep searches for actual file reading. |
-| 3 | `docs/review-queue/pending.md` | Unfinished doc updates from prior sessions |
+| 3 | `claude_memory` active rows (replaces retired `docs/review-queue/pending.md` as of 2026-04-29) | Query: `psql "$DATABASE_URL" -c "SELECT id, category, priority, status, title, created_at FROM claude_memory WHERE status='active' ORDER BY id DESC LIMIT 30;"` per Rule 15. The Markdown queue was retired because manual sweep discipline rotted; `claude_memory` provides queryable status hygiene + parent_id threading. |
 | 4 | `docs/architecture/database-environments.md` | Dev vs Prod DB rules — prevents data accidents |
 | 5 | `docs/DOC_DISCREPANCIES.md` | Open findings that need resolution |
 | 6 | `docs/coach-inbox.md` | Memos from the Rideshare Coach (Gemini) for Claude Code |
@@ -139,6 +140,7 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 - **Read at session start (Rule 12), write throughout the session.** Quick recent overview: `psql "$DATABASE_URL" -c "SELECT id, session_id, category, priority, status, title, created_at FROM claude_memory WHERE status = 'active' ORDER BY id DESC LIMIT 20;"` — then `psql "$DATABASE_URL" -tAc "SELECT content FROM claude_memory WHERE id = N;"` for the full body of a row.
 - **Status hygiene:** flip rows to `resolved` when the work lands; `superseded` when newer rows replace them. Keep the `active` set lean so future sessions can scan it quickly.
 - **Common categories in practice:** `engineering-pattern`, `design-decision-resolved`, `audit`, `fix`, `doctrine-candidate`, `user-shared-context`. Default `source` is `claude-code`. Use `parent_id` to thread follow-ups under a prior row.
+- **Threading discipline (added 2026-04-29):** when titling a row with `Followup:`, `Resolution:`, or `Update:`, see skill `threading-claude-memory-followups` at `.claude/skills/threading-claude-memory-followups/SKILL.md`. The skill teaches the antecedent-check that decides between **Shape A** (thread under a memory row → set `parent_id`) and **Shape B** (antecedent is external → `parent_id` NULL, body MUST start with `Antecedent: <kind> — <description>`). Complementary soft DB trigger at `migrations/20260429_claude_memory_antecedent_trigger.sql` emits a `RAISE NOTICE` when neither shape is present (applied to dev 2026-04-29; prod migration pending). Spec: `docs/superpowers/specs/2026-04-29-threading-claude-memory-followups.md`.
 
 ---
 
