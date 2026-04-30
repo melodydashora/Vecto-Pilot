@@ -37,7 +37,7 @@
  */
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { Loader } from 'lucide-react';
+import { Loader, AlertTriangle } from 'lucide-react';
 import { filterTodayEvents, formatEventDate, formatEventTimeRange } from '@/utils/co-pilot-helpers';
 import { loadGoogleMaps, getMapId } from '@/lib/maps/google-maps-loader';
 import { escapeHtml } from '@/lib/maps/escape-html';
@@ -204,9 +204,15 @@ const MARKER_COLORS = {
   barOpen: '#16a34a',    // green-600
   barClosingSoon: '#dc2626', // red-600
   barClosedGoAnyway: '#ea580c', // orange-600
-  incidentHigh: '#b91c1c',     // red-700 (severity high)
-  incidentMedium: '#d97706',   // amber-600 (severity medium)
-  incidentLow: '#f59e0b',      // amber-500 (severity low)
+  // 2026-04-30: incidents shifted to rose family (was red-700/amber-600/amber-500).
+  // Reason: red-700 was visually adjacent to gradeA red-600 venues and amber-600
+  // matched gradeB orange-600 — same warm hues, hard to distinguish on a busy map.
+  // Rose hues read as "danger" (close enough to red) while staying clearly distinct
+  // from venue grading. Triangle glyph still does the heavy lifting; color is the
+  // secondary signal.
+  incidentHigh: '#be185d',     // rose-700 (severity high)
+  incidentMedium: '#e11d48',   // rose-600 (severity medium)
+  incidentLow: '#f43f5e',      // rose-500 (severity low)
 } as const;
 
 // PHASE F: Triangle warning glyph for traffic incidents — visually distinct
@@ -902,9 +908,9 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
             type="button"
             onClick={() => setLayerVisibility((prev) => ({ ...prev, incidents: !prev.incidents }))}
             aria-pressed={layerVisibility.incidents}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-md border transition-colors backdrop-blur ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-md border transition-colors backdrop-blur ${
               layerVisibility.incidents
-                ? 'bg-red-600 text-white border-red-700'
+                ? 'bg-rose-600 text-white border-rose-700'
                 : 'bg-white/90 text-gray-700 border-gray-200 hover:bg-white'
             }`}
             data-testid="toggle-incidents"
@@ -914,7 +920,8 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
                 : `Show traffic incidents${incidents.length ? ` (${incidents.length} active)` : ''}`
             }
           >
-            ⚠️ Incidents{incidents.length > 0 ? ` · ${incidents.length}` : ''}
+            <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Incidents{incidents.length > 0 ? ` · ${incidents.length}` : ''}</span>
           </button>
         </div>
       </div>
@@ -974,13 +981,38 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
           <span>Traffic overlay shows real-time road conditions (green=flowing, yellow=slow, red=congested)</span>
         </div>
         {/* PHASE F: incident layer legend (visible regardless of toggle state
-            so drivers know what the triangle glyph means before turning it on). */}
-        <div className="mt-2 text-xs text-gray-500 flex items-start gap-2">
-          <span className="mt-0.5">⚠️</span>
-          <span>
-            Triangle warning glyphs (top-right toggle) show TomTom traffic incidents — accidents, road closures, jams.
-            Color is severity (red=high, amber=medium, yellow=low). Off by default; click the chip to enable.
-          </span>
+            so drivers know what the triangle glyph means before turning it on).
+            2026-04-30: explicit severity swatches added — three triangle pips
+            sized like the actual map glyphs, in the rose family that matches
+            MARKER_COLORS.incidentHigh/Medium/Low. */}
+        <div className="mt-2 pt-2 border-t border-gray-200">
+          <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Traffic Incidents</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-700">
+            <span className="flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
+                <path d="M12 2 L22 21 L2 21 Z" fill="#be185d" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+              <span>High severity</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
+                <path d="M12 2 L22 21 L2 21 Z" fill="#e11d48" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+              <span>Medium</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" aria-hidden="true">
+                <path d="M12 2 L22 21 L2 21 Z" fill="#f43f5e" stroke="white" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+              <span>Low</span>
+            </span>
+          </div>
+          <div className="text-xs text-gray-500 mt-1.5">
+            Off by default. Use the toggle in the top-right of the map to show TomTom incidents (accidents, jams, road closures).
+          </div>
         </div>
       </div>
 

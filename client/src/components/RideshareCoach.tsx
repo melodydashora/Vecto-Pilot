@@ -346,16 +346,20 @@ export default function RideshareCoach({
             role="group"
             aria-label="Playback speed"
           >
+            {/* 2026-04-30: chip polish — text-[10px]→text-xs (AA-readable), px-1.5
+                py-0.5→px-2 py-1 (better hit target + matches sibling Button height),
+                hover:bg-white/10→hover:bg-white/20 (visible against the bg-white/10
+                parent), inactive text-white/70→text-white (passes AA-small contrast). */}
             {SPEED_OPTIONS.map((speed) => (
               <button
                 key={speed}
                 type="button"
                 aria-pressed={playbackSpeed === speed}
                 onClick={() => setPlaybackSpeed(speed)}
-                className={`text-[10px] px-1.5 py-0.5 rounded-full transition ${
+                className={`text-xs px-2 py-1 rounded-full transition ${
                   playbackSpeed === speed
-                    ? 'bg-white text-blue-700 font-bold'
-                    : 'text-white/70 hover:bg-white/10'
+                    ? 'bg-white text-blue-700 font-bold shadow-sm'
+                    : 'text-white hover:bg-white/20'
                 }`}
                 title={`Playback speed ${speed}×`}
                 data-testid={`button-speed-${speed}`}
