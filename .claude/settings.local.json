@@ -322,7 +322,8 @@
       "Bash(sed -n '900,925p' client/src/components/strategy/StrategyMap.tsx)",
       "Bash(sed -n '349,375p' client/src/components/RideshareCoach.tsx)",
       "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/events/pipeline.test.js --verbose)",
-      "Bash(pg_dump --version)"
+      "Bash(pg_dump --version)",
+      "Bash(git am *)"
     ],
     "deny": [],
     "ask": []
