@@ -32,7 +32,7 @@ class ErrorBoundary extends Component<Props, State> {
     });
 
     // Log to external service in production
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.PROD) {
       // TODO: Send to error tracking service
       console.error('Production error:', { error, errorInfo });
     }
@@ -71,7 +71,7 @@ class ErrorBoundary extends Component<Props, State> {
               </Button>
             </div>
 
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details className="mt-4 p-2 bg-gray-100 rounded text-xs">
                 <summary className="cursor-pointer font-medium">Error Details</summary>
                 <pre className="mt-2 whitespace-pre-wrap">

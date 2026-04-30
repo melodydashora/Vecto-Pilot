@@ -9,6 +9,10 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from '@/contexts/location-context-clean';
+<<<<<<< HEAD
+=======
+import { getAuthHeader } from '@/utils/co-pilot-helpers';
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import { API_ROUTES } from '@/constants/apiRoutes';
 
 // Intelligence types from the API
@@ -92,7 +96,11 @@ export interface MarketLookupResponse {
 }
 
 // 2026-01-05: New response from /api/intelligence/for-location
+<<<<<<< HEAD
 // Uses us_market_cities table (723 cities mapped to markets)
+=======
+// Uses market_cities table (723 cities mapped to markets)
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 // Resolves suburbs to their market anchor (e.g., Frisco → Dallas)
 export interface ForLocationResponse {
   location: {
@@ -369,7 +377,11 @@ export function detectMarketArchetype(city: string | null): MarketArchetype {
  * Fetches all intelligence for a specific market
  */
 async function _fetchMarketIntelligence(marketSlug: string): Promise<MarketIntelligenceResponse> {
+<<<<<<< HEAD
   const response = await fetch(API_ROUTES.INTELLIGENCE.MARKET(marketSlug));
+=======
+  const response = await fetch(API_ROUTES.INTELLIGENCE.MARKET(marketSlug), { headers: getAuthHeader() });
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   if (!response.ok) {
     if (response.status === 404) {
@@ -392,7 +404,11 @@ async function _fetchMarketIntelligence(marketSlug: string): Promise<MarketIntel
  * Fetches list of all markets with intelligence
  */
 async function fetchIntelligenceMarkets(): Promise<IntelligenceMarketsResponse> {
+<<<<<<< HEAD
   const response = await fetch(API_ROUTES.INTELLIGENCE.MARKETS);
+=======
+  const response = await fetch(API_ROUTES.INTELLIGENCE.MARKETS, { headers: getAuthHeader() });
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   if (!response.ok) {
     throw new Error('Failed to fetch intelligence markets');
@@ -406,7 +422,11 @@ async function fetchIntelligenceMarkets(): Promise<IntelligenceMarketsResponse> 
  */
 async function _fetchMarketLookup(city: string, state: string): Promise<MarketLookupResponse> {
   const params = new URLSearchParams({ city, state });
+<<<<<<< HEAD
   const response = await fetch(API_ROUTES.INTELLIGENCE.LOOKUP_WITH_PARAMS(params));
+=======
+  const response = await fetch(API_ROUTES.INTELLIGENCE.LOOKUP_WITH_PARAMS(params), { headers: getAuthHeader() });
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   if (!response.ok) {
     // Return not found response
@@ -418,12 +438,20 @@ async function _fetchMarketLookup(city: string, state: string): Promise<MarketLo
 
 /**
  * 2026-01-05: Fetches market intel using city→market resolution
+<<<<<<< HEAD
  * Uses us_market_cities table (723 cities) for better suburb coverage
+=======
+ * Uses market_cities table (723 cities) for better suburb coverage
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
  * Example: Frisco, TX → Dallas market → Dallas-Fort Worth intel
  */
 async function fetchForLocation(city: string, state: string): Promise<ForLocationResponse | null> {
   const params = new URLSearchParams({ city, state });
+<<<<<<< HEAD
   const response = await fetch(API_ROUTES.INTELLIGENCE.FOR_LOCATION_WITH_PARAMS(params));
+=======
+  const response = await fetch(API_ROUTES.INTELLIGENCE.FOR_LOCATION_WITH_PARAMS(params), { headers: getAuthHeader() });
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   if (!response.ok) {
     console.warn(`[useMarketIntelligence] No market data for ${city}, ${state}`);
@@ -437,7 +465,11 @@ async function fetchForLocation(city: string, state: string): Promise<ForLocatio
  * Main hook for fetching market intelligence
  *
  * 2026-01-05: Updated to use /api/intelligence/for-location endpoint
+<<<<<<< HEAD
  * This uses us_market_cities table (723 cities) for better suburb coverage.
+=======
+ * This uses market_cities table (723 cities) for better suburb coverage.
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
  * Example: Frisco, TX → resolves to Dallas market → shows Dallas-Fort Worth intel
  */
 export function useMarketIntelligence() {
@@ -450,7 +482,11 @@ export function useMarketIntelligence() {
 
   // 2026-01-05: Single query using /api/intelligence/for-location
   // This endpoint:
+<<<<<<< HEAD
   // 1. Maps city → market using us_market_cities table (723 cities)
+=======
+  // 1. Maps city → market using market_cities table (723 cities)
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   // 2. Returns market info + intelligence in one response
   // 3. Handles suburbs properly (Frisco → Dallas market)
   const forLocationQuery = useQuery({

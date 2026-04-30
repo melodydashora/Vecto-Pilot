@@ -8,6 +8,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+<<<<<<< HEAD
+=======
+import { getAuthHeader } from '@/utils/co-pilot-helpers';
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
 interface MemoryContext {
   recentSnapshots: any[];
@@ -43,7 +47,11 @@ export function useMemory(options: UseMemoryOptions = {}) {
       const params = new URLSearchParams();
       if (threadId) params.set('threadId', threadId);
 
+<<<<<<< HEAD
       const res = await fetch(`/agent/context?${params}`);
+=======
+      const res = await fetch(`/agent/context?${params}`, { headers: getAuthHeader() });
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
       // Let errors surface with clear messages - don't silently fail
       if (res.status === 503) {
@@ -74,7 +82,11 @@ export function useMemory(options: UseMemoryOptions = {}) {
   // Load conversation history
   const loadConversations = useCallback(async (limit = 30) => {
     try {
+<<<<<<< HEAD
       const res = await fetch(`/agent/memory/conversations?userId=${userId}&limit=${limit}`);
+=======
+      const res = await fetch(`/agent/memory/conversations?userId=${userId}&limit=${limit}`, { headers: getAuthHeader() });
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       if (!res.ok) throw new Error('Failed to load conversations');
 
       const data = await res.json();
@@ -93,7 +105,11 @@ export function useMemory(options: UseMemoryOptions = {}) {
     try {
       const res = await fetch('/agent/memory/conversation', {
         method: 'POST',
+<<<<<<< HEAD
         headers: { 'Content-Type': 'application/json' },
+=======
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         body: JSON.stringify({ topic, summary, userId })
       });
 
@@ -112,7 +128,11 @@ export function useMemory(options: UseMemoryOptions = {}) {
     try {
       const res = await fetch('/agent/memory/preference', {
         method: 'POST',
+<<<<<<< HEAD
         headers: { 'Content-Type': 'application/json' },
+=======
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         body: JSON.stringify({ key, value, userId })
       });
 
@@ -131,7 +151,11 @@ export function useMemory(options: UseMemoryOptions = {}) {
     try {
       const res = await fetch('/agent/memory/session', {
         method: 'POST',
+<<<<<<< HEAD
         headers: { 'Content-Type': 'application/json' },
+=======
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         body: JSON.stringify({ key, data, userId })
       });
 
@@ -150,7 +174,11 @@ export function useMemory(options: UseMemoryOptions = {}) {
     try {
       const res = await fetch('/agent/memory/project', {
         method: 'POST',
+<<<<<<< HEAD
         headers: { 'Content-Type': 'application/json' },
+=======
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         body: JSON.stringify({ key, data, userId })
       });
 

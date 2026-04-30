@@ -13,6 +13,13 @@ function checkAgentAllowlist(req, res, next) {
   // Normalize IPv6 localhost
   const normalizedIP = clientIP === '::ffff:127.0.0.1' ? '127.0.0.1' : clientIP;
 
+  // 2026-02-17: Memory routes are safe (read/write conversations, preferences, session state).
+  // They don't need IP restriction — requireAuth middleware handles authentication.
+  // This fixes 403 errors when browser clients call /agent/memory/* endpoints.
+  if (req.path.startsWith('/memory/') || req.path.startsWith('/memory')) {
+    return next();
+  }
+
   // In development, allow all local connections
   const isDev = !isProduction;
   const isLocalhost = normalizedIP === '127.0.0.1' || normalizedIP === '::1' || normalizedIP === 'localhost';

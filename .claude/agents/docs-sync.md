@@ -93,7 +93,11 @@ After updates, verify:
 This project uses multiple AI models with specific parameter requirements:
 - **GPT-5.2**: Uses `reasoning_effort` (not nested), no `temperature`
 - **Gemini 3 Pro**: Uses `thinkingLevel` (only LOW or HIGH, not MEDIUM)
+<<<<<<< HEAD
 - **Claude Opus 4.5**: Standard Anthropic parameters
+=======
+- **Claude Opus 4.6**: Standard Anthropic parameters
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
 Always verify model parameter documentation is accurate when AI-related code changes.
 

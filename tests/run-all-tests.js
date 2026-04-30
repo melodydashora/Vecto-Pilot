@@ -1,3 +1,4 @@
+// LEGACY — This runner predates the current Jest/Playwright setup. Use `npm test` as the primary entrypoint.
 
 import GatewayTester from './gateway/test-routing.js';
 import EidolonSDKTester from './eidolon/test-sdk-integration.js';

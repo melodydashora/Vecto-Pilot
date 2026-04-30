@@ -1,8 +1,7 @@
 // server/lib/weather-traffic-validator.js
-// Validate weather and traffic conditions using Gemini adapter
-import { callGemini } from '../ai/adapters/gemini-adapter.js';
-
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
+// Validate weather and traffic conditions using registered model roles
+// 2026-02-13: Migrated from direct callGemini to callModel adapter (hedged router + fallback)
+import { callModel } from '../ai/adapters/index.js';
 
 /**
  * Validate weather conditions from snapshot
@@ -32,16 +31,14 @@ export async function validateWeather(snapshot) {
       "severity": "safe" | "caution" | "hazardous"
     }`;
 
-    const result = await callGemini({
-      model: MODEL,
+    // 2026-02-13: Uses UTIL_WEATHER_VALIDATOR role via adapter (hedged router + fallback)
+    const result = await callModel('UTIL_WEATHER_VALIDATOR', {
       system: 'You are a safety analyst for rideshare drivers. Return strict JSON.',
-      user: prompt,
-      maxTokens: 512,
-      temperature: 0.1 // Low temp for deterministic validation
+      user: prompt
     });
 
     if (!result.ok) {
-      console.warn('[weather-validator] Gemini failed:', result.error);
+      console.warn('[weather-validator] Model failed:', result.error);
       return { valid: true, conditions: 'error', reason: 'Validation service unavailable', severity: 'unknown' };
     }
 
@@ -100,12 +97,10 @@ export async function validateTraffic(snapshot, briefing = null) {
       "impact": "low" | "medium" | "high"
     }`;
 
-    const result = await callGemini({
-      model: MODEL,
+    // 2026-02-13: Uses UTIL_TRAFFIC_VALIDATOR role via adapter (hedged router + fallback)
+    const result = await callModel('UTIL_TRAFFIC_VALIDATOR', {
       system: 'You are a traffic analyst. Return strict JSON.',
-      user: prompt,
-      maxTokens: 512,
-      temperature: 0.1
+      user: prompt
     });
 
     if (!result.ok) {

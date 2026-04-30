@@ -24,7 +24,7 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
 
   while (retries < maxRetries) {
     const backoffMs = Math.min(1000 * Math.pow(2, retries), 10000);
-    
+
     await sleep(backoffMs);
 
     try {
@@ -43,6 +43,12 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
         pgClient = null;
       }
 
+      // 2026-02-17: FIX - Reset notification handler flag so new client gets handler
+      // Without this, the flag stays true from the old (dead) client, and the new
+      // client never gets a 'notification' listener attached — all SSE subscribers
+      // become orphaned (they have callbacks but receive no notifications).
+      notificationHandlerAttached = false;
+
       pgClient = new pg.Client({
         connectionString,
         application_name: 'triad-listener',
@@ -53,14 +59,19 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
       setupErrorHandlers(connectionString);
 
       await pgClient.connect();
-      
+
+      // 2026-02-17: FIX - Re-subscribe all active channels after reconnect
+      // The old client's LISTEN commands are lost on disconnect. Re-issue them
+      // on the new client so existing SSE subscribers continue receiving events.
+      await resubscribeChannels();
+
       // Send keepalive queries every 4 minutes (before 5-min timeout)
       keepaliveInterval = setInterval(() => {
         if (pgClient && !isReconnecting) {
           pgClient.query('SELECT 1').catch(() => {});
         }
       }, 240000); // 4 minutes
-      
+
       dbLog.done(1, `LISTEN client reconnected`, OP.DB);
       isReconnecting = false;
       return pgClient;
@@ -124,9 +135,7 @@ export async function getListenClient() {
     return connectPromise;
   }
 
-  // PostgreSQL via Replit MANAGED DATABASE ONLY
-  // Replit automatically injects DATABASE_URL for all environments (dev + production)
-  // No external databases (Neon, Vercel, Railway) are used
+  // DATABASE_URL auto-injected by Replit (Helium PostgreSQL 16)
   const connectionString = process.env.DATABASE_URL;
 
   dbLog.phase(1, `LISTEN client connecting to Replit PostgreSQL`, OP.DB);
@@ -137,9 +146,12 @@ export async function getListenClient() {
 
   // Create and store the connection promise
   connectPromise = (async () => {
+    // 2026-02-26: SSL conditional — Helium (dev) runs locally without SSL
+    const isProduction = process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production';
     pgClient = new pg.Client({
       connectionString,
       application_name: 'triad-listener',
+      ssl: isProduction ? { rejectUnauthorized: false } : false,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000
     });
@@ -198,6 +210,51 @@ export async function closeListenClient() {
 
 const channelSubscribers = new Map(); // channel -> Set of callbacks
 let notificationHandlerAttached = false;
+
+/**
+ * Re-attach LISTEN commands and notification handler after reconnect.
+ * 2026-02-17: FIX for SSE "Client has encountered a connection error and is not queryable"
+ *
+ * When the LISTEN client reconnects, the new pgClient has no LISTEN commands
+ * and no 'notification' handler. This function restores both from the surviving
+ * channelSubscribers map (SSE connections outlive the DB connection).
+ */
+async function resubscribeChannels() {
+  if (!pgClient || channelSubscribers.size === 0) return;
+
+  // Re-issue LISTEN for all active channels
+  for (const [channel, subs] of channelSubscribers.entries()) {
+    if (subs.size === 0) {
+      channelSubscribers.delete(channel);
+      continue;
+    }
+    try {
+      await pgClient.query(`LISTEN ${channel}`);
+      dbLog.phase(1, `Re-LISTENed ${channel} (${subs.size} subscriber(s))`, OP.DB);
+    } catch (err) {
+      dbLog.error(1, `Failed to re-LISTEN ${channel}: ${err.message}`, err, OP.DB);
+    }
+  }
+
+  // Re-attach notification handler (notificationHandlerAttached was reset to false above)
+  if (!notificationHandlerAttached) {
+    pgClient.on('notification', (msg) => {
+      const subscribers = channelSubscribers.get(msg.channel);
+      if (subscribers && subscribers.size > 0) {
+        dbLog.done(1, `NOTIFY ${msg.channel} → ${subscribers.size} subscriber(s)`, OP.SSE);
+        subscribers.forEach(cb => {
+          try {
+            cb(msg.payload);
+          } catch (err) {
+            console.error(`[NotificationDispatcher] Subscriber error:`, err);
+          }
+        });
+      }
+    });
+    notificationHandlerAttached = true;
+    dbLog.info(`Notification dispatcher re-attached after reconnect`, OP.DB);
+  }
+}
 
 /**
  * Subscribe to PostgreSQL NOTIFY events for a specific channel.

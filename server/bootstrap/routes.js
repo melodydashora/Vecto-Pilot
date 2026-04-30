@@ -51,13 +51,13 @@ export async function mountRoutes(app, server) {
     { path: '/api/job-metrics', module: './server/api/health/job-metrics.js', desc: 'Job Metrics' },
 
     // Chat & Voice (server/api/chat/)
-    { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Strategy Coach' },
+    { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Coach' },
     { path: '/api/tts', module: './server/api/chat/tts.js', desc: 'TTS endpoint' },
     { path: '/api/realtime', module: './server/api/chat/realtime.js', desc: 'OpenAI Realtime voice' },
 
     // Coach API (server/api/coach/) - Schema awareness, validation, notes CRUD
     // 2026-01-05: Added for AI Coach enhancements
-    { path: '/api/coach', module: './server/api/coach/index.js', desc: 'Coach API (schema, validate, notes)' },
+    { path: '/api/coach', module: './server/api/rideshare-coach/index.js', desc: 'Rideshare Coach API (schema, validate, notes)' },
 
     // Venue Intelligence (server/api/venue/)
     { path: '/api/venues', module: './server/api/venue/venue-intelligence.js', desc: 'Venue Intelligence' },
@@ -67,6 +67,8 @@ export async function mountRoutes(app, server) {
 
     // Auth (server/api/auth/)
     { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
+    // 2026-02-03: Uber OAuth
+    { path: '/api/auth/uber', module: './server/api/auth/uber.js', desc: 'Uber OAuth' },
 
     // Location (server/api/location/)
     { path: '/api/location', module: './server/api/location/location.js', desc: 'Location' },
@@ -94,6 +96,19 @@ export async function mountRoutes(app, server) {
 
     // Vehicle Data (server/api/vehicle/)
     { path: '/api/vehicle', module: './server/api/vehicle/vehicle.js', desc: 'Vehicle Data' },
+
+    // Concierge (server/api/concierge/) - 2026-02-13: QR code sharing + public event discovery
+    { path: '/api/concierge', module: './server/api/concierge/concierge.js', desc: 'Concierge' },
+
+    // Translation (server/api/translate/) - 2026-03-16: Real-time rider translation
+    { path: '/api/translate', module: './server/api/translate/index.js', desc: 'Translation API' },
+
+    // Claude Memory (server/api/memory/) — 2026-04-14: Persistent knowledge base for Claude Code
+    { path: '/api/memory', module: './server/api/memory/index.js', desc: 'Claude Memory API' },
+
+    // External Hooks (server/api/hooks/)
+    { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
+    { path: '/api/hooks', module: './server/api/hooks/translate.js', desc: 'Siri Translation Hook' },
 
     // 2026-01-09: Removed EventEmitter SSE - DB NOTIFY SSE is canonical (mountSSE)
     // The /events mount was duplicating /events/strategy, /events/blocks with EventEmitter

@@ -15,7 +15,6 @@ const ALLOWED_CONFIG_FILES = [
   ".replit",
   "replit.nix",
   ".replit.nix",
-  ".replit-assistant-override.json",
   
   // Package management
   "package.json",
@@ -40,8 +39,6 @@ const ALLOWED_CONFIG_FILES = [
   
   // Linting & formatting
   "eslint.config.js",
-  ".eslintrc.json",
-  ".eslintrc.js",
   ".prettierrc",
   ".prettierrc.json",
   ".prettierrc.js",
@@ -67,9 +64,10 @@ const ALLOWED_CONFIG_FILES = [
   "agent-server.js",
   "index.js",
   
-  // Assistant & Eidolon configs
+  // Assistant & Eidolon configs (2026-04-09: consolidated to config/ — single source of truth)
   "config/assistant-policy.json",
-  "server/config/assistant-policy.json",
+  "config/agent-policy.json",
+  "config/eidolon-policy.json",
   
   // Documentation
   "README.md",

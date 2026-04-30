@@ -1,6 +1,6 @@
 # VECTO PILOT™ - COMPLETE SYSTEM MAP
 
-**Last Updated:** 2026-01-08 UTC
+**Last Updated:** 2026-02-19 UTC
 
 This document provides a complete visual mapping of the Vecto Pilot system, showing how every component connects from UI to database and back.
 
@@ -13,26 +13,57 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │                      HEADLESS CLIENT INTEGRATION                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  ⚠️  AUTH BYPASS: This flow does NOT use JWT authentication!            │
-│  Security is via device_id registration + optional API key.              │
-│  user_id in intercepted_signals has NO FK constraint (nullable).        │
+│  ⚠️  DUAL AUTH MODEL:                                                    │
+│  • App users: JWT sign-up/sign-in (email + password)                    │
+│  • Headless clients (Siri): device_id only (NO JWT - cannot send       │
+│    Bearer tokens from iOS Shortcuts)                                     │
+│  • user_id in offer tables has NO FK constraint (nullable)              │
+│  • device_id → user_id linking happens when driver opens app            │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  iOS Siri Shortcut (OCR Text)                                     │  │
-│  │  • User shares screenshot of ride offer                           │  │
-│  │  • iOS OCR extracts text (price, miles, time)                     │  │
-│  │  • Shortcut calls POST /api/hooks/analyze-offer                   │  │
-│  │  • NO JWT token - uses device_id for identification               │  │
+│  │  iOS Siri Shortcut — THREE INPUT MODES                           │  │
+│  │                                                                    │  │
+│  │  Flow A: "Vecto Analyze" (Text/OCR Mode)                         │  │
+│  │  • User shares screenshot → iOS OCR extracts text                 │  │
+│  │  • POST { text, device_id, latitude, longitude }                  │  │
+│  │  • Server: regex pre-parser (<1ms) → AI decision                  │  │
+│  │                                                                    │  │
+│  │  Flow B: "Vecto Vision" (Base64 Image Mode)                      │  │
+│  │  • User shares screenshot → JPEG compress → base64 encode         │  │
+│  │  • POST { image, image_type, device_id, latitude, longitude }     │  │
+│  │  • Server: sends base64 to Gemini Flash vision API                │  │
+│  │                                                                    │  │
+│  │  Flow C: "Vecto Vision" (Multipart Upload — Fastest)              │  │
+│  │  • User shares screenshot → JPEG compress → multipart form-data   │  │
+│  │  • Server: Multer captures bytes → base64 internally (<1ms)       │  │
+│  │  • Eliminates ~200ms base64 encoding on iOS client                │  │
+│  │                                                                    │  │
+│  │  All modes → POST /api/hooks/analyze-offer                        │  │
+│  │  NO JWT token — uses device_id for identification                 │  │
+│  │  TODO: User onboarding for Shortcut setup (needs more testing)    │  │
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │  POST /api/hooks/analyze-offer (server/api/hooks/analyze-offer.js)│  │
-│  │  • Auth: BYPASSES requireAuth middleware (headless endpoint)      │  │
-│  │  • Receives: { raw_text, device_id } (user_id optional)           │  │
-│  │  • Parses: price ($12.50), miles (4.2mi), time (8 min)            │  │
-│  │  • AI Decision: ACCEPT/REJECT with reasoning                      │  │
-│  │  • Stores result in: intercepted_signals table                    │  │
-│  │  • NOTE: user_id column has NO FK - allows headless inserts       │  │
+│  │  • Auth: BYPASSES requireAuth (headless endpoint)                 │  │
+│  │  • Accepts: text, base64 image, or multipart image upload         │  │
+│  │  • Pre-parser: regex extraction (parse-offer-text.js, 325 lines) │  │
+│  │  • Vision: Gemini 3 Flash extracts data from screenshots          │  │
+│  │  • AI Decision: ACCEPT/REJECT with reasoning + confidence score   │  │
+│  │  • Stores to: offer_intelligence table (30+ ML-ready columns)     │  │
+│  │  • NOTE: user_id has NO FK — allows headless inserts              │  │
+│  └────────────────────┬─────────────────────────────────────────────┘  │
+│                       ↓                                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  offer_intelligence table (migrated from intercepted_signals)     │  │
+│  │  • Structured numeric columns (NOT JSONB blobs)                   │  │
+│  │  • Offer metrics: price, per_mile, per_minute, hourly_rate, surge │  │
+│  │  • Geography: pickup/dropoff addresses + lat/lng, H3 index        │  │
+│  │  • Temporal: local_date, local_hour, day_part, is_weekend         │  │
+│  │  • ML training: decision + user_override = labeled training data  │  │
+│  │  • Sequence: offer_session_id, sequence_num (pattern analysis)    │  │
+│  │  • Quality: parse_confidence, input_mode (text vs vision)         │  │
+│  │  • 15+ indexes for daypart/geographic/platform analytics          │  │
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
@@ -40,13 +71,21 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │  • Real-time display via SSE/Polling                              │  │
 │  │  • Shows: incoming offers + AI decision + reasoning               │  │
 │  │  • Driver confirms/overrides AI decision                          │  │
-│  │  • Feedback loop improves future decisions                        │  │
+│  │  • Override feedback → labeled training data for ML learning      │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+│  Additional Headless Endpoints (all device_id auth):                    │
+│  • GET  /api/hooks/offer-history?device_id=xxx&limit=20                 │
+│  • POST /api/hooks/offer-override (driver disagrees with AI)            │
+│  • POST /api/hooks/offer-cleanup (maintenance)                          │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Why No FK Constraint on user_id?
+
+> **Future consideration:** Could require email/username instead of device_id once
+> Shortcut onboarding is mature. For now, device_id is correct for headless ingestion.
 
 | Constraint Type | Problem with Headless Clients |
 |-----------------|-------------------------------|
@@ -56,7 +95,7 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 
 The `device_id` is the PRIMARY identifier for headless clients. The `user_id` can be linked later when the driver opens the app and logs in from that device.
 
-### Siri Interceptor Data Flow
+### Offer Interceptor Data Flow (Vision + Text)
 
 ```
 iOS Device                      Vecto Server                    Database
@@ -65,20 +104,25 @@ iOS Device                      Vecto Server                    Database
     │  ──────────────────────►      │                              │
     │  (Siri Shortcut triggers)     │                              │
     │                               │                              │
-    │  2. OCR extracts text         │                              │
+    │  2a. OCR text (Flow A)        │                              │
+    │  ──── OR ────                 │                              │
+    │  2b. JPEG image (Flow B/C)    │                              │
     │  ──────────────────────►      │                              │
     │  POST /api/hooks/analyze-offer│                              │
-    │  { raw_text, device_id }      │  ← NO user_id required!      │
+    │  { text|image, device_id }    │  ← NO user_id required!      │
     │                               │                              │
-    │                               │  3. Parse & AI decision      │
+    │                               │  3a. Text: regex pre-parse   │
+    │                               │  3b. Vision: Gemini Flash    │
+    │                               │      extracts from image     │
     │                               │  ─────────────────────────►  │
-    │                               │  INSERT intercepted_signals  │
-    │                               │  (user_id = NULL is OK)      │
+    │                               │  INSERT offer_intelligence   │
+    │                               │  (30+ structured columns)    │
     │                               │                              │
     │  4. Immediate response        │                              │
     │  ◄──────────────────────      │                              │
     │  { decision: "ACCEPT",        │                              │
-    │    reasoning: "Good $/mi" }   │                              │
+    │    reasoning: "Good $/mi",    │                              │
+    │    confidence: 0.92 }         │                              │
     │                               │                              │
     │  5. Siri speaks decision      │                              │
     │  ◄── (TTS in Shortcut)        │                              │
@@ -128,14 +172,22 @@ iOS Device                      Vecto Server                    Database
 │  │  │ /co-pilot/strategy  → StrategyPage.tsx                     │  │  │
 │  │  │   • AI strategy display                                    │  │  │
 │  │  │   • Smart Blocks (NOW strategy: top 3 Grade A, ≥1mi apart) │  │  │
-│  │  │   • CoachChat (GPT-5.2 text + Realtime voice)              │  │  │
+│  │  │   • AICoach (Gemini 3 Pro Preview — text + vision + search)│  │  │
+│  │  │     └─ Image uploads: heatmaps, surge maps, screenshots    │  │  │
+│  │  │     └─ Voice: OpenAI Realtime API (integrated, disabled)   │  │  │
+│  │  │     └─ TODO: capture uploaded images for AI/ML learning    │  │  │
 │  │  │   • FeedbackModal                                          │  │  │
 │  │  │   • SmartBlocksStatus (pipeline progress)                  │  │  │
-│  │  │   • GreetingBanner (holiday awareness)                     │  │  │
+│  │  │   • GreetingBanner (holiday OR daypart greeting)           │  │  │
+│  │  │     └─ KNOWN ISSUE: shows holiday OR greeting, not both    │  │  │
+│  │  │     └─ KNOWN ISSUE: getGreeting() uses 3 dayparts vs      │  │  │
+│  │  │        GlobalHeader classifyDayPart() uses 7 — mismatch   │  │  │
 │  │  ├────────────────────────────────────────────────────────────┤  │  │
-│  │  │ /co-pilot/bars → BarsPage.tsx                              │  │  │
-│  │  │   • BarsTable (premium venue listings)                     │  │  │
+│  │  │ /co-pilot/bars → VenueManagerPage.tsx (renamed 2026-01-09) │  │  │
+│  │  │   • BarsDataGrid (premium venue listings, renamed 01-09)   │  │  │
 │  │  │   • Filter: $$ and above, open only                        │  │  │
+│  │  │   • ✅ Venues persist to venue_catalog (place_id captured) │  │  │
+│  │  │   • ✅ Events also store place_id in venue_events table    │  │  │
 │  │  ├────────────────────────────────────────────────────────────┤  │  │
 │  │  │ /co-pilot/briefing → BriefingPage.tsx                      │  │  │
 │  │  │   • BriefingTab (weather, traffic, news, events)           │  │  │
@@ -301,12 +353,21 @@ iOS Device                      Vecto Server                    Database
 │  │ • File: server/lib/ai/adapters/anthropic-sonnet45.js            │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ OpenAI GPT-5.2 (Consolidation, Venues, Coach)                  │   │
+│  │ OpenAI GPT-5.2 (Consolidation, Venues, TTS, Voice)            │   │
 │  │ • File: server/lib/ai/adapters/openai-adapter.js                │   │
+│  │ • Voice: Realtime API for AICoach (integrated, currently off)   │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google Gemini 3.0 Pro + Search (Events, Traffic, News)         │   │
+│  │ Google Gemini 3.0 Pro + Search (Events, Traffic, News, Coach)  │   │
 │  │ • File: server/lib/ai/adapters/gemini-adapter.js                │   │
+│  │ • Rideshare Coach: gemini-3.1-pro-preview (streaming, vision, search)  │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ Google Gemini 3.0 Flash (Offer Analysis — Vision)              │   │
+│  │ • Role: OFFER_ANALYZER (gemini-3-flash-preview)                 │   │
+│  │ • SDK: @google/genai (API key auth, NOT Vertex AI)              │   │
+│  │ • Extracts ride offer data from screenshots (<3s response)      │   │
+│  │ • Fallback: GPT-5.2 if Google is down                          │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google Gemini 2.5 Pro (Event Verification)                     │   │
@@ -375,8 +436,8 @@ The UI uses **React Router** with:
 
 | Route | Component | Primary Data Sources |
 |-------|-----------|---------------------|
-| `/co-pilot/strategy` | StrategyPage.tsx | CoPilotContext (strategy, blocks), CoachChat |
-| `/co-pilot/bars` | BarsPage.tsx | `/api/venues/nearby`, BarsTable |
+| `/co-pilot/strategy` | StrategyPage.tsx | CoPilotContext (strategy, blocks), AICoach |
+| `/co-pilot/bars` | VenueManagerPage.tsx | `/api/venues/nearby`, BarsDataGrid |
 | `/co-pilot/briefing` | BriefingPage.tsx | useBriefingQueries (6 endpoints) |
 | `/co-pilot/map` | MapPage.tsx | CoPilotContext (blocks), bars API, active events |
 | `/co-pilot/intel` | IntelPage.tsx | RideshareIntelTab (static intelligence) |
@@ -392,8 +453,9 @@ The UI uses **React Router** with:
 users (session tracking, auth - NO location data)
   ├─→ auth_sessions (JWT tokens)
   ├─→ auth_verification_codes (email/SMS codes)
-  ├─→ intercepted_signals (Siri/external offer analysis) [NEW - Level 4]
-  │     └─→ Real-time offer decisions from headless clients
+  ├─→ intercepted_signals (legacy — migrated to offer_intelligence)
+  ├─→ offer_intelligence (structured offer analysis, 30+ ML columns)
+  │     └─→ Real-time offer decisions from headless clients (text + vision)
   └─→ snapshots (point-in-time context)
         ├─→ strategies (AI strategic outputs)
         │     └─→ triad_jobs (job tracking)
@@ -410,8 +472,12 @@ coords_cache (geocode cache with 6-decimal precision)
 markets (102 global markets with pre-stored timezones)
   └─→ 3,333 city aliases for suburb/neighborhood matching
 
+venue_catalog (persistent venue store with Google place_id)
+  └─→ Cache-first pattern: checks DB before calling Places API
+  └─→ Haiku AI quality tier classification (premium/standard)
+
 discovered_events (global event repository)
-  └─→ venue_events (venue-event associations)
+  └─→ venue_events (venue-event associations, stores place_id)
 
 market_intelligence (curated market knowledge)
 platform_data (Uber/Lyft city coverage)
@@ -453,16 +519,31 @@ countries (ISO 3166-1 reference)
 
 1. **Single Source of Truth:** PostgreSQL database is authoritative for all data
 2. **Route-Based UI:** React Router with 13 pages, shared CoPilotContext
-3. **Authentication First:** All routes protected except auth pages
+3. **Dual Auth Model:** JWT for app users, device_id for headless Siri clients
 4. **Domain-Organized APIs:** server/api/* folders by domain (auth, briefing, chat, etc.)
-5. **Model-Agnostic Providers:** Each AI role is pluggable via adapters
-6. **Enrichment Pipeline:** Google APIs provide verified data
-7. **JWT Authentication:** User isolation at every layer
+5. **Model-Agnostic Providers:** Each AI role is pluggable via adapters (model-registry.js)
+6. **Enrichment Pipeline:** Google APIs provide verified data + place_id stored
+7. **Venue Persistence:** venue_catalog with cache-first pattern reduces API costs
 8. **Snapshot-Centric:** All data scoped to snapshot_id for ML traceability
 9. **Real-Time Updates:** SSE for briefing_ready, strategy_ready, blocks_ready
 10. **Fail-Closed:** Missing data returns null/404, never hallucinated defaults
 11. **Global Markets:** 102 pre-stored markets (31 US + 71 international) skip Google Timezone API
 12. **Two-Phase UI Update:** Weather/AQI display before city/state resolution completes
+13. **ML-Ready Offer Data:** offer_intelligence table with 30+ indexed columns for analytics
+14. **Vision + Text Dual-Mode:** Siri Shortcuts support OCR text and direct image analysis
+
+---
+
+## 📋 OPEN ITEMS & TODOs
+
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 1 | Shortcut user onboarding flow | Needs design | Melody testing Siri Shortcuts before release |
+| 2 | GreetingBanner: show holiday + greeting together | UI fix needed | Currently shows one OR the other |
+| 3 | Daypart mismatch: getGreeting() (3 periods) vs classifyDayPart() (7) | Review needed | GreetingBanner vs GlobalHeader inconsistency |
+| 4 | OpenAI Realtime voice for AICoach | Integrated, disabled | Functions prefixed with `_`, needs activation |
+| 5 | Capture AICoach uploaded images for ML training | Feature idea | Heatmaps/surge maps could train models |
+| 6 | Consider email-based auth for headless clients | Future | Would replace device_id once onboarding is mature |
 
 ---
 

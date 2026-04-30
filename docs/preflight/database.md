@@ -20,66 +20,67 @@ await db.insert(rankings).values({
 });
 ```
 
-## Core Tables
+## Identity & Session Architecture (2026-01-05)
 
-| Table | Primary Key | Links To |
-|-------|-------------|----------|
-| `snapshots` | `snapshot_id` | users (user_id) |
-| `strategies` | `id` | snapshots (snapshot_id) |
-| `rankings` | `ranking_id` | snapshots (snapshot_id) |
-| `ranking_candidates` | `id` | rankings (ranking_id) |
-| `actions` | `action_id` | snapshots, rankings |
-| `discovered_events` | `id` | venue_catalog (venue_id) |
-| `venue_catalog` | `venue_id` | - (source of truth for venues) |
+**Three Tables, Three Purposes:**
 
-## Event Field Names (2026-01-10 Canonical Names)
+1.  **`driver_profiles`**: Identity (who you are) - **FOREVER**.
+2.  **`users`**: Session (who's online now) - **TEMPORARY** (60 min TTL).
+3.  **`snapshots`**: Activity (what you did when) - **FOREVER**.
 
-**Always use canonical field names** - no fallbacks to legacy names:
+**Session Rules:**
+- **Ephemeral**: `users` rows are deleted on logout or inactivity (60 min TTL). Do not store permanent settings here.
+- **No Location Data**: All location data goes to the `snapshots` table.
+- **Sliding Window**: `last_active_at` updates on every request.
+- **Highlander Rule**: One device per user (login on new device kills old session).
+- **Lazy Cleanup**: Expired sessions deleted on next `requireAuth` check.
 
-| Canonical Field | Purpose | Format |
-|-----------------|---------|--------|
-| `event_start_date` | Event date | `YYYY-MM-DD` |
-| `event_start_time` | Event time | `HH:MM` (24h) |
-| `event_end_time` | End time | `HH:MM` (24h) - REQUIRED |
-| `event_end_date` | Multi-day end | `YYYY-MM-DD` (defaults to start) |
+**Key Fields:**
+- `current_snapshot_id`: Links to the user's ONE active snapshot.
 
-**Legacy field names** (DO NOT use in new code):
-- `event_date` -> Use `event_start_date`
-- `event_time` -> Use `event_start_time`
+## Snapshots Architecture (2026-02-01)
 
-See `server/lib/events/pipeline/types.js` for full type definitions.
+The `snapshots` table is the authoritative source for location and time context.
 
-## Sorting Convention
+- **Ownership**: Includes `user_id` for ownership verification (required for `requireSnapshotOwnership` middleware).
+- **Market Data**: Now captures `market` from `driver_profiles.market` at creation time.
+- **Holiday Data**: Now captures `holiday` and `is_holiday` flags at creation time.
+- **Density Analysis**: Includes `h3_r8` (H3 geohash) for density analysis.
+- **Location**: Uses `coord_key` to link to `coords_cache`. Legacy fields (`city`, `state`, etc.) are deprecated.
+- **Airport Data**: `airport_context` dropped (2026-01-14). Airport data now lives in `briefings`.
 
-**Always `created_at DESC`** (newest first):
+## Lean Strategies (2026-01-14)
 
-```javascript
-// CORRECT
-.orderBy(desc(snapshots.created_at))
+The `strategies` table stores **ONLY** the AI's strategic output linked to a snapshot.
 
-// WRONG - oldest first
-.orderBy(asc(snapshots.created_at))
-```
+- **Context**: All location/time context lives in `snapshots`.
+- **Briefings**: All briefing data lives in `briefings`.
+- **Dropped Columns**: `strategy_id`, `correlation_id`, `strategy` (legacy), `error_code`, `attempt`, `latency_ms`, `tokens`, `next_retry_at`, `model_name`, `trigger_reason`, `valid_window_start`, `valid_window_end`, `strategy_timestamp`.
 
-## DO: Use Drizzle ORM
+## Database Client & Real-time (2026-02-17)
 
-```javascript
-import { db } from '../../db/drizzle.js';
-import { snapshots } from '../../../shared/schema.js';
-```
+The `db-client.js` module manages the persistent `LISTEN` connection for Real-time/SSE.
 
-## DON'T: Raw SQL (unless necessary)
+- **Race Condition Prevention**: Uses a `connectPromise` to ensure only one connection attempt occurs during concurrent `getListenClient()` calls (2026-01-09).
+- **Reconnection Logic**:
+  - **Backoff**: Implements exponential backoff (up to 10s) on connection loss.
+  - **Handler Reset**: Resets `notificationHandlerAttached` flag so listeners are properly re-bound on the new client.
+  - **Resubscription**: Automatically calls `resubscribeChannels()` to re-issue `LISTEN` commands after a reconnect, preventing orphaned SSE subscribers.
+- **Keepalive**: Sends `SELECT 1` every 4 minutes to prevent connection timeouts.
 
-```javascript
-// Prefer Drizzle over raw SQL
-// Raw SQL is acceptable for complex queries only
-```
+## Connection Manager & Pooling (2026-02-26)
 
-## Check Before Editing
+The `connection-manager.js` module handles the standard query pool configuration, optimized for **Replit Helium (PostgreSQL 16)**.
 
-- [ ] Does my insert include `snapshot_id`?
-- [ ] Am I sorting by `created_at DESC`?
-- [ ] Am I using Drizzle ORM, not raw SQL?
-- [ ] Did I check `shared/schema.js` for table structure?
-- [ ] Am I using canonical event field names? (`event_start_date`, `event_start_time`)
-- [ ] For event data, did I check `server/lib/events/pipeline/types.js`?
+- **Pool Configuration**:
+  - **Max Connections**: Increased to **25** (Issue #22). Accounts for high concurrency (Strategy + Briefing + Blocks = ~8-11 connections per user).
+  - **Idle Timeout**: Relaxed to **10000ms** (10s). Migrated from Neon to Helium, removing the risk of Neon's aggressive proxy termination.
+  - **Connection Timeout**: **15s**. Slightly increased to handle connection spikes safely.
+  - **Statement Timeout**: **30s** global timeout to prevent long-running queries from blocking.
+  - **TCP Keepalive**: Enabled (10s delay) to maintain stable connections.
+  - **SSL Configuration**: Dynamically disabled in development (Helium runs locally) and enabled for production deployments.
+- **Monitoring & Health**:
+  - **Capacity Warning**: Monitors pool usage every 30s. Logs a warning if usage exceeds **80%** (20 connections).
+  - **Health Check**: `getAgentState()` statically reports healthy (`degraded: false`) as Replit manages the underlying Postgres availability.
+- **Error Handling**:
+  - **57P01 (Admin Shutdown)**: Previously common with Neon's proxy, now rare in Helium. Still treated as a warning (not fatal) and the pool auto-recovers by evicting the dead client.

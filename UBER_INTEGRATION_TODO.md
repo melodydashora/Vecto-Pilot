@@ -1,5 +1,7 @@
 # Uber Driver API Integration TODO
 
+**Last Updated:** 2026-02-15
+
 ## Overview
 Integrate Uber Driver API to allow drivers to connect their accounts and access historical trip data, earnings, and profile information to power optimization features.
 
@@ -245,6 +247,15 @@ Integrate Uber Driver API to allow drivers to connect their accounts and access 
 6. **Week 6**: Testing + polish
 
 ---
+
+## Progress (Feb 2026)
+
+- [x] OAuth callback route created: `/auth/uber/callback` → `UberCallbackPage.tsx`
+- [x] Server-side auth route: `server/api/auth/uber.js`
+- [x] Environment variables configured (`UBER_CLIENT_ID`, `UBER_CLIENT_SECRET`)
+- [ ] Data sync service (pending)
+- [ ] Trip analytics processing (pending)
+- [ ] UI components for earnings dashboard (pending)
 
 ## Notes
 

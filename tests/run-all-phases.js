@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// LEGACY — This runner predates the current Jest/Playwright setup. Use `npm test` as the primary entrypoint.
 
 import PhaseCAudit from './phase-c-infrastructure.js';
 

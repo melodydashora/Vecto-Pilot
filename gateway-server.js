@@ -9,6 +9,17 @@ import { loadEnvironment } from './server/config/load-env.js';
 import { validateOrExit } from './server/config/validate-env.js';
 import { unifiedAI, UNIFIED_CAPABILITIES } from './server/lib/ai/unified-ai-capabilities.js';
 
+// 2026-02-19: Suppress pg-connection-string SSL mode deprecation warning.
+// 2026-02-26: SSL is now conditional (off for Helium dev, on for production).
+// The warning about future pg v9.0 behavior only matters for production SSL connections.
+const originalEmitWarning = process.emitWarning;
+process.emitWarning = function(warning, ...args) {
+  if (typeof warning === 'string' && warning.includes("SSL modes 'prefer', 'require', and 'verify-ca'")) {
+    return; // Suppress this specific informational warning
+  }
+  return originalEmitWarning.call(this, warning, ...args);
+};
+
 // Load and validate environment
 loadEnvironment();
 validateOrExit();
@@ -21,7 +32,20 @@ const distDir = path.join(__dirname, 'client', 'dist');
 
 // Deployment detection
 const isDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
-const isAutoscaleMode = isDeployment && process.env.CLOUD_RUN_AUTOSCALE === '1';
+
+// 2026-02-25: Autoscale detection — checks EITHER flag independently (Phase 6 Refactor)
+// If either flag is set, the intent is clear: this is an autoscale environment.
+// Workers, SSE, and snapshot observer are forcibly disabled to prevent duplication.
+const isAutoscaleMode = process.env.CLOUD_RUN_AUTOSCALE === '1' || process.env.REPLIT_AUTOSCALE === '1';
+
+// Safety guardrail: loud warning when autoscale is active
+if (isAutoscaleMode) {
+  console.warn('[gateway] ═══════════════════════════════════════════════════════════════');
+  console.warn('[gateway] ⚠️  AUTOSCALE MODE ACTIVE');
+  console.warn('[gateway]    Background workers: DISABLED (must deploy as separate services)');
+  console.warn('[gateway]    SSE: DISABLED | Snapshot observer: DISABLED');
+  console.warn('[gateway] ═══════════════════════════════════════════════════════════════');
+}
 
 // Exported app reference for tests/importers (live binding)
 export let app = null;
@@ -46,15 +70,26 @@ process.on('unhandledRejection', (reason, promise) => {
 
     // Create Express app
     app = express();
+    // 2026-04-25 (helmet-hardening): kill the X-Powered-By: Express leak at the
+    // Express level. helmet().hidePoweredBy strips the header after the fact;
+    // app.disable() prevents it from ever being emitted, race-free.
+    app.disable('x-powered-by');
     app.set('trust proxy', 1);
 
     // Import bootstrap modules
     const { configureHealthEndpoints, mountHealthRouter } = await import('./server/bootstrap/health.js');
     const { configureMiddleware, configureErrorHandler } = await import('./server/bootstrap/middleware.js');
     const { mountRoutes, mountSSE, mountUnifiedCapabilities } = await import('./server/bootstrap/routes.js');
-    const { startStrategyWorker, shouldStartWorker, killAllChildren, startEventSyncJob } = await import('./server/bootstrap/workers.js');
+    // 2026-02-17: Removed startEventSyncJob — events sync per-snapshot via briefing pipeline
+    const { startStrategyWorker, shouldStartWorker, killAllChildren } = await import('./server/bootstrap/workers.js');
 
-    // Health endpoints FIRST (before any heavy imports)
+    // 2026-04-25: SECURITY (P0-1) — Middleware (helmet/cors/body) MUST be mounted
+    // FIRST so every response (including health and static) carries CSP / HSTS /
+    // X-Content-Type-Options. Previously these were applied after health + static,
+    // leaving the SPA bundle and probe endpoints unprotected.
+    await configureMiddleware(app);
+
+    // Health endpoints (now wrapped by helmet/cors)
     configureHealthEndpoints(app, distDir, MODE);
     await mountHealthRouter(app);
 
@@ -69,112 +104,94 @@ process.on('unhandledRejection', (reason, promise) => {
       process.exit(1);
     });
 
-    // Listen
+    // Export for testing
+    globalThis.testApp = app;
+
+    // 2026-03-17: SECURITY FIX (F-4) — Mount ALL middleware and routes BEFORE listening.
+    // Previously, setImmediate() deferred middleware/routes after server.listen(), creating
+    // a window where requests arrived with no CORS, Helmet, auth, or route handlers.
+    console.log('[gateway] Loading modules and mounting routes...');
+
+    // Static assets
+    app.use(express.static(distDir));
+
+    // 2026-04-25: SECURITY (P0-2) — `/api/diagnostic/db-info` removed. It leaked
+    // database_host (masked but resolvable) plus environment-detection metadata
+    // (REPLIT_DEPLOYMENT, NODE_ENV, mode). Use authenticated diagnostics under
+    // /api/diagnostics/* instead.
+
+    // SSE (not in autoscale mode)
+    if (!isAutoscaleMode) {
+      await mountSSE(app);
+    } else {
+      console.log('[gateway] ⏩ SSE disabled (autoscale mode)');
+    }
+
+    // Mount all routes (mono mode)
+    if (MODE === 'mono') {
+      await mountRoutes(app, server);
+    }
+
+    // Error handler (after all routes)
+    await configureErrorHandler(app);
+
+    // Unified capabilities
+    await mountUnifiedCapabilities(app);
+
+    // Unified capabilities API endpoint
+    app.get('/api/unified/capabilities', (_req, res) => {
+      res.json({
+        ok: true,
+        system: 'Unified AI (Eidolon/Assistant/Atlas)',
+        model: UNIFIED_CAPABILITIES.model,
+        context_window: UNIFIED_CAPABILITIES.context_window,
+        thinking_mode: UNIFIED_CAPABILITIES.thinking_mode,
+        capabilities: unifiedAI.getCapabilities()
+      });
+    });
+
+    // SPA catch-all (must be LAST)
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/agent/')) {
+        return next();
+      }
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+
+    console.log('[gateway] ✅ All routes and middleware loaded');
+
+    // 2026-03-17: server.listen() AFTER all middleware and routes are mounted.
+    // Previously called before setImmediate(), creating a security bypass window.
     const entryUrl = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
     if (entryUrl && import.meta.url === entryUrl) {
       server.listen(PORT, '0.0.0.0', () => {
         console.log(`🌐 [gateway] HTTP listening on 0.0.0.0:${PORT}`);
         console.log(`[gateway] Bootstrap completed in ${Date.now() - startTime}ms`);
-
-        // Start unified AI health monitoring
         startUnifiedAIMonitoring();
       });
     }
 
-    // Export for testing
-    globalThis.testApp = app;
+    // Background tasks (non-blocking, safe to start after listen)
+    const workerConfig = shouldStartWorker({ isAutoscaleMode });
+    if (workerConfig.shouldStart) {
+      console.log(`[gateway] ${workerConfig.reason}`);
+      startStrategyWorker({ useLogFile: workerConfig.useLogFile });
+    } else {
+      console.log(`[gateway] ⏸️ Worker not started: ${workerConfig.reason}`);
+    }
 
-    // Load heavy modules after server is listening
-    setImmediate(async () => {
-      console.log('[gateway] Loading modules and mounting routes...');
+    // 2026-02-17: Event sync removed from server start — events sync per-snapshot via briefing pipeline
 
-      // Load AI config
-      const { GATEWAY_CONFIG } = await import('./agent-ai-config.js');
-      console.log('[gateway] AI Config loaded');
-
-      // Static assets
-      app.use(express.static(distDir));
-
-      // Middleware
-      await configureMiddleware(app);
-
-      // Diagnostic endpoint
-      app.get('/api/diagnostic/db-info', (_req, res) => {
-        const dbUrl = process.env.DATABASE_URL;
-        const maskedUrl = dbUrl ? dbUrl.replace(/:[^:@]*@/, ':***@').split('@')[1] : 'NOT_SET';
-        res.json({
-          environment_detection: {
-            REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT || 'not set',
-            NODE_ENV: process.env.NODE_ENV || 'not set',
-            mode: MODE,
-          },
-          database_target: 'REPLIT_POSTGRES',
-          database_host: maskedUrl,
-          has_database_url: !!process.env.DATABASE_URL,
-          timestamp: new Date().toISOString(),
-        });
-      });
-
-      // SSE (not in autoscale mode)
-      if (!isAutoscaleMode) {
-        await mountSSE(app);
-      } else {
-        console.log('[gateway] ⏩ SSE disabled (autoscale mode)');
-      }
-
-      // Mount all routes (mono mode)
-      if (MODE === 'mono') {
-        await mountRoutes(app, server);
-      }
-
-      // Error handler (after all routes)
-      await configureErrorHandler(app);
-
-      // Unified capabilities
-      await mountUnifiedCapabilities(app);
-
-      // Unified capabilities API endpoint
-      app.get('/api/unified/capabilities', (_req, res) => {
-        res.json({
-          ok: true,
-          system: 'Unified AI (Eidolon/Assistant/Atlas)',
-          model: UNIFIED_CAPABILITIES.model,
-          context_window: UNIFIED_CAPABILITIES.context_window,
-          thinking_mode: UNIFIED_CAPABILITIES.thinking_mode,
-          capabilities: unifiedAI.getCapabilities()
-        });
-      });
-
-      // SPA catch-all (must be LAST)
-      app.get('*', (req, res, next) => {
-        if (req.path.startsWith('/api/') || req.path.startsWith('/agent/')) {
-          return next();
-        }
-        res.sendFile(path.join(distDir, 'index.html'));
-      });
-
-      // Start background worker if needed
-      const workerConfig = shouldStartWorker({ mode: MODE, isAutoscaleMode });
-      if (workerConfig.shouldStart) {
-        console.log(`[gateway] ${workerConfig.reason}`);
-        startStrategyWorker({ useLogFile: workerConfig.useLogFile });
-      } else {
-        console.log(`[gateway] ⏸️ Worker not started: ${workerConfig.reason}`);
-      }
-
-      // Start daily event sync job (runs at 6 AM daily)
-      if (!isAutoscaleMode) {
-        startEventSyncJob();
-      }
-
-      // Start change analyzer job (runs on startup, flags doc updates needed)
-      if (!isAutoscaleMode) {
-        const { startChangeAnalyzerJob } = await import('./server/jobs/change-analyzer-job.js');
-        startChangeAnalyzerJob();
-      }
-
-      console.log('[gateway] ✅ All routes and middleware loaded');
-    });
+    // 2026-02-17: Snapshot workflow observer — captures full pipeline timing to snapshot.txt
+    if (!isAutoscaleMode) {
+      import('./scripts/test-snapshot-workflow.js')
+        .then(({ observeSnapshotWorkflow }) => {
+          observeSnapshotWorkflow().catch(err =>
+            console.warn(`[gateway] snapshot-observer error: ${err.message}`)
+          );
+        })
+        .catch(err => console.warn(`[gateway] snapshot-observer load failed: ${err.message}`));
+    }
 
     // Graceful shutdown
     const shutdown = (signal) => {

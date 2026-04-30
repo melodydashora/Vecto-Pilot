@@ -103,8 +103,8 @@ const WORKFLOWS = {
   // Briefing service
   BRIEFING: { phases: 3, emoji: '📰' },
 
-  // Events ETL pipeline (sync-events.mjs)
-  // Phase 1: EXTRACT - Provider calls (SerpAPI, Gemini, Claude)
+  // Events ETL pipeline (briefing-service.js → Gemini discovery)
+  // Phase 1: EXTRACT - Provider calls (Gemini + Google Search)
   // Phase 2: TRANSFORM_A - Normalization + Validation
   // Phase 3: TRANSFORM_B - Geocode + Venue Linking
   // Phase 4: LOAD - Upsert to discovered_events
@@ -141,7 +141,6 @@ const WORKFLOWS = {
  * NOTE: Use ROLE names not model names (Strategist not Claude, Briefer not Gemini)
  *
  * STRATEGY TERMS:
- *   - "Daily Strategy" = consolidated_strategy (8-12hr overview)
  *   - "NOW Strategy" = strategy_for_now (1hr tactical)
  */
 const PHASE_LABELS = {
@@ -180,9 +179,9 @@ const PHASE_LABELS = {
   'BRIEFING:2': 'Briefing|Events',
   'BRIEFING:3': 'Briefing|Validation',
 
-  // EVENTS ETL phases (sync-events.mjs)
+  // EVENTS ETL phases (briefing-service.js → Gemini pipeline)
   // Canonical ETL pipeline: Extract → Transform → Load → Assemble
-  'EVENTS:1': 'Extract|Providers',       // SerpAPI, Gemini, Claude discovery calls
+  'EVENTS:1': 'Extract|Providers',       // Gemini + Google Search discovery
   'EVENTS:2': 'Transform|Normalize',     // normalizeEvent + validateEvent
   'EVENTS:3': 'Transform|Geocode',       // Geocode + venue linking (optional)
   'EVENTS:4': 'Load|Store',              // Upsert to discovered_events with event_hash

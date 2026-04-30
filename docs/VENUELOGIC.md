@@ -131,16 +131,16 @@ rideshare_potential: price.rank >= 3 ? 'high' : price.rank >= 2 ? 'medium' : 'lo
 
 ---
 
-### Fields Populated by `coach-dal.js` (AI Coach Writes)
+### Fields Populated by `coach-dal.js` (Rideshare Coach Writes)
 
 | Field | Source Code | Line # |
 |-------|-------------|--------|
-| `staging_notes` | AI Coach venue intel contributions | 1886, 1916, 1939, 1973 |
-| `dayparts` | AI Coach venue intel contributions | 1885, 1938 |
-| `ai_estimated_hours` | AI Coach venue intel contributions | 1890, 1917, 1944 |
-| `market_slug` | AI Coach market context | 1833, 2028 |
+| `staging_notes` | Rideshare Coach venue intel contributions | 1886, 1916, 1939, 1973 |
+| `dayparts` | Rideshare Coach venue intel contributions | 1885, 1938 |
+| `ai_estimated_hours` | Rideshare Coach venue intel contributions | 1890, 1917, 1944 |
+| `market_slug` | Rideshare Coach market context | 1833, 2028 |
 
-**AI Coach staging_notes merge logic (line 1973):**
+**Rideshare Coach staging_notes merge logic (line 1973):**
 ```javascript
 staging_notes: sql`COALESCE(${venue_catalog.staging_notes}, '{}')::jsonb || ${JSON.stringify(stagingNotes)}::jsonb`
 ```
@@ -211,7 +211,7 @@ staging_notes: {
 | insertVenue | `venue-cache.js` | ✅ From caller | Depends on caller | ✅ YES |
 | SmartBlocks | `enhanced-smart-blocks.js` | ❌ NO | ❌ NO | ❌ NO |
 | Manual Seed | `seed-dfw-venues.js` | ❌ NO | ❌ NO | ❌ NO |
-| AI Coach | `coach-dal.js` | ❌ NO | ❌ NO | ❌ NO |
+| Rideshare Coach | `coach-dal.js` | ❌ NO | ❌ NO | ❌ NO |
 
 ---
 
@@ -232,13 +232,59 @@ When a venue is created via `venue-address-resolver.js` (which happens during ge
 
 ---
 
-## Proposed Solution (Pending Melody's Architecture Decision)
+## Proposed Solution — NOW IMPLEMENTED (2026-02-17 verification)
 
-Add explicit boolean flags to track discovery source:
-- `is_bar` - TRUE if discovered via Bar Tab
-- `is_event_venue` - TRUE if discovered via Events pipeline
+> **Original proposal (2026-01-10):** Add explicit boolean flags to track discovery source.
+> **Status:** IMPLEMENTED in `shared/schema.js` lines 301-304.
 
-These flags would be set at the point of discovery, not inferred later.
+The following columns now exist in `venue_catalog`:
+
+| Column | Type | Default | Schema Line |
+|--------|------|---------|-------------|
+| `is_bar` | boolean NOT NULL | `false` | 301 |
+| `is_event_venue` | boolean NOT NULL | `false` | 302 |
+| `record_status` | text NOT NULL | `'stub'` | 304 |
+
+All three have dedicated indexes (schema.js lines 314-316) for efficient filtering.
+
+**`record_status`** was added beyond the original proposal — tracks venue lifecycle:
+- `'stub'` — minimal record (address resolver, event discovery with no Google Place data)
+- Other values TBD by Melody
+
+**Open question for Melody:** Are these flags being SET at point of discovery? The columns exist, but need to verify that:
+- `venue-intelligence.js` (Bar Tab) sets `is_bar = true` on insert/upsert
+- `venue-cache.js` (`findOrCreateVenue` from events) sets `is_event_venue = true`
+- If not set at discovery, the flags default to `false` and provide no signal
+
+---
+
+## Venue Architecture Consolidation: COMPLETE (2026-02-17 verification)
+
+The 6-phase consolidation plan from 2026-01-05 is **fully implemented**:
+
+| Phase | Status |
+|-------|--------|
+| 1. Add columns to `venue_catalog` | ✅ `is_bar`, `is_event_venue`, `record_status` in schema |
+| 2. Migrate from `venue_cache` | ✅ `migrate-venues-to-catalog.ARCHIVED.js` |
+| 3. Migrate from `nearby_venues` | ✅ Table deleted from schema |
+| 4. Update code references | ✅ All code uses `venue_catalog` |
+| 5. Drop old tables | ✅ Both `venue_cache` and `nearby_venues` deleted |
+| 6. Utility functions | ✅ `venue-utils.js` exists |
+
+**Remaining venue issue:** See `BRIEFING_AND_EVENTS_ISSUES.md` Issue 1 (Venue Creation Gap) — the briefing pipeline's `lookupVenueFuzzy()` is read-only and never creates venues in the consolidated `venue_catalog`. This is a **flow issue**, not a schema issue.
+
+---
+
+## Cross-Reference: EVENT_FRESHNESS_AND_TTL.md Discrepancies (2026-02-17)
+
+The TTL document claims `discovered_events` has an `expires_at` column and a DB trigger — **neither exists**.
+The actual event lifecycle in `discovered_events` uses:
+- `is_active` boolean — toggled by Rideshare Coach, chat, briefing endpoints
+- `deactivated_at` timestamp — set when deactivated
+- `fetchEventsForBriefing()` date-range WHERE clause — filters at read time
+- `filterFreshEvents()` — application-level freshness check
+
+See `BRIEFING_AND_EVENTS_ISSUES.md` Issues 6-8 for full analysis.
 
 ---
 
@@ -251,7 +297,7 @@ These flags would be set at the point of discovery, not inferred later.
 | `server/lib/venue/venue-intelligence.js` | Bar Tab discovery (premium bars) |
 | `server/lib/venue/enhanced-smart-blocks.js` | SmartBlocks venue enrichment |
 | `server/lib/venue/district-detection.js` | District tagging |
-| `server/lib/ai/coach-dal.js` | AI Coach venue contributions |
+| `server/lib/ai/coach-dal.js` | Rideshare Coach venue contributions |
 | `server/scripts/seed-dfw-venues.js` | Manual DFW venue seeding |
 | `server/scripts/migrate-venue-hours.js` | Hours migration |
 | `server/scripts/migrate-venues-to-catalog.ARCHIVED.js` | Old table migration |
@@ -260,7 +306,8 @@ These flags would be set at the point of discovery, not inferred later.
 
 ## Next Steps
 
-**Waiting for Melody's architecture decision on:**
-1. What fields to add (`is_bar`, `is_event_venue`?)
-2. How these flags should be set
-3. Which UI each venue type should appear in
+**Fields are added. Waiting for Melody's confirmation on:**
+1. ~~What fields to add (`is_bar`, `is_event_venue`?)~~ → DONE (in schema)
+2. **Are these flags being SET at discovery?** — Need to verify `venue-intelligence.js` sets `is_bar = true` and `venue-cache.js` sets `is_event_venue = true`
+3. **Which UI each venue type should appear in** — Still needs Melody's decision
+4. **Venue Creation Gap** — Should briefing pipeline create venues via `findOrCreateVenue()` instead of read-only `lookupVenueFuzzy()`? (See BRIEFING_AND_EVENTS_ISSUES.md Issue 1)

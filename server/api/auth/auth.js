@@ -4,15 +4,22 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { db } from '../../db/drizzle.js';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, or } from 'drizzle-orm';
 import {
   users,
   driver_profiles,
   driver_vehicles,
   auth_credentials,
   verification_codes,
-  platform_data
+  platform_data,
+  oauth_states
 } from '../../../shared/schema.js';
+import {
+  getGoogleAuthUrl,
+  exchangeGoogleCode,
+  verifyGoogleIdToken,
+  generateState
+} from '../../lib/auth/oauth/google-oauth.js';
 import {
   hashPassword,
   verifyPassword,
@@ -31,14 +38,18 @@ import { validateAddress } from '../../lib/location/address-validation.js';
 
 const router = Router();
 
-// JWT secret for token generation
-const JWT_SECRET = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
+// 2026-03-17: SECURITY FIX (F-10) — Removed hardcoded 'dev-secret-change-in-production' fallback.
+// REPLIT_DEVSERVER_INTERNAL_ID is per-workspace (not predictable), acceptable for dev.
+const JWT_SECRET = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
+if (!JWT_SECRET) {
+  console.error('[auth] FATAL: No JWT_SECRET or REPLIT_DEVSERVER_INTERNAL_ID — token signing will fail');
+}
 
 /**
- * Generate a JWT token for a user
+ * Generate an HMAC auth token for a user
  * @param {string} userId - User UUID
  * @param {string} email - User email (optional, for logging)
- * @returns {string} JWT token
+ * @returns {string} Auth token (userId.hmacSignature format, not standard JWT)
  */
 function generateAuthToken(userId, email = '') {
   const signature = crypto.createHmac('sha256', JWT_SECRET).update(userId).digest('hex');
@@ -554,6 +565,15 @@ router.post('/login', async (req, res) => {
     }
 
     authLog.phase(1, `Found credentials for: ${email} (hash length: ${creds.password_hash?.length || 0})`);
+
+    // 2026-02-13: OAuth-only users have null password_hash — cannot log in with password
+    if (!creds.password_hash) {
+      authLog.warn(1, `OAuth-only account attempted password login: ${email}`);
+      return res.status(401).json({
+        error: 'OAUTH_ONLY',
+        message: 'This account uses Google Sign-In. Please use the Google button to log in.'
+      });
+    }
 
     // Check if account is locked
     if (creds.locked_until && new Date(creds.locked_until) > new Date()) {
@@ -1131,6 +1151,13 @@ router.put('/profile', requireAuth, async (req, res) => {
     if (updates.marketingOptIn !== undefined) profileUpdates.marketing_opt_in = updates.marketingOptIn;
     if (updates.country) profileUpdates.country = updates.country.trim();
 
+    // 2026-02-13: Terms acceptance (for Google OAuth users who didn't accept during sign-up)
+    if (updates.termsAccepted === true) {
+      profileUpdates.terms_accepted = true;
+      profileUpdates.terms_accepted_at = new Date();
+      profileUpdates.terms_version = '1.0';
+    }
+
     profileUpdates.updated_at = new Date();
 
     // Check if any address fields changed - if so, re-geocode
@@ -1194,22 +1221,42 @@ router.put('/profile', requireAuth, async (req, res) => {
       .set(profileUpdates)
       .where(eq(driver_profiles.user_id, userId));
 
-    // Update vehicle if provided
+    // 2026-02-13: Update or INSERT vehicle if provided
+    // Google OAuth users may not have a vehicle record yet, so check first
     if (updates.vehicle) {
-      const vehicleUpdates = {};
-      if (updates.vehicle.year) vehicleUpdates.year = updates.vehicle.year;
-      if (updates.vehicle.make) vehicleUpdates.make = updates.vehicle.make.trim();
-      if (updates.vehicle.model) vehicleUpdates.model = updates.vehicle.model.trim();
-      if (updates.vehicle.color !== undefined) vehicleUpdates.color = updates.vehicle.color?.trim() || null;
-      if (updates.vehicle.seatbelts) vehicleUpdates.seatbelts = updates.vehicle.seatbelts;
-      vehicleUpdates.updated_at = new Date();
-
-      await db.update(driver_vehicles)
-        .set(vehicleUpdates)
-        .where(and(
+      const existingVehicle = await db.query.driver_vehicles.findFirst({
+        where: and(
           eq(driver_vehicles.driver_profile_id, profile.id),
           eq(driver_vehicles.is_primary, true)
-        ));
+        )
+      });
+
+      if (existingVehicle) {
+        // Update existing vehicle record
+        const vehicleUpdates = {};
+        if (updates.vehicle.year) vehicleUpdates.year = updates.vehicle.year;
+        if (updates.vehicle.make) vehicleUpdates.make = updates.vehicle.make.trim();
+        if (updates.vehicle.model) vehicleUpdates.model = updates.vehicle.model.trim();
+        if (updates.vehicle.color !== undefined) vehicleUpdates.color = updates.vehicle.color?.trim() || null;
+        if (updates.vehicle.seatbelts) vehicleUpdates.seatbelts = updates.vehicle.seatbelts;
+        vehicleUpdates.updated_at = new Date();
+
+        await db.update(driver_vehicles)
+          .set(vehicleUpdates)
+          .where(eq(driver_vehicles.id, existingVehicle.id));
+      } else {
+        // No vehicle record exists — create one (e.g., Google OAuth user completing profile)
+        await db.insert(driver_vehicles).values({
+          driver_profile_id: profile.id,
+          year: updates.vehicle.year || new Date().getFullYear(),
+          make: updates.vehicle.make?.trim() || '',
+          model: updates.vehicle.model?.trim() || '',
+          color: updates.vehicle.color?.trim() || null,
+          seatbelts: updates.vehicle.seatbelts || 4,
+          is_primary: true
+        });
+        authLog.phase(1, `Created new vehicle record for: ${profile.email}`);
+      }
     }
 
     authLog.done(1, `Profile updated for: ${profile.email}`);
@@ -1253,14 +1300,294 @@ router.post('/logout', requireAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GET /api/auth/google - Google OAuth (stub - not yet implemented)
-// 2026-01-06: Added stub to prevent 404 when social login buttons clicked
-// TODO: Implement full Google OAuth with Passport.js
+// GET /api/auth/google - Initiate Google OAuth 2.0 Authorization Code flow
+// 2026-02-13: Replaced stub with real Google OAuth implementation
+// Flow: Client clicks Google → this endpoint → redirect to Google consent
 // ═══════════════════════════════════════════════════════════════════════════
-router.get('/google', (req, res) => {
-  authLog.warn(1, 'Google OAuth requested but not yet implemented');
-  const clientUrl = process.env.CLIENT_URL || '';
-  res.redirect(`${clientUrl}/auth/sign-in?error=social_not_implemented&provider=google`);
+router.get('/google', async (req, res) => {
+  try {
+    // Check that Google OAuth is configured
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      authLog.error(1, 'Google OAuth not configured: missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
+      const clientUrl = process.env.CLIENT_URL || '';
+      return res.redirect(`${clientUrl}/auth/sign-in?error=google_not_configured`);
+    }
+
+    // Generate CSRF state and store in oauth_states table
+    const state = generateState();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minute expiry
+
+    await db.insert(oauth_states).values({
+      state,
+      provider: 'google',
+      user_id: '00000000-0000-0000-0000-000000000000', // Nil UUID - user not authenticated yet
+      redirect_uri: req.query.mode === 'signup' ? 'signup' : 'login',
+      expires_at: expiresAt,
+    });
+
+    // 2026-02-13: Derive base URL for redirect_uri.
+    // Priority: CLIENT_URL env > request origin (handles both dev and prod)
+    const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
+    const authUrl = getGoogleAuthUrl({ state, mode: req.query.mode, baseUrl });
+    authLog.phase(1, `Google OAuth initiated (mode: ${req.query.mode || 'login'}, redirectBase: ${baseUrl})`);
+    res.redirect(authUrl);
+  } catch (err) {
+    authLog.error(1, 'Google OAuth initiation failed', err);
+    const clientUrl = process.env.CLIENT_URL || '';
+    res.redirect(`${clientUrl}/auth/sign-in?error=google_init_failed`);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/auth/google/exchange - Complete Google OAuth (code → session)
+// 2026-02-13: Client callback page sends code + state, server exchanges
+// for tokens, verifies identity, finds/creates user, returns app token
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/google/exchange', async (req, res) => {
+  try {
+    const { code, state } = req.body;
+
+    if (!code || !state) {
+      return res.status(400).json({
+        error: 'MISSING_PARAMS',
+        message: 'Authorization code and state are required'
+      });
+    }
+
+    // 1. Validate CSRF state (must exist, not expired, one-time use)
+    const [storedState] = await db
+      .select()
+      .from(oauth_states)
+      .where(and(
+        eq(oauth_states.state, state),
+        eq(oauth_states.provider, 'google'),
+        gt(oauth_states.expires_at, new Date())
+      ))
+      .limit(1);
+
+    if (!storedState) {
+      authLog.warn(1, 'Google OAuth: invalid or expired state parameter');
+      return res.status(400).json({
+        error: 'INVALID_STATE',
+        message: 'Invalid or expired OAuth state. Please try again.'
+      });
+    }
+
+    // Delete used state (one-time use prevents replay attacks)
+    await db.delete(oauth_states).where(eq(oauth_states.id, storedState.id));
+
+    // 2. Exchange authorization code for tokens
+    // 2026-02-13: baseUrl must match exactly what was used in the auth URL
+    const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
+    authLog.phase(1, `Google OAuth: exchanging code for tokens (redirectBase: ${baseUrl})`);
+    const tokens = await exchangeGoogleCode(code, baseUrl);
+
+    if (!tokens.id_token) {
+      throw new Error('Google did not return an ID token');
+    }
+
+    // 3. Verify ID token and extract user info
+    authLog.phase(1, 'Google OAuth: verifying ID token');
+    const googleUser = await verifyGoogleIdToken(tokens.id_token);
+    authLog.phase(1, `Google OAuth: verified user ${googleUser.email} (sub: ${googleUser.sub.substring(0, 8)}...)`);
+
+    // 4. Find existing user by google_id OR email
+    const profile = await db.query.driver_profiles.findFirst({
+      where: or(
+        eq(driver_profiles.google_id, googleUser.sub),
+        eq(driver_profiles.email, googleUser.email.toLowerCase())
+      )
+    });
+
+    // 2026-02-13: Google OAuth supports both login AND sign-up
+    let activeProfile = profile;
+
+    if (!profile) {
+      // ═══════════════════════════════════════════════════════════════════
+      // NEW ACCOUNT — Create minimal profile from Google data
+      // profile_complete: false → user can complete address/vehicle later
+      // ═══════════════════════════════════════════════════════════════════
+      authLog.phase(1, `Google OAuth: creating new account for ${googleUser.email}`);
+
+      const newUserId = crypto.randomUUID();
+      const newDeviceId = `web-${crypto.randomUUID().substring(0, 8)}`;
+      const newSessionId = crypto.randomUUID();
+      const now = new Date();
+
+      // Create users row (session)
+      await db.insert(users).values({
+        user_id: newUserId,
+        device_id: newDeviceId,
+        session_id: newSessionId,
+        current_snapshot_id: null,
+        session_start_at: now,
+        last_active_at: now,
+        created_at: now,
+        updated_at: now
+      });
+
+      // Create driver_profiles row (identity) with Google-provided data
+      const [newProfile] = await db.insert(driver_profiles).values({
+        user_id: newUserId,
+        first_name: googleUser.given_name || googleUser.name.split(' ')[0] || 'Driver',
+        last_name: googleUser.family_name || googleUser.name.split(' ').slice(1).join(' ') || '',
+        driver_nickname: googleUser.given_name || googleUser.name.split(' ')[0] || null,
+        email: googleUser.email.toLowerCase(),
+        google_id: googleUser.sub,
+        // Fields user must complete later (nullable since 2026-02-13)
+        phone: null,
+        address_1: null,
+        city: null,
+        state_territory: null,
+        market: null,
+        // Email is verified by Google
+        email_verified: true,
+        profile_complete: false,
+        // 2026-02-13: Do NOT auto-accept terms — user must explicitly accept
+        terms_accepted: false,
+        terms_accepted_at: null,
+        terms_version: null,
+      }).returning();
+
+      // Create auth_credentials row WITHOUT password (Google-only user)
+      await db.insert(auth_credentials).values({
+        user_id: newUserId,
+        password_hash: null, // OAuth-only: no password
+        last_login_at: now,
+      });
+
+      activeProfile = newProfile;
+      authLog.done(1, `Google OAuth: new account created for ${googleUser.email} (profile_complete: false)`);
+    } else {
+      // ═══════════════════════════════════════════════════════════════════
+      // EXISTING ACCOUNT — Link Google ID if needed, update session
+      // ═══════════════════════════════════════════════════════════════════
+
+      // 5. Link Google ID if not already set (first Google login for email/password user)
+      if (!activeProfile.google_id) {
+        await db.update(driver_profiles)
+          .set({
+            google_id: googleUser.sub,
+            updated_at: new Date()
+          })
+          .where(eq(driver_profiles.id, activeProfile.id));
+        authLog.phase(1, `Google OAuth: linked Google ID to existing user ${activeProfile.email}`);
+      }
+    }
+
+    // 6. Create/update session (same upsert pattern as login endpoint)
+    const newSessionId = crypto.randomUUID();
+    const now = new Date();
+
+    const existingUser = await db.query.users.findFirst({
+      where: eq(users.user_id, activeProfile.user_id)
+    });
+
+    if (existingUser) {
+      await db.update(users)
+        .set({
+          device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
+          session_id: newSessionId,
+          current_snapshot_id: null,
+          session_start_at: now,
+          last_active_at: now,
+          updated_at: now
+        })
+        .where(eq(users.user_id, activeProfile.user_id));
+    } else {
+      await db.insert(users).values({
+        user_id: activeProfile.user_id,
+        device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
+        session_id: newSessionId,
+        current_snapshot_id: null,
+        session_start_at: now,
+        last_active_at: now,
+        created_at: now,
+        updated_at: now
+      });
+    }
+
+    // 7. Generate app token
+    const token = generateAuthToken(activeProfile.user_id, activeProfile.email);
+
+    // 8. Fetch vehicle for response (may be null for new Google users)
+    const vehicle = await db.query.driver_vehicles.findFirst({
+      where: and(
+        eq(driver_vehicles.driver_profile_id, activeProfile.id),
+        eq(driver_vehicles.is_primary, true)
+      )
+    });
+
+    authLog.done(1, `Google OAuth: ${activeProfile.email} (${profile ? 'existing' : 'new'} account)`);
+
+    // Return same structure as /login for auth context compatibility
+    res.json({
+      ok: true,
+      token,
+      isNewUser: !profile, // Let client know this is a new sign-up
+      user: {
+        userId: activeProfile.user_id,
+        email: activeProfile.email
+      },
+      profile: {
+        id: activeProfile.id,
+        userId: activeProfile.user_id,
+        firstName: activeProfile.first_name,
+        lastName: activeProfile.last_name,
+        nickname: activeProfile.driver_nickname || activeProfile.first_name,
+        email: activeProfile.email,
+        phone: activeProfile.phone,
+        address1: activeProfile.address_1,
+        address2: activeProfile.address_2,
+        city: activeProfile.city,
+        stateTerritory: activeProfile.state_territory,
+        zipCode: activeProfile.zip_code,
+        country: activeProfile.country,
+        market: activeProfile.market,
+        ridesharePlatforms: activeProfile.rideshare_platforms || [],
+        homeLat: activeProfile.home_lat,
+        homeLng: activeProfile.home_lng,
+        homeTimezone: activeProfile.home_timezone,
+        homeFormattedAddress: activeProfile.home_formatted_address,
+        eligEconomy: activeProfile.elig_economy ?? true,
+        eligXl: activeProfile.elig_xl || false,
+        eligXxl: activeProfile.elig_xxl || false,
+        eligComfort: activeProfile.elig_comfort || false,
+        eligLuxurySedan: activeProfile.elig_luxury_sedan || false,
+        eligLuxurySuv: activeProfile.elig_luxury_suv || false,
+        attrElectric: activeProfile.attr_electric || false,
+        attrGreen: activeProfile.attr_green || false,
+        attrWav: activeProfile.attr_wav || false,
+        attrSki: activeProfile.attr_ski || false,
+        attrCarSeat: activeProfile.attr_car_seat || false,
+        prefPetFriendly: activeProfile.pref_pet_friendly || false,
+        prefTeen: activeProfile.pref_teen || false,
+        prefAssist: activeProfile.pref_assist || false,
+        prefShared: activeProfile.pref_shared || false,
+        marketingOptIn: activeProfile.marketing_opt_in || false,
+        termsAccepted: activeProfile.terms_accepted || false,
+        emailVerified: activeProfile.email_verified || false,
+        phoneVerified: activeProfile.phone_verified || false,
+        profileComplete: activeProfile.profile_complete || false,
+        createdAt: activeProfile.created_at
+      },
+      vehicle: vehicle ? {
+        id: vehicle.id,
+        driverProfileId: vehicle.driver_profile_id,
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        seatbelts: vehicle.seatbelts,
+        isPrimary: vehicle.is_primary
+      } : null
+    });
+  } catch (err) {
+    authLog.error(1, 'Google OAuth exchange failed', err);
+    res.status(500).json({
+      error: 'GOOGLE_AUTH_FAILED',
+      message: err.message || 'Google authentication failed'
+    });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

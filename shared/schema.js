@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar } from "drizzle-orm/pg-core";
+import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar, serial, numeric } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
 // Users table: SESSION TRACKING ONLY (Ephemeral)
@@ -70,6 +70,8 @@ export const snapshots = pgTable("snapshots", {
   // Holiday detection at snapshot creation (via Gemini 3.0 Pro + Google Search)
   holiday: text("holiday").notNull().default('none'), // Holiday name (e.g., "Thanksgiving", "Christmas") or 'none'
   is_holiday: boolean("is_holiday").notNull().default(false), // Boolean flag: true if today is a holiday
+  // Snapshot readiness gate: 'pending' until all required fields are populated, then 'ok'
+  status: text("status").default('pending'),
 });
 
 // 2026-01-14: LEAN STRATEGIES TABLE
@@ -94,22 +96,22 @@ export const strategies = pgTable("strategies", {
   error_message: text("error_message"),
 
   // Strategy outputs - THE PRODUCT
-  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour tactical strategy (GPT-5.2)
-  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (on-demand via Briefing tab)
+  strategy_for_now: text('strategy_for_now'), // Immediate 1-hour tactical strategy (STRATEGY_TACTICAL role)
+  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (STRATEGY_DAILY role, on-demand via Briefing tab)
 
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Briefing data from Perplexity Sonar Pro + Gemini 3.0 Pro with Google Search
+// Briefing data from BRIEFING_* AI roles (see model-registry.js for current models)
 // Contains ONLY briefing data (events, traffic, news, weather, closures, airport)
 // All location/time context comes from snapshot via snapshot_id FK
 export const briefings = pgTable("briefings", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull().unique().references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
 
-  // === BRIEFING DATA (from Perplexity + Gemini + Google APIs) ===
+  // === BRIEFING DATA (from BRIEFING_* roles via callModel + Google APIs) ===
   news: jsonb("news"), // Rideshare-relevant news
   weather_current: jsonb("weather_current"), // Current conditions from Google Weather API
   weather_forecast: jsonb("weather_forecast"), // Hourly forecast (next 3-6 hours) from Google Weather API
@@ -175,15 +177,17 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   wait_minutes_used: integer("wait_minutes_used"),
   snapshot_id: uuid("snapshot_id"),
   place_id: text("place_id"),
+  // 2026-03-28: Canonical venue identity — bridges SmartBlocks to venue_catalog
+  venue_id: uuid("venue_id").references(() => venue_catalog.venue_id, { onDelete: 'set null' }),
   // Additional workflow trace fields
   estimated_distance_miles: doublePrecision("estimated_distance_miles"),
   drive_time_minutes: integer("drive_time_minutes"),
   distance_source: text("distance_source"),
-  // GPT-5 Planner outputs (tactical recommendations)
+  // VENUE_SCORER planner outputs (tactical recommendations)
   pro_tips: text("pro_tips").array(), // Array of tactical tips from planner
   closed_reasoning: text("closed_reasoning"), // Why recommend if closed (strategic timing)
   staging_tips: text("staging_tips"), // Where to park/stage for this venue
-  // GPT-5 Staging area coordinates
+  // Staging area coordinates (from VENUE_SCORER)
   staging_name: text("staging_name"), // Name of staging location for verification
   staging_lat: doublePrecision("staging_lat"), // Staging area latitude
   staging_lng: doublePrecision("staging_lng"), // Staging area longitude
@@ -197,11 +201,15 @@ export const ranking_candidates = pgTable("ranking_candidates", {
   access_status: text("access_status"), // Venue access status: 'public', 'restricted', 'private'
   aliases: text("aliases").array(), // Alternative place IDs for this venue (variations)
   // District tagging from LLM output (for text search fallback and deduplication)
-  district: text("district"), // District/neighborhood from GPT-5.2: "Legacy West", "Deep Ellum"
+  district: text("district"), // District/neighborhood from VENUE_SCORER: "Legacy West", "Deep Ellum"
+  // 2026-04-16: Driver preference scoring — home distance + deadhead flag
+  beyond_deadhead: boolean("beyond_deadhead"), // True when venue exceeds driver's max_deadhead_mi
+  distance_from_home_mi: doublePrecision("distance_from_home_mi"), // Haversine miles from driver home
 }, (table) => ({
   // Foreign key indexes for performance optimization (Issue #28)
   idxRankingId: sql`create index if not exists idx_ranking_candidates_ranking_id on ${table} (ranking_id)`,
   idxSnapshotId: sql`create index if not exists idx_ranking_candidates_snapshot_id on ${table} (snapshot_id)`,
+  idxVenueId: sql`create index if not exists idx_ranking_candidates_venue_id on ${table} (venue_id) where venue_id is not null`,
 }));
 
 export const actions = pgTable("actions", {
@@ -231,13 +239,15 @@ export const venue_catalog = pgTable("venue_catalog", {
   address: varchar('address', { length: 500 }).notNull(), // Max 500 chars (full address)
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
-  category: text("category").notNull(),
+  // 2026-04-09: D-097 FIX - Added .default('venue') to prevent NOT NULL constraint violations
+  // when callers omit category. Matches the fallback used in insertVenue() and promoteToVenueCatalog().
+  category: text("category").notNull().default('venue'),
   dayparts: text("dayparts").array(),
   staging_notes: jsonb("staging_notes"),
   city: text("city"),
   metro: text("metro"),
   // District tagging for improved Places API matching (Issue: coord imprecision)
-  // When GPT-5.2 coords are off, we fall back to text search: "venue_name district city"
+  // When AI-estimated coords are off, we fall back to text search: "venue_name district city"
   district: text("district"), // Human-readable: "Legacy West", "Deep Ellum"
   district_slug: text("district_slug"), // Normalized: "legacy-west", "deep-ellum"
   district_centroid_lat: doublePrecision("district_centroid_lat"), // Cluster center lat
@@ -278,12 +288,20 @@ export const venue_catalog = pgTable("venue_catalog", {
 
   // Market Linkage
   market_slug: text("market_slug"),  // References markets(market_slug) - FK added via ALTER
+  // 2026-02-17: IANA timezone for venue (from market lookup at creation time)
+  // Used for isOpen calculation without requiring snapshot context
+  timezone: text("timezone"),
 
   // Bar Marker Fields (FROM nearby_venues - CRITICAL for Map Features)
   expense_rank: integer("expense_rank"),     // 1-4 for $/$$/$$$/$$$$ filtering
   hours_full_week: jsonb("hours_full_week"), // {monday: "4:00 PM - 2:00 AM", ...} for is_open calc
   crowd_level: text("crowd_level"),          // 'low' | 'medium' | 'high'
   rideshare_potential: text("rideshare_potential"), // 'low' | 'medium' | 'high'
+
+  // 2026-02-18: Venue Quality Enhancement - store Google Places data + Haiku classification
+  google_rating: doublePrecision("google_rating"),      // Raw Google rating (e.g., 4.7) — previously discarded
+  phone_number: text("phone_number"),                   // National phone from Google Places — previously null'd
+  venue_quality_tier: text("venue_quality_tier"),        // 'premium' | 'standard' | null — Haiku-assessed, cached forever
 
   // Cache Metadata (FROM venue_cache)
   hours_source: text("hours_source"),        // 'google_places', 'manual', 'inferred'
@@ -412,6 +430,8 @@ export const strategy_feedback = pgTable("strategy_feedback", {
 // General app feedback (simplified - just snapshot context)
 export const app_feedback = pgTable("app_feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // 2026-04-16 (Pass F fix): user_id was missing — auth was required but identity was lost
+  user_id: uuid("user_id"),
   snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'cascade' }),
   // Resolved precise location from snapshot
   formatted_address: text("formatted_address"),
@@ -510,7 +530,7 @@ export const eidolon_memory = pgTable("eidolon_memory", {
 }));
 
 export const cross_thread_memory = pgTable("cross_thread_memory", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: serial("id").primaryKey(),
   scope: text("scope").notNull(),
   key: text("key").notNull(),
   user_id: uuid("user_id"),
@@ -564,8 +584,8 @@ export const venue_events = pgTable("venue_events", {
   idxStartsAt: sql`create index if not exists idx_venue_events_starts_at on ${table} (starts_at)`,
 }));
 
-// Discovered events from AI model searches (SerpAPI, GPT-5.2, etc.)
-// Populated daily by event sync script, used for rideshare demand prediction
+// Discovered events from BRIEFING_EVENTS_DISCOVERY role (Gemini + Google Search)
+// Populated per-snapshot via briefing pipeline, used for rideshare demand prediction
 export const discovered_events = pgTable("discovered_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   // Event identity
@@ -574,8 +594,10 @@ export const discovered_events = pgTable("discovered_events", {
   address: text("address"),
   city: text("city").notNull(),
   state: text("state").notNull(),
-  // 2026-01-10: Removed zip, lat, lng, source_url, raw_source_data
-  // Geocoding (lat/lng) happens in venue_catalog, which is source of truth for coordinates
+  // 2026-04-04: FIX H-7 — Removed zip, lat, lng from schema.
+  // Migration 20260110_drop_discovered_events_unused_cols.sql dropped these columns.
+  // Geocoding lives in venue_catalog (source of truth for coordinates).
+  // Events link to venues via venue_id FK below.
   // Reference to venue_catalog (enables venue → events queries for SmartBlocks)
   // Updated 2026-01-05: FK changed from venue_cache.id to venue_catalog.venue_id
   venue_id: uuid("venue_id").references(() => venue_catalog.venue_id, { onDelete: 'set null' }),
@@ -583,7 +605,7 @@ export const discovered_events = pgTable("discovered_events", {
   event_start_date: text("event_start_date").notNull(), // YYYY-MM-DD format
   event_start_time: text("event_start_time"), // e.g., "7:00 PM", "All Day"
   event_end_date: text("event_end_date"), // For multi-day events (defaults to event_start_date in normalizeEvent)
-  event_end_time: text("event_end_time"), // e.g., "10:00 PM"
+  event_end_time: text("event_end_time").notNull(), // e.g., "10:00 PM"
   // Categorization
   category: text("category").notNull().default('other'), // concert, sports, theater, conference, festival, nightlife, civic, academic, airport, other
   expected_attendance: text("expected_attendance").default('medium'), // high, medium, low
@@ -596,6 +618,9 @@ export const discovered_events = pgTable("discovered_events", {
   // Flags
   is_verified: boolean("is_verified").default(false), // Human verified
   is_active: boolean("is_active").default(true), // False if event was cancelled or deactivated
+  // 2026-04-14: Schema version — enables skipping redundant read-time validation
+  // for rows written by current pipeline. See validateEvent.js VALIDATION_SCHEMA_VERSION.
+  schema_version: integer("schema_version").notNull().default(1),
   // Deactivation tracking (populated when AI Coach or user marks event inactive)
   deactivation_reason: text("deactivation_reason"), // 'event_ended' | 'incorrect_time' | 'no_longer_relevant' | 'cancelled' | 'duplicate' | 'other'
   deactivated_at: timestamp("deactivated_at", { withTimezone: true }),
@@ -763,12 +788,13 @@ export const markets = pgTable("markets", {
   // Market identifier (slug format for URL-safety)
   market_slug: text("market_slug").primaryKey(), // e.g., 'dfw', 'los-angeles', 'chicago'
 
-  // Display name
-  market_name: text("market_name").notNull(), // e.g., 'DFW Metro', 'Los Angeles', 'Chicago'
+  // Display name (Uber canonical name, e.g., "Dallas-Fort Worth", "Los Angeles")
+  market_name: text("market_name").notNull(),
 
   // Location identity (for matching resolved coords to market)
   primary_city: text("primary_city").notNull(), // e.g., 'Dallas', 'Los Angeles', 'Chicago'
   state: text("state").notNull(), // e.g., 'Texas', 'California', 'Illinois'
+  state_abbr: varchar("state_abbr", { length: 5 }), // e.g., 'TX', 'CA', 'IL' — normalized abbreviation
   country_code: varchar("country_code", { length: 2 }).notNull().default('US'),
 
   // Pre-resolved timezone (eliminates Google Timezone API calls for known markets)
@@ -793,23 +819,29 @@ export const markets = pgTable("markets", {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// US MARKET CITIES (City → Market Lookup Table)
+// MARKET CITIES (City → Market Lookup Table)
+// 2026-02-17: Renamed from us_market_cities → market_cities with FK to markets
 // Enables efficient: "User is in Frisco, TX → Show Dallas market intel"
 // ═══════════════════════════════════════════════════════════════════════════
 
-// US Market Cities: Maps every US city to its Uber/Lyft market anchor
-// This replaces the need to scan city_aliases JSONB arrays
+// Market Cities: Maps every city to its rideshare market anchor
+// FK to markets table via market_slug — one source of truth for market definitions
 // Source: Official Uber market listings + GPT analysis (Jan 2026)
-export const us_market_cities = pgTable("us_market_cities", {
+export const market_cities = pgTable("market_cities", {
   id: uuid("id").primaryKey().defaultRandom(),
+
+  // FK to markets table — the source of truth for market definitions
+  // 2026-02-17: Added during market consolidation (replaces brittle text matching)
+  market_slug: text("market_slug").notNull(), // e.g., 'dfw', 'los-angeles-ca'
 
   // Location identity
   state: text("state").notNull(),           // Full state name: "Texas", "California"
   state_abbr: text("state_abbr"),           // Abbreviation: "TX", "CA" (computed on insert)
   city: text("city").notNull(),             // City name: "Frisco", "Plano", "Dallas"
+  country_code: varchar("country_code", { length: 2 }).notNull().default('US'),
 
-  // Market mapping
-  market_name: text("market_name").notNull(), // Uber market name: "Dallas", "Houston", "Phoenix"
+  // Market mapping (display name, denormalized from markets.market_name)
+  market_name: text("market_name").notNull(), // Uber market name: "Dallas-Fort Worth", "Houston"
 
   // Region classification (based on market gravity model)
   region_type: text("region_type").notNull().default('Satellite'), // 'Core' | 'Satellite' | 'Rural'
@@ -820,17 +852,27 @@ export const us_market_cities = pgTable("us_market_cities", {
   // Data provenance
   source_ref: text("source_ref"),           // 'uber.com', 'ridester.com', 'gpt-analysis'
 
+  // IANA timezone denormalized from markets table for fast city→timezone lookups
+  // 2026-02-17: Populated via FK join from markets.timezone (100% coverage)
+  timezone: text("timezone"),
+
   // Metadata
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
-  // Fast city lookup: WHERE state = 'TX' AND city = 'Frisco'
-  idxStateCity: sql`create unique index if not exists idx_us_market_cities_state_city on ${table} (state, city)`,
-  // Market grouping: Find all cities in a market
-  idxMarketName: sql`create index if not exists idx_us_market_cities_market_name on ${table} (market_name)`,
+  // Fast city lookup: WHERE country_code = 'US' AND state = 'TX' AND city = 'Frisco'
+  idxCountryCityState: sql`create unique index if not exists idx_market_cities_country_city_state on ${table} (country_code, state, city)`,
+  // Market grouping: Find all cities in a market via FK
+  idxMarketSlug: sql`create index if not exists idx_umc_market_slug on ${table} (market_slug)`,
+  // Market name lookup (display purposes)
+  idxMarketName: sql`create index if not exists idx_market_cities_market_name on ${table} (market_name)`,
   // Region filtering
-  idxRegionType: sql`create index if not exists idx_us_market_cities_region_type on ${table} (region_type)`,
+  idxRegionType: sql`create index if not exists idx_market_cities_region_type on ${table} (region_type)`,
 }));
+
+// Backward compatibility alias (deprecated — use market_cities directly)
+// 2026-02-17: Alias for code that still imports us_market_cities during transition
+export const us_market_cities = market_cities;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MARKET INTEL (Market-Level Intelligence & Insights)
@@ -908,13 +950,21 @@ export const driver_profiles = pgTable("driver_profiles", {
   last_name: text("last_name").notNull(),
   driver_nickname: text("driver_nickname"), // Custom greeting name (defaults to first_name if null)
   email: text("email").notNull().unique(),
-  phone: text("phone").notNull(),
+  // 2026-02-13: Made nullable for Google OAuth sign-up (user completes profile later)
+  phone: text("phone"),
 
-  // Address
-  address_1: text("address_1").notNull(),
+  // 2026-02-13: Google OAuth subject ID (permanent, unique per Google account)
+  google_id: text("google_id").unique(),
+
+  // 2026-02-13: Concierge share token for public QR code link
+  concierge_share_token: varchar("concierge_share_token", { length: 12 }).unique(),
+
+  // Address - nullable for Google OAuth sign-up (user completes profile later)
+  // 2026-02-13: Made nullable to support OAuth-only registration
+  address_1: text("address_1"),
   address_2: text("address_2"),
-  city: text("city").notNull(),
-  state_territory: text("state_territory").notNull(),
+  city: text("city"),
+  state_territory: text("state_territory"),
   zip_code: text("zip_code"),
   country: text("country").notNull().default('US'),
 
@@ -925,7 +975,8 @@ export const driver_profiles = pgTable("driver_profiles", {
   home_timezone: text("home_timezone"), // IANA timezone for driver's home
 
   // Market selection (rideshare market area)
-  market: text("market").notNull(),
+  // 2026-02-13: Made nullable for Google OAuth sign-up (user selects market later)
+  market: text("market"),
 
   // Rideshare platforms used (jsonb array: ['uber', 'lyft', 'ridehail', 'private'])
   rideshare_platforms: jsonb("rideshare_platforms").notNull().default(sql`'["uber"]'`),
@@ -975,6 +1026,16 @@ export const driver_profiles = pgTable("driver_profiles", {
   phone_verified: boolean("phone_verified").default(false),
   profile_complete: boolean("profile_complete").default(false),
 
+  // Strategist enrichment preferences (2026-04-11 migration applied via
+  // migrations/20260416_driver_preference_columns.sql). Synced into schema
+  // 2026-04-18 — the code in consolidator.js:861 reads these columns with a
+  // graceful fallback (PG error 42703 → DRIVER_PREF_DEFAULTS) so prod keeps
+  // working whether the migration has been applied or not.
+  fuel_economy_mpg: integer("fuel_economy_mpg"),
+  earnings_goal_daily: numeric("earnings_goal_daily", { precision: 10, scale: 2 }),
+  shift_hours_target: numeric("shift_hours_target", { precision: 4, scale: 1 }),
+  max_deadhead_mi: integer("max_deadhead_mi"),
+
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1018,8 +1079,9 @@ export const auth_credentials = pgTable("auth_credentials", {
   id: uuid("id").primaryKey().defaultRandom(),
   user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'restrict' }),
 
-  // Password (bcrypt hashed)
-  password_hash: text("password_hash").notNull(),
+  // Password (bcrypt hashed) - nullable for OAuth-only users (Google, Apple)
+  // 2026-02-13: Made nullable to support Google OAuth sign-up (no password needed)
+  password_hash: text("password_hash"),
 
   // Security
   failed_login_attempts: integer("failed_login_attempts").default(0),
@@ -1404,11 +1466,15 @@ export const coach_system_notes = pgTable("coach_system_notes", {
  * user sessions. We rely on device_id for tracking instead.
  *
  * Data Flow:
- *   iOS Shortcut → OCR extracts text → POST /api/hooks/analyze-offer
- *   → Parse price/miles/time → AI decision → INSERT intercepted_signals
- *   → SSE push to SignalTerminal UI (if app is open)
+ *   iOS Shortcut → "Vecto Analyze" → OCR extracts text → POST /api/hooks/analyze-offer
+ *   → Parse price/miles/time + driver location → AI decision (Flash for speed)
+ *   → INSERT intercepted_signals → pg NOTIFY offer_analyzed → SSE to web app
+ *   → HTTP response to Siri → iOS "Show Notification" displays ACCEPT/REJECT
  *
- * Security: Endpoint uses API key or device registration, not JWT auth.
+ * Security: Endpoint uses device_id identification, not JWT auth.
+ * Location: 6-decimal precision (~11cm) per codebase standard. Market slug uses 1-decimal buckets.
+ *
+ * 2026-02-15: Added location, market, platform, response_time_ms for algorithm learning.
  */
 export const intercepted_signals = pgTable("intercepted_signals", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1421,17 +1487,31 @@ export const intercepted_signals = pgTable("intercepted_signals", {
   // Can be linked later if user logs in on same device.
   user_id: uuid("user_id"), // Intentionally NO .references() - headless ingestion
 
+  // 2026-02-16: Driver location at time of offer (6-decimal precision ~11cm, codebase standard)
+  // Previously 3-decimal (~110m), upgraded for better algorithm learning.
+  // Critical for algorithm learning: where do offers appear, what prices per location?
+  latitude: doublePrecision("latitude"),     // nullable — Siri may not provide location
+  longitude: doublePrecision("longitude"),   // nullable — same
+  market: varchar("market", { length: 100 }), // e.g. "dallas-tx", derived from coords
+
   // Raw input from OCR
   raw_text: text("raw_text").notNull(),
 
   // Parsed offer data
-  // Schema: { price, miles, time, pickup, dropoff, platform, surge, per_mile }
+  // Schema: { price, miles, time_minutes, pickup, dropoff, platform, surge, per_mile, per_minute }
   parsed_data: jsonb("parsed_data"),
+
+  // 2026-02-15: Platform detection (extracted by AI from OCR text)
+  platform: varchar("platform", { length: 20 }), // 'uber' | 'lyft' | 'unknown'
 
   // AI decision
   decision: text("decision").notNull(), // 'ACCEPT' | 'REJECT'
   decision_reasoning: text("decision_reasoning"), // AI explanation
   confidence_score: doublePrecision("confidence_score"), // 0.0 - 1.0
+
+  // 2026-02-15: Response time tracking — how fast did we analyze?
+  // Critical for UX: regular Uber offers give ~9 seconds; Trip Radar offers give only ~5 seconds.
+  response_time_ms: integer("response_time_ms"), // AI analysis + DB write time
 
   // User override (if driver disagreed with AI)
   user_override: text("user_override"), // null | 'ACCEPT' | 'REJECT'
@@ -1445,6 +1525,211 @@ export const intercepted_signals = pgTable("intercepted_signals", {
   idxDeviceId: sql`create index if not exists idx_intercepted_signals_device_id on ${table} (device_id)`,
   idxUserId: sql`create index if not exists idx_intercepted_signals_user_id on ${table} (user_id) where user_id is not null`,
   idxCreatedAt: sql`create index if not exists idx_intercepted_signals_created on ${table} (device_id, created_at desc)`,
+  // 2026-02-15: Market index for algorithm learning queries (e.g., "avg price in dallas-tx at 9pm")
+  idxMarket: sql`create index if not exists idx_intercepted_signals_market on ${table} (market, created_at desc) where market is not null`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OFFER INTELLIGENCE (2026-02-17)
+// Analyst-grade structured storage replacing intercepted_signals JSONB blob.
+// Every metric promoted to an indexed column for SQL analytics and Excel export.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Offer Intelligence Table
+ *
+ * Structured, indexed storage for every ride offer intercepted from
+ * Uber/Lyft via iOS Siri Shortcuts (OCR text or screenshot vision).
+ *
+ * WHY THIS EXISTS:
+ * intercepted_signals stores parsed offer data in a JSONB blob (parsed_data),
+ * making SQL analytics impossible. This table promotes every metric to a
+ * proper indexed column for:
+ *   - Daypart analysis: "What are average $/mile during early_evening?"
+ *   - Geographic clustering: "Where do the best offers appear?" (H3 hex grid)
+ *   - Platform comparison: "Does Uber or Lyft pay more per mile here?"
+ *   - Sequence analysis: "Do rejected offers lead to better ones?"
+ *   - Excel export: Every column is a real SQL type, not JSON to unpack
+ *
+ * Data Flow:
+ *   Siri Shortcut → POST /api/hooks/analyze-offer
+ *   → parse-offer-text.js (regex pre-parser, <1ms)
+ *   → AI (Gemini Flash via OFFER_ANALYZER role, ~1-3s)
+ *   → INSERT offer_intelligence (structured columns)
+ *   → pg NOTIFY offer_analyzed → SSE to web app
+ *
+ * Auth: device_id based (Siri Shortcuts cannot send JWT tokens).
+ * GPS: 6-decimal precision (~11cm) per codebase standard.
+ * H3: Resolution 8 (~0.7km² hexagons) for density clustering.
+ * Daypart: Uses getDayPartKey(hour) from server/lib/location/daypart.js.
+ *
+ * 2026-02-17: Created to replace intercepted_signals JSONB blob with structured columns.
+ */
+export const offer_intelligence = pgTable("offer_intelligence", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DEVICE & USER IDENTIFICATION
+  // ═══════════════════════════════════════════════════════════════════
+
+  // PRIMARY identifier — Siri Shortcuts run without authenticated sessions
+  device_id: varchar("device_id", { length: 255 }).notNull(),
+
+  // OPTIONAL user link — NO FK constraint (headless ingestion)
+  user_id: uuid("user_id"), // Intentionally NO .references() — headless ingestion
+
+  // ═══════════════════════════════════════════════════════════════════
+  // OFFER METRICS (structured numeric columns — the whole point)
+  // All values from parse-offer-text.js regex extraction or AI parsing
+  // ═══════════════════════════════════════════════════════════════════
+
+  price: doublePrecision("price"),                     // Ride price in dollars (e.g., 9.43)
+  per_mile: doublePrecision("per_mile"),               // $/mile = price / total_miles (THE key metric)
+  per_minute: doublePrecision("per_minute"),           // $/minute = price / total_minutes
+  hourly_rate: doublePrecision("hourly_rate"),         // Platform estimated $/active hr (e.g., 23.58)
+  surge: doublePrecision("surge"),                     // Surge/priority amount in dollars
+  advantage_pct: integer("advantage_pct"),             // Uber Pro advantage percentage (e.g., 5)
+
+  pickup_minutes: integer("pickup_minutes"),           // Minutes to reach passenger
+  pickup_miles: doublePrecision("pickup_miles"),       // Miles to reach passenger
+  ride_minutes: integer("ride_minutes"),               // Minutes of actual trip
+  ride_miles: doublePrecision("ride_miles"),           // Miles of actual trip
+  total_miles: doublePrecision("total_miles"),         // pickup_miles + ride_miles
+  total_minutes: integer("total_minutes"),             // pickup_minutes + ride_minutes
+
+  product_type: varchar("product_type", { length: 50 }), // "UberX", "UberX Priority", "Lyft XL", etc.
+  platform: varchar("platform", { length: 20 }).notNull().default('unknown'), // 'uber' | 'lyft' | 'unknown'
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ADDRESSES (pickup and dropoff — for area analysis)
+  // Extracted by AI from OCR text (street/intersection level)
+  // ═══════════════════════════════════════════════════════════════════
+
+  pickup_address: text("pickup_address"),
+  dropoff_address: text("dropoff_address"),
+
+  // Geocoded coordinates (populated async by background geocoder — future)
+  pickup_lat: doublePrecision("pickup_lat"),
+  pickup_lng: doublePrecision("pickup_lng"),
+  dropoff_lat: doublePrecision("dropoff_lat"),
+  dropoff_lng: doublePrecision("dropoff_lng"),
+  geocoded_at: timestamp("geocoded_at", { withTimezone: true }),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DRIVER LOCATION at time of offer (6-decimal GPS, ~11cm precision)
+  // Critical for "where do offers appear" analysis
+  // ═══════════════════════════════════════════════════════════════════
+
+  driver_lat: doublePrecision("driver_lat"),
+  driver_lng: doublePrecision("driver_lng"),
+  coord_key: text("coord_key"),                        // "33.081234_-96.812345" from coordsKey()
+  h3_index: text("h3_index"),                          // H3 resolution 8 hex cell (~0.7km²)
+
+  // ═══════════════════════════════════════════════════════════════════
+  // GEOGRAPHIC & MARKET CONTEXT
+  // ═══════════════════════════════════════════════════════════════════
+
+  market: varchar("market", { length: 100 }),          // Coarse bucket: "33.1_-96.8" (1-decimal GPS)
+
+  // ═══════════════════════════════════════════════════════════════════
+  // TEMPORAL COLUMNS for daypart/time-of-day analysis
+  // Enables: "best offers by daypart", "weekend vs weekday pricing"
+  // ═══════════════════════════════════════════════════════════════════
+
+  local_date: text("local_date"),                      // YYYY-MM-DD in driver's local timezone
+  local_hour: integer("local_hour"),                   // 0-23 in driver's local timezone
+  day_of_week: integer("day_of_week"),                 // 0=Sunday, 6=Saturday (matches snapshots.dow)
+  day_part: text("day_part"),                          // getDayPartKey(hour): overnight|morning|etc.
+  is_weekend: boolean("is_weekend"),                   // true for Saturday (6) and Sunday (0)
+  timezone: text("timezone"),                          // IANA timezone (e.g., "America/Chicago")
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AI ANALYSIS — decision, reasoning, model metadata
+  // ═══════════════════════════════════════════════════════════════════
+
+  decision: text("decision").notNull(),                // 'ACCEPT' | 'REJECT' | 'UNKNOWN'
+  decision_reasoning: text("decision_reasoning"),
+  confidence_score: integer("confidence_score"),       // 0-100
+  ai_model: text("ai_model"),                         // e.g., "gemini-3-flash"
+  response_time_ms: integer("response_time_ms"),
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DRIVER FEEDBACK — human override of AI decision
+  // ═══════════════════════════════════════════════════════════════════
+
+  user_override: text("user_override"),                // null | 'ACCEPT' | 'REJECT'
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SEQUENCE TRACKING — for accept/reject pattern analysis
+  // "Do rejections lead to better subsequent offers?"
+  // ═══════════════════════════════════════════════════════════════════
+
+  offer_session_id: uuid("offer_session_id"),          // Groups offers into 30-min driving sessions
+  offer_sequence_num: integer("offer_sequence_num"),   // 1, 2, 3... within a session
+  seconds_since_last: integer("seconds_since_last"),   // Seconds since previous offer on this device
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PARSE QUALITY & DATA PROVENANCE
+  // ═══════════════════════════════════════════════════════════════════
+
+  parse_confidence: varchar("parse_confidence", { length: 20 }), // 'full' | 'partial' | 'minimal'
+  source: varchar("source", { length: 50 }).notNull().default('siri_shortcut'),
+  input_mode: varchar("input_mode", { length: 20 }).notNull().default('text'), // 'text' | 'vision'
+
+  // ═══════════════════════════════════════════════════════════════════
+  // RAW DATA PRESERVATION (debugging, reprocessing, audit trail)
+  // ═══════════════════════════════════════════════════════════════════
+
+  raw_text: text("raw_text"),
+  raw_ai_response: text("raw_ai_response"),            // Full AI JSON output
+  parsed_data_json: jsonb("parsed_data_json"),         // Legacy JSONB fallback
+
+  // ═══════════════════════════════════════════════════════════════════
+  // TIMESTAMPS
+  // ═══════════════════════════════════════════════════════════════════
+
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  // ═══════════════════════════════════════════════════════════════════
+  // INDEXES — optimized for analyst query patterns
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Device offer history
+  idxDeviceCreated: sql`create index if not exists idx_oi_device_created on ${table} (device_id, created_at desc)`,
+
+  // Avg $/mile by daypart + market + platform
+  idxMarketDaypart: sql`create index if not exists idx_oi_market_daypart on ${table} (market, day_part, platform) where market is not null`,
+
+  // Best offer areas (H3 geographic clustering)
+  idxH3Decision: sql`create index if not exists idx_oi_h3_decision on ${table} (h3_index, decision) where h3_index is not null`,
+
+  // Daily pricing floor by platform
+  idxDatePlatform: sql`create index if not exists idx_oi_date_platform on ${table} (local_date, platform, per_mile) where local_date is not null`,
+
+  // Weekend vs weekday pricing patterns
+  idxWeekendHour: sql`create index if not exists idx_oi_weekend_hour on ${table} (is_weekend, local_hour, platform) where is_weekend is not null`,
+
+  // Sequence analysis within sessions
+  idxSessionSeq: sql`create index if not exists idx_oi_session_seq on ${table} (offer_session_id, offer_sequence_num) where offer_session_id is not null`,
+
+  // Spatial lookup by driver location
+  idxDriverLocation: sql`create index if not exists idx_oi_driver_location on ${table} (driver_lat, driver_lng) where driver_lat is not null`,
+
+  // Override rate (driver disagreement)
+  idxOverride: sql`create index if not exists idx_oi_override on ${table} (device_id, user_override) where user_override is not null`,
+
+  // User linkage
+  idxUserId: sql`create index if not exists idx_oi_user_id on ${table} (user_id) where user_id is not null`,
+
+  // Best offers ranking
+  idxPerMile: sql`create index if not exists idx_oi_per_mile on ${table} (per_mile desc) where per_mile is not null`,
+
+  // General time-series queries
+  idxCreatedAt: sql`create index if not exists idx_oi_created_at on ${table} (created_at desc)`,
+
+  // Geocoding backfill job — find rows needing geocoding
+  idxNeedGeocode: sql`create index if not exists idx_oi_need_geocode on ${table} (id) where geocoded_at is null and pickup_address is not null`,
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1750,3 +2035,87 @@ export const coordsCacheRelations = relations(coords_cache, ({ many }) => ({
 }));
 
 // Type exports removed - use Drizzle's $inferSelect and $inferInsert directly in TypeScript files
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OAUTH & INTEGRATIONS (2026-02-08)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const oauth_states = pgTable("oauth_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  state: text("state").notNull().unique(),
+  provider: text("provider").notNull(), // 'uber', 'lyft'
+  user_id: uuid("user_id").notNull(), // Intentionally no FK to users to allow soft failures
+  redirect_uri: text("redirect_uri"),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxState: sql`create index if not exists idx_oauth_states_state on ${table} (state)`,
+  idxExpires: sql`create index if not exists idx_oauth_states_expires on ${table} (expires_at)`,
+}));
+
+export const uber_connections = pgTable("uber_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'cascade' }),
+  
+  // Tokens (Encrypted at rest)
+  access_token_encrypted: text("access_token_encrypted").notNull(),
+  refresh_token_encrypted: text("refresh_token_encrypted"),
+  token_expires_at: timestamp("token_expires_at", { withTimezone: true }),
+  
+  // Permissions
+  scopes: text("scopes").array(), // ['profile', 'history', 'places']
+  
+  // Status
+  is_active: boolean("is_active").default(true),
+  connected_at: timestamp("connected_at", { withTimezone: true }).defaultNow(),
+  last_sync_at: timestamp("last_sync_at", { withTimezone: true }),
+  
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => ({
+  idxUserId: sql`create index if not exists idx_uber_connections_user_id on ${table} (user_id)`,
+}));
+
+// ============================================================================
+// CONCIERGE FEEDBACK — Passenger ratings from QR code scans
+// ============================================================================
+// 2026-02-13: Direct passenger feedback that rideshare platforms never share.
+// No auth required (passengers are anonymous). Linked to driver via share_token.
+// Rate limited on the API side to prevent spam.
+export const concierge_feedback = pgTable("concierge_feedback", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  driver_profile_id: uuid("driver_profile_id").notNull().references(() => driver_profiles.id, { onDelete: 'cascade' }),
+  share_token: varchar("share_token", { length: 12 }).notNull(),
+  rating: integer("rating").notNull(), // 1-5 stars
+  comment: text("comment"), // Optional free text from passenger
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxDriverProfile: sql`create index if not exists idx_concierge_feedback_driver on ${table} (driver_profile_id)`,
+  idxCreatedAt: sql`create index if not exists idx_concierge_feedback_created on ${table} (created_at)`,
+}));
+
+// ============================================================================
+// CLAUDE MEMORY TABLE — Persistent knowledge base for Claude Code interactions
+// ============================================================================
+// 2026-04-14: Tracks rules agreed upon, actions taken, insights discovered,
+// and context per session. Used by the memory-keeper agent and /api/memory endpoints.
+export const claudeMemory = pgTable("claude_memory", {
+  id: serial("id").primaryKey(),
+  session_id: text("session_id").notNull(),           // Unique ID per Claude Code conversation
+  category: text("category").notNull(),                // 'rule' | 'action' | 'insight' | 'decision' | 'context' | 'feedback'
+  title: text("title").notNull(),                      // Short summary (e.g., "Always use Drizzle migrations")
+  content: text("content").notNull(),                  // Full detail of the memory entry
+  source: text("source").default("claude-code"),       // 'claude-code' | 'user' | 'agent' | 'system'
+  priority: text("priority").default("normal"),        // 'critical' | 'high' | 'normal' | 'low'
+  status: text("status").default("active"),            // 'active' | 'superseded' | 'archived' | 'disputed'
+  tags: jsonb("tags").default([]),                     // Array of searchable tags
+  related_files: jsonb("related_files").default([]),   // Files touched during this memory
+  parent_id: integer("parent_id"),                     // For threading/linking related memories
+  metadata: jsonb("metadata").default({}),             // Flexible extra data (model used, token count, etc.)
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxSessionId: sql`create index if not exists idx_claude_memory_session on ${table} (session_id)`,
+  idxCategory: sql`create index if not exists idx_claude_memory_category on ${table} (category)`,
+  idxStatus: sql`create index if not exists idx_claude_memory_status on ${table} (status)`,
+}));

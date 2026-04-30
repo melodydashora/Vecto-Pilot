@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   MapPin,
   Clock,
-  Settings,
   RefreshCw,
   Car,
   CloudRain,
@@ -22,6 +20,8 @@ import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Access critical error setter from CoPilotContext
 import { useCoPilot } from '@/contexts/co-pilot-context';
+// 2026-04-05: Hamburger menu for secondary pages (Sign Out, Settings, About, etc.)
+import HamburgerMenu from '@/components/HamburgerMenu';
 
 // helpers (add these files from sections 2 and 3 below)
 import { classifyDayPart } from "@/lib/daypart";
@@ -80,7 +80,6 @@ const GlobalHeaderComponent: React.FC = () => {
   // CRITICAL FIX Issue #3: Removed incorrect useLocation hook and used useContext for LocationContext
   const loc = useContext(LocationContext) as ExtendedLocationContext | null;
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   // 2026-01-15: FAIL HARD - Get setCriticalError from CoPilotContext
   // GlobalHeader is always used inside CoPilotProvider (via CoPilotLayout)
@@ -505,17 +504,8 @@ const GlobalHeaderComponent: React.FC = () => {
               </div>
             </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-white/20 p-2"
-              title="Settings"
-              aria-label="Open settings"
-              data-testid="button-settings"
-              onClick={() => navigate('/co-pilot/settings')}
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
+            {/* 2026-04-05: Hamburger menu (includes Sign Out, Settings, About, etc.) */}
+            <HamburgerMenu />
           </div>
         </div>
       </div>

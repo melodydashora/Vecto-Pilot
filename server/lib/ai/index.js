@@ -13,22 +13,21 @@ export { callGemini } from './adapters/gemini-adapter.js';
 
 // Strategy providers
 export { runBriefing } from './providers/briefing.js';
-export { runImmediateStrategy, runConsolidator } from './providers/consolidator.js';
+export { runImmediateStrategy } from './providers/consolidator.js';
 
 // Data access
-export { coachDAL } from './coach-dal.js';
+export { rideshareCoachDAL } from './rideshare-coach-dal.js';
 
 // Utilities - now from model-registry.js (updated 2026-01-05)
 export { getLLMStatus, getLLMDiagnostics } from './model-registry.js';
-export { MODELS } from './models-dictionary.js';
 export { unifiedCapabilities } from './unified-ai-capabilities.js';
 
 // Module summary:
 // - adapters/index.js: Main dispatcher - callModel(role, {system, user})
 // - adapters/*: Provider-specific adapters
 // - providers/briefing.js: Gemini-based briefing generation
-// - providers/consolidator.js: Strategy consolidation (STRATEGY_TACTICAL + STRATEGY_DAILY roles)
+// - providers/consolidator.js: Strategy consolidation (STRATEGY_TACTICAL role)
 // - coach-dal.js: Data access layer for AI Coach
-// - model-registry.js: Role configuration, LLM status and diagnostics
-// - models-dictionary.js: Model metadata registry
+// - model-registry.js: Role configuration, LLM status and diagnostics (SINGLE SOURCE OF TRUTH)
 // - unified-ai-capabilities.js: AI capability manager
+// 2026-02-26: Removed models-dictionary.js (dead code — zero imports, superseded by model-registry.js)

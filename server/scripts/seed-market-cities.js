@@ -1,7 +1,7 @@
 /**
  * Seed US Market Cities Data
  *
- * Populates the us_market_cities table with city → market mappings
+ * Populates the market_cities table with city → market mappings
  * Source: Official Uber market listings + GPT analysis (Jan 2026)
  *
  * Usage: node server/scripts/seed-market-cities.js
@@ -10,7 +10,8 @@
  */
 
 import { db } from '../db/drizzle.js';
-import { us_market_cities } from '../../shared/schema.js';
+// 2026-02-17: Renamed market_cities → market_cities (market consolidation)
+import { market_cities } from '../../shared/schema.js';
 import { sql } from 'drizzle-orm';
 
 // State abbreviation mapping
@@ -861,7 +862,7 @@ async function seedMarketCities() {
 
   // Clear existing data
   console.log('  Clearing existing data...');
-  await db.delete(us_market_cities);
+  await db.delete(market_cities);
 
   // Prepare rows with state abbreviations
   const rows = MARKET_CITIES.map(([state, market_name, city, region_type, source_ref]) => ({
@@ -881,7 +882,7 @@ async function seedMarketCities() {
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
-    await db.insert(us_market_cities).values(batch).onConflictDoNothing();
+    await db.insert(market_cities).values(batch).onConflictDoNothing();
     inserted += batch.length;
 
     if (inserted % 200 === 0 || inserted === rows.length) {

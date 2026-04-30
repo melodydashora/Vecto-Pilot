@@ -26,6 +26,15 @@ export const STORAGE_KEYS = {
   // Strategy persistence (survives app switches)
   PERSISTENT_STRATEGY: 'vecto_persistent_strategy',
   STRATEGY_SNAPSHOT_ID: 'vecto_strategy_snapshot_id',
+<<<<<<< HEAD
+=======
+
+  // Schedule (weekly driving availability)
+  SCHEDULE: 'vectopilot_schedule',
+
+  // AI Coach voice preference (2026-04-13)
+  COACH_VOICE_ENABLED: 'vectopilot_coach_voice',
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 } as const;
 
 /**

@@ -2,6 +2,22 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import * as path from "path";
 
+// 2026-04-05: Plugin to strip React DevTools script tag from production builds
+function stripDevToolsPlugin() {
+  return {
+    name: 'strip-react-devtools',
+    transformIndexHtml(html, ctx) {
+      // Only strip in production builds; keep during dev
+      if (ctx.server) return html; // dev server — keep as-is
+      // Remove the React DevTools script block (comment + script tag)
+      return html.replace(
+        /\s*<!-- React DevTools standalone connector.*?<\/script>/s,
+        ''
+      );
+    },
+  };
+}
+
 export default defineConfig(async () => {
   let runtimeErrorOverlay;
   try {
@@ -18,6 +34,7 @@ export default defineConfig(async () => {
     root: path.resolve(projectRoot, "client"),
     plugins: [
       react(),
+      stripDevToolsPlugin(),
       ...(runtimeErrorOverlay ? [runtimeErrorOverlay()] : []),
     ],
     resolve: {
@@ -52,6 +69,10 @@ export default defineConfig(async () => {
               // CSS utilities - no dependencies
               if (id.includes('tailwind-merge') || id.includes('class-variance-authority') || id.includes('clsx')) {
                 return 'vendor-css';
+              }
+              // Charts - separate chunk
+              if (id.includes('recharts')) {
+                return 'vendor-charts';
               }
               // Let Rollup handle React, charts, and everything else naturally
               // This prevents forwardRef errors from chunk load ordering issues

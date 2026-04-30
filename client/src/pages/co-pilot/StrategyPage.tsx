@@ -21,7 +21,16 @@ import {
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
 import { useToast } from '@/hooks/useToast';
 import { FeedbackModal } from '@/components/FeedbackModal';
+<<<<<<< HEAD
 import CoachChat from '@/components/CoachChat';
+=======
+// 2026-04-26 PHASE B: MapTab renamed to StrategyMap and moved into a strategy/
+// subdirectory. Strategy is the only consumer; the standalone /co-pilot/map
+// route and bottom-nav Map tab were deleted in this phase.
+import StrategyMap from '@/components/strategy/StrategyMap';
+import { useActiveEventsQuery } from '@/hooks/useBriefingQueries';
+import type { Venue } from '@/hooks/useBarsQuery';
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import { SmartBlocksStatus } from '@/components/SmartBlocksStatus';
 // 2026-01-09: Renamed from BarsTable for disambiguation
 import BarsDataGrid from '@/components/BarsDataGrid';
@@ -31,6 +40,60 @@ import { useStrategyLoadingMessages } from '@/hooks/useStrategyLoadingMessages';
 import { logAction as logActionHelper, filterHighValueSpacedBlocks } from '@/utils/co-pilot-helpers';
 import type { SmartBlock } from '@/types/co-pilot';
 
+<<<<<<< HEAD
+=======
+// 2026-04-26: Type shapes mirrored from MapPage.tsx for the embedded MapTab.
+// Inline-duplicated rather than extracted into a shared module — the brief
+// flagged this as deliberate; can be DRY'd into a shared types file once a
+// third consumer appears.
+interface MapEvent {
+  title: string;
+  venue?: string;
+  address?: string;
+  event_start_date?: string;
+  event_end_date?: string;
+  event_start_time?: string;
+  event_end_time?: string;
+  latitude?: number;
+  longitude?: number;
+  impact?: 'high' | 'medium' | 'low';
+  subtype?: string;
+}
+
+interface BriefingEvent {
+  event_start_date?: string;
+  event_type?: string;
+  subtype?: string;
+  title?: string;
+  venue?: string;
+  location?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  impact?: 'high' | 'medium' | 'low';
+  event_start_time?: string;
+  event_end_time?: string;
+  [key: string]: unknown;
+}
+
+interface MapBar {
+  name: string;
+  type: string;
+  address: string;
+  expenseLevel: string;
+  expenseRank: number;
+  isOpen: boolean;
+  closingSoon: boolean;
+  minutesUntilClose: number | null;
+  lat: number;
+  lng: number;
+  placeId?: string;
+  rating?: number | null;
+  closedGoAnyway?: boolean;
+  closedReason?: string | null;
+}
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 export default function StrategyPage() {
   const locationContext = useLocationContext();
   const { toast } = useToast();
@@ -41,7 +104,10 @@ export default function StrategyPage() {
     coords,
     lastSnapshotId,
     strategyData,
+<<<<<<< HEAD
     persistentStrategy,
+=======
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     immediateStrategy,
     isStrategyFetching,
     snapshotData,
@@ -49,6 +115,10 @@ export default function StrategyPage() {
     blocksData,
     isBlocksLoading,
     blocksError,
+<<<<<<< HEAD
+=======
+    barsData,
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     refetchBlocks,
     enrichmentProgress,
     strategyProgress,
@@ -57,12 +127,88 @@ export default function StrategyPage() {
     timeRemainingText
   } = useCoPilot();
 
+<<<<<<< HEAD
+=======
+  // 2026-04-26: Embedded-MapTab data prep. Memos lifted from MapPage.tsx
+  // verbatim — same field names, same dedup logic, same type shapes — so
+  // the embedded map and the standalone /co-pilot/map page produce identical
+  // marker sets. Refactor into a shared hook only when a third consumer
+  // shows up (currently 2: this page + MapPage).
+  const { data: activeEventsData } = useActiveEventsQuery(lastSnapshotId);
+
+  const filteredBars = React.useMemo(() => {
+    const allBars: Venue[] = [...(barsData?.venues || []), ...(barsData?.lastCallVenues || [])];
+
+    const seen = new Set<string>();
+    const uniqueBars = allBars.filter(bar => {
+      const key = bar.placeId || `${bar.name}-${bar.lat}-${bar.lng}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const openPremiumBars = uniqueBars.filter(bar => {
+      if (bar.expenseRank < 2) return false;
+      return bar.isOpen === true || bar.closedGoAnyway === true;
+    });
+
+    const mappedBars: MapBar[] = openPremiumBars.map(bar => ({
+      name: bar.name,
+      type: bar.type,
+      address: bar.address,
+      expenseLevel: bar.expenseLevel,
+      expenseRank: bar.expenseRank,
+      isOpen: bar.isOpen === true,
+      closingSoon: bar.closingSoon,
+      minutesUntilClose: bar.minutesUntilClose,
+      lat: bar.lat,
+      lng: bar.lng,
+      placeId: bar.placeId,
+      rating: bar.rating,
+      closedGoAnyway: bar.closedGoAnyway,
+      closedReason: bar.closedReason,
+    }));
+
+    return mappedBars;
+  }, [barsData]);
+
+  const mapVenues = useMemo(() => blocks.map((block, idx) => ({
+    id: `${idx}`,
+    name: block.name,
+    lat: block.coordinates.lat,
+    lng: block.coordinates.lng,
+    distance_miles: block.estimatedDistanceMiles,
+    drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
+    est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? null,
+    rank: idx + 1,
+    value_grade: block.valueGrade,
+  })), [blocks]);
+
+  const mapEvents: MapEvent[] = useMemo(() => (activeEventsData?.events || []).map((e: BriefingEvent): MapEvent => ({
+    title: e.title as string,
+    venue: e.venue as string | undefined,
+    address: e.address as string | undefined,
+    event_start_date: e.event_start_date as string | undefined,
+    event_end_date: (e as BriefingEvent & { event_end_date?: string }).event_end_date,
+    event_start_time: e.event_start_time as string | undefined,
+    event_end_time: e.event_end_time as string | undefined,
+    latitude: e.latitude as number | undefined,
+    longitude: e.longitude as number | undefined,
+    impact: e.impact as 'high' | 'medium' | 'low' | undefined,
+    subtype: e.subtype as string | undefined,
+  })), [activeEventsData?.events]);
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   // Filter blocks to show only top 3 Grade A venues that are >= 1 mile apart
   // This is the "NOW strategy" - focused, actionable recommendations
   const filteredBlocks = useMemo(() => {
     if (!blocks || blocks.length === 0) return [];
 
+<<<<<<< HEAD
     const filtered = filterHighValueSpacedBlocks(blocks, 1.0, 3); // 1 mile minimum, max 3 venues
+=======
+    const filtered = filterHighValueSpacedBlocks(blocks as any[], 1.0, 3); // 1 mile minimum, max 3 venues
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     console.log(`[StrategyPage] NOW Strategy: ${filtered.length} Grade A venues (>= 1mi apart, max 3)`);
     return filtered;
   }, [blocks]);
@@ -136,18 +282,30 @@ export default function StrategyPage() {
 
   // Log action wrapper
   const logAction = (action: string, blockId?: string, dwellMs?: number, fromRank?: number) => {
+<<<<<<< HEAD
     logActionHelper(blocksData?.ranking_id, action, blockId, dwellMs, fromRank);
+=======
+    logActionHelper(blocksData?.rankingId, action, blockId, dwellMs, fromRank);
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   };
 
   const metadata = blocksData?.metadata;
 
   // Log view action when blocks are loaded
   useEffect(() => {
+<<<<<<< HEAD
     if (blocks && blocks.length > 0 && blocksData?.ranking_id) {
       logAction('blocks_viewed');
       console.log(`📊 Logged view action for ${blocks.length} blocks (ranking: ${blocksData.ranking_id})`);
     }
   }, [blocksData?.ranking_id]);
+=======
+    if (blocks && blocks.length > 0 && blocksData?.rankingId) {
+      logAction('blocks_viewed');
+      console.log(`📊 Logged view action for ${blocks.length} blocks (ranking: ${blocksData.rankingId})`);
+    }
+  }, [blocksData?.rankingId]);
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // Track dwell time for each block using IntersectionObserver
   useEffect(() => {
@@ -192,7 +350,11 @@ export default function StrategyPage() {
     return () => {
       observers.forEach(observer => observer.disconnect());
     };
+<<<<<<< HEAD
   }, [blocks, blocksData?.ranking_id]);
+=======
+  }, [blocks, blocksData?.rankingId]);
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   const _toggleBlockSelection = (blockIndex: number) => {
     const block = blocks[blockIndex];
@@ -478,6 +640,14 @@ export default function StrategyPage() {
               } else {
                 cardGradient = 'bg-gradient-to-br from-purple-50 via-violet-50 to-fuchsia-50 border-purple-300';
               }
+<<<<<<< HEAD
+=======
+              // 2026-04-16: Beyond-deadhead amber tint — lowest priority override
+              // Priority: rank gradient (index-based) stays; amber only on lower-ranked cards
+              if (block.beyondDeadhead && index > 3) {
+                cardGradient = 'bg-amber-50/30 border-amber-200';
+              }
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
               return (
                 <Card
@@ -505,6 +675,16 @@ export default function StrategyPage() {
                                 <span className="text-xs">🎫 Event: {block.eventBadge}</span>
                               </Badge>
                             )}
+<<<<<<< HEAD
+=======
+                            {block.beyondDeadhead && (
+                              <Badge className="bg-amber-100 text-amber-700 border-0 text-xs">
+                                {block.distanceFromHomeMi != null && Number.isFinite(block.distanceFromHomeMi)
+                                  ? `${block.distanceFromHomeMi}mi from home`
+                                  : 'Beyond range'}
+                              </Badge>
+                            )}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                           </div>
                           {block.address && (
                             <p className="text-sm text-gray-500 mt-0.5">{block.address}</p>
@@ -619,16 +799,31 @@ export default function StrategyPage() {
                       </div>
                     )}
 
+<<<<<<< HEAD
                     {/* Staging Area */}
+=======
+                    {/* Staging Area
+                        2026-04-14: Issue Z — Defensive field checks. Server may send full object
+                        { type, name, address, walkTime, parkingTip, lat, lng } or string-normalized
+                        { parkingTip: "..." } only. Each sub-field renders conditionally. */}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                     {block.stagingArea && (
                       <div className="bg-gray-50 rounded-lg p-3 mb-3">
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="flex items-center gap-2">
                             <MapPin className="w-4 h-4 text-gray-600" />
                             <h4 className="text-sm font-semibold text-gray-900">Staging Area</h4>
+<<<<<<< HEAD
                             <Badge className="bg-yellow-400 text-yellow-900 border-0 text-xs px-2 py-0">
                               {block.stagingArea.type}
                             </Badge>
+=======
+                            {block.stagingArea.type && (
+                              <Badge className="bg-yellow-400 text-yellow-900 border-0 text-xs px-2 py-0">
+                                {block.stagingArea.type}
+                              </Badge>
+                            )}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                           </div>
                           {block.stagingArea.lat && block.stagingArea.lng && (
                             <Button
@@ -647,6 +842,7 @@ export default function StrategyPage() {
                           )}
                         </div>
                         <div className="ml-6 space-y-1">
+<<<<<<< HEAD
                           <p className="text-sm font-medium text-gray-900">{block.stagingArea.name}</p>
                           <p className="text-xs text-gray-600">{block.stagingArea.address}</p>
                           <div className="flex items-center gap-1 mt-2">
@@ -654,6 +850,23 @@ export default function StrategyPage() {
                             <p className="text-xs text-gray-600">{block.stagingArea.walkTime}</p>
                           </div>
                           <p className="text-xs text-gray-500 italic">{block.stagingArea.parkingTip}</p>
+=======
+                          {block.stagingArea.name && (
+                            <p className="text-sm font-medium text-gray-900">{block.stagingArea.name}</p>
+                          )}
+                          {block.stagingArea.address && (
+                            <p className="text-xs text-gray-600">{block.stagingArea.address}</p>
+                          )}
+                          {block.stagingArea.walkTime && (
+                            <div className="flex items-center gap-1 mt-2">
+                              <Clock className="w-3 h-3 text-gray-500" />
+                              <p className="text-xs text-gray-600">{block.stagingArea.walkTime}</p>
+                            </div>
+                          )}
+                          {block.stagingArea.parkingTip && (
+                            <p className="text-xs text-gray-500 italic">{block.stagingArea.parkingTip}</p>
+                          )}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                         </div>
                       </div>
                     )}
@@ -699,6 +912,12 @@ export default function StrategyPage() {
                     {/* Actions */}
                     <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                       <div className="flex items-center gap-3">
+<<<<<<< HEAD
+=======
+                        {/* 2026-04-14: Issue Y — Removed count display (block.up_count/down_count).
+                            toApiBlock() does not emit count fields and the pipeline has no aggregation.
+                            TODO: Add upCount/downCount to toApiBlock() when feedback aggregation is implemented. */}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                         <Button
                           variant="ghost"
                           size="sm"
@@ -706,8 +925,12 @@ export default function StrategyPage() {
                           onClick={() => setFeedbackModal({ isOpen: true, sentiment: 'up', block, blockIndex: index })}
                           data-testid={`button-thumbs-up-${index}`}
                         >
+<<<<<<< HEAD
                           <ThumbsUp className="w-4 h-4 mr-1" />
                           {block.up_count || ''}
+=======
+                          <ThumbsUp className="w-4 h-4" />
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                         </Button>
                         <Button
                           variant="ghost"
@@ -716,8 +939,12 @@ export default function StrategyPage() {
                           onClick={() => setFeedbackModal({ isOpen: true, sentiment: 'down', block, blockIndex: index })}
                           data-testid={`button-thumbs-down-${index}`}
                         >
+<<<<<<< HEAD
                           <ThumbsDown className="w-4 h-4 mr-1" />
                           {block.down_count || ''}
+=======
+                          <ThumbsDown className="w-4 h-4" />
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
                         </Button>
                       </div>
                       <div className="flex items-center gap-2">
@@ -836,6 +1063,7 @@ export default function StrategyPage() {
         </Card>
       )}
 
+<<<<<<< HEAD
       {/* AI Strategy Coach */}
       {coords && (
         <div className="mb-6" data-testid="ai-coach-section">
@@ -860,6 +1088,27 @@ export default function StrategyPage() {
               strategyReady={!!persistentStrategy}
             />
           </div>
+=======
+      {/* 2026-04-26: render the map as soon as coords land — StrategyMap paints
+          the driver-position marker first, then bars/events/venues layer in
+          as each data source resolves (progressive enhancement). The earlier
+          version of this conditional also gated on lastSnapshotId, which
+          forced a blank map until the snapshot existed — broke the
+          "watch data land" UX Melody specifically wants. snapshotId is
+          coerced from `string | null` to `string | undefined` to satisfy
+          StrategyMap's optional-prop type without holding the whole render. */}
+      {coords && (
+        <div data-testid="strategy-embedded-map" className="my-4">
+          <StrategyMap
+            driverLat={coords.latitude}
+            driverLng={coords.longitude}
+            venues={mapVenues}
+            bars={filteredBars}
+            events={mapEvents}
+            snapshotId={lastSnapshotId ?? undefined}
+            isLoading={isBlocksLoading}
+          />
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         </div>
       )}
 
@@ -890,7 +1139,11 @@ export default function StrategyPage() {
         venueName={feedbackModal.block?.name}
         placeId={feedbackModal.block?.placeId}
         snapshotId={lastSnapshotId || undefined}
+<<<<<<< HEAD
         rankingId={blocksData?.ranking_id}
+=======
+        rankingId={blocksData?.rankingId}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         userId={localStorage.getItem('vecto_user_id') || 'default'}
         onSuccess={(sentiment) => {
           console.log(`Feedback submitted: ${sentiment}`);

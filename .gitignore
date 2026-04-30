@@ -43,7 +43,16 @@ node_modules
 .env
 .env.local
 .env.*.local/
+.env_override
+
+# Temp analysis files
+GEMINIANALYSIS.md
+GEMINIMEMORY.md
+all_files.txt
 jspm_packages/
+
+# Claude Code ↔ Gemini CLI thread history (scripts/ask-gemini.mjs, 2026-04-08)
+.gemini-threads/
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
@@ -75,12 +84,7 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variable files
-.env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+# dotenv environment variable files (duplicates removed — primary rules at line 43-46)
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -193,6 +197,9 @@ private.pem
 keys/
 !keys/.gitkeep
 
+# Drizzle auto-generated migration snapshots (regenerable via npx drizzle-kit generate)
+drizzle/
+
 # Shared env files with hardcoded secrets - NEVER commit!
 env/shared.env
 *.env.shared
@@ -200,3 +207,15 @@ shared.env
 .env.example
 .env.unified
 mono-mode.env
+
+# Runtime data files (change on every run, not source code)
+sent-to-strategist.txt
+snapshot.txt
+briefing-output.json
+
+# AI session artifacts (one-time analysis outputs)
+anthropic_models_dict.json
+CLAUDE-OPUS-4.6-FULL-ANALYSIS.md
+
+.gemini/
+gha-creds-*.json

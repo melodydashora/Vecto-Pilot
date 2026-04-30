@@ -10,8 +10,8 @@
 //   2. VENUE_SCORER role → 4-6 venue recommendations with coords
 //   3. Google Routes API → accurate distances and drive times
 //   4. Google Places API → business hours, addresses, open/closed status
-//   5. BRIEFING_EVENTS_VALIDATOR role → event verification (optional)
-//   6. Output: rankings + ranking_candidates tables populated
+//   5. Catalog promotion → verified venues upserted to venue_catalog (venue_id returned)
+//   6. Output: rankings + ranking_candidates tables populated (with venue_id FK)
 //
 // CALLED BY:
 //   - blocks-fast.js POST route (via ensureSmartBlocksExist)
@@ -24,43 +24,299 @@
 
 import { randomUUID } from 'crypto';
 import { db } from '../../db/drizzle.js';
-import { rankings, ranking_candidates } from '../../../shared/schema.js';
+// 2026-04-11: Added discovered_events + venue_catalog for fetchTodayDiscoveredEventsWithVenue —
+// the Smart Blocks pipeline now fetches today's events at the top of the try block
+// and passes them to both filterBriefingForPlanner and matchVenuesToEvents.
+import { rankings, ranking_candidates, discovered_events, venue_catalog } from '../../../shared/schema.js';
 
 // 2026-01-14: Time-sensitive event badge filtering
 // Only show event badges for events that are time-relevant (within 2h future or 4h past start)
 // 2026-01-31: Removed hardcoded timezone fallback - timezone is required per NO FALLBACKS rule
+// 2026-04-14: Issue M — Added 12-hour AM/PM parsing support for robustness.
+//   Canonical pipeline (normalizeEvent.js) stores HH:MM 24-hour format in discovered_events,
+//   but briefings.events JSONB may contain raw Gemini output like "7:00 PM".
+//   Handled formats: "19:00", "7:00 PM", "7 PM", "07:00", "7:30 AM"
 function isEventTimeRelevant(eventStartTime, snapshotTimezone) {
   if (!eventStartTime) return false;
   // 2026-01-31: NO FALLBACKS - timezone is required for global app
   if (!snapshotTimezone) return false;
 
-  // Get current time in venue's timezone
+  // Get current time in snapshot's timezone
   const now = new Date();
   const nowInTimezone = new Date(now.toLocaleString('en-US', { timeZone: snapshotTimezone }));
   const currentMinutes = nowInTimezone.getHours() * 60 + nowInTimezone.getMinutes();
 
-  // Parse event start time (HH:MM format)
-  const [hours, minutes] = eventStartTime.split(':').map(Number);
-  if (isNaN(hours) || isNaN(minutes)) return false;
+  // 2026-04-14: Parse event start time — supports both 24h "HH:MM" and 12h "H:MM AM/PM"
+  const trimmed = eventStartTime.trim().toUpperCase();
+  const match = trimmed.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/);
+  if (!match) return false;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2] || '0', 10);
+  const period = match[3] || '';
+
+  // Convert 12-hour to 24-hour
+  if (period === 'PM' && hours !== 12) hours += 12;
+  if (period === 'AM' && hours === 12) hours = 0;
+
+  if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23) return false;
   const eventMinutes = hours * 60 + minutes;
 
   // Check: starts within next 2 hours OR started within last 4 hours
   const minutesUntilStart = eventMinutes - currentMinutes;
   const minutesSinceStart = currentMinutes - eventMinutes;
 
-  // Event starts within 2 hours (120 min) OR started within last 4 hours (240 min)
   return (minutesUntilStart >= 0 && minutesUntilStart <= 120) ||
          (minutesSinceStart >= 0 && minutesSinceStart <= 240);
 }
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { generateTacticalPlan } from '../strategy/tactical-planner.js';
 import { hasRenderableBriefing, updatePhase } from '../strategy/strategy-utils.js';
 import { enrichVenues } from './venue-enrichment.js';
 import { verifyVenueEventsBatch, extractVerifiedEvents } from './venue-event-verifier.js';
 import { matchVenuesToEvents } from './event-matcher.js';
+import { upsertVenue } from './venue-cache.js';
 import { venuesLog } from '../../logger/workflow.js';
+// 2026-04-14: Issue O — Use role config for accurate model telemetry in rankings.model_name
+import { getRoleConfig } from '../ai/model-registry.js';
 // 2026-01-31: Filter briefing data for venue planner to reduce token usage
 import { filterBriefingForPlanner } from '../briefing/filter-for-planner.js';
+
+/**
+ * 2026-04-11 (fix): Haversine distance between two lat/lng points, in miles.
+ *
+ * Used by fetchTodayDiscoveredEventsWithVenue to filter events to the driver's
+ * reachable radius and sort them closest-first. Without this, state-scoped queries
+ * return events from across the state (Austin, Houston for a DFW driver) that the
+ * prompt showed in unsorted order, polluting VENUE_SCORER's candidate pool with
+ * unreachable events and forcing the model to guess distances from raw coordinates.
+ *
+ * Returns Infinity when either point has null coordinates — callers treat this as
+ * "filtered out" when a max-distance cap is applied.
+ *
+ * @param {number|null} lat1
+ * @param {number|null} lon1
+ * @param {number|null} lat2
+ * @param {number|null} lon2
+ * @returns {number} Distance in miles (or Infinity if any coord is null)
+ */
+function haversineMiles(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
+  const R = 3958.7613; // Earth radius in miles
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * 2026-04-11: Fetch today's discovered events for the driver's state, joined with
+ * venue_catalog so the prompt/matcher can use authoritative venue identity.
+ *
+ * This replaces the per-call DB query that used to live inside event-matcher.js,
+ * which had two bugs:
+ *   1. City-scoped filter dropped metro-wide events (Arlington/Frisco events for
+ *      a Dallas driver). Now state-scoped, consistent with the 2026-04-11 address
+ *      correctness work that state-scoped the other three event queries
+ *      (briefing-service.js post-discovery read, briefing.js /events and
+ *      /discovered-events routes).
+ *   2. Fetched without the venue_catalog join, so the matcher had no access to
+ *      canonical place_id/venue_name/coords. Now left-joined.
+ *
+ * 2026-04-11 (fix): Added optional `driverLat`/`driverLng` parameters that enable
+ * closest-first sorting and `_distanceMiles` annotation for downstream bucketing.
+ *
+ * 2026-04-11 (REVERT — owner direction): The original follow-up used 40mi as a
+ * VENUE_SCORER constraint expansion, allowing event venues up to 40mi away to
+ * count as recommendations. That was WRONG. The 15-mile rule exists because
+ * drivers need the CLOSEST high-impact venues first (The Star in Frisco, Legacy
+ * West in Plano) — not distant event arenas (AAC, Dickies) that happen to have a
+ * show tonight. Reverted the VENUE_SCORER distance rule to 15mi across the board.
+ *
+ * This helper's `maxDistanceMiles` parameter now describes the "metro context
+ * radius" — the farthest distance at which an event is still useful as SURGE FLOW
+ * INTELLIGENCE. Default raised from 40 → 60mi because far events (e.g. Dickies
+ * Arena ~42mi from Plano) are valuable inputs to demand-flow reasoning even
+ * though they're ineligible as direct recommendations. Events within 15mi become
+ * candidate venues; 15-60mi events tell VENUE_SCORER where demand will ORIGINATE
+ * (fans departing FROM hotels/residential areas near the driver TO the far
+ * venue). The prompt-layer bucketing lives in filter-for-planner.js ::
+ * formatBriefingForPrompt — this layer only annotates and sorts.
+ *
+ * The result is used by:
+ *   - filterBriefingForPlanner (as the `todayEvents` param) — so VENUE_SCORER sees
+ *     the event venue name, address, coords, distance, and time window in its prompt
+ *   - matchVenuesToEvents — so the post-VENUE_SCORER matcher can use place_id as
+ *     the primary identity key instead of fragile address string matching
+ *
+ * Uses a LEFT join so orphan events (null venue_id from is_active filter or
+ * ON DELETE SET NULL) still surface; vc_* fields are null in that case. When
+ * driver coords are provided, orphan events fall out of the result because
+ * haversineMiles returns Infinity for them — we can't include an event we can't
+ * locate on the map.
+ *
+ * @param {string} state - Driver's state (2-letter code, e.g., "TX")
+ * @param {string} eventDate - Today in the driver's timezone, YYYY-MM-DD format
+ * @param {number|null} [driverLat] - Driver latitude for distance annotation + sort
+ * @param {number|null} [driverLng] - Driver longitude for distance annotation + sort
+ * @param {number} [maxDistanceMiles=60] - Metro context radius; events farther are dropped
+ *   as out-of-metro noise (Austin/Houston for a DFW driver). NOT a VENUE_SCORER rule.
+ * @returns {Promise<Array>} Events with discovered_events fields, vc_* venue_catalog fields,
+ *   and (when driver coords provided) a `_distanceMiles` field, sorted closest-first
+ */
+export async function fetchTodayDiscoveredEventsWithVenue(
+  state,
+  eventDate,
+  driverLat = null,
+  driverLng = null,
+  maxDistanceMiles = 60
+) {
+  if (!state || !eventDate) return [];
+
+  try {
+    const rows = await db.select({
+      // discovered_events fields
+      id: discovered_events.id,
+      title: discovered_events.title,
+      venue_name: discovered_events.venue_name,
+      address: discovered_events.address,
+      city: discovered_events.city,
+      state: discovered_events.state,
+      venue_id: discovered_events.venue_id,
+      event_start_date: discovered_events.event_start_date,
+      event_start_time: discovered_events.event_start_time,
+      event_end_date: discovered_events.event_end_date,
+      event_end_time: discovered_events.event_end_time,
+      category: discovered_events.category,
+      expected_attendance: discovered_events.expected_attendance,
+      is_active: discovered_events.is_active,
+      // venue_catalog joined fields (vc_ prefix, null for orphan events)
+      vc_venue_name: venue_catalog.venue_name,
+      vc_place_id: venue_catalog.place_id,
+      vc_formatted_address: venue_catalog.formatted_address,
+      vc_address: venue_catalog.address,
+      vc_city: venue_catalog.city,
+      vc_state: venue_catalog.state,
+      vc_lat: venue_catalog.lat,
+      vc_lng: venue_catalog.lng,
+      // 2026-04-16 (H-3): Venue capacity for ranking ceiling guardrail
+      vc_capacity: venue_catalog.capacity_estimate,
+    })
+      .from(discovered_events)
+      .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
+      .where(and(
+        eq(discovered_events.state, state),
+        eq(discovered_events.event_start_date, eventDate),
+        eq(discovered_events.is_active, true)
+      ));
+
+    // 2026-04-11 (REVERT): Distance-annotate + sort when driver coords are provided.
+    // The filter is now the "metro context radius" (default 60mi) — NOT a
+    // VENUE_SCORER rule. Events within this radius are kept regardless of whether
+    // they're candidate territory (≤15mi) or surge-flow-intel territory (15-60mi).
+    // The prompt layer (filter-for-planner.js :: formatBriefingForPrompt) buckets
+    // them into NEAR EVENTS (candidates) and FAR EVENTS (surge flow intel).
+    // Events beyond 60mi are dropped as out-of-metro noise (Austin/Houston for a
+    // DFW driver). Orphan events (null venue_catalog coords) fall out because
+    // haversineMiles returns Infinity for them.
+    if (driverLat != null && driverLng != null) {
+      const withDistance = rows
+        .map(row => ({
+          ...row,
+          _distanceMiles: haversineMiles(driverLat, driverLng, row.vc_lat, row.vc_lng)
+        }))
+        .filter(row => row._distanceMiles <= maxDistanceMiles)
+        .sort((a, b) => a._distanceMiles - b._distanceMiles);
+
+      const droppedFar = rows.length - withDistance.length;
+      const nearCount = withDistance.filter(r => r._distanceMiles <= 15).length;
+      const farCount = withDistance.length - nearCount;
+      console.log(
+        `[enhanced-smart-blocks] fetchTodayDiscoveredEventsWithVenue: ` +
+        `${rows.length} state-wide → ${withDistance.length} within ${maxDistanceMiles}mi metro context ` +
+        `(${nearCount} near ≤15mi candidates, ${farCount} far >15mi surge intel, ` +
+        `dropped ${droppedFar} out-of-metro/orphan)`
+      );
+      return withDistance;
+    }
+
+    return rows;
+  } catch (err) {
+    // Non-fatal — return empty array so the pipeline continues with generic venues.
+    // The alternative (throwing) would block blocks-fast on any transient DB issue,
+    // which is worse than degrading to the event-less code path.
+    // 2026-04-14: Issue P — Use structured workflow logger + return error flag for telemetry
+    venuesLog.warn(1, `[EVENT-FETCH-FAILED] fetchTodayDiscoveredEventsWithVenue: ${err.message} (state=${state}, date=${eventDate})`);
+    return { events: [], eventFetchFailed: true, error: err.message };
+  }
+}
+
+/**
+ * 2026-03-28: Promote verified enriched venues to venue_catalog.
+ * Closes the canonicalization gap — SmartBlocks venues become first-class catalog entities
+ * for cross-session learning, event joins, and map/bars systems.
+ *
+ * Uses Promise.allSettled so one DB failure doesn't break the pipeline.
+ * Only promotes venues where Google Places verified the match (placeVerified + placeId).
+ *
+ * @param {Array} enrichedVenues - Output from enrichVenues()
+ * @param {Object} snapshot - Snapshot context (city, state for upsertVenue)
+ * @returns {Promise<Map<string, string>>} Map of venue name -> venue_id (UUID)
+ */
+async function promoteToVenueCatalog(enrichedVenues, snapshot) {
+  // 2026-04-02: FIX - Also require a valid address to avoid NOT NULL constraint violations.
+  // Address can be null when geocode/Places API fails to resolve during enrichment.
+  const promotable = enrichedVenues.filter(v =>
+    v.placeVerified === true &&
+    v.placeId &&
+    v.address &&
+    v.address !== 'Address unavailable'
+  );
+
+  if (promotable.length === 0) {
+    venuesLog.info(3, 'No verified venues to promote to catalog');
+    return new Map();
+  }
+
+  const results = await Promise.allSettled(
+    promotable.map(v =>
+      upsertVenue(
+        {
+          venueName: v.name,
+          city: snapshot.city,
+          state: snapshot.state,
+          lat: v.lat,
+          lng: v.lng,
+          placeId: v.placeId,
+          address: v.address,
+          formattedAddress: v.address,
+          hours: v.businessHours,
+          category: v.category || 'venue',
+          source: 'smart_blocks_promotion',
+        },
+        { recordStatus: 'verified' }
+      )
+    )
+  );
+
+  const venueIdMap = new Map();
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled' && result.value?.venue_id) {
+      venueIdMap.set(promotable[index].name, result.value.venue_id);
+    } else if (result.status === 'rejected') {
+      // 2026-04-09: D-096 FIX - Unwrap Drizzle ORM error wrappers to surface real PG error code/detail.
+      // Drizzle wraps PostgreSQL errors in .cause or .original; err.code is undefined on the wrapper.
+      const err = result.reason;
+      const pgCode = err?.cause?.code || err?.original?.code || err?.code || 'unknown';
+      const pgDetail = err?.cause?.detail || err?.cause?.message || err?.detail || err?.message || 'no detail';
+      venuesLog.warn(3, `Catalog promotion failed for "${promotable[index].name}": ${pgCode} — ${pgDetail}`);
+    }
+  });
+
+  return venueIdMap;
+}
 
 /**
  * Generate enhanced smart blocks using VENUE_SCORER role
@@ -71,9 +327,12 @@ import { filterBriefingForPlanner } from '../briefing/filter-for-planner.js';
  * @param {string} params.immediateStrategy - "Where to go NOW" strategy (required)
  * @param {Object} params.briefing - Gemini briefing (optional)
  * @param {Object} params.snapshot - Snapshot context
- * @param {string} params.user_id - User ID
+ * @param {string} params.user_id - User ID (currently used only for ranking record attribution, not scoring)
  * @param {EventEmitter} params.phaseEmitter - Optional emitter for SSE phase updates
  */
+// 2026-04-14: Issue T — user_id is currently used only for ranking record attribution, not scoring.
+// Future: thread driver preferences (max deadhead, home base, vehicle class) into venue scoring.
+// The strategist layer was enriched with driver prefs (2026-04-11) but the venue layer was not.
 export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrategy, briefing, snapshot, user_id, phaseEmitter }) {
   const startTime = Date.now();
   const correlationId = randomUUID();
@@ -101,11 +360,42 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // Phase: 'venues' - AI venue recommendation
     await updatePhase(snapshotId, 'venues', { phaseEmitter });
 
+    // 2026-04-11: Fetch today's discovered events for the driver's state, joined with
+    // venue_catalog. This is the authoritative event source for the Smart Blocks pipeline.
+    // Pre-fetched here (not inside filter or matcher) because both downstream consumers
+    // need the same list, and running the query once avoids a redundant DB round-trip.
+    // Timezone-aware date computation matches filter-for-planner.js :: getLocalDate().
+    //
+    // 2026-04-11 (REVERT): Pass driver lat/lng so the helper can annotate each event
+    // with distance and sort closest-first. The helper's `maxDistanceMiles` (default
+    // 60mi) is the METRO CONTEXT RADIUS — not a VENUE_SCORER rule. The prompt-layer
+    // bucketing in formatBriefingForPrompt splits events into NEAR (≤15mi candidates)
+    // and FAR (15-60mi surge flow intel). The 15-mile rule applies to ALL venue
+    // recommendations — far events are intelligence, not destinations.
+    // 2026-04-14: Issue N — Require timezone per NO FALLBACKS rule.
+    // UTC fallback near midnight can shift event selection by one day.
+    if (!snapshot.timezone) {
+      venuesLog.warn(1, `[VENUE] snapshot.timezone is missing for ${snapshotId} — cannot compute today's date. Skipping event fetch.`);
+      // Continue pipeline with empty events rather than wrong-day events
+    }
+    const todayDate = snapshot.timezone
+      ? new Date().toLocaleDateString('en-CA', { timeZone: snapshot.timezone })
+      : null;
+    // 2026-04-14: Issue P — fetchTodayDiscoveredEventsWithVenue returns Array on success,
+    // or { events: [], eventFetchFailed: true } on error. Normalize here.
+    const eventResult = todayDate
+      ? await fetchTodayDiscoveredEventsWithVenue(snapshot.state, todayDate, snapshot.lat, snapshot.lng)
+      : [];
+    const eventFetchFailed = !Array.isArray(eventResult) && eventResult?.eventFetchFailed;
+    const todayEvents = Array.isArray(eventResult) ? eventResult : (eventResult?.events || []);
+    venuesLog.phase(1, eventFetchFailed
+      ? `[DEGRADED] Event fetch failed — proceeding with 0 events (generic venues only)`
+      : `Fetched ${todayEvents.length} reachable events for ${snapshot.state} on ${todayDate || 'NO_TZ'}`);
+
     // 2026-01-31: Filter briefing data for venue planner
-    // Reduces token usage by only including today's events + traffic summary
-    // Large market-wide events (stadiums) kept from entire region
-    // Small local events filtered to user's city only
-    const filteredBriefing = filterBriefingForPlanner(briefing, snapshot);
+    // 2026-04-11: Now passes pre-fetched state-scoped events as 3rd arg — the filter
+    // uses these directly instead of the legacy city-scoped briefing.events path.
+    const filteredBriefing = filterBriefingForPlanner(briefing, snapshot, todayEvents);
 
     const plannerStart = Date.now();
     const venuesPlan = await generateTacticalPlan({
@@ -145,16 +435,13 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     // Step 2.3: Match venues to discovered events from DB
     // Phase: 'places' - Google Places API (event matching happens here too)
+    // 2026-04-11: matchVenuesToEvents no longer queries the DB or accepts city/state/date —
+    // it takes the pre-fetched `todayEvents` directly and matches on place_id (primary) +
+    // venue_id (secondary, dormant at this call site) + name (tertiary fallback).
     console.log(`[PHASE] ${snapshotId.slice(0, 8)} routing → places`);
     await updatePhase(snapshotId, 'places', { phaseEmitter });
 
-    const eventDate = snapshot.date || new Date().toISOString().slice(0, 10);
-    const eventMatches = await matchVenuesToEvents(
-      enrichedVenues,
-      snapshot.city,
-      snapshot.state,
-      eventDate
-    );
+    const eventMatches = matchVenuesToEvents(enrichedVenues, todayEvents);
     venuesLog.phase(3, `Event matching: ${eventMatches.size} venues matched to events`);
 
     // Step 2.5: Verify venue events using Gemini 2.5 Pro
@@ -179,8 +466,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     // Store verified events for strategy injection
     const verifiedEventsJson = JSON.stringify(verifiedEvents);
     
-    // Step 3: Create ranking record (use env var for model name)
-    const venuePlannerModel = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.2';
+    // Step 3: Create ranking record
+    // 2026-04-14: Issue O — Use VENUE_SCORER role config for accurate model telemetry.
+    // Previously used STRATEGY_CONSOLIDATOR env var which is the wrong role entirely.
+    const venueRoleConfig = getRoleConfig('VENUE_SCORER');
     await db.insert(rankings).values({
       ranking_id: rankingId,
       snapshot_id: snapshotId,
@@ -188,23 +477,29 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
       user_id: user_id && user_id.trim() !== '' ? user_id : null,
       city: snapshot.city || null,
       ui: null,
-      model_name: `${venuePlannerModel}-venue-planner`,
+      model_name: `${venueRoleConfig.model}-venue-scorer`,
       scoring_ms: 0,
       planner_ms: plannerMs,
       total_ms: 0,
       timed_out: false,
-      path_taken: 'enhanced-smart-blocks',
+      // 2026-04-14: Issue P — Record if event context was degraded
+      path_taken: eventFetchFailed ? 'enhanced-smart-blocks:degraded-events' : 'enhanced-smart-blocks',
       extras: verifiedEventsJson // Store verified events for strategy injection
     });
     
-    venuesLog.phase(4, `Storing ${enrichedVenues.length} candidates to DB`);
+    // Step 3.5: Promote verified venues to venue_catalog
+    // 2026-03-28: Bridges SmartBlocks to canonical venue identity
+    const venueIdMap = await promoteToVenueCatalog(enrichedVenues, snapshot);
+    venuesLog.phase(4, `Promoted ${venueIdMap.size}/${enrichedVenues.length} venues to catalog, storing ${enrichedVenues.length} candidates`);
 
     // Step 4: Insert ranking candidates with enriched Google data
     const candidates = enrichedVenues.map((enriched, index) => {
       // Calculate value metrics
       const distanceMiles = parseFloat(enriched.distanceMiles) || 0;
       const driveMinutes = enriched.driveTimeMinutes || 0;
-      const estimatedEarnings = distanceMiles * 1.50; // $1.50/mile estimate
+      // HEURISTIC: Static $1.50/mile estimate. No surge, offer, or airport multiplier data.
+      // value_grade is a distance-based approximation, not economic truth. See VENUES.md §11.
+      const estimatedEarnings = distanceMiles * 1.50;
       const valuePerMin = driveMinutes > 0 ? estimatedEarnings / driveMinutes : 0;
 
       // Get matched events for this venue
@@ -231,9 +526,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         lat: enriched.lat,
         lng: enriched.lng,
         rank: enriched.rank || index + 1,
-        
-        // ✅ ENRICHED DATA from Google APIs
+
+        // Canonical identity
         place_id: enriched.placeId,
+        venue_id: venueIdMap.get(enriched.name) || null,
         distance_miles: distanceMiles,
         drive_minutes: driveMinutes,
         value_per_min: valuePerMin,
@@ -249,13 +545,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         venue_events: matchedEvents,  // 2026-01-14: Time-relevant events only (within 2h future or 4h past)
         business_hours: enriched.businessHours,
         closed_reasoning: enriched.strategic_timing || null,
-        
-        // 2026-01-09: Phase 2 schema cleanup - removed redundant legacy column writes:
-        // - drive_time_min (duplicate of drive_minutes)
-        // - straight_line_km (write-only, never read)
-        // - estimated_distance_miles (duplicate of distance_miles)
-        // - drive_time_minutes (duplicate of drive_minutes)
-        // Remaining fields are still needed for other functionality:
+
         est_earnings_per_ride: estimatedEarnings,
         model_score: 1.0 - (index * 0.1),
         exploration_policy: 'greedy',
@@ -276,7 +566,10 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
         distance_source: enriched.distanceSource || 'google_routes_api',
         rate_per_min_used: 1.50,
         trip_minutes_used: driveMinutes,
-        wait_minutes_used: 0
+        wait_minutes_used: 0,
+        // 2026-04-16: Driver preference scoring — persisted for client-side deadhead badge
+        beyond_deadhead: enriched.beyond_deadhead || false,
+        distance_from_home_mi: enriched.distance_from_home_mi || null
       };
     });
     

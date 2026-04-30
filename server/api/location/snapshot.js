@@ -11,6 +11,8 @@ import { generateAndStoreBriefing } from "../../lib/briefing/briefing-service.js
 import { httpError } from "../utils/http-helpers.js";
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from "../../lib/location/coords-key.js";
+// 2026-03-17: Moved import to top — now used by both POST and GET routes
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -28,7 +30,9 @@ function requireStr(v, name) {
   return v.trim();
 }
 
-router.post("/", async (req, res) => {
+// 2026-03-17: SECURITY FIX (F-8) — Require authentication for snapshot creation.
+// Previously unauthenticated, allowing anyone to create snapshots with arbitrary data.
+router.post("/", requireAuth, async (req, res) => {
   const reqId = crypto.randomUUID();
   res.setHeader('x-req-id', reqId);
 
@@ -183,21 +187,24 @@ router.post("/", async (req, res) => {
         snapshotId: snapshot_id,
         snapshot: fullSnapshot
       }).catch(err => {
-        console.warn(`[briefing] generation.failed`, { snapshot_id, err: String(err) });
+        // 2026-02-13: Upgraded from console.warn → console.error (briefing failure cascades to strategy)
+        console.error(`[briefing] generation.failed`, { snapshot_id, err: String(err) });
       });
       console.log(`[briefing] ✅ complete`, { snapshot_id });
     }
 
     // Fire-and-forget: enqueue triad planning; do NOT block the HTTP response
     // CRITICAL: Pass full snapshot to avoid redundant DB fetch - LLMs need formatted_address
+    // 2026-02-13: Strategy errors logged as console.error (was console.warn) —
+    // strategy failure means user gets no recommendations, which is a visible UX impact
     queueMicrotask(() => {
       try {
         console.log(`[triad] enqueue`, { snapshot_id, formatted_address });
         generateStrategyForSnapshot(snapshot_id, { snapshot: dbSnapshot }).catch(err => {
-          console.warn(`[triad] enqueue.failed`, { snapshot_id, err: String(err) });
+          console.error(`[triad] enqueue.failed`, { snapshot_id, err: String(err) });
         });
       } catch (e) {
-        console.warn(`[triad] enqueue.err`, { snapshot_id, err: String(e) });
+        console.error(`[triad] enqueue.err`, { snapshot_id, err: String(e) });
       }
     });
 
@@ -224,7 +231,6 @@ router.post("/", async (req, res) => {
 // GET /:snapshotId - Fetch snapshot for Coach context (early engagement backup)
 // Snapshot fields: city, state, weather (temp, condition), air (AQI), hour, dayPart, holiday, timezone, coordinates
 // SECURITY: requireAuth enforces user must be signed in (GPS gating requires auth)
-import { requireAuth } from '../../middleware/auth.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 
 router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, res) => {
@@ -252,8 +258,15 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
     });
     
     // Return all snapshot fields for Coach context
+    // 2026-04-18: Include `status` so the client-side briefing readiness gate
+    // (`useBriefingQueries` isEnabled check on snapshotStatus === 'ok') actually
+    // works. Before today this field was silently omitted, which made the gate
+    // permanently closed for every real (UUID) snapshot and froze the briefing
+    // tab spinner forever. Root cause of the "briefing tab spins after login"
+    // symptom per the UI audit on 2026-04-18.
     return res.json({
       snapshot_id: snapshot.snapshot_id,
+      status: snapshot.status,
       city: snapshot.city,
       state: snapshot.state,
       country: snapshot.country,

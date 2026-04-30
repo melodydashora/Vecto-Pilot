@@ -21,14 +21,18 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // 2026-04-18: Replit injects a pre-built Chromium (140.0.7339.16) linked against this
+        // Nix env's libgbm/nss/dbus. Using it avoids the libgbm.so.1 load failure we hit with
+        // the chrome-headless-shell that `npx playwright install chromium` pulls down.
+        launchOptions: process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE
+          ? { executablePath: process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+          : {},
+      },
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  // 2026-04-18: webServer disabled — the dev gateway is managed externally
+  // (via Replit's Play button or bin/vecto-runner). Tests assume port 5000 is already up.
 });

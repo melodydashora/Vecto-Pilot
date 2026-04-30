@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useState, useCallback, useEffect, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -21,16 +22,34 @@ interface SchoolClosure {
   reason: string;
   impact: 'high' | 'medium' | 'low';
 }
+=======
+import { useState, memo } from "react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Newspaper, Loader, MapPin, ChevronUp, ChevronDown } from "lucide-react";
+import EventsComponent from "./EventsComponent";
+import { WeatherCard } from "./briefing/WeatherCard";
+import { TrafficCard } from "./briefing/TrafficCard";
+import { NewsCard } from "./briefing/NewsCard";
+import { AirportCard } from "./briefing/AirportCard";
+import { SchoolClosuresCard } from "./briefing/SchoolClosuresCard";
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
 interface BriefingEvent {
   title?: string;
   venue?: string;
   location?: string;
   address?: string;
+<<<<<<< HEAD
   city?: string;  // For market events - shows which city the event is in
   // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
   event_start_date?: string;
   event_end_date?: string;  // For multi-day events
+=======
+  city?: string;
+  event_start_date?: string;
+  event_end_date?: string;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   event_start_time?: string;
   event_end_time?: string;
   event_type?: string;
@@ -41,6 +60,7 @@ interface BriefingEvent {
   [key: string]: unknown;
 }
 
+<<<<<<< HEAD
 interface AirportDelay {
   status: string;
   avgMinutes: number;
@@ -163,6 +183,29 @@ interface BriefingTabProps {
 
 // 2026-01-14: Wrapped with memo to prevent excessive re-renders
 // This component was re-rendering hundreds of times due to unstable prop references
+=======
+interface BriefingTabProps {
+  snapshotId?: string;
+  timezone?: string | null;
+  weatherData?: any;
+  trafficData?: any;
+  newsData?: any;
+  eventsData?: {
+    events?: BriefingEvent[];
+    marketEvents?: BriefingEvent[];
+    market_name?: string;
+    reason?: string
+  };
+  isEventsLoading?: boolean;
+  isTrafficLoading?: boolean;
+  isNewsLoading?: boolean;
+  isAirportLoading?: boolean;
+  isSchoolClosuresLoading?: boolean;
+  schoolClosuresData?: any;
+  airportData?: any;
+}
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 const BriefingTab = memo(function BriefingTab({
   snapshotId,
   weatherData,
@@ -170,6 +213,7 @@ const BriefingTab = memo(function BriefingTab({
   newsData,
   eventsData,
   isEventsLoading,
+<<<<<<< HEAD
   schoolClosuresData,
   airportData,
   consolidatedStrategy,
@@ -405,6 +449,26 @@ const BriefingTab = memo(function BriefingTab({
     try {
       // Calculate "today" in the snapshot's timezone (NOT browser timezone)
       // Using Intl.DateTimeFormat with 'en-CA' locale gives YYYY-MM-DD format
+=======
+  isTrafficLoading,
+  isNewsLoading,
+  isAirportLoading,
+  isSchoolClosuresLoading,
+  schoolClosuresData,
+  airportData,
+  timezone
+}: BriefingTabProps) {
+  const [expandedMarketEvents, setExpandedMarketEvents] = useState(false);
+
+  // Filter events for today (shared logic)
+  const isEventForToday = (event: BriefingEvent): boolean => {
+    if (!event.event_start_time || !event.event_start_date) return false;
+    if (!timezone) {
+      console.error('[BriefingTab] isEventForToday: Missing timezone');
+      return false;
+    }
+    try {
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       const now = new Date();
       const todayStr = new Intl.DateTimeFormat('en-CA', {
         timeZone: timezone,
@@ -412,11 +476,16 @@ const BriefingTab = memo(function BriefingTab({
         month: '2-digit',
         day: '2-digit'
       }).format(now);
+<<<<<<< HEAD
 
       const eventStartDate = event.event_start_date; // YYYY-MM-DD format
       const eventEndDate = event.event_end_date || event.event_start_date; // If no end date, use start date
 
       // Check if today falls within the event date range (inclusive)
+=======
+      const eventStartDate = event.event_start_date;
+      const eventEndDate = event.event_end_date || event.event_start_date;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       return todayStr >= eventStartDate && todayStr <= eventEndDate;
     } catch (err) {
       console.error('[BriefingTab] isEventForToday: Date calculation error:', err);
@@ -437,6 +506,7 @@ const BriefingTab = memo(function BriefingTab({
     );
   }
 
+<<<<<<< HEAD
   // Extract data from props
   const weather = weatherData?.weather;
   const traffic = trafficData?.traffic;
@@ -461,6 +531,17 @@ const BriefingTab = memo(function BriefingTab({
   const eventsToday = allEvents.filter(isEventForToday);
 
   // 2026-01-08: Market events - high-value events from across the market
+=======
+  // Process Events Data
+  const allEvents = (eventsData?.events || []).map((event: BriefingEvent) => ({
+    ...event,
+    title: event.title || 'Untitled Event',
+    subtype: event.event_type || event.subtype,
+    venue: event.venue || event.location,
+  }));
+
+  // Process Market Events
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   const marketName = eventsData?.market_name || null;
   const allMarketEvents = (eventsData?.marketEvents || []).map((event: BriefingEvent) => ({
     ...event,
@@ -470,6 +551,7 @@ const BriefingTab = memo(function BriefingTab({
   }));
   const marketEventsToday = allMarketEvents.filter(isEventForToday);
 
+<<<<<<< HEAD
   const newsItems = (news?.filtered || news?.items || []);
   const newsReason = news?.reason || null;
 
@@ -479,6 +561,8 @@ const BriefingTab = memo(function BriefingTab({
   const busyPeriods = airportConditions?.busyPeriods || [];
   const airportRecommendations = airportConditions?.recommendations;
 
+=======
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   return (
     <div className="space-y-6" data-testid="briefing-container">
       <div className="flex items-center justify-between">
@@ -493,6 +577,7 @@ const BriefingTab = memo(function BriefingTab({
         </div>
       </div>
 
+<<<<<<< HEAD
       {/* Daily Strategy Overview - ON-DEMAND generation */}
       {/* State 1: No strategy yet, show generate button */}
       {!dailyStrategy && !isGeneratingDaily && !showDailyStrategy && (
@@ -1148,6 +1233,26 @@ const BriefingTab = memo(function BriefingTab({
       </Card>
 
       {/* All Events - Consolidated Component */}
+=======
+      <WeatherCard weatherData={weatherData} timezone={timezone} />
+
+      <TrafficCard 
+        trafficData={trafficData} 
+        isTrafficLoading={!!isTrafficLoading} 
+      />
+
+      <AirportCard 
+        airportData={airportData} 
+        isAirportLoading={!!isAirportLoading} 
+      />
+
+      <NewsCard 
+        newsData={newsData} 
+        isNewsLoading={!!isNewsLoading} 
+      />
+
+      {/* Events Sections */}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       {isEventsLoading ? (
         <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
           <CardContent className="p-6">
@@ -1157,12 +1262,30 @@ const BriefingTab = memo(function BriefingTab({
             </div>
           </CardContent>
         </Card>
+<<<<<<< HEAD
       ) : (
         <EventsComponent events={eventsToday} isLoading={false} />
       )}
 
       {/* Major Events in Your Market - Collapsible, Collapsed by Default */}
       {/* 2026-01-08: Shows high-value events from across the market (stadiums, arenas, conventions) */}
+=======
+      ) : allEvents.length === 0 && eventsData?.reason ? (
+        // 2026-04-19: H4 fix — when events generation completed but returned
+        // nothing (e.g., "No events found for this location"), surface the
+        // server-provided reason instead of an empty silent card. Was previously
+        // a blank EventsComponent render — users had no signal whether events
+        // were still loading, broken, or genuinely empty.
+        <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+          <CardContent className="p-6">
+            <div className="text-sm text-gray-600">{eventsData.reason}</div>
+          </CardContent>
+        </Card>
+      ) : (
+        <EventsComponent events={allEvents} isLoading={false} timezone={timezone} />
+      )}
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       {marketEventsToday.length > 0 && (
         <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
           <CardHeader
@@ -1191,12 +1314,17 @@ const BriefingTab = memo(function BriefingTab({
           </CardHeader>
           {expandedMarketEvents && (
             <CardContent className="pt-0">
+<<<<<<< HEAD
               <EventsComponent events={marketEventsToday} isLoading={false} />
+=======
+              <EventsComponent events={marketEventsToday} isLoading={false} timezone={timezone} />
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
             </CardContent>
           )}
         </Card>
       )}
 
+<<<<<<< HEAD
       {/* School Closures Section - LAST */}
       <Card data-testid="school-closures-card">
         <CardHeader>
@@ -1260,8 +1388,15 @@ const BriefingTab = memo(function BriefingTab({
           </CardContent>
         )}
       </Card>
+=======
+      <SchoolClosuresCard schoolClosuresData={schoolClosuresData} isSchoolClosuresLoading={!!isSchoolClosuresLoading} />
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     </div>
   );
 });
 
+<<<<<<< HEAD
 export default BriefingTab;
+=======
+export default BriefingTab;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7

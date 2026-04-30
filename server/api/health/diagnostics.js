@@ -283,13 +283,17 @@ router.get('/worker-status', requireAuth, async (req, res) => {
         REPL_ID: !!process.env.REPL_ID,
         REPLIT_DEPLOYMENT: process.env.REPLIT_DEPLOYMENT,
         K_SERVICE: !!process.env.K_SERVICE,
-        CLOUD_RUN_AUTOSCALE: process.env.CLOUD_RUN_AUTOSCALE
+        CLOUD_RUN_AUTOSCALE: process.env.CLOUD_RUN_AUTOSCALE,
+        REPLIT_AUTOSCALE: process.env.REPLIT_AUTOSCALE  // 2026-02-25: Added
       },
+      // 2026-02-25: Updated to match Phase 6 autoscale detection logic
       computed: {
         isReplit: !!process.env.REPL_ID,
         isCloudRun: process.env.REPLIT_DEPLOYMENT === "1",
-        isAutoscale: process.env.REPLIT_DEPLOYMENT === "1",
-        shouldEnableWorker: process.env.ENABLE_BACKGROUND_WORKER === 'true' && process.env.REPLIT_DEPLOYMENT !== "1"
+        isAutoscale: process.env.CLOUD_RUN_AUTOSCALE === '1' || process.env.REPLIT_AUTOSCALE === '1',
+        shouldEnableWorker: process.env.ENABLE_BACKGROUND_WORKER === 'true' &&
+          process.env.CLOUD_RUN_AUTOSCALE !== '1' &&
+          process.env.REPLIT_AUTOSCALE !== '1'
       }
     };
     
@@ -432,7 +436,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-5-20251101';
+        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-6';
         const response = await anthropic.messages.create({
           model: modelId,
           max_tokens: 10,
@@ -473,7 +477,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const ai = new GoogleGenAI({ apiKey });
-        const modelId = process.env.GEMINI_MODEL || 'gemini-3-pro-preview';
+        const modelId = process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview';
         const result = await ai.models.generateContent({
           model: modelId,
           contents: 'ping'
@@ -512,8 +516,8 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const modelId = process.env.OPENAI_MODEL || 'gpt-5.2';
-        // 2026-01-07: GPT-5.2 requires max_completion_tokens (not max_tokens)
+        const modelId = process.env.OPENAI_MODEL || 'gpt-5.5-2026-04-23';
+        // 2026-01-07: GPT-5 family requires max_completion_tokens (not max_tokens)
         // See LESSONS_LEARNED.md: "max_tokens is DEPRECATED - use max_completion_tokens"
         const response = await openai.chat.completions.create({
           model: modelId,
@@ -599,7 +603,7 @@ router.get('/workflow-dry-run', requireAuth, async (req, res) => {
     try {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-5-20251101';
+      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-6';
       
       await anthropic.messages.create({
         model: modelId,
@@ -661,37 +665,6 @@ router.get('/workflow-dry-run', requireAuth, async (req, res) => {
   }
 });
 
-// SECURITY: Require authentication for test endpoints
-// POST /api/diagnostics/test-consolidate/:snapshotId - Manually test consolidation logic
-router.post('/test-consolidate/:snapshotId', requireAuth, async (req, res) => {
-  try {
-    const { snapshotId } = req.params;
-    
-    // Import and call maybeConsolidate directly
-    const { maybeConsolidate } = await import('../../jobs/triad-worker.js');
-    
-    await maybeConsolidate(snapshotId);
-    
-    // Check result
-    const [row] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
-    
-    // Check briefing from separate briefings table
-    const [briefingRow] = await db.select().from(briefings)
-      .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
-
-    res.json({
-      ok: true,
-      snapshotId,
-      consolidationComplete: row?.consolidated_strategy != null,
-      status: row?.status,
-      hasStrategyForNow: row?.strategy_for_now != null,
-      hasBriefing: !!briefingRow
-    });
-  } catch (err) {
-    console.error('[diagnostics/test-consolidate] Error:', err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
 
 // GET /api/diagnostics/test-traffic
 // Compare traffic data from all providers

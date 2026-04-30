@@ -76,7 +76,13 @@ export const VenueSchema = z.object({
   rating: z.number().nullable(),
   lat: z.number(),
   lng: z.number(),
-  placeId: z.string().optional()
+  placeId: z.string().optional(),
+  // 2026-03-18: Fields already sent by toApiVenue() but missing from formal schema
+  hoursUnknown: z.boolean().optional(),
+  hoursFullWeek: z.record(z.string(), z.string()).optional(),
+  venueQualityTier: z.enum(['premium', 'standard']).nullable().optional(),
+  closedGoAnyway: z.boolean().optional(),
+  closedReason: z.string().nullable().optional()
 });
 
 /**
@@ -159,16 +165,11 @@ export const AuditEntrySchema = z.object({
 
 /**
  * /api/blocks-fast GET - Success response (200)
- *
- * briefing.consolidatedStrategy = Briefing tab 6-12hr shift strategy (manual push)
- * strategy.consolidated = AI pipeline consolidated output (StrategyContentSchema)
- * These are DIFFERENT concepts - do not confuse them!
  */
 export const BlocksFastGetSuccessSchema = z.object({
   blocks: z.array(SmartBlockSchema),
   rankingId: z.string(),
   briefing: z.object({
-    consolidatedStrategy: z.string().nullable(),
     strategyForNow: z.string().nullable()
   }).nullable().optional(),
   audit: z.array(AuditEntrySchema).optional()

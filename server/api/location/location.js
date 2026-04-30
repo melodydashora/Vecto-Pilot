@@ -8,6 +8,8 @@ import { sql, eq, or, ilike } from 'drizzle-orm';
 import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
+// 2026-02-17: Daypart extracted to shared module for reuse in offer_intelligence
+import { getDayPartKey } from '../../lib/location/daypart.js';
 import { generateStrategyForSnapshot } from '../../lib/strategy/strategy-generator.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
@@ -17,92 +19,31 @@ import { makeCircuit } from '../../util/circuit.js';
 import { jobQueue } from '../../lib/infrastructure/job-queue.js';
 import { validateBody, validateQuery } from '../../middleware/validate.js';
 import { snapshotMinimalSchema, locationResolveSchema, newsBriefingSchema } from '../../validation/schemas.js';
+// 2026-02-12: Added requireAuth - all location routes require authentication
+import { requireAuth } from '../../middleware/auth.js';
+// 2026-02-17: Shared timezone resolution (extracted from private lookupMarketTimezone)
+import { resolveTimezoneFromMarket, resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
 
 const router = Router();
 
-// Helper to classify day part from hour
-function getDayPartKey(hour) {
-  if (hour >= 0 && hour < 5) return 'overnight';
-  if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 15) return 'late_morning_noon';
-  if (hour >= 15 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 21) return 'early_evening';
-  return 'evening';
+// 2026-02-12: SECURITY FIX - All location routes now require authentication
+// Previously these were completely open, allowing geocoding, snapshot creation, etc. without auth
+router.use(requireAuth);
+
+// 2026-02-17: getDayPartKey moved to server/lib/location/daypart.js (shared module)
+
+// 2026-02-17: FIX - local_iso must store driver's wall-clock time, NOT UTC
+// For `timestamp without timezone` columns, Drizzle serializes Date via .toISOString() (UTC).
+// We create a Date whose UTC value matches the local wall-clock time so Postgres stores local time.
+function toLocalTimestamp(utcDate, timezone) {
+  return new Date(utcDate.toLocaleString('en-US', { timeZone: timezone }));
 }
 
 // 2026-01-14: validateSnapshotFields moved to shared module (server/util/validate-snapshot.js)
 // Import above: import { validateSnapshotFields } from '../../util/validate-snapshot.js';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MARKET TIMEZONE LOOKUP: Skip Google Timezone API for known global markets
-// Matches city against primary_city or city_aliases in markets table
-// Uses progressive matching: state→city-only→alias for international flexibility
-// Returns timezone if found, null if not in a known market
-// ═══════════════════════════════════════════════════════════════════════════
-async function lookupMarketTimezone(city, state, country) {
-  if (!city) return null;
-
-  try {
-    // Strategy 1: Exact match on primary_city + state (best for US markets)
-    if (state) {
-      const market = await db.query.markets.findFirst({
-        where: (m, { eq, and }) => and(
-          eq(m.primary_city, city),
-          eq(m.state, state),
-          eq(m.is_active, true)
-        ),
-      });
-
-      if (market) {
-        locationLog.done(2, `Market timezone hit: ${market.market_name} → ${market.timezone}`, OP.DB);
-        return market.timezone;
-      }
-
-      // Strategy 2: City aliases + state
-      const aliasResult = await db
-        .select({ timezone: markets.timezone, market_name: markets.market_name })
-        .from(markets)
-        .where(sql`${markets.city_aliases} @> ${JSON.stringify([city])}::jsonb AND ${markets.state} = ${state} AND ${markets.is_active} = true`)
-        .limit(1);
-
-      if (aliasResult.length > 0) {
-        locationLog.done(2, `Market timezone hit (alias): ${aliasResult[0].market_name} → ${aliasResult[0].timezone}`, OP.DB);
-        return aliasResult[0].timezone;
-      }
-    }
-
-    // Strategy 3: Match by primary_city only (for international city-states like Singapore, Hong Kong)
-    // Also handles cases where state naming differs between Google and our data
-    const cityOnlyMarket = await db.query.markets.findFirst({
-      where: (m, { eq, and }) => and(
-        eq(m.primary_city, city),
-        eq(m.is_active, true)
-      ),
-    });
-
-    if (cityOnlyMarket) {
-      locationLog.done(2, `Market timezone hit (city-only): ${cityOnlyMarket.market_name} → ${cityOnlyMarket.timezone}`, OP.DB);
-      return cityOnlyMarket.timezone;
-    }
-
-    // Strategy 4: City aliases without state requirement (for international suburbs)
-    const aliasOnlyResult = await db
-      .select({ timezone: markets.timezone, market_name: markets.market_name })
-      .from(markets)
-      .where(sql`${markets.city_aliases} @> ${JSON.stringify([city])}::jsonb AND ${markets.is_active} = true`)
-      .limit(1);
-
-    if (aliasOnlyResult.length > 0) {
-      locationLog.done(2, `Market timezone hit (alias-only): ${aliasOnlyResult[0].market_name} → ${aliasOnlyResult[0].timezone}`, OP.DB);
-      return aliasOnlyResult[0].timezone;
-    }
-
-    return null;
-  } catch (err) {
-    console.warn('[location] Market timezone lookup failed:', err.message);
-    return null;
-  }
-}
+// 2026-02-17: lookupMarketTimezone extracted to shared module
+// import { resolveTimezoneFromMarket } from '../../lib/location/resolveTimezone.js';
 
 // Circuit breakers for external APIs (fail-fast, no fallbacks)
 const googleMapsCircuit = makeCircuit({
@@ -216,6 +157,27 @@ function pickBestGeocodeResult(results) {
 
   return best;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/location/release-snapshot - Null current_snapshot_id immediately
+// 2026-02-17: Called by refresh spindle BEFORE fetching GPS.
+// Ensures the old snapshot is fully released so the waterfall resets cleanly.
+// Matches logout behavior (session_id stays intact, only snapshot is released).
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/release-snapshot', async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    await db.update(users)
+      .set({ current_snapshot_id: null, updated_at: new Date() })
+      .where(eq(users.user_id, userId));
+
+    snapshotLog.info(`🔄 Snapshot released for user ${userId.substring(0, 8)} (manual refresh)`, OP.DB);
+    res.json({ ok: true, message: 'Snapshot released' });
+  } catch (err) {
+    snapshotLog.error(1, `Failed to release snapshot`, err, OP.DB);
+    res.status(500).json({ error: 'RELEASE_FAILED', message: err.message });
+  }
+});
 
 // GET /api/location/geocode/reverse?lat=&lng=
 // Reverse geocode coordinates to city/state/country + place_id
@@ -486,7 +448,8 @@ router.get('/resolve', async (req, res) => {
 
         // Verify HMAC signature
         // 2026-01-05: Must match fallback in auth.js for consistency
-        const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID || 'dev-secret-change-in-production';
+        // 2026-03-17: SECURITY FIX (F-10) — Removed hardcoded dev secret fallback
+        const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
         const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
 
         // 2026-01-07: DEBUG - Log signature comparison
@@ -538,7 +501,9 @@ router.get('/resolve', async (req, res) => {
     // Dev fallback: Generate deterministic device_id from coords if not provided
     // Uses 6 decimal precision (~0.1m) to ensure unique user per exact address
     // This ensures user records are created even in dev/testing without a real device
-    let deviceId = req.query.device_id;
+    // 2026-04-05: SECURITY — sanitize to prevent type confusion (CodeQL)
+    const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+    let deviceId = sanitizeString(req.query.device_id);
     const isProduction = process.env.NODE_ENV === 'production' && !process.env.REPLIT_DEPLOYMENT;
 
     if (!deviceId && !isProduction) {
@@ -735,19 +700,20 @@ router.get('/resolve', async (req, res) => {
         });
       }
 
-      // Step 2: Try market timezone lookup FIRST (saves ~200-300ms for known markets)
-      // This skips the Google Timezone API call for 102 global markets with 3,300+ city aliases
-      let marketTimezone = null;
+      // Step 2: Timezone resolution via shared module (2026-02-17)
+      // Fast path: market lookup (~5ms, 102 markets + 3,300 city aliases)
+      // Slow path: Google Timezone API (~200-300ms, for unknown locations)
+      let marketResult = null;
       if (city) {
-        marketTimezone = await lookupMarketTimezone(city, state, country);
+        marketResult = await resolveTimezoneFromMarket(city, state, country);
       }
 
-      if (marketTimezone) {
+      if (marketResult) {
         // FAST PATH: Use pre-stored timezone from markets table
-        timeZone = marketTimezone;
-        locationLog.done(2, `Timezone from market (skipped Google API)`, OP.DB);
+        timeZone = marketResult.timezone;
+        locationLog.done(2, `Timezone from market: ${marketResult.market_name} (skipped Google API)`, OP.DB);
       } else {
-        // SLOW PATH: Call Google Timezone API for unknown locations
+        // SLOW PATH: Call Google Timezone API via circuit breaker
         locationLog.phase(2, `Market not found, calling Google Timezone API`, OP.API);
         const timezoneData = await googleMapsCircuit(async (signal) => {
           const response = await fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
@@ -943,7 +909,8 @@ router.get('/resolve', async (req, res) => {
                 country,
                 timezone: tz,
                 coord_source: coordSource,
-                local_iso: now,
+                // 2026-02-17: FIX - was storing UTC (new Date()), must store driver's local time
+                local_iso: toLocalTimestamp(now, tz),
                 dow,
                 hour,
                 day_part_key: dayPartKey,
@@ -992,7 +959,8 @@ router.get('/resolve', async (req, res) => {
             state,
             country,
             timezone: tz,
-            local_iso: now,
+            // 2026-02-17: FIX - was storing UTC, must store driver's local time
+            local_iso: toLocalTimestamp(now, tz),
             dow,
             hour,
             day_part_key: dayPartKey,
@@ -1032,6 +1000,17 @@ router.get('/resolve', async (req, res) => {
         //   - Session expires (60 min)
         // ═══════════════════════════════════════════════════════════════════════════
         const forceRefresh = req.query.force === 'true';
+        console.log(`📸 [SNAPSHOT] Force refresh: ${forceRefresh}, current_snapshot_id: ${existingUser?.current_snapshot_id?.slice(0, 8) || 'null'}`);
+
+        // 2026-02-17: FIX - On force refresh, release old snapshot FIRST
+        // This triggers a clean waterfall: null → new snapshot → new briefing → new strategy
+        // Previous behavior was atomic swap (old → new) which skipped the release step
+        if (forceRefresh && existingUser?.current_snapshot_id) {
+          console.log(`📸 [SNAPSHOT] 🔄 Force refresh: releasing old snapshot ${existingUser.current_snapshot_id.slice(0, 8)}`);
+          await db.update(users)
+            .set({ current_snapshot_id: null })
+            .where(eq(users.user_id, userId));
+        }
 
         // If user already has a snapshot and this isn't a forced refresh → check age and maybe reuse
         // 2026-01-14: FIX - Must check snapshot age! Previous code reused 6-day-old snapshots!
@@ -1106,7 +1085,7 @@ router.get('/resolve', async (req, res) => {
           if (userId) {
             try {
               const [profileResult] = await db
-                .select({ market: driver_profiles.market })
+                .select({ market: driver_profiles.market, home_timezone: driver_profiles.home_timezone })
                 .from(driver_profiles)
                 .where(eq(driver_profiles.user_id, userId))
                 .limit(1);
@@ -1114,9 +1093,30 @@ router.get('/resolve', async (req, res) => {
               if (userMarket) {
                 console.log(`📸 [SNAPSHOT] 🌆 User market from profile: ${userMarket}`);
               }
+
+              // 2026-02-17: Google OAuth backfill — set market + timezone on first GPS use
+              // Google OAuth users have market=null until profile completion.
+              // On first GPS snapshot, we already resolved timezone + city/state,
+              // so we can backfill both market and home_timezone from the market lookup.
+              if (!userMarket && city && state) {
+                // Use marketResult from Step 2 timezone resolution if available
+                const backfillMarket = marketResult || await resolveTimezoneFromMarket(city, state, country);
+                if (backfillMarket) {
+                  await db.update(driver_profiles)
+                    .set({
+                      market: backfillMarket.market_name,
+                      home_timezone: backfillMarket.timezone,
+                      updated_at: new Date()
+                    })
+                    .where(eq(driver_profiles.user_id, userId));
+
+                  userMarket = backfillMarket.market_name;
+                  console.log(`📸 [SNAPSHOT] 🔗 Backfilled market+timezone on profile: ${backfillMarket.market_name} (${backfillMarket.timezone})`);
+                }
+              }
             } catch (err) {
               // Non-fatal: market is optional enhancement for event discovery
-              console.warn(`📸 [SNAPSHOT] ⚠️ Could not lookup user market: ${err.message}`);
+              console.warn(`📸 [SNAPSHOT] ⚠️ Could not lookup/backfill user market: ${err.message}`);
             }
           }
 
@@ -1142,7 +1142,8 @@ router.get('/resolve', async (req, res) => {
             // 2026-02-01: Market from driver_profiles (for market-wide event discovery)
             market: userMarket,
             // Time context (calculated fresh)
-            local_iso: now,
+            // 2026-02-17: FIX - was storing UTC, must store driver's local time
+            local_iso: toLocalTimestamp(now, timeZone),
             dow,
             hour,
             day_part_key: dayPartKey,
@@ -1292,15 +1293,21 @@ router.get('/weather', async (req, res) => {
 
     locationLog.done(1, `Weather: ${current?.tempF}°F ${current?.conditions || ''}`, OP.API);
 
-    res.json({
-      ...current,
-      forecast
-    });
+    // 2026-04-05: Always include `available` field so client can distinguish
+    // "API succeeded but no data" from "API failed". Without this, the response
+    // is just { forecast: [] } when current is null — client sees no `available`
+    // field and skips snapshot enrichment, leaving weather permanently null.
+    if (current) {
+      res.json({ ...current, forecast });
+    } else {
+      res.json({ available: false, forecast, reason: 'current_conditions_unavailable' });
+    }
   } catch (err) {
     console.error('[location] weather error', err);
-    res.status(500).json({ 
+    res.json({
       available: false,
-      error: 'weather-fetch-failed' 
+      forecast: [],
+      error: 'weather-fetch-failed'
     });
   }
 });
@@ -1644,7 +1651,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       const localDow = dayNames.indexOf(dayName);
       
       snapshotV1.time_context = {
-        local_iso: now.toISOString(),
+        // 2026-02-17: FIX - was storing UTC ISO, must store driver's local time
+        local_iso: toLocalTimestamp(now, resolved.timeZone).toISOString(),
         dow: localDow >= 0 ? localDow : now.getDay(), // Fallback to UTC day if parse fails
         hour: hour,
         day_part_key: getDayPartKey(hour)
@@ -1804,7 +1812,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         created_at: snapshotV1.created_at,
         city: snapshotV1.resolved?.city,
         state: snapshotV1.resolved?.state,
-        country: snapshotV1.resolved?.country || 'United States',
+        // 2026-04-05: Global app fix — use resolved country, fall back to 'Unknown' not 'United States'
+        country: snapshotV1.resolved?.country || 'Unknown',
         timezone: snapshotV1.resolved?.timezone
       })
     ]);
@@ -1859,6 +1868,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 
     const dbSnapshot = {
       snapshot_id: snapshotV1.snapshot_id,
+      // FIX: Use authenticated user_id from session, not client-sent field (was silently undefined)
+      user_id: req.auth?.userId ?? null,
       created_at: createdAtDate,
       date: today,
       device_id: snapshotV1.device_id,
@@ -1967,7 +1978,10 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 
       // 2026-01-05: Session Architecture - Link snapshot to user's session
       // This updates current_snapshot_id and extends the sliding window TTL
-      const snapshotUserId = snapshotV1.userId || dbSnapshot.user_id;
+      // 2026-04-14 (Memory #108): Multi-source user_id resolution + FAIL-LOUD fallback.
+      // Previously only checked snapshotV1.userId (camelCase) which never matched the
+      // client's user_id (snake_case). Now tries all known sources and logs loudly if none resolve.
+      const snapshotUserId = snapshotV1.userId || snapshotV1.user_id || dbSnapshot.user_id || req.auth?.userId;
       if (snapshotUserId) {
         try {
           const updateResult = await db.update(users)
@@ -1989,6 +2003,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
           // Non-blocking - log but don't fail the snapshot
           console.warn('[Snapshot DB] Session update failed (non-blocking):', sessionErr.message);
         }
+      } else {
+        console.error('[Snapshot] CRITICAL: No user_id resolved for snapshot — current_snapshot_id will NOT be updated. snapshotV1 keys:', Object.keys(snapshotV1 || {}), 'dbSnapshot.user_id:', dbSnapshot.user_id, 'req.auth?.userId:', req.auth?.userId);
       }
     } catch (dbError) {
       console.error('[Snapshot DB] ❌ Database insert failed:', dbError);
@@ -2004,7 +2020,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         
         await db.insert(travel_disruptions).values({
           id: randomUUID(),
-          country_code: 'US',
+          // 2026-04-05: Global app fix — derive country from snapshot, not hardcoded 'US'
+          country_code: snapshotV1?.resolved?.country || dbSnapshot?.country || 'US',
           airport_code: airportContext.airport_code,
           airport_name: airportContext.airport_name || null,
           delay_minutes: Number(airportContext.delay_minutes || 0),
@@ -2075,7 +2092,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
 // Generate local news briefing for rideshare drivers
 router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res) => {
   try {
-    const { latitude, longitude, address, city, state, radius = 10 } = req.body;
+    // 2026-04-05: Global app fix — accept country from client instead of hardcoding 'United States'
+    const { latitude, longitude, address, city, state, country, radius = 10 } = req.body;
     
     if (!latitude || !longitude || !address) {
       return res.status(400).json({ 
@@ -2106,7 +2124,8 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
       lng: longitude,
       city: snapshot.city,
       state: snapshot.state,
-      country: 'United States',
+      // 2026-04-05: Global app fix — use client-provided country, not hardcoded 'United States'
+      country: country || 'Unknown',
       formattedAddress: address
     });
 
@@ -2140,37 +2159,47 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
 router.get('/ip', async (req, res) => {
   try {
     // Get client IP from various headers (Cloudflare, proxy, direct)
-    const clientIp = req.headers['cf-connecting-ip'] ||
-                     req.headers['x-real-ip'] ||
-                     req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-                     req.ip ||
-                     req.connection?.remoteAddress;
+    // 2026-04-05: SECURITY — validate IP format to prevent SSRF (CodeQL)
+    const { sanitizeIp } = await import('../../lib/utils/sanitize.js');
+    const rawIp = req.headers['cf-connecting-ip'] ||
+                  req.headers['x-real-ip'] ||
+                  req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                  req.ip ||
+                  req.connection?.remoteAddress;
+    const clientIp = sanitizeIp(rawIp);
 
-    console.log('[IP Geolocation] Client IP:', clientIp);
+    console.log('[IP Geolocation] Client IP:', clientIp || '(invalid)');
+
+    if (!clientIp) {
+      return res.json({
+        ok: false,
+        source: 'none',
+        reason: 'invalid_ip',
+        message: 'GPS permission required for accurate location'
+      });
+    }
 
     // Skip localhost/private IPs - they won't geolocate
-    const isPrivate = !clientIp ||
-                      clientIp === '127.0.0.1' ||
+    const isPrivate = clientIp === '127.0.0.1' ||
                       clientIp === '::1' ||
                       clientIp.startsWith('192.168.') ||
                       clientIp.startsWith('10.') ||
                       clientIp.startsWith('172.');
 
     if (isPrivate) {
-      console.log('[IP Geolocation] Private/localhost IP detected, using default location');
-      // Return Dallas, TX as default for development/preview
+      // 2026-04-05: Global app fix — do NOT return hardcoded US coordinates for private IPs.
+      // Let the client handle missing location by prompting for GPS permission.
+      console.log('[IP Geolocation] Private/localhost IP detected, no coordinates returned');
       return res.json({
-        latitude: 32.7767,
-        longitude: -96.7970,
-        city: 'Dallas',
-        state: 'TX',
-        country: 'United States',
-        accuracy: 10000,
-        source: 'default'
+        ok: false,
+        source: 'none',
+        reason: 'private_ip',
+        message: 'GPS permission required for accurate location'
       });
     }
 
     // Call ip-api.com for geolocation (free, no API key required)
+    // clientIp is validated as a proper IP address by sanitizeIp above
     const ipApiUrl = `http://ip-api.com/json/${clientIp}?fields=status,message,country,regionName,city,lat,lon,timezone`;
     const response = await fetch(ipApiUrl, { timeout: 5000 });
 
@@ -2181,16 +2210,13 @@ router.get('/ip', async (req, res) => {
     const data = await response.json();
 
     if (data.status !== 'success') {
+      // 2026-04-05: Global app fix — return no coordinates instead of hardcoded US fallback.
       console.warn('[IP Geolocation] IP API failed:', data.message);
-      // Fallback to default
       return res.json({
-        latitude: 32.7767,
-        longitude: -96.7970,
-        city: 'Dallas',
-        state: 'TX',
-        country: 'United States',
-        accuracy: 10000,
-        source: 'default'
+        ok: false,
+        source: 'none',
+        reason: 'ip_api_failed',
+        message: 'GPS permission required for accurate location'
       });
     }
 
@@ -2207,122 +2233,20 @@ router.get('/ip', async (req, res) => {
       source: 'ip-api'
     });
   } catch (err) {
+    // 2026-04-05: Global app fix — return no coordinates instead of hardcoded US fallback.
     console.error('[IP Geolocation] Error:', err.message);
-    // Return default location on any error
     res.json({
-      latitude: 32.7767,
-      longitude: -96.7970,
-      city: 'Dallas',
-      state: 'TX',
-      country: 'United States',
-      accuracy: 10000,
-      source: 'default'
-    });
-  }
-});
-
-// GET /api/users/me
-// CRITICAL FIX Issue #5: Fetch current user's latest location directly from users table
-// Header can call this instead of relying on cached context state
-// Always returns fresh data from authoritative source
-router.get('/users/me', async (req, res) => {
-  try {
-    const deviceId = req.query.device_id;
-    
-    if (!deviceId) {
-      return res.status(400).json({ 
-        ok: false,
-        error: 'device_id_required',
-        message: 'device_id query parameter required'
-      });
-    }
-    
-    console.log('[users/me] Fetching latest location for device:', deviceId);
-    
-    const [userRecord] = await db
-      .select()
-      .from(users)
-      .where(eq(users.device_id, deviceId))
-      .limit(1);
-    
-    if (!userRecord) {
-      console.warn('[users/me] No user found for device:', deviceId);
-      return res.status(404).json({
-        ok: false,
-        error: 'user_not_found',
-        message: 'No location data found for this device'
-      });
-    }
-
-    // FALLBACK: If users table missing city/state, lookup from coords_cache via coord_key
-    let city = userRecord.city;
-    let state = userRecord.state;
-    let country = userRecord.country;
-    let formattedAddress = userRecord.formatted_address;
-
-    if ((!city || !formattedAddress) && userRecord.coord_key) {
-      console.log('[users/me] ⚠️ Users table missing city/state, checking coords_cache...');
-      try {
-        const [cacheRecord] = await db
-          .select()
-          .from(coords_cache)
-          .where(eq(coords_cache.coord_key, userRecord.coord_key))
-          .limit(1);
-
-        if (cacheRecord) {
-          city = city || cacheRecord.city;
-          state = state || cacheRecord.state;
-          country = country || cacheRecord.country;
-          formattedAddress = formattedAddress || cacheRecord.formatted_address;
-          console.log('[users/me] ✅ Populated from coords_cache:', { city, state, formattedAddress });
-
-          // Backfill users table for next time (fire and forget)
-          db.update(users)
-            .set({ city, state, country, formatted_address: formattedAddress })
-            .where(eq(users.device_id, deviceId))
-            .catch(() => {});
-        }
-      } catch (cacheErr) {
-        console.warn('[users/me] coords_cache lookup failed:', cacheErr.message);
-      }
-    }
-
-    // Return latest location data from authoritative users table
-    console.log('[users/me] ✅ Returning latest location:', {
-      user_id: userRecord.user_id,
-      formatted_address: formattedAddress,
-      city,
-      state,
-      updated_at: userRecord.updated_at
-    });
-
-    // CRITICAL FIX Finding #2: Return camelCase to match /api/location/resolve contract
-    res.json({
-      ok: true,
-      user_id: userRecord.user_id,
-      device_id: userRecord.device_id,
-      formattedAddress: formattedAddress,
-      city,
-      state,
-      country,
-      timeZone: userRecord.timezone,
-      lat: userRecord.new_lat || userRecord.lat,
-      lng: userRecord.new_lng || userRecord.lng,
-      accuracy_m: userRecord.accuracy_m,
-      dow: userRecord.dow,
-      hour: userRecord.hour,
-      day_part_key: userRecord.day_part_key,
-      updated_at: userRecord.updated_at
-    });
-  } catch (err) {
-    console.error('[users/me] fetch error:', err);
-    res.status(500).json({
       ok: false,
-      error: 'fetch_failed',
-      message: String(err?.message || err)
+      source: 'none',
+      reason: 'ip_lookup_error',
+      message: 'GPS permission required for accurate location'
     });
   }
 });
+
+// 2026-04-25 (P2-7): GET /users/me removed. Documented as `/api/users/me` but
+// router is mounted at /api/location, so the documented URL never resolved
+// here anyway. Zero callers per audit.
 
 // PATCH /api/location/snapshot/:snapshotId/enrich
 // Enrich an existing snapshot with weather/air data
@@ -2361,7 +2285,36 @@ router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
 
     snapshotLog.done(2, `Enriched ${snapshotId.slice(0, 8)}: ${Object.keys(updatePayload).join(', ')}`, OP.DB);
 
-    res.json({ ok: true, enriched: Object.keys(updatePayload) });
+    // Memory #110: Readiness gate — re-read row and flip status to 'ok' when all required fields populated.
+    // 2026-04-14: Phase 3 resolution — classification of required vs optional fields pinned in
+    // BRIEFING-DATA-MODEL.md §9 decision 1. Previous list (v1.0) included h3_r8 and omitted the
+    // temporal fields + user_id; corrected here. Fields NOT in this list (coord_key, h3_r8,
+    // formatted_address, country, device_id, session_id, permissions, holiday, is_holiday) may
+    // be null without blocking the gate.
+    const REQUIRED_FIELDS = ['lat', 'lng', 'city', 'state', 'timezone', 'local_iso', 'date', 'dow', 'hour', 'day_part_key', 'weather', 'air', 'market', 'user_id'];
+    const [fullRow] = await db
+      .select()
+      .from(snapshots)
+      .where(eq(snapshots.snapshot_id, snapshotId))
+      .limit(1);
+
+    const missingFields = REQUIRED_FIELDS.filter(f => {
+      const v = fullRow?.[f];
+      return v === null || v === undefined || v === '';
+    });
+
+    let newStatus = fullRow?.status || 'pending';
+    if (missingFields.length === 0) {
+      await db.update(snapshots)
+        .set({ status: 'ok' })
+        .where(eq(snapshots.snapshot_id, snapshotId));
+      newStatus = 'ok';
+      console.log('[Snapshot] ✅ All required fields populated — status set to ok', snapshotId);
+    } else {
+      console.warn('[Snapshot] ⚠️ Enrichment partial — still pending. Missing:', missingFields);
+    }
+
+    res.json({ ok: true, enriched: Object.keys(updatePayload), status: newStatus, missingFields });
   } catch (err) {
     console.error('[location] snapshot enrich error:', err);
     res.status(500).json({

@@ -55,7 +55,7 @@ export async function dumpLastBriefingRow() {
     const output = `════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: ${new Date().toISOString()}
+Generated: ${snapshot?.timezone ? new Date().toLocaleString('en-US', { timeZone: snapshot.timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true, timeZoneName: 'short' }) : new Date().toISOString()}
 Snapshot ID: ${lastBriefing.snapshot_id}
 ════════════════════════════════════════════════════════════════════════════════
 
@@ -76,7 +76,9 @@ LOCATION (what strategist sees):
 
 TIME (what strategist sees):
   local_iso: ${snapshot?.local_iso || '(null)'}
+  formatted_local_time: ${snapshot?.local_iso ? new Date(snapshot.local_iso).toLocaleString('en-US', { timeZone: 'UTC', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '(null)'}
   dow: ${snapshot?.dow ?? '(null)'} (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][snapshot?.dow] || 'unknown'})
+  hour: ${snapshot?.hour ?? '(null)'}
   day_part_key: ${snapshot?.day_part_key || '(null)'}
   is_holiday: ${snapshot?.is_holiday ?? false}
   holiday: ${snapshot?.holiday || 'none'}
@@ -90,8 +92,10 @@ ${snapshot?.weather ? JSON.stringify(snapshot.weather, null, 2) : '(null)'}
 
 briefing_id: ${lastBriefing.id}
 snapshot_id: ${lastBriefing.snapshot_id}
-created_at: ${lastBriefing.created_at}
-updated_at: ${lastBriefing.updated_at}
+created_at (UTC): ${lastBriefing.created_at}
+created_at (local): ${snapshot?.timezone ? new Date(lastBriefing.created_at).toLocaleString('en-US', { timeZone: snapshot.timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '(no timezone)'}
+updated_at (UTC): ${lastBriefing.updated_at}
+updated_at (local): ${snapshot?.timezone ? new Date(lastBriefing.updated_at).toLocaleString('en-US', { timeZone: snapshot.timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '(no timezone)'}
 
 NEWS (${Array.isArray(lastBriefing.news?.items) ? lastBriefing.news.items.length : 0} items):
 ${lastBriefing.news ? JSON.stringify(lastBriefing.news, null, 2) : '(null)'}
@@ -125,14 +129,9 @@ error_message: ${strategy?.error_message || '(none)'}
 created_at: ${strategy?.created_at || '(null)'}
 updated_at: ${strategy?.updated_at || '(null)'}
 
-STRATEGY_FOR_NOW (GPT-5.2 Immediate Strategy):
+STRATEGY_FOR_NOW (Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
 ${strategy?.strategy_for_now || '(null or empty)'}
-────────────────────────────────────────────────────────────────────────────────
-
-CONSOLIDATED_STRATEGY (Gemini Daily Strategy):
-────────────────────────────────────────────────────────────────────────────────
-${strategy?.consolidated_strategy || '(null or empty)'}
 ────────────────────────────────────────────────────────────────────────────────
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -145,7 +144,6 @@ Data Integrity:
   ✓ Briefing has events: ${lastBriefing.events ? 'YES' : 'NO'}
   ✓ Strategy status: ${strategy?.status || 'MISSING'}
   ✓ Strategy has immediate: ${strategy?.strategy_for_now ? 'YES (' + strategy.strategy_for_now.length + ' chars)' : 'NO'}
-  ✓ Strategy has daily: ${strategy?.consolidated_strategy ? 'YES (' + strategy.consolidated_strategy.length + ' chars)' : 'NO'}
   ✓ IDs match: ${lastBriefing.snapshot_id === snapshot?.snapshot_id ? 'YES' : 'MISMATCH!'}
 
 School Closures Filter Check:

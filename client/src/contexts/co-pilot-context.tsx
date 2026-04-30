@@ -4,6 +4,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation as useLocationContext } from '@/contexts/location-context-clean';
+<<<<<<< HEAD
+=======
+import { useAuth } from '@/contexts/auth-context';
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import type { SmartBlock, BlocksResponse, StrategyData, PipelinePhase } from '@/types/co-pilot';
 import { getAuthHeader, subscribeStrategyReady, subscribeBlocksReady, subscribePhaseChange } from '@/utils/co-pilot-helpers';
 import { useEnrichmentProgress } from '@/hooks/useEnrichmentProgress';
@@ -34,7 +38,10 @@ interface CoPilotContextValue {
 
   // Strategy
   strategyData: StrategyData | null;
+<<<<<<< HEAD
   persistentStrategy: string | null;
+=======
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   immediateStrategy: string | null;
   isStrategyFetching: boolean;
   snapshotData: any;
@@ -59,12 +66,28 @@ interface CoPilotContextValue {
     traffic: any;
     news: any;
     events: any;
+<<<<<<< HEAD
+=======
+    marketEvents: any;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     schoolClosures: any;
     airport: any;
     isLoading: {
       weather: boolean;
       traffic: boolean;
       events: boolean;
+<<<<<<< HEAD
+=======
+      news: boolean;
+      airport: boolean;
+      schoolClosures: boolean;
+    };
+    // 2026-04-05: Retries exhausted — data permanently unavailable for this snapshot
+    isUnavailable?: {
+      traffic: boolean;
+      events: boolean;
+      news: boolean;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       airport: boolean;
     };
   };
@@ -88,6 +111,11 @@ export function useCoPilot() {
 export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   const locationContext = useLocationContext();
   const queryClient = useQueryClient();
+<<<<<<< HEAD
+=======
+  // 2026-04-05: Gate all queries on auth state — stop polling after logout
+  const { isAuthenticated } = useAuth();
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // 2026-01-15: FAIL HARD - Critical error state
   // When set, the entire dashboard unmounts and CriticalError is shown
@@ -102,8 +130,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Track which snapshot the current strategy belongs to (for future refresh optimization)
   const [_strategySnapshotId, setStrategySnapshotId] = useState<string | null>(null);
 
+<<<<<<< HEAD
   // Strategy state
   const [persistentStrategy, setPersistentStrategy] = useState<string | null>(null);
+=======
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   const [immediateStrategy, setImmediateStrategy] = useState<string | null>(null);
 
   // Enriched reasonings for closed venues
@@ -116,11 +147,47 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   // Prevents duplicate pipeline runs when both useEffect AND event handler fire
   const waterfallTriggeredRef = useRef<Set<string>>(new Set());
 
+<<<<<<< HEAD
+=======
+  // 2026-04-10: AbortController for in-flight waterfall POST — aborted on logout (Window 3 race fix)
+  const waterfallAbortRef = useRef<AbortController | null>(null);
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   // 2026-01-07: Flag to prevent race condition during manual refresh
   // When refresh clicked, we clear lastSnapshotId, but locationContext still has old value
   // Without this flag, useEffect would immediately restore the old snapshotId
   const manualRefreshInProgressRef = useRef<boolean>(false);
 
+<<<<<<< HEAD
+=======
+  // 2026-04-14: Phase 4 — Snapshot hard-fail block. Set to the failed snapshotId when
+  // server returns 503 (snapshot_incomplete after MAX retries). Cleared when a NEW
+  // snapshot_id arrives or the user triggers manual refresh. Prevents endless retries
+  // against a snapshot we already know to be unrecoverable.
+  const snapshotHardFailRef = useRef<string | null>(null);
+
+  // 2026-04-05: Clear snapshot on logout so all queries stop (refetchInterval included)
+  // Without this, strategy query keeps polling with refetchInterval: 3000 after logout
+  // because lastSnapshotId is still set and `enabled` is true.
+  const prevAuthRef = useRef(isAuthenticated);
+  useEffect(() => {
+    if (prevAuthRef.current && !isAuthenticated) {
+      // User just logged out
+      console.log('[CoPilotContext] Auth lost — clearing snapshot and stopping queries');
+      setLastSnapshotId(null);
+      setPersistentStrategy(null);
+      setImmediateStrategy(null);
+      waterfallTriggeredRef.current.clear();
+      // 2026-04-10: Abort any in-flight waterfall POST (Window 3 race fix)
+      if (waterfallAbortRef.current) {
+        waterfallAbortRef.current.abort();
+        waterfallAbortRef.current = null;
+      }
+    }
+    prevAuthRef.current = isAuthenticated;
+  }, [isAuthenticated]);
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   // Get coords from location context
   const gpsCoords = locationContext?.currentCoords;
   const overrideCoords = locationContext?.overrideCoords;
@@ -148,6 +215,15 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+<<<<<<< HEAD
+=======
+    // 2026-04-10: FIX — Never sync snapshot when logged out (zombie snapshot fix).
+    // After logout, LocationContext may briefly still hold the old snapshotId
+    // (before its own auth-drop cleanup runs). Without this guard, the sync
+    // restores the dead snapshot 1ms after the auth-drop effect clears it.
+    if (!isAuthenticated) return;
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     if (contextSnapshotId && !lastSnapshotId) {
       // 2026-01-10: CONSOLIDATED - This useEffect only syncs state
       // The vecto-snapshot-saved event listener (below) is the SINGLE source of waterfall triggers
@@ -162,7 +238,11 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       }
       // NOTE: Waterfall is triggered by vecto-snapshot-saved event, not here
     }
+<<<<<<< HEAD
   }, [locationContext?.lastSnapshotId, lastSnapshotId]);
+=======
+  }, [locationContext?.lastSnapshotId, lastSnapshotId, isAuthenticated]);
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // 2026-01-07: Listen for manual refresh to immediately clear strategy state
   // Location context dispatches 'vecto-strategy-cleared' when user clicks refresh button
@@ -190,6 +270,15 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       console.log('[CoPilotContext] 🔄 Clearing waterfallTriggeredRef, had:', Array.from(waterfallTriggeredRef.current));
       waterfallTriggeredRef.current.clear();
 
+<<<<<<< HEAD
+=======
+      // 2026-04-14: Phase 4 — Manual refresh is a user action that resets the hard-fail block.
+      if (snapshotHardFailRef.current) {
+        console.log('[CoPilotContext] 🔄 Clearing snapshot hard-fail block on manual refresh:', snapshotHardFailRef.current.slice(0, 8));
+        snapshotHardFailRef.current = null;
+      }
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       // Reset previous snapshot ref so change detection works
       prevSnapshotIdRef.current = null;
 
@@ -214,6 +303,20 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       if (snapshotId) {
         console.log("🎯 CoPilotContext: Snapshot ready (via event):", snapshotId.slice(0, 8), "reason:", reason);
 
+<<<<<<< HEAD
+=======
+        // 2026-04-14: Phase 4 — Hard-fail guard. If this exact snapshotId already hard-failed,
+        // refuse to retrigger until user acts (manual refresh) or a different snapshot arrives.
+        if (snapshotHardFailRef.current === snapshotId) {
+          console.warn("[CoPilotContext] Snapshot already hard-failed — ignoring event until refresh:", snapshotId.slice(0, 8));
+          return;
+        }
+        if (snapshotHardFailRef.current && snapshotHardFailRef.current !== snapshotId) {
+          console.log("[CoPilotContext] New snapshot after hard-fail — clearing block:", snapshotHardFailRef.current.slice(0, 8), "→", snapshotId.slice(0, 8));
+          snapshotHardFailRef.current = null;
+        }
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
         // 2026-01-07: Clear the manual refresh flag - new snapshot has arrived
         // This allows the system to accept this snapshot and trigger waterfall
         if (manualRefreshInProgressRef.current) {
@@ -238,6 +341,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
         waterfallTriggeredRef.current.add(snapshotId);
 
         try {
+<<<<<<< HEAD
           console.log("🚀 Triggering POST /api/blocks-fast waterfall (from event)...", snapshotId.slice(0, 8));
           const response = await fetch(API_ROUTES.BLOCKS.FAST, {
             method: 'POST',
@@ -249,6 +353,88 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
             console.log("✅ Waterfall complete");
           }
         } catch (err) {
+=======
+          // 2026-04-10: Abort any previous in-flight waterfall POST (Window 3 race fix)
+          if (waterfallAbortRef.current) {
+            waterfallAbortRef.current.abort();
+          }
+          const controller = new AbortController();
+          waterfallAbortRef.current = controller;
+
+          // Snapshot readiness gate: 202 means enrichment in progress, retry with backoff.
+          // Memory #111: Server holds briefing until snapshot.status = 'ok'. Client retries
+          // with exponential backoff (2s, 4s, 8s, 16s, 32s) up to 5 attempts.
+          const delays = [2000, 4000, 8000, 16000, 32000];
+          let attempt = 0;
+          let response: Response | null = null;
+
+          while (attempt <= delays.length) {
+            console.log(
+              `🚀 Triggering POST /api/blocks-fast waterfall (from event)... ${snapshotId.slice(0, 8)}${attempt > 0 ? ` [retry ${attempt}/${delays.length}]` : ''}`
+            );
+            response = await fetch(API_ROUTES.BLOCKS.FAST, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                // 2026-04-14: Phase 4 — server reads this header and returns 503 once >= MAX_SNAPSHOT_RETRIES.
+                'X-Snapshot-Retry-Count': String(attempt),
+                ...getAuthHeader()
+              },
+              body: JSON.stringify({ snapshotId }),
+              signal: controller.signal,
+            });
+
+            // 2026-04-14: Phase 4 — 503 = hard fail. Server has given up; we stop and block further retries.
+            if (response.status === 503) {
+              let body: any = {};
+              try { body = await response.clone().json(); } catch { /* body not JSON — proceed with empty */ }
+              const missing: string[] = Array.isArray(body?.missingFields) ? body.missingFields : [];
+              console.error('[CoPilot] ❌ HARD FAIL: Snapshot incomplete after max retries. Missing:', missing.length ? missing : '(unknown)');
+              snapshotHardFailRef.current = snapshotId;
+              // Dispatch a window event so UI layers (header, toast, etc.) can surface "Location data incomplete — please refresh".
+              window.dispatchEvent(new CustomEvent('vecto-snapshot-hard-fail', {
+                detail: {
+                  snapshotId,
+                  missingFields: missing,
+                  message: body?.message || 'Location data incomplete — please refresh',
+                  retryCount: body?.retryCount,
+                  maxRetries: body?.maxRetries
+                }
+              }));
+              break;
+            }
+
+            if (response.status !== 202) break; // 200/error/etc — exit loop, handle below
+
+            if (attempt >= delays.length) {
+              console.warn('[CoPilot] Snapshot still pending after max retries — giving up');
+              break;
+            }
+
+            console.log(`[CoPilot] Snapshot still enriching — will retry when ready (in ${delays[attempt] / 1000}s)`);
+            await new Promise<void>((resolve, reject) => {
+              const timer = setTimeout(resolve, delays[attempt]);
+              controller.signal.addEventListener('abort', () => {
+                clearTimeout(timer);
+                reject(new DOMException('Aborted', 'AbortError'));
+              }, { once: true });
+            });
+            attempt++;
+          }
+
+          if (response?.ok) {
+            console.log("✅ Waterfall complete");
+          } else if (response?.status === 503) {
+            console.error("[CoPilot] Waterfall aborted — snapshot hard-failed. Awaiting manual refresh or new snapshot.");
+          } else if (response?.status === 202) {
+            console.warn("[CoPilot] Waterfall still pending after retries — user may need to refresh");
+          }
+        } catch (err: any) {
+          if (err.name === 'AbortError') {
+            console.log("[CoPilotContext] Waterfall POST aborted (logout or new snapshot)");
+            return;
+          }
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
           console.error("❌ Waterfall error:", err);
         }
       }
@@ -305,7 +491,13 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
+<<<<<<< HEAD
     const unsubscribe = subscribeStrategyReady((readySnapshotId) => {
+=======
+    // 2026-04-18 (F2): Pass lastSnapshotId so the server emits an initial `state`
+    // event on connect (NOTIFY_LOSS_RECON_2026-04-18.md handshake fix).
+    const unsubscribe = subscribeStrategyReady(lastSnapshotId, (readySnapshotId) => {
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       if (readySnapshotId === lastSnapshotId) {
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_STRATEGY(lastSnapshotId), type: 'active' });
       }
@@ -318,7 +510,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!lastSnapshotId || lastSnapshotId === 'live-snapshot') return;
 
+<<<<<<< HEAD
     const unsubscribe = subscribeBlocksReady((data) => {
+=======
+    // 2026-04-18 (F2): Pass lastSnapshotId for the initial-state handshake.
+    const unsubscribe = subscribeBlocksReady(lastSnapshotId, (data) => {
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       if (data.snapshot_id === lastSnapshotId) {
         queryClient.refetchQueries({ queryKey: QUERY_KEYS.BLOCKS_FAST(lastSnapshotId), type: 'active' });
       }
@@ -370,7 +567,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       }
       return data;
     },
+<<<<<<< HEAD
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+=======
+    // 2026-04-05: Gate on isAuthenticated to prevent polling after logout
+    enabled: isAuthenticated && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     staleTime: 10 * 60 * 1000,
     gcTime: 20 * 60 * 1000,
     retry: (failureCount, error: any) => {
@@ -410,7 +612,12 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
       return { ...data, _snapshotId: lastSnapshotId };
     },
+<<<<<<< HEAD
     enabled: !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+=======
+    // 2026-04-05: Gate on isAuthenticated — this is the 3-second poller that spams after logout
+    enabled: isAuthenticated && !!lastSnapshotId && lastSnapshotId !== 'live-snapshot',
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (status === 'ok' || status === 'error') return false;
@@ -420,6 +627,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     gcTime: 10 * 60 * 1000,
   });
 
+<<<<<<< HEAD
   // Update persistent strategy when new strategy arrives
   useEffect(() => {
     const consolidatedStrategy = strategyData?.strategy?.consolidated;
@@ -438,6 +646,15 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       setImmediateStrategy(strategyForNow);
     }
   }, [strategyData, lastSnapshotId, persistentStrategy, immediateStrategy]);
+=======
+  useEffect(() => {
+    const strategyForNow = strategyData?.strategy?.strategyForNow;
+    if (strategyForNow && strategyForNow !== immediateStrategy) {
+      setImmediateStrategy(strategyForNow);
+      setStrategySnapshotId(lastSnapshotId);
+    }
+  }, [strategyData, lastSnapshotId, immediateStrategy]);
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // Fetch blocks
   // 2026-01-15: Using centralized API_ROUTES and QUERY_KEYS for consistency
@@ -473,6 +690,7 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
           throw error;
         }
 
+<<<<<<< HEAD
         // 2026-01-06: P4-C fix - use real timezone from server or LocationContext
         // NEVER use hardcoded timezone (was 'America/Chicago' - violates NO FALLBACKS rule)
         // 2026-01-10: D-027 - Server now returns camelCase (single contract)
@@ -480,6 +698,16 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
         return {
           now: data.generatedAt || new Date().toISOString(),
           timezone: data.timezone || locationContext?.timeZone || null,
+=======
+        // 2026-01-06: P4-C fix - use real timezone from LocationContext (GPS-derived)
+        // NEVER use hardcoded timezone (was 'America/Chicago' - violates NO FALLBACKS rule)
+        // 2026-02-13: Removed dead `data.timezone` — blocks-fast.js never returns timezone.
+        // LocationContext.timeZone is the single source of truth (derived from GPS position).
+        // 2026-01-10: D-027 - Server now returns camelCase (single contract)
+        return {
+          now: data.generatedAt || new Date().toISOString(),
+          timezone: locationContext?.timeZone || null,
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
           strategy: data.strategy?.strategyForNow || data.briefing?.strategyForNow,
           pathTaken: data.pathTaken,
           refined: data.refined,
@@ -512,7 +740,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
             proTips: v.proTips ?? [],
             streetViewUrl: v.streetViewUrl,
             hasEvent: v.hasEvent ?? false,
+<<<<<<< HEAD
             eventBadge: v.eventBadge ?? null
+=======
+            eventBadge: v.eventBadge ?? null,
+            // 2026-04-14: Issue X — Preserve fields from toApiBlock() that were previously dropped
+            venueId: v.venueId ?? null,
+            eventSummary: v.eventSummary ?? null,
+            // 2026-04-16: Driver preference scoring — four-hop contract (Decision #16)
+            beyondDeadhead: !!v.beyondDeadhead,
+            distanceFromHomeMi: v.distanceFromHomeMi ?? null
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
           })) || [],
           rankingId: data.rankingId,
           metadata: {
@@ -531,6 +769,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       }
     },
     enabled: (() => {
+<<<<<<< HEAD
+=======
+      if (!isAuthenticated) return false; // 2026-04-05: No polling after logout
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       const hasCoords = !!coords;
       const hasSnapshot = !!lastSnapshotId && lastSnapshotId !== 'live-snapshot';
       // 2026-01-10: D-021 - Server sends 'ok' or 'pending_blocks', not 'complete' (removed deprecated check)
@@ -610,8 +852,22 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     eventsData,
     schoolClosuresData,
     airportData,
+<<<<<<< HEAD
     isLoading: briefingIsLoading
   } = useBriefingQueries({ snapshotId: lastSnapshotId, pipelinePhase });
+=======
+    isLoading: briefingIsLoading,
+    isUnavailable: briefingIsUnavailable
+  } = useBriefingQueries({
+    snapshotId: lastSnapshotId,
+    snapshotStatus: snapshotData?.status,
+    pipelinePhase,
+    // 2026-04-19: M3 fix — gate the briefing query on the same isAuthenticated
+    // signal that strategy/blocks/bars use. Eliminates the post-logout window
+    // where the briefing hook saw a missing localStorage token and froze.
+    isAuthenticated,
+  });
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // Pre-load bars data as soon as location resolves (no snapshot needed)
   // This ensures bars tab has data before user navigates there
@@ -656,7 +912,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
 
     // Strategy
     strategyData: strategyData as StrategyData | null,
+<<<<<<< HEAD
     persistentStrategy,
+=======
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     immediateStrategy,
     isStrategyFetching,
     snapshotData,
@@ -676,15 +935,47 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     timeRemainingText,
 
     // Pre-loaded briefing data
+<<<<<<< HEAD
+=======
+    // 2026-04-04: Defense-in-depth — ensure array fields are always arrays, never null.
+    // Prevents "undefined is not iterable" crashes when components use for...of or spread.
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     briefingData: {
       weather: weatherData?.weather || null,
       traffic: trafficData?.traffic || null,
       news: newsData?.news || null,
+<<<<<<< HEAD
       events: eventsData?.events || [],
       // 2026-01-10: Snake/camel tolerant - accept both server response formats
       schoolClosures: schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures ?? [],
       airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
       isLoading: briefingIsLoading,
+=======
+      // 2026-03-29: FIX - Unwrap events array from API response object
+      // Previously stored full response object, breaking .filter() calls downstream
+      // Now properly extracts events array AND marketEvents for separate access
+      events: Array.isArray(eventsData?.events) ? eventsData.events : [],
+      marketEvents: Array.isArray(eventsData?.marketEvents) ? eventsData.marketEvents : [],
+      // 2026-01-10: Snake/camel tolerant - accept both server response formats
+      // 2026-04-18: Preserve `reason` alongside the items array so SchoolClosuresCard
+      // can render the server-provided reason (e.g., "No data source for this region")
+      // instead of the generic "No school closures reported" fallback. Pre-fix the
+      // reason was silently dropped at this layer, breaking transparency of the tab.
+      schoolClosures: (() => {
+        const raw = schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures;
+        return Array.isArray(raw) ? raw : [];
+      })(),
+      schoolClosuresReason: schoolClosuresData?.reason ?? null,
+      airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
+      // 2026-04-19: H3 fix — expose per-section _generationFailed flags so cards
+      // can render explicit "section unavailable" states. Was previously dropped
+      // at the unwrap step, so a permanently-failed weather section silently
+      // hid instead of saying so.
+      weatherFailed: !!(weatherData as any)?._generationFailed,
+      isLoading: briefingIsLoading,
+      // 2026-04-05: Expose "gave up" state so UI can show "Briefing data unavailable"
+      isUnavailable: briefingIsUnavailable,
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     },
 
     // Pre-loaded bars data
@@ -703,7 +994,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     // setCriticalError is stable (useState setter), no need in deps
     lastSnapshotId,
     strategyData,
+<<<<<<< HEAD
     persistentStrategy,
+=======
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     immediateStrategy,
     isStrategyFetching,
     snapshotData,
@@ -723,6 +1017,10 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
     schoolClosuresData,
     airportData,
     briefingIsLoading,
+<<<<<<< HEAD
+=======
+    briefingIsUnavailable,
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     barsData,
     isBarsLoading,
     // refetchBlocks and refetchBars are EXCLUDED - they're stable refs from useQuery

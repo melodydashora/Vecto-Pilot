@@ -3,6 +3,8 @@ import React, { createContext, useState, useEffect, useCallback, useRef, useMemo
 import { useAuth } from './auth-context';
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-02-17: Import queryClient for full cache reset on manual refresh (matches logout behavior)
+import { queryClient } from '@/lib/queryClient';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
@@ -162,6 +164,9 @@ interface LocationContextType {
   isLocationResolved: boolean;
   isLoading: boolean;
   setOverrideCoords: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
+  // Expose snapshot ID directly so co-pilot can access it as fallback
+  lastSnapshotId: string | null;
+  locationError?: { code: string; message: string } | null;
 }
 
 export const LocationContext = createContext<LocationContextType | null>(null);
@@ -215,6 +220,49 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const lastSnapshotIdRef = useRef<string | null>(null);
   const currentCoordsRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const cityRef = useRef<string | null>(null);
+  // 2026-03-18: Added timeZone ref — resume path must verify timezone before gating queries
+  const timeZoneRef = useRef<string | null>(null);
+
+  // 2026-04-10: FIX — Clear ALL location state when auth drops (zombie snapshot fix).
+  // Without this, LocationContext holds a stale lastSnapshotId after logout.
+  // CoPilotContext's sync effect sees it and immediately re-syncs the dead snapshot,
+  // reopening SSE connections and operating on stale data.
+  const prevTokenRef = useRef(token);
+  useEffect(() => {
+    if (prevTokenRef.current && !token) {
+      console.log('🔐 [LocationContext] Auth lost — clearing all location state');
+      // Clear React state
+      setLastSnapshotId(null);
+      setCurrentCoords(null);
+      setCity(null);
+      setState(null);
+      setTimeZone(null);
+      setWeather(null);
+      setAirQuality(null);
+      setIsLocationResolved(false);
+      setCurrentLocationString('Getting location...');
+      setLastUpdated(null);
+      setOverrideCoords(null);
+      setLocationError(null);
+      // Clear refs so they don't hold stale values for next session
+      lastSnapshotIdRef.current = null;
+      currentCoordsRef.current = null;
+      cityRef.current = null;
+      timeZoneRef.current = null;
+      lastEnrichmentCoordsRef.current = null;
+      // Reset GPS effect flag — next login must trigger fresh GPS fetch
+      gpsEffectRanRef.current = false;
+      sessionRestoreAttemptedRef.current = false;
+      // Cancel any in-flight enrichment requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      // Clear sessionStorage so no stale snapshot survives for resume
+      sessionStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+    }
+    prevTokenRef.current = token;
+  }, [token]);
 
   // 2026-01-06: P3-B - Restore FULL session including snapshotId for resume
   // Previous: Only restored display data, always created new snapshot
@@ -310,11 +358,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [lastSnapshotId, currentCoords, city, state, timeZone, currentLocationString, weather, airQuality, isLocationResolved, lastUpdated]);
 
   const enrichLocation = useCallback(async (lat: number, lng: number, accuracy: number, forceRefresh = false) => {
-    // Prevent duplicate enrichment for same coordinates (debounce)
-    // Skip debounce check if force refresh (user clicked button)
+    // 2026-03-18: Dedup based on snapshot state, not forceRefresh flag.
+    // Only skip if same coordinates AND an active snapshot exists.
+    // When snapshot is released (logout, manual refresh, sign-in), always proceed.
+    // This replaces scattered lastEnrichmentCoordsRef.current = null clearing.
     const coordKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
-    if (!forceRefresh && lastEnrichmentCoordsRef.current === coordKey) {
-      console.log('⏭️ Skipping duplicate enrichment for same coordinates:', coordKey);
+    if (lastEnrichmentCoordsRef.current === coordKey && lastSnapshotIdRef.current) {
+      console.log('⏭️ Skipping enrichment - same coords with active snapshot:', coordKey);
       return;
     }
     lastEnrichmentCoordsRef.current = coordKey;
@@ -374,45 +424,48 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Updated 2026-01-05: Added signal for request cancellation
       // 2026-01-15: Using centralized API_ROUTES constants
       const locationPromise = fetch(resolveUrl, { headers, signal: controller.signal });
-      const weatherPromise = fetch(API_ROUTES.LOCATION.WEATHER_WITH_COORDS(lat, lng), { signal: controller.signal });
-      const airPromise = fetch(API_ROUTES.LOCATION.AIR_QUALITY_WITH_COORDS(lat, lng), { signal: controller.signal });
+      // 2026-02-17: Added auth headers — location routes require auth since 2026-02-12
+      const weatherPromise = fetch(API_ROUTES.LOCATION.WEATHER_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
+      const airPromise = fetch(API_ROUTES.LOCATION.AIR_QUALITY_WITH_COORDS(lat, lng), { headers, signal: controller.signal });
 
-      // Track weather/air data for snapshot enrichment later
-      let weatherData: { available: boolean; temperature: number; conditions: string; description?: string } | null = null;
-      let airQualityData: { available: boolean; aqi: number; category: string } | null = null;
+      // 2026-04-05: FIX — Weather/air data parsed into reusable promises.
+      // Previously, .then() consumed res.json() and the fallback at line ~460 tried to
+      // read the same response body again → "body already consumed" → silent failure →
+      // weatherData stayed null → snapshot enrichment PATCH never fired.
+      // Now: parse once into a promise, await it wherever needed.
+      const weatherDataPromise = weatherPromise.then(async (res) => {
+        if (!res.ok) return null;
+        return await res.json();
+      }).catch((err) => { console.warn('[LocationContext] Weather fetch failed:', err); return null; });
+
+      const airQualityDataPromise = airPromise.then(async (res) => {
+        if (!res.ok) return null;
+        return await res.json();
+      }).catch((err) => { console.warn('[LocationContext] AQI fetch failed:', err); return null; });
 
       // PHASE 1: Update UI as soon as weather/air resolve (faster APIs)
-      // Don't await - let them update independently
-      weatherPromise.then(async (res) => {
+      weatherDataPromise.then((data) => {
         if (currentGeneration !== generationCounterRef.current) return;
-        if (res.ok) {
-          const data = await res.json();
-          weatherData = data;
-          if (data?.available) {
-            setWeather({
-              temp: data.temperature,
-              conditions: data.conditions,
-              description: data.description
-            });
-            console.log('🌤️ [LocationContext] Weather updated (phase 1)');
-          }
+        if (data?.available) {
+          setWeather({
+            temp: data.temperature,
+            conditions: data.conditions,
+            description: data.description
+          });
+          console.log('🌤️ [LocationContext] Weather updated (phase 1)');
         }
-      }).catch((err) => console.warn('[LocationContext] Weather fetch failed:', err));
+      });
 
-      airPromise.then(async (res) => {
+      airQualityDataPromise.then((data) => {
         if (currentGeneration !== generationCounterRef.current) return;
-        if (res.ok) {
-          const data = await res.json();
-          airQualityData = data;
-          if (data?.available) {
-            setAirQuality({
-              aqi: data.aqi,
-              category: data.category
-            });
-            console.log('💨 [LocationContext] AQI updated (phase 1)');
-          }
+        if (data?.available) {
+          setAirQuality({
+            aqi: data.aqi,
+            category: data.category
+          });
+          console.log('💨 [LocationContext] AQI updated (phase 1)');
         }
-      }).catch((err) => console.warn('[LocationContext] AQI fetch failed:', err));
+      });
 
       // PHASE 2: Wait for location resolve (slower due to DB writes)
       const locationRes = await locationPromise;
@@ -446,19 +499,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const locationData = await locationRes.json();
 
-      // Ensure weather/air data is populated (in case location finished first)
-      if (!weatherData) {
-        try {
-          const res = await weatherPromise;
-          if (res.ok) weatherData = await res.json();
-        } catch (_e) { /* already logged */ }
-      }
-      if (!airQualityData) {
-        try {
-          const res = await airPromise;
-          if (res.ok) airQualityData = await res.json();
-        } catch (_e) { /* already logged */ }
-      }
+      // 2026-04-05: Await parsed data from reusable promises (no double-read risk)
+      const weatherData = await weatherDataPromise;
+      const airQualityData = await airQualityDataPromise;
 
       // Update city/state (phase 2 - after location resolves)
       setCity(locationData.city);
@@ -500,9 +543,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.log('📍 [LocationContext] Location updated (phase 2):', locationData.city, locationData.state);
 
       // Mark location as resolved - gates downstream queries (Bar Tab, Strategy)
-      if (locationData.city && locationData.formattedAddress) {
+      // 2026-03-18: FIX — Also require timeZone. Without it, venue open/closed status
+      // calculations fail. useBarsQuery depends on isLocationResolved implying timezone is set.
+      if (locationData.city && locationData.formattedAddress && locationData.timeZone) {
         setIsLocationResolved(true);
         console.log('✅ [LocationContext] Location resolved - downstream queries enabled');
+      } else if (locationData.city && locationData.formattedAddress) {
+        console.warn('⚠️ [LocationContext] City resolved but timeZone missing — holding isLocationResolved=false');
       }
 
       // NOTE: JWT tokens are only used for registered users who login via /api/auth/login
@@ -524,7 +571,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           try {
             await fetch(API_ROUTES.LOCATION.SNAPSHOT_ENRICH(snapshotId), {
               method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...headers },
               body: JSON.stringify({
                 weather: weatherData?.available ? {
                   tempF: weatherData.temperature,
@@ -603,7 +650,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // 2026-01-15: Using centralized API_ROUTES constant
         const snapshotRes = await fetch(API_ROUTES.LOCATION.SNAPSHOT, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...headers },
           body: JSON.stringify(snapshot),
           signal: controller.signal
         });
@@ -642,6 +689,30 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Only clear storage when user explicitly requests fresh data
     if (forceNewSnapshot) {
+      // 2026-02-17: Full waterfall reset — matches logout behavior (minus auth teardown).
+      // 1. Null snapshot on server IMMEDIATELY (before GPS fetch)
+      // 2. Cancel/clear all query cache
+      // 3. Clear all client-side snapshot + strategy storage
+      // This ensures no stale data survives. Fresh GPS coords will trigger a clean pipeline.
+      const authToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      if (authToken) {
+        try {
+          await fetch(API_ROUTES.LOCATION.RELEASE_SNAPSHOT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
+        } catch {
+          // Best-effort — enrichLocation with force=true will also null it
+        }
+      }
+
+      queryClient.cancelQueries();
+      queryClient.clear();
+
+      // 2026-03-18: Null snapshot so enrichment dedup sees "no active snapshot" → always proceeds
+      setLastSnapshotId(null);
+      lastSnapshotIdRef.current = null;
+
       // Clear sessionStorage - driver clicked refresh to get fresh data at staging area
       clearSnapshotStorage();
 
@@ -656,14 +727,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (coords) {
         console.log('📍 [LocationContext] GPS success - using live location');
         setCurrentCoords({ latitude: coords.latitude, longitude: coords.longitude });
-        // Pass forceNewSnapshot to server - controls whether to reuse existing snapshot
-        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy, forceNewSnapshot);
+        // 2026-03-18: Always force-refresh enrichment from refreshGPS.
+        // Driver may be at same coords but needs fresh snapshot data every sign-in.
+        // The dedup check only applies to the auto-enrich effect (coord change detection).
+        await enrichLocation(coords.latitude, coords.longitude, coords.accuracy, true);
       } else if (profile?.homeLat && profile?.homeLng) {
         // Fallback to home location from user's profile (set during registration)
         console.log('🏠 [LocationContext] GPS unavailable - using home location from profile');
         setCurrentCoords({ latitude: profile.homeLat, longitude: profile.homeLng });
-        // Pass forceNewSnapshot to server - controls whether to reuse existing snapshot
-        await enrichLocation(profile.homeLat, profile.homeLng, 100, forceNewSnapshot); // 100m accuracy for geocoded address
+        await enrichLocation(profile.homeLat, profile.homeLng, 100, true);
       } else {
         // No GPS and no home location - user needs to enable GPS
         console.warn('[LocationContext] No GPS and no home location - cannot proceed');
@@ -681,11 +753,19 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     refreshGPSRef.current = refreshGPS;
   }, [refreshGPS]);
 
+  // 2026-03-18: Keep enrichLocation ref in sync — auto-enrich effect uses this
+  // to avoid depending on the enrichLocation reference (which changes on auth state change)
+  const enrichLocationRef = useRef<typeof enrichLocation>();
+  useEffect(() => {
+    enrichLocationRef.current = enrichLocation;
+  }, [enrichLocation]);
+
   // 2026-01-14: Keep state refs in sync for GPS effect to read current values
   // Without this, setTimeout closure captures stale values from when effect ran
   useEffect(() => { lastSnapshotIdRef.current = lastSnapshotId; }, [lastSnapshotId]);
   useEffect(() => { currentCoordsRef.current = currentCoords; }, [currentCoords]);
   useEffect(() => { cityRef.current = city; }, [city]);
+  useEffect(() => { timeZoneRef.current = timeZone; }, [timeZone]);
 
   // Initial GPS fetch - ONLY start when user is AUTHENTICATED
   // This ensures snapshots are ALWAYS linked to the authenticated user
@@ -734,8 +814,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const cachedSnapshotId = lastSnapshotIdRef.current;
       const cachedCoords = currentCoordsRef.current;
       const cachedCity = cityRef.current;
+      // 2026-03-18: FIX — Also require timeZone for resume. Without it, downstream
+      // queries (useBarsQuery) that depend on isLocationResolved would fire without timezone.
+      const cachedTimeZone = timeZoneRef.current;
 
-      if (cachedSnapshotId && cachedCoords && cachedCity) {
+      if (cachedSnapshotId && cachedCoords && cachedCity && cachedTimeZone) {
         console.log('📦 [LocationContext] RESUME: Auth verified, enabling cached data');
         console.log(`📦 [LocationContext] Cached snapshot: ${cachedSnapshotId.slice(0, 8)}, city: ${cachedCity}`);
 
@@ -753,10 +836,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return;
       }
 
+      // Resume failed or no cached data (fresh sign-in).
+      // No need to clear lastEnrichmentCoordsRef — snapshot is null so dedup won't skip.
       gpsEffectRanRef.current = true;
       console.log(`📍 [LocationContext] Authenticated user ${user.userId.slice(0, 8)}... starting GPS fetch`);
-      // Initial mount: allow server to reuse existing snapshot if < 60 min old
-      // 2026-01-07: Use ref to call latest refreshGPS without adding to deps
       refreshGPSRef.current?.(false);
     }, 50);
     return () => clearTimeout(timer);
@@ -769,12 +852,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const handleOwnershipError = () => {
       console.warn('🚨 [LocationContext] Snapshot ownership error - clearing and refreshing');
-      // Clear the stale snapshot ID
+      // 2026-03-18: Null snapshot (state + ref) so enrichment dedup sees no active snapshot
       setLastSnapshotId(null);
+      lastSnapshotIdRef.current = null;
       // Clear sessionStorage to remove any persisted stale data
       clearSnapshotStorage();
-      // Clear the coord tracking so enrichment can run again
-      lastEnrichmentCoordsRef.current = null;
       // Trigger fresh GPS fetch → force new snapshot for current user
       // 2026-01-07: Use ref to access latest refreshGPS
       refreshGPSRef.current?.(true);
@@ -784,20 +866,22 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => window.removeEventListener('snapshot-ownership-error', handleOwnershipError);
   }, []); // Empty deps - event listener only needs to be set up once
 
-  // Auto-enrich when coords change (but skip initial mount to avoid duplicate)
+  // 2026-03-18: Auto-enrich when coords change during an active session.
+  // Only fires when: (a) not initial mount, (b) coords changed, (c) active snapshot exists.
+  // During sign-in/manual refresh, snapshot is null → refreshGPS handles enrichment directly.
+  // Uses enrichLocationRef to avoid re-firing when enrichLocation reference changes (auth state).
   useEffect(() => {
-    // Skip on initial mount - refreshGPS() already handles enrichment
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
       return;
     }
 
-    // Only enrich if we have valid coords and they've changed
-    if (currentCoords) {
-      console.log('📍 Coordinates changed - triggering enrichment');
-      enrichLocation(currentCoords.latitude, currentCoords.longitude, 10);
+    // Only auto-enrich if driver has an active snapshot (normal driving, not sign-in/refresh)
+    if (currentCoords && lastSnapshotIdRef.current) {
+      console.log('📍 Coordinates changed during active session - triggering enrichment');
+      enrichLocationRef.current?.(currentCoords.latitude, currentCoords.longitude, 10);
     }
-  }, [currentCoords?.latitude, currentCoords?.longitude, enrichLocation]);
+  }, [currentCoords?.latitude, currentCoords?.longitude]);
 
   // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
   // Without useMemo, every render creates a new object → all consumers re-render → cascade

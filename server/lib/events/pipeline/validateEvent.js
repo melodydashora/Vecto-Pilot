@@ -8,20 +8,23 @@
  * All callers must use this module - no duplicate implementations allowed.
  *
  * WHEN TO CALL:
- * - At STORE time (sync-events.mjs) - PRIMARY, canonical location
+ * - At STORE time (briefing-service.js) - PRIMARY, canonical location
  * - At READ time ONLY for legacy rows with schema_version < current
  *
  * @module server/lib/events/pipeline/validateEvent
  */
 
 import { eventsLog, OP } from '../../../logger/workflow.js';
+// 2026-04-05: Import normalizeCategory for fuzzy rescue — if the AI returns an unmapped
+// category value, remap it before rejecting. This makes the pipeline self-healing.
+import { normalizeCategory } from './normalizeEvent.js';
 
 /**
  * Current schema version for validation tracking.
  * Increment when validation rules change.
  * Rows with version >= this do not need read-time revalidation.
  */
-export const VALIDATION_SCHEMA_VERSION = 3; // 2026-01-10: Added event_end_time validation (Rules 8-9)
+export const VALIDATION_SCHEMA_VERSION = 4; // 2026-02-26: Added category required (Rule 12) + today-only date (Rule 13)
 
 /**
  * Patterns that indicate incomplete/invalid data
@@ -122,6 +125,31 @@ export function validateEvent(event) {
   // Rule 11: Date must be valid format (YYYY-MM-DD)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(event.event_start_date)) {
     return { valid: false, reason: 'invalid_date_format', field: 'event_start_date' };
+  }
+
+  // Rule 12: Category is REQUIRED and must be from allowed list
+  // 2026-02-26: Events without category are not useful for strategy or filtering
+  // 2026-04-05: Added fuzzy rescue — if the AI returns an unmapped value (e.g., "live_music",
+  // "game", "hockey"), try normalizeCategory() before rejecting. This handles cases where
+  // events bypass normalizeEvent() or the AI returns unexpected category strings.
+  const ALLOWED_CATEGORIES = ['concert', 'sports', 'comedy', 'theater', 'festival', 'nightlife', 'convention', 'community', 'other'];
+  if (!event.category || !ALLOWED_CATEGORIES.includes(event.category)) {
+    // Fuzzy rescue: try to remap the category before rejecting
+    const remapped = normalizeCategory(event.category, event.subtype);
+    if (ALLOWED_CATEGORIES.includes(remapped)) {
+      event.category = remapped;  // Mutate in place — callers expect validated events to have valid categories
+    } else {
+      return { valid: false, reason: 'missing_or_invalid_category', field: 'category' };
+    }
+  }
+
+  // Rule 13: Date must be today or yesterday (for late-night events past midnight)
+  // 2026-02-26: We only ask Gemini for today's events. Future-dated events are noise.
+  // Allow yesterday to handle events discovered before midnight that end after midnight.
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  if (event.event_start_date !== today && event.event_start_date !== yesterday) {
+    return { valid: false, reason: 'not_today', field: 'event_start_date' };
   }
 
   // All rules passed

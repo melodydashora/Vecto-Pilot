@@ -1,5 +1,5 @@
 // scripts/fix-market-names.js
-// Updates us_market_cities table with correct market names from research file
+// Updates market_cities table with correct market names from research file
 
 import { db } from '../server/db/drizzle.js';
 import fs from 'fs';
@@ -26,7 +26,7 @@ async function fixMarketNames() {
   console.log('Sample: TX|Dallas →', marketLookup['TX|Dallas']);
 
   // Get all current entries
-  const current = await db.execute('SELECT id, state_abbr, city, market_name FROM us_market_cities');
+  const current = await db.execute('SELECT id, state_abbr, city, market_name FROM market_cities');
 
   let updated = 0;
   const mismatches = [];
@@ -39,7 +39,7 @@ async function fixMarketNames() {
       mismatches.push({ city: row.city, state: row.state_abbr, current: row.market_name, correct: correctMarket });
       // Use raw SQL with string interpolation (safe since we control the values)
       const safeMarket = correctMarket.replace(/'/g, "''");
-      await db.execute(`UPDATE us_market_cities SET market_name = '${safeMarket}' WHERE id = '${row.id}'`);
+      await db.execute(`UPDATE market_cities SET market_name = '${safeMarket}' WHERE id = '${row.id}'`);
       updated++;
     }
   }

@@ -39,7 +39,12 @@ import { useMarketIntelligence } from "@/hooks/useMarketIntelligence";
 import { useLocation } from "@/contexts/location-context-clean";
 // 2026-01-14: Removed useBriefingQueries import - now using pre-loaded data from CoPilotContext
 // This prevents duplicate SSE subscriptions to briefing_ready
+<<<<<<< HEAD
 import { useCoPilot } from "@/contexts/co-pilot-context";
+=======
+// 2026-04-26 PHASE C: useCoPilot import removed — only TacticalStagingMap
+// data prep consumed it. Re-add if a future intel surface needs briefing data.
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 import {
   ZoneCards,
   UniversalZoneLogic,
@@ -51,6 +56,7 @@ import {
   MarketStrategies,
   TimingAdvice,
 } from "@/components/intel/StrategyCards";
+<<<<<<< HEAD
 import TacticalStagingMap from "@/components/intel/TacticalStagingMap";
 import { DemandRhythmChart } from "@/components/intel/DemandRhythmChart";
 import { MarketBoundaryGrid } from "@/components/intel/MarketBoundaryGrid";
@@ -69,6 +75,27 @@ export default function RideshareIntelTab() {
   const latitude = currentCoords?.latitude;
   const longitude = currentCoords?.longitude;
   const timezone = timeZone;
+=======
+// 2026-04-26 PHASE C: TacticalStagingMap deleted. The mission/staging-zone
+// concept was disabled (`null && ...` gate below) and the broader Phase D zone
+// overlay system on StrategyMap covers the staging/avoid semantics in a
+// market-wide way (honey_hole, dead_zone, danger_zone, safe_corridor,
+// caution_zone). If a focused mission selector proves valuable later, it can
+// be reintroduced as its own phase using the StrategyMap singleton-loader
+// infrastructure.
+import { DemandRhythmChart } from "@/components/intel/DemandRhythmChart";
+import { MarketBoundaryGrid } from "@/components/intel/MarketBoundaryGrid";
+import { MarketDeadheadCalculator } from "@/components/intel/MarketDeadheadCalculator";
+import type { RegionType } from "@/types/demand-patterns";
+
+export default function RideshareIntelTab() {
+  const { refreshGPS, isUpdating } = useLocation();
+  // 2026-04-26 PHASE C: removed snapshotId/briefingData/latitude/longitude/
+  // timezone destructuring — they were only consumed by TacticalStagingMap
+  // and its eventMissions/airportMissions/trafficContext assembly, all of
+  // which were deleted in this phase. If a future intel surface needs them,
+  // re-extract here at that time.
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // 1. Destructure RAW data from hook (may have unstable references)
   const {
@@ -112,6 +139,7 @@ export default function RideshareIntelTab() {
   const timing = useMemo(() => rawTiming || [], [rawTiming?.length]);
   // ---------------------------------------------------------------------------
 
+<<<<<<< HEAD
   // 2026-01-14: Use pre-loaded briefing data from CoPilotContext
   // Context provides unwrapped values: events (array), traffic (object), airport (object)
   const eventsArray = briefingData?.events || [];
@@ -179,6 +207,19 @@ export default function RideshareIntelTab() {
     tacticalMap: true, // Tactical Staging Map section
     demandRhythm: true, // NEW: Demand Rhythm Chart
     marketGrid: true, // NEW: Market Boundary Grid
+=======
+  // 2026-04-26 PHASE C: removed eventMissions/airportMissions/trafficContext
+  // assembly — they only fed TacticalStagingMap, which has been deleted. The
+  // raw briefingData.events/traffic/airport fields are still consumed by other
+  // surfaces (BriefingTab, etc.); we just no longer pre-shape them here.
+
+  // Expand/collapse states
+  // 2026-04-26 PHASE C: removed `tacticalMap` key — TacticalStagingMap deleted.
+  const [expandedSections, setExpandedSections] = useState({
+    marketPosition: true,
+    demandRhythm: true,
+    marketGrid: true,
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     zones: true,
     strategies: true,
     calculator: true,
@@ -451,6 +492,7 @@ export default function RideshareIntelTab() {
         </Card>
       )}
 
+<<<<<<< HEAD
       {/* Tactical Staging Map - DISABLED - Google Maps DOM conflicts with React */}
       {/* TODO: Fix Google Maps integration to prevent removeChild errors */}
       {/* eslint-disable-next-line no-constant-condition -- intentionally disabled */}
@@ -489,6 +531,12 @@ export default function RideshareIntelTab() {
           </Card>
         )
       ) : null}
+=======
+      {/* 2026-04-26 PHASE C: TacticalStagingMap render block deleted along
+          with the component. Mission/staging concept now handled by Phase D
+          zone overlays on StrategyMap (honey_hole, dead_zone, danger_zone,
+          safe_corridor, caution_zone) sourced from market_intelligence. */}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
       {/* Demand Rhythm Chart - Weekly demand visualization */}
       {isLocationResolved && (

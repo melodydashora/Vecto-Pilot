@@ -25,7 +25,8 @@ const ANALYZE_ONLY = process.argv.includes('--analyze');
 // Connect to database
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false }
+  // 2026-02-26: SSL conditional — Helium (dev) runs locally without SSL
+  ssl: (process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production') ? { rejectUnauthorized: false } : false
 });
 
 // Logging helpers

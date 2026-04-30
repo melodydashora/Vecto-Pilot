@@ -32,6 +32,25 @@ export function validateEnvironment() {
     errors.push('GOOGLE_MAPS_API_KEY is required for location services');
   }
   
+  // 2026-03-17: SECURITY FIX (F-12) — Auth secret validation.
+  // Production MUST have a proper JWT_SECRET; dev falls back to REPLIT_DEVSERVER_INTERNAL_ID.
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isProd && !process.env.JWT_SECRET) {
+    errors.push('JWT_SECRET is required in production (token signing will fail)');
+  } else if (!process.env.JWT_SECRET && !process.env.REPLIT_DEVSERVER_INTERNAL_ID) {
+    warnings.push('JWT_SECRET not set and no REPLIT_DEVSERVER_INTERNAL_ID fallback — auth tokens cannot be signed');
+  }
+
+  // 2026-04-09: Promoted to production error. Without this secret, agent/system auth
+  // endpoints reject ALL requests — that's not a degradation, it's a broken feature.
+  if (!process.env.VECTO_AGENT_SECRET) {
+    if (isProd) {
+      errors.push('VECTO_AGENT_SECRET not set — agent/system auth endpoints will reject all requests');
+    } else {
+      warnings.push('VECTO_AGENT_SECRET not set — agent/system auth endpoints will reject all requests');
+    }
+  }
+
   // WARNINGS: Optional but recommended services
   if (!process.env.OPENWEATHER_API_KEY) {
     warnings.push('OPENWEATHER_API_KEY not set - weather data will be unavailable');
@@ -40,16 +59,38 @@ export function validateEnvironment() {
   if (!process.env.GOOGLEAQ_API_KEY) {
     warnings.push('GOOGLEAQ_API_KEY not set - air quality data will be unavailable');
   }
+
+  // 2026-02-19: Uber OAuth validation (only when Uber integration is configured)
+  // 2026-04-09: Promoted to production errors. If Uber is configured but deps are missing,
+  // that's not a "warning" — Uber auth is BROKEN and users will hit a wall at runtime.
+  const hasAnyUberConfig = !!(process.env.UBER_CLIENT_ID || process.env.UBER_CLIENT_SECRET || process.env.UBER_REDIRECT_URI);
+  if (hasAnyUberConfig) {
+    if (!process.env.TOKEN_ENCRYPTION_KEY) {
+      if (isProd) {
+        errors.push('TOKEN_ENCRYPTION_KEY not set — Uber OAuth is configured but token encryption will fail');
+      } else {
+        warnings.push('TOKEN_ENCRYPTION_KEY not set - Uber auth will fail');
+      }
+    }
+    if (!process.env.UBER_CLIENT_ID || !process.env.UBER_CLIENT_SECRET || !process.env.UBER_REDIRECT_URI) {
+      if (isProd) {
+        errors.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured — Uber integration is broken');
+      } else {
+        warnings.push('Uber OAuth credentials (CLIENT_ID, SECRET, REDIRECT_URI) not fully configured');
+      }
+    }
+  }
   
-  // Model configuration validation
-  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-5-20251101';
-  const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3-pro-preview';
-  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.2';
-  
+  // 2026-02-25: Strategy model config (consolidated from validate-strategy-env.js)
+  // Defaults come from env-registry.js; adapter layer validates credentials at runtime
+  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-6';
+  const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3.1-pro-preview';
+  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.5-2026-04-23';
+
   console.log('[env-validation] AI Model Configuration:', {
     strategist,
     briefer,
-    consolidator
+    consolidator,
   });
   
   // Port validation
@@ -95,6 +136,12 @@ export function validateEnvironment() {
  * Use this at server startup to prevent misconfigured deployments
  */
 export function validateOrExit() {
+  // Skip exit in test mode to allow test runner to mock env or handle errors
+  if (process.env.NODE_ENV === 'test') {
+    console.log('[env-validation] Test mode detected - skipping fatal exit');
+    return { valid: true, errors: [], warnings: [] };
+  }
+
   const result = validateEnvironment();
   
   if (!result.valid) {

@@ -51,9 +51,6 @@ error_message:
 strategy_for_now:
   ${lastStrategy.strategy_for_now ? JSON.stringify(lastStrategy.strategy_for_now, null, 2) : '(null)'}
 
-consolidated_strategy:
-  ${lastStrategy.consolidated_strategy ? JSON.stringify(lastStrategy.consolidated_strategy, null, 2) : '(null)'}
-
 created_at:
   "${lastStrategy.created_at}"
 

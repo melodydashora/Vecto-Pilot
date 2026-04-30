@@ -161,15 +161,22 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
 }
 
 /**
- * Search for a place using Google Places API (New) with 50m locationBias
+ * Search for a place using Google Places API (New) with configurable locationBias.
  *
- * @param {number} lat - Latitude
- * @param {number} lng - Longitude
+ * @param {number} lat - Latitude for location bias center
+ * @param {number} lng - Longitude for location bias center
  * @param {string} textQuery - Venue name to search
- * @returns {Promise<Object|null>} - Place result with parsed address
+ * @param {Object} [options] - Search options
+ * @param {number} [options.radius=50] - Location bias radius in meters.
+ *   Use 50 (default) for precise venue-coordinate lookups where you already have the venue's location.
+ *   Use 50000 (50km) for metro-wide event discovery where lat/lng is the driver's snapshot location.
+ * @returns {Promise<Object|null>} - Place result: { placeId, displayName, formattedAddress, lat, lng, types, parsed: { city, state, zip, country } }
  */
-async function searchPlaceWithTextSearch(lat, lng, textQuery) {
+// 2026-04-10: Exported for use in briefing-service.js event venue resolution pipeline.
+// Added optional radius parameter for metro-wide event discovery (50km vs default 50m).
+export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {}) {
   if (!GOOGLE_MAPS_API_KEY || !textQuery) return null;
+  const radius = options.radius ?? 50.0;
 
   try {
     const response = await fetch(PLACES_TEXT_SEARCH_URL, {
@@ -184,7 +191,7 @@ async function searchPlaceWithTextSearch(lat, lng, textQuery) {
         locationBias: {
           circle: {
             center: { latitude: lat, longitude: lng },
-            radius: 50.0  // 50m radius - tight match for precise venue lookup
+            radius
           }
         },
         maxResultCount: 1
@@ -210,12 +217,18 @@ async function searchPlaceWithTextSearch(lat, lng, textQuery) {
       return null;
     }
 
+    // 2026-04-11: Round coords to 6 decimal places (~11cm) — consistent with coord_key precision.
+    // Google API returns arbitrary precision (e.g., 32.782698100000005) which causes
+    // floating-point noise in DB storage and drift between lat/lng and coord_key.
+    const rawLat = place.location?.latitude;
+    const rawLng = place.location?.longitude;
+
     return {
       placeId: place.id,
       displayName: place.displayName?.text,
       formattedAddress: place.formattedAddress,
-      lat: place.location?.latitude,
-      lng: place.location?.longitude,
+      lat: rawLat != null ? parseFloat(Number(rawLat).toFixed(6)) : null,
+      lng: rawLng != null ? parseFloat(Number(rawLng).toFixed(6)) : null,
       types: place.types || [],
       parsed
     };

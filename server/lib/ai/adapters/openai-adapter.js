@@ -7,18 +7,66 @@
 import OpenAI from "openai";
 import { aiLog, OP } from "../../../logger/workflow.js";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let client;
 
-export async function callOpenAI({ model, system, user, maxTokens, temperature, reasoningEffort }) {
+function getClient() {
+  if (!client) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error("Missing OPENAI_API_KEY in environment variables");
+    }
+    
+    // MOCK FOR DEVELOPMENT/TESTING
+    if (process.env.OPENAI_API_KEY.startsWith('sk-dummy')) {
+        console.log('[OpenAI] Using MOCK client for dummy key');
+        return {
+            chat: {
+                completions: {
+                    create: async (body) => {
+                        console.log('[OpenAI Mock] Received request:', JSON.stringify(body, null, 2));
+                        return {
+                            choices: [{
+                                message: {
+                                    content: JSON.stringify({
+                                        parsed_data: {
+                                            price: 12.50,
+                                            miles: 4.2,
+                                            time_minutes: 15,
+                                            pickup: "123 Main St",
+                                            dropoff: "456 Elm St",
+                                            platform: "uber"
+                                        },
+                                        decision: "ACCEPT",
+                                        reasoning: "Price per mile is ~$3.00 which is excellent. Short pickup.",
+                                        confidence: 95
+                                    })
+                                }
+                            }]
+                        };
+                    }
+                }
+            }
+        };
+    }
+
+    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return client;
+}
+
+export async function callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort }) {
   try {
-    const messages = [
-      { role: "system", content: system },
-      { role: "user", content: user }
-    ];
+    const openai = getClient();
+    // Allow passing full messages array OR build from system/user
+    let finalMessages = messages;
+    if (!finalMessages) {
+      finalMessages = [];
+      if (system) finalMessages.push({ role: "system", content: system });
+      if (user) finalMessages.push({ role: "user", content: user });
+    }
 
     const body = {
       model,
-      messages
+      messages: finalMessages
     };
 
     // o1 models and gpt-5 family use max_completion_tokens, other models use max_tokens
@@ -29,7 +77,7 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
     if (useCompletionTokens) {
       body.max_completion_tokens = maxTokens;
     } else {
-      body.max_tokens = maxTokens;
+      body['max_tokens'] = maxTokens;
     }
 
     // GPT-5 family model behavior:
@@ -51,7 +99,7 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
     const shortModel = model.split('-').slice(0, 2).join('-');
     aiLog.phase(1, `${shortModel} request (${maxTokens} tokens)`, OP.AI);
 
-    const res = await client.chat.completions.create(body);
+    const res = await openai.chat.completions.create(body);
 
     const output = res?.choices?.[0]?.message?.content?.trim() || "";
 
@@ -84,13 +132,12 @@ export async function callOpenAI({ model, system, user, maxTokens, temperature, 
  */
 export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort = 'medium' }) {
   try {
-    const messages = [
-      { role: "system", content: system },
-      { role: "user", content: user }
-    ];
+    const messages = [];
+    if (system) messages.push({ role: "system", content: system });
+    if (user) messages.push({ role: "user", content: user });
 
     // Use gpt-5-search-api for web search (dedicated search model)
-    // Regular gpt-5.2 doesn't support web_search tool in Chat Completions
+    // Regular GPT-5 family models don't support web_search tool in Chat Completions
     const searchModel = 'gpt-5-search-api';
 
     const body = {
@@ -110,12 +157,13 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
     };
 
     // NOTE: gpt-5-search-api does NOT support reasoning_effort parameter
-    // Unlike regular gpt-5.2, the search model only accepts web_search_options
+    // Unlike regular GPT-5 family models, the search model only accepts web_search_options
     // Removed: body.reasoning_effort = reasoningEffort;
 
     aiLog.phase(1, `${searchModel} web-search request (${maxTokens} tokens)`, OP.AI);
 
-    const res = await client.chat.completions.create(body);
+    const openai = getClient();
+    const res = await openai.chat.completions.create(body);
 
     // Extract content and any citations/sources from web search
     const choice = res?.choices?.[0];

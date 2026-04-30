@@ -1,10 +1,10 @@
 // server/lib/ai/adapters/index.js
-// Model-agnostic role dispatcher with fallback support
+// Model-agnostic role dispatcher with Hedged Router support
 //
 // NAMING CONVENTION: {TABLE}_{FUNCTION}
 // See model-registry.js for all available roles
 //
-// Last updated: 2026-01-05
+// Last updated: 2026-02-10 (Hedged Router Integration)
 
 import { callOpenAI, callOpenAIWithWebSearch } from "./openai-adapter.js";
 import { callAnthropic, callAnthropicWithWebSearch } from "./anthropic-adapter.js";
@@ -17,249 +17,231 @@ import {
   roleUsesOpenAIWebSearch,
   isFallbackEnabled,
   FALLBACK_CONFIG,
+  getFallbackConfig,
+  getProviderForModel
 } from "../model-registry.js";
 import { OP } from "../../../logger/workflow.js";
+import HedgedRouter from "../router/hedged-router.js";
+
+// Initialize Hedged Router with adapters
+const router = new HedgedRouter({
+  adapters: new Map([
+    ['openai', async (req, { signal }) => {
+      console.log(`📡 [HedgedRouter] Calling OpenAI...`);
+      const config = req.configs['openai'];
+      if (!config) throw new Error('No config for openai');
+      
+      const { system, user, messages } = req.params;
+      const { model, maxTokens, temperature, reasoningEffort, useWebSearch } = config;
+
+      let result;
+      if (useWebSearch) {
+        result = await callOpenAIWithWebSearch({ model, system, user, maxTokens, reasoningEffort });
+      } else {
+        result = await callOpenAI({ model, system, user, messages, maxTokens, temperature, reasoningEffort });
+      }
+      if (!result.ok) throw new Error(result.error);
+      return result;
+    }],
+    ['anthropic', async (req, { signal }) => {
+      console.log(`📡 [HedgedRouter] Calling Anthropic...`);
+      const config = req.configs['anthropic'];
+      if (!config) throw new Error('No config for anthropic');
+
+      const { system, user, messages } = req.params;
+      const { model, maxTokens, temperature, useWebSearch } = config;
+
+      let result;
+      if (useWebSearch) {
+        result = await callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature });
+      } else {
+        result = await callAnthropic({ model, system, user, messages, maxTokens, temperature });
+      }
+      if (!result.ok) throw new Error(result.error);
+      return result;
+    }],
+    ['google', async (req, { signal }) => {
+      console.log(`📡 [HedgedRouter] Calling Gemini...`);
+      const config = req.configs['google'];
+      if (!config) throw new Error('No config for google');
+
+      const { system, user, images } = req.params;
+      const { model, maxTokens, temperature, useSearch, thinkingLevel, skipJsonExtraction } = config;
+
+      const result = await callGemini({
+        model, system, user, images, maxTokens, temperature, useSearch, thinkingLevel, skipJsonExtraction
+      });
+      if (!result.ok) throw new Error(result.error);
+      return result;
+    }],
+    ['vertex', async (req, { signal }) => {
+      console.log(`📡 [HedgedRouter] Calling Vertex AI...`);
+      const config = req.configs['vertex'];
+      if (!config) throw new Error('No config for vertex');
+
+      const { system, user } = req.params;
+      const { model, maxTokens, temperature, useSearch, thinkingLevel } = config;
+
+      const result = await callVertexAI({
+        model, system, user, maxTokens, temperature, useSearch, thinkingLevel
+      });
+      if (!result.ok) throw new Error(result.error);
+      return result;
+    }]
+  ])
+});
 
 /**
  * Call a model by its registry ROLE name.
+ * Uses Hedged Router for reliability/fallback if enabled.
  *
- * ROLE NAMING CONVENTION: {TABLE}_{FUNCTION}
- * - BRIEFING_*: Roles that populate the 'briefings' table
- * - STRATEGY_*: Roles that populate the 'strategies' table
- * - VENUE_*: Roles that populate 'ranking_candidates' (Smart Blocks)
- * - COACH_*: Roles that populate 'coach_conversations'
- * - UTIL_*: Utility roles for validation/parsing (no direct DB write)
- *
- * Available roles:
- *   BRIEFING_WEATHER         - Weather intelligence with web search
- *   BRIEFING_TRAFFIC         - Traffic conditions analysis
- *   BRIEFING_NEWS            - Local news research
- *   BRIEFING_EVENTS_DISCOVERY - Event discovery (parallel category search)
- *   BRIEFING_EVENTS_VALIDATOR - Event schedule verification
- *   BRIEFING_FALLBACK        - General fallback for failed briefing calls
- *   STRATEGY_CORE            - Core strategic plan generation
- *   STRATEGY_CONTEXT         - Real-time context gathering
- *   STRATEGY_TACTICAL        - Immediate 1-hour tactical strategy
- *   STRATEGY_DAILY           - Long-term 8-12hr daily strategy
- *   VENUE_SCORER             - Smart Blocks venue scoring
- *   VENUE_FILTER             - Fast low-cost venue filtering
- *   VENUE_TRAFFIC            - Venue-specific traffic intelligence
- *   COACH_CHAT               - AI Strategy Coach conversation
- *   UTIL_WEATHER_VALIDATOR   - Validate weather data structure
- *   UTIL_TRAFFIC_VALIDATOR   - Validate traffic data structure
- *   UTIL_MARKET_PARSER       - Parsing unstructured market research
- *
- * Legacy role names (mapped automatically):
- *   strategist     → STRATEGY_CORE
- *   briefer        → STRATEGY_CONTEXT
- *   consolidator   → STRATEGY_TACTICAL
- *   event_validator → BRIEFING_EVENTS_VALIDATOR
- *   venue_planner  → VENUE_SCORER
- *   venue_filter   → VENUE_FILTER
- *   coach          → COACH_CHAT
- *
- * @param {string} role - Role key from model-registry (e.g., 'STRATEGY_CORE' or legacy 'strategist')
- * @param {Object} params - { system, user }
+ * @param {string} role - Role key from model-registry
+ * @param {Object} params - { system, user, messages }
  * @returns {Promise<{ok: boolean, output: string, citations?: array}>}
  */
-export async function callModel(role, { system, user }) {
+export async function callModel(role, params) {
   const callStart = Date.now();
 
-  // 1. Get configuration from registry (handles legacy name resolution)
-  let config;
+  // 1. Get primary configuration
+  let primaryConfig;
   try {
-    config = getRoleConfig(role);
+    primaryConfig = getRoleConfig(role);
   } catch (err) {
     throw new Error(`Model Role '${role}' not found in registry: ${err.message}`);
   }
 
-  const { model, provider, maxTokens, temperature, reasoningEffort, role: canonicalRole } = config;
+  // Enrich config with feature flags
+  primaryConfig.useWebSearch = roleUsesWebSearch(role);
+  primaryConfig.useOpenAIWebSearch = roleUsesOpenAIWebSearch(role);
+  primaryConfig.useSearch = roleUsesGoogleSearch(role);
 
-  // 2026-01-06: SECURITY - Log only metadata, not message content
-  // Message content may contain PII, driver locations, or sensitive strategy info
-  console.log(`🤖 [AI CALL] Role=${canonicalRole} Model=${model} Provider=${provider} SystemLen=${system?.length || 0} UserLen=${user?.length || 0}`);
+  // 2. Prepare Hedged Request
+  const providers = [primaryConfig.provider];
+  const configs = {
+    [primaryConfig.provider]: primaryConfig
+  };
 
-  let result;
+  // 2026-02-17: FIX - Cross-provider fallback (was same-provider for all Gemini roles)
+  // Previous bug: FALLBACK_CONFIG always used gemini-3-flash → same provider as primary
+  // for all 18 Gemini roles → fallback was silently skipped → zero redundancy.
+  // Now: getFallbackConfig() returns a model from a DIFFERENT provider family.
+  if (isFallbackEnabled(role)) {
+    const fallback = getFallbackConfig(primaryConfig.provider);
+    const fallbackProvider = getProviderForModel(fallback.model);
+    if (fallbackProvider !== 'unknown' && fallbackProvider !== primaryConfig.provider) {
+      providers.push(fallbackProvider);
+      // Map search features to the correct provider-specific flags
+      const needsSearch = roleUsesGoogleSearch(role);
+      configs[fallbackProvider] = {
+        ...fallback,
+        provider: fallbackProvider,
+        useSearch: needsSearch && fallbackProvider === 'google',
+        useWebSearch: needsSearch && (fallbackProvider === 'openai' || fallbackProvider === 'anthropic'),
+      };
+    }
+  }
 
-  // 2. Dispatch based on provider
+  // 2026-01-06: SECURITY - Log only metadata
+  console.log(`🤖 [AI CALL] Role=${primaryConfig.role} Primary=${primaryConfig.model} Hedged=${providers.length > 1}`);
+
   try {
-    if (model.startsWith("gpt-") || model.startsWith("o1-")) {
-      // GPT-5.x/o1: No temperature support, use reasoning_effort
-      const isReasoningModel = model.includes('gpt-5') || model.startsWith('o1-');
-      const tempToPass = isReasoningModel ? undefined : temperature;
+    // 3. Execute via Router
+    const result = await router.execute({
+      role,
+      params,
+      configs
+    }, {
+      providers, // Explicitly pass ordered list (primary first)
+      // 2026-04-04: FIX H-2 — Restored safety timeout. Was disabled (timeout: 0) per user request,
+      // but indefinite hangs block the entire briefing pipeline. 120s is generous enough for
+      // Gemini HIGH thinking + Google Search while catching genuinely stuck calls.
+      // Individual operations can still use withTimeout() for tighter per-call limits.
+      timeout: 120000
+    });
 
-      // 2026-01-05: Check for OpenAI web search feature
-      const useOpenAIWebSearch = roleUsesOpenAIWebSearch(role);
-
-      if (useOpenAIWebSearch) {
-        result = await callOpenAIWithWebSearch({
-          model,
-          system,
-          user,
-          maxTokens,
-          reasoningEffort,
-        });
-      } else {
-        result = await callOpenAI({
-          model,
-          system,
-          user,
-          maxTokens,
-          temperature: tempToPass,
-          reasoningEffort,
-        });
-      }
-
-    } else if (model.startsWith("claude-")) {
-      // Check registry for web search feature flag
-      const useWebSearch = roleUsesWebSearch(role);
-
-      if (useWebSearch) {
-        result = await callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature });
-      } else {
-        result = await callAnthropic({ model, system, user, maxTokens, temperature });
-      }
-
-    } else if (model.startsWith("gemini-")) {
-      // Check registry for google search feature flag
-      const useSearch = roleUsesGoogleSearch(role);
-
-      // 2026-01-08: Check if Vertex AI should be used instead of Gemini Developer API
-      // Vertex AI provides enterprise features and Google Cloud integration
-      if (isVertexAIAvailable() && config.useVertexAI) {
-        result = await callVertexAI({
-          model,
-          system,
-          user,
-          maxTokens,
-          temperature,
-          useSearch,
-          thinkingLevel: config.thinkingLevel || null,
-        });
-      } else {
-        result = await callGemini({
-          model,
-          system,
-          user,
-          maxTokens,
-          temperature,
-          useSearch,
-          // Pass thinkingLevel if defined in registry (null = disabled by default)
-          thinkingLevel: config.thinkingLevel || null,
-        });
-      }
-
-    } else if (model.startsWith("vertex-")) {
-      // 2026-01-08: Direct Vertex AI model call (model name prefix indicates Vertex)
-      const useSearch = roleUsesGoogleSearch(role);
-      // Strip "vertex-" prefix to get actual model name
-      const vertexModel = model.replace("vertex-", "");
-      result = await callVertexAI({
-        model: vertexModel,
-        system,
-        user,
-        maxTokens,
-        temperature,
-        useSearch,
-        thinkingLevel: config.thinkingLevel || null,
-      });
-
-    } else {
-      throw new Error(`Unsupported model provider for: ${model}`);
+    const response = result.response;
+    
+    // Safety check - result.response should exist if successful
+    if (!response) {
+       throw new Error("Router returned undefined response");
     }
 
-    // Log success with timing
+    if (!response.ok) {
+        throw new Error(response.error || "Unknown error from adapter");
+    }
+
     const durationMs = Date.now() - callStart;
-    const outputPreview = result.output?.substring(0, 100) || '';
-    console.log(`🤖 [AI DONE] ✅ ${canonicalRole} completed in ${durationMs}ms`);
-    console.log(`🤖 [AI DONE] Output: ${outputPreview}${result.output?.length > 100 ? '...' : ''}`);
-    console.log(`🤖 [AI DONE] ─────────────────────────────────────────────────`);
+    console.log(`🤖 [AI DONE] ✅ ${primaryConfig.role} completed by ${result.provider} in ${durationMs}ms`);
+
+    // Standardize the response format
+    return {
+      success: true, // Legacy compatibility
+      ok: true,
+      text: response.output, // Ensure 'text' property is available for legacy code
+      output: response.output,
+      provider: result.provider,
+      latencyMs: result.latencyMs,
+      citations: response.citations
+    };
 
   } catch (err) {
     const durationMs = Date.now() - callStart;
-    console.log(`🤖 [AI FAIL] ❌ ${canonicalRole} failed after ${durationMs}ms: ${err.message}`);
-    result = { ok: false, error: err.message };
-  }
 
-  // 3. Fallback logic (if enabled for this role)
-  if (!result.ok && isFallbackEnabled(role)) {
-    const fallbackStart = Date.now();
-    console.log(`🔄 [FALLBACK] ═══════════════════════════════════════════`);
-    console.log(`🔄 [FALLBACK] Role:     ${canonicalRole}`);
-    console.log(`🔄 [FALLBACK] Reason:   Primary model failed: ${result.error}`);
-    console.log(`🔄 [FALLBACK] Model:    ${FALLBACK_CONFIG.model}`);
-    console.log(`🔄 [FALLBACK] ═══════════════════════════════════════════`);
-
-    // 2026-01-14: FIX - Dynamically route fallback to correct provider based on model prefix
-    // Previously hardcoded to callAnthropic, causing gemini-3-flash-preview to fail
-    const fallbackModel = FALLBACK_CONFIG.model;
-    let fallbackResult;
-
-    if (fallbackModel.startsWith('gemini-')) {
-      // Route to Gemini adapter for gemini-* models
-      fallbackResult = await callGemini({
-        model: fallbackModel,
-        system,
-        user,
-        maxTokens: FALLBACK_CONFIG.maxTokens,
-        temperature: FALLBACK_CONFIG.temperature,
-        useSearch: FALLBACK_CONFIG.features?.includes('google_search') || false,
-      });
-    } else if (fallbackModel.startsWith('gpt-') || fallbackModel.startsWith('o1-')) {
-      // Route to OpenAI adapter for gpt-* and o1-* models
-      fallbackResult = await callOpenAI({
-        model: fallbackModel,
-        system,
-        user,
-        maxTokens: FALLBACK_CONFIG.maxTokens,
-        temperature: fallbackModel.includes('gpt-5') ? undefined : FALLBACK_CONFIG.temperature,
-      });
-    } else {
-      // Default to Anthropic for claude-* models
-      fallbackResult = await callAnthropic({
-        model: fallbackModel,
-        system,
-        user,
-        maxTokens: FALLBACK_CONFIG.maxTokens,
-        temperature: FALLBACK_CONFIG.temperature,
-      });
+    // 2026-02-26: Gemini 503 retry — when primary model is overloaded, try a different Gemini model.
+    // Same provider, different model. Briefing roles need google_search which only Gemini supports,
+    // so cross-provider fallback doesn't work for them.
+    // 2026-03-28: Updated fallback from gemini-3.0-pro-preview → gemini-3-pro-preview (verified available)
+    const is503 = err.message.includes('503') || err.message.includes('UNAVAILABLE');
+    const GEMINI_FALLBACK_MODEL = 'gemini-3-pro-preview';
+    if (is503 && primaryConfig.provider === 'google' && primaryConfig.model !== GEMINI_FALLBACK_MODEL) {
+      console.log(`🤖 [AI RETRY] ${primaryConfig.role} got 503 on ${primaryConfig.model} — retrying with ${GEMINI_FALLBACK_MODEL}...`);
+      try {
+        const needsSearch = roleUsesGoogleSearch(role);
+        const retryResult = await callGemini({
+          model: GEMINI_FALLBACK_MODEL,
+          system: params.system,
+          user: params.user,
+          images: params.images,
+          maxTokens: primaryConfig.maxTokens,
+          temperature: primaryConfig.temperature || 0.2,
+          useSearch: needsSearch,
+          thinkingLevel: primaryConfig.thinkingLevel,
+        });
+        if (retryResult.ok) {
+          const retryDuration = Date.now() - callStart;
+          console.log(`🤖 [AI DONE] ✅ ${primaryConfig.role} completed by google-fallback (${GEMINI_FALLBACK_MODEL}) in ${retryDuration}ms`);
+          return {
+            success: true,
+            ok: true,
+            text: retryResult.output,
+            output: retryResult.output,
+            provider: 'google-fallback',
+            latencyMs: retryDuration,
+            citations: retryResult.citations,
+          };
+        }
+      } catch (retryErr) {
+        console.error(`🤖 [AI RETRY FAIL] ❌ ${primaryConfig.role} ${GEMINI_FALLBACK_MODEL} also failed: ${retryErr.message}`);
+      }
     }
 
-    const fallbackDuration = Date.now() - fallbackStart;
-
-    if (fallbackResult.ok) {
-      console.log(`🔄 [FALLBACK] ✅ Succeeded in ${fallbackDuration}ms`);
-      console.log(`🔄 [FALLBACK] ─────────────────────────────────────────────`);
-      return {
-        ...fallbackResult,
-        usedFallback: true,
-        primaryModel: model,
-        primaryError: result.error,
-      };
-    } else {
-      console.log(`🔄 [FALLBACK] ❌ Also failed in ${fallbackDuration}ms: ${fallbackResult.error}`);
-      console.log(`🔄 [FALLBACK] ─────────────────────────────────────────────`);
-      return {
-        ...result,
-        fallbackAttempted: true,
-        fallbackError: fallbackResult.error,
-      };
-    }
+    console.error(`🤖 [AI FAIL] ❌ ${primaryConfig.role} failed after ${durationMs}ms: ${err.message}`);
+    // Return a structured error object instead of throwing
+    return {
+      success: false,
+      ok: false,
+      error: err.message,
+      text: null
+    };
   }
-
-  return result;
 }
 
 /**
  * Streaming version of callModel for SSE/chat use cases.
- * 2026-01-06: Added to support adapter pattern for coach chat
+ * Currently bypasses HedgedRouter (streaming is complex to hedge).
  *
- * Currently only supports Gemini models (COACH_CHAT role uses gemini-3-pro-preview).
- *
- * @param {string} role - Role key from model-registry (e.g., 'COACH_CHAT')
+ * @param {string} role - Role key from model-registry (e.g., 'AI_COACH')
  * @param {Object} params - { system, messageHistory }
- * @param {string} params.system - System prompt
- * @param {Array} params.messageHistory - Array of { role: 'user'|'model', parts: [{ text }] }
  * @returns {Promise<Response>} - Fetch Response with readable stream body
  */
 export async function callModelStream(role, { system, messageHistory }) {
@@ -271,11 +253,10 @@ export async function callModelStream(role, { system, messageHistory }) {
     throw new Error(`Model Role '${role}' not found in registry: ${err.message}`);
   }
 
-  const { model, provider, maxTokens, temperature, role: canonicalRole } = config;
+  const { model, provider, maxTokens, temperature, thinkingLevel, role: canonicalRole } = config;
   const useSearch = roleUsesGoogleSearch(role);
 
-  // 2026-01-06: SECURITY - Log only metadata, not message content
-  console.log(`🤖 [AI STREAM] Role=${canonicalRole} Model=${model} Provider=${provider} MsgCount=${messageHistory?.length || 0}`);
+  console.log(`🤖 [AI STREAM] Role=${canonicalRole} Model=${model} Provider=${provider}`);
 
   // 2. Currently only Gemini supports streaming via this adapter
   if (!model.startsWith('gemini-')) {
@@ -283,6 +264,7 @@ export async function callModelStream(role, { system, messageHistory }) {
   }
 
   // 3. Call the streaming adapter
+  // 2026-02-11: Pass thinkingLevel from registry for Gemini 3 Pro support
   const response = await callGeminiStream({
     model,
     system,
@@ -290,6 +272,7 @@ export async function callModelStream(role, { system, messageHistory }) {
     maxTokens,
     temperature,
     useSearch,
+    thinkingLevel,
     timeoutMs: 90000 // 90 seconds for streaming responses
   });
 
@@ -297,4 +280,4 @@ export async function callModelStream(role, { system, messageHistory }) {
 }
 
 // Re-export Vertex AI helpers for external use
-export { isVertexAIAvailable, getVertexAIStatus };
+export { isVertexAIAvailable, getVertexAIStatus } from "./vertex-adapter.js";

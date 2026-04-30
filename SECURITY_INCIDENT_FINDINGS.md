@@ -1,0 +1,168 @@
+# Security Incident  Vecto-Pilot Credential Leak Audit
+**Generated:** 2026-04-23 (during Claude Code agent session that exited mid-task)
+**Updated:** 2026-04-24 (redacted, AQ key added per prod-log discovery)
+**Scrub completed:** 2026-04-24 via `git filter-repo`. All leaked literals purged from 4209 commits; force-pushed to `origin/main`. PEM files deleted from disk. `gitsafe-backup` remote retains pre-scrub history as recovery path.
+**Repo:** github.com/melodydashora/Vecto-Pilot (**PUBLIC** — should be flipped to private per required-actions §7)
+**Trigger:** GCP project suspended ("abusive activity consistent with hijacking")
+
+## 🔴 STATUS AFTER 2026-04-24 SESSION
+
+What's done:
+- [x] **Git history scrubbed** (filter-repo, 2026-04-24) — all real-key literals removed from commits
+- [x] **Force-push to `origin/main`** — public GitHub mirror now clean
+- [x] `keys/private.pem` + `keys/public.pem` deleted from workspace filesystem
+- [x] `.gitignore` already contains `keys/` and `*.pem` (verified 2026-04-24)
+
+What remains (all Melody-at-consoles):
+- [ ] **Submit Google appeal** citing the scrubbed commits; include the force-push timestamp as proof source is clean
+- [ ] **GitHub Settings → make repo private** (stops further scanner indexing during appeal window)
+- [ ] **Rotate ALL GCP API keys** in the suspended project — list below in §Required Actions / Full GCP-Key Inventory
+- [ ] **Rotate Neon password + API token** (see §3 and §4 below)
+- [ ] **Update ALL Replit Secrets** with new values (keep env var NAMES unchanged — verified non-breaking in 2026-04-24 session)
+- [ ] **Republish** Replit Deployment — picks up rotated Secrets; prod resumes functionality
+
+## REDACTION LEGEND (added 2026-04-24)
+
+All leaked credential literals in this document have been replaced with scanner-safe placeholders of the form `<TYPE-ending-SUFFIX>` where SUFFIX is the last 4-6 characters of the original key. The full key values exist only in GCP Console / Neon Console audit logs and in the repo's git history (until the filter-repo scrub completes). Placeholders are NOT valid key formats and will not trigger credential-leak scanners.
+
+| Placeholder | What it refers to |
+|---|---|
+| `<LEAKED-GCP-KEY-A>` | Gemini + Maps API key; leaked in commits `43b2ae09`, `0ff72024` et al; suspended by Google |
+| `<LEAKED-GCP-KEY-B>` | Air Quality API key; never in git history — only Replit Secrets; suspended by Google 2026-04-23 18:59 UTC (discovered via prod logs 2026-04-24, NOT in original audit scope) |
+| `<LEAKED-NEON-PW-CURRENT>` | Current Neon DB password (leaked) |
+| `<LEAKED-NEON-PW-PRIOR-1>` | Prior-generation Neon DB password (leaked) |
+| `<LEAKED-NEON-PW-PRIOR-2>` | Prior-generation Neon DB password (leaked) |
+| `<LEAKED-NEON-API-TOKEN>` | Neon API token (leaked) |
+
+## Confirmed Leak Surface
+The repo is pushed to a PUBLIC GitHub mirror  Google's automated scanners (and any attacker) can index it. The "remove hardcoded key" commits do NOT scrub git history; old blobs remain reachable forever via commit SHAs and GitHub events API.
+
+## Confirmed Leaked Credentials (in public git history)
+
+### 1. GCP / Google API Key (HIGHEST PRIORITY  explains the suspension)
+- Key: `<LEAKED-GCP-KEY-A>`
+- Used as: `GEMINI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_MAPS_API_KEY`
+- Introduction commits: `43b2ae09`, `0ff72024`, `e9e37cdd`, others
+- Removal commit: `796e6b4d` "Remove hardcoded Gemini API key"  but the blob remains in history
+
+### 1a. GCP / Google Air Quality API Key (discovered 2026-04-24 via prod logs)
+- Key: `<LEAKED-GCP-KEY-B>`
+- Used as: `GOOGLEAQ_API_KEY` env var only
+- **NOT in git history** per `git log -S` across all branches + `git fsck --lost-found`. Only ever held in Replit Secrets.
+- Suspended by Google 2026-04-23 18:59 UTC per prod log at `server/api/location/location.js:1354`:
+  `Permission denied: Consumer 'api_key:<LEAKED-GCP-KEY-B>' has been suspended.`
+- **Why missed in original audit:** original scope was git-history-as-public-surface via grep. This key was environment-only, invisible to grep. Surfaced only when prod started failing and the Google error response echoed the key back in the log.
+- **Likely root cause of suspension:** project-wide GCP suspension cascading from the first leak (`<LEAKED-GCP-KEY-A>`), not an independent leak of this key. Google typically suspends all keys under a flagged project.
+- **Implication for remediation:** rotation needed via GCP Console (delete + reissue restricted); **scrub not needed for THIS key because it is not in public git.** Update `GOOGLEAQ_API_KEY` in Replit Secrets post-rotation.
+- Project: `quantum-fusion-486920-p2`
+- Service account email: `vertex-express@quantum-fusion-486920-p2.iam.gserviceaccount.com`
+
+### 2. Private Key File  `keys/private.pem`
+- **CRITICAL:** Still on disk at `/home/runner/workspace/keys/private.pem` (1704 bytes, mode 600)
+- SHA256 of current file matches the leaked-on-GitHub blob exactly (same key)
+- Added in commits: `6bc4c201`, `5878e5a1`, `97f14676` ("Add JWT helper functions to database for authentication")
+- Companion: `keys/public.pem` (451 bytes)
+
+### 3. Neon Postgres Database Passwords (3 generations leaked)
+- `<LEAKED-NEON-PW-PRIOR-1>`
+- `<LEAKED-NEON-PW-CURRENT>`
+- `<LEAKED-NEON-PW-PRIOR-2>`
+- Full connection: `postgresql://neondb_owner:<LEAKED-NEON-PW-CURRENT>@ep-rough-bonus-...c-2.us-west-2.aws.neon.tech/neondb`
+- Introducing commits include `d366d738`, `9f276058`, `f904ab5f`
+
+### 4. Neon API Token
+- Token: `<LEAKED-NEON-API-TOKEN>...`
+- Introduced in `e5ad0cf3` ("Saved progress at the end of the loop") via curl Authorization Bearer header
+- Date: Sat Nov 29 09:59:44 2025
+
+### 5. client_secret / OAuth credentials
+- Found in commit `413d94c4` (Fri Feb 13 21:14:20 2026)  content needs further review
+
+### 6. Reference to "Uber secrets"
+- Commit `37bb1714` "Add Uber OAuth and webhook integration"  needs review for leaked Uber API keys
+
+## Confirmed CLEAN (no real keys leaked)
+- OpenAI API keys (`sk-proj-`, `sk-...`)  0 hits
+- Anthropic API keys (`sk-ant-`)  0 hits
+- Perplexity (`pplx-`)  0 hits
+- Groq (`gsk_`)  0 hits
+- AWS access keys (`AKIA...`)  0 hits
+- GitHub PATs (`ghp_`, `gho_`)  0 hits
+- Files like `.env.unified` use `${VAR}` interpolation  placeholders, not real secrets
+- `.env.example` and `.env.local.example` in current tree contain only placeholder values
+
+## Repo Stats
+- 4605 commits in history
+- Current branch: `main`
+- Files like `private.pem`, `.env.unified`, `env/*.env`, `mono-mode.env` all appear in deletion history (committed then removed but still reachable)
+
+## Working Tree (current HEAD)  credential-adjacent files tracked
+- `.env.example`
+- `.env.local.example`
+- `keys/private.pem`   STILL PRESENT, MATCHES LEAKED HASH
+- `keys/public.pem`
+- (.config/.semgrep/semgrep_rules.json, etc.  non-secret config)
+
+## Required Actions (in order)
+
+### IMMEDIATE (before anything else)
+1. **In Google Cloud Console:** Disable / delete the leaked service-account key for `vertex-express@quantum-fusion-486920-p2.iam.gserviceaccount.com`
+2. **In Google Cloud Console:** Delete the leaked Google API key `<LEAKED-GCP-KEY-A>` and create new restricted ones
+3. **In Neon Console:** Rotate the database password (currently exposed: `<LEAKED-NEON-PW-CURRENT>` and previous generations)
+4. **In Neon Console:** Revoke and rotate the Neon API token `<LEAKED-NEON-API-TOKEN>`
+5. **`keys/private.pem` + `keys/public.pem`** — deleted from disk 2026-04-24. If Neon RLS is activated in the future, generate a fresh RS256 keypair then and re-register JWKS with Neon.
+6. **Review commits `413d94c4` (client_secret) and `37bb1714` (Uber)** for additional leaks; rotate those too
+
+### IMMEDIATE — Full GCP-Key Inventory to rotate (added 2026-04-24 from Replit Secrets audit)
+
+All of the following likely share the suspended GCP project (`quantum-fusion-486920-p2`). Google's project-level suspension cascades to ALL keys under the project — **rotate every one of them** during the same GCP Console session:
+
+| Replit Secret name | Likely use | Rotation action |
+|---|---|---|
+| `GOOGLE_CLOUD_API_KEY` | Unknown — generic Google key | Delete + reissue restricted |
+| `GOOGLE_API_KEY` | Unknown — possibly duplicate of above | Delete or deduplicate |
+| `GEMINI_API_KEY` | Gemini 3.1 Pro (briefing pipeline) | Delete + reissue; restrict to Generative Language API only |
+| `GOOGLE_MAPS_API_KEY` | Maps JS / geocoding | Delete + reissue; restrict to HTTP-referrer + Maps APIs |
+| `VITE_GOOGLE_MAPS_API_KEY` | Frontend Maps | Delete + reissue; same restriction as above (may share with MAPS key) |
+| `GOOGLEAQ_API_KEY` | Air Quality API (prod-log-confirmed suspended) | Delete + reissue; restrict to Air Quality API only |
+| `VERTEX_API_KEY` | Vertex AI | Delete + reissue; restrict to Vertex AI |
+| `VERTEXAI_API_KEY` | Duplicate of above? | Deduplicate — if truly unused, delete entirely |
+| Service account JSON (`type`, `project_id`, `private_key_id`, `private_key`, `client_email`, `client_id`, `auth_uri`, `token_uri`, `auth_provider_x509_cert_url`, `client_x509_cert_url`, `universe_domain`) | GCP service account auth (`vertex-express@...`) | Generate new service-account JSON; update all 11 Replit Secret fields |
+
+**Consolidation note:** Melody's Replit Secrets currently holds 7+ separate Google-key slots. Post-rotation, consider consolidating to ONE per API-purpose (Gemini, Maps, AQ, Vertex). Duplicates increase the attack surface and the "rotate on breach" surface.
+
+### IMMEDIATE — Related credentials flagged during 2026-04-24 audit
+
+| Replit Secret name | Status | Action |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Not leaked per this audit; change only if precautionary | Optional precautionary rotation |
+| `ANTHROPIC_API_KEY1` | Vestigial naming — test/backup? | Audit use; delete if dead |
+| `STRATEGIST_ANTHROPIC_API_KEY` | Role-specific key | Keep if distinct purpose; rotate if shares value with main |
+| `your_dev_test_key` | Template-name leftover | Audit — likely dead, delete |
+| `NEON_DATABASE_URL` | Separate from auto-injected `DATABASE_URL` | If prod uses `DATABASE_URL` only, this is redundant — delete. Otherwise rotate Neon password covers both. |
+| `VECTO_AGENT_SECRET` | Flagged in DOC_DISCREPANCIES.md D-092 as missing in prod | Generate + set in prod Replit Secrets |
+| `TOKEN_ENCRYPTION_KEY` | Flagged in DOC_DISCREPANCIES.md D-093 as missing in prod | Generate + set in prod Replit Secrets (needed for Uber OAuth token encryption) |
+
+### SHORT TERM
+7. **Make the GitHub repo PRIVATE** (Settings  Danger Zone  Change visibility)  this stops further indexing
+8. **Audit GCP Cloud Logging** for the suspension period: which IPs called the API, what compute was spun up, total billing impact
+9. **Submit a GCP appeal** explaining: rotated credentials, removed exposure, made repo private, committed to history scrub
+
+### MEDIUM TERM (after rotation done)
+10. **Scrub git history** with `git filter-repo` (preferred) or BFG Repo-Cleaner. Target paths:
+    - `keys/private.pem`, `keys/public.pem`
+    - `.env`, `.env.unified`, `.env.local`, `mono-mode.env`
+    - `env/neon-resilience.env`, `env/shared.env`, `env/webservice.env`, `env/worker.env`
+    - any commit with literal `<LEAKED-GCP-KEY-A>`, `<LEAKED-NEON-API-TOKEN>`, `npg_*`
+11. Force-push the rewritten history; notify any collaborators they must re-clone
+12. Even after history scrub, **assume every leaked credential is permanently compromised**  GitHub events API caches commit blobs for 90+ days and Google's scanners have already seen them. Rotation is the only real fix.
+
+### LONG TERM
+13. Add a pre-commit hook (gitleaks, trufflehog) to prevent recurrence
+14. Move all secrets to Replit Secrets (env vars)  never commit keypairs again
+15. Set GCP API key restrictions (HTTP referrer, IP allowlist, API service restrictions)
+16. Enable GCP audit logging if not already on
+
+## Notes
+- The Claude Code agent session crashed during the "Produce rotation list" thinking phase; this file captures everything it found before that. The remaining tasks (Draft Google Cloud appeal, Plan history scrub) were not completed.
+- All scans run were read-only (git log, git show, git ls-tree, sha256sum, ls). Nothing was modified.

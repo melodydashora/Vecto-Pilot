@@ -44,13 +44,13 @@ const { context } = await res.json();
 | `agentPreferences` | AI models, code style, user preferences |
 | `sessionHistory` | Current task, recent work |
 | `projectState` | Architecture decisions, patterns |
-| `conversationHistory` | Past AI Coach conversations |
+| `conversationHistory` | Past Rideshare Coach conversations |
 | `recentSnapshots` | Recent locations, weather |
 | `recentStrategies` | Recent strategy outputs |
 
 ### From Past Conversations
 
-The AI Coach logs conversations automatically. Review them to understand:
+The Rideshare Coach logs conversations automatically. Review them to understand:
 - Recent user questions and concerns
 - Patterns in strategy requests
 - Frequently asked topics

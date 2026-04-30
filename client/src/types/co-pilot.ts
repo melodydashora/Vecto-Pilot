@@ -33,6 +33,10 @@ export interface SmartBlock {
   isOpen?: boolean;
   businessStatus?: string;
   placeId?: string;
+<<<<<<< HEAD
+=======
+  venueId?: string | null;  // 2026-04-14: Canonical venue_catalog identity (from toApiBlock)
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   closedButStillGood?: string;
   closedVenueReasoning?: string;
   hasEvent?: boolean;
@@ -53,6 +57,12 @@ export interface SmartBlock {
   upCount?: number;
   downCount?: number;
   rankingId?: string;
+<<<<<<< HEAD
+=======
+  // 2026-04-16: Driver preference scoring — four-hop contract (Decision #16)
+  beyondDeadhead?: boolean;
+  distanceFromHomeMi?: number | null;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 }
 
 /**

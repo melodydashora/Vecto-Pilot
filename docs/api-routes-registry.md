@@ -14,7 +14,7 @@ Complete reference of all API endpoints organized by domain.
 | Location | `/api/location/*` | No | GPS, geocoding, weather |
 | Strategy | `/api/blocks-fast`, `/api/strategy/*` | No | TRIAD pipeline |
 | Briefing | `/api/briefing/*` | No | Events, traffic, news |
-| Chat | `/api/chat/*` | Yes | AI Coach |
+| Chat | `/api/chat/*` | Yes | Rideshare Coach |
 | Voice | `/api/realtime/*`, `/api/tts` | **Yes** | Voice + TTS |
 | Feedback | `/api/feedback/*`, `/api/actions` | No | User feedback |
 | Auth | `/api/auth/*` | No | Token generation |
@@ -92,7 +92,7 @@ Response: { strategy, blocks }
 
 | Method | Path | Handler | Auth | Purpose |
 |--------|------|---------|------|---------|
-| POST | `/api/chat/:snapshotId/message` | `chat.js` | Yes | AI Coach (SSE streaming) |
+| POST | `/api/chat/:snapshotId/message` | `chat.js` | Yes | Rideshare Coach (SSE streaming) |
 | GET | `/coach/context/:snapshotId` | `chat-context.js` | No | Read-only chat context |
 
 ---

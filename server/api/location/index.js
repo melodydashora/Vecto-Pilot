@@ -11,4 +11,3 @@ export { default as snapshotRouter } from './snapshot.js';
 // GET  /api/location/airquality - AQI data
 // POST /api/location/snapshot - Save location snapshot
 // GET  /api/snapshot/:id - Fetch snapshot data
-// GET  /api/users/me - Current user's location

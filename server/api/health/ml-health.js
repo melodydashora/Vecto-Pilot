@@ -3,9 +3,15 @@
 import express from 'express';
 import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
+// 2026-02-12: Added requireAuth - ML health exposes sensitive system data
+import { requireAuth } from '../../middleware/auth.js';
 // TODO: Import recallContext and searchMemory when available
 
 const router = express.Router();
+
+// 2026-02-12: SECURITY FIX - ML health routes now require authentication
+// These endpoints expose detailed internal metrics, memory data, and learning pipeline info
+router.use(requireAuth);
 
 // GET /api/ml/health - Comprehensive ML health metrics
 router.get('/health', async (req, res) => {
@@ -251,8 +257,10 @@ router.get('/memory/:scope', async (req, res) => {
 // GET /api/ml/search?q=<term> - Search across all learning data
 router.get('/search', async (req, res) => {
   try {
-    const { q } = req.query;
-    
+    // 2026-04-05: SECURITY — sanitize query params to prevent type confusion (CodeQL)
+    const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+    const q = sanitizeString(req.query.q);
+
     if (!q || q.length < 3) {
       return res.status(400).json({
         ok: false,

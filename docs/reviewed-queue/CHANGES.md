@@ -4,6 +4,211 @@ This file consolidates all documented changes from the review-queue system. Orga
 
 ---
 
+## 2026-04-19 (UI Auditor Follow-Through: H2/H3/H4/H5 + M1/M3)
+
+Acted on the remaining findings from the 2026-04-18 frontend-ux-auditor sweep. M2 (collapse the wrap/unwrap between context and BriefingPage) deferred — see "Deferred" section below.
+
+### Critical-path fixes (in addition to C1/C2/C3 from 2026-04-18 evening)
+
+| Finding | File:line | Change |
+|---------|-----------|--------|
+| **H2** Readiness check missed `school_closures.reason` | `client/src/hooks/useBriefingQueries.ts:173` | Added `\|\| !!b.school_closures?.reason` to `anySectionReady` so a server-provided reason for empty closures (e.g. "No data source for this region") flips the section out of loading state |
+| **H3** weatherData dropped `_generationFailed`; WeatherCard had no failure UI | `client/src/hooks/useBriefingQueries.ts:337`, `client/src/contexts/co-pilot-context.tsx:848`, `client/src/pages/co-pilot/BriefingPage.tsx:53`, `client/src/components/briefing/WeatherCard.tsx:35-77` | Hook now exposes `_generationFailed` on `weatherData`; context propagates as `briefingData.weatherFailed`; BriefingPage carries it into `wrappedWeatherData`; WeatherCard renders explicit "Weather temporarily unavailable for this snapshot — strategy is using fallback context" instead of silently hiding |
+| **H4** Empty events card had no explanation | `client/src/components/BriefingTab.tsx:175-185` | When `!isEventsLoading && allEvents.length === 0 && eventsData?.reason`, render a card with the server-provided reason (e.g. "No events found for this location") instead of a blank EventsComponent |
+| **H5** `areCriticalBriefingsLoading` excluded weather + schoolClosures | `client/src/pages/co-pilot/BriefingPage.tsx:94-100` | Now ORs all six sections (weather, traffic, news, airport, events, schoolClosures). Honors the user contract: strategy must not render until the briefing tab can show what the strategist received |
+
+### Code-hygiene fixes
+
+| Finding | File:line | Change |
+|---------|-----------|--------|
+| **M1** Dead per-section query keys + route helpers | `client/src/constants/apiRoutes.ts:79-93, 271-279` | Deleted `QUERY_KEYS.BRIEFING_{WEATHER,TRAFFIC,EVENTS,RIDESHARE_NEWS,SCHOOL_CLOSURES,AIRPORT}` and `API_ROUTES.BRIEFING.{WEATHER,TRAFFIC,EVENTS,RIDESHARE_NEWS,SCHOOL_CLOSURES,AIRPORT}`. Kept `BRIEFING.AGGREGATE`, `BRIEFING.EVENTS_ACTIVE` (used by MapPage's useActiveEventsQuery), `BRIEFING.DISCOVERED_EVENTS`, `BRIEFING.EVENT_DEACTIVATE`. The corresponding server endpoints in `server/api/briefing/briefing.js` remain — Siri shortcuts and admin tools may still hit them |
+| **M3** Briefing hook used localStorage check while context queries used `isAuthenticated` React state | `client/src/hooks/useBriefingQueries.ts:33-44, 198-204`, `client/src/contexts/co-pilot-context.tsx:763-771` | `useBriefingQueries` now accepts optional `isAuthenticated` parameter and gates `isEnabled` on it. Context passes `isAuthenticated` from `useAuth()`. Eliminates the post-logout window where briefing saw a missing token and froze polling |
+
+### Deferred — M2 (wrap/unwrap collapse)
+
+The auditor flagged that context unwraps `weatherData.weather → briefingData.weather`, then BriefingPage re-wraps `{ weather: briefingData.weather }` before BriefingTab consumes it. Same pattern across all six section types. The unwrap+rewrap is functionally correct but costs ~12 useless transforms per render and is a latent bug surface (any new section can have its shape silently dropped at the unwrap step, as happened with C2 and H3 in this same session).
+
+**Why deferred:** The clean fix touches 6+ card files (`WeatherCard`, `TrafficCard`, `NewsCard`, `AirportCard`, `SchoolClosuresCard`, `EventsComponent`) plus their interfaces, plus the context + BriefingPage. Risk of breaking a card prop signature without runtime verification is too high for this batch. Should ship as a dedicated PR with browser verification on each card.
+
+**Tracked for next session.** Marker comment to drop alongside the next M2 attempt: any new briefing section added before M2 ships will need the same wrap/unwrap dance — that's the cost of leaving this in place.
+
+### Verification (on disk only — runtime needs server restart + client rebuild)
+
+- `node --check` on all 4 edited server files (no server changes this round, but verified clean) → OK
+- `npx tsc --noEmit --project tsconfig.json` → 0 errors
+- 8 fix-checkpoints confirmed via awk:
+  - H2 hook line 173 (school_closures.reason in readiness)
+  - H3 hook line 337 (`_generationFailed` carried)
+  - H3 WeatherCard line 57 (unavailable state)
+  - H4 BriefingTab line 175 (empty-events reason)
+  - H5 BriefingPage line 94+99 (critical loading expanded)
+  - M3 context line 770 (`isAuthenticated` passed)
+  - M3 hook line 198 (`isAuthenticated` gate)
+- M1: 1 grep hit remaining = false positive (`LOCATION.WEATHER`, unrelated)
+
+### Files changed
+
+- `client/src/constants/apiRoutes.ts`
+- `client/src/hooks/useBriefingQueries.ts`
+- `client/src/contexts/co-pilot-context.tsx`
+- `client/src/pages/co-pilot/BriefingPage.tsx`
+- `client/src/components/briefing/WeatherCard.tsx`
+- `client/src/components/BriefingTab.tsx`
+- `docs/reviewed-queue/CHANGES.md` — this entry
+
+---
+
+## 2026-04-18 (Phase B + Phase A: Restore Streaming Briefing Tab)
+
+### Motivation
+
+Melody named the architectural regression: the briefing tab is the transparency window onto what the strategist LLM receives. If strategy renders and the tab doesn't, the pipeline has lied about what was fed to the LLM. Two structural bugs caused the current failure:
+
+1. **Six-way race** — the tab assembled its display from 6 independent `/api/briefing/{weather,traffic,events,rideshare-news,airport,school-closures}/:snapshotId` fetches, each with its own retry counter and loading detector. Any one stalling froze the tab spinner even when others resolved.
+2. **All-or-nothing server writes** — `generateBriefingInternal` ran 5 providers in parallel, waited for all to settle, wrote one atomic UPDATE, fired one `briefing_ready` NOTIFY. The progressive-streaming UX Melody remembered (weather appears first because it's fastest, then events, then traffic) was regressed on 2026-02-17 when the partial-NOTIFY DB trigger was dropped as "duplicate".
+
+### Phase B — aggregate endpoint + client one-shot fetch
+
+| Change | File |
+|--------|------|
+| Extended `/api/briefing/snapshot/:snapshotId` to include `marketEvents` + `market_name` + per-section `_generationFailed` flags; returns the whole briefing row in one round-trip | `server/api/briefing/briefing.js:335-509` |
+| Added `API_ROUTES.BRIEFING.AGGREGATE` + `QUERY_KEYS.BRIEFING_AGGREGATE` | `client/src/constants/apiRoutes.ts:80, 272` |
+| Refactored `useBriefingQueries` from 6 parallel queries to 1 aggregate query. Derives the 6 sub-data slots + `isLoading`/`isUnavailable` shape from the aggregate response. External hook interface unchanged — consumers require no updates | `client/src/hooks/useBriefingQueries.ts` (full rewrite, 359 → 330 lines) |
+
+**Effect:** tab assembles from one fetch, one retry counter, one loading detector. The strategist and the tab now consume identical data shape from the same row.
+
+### Phase A — progressive server writes + per-section NOTIFYs
+
+| Change | File |
+|--------|------|
+| New helper `writeSectionAndNotify(snapshotId, updates, channel)` — writes a partial update to the briefings row + fires a per-section `pg_notify`. Errors are swallowed (final atomic write is authoritative) | `server/lib/briefing/briefing-service.js` (before `generateBriefingInternal`) |
+| Wrapped each of the 5 provider fetches (weather/traffic/events/airport/news) with progressive write + NOTIFY on both success and error paths | `server/lib/briefing/briefing-service.js` (weather/traffic/events/airport/news in the Promise.allSettled block) |
+| Added progressive write + NOTIFY for `school_closures` (covers both cache-hit and fresh-fetch paths) | `server/lib/briefing/briefing-service.js` (after cache-or-fetch block) |
+| Final atomic write retained as authoritative reconciliation + final `briefing_ready` NOTIFY unchanged — downstream consumers still key off it | `server/lib/briefing/briefing-service.js` (unchanged tail) |
+| SSE `/events/briefing` endpoint now subscribes to all 6 per-section channels in addition to `briefing_ready`, forwarding each as a `briefing_ready` SSE event. The client's existing refetch-on-briefing_ready hook now re-pulls the aggregate progressively as each section lands — no client changes required | `server/api/strategy/strategy-events.js:208-249` |
+
+**Channels emitted** (new): `briefing_weather_ready`, `briefing_traffic_ready`, `briefing_events_ready`, `briefing_news_ready`, `briefing_airport_ready`, `briefing_school_closures_ready`. All forwarded as `briefing_ready` SSE events with `{snapshot_id, section}` payload.
+
+### Verification
+
+- `npx tsc --noEmit --project tsconfig.json` → 0 errors
+- `node --check` on all 3 edited server files → clean
+- `grep`-free edit-checkpoint sweep confirmed all 8 site updates in place
+- Runtime verification pending gateway restart (Melody must Stop + Play to load the new code)
+
+### Expected UX after restart
+
+1. User signs in, GPS resolves, snapshot created with `status='ok'`
+2. `POST /api/blocks-fast` fires, Phase 1 briefing generation begins
+3. **Weather resolves first (~1s)** → `writeSectionAndNotify` writes `weather_current`+`weather_forecast`, fires `briefing_weather_ready`, SSE forwards `briefing_ready`, client refetches aggregate → **weather renders in tab**
+4. **Traffic resolves (~6s)** → same pattern → traffic renders
+5. **Airport/news/school closures as they complete**
+6. **Events last (~50s)** → renders
+7. Final `briefing_ready` at generation complete — strategist runs
+8. Strategy renders after all 6 sections visible (no longer possible for strategy to render before tab, assuming provider latencies are stable)
+
+### Files changed
+
+- `server/api/briefing/briefing.js` — aggregate endpoint extension
+- `server/lib/briefing/briefing-service.js` — helper + progressive writes (6 subsystems)
+- `server/api/strategy/strategy-events.js` — SSE multi-channel subscription
+- `client/src/constants/apiRoutes.ts` — new `AGGREGATE` route + query key
+- `client/src/hooks/useBriefingQueries.ts` — full rewrite to single aggregate query
+- `docs/reviewed-queue/CHANGES.md` — this entry
+- `docs/EVENT_FRESHNESS_AND_TTL.md` — no change this round (still accurate)
+
+---
+
+## 2026-04-18 (Audit Remediation + Sub-README Demolition)
+
+### Ship-blockers fixed
+
+| ID | Issue | Fix | File(s) |
+|----|-------|-----|---------|
+| — | Briefing tab infinite spinner (events path) | `/events/:snapshotId` now checks `briefing.events._generationFailed` and returns the sentinel. Client `isEventsLoading()` now honors both `_generationFailed` and `_coverageEmpty`. | `server/api/briefing/briefing.js:684-701`, `client/src/hooks/useBriefingQueries.ts:190-206` |
+| — | Hardcoded Frisco in offer analysis prompt (LLM anchoring) | `PHASE2_SYSTEM_PROMPT` const → `buildPhase2SystemPrompt(location)` function. DFW-specific rule 8 replaced with generic "use driver GPS" reasoning. | `server/api/hooks/analyze-offer.js:128-182, 476` |
+| — | Hardcoded DFW venue examples in tactical planner prompt | Replaced "The Star in Frisco, Legacy West, Grandscape, Stonebriar" literals with venue-type descriptions. Two call sites fixed. | `server/lib/strategy/tactical-planner.js:187-194, 284-291` |
+| — | `SIMULATE=1` crashed with ENOENT | Simulation branch removed; now fails fast with actionable error. `scripts/simulate-workflow.js` never existed. | `scripts/start-replit.js:20-30` |
+
+### Silent failures fixed
+
+| File:line | Fix |
+|-----------|-----|
+| `server/lib/briefing/briefing-service.js:1413` | Empty `} catch (flagErr) { /* non-fatal */ }` replaced with `briefingLog.warn(...)` |
+
+### UI fixes
+
+| Issue | Fix |
+|-------|-----|
+| Concierge suggested questions were static (Coach inbox 2026-04-09) | `AskConcierge.tsx` now computes daypart from `timezone` prop and serves morning/afternoon/evening/late-night prompts |
+
+### Schema & documentation drift resolved
+
+| Issue | Fix |
+|-------|-----|
+| 4 driver preference columns in migration but not in Drizzle schema | `shared/schema.js:1028-1031` now declares `fuel_economy_mpg`, `earnings_goal_daily`, `shift_hours_target`, `max_deadhead_mi` (numeric import added). `pending.md` updated to note the drift was closed. |
+| `docs/EVENT_FRESHNESS_AND_TTL.md` ~60% described systems that don't exist (`expires_at` column, `events_facts` table, `trigger_validate_event`, `startCleanupLoop`, `event-verifier`) | Full rewrite. Replaced phantom TTL-trigger content with the actual mechanism: `is_active` flag + `deactivated_at` + per-snapshot `deactivatePastEvents(timezone)` + read-time `filterFreshEvents()` |
+
+### Documentation demolition
+
+| What | Count |
+|------|-------|
+| Sub-READMEs deleted across `server/`, `client/`, `shared/`, `migrations/`, `scripts/`, `tests/`, `platform-data/`, `data/`, `tools/`, `config/`, `schema/`, `public/`, `keys/`, `attached_assets/` | **109 files** |
+| Dead-code files deleted (`migrate-venues-to-catalog.ARCHIVED.js`; the other 5 dead-code files the audit named were already gone) | 1 |
+| Remaining README.md files (root + under `docs/`) | 16 |
+| Session exploration cruft deleted from workspace (`probe-river*.mjs`, `probe-final*.mjs`, `tmp-extensions-probe.mjs`, `bin/vecto-runner`) | 10 files |
+| Session exploration cruft deleted from `/home/runner/` (`extract-pid2-schema*.mjs`, `decode-token*.mjs`, `find-*.mjs`, `dump-zef.mjs`) | 12 files |
+
+### CLAUDE.md revisions
+
+- **Rule 2 rewritten** to reflect that sub-READMEs are gone; canonical docs list updated to point at `docs/` + root files only.
+- **Rule 5** reworded to drop "update README.md" in favor of `docs/` + root docs.
+- Dangling `scripts/README.md` reference removed (file deleted).
+
+### Deferred explicitly (not this session)
+
+| Task | Reason |
+|------|--------|
+| `client/src/components/MapTab.tsx` — migrate `google.maps.Marker` → `AdvancedMarkerElement` | Touches 4 marker types × ~7 call sites × cleanup/bounds/info-window wiring. Requires browser verification on the real map. The deprecated API still works; deferred to avoid rushing a critical-surface change alongside 11 other tasks. |
+| 28 Concierge issues (CH-5, CM-1..CM-16, CL-1..CL-12) in `DOC_DISCREPANCIES.md` | Not individually re-verified this session. Spot-check from earlier audit still shows them plausibly pending. |
+
+---
+
+## 2026-02-10 (Vecto-Pilot-Ultimate Integration & Hardening)
+
+### Critical Stability Fixes
+
+| ID | Issue | Fix | File |
+|----|-------|-----|------|
+| D-062 | **Snapshot Startup Crash** | Fixed incorrect relative imports in `enhanced-context-base.js` that caused module loading failures for `db` and `schema`. | `server/lib/ai/context/enhanced-context-base.js` |
+| N/A | **Pipeline Test Crash** | Restored `normalizeVenueName` export alias to fix `SyntaxError` in test suite. | `server/lib/events/pipeline/normalizeEvent.js` |
+| N/A | **Venue Utils Crash** | Restored `generateCoordKey` export to fix runtime crash in consumers relying on old import path. | `server/lib/venue/venue-utils.js` |
+| N/A | **DB Connection Refusal** | Added SSL configuration (`rejectUnauthorized: false`) for Replit/Neon PostgreSQL compatibility. | `server/db/connection-manager.js` |
+
+### Feature Integration
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Hedged Router** | Integrated `HedgedRouter` into AI adapter layer. Enables concurrent model execution and fallback. | ✅ Active in `server/lib/ai/adapters/index.js` |
+| **Uber Auth** | Verified `uber_connections` table and OAuth flow logic. | ✅ Active in `server/api/auth/uber.js` |
+
+### Documentation Alignment
+
+| ID | Change |
+|----|--------|
+| D-061 | Regenerated `docs/DATABASE_SCHEMA.md` to match actual schema (53 tables). |
+| D-063 | Documented Hedged Router integration in `docs/DOC_DISCREPANCIES.md`. |
+| N/A | Updated `README.md` and `ARCHITECTURE.md` to reflect new folder structure (`server/lib/ai/context/`, `server/lib/ai/router/`). |
+
+### Verification Status
+
+- **Build:** `npm run build:client` ✅ SUCCESS (9.5s)
+- **Startup:** `node scripts/start-replit.js` ✅ SUCCESS (Server boots, routes mount)
+- **Tests:** `tests/blocksApi.test.js` ✅ PASSED (Core strategy API contract verified)
+- **Data:** `verify-integration.js` script ✅ PASSED (Real DB connection and snapshot insertion verified)
+
+---
+
 ## 2026-01-15 (Schema↔Code Drift Audit Fix)
 
 ### Schema Column Name Synchronization
@@ -819,7 +1024,7 @@ Root cause of "data not pushed/fetched properly" - two SSE systems at overlappin
 ### Files Modified
 - `.claude/settings.local.json`
 - `LESSONS_LEARNED.md`
-- `client/src/components/CoachChat.tsx`
+- `client/src/components/AICoach.tsx`
 - `client/src/components/GlobalHeader.tsx`
 - `client/src/components/auth/*` (multiple auth components)
 - `client/src/contexts/auth-context.tsx`

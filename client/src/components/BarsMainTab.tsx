@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Navigation, MapPin, Phone, Wine, Loader, AlertCircle } from "lucide-react";
 import { openNavigation } from "@/utils/co-pilot-helpers";
 import { API_ROUTES } from '@/constants/apiRoutes';
+// 2026-03-18: Import canonical types from useBarsQuery (single source of truth)
+import type { Venue, BarsData } from '@/hooks/useBarsQuery';
 
 interface BarTabProps {
   latitude: number | null;
@@ -24,45 +26,9 @@ interface BarTabProps {
   getAuthHeader: () => Record<string, string>;
 }
 
-/**
- * Venue interface - uses camelCase to match API response
- * Mirrors server/validation/response-schemas.js VenueSchema
- */
-interface Venue {
-  name: string;
-  type: 'bar' | 'nightclub' | 'wine_bar' | 'lounge';
-  address: string;
-  phone: string | null;
-  expenseLevel: string;
-  expenseRank: number;
-  // 2026-01-09: isOpen can be null when hours unavailable
-  isOpen: boolean | null;
-  opensInMinutes: number | null;
-  // 2026-01-09: hoursToday can be null when hours unavailable
-  hoursToday: string | null;
-  hoursFullWeek?: Record<string, string>;
-  closingSoon: boolean;
-  minutesUntilClose: number | null;
-  crowdLevel: 'low' | 'medium' | 'high';
-  ridesharePotential: 'low' | 'medium' | 'high';
-  rating: number | null;
-  lat: number;
-  lng: number;
-  placeId?: string;
-}
-
-/**
- * VenueData interface - uses camelCase to match API response
- * Mirrors server/validation/response-schemas.js VenueDataSchema
- */
-interface VenueData {
-  queryTime: string;
-  location: string;
-  totalVenues: number;
-  venues: Venue[];
-  lastCallVenues: Venue[];
-  searchSources?: string[];
-}
+// 2026-03-18: Venue and VenueData types imported from useBarsQuery (canonical source)
+// Alias for backwards-compatible local references
+type VenueData = BarsData;
 
 // Get category color based on venue type
 function getCategoryColor(type: string): string {
@@ -130,14 +96,19 @@ export default function BarTab({
     queryKey: ['bar-tab', latitude, longitude, city, state, timezone],
     queryFn: async () => {
       // 2026-01-09: NO FALLBACKS - fail explicitly if required data missing
+      // 2026-03-18: Downgraded from throw to console.warn + return null.
+      // React Query's refetch() bypasses `enabled`, so queryFn must be defensive.
       if (latitude == null || longitude == null) {
-        throw new Error('[BarTab] BUG: Query enabled without coordinates');
+        console.warn('[BarTab] Query called without coordinates — skipping');
+        return null as unknown as VenueData;
       }
       if (!timezone) {
-        throw new Error('[BarTab] BUG: Query enabled without timezone - isLocationResolved should gate this');
+        console.warn('[BarTab] Query called without timezone — skipping');
+        return null as unknown as VenueData;
       }
       if (!city) {
-        throw new Error('[BarTab] BUG: Query enabled without city - isLocationResolved should gate this');
+        console.warn('[BarTab] Query called without city — skipping');
+        return null as unknown as VenueData;
       }
 
       const params = new URLSearchParams({
@@ -163,6 +134,9 @@ export default function BarTab({
     // 2026-01-09: Explicitly require city and timezone (not just isLocationResolved)
     enabled: latitude != null && longitude != null && !!city && !!timezone && isLocationResolved,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    // 2026-03-18: Align with useBarsQuery.ts cache options for consistent React Query behavior
+    gcTime: 10 * 60 * 1000, // 10 minutes — match useBarsQuery
+    refetchOnWindowFocus: false, // Venues don't change that fast
     refetchInterval: false,
   });
 
@@ -192,7 +166,7 @@ export default function BarTab({
             <p className="text-gray-600 text-xs">{error.message}</p>
             <button
               onClick={() => refetch()}
-              className="mt-2 text-xs text-purple-600 hover:underline"
+              className="mt-2 text-xs text-purple-600 hover:underline min-h-11 inline-flex items-center"
             >
               Try again
             </button>
@@ -212,7 +186,7 @@ export default function BarTab({
           <p className="text-gray-500 mt-2">No bars or lounges found in your area</p>
           <button
             onClick={() => refetch()}
-            className="mt-4 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="mt-4 px-4 py-2 min-h-11 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
           >
             Refresh
           </button>
@@ -223,7 +197,10 @@ export default function BarTab({
 
   // Filter out venues without business hours - they're not useful to drivers
   // 2026-01-09: Using camelCase hoursToday field
+  // 2026-02-26: Allow Haiku-verified venues through even without hours
   const venuesWithHours = venueData.venues.filter(v => {
+    // Haiku-verified venues pass through even without hours (they're real bars)
+    if (v.hoursUnknown && v.venueQualityTier) return true;
     // Must have hoursToday to be displayed
     if (!v.hoursToday || v.hoursToday.trim().length === 0) return false;
     // Filter out "Hours not available" or similar
@@ -301,7 +278,7 @@ export default function BarTab({
           <p className="text-gray-500 mt-2">No bars with business hours found in your area</p>
           <button
             onClick={() => refetch()}
-            className="mt-4 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            className="mt-4 px-4 py-2 min-h-11 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
           >
             Refresh
           </button>
@@ -316,7 +293,7 @@ export default function BarTab({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wine className="w-5 h-5 text-purple-600" />
-          <h2 className="text-lg font-semibold text-gray-800">Upscale Bars</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Lounges & Bars</h2>
           <Badge variant="outline" className="border-green-500 text-green-600">
             <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
             {venues.filter(v => v.isOpen).length} open
@@ -407,7 +384,7 @@ export default function BarTab({
                     {venue.phone && (
                       <button
                         onClick={() => callVenue(venue.phone!)}
-                        className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors w-full"
+                        className="flex items-center gap-2 mt-2 px-3 py-1.5 min-h-11 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors w-full"
                       >
                         <Phone className="w-4 h-4 text-blue-600" />
                         <span className="text-sm font-medium text-blue-700">{venue.phone}</span>
@@ -420,7 +397,9 @@ export default function BarTab({
                       {/* Today's Hours */}
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                        <span className="text-xs text-gray-700 font-mono">{venue.hoursToday}</span>
+                        <span className="text-xs text-gray-700 font-mono">
+                          {venue.hoursToday || (venue.hoursUnknown ? 'Hours not listed' : 'Check hours')}
+                        </span>
                       </div>
 
                       {/* Status Badges */}
@@ -472,7 +451,7 @@ export default function BarTab({
 
                       <button
                         onClick={() => handleNavigation(venue)}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
+                        className="flex items-center gap-1 px-3 py-2.5 min-h-11 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-full transition-colors"
                       >
                         <Navigation className="w-3 h-3" />
                         Navigate

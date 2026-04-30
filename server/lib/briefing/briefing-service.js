@@ -1,18 +1,16 @@
 
 import { db } from '../../db/drizzle.js';
-import { briefings, snapshots, discovered_events, us_market_cities, venue_catalog } from '../../../shared/schema.js';
+// 2026-02-17: Renamed market_cities → market_cities (market consolidation)
+import { briefings, snapshots, discovered_events, market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, and, desc, sql, gte, lte, ilike, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
-// Event validation disabled - Gemini handles event discovery, Claude is fallback only
-// import { validateEventSchedules, filterVerifiedEvents } from './event-schedule-validator.js';
+// 2026-02-17: Removed event-schedule-validator.js (dead code — Gemini handles all event discovery)
 // 2026-01-10: Removed direct Anthropic import - use callModel adapter instead (D-016)
-import OpenAI from "openai";
-import { GoogleGenAI } from "@google/genai";
+// 2026-02-11: Removed direct OpenAI and GoogleGenAI imports - all AI calls go through callModel adapter
+// This ensures thinkingLevel, safety settings, and JSON cleanup are consistently applied
 import { briefingLog, OP } from '../../logger/workflow.js';
 // Centralized AI adapter - use for all model calls
 import { callModel } from '../ai/adapters/index.js';
-// 2026-01-14: REMOVED dead import - syncEventsForLocation (SerpAPI + GPT-5.2) is no longer used
-// Briefer Model now uses Gemini 3 Pro with Google Search tools for ALL discovery (events, news, school closures)
 // Dump last briefing row to file for debugging
 import { dumpLastBriefingRow } from './dump-last-briefing.js';
 
@@ -22,13 +20,28 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
 // 2026-01-10: Added for Gemini-only event discovery (normalizing + hashing)
 import { normalizeEvent } from '../events/pipeline/normalizeEvent.js';
 import { generateEventHash } from '../events/pipeline/hashEvent.js';
+// 2026-04-11: Title-similarity dedup — catches Gemini returning same event with different titles
+import { deduplicateEventsSemantic } from '../events/pipeline/deduplicateEventsSemantic.js';
 
-// 2026-01-14: FIX - Import venue lookup for event-venue linking at discovery time
+// 2026-02-17: FIX Issue 1 (Venue Creation Gap) — geocode + findOrCreateVenue
+// Was: lookupVenueFuzzy (read-only, never created venues for new event locations)
+// Now: geocode to get place_id, then findOrCreateVenue (creates venue if new)
 // This ensures discovered_events.venue_id is populated, enabling:
 // - Events on map (coordinates from venue)
 // - Event badges on venue cards
 // - Precise location data in strategies
-import { lookupVenueFuzzy } from '../venue/venue-cache.js';
+import { findOrCreateVenue, lookupVenue } from '../venue/venue-cache.js';
+import { geocodeEventAddress } from '../events/pipeline/geocodeEvent.js';
+// 2026-04-10: Google Places API (New) is the authoritative source for venue data.
+// Used in event pipeline to resolve venue address, coordinates, and city after Gemini discovery.
+import { searchPlaceWithTextSearch } from '../venue/venue-address-resolver.js';
+// 2026-04-11: Address quality validation — catches bad Places API results before they persist
+import { validateVenueAddress } from '../venue/venue-address-validator.js';
+
+// 2026-02-17: FIX Issue 3 (Past Event Cleanup)
+// Soft-deactivates ended events (is_active = false) before each discovery cycle
+// Prevents stale events from appearing in briefings and AI Coach queries
+import { deactivatePastEvents } from './cleanup-events.js';
 
 // TomTom Traffic API for real-time traffic conditions (primary provider)
 // 2026-01-14: Moved TomTom to server/lib/traffic/ for architecture cleanup
@@ -59,34 +72,51 @@ const EVENT_SEARCH_TIMEOUT_MS = 90000; // 90 seconds per category search (Gemini
  * @param {string} operationName - Name for logging purposes
  * @returns {Promise} - Resolves with either the original result or a timeout error
  */
+// 2026-04-04: FIX H-5 — Enhanced withTimeout to:
+// 1. Clear timer when promise resolves (was leaking timers)
+// 2. Signal AbortController on timeout so callers can cancel in-flight work
+// Note: H-2 (120s global router timeout) limits max wasted time even without abort support.
 function withTimeout(promise, timeoutMs, operationName = 'Operation') {
+  const controller = new AbortController();
+  let timer;
+
   const timeoutPromise = new Promise((resolve) => {
-    setTimeout(() => {
+    timer = setTimeout(() => {
       briefingLog.warn(2, `${operationName} timed out after ${timeoutMs}ms - returning empty`, OP.AI);
+      controller.abort();
       resolve({ timedOut: true, error: `Timeout after ${timeoutMs}ms` });
     }, timeoutMs);
   });
 
-  return Promise.race([promise, timeoutPromise]);
+  // Wrap the original promise to clear timer on completion
+  const wrappedPromise = promise.then(
+    (result) => { clearTimeout(timer); return result; },
+    (error) => { clearTimeout(timer); throw error; }
+  );
+
+  return Promise.race([wrappedPromise, timeoutPromise]);
 }
 
 /**
  * Get market name for a city/state location
  * 2026-02-01: Extracted as reusable function for events + news
+ * 2026-04-16: FIX — returns null instead of city on miss. City-as-market substitution
+ * produced narrower search results (e.g., "Plano" instead of "Dallas") and violated
+ * the BRIEFING-DATA-MODEL.md contract that market is a distinct concept from city.
  *
  * @param {string} city - City name (e.g., "Frisco")
  * @param {string} state - State abbreviation (e.g., "TX")
- * @returns {Promise<string>} - Market name (e.g., "Dallas") or city as fallback
+ * @returns {Promise<string|null>} - Market name (e.g., "Dallas") or null if no DB match
  */
 async function getMarketForLocation(city, state) {
   try {
     // 2026-02-01: FIX - Use state_abbr (not state) since snapshot has "TX" not "Texas"
     const [marketResult] = await db
-      .select({ market_name: us_market_cities.market_name })
-      .from(us_market_cities)
+      .select({ market_name: market_cities.market_name })
+      .from(market_cities)
       .where(and(
-        ilike(us_market_cities.city, city),
-        eq(us_market_cities.state_abbr, state)
+        ilike(market_cities.city, city),
+        eq(market_cities.state_abbr, state)
       ))
       .limit(1);
 
@@ -95,12 +125,12 @@ async function getMarketForLocation(city, state) {
       return marketResult.market_name;
     }
 
-    // Fallback: use city name as market
-    briefingLog.info(`No market found for ${city}, ${state} - using city as market`, OP.DB);
-    return city;
+    // 2026-04-16: No silent city substitution — callers handle null explicitly
+    briefingLog.warn(2, `No market found for ${city}, ${state} — market_cities table has no match`, OP.DB);
+    return null;
   } catch (dbErr) {
     briefingLog.warn(2, `Market lookup failed (non-fatal): ${dbErr.message}`, OP.DB);
-    return city; // Fallback to city
+    return null;
   }
 }
 
@@ -255,7 +285,14 @@ export function deduplicateEvents(events) {
  * This function is kept for backwards compatibility. New code should use:
  * import { validateEventsHard } from '../events/pipeline/validateEvent.js';
  *
- * @deprecated Use validateEventsHard from pipeline/validateEvent.js instead
+ * @deprecated Compatibility shim — use validateEventsHard() directly.
+ * Scheduled for removal after all callers are migrated.
+ *
+ * Active callers (as of 2026-04-14):
+ *   1. server/api/briefing/briefing.js:1050       — imported at line 4
+ *   2. server/lib/briefing/briefing-service.js:1548 — internal call (this file)
+ *   3. server/lib/briefing/dump-last-briefing.js:171,173,174 — imported at line 8
+ *
  * @param {Array} events - Array of events to filter
  * @returns {Array} Clean events with no TBD/Unknown values
  */
@@ -272,8 +309,7 @@ export function filterInvalidEvents(events) {
   return result.valid;
 }
 
-// Initialize OpenAI client for GPT-5.2 fallback
-const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+// 2026-02-11: Removed direct OpenAI client - all calls now use callModel adapter
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -285,7 +321,9 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
  */
 async function fetchEventsWithClaudeWebSearch({ snapshot, city, state, market, date, lat, lng, timezone }) {
   const startTime = Date.now();
-  const searchArea = market || city;
+  // 2026-04-16: market is authoritative; '[unknown-market]' placeholder surfaces in AI prompts
+  // so we can spot unresolved markets instead of silently searching a single suburb.
+  const searchArea = market || '[unknown-market]';
 
   // Helper to search a single category with Claude
   async function searchCategory(category) {
@@ -296,21 +334,24 @@ SEARCH THE ENTIRE ${searchArea.toUpperCase()} MARKET - include events in ${city}
 SEARCH QUERY: "${category.searchTerms(searchArea, state, date)}"
 
 Return a JSON array of events with this format (max 5 events):
-[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","subtype":"${category.eventTypes[0]}","impact":"high"}]
+[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","category":"${category.eventTypes[0]}","impact":"high"}]
 
-Return an empty array [] if no events found.`;
+ALL 4 date/time fields (event_start_date, event_start_time, event_end_time, event_end_date) are REQUIRED. Estimate times if unknown — do NOT omit them. Return an empty array [] if no events found.`;
 
-    // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
+    // 2026-04-05: FIX — Aligned with ALLOWED_CATEGORIES. Removed 'live_music' (not in allowed list).
     const system = `You are an event search assistant. Search the web for local events and return structured JSON data. Only include events happening TODAY. Be accurate with venue names and times.
 
 STRICT CATEGORIZATION RULES (MUST FOLLOW):
-- concert: ONLY for ticketed performances at dedicated music venues, theaters, arenas, or stadiums.
-- live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges. NEVER tag these as 'concert'.
-- nightlife: For club nights, karaoke, trivia, themed bar parties. NEVER tag bar events as 'community'.
-- community: ONLY for public/civic gatherings (markets, library events).
-- sports: Official league games (High School, NBA, NHL, NFL, MLB, MLS).
+- concert: For ticketed performances at music venues, theaters, arenas, stadiums, AND live bands/DJs at bars or lounges.
+- sports: Official league or tournament games at any level (professional, collegiate, international).
+- comedy: Stand-up comedy, improv nights, comedy club events.
+- theater: Plays, musicals, ballet, opera, dance performances.
+- festival: Multi-act festivals, fairs, parades.
+- nightlife: Club nights, karaoke, trivia, themed bar parties (no live music performance).
+- convention: Conventions, conferences, expos.
+- community: Public/civic gatherings (markets, library events, charity).
 
-DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
+category MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community, other.`;
 
     try {
       // Uses BRIEFING_FALLBACK role (Claude with web_search) for parallel event discovery
@@ -394,25 +435,17 @@ DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
  * Analyze TomTom traffic data with AI for strategic, driver-focused summary
  * 2026-01-15: Single Briefer Model Architecture - all briefing roles use Gemini Pro
  * Uses BRIEFING_TRAFFIC_MODEL env var or defaults to Gemini 3 Pro Preview
- * @param {Object} params - { tomtomData, city, state, formattedAddress, driverLat, driverLon }
+ * @param {Object} params - { tomtomData, rawTraffic, city, state, formattedAddress, driverLat, driverLon }
  */
-async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress, driverLat, driverLon }) {
-  // 2026-01-15: Single Briefer Model - Gemini 3 Pro for consistent quality across briefings
-  // NOTE: Model ID must include "-preview" suffix (gemini-3-pro is not valid)
-  const trafficModel = process.env.BRIEFING_TRAFFIC_MODEL || 'gemini-3-pro-preview';
-
-  if (!process.env.GEMINI_API_KEY && trafficModel.startsWith('gemini')) {
-    briefingLog.warn(1, `Traffic analyzer unavailable - no GEMINI_API_KEY`, OP.FALLBACK);
-    return null;
-  }
+async function analyzeTrafficWithAI({ tomtomData, rawTraffic, city, state, formattedAddress, driverLat, driverLon }) {
+  // 2026-02-11: FIX - Route through callModel adapter (was direct GoogleGenAI SDK call)
+  // This ensures thinkingLevel HIGH, safety settings, and JSON cleanup are applied
+  // Model is resolved from BRIEFING_TRAFFIC registry role (gemini-3.1-pro-preview)
 
   const startTime = Date.now();
-  const modelLabel = trafficModel.includes('flash') ? 'Gemini Flash' : 'Gemini Pro';
-  briefingLog.ai(1, modelLabel, `analyzing traffic for ${city}, ${state}`);
+  briefingLog.ai(1, 'Gemini Pro', `analyzing traffic for ${city}, ${state}`);
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
     // Prepare incident data with distance information
     const stats = tomtomData.stats || {};
     const incidents = tomtomData.incidents || [];
@@ -424,7 +457,7 @@ async function analyzeTrafficWithAI({ tomtomData, city, state, formattedAddress,
     const jams = incidents.filter(i => i.category === 'Jam');
 
     // Build a strategic prompt focused on driver impact
-    const prompt = `You are a traffic strategist for rideshare drivers. Analyze this traffic data and provide a STRATEGIC briefing.
+    let prompt = `You are a traffic strategist for rideshare drivers. Analyze this traffic data and provide a STRATEGIC briefing.
 
 DRIVER POSITION: ${city}, ${state} (${driverLat ? parseFloat(driverLat).toFixed(6) : 'N/A'},${driverLon ? parseFloat(driverLon).toFixed(6) : 'N/A'})
 AREA: ${city}, ${state}
@@ -446,9 +479,17 @@ ${incidents.slice(0, 15).map((inc, i) => {
 HIGHWAY CLOSURES & ACCIDENTS (CRITICAL):
 ${[...closures.filter(c => c.isHighway), ...accidents.filter(a => a.isHighway)].slice(0, 8).map(c =>
   `- ${c.road}: ${c.location} [${c.distanceFromDriver !== null ? c.distanceFromDriver + 'mi' : '?'}] - ${c.category}`
-).join('\n') || 'None on major highways'}
+).join('\n') || 'None on major highways'}`;
 
-Return ONLY a JSON object with this structure:
+    // 2026-02-10: PHASE 3 INTELLIGENCE - Add Raw Telemetry
+    if (rawTraffic) {
+      prompt += `\n\n[PHASE 3 INTELLIGENCE - RAW TELEMETRY]
+Use this raw data to find patterns invisible to standard aggregation:
+FLOW DATA SAMPLE: ${JSON.stringify(rawTraffic.flow || {}, null, 2).slice(0, 1000)}...
+RAW INCIDENT COUNT: ${rawTraffic.incidents?.length || 0}`;
+    }
+
+    prompt += `\n\nReturn ONLY a JSON object with this structure:
 {
   "briefing": "2-3 sentences: (1) Overall traffic status with congestion level. (2) SPECIFIC highway/road issues that affect strategy with distances. (3) Recommended action or route adjustments. Be CONCISE and STRATEGIC.",
   "keyIssues": [
@@ -467,21 +508,21 @@ Return ONLY a JSON object with this structure:
 
 Focus on ACTIONABLE intelligence: what should the driver DO based on this traffic?`;
 
-    const result = await ai.models.generateContent({
-      model: trafficModel,
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        maxOutputTokens: 2048,
-        temperature: 0.2,
-      }
-    });
+    const system = 'You are a traffic strategist for rideshare drivers. Return ONLY valid JSON with no preamble.';
 
-    const content = (result?.text || result?.response?.text?.() || '').trim();
+    // 2026-02-11: Use callModel adapter - picks up thinkingLevel HIGH + safety settings from registry
+    const result = await callModel('BRIEFING_TRAFFIC', { system, user: prompt });
 
-    // Parse JSON from response
+    if (!result.ok) {
+      briefingLog.warn(1, `BRIEFING_TRAFFIC callModel failed: ${result.error}`, OP.AI);
+      return null;
+    }
+
+    const content = (result.output || result.text || '').trim();
+
+    // Parse JSON from response (adapter handles code block cleanup, but double-check)
     let jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      // Try extracting from code block
       const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (codeBlockMatch) {
         jsonMatch = codeBlockMatch[1].match(/\{[\s\S]*\}/);
@@ -489,15 +530,26 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
     }
 
     if (!jsonMatch) {
-      briefingLog.warn(1, `Gemini Flash traffic analysis returned non-JSON`, OP.AI);
+      briefingLog.warn(1, `BRIEFING_TRAFFIC returned non-JSON (${content.length} chars)`, OP.AI);
       return null;
     }
 
     const analysis = JSON.parse(jsonMatch[0]);
     const elapsedMs = Date.now() - startTime;
-    briefingLog.done(1, `${modelLabel} traffic analysis (${elapsedMs}ms)`, OP.AI);
+    briefingLog.done(1, `Gemini Pro traffic analysis (${elapsedMs}ms)`, OP.AI);
 
+    // 2026-04-11: STRATEGIST ENRICHMENT — additive changes to preserve the raw
+    // TomTom incident/closure arrays alongside Gemini's analyzed strings. The
+    // consolidator's formatTrafficIntelForStrategist helper reads these structured
+    // fields to build the enriched TRAFFIC block (with road names, distances,
+    // severity, and congestion level). Legacy briefings written before this change
+    // will lack these fields — the strategist falls back gracefully to the
+    // existing keyIssues[] / avoidAreas[] / driverImpact strings.
+    //
+    // See server/lib/ai/providers/STRATEGIST_ENRICHMENT_PLAN.md section 6 for
+    // the design rationale and graceful-degradation ladder.
     return {
+      // Existing Gemini-analyzed fields (unchanged)
       briefing: analysis.briefing,
       headline: analysis.briefing?.split('.')[0] + '.' || analysis.headline,
       keyIssues: analysis.keyIssues || [],
@@ -506,10 +558,20 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
       closuresSummary: analysis.closuresSummary,
       constructionSummary: analysis.constructionSummary,
       analyzedAt: new Date().toISOString(),
-      provider: trafficModel
+      provider: 'BRIEFING_TRAFFIC',
+
+      // NEW (2026-04-11 additive): raw TomTom data preserved for strategist enrichment.
+      // Each incident has: road, category, distanceFromDriver, isHighway, magnitude,
+      // delayMinutes, from, to, location — a subset of the TomTom fields already used
+      // in Gemini's prompt above. Sliced to keep the JSONB column size bounded.
+      incidents: incidents.slice(0, 20),
+      closures: closures.slice(0, 10),
+      highwayIncidents: highwayIncidents.slice(0, 10),
+      congestionLevel: tomtomData.congestionLevel || 'unknown',
+      highDemandZones: tomtomData.highDemandZones || []
     };
   } catch (err) {
-    briefingLog.warn(1, `${modelLabel} traffic analysis failed: ${err.message}`, OP.AI);
+    briefingLog.warn(1, `BRIEFING_TRAFFIC analysis failed: ${err.message}`, OP.AI);
     return null;
   }
 }
@@ -597,6 +659,16 @@ function safeJsonParse(jsonString) {
     throw new Error('JSON parse failed: input is empty or not a string');
   }
 
+  // 2026-04-05: PRE-PROCESSING — Replace literal \n sequences with real newlines BEFORE
+  // any parse attempt. AI models sometimes return JSON with literal backslash-n between
+  // tokens. Real newlines are valid JSON whitespace between tokens, and JSON.parse handles
+  // \n escape sequences inside strings natively — so this global replacement is safe.
+  // Also handle \\n (doubled backslash from stringify) and literal \r\n.
+  jsonString = jsonString
+    .replace(/\\r\\n/g, '\n')   // literal \r\n → real newline
+    .replace(/\\r/g, '')         // literal \r → remove
+    .replace(/\\n/g, '\n');      // literal \n → real newline
+
   // Helper to clean markdown and normalize the string
   function cleanMarkdown(str) {
     let cleaned = str.trim();
@@ -611,30 +683,108 @@ function safeJsonParse(jsonString) {
     return cleaned;
   }
 
+  // 2026-02-26: FIX - Strip markdown prose/citations that google_search grounding injects.
+  // Safety net for when the adapter-level suppression doesn't fully eliminate citations.
+  function stripMarkdownProse(str) {
+    let cleaned = str;
+
+    // Remove inline markdown links: [text](url) → text
+    // Catches citations like [NBC News](https://nbc.com) that corrupt JSON array bracket matching
+    cleaned = cleaned.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1');
+
+    // 2026-04-09: FIX (D-095) - Strip malformed markdown link artifacts that Gemini injects
+    // into JSON string values (e.g. school closure data). The valid markdown regex above
+    // only catches well-formed [text](url). Malformed variants like ([collintimes.com)
+    // leave stray brackets/parens that corrupt JSON parsing.
+    // Pattern 1: ([text) — open paren, bracket, content, close paren (no proper markdown)
+    cleaned = cleaned.replace(/\(\[([^\]]*?)\)(?!\s*[{[\],:}])/g, '$1');
+    // Pattern 2: [text] not followed by (url) — bare reference-style links inside strings
+    // Negative lookahead ensures we don't strip valid JSON array brackets (followed by JSON structural chars)
+    cleaned = cleaned.replace(/(?<=:\s*"[^"]*)\[([^\]]*)\](?!\s*[,\]}:({])/g, '$1');
+    // Pattern 3: (url) fragments that look like citation URLs inside string values
+    // Only matches when preceded by word char (end of a citation source name) and contains dot (URL-like)
+    cleaned = cleaned.replace(/(?<=\w)\((?:https?:\/\/)?[a-zA-Z0-9.-]+\.[a-z]{2,}[^)]*\)/g, '');
+
+    // Remove standalone markdown lines (headers, horizontal rules) that precede JSON
+    const lines = cleaned.split('\n');
+    const jsonLines = [];
+    let foundJson = false;
+    for (const line of lines) {
+      if (!foundJson && /^#{1,6}\s|^\*{3,}$|^-{3,}$/.test(line.trim())) {
+        continue; // Skip markdown header/rule lines before JSON starts
+      }
+      // Skip pure prose lines before JSON (no JSON structural characters)
+      if (!foundJson && line.trim() && !/[{[\]}",:]/.test(line)) {
+        continue;
+      }
+      if (/[{[\]}]/.test(line)) {
+        foundJson = true;
+      }
+      jsonLines.push(line);
+    }
+
+    return jsonLines.join('\n').trim();
+  }
+
   // Helper to fix common JSON issues from LLMs
+  // 2026-02-17: FIX - Three bugs that CORRUPTED valid JSON instead of fixing it:
+  //   Bug 1: Single-quote regex treated English apostrophes as delimiters
+  //          ("Valentine's Day at Billy Bob's" → corrupted double-quote nesting)
+  //   Bug 2: Unquoted-property regex matched word:colon inside string values
+  //          ("NBA: Dallas" → "NBA": Dallas" inside a value)
+  //   Bug 3: Newline regex only fixed the LAST \n per string (greedy backtrack)
   function fixCommonJsonIssues(str) {
     let fixed = str;
 
-    // Convert single-quoted strings to double-quoted
-    // This regex matches single-quoted property names and values
-    fixed = fixed.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
+    // 2026-04-05: Literal \n replacement moved to safeJsonParse pre-processing step.
+    // It runs ONCE at the top before any parse attempt, which is simpler and avoids
+    // interaction with the newline-in-string escaper below (lines 729-736).
 
-    // Fix unquoted property names (e.g., {title: "foo"} -> {"title": "foo"})
-    fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    // 2026-02-17: Only convert single quotes to double quotes when the string is
+    // Python-style output (no double quotes at all). Previously this regex corrupted
+    // JSON with English apostrophes (e.g., "Tonight's game" → broken structure).
+    const hasSingleQuoteDelimiters = !fixed.includes('"') && fixed.includes("'");
+    if (hasSingleQuoteDelimiters) {
+      fixed = fixed.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
+    }
+
+    // 2026-02-17: Only fix unquoted property names when the string doesn't already
+    // have double-quoted properties. The regex can't distinguish {,] boundaries from
+    // commas INSIDE string values, so "game, NBA: Dallas" would be corrupted.
+    const hasDoubleQuotedProperties = /"[^"]+"\s*:/.test(fixed);
+    if (!hasDoubleQuotedProperties) {
+      fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+    }
 
     // Remove trailing commas before } or ]
     fixed = fixed.replace(/,\s*([}\]])/g, '$1');
 
-    // Fix escaped newlines within strings
-    fixed = fixed.replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
+    // 2026-02-19: FIX - Strip carriage returns instead of escaping them.
+    // Previous code (`\r\n` → `\\n`) converted valid structural whitespace into
+    // literal backslash-n characters between JSON properties, breaking every parse.
+    // Simply removing \r is safe: \r\n → \n (still valid whitespace), bare \r → empty.
+    fixed = fixed.replace(/\r/g, '');
 
-    // Replace actual newlines inside strings with escaped newlines
-    // This is tricky - we need to be careful not to break JSON structure
-    // Only replace newlines that appear between quotes
-    fixed = fixed.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => `"${p1}\\n${p2}"`);
+    // 2026-02-19: Strip JavaScript-style // line comments after JSON values.
+    // LLMs (especially GPT-5) sometimes add comments like:
+    //   "busyTimes": ["6:00 AM"]  // typical peak period
+    // Only strip when // follows a JSON value terminator to avoid matching URLs.
+    fixed = fixed.replace(/([\]}"'\d])\s*\/\/[^\n]*$/gm, '$1');
 
-    // Fix tabs
-    fixed = fixed.replace(/\t/g, '\\t');
+    // 2026-02-17: FIX - Loop newline replacement to handle MULTIPLE newlines per string.
+    // Only escapes newlines INSIDE quoted string values (between matching " delimiters).
+    // Structural newlines between properties are left intact.
+    let prevFixed;
+    do {
+      prevFixed = fixed;
+      fixed = fixed.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => `"${p1}\\n${p2}"`);
+    } while (fixed !== prevFixed);
+
+    // 2026-02-19: FIX - Replace tabs with spaces instead of escaping to literal \t.
+    // Previous code (`\t` → `\\t`) had the same structural corruption bug as \r\n:
+    // a tab between JSON properties became literal \t (invalid between tokens).
+    // Replacing with space is safe for both structural whitespace and string values.
+    fixed = fixed.replace(/\t/g, ' ');
 
     return fixed;
   }
@@ -656,25 +806,63 @@ function safeJsonParse(jsonString) {
     // Continue to next attempt
   }
 
-  // Attempt 3: Extract JSON array or object and try again
-  const jsonMatch = jsonString.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+  // Attempt 3: Strip markdown prose, then extract JSON array or object
+  // 2026-02-26: FIX - Apply stripMarkdownProse before regex to prevent markdown citations
+  // (e.g., [Source](url)) from being captured as the start of a JSON array.
+  const strippedInput = stripMarkdownProse(jsonString);
+  const jsonMatch = strippedInput.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
   if (jsonMatch) {
+    // 2026-02-18: FIX - Hoist variable to outer scope so catch handler can access it
+    // Previously `const fixedExtracted` was block-scoped inside inner try → ReferenceError in catch
+    let fixedExtracted = null;
     try {
       return JSON.parse(jsonMatch[0]);
     } catch (_e3) {
       // Try with fixes
       try {
-        const fixedExtracted = fixCommonJsonIssues(jsonMatch[0]);
+        fixedExtracted = fixCommonJsonIssues(jsonMatch[0]);
         return JSON.parse(fixedExtracted);
       } catch (e4) {
-        console.error('[BriefingService] Failed to parse extracted JSON:', e4.message);
-        console.error('[BriefingService] Problematic JSON (first 500 chars):', jsonMatch[0].substring(0, 500));
+        // 2026-02-17: Enhanced logging — show BOTH raw extraction and post-fix to diagnose
+        console.error('[BriefingService] All 4 parse attempts failed:', e4.message);
+        console.error('[BriefingService] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
+        console.error('[BriefingService] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
       }
     }
   }
 
-  // If all else fails, throw with the original error
-  throw new Error(`JSON parse failed: Expected double-quoted property name - raw response may contain malformed JSON`);
+  // Attempt 5: Extract individual JSON objects via balanced brace matching
+  // 2026-02-26: Last resort when greedy regex fails due to markdown corruption.
+  // Finds each top-level {...} object independently and wraps in an array.
+  const objects = [];
+  let braceDepth = 0;
+  let objStart = -1;
+  const src = strippedInput || jsonString;
+  for (let i = 0; i < src.length; i++) {
+    if (src[i] === '{') {
+      if (braceDepth === 0) objStart = i;
+      braceDepth++;
+    } else if (src[i] === '}') {
+      braceDepth--;
+      if (braceDepth === 0 && objStart !== -1) {
+        try {
+          const obj = JSON.parse(src.slice(objStart, i + 1));
+          objects.push(obj);
+        } catch {
+          // Skip malformed object, try next
+        }
+        objStart = -1;
+      }
+    }
+  }
+  if (objects.length > 0) {
+    console.log(`[BriefingService] 🧹 Attempt 5: Extracted ${objects.length} individual JSON objects via brace matching`);
+    return objects.length === 1 ? objects[0] : objects;
+  }
+
+  // 2026-02-17: Log the raw input that caused total parse failure
+  console.error('[BriefingService] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
+  throw new Error(`JSON parse failed after 5 attempts - raw AI response is malformed JSON`);
 }
 
 // 2026-01-10: Updated to use canonical field names (event_start_date, event_start_time)
@@ -760,20 +948,23 @@ function mapGeminiEventsToLocalEvents(rawEvents, { lat, lng }) {
  * - high_impact: Big venues that generate surge demand (stadiums, arenas, concert halls)
  * - local_entertainment: Smaller venues, local events (bars, comedy clubs, community)
  */
+// 2026-02-26: FIX - Removed hardcoded US league names (NBA, NFL, etc.) and DFW-specific references.
+// Search terms are now market-agnostic so Gemini discovers whatever events exist in any global market.
+// 2026-04-05: FIX — eventTypes now use ONLY values from ALLOWED_CATEGORIES in validateEvent.js.
+// Previously used 'game' and 'live_music' which don't exist in the allowed list.
 const EVENT_CATEGORIES = [
   {
     name: 'high_impact',
-    description: 'Major events at large venues (stadiums, arenas, concert halls)',
-    // Uses market (e.g., "Dallas") not city (e.g., "Frisco") for broader coverage
-    searchTerms: (market, state, date) => `concerts sports games festivals ${market} metro ${state} ${date} stadium arena theater NBA NFL NHL MLB MLS college major events tonight`,
-    eventTypes: ['concert', 'sports', 'festival', 'game'],
+    description: 'Major events at large venues (stadiums, arenas, concert halls, convention centers)',
+    searchTerms: (market, state, date) => `concerts sports games festivals ${market} metro ${state} ${date} stadium arena theater convention center major events tonight`,
+    eventTypes: ['concert', 'sports', 'festival', 'convention'],
     maxEvents: 8
   },
   {
     name: 'local_entertainment',
     description: 'Local nightlife and community events',
     searchTerms: (market, state, date) => `comedy shows live music bars nightlife community events ${market} ${state} ${date} trivia karaoke DJ local entertainment`,
-    eventTypes: ['live_music', 'comedy', 'nightlife', 'community'],
+    eventTypes: ['concert', 'comedy', 'nightlife', 'community'],
     maxEvents: 8
   }
 ];
@@ -784,41 +975,68 @@ const EVENT_CATEGORIES = [
  */
 async function fetchEventCategory({ category, city, state, market, lat, lng, date, timezone }) {
   const maxEvents = category.maxEvents || 8;
-  // Use market for search (e.g., "Dallas") but mention driver's city for local relevance
-  const searchArea = market || city;
+  // 2026-04-16: market is authoritative; placeholder surfaces unresolved markets in prompts
+  const searchArea = market || '[unknown-market]';
 
-  const prompt = `Find ${category.description || category.name.replace('_', ' ')} in the ${searchArea} metro area TODAY (${date}).
+  // 2026-02-26: Simplified prompt — today only, strict required fields, place_id for venue linking.
+  // Gemini has native Google Places knowledge via google_search grounding.
+  // 2026-04-14: Inject driver GPS for proximity-biased discovery (Memory #107). Previously
+  // the search was metro-wide with no proximity bias, so drivers in suburbs got events
+  // 30-60mi away in the far corners of the metro. lat/lng were already parameters but
+  // never reached the prompt.
+  const prompt = `Find ${category.description || category.name.replace('_', ' ')} happening TODAY (${date}) in the ${searchArea} metro area.
 
-SEARCH THE ENTIRE ${searchArea.toUpperCase()} MARKET - include events in ${city} AND nearby cities (Dallas, Arlington, Fort Worth, Plano, etc. for DFW).
+The driver is currently near coordinates (${lat.toFixed(6)}, ${lng.toFixed(6)}). Prioritize discovering events at venues within 15 miles of these coordinates first. Then include the most impactful events from the broader ${searchArea} area.
 
-SEARCH FOCUS: "${category.searchTerms(searchArea, state, date)}"
+SEARCH: "${category.searchTerms(searchArea, state, date)}"
+EVENT TYPES: ${category.eventTypes.join(', ')}
 
-EVENT TYPES TO FIND: ${category.eventTypes.join(', ')}
+Return JSON array (max ${maxEvents} events). EVERY field below is REQUIRED — events missing any field will be rejected:
+[{
+  "title": "Event Name",
+  "venue": "Venue Name",
+  "place_id": "ChIJ...",
+  "address": "Full Street Address, City, State",
+  "category": "${category.eventTypes[0]}",
+  "event_start_date": "${date}",
+  "event_start_time": "7:00 PM",
+  "event_end_time": "10:00 PM",
+  "event_end_date": "${date}",
+  "impact": "high|medium|low"
+}]
 
-Return JSON array (max ${maxEvents} events, prioritize high-impact events):
-[{"title":"Event Name","venue":"Venue Name","address":"Full Address","event_start_date":"${date}","event_start_time":"7:00 PM","event_end_time":"10:00 PM","event_end_date":"${date}","subtype":"${category.eventTypes[0]}","impact":"high|medium|low"}]
-
-IMPORTANT:
-- SEARCH THE ENTIRE METRO MARKET, not just one city
-- Include major venue events (stadiums, arenas, concert halls) from the whole market
-- Include event_end_date (same as start_date for single-day events)
-- Prioritize events with large expected attendance
-- Include full address for navigation
-- Return [] if no events found for today.`;
+RULES:
+- TODAY ONLY — date must be ${date}. Multi-day events active today are included.
+- place_id: The Google Places ID for the venue (starts with "ChIJ"). Use your knowledge of Google Places to provide this. If truly unknown, use "unknown".
+- category: MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community
+- ALL 4 date/time fields REQUIRED — estimate times if unknown (Sports=3h, Concert=3h, Festival=4h, Nightlife=4h)
+- Search the ENTIRE ${searchArea.toUpperCase()} metro, not just ${city}
+- Prioritize high-attendance events that generate rideshare demand
+- Return [] if no events today.`;
 
   try {
     // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
     // This ensures bars with live music are tagged as "live_music", not "concert"
+    // 2026-02-26: FIX - Removed DFW-specific venue examples. App is global.
+    // 2026-04-05: FIX — Aligned system prompt with ALLOWED_CATEGORIES from validateEvent.js.
+    // Previously taught Gemini to use "live_music" which was NOT in the allowed list,
+    // causing 100% validation rejection. Now uses only: concert, sports, comedy, theater,
+    // festival, nightlife, convention, community, other.
     const system = `You are an event discovery assistant. Search for local events and return structured JSON data.
 
 STRICT CATEGORIZATION RULES (MUST FOLLOW):
-- concert: ONLY for ticketed performances at dedicated music venues, theaters, arenas, or stadiums (e.g., American Airlines Center, Toyota Stadium).
-- live_music: For cover bands, acoustic sets, or DJs playing at bars, restaurants, or lounges (e.g., "Live Band at Sidecar Social", "Jazz at Snowbird"). NEVER tag these as 'concert'.
-- nightlife: For club nights, karaoke, trivia, themed bar parties (e.g., "Music Bingo at MVP's"). NEVER tag bar events as 'community'.
-- community: ONLY for public/civic gatherings (markets, library events, city council).
-- sports: Official league games (High School, NBA, NHL, NFL, MLB, MLS).
+- concert: For ticketed performances at dedicated music venues, theaters, arenas, stadiums, AND live bands/DJs at bars or lounges.
+- sports: Official league or tournament games at any level (professional, collegiate, international).
+- comedy: Stand-up comedy shows, improv nights, comedy club events.
+- theater: Plays, musicals, ballet, opera, dance performances.
+- festival: Multi-act festivals, fairs, parades, outdoor celebrations.
+- nightlife: Club nights, karaoke, trivia, themed bar parties (no live music performance).
+- convention: Conventions, conferences, expos, trade shows.
+- community: Public/civic gatherings (markets, library events, charity, fundraisers).
+- other: Anything that doesn't fit the above categories.
 
-DO NOT tag bar/lounge events as 'concert' - use 'live_music' instead.`;
+category MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community, other.
+DO NOT use any other category values.`;
     // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
     const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user: prompt });
 
@@ -855,23 +1073,21 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // 2026-02-01: Use market from snapshot (set from driver_profiles at signup)
-  // Fallback to lookup for older snapshots that don't have market set
-  // This ensures we find events at AT&T Stadium (Arlington), AAC (Dallas), etc.
+  // 2026-04-16: Resolve market — snapshot.market is authoritative, DB lookup is fallback
+  // for older snapshots. Null means genuinely unknown; callers handle the placeholder.
   const market = snapshot.market || await getMarketForLocation(city, state);
-
-  // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
-  if (!process.env.GEMINI_API_KEY) {
-    // Try Claude web search as fallback if Gemini not configured
-    if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.ai(2, 'Claude', `events for ${market} market (${date}) - web search fallback`);
-      return fetchEventsWithClaudeWebSearch({ snapshot, city, state, market, date, lat, lng, timezone });
-    }
-    briefingLog.error(2, `Neither GEMINI_API_KEY nor ANTHROPIC_API_KEY set`, null, OP.AI);
-    return { items: [], reason: 'No API keys configured for event search' };
+  if (!market) {
+    briefingLog.warn(2, `No market resolved for ${city}, ${state} — event search will use [unknown-market] placeholder`, OP.AI);
   }
 
-  briefingLog.ai(2, 'Gemini', `events for ${market} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
+  // 2026-02-26: Gemini-only for event discovery. Cross-provider fallback to Claude/GPT
+  // returned data in incompatible formats causing more parsing failures than it solved.
+  if (!process.env.GEMINI_API_KEY) {
+    briefingLog.error(2, `GEMINI_API_KEY not set - cannot fetch events`, null, OP.AI);
+    return { items: [], reason: 'GEMINI_API_KEY required for event discovery' };
+  }
+
+  briefingLog.ai(2, 'Gemini', `events for ${market || '[unknown-market]'} market (driver in ${city}) - 2 focused searches (90s timeout each)`);
 
   // PARALLEL CATEGORY SEARCHES - 2 focused searches (high_impact + local_entertainment)
   // Each category runs independently, results are merged and deduplicated
@@ -889,7 +1105,8 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const categoryResults = await Promise.all(categoryPromises);
 
   // Merge results from all categories
-  const allEvents = [];
+  // 2026-04-11: Two-phase merge — exact title dedup first, then semantic title-similarity dedup
+  const rawEvents = [];
   const seenTitles = new Set();
   let totalFound = 0;
   let timedOutCount = 0;
@@ -902,11 +1119,11 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     }
     totalFound += result.items?.length || 0;
     for (const event of result.items || []) {
-      // Deduplicate by title (case-insensitive)
+      // Phase 1: Exact title dedup (cheap, catches identical titles from different categories)
       const titleKey = event.title?.toLowerCase().trim();
       if (titleKey && !seenTitles.has(titleKey)) {
         seenTitles.add(titleKey);
-        allEvents.push(event);
+        rawEvents.push(event);
       }
     }
     if (result.error) {
@@ -918,15 +1135,26 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     briefingLog.warn(2, `${timedOutCount}/${EVENT_CATEGORIES.length} category searches timed out`, OP.AI);
   }
 
+  // 2026-04-11: Phase 2 — Title-similarity dedup. Catches:
+  // - "Jon Wolfe Concert" / "Jon Wolfe Live" / "Jon Wolfe" (title variants)
+  // - "Fatboy Slim" at SILO Dallas + "Fatboy Slim" at Globe Life Field (wrong stadium assignment)
+  // Prefers specific venues over stadiums, longer titles over shorter.
+  const { deduplicated: allEvents, removed: semanticRemoved, mergeLog } =
+    deduplicateEventsSemantic(rawEvents);
+
+  if (semanticRemoved.length > 0) {
+    briefingLog.done(2, `[DEDUP] Semantic dedup: ${rawEvents.length} → ${allEvents.length} (${semanticRemoved.length} title-variant duplicates removed)`, OP.AI);
+    for (const logLine of mergeLog) {
+      briefingLog.info(logLine);
+    }
+  }
+
   const elapsedMs = Date.now() - startTime;
   briefingLog.done(2, `Gemini: ${allEvents.length} unique events (${totalFound} total from 2 searches) in ${elapsedMs}ms`, OP.AI);
 
+  // 2026-02-26: No cross-provider fallback. If Gemini returns 0, return empty.
+  // The Strategist AI can flag gaps; a second LLM returning different JSON made things worse.
   if (allEvents.length === 0) {
-    // TRY CLAUDE WEB SEARCH AS FALLBACK
-    if (process.env.ANTHROPIC_API_KEY) {
-      briefingLog.warn(2, `Gemini returned 0 events - trying Claude web search`, OP.FALLBACK);
-      return fetchEventsWithClaudeWebSearch({ snapshot, city, state, date, lat, lng, timezone });
-    }
     return { items: [], reason: 'No events found across all categories', provider: 'gemini' };
   }
 
@@ -960,7 +1188,13 @@ async function _fetchEventsWithGemini3ProPreviewLegacy({ snapshot }) {
   }
 
   const timeContext = hour >= 17 ? 'tonight' : 'today';
-  const dayOfWeek = new Date().toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
+  // 2026-04-16: FIX — derive weekday name from snapshot.dow (integer 0-6) instead of
+  // recomputing from new Date(). Recomputation could drift if the briefing runs near
+  // midnight UTC while the driver is still in the previous local day.
+  const DOW_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayOfWeek = snapshot.dow != null
+    ? DOW_NAMES[snapshot.dow]
+    : new Date().toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
 
   // 2026-01-10: Enhanced prompt with STRICT date/time requirements
   // Validation will reject events missing event_start_date, event_start_time, or event_end_time
@@ -1050,12 +1284,33 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
   const { city, state, lat, lng, timezone } = snapshot;
 
-  // Get date range: today to 7 days out
+  // 2026-02-17: FIX Issue 3 — Deactivate past events before discovery
+  // Soft-deactivates events that have ended (is_active = false, deactivated_at = NOW())
+  // Uses snapshot timezone for accurate "now" calculation — NO FALLBACKS
+  // Non-fatal: cleanup failure doesn't block event discovery
+  // 2026-03-28: ARCHITECTURE NOTE — Cleanup is intentionally opportunistic (per-briefing-fetch).
+  // No cron dependency. If scheduled cleanup is needed later for dashboard accuracy when
+  // no users are active, add a cron job calling deactivatePastEvents() per market timezone.
+  if (timezone) {
+    const deactivated = await deactivatePastEvents(timezone);
+    if (deactivated > 0) {
+      briefingLog.phase(2, `Cleaned up ${deactivated} past events`, OP.DB);
+    }
+  }
+
+  // 2026-04-04: FIX C-5 — Use user's timezone for date range, not UTC
+  // Previously used toISOString() which is UTC-based. A driver in UTC-8 at 11PM local
+  // would get tomorrow's UTC date as "today", misaligning the 7-day event window.
+  // toLocaleDateString('en-CA') returns YYYY-MM-DD format in the correct timezone.
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = timezone
+    ? today.toLocaleDateString('en-CA', { timeZone: timezone })
+    : today.toISOString().split('T')[0];
   const weekFromNow = new Date();
   weekFromNow.setDate(weekFromNow.getDate() + 7);
-  const endDateStr = weekFromNow.toISOString().split('T')[0];
+  const endDateStr = timezone
+    ? weekFromNow.toLocaleDateString('en-CA', { timeZone: timezone })
+    : weekFromNow.toISOString().split('T')[0];
 
   // 2026-01-10: Consolidated event discovery using Briefer model with Google Search tools
   // Simpler pipeline, lower cost, cleaner data - model-agnostic (configured via BRIEFING_EVENTS_MODEL)
@@ -1070,7 +1325,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
       // Store discovered events in DB for caching and SmartBlocks integration
       // Note: This uses the canonical ETL pipeline for validation/normalization
-      const normalized = discoveryResult.items.map(e => normalizeEvent(e));
+      // 2026-04-04: FIX C-4 — Pass city/state context so normalizeEvent has fallback location
+      // Without context, events from AI responses missing city/state fields get empty strings,
+      // breaking downstream filtering and event hash consistency
+      const normalized = discoveryResult.items.map(e => normalizeEvent(e, { city, state }));
       // 2026-01-10: validateEventsHard returns { valid, invalid, stats } - extract .valid array
       const { valid: validatedEvents } = validateEventsHard(normalized);
 
@@ -1078,34 +1336,120 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         try {
           const hash = generateEventHash(event);
 
-          // 2026-01-14: FIX - Link event to venue at discovery time
-          // This populates venue_id, enabling map pins and event badges
+          // 2026-04-10: Venue Resolution via Google Places API (New).
+          // Google Places is the ONLY source of truth for venue addresses, coordinates, and cities.
+          // Priority chain: (a) place_id cache hit → (b) Places API search → (c) geocode fallback
           let venueId = null;
+          let resolvedVenue = null;  // Will hold venue_catalog record with authoritative data
+
           if (event.venue_name) {
             try {
-              const matchedVenue = await lookupVenueFuzzy({
-                venueName: event.venue_name,
-                city: city,
-                state: state
-              });
-              if (matchedVenue) {
-                venueId = matchedVenue.venue_id;
-                briefingLog.info(`🔗 Linked "${event.title}" → "${matchedVenue.venue_name}"`);
+              let placeId = event.place_id || null;
+
+              // Step (a): If Gemini returned a place_id, check venue_catalog cache
+              if (placeId && placeId.startsWith('ChIJ')) {
+                const cached = await lookupVenue({ placeId });
+                if (cached && cached.formatted_address && cached.lat && cached.lng) {
+                  // Venue exists with complete Places API data — use it directly
+                  resolvedVenue = cached;
+                  venueId = cached.venue_id;
+                  briefingLog.info(`Cache hit (place_id) for "${event.venue_name}": ${cached.venue_name}`);
+                }
+                // If cached but MISSING formatted_address/lat/lng, fall through to step (b)
               }
-            } catch (lookupErr) {
+
+              // Step (b): No cached venue — resolve via Google Places API (New)
+              // Uses snapshot lat/lng as location bias with 50km radius for metro-wide discovery
+              if (!resolvedVenue) {
+                const placeResult = await searchPlaceWithTextSearch(lat, lng, event.venue_name, { radius: 50000 });
+
+                if (placeResult) {
+                  // Places API returned authoritative venue data
+                  const venue = await findOrCreateVenue({
+                    venue: event.venue_name,
+                    address: placeResult.formattedAddress,
+                    latitude: placeResult.lat,
+                    longitude: placeResult.lng,
+                    city: placeResult.parsed?.city || city,       // FROM PLACES API
+                    state: placeResult.parsed?.state || state,     // FROM PLACES API
+                    placeId: placeResult.placeId,
+                    formattedAddress: placeResult.formattedAddress
+                  }, 'briefing_discovery');
+
+                  if (venue) {
+                    resolvedVenue = venue;
+                    venueId = venue.venue_id;
+                    briefingLog.info(`Places API resolved "${event.venue_name}" → "${venue.venue_name}" in ${placeResult.parsed?.city || '?'} (${venue.venue_id?.slice(0, 8)})`);
+                  }
+                } else {
+                  // Step (c): Places API returned nothing — fall back to geocode with snapshot context
+                  const geocodeResult = await geocodeEventAddress(event.venue_name, city, state);
+                  if (geocodeResult) {
+                    const venue = await findOrCreateVenue({
+                      venue: event.venue_name,
+                      address: geocodeResult.formatted_address || event.address,
+                      latitude: geocodeResult.lat,
+                      longitude: geocodeResult.lng,
+                      city: city,
+                      state: state,
+                      placeId: geocodeResult.place_id || placeId,
+                      formattedAddress: geocodeResult.formatted_address
+                    }, 'briefing_discovery');
+
+                    if (venue) {
+                      resolvedVenue = venue;
+                      venueId = venue.venue_id;
+                      briefingLog.info(`Geocode fallback for "${event.venue_name}" → ${venue.venue_id?.slice(0, 8)}`);
+                    }
+                  }
+                }
+              }
+
+              // Flag venue as event venue if not already
+              // 2026-04-18: Replaced silent catch with logged warning. Per CLAUDE.md
+              // NO SILENT FAILURES rule: errors must reach logs even if non-fatal.
+              if (resolvedVenue && resolvedVenue.is_event_venue !== true) {
+                try {
+                  await db.update(venue_catalog).set({ is_event_venue: true, updated_at: new Date() })
+                    .where(eq(venue_catalog.venue_id, resolvedVenue.venue_id));
+                } catch (flagErr) {
+                  briefingLog.warn(2, `Failed to flag venue ${resolvedVenue.venue_id?.slice(0,8)} as event venue (non-fatal): ${flagErr.message}`, OP.DB);
+                }
+              }
+            } catch (venueErr) {
               // Non-fatal - continue without link
-              briefingLog.warn(2, `Venue lookup failed for "${event.venue_name}": ${lookupErr.message}`, OP.DB);
+              briefingLog.warn(2, `Venue link failed for "${event.venue_name}": ${venueErr.message}`, OP.DB);
             }
           }
 
-          // 2026-01-10: Use normalized field names (event is already normalized by normalizeEvent)
-          // Removed: lat, lng, zip, source_url, raw_source_data (geocoding happens in venue_catalog)
+          // 2026-04-11: Validate resolved venue address quality before storing.
+          // If the venue's address is garbage (e.g., "Theatre, Frisco, TX 75034"),
+          // log a warning. The venue-cache layer already re-resolves bad addresses,
+          // so here we just validate the final result for monitoring.
+          const resolvedAddress = resolvedVenue?.formatted_address || event.address;
+          const resolvedCity = resolvedVenue?.city || city;
+          const resolvedState = resolvedVenue?.state || state;
+
+          if (resolvedVenue) {
+            const { valid: addrValid, issues: addrIssues } = validateVenueAddress({
+              formattedAddress: resolvedAddress,
+              venueName: event.venue_name,
+              lat: resolvedVenue.lat,
+              lng: resolvedVenue.lng,
+              city: resolvedCity
+            });
+            if (!addrValid) {
+              briefingLog.warn(2, `[VENUE-VALIDATE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
+            }
+          }
+
+          // Store event with venue_catalog truth (city/address from Places API, not Gemini guess)
           await db.insert(discovered_events).values({
             title: event.title,
-            venue_name: event.venue_name,  // Already normalized - was bug: event.venue || event.location
-            address: event.address,
-            city: city,
-            state: state,
+            venue_name: event.venue_name,  // Keep Gemini's name for display
+            address: resolvedAddress,
+            city: resolvedCity,
+            state: resolvedState,
             venue_id: venueId,  // 2026-01-14: FIX - Link to venue_catalog for coords/map
             event_start_date: event.event_start_date,
             event_start_time: event.event_start_time,
@@ -1114,13 +1458,32 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             category: event.category,  // Already normalized
             expected_attendance: event.expected_attendance,  // Already normalized
             // 2026-01-14: Removed source_model - column removed from schema (all events from Gemini)
-            event_hash: hash
+            event_hash: hash,
+            // 2026-04-14: Stamp current validation version — enables skipping read-time revalidation
+            schema_version: VALIDATION_SCHEMA_VERSION,
           }).onConflictDoUpdate({
             target: discovered_events.event_hash,
+            // 2026-04-04: FIX H-6 — Update all content fields on conflict, not just timestamp.
+            // Previously only updated updated_at + venue_id, silently dropping corrected data
+            // (title, times, venue name) from re-discovery.
+            // 2026-04-11: FIX — Use resolved venue data for address/city/state on conflict too.
+            // Previously used raw event.address on conflict, bypassing Places API resolution.
             set: {
-              updated_at: sql`NOW()`,
-              // 2026-01-14: Also update venue_id on conflict (in case venue was added later)
-              venue_id: venueId || discovered_events.venue_id
+              title: event.title,
+              venue_name: event.venue_name,
+              address: resolvedAddress,
+              city: resolvedCity,
+              state: resolvedState,
+              event_start_date: event.event_start_date,
+              event_start_time: event.event_start_time,
+              event_end_time: event.event_end_time,
+              event_end_date: event.event_end_date,
+              category: event.category,
+              expected_attendance: event.expected_attendance,
+              venue_id: venueId || discovered_events.venue_id,
+              is_active: true,
+              schema_version: VALIDATION_SCHEMA_VERSION,
+              updated_at: sql`NOW()`
             }
           });
         } catch (insertErr) {
@@ -1166,8 +1529,10 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
     })
       .from(discovered_events)
       .leftJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
+      // 2026-04-10: FIX — Query by STATE (metro-wide), not city. Events now store their
+      // actual venue city (e.g., "Fort Worth", "Arlington") so filtering by snapshot city
+      // ("Dallas") would miss all metro events outside the driver's exact city.
       .where(and(
-        eq(discovered_events.city, city),
         eq(discovered_events.state, state),
         gte(discovered_events.event_start_date, todayStr),
         lte(discovered_events.event_start_date, endDateStr),
@@ -1306,11 +1671,19 @@ function formatWindSpeed(windSpeedMs, country) {
 export async function fetchWeatherConditions({ snapshot }) {
   if (!GOOGLE_MAPS_API_KEY) {
     briefingLog.warn(1, `GOOGLE_MAPS_API_KEY not set - skipping weather`, OP.API);
-    return { current: null, forecast: [], error: 'GOOGLE_MAPS_API_KEY not configured' };
+    return {
+      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'GOOGLE_MAPS_API_KEY not configured' },
+      forecast: [],
+      reason: 'GOOGLE_MAPS_API_KEY not configured'
+    };
   }
 
   if (!snapshot?.lat || !snapshot?.lng) {
-    return { current: null, forecast: [], error: 'Missing coordinates' };
+    return {
+      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'Snapshot missing GPS coordinates' },
+      forecast: [],
+      reason: 'Snapshot missing GPS coordinates (lat/lng)'
+    };
   }
 
   const { lat, lng, country } = snapshot;
@@ -1389,11 +1762,79 @@ export async function fetchWeatherConditions({ snapshot }) {
       });
     }
 
+    // 2026-02-26: Generate driver-relevant weather summary (deterministic, no LLM call)
+    // The strategist receives this string instead of the full JSON blob
+    if (current) {
+      current.driverImpact = generateWeatherDriverImpact(current, forecast);
+    }
+
     return { current, forecast, fetchedAt: new Date().toISOString() };
   } catch (error) {
     briefingLog.error(1, `Weather API error`, error, OP.API);
-    return { current: null, forecast: [], error: error.message };
+    return {
+      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: `Weather API error: ${error.message}` },
+      forecast: [],
+      reason: `Google Weather API error: ${error.message}`
+    };
   }
+}
+
+/**
+ * 2026-02-26: Generate a driver-relevant weather summary string.
+ * Deterministic — based on current conditions + 6-hour forecast.
+ * The strategist receives this instead of the full weather JSON blob.
+ *
+ * @param {Object} current - Current weather data { tempF, conditions, conditionType, windSpeed, humidity }
+ * @param {Array} forecast - 6-hour forecast array
+ * @returns {string} 1-2 sentence driver-relevant summary
+ */
+function generateWeatherDriverImpact(current, forecast = []) {
+  const parts = [];
+
+  // Current conditions
+  const temp = current.tempF || current.temperature;
+  const conditions = (current.conditions || '').toLowerCase();
+  const condType = (current.conditionType || '').toLowerCase();
+
+  // Severe weather detection
+  const isSevere = condType.includes('thunder') || condType.includes('tornado') ||
+                   condType.includes('ice') || condType.includes('blizzard') ||
+                   conditions.includes('thunder') || conditions.includes('tornado');
+  const isRain = condType.includes('rain') || condType.includes('drizzle') ||
+                 conditions.includes('rain') || conditions.includes('shower');
+  const isSnow = condType.includes('snow') || condType.includes('sleet') ||
+                 conditions.includes('snow') || conditions.includes('sleet');
+  const isFog = condType.includes('fog') || conditions.includes('fog') || conditions.includes('mist');
+
+  if (isSevere) {
+    parts.push(`Severe weather (${current.conditions}) — dangerous driving, expect surge from riders avoiding transit`);
+  } else if (isSnow) {
+    parts.push(`Snow/ice conditions — high risk driving, reduced demand but strong surge pricing`);
+  } else if (isRain) {
+    parts.push(`Rain — expect surge, riders avoid walking`);
+  } else if (isFog) {
+    parts.push(`Foggy — reduced visibility, drive carefully`);
+  } else if (temp && temp > 100) {
+    parts.push(`Extreme heat ${temp}°F — normal demand`);
+  } else if (temp && temp < 32) {
+    parts.push(`Freezing ${temp}°F — surge likely, riders avoid cold waits`);
+  } else {
+    parts.push(`${current.conditions || 'Clear'}, ${temp ? temp + '°F' : ''} — good driving conditions`);
+  }
+
+  // Check forecast for incoming weather changes (rain/storms in next 3 hours)
+  const upcomingRain = forecast.slice(0, 3).find(h =>
+    (h.precipitationProbability && h.precipitationProbability > 50) ||
+    (h.conditionType || '').toLowerCase().includes('rain') ||
+    (h.conditions || '').toLowerCase().includes('rain')
+  );
+
+  if (upcomingRain && !isRain && !isSevere) {
+    const idx = forecast.indexOf(upcomingRain);
+    parts.push(`Rain expected in ~${idx + 1} hour${idx > 0 ? 's' : ''} — surge incoming`);
+  }
+
+  return parts.join('. ') + '.';
 }
 
 export async function fetchSchoolClosures({ snapshot }) {
@@ -1427,7 +1868,7 @@ Return ONLY a valid JSON array with institutions that are CLOSED or closing soon
     "schoolName": "Name of district or institution",
     "type": "public" | "private" | "college",
     "closureStart": "YYYY-MM-DD",
-    "reopeningDate": "YYYY-MM-DD",
+    "reopeningDate": "YYYY-MM-DD (MUST be the FIRST DAY students return to class, NOT the last day of closure. Example: if closed Mon Feb 16, reopeningDate is Tue Feb 17)",
     "reason": "Holiday Name / Break / Professional Development",
     "impact": "high" | "medium" | "low",
     "lat": 32.xxx,
@@ -1438,6 +1879,7 @@ Return ONLY a valid JSON array with institutions that are CLOSED or closing soon
 NOTES:
 - Include approximate lat/lng coordinates for each institution (for distance calculation)
 - "impact" should be "high" for large districts/universities, "medium" for mid-size, "low" for small private schools
+- CRITICAL: "reopeningDate" = first day students are BACK in school (end of closure + 1 day). If Presidents' Day is Feb 16 (Monday), reopeningDate is Feb 17 (Tuesday).
 - If no closures are found, return an empty array []`;
 
   const system = `You are a school calendar research assistant. Search for school closures, holidays, and academic schedules. Return structured JSON data.`;
@@ -1458,8 +1900,22 @@ NOTES:
       return [];
     }
 
+    // 2026-04-16: FIX — Normalize Gemini's camelCase response to snake_case fields.
+    // The prompt schema requests closureStart/reopeningDate (camelCase), but downstream
+    // filters (consolidator.js, filter-for-planner.js) check start_date/end_date/
+    // reopening_date (snake_case). Without normalization, multi-day closures defaulted
+    // to startDate as endDate, making spring break appear as a single-day closure.
+    const normalized = closuresArray.map((c) => ({
+      ...c,
+      start_date: c.start_date || c.closureStart || c.startDate || c.closure_date,
+      end_date: c.end_date || c.reopeningDate || c.endDate || c.closureStart,
+      reopening_date: c.reopening_date || c.reopeningDate,
+      school_name: c.school_name || c.schoolName || c.name || c.district,
+      closure_reason: c.closure_reason || c.reason,
+    }));
+
     // Enrich with distance data using Gemini-provided coordinates
-    const enriched = closuresArray.map((c) => {
+    const enriched = normalized.map((c) => {
       let distanceFromDriver = null;
       if (c.lat && c.lng && lat && lng) {
         distanceFromDriver = parseFloat(haversineDistanceMiles(lat, lng, c.lat, c.lng).toFixed(1));
@@ -1498,10 +1954,11 @@ export async function fetchTrafficConditions({ snapshot }) {
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
     briefingLog.warn(2, 'Missing location data in snapshot - cannot fetch traffic', OP.AI);
     return {
-      summary: null,
+      summary: 'Traffic data unavailable — snapshot missing city, state, or timezone',
+      briefing: 'Traffic analysis could not be performed because location data is incomplete.',
       incidents: [],
-      congestionLevel: null,
-      reason: 'Location data not available'
+      congestionLevel: 'unknown',
+      reason: 'Snapshot missing required location data (city/state/timezone)'
     };
   }
   const city = snapshot.city;
@@ -1518,22 +1975,28 @@ export async function fetchTrafficConditions({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // Default fallback traffic data
+  // Default fallback traffic data — NO NULLS: every field has a typed value + reason
   const fallbackTraffic = {
-    summary: `Traffic conditions for ${city}, ${state} unavailable - using default`,
+    summary: `Traffic data for ${city}, ${state} could not be retrieved from any provider`,
+    briefing: `Traffic analysis for ${city}, ${state} is temporarily unavailable. Both TomTom and Gemini providers failed to return data.`,
     incidents: [],
-    congestionLevel: 'medium',
+    congestionLevel: 'unknown',
     highDemandZones: [],
-    repositioning: null,
+    repositioning: 'No repositioning data available — traffic providers unreachable',
     surgePricing: false,
-    safetyAlert: null,
+    safetyAlert: 'Unable to check for safety alerts — traffic data unavailable',
     fetchedAt: new Date().toISOString(),
-    isFallback: true
+    isFallback: true,
+    reason: `Traffic providers (TomTom + Gemini) both failed for ${city}, ${state}`
   };
 
   // TRY TOMTOM FIRST (if configured + has coordinates) - real-time traffic data
   if (process.env.TOMTOM_API_KEY && lat && lng) {
     try {
+      // 2026-02-10: PHASE 3 HARDENING - Fetch RAW traffic for AI analysis
+      // This enables the "Briefer Model" to see patterns invisible to standard aggregation
+      const rawTraffic = await fetchRawTraffic(lat, lng, 10 * 1609); // 10 miles in meters
+
       const tomtomResult = await getTomTomTraffic({
         lat,
         lon: lng,
@@ -1557,8 +2020,10 @@ export async function fetchTrafficConditions({ snapshot }) {
 
         // Analyze traffic with AI for strategic, driver-focused briefing
         // Uses configured model (default: Gemini Flash - fast & cost-effective)
+        // 2026-02-10: Pass rawTraffic for Phase 3 analysis
         const analysis = await analyzeTrafficWithAI({
           tomtomData: traffic,
+          rawTraffic,
           city,
           state,
           formattedAddress,
@@ -1626,9 +2091,9 @@ export async function fetchTrafficConditions({ snapshot }) {
           totalIncidents: traffic.totalIncidents,
           jams: traffic.jams,
           highDemandZones: [],
-          repositioning: null,
+          repositioning: analysis?.repositioning || 'No repositioning advice — see AI briefing above',
           surgePricing: traffic.congestionLevel === 'heavy',
-          safetyAlert: traffic.jams > 3 ? `${traffic.jams} active traffic jams in the area` : null,
+          safetyAlert: traffic.jams > 3 ? `${traffic.jams} active traffic jams in the area` : 'No safety alerts at this time',
           fetchedAt: traffic.fetchedAt,
           provider: 'tomtom',
           analyzed: !!analysis
@@ -1701,6 +2166,58 @@ CRITICAL: Include highDemandZones and repositioning.`;
  * @param {Object} params.snapshot - Snapshot with location data
  * @returns {Promise<Object>} Airport conditions data
  */
+/**
+ * 2026-04-05: Manual airport JSON extraction — last resort when safeJsonParse fails.
+ * Gemini with google_search often wraps JSON in markdown narrative. This function
+ * extracts airport data by walking braces and looking for the "airports" key.
+ */
+function extractAirportJson(rawText) {
+  if (!rawText) return { airports: [] };
+
+  // Strategy 1: Find {"airports" and extract the balanced object
+  const airportsIdx = rawText.indexOf('"airports"');
+  if (airportsIdx === -1) {
+    console.warn('[Airport] No "airports" key found in response');
+    return { airports: [] };
+  }
+
+  // Walk backwards to find the opening brace
+  let objStart = -1;
+  for (let i = airportsIdx - 1; i >= 0; i--) {
+    if (rawText[i] === '{') { objStart = i; break; }
+  }
+  if (objStart === -1) return { airports: [] };
+
+  // Walk forward to find the balanced closing brace
+  let depth = 0;
+  for (let i = objStart; i < rawText.length; i++) {
+    if (rawText[i] === '{') depth++;
+    else if (rawText[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        const candidate = rawText.slice(objStart, i + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          // Strategy 2: Clean common issues and retry
+          try {
+            const cleaned = candidate
+              .replace(/\*+/g, '')           // Strip markdown bold/italic
+              .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')  // Strip markdown links
+              .replace(/,\s*([}\]])/g, '$1');  // Strip trailing commas
+            return JSON.parse(cleaned);
+          } catch {
+            console.warn('[Airport] Manual extraction found object but parse failed');
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  return { airports: [] };
+}
+
 async function fetchAirportConditions({ snapshot }) {
   // Require valid location data - no fallbacks for global app
   if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
@@ -1708,8 +2225,8 @@ async function fetchAirportConditions({ snapshot }) {
     return {
       airports: [],
       busyPeriods: [],
-      recommendations: null,
-      reason: 'Location data not available'
+      recommendations: 'Airport data unavailable — snapshot missing city, state, or timezone',
+      reason: 'Snapshot missing required location data (city/state/timezone)'
     };
   }
   const city = snapshot.city;
@@ -1726,13 +2243,14 @@ async function fetchAirportConditions({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // Fallback for API failures (not missing data)
+  // Fallback for API failures — NO NULLS: always include reason
   const fallbackAirport = {
     airports: [],
     busyPeriods: [],
-    recommendations: null,
+    recommendations: `Airport data for ${city}, ${state} could not be retrieved`,
     fetchedAt: new Date().toISOString(),
-    isFallback: true
+    isFallback: true,
+    reason: `Airport conditions provider (Gemini) failed for ${city}, ${state}`
   };
 
   // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
@@ -1744,28 +2262,13 @@ async function fetchAirportConditions({ snapshot }) {
   try {
     briefingLog.ai(2, 'Gemini', `airport conditions for ${city}, ${state}`);
 
-    const system = `You are an airport conditions assistant. Search for current flight status and airport conditions. Return structured JSON data.`;
+    // 2026-04-05: Strict JSON-only prompt — previous version allowed Gemini to return
+    // markdown prose with JSON embedded, which broke safeJsonParse repeatedly.
+    const system = `You are an airport conditions API. Return ONLY valid JSON. No prose, no markdown, no explanatory text, no code fences. Output a single JSON object and nothing else.`;
     const user = `Search for current airport conditions near ${city}, ${state} as of ${date}.
 
-Find airports within 50 miles and report:
-1. Flight delays and cancellations
-2. Busy arrival/departure periods today
-3. Recommendations for rideshare drivers (best pickup spots, busy times)
-
-Return JSON (use actual airport codes and names for the location):
-{
-  "airports": [
-    {
-      "code": "<IATA_CODE>",
-      "name": "<Full Airport Name>",
-      "delays": "<description of current delays>",
-      "status": "normal" | "delays" | "severe_delays",
-      "busyTimes": ["<time range>", "<time range>"]
-    }
-  ],
-  "busyPeriods": ["<description of busy period>"],
-  "recommendations": "<driver tips for airport pickups>"
-}`;
+Find airports within 50 miles. Return ONLY this JSON structure (no other text):
+{"airports":[{"code":"IATA","name":"Airport Name","delays":"description","status":"normal","busyTimes":["time range"]}],"busyPeriods":["description"],"recommendations":"driver tips"}`;
 
     // Uses BRIEFING_AIRPORT role (Gemini with google_search)
     const result = await callModel('BRIEFING_AIRPORT', { system, user });
@@ -1775,13 +2278,23 @@ Return JSON (use actual airport codes and names for the location):
       return fallbackAirport;
     }
 
-    const parsed = safeJsonParse(result.output);
+    // 2026-04-05: Try safeJsonParse first, fall back to manual extraction if it fails.
+    // Gemini with google_search often wraps JSON in markdown narrative text.
+    let parsed;
+    try {
+      parsed = safeJsonParse(result.output);
+    } catch (parseErr) {
+      // Manual extraction: find {"airports" or [{"code" in the raw text
+      console.warn(`[Airport] safeJsonParse failed (${parseErr.message}), trying manual extraction...`);
+      console.log(`[Airport] Raw (first 300):`, result.output?.substring(0, 300));
+      parsed = extractAirportJson(result.output);
+    }
     briefingLog.done(2, `Gemini airport: ${parsed.airports?.length || 0} airports`, OP.AI);
 
     return {
       airports: Array.isArray(parsed.airports) ? parsed.airports : [],
       busyPeriods: Array.isArray(parsed.busyPeriods) ? parsed.busyPeriods : [],
-      recommendations: parsed.recommendations || null,
+      recommendations: parsed.recommendations || 'No specific airport recommendations at this time',
       fetchedAt: new Date().toISOString(),
       provider: 'gemini'
     };
@@ -1869,18 +2382,21 @@ export async function fetchRideshareNews({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // 2026-02-01: Use market from snapshot (set from driver_profiles at signup)
-  // Fallback to lookup for older snapshots that don't have market set
+  // 2026-04-16: Resolve market — snapshot.market is authoritative, DB lookup is fallback.
+  // Null means genuinely unknown; buildNewsPrompt handles the placeholder.
   const market = snapshot.market || await getMarketForLocation(city, state);
+  if (!market) {
+    briefingLog.warn(2, `No market resolved for ${city}, ${state} — news search will use [unknown-market] placeholder`, OP.AI);
+  }
 
   // Build the enhanced prompt with Market, City, Airport, Headlines
   // 2026-01-10: Updated prompt to strip source citations for cleaner UI
-  const newsPrompt = buildNewsPrompt({ city, state, market, date });
+  const newsPrompt = buildNewsPrompt({ city, state, market: market || '[unknown-market]', date });
   const system = `You are a rideshare news research assistant for drivers on platforms like Uber, Lyft, ridehail, taxis, and private car services. Search for recent news and return structured JSON with publication dates. Focus on news that IMPACTS driver earnings, strategy, and working conditions. DO NOT include source citations, URLs, or "[Source: ...]" text in your summaries - return CLEAN text suitable for display.`;
 
   // 2026-01-10: Consolidated to single Briefer model (configured via BRIEFING_NEWS_MODEL)
   // Single-model approach: simpler pipeline, lower cost, cleaner data
-  briefingLog.phase(2, `News fetch: ${city}, ${state} (market: ${market})`, OP.AI);
+  briefingLog.phase(2, `News fetch: ${city}, ${state} (market: ${market || '[unknown-market]'})`, OP.AI);
 
   if (!process.env.GEMINI_API_KEY) {
     briefingLog.warn(2, `BRIEFING_NEWS model not configured (requires GEMINI_API_KEY)`, OP.AI);
@@ -1891,8 +2407,11 @@ export async function fetchRideshareNews({ snapshot }) {
     const result = await callModel('BRIEFING_NEWS', { system, user: newsPrompt });
 
     if (!result.ok) {
+      // 2026-04-24: SECURITY — client-facing `reason` is a sentinel string so raw
+      // upstream errors (which may echo API keys) cannot reach the HTTP response.
+      // Full error stays in the server log only.
       briefingLog.warn(2, `News fetch failed: ${result.error}`, OP.AI);
-      return { items: [], reason: `News fetch failed: ${result.error}`, provider: 'briefer' };
+      return { items: [], reason: 'news-fetch-failed', provider: 'briefer' };
     }
 
     const parsed = safeJsonParse(result.output);
@@ -2052,66 +2571,119 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
     return inFlightBriefings.get(snapshotId);
   }
 
-  // Dedup 2: Check database state - if briefing exists with ALL populated fields, skip regeneration
-  // NULL fields = generation in progress or needs refresh
-  // Populated fields = data ready, don't regenerate
-  const existing = await getBriefingBySnapshotId(snapshotId);
-  if (existing) {
-    const hasTraffic = existing.traffic_conditions !== null;
-    const hasEvents = existing.events !== null && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
-    const hasNews = existing.news !== null;
-    const hasClosures = existing.school_closures !== null;
+  // 2026-04-04: FIX H-4 — Use advisory lock to prevent race conditions across processes.
+  // Previously, between checking existing row and inserting/clearing placeholder, another
+  // process could insert, causing the "clear fields" UPDATE to wipe data being written
+  // by the other process. Advisory lock serializes the check-then-write sequence.
+  // NOTE: db.execute() returns { rows: [...] }, NOT an array — use .rows[0] (matches blocks-fast.js pattern)
+  const lockQueryResult = await db.execute(
+    sql`SELECT pg_try_advisory_lock(hashtext(${snapshotId})) as acquired`
+  );
+  const lockAcquired = lockQueryResult.rows?.[0]?.acquired === true;
 
-    // ALL fields must be populated for concurrent request deduplication to apply
-    if (hasTraffic && hasEvents && hasNews && hasClosures) {
-      // 2026-01-10: Fixed misleading terminology - this is DEDUP not CACHE
-      // Prevents duplicate concurrent requests, not traditional caching
-      // Only skip if briefing was generated < 60 seconds ago (in-flight or just completed)
-      const ageMs = Date.now() - new Date(existing.updated_at).getTime();
-      if (ageMs < 60000) {
-        briefingLog.info(`Recent briefing (${Math.round(ageMs/1000)}s old) - skipping duplicate generation`, OP.CACHE);
-        return { success: true, briefing: existing, deduplicated: true };
-      }
-    } else if (hasTraffic || hasEvents) {
-      briefingLog.info(`Partial data - regenerating`, OP.CACHE);
+  if (!lockAcquired) {
+    // Another process holds the lock — briefing generation is in progress elsewhere.
+    // Wait briefly then return whatever exists.
+    briefingLog.info(`Advisory lock not acquired for ${snapshotId.slice(0, 8)} - generation in progress elsewhere`, OP.CACHE);
+    const existing = await getBriefingBySnapshotId(snapshotId);
+    if (existing) {
+      return { success: true, briefing: existing, deduplicated: true };
     }
+    // No row yet — the other process hasn't inserted placeholder. Return pending.
+    return { success: true, briefing: null, deduplicated: true, pending: true };
   }
 
-  // Create placeholder row with NULL fields to signal "generation in progress"
-  // This prevents other callers from starting duplicate generation
-  if (!existing) {
-    try {
-      await db.insert(briefings).values({
-        snapshot_id: snapshotId,
-        news: null,
-        weather_current: null,
-        weather_forecast: null,
-        traffic_conditions: null,
-        events: null,
-        school_closures: null,
-        airport_conditions: null,
-        created_at: new Date(),
-        updated_at: new Date()
-      });
-    } catch (insertErr) {
-      // Row might already exist from concurrent call - that's OK
-      if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('unique')) {
-        briefingLog.warn(1, `Placeholder insert warning: ${insertErr.message}`, OP.DB);
+  try {
+    // Dedup 2: Check database state - if briefing exists with ALL populated fields, skip regeneration
+    // NULL fields = generation in progress or needs refresh
+    // Populated fields = data ready, don't regenerate
+    // 2026-04-05: Error-marked fields (_generationFailed) don't count as "populated" — must regenerate
+    const existing = await getBriefingBySnapshotId(snapshotId);
+    if (existing) {
+      const hasTraffic = existing.traffic_conditions !== null && !existing.traffic_conditions?._generationFailed;
+      const hasEvents = existing.events !== null && !existing.events?._generationFailed && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
+      const hasNews = existing.news !== null && !existing.news?._generationFailed;
+      const hasClosures = existing.school_closures !== null && !existing.school_closures?._generationFailed;
+
+      // ALL fields must be populated for concurrent request deduplication to apply
+      if (hasTraffic && hasEvents && hasNews && hasClosures) {
+        // 2026-01-10: Fixed misleading terminology - this is DEDUP not CACHE
+        // Prevents duplicate concurrent requests, not traditional caching
+        // Only skip if briefing was generated < 60 seconds ago (in-flight or just completed)
+        const ageMs = Date.now() - new Date(existing.updated_at).getTime();
+        if (ageMs < 60000) {
+          briefingLog.info(`Recent briefing (${Math.round(ageMs/1000)}s old) - skipping duplicate generation`, OP.CACHE);
+          return { success: true, briefing: existing, deduplicated: true };
+        }
+      } else if (hasTraffic || hasEvents) {
+        briefingLog.info(`Partial data - regenerating`, OP.CACHE);
       }
     }
-  } else {
-    // Clear fields to signal "refreshing in progress"
-    await db.update(briefings)
-      .set({
-        traffic_conditions: null,
-        events: null,
-        airport_conditions: null,
-        updated_at: new Date()
-      })
-      .where(eq(briefings.snapshot_id, snapshotId));
+
+    // Create placeholder row with NULL fields to signal "generation in progress"
+    // This prevents other callers from starting duplicate generation
+    if (!existing) {
+      try {
+        await db.insert(briefings).values({
+          snapshot_id: snapshotId,
+          news: null,
+          weather_current: null,
+          weather_forecast: null,
+          traffic_conditions: null,
+          events: null,
+          school_closures: null,
+          airport_conditions: null,
+          created_at: new Date(),
+          updated_at: new Date()
+        });
+      } catch (insertErr) {
+        // Row might already exist from concurrent call - that's OK
+        if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('unique')) {
+          briefingLog.warn(1, `Placeholder insert warning: ${insertErr.message}`, OP.DB);
+        }
+      }
+    } else {
+      // Clear fields to signal "refreshing in progress"
+      await db.update(briefings)
+        .set({
+          traffic_conditions: null,
+          events: null,
+          airport_conditions: null,
+          updated_at: new Date()
+        })
+        .where(eq(briefings.snapshot_id, snapshotId));
+    }
+  } finally {
+    // Release advisory lock — the placeholder is set, actual generation runs without lock
+    await db.execute(sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`);
   }
 
-  const briefingPromise = generateBriefingInternal({ snapshotId, snapshot });
+  // 2026-04-05: Wrap in error handler to mark placeholder row as permanently failed
+  // on throw. Without this, a thrown error leaves NULL fields in the DB forever,
+  // and GET endpoints return success:false indefinitely → client infinite retry loop.
+  const briefingPromise = generateBriefingInternal({ snapshotId, snapshot })
+    .catch(async (err) => {
+      console.error(`[BriefingService] ❌ Generation failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
+      // Mark the placeholder row with error sentinel so endpoints return _generationFailed
+      // instead of "not yet available" (which causes clients to keep polling)
+      const errorMarker = { _generationFailed: true, error: err.message, failedAt: new Date().toISOString() };
+      try {
+        await db.update(briefings)
+          .set({
+            traffic_conditions: errorMarker,
+            events: errorMarker,
+            news: errorMarker,
+            airport_conditions: errorMarker,
+            updated_at: new Date()
+          })
+          .where(eq(briefings.snapshot_id, snapshotId));
+        briefingLog.warn(1, `Marked briefing ${snapshotId.slice(0, 8)} as permanently failed`, OP.DB);
+      } catch (markErr) {
+        console.error(`[BriefingService] Could not mark failed briefing: ${markErr.message}`);
+      }
+      return { success: false, error: err.message, _generationFailed: true };
+    });
+
   inFlightBriefings.set(snapshotId, briefingPromise);
 
   briefingPromise.finally(() => {
@@ -2119,6 +2691,46 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   });
 
   return briefingPromise;
+}
+
+/**
+ * 2026-04-18: PHASE A — progressive section write + per-section NOTIFY.
+ *
+ * Writes a partial update to the briefings row (just the columns belonging to
+ * one subsystem) and fires a per-section pg_notify so the SSE layer can push
+ * a progress event to the client. Enables the streaming briefing-tab UX
+ * (weather appears first because Google Weather is fastest, then traffic,
+ * then events as each provider resolves) that was regressed on 2026-02-17
+ * when the partial-NOTIFY trigger was dropped.
+ *
+ * Errors are swallowed — the authoritative write is the final atomic
+ * reconciliation at the end of generateBriefingInternal. Progress signals
+ * failing should never fail the main pipeline.
+ *
+ * Channels emitted:
+ *   briefing_weather_ready, briefing_traffic_ready, briefing_events_ready,
+ *   briefing_news_ready, briefing_airport_ready, briefing_school_closures_ready
+ * The SSE forwarder (strategy-events.js /events/briefing) subscribes to each
+ * and emits them as `briefing_ready` events so existing client code (which
+ * refetches on briefing_ready) progressively re-queries the aggregate endpoint
+ * as each section lands.
+ */
+async function writeSectionAndNotify(snapshotId, updates, notifyChannel) {
+  try {
+    await db.update(briefings)
+      .set({ ...updates, updated_at: new Date() })
+      .where(eq(briefings.snapshot_id, snapshotId));
+  } catch (err) {
+    briefingLog.warn(1, `Progressive write failed for ${notifyChannel}: ${err.message}`, OP.DB);
+    return;
+  }
+  try {
+    const payload = JSON.stringify({ snapshot_id: snapshotId, section: notifyChannel });
+    await db.execute(sql`SELECT pg_notify(${notifyChannel}, ${payload})`);
+    briefingLog.info(`📢 NOTIFY ${notifyChannel} for ${snapshotId.slice(0, 8)}`, OP.SSE);
+  } catch (notifyErr) {
+    briefingLog.warn(1, `Failed to send ${notifyChannel}: ${notifyErr.message}`, OP.SSE);
+  }
 }
 
 async function generateBriefingInternal({ snapshotId, snapshot }) {
@@ -2145,6 +2757,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   }
 
   briefingLog.start(`${snapshot.city}, ${snapshot.state} (${snapshotId.slice(0, 8)})`);
+  const briefingStartMs = Date.now();
 
   const { city, state } = snapshot;
 
@@ -2204,61 +2817,236 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // 2026-01-05: News moved to fresh fetch (dual-model is fast enough)
   briefingLog.phase(1, `Fetching weather + traffic + events + airport + news`, OP.AI);
 
+  // 2026-04-05: INDEPENDENT SUBSYSTEMS — use Promise.allSettled so each fetch is independent.
+  // Previously used Promise.all (all-or-nothing) which meant one crash (e.g., events) killed
+  // ALL results, leaving traffic/news/airport as NULLs in the DB forever.
+  // Now each subsystem succeeds or fails independently.
+  //
+  // 2026-04-18: PHASE A — wrap each fetch with progressive section write + per-section
+  // NOTIFY so the briefing tab can populate section-by-section as providers resolve
+  // instead of blinking from empty→everything at t=52s. Each wrapper returns the
+  // original provider result so the extraction and assembly logic below is unchanged;
+  // the DB write + NOTIFY are side effects. The final atomic write at the end of
+  // this function is the authoritative reconciliation (idempotent).
   let weatherResult, trafficResult, eventsResult, airportResult, newsResult;
-  try {
-    [weatherResult, trafficResult, eventsResult, airportResult, newsResult] = await Promise.all([
-      fetchWeatherConditions({ snapshot }),
-      fetchTrafficConditions({ snapshot }),
-      snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')),
-      fetchAirportConditions({ snapshot }),
-      fetchRideshareNews({ snapshot })
-    ]);
-  } catch (freshErr) {
-    console.error(`[BriefingService] ❌ FAIL-FAST: Fresh data fetch failed:`, freshErr.message);
-    throw freshErr;
+
+  const errorMarker = (err) => ({ _generationFailed: true, error: err.message, failedAt: new Date().toISOString() });
+
+  const weatherPromise = fetchWeatherConditions({ snapshot })
+    .then(async (r) => {
+      await writeSectionAndNotify(snapshotId, {
+        weather_current: r?.current || { temperature: 'N/A', conditions: 'Weather data could not be retrieved', reason: 'Weather API returned no current conditions' },
+        weather_forecast: r?.forecast || [],
+      }, 'briefing_weather_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { weather_current: errorMarker(err) }, 'briefing_weather_ready');
+      throw err;
+    });
+
+  const trafficPromise = fetchTrafficConditions({ snapshot })
+    .then(async (r) => {
+      await writeSectionAndNotify(snapshotId, {
+        traffic_conditions: r || { summary: 'No traffic data available for this area', incidents: [], congestionLevel: 'unknown', reason: 'Traffic data could not be retrieved' },
+      }, 'briefing_traffic_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { traffic_conditions: errorMarker(err) }, 'briefing_traffic_ready');
+      throw err;
+    });
+
+  const eventsPromise = (snapshot ? fetchEventsForBriefing({ snapshot }) : Promise.reject(new Error('Snapshot required for events')))
+    .then(async (r) => {
+      const items = Array.isArray(r?.items) ? r.items : [];
+      await writeSectionAndNotify(snapshotId, {
+        events: items.length > 0 ? items : { items: [], reason: r?.reason || 'No events found for this area' },
+      }, 'briefing_events_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { events: errorMarker(err) }, 'briefing_events_ready');
+      throw err;
+    });
+
+  const airportPromise = fetchAirportConditions({ snapshot })
+    .then(async (r) => {
+      await writeSectionAndNotify(snapshotId, {
+        airport_conditions: r || { airports: [], busyPeriods: [], recommendations: 'No airport data available for this area', reason: 'Airport conditions could not be retrieved' },
+      }, 'briefing_airport_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { airport_conditions: errorMarker(err) }, 'briefing_airport_ready');
+      throw err;
+    });
+
+  const newsPromise = fetchRideshareNews({ snapshot })
+    .then(async (r) => {
+      const items = Array.isArray(r?.items) ? r.items : [];
+      await writeSectionAndNotify(snapshotId, {
+        news: { items, reason: r?.reason || (items.length === 0 ? 'No rideshare news found for this area' : null) },
+      }, 'briefing_news_ready');
+      return r;
+    })
+    .catch(async (err) => {
+      await writeSectionAndNotify(snapshotId, { news: errorMarker(err) }, 'briefing_news_ready');
+      throw err;
+    });
+
+  const fetchResults = await Promise.allSettled([
+    weatherPromise,
+    trafficPromise,
+    eventsPromise,
+    airportPromise,
+    newsPromise,
+  ]);
+
+  // 2026-04-05: Extract results with REASON for every outcome (NO NULLS rule).
+  // Every subsystem produces either real data or an explanatory error — never bare null.
+  const subsystemNames = ['weather', 'traffic', 'events', 'airport', 'news'];
+  const failedReasons = {};
+  const extractedResults = fetchResults.map((result, i) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    const reason = result.reason?.message || 'Unknown error';
+    console.error(`[BriefingService] ❌ ${subsystemNames[i]} fetch failed independently: ${reason}`);
+    failedReasons[subsystemNames[i]] = reason;
+    return null;
+  });
+  [weatherResult, trafficResult, eventsResult, airportResult, newsResult] = extractedResults;
+
+  const failedCount = Object.keys(failedReasons).length;
+  if (failedCount > 0) {
+    briefingLog.warn(1, `${failedCount}/5 subsystems failed — storing partial results (${Object.keys(failedReasons).join(', ')})`, OP.AI);
+  }
+  // If ALL five failed, that's a systemic problem — throw so the .catch() handler marks the row
+  if (failedCount === 5) {
+    throw new Error(`All 5 briefing subsystems failed: ${Object.values(failedReasons).join('; ')}`);
   }
 
   // Step 3: Get cached school closures or fetch fresh if cache miss
   let schoolClosures;
+  let schoolClosuresReason = 'No school closures found for this area';
 
   if (cachedDailyData) {
-    // CACHE HIT: Use cached closures
     schoolClosures = cachedDailyData.school_closures?.items || cachedDailyData.school_closures || [];
+    schoolClosuresReason = schoolClosures.length > 0 ? null : 'No school closures in cache for this area';
   } else {
-    // CACHE MISS: Fetch closures from Gemini
     briefingLog.phase(2, `Fetching school closures`, OP.AI);
     try {
       schoolClosures = await fetchSchoolClosures({ snapshot });
+      schoolClosuresReason = schoolClosures.length > 0 ? null : 'No school closures found for this area';
     } catch (dailyErr) {
-      console.error(`[BriefingService] ❌ FAIL-FAST: Closures fetch failed:`, dailyErr.message);
-      throw dailyErr;
+      // Non-fatal — closures failing shouldn't prevent other data from being stored
+      console.error(`[BriefingService] ❌ Closures fetch failed (non-fatal): ${dailyErr.message}`);
+      schoolClosures = [];
+      schoolClosuresReason = `School closures fetch failed: ${dailyErr.message}`;
     }
   }
 
-  let eventsItems = eventsResult?.items || [];
-  const newsItems = newsResult?.items || [];
+  // 2026-04-18: PHASE A — progressive write for school_closures as soon as we have
+  // a value (whether from cache hit or fresh fetch). Lets the tab populate this
+  // section before the final atomic write lands.
+  await writeSectionAndNotify(snapshotId, {
+    school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: schoolClosuresReason },
+  }, 'briefing_school_closures_ready');
+
+  // 2026-04-05: Defensive extraction — each subsystem may be null if its fetch failed.
+  // NO NULLS: every field gets a typed value + reason. Empty arrays are valid; null is not.
+  let eventsItems = eventsResult?.items;
+  if (!Array.isArray(eventsItems)) {
+    if (eventsResult !== null) {
+      briefingLog.warn(1, `eventsResult.items is ${typeof eventsItems} — defaulting to []`, OP.AI);
+    }
+    eventsItems = [];
+  }
+  let newsItems = newsResult?.items;
+  if (!Array.isArray(newsItems)) {
+    if (newsResult !== null) {
+      briefingLog.warn(1, `newsResult.items is ${typeof newsItems} — defaulting to []`, OP.AI);
+    }
+    newsItems = [];
+  }
+  if (!Array.isArray(schoolClosures)) {
+    briefingLog.warn(1, `schoolClosures is ${typeof schoolClosures} — defaulting to []`, OP.AI);
+    schoolClosures = [];
+  }
 
   const airportCount = airportResult?.airports?.length || 0;
   const forecastHours = weatherResult?.forecast?.length || 0;
-  briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'ok'}, airports=${airportCount}`, OP.AI);
+  briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'N/A'}, airports=${airportCount}`, OP.AI);
 
-  const weatherCurrent = weatherResult?.current || null;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BUILD BRIEFING DATA — NO NULLS RULE
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Every JSONB column gets a well-typed value. Never bare null.
+  // If a subsystem failed, the stored object includes `reason` explaining why.
+  // If a subsystem succeeded but found nothing, `reason` explains that too.
+  // The client uses the presence of data (not null checks) to decide what to show.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const weatherCurrent = weatherResult?.current || {
+    temperature: 'N/A',
+    conditions: failedReasons.weather
+      ? `Weather unavailable: ${failedReasons.weather}`
+      : 'Weather data could not be retrieved',
+    reason: failedReasons.weather || 'Weather API returned no current conditions'
+  };
 
   const briefingData = {
     snapshot_id: snapshotId,
-    // Location (city, state, formatted_address) available via snapshot_id JOIN
     news: {
       items: newsItems,
-      reason: newsResult?.reason || null
+      // 2026-04-24: SECURITY — do not interpolate raw failure reasons into the
+      // client-facing `reason` field; upstream errors may contain credential
+      // material. Use sentinel on failure path; preserve non-error messages.
+      reason: failedReasons.news
+        ? 'news-fetch-failed'
+        : newsResult?.reason || (newsItems.length === 0 ? 'No rideshare news found for this area' : null)
     },
     weather_current: weatherCurrent,
     weather_forecast: weatherResult?.forecast || [],
-    traffic_conditions: trafficResult,
-    events: eventsItems.length > 0 ? eventsItems : { items: [], reason: eventsResult?.reason || 'No events found' },
-    school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: 'No school closures found' },
-    airport_conditions: airportResult || { airports: [], busyPeriods: [], recommendations: null, isFallback: true },
+    traffic_conditions: trafficResult || {
+      summary: failedReasons.traffic
+        ? `Traffic unavailable: ${failedReasons.traffic}`
+        : 'No traffic data available for this area',
+      briefing: failedReasons.traffic
+        ? `Traffic analysis could not be completed: ${failedReasons.traffic}`
+        : 'Traffic data is not available for this location',
+      incidents: [],
+      congestionLevel: 'unknown',
+      reason: failedReasons.traffic || 'Traffic data could not be retrieved'
+    },
+    events: eventsItems.length > 0
+      ? eventsItems
+      : {
+          items: [],
+          reason: failedReasons.events
+            ? `Events fetch failed: ${failedReasons.events}`
+            : eventsResult?.reason || 'No events found for this area'
+        },
+    school_closures: schoolClosures.length > 0
+      ? schoolClosures
+      : { items: [], reason: schoolClosuresReason },
+    airport_conditions: airportResult || {
+      airports: [],
+      busyPeriods: [],
+      recommendations: failedReasons.airport
+        ? `Airport data unavailable: ${failedReasons.airport}`
+        : 'No airport data available for this area',
+      reason: failedReasons.airport || 'Airport conditions could not be retrieved'
+    },
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
+    // 2026-04-14: Phase 7 — populate generated_at at the final-data-store write (was dead
+    // column per Phase 2 audit). Semantics: last time this briefing's data was actually
+    // generated (not placeholder, not error, not cleared). Other write paths intentionally
+    // do not touch this column so it preserves "last successful generation" across failures.
+    // See BRIEFING-DATA-MODEL.md Appendix D.
+    generated_at: new Date()
   };
 
   try {
@@ -2274,13 +3062,15 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
           events: briefingData.events,
           school_closures: briefingData.school_closures,
           airport_conditions: briefingData.airport_conditions,
-          updated_at: new Date()
+          updated_at: new Date(),
+          // 2026-04-14: Phase 7 — refresh generated_at on every successful regeneration.
+          generated_at: new Date()
         })
         .where(eq(briefings.snapshot_id, snapshotId));
     } else {
       await db.insert(briefings).values(briefingData);
     }
-    briefingLog.complete(`${city}, ${state}`, OP.DB);
+    briefingLog.complete(`${city}, ${state}`, Date.now() - briefingStartMs);
 
     // Notify clients that briefing data is ready (SSE event)
     try {
@@ -2292,13 +3082,27 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     }
 
     // Dump last briefing row to file for debugging
-    dumpLastBriefingRow().catch(err => 
+    dumpLastBriefingRow().catch(err =>
       briefingLog.warn(1, `Failed to dump briefing: ${err.message}`, OP.DB)
     );
 
+    // Memory #111: Briefing completeness check — strategist should NOT receive incomplete data.
+    // Validate that critical briefing fields are present and non-empty before returning success.
+    const REQUIRED_BRIEFING_FIELDS = ['events', 'news', 'weather_current', 'traffic_conditions'];
+    const missingFields = REQUIRED_BRIEFING_FIELDS.filter(f => {
+      const v = briefingData?.[f];
+      return v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0);
+    });
+    const isComplete = missingFields.length === 0;
+    if (!isComplete) {
+      console.warn('[Briefing] ⚠️ Incomplete briefing — missing fields:', missingFields);
+    }
+
     return {
       success: true,
-      briefing: briefingData
+      briefing: briefingData,
+      complete: isComplete,
+      missingFields
     };
   } catch (error) {
     console.error('[BriefingService] Database error:', error);
@@ -2590,7 +3394,7 @@ export async function getOrGenerateBriefing(snapshotId, snapshot, options = {}) 
   // 2026-01-09: REMOVED "FINAL SAFETY NET"
   // Trust the "No Cached Data" architecture:
   // - If DB read returns empty, accept it (location may genuinely have no events)
-  // - Events are stored in discovered_events table by sync-events.mjs
+  // - Events are stored in discovered_events table by the Gemini pipeline
   // - Multiple re-fetch attempts mask upstream bugs instead of surfacing them
 
   return briefing;

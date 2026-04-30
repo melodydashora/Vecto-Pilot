@@ -56,9 +56,9 @@ export async function ensureStrategyRow(snapshotId) {
 }
 
 /**
- * Check if consolidated strategy is ready for a snapshot
- * Used by blocks-fast to gate rendering until strategy exists
- * 
+ * Check if the immediate strategy (strategy_for_now) is ready for a snapshot.
+ * Used by blocks-fast to gate rendering until strategy exists.
+ *
  * @param {string} snapshotId - UUID of snapshot
  * @returns {Promise<{ready: boolean, strategy?: string}>}
  */
@@ -78,9 +78,6 @@ export async function isStrategyReady(snapshotId) {
       return { ready: false };
     }
 
-    // Ready when strategy_for_now exists (immediate 1-hour tactical strategy)
-    // NOTE: consolidated_strategy is the "daily" strategy generated on-demand
-    // The pipeline generates strategy_for_now first, then blocks
     const ready = Boolean(strategyRow.strategy_for_now);
 
     return {
@@ -638,18 +635,23 @@ function hasValidDateInfo(event, timezone = null) {
 export function isEventFresh(event, now = new Date(), timezone = null) {
   if (!event) return false;
 
+  // 2026-04-10: FIX — Post-event surge window. Rideshare drivers benefit from knowing about
+  // events for ~1 hour AFTER they end (pickup surge from attendees leaving). Previously,
+  // events were removed the instant they ended, which is too aggressive for driver utility.
+  const POST_EVENT_SURGE_MS = 60 * 60 * 1000; // 1 hour post-event surge window
+
   // 2026-01-06: Pass timezone to getEventEndTime for proper parsing of discovered_events format
   const endTime = getEventEndTime(event, timezone);
 
-  // If we have an end time, check if event has ended
+  // If we have an end time, keep event visible until end + 1hr (post-surge)
   if (endTime) {
-    return endTime > now;
+    return new Date(endTime.getTime() + POST_EVENT_SURGE_MS) > now;
   }
 
-  // If no end time, use start time + default duration (4 hours)
+  // If no end time, use start time + default duration (3 hours) + post-surge
   const startTime = getEventStartTime(event, timezone);
   if (startTime) {
-    const inferredEnd = new Date(startTime.getTime() + 4 * 60 * 60 * 1000);
+    const inferredEnd = new Date(startTime.getTime() + 3 * 60 * 60 * 1000 + POST_EVENT_SURGE_MS);
     return inferredEnd > now;
   }
 

@@ -237,20 +237,24 @@ async function seedVenues() {
     let added = 0;
     let skipped = 0;
     
+    // 2026-04-25 (P3-12): Schema column is `venue_name`, not `name`. The
+    // local dfwVenues objects use `name` for readability — map to the
+    // schema column at insert time and on the existence check.
     for (const venue of dfwVenues) {
       const existing = await db.select()
         .from(venue_catalog)
-        .where(eq(venue_catalog.name, venue.name))
+        .where(eq(venue_catalog.venue_name, venue.name))
         .limit(1);
-      
+
       if (existing.length > 0) {
         console.log(`⏭️  Skipped: ${venue.name} (already exists)`);
         skipped++;
         continue;
       }
-      
+
+      const { name, ...rest } = venue;
       const [inserted] = await db.insert(venue_catalog)
-        .values(venue)
+        .values({ venue_name: name, ...rest })
         .returning({ venue_id: venue_catalog.venue_id });
       
       await db.insert(venue_metrics)

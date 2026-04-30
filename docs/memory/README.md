@@ -13,7 +13,7 @@ The memory layer uses **4 PostgreSQL tables** to store context for different AI 
 | Table | Purpose | Used By |
 |-------|---------|---------|
 | `agent_memory` | Workspace agent context | Agent |
-| `assistant_memory` | User preferences, conversations | Assistant, AI Coach |
+| `assistant_memory` | User preferences, conversations | Assistant, Rideshare Coach |
 | `eidolon_memory` | Session/project state | Eidolon framework |
 | `cross_thread_memory` | Shared context across threads | All |
 
@@ -78,7 +78,7 @@ fetch('/agent/memory/preference', {
   body: JSON.stringify({
     key: 'ai_model_preferences',
     value: {
-      strategist: 'claude-opus-4-5-20251101',
+      strategist: 'claude-opus-4-6',
       briefer: 'gemini-3-pro-preview',
       consolidator: 'gpt-5.2'
     },
@@ -121,7 +121,7 @@ fetch('/agent/memory/conversation', {
 });
 ```
 
-### Get Full Context (AI Coach / Agent)
+### Get Full Context (Rideshare Coach / Agent)
 
 ```javascript
 // GET /agent/context - Returns everything
@@ -176,7 +176,7 @@ Key decisions that should always be in memory:
 ```
 Key: decision_ai_models
 Content: Use callModel() adapter, never direct API calls.
-- Strategist: claude-opus-4-5-20251101
+- Strategist: claude-opus-4-6
 - Briefer: gemini-3-pro-preview
 - Consolidator: gpt-5.2 (reasoning_effort: "medium", max_completion_tokens: 32000)
 Tags: [decision, ai, models]
@@ -234,7 +234,7 @@ CREATE INDEX idx_{table}_expires ON {table} (expires_at);
 ┌─────────────────────────────────────────────────────────────────┐
 │                      AI Systems                                  │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Claude  │  │ AI Coach │  │  Agent   │  │ Eidolon  │        │
+│  │  Claude  │  │ Rideshare Coach │  │  Agent   │  │ Eidolon  │        │
 │  │  Code    │  │ (client) │  │ (server) │  │ (server) │        │
 │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘        │
 │       │             │             │             │               │

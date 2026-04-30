@@ -39,16 +39,12 @@ function validateAgentAuth(req) {
 
   const expectedSecret = process.env.VECTO_AGENT_SECRET;
 
-  // Agent secret not configured - reject in production, warn in dev
+  // 2026-03-17: SECURITY FIX (F-7) — Reject agent auth in ALL environments
+  // when VECTO_AGENT_SECRET is not configured. Previously dev mode accepted
+  // any header value, granting full system access without validation.
   if (!expectedSecret) {
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
-    if (isProduction) {
-      authLog.error(1, 'Agent auth attempted but VECTO_AGENT_SECRET not configured');
-      return null;
-    }
-    // Dev mode: allow any secret for testing (log warning)
-    console.warn('[auth] ⚠️ DEV MODE: VECTO_AGENT_SECRET not set, accepting any agent secret');
-    return SYSTEM_AGENT_USER_ID;
+    authLog.error(1, 'Agent auth attempted but VECTO_AGENT_SECRET not configured — set this env var');
+    return null;
   }
 
   // Constant-time comparison to prevent timing attacks
@@ -71,16 +67,16 @@ function validateAgentAuth(req) {
   return SYSTEM_AGENT_USER_ID;
 }
 
-// JWT functions - basic implementation
+// Auth token functions — HMAC-SHA256 userId.signature format (not standard JWT despite env var name)
 function verifyAppToken(token) {
-  // Security: Require JWT_SECRET in production
+  // Security: Require auth signing secret (JWT_SECRET env var) in production
   const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
 
   if (isProduction && !process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET must be configured in production');
   }
 
-  // Use JWT_SECRET, fallback to Replit device ID for dev (unique per instance)
+  // Use auth signing secret (JWT_SECRET env var), fallback to Replit device ID for dev
   const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
 
   if (!secret) {
@@ -214,12 +210,19 @@ export async function requireAuth(req, res, next) {
         phantom: isPhantom(payload.userId, payload.tetherSig)
       };
     } catch (sessionErr) {
-      // Database error checking session - log but allow request to proceed
-      // This prevents a DB outage from blocking all authenticated requests
-      console.error('[auth] Session check failed:', sessionErr.message);
-      req.auth = { userId: payload.userId, phantom: isPhantom(payload.userId, payload.tetherSig) };
+      // 2026-03-17: SECURITY FIX (F-1) — Fail CLOSED on DB errors.
+      // Previously this set req.auth and called next(), allowing requests through
+      // when the database was unreachable. This bypassed session enforcement
+      // (expiry, logout, hard limits). Security must win over availability here.
+      console.error('[auth] Session check failed — rejecting request:', sessionErr.message);
+      return res.status(503).json({
+        error: 'auth_service_unavailable',
+        message: 'Authentication service temporarily unavailable. Please try again.'
+      });
     }
 
+    // 2026-03-18: FIX — next() was accidentally removed by security fix F-1 (commit 2e400301).
+    // Without this, every authenticated request hangs forever (middleware never yields).
     next();
   } catch (e) {
     res.status(401).json({ error: 'unauthorized', detail: e?.message });

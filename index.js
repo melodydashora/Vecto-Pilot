@@ -81,6 +81,7 @@ setImmediate(async () => {
     console.log('[index] Loading full SDK routes and middleware...');
     
     // Dynamic imports for all heavy dependencies
+    // 2026-02-17: Removed venue-events.js import (duplicated by SmartBlocks pipeline)
     const [
       { default: cors },
       { loggingMiddleware },
@@ -91,7 +92,6 @@ setImmediate(async () => {
       { default: researchRoutes },
       { default: feedbackRoutes },
       { default: diagnosticsRoutes },
-      { default: venueEventsRoutes },
       { default: snapshotRoutes },
       { default: jobMetricsRoutes },
       { default: mlHealthRoutes },
@@ -108,7 +108,6 @@ setImmediate(async () => {
       import('./server/api/research/research.js'),
       import('./server/api/feedback/feedback.js'),
       import('./server/api/health/diagnostics.js'),
-      import('./server/api/venue/venue-events.js'),
       import('./server/api/location/snapshot.js'),
       import('./server/api/health/job-metrics.js'),
       import('./server/api/health/ml-health.js'),
@@ -129,7 +128,7 @@ setImmediate(async () => {
     app.use('/api/research', researchRoutes);
     app.use('/api/feedback', feedbackRoutes);
     app.use('/api/diagnostics', diagnosticsRoutes);
-    app.use('/api/venue-events', venueEventsRoutes);
+    // 2026-02-17: Removed /api/venue-events (duplicated by SmartBlocks event-matcher.js)
     app.use('/api/snapshot', snapshotRoutes);
     app.use('/api/job-metrics', jobMetricsRoutes);
     app.use('/api/ml-health', mlHealthRoutes);

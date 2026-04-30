@@ -16,21 +16,40 @@ function BriefingPage() {
   // This prevents duplicate useBriefingQueries calls which create extra SSE subscriptions
   const {
     lastSnapshotId,
+<<<<<<< HEAD
     persistentStrategy,
+=======
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     timezone,
     briefingData
   } = useCoPilot();
 
   // Destructure briefing data for easier access
+<<<<<<< HEAD
+=======
+  // 2026-04-19: H3 + C2 — pull through `weatherFailed` and `schoolClosuresReason`
+  // so cards can render explicit "section unavailable" / server-provided-reason
+  // states. Both were previously dropped at the context unwrap step.
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   const {
     weather: weatherData,
     traffic: trafficData,
     news: newsData,
     events: eventsData,
+<<<<<<< HEAD
     schoolClosures: schoolClosuresData,
     airport: airportData,
     isLoading
   } = briefingData;
+=======
+    marketEvents: marketEventsData,
+    schoolClosures: schoolClosuresData,
+    schoolClosuresReason,
+    airport: airportData,
+    weatherFailed,
+    isLoading
+  } = briefingData as any;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 
   // Debug logging: Only log when snapshotId changes (not on every render)
   // 2026-01-06: Moved from inline to useEffect to prevent excessive logs
@@ -44,9 +63,18 @@ function BriefingPage() {
 
   // 2026-01-14: Memoize wrapped props to prevent BriefingTab re-renders
   // Without useMemo, inline objects like { weather: weatherData } are recreated on every render
+<<<<<<< HEAD
   const wrappedWeatherData = useMemo(
     () => weatherData ? { weather: weatherData } : undefined,
     [weatherData]
+=======
+  // 2026-04-19: H3 — carry `_generationFailed` flag through to WeatherCard so
+  // it can render an explicit "weather temporarily unavailable" state instead
+  // of silently hiding when the provider permanently failed.
+  const wrappedWeatherData = useMemo(
+    () => weatherData ? { weather: weatherData, _generationFailed: !!weatherFailed } : undefined,
+    [weatherData, weatherFailed]
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   );
   const wrappedTrafficData = useMemo(
     () => trafficData ? { traffic: trafficData } : undefined,
@@ -56,6 +84,7 @@ function BriefingPage() {
     () => newsData ? { news: newsData } : undefined,
     [newsData]
   );
+<<<<<<< HEAD
   const wrappedEventsData = useMemo(
     () => eventsData ? { events: eventsData } : undefined,
     [eventsData]
@@ -63,12 +92,32 @@ function BriefingPage() {
   const wrappedSchoolClosuresData = useMemo(
     () => schoolClosuresData ? { school_closures: schoolClosuresData } : undefined,
     [schoolClosuresData]
+=======
+  // 2026-04-02: FIX - Re-wrap events into the object shape BriefingTab expects.
+  // CoPilotContext (line 690) unwraps eventsData.events into a plain array,
+  // but BriefingTab expects { events, marketEvents, market_name }.
+  const wrappedEventsData = useMemo(
+    () => eventsData ? { events: eventsData, marketEvents: marketEventsData || [] } : undefined,
+    [eventsData, marketEventsData]
+  );
+  // 2026-04-19: C2 follow-through — include `reason` so SchoolClosuresCard
+  // can show the server-provided message (e.g., "No data source for this region")
+  // instead of always falling back to the generic "No school closures reported".
+  const wrappedSchoolClosuresData = useMemo(
+    () => schoolClosuresData ? { school_closures: schoolClosuresData, reason: schoolClosuresReason } : undefined,
+    [schoolClosuresData, schoolClosuresReason]
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   );
   const wrappedAirportData = useMemo(
     () => airportData ? { airport_conditions: airportData } : undefined,
     [airportData]
   );
 
+<<<<<<< HEAD
+=======
+  // 2026-03-28: Gate strategy card on all critical briefing data including events
+  // Events now have proper polling/retry, so they participate in the loading lifecycle
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   return (
     <div className="max-w-7xl mx-auto px-4 pt-6 pb-6 mb-24" data-testid="briefing-page">
       <BriefingTab
@@ -79,9 +128,18 @@ function BriefingPage() {
         newsData={wrappedNewsData}
         eventsData={wrappedEventsData}
         isEventsLoading={isLoading.events}
+<<<<<<< HEAD
         schoolClosuresData={wrappedSchoolClosuresData}
         airportData={wrappedAirportData}
         consolidatedStrategy={persistentStrategy || undefined}
+=======
+        isTrafficLoading={isLoading.traffic}
+        isNewsLoading={isLoading.news}
+        isAirportLoading={isLoading.airport}
+        isSchoolClosuresLoading={isLoading.schoolClosures}
+        schoolClosuresData={wrappedSchoolClosuresData}
+        airportData={wrappedAirportData}
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       />
     </div>
   );

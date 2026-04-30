@@ -27,12 +27,17 @@ export function normalizeTitle(title) {
  * @param {string|undefined} venue - Raw venue name
  * @returns {string} Normalized venue name
  */
-export function normalizeVenueName(venue) {
+export function cleanVenueName(venue) {
   if (!venue || typeof venue !== 'string') return '';
   // Remove address suffix if present (e.g., "Venue Name, 123 Main St")
   const parts = venue.split(',');
   return parts[0].trim();
 }
+
+/**
+ * Alias for backward compatibility (tests expect normalizeVenueName)
+ */
+export const normalizeVenueName = cleanVenueName;
 
 /**
  * Normalize date to YYYY-MM-DD format
@@ -162,6 +167,21 @@ export function normalizeAttendance(attendance) {
 }
 
 /**
+ * Add duration to a time string (HH:MM)
+ * @param {string} startTime - Start time in HH:MM
+ * @param {number} durationHours - Duration to add in hours
+ * @returns {string} New time in HH:MM
+ */
+function addDuration(startTime, durationHours) {
+  if (!startTime) return '';
+  const [h, m] = startTime.split(':').map(Number);
+  let newH = h + durationHours;
+  // Handle midnight rollover (simple wrap for 24h clock)
+  if (newH >= 24) newH -= 24;
+  return `${newH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+/**
  * Normalize a raw event to canonical format
  * This is the ONLY function that should convert provider output to internal format.
  *
@@ -172,15 +192,70 @@ export function normalizeAttendance(attendance) {
 export function normalizeEvent(rawEvent, context = {}) {
   const { city, state } = context;
 
+  // Classification
+  const category = normalizeCategory(rawEvent.category, rawEvent.subtype);
+  const expected_attendance = normalizeAttendance(rawEvent.expected_attendance || rawEvent.impact);
+
+  // Date/Time Normalization
+  const event_start_date = normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date);
+
+  // 2026-02-17: Detect "All Day" events BEFORE normalizeTime (which returns null for non-time strings)
+  const rawStartTime = rawEvent.event_time || rawEvent.event_start_time || rawEvent.time || '';
+  const rawEndTime = rawEvent.event_end_time || rawEvent.end_time || '';
+  const isAllDay = /all\s*day/i.test(rawStartTime) || /all\s*day/i.test(rawEndTime);
+
+  let event_start_time = normalizeTime(rawStartTime);
+  let event_end_time = normalizeTime(rawEndTime);
+
+  // 2026-02-17: Handle "All Day" events — assign full-day window instead of rejecting
+  // Rideshare impact: All-day events (festivals, fairs, conventions) generate demand throughout the day
+  if (isAllDay && !event_start_time && !event_end_time) {
+    event_start_time = '08:00';
+    event_end_time = '22:00';
+  }
+
+  // 2026-02-17: Last resort — if BOTH times are still null, assign category-based defaults
+  // This prevents rejection of events where Gemini returned no time info at all
+  if (!event_start_time && !event_end_time && event_start_date) {
+    if (category === 'nightlife') {
+      event_start_time = '20:00';
+      event_end_time = '02:00';
+    } else if (category === 'festival' || category === 'convention' || category === 'community') {
+      event_start_time = '09:00';
+      event_end_time = '21:00';
+    } else {
+      event_start_time = '18:00'; // Default evening event
+      event_end_time = '22:00';
+    }
+  }
+
+  // 2026-02-05: Auto-estimate end time if missing (Requirement: End time MUST be resolved)
+  if (event_start_time && !event_end_time) {
+    let duration = 3; // Default 3 hours
+    if (category === 'festival' || category === 'convention') duration = 4;
+    else if (category === 'comedy' || category === 'theater') duration = 2;
+    else if (category === 'sports' || category === 'concert') duration = 3;
+
+    event_end_time = addDuration(event_start_time, duration);
+  }
+
+  // 2026-02-26: Pass through place_id from Gemini (Google Places ID for venue linking).
+  // "unknown" or empty means Gemini couldn't resolve it — geocoding will still work as fallback.
+  const rawPlaceId = (rawEvent.place_id || '').trim();
+  const place_id = rawPlaceId.startsWith('ChIJ') ? rawPlaceId : null;
+
   return {
     // Title - prefer 'title', fallback to 'name'
     title: normalizeTitle(rawEvent.title || rawEvent.name),
 
     // Venue - prefer 'venue_name', fallback to 'venue'
-    venue_name: normalizeVenueName(rawEvent.venue_name || rawEvent.venue),
+    venue_name: cleanVenueName(rawEvent.venue_name || rawEvent.venue),
 
     // Address
     address: (rawEvent.address || rawEvent.location || '').trim(),
+
+    // 2026-02-26: Google Places ID from Gemini — primary key for venue_catalog linking
+    place_id,
 
     // Location context
     city: rawEvent.city || city || '',
@@ -189,19 +264,15 @@ export function normalizeEvent(rawEvent, context = {}) {
     // Geocoding (lat/lng) happens in venue_catalog, which is source of truth for coordinates
 
     // Date/Time (2026-01-10: Renamed to symmetric naming convention)
-    // Input: rawEvent.event_date → Output: event_start_date
-    // Input: rawEvent.event_time → Output: event_start_time
-    // Also accepts already-normalized input (event_start_date/event_start_time) for idempotency
-    event_start_date: normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
-    event_start_time: normalizeTime(rawEvent.event_time || rawEvent.event_start_time || rawEvent.time),
-    event_end_time: normalizeTime(rawEvent.event_end_time || rawEvent.end_time),
+    event_start_date,
+    event_start_time,
+    event_end_time,
     // 2026-01-10: Default event_end_date to event_start_date for single-day events
-    // Most events (concerts, sports games, DJ nights) are single-day - only multi-day festivals need explicit end_date
     event_end_date: normalizeDate(rawEvent.event_end_date) || normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
 
     // Classification
-    category: normalizeCategory(rawEvent.category, rawEvent.subtype),
-    expected_attendance: normalizeAttendance(rawEvent.expected_attendance || rawEvent.impact)
+    category,
+    expected_attendance
     // 2026-01-10: Removed source_model - not needed, all events come from Gemini discovery
   };
 }

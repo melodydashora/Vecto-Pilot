@@ -11,13 +11,13 @@
 //   GET /api/blocks-fast?snapshotId=X - Get blocks (generates if missing)
 //
 // PIPELINE (POST):
-//   1. STRATEGY_CONTEXT role → events, traffic, news (briefings table)
+//   1. BRIEFING_* roles → weather, traffic, events, news, airport, schools (briefings table)
 //   2. STRATEGY_TACTICAL role → strategy_for_now (strategies table)
+//      Input: snapshot + briefing + driver preferences + earnings context
 //   3. VENUE_SCORER role → venue recommendations (ranking_candidates table)
+//      Input: strategy + briefing + live discovered_events (NEAR/FAR bucketed)
 //   4. Google APIs → distances, business hours, enrichment
-//
-// NOTE: Daily strategy (STRATEGY_DAILY) is NOT generated automatically.
-//       It's on-demand via POST /api/strategy/daily/:snapshotId when user requests it.
+//   5. VENUE_EVENT_VERIFIER role → event verification
 //
 // RACE CONDITION PREVENTION:
 //   Uses PostgreSQL Advisory Locks to prevent duplicate AI calls when
@@ -396,7 +396,9 @@ function filterAndSortBlocks(blocks, maxMiles = 25) {
 // STRATEGY-FIRST GATING: Returns 202 until strategy is ready
 // ISSUE #24 FIX: Rate limited to prevent quota exhaustion
 router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
-  const snapshotId = req.query.snapshotId || req.query.snapshot_id;
+  // 2026-04-05: SECURITY — sanitize query params to prevent type confusion (CodeQL)
+  const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+  const snapshotId = sanitizeString(req.query.snapshotId || req.query.snapshot_id);
   // 2026-01-09: P0-3 FIX - Get authenticated userId for ownership check
   const authUserId = req.auth?.userId;
   venuesLog.info(`[blocks-fast] GET request for ${snapshotId?.slice(0, 8) || 'unknown'}`);
@@ -411,8 +413,6 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     venuesLog.info(`[blocks-fast] Strategy check: ready=${ready}, status=${status}`);
 
     if (!ready) {
-      // 2026-01-10: S-003 FIX - Error message was misleading
-      // isStrategyReady() checks strategy_for_now, NOT consolidated_strategy
       return res.status(202).json({
         ok: false,
         reason: 'strategy_pending',
@@ -425,10 +425,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
     const [strategyRow] = await db.select().from(strategies)
       .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
-    // 2026-01-10: D-027 - Use camelCase for API response (single contract)
-    // consolidatedStrategy = Briefing tab 6-12hr shift strategy (differs from strategy.consolidated)
     const briefing = strategyRow ? {
-      consolidatedStrategy: strategyRow.consolidated_strategy || null,
       strategyForNow: strategyRow.strategy_for_now || null
     } : null;
 
@@ -501,7 +498,9 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
 });
 
 router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
-  triadLog.start(`POST request for ${req.body?.snapshotId?.slice(0, 8) || 'unknown'}`);
+  // 2026-04-05: SECURITY — sanitize body params to prevent type confusion (CodeQL)
+  const { sanitizeString } = await import('../../lib/utils/sanitize.js');
+  triadLog.start(`POST request for ${sanitizeString(req.body?.snapshotId)?.slice(0, 8) || 'unknown'}`);
 
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
@@ -526,7 +525,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
   try {
     // 2026-01-09: P0-3 FIX - Removed userId from body (was accepting arbitrary userId='demo')
     // Authentication ONLY comes from req.auth.userId (set by requireAuth middleware)
-    const { snapshotId } = req.body;
+    const snapshotId = sanitizeString(req.body?.snapshotId);
     const authUserId = req.auth?.userId;
 
     if (!snapshotId) {
@@ -542,7 +541,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
     // CRITICAL: Fetch FULL snapshot row to get location data
     // LLMs cannot reverse geocode - we must provide formatted_address
-    const [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+    // 2026-04-05: Changed from const to let — briefing readiness gate re-reads snapshot
+    // after briefing completes to get enriched weather data (line ~745).
+    let [snapshot] = await db.select().from(snapshots).where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
     if (!snapshot) {
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
@@ -560,6 +561,47 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       return sendOnce(400, {
         error: 'snapshot_incomplete',
         message: 'Snapshot missing formatted_address - location not resolved'
+      });
+    }
+
+    // GATE: Only generate briefing when snapshot has all required fields (status = 'ok').
+    // Memory #110: Prevents race where briefing reads null weather/air before enrichment completes.
+    // 2026-04-14: Phase 4 — Hard-fail after MAX_SNAPSHOT_RETRIES via X-Snapshot-Retry-Count header.
+    // Client exponential backoff (co-pilot-context.tsx) sends header on each retry; server returns
+    // 503 once count >= MAX instead of the indefinite 202 loop. Required-field list mirrors the
+    // enrichment endpoint (location.js §Phase 3 resolution) for diagnostic symmetry.
+    if (snapshot.status !== 'ok') {
+      const MAX_SNAPSHOT_RETRIES = 5;
+      const SNAPSHOT_REQUIRED_FIELDS = ['lat', 'lng', 'city', 'state', 'timezone', 'local_iso', 'date', 'dow', 'hour', 'day_part_key', 'weather', 'air', 'market', 'user_id'];
+
+      const retryHeader = req.headers['x-snapshot-retry-count'];
+      const retryCountParsed = retryHeader != null ? parseInt(String(retryHeader), 10) : 0;
+      const retryCount = Number.isFinite(retryCountParsed) ? retryCountParsed : 0;
+
+      const missingFields = SNAPSHOT_REQUIRED_FIELDS.filter(f => {
+        const v = snapshot[f];
+        return v === null || v === undefined || v === '';
+      });
+
+      if (retryCount >= MAX_SNAPSHOT_RETRIES) {
+        console.error(`[blocks-fast] HARD FAIL: snapshot ${snapshotId.slice(0, 8)} still pending after ${retryCount} retries. Missing: ${missingFields.join(', ') || '(unknown)'}`);
+        triadLog.error(1, `HARD FAIL snapshot=${snapshotId.slice(0, 8)} retries=${retryCount} missing=${missingFields.join(',')}`);
+        return sendOnce(503, {
+          error: 'snapshot_incomplete',
+          missingFields,
+          message: 'Required snapshot fields missing after max retries',
+          retryCount,
+          maxRetries: MAX_SNAPSHOT_RETRIES
+        });
+      }
+
+      triadLog.info(`Snapshot ${snapshotId.slice(0, 8)} status=${snapshot.status || 'pending'} retry=${retryCount}/${MAX_SNAPSHOT_RETRIES} — holding briefing`);
+      return sendOnce(202, {
+        status: 'pending',
+        retryCount,
+        maxRetries: MAX_SNAPSHOT_RETRIES,
+        missingFields,
+        message: 'Snapshot enrichment in progress — briefing will start when snapshot is complete'
       });
     }
 
@@ -637,8 +679,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           rankingId: ranking.ranking_id,
           // 2026-01-10: D-027 - Use camelCase for API response (single contract)
           strategy: {
-            strategyForNow: currentStrategy.strategy_for_now || '',
-            consolidated: currentStrategy.consolidated_strategy || ''
+            strategyForNow: currentStrategy.strategy_for_now || ''
           }
         });
       }
@@ -689,19 +730,68 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           freshBriefing = briefingResult.briefing;
 
           // =========================================================================
+          // 2026-04-05: BRIEFING READINESS GATE — DATA CORRECTNESS > SPEED
+          // The strategy MUST NOT proceed with null briefing fields. If runBriefing
+          // returns incomplete data (race condition with concurrent subsystems), poll
+          // the DB for up to 90 seconds until all critical fields are populated.
+          // =========================================================================
+          const BRIEFING_WAIT_TIMEOUT_MS = 90000;
+          const BRIEFING_POLL_INTERVAL_MS = 3000;
+          const briefingStartWait = Date.now();
+
+          function checkBriefingReady(row) {
+            return {
+              traffic: row?.traffic_conditions !== null && row?.traffic_conditions !== undefined,
+              events: row?.events !== null && row?.events !== undefined,
+              news: row?.news !== null && row?.news !== undefined,
+              weather: row?.weather_current !== null && row?.weather_current !== undefined,
+              airport: row?.airport_conditions !== null && row?.airport_conditions !== undefined,
+              schools: row?.school_closures !== null && row?.school_closures !== undefined,
+            };
+          }
+
+          let readiness = checkBriefingReady(freshBriefing);
+          let allReady = Object.values(readiness).every(Boolean);
+
+          if (!allReady) {
+            const missing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
+            triadLog.warn(2, `[BRIEFING GATE] Incomplete after runBriefing — missing: ${missing.join(', ')}. Polling DB (max ${BRIEFING_WAIT_TIMEOUT_MS / 1000}s)...`);
+
+            while (!allReady && (Date.now() - briefingStartWait) < BRIEFING_WAIT_TIMEOUT_MS) {
+              await new Promise(r => setTimeout(r, BRIEFING_POLL_INTERVAL_MS));
+              const [dbRow] = await db.select().from(briefings)
+                .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+              if (dbRow) {
+                freshBriefing = dbRow;
+                readiness = checkBriefingReady(freshBriefing);
+                allReady = Object.values(readiness).every(Boolean);
+              }
+            }
+
+            const elapsed = ((Date.now() - briefingStartWait) / 1000).toFixed(1);
+            if (allReady) {
+              triadLog.done(2, `[BRIEFING GATE] All fields populated after ${elapsed}s`);
+            } else {
+              const stillMissing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
+              triadLog.warn(2, `[BRIEFING GATE] TIMEOUT after ${elapsed}s — proceeding with incomplete data. Still missing: ${stillMissing.join(', ')}`);
+            }
+          }
+
+          // 2026-04-05: Re-read snapshot AFTER briefing is ready (fixes weather race condition).
+          // The snapshot enrichment (weather fetch) may complete after the initial snapshot read.
+          // Re-reading ensures strategy sees the fully enriched snapshot.
+          const [freshSnapshot] = await db.select().from(snapshots)
+            .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
+          if (freshSnapshot) {
+            snapshot = freshSnapshot;
+          }
+
+          // =========================================================================
           // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 2 - POST-BRIEFING
           // =========================================================================
-          const hasTraffic = freshBriefing?.traffic_conditions !== null;
-          const hasEvents = freshBriefing?.events !== null;
-          const hasNews = freshBriefing?.news !== null;
-          const hasWeather = freshBriefing?.weather_current !== null;
-          const hasSchools = freshBriefing?.school_closures !== null;
-          const hasAirport = freshBriefing?.airport_conditions !== null;
-          triadLog.phase(2, `[VERIFY] Briefing row populated: traffic=${hasTraffic}, events=${hasEvents}, news=${hasNews}, weather=${hasWeather}, schools=${hasSchools}, airport=${hasAirport}`);
+          triadLog.phase(2, `[VERIFY] Briefing row populated: traffic=${readiness.traffic}, events=${readiness.events}, news=${readiness.news}, weather=${readiness.weather}, schools=${readiness.schools}, airport=${readiness.airport}`);
+          triadLog.phase(2, `[VERIFY] Snapshot weather: ${snapshot.weather ? 'YES' : 'NULL'}, holiday: ${snapshot.is_holiday ? snapshot.holiday : 'none'}`);
 
-          if (!hasTraffic && !hasEvents) {
-            triadLog.warn(2, `[VERIFY] WARNING: Briefing row missing critical data (traffic + events both null)`);
-          }
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
           briefingLog.error(2, `Briefing failed (BLOCKING): ${briefingErr.message}`);
@@ -750,7 +840,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
         // 2026-01-10: Use fresh briefing captured earlier, only fetch strategy row
         // This ensures freshBriefing (not stale DB read) is passed to SmartBlocks
-        const [consolidatedRow] = await db.select().from(strategies)
+        const [strategyRow] = await db.select().from(strategies)
           .where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
         // =========================================================================
@@ -759,10 +849,10 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         triadLog.phase(4, `[VERIFY] Sending to VENUE_SCORER (Tactical Planner):`);
         triadLog.phase(4, `[VERIFY]   • snapshot_id: ${snapshotId.slice(0, 8)}`);
         triadLog.phase(4, `[VERIFY]   • snapshot.lat/lng: ${snapshot.lat?.toFixed(6)}, ${snapshot.lng?.toFixed(6)}`);
-        triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${consolidatedRow?.strategy_for_now ? `${consolidatedRow.strategy_for_now.length} chars` : 'NULL'}`);
+        triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${strategyRow?.strategy_for_now ? `${strategyRow.strategy_for_now.length} chars` : 'NULL'}`);
         triadLog.phase(4, `[VERIFY]   • briefing.events: ${Array.isArray(freshBriefing?.events) ? `${freshBriefing.events.length} items` : 'NULL'}`);
 
-        if (!consolidatedRow?.strategy_for_now) {
+        if (!strategyRow?.strategy_for_now) {
           triadLog.warn(4, `[VERIFY] CRITICAL: strategy_for_now is NULL - SmartBlocks may fail`);
         }
 
@@ -770,7 +860,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // 2026-01-09: P0-3 FIX - Pass authUserId for ownership
         // 2026-01-10: Pass freshBriefing directly (captured from runBriefing above)
         const { ranking, error: blocksError } = await ensureSmartBlocksExist(snapshotId, {
-          strategyRow: consolidatedRow,
+          strategyRow: strategyRow,
           briefingRow: freshBriefing,
           snapshot,
           phaseEmitter,
@@ -818,8 +908,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             rankingId: ranking.ranking_id,
             // 2026-01-10: D-027 - Use camelCase for API response (single contract)
             strategy: {
-              strategyForNow: strategyRow?.strategy_for_now || '',
-              consolidated: strategyRow?.consolidated_strategy || ''
+              strategyForNow: strategyRow?.strategy_for_now || ''
             },
             message: 'Smart blocks generated successfully'
           });
@@ -838,10 +927,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             status: 'ok',
             snapshotId: snapshotId,
             blocks: [],
-            // 2026-01-10: D-027 - Use camelCase for API response (single contract)
             strategy: {
-              strategyForNow: strategyRow?.strategy_for_now || '',
-              consolidated: strategyRow?.consolidated_strategy || ''
+              strategyForNow: strategyRow?.strategy_for_now || ''
             },
             message: 'Smart blocks generated (details pending)'
           });

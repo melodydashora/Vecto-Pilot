@@ -70,9 +70,36 @@ function subscribeSSE(
       }
     });
 
+<<<<<<< HEAD
     eventSource.onerror = (e) => {
       console.warn(`[SSE Manager] ⚠️ Connection error: ${endpoint}`, e);
       subscription!.isConnected = false;
+=======
+    // 2026-04-18 (F2): Also listen for the `state` initial-state handshake event
+    // emitted by the server immediately after connect when ?snapshot_id= is passed.
+    // Treat it as the same wake-up signal so the existing subscriber callback fires
+    // and triggers an immediate refetch — closes the NOTIFY-loss reconnect gap.
+    eventSource.addEventListener('state', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log(`[SSE Manager] 🤝 Initial-state handshake: ${endpoint}`, data.snapshot_id?.slice(0, 8) || 'no-id');
+        subscription!.subscribers.forEach(sub => sub(data));
+      } catch (e) {
+        console.warn(`[SSE Manager] Failed to parse state event:`, e);
+      }
+    });
+
+    eventSource.onerror = (e) => {
+      // FIX: SSE disconnect triggers reconnect, not auth clearing. Only HTTP 401/403 clears auth.
+      // EventSource has native automatic reconnection (browser handles the exponential backoff
+      // via the SSE spec's retry field). We log the disconnect and mark the subscription as
+      // not-connected but NEVER dispatch vecto-auth-error or clear localStorage. Auth clearing
+      // is reserved for explicit 401/403 HTTP responses in useBriefingQueries and location-context.
+      console.warn(`[SSE Manager] ⚠️ Connection error: ${endpoint} — browser will auto-reconnect`, e);
+      subscription!.isConnected = false;
+      // Note: we do NOT call eventSource.close() here. Closing would prevent browser auto-reconnect.
+      // If the connection is permanently broken (server gone), subsequent readyState will report CLOSED.
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     };
 
     sseConnections.set(key, subscription);
@@ -102,15 +129,49 @@ function subscribeSSE(
 }
 
 /**
+<<<<<<< HEAD
  * Get auth headers with JWT token from localStorage
  */
+=======
+ * Close ALL singleton SSE connections immediately.
+ * 2026-04-10: Called during logout to prevent orphaned EventSource connections
+ * from receiving events after auth is invalidated (Window 2 race condition fix).
+ */
+export function closeAllSSE(): void {
+  console.log(`[SSE Manager] 🔌 Closing ALL connections (${sseConnections.size} active)`);
+  for (const [key, sub] of sseConnections) {
+    sub.eventSource.close();
+    sub.subscribers.clear();
+    console.log(`[SSE Manager] 🔌 Closed: ${key}`);
+  }
+  sseConnections.clear();
+}
+
+/**
+ * Get auth headers with JWT token from localStorage
+ * 2026-04-05: Log-once guard — prevents console spam when no token (e.g., after logout)
+ */
+let _noTokenWarningLogged = false;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 export function getAuthHeader(): Record<string, string> {
   // 2026-01-09: P1-6 FIX - Using STORAGE_KEYS constant instead of hardcoded string
   const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
   if (!token) {
+<<<<<<< HEAD
     console.warn('[co-pilot] No auth token found in localStorage');
   }
   return token ? { 'Authorization': `Bearer ${token}` } : {};
+=======
+    if (!_noTokenWarningLogged) {
+      console.warn('[co-pilot] No auth token found in localStorage — waiting for login');
+      _noTokenWarningLogged = true;
+    }
+    return {};
+  }
+  // Reset flag when token reappears (user logged back in)
+  _noTokenWarningLogged = false;
+  return { 'Authorization': `Bearer ${token}` };
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 }
 
 /**
@@ -156,6 +217,7 @@ export async function logAction(
 }
 
 /**
+<<<<<<< HEAD
  * Subscribe to SSE strategy_ready events
  * Uses Postgres LISTEN/NOTIFY via /events/strategy endpoint
  *
@@ -163,6 +225,33 @@ export async function logAction(
  */
 export function subscribeStrategyReady(callback: (snapshotId: string) => void): () => void {
   return subscribeSSE('/events/strategy', 'strategy_ready', (data) => {
+=======
+ * 2026-04-18 (F2): Build an SSE endpoint URL with optional ?snapshot_id= query param.
+ * Passing snapshot_id opts the subscription into the server-side initial-state
+ * handshake — server emits a `state` event with current readiness immediately
+ * after connect. This is what closes the NOTIFY-loss reconnect gap.
+ */
+function withSnapshotParam(base: string, snapshotId?: string | null): string {
+  if (!snapshotId) return base;
+  return `${base}?snapshot_id=${encodeURIComponent(snapshotId)}`;
+}
+
+/**
+ * Subscribe to SSE strategy_ready events.
+ * Uses Postgres LISTEN/NOTIFY via /events/strategy endpoint.
+ *
+ * Uses singleton connection manager - multiple components share one connection.
+ *
+ * 2026-04-18 (F2): Pass snapshotId so the server emits an initial `state` event
+ * on connect with the snapshot's current readiness — guarantees recovery from
+ * any NOTIFY lost during the LISTEN reconnect window.
+ */
+export function subscribeStrategyReady(
+  snapshotId: string | null | undefined,
+  callback: (snapshotId: string) => void
+): () => void {
+  return subscribeSSE(withSnapshotParam('/events/strategy', snapshotId), 'strategy_ready', (data) => {
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     if (data.snapshot_id) {
       callback(data.snapshot_id);
     }
@@ -170,6 +259,7 @@ export function subscribeStrategyReady(callback: (snapshotId: string) => void): 
 }
 
 /**
+<<<<<<< HEAD
  * Subscribe to SSE blocks_ready events
  * Uses Postgres LISTEN/NOTIFY via /events/blocks endpoint
  *
@@ -177,6 +267,19 @@ export function subscribeStrategyReady(callback: (snapshotId: string) => void): 
  */
 export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ranking_id?: string }) => void): () => void {
   return subscribeSSE('/events/blocks', 'blocks_ready', (data) => {
+=======
+ * Subscribe to SSE blocks_ready events.
+ * Uses Postgres LISTEN/NOTIFY via /events/blocks endpoint.
+ *
+ * 2026-04-18 (F2): Pass snapshotId so the server emits an initial `state` event
+ * on connect.
+ */
+export function subscribeBlocksReady(
+  snapshotId: string | null | undefined,
+  callback: (data: { snapshot_id: string; ranking_id?: string }) => void
+): () => void {
+  return subscribeSSE(withSnapshotParam('/events/blocks', snapshotId), 'blocks_ready', (data) => {
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     if (data.snapshot_id) {
       callback(data);
     }
@@ -184,6 +287,7 @@ export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ran
 }
 
 /**
+<<<<<<< HEAD
  * Subscribe to SSE briefing_ready events
  * Uses Postgres LISTEN/NOTIFY via /events/briefing endpoint
  * Fires when briefing data (weather, traffic, events, news) is fully generated
@@ -192,6 +296,21 @@ export function subscribeBlocksReady(callback: (data: { snapshot_id: string; ran
  */
 export function subscribeBriefingReady(callback: (snapshotId: string) => void): () => void {
   return subscribeSSE('/events/briefing', 'briefing_ready', (data) => {
+=======
+ * Subscribe to SSE briefing_ready events.
+ * Uses Postgres LISTEN/NOTIFY via /events/briefing endpoint.
+ * Fires when briefing data (weather, traffic, events, news) is fully generated.
+ *
+ * 2026-04-18 (F2): Pass snapshotId so the server emits an initial `state` event
+ * on connect — the primary fix for the "infinite spinner after LISTEN reconnect"
+ * symptom (NOTIFY_LOSS_RECON_2026-04-18.md).
+ */
+export function subscribeBriefingReady(
+  snapshotId: string | null | undefined,
+  callback: (snapshotId: string) => void
+): () => void {
+  return subscribeSSE(withSnapshotParam('/events/briefing', snapshotId), 'briefing_ready', (data) => {
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
     if (data.snapshot_id) {
       callback(data.snapshot_id);
     }
@@ -345,11 +464,15 @@ export function isEventToday(event: FilterableEvent): boolean {
 
   // Multi-day event: check if today falls within the date range
   if (event.event_end_date) {
+<<<<<<< HEAD
     const inRange = event.event_start_date <= today && today <= event.event_end_date;
     if (inRange) {
       console.log(`[EventFilter] ✅ Multi-day event "${event.title}" - today ${today} is within range ${event.event_start_date} to ${event.event_end_date}`);
     }
     return inRange;
+=======
+    return event.event_start_date <= today && today <= event.event_end_date;
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   }
 
   // Single-day event: exact date match
@@ -376,6 +499,7 @@ export function hasValidEventTime(event: FilterableEvent): boolean {
  * Filter events to only show today's events with valid times
  * Use this for map display where we only want actionable events
  */
+<<<<<<< HEAD
 export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
   return events.filter(event => {
     const isToday = isEventToday(event);
@@ -389,6 +513,13 @@ export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
 
     return isToday && hasTime;
   });
+=======
+// 2026-04-04: Removed per-event console.logs that fired every ~500ms in the render loop.
+// These are pure filter functions — log only at the caller level when the count changes.
+export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
+  if (!events || !Array.isArray(events)) return [];
+  return events.filter(event => isEventToday(event) && hasValidEventTime(event));
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
 }
 
 /**
@@ -398,12 +529,39 @@ export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
  * Handles multi-day events by checking if today falls within event_start_date to event_end_date range
  * 2026-01-10: Use symmetric field names
  */
+<<<<<<< HEAD
 export function filterValidEvents<T extends FilterableEvent>(events: T[]): {
+=======
+// 2026-04-04: Guard against null/undefined — for...of crashes with "undefined is not iterable"
+export function filterValidEvents<T extends FilterableEvent>(
+  events: T[] | null | undefined,
+  timezone?: string
+): {
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   todayEvents: T[];
   upcomingEvents: T[];
   invalidEvents: T[];
 } {
+<<<<<<< HEAD
   const today = new Date().toISOString().split('T')[0];
+=======
+  // 2026-04-04: Guard — for...of on null/undefined crashes with "undefined is not iterable"
+  if (!events || !Array.isArray(events)) {
+    return { todayEvents: [], upcomingEvents: [], invalidEvents: [] };
+  }
+
+  // 2026-03-28: Use timezone-aware date when timezone provided (fixes UTC mismatch near day boundaries)
+  // Previously used UTC toISOString which caused events to appear/disappear incorrectly near midnight
+  let today: string;
+  if (timezone) {
+    today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).format(new Date());
+  } else {
+    today = new Date().toISOString().split('T')[0];
+  }
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   const todayEvents: T[] = [];
   const upcomingEvents: T[] = [];
   const invalidEvents: T[] = [];
@@ -411,7 +569,12 @@ export function filterValidEvents<T extends FilterableEvent>(events: T[]): {
   for (const event of events) {
     if (!hasValidEventTime(event)) {
       invalidEvents.push(event);
+<<<<<<< HEAD
       console.log(`[EventFilter] Invalid event "${event.title}" - no time (${event.event_start_time})`);
+=======
+      // 2026-04-05: Removed per-event console.log — fired every render cycle (~500ms).
+      // Caller-level summary log in EventsComponent is sufficient for debugging.
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
       continue;
     }
 
@@ -589,11 +752,22 @@ export function isHighValueBlock(block: FilterableBlock): boolean {
  * @param maxVenues - Maximum venues to return (default: 3)
  * @returns Filtered array of high-value blocks (spacing preferred but not required)
  */
+<<<<<<< HEAD
 export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
   blocks: T[],
   minDistanceMiles: number = 1.0,
   maxVenues: number = 3
 ): T[] {
+=======
+// 2026-04-04: Guard against null/undefined — for...of crashes with "undefined is not iterable"
+export function filterHighValueSpacedBlocks<T extends FilterableBlock>(
+  blocks: T[] | null | undefined,
+  minDistanceMiles: number = 1.0,
+  maxVenues: number = 3
+): T[] {
+  if (!blocks || !Array.isArray(blocks) || blocks.length === 0) return [];
+
+>>>>>>> d39d570fbc330b69f07cc3bdd525a0b234e73be7
   // Helper: Check if block has valid coordinates
   const hasValidCoords = (block: T): boolean => {
     const coords = block.coordinates;

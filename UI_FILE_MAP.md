@@ -1,7 +1,7 @@
 
 # UI_FILE_MAP.md - Component, API, and Event Mapping
 
-**Last Updated:** 2026-01-08 UTC
+**Last Updated:** 2026-02-15 UTC
 
 This document provides a complete mapping of UI components to their source files, API calls, events, and identifies orphaned/redundant files.
 
@@ -26,7 +26,7 @@ This document provides a complete mapping of UI components to their source files
 |------|---------|--------|
 | `client/src/main.tsx` | React app entry point | ✅ Active |
 | `client/src/App.tsx` | Root component with AuthProvider, CoPilotProvider, RouterProvider | ✅ Active |
-| `client/src/routes.tsx` | React Router configuration (13 routes) | ✅ Active |
+| `client/src/routes.tsx` | React Router configuration (20 routes) | ✅ Active |
 
 ### Providers & Contexts
 
@@ -66,6 +66,8 @@ This document provides a complete mapping of UI components to their source files
 | `client/src/pages/auth/ForgotPasswordPage.tsx` | Password reset request | `/auth/forgot-password` | ✅ Active |
 | `client/src/pages/auth/ResetPasswordPage.tsx` | Password reset with code | `/auth/reset-password` | ✅ Active |
 | `client/src/pages/auth/TermsPage.tsx` | Terms of service | `/auth/terms` | ✅ Active |
+| `client/src/pages/auth/GoogleCallbackPage.tsx` | Google OAuth code exchange | `/auth/google/callback` | ✅ Active |
+| `client/src/pages/auth/UberCallbackPage.tsx` | Uber OAuth code exchange | `/auth/uber/callback` | ✅ Active |
 | `client/src/pages/auth/index.ts` | Barrel export | N/A | ✅ Active |
 
 ### Auth Components
@@ -80,7 +82,7 @@ This document provides a complete mapping of UI components to their source files
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
 | `GlobalHeader.tsx` | Location, time, weather display | CoPilotLayout.tsx | ✅ Active |
-| `CoachChat.tsx` | AI chat + voice interface (GPT-5.2) | StrategyPage.tsx | ✅ Active |
+| `AICoach.tsx` | AI chat + voice interface (GPT-5.2) | StrategyPage.tsx | ✅ Active |
 | `BriefingTab.tsx` | Weather, traffic, news, events | BriefingPage.tsx | ✅ Active |
 | `FeedbackModal.tsx` | Venue/strategy feedback dialogs | StrategyPage.tsx | ✅ Active |
 | `SmartBlocksStatus.tsx` | Pipeline loading status with progress bar | StrategyPage.tsx | ✅ Active |
@@ -127,11 +129,21 @@ This document provides a complete mapping of UI components to their source files
 | `hooks/useStrategyPolling.ts` | Strategy fetching with SSE + caching | co-pilot-context.tsx | ✅ Active |
 | `hooks/useStrategyLoadingMessages.ts` | Rotating loading messages + time remaining | StrategyPage.tsx | ✅ Active |
 | `hooks/useVenueLoadingMessages.ts` | Venue enrichment loading messages | StrategyPage.tsx | ✅ Active |
-| `hooks/useTTS.ts` | Text-to-speech with OpenAI | CoachChat.tsx | ✅ Active |
+| `hooks/useTTS.ts` | Text-to-speech with OpenAI | AICoach.tsx | ✅ Active |
 | `hooks/useBarsQuery.ts` | Bar listings query | BarsPage.tsx | ✅ Active |
 | `hooks/useMemory.ts` | Memory persistence utilities | Multiple | ✅ Active |
 | `hooks/useMarketIntelligence.ts` | Market intelligence queries | IntelPage.tsx | ✅ Active |
 | `hooks/usePlatformData.ts` | Platform data queries (countries, markets, etc.) | SettingsPage.tsx | ✅ Active |
+| `hooks/useChatPersistence.ts` | Chat history persistence | AICoach.tsx | ✅ Active |
+
+### Tests
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `tests/BriefingPageEvents.test.tsx` | Unit tests for BriefingPage data binding | ✅ Active |
+| `tests/BriefingTabIntegration.test.tsx` | Integration tests for event filtering logic | ✅ Active |
+| `tests/useChatPersistence.test.tsx` | Unit tests for chat persistence hook | ✅ Active |
+| `jest.client.config.js` | Client-side Jest configuration | ✅ Active |
 
 ### Libraries
 
@@ -224,9 +236,9 @@ This document provides a complete mapping of UI components to their source files
 
 | Endpoint | Method | Called By | Purpose | Auth |
 |----------|--------|-----------|---------|------|
-| `/api/chat/:snapshotId/message` | POST (SSE) | CoachChat.tsx | Text chat streaming | ✅ Required |
-| `/api/realtime/token` | POST | CoachChat.tsx | Voice API token | ✅ Required |
-| `/api/tts` | POST | CoachChat.tsx | Text-to-speech | ✅ Required |
+| `/api/chat/:snapshotId/message` | POST (SSE) | AICoach.tsx | Text chat streaming | ✅ Required |
+| `/api/realtime/token` | POST | AICoach.tsx | Voice API token | ✅ Required |
+| `/api/tts` | POST | AICoach.tsx | Text-to-speech | ✅ Required |
 
 ### Venue APIs
 
@@ -363,7 +375,7 @@ main.tsx
             │   │   ├── useStrategyLoadingMessages.ts
             │   │   ├── useVenueLoadingMessages.ts
             │   │   ├── FeedbackModal.tsx
-            │   │   ├── CoachChat.tsx → useTTS.ts
+            │   │   ├── AICoach.tsx → useTTS.ts
             │   │   ├── SmartBlocksStatus.tsx
             │   │   ├── BarsTable.tsx
             │   │   └── GreetingBanner.tsx
@@ -456,8 +468,8 @@ main.tsx
 | **Weather Display** | `GlobalHeader.tsx`, `BriefingTab.tsx` |
 | **Strategy Generation** | `co-pilot-context.tsx`, blocks-fast API |
 | **Venue Blocks** | `StrategyPage.tsx`, `BarsTable.tsx`, `SmartBlocksStatus.tsx` |
-| **AI Chat** | `CoachChat.tsx` (GPT-5.2 text) |
-| **Voice Chat** | `CoachChat.tsx` (OpenAI Realtime) |
+| **AI Chat** | `AICoach.tsx` (GPT-5.2 text) |
+| **Voice Chat** | `AICoach.tsx` (OpenAI Realtime) |
 | **Briefing Tab** | `BriefingPage.tsx`, `BriefingTab.tsx`, `EventsComponent.tsx` |
 | **Map View** | `MapPage.tsx`, `MapTab.tsx` |
 | **Intelligence** | `IntelPage.tsx`, `RideshareIntelTab.tsx`, intel components |
@@ -506,7 +518,7 @@ main.tsx
 - **Utilities**: 1
 - **Future/Staged**: 10+ files in `_future/`
 
-### Cleanup Status (Jan 2026)
+### Cleanup Status (Feb 2026)
 
 **Completed:**
 - ✅ Auth system fully integrated
@@ -522,7 +534,7 @@ main.tsx
 - ✅ 5 auth pages (sign-in, sign-up, forgot, reset, terms)
 - ✅ Real-time updates via SSE
 - ✅ Smart Blocks with NOW strategy (top 3 Grade A, ≥1mi apart)
-- ✅ AI Coach with text + voice
+- ✅ Rideshare Coach with text + voice
 - ✅ Market intelligence system
 - ✅ Siri Interceptor (headless client integration via iOS Shortcuts)
 

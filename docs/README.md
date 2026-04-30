@@ -1,3 +1,6 @@
+> **Gemini Analysis (2026-02-11):**
+> This file is the index for all documentation. It organizes docs by domain (Architecture, AI Tools, Memory, etc.) and provides quick links to key references like `ARCHITECTURE.md` and `CLAUDE.md`.
+
 > **Last Verified:** 2026-01-06
 
 # Documentation
@@ -24,7 +27,7 @@ Detailed technical documentation split by domain. See [architecture/README.md](a
 | [Authentication](architecture/authentication.md) | JWT auth, login, registration flow |
 | [Database Schema](architecture/database-schema.md) | PostgreSQL tables and relationships |
 | [AI Pipeline](architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
-| [AI Coach](architecture/ai-coach.md) | AI Coach system architecture |
+| [Rideshare Coach](architecture/ai-coach.md) | Rideshare Coach system architecture |
 | [Event Discovery](architecture/event-discovery.md) | Multi-model AI event search system |
 | [Constraints](architecture/constraints.md) | Critical rules and limitations |
 | [Google Cloud APIs](architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |
@@ -45,6 +48,15 @@ Detailed technical documentation split by domain. See [architecture/README.md](a
 | [Event Freshness & TTL](EVENT_FRESHNESS_AND_TTL.md) | Event caching and freshness rules |
 | [Mismatched](MISMATCHED.md) | Identified mismatches |
 | [Monthly Review Checklist](MONTHLY_REVIEW_CHECKLIST.md) | Documentation maintenance checklist |
+
+## Research
+
+Research findings that inform platform development:
+
+| Document | Purpose |
+|----------|---------|
+| [Rideshare Algorithm Research](research/rideshare-algorithm-research.md) | Platform algorithm behaviors, detection rules, surge patterns |
+| [Mobile Subscription Architecture](research/mobile-subscription-architecture.md) | iOS/Android separate solutions for subscription services |
 
 ## Quick Links
 

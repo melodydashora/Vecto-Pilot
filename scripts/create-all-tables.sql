@@ -1,4 +1,9 @@
--- Vecto Pilot - Create all 19 tables from shared/schema.js
+-- !! DEPRECATED — DO NOT USE FOR RECOVERY !!
+-- This file was generated from an older schema version and no longer matches shared/schema.js.
+-- To regenerate: run `npx drizzle-kit generate` or extract DDL from the live database.
+-- Last known accurate: unknown. Marked deprecated: 2026-04-14 (audit Pass 6, Issue AL)
+--
+-- Vecto Pilot - Create all 19 tables from shared/schema.js (STALE — actual count is 57+)
 -- Generated from Drizzle schema for emergency recovery
 
 -- Table 1: snapshots

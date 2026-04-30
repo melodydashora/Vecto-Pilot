@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 # =============================================================================
 # Vecto Pilot - Unified Startup Script
@@ -11,7 +10,7 @@
 #   ./start.sh clean        # Clean ports and start fresh
 #
 # WHAT IT DOES:
-#   1. Loads environment variables from mono-mode.env and .env
+#   1. Loads environment variables from .env.local and .env
 #   2. Optionally clears port 5000 if conflicts exist
 #   3. Starts the gateway server (which spawns SDK/Agent as needed)
 #   4. Optionally starts the background worker for strategy generation
@@ -33,15 +32,23 @@ echo "[start] Mode: $MODE"
 echo "[start] PORT: $PORT, HOST: $HOST"
 
 # Load environment files
-if [ -f mono-mode.env ]; then
-  set -a && source mono-mode.env && set +a
-  echo "[start] ✅ Loaded mono-mode.env"
+if [ -f .env_override ]; then
+  set -a && source .env_override && set +a
+  echo "[start] ✅ Loaded .env_override"
+fi
+
+if [ -f .env.local ]; then
+  set -a && source .env.local && set +a
+  echo "[start] ✅ Loaded .env.local"
 fi
 
 if [ -f .env ]; then
   set -a && source .env && set +a
   echo "[start] ✅ Loaded .env"
 fi
+
+# GCP credential reconstruction is handled by load-env.js:reconstructGcpCredentials()
+# which runs inside gateway-server.js loadEnvironment() — no need to duplicate here
 
 # Clean mode: kill processes on target port
 if [ "$MODE" = "clean" ]; then

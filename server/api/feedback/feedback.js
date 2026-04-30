@@ -58,7 +58,10 @@ router.post('/venue', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
-    const { userId, snapshot_id, ranking_id, place_id, venue_name, sentiment, comment } = req.body;
+    const { snapshot_id, ranking_id, place_id, venue_name, sentiment, comment } = req.body;
+
+    // 2026-02-13: Use only authenticated user_id — body userId removed (spoofing risk)
+    const authUserId = req.auth.userId;
     
     // SECURITY: Use authenticated user_id, not from request body
     const authUserId = req.auth?.userId || userId;
@@ -136,7 +139,8 @@ router.post('/venue', requireAuth, async (req, res) => {
     
     console.log('[feedback] upsert ok', {
       corr: correlationId,
-      user: userId || 'anon',
+      // 2026-03-17: SECURITY FIX (F-13) — was `userId` (undefined since 2026-02-13 removal)
+      user: authUserId,
       ranking: ranking_id,
       place: place_id || 'null',
       sent: sentiment,
@@ -154,7 +158,8 @@ router.post('/venue', requireAuth, async (req, res) => {
           sentiment,
           has_comment: !!sanitizedComment,
           ranking_id
-        }, userId).catch(err => {
+        // 2026-03-17: SECURITY FIX (F-13) — was `userId` (undefined)
+        }, authUserId).catch(err => {
           console.error('[feedback] Learning capture failed:', err.message);
         });
       });
@@ -174,8 +179,10 @@ router.post('/venue', requireAuth, async (req, res) => {
   }
 });
 
+// SECURITY: Require authentication
 // GET /api/feedback/venue/summary?ranking_id=<UUID>
-router.get('/venue/summary', async (req, res) => {
+// 2026-02-13: Added requireAuth — was previously unprotected (D-077)
+router.get('/venue/summary', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
@@ -229,7 +236,10 @@ router.post('/strategy', requireAuth, async (req, res) => {
   const correlationId = crypto.randomUUID();
   
   try {
-    const { userId, snapshot_id, ranking_id, sentiment, comment } = req.body;
+    const { snapshot_id, ranking_id, sentiment, comment } = req.body;
+
+    // 2026-02-13: Use only authenticated user_id — body userId removed (spoofing risk)
+    const authUserId = req.auth.userId;
     
     // SECURITY: Use authenticated user_id, not from request body
     const authUserId = req.auth?.userId || userId;
@@ -340,9 +350,11 @@ router.post('/app', requireAuth, async (req, res) => {
     // No rate limiting for app feedback (it's infrequent)
     
     // Insert app feedback
+    // 2026-04-16 (Pass F fix): authUserId was read but not inserted — identity was lost
     await db
       .insert(app_feedback)
       .values({
+        user_id: authUserId || null,
         snapshot_id: snapshot_id || null,
         sentiment,
         comment: sanitizedComment,

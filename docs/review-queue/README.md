@@ -17,7 +17,7 @@ Automated change analysis for documentation maintenance. This folder contains fi
 |------|---------|
 | `pending.md` | Current items needing review |
 | `YYYY-MM-DD.md` | Daily analysis logs (historical record) |
-| `ai-coach-enhancements.md` | AI Coach enhancement tasks |
+| `ai-coach-enhancements.md` | Rideshare Coach enhancement tasks |
 | `IN_PROGRESS_WORKSTREAM.md` | Current in-progress work items |
 | `../reviewed-queue/` | **Completed work** - rules extracted, summaries archived |
 
