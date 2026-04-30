@@ -164,6 +164,29 @@ The hash is a structural backstop; the semantic dedup is the smarter pre-filter.
 
 These match `briefing-service.js:189-193` (`normalizeEventName` in `deduplicateEvents`).
 
+**Add address/street-name extraction (Melody nuance 2026-04-30):**
+
+`deduplicateEvents` keys on `name|street_name|time`; the hash currently uses `title|venue_name|city|date`. To achieve full parity at the constraint level, `generateEventHash` should also include the **normalized street name** as a key component. Mirror `normalizeAddress` from `briefing-service.js:206-214`:
+
+```js
+function extractStreetName(address) {
+  if (!address) return '';
+  const lower = address.toLowerCase();
+  // Get street name (after street number)
+  const streetMatch = lower.match(/\d+\s+(.+?)(?:,|$)/);
+  const streetName = streetMatch ? streetMatch[1].split(/[,#]/)[0].trim() : lower;
+  // First few significant words
+  return streetName.split(/\s+/).slice(0, 2).join(' ');
+}
+```
+
+Updated `buildHashInput` composition: `title | venue_name | street_name | city | date`. Reasoning:
+- Catches the case where Gemini returns the same event at "5776 Grandscape Blvd" and "5752 Grandscape Blvd" — both normalize to street name "grandscape blvd".
+- Catches the case where venue_name varies slightly ("Cosm" vs "Cosm Shared Reality") but the physical street is stable — street_name converges.
+- Adds a tie-breaker without altering the existing date/city dimensions of identity.
+
+Add a test case: two events with same title/venue/city/date but addresses differing only by street number → SAME hash.
+
 **Tests** (new file, location TBD — verify project test convention first):
 ```js
 // tests/lib/events/pipeline/hashEvent.test.js (or .spec.js per project convention)
@@ -219,8 +242,33 @@ describe('generateEventHash', () => {
 3. Group rows by new hash.
 4. For each group:
    - If size = 1 and old hash differs from new hash → UPDATE the row's `event_hash` field to new value.
-   - If size > 1 → keep the OLDEST row (min `discovered_at`); DELETE the rest; UPDATE kept row's `event_hash` if it changed.
+   - If size > 1 → keep the OLDEST row (min `discovered_at`); **DELETE the duplicate rows FIRST, then UPDATE the survivor's hash** (see execution-order note below).
 5. Log the consolidation: rows scanned, groups found, dupes deleted, hashes rewritten.
+
+**Execution-order discipline (Melody nuance 2026-04-30):**
+
+Within each duplicate group, the script MUST execute DELETE statements for the duplicate rows BEFORE issuing the UPDATE that changes the survivor's `event_hash` to the new value. Reasoning: in the rare case where the new hash for the survivor coincidentally collides with the OLD hash of one of the duplicates (or any other row in the table that happens to currently hold that hash value), an UPDATE-first ordering would violate `UNIQUE(event_hash)` and abort the migration mid-stream. DELETE-first removes all candidate collisions from the group before the UPDATE runs.
+
+Recommended pattern:
+```js
+for (const [newHash, group] of groups) {
+  if (group.length === 1) {
+    if (group[0].event_hash !== newHash) {
+      await db.update(...).set({ event_hash: newHash }).where(eq(id, group[0].id));
+    }
+    continue;
+  }
+  group.sort((a, b) => new Date(a.discovered_at) - new Date(b.discovered_at));
+  const survivor = group[0];
+  const dupeIds = group.slice(1).map(r => r.id);
+  // STEP 1: DELETE duplicates first
+  await db.delete(discovered_events).where(inArray(discovered_events.id, dupeIds));
+  // STEP 2: ONLY THEN update survivor's hash if it changed
+  if (survivor.event_hash !== newHash) {
+    await db.update(discovered_events).set({ event_hash: newHash }).where(eq(id, survivor.id));
+  }
+}
+```
 
 **Why oldest-wins:** older rows have more downstream FK references already established (e.g., `ranking_candidates.event_id`). Deleting them would force FK churn. Keeping them = no churn.
 
@@ -260,6 +308,10 @@ for (const event of semanticDeduped) {
 ```
 
 The DB unique constraint on `event_hash` becomes a race-safety backstop, not the primary defense. Application-layer dedup is the primary defense, running on the deduped batch BEFORE the insert loop.
+
+**Object-identity note (Melody nuance 2026-04-30):**
+
+`deduplicateEventsSemantic` (at `server/lib/events/pipeline/deduplicateEventsSemantic.js:319-345`) operates by sorting groups and pushing the highest-scoring event back into the `deduplicated` array — it does NOT mutate event fields or strip properties. Each event in `semanticDeduped` is the same object reference that came in. So when the per-event loop calls `generateEventHash(event)`, the hash builder receives an event with all original properties (title, venue_name, address, city, event_start_date, event_start_time, etc.) intact. No field-shape concerns at the boundary.
 
 ### §4. Strip dedup from read paths (4 sites)
 
@@ -316,6 +368,10 @@ const cleanEvents = filterInvalidEvents(normalizedEvents, { timezone });
 ```
 
 `filterInvalidEvents` stays — it removes TBD/Unknown rows, which is data-quality, not dedup.
+
+**Shape-contract note (Melody nuance 2026-04-30):**
+
+`normalizedEvents` at site #4 is the UI-mapped shape (title/summary/impact/event_type/subtype/event_start_date/event_start_time/event_end_time/event_end_date/address/venue/location/latitude/longitude/venue_id). Today, `deduplicateEvents` preserves this shape (it returns the same UI objects, just deduped), and `filterInvalidEvents` already accepts this shape (it delegates to `validateEventsHard` with the same input the rest of the pipeline uses). Removing the dedup pass between them does NOT change the contract — `filterInvalidEvents` continues to receive the same UI-mapped shape it accepts today, just without an intermediate dedup step. **Verification step during execution:** confirm by reading `validateEvent.js`'s `validateEventsHard` to ensure it doesn't depend on a property that `deduplicateEvents` was somehow injecting (it doesn't, but verify before the strip lands).
 
 #### Imports cleanup
 
