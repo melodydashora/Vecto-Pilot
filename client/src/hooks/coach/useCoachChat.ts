@@ -1,5 +1,5 @@
 // client/src/hooks/coach/useCoachChat.ts
-// Encapsulates the Rideshare Coach chat lifecycle: SSE streaming, action-tag
+// Encapsulates the Coach chat lifecycle: SSE streaming, action-tag
 // parsing, persistence, attachments, and abort. Pure chat — no audio concerns.
 //
 // 2026-04-26: Extracted from RideshareCoach.tsx (Step 3 of COACH_PASS2_PHASE_B_PLAN).

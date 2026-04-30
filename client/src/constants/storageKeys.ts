@@ -30,11 +30,15 @@ export const STORAGE_KEYS = {
   // Schedule (weekly driving availability)
   SCHEDULE: 'vectopilot_schedule',
 
-  // AI Coach voice preference (2026-04-13)
+  // Coach voice preference (2026-04-13)
   // 2026-04-27: COACH_VOICE_ENABLED is the LEGACY key (kept for one release as
   // migration fallback). New writes go to COACH_READ_ALOUD_ENABLED.
   COACH_VOICE_ENABLED: 'vectopilot_coach_voice',
   COACH_READ_ALOUD_ENABLED: 'vectopilot_coach_read_aloud',
+
+  // 2026-04-29: TTS playback speed (1.0 / 1.25 / 1.5 / 2.0×) — per-device,
+  // persists across reloads.
+  COACH_PLAYBACK_SPEED: 'vectopilot_coach_playback_speed',
 } as const;
 
 /**

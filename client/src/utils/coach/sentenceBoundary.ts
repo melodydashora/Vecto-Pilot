@@ -1,7 +1,7 @@
 /**
  * Pure function that finds the next flushable sentence boundary in a streaming buffer.
  *
- * Powers chunked TTS for the Rideshare Coach: as Gemini deltas arrive,
+ * Powers chunked TTS for the Coach: as Gemini deltas arrive,
  * useStreamingReadAloud calls this repeatedly, slicing complete sentences off
  * the buffer for sequential playback.
  *

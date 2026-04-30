@@ -195,7 +195,7 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
         {/* Empty state — welcome + suggested questions */}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center min-h-[300px] py-8">
-            {/* Welcome icon — large circle matching AI Coach style */}
+            {/* Welcome icon — large circle matching Coach style */}
             <div className="inline-flex items-center justify-center h-16 w-16 bg-purple-500/15 rounded-full mb-5">
               <MessageSquare className="h-8 w-8 text-purple-400" />
             </div>
@@ -280,7 +280,7 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
         )}
       </div>
 
-      {/* ═══ INPUT BAR (pinned to bottom, matches AI Coach styling) ═══ */}
+      {/* ═══ INPUT BAR (pinned to bottom, matches Coach styling) ═══ */}
       <div className="p-3 border-t border-slate-800 bg-slate-900">
         {/* Error message */}
         {error && (

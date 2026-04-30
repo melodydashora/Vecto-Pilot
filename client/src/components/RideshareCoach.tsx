@@ -4,15 +4,18 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { useCoachChat } from "@/hooks/coach/useCoachChat";
-import { useCoachAudioState } from "@/hooks/coach/useCoachAudioState";
+import { useCoachAudioState, type CoachPlaybackSpeed } from "@/hooks/coach/useCoachAudioState";
 import { useStreamingReadAloud } from "@/hooks/coach/useStreamingReadAloud";
 import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
+
+// 2026-04-29: TTS speed-selector tier values, used in the chip UI.
+const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { COACH_STREAMING_TTS_ENABLED } from "@/constants/featureFlags";
 import { API_ROUTES } from "@/constants/apiRoutes";
 
-// 2026-01-05: Added for AI Coach notes panel feature
+// 2026-01-05: Added for Coach notes panel feature
 interface UserNote {
   id: string;
   note_type: 'preference' | 'insight' | 'tip' | 'feedback' | 'pattern' | 'market_update';
@@ -71,6 +74,8 @@ export default function RideshareCoach({
   const {
     readAloudEnabled,
     setReadAloudEnabled,
+    playbackSpeed,
+    setPlaybackSpeed,
     isSpeaking,
     isListening,
     micSupported,
@@ -89,11 +94,11 @@ export default function RideshareCoach({
 
   // 2026-04-27: Step 5 — streaming TTS chunks. Flag-gated OFF by default;
   // Step 6 flips the default. When OFF, pushDelta/flush are never called.
-  const streaming = useStreamingReadAloud({ speak, stopSpeak });
+  const streaming = useStreamingReadAloud({ speak, stopSpeak, playbackSpeed });
 
   const [input, setInput] = useState("");
 
-  // 2026-01-05: Notes panel state for AI Coach memory feature
+  // 2026-01-05: Notes panel state for Coach memory feature
   const [notes, setNotes] = useState<UserNote[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesLoading, setNotesLoading] = useState(false);
@@ -132,12 +137,12 @@ export default function RideshareCoach({
     } else {
       const spokenText = cleanTextForTTS(fullResponse);
       if (spokenText.length > 0) {
-        console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars`);
-        speak(spokenText.slice(0, 4000), 'en');
+        console.log(`[RideshareCoach] TTS: speaking ${spokenText.length} chars at ${playbackSpeed}×`);
+        speak(spokenText.slice(0, 4000), 'en', playbackSpeed);
       }
     }
     sentViaVoiceRef.current = false;
-  }, [readAloudEnabled, speak, streaming]);
+  }, [readAloudEnabled, speak, streaming, playbackSpeed]);
 
   // 2026-04-27 (Step 5): per-delta hook for chunked TTS. Same gate as
   // handleStreamComplete — duplication is intentional (keeps streaming hook
@@ -313,7 +318,7 @@ export default function RideshareCoach({
           <Zap className="h-4 w-4" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-sm">Rideshare Coach</h3>
+          <h3 className="font-semibold text-sm">Coach</h3>
           <p className="text-xs text-white/80">Powered by Gemini 3 Pro</p>
         </div>
         {/* 2026-04-13: Voice Output Toggle */}
@@ -332,6 +337,34 @@ export default function RideshareCoach({
         >
           {readAloudEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
         </Button>
+        {/* 2026-04-29: TTS speed selector — visible only when read-aloud is on.
+            Browser timestretch preserves pitch up to ~2× cleanly for speech. */}
+        {readAloudEnabled && (
+          <div
+            className="flex items-center gap-0.5 bg-white/10 rounded-full px-1 py-0.5"
+            data-testid="speed-selector"
+            role="group"
+            aria-label="Playback speed"
+          >
+            {SPEED_OPTIONS.map((speed) => (
+              <button
+                key={speed}
+                type="button"
+                aria-pressed={playbackSpeed === speed}
+                onClick={() => setPlaybackSpeed(speed)}
+                className={`text-[10px] px-1.5 py-0.5 rounded-full transition ${
+                  playbackSpeed === speed
+                    ? 'bg-white text-blue-700 font-bold'
+                    : 'text-white/70 hover:bg-white/10'
+                }`}
+                title={`Playback speed ${speed}×`}
+                data-testid={`button-speed-${speed}`}
+              >
+                {speed === 1.0 ? '1×' : `${speed}×`}
+              </button>
+            ))}
+          </div>
+        )}
         {/* 2026-01-05: Notes Panel Toggle */}
         <Button
           onClick={() => setNotesOpen(!notesOpen)}
@@ -496,7 +529,7 @@ export default function RideshareCoach({
               <MessageSquare className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your Rideshare Coach</h4>
+              <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-2">Hey! I'm Your Coach</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300 max-w-sm mx-auto leading-relaxed">
                 Ask me anything - rideshare strategy, life advice, or just chat. I can search the web too!
               </p>

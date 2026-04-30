@@ -156,7 +156,7 @@ export default function PublicConciergePage() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
-      {/* ═══ GRADIENT HEADER BAR (matches AI Coach styling) ═══ */}
+      {/* ═══ GRADIENT HEADER BAR (matches Coach styling) ═══ */}
       <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <div className="flex items-center justify-center h-9 w-9 rounded-full bg-white/20 flex-shrink-0">

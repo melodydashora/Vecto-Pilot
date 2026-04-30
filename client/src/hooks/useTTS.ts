@@ -14,10 +14,12 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 interface UseTTSReturn {
   isSpeaking: boolean;
   /** Speak text aloud. Optionally specify a language for multilingual TTS.
+   *  Optional `playbackRate` (default 1.0) controls speed; applied to both the
+   *  HTML audio element and the browser-TTS fallback path.
    *  Returns a Promise that resolves when audio playback ENDS (onended, browser-TTS
    *  completion, or stop()-initiated cancellation) — NOT when playback starts.
    *  Required by useStreamingReadAloud's drain worker for sequential chunked playback. */
-  speak: (text: string, language?: string) => Promise<void>;
+  speak: (text: string, language?: string, playbackRate?: number) => Promise<void>;
   stop: () => void;
   /** Call from a user gesture (click/tap) to unlock audio for later programmatic playback. */
   warmUp: () => void;
@@ -27,7 +29,7 @@ interface UseTTSReturn {
  * Speak using browser's native speechSynthesis API (free, no network, iOS-compatible).
  * Returns true if successfully started, false if not available.
  */
-function speakWithBrowserTTS(text: string, language?: string): boolean {
+function speakWithBrowserTTS(text: string, language?: string, playbackRate: number = 1.0): boolean {
   if (!window.speechSynthesis) return false;
 
   // Cancel any ongoing speech
@@ -35,7 +37,8 @@ function speakWithBrowserTTS(text: string, language?: string): boolean {
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = language === 'en' ? 'en-US' : language || 'en-US';
-  utterance.rate = 1.0;
+  // 2026-04-29: TTS speed control — applies to both browser-fallback and OpenAI paths.
+  utterance.rate = playbackRate;
   utterance.pitch = 1.0;
   utterance.volume = 1.0;
 
@@ -101,7 +104,7 @@ export function useTTS(): UseTTSReturn {
   //   useStreamingReadAloud's drain worker plays chunks sequentially instead of
   //   N+1 calling stop() on N mid-playback. Existing non-awaiting callers
   //   (Translation, Coach post-stream) are unaffected — they fire-and-forget.
-  const speak = useCallback(async (text: string, language?: string): Promise<void> => {
+  const speak = useCallback(async (text: string, language?: string, playbackRate: number = 1.0): Promise<void> => {
     if (!text) return;
 
     if (isSpeaking) {
@@ -151,6 +154,9 @@ export function useTTS(): UseTTSReturn {
           const audio = audioRef.current;
           audio.src = audioUrl;
           audio.volume = 1;
+          // 2026-04-29: TTS speed control. Browser timestretch preserves pitch
+          // cleanly up to ~2× for speech.
+          audio.playbackRate = playbackRate;
 
           audio.onended = () => {
             setIsSpeaking(false);
@@ -162,7 +168,7 @@ export function useTTS(): UseTTSReturn {
             URL.revokeObjectURL(audioUrl);
             // 2026-04-13: Audio element failed (iOS autoplay restriction) — fall back to browser TTS
             console.log('[TTS] Audio element failed, falling back to browser speechSynthesis');
-            if (speakWithBrowserTTS(text, language)) {
+            if (speakWithBrowserTTS(text, language, playbackRate)) {
               // Track when browser TTS finishes
               const checkInterval = setInterval(() => {
                 if (!window.speechSynthesis.speaking) {
@@ -187,7 +193,7 @@ export function useTTS(): UseTTSReturn {
         } catch (err) {
           // 2026-04-13: Network/API error — try browser TTS as fallback
           console.warn('[TTS] OpenAI TTS failed, trying browser fallback:', err);
-          if (speakWithBrowserTTS(text, language)) {
+          if (speakWithBrowserTTS(text, language, playbackRate)) {
             console.log('[TTS] Playing audio via browser speechSynthesis (fallback)');
             const checkInterval = setInterval(() => {
               if (!window.speechSynthesis.speaking) {

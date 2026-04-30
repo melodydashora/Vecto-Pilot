@@ -13,11 +13,13 @@ import { cleanTextForTTS } from '@/utils/coach/cleanTextForTTS';
 
 export interface UseStreamingReadAloudParams {
   /** Speaks one chunk; should resolve when audio playback completes. */
-  speak: (text: string, language?: string) => Promise<void>;
+  speak: (text: string, language?: string, playbackRate?: number) => Promise<void>;
   /** Stops in-flight TTS audio (called during abort). */
   stopSpeak: () => void;
   /** BCP-47 language code; default 'en'. */
   language?: string;
+  /** TTS playback speed (1.0 default). 2026-04-29: speed-control feature. */
+  playbackSpeed?: number;
   /** Hard cap per chunk to avoid runaway calls if a single sentence is huge. */
   maxChunkChars?: number;
 }
@@ -35,6 +37,7 @@ export function useStreamingReadAloud({
   speak,
   stopSpeak,
   language = 'en',
+  playbackSpeed = 1.0,
   maxChunkChars = 1000,
 }: UseStreamingReadAloudParams): UseStreamingReadAloudReturn {
   const bufferRef = useRef<string>('');
@@ -52,7 +55,7 @@ export function useStreamingReadAloud({
         if (!chunk) continue;
 
         try {
-          await speak(chunk, language);
+          await speak(chunk, language, playbackSpeed);
         } catch (err) {
           console.warn('[useStreamingReadAloud] chunk speak failed:', err);
         }
@@ -60,7 +63,7 @@ export function useStreamingReadAloud({
     } finally {
       drainingRef.current = false;
     }
-  }, [speak, language]);
+  }, [speak, language, playbackSpeed]);
 
   // Pull every complete sentence off the buffer and enqueue as TTS chunks.
   const drainBufferToQueue = useCallback(() => {

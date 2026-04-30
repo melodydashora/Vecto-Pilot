@@ -9,7 +9,7 @@
  */
 
 /**
- * When true, the Rideshare Coach reads responses aloud chunk-by-chunk as each
+ * When true, the Coach reads responses aloud chunk-by-chunk as each
  * sentence completes (vs. waiting for the full response).
  *
  * Default: `false` (Step 5). Step 6 flips the default to `true`.
