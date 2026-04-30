@@ -1,7 +1,8 @@
 # STRATEGY.md — Strategy Generation Architecture
 
-> **Canonical reference** for the NOW (1-hour tactical) and 12-Hour (daily consolidated) strategy system.
-> Last updated: 2026-04-14
+> **Canonical reference** for the NOW (1-hour tactical) strategy system.
+> The daily / 12-Hour consolidated strategy was removed 2026-04-27 (`chore/remove-daily-strategy` merge `d39d570f`); STRATEGY_TACTICAL is now the singular live strategy engine. The `strategies.consolidated_strategy` column is dead-but-defined and is scheduled for removal in the Phase 3 schema fix.
+> Last updated: 2026-04-30
 
 ## Supersedes
 - `docs/architecture/Strategy.md` — High-level overview, now expanded here with full code paths
@@ -26,22 +27,22 @@
 
 ---
 
-## 1. NOW vs 12HR Strategy Distinction
+## 1. NOW Strategy
 
-| Property | NOW (Immediate/Tactical) | 12HR (Daily/Consolidated) |
-|----------|--------------------------|---------------------------|
-| DB column | `strategies.strategy_for_now` | `strategies.consolidated_strategy` |
-| Trigger | Auto — part of blocks-fast waterfall | On-demand — user clicks "Daily Strategy" |
-| Model | `STRATEGY_TACTICAL` → Claude Opus 4.6 | `STRATEGY_DAILY` → Claude Opus 4.6 |
-| Time horizon | Next 1 hour | Next 8–12 hours |
-| Input | Snapshot + briefing (traffic, events, weather, weather_forecast, news, closures, airport) + driver preferences + earnings context | Snapshot + briefing (same) + driver preferences + earnings context |
-| Output format | GO / AVOID / WHEN / WHY / IF NO PING / INTEL | 4–6 paragraphs covering time blocks |
-| Max tokens | 16,000 | 16,000 |
-| Temperature | 0.5 | 0.5 |
-| Typical latency | 5–8 seconds | 8–15 seconds |
-| Route | Part of `POST /api/blocks-fast` | `POST /api/strategy/daily/:snapshotId` |
+| Property | NOW (Immediate/Tactical) |
+|----------|--------------------------|
+| DB column | `strategies.strategy_for_now` |
+| Trigger | Auto — part of blocks-fast waterfall |
+| Model | `STRATEGY_TACTICAL` → Claude Opus 4.6 |
+| Time horizon | Next 1 hour |
+| Input | Snapshot + briefing (traffic, events, weather, weather_forecast, news, closures, airport) + driver preferences + earnings context |
+| Output format | GO / AVOID / WHEN / WHY / IF NO PING / INTEL |
+| Max tokens | 16,000 |
+| Temperature | 0.5 |
+| Typical latency | 5–8 seconds |
+| Route | Part of `POST /api/blocks-fast` |
 
-**Key design point:** The NOW strategy is always auto-generated as part of the main pipeline. The 12HR strategy is optional and user-initiated.
+**Key design point:** The NOW strategy is always auto-generated as part of the main pipeline. There is no separate user-initiated daily strategy — that path was removed 2026-04-27.
 
 ---
 
@@ -84,30 +85,6 @@ POST /api/blocks-fast { snapshotId }
 
 **Total typical duration:** 35–90 seconds
 
-### Daily Strategy Entry Point
-
-**File:** `server/lib/ai/providers/consolidator.js` (lines 764–980)
-**Route:** `POST /api/strategy/daily/:snapshotId`
-
-```
-POST /api/strategy/daily/:snapshotId
-  │
-  ├─ Check prerequisites: strategy row exists, briefing exists
-  ├─ Check if consolidated_strategy already cached → return cached
-  │
-  ├─ Build 12HR prompt:
-  │  ├─ Snapshot context (address, timezone, time, holiday)
-  │  ├─ Briefing data (traffic, events, news, weather, closures, airport)
-  │  ├─ Venue hours from venue_catalog (batch lookup)
-  │  └─ Task: "Create DAILY STRATEGY covering 8-12 hours"
-  │
-  ├─ callModel('STRATEGY_DAILY', { system, user: prompt })
-  │  └─ Claude Opus 4.6 | maxTokens: 16,000 | temp: 0.5
-  │  └─ Retry: 2 attempts with 1s/2s backoff for 503/429
-  │
-  └─ Write to strategies.consolidated_strategy
-```
-
 ### Briefing → Strategy Dependency
 
 **Critical:** Briefing MUST complete before strategy generation. The briefing provides the real-time data (traffic conditions, events, weather, news) that the strategy LLM needs to make informed recommendations.
@@ -140,20 +117,6 @@ The briefing readiness gate (lines 707–743) polls the DB for up to 90 seconds 
 **INTEL:** [Additional context — events ending, weather shift, etc.]...
 ```
 
-### 12HR Strategy Prompt
-
-**File:** `server/lib/ai/providers/consolidator.js` (lines 850–936)
-
-**Additional input:** Venue hours from `venue_catalog` (batch looked up via `batchLookupVenueHours()`)
-
-**Output format:** 4–6 paragraphs covering:
-- Today's overview (weather, events, holiday impact)
-- Time-block strategy (morning → afternoon → evening → night)
-- Events impact with END times (critical for post-event surge)
-- Traffic & hazards
-- Peak earning windows
-- Airport & late-night strategy
-
 ### Data Optimization for Prompts
 
 Before injection into LLM prompts, raw data is compressed:
@@ -185,8 +148,8 @@ Before injection into LLM prompts, raw data is compressed:
 | `phase` | text | Pipeline phase (see Section 8) |
 | `phase_started_at` | timestamp | When current phase began (for progress bar) |
 | `error_message` | text | Failure reason |
-| `strategy_for_now` | text | **NOW strategy** — 1-hour tactical |
-| `consolidated_strategy` | text | **12HR strategy** — daily plan (nullable, on-demand) |
+| `strategy_for_now` | text | **NOW strategy** — 1-hour tactical (sole live strategy output) |
+| `consolidated_strategy` | text | **DEAD COLUMN** — was 12HR strategy; removed 2026-04-27, column drop pending in Phase 3 schema fix |
 | `created_at` | timestamp | Row creation |
 | `updated_at` | timestamp | Last update |
 
@@ -196,7 +159,7 @@ Before injection into LLM prompts, raw data is compressed:
 
 **File:** `migrations/20260110_fix_strategy_now_notify.sql`
 
-A PostgreSQL trigger fires `pg_notify('strategy_ready', ...)` when `strategy_for_now` or `consolidated_strategy` columns are updated. This drives the SSE notification to clients.
+A PostgreSQL trigger fires `pg_notify('strategy_ready', ...)` when the `strategy_for_now` column is updated. This drives the SSE notification to clients. (The trigger also fires on `consolidated_strategy` updates, but that column is dead post-2026-04-27 and the clause will be simplified in the Phase 3 schema fix.)
 
 ---
 
@@ -208,7 +171,6 @@ A PostgreSQL trigger fires `pg_notify('strategy_ready', ...)` when `strategy_for
 | Manual GPS refresh | Clear all → release snapshot → fresh waterfall | `POST /api/blocks-fast` |
 | Resume from app switch | Restore from localStorage if snapshot matches; skip waterfall | N/A (client-side) |
 | User clicks "Retry" | New snapshot created → full waterfall | `POST /api/strategy/:id/retry` |
-| User clicks "Daily Strategy" | Generate 12HR from existing briefing (no new snapshot) | `POST /api/strategy/daily/:snapshotId` |
 | Stale strategy detected | Reset status → re-run waterfall | Automatic in blocks-fast |
 
 ### Staleness Detection
@@ -270,8 +232,9 @@ Briefing data is a **required input** to strategy generation. The flow is strict
 
 | Key | Content | Cleared On |
 |-----|---------|------------|
-| `vecto_persistent_strategy` | Latest `consolidated_strategy` text | Logout, manual refresh, snapshot change |
 | `vecto_strategy_snapshot_id` | Snapshot ID the strategy belongs to | Logout, manual refresh, snapshot change |
+
+> **Note:** The legacy `vecto_persistent_strategy` localStorage key (which stored the 12HR `consolidated_strategy` text) is no longer written post-2026-04-27. Stale entries on returning clients are harmless — the value is no longer read by `co-pilot-context.tsx` after the daily strategy removal.
 
 On resume: CoPilotContext restores strategy from localStorage only if `vecto_strategy_snapshot_id` matches the current `lastSnapshotId`. Mismatched strategies are discarded.
 
@@ -344,8 +307,7 @@ isStrategyFetching: boolean;            // React Query isFetching flag
 
 | Area | Status |
 |------|--------|
-| NOW strategy generation (Claude Opus) | Working — auto-generated in waterfall |
-| 12HR strategy generation (Claude Opus) | Working — on-demand via button |
+| NOW strategy generation (Claude Opus) | Working — auto-generated in waterfall (sole live strategy post-2026-04-27) |
 | Briefing → Strategy dependency | Working — 90s readiness gate |
 | Strategy polling (3s) | Working — stops on ok/error |
 | SSE strategy_ready notification | Working — pg_notify trigger |
@@ -359,22 +321,20 @@ isStrategyFetching: boolean;            // React Query isFetching flag
 
 1. **No strategy versioning** — When a strategy is regenerated for the same snapshot, the old text is overwritten. No history of previous recommendations.
 
-2. **12HR strategy requires explicit user action** — The daily strategy is never auto-generated. Users who don't know about the button miss it entirely.
+2. **No strategy quality scoring** — No automated evaluation of strategy quality. Only user feedback (thumbs up/down) exists.
 
-3. **No strategy quality scoring** — No automated evaluation of strategy quality. Only user feedback (thumbs up/down) exists.
+3. **Briefing readiness gate is time-based, not content-based** — Waits up to 90 seconds regardless of which specific data sources are missing. Could be smarter about proceeding with partial data.
 
-4. **Briefing readiness gate is time-based, not content-based** — Waits up to 90 seconds regardless of which specific data sources are missing. Could be smarter about proceeding with partial data.
+4. **No strategy diff** — When the driver refreshes, there's no way to see what changed between the old and new strategy.
 
-5. **No strategy diff** — When the driver refreshes, there's no way to see what changed between the old and new strategy.
-
-6. ~~**Strategy prompt doesn't include driver preferences**~~ — **RESOLVED 2026-04-11.** Driver preferences (vehicle class, fuel economy, earnings goal, shift hours, max deadhead) and earnings context are now injected via `loadDriverPreferences()` + `buildDriverPreferencesSection()` + `buildEarningsContextSection()` in `consolidator.js`. See `STRATEGIST_ENRICHMENT_PLAN.md` for full details.
+5. ~~**Strategy prompt doesn't include driver preferences**~~ — **RESOLVED 2026-04-11.** Driver preferences (vehicle class, fuel economy, earnings goal, shift hours, max deadhead) and earnings context are now injected via `loadDriverPreferences()` + `buildDriverPreferencesSection()` + `buildEarningsContextSection()` in `consolidator.js`. See `STRATEGIST_ENRICHMENT_PLAN.md` for full details.
 
 ---
 
 ## 12. TODO — Hardening Work
 
-- [x] **Inject driver preferences into strategy prompt** — DONE 2026-04-11. Vehicle class, fuel economy, earnings goal, shift hours, max deadhead, home base. Both immediate and daily paths.
-- [ ] **Auto-generate 12HR strategy** — Generate alongside NOW strategy as part of waterfall
+- [x] **Inject driver preferences into strategy prompt** — DONE 2026-04-11. Vehicle class, fuel economy, earnings goal, shift hours, max deadhead, home base.
+- [x] **Daily strategy removed** — DONE 2026-04-27 in `chore/remove-daily-strategy` merge `d39d570f`. STRATEGY_TACTICAL is now the singular live strategy engine.
 - [ ] **Add strategy quality scoring** — LLM self-evaluation or heuristic scoring of recommendation quality
 - [ ] **Add strategy diff on refresh** — Show what changed between previous and new strategy
 - [ ] **Smarter briefing gate** — Proceed with partial data after minimum threshold (e.g., traffic + events ready, skip airport)
@@ -388,8 +348,7 @@ isStrategyFetching: boolean;            // React Query isFetching flag
 | File | Purpose |
 |------|---------|
 | `server/api/strategy/blocks-fast.js` | Main waterfall trigger (900+ lines) |
-| `server/lib/ai/providers/consolidator.js` | Strategy generation + prompt optimization (1,098 lines) |
-| `server/lib/strategy/strategy-generator.js` | Entry point (legacy, mostly disabled) |
+| `server/lib/ai/providers/consolidator.js` | Strategy generation + prompt optimization. STRATEGY_TACTICAL caller at line 157 (`generateImmediateStrategy()`). |
 | `server/lib/strategy/strategy-utils.js` | Phase management, timing info |
 | `server/api/strategy/strategy.js` | Strategy API routes (392 lines) |
 | `server/api/strategy/strategy-events.js` | SSE endpoints for strategy/blocks/phase |

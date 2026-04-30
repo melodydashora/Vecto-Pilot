@@ -71,7 +71,7 @@
   - [server/eidolon/core/llm.ts](/server/eidolon/core/llm.ts)
 - **Endpoints**: `https://api.anthropic.com/v1/messages`
 - **Models**:
-  - `claude-opus-4-6` (primary — STRATEGY_CORE, STRATEGY_TACTICAL, STRATEGY_DAILY)
+  - `claude-opus-4-6` (primary — STRATEGY_CORE, STRATEGY_TACTICAL)
 - **Purpose**: Strategic analysis and planning
 - **UI Location**: StrategyPage strategy display
 

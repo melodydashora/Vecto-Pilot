@@ -100,8 +100,7 @@ Provides cross-provider fallback:
 |------|-------|----------|---------|
 | `STRATEGY_CORE` | claude-opus-4-6 | — | Core strategic plan |
 | `STRATEGY_CONTEXT` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | Real-time context gathering |
-| `STRATEGY_TACTICAL` | claude-opus-4-6 | — | 1-hour tactical consolidation |
-| `STRATEGY_DAILY` | claude-opus-4-6 | — | 8–12hr daily strategy |
+| `STRATEGY_TACTICAL` | claude-opus-4-6 | — | 1-hour tactical consolidation (sole live strategy role post-2026-04-27) |
 
 #### Venue/Ranking Roles
 
@@ -220,12 +219,6 @@ runImmediateStrategy(snapshotId, { briefingRow })
   └─ Store in strategies.strategy_for_now
       └─ DB trigger fires → pg_notify('strategy_ready')
 ```
-
-### Daily Strategy
-
-**Function:** `runConsolidator()`
-**Model:** `STRATEGY_DAILY` → Claude Opus 4.6
-**Purpose:** 8–12 hour strategic planning
 
 ### Mid-Request Auth Expiry
 
@@ -469,8 +462,7 @@ All read from `process.env`. No values stored in code.
 | Path | Auth | Model | Status |
 |------|------|-------|--------|
 | Rideshare Coach chat | `requireAuth` | Gemini 3.1 Pro (streaming) | Working |
-| Tactical strategy | `requireAuth` (via waterfall) | Claude Opus 4.6 | Working |
-| Daily strategy | `requireAuth` (via waterfall) | Claude Opus 4.6 | Working |
+| Tactical strategy (sole live strategy) | `requireAuth` (via waterfall) | Claude Opus 4.6 | Working |
 | Briefing (7 LLM calls) | `requireAuth` (via waterfall) | Gemini 3.1 Pro (search) | Working |
 | Concierge search | Share token | Gemini 3.1 Pro (search) | Working |
 | Concierge chat | Share token | Gemini 3.1 Pro (search) | Working |

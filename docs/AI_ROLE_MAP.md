@@ -29,8 +29,7 @@ All roles follow the `{TABLE}_{FUNCTION}` naming convention defined in `model-re
 |-----------|--------------|-------------|--------------------|-----------|--------------------|
 | `STRATEGY_CORE` | Anthropic (Claude flagship) | `server/gateway/assistant-proxy.ts:33` | TRIAD pipeline step 1 | Full snapshot + briefing | `strategies.core_analysis` |
 | `STRATEGY_CONTEXT` | Google (Gemini Pro) | `server/api/strategy/tactical-plan.js:172` | `generateTacticalPlan()` | Snapshot, briefing summary | Real-time context for strategy enrichment |
-| `STRATEGY_TACTICAL` | Anthropic (Claude flagship) | `server/lib/ai/providers/consolidator.js:268` + `planner-gpt5.js:54` | `generateImmediateStrategy()` | Snapshot + briefing + events + preferences | `strategies.immediate_strategy` |
-| `STRATEGY_DAILY` | Anthropic (Claude flagship) | `server/lib/ai/providers/consolidator.js:323` | `generateDailyStrategy()` | Snapshot + briefing + events + preferences | `strategies.daily_strategy` |
+| `STRATEGY_TACTICAL` | Anthropic (Claude flagship) | `server/lib/ai/providers/consolidator.js:157` | `generateImmediateStrategy()` | Snapshot + briefing + events + preferences | `strategies.strategy_for_now` |
 
 ### 3. VENUE Roles (write to `ranking_candidates` / Smart Blocks)
 
@@ -114,7 +113,6 @@ Roles with cross-provider fallback (via `FALLBACK_ENABLED_ROLES`):
 |------|-----------------|------------------|
 | `STRATEGY_TACTICAL` | Anthropic (Claude flagship) | Google (Gemini Flash) |
 | `STRATEGY_CONTEXT` | Google (Gemini Pro) | OpenAI (GPT-5 family) |
-| `STRATEGY_DAILY` | Anthropic (Claude flagship) | Google (Gemini Flash) |
 | `STRATEGY_CORE` | Anthropic (Claude flagship) | Google (Gemini Flash) |
 | `VENUE_FILTER` | Anthropic (Haiku) | Google (Gemini Flash) |
 | `BRIEFING_WEATHER` | Google (Gemini Pro) | OpenAI (GPT-5 family) |

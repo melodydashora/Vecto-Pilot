@@ -302,8 +302,7 @@ The adapter layer detects provider from model ID prefix:
 | **STRATEGIES TABLE** ||||
 | `STRATEGY_CORE` | Core strategic plan generation | `STRATEGY_CORE_MODEL` | |
 | `STRATEGY_CONTEXT` | Real-time context gathering | `STRATEGY_CONTEXT_MODEL` | extended thinking |
-| `STRATEGY_TACTICAL` | Immediate 1-hour tactical strategy | `STRATEGY_TACTICAL_MODEL` | fallback enabled |
-| `STRATEGY_DAILY` | Long-term 8-12hr daily strategy | `STRATEGY_DAILY_MODEL` | fallback enabled |
+| `STRATEGY_TACTICAL` | Immediate 1-hour tactical strategy (sole live strategy role post-2026-04-27) | `STRATEGY_TACTICAL_MODEL` | fallback enabled |
 | **RANKING_CANDIDATES TABLE (SmartBlocks)** ||||
 | `VENUE_SCORER` | Tactical venue recommendations (4-6 venues with coords) | `VENUE_SCORER_MODEL` | reasoning |
 | `VENUE_FILTER` | Fast low-cost venue classification | `VENUE_FILTER_MODEL` | minimal tokens |
@@ -688,8 +687,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 1. **STRATEGY_CORE** - Strategic overview and plan generation
 2. **VENUE_SCORER** - Tactical venue recommendations (JSON schema with coords)
 3. **STRATEGY_CONTEXT** - Real-time context enrichment and validation
-4. **STRATEGY_TACTICAL** - Immediate 1-hour actionable strategy
-5. **STRATEGY_DAILY** - Long-term 8-12hr daily strategy
+4. **STRATEGY_TACTICAL** - Immediate 1-hour actionable strategy (sole live strategy role post-2026-04-27)
 
 **Codebase Files:**
 - `server/lib/ai/providers/minstrategy.js` - STRATEGY_CORE role implementation

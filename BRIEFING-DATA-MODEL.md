@@ -739,15 +739,9 @@ Phase 2 Appendix A identified three columns on the `briefings` table that are de
 - **§8.3 (task-relevant subset):** COMPLIANT — only 8 fields used.
 - **Verdict:** **COMPLIANT.** The narrative is instructional and necessary; not §8.2 anti-pattern.
 
-#### E.2.2 `server/lib/ai/providers/consolidator.js:1454–1499` — STRATEGY_DAILY prompt
+#### E.2.2 STRATEGY_DAILY prompt — REMOVED 2026-04-27
 
-- **Fields used:** `formatted_address`, `city`, `state`, `lat`, `lng`, `timezone`, `dow`, `day_part_key`, `is_holiday`, `holiday`, `local_iso` (via `formatLocalTime`).
-- **Structured vs narrative:** Explicitly structured via a `=== DRIVER CONTEXT ===` block with labeled fields (`Current position: X / Coordinates: lat,lng / City: X, Y / Timezone: Z / Current Time: T / Day: D [WEEKEND/WEEKDAY] / Day Part: P / HOLIDAY: name`).
-- **§8.1 (full snapshot sent):** COMPLIANT-IN-SPIRIT. All driver-context fields relevant to strategy are present as labeled fields. Not sent as a raw JSON blob, but every field the role needs is in structured form.
-- **§8.2 (no narrative restatement):** COMPLIANT. No prose paraphrase — each field is a `key: value` line.
-- **§8.3 (task-relevant subset):** COMPLIANT. No unused fields bloat the prompt.
-- **Derivation audit:** `dayOfWeek = dayNames[snapshot.dow]` at :1431 is a **display derivation** from `snapshot.dow`, not a recomputation. Similarly `isWeekend = snapshot.dow === 0 || snapshot.dow === 6` reads the persisted field. These are §3.3-compliant.
-- **Verdict:** **COMPLIANT.** Exemplary pattern — use as reference for future prompt sites.
+The STRATEGY_DAILY role and its prompt at `consolidator.js:1454–1499` were removed in the `chore/remove-daily-strategy` merge (commit `d39d570f`). The only live strategy role is now STRATEGY_TACTICAL — see §E.2.1 for the active immediate-strategy prompt audit. The `strategies.consolidated_strategy` column is dead-but-defined; column drop pending in the Phase 3 schema fix.
 
 #### E.2.3 `server/lib/strategy/tactical-planner.js:85–160` — VENUE_SCORER prompt
 

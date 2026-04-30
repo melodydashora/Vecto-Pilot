@@ -7,7 +7,9 @@
 
 ## Overview
 
-Briefing data is stored as JSONB columns in the `briefings` table. The **consolidator** (`server/lib/ai/providers/consolidator.js`) reads these columns, renames/transforms them into a simpler `briefing` object, then passes that object to `generateImmediateStrategy()` or `generateDailyStrategy()`. The strategist prompt functions further transform specific fields into structured text blocks.
+Briefing data is stored as JSONB columns in the `briefings` table. The **consolidator** (`server/lib/ai/providers/consolidator.js`) reads these columns, renames/transforms them into a simpler `briefing` object, then passes that object to `generateImmediateStrategy()`. The strategist prompt functions further transform specific fields into structured text blocks.
+
+> **Note (2026-04-27):** The daily / `generateDailyStrategy()` path was removed in the `chore/remove-daily-strategy` merge (commit `d39d570f`). STRATEGY_TACTICAL via `generateImmediateStrategy()` is now the sole live strategist consumer of this transformation path. References to `consolidateForDailyStrategy()` and the daily path below are preserved for historical context only — those code paths no longer exist in `consolidator.js`.
 
 ## 1. Persisted DB Column Shape (`briefings` table)
 
@@ -107,10 +109,10 @@ After the DB→strategist mapping, these functions further transform specific fi
 
 The system has two distinct event input paths that feed different AI roles. Each path has a different source of truth for events:
 
-### Strategist Roles (STRATEGY_TACTICAL, STRATEGY_DAILY)
+### Strategist Role (STRATEGY_TACTICAL)
 
 - **Event source:** Frozen `briefings.events` JSONB snapshot only
-- **Where:** `consolidator.js` lines 1651 (immediate) and 1384 (daily): `parseJsonField(briefingRow.events)`
+- **Where:** `consolidator.js` line 1651 (immediate): `parseJsonField(briefingRow.events)`
 - **No live augmentation.** The strategist sees exactly what the briefing pipeline stored at snapshot time.
 - **Rationale:** Strategy output must be deterministic relative to the snapshot. If events changed between briefing generation and strategy generation, the strategist would contradict the briefing the user already sees.
 
@@ -135,10 +137,10 @@ briefings.events (JSONB)          discovered_events (live table)
   consolidator.js                 filter-for-planner.js
   ┌─────────────────┐            ┌─────────────────────────┐
   │ STRATEGY_TACTICAL│            │ todayEvents → events    │
-  │ STRATEGY_DAILY   │            │ briefing → traffic,     │
-  │                  │            │   weather, closures,    │
-  │ (frozen snapshot │            │   airport               │
-  │  events only)    │            └──────────┬──────────────┘
+  │                  │            │ briefing → traffic,     │
+  │ (frozen snapshot │            │   weather, closures,    │
+  │  events only)    │            │   airport               │
+  │                  │            └──────────┬──────────────┘
   └──────────────────┘                       │
                                              ▼
                                      VENUE_SCORER
@@ -167,7 +169,6 @@ Four overlapping read paths exist. The client now uses the PRIMARY routes; the o
 - `API_ROUTES.BLOCKS.STRATEGY(id)` → primary polling
 - `API_ROUTES.BRIEFING.*` → dedicated section endpoints
 - `API_ROUTES.BLOCKS.FAST` → pipeline trigger
-- `API_ROUTES.STRATEGY.DAILY(id)` → on-demand daily strategy generation
 
 ---
 
