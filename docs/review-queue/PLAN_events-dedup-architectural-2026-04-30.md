@@ -508,6 +508,6 @@ They encode the doctrine driving this plan. The implementation steps in §1–§
 |------|----------|-----------|--------|
 | 2026-04-30 | Reject Choice B (composite key) | `lower(title)` exact-match would force title-mangling to catch prefix variations, degrading UI | Melody |
 | 2026-04-30 | Adopt Choice A (refined hash) | Late-binding identity decouples hash from stored title; normalization can evolve without schema migrations | Melody (with Claude concurrence after audit) |
-| 2026-04-30 | Bundle site #4 (briefing-service.js:1610) | Goal is dumb-and-fast read path; leaving #4 defeats the architecture | Melody |
+| 2026-04-30 | Bundle site #4 (briefing-service.js:1610) | Goal is a lean, pure-SELECT read path; leaving #4 defeats the architecture by keeping computation in a layer that should only retrieve | Melody |
 | 2026-04-30 | Clean up venue-less event dupes | Choice A's hash naturally handles them via city fallback; intelligence-only events shouldn't be exempt from data integrity | Melody |
 | 2026-04-30 | JS migration script (not SQL PL/pgSQL) | Imports the same `generateEventHash` the app uses → guaranteed parity. SQL re-implementation would create drift risk | Claude (concurrence after Melody push-back) |
