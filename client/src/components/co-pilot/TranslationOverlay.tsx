@@ -134,7 +134,7 @@ export default function TranslationOverlay() {
           stream.getTracks().forEach(t => t.stop());
           console.log('[TranslationOverlay] Mic permission pre-granted');
         })
-        .catch(() => {}); // Will prompt on first mic tap
+        .catch(() => { }); // Will prompt on first mic tap
     }
     return () => {
       wakeLockRef.current?.release();
@@ -398,11 +398,10 @@ export default function TranslationOverlay() {
               {messages.map(msg => (
                 <div
                   key={msg.id}
-                  className={`rounded-xl px-4 py-3 max-w-[90%] ${
-                    msg.speaker === 'driver'
+                  className={`rounded-xl px-4 py-3 max-w-[90%] ${msg.speaker === 'driver'
                       ? 'bg-blue-600/90 text-white ml-auto text-right'
                       : 'bg-slate-700 text-white mr-auto'
-                  }`}
+                    }`}
                 >
                   <div className="text-2xl sm:text-3xl md:text-4xl font-medium leading-relaxed">
                     {msg.speaker === 'driver' ? msg.translatedText : msg.originalText}
@@ -416,11 +415,10 @@ export default function TranslationOverlay() {
           {activeMode !== 'driver-speaking' && (
             <Button
               onClick={handleRiderMic}
-              className={`mt-3 mx-auto w-16 h-16 rounded-full text-2xl ${
-                activeMode === 'rider-speaking'
+              className={`mt-3 mx-auto w-16 h-16 rounded-full text-2xl ${activeMode === 'rider-speaking'
                   ? 'bg-red-500 hover:bg-red-600 animate-pulse'
                   : 'bg-blue-500 hover:bg-blue-600'
-              }`}
+                }`}
             >
               {activeMode === 'rider-speaking' ? '⬛' : '🎤'}
             </Button>
@@ -454,11 +452,10 @@ export default function TranslationOverlay() {
             {/* Driver Mic — prominent, takes most width */}
             <Button
               onClick={handleDriverMic}
-              className={`flex-1 h-12 text-base font-medium ${
-                activeMode === 'driver-speaking'
+              className={`flex-1 h-12 text-base font-medium ${activeMode === 'driver-speaking'
                   ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
                   : ''
-              }`}
+                }`}
               variant={activeMode === 'driver-speaking' ? 'default' : 'default'}
             >
               {activeMode === 'driver-speaking' ? '⬛ Stop' : '🎤 Speak English'}
@@ -542,11 +539,10 @@ export default function TranslationOverlay() {
               {messages.map(msg => (
                 <div
                   key={msg.id}
-                  className={`rounded-lg px-3 py-2 max-w-[85%] ${
-                    msg.speaker === 'driver'
+                  className={`rounded-lg px-3 py-2 max-w-[85%] ${msg.speaker === 'driver'
                       ? 'bg-primary/10 ml-auto text-right'
                       : 'bg-muted mr-auto'
-                  }`}
+                    }`}
                 >
                   <div className="text-base font-medium">
                     {msg.speaker === 'driver' ? msg.originalText : msg.translatedText}
