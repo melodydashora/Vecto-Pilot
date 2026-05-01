@@ -103,7 +103,7 @@ function reconstructGcpCredentials() {
   process.env.GOOGLE_APPLICATION_CREDENTIALS = credPath;
 
   console.log(`[CONFIG] [ENV] GCP credentials written to ${credPath}`);
-  console.log(`[CONFIG] [ENV]    project_id=${credentials.project_id}, client_email=${credentials.client_email}`);
+  console.log(`[CONFIG] [ENV]    project_id=<set>, client_email=<set>`);
 }
 
 /**
@@ -116,7 +116,7 @@ function reconstructGcpCredentials() {
 function ensureGoogleCloudProject() {
   if (!process.env.GOOGLE_CLOUD_PROJECT && process.env.GOOGLE_CLOUD_PROJECT_ID) {
     process.env.GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT_ID;
-    console.log(`[CONFIG] [ENV] Set GOOGLE_CLOUD_PROJECT=${process.env.GOOGLE_CLOUD_PROJECT_ID} (from GOOGLE_CLOUD_PROJECT_ID)`);
+    console.log(`[CONFIG] [ENV] Set GOOGLE_CLOUD_PROJECT=<set> (from GOOGLE_CLOUD_PROJECT_ID)`);
   }
 }
 

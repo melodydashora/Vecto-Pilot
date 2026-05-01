@@ -88,9 +88,9 @@ export function validateEnvironment() {
   const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.5-2026-04-23';
 
   console.log('[CONFIG] [ENV] [VALIDATION] AI Model Configuration:', {
-    strategist,
-    briefer,
-    consolidator,
+    strategist: '<set>',
+    briefer: '<set>',
+    consolidator: '<set>',
   });
   
   // Port validation
