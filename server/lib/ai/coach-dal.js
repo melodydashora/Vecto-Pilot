@@ -173,7 +173,6 @@ export class CoachDAL {
         .select({
           snapshot_id: strategies.snapshot_id,
           user_id: strategies.user_id,
-          consolidated_strategy: strategies.consolidated_strategy,
           strategy_for_now: strategies.strategy_for_now,
           created_at: strategies.created_at,
           status: strategies.status,
@@ -201,9 +200,8 @@ export class CoachDAL {
       return {
         snapshot_id: strat.snapshot_id,
         user_id: strat.user_id,
-        strategy_text: strat.consolidated_strategy || strat.strategy_for_now || null,
+        strategy_text: strat.strategy_for_now || null,
         strategy_for_now: strat.strategy_for_now,
-        consolidated_strategy: strat.consolidated_strategy,
         strategy_timestamp: strat.created_at?.toISOString() || null,  // Use created_at as canonical timestamp
         holiday: snapshot?.holiday || null,
         user_address: snapshot?.formatted_address || null,
@@ -866,7 +864,6 @@ export class CoachDAL {
   _determineStatus(snapshot, strategy, briefing, smartBlocks) {
     if (!snapshot) return 'missing_snapshot';
     if (!strategy) return 'pending_strategy';
-    if (!strategy.consolidated_strategy) return 'pending_consolidation';
     if (smartBlocks.length === 0) return 'pending_blocks';
     return 'ready';
   }
@@ -1001,11 +998,8 @@ export class CoachDAL {
       }
     }
 
-    // ========== STRATEGY & CONSOLIDATION ==========
+    // ========== STRATEGY ==========
     if (strategy) {
-      if (strategy.consolidated_strategy) {
-        prompt += `\n\n=== AI-GENERATED DAILY STRATEGY (8-12hr) ===\n${strategy.consolidated_strategy}`;
-      }
       if (strategy.strategy_for_now) {
         prompt += `\n\n=== IMMEDIATE STRATEGY (Next 1hr) ===\n${strategy.strategy_for_now}`;
       }
@@ -1185,7 +1179,7 @@ export class CoachDAL {
     prompt += `\n   ✓ Driver Profile: ${driverProfile ? `${driverProfile.first_name} ${driverProfile.last_name}` : 'Not registered'}`;
     prompt += `\n   ✓ Vehicle: ${driverVehicle ? `${driverVehicle.year} ${driverVehicle.make} ${driverVehicle.model}` : 'Not set'}`;
     prompt += `\n   ✓ Snapshot: ${snapshot ? 'Complete' : 'Unavailable'}`;
-    prompt += `\n   ✓ Strategy: ${strategy ? (strategy.consolidated_strategy ? 'Ready' : 'In Progress') : 'Pending'}`;
+    prompt += `\n   ✓ Strategy: ${strategy?.strategy_for_now ? 'Ready' : 'Pending'}`;
     prompt += `\n   ✓ Briefing: ${briefing && Object.keys(briefing).length > 0 ? 'Complete' : 'Unavailable'}`;
     prompt += `\n   ✓ Smart Blocks: ${smartBlocks?.length || 0} venues`;
     prompt += `\n   ✓ Feedback: ${feedback?.venue_feedback?.length || 0} venue votes`;
