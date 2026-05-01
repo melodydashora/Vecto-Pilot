@@ -8,7 +8,7 @@ import { z } from 'zod';
 // 2026-01-10: Removed direct Anthropic import - use callModel adapter instead (D-016)
 // 2026-02-11: Removed direct OpenAI and GoogleGenAI imports - all AI calls go through callModel adapter
 // This ensures thinkingLevel, safety settings, and JSON cleanup are consistently applied
-import { briefingLog, OP } from '../../logger/workflow.js';
+import { briefingLog, OP, matrixLog } from '../../logger/workflow.js';
 // Centralized AI adapter - use for all model calls
 import { callModel } from '../ai/adapters/index.js';
 // Dump last briefing row to file for debugging
@@ -455,7 +455,14 @@ async function analyzeTrafficWithAI({ tomtomData, rawTraffic, city, state, forma
   // Model is resolved from BRIEFING_TRAFFIC registry role (gemini-3.1-pro-preview)
 
   const startTime = Date.now();
-  briefingLog.ai(1, 'Gemini Pro', `analyzing traffic for ${city}, ${state}`);
+  matrixLog.info({
+    category: 'BRIEFING',
+    connection: 'AI',
+    action: 'DISPATCH',
+    roleName: 'BRIEFER',
+    secondaryCat: 'TRAFFIC',
+    location: 'briefing-service.js:analyzeTrafficWithAI',
+  }, 'Calling Briefer for traffic analysis');
 
   try {
     // Prepare incident data with distance information
@@ -526,7 +533,14 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
     const result = await callModel('BRIEFING_TRAFFIC', { system, user: prompt });
 
     if (!result.ok) {
-      briefingLog.warn(1, `BRIEFING_TRAFFIC callModel failed: ${result.error}`, OP.AI);
+      matrixLog.error({
+        category: 'BRIEFING',
+        connection: 'AI',
+        action: 'COMPLETE',
+        roleName: 'BRIEFER',
+        secondaryCat: 'TRAFFIC',
+        location: 'briefing-service.js:analyzeTrafficWithAI',
+      }, 'Briefer call failed', result.error);
       return null;
     }
 
@@ -542,13 +556,27 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
     }
 
     if (!jsonMatch) {
-      briefingLog.warn(1, `BRIEFING_TRAFFIC returned non-JSON (${content.length} chars)`, OP.AI);
+      matrixLog.warn({
+        category: 'BRIEFING',
+        connection: 'AI',
+        action: 'PARSE',
+        roleName: 'BRIEFER',
+        secondaryCat: 'TRAFFIC',
+        location: 'briefing-service.js:analyzeTrafficWithAI',
+      }, `Briefer returned non-JSON (${content.length} chars)`);
       return null;
     }
 
     const analysis = JSON.parse(jsonMatch[0]);
     const elapsedMs = Date.now() - startTime;
-    briefingLog.done(1, `Gemini Pro traffic analysis (${elapsedMs}ms)`, OP.AI);
+    matrixLog.info({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'TRAFFIC',
+      location: 'briefing-service.js:analyzeTrafficWithAI',
+    }, `Briefer traffic analysis complete (${elapsedMs}ms)`);
 
     // 2026-04-11: STRATEGIST ENRICHMENT — additive changes to preserve the raw
     // TomTom incident/closure arrays alongside Gemini's analyzed strings. The
