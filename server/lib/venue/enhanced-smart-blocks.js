@@ -630,7 +630,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
 
     const totalMs = Date.now() - startTime;
     venuesLog.done(4, `Stored ${candidates.length} candidates`, totalMs);
-    venuesLog.complete(`${candidates.length} venues for ${location}`, totalMs);
+    venuesLog.complete(`${candidates.length} venues`, totalMs);
 
     // Update ranking with total time
     await db.update(rankings).set({
