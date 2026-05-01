@@ -11,7 +11,7 @@ import { requireSnapshotOwnership } from '../../middleware/require-snapshot-owne
 import { filterFreshEvents, filterFreshNews } from '../../lib/strategy/strategy-utils.js';
 // 2026-04-28: Added chainLog import to fix the broken `briefingLog ?? console.error`
 // expression at the market-events catch handler below — see edit at line ~466.
-import { chainLog } from '../../logger/workflow.js';
+import { chainLog, matrixLog } from '../../logger/workflow.js';
 
 // 2026-04-05: Self-healing for zombie placeholder rows.
 // When a briefing generation crashes (e.g., RC-1 db.execute destructuring bug), the
@@ -867,7 +867,14 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
     endDateObj.setDate(endDateObj.getDate() + 7);
     const endDate = endDateObj.toLocaleDateString('en-CA', { timeZone: userTimezone });
 
-    console.log(`[BRIEFING] [API] [EVENTS] GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
+    matrixLog.debug({
+      category: 'BRIEFING',
+      connection: 'API',
+      action: 'EVENTS',
+      roleName: 'API',
+      secondaryCat: 'FILTER',
+      location: 'briefing.js:events'
+    }, `GET /events: today=${today}, endDate=${endDate}, tz=${userTimezone}`);
 
     // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
     const events = await db.select({
@@ -948,7 +955,14 @@ router.get('/events/:snapshotId', requireAuth, requireSnapshotOwnership, async (
       const now = new Date();
       const beforeCount = allEvents.length;
       allEvents = allEvents.filter(e => isEventActiveNow(e, now, snapshotTz));
-      console.log(`[BRIEFING] [EVENTS] [FILTER] Active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTz}`);
+      matrixLog.debug({
+        category: 'BRIEFING',
+        connection: 'API',
+        action: 'EVENTS',
+        roleName: 'API',
+        secondaryCat: 'FILTER',
+        location: 'briefing.js:events'
+      }, `Active: ${allEvents.length}/${beforeCount} events currently happening in ${snapshotTz}`);
     }
 
     // 2026-01-08: Fetch high-value events from the user's market (beyond local city)
