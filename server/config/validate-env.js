@@ -81,18 +81,6 @@ export function validateEnvironment() {
     }
   }
   
-  // 2026-02-25: Strategy model config (consolidated from validate-strategy-env.js)
-  // Defaults come from env-registry.js; adapter layer validates credentials at runtime
-  const strategist = process.env.STRATEGY_STRATEGIST || 'claude-opus-4-6';
-  const briefer = process.env.STRATEGY_BRIEFER || 'gemini-3.1-pro-preview';
-  const consolidator = process.env.STRATEGY_CONSOLIDATOR || 'gpt-5.5-2026-04-23';
-
-  console.log('[CONFIG] [ENV] [VALIDATION] AI Model Configuration:', {
-    strategist: '<set>',
-    briefer: '<set>',
-    consolidator: '<set>',
-  });
-  
   // Port validation
   const port = parseInt(process.env.PORT || process.env.EIDOLON_PORT || '5000');
   if (isNaN(port) || port < 1 || port > 65535) {
