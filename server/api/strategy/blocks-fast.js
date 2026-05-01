@@ -815,10 +815,10 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // =========================================================================
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 3 - PRE-STRATEGY
         // =========================================================================
-        triadLog.phase(3, `[VERIFY] Sending to STRATEGY_TACTICAL:`);
-        triadLog.phase(3, `[VERIFY]   • snapshot.city: ${snapshot.city}, snapshot.state: ${snapshot.state}`);
-        triadLog.phase(3, `[VERIFY]   • briefing.traffic: ${freshBriefing?.traffic_conditions ? 'YES' : 'NULL'}`);
-        triadLog.phase(3, `[VERIFY]   • briefing.events: ${Array.isArray(freshBriefing?.events) ? `${freshBriefing.events.length} items` : 'NULL'}`);
+        triadLog.phase(3, `[VERIFY] Sending to Strategist`);
+        triadLog.phase(3, `[VERIFY] [DB] snapshots.city, snapshots.state received`);
+        triadLog.phase(3, `[VERIFY] [DB] briefings.traffic_conditions ${freshBriefing?.traffic_conditions ? 'received' : 'NULL'}`);
+        triadLog.phase(3, `[VERIFY] [DB] briefings.events ${Array.isArray(freshBriefing?.events) ? `received (count: ${freshBriefing.events.length})` : 'NULL'}`);
 
         try {
           // STRATEGY_TACTICAL → strategy_for_now (immediate 1hr strategy for Strategy Tab)
@@ -844,9 +844,10 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // =========================================================================
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 4 - PRE-SMARTBLOCKS
         // =========================================================================
-        triadLog.phase(4, `[VERIFY] Sending to Planner:`);
-        triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${strategyRow?.strategy_for_now ? `${strategyRow.strategy_for_now.length} chars` : 'NULL'}`);
-        triadLog.phase(4, `[VERIFY]   • briefing.events: ${Array.isArray(freshBriefing?.events) ? `${freshBriefing.events.length} items` : 'NULL'}`);
+        triadLog.phase(4, `[VERIFY] Sending to Planner`);
+        triadLog.phase(4, `[VERIFY] [DB] snapshots.lat, snapshots.lng received`);
+        triadLog.phase(4, `[VERIFY] [DB] strategies.strategy_for_now ${strategyRow?.strategy_for_now ? `received (count: ${strategyRow.strategy_for_now.length} chars)` : 'NULL'}`);
+        triadLog.phase(4, `[VERIFY] [DB] briefings.events ${Array.isArray(freshBriefing?.events) ? `received (count: ${freshBriefing.events.length})` : 'NULL'}`);
 
         if (!strategyRow?.strategy_for_now) {
           triadLog.warn(4, `[VERIFY] CRITICAL: strategy_for_now is NULL - SmartBlocks may fail`);
