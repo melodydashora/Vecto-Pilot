@@ -1683,20 +1683,48 @@ export async function fetchWeatherForecast({ snapshot }) {
   ]
 }`;
 
-  // Uses BRIEFING_WEATHER role (Gemini with google_search)
+  matrixLog.info({
+    category: 'BRIEFING',
+    connection: 'AI',
+    action: 'DISPATCH',
+    roleName: 'BRIEFER',
+    secondaryCat: 'WEATHER',
+    location: 'briefing-service.js:fetchWeatherForecast',
+  }, 'Calling Briefer for weather forecast');
   const result = await callModel('BRIEFING_WEATHER', { system, user });
 
   if (!result.ok) {
-    briefingLog.warn(1, `Weather forecast failed: ${result.error}`, OP.AI);
+    matrixLog.error({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'WEATHER',
+      location: 'briefing-service.js:fetchWeatherForecast',
+    }, 'Briefer call failed', result.error);
     return { current: null, forecast: [] };
   }
 
   try {
     const weatherData = safeJsonParse(result.output);
-    briefingLog.done(1, `Weather forecast: ${weatherData.forecast?.length || 0} hours`, OP.AI);
+    matrixLog.info({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'WEATHER',
+      location: 'briefing-service.js:fetchWeatherForecast',
+    }, `Briefer weather forecast complete (${weatherData.forecast?.length || 0} hours)`);
     return weatherData;
   } catch (parseErr) {
-    briefingLog.warn(1, `Weather parse failed: ${parseErr.message}`, OP.AI);
+    matrixLog.warn({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'PARSE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'WEATHER',
+      location: 'briefing-service.js:fetchWeatherForecast',
+    }, `Briefer weather parse failed: ${parseErr.message}`);
     return { current: null, forecast: [] };
   }
 }
@@ -1951,11 +1979,25 @@ NOTES:
 - If no closures are found, return an empty array []`;
 
   const system = `You are a school calendar research assistant. Search for school closures, holidays, and academic schedules. Return structured JSON data.`;
-  // Uses BRIEFING_SCHOOLS role (Gemini with google_search)
+  matrixLog.info({
+    category: 'BRIEFING',
+    connection: 'AI',
+    action: 'DISPATCH',
+    roleName: 'BRIEFER',
+    secondaryCat: 'SCHOOLS',
+    location: 'briefing-service.js:fetchSchoolClosures',
+  }, 'Calling Briefer for school closures');
   const result = await callModel('BRIEFING_SCHOOLS', { system, user: prompt });
 
   if (!result.ok) {
-    briefingLog.warn(2, `School closures failed: ${result.error}`, OP.AI);
+    matrixLog.error({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'SCHOOLS',
+      location: 'briefing-service.js:fetchSchoolClosures',
+    }, 'Briefer call failed', result.error);
     return [];
   }
 
@@ -2374,21 +2416,32 @@ async function fetchAirportConditions({ snapshot }) {
   }
 
   try {
-    briefingLog.ai(2, 'Gemini', `airport conditions for ${city}, ${state}`);
+    matrixLog.info({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'DISPATCH',
+      roleName: 'BRIEFER',
+      secondaryCat: 'AIRPORT',
+      location: 'briefing-service.js:fetchAirportConditions',
+    }, 'Calling Briefer for airport conditions');
 
-    // 2026-04-05: Strict JSON-only prompt — previous version allowed Gemini to return
-    // markdown prose with JSON embedded, which broke safeJsonParse repeatedly.
     const system = `You are an airport conditions API. Return ONLY valid JSON. No prose, no markdown, no explanatory text, no code fences. Output a single JSON object and nothing else.`;
     const user = `Search for current airport conditions near ${city}, ${state} as of ${date}.
 
 Find airports within 50 miles. Return ONLY this JSON structure (no other text):
 {"airports":[{"code":"IATA","name":"Airport Name","delays":"description","status":"normal","busyTimes":["time range"]}],"busyPeriods":["description"],"recommendations":"driver tips"}`;
 
-    // Uses BRIEFING_AIRPORT role (Gemini with google_search)
     const result = await callModel('BRIEFING_AIRPORT', { system, user });
 
     if (!result.ok) {
-      briefingLog.warn(2, `Gemini airport failed: ${result.error}`, OP.FALLBACK);
+      matrixLog.error({
+        category: 'BRIEFING',
+        connection: 'AI',
+        action: 'COMPLETE',
+        roleName: 'BRIEFER',
+        secondaryCat: 'AIRPORT',
+        location: 'briefing-service.js:fetchAirportConditions',
+      }, 'Briefer call failed', result.error);
       return fallbackAirport;
     }
 
