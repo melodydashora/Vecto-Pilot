@@ -323,7 +323,9 @@
       "Bash(sed -n '349,375p' client/src/components/RideshareCoach.tsx)",
       "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/events/pipeline.test.js --verbose)",
       "Bash(pg_dump --version)",
-      "Bash(git am *)"
+      "Bash(git am *)",
+      "Bash(claude auth *)",
+      "Bash(gh pr *)"
     ],
     "deny": [],
     "ask": []

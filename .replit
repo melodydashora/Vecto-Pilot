@@ -21,11 +21,6 @@ deploymentTarget = "cloudrun"
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 24282
-externalPort = 5000
-exposeLocalhost = true
-
 [workflows]
 runButton = "Project"
 
