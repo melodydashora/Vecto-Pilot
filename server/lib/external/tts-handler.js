@@ -37,7 +37,7 @@ export async function synthesizeSpeech(text, language) {
   const voice = selectVoice(language);
 
   try {
-    console.log(`[TTS] Generating speech for ${text.length} characters (voice: ${voice}${language ? `, lang: ${language}` : ''})...`);
+    console.log(`[TTS] Generating speech for ${text.length} characters${language ? ` (lang: ${language})` : ''}...`);
 
     const response = await client.audio.speech.create({
       model: "tts-1-hd",

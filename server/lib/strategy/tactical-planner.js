@@ -550,9 +550,8 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     resolvedVenues.forEach((v, i) => {
       const tag = v.catalog_fallback ? ' [catalog]' : v.llm_replacement ? ' [replacement]' : '';
       const deadheadTag = v.beyond_deadhead ? ' BEYOND DEADHEAD' : '';
-      const homeDistTag = v.distance_from_home_mi != null ? ` (${v.distance_from_home_mi}mi from home)` : '';
       const districtInfo = v.district ? ` @ ${v.district}` : '';
-      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category}) at ${v.lat.toFixed(6)},${v.lng.toFixed(6)}${tag}${homeDistTag}${deadheadTag}`);
+      console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category})${tag}${deadheadTag}`);
     });
 
     // Prepare final response — staging location is name+reason only (no coords)
