@@ -1328,7 +1328,7 @@ async function batchLookupVenueHours(venueNames, timezone) {
  */
 export async function runImmediateStrategy(snapshotId, options = {}) {
   const startTime = Date.now();
-  triadLog.phase(3, `Strategist: Starting immediate strategy for ${snapshotId.slice(0, 8)}`);
+  triadLog.phase(3, `Strategist: Starting immediate strategy`);
 
   try {
     // Use pre-fetched snapshot if provided, otherwise fetch from DB
@@ -1396,8 +1396,6 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       airport: parseJsonField(briefingRow.airport_conditions)
     };
 
-    // 2026-01-09: Fixed double prefix - triadLog already adds [TRIAD 3/4]
-    triadLog.phase(3, `${snapshot.formatted_address}`);
     triadLog.phase(3, `Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);
 
     // Call STRATEGY_TACTICAL role with snapshot + briefing (NO minstrategy)
