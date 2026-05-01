@@ -2844,11 +2844,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   // Require valid location data - no fallbacks for global app
   if (!snapshot.city || !snapshot.state || !snapshot.timezone) {
-    console.error(`[BRIEFING] Snapshot ${snapshotId} missing required location data (city/state/timezone)`);
+    console.error(`[BRIEFING] Snapshot missing required location data (city/state/timezone)`);
     return { success: false, error: 'Snapshot missing required location data' };
   }
 
-  briefingLog.start(`${snapshot.city}, ${snapshot.state} (${snapshotId.slice(0, 8)})`);
+  briefingLog.start(`${snapshot.city}, ${snapshot.state}`);
   const briefingStartMs = Date.now();
 
   const { city, state } = snapshot;

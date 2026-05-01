@@ -101,7 +101,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
   const prefs = await loadDriverPreferences(snapshot?.user_id);
   const hasPrefs = prefs.profile_loaded;
 
-  venuesLog.info(`Planner input: "${strategy.slice(0, 80)}..." at ${driverAddress}${hasPrefs ? ` (prefs: ${prefs.vehicle_class}, deadhead ${prefs.max_deadhead_mi}mi)` : ' (no prefs)'}`);
+  venuesLog.info(`Planner input: ${strategy.length} chars strategy${hasPrefs ? ` (prefs: ${prefs.vehicle_class}, deadhead ${prefs.max_deadhead_mi}mi)` : ' (no prefs)'}`);
 
   // Get day name from dow
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

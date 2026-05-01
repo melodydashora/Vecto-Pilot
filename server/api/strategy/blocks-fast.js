@@ -500,7 +500,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
 router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
   // 2026-04-05: SECURITY — sanitize body params to prevent type confusion (CodeQL)
   const { sanitizeString } = await import('../../lib/utils/sanitize.js');
-  triadLog.start(`POST request for ${sanitizeString(req.body?.snapshotId)?.slice(0, 8) || 'unknown'}`);
+  triadLog.start(`POST request`);
 
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
@@ -557,7 +557,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
     // CRITICAL: Validate formatted_address exists - LLMs cannot reverse geocode
     if (!snapshot.formatted_address) {
-      triadLog.error(1, `Missing formatted_address in snapshot ${snapshotId.slice(0, 8)}`);
+      triadLog.error(1, `Missing formatted_address in snapshot`);
       return sendOnce(400, {
         error: 'snapshot_incomplete',
         message: 'Snapshot missing formatted_address - location not resolved'
@@ -815,10 +815,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // =========================================================================
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 3 - PRE-STRATEGY
         // =========================================================================
-        triadLog.phase(3, `[VERIFY] Sending to STRATEGY_TACTICAL (GPT-5.2):`);
-        triadLog.phase(3, `[VERIFY]   • snapshot_id: ${snapshotId.slice(0, 8)}`);
+        triadLog.phase(3, `[VERIFY] Sending to STRATEGY_TACTICAL:`);
         triadLog.phase(3, `[VERIFY]   • snapshot.city: ${snapshot.city}, snapshot.state: ${snapshot.state}`);
-        triadLog.phase(3, `[VERIFY]   • briefing_id: ${freshBriefing?.briefing_id?.slice(0, 8) || 'N/A'}`);
         triadLog.phase(3, `[VERIFY]   • briefing.traffic: ${freshBriefing?.traffic_conditions ? 'YES' : 'NULL'}`);
         triadLog.phase(3, `[VERIFY]   • briefing.events: ${Array.isArray(freshBriefing?.events) ? `${freshBriefing.events.length} items` : 'NULL'}`);
 
@@ -829,7 +827,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
           // 2026-01-09: Removed strategyEmitter.emit - DB NOTIFY 'strategy_ready' is canonical
           // SSE clients receive via subscribeToChannel('strategy_ready') in strategy-events.js
-          sseLog.info(`[VENUE] strategy_ready (DB NOTIFY) for ${snapshotId.slice(0, 8)}`);
+          sseLog.info(`[VENUE] strategy_ready (DB NOTIFY)`);
         } catch (immediateErr) {
           triadLog.error(3, `runImmediateStrategy failed`, immediateErr);
           throw immediateErr;
@@ -847,8 +845,6 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 4 - PRE-SMARTBLOCKS
         // =========================================================================
         triadLog.phase(4, `[VERIFY] Sending to Planner:`);
-        triadLog.phase(4, `[VERIFY]   • snapshot_id: ${snapshotId.slice(0, 8)}`);
-        triadLog.phase(4, `[VERIFY]   • snapshot.lat/lng: ${snapshot.lat?.toFixed(6)}, ${snapshot.lng?.toFixed(6)}`);
         triadLog.phase(4, `[VERIFY]   • strategy_for_now: ${strategyRow?.strategy_for_now ? `${strategyRow.strategy_for_now.length} chars` : 'NULL'}`);
         triadLog.phase(4, `[VERIFY]   • briefing.events: ${Array.isArray(freshBriefing?.events) ? `${freshBriefing.events.length} items` : 'NULL'}`);
 

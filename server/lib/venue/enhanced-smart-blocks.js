@@ -391,7 +391,7 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
   const rankingId = randomUUID();
 
   const location = snapshot.formatted_address || `${snapshot.city}, ${snapshot.state}`;
-  venuesLog.start(`${location} (${snapshotId.slice(0, 8)})`);
+  venuesLog.start(`venue cards`);
 
   // Guard: Check if immediate strategy exists and is not empty
   if (!immediateStrategy || typeof immediateStrategy !== 'string' || !immediateStrategy.trim()) {
