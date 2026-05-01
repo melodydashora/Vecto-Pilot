@@ -2655,7 +2655,7 @@ export async function fetchRideshareNews({ snapshot }) {
     roleName: 'BRIEFER',
     secondaryCat: 'NEWS',
     location: 'briefing-service.js:fetchRideshareNews',
-  }, `Calling Briefer for news fetch: ${city}, ${state} (market: ${market || '[unknown-market]'})`);
+  }, 'Calling Briefer for news');
 
   if (!process.env.GEMINI_API_KEY) {
     matrixLog.warn({
