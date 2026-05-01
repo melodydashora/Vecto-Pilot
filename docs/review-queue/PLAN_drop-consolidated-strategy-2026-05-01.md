@@ -1,7 +1,7 @@
 # PLAN — Drop `strategies.consolidated_strategy` column (Phase 3 Schema Fix)
 
 > **Date:** 2026-05-01
-> **Status:** APPROVED 2026-05-01 (Melody, "Please go ahead") — implementation in progress on branch `chore/drop-consolidated-strategy-2026-05-01`
+> **Status:** DEPLOYED 2026-05-01 — column drop confirmed gone in prod via verification query (`column_status: "GONE — migration succeeded"`). Branch `chore/drop-consolidated-strategy-2026-05-01` carries the work. Empirical confirmation: Replit's deploy-time diff is Drizzle-Kit-shaped (columns yes, triggers no) — recovery required manual trigger rewrite via Replit Database tool's SQL runner before the deploy preview would succeed.
 > **Author:** Claude Code (Opus 4.7)
 > **Doctrine:** Rule 1 (Plan before implement), Rule 13 (DB env awareness), Rule 16 (Melody is architect)
 >
