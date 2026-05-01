@@ -62,10 +62,7 @@ router.post('/venue', requireAuth, async (req, res) => {
 
     // 2026-02-13: Use only authenticated user_id — body userId removed (spoofing risk)
     const authUserId = req.auth.userId;
-    
-    // SECURITY: Use authenticated user_id, not from request body
-    const authUserId = req.auth?.userId || userId;
-    
+
     // Validate required fields
     if (!snapshot_id || !ranking_id || !venue_name || !sentiment) {
       return res.status(400).json({ 
@@ -240,10 +237,7 @@ router.post('/strategy', requireAuth, async (req, res) => {
 
     // 2026-02-13: Use only authenticated user_id — body userId removed (spoofing risk)
     const authUserId = req.auth.userId;
-    
-    // SECURITY: Use authenticated user_id, not from request body
-    const authUserId = req.auth?.userId || userId;
-    
+
     // Validate required fields
     if (!snapshot_id || !ranking_id || !sentiment) {
       return res.status(400).json({ 

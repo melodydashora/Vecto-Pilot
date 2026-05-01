@@ -144,14 +144,13 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
       body.temperature = temperature;
     }
 
-    const shortModel = model.split('-').slice(0, 2).join('-');
-    logAiRequest(role, `${shortModel} request (${maxTokens} tokens)`);
+    logAiRequest(role, `request (${maxTokens} tokens)`);
 
     const res = await openai.chat.completions.create(body);
 
     const output = res?.choices?.[0]?.message?.content?.trim() || "";
 
-    logAiDone(role, `${shortModel} response (${output?.length ?? 0} chars)`);
+    logAiDone(role, `response (${output?.length ?? 0} chars)`);
 
     return output
       ? { ok: true, output }
@@ -208,7 +207,7 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
     // Unlike regular GPT-5 family models, the search model only accepts web_search_options
     // Removed: body.reasoning_effort = reasoningEffort;
 
-    logAiRequest(role, `${searchModel} web-search request (${maxTokens} tokens)`);
+    logAiRequest(role, `web-search request (${maxTokens} tokens)`);
 
     const openai = getClient();
     const res = await openai.chat.completions.create(body);
@@ -228,7 +227,7 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
         endIndex: a.end_index
       }));
 
-    logAiDone(role, `${searchModel} web-search response (${output?.length ?? 0} chars, ${citations.length} citations)`);
+    logAiDone(role, `web-search response (${output?.length ?? 0} chars, ${citations.length} citations)`);
 
     return output
       ? { ok: true, output, citations }
