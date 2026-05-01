@@ -330,7 +330,6 @@ Understanding this distinction is critical for:
 | `briefing_news` | JSONB | ✅ | News from second provider (DEPRECATED) |
 | `briefing_events` | JSONB | ✅ | Events from second provider (DEPRECATED) |
 | `briefing_traffic` | JSONB | ✅ | Traffic from second provider (DEPRECATED) |
-| `consolidated_strategy` | TEXT | ✅ | Final strategy from third provider (DEPRECATED - use strategy_for_now) |
 
 ---
 

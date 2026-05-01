@@ -77,7 +77,7 @@ The AI Coach is a streaming chat interface powered by Claude Opus 4.5, with capa
 | Table | Description | Key Columns |
 |-------|-------------|-------------|
 | `snapshots` | User location sessions | `id`, `user_id`, `city`, `state`, `timezone`, `lat`, `lng`, `weather` |
-| `strategies` | AI-generated strategies | `id`, `snapshot_id`, `consolidated_strategy`, `immediate_strategy` |
+| `strategies` | AI-generated strategies | `id`, `snapshot_id`, `strategy_for_now` |
 | `briefings` | Events, traffic, news, weather | `id`, `snapshot_id`, `events`, `traffic`, `news`, `weather` |
 | `discovered_events` | Local events | `id`, `title`, `venue_name`, `event_start_date`, `event_start_time`, `city`, `is_active` |
 | `venue_catalog` | Venue database | `venue_id`, `venue_name`, `city`, `expense_rank`, `opening_hours` |

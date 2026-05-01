@@ -50,14 +50,14 @@ POST /api/blocks-fast (triggers waterfall)
 ┌───────────────────────────────────────────┐
 │           PHASE 2 (PARALLEL)               │
 │                                            │
-│  ┌──────────────────┐ ┌─────────────────┐ │
-│  │ Daily Consolid.  │ │Immediate Consol.│ │
-│  │  Gemini 3.0 Pro  │ │    GPT-5.2      │ │
-│  └────────┬─────────┘ └────────┬────────┘ │
-│           │                    │          │
-│           ▼                    ▼          │
-│  consolidated_strategy   strategy_for_now │
-│     (8-12hr plan)         (1hr tactics)   │
+│       ┌─────────────────────┐             │
+│       │ Immediate Consolid. │             │
+│       │       GPT-5.2       │             │
+│       └──────────┬──────────┘             │
+│                  │                        │
+│                  ▼                        │
+│            strategy_for_now               │
+│              (1hr tactics)                │
 └───────────────────────────────────────────┘
         │
         ▼

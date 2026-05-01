@@ -66,11 +66,10 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 - Insert/Update: `server/lib/ai/providers/consolidator.js`, `server/api/strategy/blocks-fast.js`
 - Query: `server/api/strategy/strategy.js`
 
-**User-Facing Strategies (2 types):**
+**User-Facing Strategy:**
 | Strategy | Tab | Trigger | Model |
 |----------|-----|---------|-------|
 | `strategy_for_now` | Strategy Tab | Automatic (on GPS resolve) | GPT-5.2 |
-| `consolidated_strategy` | Briefing Tab | Manual (user clicks button) | Gemini 3 Pro |
 
 **Key Columns:**
 | Column | Type | Description |
@@ -83,7 +82,6 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 | `phase_started_at` | TIMESTAMP | When current phase started (for timeout detection) |
 | `error_message` | TEXT | Error details if status='error' |
 | `strategy_for_now` | TEXT | **Strategy Tab**: 1hr immediate strategy (GPT-5.2, automatic) |
-| `consolidated_strategy` | TEXT | **Briefing Tab**: 8-12hr daily strategy (Gemini 3 Pro, manual) |
 | `created_at` | TIMESTAMP | Creation timestamp |
 | `updated_at` | TIMESTAMP | Last update timestamp |
 

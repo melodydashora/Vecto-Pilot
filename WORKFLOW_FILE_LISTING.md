@@ -666,7 +666,6 @@ _Source: shared/schema.js_
 - 1.1.1 briefing_events
 - 1.1.1 briefing_traffic
 - 1.1.1 briefing
-- 1.1.1 consolidated_strategy
 - 1.1.1 ranking_id
 - 1.1.1 created_at
 - 1.1.1 snapshot_id
@@ -1873,7 +1872,6 @@ _Source: drizzle/0000_overjoyed_human_torch.sql_
 - 1.1.1 briefing_events
 - 1.1.1 briefing_traffic
 - 1.1.1 briefing
-- 1.1.1 consolidated_strategy
 - 1.1.1 ranking_id
 - 1.1.1 ui
 - 1.1.1 scoring_ms
