@@ -44,7 +44,7 @@ import { getVenuesByType } from "../venue/venue-cache.js";
 import { loadDriverPreferences, buildDriverPreferencesSection } from "../ai/providers/consolidator.js";
 // 2026-04-27 (Commit 6 of CLEAR_CONSOLE_WORKFLOW): emoji-prefixed raw console.log
 // migrated to venuesLog (renders as [VENUE] per UPPERCASE COMPONENT_LABELS).
-import { venuesLog } from "../../logger/workflow.js";
+import { venuesLog, matrixLog } from "../../logger/workflow.js";
 
 // 2026-04-16 (P0-6): Coordinates REMOVED from LLM schema. The LLM emits venue
 // names + district; coordinates are resolved post-LLM via Google Places API (New)
@@ -363,11 +363,25 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
   const timeoutMs = Number(process.env.PLANNER_DEADLINE_MS || process.env.GPT5_TIMEOUT_MS || 180000);
 
   const timeout = setTimeout(() => {
-    console.error(`[VENUE_SCORER] ⏱️ Request timed out after ${timeoutMs}ms (${Math.round(timeoutMs/1000)}s)`);
+    matrixLog.error({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'TIMEOUT',
+      roleName: 'VENUE_SCORER',
+      location: 'tactical-planner.js:generateTacticalPlan',
+    }, `Planner timed out after ${timeoutMs}ms`);
     abortCtrl.abort();
   }, timeoutMs);
-  
+
   try {
+    matrixLog.info({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'DISPATCH',
+      roleName: 'VENUE_SCORER',
+      location: 'tactical-planner.js:generateTacticalPlan',
+    }, 'Calling Planner for venue recommendations');
+
     const rawResponse = await callModel('VENUE_SCORER', {
       system: developer,
       user
@@ -379,7 +393,13 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     const parsed = safeJsonParse(rawResponse.output);
 
     if (!parsed) {
-      console.error('[VENUE] [AI] [Planner] Failed to parse JSON response');
+      matrixLog.error({
+        category: 'VENUE',
+        connection: 'AI',
+        action: 'PARSE',
+        roleName: 'VENUE_SCORER',
+        location: 'tactical-planner.js:generateTacticalPlan',
+      }, 'Planner returned non-JSON response');
       throw new Error('Invalid JSON response from AI');
     }
 
@@ -387,11 +407,25 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     const validation = GPT5ResponseSchema.safeParse(parsed);
 
     if (!validation.success) {
-      console.error('[VENUE] [AI] [Planner] Validation failed:', validation.error.format());
+      matrixLog.error({
+        category: 'VENUE',
+        connection: 'AI',
+        action: 'VALIDATE',
+        roleName: 'VENUE_SCORER',
+        location: 'tactical-planner.js:generateTacticalPlan',
+      }, `Planner response validation failed: ${validation.error.message}`);
       throw new Error(`AI response validation failed: ${validation.error.message}`);
     }
 
     const validated = validation.data;
+
+    matrixLog.info({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'VENUE_SCORER',
+      location: 'tactical-planner.js:generateTacticalPlan',
+    }, `Planner returned ${validated.recommended_venues?.length || 0} venues (${duration}ms)`);
 
     // 2026-04-16 (P0-6): Resolve venue names → Google Places coordinates
     // Chain: resolve → retry (relaxed) → catalog fallback → LLM replacement → escalate
@@ -428,7 +462,13 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
           google_name: placeResult.google_name,
         });
         resolvedNames.add(venue.name);
-        console.log(`   "${venue.name}"${districtInfo} → ${placeResult.google_name} (${placeResult.google_lat.toFixed(6)},${placeResult.google_lng.toFixed(6)})`);
+        matrixLog.info({
+          category: 'VENUE',
+          connection: 'API',
+          action: 'RESOLVE',
+          secondaryCat: 'PLACES',
+          location: 'tactical-planner.js:generateTacticalPlan',
+        }, `Resolved venue "${venue.name}" via Places API`);
         continue;
       }
 
@@ -454,14 +494,27 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
             catalog_fallback: true,
           });
           resolvedNames.add(fallback.name);
-          console.log(`   "${venue.name}"${districtInfo} → catalog fallback: "${fallback.name}" (${fallback.lat},${fallback.lng})`);
+          matrixLog.info({
+            category: 'VENUE',
+            connection: 'DB',
+            action: 'FALLBACK',
+            secondaryCat: 'PLACES',
+            tableName: 'VENUE_CATALOG',
+            location: 'tactical-planner.js:generateTacticalPlan',
+          }, `Catalog fallback for "${venue.name}" → "${fallback.name}"`);
           continue;
         }
       }
 
       // Failed — log and track for replacement
       failedVenues.push(venue);
-      venuesLog.warn(0, `Failed to resolve: "${venue.name}"${districtInfo} (${city}, ${state})`);
+      matrixLog.warn({
+        category: 'VENUE',
+        connection: 'API',
+        action: 'RESOLVE',
+        secondaryCat: 'PLACES',
+        location: 'tactical-planner.js:generateTacticalPlan',
+      }, `Failed to resolve venue: "${venue.name}"`);
     }
 
     // Step 4: LLM REPLACEMENT — ask for replacements for unresolved venues
@@ -470,7 +523,13 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       const alreadyResolved = [...resolvedNames].join(', ');
       const failedSummary = failedVenues.map(v => `${v.name} (${v.category}${v.district ? `, ${v.district}` : ''})`).join('; ');
 
-      venuesLog.info(`Requesting ${needed} replacement venue(s) - failed: ${failedSummary}`);
+      matrixLog.info({
+        category: 'VENUE',
+        connection: 'AI',
+        action: 'DISPATCH',
+        roleName: 'VENUE_SCORER',
+        location: 'tactical-planner.js:generateTacticalPlan',
+      }, `Calling Planner for ${needed} replacement venue(s)`);
 
       try {
         const replacementResult = await callModel('VENUE_SCORER', {
@@ -499,12 +558,24 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
                 llm_replacement: true,
               });
               resolvedNames.add(rv.name);
-              console.log(`   🔁 Replacement resolved: "${rv.name}" → ${rvResult.google_name}`);
+              matrixLog.info({
+                category: 'VENUE',
+                connection: 'API',
+                action: 'RESOLVE',
+                secondaryCat: 'PLACES',
+                location: 'tactical-planner.js:generateTacticalPlan',
+              }, `Replacement venue resolved: "${rv.name}"`);
             }
           }
         }
       } catch (replacementError) {
-        venuesLog.warn(0, `Replacement Venue Planner call failed: ${replacementError.message}`);
+        matrixLog.error({
+          category: 'VENUE',
+          connection: 'AI',
+          action: 'COMPLETE',
+          roleName: 'VENUE_SCORER',
+          location: 'tactical-planner.js:generateTacticalPlan',
+        }, 'Replacement Planner call failed', replacementError);
       }
     }
 
@@ -515,7 +586,13 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       : null;
 
     if (degraded) {
-      console.error(`[VENUES 1/4] DEGRADED: ${degradedReason} | snapshot: ${snapshot?.id?.slice(0, 8)} | ${city}, ${state}`);
+      matrixLog.warn({
+        category: 'VENUE',
+        connection: 'AI',
+        action: 'DEGRADED',
+        roleName: 'VENUE_SCORER',
+        location: 'tactical-planner.js:generateTacticalPlan',
+      }, `Resolved ${resolvedVenues.length}/${TARGET_VENUE_COUNT} venues — degraded`);
 
       // 2026-04-16: Fire-and-forget degradation memory entry for catalog gap tracking
       try {
@@ -578,7 +655,13 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     return normalized;
 
   } catch (error) {
-    console.error('[VENUE] [AI] [Planner] Error:', error.message);
+    matrixLog.error({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'VENUE_SCORER',
+      location: 'tactical-planner.js:generateTacticalPlan',
+    }, 'Planner failed', error);
     throw error;
   } finally {
     clearTimeout(timeout);
