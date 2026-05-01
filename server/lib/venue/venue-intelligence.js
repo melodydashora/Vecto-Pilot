@@ -11,7 +11,7 @@ import { venue_catalog } from '../../../shared/schema.js';
 import { eq, and, or } from 'drizzle-orm';
 import { callModel } from '../ai/adapters/index.js';
 // 2026-02-13: Removed direct callGemini import — traffic call now uses callModel('VENUE_TRAFFIC')
-import { barsLog, placesLog, venuesLog, aiLog } from '../../logger/workflow.js';
+import { barsLog, placesLog, venuesLog, aiLog, matrixLog } from '../../logger/workflow.js';
 import { generateCoordKey, normalizeVenueName } from './venue-utils.js';
 // 2026-01-14: Cache First pattern - check database before calling Google Places API
 import { getVenuesByType, enrichVenueFromPlaceId } from './venue-cache.js';
@@ -272,7 +272,13 @@ Return ONLY a JSON object mapping venue number to classification. Example: {"1":
 Classify ALL venues. No explanation.`;
 
   try {
-    barsLog.phase(1, `Classifying ${venues.length} venues with VENUE_FILTER role...`);
+    matrixLog.info({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'DISPATCH',
+      roleName: 'VENUE_FILTER',
+      location: 'venue-intelligence.js:classifyAndFilterVenues',
+    }, `Calling VENUE_FILTER to classify ${venues.length} venues`);
     const result = await callModel('VENUE_FILTER', {
       system: 'You are a venue classifier. Return ONLY a JSON object mapping numbers to P/S/X. No explanation.',
       user: prompt,
@@ -281,7 +287,13 @@ Classify ALL venues. No explanation.`;
     });
 
     if (!result.ok) {
-      aiLog.warn(1, `VENUE_FILTER role failed: ${result.error}`);
+      matrixLog.error({
+        category: 'VENUE',
+        connection: 'AI',
+        action: 'COMPLETE',
+        roleName: 'VENUE_FILTER',
+        location: 'venue-intelligence.js:classifyAndFilterVenues',
+      }, 'VENUE_FILTER classification failed', result.error);
       return venues; // Return unfiltered on error
     }
 
@@ -307,10 +319,22 @@ Classify ALL venues. No explanation.`;
           classified.push(venue);
         }
 
-        barsLog.done(1, `Haiku classified ${classified.length}/${venues.length} venues (${premiumCount} premium, ${standardCount} standard)`);
+        matrixLog.info({
+          category: 'VENUE',
+          connection: 'AI',
+          action: 'COMPLETE',
+          roleName: 'VENUE_FILTER',
+          location: 'venue-intelligence.js:classifyAndFilterVenues',
+        }, `VENUE_FILTER classified ${classified.length}/${venues.length} venues (${premiumCount} premium, ${standardCount} standard)`);
         return classified;
       } catch (parseErr) {
-        aiLog.warn(1, `Could not parse Haiku classification JSON: ${result.output}`);
+        matrixLog.warn({
+          category: 'VENUE',
+          connection: 'AI',
+          action: 'PARSE',
+          roleName: 'VENUE_FILTER',
+          location: 'venue-intelligence.js:classifyAndFilterVenues',
+        }, 'Could not parse VENUE_FILTER classification JSON');
       }
     }
 
@@ -322,14 +346,32 @@ Classify ALL venues. No explanation.`;
         .map(i => venues[i - 1])
         .filter(Boolean);
       // No quality tier assigned — will be null (legacy behavior)
-      barsLog.done(1, `Haiku kept ${filtered.length}/${venues.length} venues (legacy format)`);
+      matrixLog.info({
+        category: 'VENUE',
+        connection: 'AI',
+        action: 'COMPLETE',
+        roleName: 'VENUE_FILTER',
+        location: 'venue-intelligence.js:classifyAndFilterVenues',
+      }, `VENUE_FILTER kept ${filtered.length}/${venues.length} venues (legacy format)`);
       return filtered;
     }
 
-    aiLog.warn(1, `Could not parse Haiku response: ${result.output}`);
+    matrixLog.warn({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'PARSE',
+      roleName: 'VENUE_FILTER',
+      location: 'venue-intelligence.js:classifyAndFilterVenues',
+    }, 'Could not parse VENUE_FILTER response');
     return venues;
   } catch (error) {
-    aiLog.warn(1, `LLM venue classifier error: ${error.message}`);
+    matrixLog.error({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'VENUE_FILTER',
+      location: 'venue-intelligence.js:classifyAndFilterVenues',
+    }, 'VENUE_FILTER classification error', error);
     return venues; // Return unfiltered on error
   }
 }
@@ -754,7 +796,13 @@ Return ONLY valid JSON:
 
   try {
     // 2026-02-13: Uses VENUE_TRAFFIC role via callModel adapter (hedged router + fallback)
-    aiLog.info(`Calling VENUE_TRAFFIC role for traffic intelligence...`);
+    matrixLog.info({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'DISPATCH',
+      roleName: 'VENUE_TRAFFIC',
+      location: 'venue-intelligence.js:getTrafficIntelligence',
+    }, 'Calling VENUE_TRAFFIC role for traffic intelligence');
     const result = await callModel('VENUE_TRAFFIC', {
       system: 'You are a traffic intelligence system. Return ONLY valid JSON with no preamble.',
       user: prompt
@@ -765,7 +813,13 @@ Return ONLY valid JSON:
     }
 
     const trafficData = JSON.parse(result.output);
-    venuesLog.info(`Traffic parsed: density=${trafficData.density_level}`);
+    matrixLog.info({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'VENUE_TRAFFIC',
+      location: 'venue-intelligence.js:getTrafficIntelligence',
+    }, `VENUE_TRAFFIC parsed: density=${trafficData.density_level}`);
 
     // MAP TO UNIFIED SCHEMA for briefing-service compatibility
     return {
@@ -780,7 +834,13 @@ Return ONLY valid JSON:
       fetchedAt: new Date().toISOString()
     };
   } catch (error) {
-    venuesLog.error(1, `Traffic intelligence failed`, error);
+    matrixLog.error({
+      category: 'VENUE',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'VENUE_TRAFFIC',
+      location: 'venue-intelligence.js:getTrafficIntelligence',
+    }, 'VENUE_TRAFFIC failed', error);
     // Return safe fallback
     return {
       summary: 'Traffic data currently unavailable',
