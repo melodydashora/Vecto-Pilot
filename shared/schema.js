@@ -97,7 +97,6 @@ export const strategies = pgTable("strategies", {
 
   // Strategy outputs - THE PRODUCT
   strategy_for_now: text('strategy_for_now'), // Immediate 1-hour tactical strategy (STRATEGY_TACTICAL role)
-  consolidated_strategy: text("consolidated_strategy"), // Daily 8-12hr strategy (STRATEGY_DAILY role, on-demand via Briefing tab)
 
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

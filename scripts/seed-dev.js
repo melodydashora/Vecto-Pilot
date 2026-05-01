@@ -79,7 +79,6 @@ This strategy is valid for the next 60 minutes based on current conditions.`;
         status: 'complete',
         phase: 'complete',
         strategy_for_now: strategyText,
-        consolidated_strategy: strategyText,
         strategy_timestamp: new Date(),
         valid_window_start: new Date(),
         valid_window_end: new Date(Date.now() + 60 * 60 * 1000), // 60 minutes from now
