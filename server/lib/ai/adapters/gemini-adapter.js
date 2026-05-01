@@ -33,7 +33,7 @@ function validateThinkingLevel(model, thinkingLevel) {
   if (model.includes('flash')) {
     const flashLevels = ['LOW', 'MEDIUM', 'HIGH'];
     if (!flashLevels.includes(normalized)) {
-      console.warn(`[AI] Invalid thinkingLevel "${thinkingLevel}" for ${model}. Valid: ${flashLevels.join(', ')}. Defaulting to LOW.`);
+      console.warn(`[AI] Invalid thinkingLevel "${thinkingLevel}" for Flash model. Valid: ${flashLevels.join(', ')}. Defaulting to LOW.`);
       return 'LOW';
     }
     return normalized;
@@ -42,7 +42,7 @@ function validateThinkingLevel(model, thinkingLevel) {
   // Pro models only support LOW and HIGH — MEDIUM is not valid
   const proLevels = ['LOW', 'HIGH'];
   if (!proLevels.includes(normalized)) {
-    console.warn(`[AI] thinkingLevel "${thinkingLevel}" is NOT supported on ${model} (Pro only supports LOW, HIGH). Auto-correcting to HIGH.`);
+    console.warn(`[AI] thinkingLevel "${thinkingLevel}" is NOT supported on Pro model (only LOW, HIGH). Auto-correcting to HIGH.`);
     return 'HIGH';
   }
 

@@ -363,8 +363,7 @@ async function promoteToVenueCatalog(enrichedVenues, snapshot) {
       // Drizzle wraps PostgreSQL errors in .cause or .original; err.code is undefined on the wrapper.
       const err = result.reason;
       const pgCode = err?.cause?.code || err?.original?.code || err?.code || 'unknown';
-      const pgDetail = err?.cause?.detail || err?.cause?.message || err?.detail || err?.message || 'no detail';
-      venuesLog.warn(3, `Catalog promotion failed for "${promotable[index].name}": ${pgCode} — ${pgDetail}`);
+      venuesLog.warn(3, `Catalog promotion failed for "${promotable[index].name}": ${pgCode}`);
     }
   });
 

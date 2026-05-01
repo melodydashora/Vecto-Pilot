@@ -806,9 +806,9 @@ export function withContext(context = {}) {
 export function logAICall(role, model, purpose) {
   if (!shouldEmit('info', 'AI')) return;
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
-    console.log(`${_emojiPrefix('🤖')}[AI] Calling ${role} (${model}): ${purpose}${_opSuffix(OP.AI)}`);
+    console.log(`${_emojiPrefix('🤖')}[AI] Calling ${role}: ${purpose}${_opSuffix(OP.AI)}`);
   }
-  emitJSON('info', 'AI', `Calling ${role}`, { role: String(role), model: String(model), purpose: String(purpose) });
+  emitJSON('info', 'AI', `Calling ${role}`, { role: String(role), purpose: String(purpose) });
 }
 
 /**
@@ -819,7 +819,7 @@ export function logAIResponse(role, model, responseLen, durationMs) {
   if (LOG_FORMAT === 'pretty' || LOG_FORMAT === 'both') {
     console.log(`${_emojiPrefix('🤖')}[AI] ${role} responded: ${responseLen} chars (${durationMs}ms)${_opSuffix(OP.AI)}`);
   }
-  emitJSON('info', 'AI', `${role} responded`, { role: String(role), model: String(model), response_len: responseLen, duration_ms: durationMs });
+  emitJSON('info', 'AI', `${role} responded`, { role: String(role), response_len: responseLen, duration_ms: durationMs });
 }
 
 /**

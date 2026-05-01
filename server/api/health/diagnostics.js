@@ -546,7 +546,8 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
   const allOk = Object.values(results).every(r => r.status === 'ok');
   
-  console.log(`[diagnostics/model-ping] Claude:${results.claude?.status} Gemini:${results.gemini?.status} GPT:${results.gpt?.status}`);
+  const okCount = Object.values(results).filter(r => r.status === 'ok').length;
+  console.log(`[diagnostics/model-ping] ${okCount}/${Object.keys(results).length} models reachable`);
 
   res.json({
     ok: allOk,

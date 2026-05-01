@@ -77,10 +77,10 @@ export function validateStrategyEnv() {
     missing.forEach(varName => {
       console.error(`   - ${varName} is not set`);
     });
-    console.error('\nPlease configure these environment variables in your .env file:');
-    console.error('   STRATEGY_STRATEGIST=claude-opus-4-5-20251101');
-    console.error('   STRATEGY_BRIEFER=gemini-3-pro-preview');
-    console.error('   STRATEGY_CONSOLIDATOR=gpt-5.2');
+    console.error('\nPlease configure these environment variables (see server/lib/ai/model-registry.js for valid model IDs):');
+    console.error('   STRATEGY_STRATEGIST=...');
+    console.error('   STRATEGY_BRIEFER=...');
+    console.error('   STRATEGY_CONSOLIDATOR=...');
     console.error('\nExiting due to missing configuration...\n');
     process.exit(1);
   }

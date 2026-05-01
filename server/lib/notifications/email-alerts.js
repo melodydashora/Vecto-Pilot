@@ -119,7 +119,7 @@ export async function sendModelErrorAlert({
       html
     });
 
-    console.log(`📧 [EMAIL] Alert sent for ${model} error:`, result);
+    console.log(`[EMAIL] Alert sent:`, result);
     return { success: true, id: result.id };
   } catch (err) {
     console.error(`📧 [EMAIL] Failed to send alert:`, err.message);
