@@ -353,7 +353,7 @@ const VERBOSE_COMPONENTS = new Set(
  * - LOG_QUIET_COMPONENTS silences info/debug
  * - Otherwise: standard level comparison vs. LOG_LEVEL
  */
-function shouldEmit(level, component) {
+export function shouldEmit(level, component) {
   const normalized = String(component || '').toUpperCase();
   if (level === 'error' || level === 'warn') return true;
   if (VERBOSE_COMPONENTS.has(normalized)) return true;
@@ -365,7 +365,7 @@ function shouldEmit(level, component) {
  * Emit a structured event to stderr if LOG_FORMAT is 'json' or 'both'.
  * stderr keeps stdout clean for jq/log-shipper pipelines that consume pretty.
  */
-function emitJSON(level, component, message, extra = {}) {
+export function emitJSON(level, component, message, extra = {}) {
   if (LOG_FORMAT !== 'json' && LOG_FORMAT !== 'both') return;
   const evt = {
     ts: new Date().toISOString(),
@@ -736,6 +736,12 @@ export const sseLog = createWorkflowLogger('SSE');
 export const phaseLog = createWorkflowLogger('PHASE');
 export const placesLog = createWorkflowLogger('PLACES');
 export const routesLog = createWorkflowLogger('ROUTES');
+
+// 2026-05-01: matrixLog — 8-field structured logger. Spec / plan:
+// docs/review-queue/PLAN_matrixlog-refactor-2026-05-01.md.
+// Re-exported here so callers can import from a single workflow.js module
+// or from the dedicated server/logger/matrix.js — both are equivalent.
+export { matrixLog } from './matrix.js';
 
 // ==========================================================
 // withContext() — NEW API for request/snapshot correlation
