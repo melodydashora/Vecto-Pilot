@@ -366,10 +366,26 @@ STRICT CATEGORIZATION RULES (MUST FOLLOW):
 category MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community, other.`;
 
     try {
+      matrixLog.info({
+        category: 'BRIEFING',
+        connection: 'AI',
+        action: 'DISPATCH',
+        roleName: 'BRIEFER',
+        secondaryCat: 'EVENTS',
+        location: 'briefing-service.js:discoverEventsWithClaude',
+      }, 'Calling Briefer for parallel event discovery');
       // Uses BRIEFING_FALLBACK role (Claude with web_search) for parallel event discovery
       const result = await callModel('BRIEFING_FALLBACK', { system, user: prompt });
 
       if (!result.ok) {
+        matrixLog.error({
+          category: 'BRIEFING',
+          connection: 'AI',
+          action: 'COMPLETE',
+          roleName: 'BRIEFER',
+          secondaryCat: 'EVENTS',
+          location: 'briefing-service.js:discoverEventsWithClaude',
+        }, 'Briefer call failed', result.error);
         return { category: category.name, items: [], error: result.error };
       }
 
@@ -659,11 +675,26 @@ CRITICAL REQUIREMENTS:
   const system = `You are a news search assistant for rideshare drivers. Search for TODAY's news and return structured JSON with publication dates. Focus on news that impacts driver earnings, regulations, and working conditions. If no date can be extracted from an article, exclude it.`;
 
   try {
+    matrixLog.info({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'DISPATCH',
+      roleName: 'BRIEFER',
+      secondaryCat: 'NEWS',
+      location: 'briefing-service.js:fetchNewsWithClaude',
+    }, 'Calling Briefer for news fallback');
     // Uses BRIEFING_FALLBACK role (Claude with web_search) for news fallback
     const result = await callModel('BRIEFING_FALLBACK', { system, user: prompt });
 
     if (!result.ok) {
-      briefingLog.warn(2, `Claude news failed: ${result.error}`, OP.FALLBACK);
+      matrixLog.warn({
+        category: 'BRIEFING',
+        connection: 'AI',
+        action: 'COMPLETE',
+        roleName: 'BRIEFER',
+        secondaryCat: 'NEWS',
+        location: 'briefing-service.js:fetchNewsWithClaude',
+      }, 'Briefer news fallback failed', result.error);
       return { items: [], reason: result.error, provider: 'claude' };
     }
 
@@ -1077,10 +1108,26 @@ STRICT CATEGORIZATION RULES (MUST FOLLOW):
 
 category MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community, other.
 DO NOT use any other category values.`;
+    matrixLog.info({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'DISPATCH',
+      roleName: 'BRIEFER',
+      secondaryCat: 'EVENTS',
+      location: 'briefing-service.js:fetchDetailedEvents',
+    }, 'Calling Briefer for detailed events');
     // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
     const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user: prompt });
 
     if (!result.ok) {
+      matrixLog.error({
+        category: 'BRIEFING',
+        connection: 'AI',
+        action: 'COMPLETE',
+        roleName: 'BRIEFER',
+        secondaryCat: 'EVENTS',
+        location: 'briefing-service.js:fetchDetailedEvents',
+      }, 'Briefer call failed', result.error);
       return { category: category.name, items: [], error: result.error };
     }
 
@@ -1276,10 +1323,26 @@ RULES:
 4. NO null values, NO "TBD", NO "Unknown" - SKIP the event entirely if times cannot be determined
 5. Include events for ${date} and the next 3 days`;
 
+  matrixLog.info({
+    category: 'BRIEFING',
+    connection: 'AI',
+    action: 'DISPATCH',
+    roleName: 'BRIEFER',
+    secondaryCat: 'EVENTS',
+    location: 'briefing-service.js:discoverEventsWithGemini',
+  }, 'Calling Briefer for event discovery');
   // Uses BRIEFING_EVENTS_DISCOVERY role (Gemini with google_search)
   const result = await callModel('BRIEFING_EVENTS_DISCOVERY', { system, user });
 
   if (!result.ok) {
+    matrixLog.error({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'EVENTS',
+      location: 'briefing-service.js:discoverEventsWithGemini',
+    }, 'Briefer call failed', result.error);
     if (result.error?.includes('Empty response')) {
       return { items: [], reason: 'Gemini returned empty response' };
     }
@@ -2285,18 +2348,40 @@ export async function fetchTrafficConditions({ snapshot }) {
 
 CRITICAL: Include highDemandZones and repositioning.`;
 
+  matrixLog.info({
+    category: 'BRIEFING',
+    connection: 'AI',
+    action: 'DISPATCH',
+    roleName: 'BRIEFER',
+    secondaryCat: 'TRAFFIC',
+    location: 'briefing-service.js:fetchTrafficConditions',
+  }, 'Calling Briefer for traffic conditions');
   // Uses BRIEFING_TRAFFIC role (Gemini with google_search)
   const result = await callModel('BRIEFING_TRAFFIC', { system, user });
 
   // Graceful fallback if Gemini fails (don't crash waterfall)
   if (!result.ok) {
-    briefingLog.warn(1, `Gemini traffic failed - using fallback`, OP.FALLBACK);
+    matrixLog.warn({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'TRAFFIC',
+      location: 'briefing-service.js:fetchTrafficConditions',
+    }, 'Briefer traffic failed - using fallback', result.error);
     return fallbackTraffic;
   }
 
   try {
     const parsed = safeJsonParse(result.output);
-    briefingLog.done(1, `Gemini traffic: ${parsed.congestionLevel || 'unknown'} congestion`, OP.AI);
+    matrixLog.info({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'TRAFFIC',
+      location: 'briefing-service.js:fetchTrafficConditions',
+    }, `Briefer traffic analysis complete: ${parsed.congestionLevel || 'unknown'} congestion`);
 
     return {
       summary: parsed.summary,
@@ -2563,10 +2648,24 @@ export async function fetchRideshareNews({ snapshot }) {
 
   // 2026-01-10: Consolidated to single Briefer model (configured via BRIEFING_NEWS_MODEL)
   // Single-model approach: simpler pipeline, lower cost, cleaner data
-  briefingLog.phase(2, `News fetch: ${city}, ${state} (market: ${market || '[unknown-market]'})`, OP.AI);
+  matrixLog.info({
+    category: 'BRIEFING',
+    connection: 'AI',
+    action: 'DISPATCH',
+    roleName: 'BRIEFER',
+    secondaryCat: 'NEWS',
+    location: 'briefing-service.js:fetchRideshareNews',
+  }, `Calling Briefer for news fetch: ${city}, ${state} (market: ${market || '[unknown-market]'})`);
 
   if (!process.env.GEMINI_API_KEY) {
-    briefingLog.warn(2, `BRIEFING_NEWS model not configured (requires GEMINI_API_KEY)`, OP.AI);
+    matrixLog.warn({
+      category: 'BRIEFING',
+      connection: 'AI',
+      action: 'COMPLETE',
+      roleName: 'BRIEFER',
+      secondaryCat: 'NEWS',
+      location: 'briefing-service.js:fetchRideshareNews',
+    }, `BRIEFING_NEWS model not configured (requires GEMINI_API_KEY)`);
     return { items: [], reason: 'Briefer model not configured' };
   }
 
@@ -2577,7 +2676,14 @@ export async function fetchRideshareNews({ snapshot }) {
       // 2026-04-24: SECURITY — client-facing `reason` is a sentinel string so raw
       // upstream errors (which may echo API keys) cannot reach the HTTP response.
       // Full error stays in the server log only.
-      briefingLog.warn(2, `News fetch failed: ${result.error}`, OP.AI);
+      matrixLog.warn({
+        category: 'BRIEFING',
+        connection: 'AI',
+        action: 'COMPLETE',
+        roleName: 'BRIEFER',
+        secondaryCat: 'NEWS',
+        location: 'briefing-service.js:fetchRideshareNews',
+      }, 'News fetch failed', result.error);
       return { items: [], reason: 'news-fetch-failed', provider: 'briefer' };
     }
 
