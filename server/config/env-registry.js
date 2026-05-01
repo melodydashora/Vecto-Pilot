@@ -241,14 +241,12 @@ export function logEnvConfig() {
   for (const [key, spec] of Object.entries(ENV_VARS)) {
     const value = process.env[key];
     const display = spec.sensitive
-      ? (value ? '***SET***' : '(not set)')
-      : (value ?? spec.default ?? '(not set)');
+      ? (value ? 'set' : 'not set')
+      : (value ?? spec.default ?? 'not set');
 
-    const status = spec.required
-      ? (value ? '✓' : '✗ MISSING')
-      : (value ? '✓' : '○');
+    const flag = spec.required && !value ? ' [MISSING]' : '';
 
-    console.log(`  ${status} ${key}: ${display}`);
+    console.log(`  ${key}=${display}${flag}`);
   }
 }
 
