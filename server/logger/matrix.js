@@ -23,9 +23,17 @@
 //                  Examples: VENUE_CATALOG, DISCOVERED_EVENTS, BRIEFINGS.
 //   location     - File:function pinpoint. CASE PRESERVED (filename stays as-is).
 //                  Examples: briefing-service.js:getTraffic, blocks-fast.js:postHandler.
-//   message      - The actual content. NO sensitive identifiers (UUIDs, addresses,
-//                  coords, model versions, content text). Counts and field-presence
-//                  are fine. Render: ` -> ${message}`.
+//   message      - The actual content. NO sensitive identifiers in full form
+//                  (no full UUIDs, emails, addresses, coords, model versions,
+//                  content text). Counts and field-presence are fine.
+//
+//                  EXCEPTION (2026-05-02 amendment): an 8-char hex correlation
+//                  prefix derived from a UUID (e.g., userId.substring(0, 8))
+//                  IS permitted for real-time DX in the Replit console.
+//                  Non-reversible at this length and consistent with existing
+//                  auth-flow convention. Email/coord/address/full-UUID remain
+//                  forbidden in messages. See PLAN_matrixlog-tier3-auth-
+//                  location-strategy-2026-05-02.md §3.1. Render: ` -> ${message}`.
 //
 // Validation:
 //   - connection='DB' without tableName -> stderr warning (does not throw).
