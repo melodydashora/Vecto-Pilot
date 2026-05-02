@@ -219,3 +219,6 @@ CLAUDE-OPUS-4.6-FULL-ANALYSIS.md
 
 .gemini/
 gha-creds-*.json
+
+# Git worktrees (local workspace isolation per superpowers:using-git-worktrees)
+.worktrees/
