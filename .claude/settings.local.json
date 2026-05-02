@@ -326,7 +326,17 @@
       "Bash(git am *)",
       "Bash(claude auth *)",
       "Bash(gh pr *)",
-      "Bash(git restore *)"
+      "Bash(git restore *)",
+      "Bash(git check-ignore *)",
+      "Bash(git -C /home/runner/workspace/.worktrees/logger-tier3 status --short)",
+      "Bash(git -C /home/runner/workspace/.worktrees/logger-tier3 log main..HEAD --oneline)",
+      "Bash(git -C /home/runner/workspace/.worktrees/logger-tier3 branch --show-current)",
+      "Bash(git -C /home/runner/workspace log main -1 --oneline)",
+      "Bash(command -v jq)",
+      "Bash(read f *)",
+      "Bash(npm i *)",
+      "Bash(sed -n '19,70p' client/src/components/MapTab.tsx)",
+      "Bash(sed -n '59,130p' client/src/components/strategy/StrategyMap.tsx)"
     ],
     "deny": [],
     "ask": []
