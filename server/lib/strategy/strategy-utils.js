@@ -694,14 +694,18 @@ export function isEventFresh(event, now = new Date(), timezone = null) {
   if (!event) return false;
 
   // 2026-04-10: FIX — Post-event surge window. Rideshare drivers benefit from knowing about
-  // events for ~1 hour AFTER they end (pickup surge from attendees leaving). Previously,
+  // events for ~2 hours AFTER they end (pickup surge from attendees leaving). Previously,
   // events were removed the instant they ended, which is too aggressive for driver utility.
-  const POST_EVENT_SURGE_MS = 60 * 60 * 1000; // 1 hour post-event surge window
+  // 2026-05-02: Workstream 6 commit 8.5 — extended from 1h to 2h based on observed
+  // post-event ride patterns (large-venue dispersion + transit congestion delays).
+  // Must match the cleanup buffer in server/lib/briefing/cleanup-events.js so the
+  // read-side fresh window and the write-side deactivation window stay synchronized.
+  const POST_EVENT_SURGE_MS = 2 * 60 * 60 * 1000; // 2 hour post-event surge window
 
   // 2026-01-06: Pass timezone to getEventEndTime for proper parsing of discovered_events format
   const endTime = getEventEndTime(event, timezone);
 
-  // If we have an end time, keep event visible until end + 1hr (post-surge)
+  // If we have an end time, keep event visible until end + 2hr (post-surge)
   if (endTime) {
     return new Date(endTime.getTime() + POST_EVENT_SURGE_MS) > now;
   }
