@@ -270,6 +270,34 @@ git log -p --all -S "_fetchEventsWithGemini3ProPreviewLegacy" | head -100
 - Default if uncertain: keep, mark `@deprecated`, delete in Phase 2 cleanup
 - If clearly unreferenced AND last-touched > 6 months ago: delete during commit 8
 
+**✅ RESOLVED 2026-05-02 (Option A — delete 4 dead paths, hybrid precedent):**
+Recon-first methodology surfaced FOUR independently dead code paths in the events region (not just `_Legacy` as the resume plan anticipated):
+1. `fetchEventsWithClaudeWebSearch` (~123 lines) — Claude WebSearch fallback never wired up
+2. `_fetchEventsWithGemini3ProPreviewLegacy` (~131 lines) — legacy single-search Gemini, superseded by parallel-category `fetchEventsWithGemini3ProPreview`
+3. `mapGeminiEventsToLocalEvents` (~53 lines) — orphan event-shape mapper
+4. `LocalEventSchema` (~18 lines) — orphan Zod schema, paired with mapGemini
+
+All four verified DEAD via 4-way recon: zero internal callers in briefing-service.js (apart from definitions), zero external callers across `server/`, `client/`, `shared/`, `scripts/`, zero string-quoted dispatch refs, zero dynamic-import refs. Function bodies read in full — none called any of the others (4 INDEPENDENT dead paths, not chained).
+
+**METHODOLOGY LESSON (logged to claude_memory #297):** The naive `\b`-bounded grep produced a FALSE NEGATIVE on `fetchEventsWithGemini3ProPreview` (the live primary fetcher), suggesting it was dead. Cause: `fetchEventsWithGemini3ProPreview` is a substring of `_fetchEventsWithGemini3ProPreviewLegacy`, and `\b` boundary behavior was inconsistent across the two definitions. Resolution: re-grep without `\b`, READ function bodies, cross-check with quote/dynamic dispatch checks. **Substring-collision is a real grep failure mode when one function name is a substring of another.**
+
+Resolution (Option A — Master Architect approval, hybrid of #294 + #296 precedent):
+1. Created `server/lib/briefing/pipelines/events.js` (~1,090 lines) with the 5 LIVE functions:
+   - `discoverEvents` (pipeline contract entry, exported)
+   - `fetchEventsForBriefing` (primary entry, re-exported)
+   - `fetchEventsWithGemini3ProPreview` (private — single live caller is fetchEventsForBriefing)
+   - `fetchEventCategory` (private — single live caller is fetchEventsWithGemini3ProPreview)
+   - `deduplicateEvents` (HASH dedup, Rule 16 — re-exported, SURVIVAL GUARDRAIL #1)
+   - `filterInvalidEvents` (LIVE compat shim — re-exported, SURVIVAL GUARDRAIL #2)
+   - Plus private helpers: `withTimeout`, `EVENT_SEARCH_TIMEOUT_MS`, `EVENT_CATEGORIES`
+2. Deleted 4 dead paths (~325 lines total) from briefing-service.js
+3. briefing-service.js: 1,936 → 802 lines (-1,134 net)
+4. Cumulative across Commits 4-8: 3,683 → 802 lines (-2,881 net, ~78% reduction)
+
+**SURVIVAL GUARDRAILS preserved per Master Architect directive:**
+- `deduplicateEvents` (briefing-service.js HASH dedup, Rule 16) — distinct from `deduplicateEventsSemantic.js` (semantic title-similarity). Both coexist; both run in sequence inside fetchEventsForBriefing (hash first then semantic).
+- `filterInvalidEvents` (LIVE compatibility shim) — distinct from `validateEventsHard` (canonical validation module). Shim is exported because external API callers (briefing.js, dump-last-briefing.js) still use the legacy name.
+
 **Channel:** `CHANNELS.EVENTS`
 **Return:** `{ events, reason }`
 **Caller compat:**
