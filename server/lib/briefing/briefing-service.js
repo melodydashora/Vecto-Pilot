@@ -42,6 +42,16 @@ export { fetchWeatherConditions };
 // not as an import).
 import { discoverAirport } from './pipelines/airport.js';
 
+// 2026-05-02: Workstream 6 Step 1 — news pipeline extracted (commit 6/11).
+// fetchRideshareNews re-exported below to preserve the public API surface
+// (server/api/briefing/briefing.js imports it directly for refresh endpoints,
+// and refreshNewsInBriefing in this file uses it via the same binding).
+// Two dead code paths deleted in this commit (Option A precedent — see
+// claude_memory #294): fetchNewsWithClaudeWebSearch + consolidateNewsItems,
+// both with zero callers.
+import { discoverNews, fetchRideshareNews } from './pipelines/news.js';
+export { fetchRideshareNews };
+
 // 2026-01-09: Canonical ETL pipeline modules - use these for validation
 // Local filterInvalidEvents is kept for backwards compatibility but delegates to canonical
 import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
@@ -606,93 +616,6 @@ Focus on ACTIONABLE intelligence: what should the driver DO based on this traffi
   } catch (err) {
     briefingLog.warn(1, `BRIEFING_TRAFFIC analysis failed: ${err.message}`, OP.AI);
     return null;
-  }
-}
-
-/**
- * Fetch news using Claude web search (fallback when Gemini fails)
- */
-async function fetchNewsWithClaudeWebSearch({ city, state, date }) {
-  // 2026-01-05: Updated to match Gemini prompt - prioritize TODAY, require dates, explain relevance
-  const prompt = `Search for news published TODAY (${date}) that MATTERS to rideshare drivers in ${city}, ${state}.
-
-WHAT MATTERS TO RIDESHARE DRIVERS:
-- Traffic disruptions, road closures, construction
-- Weather events affecting driving conditions
-- Major events (concerts, sports, conventions) that create ride demand
-- Uber/Lyft policy changes, earnings updates, promotions
-- Gas prices, toll changes, airport pickup rules
-- Local regulations affecting gig workers
-
-STRICT DATE REQUIREMENT: ONLY include news published TODAY (${date}) or yesterday.
-Also search the broader market/metro area - news from nearby cities in the same metro is relevant.
-
-Return a JSON object:
-{
-  "items": [
-    {
-      "title": "News Title",
-      "summary": "One sentence explaining HOW this affects rideshare drivers",
-      "published_date": "YYYY-MM-DD",
-      "impact": "high" | "medium" | "low",
-      "source": "Source Name",
-      "link": "url"
-    }
-  ],
-  "reason": null
-}
-
-CRITICAL REQUIREMENTS:
-1. "published_date" is REQUIRED - extract the actual date from each article
-2. If you cannot determine the publication date, DO NOT include that article
-3. ONLY return articles from TODAY or YESTERDAY - older news will be rejected
-4. Each summary MUST explain why a rideshare driver should care
-5. If NO news with valid dates found, return: {"items": [], "reason": "No rideshare-relevant news with publication dates found for ${city}, ${state} market today"}`;
-
-  const system = `You are a news search assistant for rideshare drivers. Search for TODAY's news and return structured JSON with publication dates. Focus on news that impacts driver earnings, regulations, and working conditions. If no date can be extracted from an article, exclude it.`;
-
-  try {
-    matrixLog.info({
-      category: 'BRIEFING',
-      connection: 'AI',
-      action: 'DISPATCH',
-      roleName: 'BRIEFER',
-      secondaryCat: 'NEWS',
-      location: 'briefing-service.js:fetchNewsWithClaude',
-    }, 'Calling Briefer for news fallback');
-    // Uses BRIEFING_FALLBACK role (Claude with web_search) for news fallback
-    const result = await callModel('BRIEFING_FALLBACK', { system, user: prompt });
-
-    if (!result.ok) {
-      matrixLog.warn({
-        category: 'BRIEFING',
-        connection: 'AI',
-        action: 'COMPLETE',
-        roleName: 'BRIEFER',
-        secondaryCat: 'NEWS',
-        location: 'briefing-service.js:fetchNewsWithClaude',
-      }, 'Briefer news fallback failed', result.error);
-      return { items: [], reason: result.error, provider: 'claude' };
-    }
-
-    const parsed = safeJsonParse(result.output);
-
-    // 2026-01-05: Handle new format {items, reason} or old format [array]
-    const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
-    const llmReason = parsed?.reason || null;
-
-    if (newsArray.length === 0 || !newsArray[0]?.title) {
-      return { items: [], reason: llmReason || 'No news found via Claude web search', provider: 'claude' };
-    }
-
-    // 2026-01-31: Filter out stale news (older than 2 days) - fresh data on every login
-    const filteredNews = filterRecentNews(newsArray, date);
-
-    briefingLog.done(2, `Claude: ${filteredNews.length} news items (${newsArray.length - filteredNews.length} filtered), ${result.citations?.length || 0} citations`, OP.FALLBACK);
-    return { items: filteredNews, citations: result.citations, reason: llmReason, provider: 'claude' };
-  } catch (err) {
-    briefingLog.error(2, `Claude news failed`, err, OP.FALLBACK);
-    return { items: [], reason: err.message, provider: 'claude' };
   }
 }
 
@@ -1771,287 +1694,6 @@ CRITICAL: Include highDemandZones and repositioning.`;
   }
 }
 
-/**
- * Filter news items to only include articles from the last 2 days
- * 2026-01-31: Tightened from 7 days to 2 days - since we fetch fresh on every
- * login/refresh, we only want TODAY's news (with 1 day buffer for timezone edge cases)
- *
- * Safety net in case AI returns outdated articles despite prompt instructions
- * @param {Array} newsItems - Array of news items with optional published_date field
- * @param {string} todayDate - Today's date in YYYY-MM-DD format
- * @returns {Array} Filtered news items
- */
-function filterRecentNews(newsItems, todayDate) {
-  if (!Array.isArray(newsItems) || newsItems.length === 0) {
-    return newsItems;
-  }
-
-  const today = new Date(todayDate);
-  // 2026-01-31: Tightened from 7 days to 2 days (today + yesterday buffer)
-  const twoDaysAgo = new Date(today);
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-
-  const filtered = newsItems.filter(item => {
-    // If no published_date, include with warning (can't verify freshness)
-    if (!item.published_date) {
-      briefingLog.warn(2, `News item missing date: "${item.title?.slice(0, 40)}..."`, OP.AI);
-      return true; // Include but log warning
-    }
-
-    try {
-      const pubDate = new Date(item.published_date);
-      if (isNaN(pubDate.getTime())) {
-        briefingLog.warn(2, `Invalid date format: ${item.published_date}`, OP.AI);
-        return true; // Include but log warning
-      }
-
-      const isRecent = pubDate >= twoDaysAgo;
-      if (!isRecent) {
-        briefingLog.warn(2, `Filtered stale news (${item.published_date}): "${item.title?.slice(0, 40)}..."`, OP.AI);
-      }
-      return isRecent;
-    } catch (err) {
-      return true; // Include on error
-    }
-  });
-
-  if (filtered.length < newsItems.length) {
-    briefingLog.info(`Filtered ${newsItems.length - filtered.length} stale news items`, OP.AI);
-  }
-
-  return filtered;
-}
-
-/**
- * Fetch rideshare news using Gemini 3.0 Pro with Google Search tools
- * 2026-01-10: CONSOLIDATED to Gemini-only (removed GPT-5.2 parallel fetch)
- * Single-model approach for simpler pipeline, lower cost, cleaner data
- *
- * @param {Object} params
- * @param {Object} params.snapshot - Snapshot with city, state, timezone
- * @returns {Promise<{items: Array, reason?: string, provider: string}>}
- */
-export async function fetchRideshareNews({ snapshot }) {
-  // 2026-01-09: Require ALL location data - no fallbacks for global app
-  if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
-    briefingLog.warn(2, 'Missing location data (city/state/timezone) - cannot fetch news', OP.AI);
-    return { items: [], reason: 'Location data not available (missing timezone)' };
-  }
-  const city = snapshot.city;
-  const state = snapshot.state;
-  const timezone = snapshot.timezone;  // NO FALLBACK - timezone is required
-
-  // Get current date in user's timezone
-  let date;
-  if (snapshot?.local_iso) {
-    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
-  } else {
-    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
-  }
-
-  // 2026-04-16: Resolve market — snapshot.market is authoritative, DB lookup is fallback.
-  // Null means genuinely unknown; buildNewsPrompt handles the placeholder.
-  const market = snapshot.market || await getMarketForLocation(city, state);
-  if (!market) {
-    briefingLog.warn(2, `No market resolved for ${city}, ${state} — news search will use [unknown-market] placeholder`, OP.AI);
-  }
-
-  // Build the enhanced prompt with Market, City, Airport, Headlines
-  // 2026-01-10: Updated prompt to strip source citations for cleaner UI
-  const newsPrompt = buildNewsPrompt({ city, state, market: market || '[unknown-market]', date });
-  const system = `You are a rideshare news research assistant for drivers on platforms like Uber, Lyft, ridehail, taxis, and private car services. Search for recent news and return structured JSON with publication dates. Focus on news that IMPACTS driver earnings, strategy, and working conditions. DO NOT include source citations, URLs, or "[Source: ...]" text in your summaries - return CLEAN text suitable for display.`;
-
-  // 2026-01-10: Consolidated to single Briefer model (configured via BRIEFING_NEWS_MODEL)
-  // Single-model approach: simpler pipeline, lower cost, cleaner data
-  matrixLog.info({
-    category: 'BRIEFING',
-    connection: 'AI',
-    action: 'DISPATCH',
-    roleName: 'BRIEFER',
-    secondaryCat: 'NEWS',
-    location: 'briefing-service.js:fetchRideshareNews',
-  }, 'Calling Briefer for news');
-
-  if (!process.env.GEMINI_API_KEY) {
-    matrixLog.warn({
-      category: 'BRIEFING',
-      connection: 'AI',
-      action: 'COMPLETE',
-      roleName: 'BRIEFER',
-      secondaryCat: 'NEWS',
-      location: 'briefing-service.js:fetchRideshareNews',
-    }, `BRIEFING_NEWS model not configured (requires GEMINI_API_KEY)`);
-    return { items: [], reason: 'Briefer model not configured' };
-  }
-
-  try {
-    const result = await callModel('BRIEFING_NEWS', { system, user: newsPrompt });
-
-    if (!result.ok) {
-      // 2026-04-24: SECURITY — client-facing `reason` is a sentinel string so raw
-      // upstream errors (which may echo API keys) cannot reach the HTTP response.
-      // Full error stays in the server log only.
-      matrixLog.warn({
-        category: 'BRIEFING',
-        connection: 'AI',
-        action: 'COMPLETE',
-        roleName: 'BRIEFER',
-        secondaryCat: 'NEWS',
-        location: 'briefing-service.js:fetchRideshareNews',
-      }, 'News fetch failed', result.error);
-      return { items: [], reason: 'news-fetch-failed', provider: 'briefer' };
-    }
-
-    const parsed = safeJsonParse(result.output);
-    const newsArray = Array.isArray(parsed) ? parsed : (parsed?.items || []);
-
-    if (newsArray.length === 0) {
-      briefingLog.info(`No news items found for ${market}`, OP.AI);
-      return { items: [], reason: `No rideshare news found for ${market} market`, provider: 'briefer' };
-    }
-
-    // Filter recent news + sort by impact
-    const filtered = filterRecentNews(newsArray, date);
-    const sorted = filtered.sort((a, b) => {
-      const impactOrder = { high: 0, medium: 1, low: 2 };
-      return (impactOrder[a.impact] ?? 2) - (impactOrder[b.impact] ?? 2);
-    });
-
-    briefingLog.done(2, `News: ${sorted.length} items for ${market}`, OP.AI);
-
-    return {
-      items: sorted,
-      reason: null,
-      provider: 'briefer'
-    };
-  } catch (err) {
-    briefingLog.error(2, `News fetch error: ${err.message}`, err, OP.AI);
-    return { items: [], reason: `News fetch error: ${err.message}`, provider: 'briefer' };
-  }
-}
-
-/**
- * Build the enhanced news prompt with Market, City, Airport, Headlines
- * 2026-01-05: Expanded scope for rideshare drivers
- * 2026-01-10: GEMINI-ONLY - Updated to strip source citations for cleaner UI
- */
-function buildNewsPrompt({ city, state, market, date }) {
-  return `Search for news relevant to RIDESHARE DRIVERS (Uber, Lyft, ridehail, taxi, private car service).
-
-LOCATION CONTEXT:
-- City: ${city}, ${state}
-- Market: ${market} (search the entire ${market} metro area)
-- Date: ${date}
-
-SEARCH SCOPE - Include ALL of these:
-1. AIRPORT NEWS: Delays, TSA changes, pickup/dropoff rules, terminal construction, airline schedules affecting ${market} airports
-2. MAJOR HEADLINES: Big local news that creates ride demand (sports events, concerts, conventions, protests, emergencies)
-3. TRAFFIC & ROAD: Road closures, construction, accidents, new toll roads, bridge closures in ${market} area
-4. UBER/LYFT UPDATES: Platform policy changes, earnings bonuses, promotions, rate changes, deactivation news
-5. GIG ECONOMY: Regulations, lawsuits, union activity, insurance changes affecting rideshare drivers
-6. WEATHER IMPACTS: Severe weather that affects driving conditions or creates surge opportunities
-7. GAS & COSTS: Fuel prices, EV charging news, vehicle costs that impact driver earnings
-
-SEARCH THE ENTIRE ${market.toUpperCase()} MARKET - not just ${city}. News from nearby cities in the metro is highly relevant.
-
-PUBLICATION DATE REQUIREMENT:
-- ONLY include news published TODAY (${date}) or yesterday
-- Do NOT include older news even if "still relevant" - we fetch fresh data daily
-- Each item MUST have a published_date - if you can't determine the date, EXCLUDE it
-- Stale news (older than yesterday) will be rejected
-
-Return JSON (NO source citations, NO URLs in summary text, CLEAN display-ready content):
-{
-  "items": [
-    {
-      "title": "News Title (clean, no source attribution)",
-      "summary": "HOW this affects rideshare drivers - be specific about impact on earnings or strategy. NO [Source: ...] or URL references.",
-      "published_date": "YYYY-MM-DD",
-      "impact": "high" | "medium" | "low",
-      "category": "airport" | "traffic" | "event" | "platform" | "regulation" | "weather" | "cost"
-    }
-  ],
-  "reason": null
-}
-
-REQUIREMENTS:
-1. published_date is REQUIRED - extract from each article
-2. summary MUST explain the DRIVER IMPACT (not just what happened)
-3. Return 3-8 items maximum, sorted by impact (high first)
-4. NO source citations, NO URLs, NO "[Source: ...]" text - keep summaries CLEAN for mobile display
-5. If no news found: {"items": [], "reason": "No rideshare-relevant news for ${market} market"}`;
-}
-
-/**
- * Consolidate news items from multiple providers
- * Deduplicates by title similarity, filters stale news, sorts by impact
- *
- * @param {Array} items - All news items from all providers
- * @param {string} todayDate - Today's date in YYYY-MM-DD format
- * @returns {Array} Consolidated, deduplicated news items
- */
-function consolidateNewsItems(items, todayDate) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return [];
-  }
-
-  // Step 1: Deduplicate by title similarity (fuzzy match)
-  const seen = new Map(); // normalized title -> item
-  const deduplicated = [];
-
-  for (const item of items) {
-    if (!item.title) continue;
-
-    // Normalize title for comparison
-    const normalizedTitle = item.title
-      .toLowerCase()
-      .replace(/[^\w\s]/g, '') // Remove punctuation
-      .replace(/\s+/g, ' ')    // Normalize whitespace
-      .trim()
-      .substring(0, 50);       // First 50 chars for matching
-
-    // Check if we've seen a similar title
-    let isDuplicate = false;
-    for (const [seenTitle] of seen) {
-      // Simple Jaccard-like similarity: shared words / total words
-      const seenWords = new Set(seenTitle.split(' '));
-      const itemWords = new Set(normalizedTitle.split(' '));
-      const intersection = [...seenWords].filter(w => itemWords.has(w)).length;
-      const union = new Set([...seenWords, ...itemWords]).size;
-      const similarity = intersection / union;
-
-      if (similarity > 0.6) { // 60% word overlap = duplicate
-        isDuplicate = true;
-        break;
-      }
-    }
-
-    if (!isDuplicate) {
-      seen.set(normalizedTitle, item);
-      deduplicated.push(item);
-    }
-  }
-
-  // Step 2: Filter out very stale news (older than 7 days) unless still relevant
-  const filtered = filterRecentNews(deduplicated, todayDate);
-
-  // Step 3: Sort by impact (high > medium > low), then by date
-  const impactOrder = { high: 0, medium: 1, low: 2 };
-  filtered.sort((a, b) => {
-    const impactA = impactOrder[a.impact] ?? 2;
-    const impactB = impactOrder[b.impact] ?? 2;
-    if (impactA !== impactB) return impactA - impactB;
-
-    // Secondary sort by date (newest first)
-    const dateA = a.published_date || '0000-00-00';
-    const dateB = b.published_date || '0000-00-00';
-    return dateB.localeCompare(dateA);
-  });
-
-  // Step 4: Limit to 8 items max
-  return filtered.slice(0, 8);
-}
-
 export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   // Dedup 1: Check if already in flight in this process (concurrent calls)
   if (inFlightBriefings.has(snapshotId)) {
@@ -2320,18 +1962,10 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // block below reads from the new shape.
   const airportPromise = discoverAirport({ snapshot, snapshotId });
 
-  const newsPromise = fetchRideshareNews({ snapshot })
-    .then(async (r) => {
-      const items = Array.isArray(r?.items) ? r.items : [];
-      await writeSectionAndNotify(snapshotId, {
-        news: { items, reason: r?.reason || (items.length === 0 ? 'No rideshare news found for this area' : null) },
-      }, CHANNELS.NEWS);
-      return r;
-    })
-    .catch(async (err) => {
-      await writeSectionAndNotify(snapshotId, { news: errorMarker(err) }, CHANNELS.NEWS);
-      throw err;
-    });
+  // 2026-05-02: Workstream 6 commit 6 — discoverNews owns its writeSectionAndNotify
+  // and errorMarker .catch. Returns { news: {items, reason}, reason }; the final-assembly
+  // block below reads from the new shape.
+  const newsPromise = discoverNews({ snapshot, snapshotId });
 
   const fetchResults = await Promise.allSettled([
     weatherPromise,
@@ -2387,10 +2021,10 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     }
     eventsItems = [];
   }
-  let newsItems = newsResult?.items;
+  let newsItems = newsResult?.news?.items;
   if (!Array.isArray(newsItems)) {
     if (newsResult !== null) {
-      briefingLog.warn(1, `newsResult.items is ${typeof newsItems} — defaulting to []`, OP.AI);
+      briefingLog.warn(1, `newsResult.news.items is ${typeof newsItems} — defaulting to []`, OP.AI);
     }
     newsItems = [];
   }
@@ -2429,7 +2063,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       // material. Use sentinel on failure path; preserve non-error messages.
       reason: failedReasons.news
         ? 'news-fetch-failed'
-        : newsResult?.reason || (newsItems.length === 0 ? 'No rideshare news found for this area' : null)
+        : newsResult?.news?.reason || (newsItems.length === 0 ? 'No rideshare news found for this area' : null)
     },
     weather_current: weatherCurrent,
     weather_forecast: weatherResult?.weather_forecast || [],
