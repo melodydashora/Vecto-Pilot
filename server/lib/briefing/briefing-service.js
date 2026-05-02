@@ -36,6 +36,12 @@ export { fetchSchoolClosures };
 import { discoverWeather, fetchWeatherConditions } from './pipelines/weather.js';
 export { fetchWeatherConditions };
 
+// 2026-05-02: Workstream 6 Step 1 — airport pipeline extracted (commit 5/11).
+// fetchAirportConditions and extractAirportJson are internal-only — no re-export
+// needed (consolidator.js:652 only references the function name in a code COMMENT,
+// not as an import).
+import { discoverAirport } from './pipelines/airport.js';
+
 // 2026-01-09: Canonical ETL pipeline modules - use these for validation
 // Local filterInvalidEvents is kept for backwards compatibility but delegates to canonical
 import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
@@ -1766,162 +1772,6 @@ CRITICAL: Include highDemandZones and repositioning.`;
 }
 
 /**
- * Fetch airport conditions using Gemini with Google Search
- * Includes flight delays, arrivals, departures, and airport recommendations for drivers
- * @param {Object} params - Parameters object
- * @param {Object} params.snapshot - Snapshot with location data
- * @returns {Promise<Object>} Airport conditions data
- */
-/**
- * 2026-04-05: Manual airport JSON extraction — last resort when safeJsonParse fails.
- * Gemini with google_search often wraps JSON in markdown narrative. This function
- * extracts airport data by walking braces and looking for the "airports" key.
- */
-function extractAirportJson(rawText) {
-  if (!rawText) return { airports: [] };
-
-  // Strategy 1: Find {"airports" and extract the balanced object
-  const airportsIdx = rawText.indexOf('"airports"');
-  if (airportsIdx === -1) {
-    console.warn('[BRIEFING] [AIRPORT] No "airports" key found in response');
-    return { airports: [] };
-  }
-
-  // Walk backwards to find the opening brace
-  let objStart = -1;
-  for (let i = airportsIdx - 1; i >= 0; i--) {
-    if (rawText[i] === '{') { objStart = i; break; }
-  }
-  if (objStart === -1) return { airports: [] };
-
-  // Walk forward to find the balanced closing brace
-  let depth = 0;
-  for (let i = objStart; i < rawText.length; i++) {
-    if (rawText[i] === '{') depth++;
-    else if (rawText[i] === '}') {
-      depth--;
-      if (depth === 0) {
-        const candidate = rawText.slice(objStart, i + 1);
-        try {
-          return JSON.parse(candidate);
-        } catch {
-          // Strategy 2: Clean common issues and retry
-          try {
-            const cleaned = candidate
-              .replace(/\*+/g, '')           // Strip markdown bold/italic
-              .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')  // Strip markdown links
-              .replace(/,\s*([}\]])/g, '$1');  // Strip trailing commas
-            return JSON.parse(cleaned);
-          } catch {
-            console.warn('[BRIEFING] [AIRPORT] Manual extraction found object but parse failed');
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  return { airports: [] };
-}
-
-async function fetchAirportConditions({ snapshot }) {
-  // Require valid location data - no fallbacks for global app
-  if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
-    briefingLog.warn(2, 'Missing location data in snapshot - cannot fetch airport conditions', OP.AI);
-    return {
-      airports: [],
-      busyPeriods: [],
-      recommendations: 'Airport data unavailable — snapshot missing city, state, or timezone',
-      reason: 'Snapshot missing required location data (city/state/timezone)'
-    };
-  }
-  const city = snapshot.city;
-  const state = snapshot.state;
-  const timezone = snapshot.timezone;
-  const lat = snapshot.lat;
-  const lng = snapshot.lng;
-
-  // Get current date in user's timezone
-  let date;
-  if (snapshot?.local_iso) {
-    date = new Date(snapshot.local_iso).toISOString().split('T')[0];
-  } else {
-    date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
-  }
-
-  // Fallback for API failures — NO NULLS: always include reason
-  const fallbackAirport = {
-    airports: [],
-    busyPeriods: [],
-    recommendations: `Airport data for ${city}, ${state} could not be retrieved`,
-    fetchedAt: new Date().toISOString(),
-    isFallback: true,
-    reason: `Airport conditions provider (Gemini) failed for ${city}, ${state}`
-  };
-
-  // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
-  if (!process.env.GEMINI_API_KEY) {
-    briefingLog.warn(2, `GEMINI_API_KEY not set - skipping airport search`, OP.AI);
-    return fallbackAirport;
-  }
-
-  try {
-    matrixLog.info({
-      category: 'BRIEFING',
-      connection: 'AI',
-      action: 'DISPATCH',
-      roleName: 'BRIEFER',
-      secondaryCat: 'AIRPORT',
-      location: 'briefing-service.js:fetchAirportConditions',
-    }, 'Calling Briefer for airport conditions');
-
-    const system = `You are an airport conditions API. Return ONLY valid JSON. No prose, no markdown, no explanatory text, no code fences. Output a single JSON object and nothing else.`;
-    const user = `Search for current airport conditions near ${city}, ${state} as of ${date}.
-
-Find airports within 50 miles. Return ONLY this JSON structure (no other text):
-{"airports":[{"code":"IATA","name":"Airport Name","delays":"description","status":"normal","busyTimes":["time range"]}],"busyPeriods":["description"],"recommendations":"driver tips"}`;
-
-    const result = await callModel('BRIEFING_AIRPORT', { system, user });
-
-    if (!result.ok) {
-      matrixLog.error({
-        category: 'BRIEFING',
-        connection: 'AI',
-        action: 'COMPLETE',
-        roleName: 'BRIEFER',
-        secondaryCat: 'AIRPORT',
-        location: 'briefing-service.js:fetchAirportConditions',
-      }, 'Briefer call failed', result.error);
-      return fallbackAirport;
-    }
-
-    // 2026-04-05: Try safeJsonParse first, fall back to manual extraction if it fails.
-    // Gemini with google_search often wraps JSON in markdown narrative text.
-    let parsed;
-    try {
-      parsed = safeJsonParse(result.output);
-    } catch (parseErr) {
-      // Manual extraction: find {"airports" or [{"code" in the raw text
-      console.warn(`[BRIEFING] [AIRPORT] safeJsonParse failed (${parseErr.message}), trying manual extraction...`);
-      console.log(`[BRIEFING] [AIRPORT] Raw (first 300):`, result.output?.substring(0, 300));
-      parsed = extractAirportJson(result.output);
-    }
-    briefingLog.done(2, `Gemini airport: ${parsed.airports?.length || 0} airports`, OP.AI);
-
-    return {
-      airports: Array.isArray(parsed.airports) ? parsed.airports : [],
-      busyPeriods: Array.isArray(parsed.busyPeriods) ? parsed.busyPeriods : [],
-      recommendations: parsed.recommendations || 'No specific airport recommendations at this time',
-      fetchedAt: new Date().toISOString(),
-      provider: 'gemini'
-    };
-  } catch (err) {
-    briefingLog.warn(2, `Gemini airport error: ${err.message}`, OP.FALLBACK);
-    return fallbackAirport;
-  }
-}
-
-/**
  * Filter news items to only include articles from the last 2 days
  * 2026-01-31: Tightened from 7 days to 2 days - since we fetch fresh on every
  * login/refresh, we only want TODAY's news (with 1 day buffer for timezone edge cases)
@@ -2465,17 +2315,10 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       throw err;
     });
 
-  const airportPromise = fetchAirportConditions({ snapshot })
-    .then(async (r) => {
-      await writeSectionAndNotify(snapshotId, {
-        airport_conditions: r || { airports: [], busyPeriods: [], recommendations: 'No airport data available for this area', reason: 'Airport conditions could not be retrieved' },
-      }, CHANNELS.AIRPORT);
-      return r;
-    })
-    .catch(async (err) => {
-      await writeSectionAndNotify(snapshotId, { airport_conditions: errorMarker(err) }, CHANNELS.AIRPORT);
-      throw err;
-    });
+  // 2026-05-02: Workstream 6 commit 5 — discoverAirport owns its writeSectionAndNotify
+  // and errorMarker .catch. Returns { airport_conditions, reason }; the final-assembly
+  // block below reads from the new shape.
+  const airportPromise = discoverAirport({ snapshot, snapshotId });
 
   const newsPromise = fetchRideshareNews({ snapshot })
     .then(async (r) => {
@@ -2556,7 +2399,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     schoolClosures = [];
   }
 
-  const airportCount = airportResult?.airports?.length || 0;
+  const airportCount = airportResult?.airport_conditions?.airports?.length || 0;
   const forecastHours = weatherResult?.weather_forecast?.length || 0;
   briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'N/A'}, airports=${airportCount}`, OP.AI);
 
@@ -2612,7 +2455,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     school_closures: schoolClosures.length > 0
       ? schoolClosures
       : { items: [], reason: schoolClosuresReason },
-    airport_conditions: airportResult || {
+    airport_conditions: airportResult?.airport_conditions || {
       airports: [],
       busyPeriods: [],
       recommendations: failedReasons.airport
