@@ -2,6 +2,16 @@
 AGENT DIRECTIVE: This file contains resolved historical post-mortems. Do NOT attempt to fix the bugs listed here. Use this file STRICTLY as read-only context to avoid repeating past architectural mistakes.
 
 
+## 2026-05-02: Logger taxonomy migrations — spec the exceptions, don't violate them
+
+- **Symptom:** Tier 3 of the matrixLog migration (auth.js + location.js + blocks-fast.js) needed to keep the existing `userId.substring(0, 8)` correlation prefix in auth-flow log messages for real-time DX, but the matrixLog spec at `server/logger/matrix.js:26-28` (written 2026-05-01) explicitly forbade UUIDs in messages. Initial Claude recommendation was to drop the prefix entirely (Option (i), spec-literal); deeper review revealed this would degrade Replit console correlation when multiple drivers log in concurrently.
+- **Root cause:** A new structured logging spec was written on top of an existing convention without auditing the convention first. The auth-flow `userId.substring(0, 8)` pattern (`auth.js:56` and similar) predated the matrixLog spec by months and was load-bearing for debuggability — but the spec text was authored as if no prior pattern existed.
+- **Resolution (Melody, 2026-05-02):** modified Option (ii) — keep the 8-char hex prefix in messages, AND amend the matrixLog spec to explicitly permit it as a deliberate exception. Spec-amendment commit (`docs(matrix): permit 8-char hex correlation prefix in messages`) lands BEFORE the migration commits so the spec authorizes the convention rather than being silently violated. Email / coord / full-address / full-UUID remain forbidden in messages.
+- **Lesson 1 — Audit existing conventions before writing fresh specs.** When introducing a new structured logging spec on top of existing convention, grep the active convention first. Either (a) explicitly carry it forward into the spec as a permitted exception, or (b) deprecate it deliberately. "We'll fix it during migration" rationalization leads to silent spec violations.
+- **Lesson 2 — Spec-amendment commits should precede the migration commits that rely on them.** The git timeline reads as *spec said X → spec said Y → code does Y*. If migration commits land first with the convention, future readers grep the spec, see "NO UUIDs in messages", and assume the code is buggy. By landing the spec amendment first, the timeline is self-explanatory.
+- **Lesson 3 — Real-time DX is a real architectural concern.** Spec-literal compliance can be the right call for log-pipeline ingest, but the cost of "you must tail JSON sidecar to correlate" should be measured against the value, not assumed away. Multiple concurrent driver logins in the dev console were the concrete forcing function.
+- **Files:** `server/logger/matrix.js` (spec amendment), `server/api/auth/auth.js`, `server/api/location/location.js`, `server/api/strategy/blocks-fast.js`, `docs/review-queue/PLAN_matrixlog-tier3-auth-location-strategy-2026-05-02.md`.
+
 ## 2026-04-30: Hash Function Normalization Gap → 161 Duplicate Events Past UNIQUE Constraint
 
 - **Symptom:** `discovered_events` accumulated 161 dupes (out of 1826 rows) despite `event_hash` having a `UNIQUE` constraint at the schema level. Read-path application logic ran `deduplicateEvents` + `deduplicateEventsSemantic` ~15× per page load on `/co-pilot/strategy` to compensate, masking the underlying integrity gap.
