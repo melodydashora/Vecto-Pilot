@@ -5,13 +5,13 @@
  */
 
 // Core functionality
-export { buildCodeMap, loadLatestCodeMap, buildAndPersist } from './core/code-map';
-export { readJson, writeJson } from './core/memory-store';
-export { contextAwareness } from './core/context-awareness';
-export { memoryManager } from './core/memory-enhanced';
+export { buildCodeMap, loadLatestCodeMap, buildAndPersist } from './core/code-map.js';
+export { readJson, writeJson } from './core/memory-store.js';
+export { contextAwareness } from './core/context-awareness.js';
+export { memoryManager } from './core/memory-enhanced.js';
 
 // Configuration
-export { EIDOLON_CONFIG } from './config';
+export { EIDOLON_CONFIG } from './config.js';
 
 // Assistant system (commented out - files don't exist)
 // export { default as unifiedAssistant } from '../assistant/unified-assistant';

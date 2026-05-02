@@ -213,7 +213,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // 2026-01-07: Ref to always access latest refreshGPS without adding to effect deps
   // Adding refreshGPS to deps caused infinite loop (Maximum update depth exceeded)
   // The ref is updated after refreshGPS is defined (see useEffect below refreshGPS definition)
-  const refreshGPSRef = useRef<(force?: boolean) => Promise<void>>();
+  const refreshGPSRef = useRef<((force?: boolean) => Promise<void>) | undefined>(undefined);
 
   // 2026-01-14: Refs to access current state values in GPS effect without adding to deps
   // This prevents the closure capture problem where setTimeout sees stale values
@@ -755,7 +755,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // 2026-03-18: Keep enrichLocation ref in sync — auto-enrich effect uses this
   // to avoid depending on the enrichLocation reference (which changes on auth state change)
-  const enrichLocationRef = useRef<typeof enrichLocation>();
+  const enrichLocationRef = useRef<typeof enrichLocation | undefined>(undefined);
   useEffect(() => {
     enrichLocationRef.current = enrichLocation;
   }, [enrichLocation]);

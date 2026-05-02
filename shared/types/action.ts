@@ -1,4 +1,4 @@
-import type { UUID } from "./ids";
+import type { UUID } from "./ids.js";
 
 export type ActionV1 = {
   schema_version: 1;

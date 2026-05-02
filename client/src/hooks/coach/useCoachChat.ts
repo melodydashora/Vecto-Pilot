@@ -57,10 +57,10 @@ export interface UseCoachChatReturn {
 
   attachments: CoachAttachment[];
   setAttachments: React.Dispatch<React.SetStateAction<CoachAttachment[]>>;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
 
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function useCoachChat({

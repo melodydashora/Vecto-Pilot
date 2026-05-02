@@ -8,62 +8,8 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Loader } from 'lucide-react';
 import { filterTodayEvents, formatEventDate, formatEventTimeRange } from '@/utils/co-pilot-helpers';
 
-// Google Maps type declarations (loaded dynamically via script)
-declare global {
-  interface Window {
-    google: typeof google;
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-namespace
-declare namespace google.maps {
-  class Map {
-    constructor(element: HTMLElement, options: MapOptions);
-    fitBounds(bounds: LatLngBounds, padding?: number | { top?: number; right?: number; bottom?: number; left?: number; padding?: number }): void;
-  }
-  class Marker {
-    constructor(options: MarkerOptions);
-    setMap(map: Map | null): void;
-    getPosition(): LatLng | null;
-    addListener(event: string, handler: () => void): void;
-  }
-  class InfoWindow {
-    constructor();
-    setContent(content: string): void;
-    open(map: Map, marker: Marker): void;
-    close(): void;
-  }
-  class LatLngBounds {
-    constructor();
-    extend(point: LatLng): void;
-  }
-  class LatLng {
-    constructor(lat: number, lng: number);
-    lat(): number;
-    lng(): number;
-  }
-  class TrafficLayer {
-    constructor();
-    setMap(map: Map): void;
-  }
-  interface MapOptions {
-    center: { lat: number; lng: number };
-    zoom: number;
-    mapTypeControl?: boolean;
-    fullscreenControl?: boolean;
-    zoomControl?: boolean;
-    streetViewControl?: boolean;
-    minZoom?: number;
-    maxZoom?: number;
-  }
-  interface MarkerOptions {
-    position: { lat: number; lng: number };
-    map: Map;
-    title?: string;
-    icon?: string;
-    zIndex?: number;
-  }
-}
+// Google Maps types come from @types/google.maps (see tsconfig.client.json).
+// Window.google is augmented in client/src/vite-env.d.ts.
 
 interface Venue {
   id: string;
@@ -316,7 +262,7 @@ const MapTab: React.FC<MapTabProps> = ({
       eventMarkersRef.current.forEach(marker => {
         bounds.extend(marker.getPosition()!);
       });
-      mapInstanceRef.current?.fitBounds(bounds, { padding: 60 });
+      mapInstanceRef.current?.fitBounds(bounds, 60);
     }
   }, [mapReady, venues, driverLat, driverLng]);
 

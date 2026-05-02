@@ -10,7 +10,8 @@
     "build",
     "dist",
     "server",
-    "gpt5-agent-package"
+    "gpt5-agent-package",
+    "client/src/components/strategy/_future"
   ],
   "compilerOptions": {
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
@@ -20,7 +21,7 @@
     "noEmit": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
-    "types": ["node", "vite/client"],
+    "types": ["node", "vite/client", "google.maps"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./client/src/*"],

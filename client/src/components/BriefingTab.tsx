@@ -134,7 +134,7 @@ const BriefingTab = memo(function BriefingTab({
         </div>
       </div>
 
-      <WeatherCard weatherData={weatherData} timezone={timezone} />
+      <WeatherCard weatherData={weatherData} timezone={timezone ?? undefined} />
 
       <TrafficCard 
         trafficData={trafficData} 
@@ -173,7 +173,7 @@ const BriefingTab = memo(function BriefingTab({
           </CardContent>
         </Card>
       ) : (
-        <EventsComponent events={allEvents} isLoading={false} timezone={timezone} />
+        <EventsComponent events={allEvents} isLoading={false} timezone={timezone ?? undefined} />
       )}
 
       {marketEventsToday.length > 0 && (
@@ -204,7 +204,7 @@ const BriefingTab = memo(function BriefingTab({
           </CardHeader>
           {expandedMarketEvents && (
             <CardContent className="pt-0">
-              <EventsComponent events={marketEventsToday} isLoading={false} timezone={timezone} />
+              <EventsComponent events={marketEventsToday} isLoading={false} timezone={timezone ?? undefined} />
             </CardContent>
           )}
         </Card>

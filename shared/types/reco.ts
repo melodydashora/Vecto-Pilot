@@ -1,5 +1,5 @@
-import type { UUID } from "./ids";
-import type { Coord } from "./location";
+import type { UUID } from "./ids.js";
+import type { Coord } from "./location.js";
 
 export type Block = {
   block_id: string;

@@ -404,7 +404,6 @@ export interface FilterableEvent {
   event_end_date?: string;  // For multi-day events (e.g., Dec 1 - Jan 4)
   event_start_time?: string;
   event_end_time?: string;
-  [key: string]: unknown;
 }
 
 /**

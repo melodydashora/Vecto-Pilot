@@ -142,7 +142,7 @@ export default function SignInPage() {
     window.location.href = API_ROUTES.AUTH.GOOGLE;
   };
 
-  const handleAppleLogin = async () => {
+  const _handleAppleLogin = async () => {
     setSocialLoading('apple');
     setError(null);
     // Redirect to Apple OAuth endpoint

@@ -17,7 +17,7 @@ import { API_ROUTES } from '@/constants/apiRoutes';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  method: z.enum(['email', 'sms'], { required_error: 'Please select a reset method' }),
+  method: z.enum(['email', 'sms'], { error: 'Please select a reset method' }),
 });
 
 type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
