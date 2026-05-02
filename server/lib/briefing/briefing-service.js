@@ -19,6 +19,12 @@ import { dumpLastBriefingRow } from './dump-last-briefing.js';
 // import from a single source of truth for channel names + the error wrapper.
 import { writeSectionAndNotify, CHANNELS, errorMarker } from './briefing-notify.js';
 
+// 2026-05-02: Workstream 6 Step 1 — shared utilities extracted (commit 2/11).
+// Pipelines and aggregator import from these single-source modules.
+import { safeJsonParse } from './shared/safe-json-parse.js';
+import { getMarketForLocation } from './shared/get-market-for-location.js';
+import { isDailyBriefingStale, isEventsStale, isTrafficStale, areEventsEmpty } from './shared/staleness.js';
+
 // 2026-01-09: Canonical ETL pipeline modules - use these for validation
 // Local filterInvalidEvents is kept for backwards compatibility but delegates to canonical
 import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
@@ -102,42 +108,8 @@ function withTimeout(promise, timeoutMs, operationName = 'Operation') {
   return Promise.race([wrappedPromise, timeoutPromise]);
 }
 
-/**
- * Get market name for a city/state location
- * 2026-02-01: Extracted as reusable function for events + news
- * 2026-04-16: FIX — returns null instead of city on miss. City-as-market substitution
- * produced narrower search results (e.g., "Plano" instead of "Dallas") and violated
- * the BRIEFING-DATA-MODEL.md contract that market is a distinct concept from city.
- *
- * @param {string} city - City name (e.g., "Frisco")
- * @param {string} state - State abbreviation (e.g., "TX")
- * @returns {Promise<string|null>} - Market name (e.g., "Dallas") or null if no DB match
- */
-async function getMarketForLocation(city, state) {
-  try {
-    // 2026-02-01: FIX - Use state_abbr (not state) since snapshot has "TX" not "Texas"
-    const [marketResult] = await db
-      .select({ market_name: market_cities.market_name })
-      .from(market_cities)
-      .where(and(
-        ilike(market_cities.city, city),
-        eq(market_cities.state_abbr, state)
-      ))
-      .limit(1);
-
-    if (marketResult?.market_name) {
-      briefingLog.info(`Market resolved: ${city}, ${state} → ${marketResult.market_name}`, OP.DB);
-      return marketResult.market_name;
-    }
-
-    // 2026-04-16: No silent city substitution — callers handle null explicitly
-    briefingLog.warn(2, `No market found for ${city}, ${state} — market_cities table has no match`, OP.DB);
-    return null;
-  } catch (dbErr) {
-    briefingLog.warn(2, `Market lookup failed (non-fatal): ${dbErr.message}`, OP.DB);
-    return null;
-  }
-}
+// 2026-05-02: getMarketForLocation moved to ./shared/get-market-for-location.js
+// (Workstream 6 Step 1 commit 2 — used by ≥2 pipelines).
 
 /**
  * Get region-specific search terms for school authorities
@@ -726,220 +698,9 @@ CRITICAL REQUIREMENTS:
 
 const inFlightBriefings = new Map(); // In-memory dedup for concurrent calls within same process
 
-/**
- * Safely parse JSON from Gemini responses
- * Handles unescaped newlines, markdown blocks, and other formatting issues
- */
-function safeJsonParse(jsonString) {
-  if (!jsonString || typeof jsonString !== 'string') {
-    throw new Error('JSON parse failed: input is empty or not a string');
-  }
-
-  // 2026-04-05: PRE-PROCESSING — Replace literal \n sequences with real newlines BEFORE
-  // any parse attempt. AI models sometimes return JSON with literal backslash-n between
-  // tokens. Real newlines are valid JSON whitespace between tokens, and JSON.parse handles
-  // \n escape sequences inside strings natively — so this global replacement is safe.
-  // Also handle \\n (doubled backslash from stringify) and literal \r\n.
-  jsonString = jsonString
-    .replace(/\\r\\n/g, '\n')   // literal \r\n → real newline
-    .replace(/\\r/g, '')         // literal \r → remove
-    .replace(/\\n/g, '\n');      // literal \n → real newline
-
-  // Helper to clean markdown and normalize the string
-  function cleanMarkdown(str) {
-    let cleaned = str.trim();
-    // Remove markdown code blocks (```json ... ``` or ``` ... ```)
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
-    }
-    // Also handle inline code blocks that might appear mid-string
-    cleaned = cleaned.replace(/```json/g, '').replace(/```/g, '').trim();
-    return cleaned;
-  }
-
-  // 2026-02-26: FIX - Strip markdown prose/citations that google_search grounding injects.
-  // Safety net for when the adapter-level suppression doesn't fully eliminate citations.
-  function stripMarkdownProse(str) {
-    let cleaned = str;
-
-    // Remove inline markdown links: [text](url) → text
-    // Catches citations like [NBC News](https://nbc.com) that corrupt JSON array bracket matching
-    cleaned = cleaned.replace(/\[([^\]]*)\]\([^)]+\)/g, '$1');
-
-    // 2026-04-09: FIX (D-095) - Strip malformed markdown link artifacts that Gemini injects
-    // into JSON string values (e.g. school closure data). The valid markdown regex above
-    // only catches well-formed [text](url). Malformed variants like ([collintimes.com)
-    // leave stray brackets/parens that corrupt JSON parsing.
-    // Pattern 1: ([text) — open paren, bracket, content, close paren (no proper markdown)
-    cleaned = cleaned.replace(/\(\[([^\]]*?)\)(?!\s*[{[\],:}])/g, '$1');
-    // Pattern 2: [text] not followed by (url) — bare reference-style links inside strings
-    // Negative lookahead ensures we don't strip valid JSON array brackets (followed by JSON structural chars)
-    cleaned = cleaned.replace(/(?<=:\s*"[^"]*)\[([^\]]*)\](?!\s*[,\]}:({])/g, '$1');
-    // Pattern 3: (url) fragments that look like citation URLs inside string values
-    // Only matches when preceded by word char (end of a citation source name) and contains dot (URL-like)
-    cleaned = cleaned.replace(/(?<=\w)\((?:https?:\/\/)?[a-zA-Z0-9.-]+\.[a-z]{2,}[^)]*\)/g, '');
-
-    // Remove standalone markdown lines (headers, horizontal rules) that precede JSON
-    const lines = cleaned.split('\n');
-    const jsonLines = [];
-    let foundJson = false;
-    for (const line of lines) {
-      if (!foundJson && /^#{1,6}\s|^\*{3,}$|^-{3,}$/.test(line.trim())) {
-        continue; // Skip markdown header/rule lines before JSON starts
-      }
-      // Skip pure prose lines before JSON (no JSON structural characters)
-      if (!foundJson && line.trim() && !/[{[\]}",:]/.test(line)) {
-        continue;
-      }
-      if (/[{[\]}]/.test(line)) {
-        foundJson = true;
-      }
-      jsonLines.push(line);
-    }
-
-    return jsonLines.join('\n').trim();
-  }
-
-  // Helper to fix common JSON issues from LLMs
-  // 2026-02-17: FIX - Three bugs that CORRUPTED valid JSON instead of fixing it:
-  //   Bug 1: Single-quote regex treated English apostrophes as delimiters
-  //          ("Valentine's Day at Billy Bob's" → corrupted double-quote nesting)
-  //   Bug 2: Unquoted-property regex matched word:colon inside string values
-  //          ("NBA: Dallas" → "NBA": Dallas" inside a value)
-  //   Bug 3: Newline regex only fixed the LAST \n per string (greedy backtrack)
-  function fixCommonJsonIssues(str) {
-    let fixed = str;
-
-    // 2026-04-05: Literal \n replacement moved to safeJsonParse pre-processing step.
-    // It runs ONCE at the top before any parse attempt, which is simpler and avoids
-    // interaction with the newline-in-string escaper below (lines 729-736).
-
-    // 2026-02-17: Only convert single quotes to double quotes when the string is
-    // Python-style output (no double quotes at all). Previously this regex corrupted
-    // JSON with English apostrophes (e.g., "Tonight's game" → broken structure).
-    const hasSingleQuoteDelimiters = !fixed.includes('"') && fixed.includes("'");
-    if (hasSingleQuoteDelimiters) {
-      fixed = fixed.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '"$1"');
-    }
-
-    // 2026-02-17: Only fix unquoted property names when the string doesn't already
-    // have double-quoted properties. The regex can't distinguish {,] boundaries from
-    // commas INSIDE string values, so "game, NBA: Dallas" would be corrupted.
-    const hasDoubleQuotedProperties = /"[^"]+"\s*:/.test(fixed);
-    if (!hasDoubleQuotedProperties) {
-      fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
-    }
-
-    // Remove trailing commas before } or ]
-    fixed = fixed.replace(/,\s*([}\]])/g, '$1');
-
-    // 2026-02-19: FIX - Strip carriage returns instead of escaping them.
-    // Previous code (`\r\n` → `\\n`) converted valid structural whitespace into
-    // literal backslash-n characters between JSON properties, breaking every parse.
-    // Simply removing \r is safe: \r\n → \n (still valid whitespace), bare \r → empty.
-    fixed = fixed.replace(/\r/g, '');
-
-    // 2026-02-19: Strip JavaScript-style // line comments after JSON values.
-    // LLMs (especially GPT-5) sometimes add comments like:
-    //   "busyTimes": ["6:00 AM"]  // typical peak period
-    // Only strip when // follows a JSON value terminator to avoid matching URLs.
-    fixed = fixed.replace(/([\]}"'\d])\s*\/\/[^\n]*$/gm, '$1');
-
-    // 2026-02-17: FIX - Loop newline replacement to handle MULTIPLE newlines per string.
-    // Only escapes newlines INSIDE quoted string values (between matching " delimiters).
-    // Structural newlines between properties are left intact.
-    let prevFixed;
-    do {
-      prevFixed = fixed;
-      fixed = fixed.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => `"${p1}\\n${p2}"`);
-    } while (fixed !== prevFixed);
-
-    // 2026-02-19: FIX - Replace tabs with spaces instead of escaping to literal \t.
-    // Previous code (`\t` → `\\t`) had the same structural corruption bug as \r\n:
-    // a tab between JSON properties became literal \t (invalid between tokens).
-    // Replacing with space is safe for both structural whitespace and string values.
-    fixed = fixed.replace(/\t/g, ' ');
-
-    return fixed;
-  }
-
-  const cleaned = cleanMarkdown(jsonString);
-
-  // Attempt 1: Direct parse
-  try {
-    return JSON.parse(cleaned);
-  } catch (_e1) {
-    // Continue to next attempt
-  }
-
-  // Attempt 2: Parse with common fixes applied
-  try {
-    const fixed = fixCommonJsonIssues(cleaned);
-    return JSON.parse(fixed);
-  } catch (_e2) {
-    // Continue to next attempt
-  }
-
-  // Attempt 3: Strip markdown prose, then extract JSON array or object
-  // 2026-02-26: FIX - Apply stripMarkdownProse before regex to prevent markdown citations
-  // (e.g., [Source](url)) from being captured as the start of a JSON array.
-  const strippedInput = stripMarkdownProse(jsonString);
-  const jsonMatch = strippedInput.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-  if (jsonMatch) {
-    // 2026-02-18: FIX - Hoist variable to outer scope so catch handler can access it
-    // Previously `const fixedExtracted` was block-scoped inside inner try → ReferenceError in catch
-    let fixedExtracted = null;
-    try {
-      return JSON.parse(jsonMatch[0]);
-    } catch (_e3) {
-      // Try with fixes
-      try {
-        fixedExtracted = fixCommonJsonIssues(jsonMatch[0]);
-        return JSON.parse(fixedExtracted);
-      } catch (e4) {
-        // 2026-02-17: Enhanced logging — show BOTH raw extraction and post-fix to diagnose
-        console.error('[BRIEFING] All 4 parse attempts failed:', e4.message);
-        console.error('[BRIEFING] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
-        console.error('[BRIEFING] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
-      }
-    }
-  }
-
-  // Attempt 5: Extract individual JSON objects via balanced brace matching
-  // 2026-02-26: Last resort when greedy regex fails due to markdown corruption.
-  // Finds each top-level {...} object independently and wraps in an array.
-  const objects = [];
-  let braceDepth = 0;
-  let objStart = -1;
-  const src = strippedInput || jsonString;
-  for (let i = 0; i < src.length; i++) {
-    if (src[i] === '{') {
-      if (braceDepth === 0) objStart = i;
-      braceDepth++;
-    } else if (src[i] === '}') {
-      braceDepth--;
-      if (braceDepth === 0 && objStart !== -1) {
-        try {
-          const obj = JSON.parse(src.slice(objStart, i + 1));
-          objects.push(obj);
-        } catch {
-          // Skip malformed object, try next
-        }
-        objStart = -1;
-      }
-    }
-  }
-  if (objects.length > 0) {
-    console.log(`[BRIEFING] Attempt 5: Extracted ${objects.length} individual JSON objects via brace matching`);
-    return objects.length === 1 ? objects[0] : objects;
-  }
-
-  // 2026-02-17: Log the raw input that caused total parse failure
-  console.error('[BRIEFING] RAW AI output (first 300 chars):', jsonString.substring(0, 300));
-  throw new Error(`JSON parse failed after 5 attempts - raw AI response is malformed JSON`);
-}
+// 2026-05-02: safeJsonParse moved to ./shared/safe-json-parse.js
+// (Workstream 6 Step 1 commit 2 — used by 11 sites across pipelines; pure function with no deps).
+// Original definition (lines 728-942) preserved verbatim in the new file.
 
 // 2026-01-10: Updated to use canonical field names (event_start_date, event_start_time)
 const LocalEventSchema = z.object({
@@ -3369,84 +3130,6 @@ export async function getBriefingBySnapshotId(snapshotId) {
   }
 }
 
-/**
- * Check if daily briefing is stale (different calendar day in user's timezone)
- * Daily briefing = news, closures, construction (refreshes at midnight)
- * @param {object} briefing - Briefing row from database
- * @param {string} timezone - User's IANA timezone (REQUIRED - no fallback)
- * @returns {boolean} True if briefing is from a different calendar day
- */
-function isDailyBriefingStale(briefing, timezone) {
-  // NO FALLBACK - timezone is required for accurate date comparison
-  if (!timezone) {
-    briefingLog.warn(1, 'isDailyBriefingStale called without timezone - treating as stale', OP.CACHE);
-    return true;
-  }
-  if (!briefing?.updated_at) return true;
-
-  const updatedAt = new Date(briefing.updated_at);
-  const now = new Date();
-
-  // Get calendar date strings in user's timezone
-  const briefingDate = updatedAt.toLocaleDateString('en-US', { timeZone: timezone });
-  const todayDate = now.toLocaleDateString('en-US', { timeZone: timezone });
-
-  // Stale if it's a different calendar day
-  return briefingDate !== todayDate;
-}
-
-/**
- * Check if events data is stale (older than 4 hours)
- * Events need more frequent refresh than other daily data because:
- * - Event schedules change (cancellations, time changes)
- * - New events get announced
- * - "Tonight" events need accurate verification
- * @param {object} briefing - Briefing row from database
- * @returns {boolean} True if events are older than 4 hours
- */
-function isEventsStale(briefing) {
-  if (!briefing?.updated_at) return true;
-
-  const updatedAt = new Date(briefing.updated_at);
-  const now = new Date();
-  const ageMs = now - updatedAt;
-  const ageHours = ageMs / (1000 * 60 * 60);
-
-  // Events stale after 4 hours (vs 24h for news/closures)
-  const EVENTS_CACHE_HOURS = 4;
-  return ageHours > EVENTS_CACHE_HOURS;
-}
-
-/**
- * Traffic always needs refresh (no caching)
- * Traffic conditions change rapidly and any incidents need immediate visibility
- * @returns {boolean} Always true - traffic must be fresh on every call
- */
-function isTrafficStale() {
-  return true; // Traffic always needs refresh - no caching
-}
-
-/**
- * Check if events are empty/missing - triggers immediate fetch
- * Events are critical for rideshare demand, so empty = fetch now
- * @param {object} briefing - Briefing row from database
- * @returns {boolean} True if events array is empty or missing
- */
-function areEventsEmpty(briefing) {
-  if (!briefing?.events) return true;
-
-  // Handle array format
-  if (Array.isArray(briefing.events)) {
-    return briefing.events.length === 0;
-  }
-
-  // Handle {items: [], reason: string} format
-  if (briefing.events?.items && Array.isArray(briefing.events.items)) {
-    return briefing.events.items.length === 0;
-  }
-
-  return true;
-}
 
 /**
  * Refresh events data in existing briefing (when events are stale)
