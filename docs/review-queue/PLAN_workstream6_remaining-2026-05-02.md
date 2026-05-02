@@ -125,6 +125,19 @@ grep -rnE "fetchWeatherForecast|fetchWeatherConditions" server/ --include="*.js"
 
 Log the resolution as a `claude_memory` row: `category='engineering-pattern', title='Weather entry-point drift resolved'`.
 
+**✅ RESOLVED 2026-05-02 (Option A — delete dead code):**
+Neither option above applied. `fetchWeatherForecast` (LLM-based via `callModel('BRIEFING_WEATHER')`) had **zero callers** across server/, client/, shared/. It was an early LLM-weather implementation superseded by the deterministic Google Weather API path (`fetchWeatherConditions`) and never deleted. Resolution:
+1. Created `pipelines/weather.js` exporting `discoverWeather` (pipeline contract) + `fetchWeatherConditions` (live path, re-exported for `server/api/briefing/briefing.js`)
+2. Deleted `fetchWeatherForecast` + 4 helpers (`usesMetric`, `formatTemperature`, `formatWindSpeed`, `generateWeatherDriverImpact`) from `briefing-service.js` (~270 lines)
+3. Pruned `BRIEFING_WEATHER` from `model-registry.js` (its only call site was the dead function)
+4. Removed corresponding row from `server/lib/ai/adapters/README.md`
+5. Updated JSDoc example at `model-registry.js:458` from `BRIEFING_WEATHER` to `BRIEFING_TRAFFIC`
+6. Logged to `claude_memory` (category=`engineering-pattern`, status=`active`).
+
+Principle reaffirmed (CLAUDE.md ABSOLUTE PRECISION): "Coordinates always from Google APIs or DB, never from AI" — the same principle extends to weather data. LLM-based weather hallucinates temperatures and conditions; Google Weather API is deterministic and authoritative.
+
+Anti-pattern recorded: keeping superseded LLM implementations as silent dead-code "fallbacks" that no caller invokes. Re-export shims for the live path are fine (preserve Phase 1 caller compatibility); shims for dead paths are not.
+
 **Channel:** `CHANNELS.WEATHER` ('briefing_weather_ready')
 
 **Special case — DUAL section write:** weather writes BOTH `weather_current` AND `weather_forecast` in one `writeSectionAndNotify` call. The contract returns `{ weather_current, weather_forecast, reason }`:

@@ -30,6 +30,12 @@ import { isDailyBriefingStale, isEventsStale, isTrafficStale, areEventsEmpty } f
 import { discoverSchools, fetchSchoolClosures } from './pipelines/schools.js';
 export { fetchSchoolClosures };
 
+// 2026-05-02: Workstream 6 Step 1 — weather pipeline extracted (commit 4/11).
+// fetchWeatherConditions re-exported below to preserve the public API surface
+// (server/api/briefing/briefing.js imports it directly for refresh endpoints).
+import { discoverWeather, fetchWeatherConditions } from './pipelines/weather.js';
+export { fetchWeatherConditions };
+
 // 2026-01-09: Canonical ETL pipeline modules - use these for validation
 // Local filterInvalidEvents is kept for backwards compatibility but delegates to canonical
 import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
@@ -1480,276 +1486,6 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 // 2026-01-08: REMOVED confirmTBDEventDetails - replaced by filterInvalidEvents (hard filter)
 // Old function tried to "repair" TBD events via AI calls. New approach: just remove them.
 
-export async function fetchWeatherForecast({ snapshot }) {
-  if (!snapshot?.city || !snapshot?.state || !snapshot?.date) {
-    return { current: null, forecast: [], error: 'Missing location/date' };
-  }
-
-  const { city, state, date } = snapshot;
-  const system = `You are a weather intelligence assistant. Search for current weather conditions and return structured JSON data. Be accurate with temperature and conditions.`;
-  const user = `Get the 4-6 hour weather forecast for ${city}, ${state} for ${date}. Return ONLY valid JSON:
-{
-  "current": {
-    "tempF": number,
-    "conditions": "string",
-    "humidity": number,
-    "windSpeed": number
-  },
-  "forecast": [
-    {"time": "HH:MM", "tempF": number, "conditions": "string", "precipitationProbability": number}
-  ]
-}`;
-
-  matrixLog.info({
-    category: 'BRIEFING',
-    connection: 'AI',
-    action: 'DISPATCH',
-    roleName: 'BRIEFER',
-    secondaryCat: 'WEATHER',
-    location: 'briefing-service.js:fetchWeatherForecast',
-  }, 'Calling Briefer for weather forecast');
-  const result = await callModel('BRIEFING_WEATHER', { system, user });
-
-  if (!result.ok) {
-    matrixLog.error({
-      category: 'BRIEFING',
-      connection: 'AI',
-      action: 'COMPLETE',
-      roleName: 'BRIEFER',
-      secondaryCat: 'WEATHER',
-      location: 'briefing-service.js:fetchWeatherForecast',
-    }, 'Briefer call failed', result.error);
-    return { current: null, forecast: [] };
-  }
-
-  try {
-    const weatherData = safeJsonParse(result.output);
-    matrixLog.info({
-      category: 'BRIEFING',
-      connection: 'AI',
-      action: 'COMPLETE',
-      roleName: 'BRIEFER',
-      secondaryCat: 'WEATHER',
-      location: 'briefing-service.js:fetchWeatherForecast',
-    }, `Briefer weather forecast complete (${weatherData.forecast?.length || 0} hours)`);
-    return weatherData;
-  } catch (parseErr) {
-    matrixLog.warn({
-      category: 'BRIEFING',
-      connection: 'AI',
-      action: 'PARSE',
-      roleName: 'BRIEFER',
-      secondaryCat: 'WEATHER',
-      location: 'briefing-service.js:fetchWeatherForecast',
-    }, `Briefer weather parse failed: ${parseErr.message}`);
-    return { current: null, forecast: [] };
-  }
-}
-
-function usesMetric(country) {
-  const imperialCountries = ['US', 'United States', 'Bahamas', 'Cayman Islands', 'Palau', 'Marshall Islands', 'Myanmar'];
-  return !country || !imperialCountries.some(c => country?.toUpperCase().includes(c.toUpperCase()));
-}
-
-function formatTemperature(tempC, country) {
-  const metric = usesMetric(country);
-  if (metric) {
-    return {
-      tempC: Math.round(tempC),
-      tempF: Math.round((tempC * 9/5) + 32),
-      displayTemp: Math.round(tempC),
-      unit: '°C'
-    };
-  } else {
-    const tempF = Math.round((tempC * 9/5) + 32);
-    return {
-      tempC: Math.round(tempC),
-      tempF: tempF,
-      displayTemp: tempF,
-      unit: '°F'
-    };
-  }
-}
-
-function formatWindSpeed(windSpeedMs, country) {
-  if (!windSpeedMs) return undefined;
-  const metric = usesMetric(country);
-  if (metric) {
-    return Math.round(windSpeedMs * 3.6);
-  } else {
-    return Math.round(windSpeedMs * 2.237);
-  }
-}
-
-export async function fetchWeatherConditions({ snapshot }) {
-  if (!GOOGLE_MAPS_API_KEY) {
-    briefingLog.warn(1, `GOOGLE_MAPS_API_KEY not set - skipping weather`, OP.API);
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'GOOGLE_MAPS_API_KEY not configured' },
-      forecast: [],
-      reason: 'GOOGLE_MAPS_API_KEY not configured'
-    };
-  }
-
-  if (!snapshot?.lat || !snapshot?.lng) {
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'Snapshot missing GPS coordinates' },
-      forecast: [],
-      reason: 'Snapshot missing GPS coordinates (lat/lng)'
-    };
-  }
-
-  const { lat, lng, country } = snapshot;
-  const metric = usesMetric(country);
-
-  try {
-    const [currentRes, forecastRes] = await Promise.all([
-      fetch(`https://weather.googleapis.com/v1/currentConditions:lookup?location.latitude=${lat}&location.longitude=${lng}&key=${GOOGLE_MAPS_API_KEY}`),
-      fetch(`https://weather.googleapis.com/v1/forecast/hours:lookup?location.latitude=${lat}&location.longitude=${lng}&hours=6&key=${GOOGLE_MAPS_API_KEY}`)
-    ]);
-
-    let current = null;
-    let forecast = [];
-
-    if (currentRes.ok) {
-      const currentData = await currentRes.json();
-      const tempC = currentData.temperature?.degrees ?? currentData.temperature;
-      const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
-      const windSpeedMs = currentData.windSpeed?.value ?? currentData.windSpeed;
-
-      const tempData = formatTemperature(tempC, country);
-      const feelsData = formatTemperature(feelsLikeC, country);
-      const windSpeedDisplay = formatWindSpeed(windSpeedMs, country);
-
-      current = {
-        temperature: tempData.displayTemp,
-        tempF: tempData.tempF,
-        tempC: tempData.tempC,
-        tempUnit: tempData.unit,
-        feelsLike: feelsData.displayTemp,
-        feelsLikeF: feelsData.tempF,
-        feelsLikeC: feelsData.tempC,
-        conditions: currentData.weatherCondition?.description?.text,
-        conditionType: currentData.weatherCondition?.type,
-        humidity: currentData.relativeHumidity?.value ?? currentData.relativeHumidity,
-        windSpeed: windSpeedDisplay,
-        windSpeedUnit: metric ? 'km/h' : 'mph',
-        windDirection: currentData.wind?.direction?.cardinal,
-        uvIndex: currentData.uvIndex,
-        precipitation: currentData.precipitation,
-        visibility: currentData.visibility,
-        isDaytime: currentData.isDaytime,
-        observedAt: currentData.currentTime,
-        country: country
-      };
-    }
-
-    if (forecastRes.ok) {
-      const forecastData = await forecastRes.json();
-      forecast = (forecastData.forecastHours || []).map((hour, idx) => {
-        const tempC = hour.temperature?.degrees ?? hour.temperature;
-        const windSpeedMs = hour.windSpeed?.value ?? hour.wind?.speed;
-        const tempData = formatTemperature(tempC, country);
-        const windSpeedDisplay = formatWindSpeed(windSpeedMs, country);
-
-        let timeValue = hour.time;
-        if (!timeValue || isNaN(new Date(timeValue).getTime())) {
-          const forecastTime = new Date();
-          forecastTime.setHours(forecastTime.getHours() + idx);
-          timeValue = forecastTime.toISOString();
-        }
-
-        return {
-          time: timeValue,
-          temperature: tempData.displayTemp,
-          tempF: tempData.tempF,
-          tempC: tempData.tempC,
-          tempUnit: tempData.unit,
-          conditions: hour.condition?.text ?? hour.weatherCondition?.description?.text,
-          conditionType: hour.weatherCondition?.type,
-          precipitationProbability: hour.precipitationProbability?.value ?? hour.precipitation?.probability?.percent,
-          windSpeed: windSpeedDisplay,
-          windSpeedUnit: metric ? 'km/h' : 'mph',
-          isDaytime: hour.isDaytime
-        };
-      });
-    }
-
-    // 2026-02-26: Generate driver-relevant weather summary (deterministic, no LLM call)
-    // The strategist receives this string instead of the full JSON blob
-    if (current) {
-      current.driverImpact = generateWeatherDriverImpact(current, forecast);
-    }
-
-    return { current, forecast, fetchedAt: new Date().toISOString() };
-  } catch (error) {
-    briefingLog.error(1, `Weather API error`, error, OP.API);
-    return {
-      current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: `Weather API error: ${error.message}` },
-      forecast: [],
-      reason: `Google Weather API error: ${error.message}`
-    };
-  }
-}
-
-/**
- * 2026-02-26: Generate a driver-relevant weather summary string.
- * Deterministic — based on current conditions + 6-hour forecast.
- * The strategist receives this instead of the full weather JSON blob.
- *
- * @param {Object} current - Current weather data { tempF, conditions, conditionType, windSpeed, humidity }
- * @param {Array} forecast - 6-hour forecast array
- * @returns {string} 1-2 sentence driver-relevant summary
- */
-function generateWeatherDriverImpact(current, forecast = []) {
-  const parts = [];
-
-  // Current conditions
-  const temp = current.tempF || current.temperature;
-  const conditions = (current.conditions || '').toLowerCase();
-  const condType = (current.conditionType || '').toLowerCase();
-
-  // Severe weather detection
-  const isSevere = condType.includes('thunder') || condType.includes('tornado') ||
-                   condType.includes('ice') || condType.includes('blizzard') ||
-                   conditions.includes('thunder') || conditions.includes('tornado');
-  const isRain = condType.includes('rain') || condType.includes('drizzle') ||
-                 conditions.includes('rain') || conditions.includes('shower');
-  const isSnow = condType.includes('snow') || condType.includes('sleet') ||
-                 conditions.includes('snow') || conditions.includes('sleet');
-  const isFog = condType.includes('fog') || conditions.includes('fog') || conditions.includes('mist');
-
-  if (isSevere) {
-    parts.push(`Severe weather (${current.conditions}) — dangerous driving, expect surge from riders avoiding transit`);
-  } else if (isSnow) {
-    parts.push(`Snow/ice conditions — high risk driving, reduced demand but strong surge pricing`);
-  } else if (isRain) {
-    parts.push(`Rain — expect surge, riders avoid walking`);
-  } else if (isFog) {
-    parts.push(`Foggy — reduced visibility, drive carefully`);
-  } else if (temp && temp > 100) {
-    parts.push(`Extreme heat ${temp}°F — normal demand`);
-  } else if (temp && temp < 32) {
-    parts.push(`Freezing ${temp}°F — surge likely, riders avoid cold waits`);
-  } else {
-    parts.push(`${current.conditions || 'Clear'}, ${temp ? temp + '°F' : ''} — good driving conditions`);
-  }
-
-  // Check forecast for incoming weather changes (rain/storms in next 3 hours)
-  const upcomingRain = forecast.slice(0, 3).find(h =>
-    (h.precipitationProbability && h.precipitationProbability > 50) ||
-    (h.conditionType || '').toLowerCase().includes('rain') ||
-    (h.conditions || '').toLowerCase().includes('rain')
-  );
-
-  if (upcomingRain && !isRain && !isSevere) {
-    const idx = forecast.indexOf(upcomingRain);
-    parts.push(`Rain expected in ~${idx + 1} hour${idx > 0 ? 's' : ''} — surge incoming`);
-  }
-
-  return parts.join('. ') + '.';
-}
-
 
 export async function fetchTrafficConditions({ snapshot }) {
   // Require valid location data - no fallbacks for global app
@@ -2698,18 +2434,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // this function is the authoritative reconciliation (idempotent).
   let weatherResult, trafficResult, eventsResult, airportResult, newsResult;
 
-  const weatherPromise = fetchWeatherConditions({ snapshot })
-    .then(async (r) => {
-      await writeSectionAndNotify(snapshotId, {
-        weather_current: r?.current || { temperature: 'N/A', conditions: 'Weather data could not be retrieved', reason: 'Weather API returned no current conditions' },
-        weather_forecast: r?.forecast || [],
-      }, CHANNELS.WEATHER);
-      return r;
-    })
-    .catch(async (err) => {
-      await writeSectionAndNotify(snapshotId, { weather_current: errorMarker(err) }, CHANNELS.WEATHER);
-      throw err;
-    });
+  // 2026-05-02: Workstream 6 commit 4 — discoverWeather owns its writeSectionAndNotify
+  // (single dual-section call) and its errorMarker .catch. Returns
+  // { weather_current, weather_forecast, reason }; the final-assembly block below
+  // reads from the new shape.
+  const weatherPromise = discoverWeather({ snapshot, snapshotId });
 
   const trafficPromise = fetchTrafficConditions({ snapshot })
     .then(async (r) => {
@@ -2828,7 +2557,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   }
 
   const airportCount = airportResult?.airports?.length || 0;
-  const forecastHours = weatherResult?.forecast?.length || 0;
+  const forecastHours = weatherResult?.weather_forecast?.length || 0;
   briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.congestionLevel || 'N/A'}, airports=${airportCount}`, OP.AI);
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2840,7 +2569,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // The client uses the presence of data (not null checks) to decide what to show.
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const weatherCurrent = weatherResult?.current || {
+  const weatherCurrent = weatherResult?.weather_current || {
     temperature: 'N/A',
     conditions: failedReasons.weather
       ? `Weather unavailable: ${failedReasons.weather}`
@@ -2860,7 +2589,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
         : newsResult?.reason || (newsItems.length === 0 ? 'No rideshare news found for this area' : null)
     },
     weather_current: weatherCurrent,
-    weather_forecast: weatherResult?.forecast || [],
+    weather_forecast: weatherResult?.weather_forecast || [],
     traffic_conditions: trafficResult || {
       summary: failedReasons.traffic
         ? `Traffic unavailable: ${failedReasons.traffic}`

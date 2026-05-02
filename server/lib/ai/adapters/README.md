@@ -48,7 +48,6 @@ if (result.ok) {
 | Role | Purpose | Default Model |
 |------|---------|---------------|
 | **BRIEFINGS TABLE** |||
-| `BRIEFING_WEATHER` | Weather intelligence | Gemini 3 Pro |
 | `BRIEFING_TRAFFIC` | Traffic conditions | Gemini 3 Flash |
 | `BRIEFING_NEWS` | Local news research | Gemini 3 Pro |
 | `BRIEFING_EVENTS_DISCOVERY` | Event discovery | Gemini 3 Pro |

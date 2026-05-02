@@ -35,14 +35,12 @@ export const MODEL_ROLES = {
   // ==========================
   // 1. BRIEFINGS TABLE
   // ==========================
-  BRIEFING_WEATHER: {
-    envKey: 'BRIEFING_WEATHER_MODEL',
-    default: 'gemini-3.1-pro-preview',
-    purpose: 'Weather intelligence with web search',
-    maxTokens: 4096,
-    temperature: 0.1,
-    features: ['google_search'],
-  },
+  // 2026-05-02: Workstream 6 commit 4 — BRIEFING_WEATHER removed. Its only call site
+  // (fetchWeatherForecast in briefing-service.js) was dead code superseded by the
+  // deterministic Google Weather API path (fetchWeatherConditions). The LLM-based
+  // weather route violated CLAUDE.md ABSOLUTE PRECISION: "Coordinates always from
+  // Google APIs or DB, never from AI." Same principle applies to weather data —
+  // deterministic API is authoritative.
   // 2026-01-15: Upgraded from Flash to Pro per "Single Briefer Model" architecture
   // Rationale: Traffic requires complex synthesis of TomTom JSON (incidents, flow segments)
   // into actionable "Driver Advice". Pro's reasoning is needed for accurate spatial analysis.
@@ -457,7 +455,7 @@ export function resolveRoleName(role) {
 
 /**
  * Get full configuration for a role
- * @param {string} role - Role key (e.g., 'BRIEFING_WEATHER' or legacy 'strategist')
+ * @param {string} role - Role key (e.g., 'BRIEFING_TRAFFIC' or legacy 'strategist')
  * @returns {Object} Full role configuration with resolved model
  */
 export function getRoleConfig(role) {
