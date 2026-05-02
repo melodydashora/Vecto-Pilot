@@ -25,6 +25,11 @@ import { safeJsonParse } from './shared/safe-json-parse.js';
 import { getMarketForLocation } from './shared/get-market-for-location.js';
 import { isDailyBriefingStale, isEventsStale, isTrafficStale, areEventsEmpty } from './shared/staleness.js';
 
+// 2026-05-02: Workstream 6 Step 1 — schools pipeline extracted as the pilot (commit 3/11).
+// fetchSchoolClosures re-exported below to preserve the public API surface.
+import { discoverSchools, fetchSchoolClosures } from './pipelines/schools.js';
+export { fetchSchoolClosures };
+
 // 2026-01-09: Canonical ETL pipeline modules - use these for validation
 // Local filterInvalidEvents is kept for backwards compatibility but delegates to canonical
 import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
@@ -111,25 +116,8 @@ function withTimeout(promise, timeoutMs, operationName = 'Operation') {
 // 2026-05-02: getMarketForLocation moved to ./shared/get-market-for-location.js
 // (Workstream 6 Step 1 commit 2 — used by ≥2 pipelines).
 
-/**
- * Get region-specific search terms for school authorities
- * Handles US, UK, Canada, and other international variations
- */
-function getSchoolSearchTerms(country) {
-  const c = (country || 'US').toLowerCase();
-
-  if (['united kingdom', 'uk', 'gb', 'england', 'scotland', 'wales'].includes(c)) {
-    return { authority: 'Local Education Authority', terms: 'term dates, bank holidays, half-term', type: 'council' };
-  }
-  if (['canada', 'ca'].includes(c)) {
-    return { authority: 'School Board', terms: 'school board calendar, PA days, professional development', type: 'board' };
-  }
-  if (['australia', 'au'].includes(c)) {
-    return { authority: 'Department of Education', terms: 'school term dates, pupil-free days', type: 'state' };
-  }
-  // Default: US
-  return { authority: 'School District/ISD', terms: 'school district calendar, student holidays, professional development', type: 'district' };
-}
+// 2026-05-02: getSchoolSearchTerms moved to ./pipelines/schools.js
+// (Workstream 6 Step 1 commit 3 — pilot pipeline extraction).
 
 /**
  * Deduplicate events based on normalized name, address, and time
@@ -1762,131 +1750,6 @@ function generateWeatherDriverImpact(current, forecast = []) {
   return parts.join('. ') + '.';
 }
 
-export async function fetchSchoolClosures({ snapshot }) {
-  if (!process.env.GEMINI_API_KEY || !snapshot?.city || !snapshot?.state) return [];
-
-  const { city, state, lat, lng, country } = snapshot;
-  const context = getSchoolSearchTerms(country);
-
-  // Build a context-aware prompt using market + location context
-  // Gemini discovers institutions dynamically based on the location (no hardcoded anchors)
-  const prompt = `Analyze academic schedules and closures for ${city}, ${state}${country !== 'US' ? `, ${country}` : ''} for the next 30 days.
-
-TARGET COORDINATES: ${lat}, ${lng}
-SEARCH RADIUS: 15 miles
-
-TASK 1: K-12 PUBLIC SCHOOLS (${context.authority})
-Search for: ${context.terms}
-Look for local school districts/boards using regional naming conventions (e.g., "ISD" in Texas, "Parish Schools" in Louisiana, "School Board" in Canada).
-
-TASK 2: UNIVERSITIES & COLLEGES
-Search for major universities within 15 miles. Look for breaks, move-in/out days, commencement, finals week.
-
-TASK 3: PRIVATE & RELIGIOUS SCHOOLS
-Check for major private academies with different schedules than public schools.
-
-IMPORTANT: Each institution type may have DIFFERENT calendars. Public schools can be closed while private schools are open (and vice versa).
-
-Return ONLY a valid JSON array with institutions that are CLOSED or closing soon:
-[
-  {
-    "schoolName": "Name of district or institution",
-    "type": "public" | "private" | "college",
-    "closureStart": "YYYY-MM-DD",
-    "reopeningDate": "YYYY-MM-DD (MUST be the FIRST DAY students return to class, NOT the last day of closure. Example: if closed Mon Feb 16, reopeningDate is Tue Feb 17)",
-    "reason": "Holiday Name / Break / Professional Development",
-    "impact": "high" | "medium" | "low",
-    "lat": 32.xxx,
-    "lng": -96.xxx
-  }
-]
-
-NOTES:
-- Include approximate lat/lng coordinates for each institution (for distance calculation)
-- "impact" should be "high" for large districts/universities, "medium" for mid-size, "low" for small private schools
-- CRITICAL: "reopeningDate" = first day students are BACK in school (end of closure + 1 day). If Presidents' Day is Feb 16 (Monday), reopeningDate is Feb 17 (Tuesday).
-- If no closures are found, return an empty array []`;
-
-  const system = `You are a school calendar research assistant. Search for school closures, holidays, and academic schedules. Return structured JSON data.`;
-  matrixLog.info({
-    category: 'BRIEFING',
-    connection: 'AI',
-    action: 'DISPATCH',
-    roleName: 'BRIEFER',
-    secondaryCat: 'SCHOOLS',
-    location: 'briefing-service.js:fetchSchoolClosures',
-  }, 'Calling Briefer for school closures');
-  const result = await callModel('BRIEFING_SCHOOLS', { system, user: prompt });
-
-  if (!result.ok) {
-    matrixLog.error({
-      category: 'BRIEFING',
-      connection: 'AI',
-      action: 'COMPLETE',
-      roleName: 'BRIEFER',
-      secondaryCat: 'SCHOOLS',
-      location: 'briefing-service.js:fetchSchoolClosures',
-    }, 'Briefer call failed', result.error);
-    return [];
-  }
-
-  try {
-    const closures = safeJsonParse(result.output);
-    const closuresArray = Array.isArray(closures) ? closures : [];
-
-    if (closuresArray.length === 0) {
-      briefingLog.info(`No school closures found for ${city}, ${state}`);
-      return [];
-    }
-
-    // 2026-04-16: FIX — Normalize Gemini's camelCase response to snake_case fields.
-    // The prompt schema requests closureStart/reopeningDate (camelCase), but downstream
-    // filters (consolidator.js, filter-for-planner.js) check start_date/end_date/
-    // reopening_date (snake_case). Without normalization, multi-day closures defaulted
-    // to startDate as endDate, making spring break appear as a single-day closure.
-    const normalized = closuresArray.map((c) => ({
-      ...c,
-      start_date: c.start_date || c.closureStart || c.startDate || c.closure_date,
-      end_date: c.end_date || c.reopeningDate || c.endDate || c.closureStart,
-      reopening_date: c.reopening_date || c.reopeningDate,
-      school_name: c.school_name || c.schoolName || c.name || c.district,
-      closure_reason: c.closure_reason || c.reason,
-    }));
-
-    // Enrich with distance data using Gemini-provided coordinates
-    const enriched = normalized.map((c) => {
-      let distanceFromDriver = null;
-      if (c.lat && c.lng && lat && lng) {
-        distanceFromDriver = parseFloat(haversineDistanceMiles(lat, lng, c.lat, c.lng).toFixed(1));
-      }
-      return { ...c, distanceFromDriver };
-    });
-
-    // Filter to closures within 15 miles (keep ones without coordinates with warning)
-    const nearbyClosures = enriched.filter((c) => {
-      if (c.distanceFromDriver === null || c.distanceFromDriver === undefined) {
-        // No coordinates - include but log warning
-        briefingLog.warn(2, `School ${c.schoolName} has no coordinates - including anyway`, OP.AI);
-        return true;
-      }
-      return c.distanceFromDriver <= 15;
-    });
-
-    const filteredOutCount = enriched.length - nearbyClosures.length;
-    if (filteredOutCount > 0) {
-      briefingLog.phase(2, `School closures: filtered ${filteredOutCount} beyond 15mi`, OP.AI);
-    }
-
-    if (nearbyClosures.length > 0) {
-      briefingLog.done(2, `${nearbyClosures.length} school closures found for ${city}, ${state}`, OP.AI);
-    }
-
-    return nearbyClosures;
-  } catch (parseErr) {
-    briefingLog.warn(2, `School closures parse failed: ${parseErr.message}`, OP.AI);
-    return [];
-  }
-}
 
 export async function fetchTrafficConditions({ snapshot }) {
   // Require valid location data - no fallbacks for global app
@@ -2930,32 +2793,18 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     throw new Error(`All 5 briefing subsystems failed: ${Object.values(failedReasons).join('; ')}`);
   }
 
-  // Step 3: Get cached school closures or fetch fresh if cache miss
-  let schoolClosures;
-  let schoolClosuresReason = 'No school closures found for this area';
-
-  if (cachedDailyData) {
-    schoolClosures = cachedDailyData.school_closures?.items || cachedDailyData.school_closures || [];
-    schoolClosuresReason = schoolClosures.length > 0 ? null : 'No school closures in cache for this area';
-  } else {
-    briefingLog.phase(2, `Fetching school closures`, OP.AI);
-    try {
-      schoolClosures = await fetchSchoolClosures({ snapshot });
-      schoolClosuresReason = schoolClosures.length > 0 ? null : 'No school closures found for this area';
-    } catch (dailyErr) {
-      // Non-fatal — closures failing shouldn't prevent other data from being stored
-      console.error(`[BRIEFING] Closures fetch failed (non-fatal): ${dailyErr.message}`);
-      schoolClosures = [];
-      schoolClosuresReason = `School closures fetch failed: ${dailyErr.message}`;
-    }
-  }
-
-  // 2026-04-18: PHASE A — progressive write for school_closures as soon as we have
-  // a value (whether from cache hit or fresh fetch). Lets the tab populate this
-  // section before the final atomic write lands.
-  await writeSectionAndNotify(snapshotId, {
-    school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: schoolClosuresReason },
-  }, CHANNELS.SCHOOL_CLOSURES);
+  // Step 3: Schools pipeline — owns cache-or-fetch decision + SSE write internally.
+  // Cache LOOKUP (querying other snapshots in the same city) stays here in the
+  // orchestrator because it's cross-snapshot knowledge; cache USAGE moves into
+  // discoverSchools per the pipeline contract.
+  // `let` (not `const`) for schoolClosures because the downstream Array.isArray
+  // defensive check may reassign to [].
+  let schoolClosures, schoolClosuresReason;
+  ({ closures: schoolClosures, reason: schoolClosuresReason } = await discoverSchools({
+    snapshot,
+    snapshotId,
+    cachedClosures: cachedDailyData?.school_closures,
+  }));
 
   // 2026-04-05: Defensive extraction — each subsystem may be null if its fetch failed.
   // NO NULLS: every field gets a typed value + reason. Empty arrays are valid; null is not.
