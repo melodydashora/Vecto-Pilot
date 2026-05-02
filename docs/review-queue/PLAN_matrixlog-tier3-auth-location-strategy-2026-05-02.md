@@ -1,12 +1,15 @@
 # PLAN — `matrixLog` Tier 3, Batch 1: auth + location + strategy-verify PII scrub
 
-> **Date:** 2026-05-02
-> **Status:** AWAITING APPROVAL — no code changes until Melody confirms §3 (redaction-policy fork)
+> **Date:** 2026-05-02 (revised same day after Melody's directive)
+> **Status:** REVISED — Melody decided §3 (modified Option (ii)) and added 3 amendments (spec amendment, sub-README sync, LESSONS_LEARNED entry). **AWAITING explicit "All tests passed" approval on this revision before any code edits.**
 > **Author:** Claude Code (Opus 4.7)
-> **Doctrine:** Rule 1 (plan before implement), Rule 16 (Melody is architect)
+> **Doctrine:** Rule 1 (plan before implement), Rule 16 (Melody is architect), Rule 6 (master-architect pushback when warranted)
 > **Parent plan:** `docs/review-queue/PLAN_matrixlog-refactor-2026-05-01.md`
 > **Branch:** `feat/logger-tier3-auth-loc` (in `.worktrees/logger-tier3`)
 > **Trigger:** Live log dump showed plaintext emails during login and exact lat/lng during snapshot resolution.
+> **Revision history:**
+> - 2026-05-02 v1: Initial plan, §3 surfaced as open question per Rule 16.
+> - 2026-05-02 v2: Melody decided §3 = modified Option (ii); added §3.1 (matrix.js spec amendment), §3.2 (sub-README sync), §3.3 (LESSONS_LEARNED entry). Master-architect flag raised on CLAUDE.md Rule 2 staleness — see §3.2.
 
 ---
 
@@ -73,26 +76,80 @@ Plus all other `locationLog.*` and `[LOCATION]`/`[SNAPSHOT]` console calls in th
 
 Plus all other `triadLog.*` calls in this file. `triadLog` is aliased to `strategyLog` per memory 233 — the visible bracket becomes `[STRATEGY]`, and `[VERIFY]` migrates from inline-message-prefix to `action: 'VERIFY'` (or `'PHASE-CHECK'`) on the `matrixLog` spec.
 
-## 3. Redaction policy — OPEN QUESTION for Melody (Rule 16)
+## 3. Redaction policy — DECIDED 2026-05-02 (Melody)
 
-The matrixLog spec at `matrix.js:26-28` literally lists **UUIDs** as forbidden in messages. The Tier 1 precedent (commit `9bc88ed3`) drops identifiers entirely. But `auth.js:56` already uses `userId.substring(0, 8)` as a fallback — itself a UUID prefix.
+**Decision: modified Option (ii).**
 
-Two coherent options:
+| Field | Disposition |
+|---|---|
+| Email in messages | **drop entirely** (no exception) |
+| UserId in messages | **keep `userId.substring(0, 8)`** as deliberate spec exception for real-time DX correlation in the Replit console |
+| Coords / lat / lng | **drop entirely** (no exception) |
+| Full address (`formattedAddress`) | **drop entirely**; field-presence flag OK |
+| City / state | **drop entirely** in message strings; available in `emitJSON` sidecar |
+| Content text (timezone strings, day_part, holiday flags, weather narrative) | **drop entirely** per spec |
 
-| | Option (i) — spec-literal | Option (ii) — existing-convention |
-|---|---|---|
-| Email in messages | drop entirely | drop entirely |
-| UserId in messages | drop entirely | keep `userId.substring(0, 8)` |
-| Correlation source for audit | `emitJSON` payload (`snapshot_id`, `request_id`, optional `user_id` field) and/or `withContext` binding | message-string substring |
-| Auth log readability in dev console | lower (need JSON tail to correlate) | higher (8 chars next to action verb) |
-| Spec compliance | strict | spec exception |
-| Reversal cost if changed | re-edit ~13 sites | re-edit ~13 sites |
+**Rationale (Melody's call):** Real-time console DX requires correlation. With three concurrent driver logins, `[AUTH] [TOKEN_ISSUE] -> Token generated` lines are indistinguishable without the userId prefix. The 8-char hex prefix is non-reversible at that length (~4×10⁹ collision space across the user table) and is consistent with existing auth-flow convention — making it a deliberate, scoped exception rather than spec drift.
 
-**Recommendation:** **Option (i)** — match spec literally. Correlation lives in structured JSON for any pipeline that ingests stderr; humans tailing pretty logs lose 8 chars of debuggability per line, gain spec consistency.
+**Architectural integrity:** the spec is amended to **explicitly permit** the 8-char prefix rather than silently violated. See §3.1.
 
-**Coord, address, city/state, content-text:** drop entirely from messages. Not negotiable per spec.
+## 3.1 Spec amendment to `server/logger/matrix.js`
 
-**Per Rule 16, Melody picks (i) or (ii). I will not pre-decide.**
+**Before any code migration**, amend the comment block at lines 26–28:
+
+**Before:**
+```js
+//   message      - The actual content. NO sensitive identifiers (UUIDs, addresses,
+//                  coords, model versions, content text). Counts and field-presence
+//                  are fine.
+```
+
+**After:**
+```js
+//   message      - The actual content. NO sensitive identifiers in full form
+//                  (no full UUIDs, emails, addresses, coords, model versions,
+//                  content text). Counts and field-presence are fine.
+//
+//                  EXCEPTION (2026-05-02 amendment): an 8-char hex correlation
+//                  prefix derived from a UUID (e.g., userId.substring(0, 8))
+//                  IS permitted for real-time DX in the Replit console.
+//                  Non-reversible at this length and consistent with existing
+//                  auth-flow convention. Email/coord/address/full-UUID remain
+//                  forbidden in messages.
+```
+
+This is the canonical record of the spec exception. Lands as a separate commit before the auth/location/strategy migrations.
+
+## 3.2 Sub-README synchronization (Melody directive 2026-05-02)
+
+Update three sub-READMEs to document the matrixLog taxonomy and the §3 redaction policy:
+
+- `server/api/auth/README.md` — document `[AUTH]` matrix taxonomy + 8-char userId-prefix exception
+- `server/api/location/README.md` — document `[LOCATION]` matrix taxonomy + coord-drop policy
+- `server/api/strategy/README.md` — document `[STRATEGY]` matrix taxonomy (incl. `[VERIFY]` action) + city/state/coord-drop policy
+
+**Master-architect flag (Rule 6) — CLAUDE.md Rule 2 is stale:**
+
+CLAUDE.md Rule 2 (revised 2026-04-18) states: *"Sub-READMEs have been removed. 109 sub-READMEs … were deleted because they rotted faster than they could be maintained. Only the root README.md and everything under docs/ survive."* Verification on 2026-05-02 contradicts this:
+
+- `find server -name 'README.md' -type f | wc -l` → **51** (not 0)
+- `server/api/auth/README.md`, `server/api/location/README.md`, `server/api/strategy/README.md` all exist (sizes 4,610 / 7,189 / 7,503 bytes), all modified 2026-05-02 01:05 UTC
+- Recent commits show active sub-README maintenance (e.g., `2b7a319f pass-9-part-1: collapse auth README`, `4d0dd859 docs(security): symbolic env refs in README`)
+
+Per Rule 12's contested-fact rule (added 2026-04-24): *"trust the newest timestamped audit document over older doctrine files."* Disk reality is the newer fact. Rule 2 needs updating in a separate cleanup commit — **out of scope for this plan**, but flagged here so it's not silently propagated.
+
+This batch will:
+1. Update the three target sub-READMEs (per Melody's directive, consistent with disk reality).
+2. Add a `claude_memory` row (`category='audit', status='active'`) titled "CLAUDE.md Rule 2 stale: claims sub-READMEs deleted 2026-04-18 but 51 still exist as of 2026-05-02." Future sessions will see this on Rule 12 review.
+3. **NOT** modify CLAUDE.md Rule 2 in this batch (separate concern; needs Melody's explicit go on rewording).
+
+## 3.3 LESSONS_LEARNED.md addition
+
+Add a new entry documenting the legacy-vs-spec taxonomy mismatch:
+
+> **Logger taxonomy migrations: spec the exceptions, don't violate them.** When introducing a new structured logging spec (`matrixLog` 2026-05-01) on top of existing convention (`userId.substring(0, 8)` correlation in messages), audit the existing convention first and explicitly permit any deliberate exceptions in the spec text — don't carry forward "but the codebase already does this" as silent justification. The Tier 3 PII scrub (2026-05-02) discovered 13 PII sites in `auth.js`, 10 in `location.js`, and 2 in `blocks-fast.js`. The matrixLog spec at `matrix.js:26-28` had banned UUIDs in messages but the auth-flow convention required correlation; resolved by spec amendment, not silent violation.
+
+This lesson will help future agents avoid two patterns: (a) carrying legacy conventions forward into new specs without auditing, and (b) violating freshly-written specs by treating existing code as authoritative over fresh design intent.
 
 ## 4. Migration pattern
 
@@ -103,18 +160,20 @@ Per parent plan §7 and commit `9bc88ed3` precedent.
 authLog.done(1, `Token generated for: ${email || userId.substring(0, 8)}`);
 ```
 
-**After (Option (i) — spec-literal):**
+**After (modified Option (ii) per Melody's 2026-05-02 decision):**
 ```js
 matrixLog.info({
   category: 'AUTH',
   action: 'TOKEN_ISSUE',
   location: 'auth.js:generateAuthToken',
-}, 'Token generated');
+}, `Token generated for ${userId.substring(0, 8)}`);
 ```
 
-Render: `[AUTH] [TOKEN_ISSUE] [auth.js:generateAuthToken] -> Token generated`
+Render: `[AUTH] [TOKEN_ISSUE] [auth.js:generateAuthToken] -> Token generated for a3f1c2e8`
 
-JSON sidecar (via `emitJSON`) carries `{ ts, level, category: 'AUTH', message: 'Token generated', action: 'TOKEN_ISSUE', location: 'auth.js:generateAuthToken' }`. If `withContext({ snapshot_id, request_id, user_id })` binding is added to the auth router, those fields ride along too — that's a small follow-up worth doing once we've sorted §3.
+JSON sidecar (via `emitJSON`) carries `{ ts, level, category: 'AUTH', message: 'Token generated for a3f1c2e8', action: 'TOKEN_ISSUE', location: 'auth.js:generateAuthToken' }`. If `withContext({ snapshot_id, request_id, user_id })` binding is added to the auth router as a follow-up, the full `user_id` (UUID, NOT prefix) rides along in the JSON sidecar for log-pipeline correlation.
+
+**Email is dropped entirely — never appears.** The 8-char userId prefix is the *only* permitted identifier in messages, per §3.1 spec amendment.
 
 **DB writes** (e.g., `auth_credentials` updates) add `connection: 'DB'` and `tableName: 'AUTH_CREDENTIALS'`. **External API** (Google OAuth) adds `connection: 'API'`.
 
@@ -127,6 +186,10 @@ JSON sidecar (via `emitJSON`) carries `{ ts, level, category: 'AUTH', message: '
 - **T3.** `grep -nE 'snapshot\.(city|state|lat|lng)' server/api/strategy/blocks-fast.js | grep -E '(console\.|Log\.|matrixLog)'` → **0 matches in log emissions**.
 - **T4.** `grep -nE '\b(authLog|locationLog|triadLog)\.' server/api/auth/auth.js server/api/location/location.js server/api/strategy/blocks-fast.js` → **0 matches** (all callers migrated to `matrixLog`).
 - **T5.** `grep -nE 'formattedAddress' server/api/auth/auth.js server/api/location/location.js | grep -E '(console\.|Log\.|matrixLog)'` → **0 matches with the address value interpolated** (presence flags are fine).
+- **T6 (spec amendment).** `grep -n 'EXCEPTION (2026-05-02 amendment)' server/logger/matrix.js` → **1 match** (confirms §3.1 spec amendment landed before code edits).
+- **T7 (userId prefix permitted).** `grep -nE 'userId\.substring\(0, ?8\)' server/api/auth/auth.js` → **≥ 1 match** in matrixLog calls (confirms modified Option (ii) was applied, not silent Option (i)).
+- **T8 (sub-README sync).** `grep -nl 'matrixLog' server/api/auth/README.md server/api/location/README.md server/api/strategy/README.md` → **3 matches** (all three sub-READMEs document the new taxonomy).
+- **T9 (LESSONS_LEARNED entry).** `grep -n 'Logger taxonomy migrations' LESSONS_LEARNED.md` → **1 match** (the §3.3 lesson landed).
 
 ### Static (no boot needed):
 
@@ -183,17 +246,22 @@ A follow-up plan doc will pick these up after this batch lands and Melody valida
 
 ## 10. Execution sequence post-approval
 
+The sequence is ordered so the spec amendment (§3.1) lands FIRST, the doc sync (§3.2 + §3.3) lands as a separate commit before code, then the migrations land per file. This makes each commit independently revertible and the spec ↔ code change relationship traceable.
+
 1. Run `git worktree list` to confirm we're in `.worktrees/logger-tier3`.
-2. Edit `auth.js` — migrate every log call; for the 13 PII sites, apply chosen redaction option.
-3. `node --check server/api/auth/auth.js` after each block of edits.
-4. Edit `location.js` — same.
-5. Edit `blocks-fast.js` — same.
-6. Run §5 mechanical tests (T1–T5).
-7. Run static tests (T6–T8).
-8. Boot dev server; run smoke tests (T9–T11); capture log dump.
-9. Commit with message `feat(logger): Tier 3 batch 1 — migrate auth.js, location.js, blocks-fast.js to matrixLog (PII scrub)`.
-10. Update `claude_memory` with a row summarizing the batch (status=`active` until merged, then flip to `resolved`).
-11. Report back here with: log capture excerpt, grep-test output, claude_memory row id.
+2. **Spec amendment commit:** edit `server/logger/matrix.js` lines 26–28 per §3.1; commit with message `docs(matrix): permit 8-char hex correlation prefix in messages (per Tier 3 plan §3.1)`. Verify T6 grep passes.
+3. **Doc sync commit:** update `server/api/auth/README.md`, `server/api/location/README.md`, `server/api/strategy/README.md` per §3.2; append the `LESSONS_LEARNED.md` entry per §3.3; commit with message `docs(logger): document matrixLog taxonomy in auth/location/strategy READMEs + LESSONS_LEARNED for Tier 3`. Verify T8 + T9 grep pass.
+4. **`claude_memory` row for Rule 2 staleness:** insert a row with `category='audit', priority='medium', status='active'` titled "CLAUDE.md Rule 2 stale: claims sub-READMEs deleted 2026-04-18 but 51 still exist as of 2026-05-02" — content describes the discrepancy and notes the Rule 2 rewrite is out of scope for this batch. Capture the inserted `id`.
+5. Edit `server/api/auth/auth.js` — migrate every log call; apply modified Option (ii) at the 13 PII sites; `node --check` after each logical block.
+6. Edit `server/api/location/location.js` — migrate every log call; coords/address dropped entirely; `node --check`.
+7. Edit `server/api/strategy/blocks-fast.js` — migrate every `triadLog`/`[VERIFY]` call; city/state/coords dropped; `node --check`.
+8. Run §5 mechanical tests (**T1–T9**, including the three new ones).
+9. Run static tests (T6–T8 — wait, these are in §5; renumbered: T_static_a `npm run lint`, T_static_b `npm run typecheck`, T_static_c `node --check` on the migrated files).
+10. Boot dev server (`npm run dev`); run smoke tests (T9–T11 from §5 — login flow, snapshot flow, end-to-end pipeline); capture stdout/stderr to a log file for review.
+11. **Code migration commit:** `feat(logger): Tier 3 batch 1 — migrate auth.js, location.js, blocks-fast.js to matrixLog (PII scrub)`. Body cites §3.1 spec amendment commit + §3.2/§3.3 doc commit by SHA.
+12. Insert / update `claude_memory` row summarizing the batch completion (status=`active` until merged, then flip to `resolved`).
+13. Report back here with: each commit's SHA, log capture excerpt (login + snapshot lines), grep-test output (T1–T9), `claude_memory` row IDs (Rule 2 staleness flag + batch summary).
+14. **Pause.** Await Melody's "All tests passed" sign-off before any further work — including any push, PR creation, or follow-up Tier 3 batches.
 
 ---
 
