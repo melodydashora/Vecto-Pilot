@@ -101,7 +101,7 @@ export default function StrategyPage() {
     strategyData,
     immediateStrategy,
     isStrategyFetching,
-    snapshotData,
+    snapshotData: _snapshotData,
     blocks,
     blocksData,
     isBlocksLoading,
@@ -168,7 +168,7 @@ export default function StrategyPage() {
     lng: block.coordinates.lng,
     distance_miles: block.estimatedDistanceMiles,
     drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
-    est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? null,
+    est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? undefined,
     rank: idx + 1,
     value_grade: block.valueGrade,
   })), [blocks]);
@@ -818,7 +818,7 @@ export default function StrategyPage() {
                       <div className="mb-4">
                         <h4 className="text-sm font-semibold text-gray-900 mb-2">Pro Tips:</h4>
                         <ul className="space-y-1 ml-1">
-                          {block.proTips.map((tip, tipIndex) => {
+                          {block.proTips.map((tip: string, tipIndex: number) => {
                             const patterns = [
                               { regex: /^Pickup zone:/i, label: 'Pickup Zone:' },
                               { regex: /^Routing:/i, label: 'Routing:' },

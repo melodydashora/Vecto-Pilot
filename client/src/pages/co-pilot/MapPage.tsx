@@ -145,7 +145,7 @@ export default function MapPage() {
     lng: block.coordinates.lng,
     distance_miles: block.estimatedDistanceMiles,
     drive_time_min: block.driveTimeMinutes || block.estimatedWaitTime,
-    est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? null,
+    est_earnings_per_ride: block.estimatedEarningsPerRide ?? block.estimatedEarnings ?? undefined,
     rank: idx + 1,
     value_grade: block.valueGrade,
   }));

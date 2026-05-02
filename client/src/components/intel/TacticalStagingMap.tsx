@@ -47,68 +47,8 @@ import { API_ROUTES } from '@/constants/apiRoutes';
 // MARKER_CONFIGS import removed - currently unused
 // import { MARKER_CONFIGS } from '@/types/tactical-map';
 
-// Google Maps type declarations (loaded dynamically via script)
-declare global {
-  interface Window {
-    google: typeof google;
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-namespace
-declare namespace google.maps {
-  class Map {
-    constructor(element: HTMLElement, options: MapOptions);
-    fitBounds(bounds: LatLngBounds, padding?: number | { top?: number; right?: number; bottom?: number; left?: number }): void;
-    setCenter(latlng: LatLng | { lat: number; lng: number }): void;
-    setZoom(zoom: number): void;
-  }
-  class Marker {
-    constructor(options: MarkerOptions);
-    setMap(map: Map | null): void;
-    getPosition(): LatLng | null;
-    addListener(event: string, handler: () => void): void;
-  }
-  class InfoWindow {
-    constructor();
-    setContent(content: string): void;
-    open(map: Map, marker: Marker): void;
-    close(): void;
-  }
-  class LatLngBounds {
-    constructor();
-    extend(point: LatLng | { lat: number; lng: number }): void;
-  }
-  class LatLng {
-    constructor(lat: number, lng: number);
-    lat(): number;
-    lng(): number;
-  }
-  class TrafficLayer {
-    constructor();
-    setMap(map: Map): void;
-  }
-  interface MapOptions {
-    center: { lat: number; lng: number };
-    zoom: number;
-    mapTypeControl?: boolean;
-    fullscreenControl?: boolean;
-    zoomControl?: boolean;
-    streetViewControl?: boolean;
-    minZoom?: number;
-    maxZoom?: number;
-  }
-  interface MarkerOptions {
-    position: { lat: number; lng: number };
-    map: Map;
-    title?: string;
-    icon?: string | { url: string; scaledSize?: Size };
-    zIndex?: number;
-    label?: string | { text: string; color: string };
-  }
-  class Size {
-    constructor(width: number, height: number);
-  }
-}
+// Google Maps types come from @types/google.maps (added 2026-05-02; see tsconfig.client.json).
+// Window.google is augmented in client/src/vite-env.d.ts.
 
 // Marker color configuration
 const MARKER_COLORS = {
@@ -151,18 +91,19 @@ export default function TacticalStagingMap({
     const eventMissions: Mission[] = events
       .filter(e => e.lat && e.lng) // Only events with coordinates
       .map(e => ({
+        ...e,
         id: e.id || `event-${e.name}`,
         type: 'event' as const,
         name: e.name,
         lat: e.lat,
         lng: e.lng,
         subtitle: e.subtitle || (e.eventTime ? `${e.name} - ${e.eventTime}` : e.name),
-        ...e,
       }));
 
     const airportMissions: Mission[] = airports
       .filter(a => a.lat && a.lng) // Only airports with coordinates
       .map(a => ({
+        ...a,
         id: a.id || `airport-${a.code}`,
         type: 'airport' as const,
         name: a.name || a.code,
@@ -170,7 +111,6 @@ export default function TacticalStagingMap({
         lng: a.lng,
         subtitle: a.subtitle || (a.status === 'delays' ? `${a.code} - Delays` : a.code),
         code: a.code,
-        ...a,
       }));
 
     return [...eventMissions, ...airportMissions];

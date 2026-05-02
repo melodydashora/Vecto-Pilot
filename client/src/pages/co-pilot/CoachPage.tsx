@@ -23,7 +23,7 @@ export default function CoachPage() {
         userId={localStorage.getItem('vecto_user_id') || 'default'}
         snapshotId={lastSnapshotId || undefined}
         strategyId={strategyData?.strategyId || undefined}
-        strategy={immediateStrategy}
+        strategy={immediateStrategy ?? undefined}
         snapshot={snapshotData}
         blocks={blocks}
         strategyReady={!!immediateStrategy}

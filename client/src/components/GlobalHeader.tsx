@@ -63,6 +63,8 @@ type ExtendedLocationContext = {
   // Direct coordinate properties (another legacy shape)
   latitude?: number;
   longitude?: number;
+  // FAIL HARD signal from location enrichment
+  locationError?: { code: string; message: string } | null;
 };
 
 /**

@@ -839,11 +839,17 @@ export function CoPilotProvider({ children }: { children: React.ReactNode }) {
       // instead of the generic "No school closures reported" fallback. Pre-fix the
       // reason was silently dropped at this layer, breaking transparency of the tab.
       schoolClosures: (() => {
-        const raw = schoolClosuresData?.schoolClosures ?? schoolClosuresData?.school_closures;
+        // Snake/camel tolerant: server may return either shape; cast since the
+        // typed response only declares snake_case but legacy paths use camelCase.
+        const sc = schoolClosuresData as { schoolClosures?: unknown; school_closures?: unknown } | null | undefined;
+        const raw = sc?.schoolClosures ?? sc?.school_closures;
         return Array.isArray(raw) ? raw : [];
       })(),
       schoolClosuresReason: schoolClosuresData?.reason ?? null,
-      airport: airportData?.airportConditions ?? airportData?.airport_conditions ?? null,
+      airport: (() => {
+        const a = airportData as { airportConditions?: unknown; airport_conditions?: unknown } | null | undefined;
+        return a?.airportConditions ?? a?.airport_conditions ?? null;
+      })(),
       // 2026-04-19: H3 fix — expose per-section _generationFailed flags so cards
       // can render explicit "section unavailable" states. Was previously dropped
       // at the unwrap step, so a permanently-failed weather section silently

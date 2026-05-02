@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
@@ -153,7 +153,10 @@ export default function SignUpPage() {
   const [customMarket, setCustomMarket] = useState(''); // For "Other" market input
 
   const form = useForm<SignUpFormData>({
-    resolver: zodResolver(signUpSchema),
+    // Cast: react-hook-form@7.71 added a 4th generic; @hookform/resolvers@5.2.2's
+    // zodResolver returns Resolver<TFieldValues> which doesn't match the new shape,
+    // and z.coerce.number() makes input type 'unknown' vs output 'number'.
+    resolver: zodResolver(signUpSchema) as unknown as Resolver<SignUpFormData>,
     defaultValues: {
       firstName: '',
       lastName: '',
@@ -201,8 +204,6 @@ export default function SignUpPage() {
   const watchCountry = form.watch('country');
   const watchMarket = form.watch('market');
 
-  // Check if selected country has platform data (for showing dropdown vs text input)
-  const _selectedCountryHasPlatformData = countries.find(c => c.value === watchCountry)?.hasPlatformData ?? false;
   const isOtherCountry = watchCountry === 'OTHER';
   const isOtherMarket = watchMarket === '__OTHER__'; // 2026-01-05: Track if "Other" market selected
 
@@ -309,7 +310,7 @@ export default function SignUpPage() {
     window.location.href = API_ROUTES.AUTH.GOOGLE_SIGNUP;
   };
 
-  const handleAppleSignUp = () => {
+  const _handleAppleSignUp = () => {
     setSocialLoading('apple');
     setError(null);
     // Redirect to Apple OAuth endpoint (signup mode)

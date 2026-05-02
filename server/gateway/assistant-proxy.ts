@@ -35,7 +35,7 @@ const eidolonReply = async (payload: any) => {
     messages: payload.messages, // Pass full history
   });
 
-  if (!strategistResult.ok) throw new Error(`Strategist failed: ${strategistResult.error}`);
+  if (!strategistResult.ok) throw new Error(`Strategist failed: ${(strategistResult as { error?: string }).error ?? 'unknown error'}`);
   const strategistOutput = strategistResult.output;
 
   // 2. PLANNER (GPT-5.2)
@@ -43,7 +43,7 @@ const eidolonReply = async (payload: any) => {
     user: planPrompt(strategistOutput),
   });
 
-  if (!plannerResult.ok) throw new Error(`Planner failed: ${plannerResult.error}`);
+  if (!plannerResult.ok) throw new Error(`Planner failed: ${(plannerResult as { error?: string }).error ?? 'unknown error'}`);
   const plannerOutput = JSON.parse(plannerResult.output); // GPT usually returns JSON string if prompted, or we might need to parse
 
   // 3. VALIDATOR (Gemini 3 Pro)
@@ -53,7 +53,7 @@ const eidolonReply = async (payload: any) => {
     user: validatePrompt(plannerOutput),
   });
 
-  if (!validatorResult.ok) throw new Error(`Validator failed: ${validatorResult.error}`);
+  if (!validatorResult.ok) throw new Error(`Validator failed: ${(validatorResult as { error?: string }).error ?? 'unknown error'}`);
   let validatorOutput;
   try {
      validatorOutput = JSON.parse(validatorResult.output);
@@ -98,7 +98,7 @@ app.post("/assistant/*", async (req: Request, res: Response) => {
 // Operational verbs redirected to Agent (kept separate so we never blur "brain" and "hands")
 app.post("/ops/:verb", async (req: Request, res: Response) => {
   if (req.headers.authorization !== `Bearer ${AGENT_TOKEN}`) return FAIL(res, 401, "UNAUTHORIZED");
-  const verb = req.params.verb;
+  const verb = Array.isArray(req.params.verb) ? req.params.verb[0] : req.params.verb;
   const allow = new Set(["fs.read", "fs.write", "shell.exec", "sql.query"]);
   if (!allow.has(verb)) return FAIL(res, 403, "VERB_NOT_ALLOWED");
   const r = await fetch(process.env.AGENT_BASE_URL + "/op/" + verb, {

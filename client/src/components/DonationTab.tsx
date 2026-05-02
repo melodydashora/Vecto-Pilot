@@ -371,7 +371,7 @@ export const DonationTab: React.FC<DonationTabProps> = ({ userId: _userId }) => 
                   `);
                 }
               } catch (err) {
-                alert('Failed to fetch diagnostics: ' + err.message);
+                alert('Failed to fetch diagnostics: ' + (err instanceof Error ? err.message : String(err)));
               }
             }}
             className="w-full"

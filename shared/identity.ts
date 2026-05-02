@@ -1,4 +1,4 @@
-import type { UUID } from "./types/ids";
+import type { UUID } from "./types/ids.js";
 
 const USER_ID_KEY = "vecto_user_id";
 const DEVICE_ID_KEY = "vecto_device_id";

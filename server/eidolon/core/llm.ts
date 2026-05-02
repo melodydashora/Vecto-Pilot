@@ -75,7 +75,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
 
 const ToolCall = z.object({
  name: z.enum(["file_read","file_write","run_shell","sql_query","sql_execute","sql_tables","sql_schema"]),
- args: z.record(z.any())
+ args: z.record(z.string(), z.any())
 });
 const PlanSchema = z.object({
  plan: z.string(),

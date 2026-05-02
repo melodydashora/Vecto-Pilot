@@ -192,7 +192,7 @@ export function MarketStrategies({ strategies, title = 'Market-Specific Strategi
                             {strategy.platform}
                           </Badge>
                         )}
-                        {strategy.time_context && (
+                        {Boolean(strategy.time_context) && (
                           <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                             <Clock className="w-3 h-3 mr-1" />
                             Timed
@@ -290,7 +290,7 @@ export function TimingAdvice({ timing }: TimingCardsProps) {
                   {item.title}
                 </h4>
                 <p className="text-sm text-gray-600 mt-2">{item.summary || item.content.substring(0, 150)}...</p>
-                {item.time_context && (
+                {Boolean(item.time_context) && (
                   <div className="mt-2 text-xs text-cyan-700 font-medium">
                     {typeof item.time_context === 'object' && JSON.stringify(item.time_context)}
                   </div>

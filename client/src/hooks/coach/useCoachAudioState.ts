@@ -37,7 +37,7 @@ export interface UseCoachAudioStateReturn {
 
   // TTS state + actions
   isSpeaking: boolean;
-  speak: (text: string, language?: string) => Promise<void>;
+  speak: (text: string, language?: string, playbackRate?: number) => Promise<void>;
   stopSpeak: () => void;
   warmUp: () => void;
 

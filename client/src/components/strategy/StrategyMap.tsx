@@ -45,81 +45,8 @@ import { escapeHtml } from '@/lib/maps/escape-html';
 // console.log lines behind debug flags. Default off.
 import { DEBUG_MAP_ENABLED, DEBUG_VENUES_ENABLED } from '@/constants/featureFlags';
 
-// Google Maps type declarations (loaded dynamically; not shipped with @types).
-// 2026-04-26 PHASE A: replaced Marker class with AdvancedMarkerElement under
-// google.maps.marker namespace. Kept inline declaration approach to avoid
-// pulling @types/google.maps into Phase A (separate concern).
-declare global {
-  interface Window {
-    google: typeof google;
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-namespace
-declare namespace google.maps {
-  interface MapsEventListener {
-    remove(): void;
-  }
-  class Map {
-    constructor(element: HTMLElement, options: MapOptions);
-    fitBounds(
-      bounds: LatLngBounds,
-      padding?: number | { top?: number; right?: number; bottom?: number; left?: number; padding?: number }
-    ): void;
-  }
-  class InfoWindow {
-    constructor();
-    setContent(content: string): void;
-    open(map: Map, anchor?: unknown): void;
-    close(): void;
-  }
-  class LatLngBounds {
-    constructor();
-    extend(point: LatLng | { lat: number; lng: number }): void;
-  }
-  class LatLng {
-    constructor(lat: number, lng: number);
-    lat(): number;
-    lng(): number;
-  }
-  class TrafficLayer {
-    constructor();
-    setMap(map: Map): void;
-  }
-  interface MapOptions {
-    center: { lat: number; lng: number };
-    zoom: number;
-    mapId?: string;
-    mapTypeControl?: boolean;
-    fullscreenControl?: boolean;
-    zoomControl?: boolean;
-    streetViewControl?: boolean;
-    minZoom?: number;
-    maxZoom?: number;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace marker {
-    interface AdvancedMarkerElementOptions {
-      position?: { lat: number; lng: number };
-      map?: Map | null;
-      title?: string;
-      content?: HTMLElement;
-      zIndex?: number;
-      gmpClickable?: boolean;
-    }
-    class AdvancedMarkerElement {
-      constructor(options?: AdvancedMarkerElementOptions);
-      position: { lat: number; lng: number } | null;
-      map: Map | null;
-      title: string;
-      content: HTMLElement | null;
-      zIndex: number | null;
-      gmpClickable: boolean;
-      addListener(event: 'gmp-click', handler: (event: { domEvent: Event }) => void): MapsEventListener;
-    }
-  }
-}
+// Google Maps types come from @types/google.maps (added 2026-05-02; see tsconfig.client.json).
+// Window.google is augmented in client/src/vite-env.d.ts.
 
 interface Venue {
   id: string;
@@ -521,7 +448,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
       allMarkers.forEach((m) => {
         if (m.position) bounds.extend(m.position);
       });
-      map.fitBounds(bounds, { padding: 60 });
+      map.fitBounds(bounds, 60);
     }
   }, [mapReady, venues, driverLat, driverLng]);
 

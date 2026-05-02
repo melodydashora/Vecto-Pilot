@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/contexts/auth-context';
@@ -96,7 +96,10 @@ export default function SettingsPage() {
   const [customMarket, setCustomMarket] = useState('');
 
   const form = useForm<SettingsFormData>({
-    resolver: zodResolver(settingsSchema),
+    // Cast: react-hook-form@7.71 added a 4th generic; @hookform/resolvers@5.2.2's
+    // zodResolver returns Resolver<TFieldValues> which doesn't match the new shape,
+    // and z.coerce.number() makes input type 'unknown' vs output 'number'.
+    resolver: zodResolver(settingsSchema) as unknown as Resolver<SettingsFormData>,
     defaultValues: {
       nickname: '',
       phone: '',

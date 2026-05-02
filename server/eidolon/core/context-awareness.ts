@@ -1,5 +1,5 @@
-import { readJson, writeJson } from './memory-store';
-import { buildAndPersist } from './code-map';
+import { readJson, writeJson } from './memory-store.js';
+import { buildAndPersist } from './code-map.js';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 

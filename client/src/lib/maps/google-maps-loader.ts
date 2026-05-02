@@ -8,12 +8,6 @@
 // `removeChild` errors. The fix is to load the script exactly once per page
 // lifecycle, share the resulting Promise, and never remove the tag.
 
-declare global {
-  interface Window {
-    google: typeof google;
-  }
-}
-
 export type GoogleMapsLibrary =
   | 'core'
   | 'maps'

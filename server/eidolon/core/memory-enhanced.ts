@@ -1,6 +1,6 @@
 
-import { readJson, writeJson } from './memory-store';
-import { contextAwareness } from './context-awareness';
+import { readJson, writeJson } from './memory-store.js';
+import { contextAwareness } from './context-awareness.js';
 
 export interface MemoryEntry {
   id: string;
