@@ -32,7 +32,7 @@ import {
 import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeEmail, isEmailConfigured } from '../../lib/auth/email.js';
 import { sendPasswordResetSMS, isSmsConfigured, validatePhoneNumber } from '../../lib/auth/sms.js';
 import { requireAuth } from '../../middleware/auth.js';
-import { authLog } from '../../logger/workflow.js';
+import { matrixLog } from '../../logger/workflow.js';
 import { geocodeAddress } from '../../lib/location/geocode.js';
 import { validateAddress } from '../../lib/location/address-validation.js';
 
@@ -42,7 +42,11 @@ const router = Router();
 // REPLIT_DEVSERVER_INTERNAL_ID is per-workspace (not predictable), acceptable for dev.
 const JWT_SECRET = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
 if (!JWT_SECRET) {
-  console.error('[AUTH] FATAL: No JWT_SECRET or REPLIT_DEVSERVER_INTERNAL_ID — token signing will fail');
+  matrixLog.error({
+    category: 'AUTH',
+    action: 'BOOT_FAIL',
+    location: 'auth.js:module',
+  }, 'JWT_SECRET missing — token signing will fail');
 }
 
 /**
@@ -53,7 +57,11 @@ if (!JWT_SECRET) {
  */
 function generateAuthToken(userId, email = '') {
   const signature = crypto.createHmac('sha256', JWT_SECRET).update(userId).digest('hex');
-  authLog.done(1, `Token generated for: ${email || userId.substring(0, 8)}`);
+  matrixLog.info({
+    category: 'AUTH',
+    action: 'TOKEN_ISSUE',
+    location: 'auth.js:generateAuthToken',
+  }, `Token generated for ${userId.substring(0, 8)}`);
   return `${userId}.${signature}`;
 }
 
@@ -234,9 +242,17 @@ router.post('/register', async (req, res) => {
 
     // Hash password
     // 2026-01-09: Removed password character logging (security)
-    authLog.phase(1, `Hashing password for: ${email}`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'PASSWORD_HASH',
+      location: 'auth.js:register',
+    }, 'Hashing password');
     const passwordHash = await hashPassword(password);
-    authLog.phase(1, `Password hashed for: ${email}`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'PASSWORD_HASH_COMPLETE',
+      location: 'auth.js:register',
+    }, 'Password hashed');
 
     // 2026-01-05: Validate address using Google Address Validation API
     // This provides better accuracy than geocoding alone:
@@ -265,7 +281,11 @@ router.post('/register', async (req, res) => {
       });
 
       if (addressValidation && !addressValidation.skipped) {
-        authLog.phase(1, `Address validation: ${addressValidation.validationStatus}`);
+        matrixLog.info({
+          category: 'AUTH',
+          action: 'ADDRESS_VALIDATE',
+          location: 'auth.js:register',
+        }, `Address validation: ${addressValidation.validationStatus}`);
 
         // Use corrected address if available
         if (addressValidation.corrected?.address1) {
@@ -277,7 +297,11 @@ router.post('/register', async (req, res) => {
             zipCode: addressValidation.corrected.zipCode,
             country: addressValidation.corrected.country,
           };
-          authLog.done(1, `Address standardized: ${addressValidation.formattedAddress}`);
+          matrixLog.info({
+            category: 'AUTH',
+            action: 'ADDRESS_STANDARDIZED',
+            location: 'auth.js:register',
+          }, 'Address standardized (value redacted)');
         }
 
         // Use validation coordinates if available (often more precise than geocoding)
@@ -288,16 +312,28 @@ router.post('/register', async (req, res) => {
             formattedAddress: addressValidation.formattedAddress,
             // Note: Address Validation doesn't return timezone, will get from geocode if needed
           };
-          authLog.done(1, `Coords from validation: ${geocodeResult.lat}, ${geocodeResult.lng} (${addressValidation.geocodePrecision || 'unknown precision'})`);
+          matrixLog.info({
+            category: 'AUTH',
+            action: 'GEOCODE_FROM_VALIDATION',
+            location: 'auth.js:register',
+          }, `Coords obtained from validation (precision: ${addressValidation.geocodePrecision || 'unknown'})`);
         }
 
         // Log warnings if any
         if (addressValidation.warnings?.length > 0) {
-          console.warn('[AUTH] Address warnings:', addressValidation.warnings);
+          matrixLog.warn({
+            category: 'AUTH',
+            action: 'ADDRESS_VALIDATE_WARN',
+            location: 'auth.js:register',
+          }, `Address validation warnings (count: ${(addressValidation.warnings || []).length})`);
         }
       }
     } catch (validationErr) {
-      console.warn('[AUTH] Address validation failed (non-fatal):', validationErr.message);
+      matrixLog.warn({
+        category: 'AUTH',
+        action: 'ADDRESS_VALIDATE_FAIL',
+        location: 'auth.js:register',
+      }, `Address validation failed (non-fatal): ${validationErr.message}`);
     }
 
     // Fallback to geocoding if validation didn't provide coordinates
@@ -312,10 +348,18 @@ router.post('/register', async (req, res) => {
           country: finalAddress.country
         });
         if (geocodeResult) {
-          authLog.done(1, `Address geocoded (fallback): ${geocodeResult.lat}, ${geocodeResult.lng}`);
+          matrixLog.info({
+            category: 'AUTH',
+            action: 'GEOCODE_FALLBACK',
+            location: 'auth.js:register',
+          }, 'Address geocoded (fallback)');
         }
       } catch (geoErr) {
-        console.warn('[AUTH] Geocoding failed (non-fatal):', geoErr.message);
+        matrixLog.warn({
+          category: 'AUTH',
+          action: 'GEOCODE_FAIL',
+          location: 'auth.js:register',
+        }, `Geocoding failed (non-fatal): ${geoErr.message}`);
       }
     }
 
@@ -336,12 +380,24 @@ router.post('/register', async (req, res) => {
 
       if (marketData?.market_anchor) {
         resolvedMarket = marketData.market_anchor;
-        authLog.done(1, `Market resolved: ${resolvedMarket} (${marketData.region_type})`);
+        matrixLog.info({
+          category: 'AUTH',
+          action: 'MARKET_RESOLVE',
+          location: 'auth.js:register',
+        }, `Market resolved: ${resolvedMarket} (${marketData.region_type})`);
       } else {
-        console.log(`[AUTH] No market found for city: ${finalAddress.city}, using provided: ${market}`);
+        matrixLog.info({
+          category: 'AUTH',
+          action: 'MARKET_NOT_FOUND',
+          location: 'auth.js:register',
+        }, `No market found for provided city; using fallback: ${market}`);
       }
     } catch (marketErr) {
-      console.warn('[AUTH] Market lookup failed (non-fatal):', marketErr.message);
+      matrixLog.warn({
+        category: 'AUTH',
+        action: 'MARKET_LOOKUP_FAIL',
+        location: 'auth.js:register',
+      }, `Market lookup failed (non-fatal): ${marketErr.message}`);
     }
 
     // 2026-01-05: Simplified session architecture - users table is session-only
@@ -436,14 +492,24 @@ router.post('/register', async (req, res) => {
       password_hash: passwordHash
     }).returning();
 
-    authLog.phase(1, `Auth credentials created for user: ${newUser.user_id.substring(0, 8)} (creds id: ${createdCreds?.id?.substring(0, 8) || 'none'})`);
+    matrixLog.info({
+      category: 'AUTH',
+      connection: 'DB',
+      action: 'CREDENTIALS_CREATED',
+      tableName: 'AUTH_CREDENTIALS',
+      location: 'auth.js:register',
+    }, `Auth credentials created for user ${newUser.user_id.substring(0, 8)} (creds id: ${createdCreds?.id?.substring(0, 8) || 'none'})`);
 
     // Generate auth token
     const token = generateAuthToken(newUser.user_id, email);
 
     // Send welcome email (non-blocking)
     sendWelcomeEmail(email, firstName).catch(err => {
-      console.warn('[AUTH] Welcome email failed:', err.message);
+      matrixLog.warn({
+        category: 'AUTH',
+        action: 'EMAIL_SEND_FAIL',
+        location: 'auth.js:register',
+      }, `Welcome email failed: ${err.message}`);
     });
 
     // Fetch the created vehicle
@@ -454,7 +520,11 @@ router.post('/register', async (req, res) => {
       )
     });
 
-    authLog.done(1, `New driver registered: ${email}`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'REGISTER_COMPLETE',
+      location: 'auth.js:register',
+    }, `New driver registered (user ${newUser.user_id.substring(0, 8)})`);
 
     // Return same structure as GET /me for auth context compatibility
     res.status(201).json({
@@ -520,7 +590,11 @@ router.post('/register', async (req, res) => {
     });
 
   } catch (err) {
-    authLog.error(1, `Registration failed`, err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'REGISTER_FAIL',
+      location: 'auth.js:register',
+    }, 'Registration failed', err);
     res.status(500).json({ error: 'REGISTRATION_FAILED', message: err.message });
   }
 });
@@ -557,18 +631,34 @@ router.post('/login', async (req, res) => {
     });
 
     if (!creds) {
-      authLog.warn(1, `No credentials found for user_id: ${profile.user_id.substring(0, 8)}`);
+      matrixLog.warn({
+        category: 'AUTH',
+        connection: 'DB',
+        action: 'CREDENTIALS_NOT_FOUND',
+        tableName: 'AUTH_CREDENTIALS',
+        location: 'auth.js:login',
+      }, `No credentials found for user ${profile.user_id.substring(0, 8)}`);
       return res.status(401).json({
         error: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password'
       });
     }
 
-    authLog.phase(1, `Found credentials for: ${email} (hash length: ${creds.password_hash?.length || 0})`);
+    matrixLog.info({
+      category: 'AUTH',
+      connection: 'DB',
+      action: 'CREDENTIALS_LOOKUP',
+      tableName: 'AUTH_CREDENTIALS',
+      location: 'auth.js:login',
+    }, `Credentials found for user ${profile.user_id.substring(0, 8)} (hash length: ${creds.password_hash?.length || 0})`);
 
     // 2026-02-13: OAuth-only users have null password_hash — cannot log in with password
     if (!creds.password_hash) {
-      authLog.warn(1, `OAuth-only account attempted password login: ${email}`);
+      matrixLog.warn({
+        category: 'AUTH',
+        action: 'OAUTH_ONLY_ATTEMPT',
+        location: 'auth.js:login',
+      }, `OAuth-only account attempted password login (user ${profile.user_id.substring(0, 8)})`);
       return res.status(401).json({
         error: 'OAUTH_ONLY',
         message: 'This account uses Google Sign-In. Please use the Google button to log in.'
@@ -586,9 +676,17 @@ router.post('/login', async (req, res) => {
 
     // Verify password
     // 2026-01-09: Removed password character logging (security)
-    authLog.phase(1, `Verifying password for: ${email}`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'PASSWORD_VERIFY',
+      location: 'auth.js:login',
+    }, `Verifying password for user ${profile.user_id.substring(0, 8)}`);
     const isValid = await verifyPassword(password, creds.password_hash);
-    authLog.phase(1, `Password verification: ${isValid ? 'success' : 'failed'}`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'PASSWORD_VERIFY_RESULT',
+      location: 'auth.js:login',
+    }, `Password verification: ${isValid ? 'success' : 'failed'}`);
 
     if (!isValid) {
       // Increment failed attempts
@@ -605,7 +703,11 @@ router.post('/login', async (req, res) => {
         })
         .where(eq(auth_credentials.user_id, profile.user_id));
 
-      authLog.warn(1, `Failed login attempt for: ${email} (${newAttempts} attempts)`);
+      matrixLog.warn({
+        category: 'AUTH',
+        action: 'LOGIN_FAIL',
+        location: 'auth.js:login',
+      }, `Failed login attempt for user ${profile.user_id.substring(0, 8)} (${newAttempts} attempts)`);
 
       return res.status(401).json({
         error: 'INVALID_CREDENTIALS',
@@ -663,7 +765,13 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    authLog.phase(1, `Session created for user: ${profile.user_id.substring(0, 8)} (session: ${newSessionId.substring(0, 8)})`);
+    matrixLog.info({
+      category: 'AUTH',
+      connection: 'DB',
+      action: 'SESSION_CREATE',
+      tableName: 'USERS',
+      location: 'auth.js:login',
+    }, `Session created for user ${profile.user_id.substring(0, 8)} (session ${newSessionId.substring(0, 8)})`);
 
     // Generate token
     const token = generateAuthToken(profile.user_id, email);
@@ -676,7 +784,11 @@ router.post('/login', async (req, res) => {
       )
     });
 
-    authLog.done(1, `Driver logged in: ${email}`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'LOGIN_SUCCESS',
+      location: 'auth.js:login',
+    }, `Driver logged in (user ${profile.user_id.substring(0, 8)})`);
 
     // Return same structure as GET /me for auth context compatibility
     res.json({
@@ -742,7 +854,11 @@ router.post('/login', async (req, res) => {
     });
 
   } catch (err) {
-    authLog.error(1, `Login failed`, err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'LOGIN_FAIL_INTERNAL',
+      location: 'auth.js:login',
+    }, 'Login failed', err);
     res.status(500).json({ error: 'LOGIN_FAILED', message: err.message });
   }
 });
@@ -768,7 +884,11 @@ router.post('/forgot-password', async (req, res) => {
 
     // Always return success to prevent email enumeration
     if (!profile) {
-      authLog.warn(1, `Password reset requested for non-existent email: ${email}`);
+      matrixLog.warn({
+        category: 'AUTH',
+        action: 'RESET_REQUEST_NO_USER',
+        location: 'auth.js:forgotPassword',
+      }, 'Password reset requested for non-existent account');
       return res.json({
         ok: true,
         message: 'If an account exists with this email, you will receive reset instructions.'
@@ -799,7 +919,11 @@ router.post('/forgot-password', async (req, res) => {
       // Send SMS
       await sendPasswordResetSMS(profile.phone, code);
 
-      authLog.done(1, `Password reset SMS sent to: ${profile.phone}`);
+      matrixLog.info({
+        category: 'AUTH',
+        action: 'RESET_SMS_SENT',
+        location: 'auth.js:forgotPassword',
+      }, `Password reset SMS sent (user ${profile.user_id.substring(0, 8)})`);
 
     } else {
       // Email reset with token link
@@ -825,7 +949,11 @@ router.post('/forgot-password', async (req, res) => {
       // Send email
       await sendPasswordResetEmail(email, token, profile.first_name);
 
-      authLog.done(1, `Password reset email sent to: ${email}`);
+      matrixLog.info({
+        category: 'AUTH',
+        action: 'RESET_EMAIL_SENT',
+        location: 'auth.js:forgotPassword',
+      }, `Password reset email sent (user ${profile.user_id.substring(0, 8)})`);
     }
 
     res.json({
@@ -837,7 +965,11 @@ router.post('/forgot-password', async (req, res) => {
     });
 
   } catch (err) {
-    authLog.error(1, `Forgot password failed`, err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'RESET_REQUEST_FAIL',
+      location: 'auth.js:forgotPassword',
+    }, 'Forgot password failed', err);
     res.status(500).json({ error: 'FORGOT_PASSWORD_FAILED', message: err.message });
   }
 });
@@ -944,7 +1076,11 @@ router.post('/reset-password', async (req, res) => {
       })
       .where(eq(auth_credentials.user_id, userId));
 
-    authLog.done(1, `Password reset successful for user: ${userId.substring(0, 8)}`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'RESET_COMPLETE',
+      location: 'auth.js:resetPassword',
+    }, `Password reset successful for user ${userId.substring(0, 8)}`);
 
     res.json({
       ok: true,
@@ -952,7 +1088,11 @@ router.post('/reset-password', async (req, res) => {
     });
 
   } catch (err) {
-    authLog.error(1, `Password reset failed`, err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'RESET_FAIL',
+      location: 'auth.js:resetPassword',
+    }, 'Password reset failed', err);
     res.status(500).json({ error: 'RESET_PASSWORD_FAILED', message: err.message });
   }
 });
@@ -1063,7 +1203,11 @@ router.get('/me', requireAuth, async (req, res) => {
     });
 
   } catch (err) {
-    authLog.error(1, `Get profile failed`, err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'PROFILE_GET_FAIL',
+      location: 'auth.js:getProfile',
+    }, 'Get profile failed', err);
     res.status(500).json({ error: 'GET_PROFILE_FAILED', message: err.message });
   }
 });
@@ -1185,11 +1329,19 @@ router.put('/profile', requireAuth, async (req, res) => {
           profileUpdates.home_lng = geocodeResult.lng;
           profileUpdates.home_formatted_address = geocodeResult.formattedAddress;
           profileUpdates.home_timezone = geocodeResult.timezone;
-          authLog.done(1, `Re-geocoded address: ${geocodeResult.formattedAddress}`);
+          matrixLog.info({
+            category: 'AUTH',
+            action: 'PROFILE_GEOCODE',
+            location: 'auth.js:updateProfile',
+          }, 'Address re-geocoded (value redacted)');
         }
       } catch (geoErr) {
         // Non-fatal - log and continue with profile update
-        console.warn('[AUTH] Re-geocoding failed (non-fatal):', geoErr.message);
+        matrixLog.warn({
+          category: 'AUTH',
+          action: 'PROFILE_GEOCODE_FAIL',
+          location: 'auth.js:updateProfile',
+        }, `Re-geocoding failed (non-fatal): ${geoErr.message}`);
       }
 
       // Re-lookup market based on new city
@@ -1209,10 +1361,18 @@ router.put('/profile', requireAuth, async (req, res) => {
 
         if (marketData?.market_anchor) {
           profileUpdates.market = marketData.market_anchor;
-          authLog.done(1, `Market updated: ${marketData.market_anchor} (${marketData.region_type})`);
+          matrixLog.info({
+            category: 'AUTH',
+            action: 'PROFILE_MARKET_UPDATE',
+            location: 'auth.js:updateProfile',
+          }, `Market updated: ${marketData.market_anchor} (${marketData.region_type})`);
         }
       } catch (marketErr) {
-        console.warn('[AUTH] Market re-lookup failed (non-fatal):', marketErr.message);
+        matrixLog.warn({
+          category: 'AUTH',
+          action: 'PROFILE_MARKET_FAIL',
+          location: 'auth.js:updateProfile',
+        }, `Market re-lookup failed (non-fatal): ${marketErr.message}`);
       }
     }
 
@@ -1255,11 +1415,21 @@ router.put('/profile', requireAuth, async (req, res) => {
           seatbelts: updates.vehicle.seatbelts || 4,
           is_primary: true
         });
-        authLog.phase(1, `Created new vehicle record for: ${profile.email}`);
+        matrixLog.info({
+          category: 'AUTH',
+          connection: 'DB',
+          action: 'VEHICLE_CREATE',
+          tableName: 'DRIVER_VEHICLES',
+          location: 'auth.js:updateProfile',
+        }, `Created new vehicle record for user ${profile.user_id.substring(0, 8)}`);
       }
     }
 
-    authLog.done(1, `Profile updated for: ${profile.email}`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'PROFILE_UPDATE',
+      location: 'auth.js:updateProfile',
+    }, `Profile updated for user ${profile.user_id.substring(0, 8)}`);
 
     res.json({
       ok: true,
@@ -1267,7 +1437,11 @@ router.put('/profile', requireAuth, async (req, res) => {
     });
 
   } catch (err) {
-    authLog.error(1, `Update profile failed`, err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'PROFILE_UPDATE_FAIL',
+      location: 'auth.js:updateProfile',
+    }, 'Update profile failed', err);
     res.status(500).json({ error: 'UPDATE_PROFILE_FAILED', message: err.message });
   }
 });
@@ -1291,10 +1465,20 @@ router.post('/logout', requireAuth, async (req, res) => {
       })
       .where(eq(users.user_id, userId));
 
-    authLog.done(1, `User logged out, session cleared: ${userId.substring(0, 8)}`);
+    matrixLog.info({
+      category: 'AUTH',
+      connection: 'DB',
+      action: 'LOGOUT',
+      tableName: 'USERS',
+      location: 'auth.js:logout',
+    }, `User logged out, session cleared (user ${userId.substring(0, 8)})`);
     res.json({ ok: true, message: 'Logged out successfully' });
   } catch (err) {
-    authLog.error(1, `Logout failed`, err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'LOGOUT_FAIL',
+      location: 'auth.js:logout',
+    }, 'Logout failed', err);
     res.status(500).json({ error: 'LOGOUT_FAILED', message: err.message });
   }
 });
@@ -1308,7 +1492,11 @@ router.get('/google', async (req, res) => {
   try {
     // Check that Google OAuth is configured
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      authLog.error(1, 'Google OAuth not configured: missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
+      matrixLog.error({
+        category: 'AUTH',
+        action: 'OAUTH_CONFIG_MISSING',
+        location: 'auth.js:googleOAuthInit',
+      }, 'Google OAuth not configured: missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET');
       const clientUrl = process.env.CLIENT_URL || '';
       return res.redirect(`${clientUrl}/auth/sign-in?error=google_not_configured`);
     }
@@ -1329,10 +1517,19 @@ router.get('/google', async (req, res) => {
     // Priority: CLIENT_URL env > request origin (handles both dev and prod)
     const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
     const authUrl = getGoogleAuthUrl({ state, mode: req.query.mode, baseUrl });
-    authLog.phase(1, `Google OAuth initiated (mode: ${req.query.mode || 'login'}, redirectBase: ${baseUrl})`);
+    matrixLog.info({
+      category: 'AUTH',
+      connection: 'API',
+      action: 'OAUTH_INITIATE',
+      location: 'auth.js:googleOAuthInit',
+    }, `Google OAuth initiated (mode: ${req.query.mode || 'login'})`);
     res.redirect(authUrl);
   } catch (err) {
-    authLog.error(1, 'Google OAuth initiation failed', err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'OAUTH_INITIATE_FAIL',
+      location: 'auth.js:googleOAuthInit',
+    }, 'Google OAuth initiation failed', err);
     const clientUrl = process.env.CLIENT_URL || '';
     res.redirect(`${clientUrl}/auth/sign-in?error=google_init_failed`);
   }
@@ -1366,7 +1563,11 @@ router.post('/google/exchange', async (req, res) => {
       .limit(1);
 
     if (!storedState) {
-      authLog.warn(1, 'Google OAuth: invalid or expired state parameter');
+      matrixLog.warn({
+        category: 'AUTH',
+        action: 'OAUTH_STATE_INVALID',
+        location: 'auth.js:googleOAuthCallback',
+      }, 'Google OAuth: invalid or expired state parameter');
       return res.status(400).json({
         error: 'INVALID_STATE',
         message: 'Invalid or expired OAuth state. Please try again.'
@@ -1379,7 +1580,12 @@ router.post('/google/exchange', async (req, res) => {
     // 2. Exchange authorization code for tokens
     // 2026-02-13: baseUrl must match exactly what was used in the auth URL
     const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get('host')}`;
-    authLog.phase(1, `Google OAuth: exchanging code for tokens (redirectBase: ${baseUrl})`);
+    matrixLog.info({
+      category: 'AUTH',
+      connection: 'API',
+      action: 'OAUTH_EXCHANGE',
+      location: 'auth.js:googleOAuthCallback',
+    }, 'Google OAuth: exchanging code for tokens');
     const tokens = await exchangeGoogleCode(code, baseUrl);
 
     if (!tokens.id_token) {
@@ -1387,9 +1593,18 @@ router.post('/google/exchange', async (req, res) => {
     }
 
     // 3. Verify ID token and extract user info
-    authLog.phase(1, 'Google OAuth: verifying ID token');
+    matrixLog.info({
+      category: 'AUTH',
+      connection: 'API',
+      action: 'OAUTH_VERIFY',
+      location: 'auth.js:googleOAuthCallback',
+    }, 'Google OAuth: verifying ID token');
     const googleUser = await verifyGoogleIdToken(tokens.id_token);
-    authLog.phase(1, `Google OAuth: verified user ${googleUser.email} (sub: ${googleUser.sub.substring(0, 8)}...)`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'OAUTH_VERIFIED',
+      location: 'auth.js:googleOAuthCallback',
+    }, `Google OAuth: verified user (sub: ${googleUser.sub.substring(0, 8)})`);
 
     // 4. Find existing user by google_id OR email
     const profile = await db.query.driver_profiles.findFirst({
@@ -1407,7 +1622,11 @@ router.post('/google/exchange', async (req, res) => {
       // NEW ACCOUNT — Create minimal profile from Google data
       // profile_complete: false → user can complete address/vehicle later
       // ═══════════════════════════════════════════════════════════════════
-      authLog.phase(1, `Google OAuth: creating new account for ${googleUser.email}`);
+      matrixLog.info({
+        category: 'AUTH',
+        action: 'OAUTH_NEW_ACCOUNT',
+        location: 'auth.js:googleOAuthCallback',
+      }, `Google OAuth: creating new account (sub: ${googleUser.sub.substring(0, 8)})`);
 
       const newUserId = crypto.randomUUID();
       const newDeviceId = `web-${crypto.randomUUID().substring(0, 8)}`;
@@ -1457,7 +1676,13 @@ router.post('/google/exchange', async (req, res) => {
       });
 
       activeProfile = newProfile;
-      authLog.done(1, `Google OAuth: new account created for ${googleUser.email} (profile_complete: false)`);
+      matrixLog.info({
+        category: 'AUTH',
+        connection: 'DB',
+        action: 'OAUTH_NEW_ACCOUNT_COMPLETE',
+        tableName: 'DRIVER_PROFILES',
+        location: 'auth.js:googleOAuthCallback',
+      }, `Google OAuth: new account created for user ${newUserId.substring(0, 8)} (profile_complete: false)`);
     } else {
       // ═══════════════════════════════════════════════════════════════════
       // EXISTING ACCOUNT — Link Google ID if needed, update session
@@ -1471,7 +1696,13 @@ router.post('/google/exchange', async (req, res) => {
             updated_at: new Date()
           })
           .where(eq(driver_profiles.id, activeProfile.id));
-        authLog.phase(1, `Google OAuth: linked Google ID to existing user ${activeProfile.email}`);
+        matrixLog.info({
+          category: 'AUTH',
+          connection: 'DB',
+          action: 'OAUTH_LINK',
+          tableName: 'DRIVER_PROFILES',
+          location: 'auth.js:googleOAuthCallback',
+        }, `Google OAuth: linked Google ID to existing user ${activeProfile.user_id.substring(0, 8)}`);
       }
     }
 
@@ -1518,7 +1749,11 @@ router.post('/google/exchange', async (req, res) => {
       )
     });
 
-    authLog.done(1, `Google OAuth: ${activeProfile.email} (${profile ? 'existing' : 'new'} account)`);
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'OAUTH_LOGIN_SUCCESS',
+      location: 'auth.js:googleOAuthCallback',
+    }, `Google OAuth: user ${activeProfile.user_id.substring(0, 8)} (${profile ? 'existing' : 'new'} account)`);
 
     // Return same structure as /login for auth context compatibility
     res.json({
@@ -1582,7 +1817,11 @@ router.post('/google/exchange', async (req, res) => {
       } : null
     });
   } catch (err) {
-    authLog.error(1, 'Google OAuth exchange failed', err);
+    matrixLog.error({
+      category: 'AUTH',
+      action: 'OAUTH_EXCHANGE_FAIL',
+      location: 'auth.js:googleOAuthCallback',
+    }, 'Google OAuth exchange failed', err);
     res.status(500).json({
       error: 'GOOGLE_AUTH_FAILED',
       message: err.message || 'Google authentication failed'
@@ -1596,7 +1835,11 @@ router.post('/google/exchange', async (req, res) => {
 // TODO: Implement full Apple Sign In with passport-apple
 // ═══════════════════════════════════════════════════════════════════════════
 router.get('/apple', (req, res) => {
-  authLog.warn(1, 'Apple Sign In requested but not yet implemented');
+  matrixLog.warn({
+    category: 'AUTH',
+    action: 'APPLE_OAUTH_STUB',
+    location: 'auth.js:appleOAuth',
+  }, 'Apple Sign In requested but not yet implemented');
   const clientUrl = process.env.CLIENT_URL || '';
   res.redirect(`${clientUrl}/auth/sign-in?error=social_not_implemented&provider=apple`);
 });
