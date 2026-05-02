@@ -49,5 +49,13 @@ UI/UX and performance cleanup for the passenger-facing application.
 - **Race Conditions:** Fix the duplicate Gemini calls being fired for the same location via `searchNearby()`. (CM-1)
 - **Spatial Indexing:** Add PostGIS/Spatial indexing to the `venue_catalog` to handle lat/lng range queries efficiently. (CM-2)
 
+## 🏗️ Workstream 6: Pipeline Decoupling & Venue Deduplication
+**Source:** Tier 3 Logging Migration architectural discovery
+Resolving severe structural debt and API quota leaks discovered during logging matrix alignment.
+
+- **God-File Split:** Shatter `briefing-service.js` into strictly defined pipeline modules (`traffic.js`, `events.js`, `news.js`) orchestrated by a lightweight aggregator to enforce the 9-stage taxonomy.
+- **Catalog Schema Cleanup:** Remove operational metadata like `source_model` and AI provenance from `venue_catalog`. The catalog must reflect pure physical reality. Move telemetry columns to `discovered_events`.
+- **API Cache Enforcement:** Fix Pass 1 in `tactical-planner.js` to enforce catalog-first lookups before executing Places API text searches. Add behavioral tests asserting zero API calls for cached venues (e.g., "Legacy Hall").
+
 ---
 *Note: Before executing work, always check the exact line references in `docs/DOC_DISCREPANCIES.md` or `docs/coach-inbox.md` for full context.*
