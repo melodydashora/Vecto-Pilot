@@ -13,8 +13,11 @@ import { briefingLog, OP } from '../../logger/workflow.js';
  * 2026-02-17: Added deactivated_at timestamp for lifecycle tracking.
  *
  * Logic:
- * - Deactivate if event_end_date < Today (yesterday or older)
- * - Deactivate if event_end_date == Today AND event_end_time < Now (ended earlier today)
+ * - Computes cutoff = now - 2h (matches POST_EVENT_SURGE_MS in strategy-utils.js so
+ *   the deactivation window aligns with the read-side freshness window — events
+ *   stay visible for ~2hr post-end to capture driver pickup surge).
+ * - Deactivate if event_end_date < cutoffDate
+ * - Deactivate if event_end_date == cutoffDate AND event_end_time < cutoffTime
  * - Only targets events where is_active = true (skip already-deactivated)
  *
  * @param {string} timezone - IANA timezone (e.g. 'America/Chicago') — REQUIRED
@@ -26,10 +29,20 @@ export async function deactivatePastEvents(timezone) {
   }
 
   try {
-    // Calculate "today" and "now" in the driver's local timezone
+    // 2026-05-02: Workstream 6 commit 8.5 — apply 2-hour post-event surge buffer so
+    // deactivation aligns with the read-side freshness window in strategy-utils.js
+    // (POST_EVENT_SURGE_MS). Events stay is_active=true for 2 hours after their
+    // event_end_time, giving drivers ride opportunities from attendees leaving.
+    const POST_EVENT_BUFFER_MS = 2 * 60 * 60 * 1000;
     const now = new Date();
-    const todayStr = now.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-    const timeStr = now.toLocaleTimeString('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit' }); // HH:MM
+    const cutoff = new Date(now.getTime() - POST_EVENT_BUFFER_MS); // 2 hours before now
+    // Derive date/time strings from cutoff, not now. Format guarantees:
+    //   en-CA → "YYYY-MM-DD" (sortable as string)
+    //   en-GB → "HH:MM" 24-hour with leading zeros (sortable as string,
+    //     assumes event_end_time is also stored in 24-hour HH:MM format —
+    //     pre-existing assumption upstream of this commit)
+    const cutoffDateStr = cutoff.toLocaleDateString('en-CA', { timeZone: timezone });
+    const cutoffTimeStr = cutoff.toLocaleTimeString('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit' });
 
     const result = await db.execute(sql`
       UPDATE discovered_events
@@ -38,8 +51,8 @@ export async function deactivatePastEvents(timezone) {
           updated_at = NOW()
       WHERE is_active = true
         AND (
-          event_end_date < ${todayStr}
-          OR (event_end_date = ${todayStr} AND event_end_time < ${timeStr})
+          event_end_date < ${cutoffDateStr}
+          OR (event_end_date = ${cutoffDateStr} AND event_end_time < ${cutoffTimeStr})
         )
     `);
 
