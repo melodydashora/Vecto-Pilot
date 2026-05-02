@@ -213,3 +213,29 @@ See `docs/DOC_DISCREPANCIES.md` for tracked issues:
 |-------|---------|-----------|
 | `strategy_for_now` | 1-hour tactical "GO NOW" advice | Automatically (blocks-fast) |
 | `consolidated_strategy` | 8-12 hour daily planning | On-demand (POST /api/strategy/daily) |
+
+## Logging Conventions (matrixLog Tier 3 — 2026-05-02)
+
+This module uses the `matrixLog` 8-field structured logger (`server/logger/matrix.js`).
+
+### Categories used
+
+- `category: 'STRATEGY'` — pipeline orchestration (formerly `TRIAD`; aliased per memory row 233)
+- `connection`: `'AI'` for `callModel(...)` calls; `'DB'` for `strategies` / `rankings` / `ranking_candidates` writes; `'SSE'` for `strategy_ready` broadcasts
+- `action`: `VERIFY` (snapshot/briefing readiness checks), `DISPATCH` (AI calls), `STORE`, `RETRY`, `EMIT_READY`, `STALENESS_RESET`, etc.
+- `roleName`: `STRATEGIST`, `BRIEFER`, `CONSOLIDATOR`, `VENUE_PLANNER` (matches `model-registry.js` roles)
+- `tableName`: `STRATEGIES`, `RANKINGS`, `RANKING_CANDIDATES`, `BRIEFINGS`, `TRIAD_JOBS` (when `connection='DB'`)
+- `location`: `blocks-fast.js:<functionName>`, `strategy.js:<functionName>`, etc.
+
+### Redaction policy
+
+Per Tier 3 plan §3 and matrixLog spec at `server/logger/matrix.js:26-39`:
+
+- **Coordinates** — never in messages.
+- **City / state** — never in messages; available via JSON sidecar.
+- **Snapshot context fields** (timezone, day_part, holiday flags) — dropped from messages per "content text" rule. Field-presence flags OK.
+- **Snapshot ID** — full UUID forbidden in messages; correlation via `withContext({ snapshot_id })` JSON output.
+
+### `action: 'VERIFY'` — what it means
+
+In `blocks-fast.js`, `action: 'VERIFY'` indicates a pre-pipeline readiness check (e.g., "snapshot row populated", "briefing fields present"). Replaces the legacy inline `[VERIFY]` prefix that lived in message strings before the Tier 3 migration. Search past logs for `[STRATEGY] [VERIFY]` to find these checkpoints.

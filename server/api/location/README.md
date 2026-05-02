@@ -180,3 +180,28 @@ import { validateBody } from '../../middleware/validate.js';
 import { validateIncomingSnapshot } from '../../util/validate-snapshot.js';
 import { uuidOrNull } from '../../util/uuid.js';
 ```
+
+## Logging Conventions (matrixLog Tier 3 — 2026-05-02)
+
+This module uses the `matrixLog` 8-field structured logger (`server/logger/matrix.js`).
+
+### Categories used
+
+- `category: 'LOCATION'` — GPS / geocode / weather / AQ / timezone resolution
+- `category: 'SNAPSHOT'` — snapshot creation / enrichment (from `snapshot.js` and the `/api/location/snapshot` endpoint)
+- `connection`: `'API'` for Google Maps Geocode/Timezone/Weather/Pollen calls; `'DB'` for `coords_cache` / `snapshots` / `users` writes; `'CACHE'` when serving from `coords_cache`
+- `action`: `RESOLVE`, `GEOCODE`, `TIMEZONE_LOOKUP`, `WEATHER_FETCH`, `AIRQUALITY_FETCH`, `CACHE_HIT`, `CACHE_MISS`, `CITY_CHANGE`, `SNAPSHOT_CREATE`, etc.
+- `tableName`: `COORDS_CACHE`, `SNAPSHOTS`, `USERS` (when `connection='DB'`)
+- `location`: `location.js:<functionName>` (e.g., `location.js:resolveLocation`)
+
+### Redaction policy
+
+Per Tier 3 plan §3 and matrixLog spec at `server/logger/matrix.js:26-39`:
+
+- **Coordinates (lat/lng)** — never appear in messages, even truncated. Dropped entirely. (URL construction for outbound API requests is unaffected; this only constrains log message text.)
+- **Full address (`formattedAddress`)** — never in messages. Field-presence boolean may be logged.
+- **City / state** — never in messages; available via JSON sidecar with `withContext({ snapshot_id })`.
+
+### Correlation in JSON sidecar
+
+`request_id` and `snapshot_id` ride along in JSON output for log-pipeline correlation. Full coordinate values may appear in JSON sidecar (the spec only forbids them in pretty/console messages); evaluate per-deployment whether log pipelines should also redact.

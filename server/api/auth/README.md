@@ -144,6 +144,35 @@ import { sendPasswordResetEmail } from '../../lib/auth/email.js';
 import { requireAuth } from '../../middleware/auth.js';
 ```
 
+## Logging Conventions (matrixLog Tier 3 — 2026-05-02)
+
+This module uses the `matrixLog` 8-field structured logger (`server/logger/matrix.js`). All log lines in `auth.js` emit:
+
+```
+[AUTH] [<connection>] [<action>] [<location>] -> <message>
+```
+
+### Categories used
+
+- `category: 'AUTH'` — base category for all auth-flow lines
+- `connection`: `'DB'` for `auth_credentials` / `driver_profiles` / `users` writes; `'API'` for OAuth callbacks; omitted for in-process operations
+- `action`: `LOGIN_ATTEMPT`, `LOGIN_SUCCESS`, `LOGIN_FAIL`, `TOKEN_ISSUE`, `PASSWORD_HASH`, `REGISTER`, `RESET_REQUEST`, `RESET_COMPLETE`, etc.
+- `location`: `auth.js:<functionName>` (e.g., `auth.js:generateAuthToken`)
+
+### Redaction policy
+
+Per Tier 3 plan §3 (`docs/review-queue/PLAN_matrixlog-tier3-auth-location-strategy-2026-05-02.md`) and matrixLog spec at `server/logger/matrix.js:26-39`:
+
+- **Email** — never appears in messages. Dropped entirely.
+- **UserId** — `userId.substring(0, 8)` 8-char hex prefix IS permitted in messages for real-time DX correlation (per 2026-05-02 spec amendment). Full UUID never appears in messages.
+- **Password / hash** — never logged.
+- **Address (formattedAddress)** — never appears in messages. Field-presence boolean (`address_present: true/false`) may be logged.
+
+### Correlation in JSON sidecar
+
+When `LOG_FORMAT=json|both` (env var), the structured payload includes `category`, `action`, `location`, plus any `request_id` / `snapshot_id` / `user_id` from `withContext(...)` binding. Full UUIDs are allowed in JSON output for log-pipeline correlation; only pretty/console output is constrained.
+
 ---
 
 *Updated: 2026-01-05 - Session architecture implementation*
+*Updated: 2026-05-02 - matrixLog Tier 3 logging conventions added*

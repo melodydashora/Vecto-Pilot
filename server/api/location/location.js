@@ -5,7 +5,7 @@ import { latLngToCell } from 'h3-js';
 import { db } from '../../db/drizzle.js';
 import { snapshots, strategies, users, coords_cache, markets, driver_profiles } from '../../../shared/schema.js';
 import { sql, eq, or, ilike } from 'drizzle-orm';
-import { locationLog, snapshotLog, OP } from '../../logger/workflow.js';
+import { matrixLog } from '../../logger/workflow.js';
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
 // 2026-02-17: Daypart extracted to shared module for reuse in offer_intelligence
@@ -170,10 +170,22 @@ router.post('/release-snapshot', async (req, res) => {
       .set({ current_snapshot_id: null, updated_at: new Date() })
       .where(eq(users.user_id, userId));
 
-    snapshotLog.info(`Snapshot released for user ${userId.substring(0, 8)} (manual refresh)`, OP.DB);
+    matrixLog.info({
+      category: 'SNAPSHOT',
+      connection: 'DB',
+      action: 'SNAPSHOT_RELEASE',
+      tableName: 'USERS',
+      location: 'location.js:releaseSnapshot',
+    }, `Snapshot released for user ${userId.substring(0, 8)} (manual refresh)`);
     res.json({ ok: true, message: 'Snapshot released' });
   } catch (err) {
-    snapshotLog.error(1, `Failed to release snapshot`, err, OP.DB);
+    matrixLog.error({
+      category: 'SNAPSHOT',
+      connection: 'DB',
+      action: 'SNAPSHOT_RELEASE_FAIL',
+      tableName: 'USERS',
+      location: 'location.js:releaseSnapshot',
+    }, 'Failed to release snapshot', err);
     res.status(500).json({ error: 'RELEASE_FAILED', message: err.message });
   }
 });
@@ -527,7 +539,11 @@ router.get('/resolve', async (req, res) => {
 
     // 2026-02-01: Validate coordinate ranges
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      console.error('[LOCATION] [API] COORDINATES OUT OF RANGE', { lat, lng });
+      matrixLog.error({
+        category: 'LOCATION',
+        action: 'COORDS_OUT_OF_RANGE',
+        location: 'location.js:resolveLocation',
+      }, 'Coordinates out of valid range (values redacted)');
       return res.status(400).json({
         error: 'COORDINATES_OUT_OF_RANGE',
         message: `Coordinates [${lat}, ${lng}] are outside valid range`,
@@ -540,7 +556,12 @@ router.get('/resolve', async (req, res) => {
       console.warn('[LOCATION] [API] Suspicious coordinates (0,0) - possible GPS error');
     }
 
-    locationLog.phase(1, `Resolving ${lat.toFixed(6)}, ${lng.toFixed(6)}`, OP.API);
+    matrixLog.info({
+      category: 'LOCATION',
+      connection: 'API',
+      action: 'RESOLVE',
+      location: 'location.js:resolveLocation',
+    }, 'Resolving GPS coords (values redacted)');
 
     // 2026-01-09: P0-2 FIX - NO FALLBACKS - Require Google Maps API key
     // Previous code returned fabricated data with server timezone - this poisons downstream
@@ -585,7 +606,13 @@ router.get('/resolve', async (req, res) => {
         });
         cacheHit = null; // Force API lookup - no partial data allowed
       } else {
-        locationLog.done(1, `Coords cache hit: ${cacheHit.city}, ${cacheHit.state}`, OP.CACHE);
+        matrixLog.info({
+          category: 'LOCATION',
+          connection: 'CACHE',
+          action: 'CACHE_HIT',
+          tableName: 'COORDS_CACHE',
+          location: 'location.js:resolveLocation',
+        }, 'Coords cache hit (city/state redacted)');
         city = cacheHit.city;
         state = cacheHit.state;
         country = cacheHit.country;
@@ -602,7 +629,12 @@ router.get('/resolve', async (req, res) => {
 
     if (!cacheHit) {
       // CACHE MISS: Call Geocode API first, then check markets for timezone fast-path
-      locationLog.phase(2, `Calling Google Geocode API`, OP.API);
+      matrixLog.info({
+        category: 'LOCATION',
+        connection: 'API',
+        action: 'GEOCODE_REQUEST',
+        location: 'location.js:resolveLocation',
+      }, 'Calling Google Geocode API');
 
       // Step 1: Get city/state from Geocode API (always needed)
       const geocodeData = await googleMapsCircuit(async (signal) => {
@@ -620,7 +652,12 @@ router.get('/resolve', async (req, res) => {
 
         // 2026-02-01: FAIL HARD if no results even though status is OK
         if (!best) {
-          console.error(`[LOCATION] Geocode returned OK but no results for coords [${lat}, ${lng}]`);
+          matrixLog.error({
+            category: 'LOCATION',
+            connection: 'API',
+            action: 'GEOCODE_NO_RESULTS',
+            location: 'location.js:resolveLocation',
+          }, 'Geocode returned OK but no results (coords redacted)');
           return res.status(502).json({
             error: 'GEOCODE_NO_RESULTS',
             message: 'Google Geocode returned OK but no address results',
@@ -634,21 +671,24 @@ router.get('/resolve', async (req, res) => {
         formattedAddress = best.formatted_address;
 
         // 2026-02-01: DEBUG - Log what was extracted to diagnose geocode_incomplete errors
-        console.log(`[LOCATION] [API] Geocode extraction for [${lat}, ${lng}]:`, {
-          city,
-          state,
-          country,
-          formattedAddress,
-          componentCount: best.address_components?.length || 0,
-          resultTypes: geocodeData.results?.[0]?.types || []
-        });
+        matrixLog.debug({
+          category: 'LOCATION',
+          connection: 'API',
+          action: 'GEOCODE_EXTRACT',
+          location: 'location.js:resolveLocation',
+        }, `Geocode extraction (city: ${!!city}, state: ${!!state}, country: ${!!country}, address: ${!!formattedAddress}, components: ${best.address_components?.length || 0}, types: ${(geocodeData.results?.[0]?.types || []).length})`);
 
         // 2026-02-01: STRICT VALIDATION - No partial state allowed
         // Rule: coords → formatted_address (MUST) → city, state (MUST)
         // If ANY required field is missing, FAIL HARD immediately
 
         if (!formattedAddress || formattedAddress.trim() === '') {
-          console.error(`[LOCATION] [API] FAIL HARD: No formatted_address for coords [${lat}, ${lng}]`);
+          matrixLog.error({
+            category: 'LOCATION',
+            connection: 'API',
+            action: 'GEOCODE_INCOMPLETE_FORMATTED',
+            location: 'location.js:resolveLocation',
+          }, 'FAIL HARD: No formatted_address (coords redacted)');
           return res.status(502).json({
             error: 'GEOCODE_NO_ADDRESS',
             message: 'Google Geocode did not return a formatted address for these coordinates',
@@ -658,7 +698,12 @@ router.get('/resolve', async (req, res) => {
         }
 
         if (!city) {
-          console.error(`[LOCATION] [API] FAIL HARD: No city extracted for coords [${lat}, ${lng}]`);
+          matrixLog.error({
+            category: 'LOCATION',
+            connection: 'API',
+            action: 'GEOCODE_INCOMPLETE_CITY',
+            location: 'location.js:resolveLocation',
+          }, 'FAIL HARD: No city extracted (coords redacted)');
           return res.status(502).json({
             error: 'GEOCODE_NO_CITY',
             message: 'Could not extract city from geocode response',
@@ -669,7 +714,12 @@ router.get('/resolve', async (req, res) => {
         }
 
         if (!state) {
-          console.error(`[LOCATION] [API] FAIL HARD: No state extracted for coords [${lat}, ${lng}]`);
+          matrixLog.error({
+            category: 'LOCATION',
+            connection: 'API',
+            action: 'GEOCODE_INCOMPLETE_STATE',
+            location: 'location.js:resolveLocation',
+          }, 'FAIL HARD: No state extracted (coords redacted)');
           return res.status(502).json({
             error: 'GEOCODE_NO_STATE',
             message: 'Could not extract state from geocode response',
@@ -680,10 +730,20 @@ router.get('/resolve', async (req, res) => {
           });
         }
 
-        locationLog.done(2, `Geocode: ${city}, ${state} ✓`, OP.API);
+        matrixLog.info({
+          category: 'LOCATION',
+          connection: 'API',
+          action: 'GEOCODE_COMPLETE',
+          location: 'location.js:resolveLocation',
+        }, 'Geocode complete (city/state redacted)');
       } else {
         // 2026-02-01: FAIL HARD - Return error instead of continuing with undefined values
-        locationLog.error(2, `Geocode failed: ${geocodeData.status}`, null, OP.API);
+        matrixLog.error({
+          category: 'LOCATION',
+          connection: 'API',
+          action: 'GEOCODE_FAIL',
+          location: 'location.js:resolveLocation',
+        }, `Geocode failed: ${geocodeData.status}`);
         return res.status(502).json({
           error: 'GEOCODE_API_FAILED',
           message: `Google Geocode API returned status: ${geocodeData.status}`,
@@ -710,10 +770,21 @@ router.get('/resolve', async (req, res) => {
       if (marketResult) {
         // FAST PATH: Use pre-stored timezone from markets table
         timeZone = marketResult.timezone;
-        locationLog.done(2, `Timezone from market: ${marketResult.market_name} (skipped Google API)`, OP.DB);
+        matrixLog.info({
+          category: 'LOCATION',
+          connection: 'DB',
+          action: 'TIMEZONE_FROM_MARKET',
+          tableName: 'MARKETS',
+          location: 'location.js:resolveLocation',
+        }, `Timezone from market: ${marketResult.market_name} (skipped Google API)`);
       } else {
         // SLOW PATH: Call Google Timezone API via circuit breaker
-        locationLog.phase(2, `Market not found, calling Google Timezone API`, OP.API);
+        matrixLog.info({
+          category: 'LOCATION',
+          connection: 'API',
+          action: 'TIMEZONE_REQUEST',
+          location: 'location.js:resolveLocation',
+        }, 'Market not found, calling Google Timezone API');
         const timezoneData = await googleMapsCircuit(async (signal) => {
           const response = await fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
           if (!response.ok) {
@@ -724,10 +795,20 @@ router.get('/resolve', async (req, res) => {
 
         if (timezoneData && timezoneData.status === 'OK' && timezoneData.timeZoneId) {
           timeZone = timezoneData.timeZoneId;
-          locationLog.done(2, `Timezone from Google API: ${timeZone}`, OP.API);
+          matrixLog.info({
+            category: 'LOCATION',
+            connection: 'API',
+            action: 'TIMEZONE_COMPLETE',
+            location: 'location.js:resolveLocation',
+          }, 'Timezone resolved from Google API (value redacted)');
         } else {
           // 2026-01-06: NO FALLBACKS - Return error instead of server timezone
-          locationLog.error(2, `Timezone API failed: ${timezoneData?.status || 'no response'}`, OP.API);
+          matrixLog.error({
+            category: 'LOCATION',
+            connection: 'API',
+            action: 'TIMEZONE_FAIL',
+            location: 'location.js:resolveLocation',
+          }, `Timezone API failed: ${timezoneData?.status || 'no response'}`);
           return res.status(502).json({
             error: 'TIMEZONE_RESOLUTION_FAILED',
             message: 'Could not determine timezone for this location',
@@ -761,9 +842,21 @@ router.get('/resolve', async (req, res) => {
             hit_count: 0,
           }).onConflictDoNothing();
 
-          locationLog.done(3, `Cached: ${city}, ${state}`, OP.DB);
+          matrixLog.info({
+            category: 'LOCATION',
+            connection: 'DB',
+            action: 'CACHE_WRITE',
+            tableName: 'COORDS_CACHE',
+            location: 'location.js:resolveLocation',
+          }, 'Coords cache write complete (city/state redacted)');
         } catch (cacheWriteErr) {
-          locationLog.warn(3, `Cache write failed: ${cacheWriteErr.message}`, OP.DB);
+          matrixLog.warn({
+            category: 'LOCATION',
+            connection: 'DB',
+            action: 'CACHE_WRITE_FAIL',
+            tableName: 'COORDS_CACHE',
+            location: 'location.js:resolveLocation',
+          }, `Cache write failed: ${cacheWriteErr.message}`);
         }
       }
     } // End of cache miss block
@@ -771,13 +864,12 @@ router.get('/resolve', async (req, res) => {
     // 2026-02-01: FAIL HARD - city and state are required for downstream operations
     // If geocode failed to extract these, return error instead of undefined values
     if (!city || !state) {
-      console.error(`[LOCATION] CRITICAL: Geocode did not return city/state for coords [${lat}, ${lng}]`, {
-        city,
-        state,
-        country,
-        formattedAddress,
-        cacheHit: !!cacheHit
-      });
+      matrixLog.error({
+        category: 'LOCATION',
+        connection: 'API',
+        action: 'GEOCODE_CRITICAL',
+        location: 'location.js:resolveLocation',
+      }, `CRITICAL: Geocode did not return city/state (city: ${!!city}, state: ${!!state}, country: ${!!country}, address: ${!!formattedAddress}, cacheHit: ${!!cacheHit})`);
       return res.status(502).json({
         error: 'GEOCODE_INCOMPLETE',
         message: 'Could not determine city/state for this location',
@@ -875,10 +967,13 @@ router.get('/resolve', async (req, res) => {
           try {
             // CRITICAL FIX: Validate formatted_address is not null before database write
             if (!formattedAddress) {
-              console.error('[LOCATION] CRITICAL: formattedAddress is null/empty - refusing to update users table', {
-                lat, lng, city, state, accuracy, deviceId, coordSource,
-                reason: 'Google API may have returned empty string or reverse-geocoding failed'
-              });
+              matrixLog.error({
+                category: 'LOCATION',
+                connection: 'DB',
+                action: 'USERS_UPDATE_BLOCKED_NO_ADDRESS',
+                tableName: 'USERS',
+                location: 'location.js:resolveLocation',
+              }, `CRITICAL: formattedAddress null/empty — refusing users UPDATE (city: ${!!city}, state: ${!!state}, accuracy: ${accuracy}, coordSource: ${coordSource})`);
               return res.status(502).json({
                 ok: false,
                 error: 'location_persistence_failed',
@@ -919,7 +1014,13 @@ router.get('/resolve', async (req, res) => {
             
             // CRITICAL: Verify at least 1 row was updated (write committed)
             if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
-              locationLog.error(1, `Users UPDATE failed - no rows affected`, null, OP.DB);
+              matrixLog.error({
+                category: 'LOCATION',
+                connection: 'DB',
+                action: 'USERS_UPDATE_NO_ROWS',
+                tableName: 'USERS',
+                location: 'location.js:resolveLocation',
+              }, 'Users UPDATE failed — no rows affected');
               return res.status(502).json({
                 ok: false,
                 error: 'location_persistence_failed',
@@ -927,7 +1028,13 @@ router.get('/resolve', async (req, res) => {
               });
             }
           } catch (updateErr) {
-            locationLog.error(1, `Users UPDATE failed`, updateErr, OP.DB);
+            matrixLog.error({
+              category: 'LOCATION',
+              connection: 'DB',
+              action: 'USERS_UPDATE_FAIL',
+              tableName: 'USERS',
+              location: 'location.js:resolveLocation',
+            }, 'Users UPDATE failed', updateErr);
             return res.status(502).json({
               ok: false,
               error: 'location_persistence_failed',
@@ -970,7 +1077,13 @@ router.get('/resolve', async (req, res) => {
           try {
             await db.insert(users).values(newUser);
           } catch (insertErr) {
-            locationLog.error(1, `Users INSERT failed`, insertErr, OP.DB);
+            matrixLog.error({
+              category: 'LOCATION',
+              connection: 'DB',
+              action: 'USERS_INSERT_FAIL',
+              tableName: 'USERS',
+              location: 'location.js:resolveLocation',
+            }, 'Users INSERT failed', insertErr);
             return res.status(502).json({
               ok: false,
               error: 'location_persistence_failed',
@@ -982,7 +1095,13 @@ router.get('/resolve', async (req, res) => {
 
         // Update response with user_id for client-side tracking
         resolvedData.user_id = userId;
-        locationLog.done(1, `Users table: ${city}, ${state}`, OP.DB);
+        matrixLog.info({
+          category: 'LOCATION',
+          connection: 'DB',
+          action: 'USERS_WRITE',
+          tableName: 'USERS',
+          location: 'location.js:resolveLocation',
+        }, 'Users table written (city/state redacted)');
 
         // ═══════════════════════════════════════════════════════════════════════════
         // SNAPSHOT REUSE: One snapshot per authenticated session
@@ -1057,7 +1176,13 @@ router.get('/resolve', async (req, res) => {
         // CREATE SNAPSHOT: Only if no valid recent snapshot exists
         // ═══════════════════════════════════════════════════════════════════════════
         const snapshotId = crypto.randomUUID();
-        snapshotLog.phase(1, `Creating for ${city}, ${state}`, OP.DB);
+        matrixLog.info({
+          category: 'SNAPSHOT',
+          connection: 'DB',
+          action: 'SNAPSHOT_CREATE_REQUEST',
+          tableName: 'SNAPSHOTS',
+          location: 'location.js:resolveLocation',
+        }, 'Creating snapshot');
 
         try {
           // Calculate date in user's timezone - NO FALLBACK
@@ -1167,13 +1292,25 @@ router.get('/resolve', async (req, res) => {
               .set({ current_snapshot_id: snapshotId })
               .where(eq(users.user_id, userId))
           ]);
-          snapshotLog.done(1, `${snapshotId.slice(0, 8)} (parallel write)`, OP.DB);
+          matrixLog.info({
+            category: 'SNAPSHOT',
+            connection: 'DB',
+            action: 'SNAPSHOT_CREATE_COMPLETE',
+            tableName: 'SNAPSHOTS',
+            location: 'location.js:resolveLocation',
+          }, `Snapshot ${snapshotId.slice(0, 8)} created (parallel write)`);
 
           // Add snapshot_id to response
           resolvedData.snapshot_id = snapshotId;
 
         } catch (snapshotErr) {
-          snapshotLog.error(1, `Failed to create`, snapshotErr, OP.DB);
+          matrixLog.error({
+            category: 'SNAPSHOT',
+            connection: 'DB',
+            action: 'SNAPSHOT_CREATE_FAIL',
+            tableName: 'SNAPSHOTS',
+            location: 'location.js:resolveLocation',
+          }, 'Failed to create snapshot', snapshotErr);
           // 2026-01-15: FAIL HARD - Snapshot is NOT optional
           // If snapshot creation fails, the entire request must fail
           // The UI depends on snapshot_id to function - partial responses break downstream
@@ -1290,7 +1427,12 @@ router.get('/weather', async (req, res) => {
       });
     }
 
-    locationLog.done(1, `Weather: ${current?.tempF}°F ${current?.conditions || ''}`, OP.API);
+    matrixLog.info({
+      category: 'LOCATION',
+      connection: 'API',
+      action: 'WEATHER_FETCH_COMPLETE',
+      location: 'location.js:getWeather',
+    }, 'Weather fetched (values redacted)');
 
     // 2026-04-05: Always include `available` field so client can distinguish
     // "API succeeded but no data" from "API failed". Without this, the response
@@ -1382,7 +1524,12 @@ router.get('/airquality', async (req, res) => {
       regionCode: data.regionCode,
     };
 
-    locationLog.done(1, `Air Quality: AQI ${aqData.aqi} (${aqData.category})`, OP.API);
+    matrixLog.info({
+      category: 'LOCATION',
+      connection: 'API',
+      action: 'AIRQUALITY_COMPLETE',
+      location: 'location.js:getAirQuality',
+    }, `Air Quality fetched (AQI ${aqData.aqi})`);
 
     res.json(aqData);
   } catch (err) {
@@ -1490,7 +1637,12 @@ router.get('/pollen', async (req, res) => {
         : null
     };
 
-    locationLog.done(1, `Pollen: ${pollenData.overallCategory} (severity ${maxSeverity})`, OP.API);
+    matrixLog.info({
+      category: 'LOCATION',
+      connection: 'API',
+      action: 'POLLEN_COMPLETE',
+      location: 'location.js:getPollen',
+    }, `Pollen fetched (severity ${maxSeverity})`);
 
     res.json(pollenData);
   } catch (err) {
@@ -1705,7 +1857,11 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
             snapshotV1.resolved.state = state;
             snapshotV1.resolved.country = country;
             snapshotV1.resolved.formattedAddress = formattedAddress;
-            console.log('[SNAPSHOT] Resolved missing address fields:', { city, state, formattedAddress });
+            matrixLog.info({
+              category: 'SNAPSHOT',
+              action: 'ADDRESS_RESOLVE',
+              location: 'location.js:snapshotHandler',
+            }, `Resolved missing address fields (city: ${!!city}, state: ${!!state}, address: ${!!formattedAddress})`);
           }
         } catch (resolveErr) {
           console.warn('[SNAPSHOT] Could not resolve missing address:', resolveErr.message);
@@ -2282,7 +2438,13 @@ router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
       .set(updatePayload)
       .where(eq(snapshots.snapshot_id, snapshotId));
 
-    snapshotLog.done(2, `Enriched ${snapshotId.slice(0, 8)}: ${Object.keys(updatePayload).join(', ')}`, OP.DB);
+    matrixLog.info({
+      category: 'SNAPSHOT',
+      connection: 'DB',
+      action: 'SNAPSHOT_ENRICH_COMPLETE',
+      tableName: 'SNAPSHOTS',
+      location: 'location.js:enrichSnapshot',
+    }, `Enriched snapshot ${snapshotId.slice(0, 8)} (fields: ${Object.keys(updatePayload).join(', ')})`);
 
     // Memory #110: Readiness gate — re-read row and flip status to 'ok' when all required fields populated.
     // 2026-04-14: Phase 3 resolution — classification of required vs optional fields pinned in
