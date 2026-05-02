@@ -55,7 +55,7 @@ import { isPlusCode } from '../utils/http-helpers.js';
 // See LESSONS_LEARNED.md: "duplicate SSE broadcast" incident
 // Extracted to dedicated module (eliminates legacy SSE router dependency)
 import { phaseEmitter } from '../../events/phase-emitter.js';
-import { sseLog, venuesLog, triadLog, dbLog, briefingLog } from '../../logger/workflow.js';
+import { sseLog, venuesLog, dbLog, briefingLog, matrixLog } from '../../logger/workflow.js';
 // 2026-01-10: Import canonical transformer (single source of truth for block mapping)
 import { toApiBlock } from '../../validation/transformers.js';
 
@@ -492,7 +492,11 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
 
     return res.json({ blocks, rankingId: ranking.ranking_id, briefing, audit });
   } catch (error) {
-    triadLog.error(4, 'GET request failed', error);
+    matrixLog.error({
+      category: 'STRATEGY',
+      action: 'GET_REQUEST_FAIL',
+      location: 'blocks-fast.js:getHandler',
+    }, 'GET request failed', error);
     return res.status(500).json({ error: 'internal_error', blocks: [] });
   }
 });
@@ -500,7 +504,11 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
 router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
   // 2026-04-05: SECURITY — sanitize body params to prevent type confusion (CodeQL)
   const { sanitizeString } = await import('../../lib/utils/sanitize.js');
-  triadLog.start(`POST request`);
+  matrixLog.info({
+    category: 'STRATEGY',
+    action: 'PIPELINE_START',
+    location: 'blocks-fast.js:postHandler',
+  }, 'POST request');
 
   const wallClockStart = Date.now();
   const correlationId = req.headers['x-correlation-id'] || randomUUID();
@@ -517,7 +525,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
   const sendOnce = (code, body) => {
     if (!responded) {
       responded = true;
-      triadLog.info(`Response: ${code} ${body.error || 'ok'}`);
+      matrixLog.info({
+        category: 'STRATEGY',
+        action: 'RESPONSE',
+        location: 'blocks-fast.js:postHandler',
+      }, `Response: ${code} ${body.error || 'ok'}`);
       res.status(code).json({ ...body, audit });
     }
   };
@@ -529,13 +541,21 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     const authUserId = req.auth?.userId;
 
     if (!snapshotId) {
-      triadLog.warn(1, 'Missing snapshotId in request');
+      matrixLog.warn({
+        category: 'STRATEGY',
+        action: 'VALIDATION_FAIL_MISSING_SNAPSHOT_ID',
+        location: 'blocks-fast.js:postHandler',
+      }, 'Missing snapshotId in request');
       return sendOnce(400, { error: 'snapshot_required', message: 'snapshot_id is required' });
     }
 
     // Validate UUID format
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snapshotId)) {
-      triadLog.warn(1, `Invalid UUID: ${snapshotId}`);
+      matrixLog.warn({
+        category: 'STRATEGY',
+        action: 'VALIDATION_FAIL_INVALID_UUID',
+        location: 'blocks-fast.js:postHandler',
+      }, 'Invalid snapshotId UUID');
       return sendOnce(400, { error: 'invalid_uuid', message: 'snapshotId must be a valid UUID' });
     }
 
@@ -551,13 +571,21 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
     // User can only generate blocks for their own snapshots
     if (snapshot.user_id && snapshot.user_id !== authUserId) {
-      triadLog.warn(1, `Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
+      matrixLog.warn({
+        category: 'STRATEGY',
+        action: 'AUTH_MISMATCH',
+        location: 'blocks-fast.js:postHandler',
+      }, `Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
       return sendOnce(404, { error: 'snapshot_not_found', message: 'snapshot_id does not exist' });
     }
 
     // CRITICAL: Validate formatted_address exists - LLMs cannot reverse geocode
     if (!snapshot.formatted_address) {
-      triadLog.error(1, `Missing formatted_address in snapshot`);
+      matrixLog.error({
+        category: 'STRATEGY',
+        action: 'VALIDATION_FAIL_MISSING_ADDRESS',
+        location: 'blocks-fast.js:postHandler',
+      }, 'Missing formatted_address in snapshot');
       return sendOnce(400, {
         error: 'snapshot_incomplete',
         message: 'Snapshot missing formatted_address - location not resolved'
@@ -585,7 +613,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
       if (retryCount >= MAX_SNAPSHOT_RETRIES) {
         console.error(`[VENUE] HARD FAIL: snapshot ${snapshotId.slice(0, 8)} still pending after ${retryCount} retries. Missing: ${missingFields.join(', ') || '(unknown)'}`);
-        triadLog.error(1, `HARD FAIL snapshot=${snapshotId.slice(0, 8)} retries=${retryCount} missing=${missingFields.join(',')}`);
+        matrixLog.error({
+          category: 'STRATEGY',
+          action: 'SNAPSHOT_HARD_FAIL',
+          location: 'blocks-fast.js:postHandler',
+        }, `HARD FAIL snapshot=${snapshotId.slice(0, 8)} retries=${retryCount} missing=${missingFields.join(',')}`);
         return sendOnce(503, {
           error: 'snapshot_incomplete',
           missingFields,
@@ -595,7 +627,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         });
       }
 
-      triadLog.info(`Snapshot ${snapshotId.slice(0, 8)} status=${snapshot.status || 'pending'} retry=${retryCount}/${MAX_SNAPSHOT_RETRIES} — holding briefing`);
+      matrixLog.info({
+        category: 'STRATEGY',
+        action: 'SNAPSHOT_PENDING',
+        location: 'blocks-fast.js:postHandler',
+      }, `Snapshot ${snapshotId.slice(0, 8)} status=${snapshot.status || 'pending'} retry=${retryCount}/${MAX_SNAPSHOT_RETRIES} — holding briefing`);
       return sendOnce(202, {
         status: 'pending',
         retryCount,
@@ -605,7 +641,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       });
     }
 
-    triadLog.phase(1, `Snapshot resolved: ${snapshot.city}, ${snapshot.state}`);
+    matrixLog.info({
+      category: 'STRATEGY',
+      action: 'SNAPSHOT_RESOLVED',
+      location: 'blocks-fast.js:postHandler',
+    }, `Snapshot ${snapshotId.slice(0, 8)} resolved (city/state redacted)`);
 
     // DEDUPLICATION CHECK: If strategy already running, don't re-trigger it
     // 2026-01-10: S-004 FIX - Use canonical status constants
@@ -625,7 +665,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
       const isStuckInProgress = STRATEGY_IN_PROGRESS_STATUSES.includes(existingStrategy.status);
 
       if (isStale && (isStuckPendingBlocks || isStuckInProgress)) {
-        triadLog.warn(1, `STALENESS FIX: Resetting stale strategy (status=${existingStrategy.status}, age=${Math.round(strategyAge/60000)}min) for ${snapshotId.slice(0, 8)}`);
+        matrixLog.warn({
+          category: 'STRATEGY',
+          action: 'STALENESS_RESET',
+          location: 'blocks-fast.js:postHandler',
+        }, `STALENESS FIX: Resetting stale strategy (status=${existingStrategy.status}, age=${Math.round(strategyAge/60000)}min) for ${snapshotId.slice(0, 8)}`);
 
         // Reset strategy status so fresh pipeline runs
         await db.update(strategies).set({
@@ -641,11 +685,19 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Delete stale briefing so fresh data is generated
         await db.delete(briefings).where(eq(briefings.snapshot_id, snapshotId));
 
-        triadLog.info(`STALENESS FIX: Reset complete, running fresh pipeline for ${snapshotId.slice(0, 8)}`);
+        matrixLog.info({
+          category: 'STRATEGY',
+          action: 'STALENESS_RESET_COMPLETE',
+          location: 'blocks-fast.js:postHandler',
+        }, `STALENESS FIX: Reset complete, running fresh pipeline for ${snapshotId.slice(0, 8)}`);
         // Fall through to create new job and run full pipeline
       } else if (!isStale && STRATEGY_IN_PROGRESS_STATUSES.includes(existingStrategy.status)) {
         // Recent strategy is still running - don't interfere
-        triadLog.info(`Strategy already ${existingStrategy.status} for ${snapshotId.slice(0, 8)}, skipping`);
+        matrixLog.info({
+          category: 'STRATEGY',
+          action: 'STRATEGY_SKIP',
+          location: 'blocks-fast.js:postHandler',
+        }, `Strategy already ${existingStrategy.status} for ${snapshotId.slice(0, 8)}, skipping`);
         return sendOnce(202, {
           ok: false,
           reason: 'strategy_already_running',
@@ -664,7 +716,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
     if (currentStrategy && isStrategyComplete(currentStrategy.status)) {
       const [ranking] = await db.select().from(rankings).where(eq(rankings.snapshot_id, snapshotId)).limit(1);
       if (ranking) {
-        triadLog.done(4, `Blocks already exist for ${snapshotId.slice(0, 8)}`);
+        matrixLog.info({
+          category: 'STRATEGY',
+          action: 'BLOCKS_SKIP',
+          location: 'blocks-fast.js:postHandler',
+        }, `Blocks already exist for ${snapshotId.slice(0, 8)}`);
         // Blocks already exist - return with strategy included
         const candidates = await db.select().from(ranking_candidates)
           .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
@@ -721,8 +777,16 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // =========================================================================
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 1 - PRE-BRIEFING
         // =========================================================================
-        triadLog.phase(2, `[VERIFY] Snapshot row ready: city=${snapshot.city}, state=${snapshot.state}, lat=${snapshot.lat?.toFixed(6)}, lng=${snapshot.lng?.toFixed(6)}`);
-        triadLog.phase(2, `[VERIFY] Snapshot context: timezone=${snapshot.timezone}, day_part=${snapshot.day_part_key}, is_holiday=${snapshot.is_holiday}`);
+        matrixLog.info({
+          category: 'STRATEGY',
+          action: 'VERIFY',
+          location: 'blocks-fast.js:postHandler',
+        }, `Snapshot row ready (snapshot ${snapshotId.slice(0, 8)}; city/state/coords redacted)`);
+        matrixLog.info({
+          category: 'STRATEGY',
+          action: 'VERIFY',
+          location: 'blocks-fast.js:postHandler',
+        }, `Snapshot context populated (snapshot ${snapshotId.slice(0, 8)}; timezone/day_part/holiday flags present)`);
 
         let freshBriefing = null;
         try {
@@ -755,7 +819,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
           if (!allReady) {
             const missing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
-            triadLog.warn(2, `[BRIEFING GATE] Incomplete after runBriefing — missing: ${missing.join(', ')}. Polling DB (max ${BRIEFING_WAIT_TIMEOUT_MS / 1000}s)...`);
+            matrixLog.warn({
+              category: 'BRIEFING',
+              action: 'BRIEFING_GATE_PENDING',
+              location: 'blocks-fast.js:postHandler',
+            }, `Briefing incomplete after runBriefing — missing: ${missing.join(', ')}. Polling DB (max ${BRIEFING_WAIT_TIMEOUT_MS / 1000}s)`);
 
             while (!allReady && (Date.now() - briefingStartWait) < BRIEFING_WAIT_TIMEOUT_MS) {
               await new Promise(r => setTimeout(r, BRIEFING_POLL_INTERVAL_MS));
@@ -770,10 +838,18 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
             const elapsed = ((Date.now() - briefingStartWait) / 1000).toFixed(1);
             if (allReady) {
-              triadLog.done(2, `[BRIEFING GATE] All fields populated after ${elapsed}s`);
+              matrixLog.info({
+                category: 'BRIEFING',
+                action: 'BRIEFING_GATE_COMPLETE',
+                location: 'blocks-fast.js:postHandler',
+              }, `Briefing gate: all fields populated after ${elapsed}s`);
             } else {
               const stillMissing = Object.entries(readiness).filter(([, v]) => !v).map(([k]) => k);
-              triadLog.warn(2, `[BRIEFING GATE] TIMEOUT after ${elapsed}s — proceeding with incomplete data. Still missing: ${stillMissing.join(', ')}`);
+              matrixLog.warn({
+                category: 'BRIEFING',
+                action: 'BRIEFING_GATE_TIMEOUT',
+                location: 'blocks-fast.js:postHandler',
+              }, `Briefing gate TIMEOUT after ${elapsed}s — proceeding with incomplete data. Still missing: ${stillMissing.join(', ')}`);
             }
           }
 
@@ -789,8 +865,16 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           // =========================================================================
           // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 2 - POST-BRIEFING
           // =========================================================================
-          triadLog.phase(2, `[VERIFY] Briefing row populated: traffic=${readiness.traffic}, events=${readiness.events}, news=${readiness.news}, weather=${readiness.weather}, schools=${readiness.schools}, airport=${readiness.airport}`);
-          triadLog.phase(2, `[VERIFY] Snapshot weather: ${snapshot.weather ? 'YES' : 'NULL'}, holiday: ${snapshot.is_holiday ? snapshot.holiday : 'none'}`);
+          matrixLog.info({
+            category: 'BRIEFING',
+            action: 'VERIFY',
+            location: 'blocks-fast.js:postHandler',
+          }, `Briefing row populated (traffic=${readiness.traffic}, events=${readiness.events}, news=${readiness.news}, weather=${readiness.weather}, schools=${readiness.schools}, airport=${readiness.airport})`);
+          matrixLog.info({
+            category: 'STRATEGY',
+            action: 'VERIFY',
+            location: 'blocks-fast.js:postHandler',
+          }, `Snapshot enrichment (weather: ${!!snapshot.weather}, is_holiday: ${!!snapshot.is_holiday})`);
 
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {
@@ -815,10 +899,34 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // =========================================================================
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 3 - PRE-STRATEGY
         // =========================================================================
-        triadLog.phase(3, `[VERIFY] Sending to Strategist`);
-        triadLog.phase(3, `[VERIFY] [DB] snapshots.city, snapshots.state received`);
-        triadLog.phase(3, `[VERIFY] [DB] briefings.traffic_conditions ${freshBriefing?.traffic_conditions ? 'received' : 'NULL'}`);
-        triadLog.phase(3, `[VERIFY] [DB] briefings.events ${Array.isArray(freshBriefing?.events) ? `received (count: ${freshBriefing.events.length})` : 'NULL'}`);
+        matrixLog.info({
+          category: 'STRATEGY',
+          connection: 'AI',
+          action: 'VERIFY',
+          roleName: 'STRATEGIST',
+          location: 'blocks-fast.js:postHandler',
+        }, 'Sending to Strategist');
+        matrixLog.info({
+          category: 'STRATEGY',
+          connection: 'DB',
+          action: 'VERIFY',
+          tableName: 'SNAPSHOTS',
+          location: 'blocks-fast.js:postHandler',
+        }, 'snapshots.city, snapshots.state received');
+        matrixLog.info({
+          category: 'STRATEGY',
+          connection: 'DB',
+          action: 'VERIFY',
+          tableName: 'BRIEFINGS',
+          location: 'blocks-fast.js:postHandler',
+        }, `briefings.traffic_conditions ${freshBriefing?.traffic_conditions ? 'received' : 'NULL'}`);
+        matrixLog.info({
+          category: 'STRATEGY',
+          connection: 'DB',
+          action: 'VERIFY',
+          tableName: 'BRIEFINGS',
+          location: 'blocks-fast.js:postHandler',
+        }, `briefings.events ${Array.isArray(freshBriefing?.events) ? `received (count: ${freshBriefing.events.length})` : 'NULL'}`);
 
         try {
           // STRATEGY_TACTICAL → strategy_for_now (immediate 1hr strategy for Strategy Tab)
@@ -829,7 +937,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           // SSE clients receive via subscribeToChannel('strategy_ready') in strategy-events.js
           sseLog.info(`[VENUE] strategy_ready (DB NOTIFY)`);
         } catch (immediateErr) {
-          triadLog.error(3, `runImmediateStrategy failed`, immediateErr);
+          matrixLog.error({
+            category: 'STRATEGY',
+            action: 'IMMEDIATE_STRATEGY_FAIL',
+            location: 'blocks-fast.js:postHandler',
+          }, 'runImmediateStrategy failed', immediateErr);
           throw immediateErr;
         }
 
@@ -844,13 +956,41 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // =========================================================================
         // 2026-01-15: PIPELINE VERIFICATION CHECKPOINT 4 - PRE-SMARTBLOCKS
         // =========================================================================
-        triadLog.phase(4, `[VERIFY] Sending to Planner`);
-        triadLog.phase(4, `[VERIFY] [DB] snapshots.lat, snapshots.lng received`);
-        triadLog.phase(4, `[VERIFY] [DB] strategies.strategy_for_now ${strategyRow?.strategy_for_now ? `received (count: ${strategyRow.strategy_for_now.length} chars)` : 'NULL'}`);
-        triadLog.phase(4, `[VERIFY] [DB] briefings.events ${Array.isArray(freshBriefing?.events) ? `received (count: ${freshBriefing.events.length})` : 'NULL'}`);
+        matrixLog.info({
+          category: 'VENUE',
+          connection: 'AI',
+          action: 'VERIFY',
+          roleName: 'VENUE_PLANNER',
+          location: 'blocks-fast.js:postHandler',
+        }, 'Sending to Planner');
+        matrixLog.info({
+          category: 'VENUE',
+          connection: 'DB',
+          action: 'VERIFY',
+          tableName: 'SNAPSHOTS',
+          location: 'blocks-fast.js:postHandler',
+        }, 'snapshots.lat, snapshots.lng received as planner input (values redacted)');
+        matrixLog.info({
+          category: 'VENUE',
+          connection: 'DB',
+          action: 'VERIFY',
+          tableName: 'STRATEGIES',
+          location: 'blocks-fast.js:postHandler',
+        }, `strategies.strategy_for_now ${strategyRow?.strategy_for_now ? `received as planner input (count: ${strategyRow.strategy_for_now.length} chars)` : 'NULL'}`);
+        matrixLog.info({
+          category: 'VENUE',
+          connection: 'DB',
+          action: 'VERIFY',
+          tableName: 'BRIEFINGS',
+          location: 'blocks-fast.js:postHandler',
+        }, `briefings.events ${Array.isArray(freshBriefing?.events) ? `received as planner input (count: ${freshBriefing.events.length})` : 'NULL'}`);
 
         if (!strategyRow?.strategy_for_now) {
-          triadLog.warn(4, `[VERIFY] CRITICAL: strategy_for_now is NULL - SmartBlocks may fail`);
+          matrixLog.warn({
+            category: 'STRATEGY',
+            action: 'VERIFY_CRITICAL',
+            location: 'blocks-fast.js:postHandler',
+          }, 'CRITICAL: strategy_for_now is NULL — SmartBlocks may fail');
         }
 
         // Use shared helper for block generation
@@ -889,7 +1029,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             .where(eq(strategies.snapshot_id, snapshotId))
             .limit(1);
 
-          triadLog.done(4, `Returning ${blocks.length} blocks for ${snapshotId.slice(0, 8)}`);
+          matrixLog.info({
+            category: 'STRATEGY',
+            action: 'BLOCKS_RETURN',
+            location: 'blocks-fast.js:postHandler',
+          }, `Returning ${blocks.length} blocks for ${snapshotId.slice(0, 8)}`);
 
           // Ensure phase is marked complete (Fix #15 - prevents 98% stuck issue)
           await updatePhase(snapshotId, 'complete', { phaseEmitter });
@@ -932,7 +1076,11 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         }
       } else {
         // Job already exists - use shared helper to ensure blocks exist
-        triadLog.info(`Job already exists for ${snapshotId.slice(0, 8)}, checking if blocks need generation`);
+        matrixLog.info({
+          category: 'STRATEGY',
+          action: 'JOB_DUPLICATE',
+          location: 'blocks-fast.js:postHandler',
+        }, `Job already exists for ${snapshotId.slice(0, 8)}, checking if blocks need generation`);
 
         const [strategy] = await db.select().from(strategies).where(eq(strategies.snapshot_id, snapshotId)).limit(1);
 
@@ -968,14 +1116,22 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         });
       }
     } catch (jobErr) {
-      triadLog.error(4, `Waterfall error`, jobErr);
+      matrixLog.error({
+        category: 'STRATEGY',
+        action: 'WATERFALL_FAIL',
+        location: 'blocks-fast.js:postHandler',
+      }, 'Waterfall error', jobErr);
       return sendOnce(500, {
         error: 'waterfall_failed',
         message: jobErr.message
       });
     }
   } catch (error) {
-    triadLog.error(4, `Unexpected error`, error);
+    matrixLog.error({
+      category: 'STRATEGY',
+      action: 'UNEXPECTED_FAIL',
+      location: 'blocks-fast.js:postHandler',
+    }, 'Unexpected error', error);
     return sendOnce(500, { error: 'internal_error' });
   }
 });
