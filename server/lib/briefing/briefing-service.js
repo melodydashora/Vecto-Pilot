@@ -14,6 +14,11 @@ import { callModel } from '../ai/adapters/index.js';
 // Dump last briefing row to file for debugging
 import { dumpLastBriefingRow } from './dump-last-briefing.js';
 
+// 2026-05-02: Workstream 6 Step 1 — progressive write + pg_notify primitive
+// extracted to a sibling so pipeline modules and the future aggregator both
+// import from a single source of truth for channel names + the error wrapper.
+import { writeSectionAndNotify, CHANNELS, errorMarker } from './briefing-notify.js';
+
 // 2026-01-09: Canonical ETL pipeline modules - use these for validation
 // Local filterInvalidEvents is kept for backwards compatibility but delegates to canonical
 import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
@@ -2939,14 +2944,17 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
       console.error(`[BRIEFING] Generation failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
       // Mark the placeholder row with error sentinel so endpoints return _generationFailed
       // instead of "not yet available" (which causes clients to keep polling)
-      const errorMarker = { _generationFailed: true, error: err.message, failedAt: new Date().toISOString() };
+      // 2026-05-02: Single timestamp shared across all 4 sections (intentional —
+      // bulk-failure path; per-section .catch wrappers in generateBriefingInternal
+      // use distinct timestamps via errorMarker(err) at each section boundary).
+      const failureMarker = errorMarker(err);
       try {
         await db.update(briefings)
           .set({
-            traffic_conditions: errorMarker,
-            events: errorMarker,
-            news: errorMarker,
-            airport_conditions: errorMarker,
+            traffic_conditions: failureMarker,
+            events: failureMarker,
+            news: failureMarker,
+            airport_conditions: failureMarker,
             updated_at: new Date()
           })
           .where(eq(briefings.snapshot_id, snapshotId));
@@ -2966,51 +2974,8 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
   return briefingPromise;
 }
 
-/**
- * 2026-04-18: PHASE A — progressive section write + per-section NOTIFY.
- *
- * Writes a partial update to the briefings row (just the columns belonging to
- * one subsystem) and fires a per-section pg_notify so the SSE layer can push
- * a progress event to the client. Enables the streaming briefing-tab UX
- * (weather appears first because Google Weather is fastest, then traffic,
- * then events as each provider resolves) that was regressed on 2026-02-17
- * when the partial-NOTIFY trigger was dropped.
- *
- * Errors are swallowed — the authoritative write is the final atomic
- * reconciliation at the end of generateBriefingInternal. Progress signals
- * failing should never fail the main pipeline.
- *
- * Channels emitted:
- *   briefing_weather_ready, briefing_traffic_ready, briefing_events_ready,
- *   briefing_news_ready, briefing_airport_ready, briefing_school_closures_ready
- * The SSE forwarder (strategy-events.js /events/briefing) subscribes to each
- * and emits them as `briefing_ready` events so existing client code (which
- * refetches on briefing_ready) progressively re-queries the aggregate endpoint
- * as each section lands.
- */
-async function writeSectionAndNotify(snapshotId, updates, notifyChannel) {
-  try {
-    await db.update(briefings)
-      .set({ ...updates, updated_at: new Date() })
-      .where(eq(briefings.snapshot_id, snapshotId));
-  } catch (err) {
-    briefingLog.warn(1, `Progressive write failed for ${notifyChannel}: ${err.message}`, OP.DB);
-    return;
-  }
-  try {
-    const payload = JSON.stringify({ snapshot_id: snapshotId, section: notifyChannel });
-    await db.execute(sql`SELECT pg_notify(${notifyChannel}, ${payload})`);
-    // 2026-04-28: SEND-side NOTIFY emit demoted to debug — db-client.js
-    // dispatcher already emits the canonical [BRIEFING] [<sub>] [DB]
-    // [LISTEN/NOTIFY] [<channel>] line on the receive side. The two were
-    // a visible duplicate.
-    if (String(process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug') {
-      briefingLog.info(`NOTIFY ${notifyChannel} for ${snapshotId.slice(0, 8)} (sent)`, OP.SSE);
-    }
-  } catch (notifyErr) {
-    briefingLog.warn(1, `Failed to send ${notifyChannel}: ${notifyErr.message}`, OP.SSE);
-  }
-}
+// 2026-05-02: writeSectionAndNotify, CHANNELS, errorMarker moved to ./briefing-notify.js
+// (Workstream 6 Step 1 — see docs/review-queue/PLAN_workstream6_briefing_split.md).
 
 async function generateBriefingInternal({ snapshotId, snapshot }) {
   // Use pre-fetched snapshot if provided, otherwise fetch from DB
@@ -3109,18 +3074,16 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // this function is the authoritative reconciliation (idempotent).
   let weatherResult, trafficResult, eventsResult, airportResult, newsResult;
 
-  const errorMarker = (err) => ({ _generationFailed: true, error: err.message, failedAt: new Date().toISOString() });
-
   const weatherPromise = fetchWeatherConditions({ snapshot })
     .then(async (r) => {
       await writeSectionAndNotify(snapshotId, {
         weather_current: r?.current || { temperature: 'N/A', conditions: 'Weather data could not be retrieved', reason: 'Weather API returned no current conditions' },
         weather_forecast: r?.forecast || [],
-      }, 'briefing_weather_ready');
+      }, CHANNELS.WEATHER);
       return r;
     })
     .catch(async (err) => {
-      await writeSectionAndNotify(snapshotId, { weather_current: errorMarker(err) }, 'briefing_weather_ready');
+      await writeSectionAndNotify(snapshotId, { weather_current: errorMarker(err) }, CHANNELS.WEATHER);
       throw err;
     });
 
@@ -3128,11 +3091,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     .then(async (r) => {
       await writeSectionAndNotify(snapshotId, {
         traffic_conditions: r || { summary: 'No traffic data available for this area', incidents: [], congestionLevel: 'unknown', reason: 'Traffic data could not be retrieved' },
-      }, 'briefing_traffic_ready');
+      }, CHANNELS.TRAFFIC);
       return r;
     })
     .catch(async (err) => {
-      await writeSectionAndNotify(snapshotId, { traffic_conditions: errorMarker(err) }, 'briefing_traffic_ready');
+      await writeSectionAndNotify(snapshotId, { traffic_conditions: errorMarker(err) }, CHANNELS.TRAFFIC);
       throw err;
     });
 
@@ -3141,11 +3104,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       const items = Array.isArray(r?.items) ? r.items : [];
       await writeSectionAndNotify(snapshotId, {
         events: items.length > 0 ? items : { items: [], reason: r?.reason || 'No events found for this area' },
-      }, 'briefing_events_ready');
+      }, CHANNELS.EVENTS);
       return r;
     })
     .catch(async (err) => {
-      await writeSectionAndNotify(snapshotId, { events: errorMarker(err) }, 'briefing_events_ready');
+      await writeSectionAndNotify(snapshotId, { events: errorMarker(err) }, CHANNELS.EVENTS);
       throw err;
     });
 
@@ -3153,11 +3116,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     .then(async (r) => {
       await writeSectionAndNotify(snapshotId, {
         airport_conditions: r || { airports: [], busyPeriods: [], recommendations: 'No airport data available for this area', reason: 'Airport conditions could not be retrieved' },
-      }, 'briefing_airport_ready');
+      }, CHANNELS.AIRPORT);
       return r;
     })
     .catch(async (err) => {
-      await writeSectionAndNotify(snapshotId, { airport_conditions: errorMarker(err) }, 'briefing_airport_ready');
+      await writeSectionAndNotify(snapshotId, { airport_conditions: errorMarker(err) }, CHANNELS.AIRPORT);
       throw err;
     });
 
@@ -3166,11 +3129,11 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       const items = Array.isArray(r?.items) ? r.items : [];
       await writeSectionAndNotify(snapshotId, {
         news: { items, reason: r?.reason || (items.length === 0 ? 'No rideshare news found for this area' : null) },
-      }, 'briefing_news_ready');
+      }, CHANNELS.NEWS);
       return r;
     })
     .catch(async (err) => {
-      await writeSectionAndNotify(snapshotId, { news: errorMarker(err) }, 'briefing_news_ready');
+      await writeSectionAndNotify(snapshotId, { news: errorMarker(err) }, CHANNELS.NEWS);
       throw err;
     });
 
@@ -3231,7 +3194,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // section before the final atomic write lands.
   await writeSectionAndNotify(snapshotId, {
     school_closures: schoolClosures.length > 0 ? schoolClosures : { items: [], reason: schoolClosuresReason },
-  }, 'briefing_school_closures_ready');
+  }, CHANNELS.SCHOOL_CLOSURES);
 
   // 2026-04-05: Defensive extraction — each subsystem may be null if its fetch failed.
   // NO NULLS: every field gets a typed value + reason. Empty arrays are valid; null is not.
