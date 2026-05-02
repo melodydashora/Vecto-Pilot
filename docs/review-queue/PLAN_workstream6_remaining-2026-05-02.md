@@ -224,6 +224,23 @@ Trace which functions call `analyzeTrafficWithAI`. Likely options:
 
 Default if uncertain: assume (a), leave it untouched in this commit, flag as `claude_memory` row, and commit 8 (events) imports the local function from briefing-service.js shim. This preserves Phase 1 behavioral parity.
 
+**✅ RESOLVED 2026-05-02 (none of the above — drift signal was based on incorrect recon):**
+The resume plan's framing ("two BRIEFING_TRAFFIC LLM call sites with one inside the events code path") was based on a misread of the call graph. Actual findings from Commit 7's recon-first methodology:
+- `analyzeTrafficWithAI` is **defined** at line 455 (in an early region of the file, near events functions due to historical file layout), NOT inside `fetchEventsWithClaudeWebSearch`.
+- Its **only call site** is line 1491 inside `fetchTrafficConditions` (the live traffic path).
+- It's a **pure traffic helper** (signature `{ tomtomData, rawTraffic, city, state, formattedAddress, driverLat, driverLon }`, body operates on TomTom incident arrays) — not events logic.
+- No cross-pollution exists. The function was just **misplaced** in the file.
+
+Resolution (Option A — hybrid precedent):
+1. Created `server/lib/briefing/pipelines/traffic.js` with `discoverTraffic` (pipeline contract) + `fetchTrafficConditions` (re-exported live path) + `analyzeTrafficWithAI` (private helper, co-located with its only caller).
+2. Same shape as Commit 5's `extractAirportJson` (private helper co-located with its caller in `pipelines/airport.js`) — internal helper that's not exported.
+3. References both `claude_memory` #294 (Commit 4 dead-code precedent) and Commit 5's airport private-helper precedent — this is a **hybrid case**: misplaced-but-live (not dead, like #294) AND private-helper-co-location (like airport).
+4. Logged to `claude_memory` (category=`engineering-pattern`, status=`active`).
+
+Lesson: "drift signal" framings in plan documents can themselves be drifty. Recon-first methodology (grep callers + diff bodies BEFORE accepting the plan's framing) is what surfaced the misread. Future Workstream 6 commits should grep call graphs before accepting any plan-author claim about cross-pollution.
+
+**Note on commit 8 implications:** the original §3 commit 7 said "commit 8 (events) imports the local function from briefing-service.js shim" — that contingency no longer applies. analyzeTrafficWithAI is now in pipelines/traffic.js; events.js doesn't need it.
+
 **Channel:** `CHANNELS.TRAFFIC`
 **Return:** `{ traffic_conditions, reason }`
 **Caller compat:** `server/api/briefing/briefing.js` imports `fetchTrafficConditions` — re-export.
