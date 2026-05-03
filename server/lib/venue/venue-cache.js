@@ -181,7 +181,10 @@ export async function lookupVenueFuzzy(criteria) {
  * @param {string} venue.state - State code
  * @param {number} venue.lat - Latitude (full precision)
  * @param {number} venue.lng - Longitude (full precision)
- * @param {string} venue.source - Where data came from
+ * @param {string} venue.source - External supplier (e.g., 'google_places_new', 'serpapi', 'llm', 'manual')
+ * @param {string} [venue.discoverySource] - Internal flow that added the row
+ *   (e.g., 'briefing_discovery', 'address_resolver'). Defaults to venue.source for back-compat;
+ *   prefer passing a distinct value so the supplier vs flow distinction is preserved.
  * @param {string} [venue.address] - Street address
  * @param {string} [venue.formattedAddress] - Full formatted address
  * @param {string} [venue.zip] - ZIP code
@@ -244,7 +247,10 @@ export async function insertVenue(venue) {
     capacity_estimate: venue.capacityEstimate,
     source: venue.source,
     expense_rank: venue.expenseRank,
-    discovery_source: venue.source,
+    // 2026-05-03: prefer venue.discoverySource (internal flow) over venue.source (external
+    // supplier) so the two columns encode distinct facts. Fallback preserves callers that
+    // haven't been updated yet — the address-resolver path already passes them separately.
+    discovery_source: venue.discoverySource || venue.source,
     district: district,
     district_slug: districtSlug,
     access_count: 1,
