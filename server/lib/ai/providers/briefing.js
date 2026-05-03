@@ -4,7 +4,7 @@
 // ============================================================================
 //
 // This file acts as a compatibility wrapper for `runBriefing`.
-// The core logic has been moved to `server/lib/briefing/briefing-service.js`.
+// The core logic has been moved to `server/lib/briefing/briefing-aggregator.js`.
 //
 // ============================================================================
 

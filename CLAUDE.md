@@ -63,7 +63,7 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 | `discovered_events` | Event deactivation/reactivation (via `is_active` flag) |
 | `news_deactivations` | User news hiding preferences |
 
-**Note:** School closures and traffic conditions are stored in `briefings.school_closures` and `briefings.traffic_conditions` (JSONB columns), not separate tables. LLM consolidation via `callModel('BRIEFING_TRAFFIC')` at `briefing-service.js:1543`.
+**Note:** School closures and traffic conditions are stored in `briefings.school_closures` and `briefings.traffic_conditions` (JSONB columns), not separate tables. LLM consolidation via `callModel('BRIEFING_TRAFFIC')` at `pipelines/traffic.js`.
 
 ### Rule 9: ALL FINDINGS ARE HIGH PRIORITY
 
@@ -93,7 +93,7 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 
 ### Rule 11: Event Sync Architecture (2026-02-17, reframed as principle 2026-04-26)
 - **Principle: snapshot fidelity.** Events should reflect the user's current snapshot context, not stale background state. The briefing pipeline that drives a snapshot is where event discovery belongs, because that's where the user's location, time, and driving context are authoritative.
-- **Current implementation:** event discovery runs per-snapshot via `fetchEventsForBriefing({ snapshot })` at `briefing-service.js:1280`. The legacy `startEventSyncJob` background worker was removed on 2026-02-17 because background-fetched events drifted from the snapshot context they were meant to inform.
+- **Current implementation:** event discovery runs per-snapshot via `fetchEventsForBriefing({ snapshot })` at `pipelines/events.js`. The legacy `startEventSyncJob` background worker was removed on 2026-02-17 because background-fetched events drifted from the snapshot context they were meant to inform.
 - **Applying the principle to new work:** before adding asynchronous event handling, ask — *would a user receive events that don't reflect their current snapshot?* If yes, that work belongs inside the per-snapshot path. If async work genuinely preserves snapshot fidelity (e.g., a webhook that updates an event in-place after a snapshot fired, or a scheduled refresh that re-keys to the latest snapshot), it can be considered on its merits. The constraint to honor is **snapshot fidelity**, not "no async, ever."
 - **Cross-references:** EVENTS.md, LOCATION.md, FRISCO_LOCK_DIAGNOSIS_2026-04-18.md, RECON_2026-04-17_HANDLES_LOCALITY.md, and BRIEFING-DATA-MODEL.md cite this rule by number — amendments stay under Rule 11 to preserve those links.
 
@@ -149,7 +149,7 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 - **Choice A doctrine** (rejected Choice B composite-key on 2026-04-30): see `docs/review-queue/PLAN_events-dedup-architectural-2026-04-30.md` (Course Correction Log + Decision Log) and claude_memory rows 268–271. A composite-key UNIQUE on `(state, lower(title), event_start_date, venue_id)` was rejected because `lower(title)` requires exact match — would not catch "Live Music: X" vs "X" without mangling stored titles in the DB, degrading UI presentation.
 - **Anti-pattern: dedup at read.** Memoizing/caching/suppressing read-path dedup hides taxonomy violations; relocate the operation to its correct stage instead. Per claude_memory row 269 ("workarounds for stage-placement violations entrench drift").
 - **Canonical identity fields (v3):** `(stripped_normalized_title, venue_name, normalized_street_name, city, event_start_date)`. Time, attendance, category, expected_attendance are presentation/metadata, not identity.
-- **Pre-INSERT pass location:** `briefing-service.js` runs `deduplicateEvents` + `deduplicateEventsSemantic` on the validated Gemini batch BEFORE the per-event upsert loop; emits `[BRIEFING] [EVENTS] [DEDUP] [WRITE] hash: N → M, semantic: M → P`. The DB UNIQUE on `event_hash` is the race-safety backstop, not the primary defense.
+- **Pre-INSERT pass location:** `pipelines/events.js` runs `deduplicateEvents` + `deduplicateEventsSemantic` on the validated Gemini batch BEFORE the per-event upsert loop; emits `[BRIEFING] [EVENTS] [DEDUP] [WRITE] hash: N → M, semantic: M → P`. The DB UNIQUE on `event_hash` is the race-safety backstop, not the primary defense.
 
 ### Rule 16: MELODY IS THE ARCHITECT
 

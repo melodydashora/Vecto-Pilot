@@ -28,7 +28,7 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
  *
  * Uses canonical validateEventsHard module. Events written with the current
  * VALIDATION_SCHEMA_VERSION were already validated at store time in
- * briefing-service.js, so re-validating them is safe but redundant.
+ * briefing-aggregator.js, so re-validating them is safe but redundant.
  *
  * For events from briefings.events JSONB (no schema_version available), pass null
  * to always revalidate (safe default). For direct discovered_events table reads,
@@ -167,7 +167,7 @@ async function generateImmediateStrategy({ snapshot, briefing }) {
 
     // 2026-04-11: Event distance annotation + NEAR/FAR bucketing via the
     // venue_lat / venue_lng already present in briefing.events (from the
-    // venue_catalog LEFT JOIN in briefing-service.js). No new DB query.
+    // venue_catalog LEFT JOIN in pipelines/events.js). No new DB query.
     const formattedEvents = await formatEventsForStrategist(briefing.events, snapshot, 15);
 
     // 2026-04-11: Traffic intelligence — structured incidents/closures/zones
@@ -462,7 +462,7 @@ function formatTime12h(timeStr) {
  */
 /**
  * 2026-02-26: Return driver-impact summary instead of full JSON blob.
- * The briefing pipeline generates driverImpact at store time (briefing-service.js).
+ * The briefing pipeline generates driverImpact at store time (pipelines/weather.js).
  * Falls back to conditions + temp if driverImpact not yet populated (legacy rows).
  */
 function optimizeWeatherForLLM(weather) {
@@ -476,7 +476,7 @@ function optimizeWeatherForLLM(weather) {
 // 2026-02-26: Removed optimizeTrafficForLLM — both prompts now use driverImpact summary directly.
 
 /**
- * 2026-01-14: FIX - Use correct field names from briefing-service.js normalization
+ * 2026-01-14: FIX - Use correct field names from pipelines/weather.js normalization
  * Briefing events have: title, venue, event_start_time, event_end_time, event_type
  * NOT: event_name, name, event_start, category
  */
@@ -495,7 +495,7 @@ function optimizeEventsForLLM(events, venueStatusMap = null) {
       venueStatus = venueStatusMap.get(venueName.toLowerCase());
     }
 
-    // 2026-01-14: FIX - Use correct field names from briefing-service.js (lines 991-1006)
+    // 2026-01-14: FIX - Use correct field names from pipelines/weather.js (lines 991-1006)
     // title (not event_name), event_start_time (not event_start), event_type (not category)
     // Also format times to 12h AM/PM for LLM clarity (not military time)
     return {
@@ -1201,7 +1201,7 @@ function formatTrafficIntelForStrategist(traffic) {
 /**
  * Build a compact weather block with current conditions + 6-hour forecast
  * timeline. Reads briefings.weather_forecast (already populated — see
- * briefing-service.js:1680–1708). Adds a STORM RISK warning line when
+ * pipelines/weather.js:1680–1708). Adds a STORM RISK warning line when
  * any hour's precipitationProbability > 30%.
  *
  * Fallback: if weather_forecast is empty/missing, emits only the driverImpact
