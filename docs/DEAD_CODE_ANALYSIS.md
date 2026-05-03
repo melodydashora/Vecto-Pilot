@@ -380,7 +380,7 @@ Decide on `index.js`:
 
 2. **If SDK server is not needed:**
    - Add deprecation comment at top of file
-   - Track in `docs/review-queue/pending.md`
+   - Track in `claude_memory` (`category='audit', status='active'`) per CLAUDE.md Rule 15
 
 ### Priority 3: Standardize Coordinate Key Exports
 

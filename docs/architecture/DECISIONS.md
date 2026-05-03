@@ -263,7 +263,7 @@ const isOpen = bar.isOpen;  // Trust server's timezone-aware calculation
 - `server/lib/ai/providers/consolidator.js:861-945` — `loadDriverPreferences()` with PG `42703` catch + `migration_applied` flag
 - `server/lib/strategy/tactical-planner.js` — reads `prefs.max_deadhead_mi` for `beyond_deadhead` flagging; injects prefs into VENUE_SCORER prompt when `profile_loaded === true`
 - `migrations/20260416_driver_preference_columns.sql` — applied to dev, prod pending
-- Fallback contract documented in `docs/review-queue/pending.md` §PROD BEHAVIOR
+- Fallback contract tracked in `claude_memory` (query `status='active'` per CLAUDE.md Rule 15; `docs/review-queue/pending.md` was retired 2026-04-29)
 
 ---
 

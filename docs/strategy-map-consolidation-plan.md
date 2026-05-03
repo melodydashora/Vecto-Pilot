@@ -376,7 +376,7 @@ Before any code change ships, please confirm:
 - [ ] Phase B blocks Phase C/D/E/F (since rename + delete must precede new layer work on the renamed component)
 - [ ] Phase E blocked on fork #1 decision; Phase F blocked on fork #4 decision
 
-After approval, each phase will be implemented on its own branch, with the test commands in §7 run and outputs pasted to `docs/review-queue/pending.md` per Rule 2.
+After approval, each phase will be implemented on its own branch, with the test commands in §7 run and outputs logged to `claude_memory` (`category='audit', status='active'`) per CLAUDE.md Rule 15. (`docs/review-queue/pending.md` was retired 2026-04-29.)
 
 ---
 

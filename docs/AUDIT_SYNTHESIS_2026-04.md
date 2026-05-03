@@ -108,7 +108,7 @@ Conversational and memory-bearing layer: coach_conversations, user_intel_notes, 
 |--------|-----------------|-------|
 | Architecture | docs/architecture/README.md | Single architecture entrypoint |
 | Schema | shared/schema.js | Real schema source, everything defers to it |
-| DB policy / rollout | docs/architecture/DB_SCHEMA.md | Plus pending.md for direct-SQL exceptions |
+| DB policy / rollout | docs/architecture/DB_SCHEMA.md | Plus `claude_memory` active rows for direct-SQL exception tracking (`pending.md` retired 2026-04-29; see CLAUDE.md Rule 15) |
 | Auth | docs/architecture/AUTH.md | Token lifecycle, session, OAuth, gaps |
 | Security posture | docs/architecture/SECURITY.md | Root SECURITY.md is vulnerability reporting only |
 | Scalability | docs/architecture/SCALABILITY.md | PERFORMANCE_OPTIMIZATIONS.md is historical memo |

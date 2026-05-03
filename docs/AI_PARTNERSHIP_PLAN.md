@@ -109,7 +109,8 @@ Before ANY edit:
 // Session start - load context
 memory_search({ tags: ["decision"], limit: 20 })
 memory_search({ tags: ["learning"], limit: 5 })
-Read({ file_path: "docs/review-queue/pending.md" })
+// Query claude_memory active rows (replaced pending.md 2026-04-29 — see CLAUDE.md Rule 15):
+// psql "$DATABASE_URL" -c "SELECT id, title, status FROM claude_memory WHERE status='active' ORDER BY id DESC LIMIT 30;"
 
 // Session end - store learnings
 memory_store({
@@ -166,7 +167,7 @@ memory_store({
 | Component | Purpose |
 |-----------|---------|
 | `docs/review-queue/README.md` | System documentation |
-| `docs/review-queue/pending.md` | Current items needing review |
+| `claude_memory` table (Postgres) | Current items needing review — query `status='active'` per CLAUDE.md Rule 15 (replaced retired `pending.md` 2026-04-29) |
 | `docs/review-queue/YYYY-MM-DD.md` | Daily analysis logs |
 | Change Analyzer | Runs on server start, flags doc drift |
 
@@ -174,7 +175,7 @@ memory_store({
 1. Developer makes code changes
 2. Change Analyzer detects modified files on next startup
 3. Flags potentially affected documentation
-4. Items appear in `pending.md`
+4. Items inserted into `claude_memory` with `status='active'`
 5. Claude reviews and updates docs as part of session
 6. Status changed from `PENDING` to `REVIEWED`
 
@@ -244,5 +245,5 @@ These are nice-to-haves, not required for the partnership to work:
 
 For ongoing work, refer to:
 - `CLAUDE.md` - AI assistant instructions (primary reference)
-- `docs/review-queue/pending.md` - Items flagged for review
+- `claude_memory` table (Postgres) - Items flagged for review (query `status='active'`; replaced retired `pending.md` 2026-04-29)
 - `docs/memory/session-start.md` - Session start ritual
