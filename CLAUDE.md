@@ -334,6 +334,18 @@ All input formats are normalized via `normalizeEvent.js`. Why this matters: cons
 **Server** (`venue-enrichment.js`): `isOpen` calculated using **venue's timezone** via `Intl.DateTimeFormat`, stored in `ranking_candidates.features.isOpen`.
 **Client** (`BarsTable.tsx`): trusts server's `isOpen` value. **No client-side recalculation** — browser timezone ≠ venue timezone, and client recalculation previously caused late-night venues to show "Closed" incorrectly.
 
+### Catalog Provenance Doctrine (2026-05-03)
+
+`venue_catalog.source_model` was dropped in Workstream 6 Step 2, mirroring the 2026-01-10 removal of the same column from `discovered_events`. **Doctrine:** AI model identity is pipeline-implicit (Gemini for events, model-agnostic adapter at runtime for venue creation), so per-row `source_model` is dead telemetry.
+
+Catalog-entry provenance still lives on `venue_catalog`:
+- `source` — external supplier (`google_places_new`, `briefing_discovery`, `smart_blocks_promotion`, `google_places`)
+- `discovery_source` — internal flow that added the row (`address_resolver`, `briefing_discovery`, `smart_blocks_promotion`, `bar_discovery`, `seed`)
+
+These are write-only operational telemetry — useful for ad-hoc audit queries, not consumed by runtime code. **Do NOT** add a new `source_model`-style column on `venue_catalog` or `discovered_events`. If model-attribution telemetry becomes genuinely needed, route it through structured logging (matrixLog), not the data tables.
+
+Plan: `docs/review-queue/PLAN_workstream6_step2_catalog-cleanup-2026-05-03.md`.
+
 ---
 
 ## Environment Variables
