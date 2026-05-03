@@ -496,5 +496,5 @@ The freshness filtering functions use canonical field names:
 - [AI Pipeline](ai-pipeline.md) - TRIAD architecture and model configuration
 - [Database Schema](database-schema.md) - Table definitions and relationships
 - [Google Cloud APIs](google-cloud-apis.md) - API usage and cost management
-- [Constraints](constraints.md) - Critical rules that cannot be violated
+- [Constraints](CONSTRAINTS.md) - Critical rules that cannot be violated
 - [ETL Pipeline Refactoring](etl-pipeline-refactoring-2026-01-09.md) - Event pipeline details

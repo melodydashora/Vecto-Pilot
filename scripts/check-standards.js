@@ -588,15 +588,8 @@ function checkPendingMdDrift() {
     // 2026-04-28 merge-conflict resolution snapshot — historical artifact
     // (dot-prefixed; doesn't trip timestamp-pattern). Treat as immutable.
     '.merge-log-docs.md',
-    // 2026-05-03 (Workstream 1 audit): the three case-collision lowercase
-    // duplicates below are NOT to be edited in this branch — they're a
-    // separate filesystem-level drift bug logged in DOC_DISCREPANCIES (D-CASE)
-    // and tracked in claude_memory for next-session resolution. Once the
-    // case-collision is resolved (one canonical version chosen, the other
-    // deleted), REMOVE these three entries from this whitelist.
-    'docs/architecture/decisions.md',
-    'docs/architecture/Location.md',
-    'docs/architecture/standards.md',
+    // 2026-05-03 case-collision lowercase variants resolved in PR #29 (D-104);
+    // entries removed from this whitelist as planned.
   ]);
   const dirWhitelist = ['.claude/', 'docs/reviewed-queue/', 'node_modules/', '.worktrees/'];
   const timestampPattern = /202[0-9]-[0-9]{2}-[0-9]{2}/;
@@ -647,6 +640,69 @@ function checkPendingMdDrift() {
     log('No active references to retired pending.md found', 'success');
   } else {
     log(`Found ${found} active reference(s) to retired pending.md`, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHECK: filename case-collision (D-104 / Phase 2 Case-Collision Resolution, 2026-05-03)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Two filenames that differ only by case (e.g. DECISIONS.md vs decisions.md)
+// can coexist in git on case-sensitive filesystems but are aliases on
+// macOS-default case-insensitive filesystems. Edits to one don't propagate
+// to the other across systems → silent doctrine fork, exactly the bug that
+// motivated this check (PR #29, originating from claude_memory #306).
+//
+// Resolution-of-existing-collision: pick one canonical case per collision,
+// `git rm` the other. This check now structurally prevents the next one
+// — any new commit that introduces a case-collision fails CI before merge.
+//
+// Implementation: lowercase every tracked filename and look for duplicates.
+// Uses `git ls-files` (respects .gitignore, doesn't scan node_modules etc.).
+
+function checkFilenameCaseCollisions() {
+  log('Checking for filename case-collisions across tracked files...');
+  checksRun++;
+
+  let tracked;
+  try {
+    tracked = execSync('git ls-files', { cwd: ROOT, encoding: 'utf8' })
+      .split('\n').filter(Boolean);
+  } catch (err) {
+    log(`Failed to list tracked files: ${err.message}`, 'error');
+    return;
+  }
+
+  const buckets = new Map();
+  for (const file of tracked) {
+    const key = file.toLowerCase();
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(file);
+  }
+
+  let collisionPairs = 0;
+  let collisionFiles = 0;
+  for (const files of buckets.values()) {
+    if (files.length > 1) {
+      collisionPairs++;
+      for (const file of files) {
+        const partners = files.filter(f => f !== file).join(', ');
+        addViolation(
+          'filename-case-collision',
+          file,
+          0,
+          `Case-collision with: ${partners}. macOS-default case-insensitive filesystems alias these as the same file; git tracks them separately. Pick one canonical case, git rm the other.`
+        );
+        collisionFiles++;
+      }
+    }
+  }
+
+  if (collisionPairs === 0) {
+    checksPassed++;
+    log('No filename case-collisions found', 'success');
+  } else {
+    log(`Found ${collisionPairs} case-collision group(s) covering ${collisionFiles} files`, 'error');
   }
 }
 
@@ -720,6 +776,8 @@ function main() {
   if (!checkFilter || checkFilter === 'lint') checkLintConfig();
   // Workstream 1 (2026-05-03): doctrine drift typecheck
   if (!checkFilter || checkFilter === 'pending-md-drift') checkPendingMdDrift();
+  // Phase 2 (2026-05-03): filename case-collision typecheck (D-104)
+  if (!checkFilter || checkFilter === 'filename-case') checkFilenameCaseCollisions();
 
   // Print report and exit
   const exitCode = printReport();

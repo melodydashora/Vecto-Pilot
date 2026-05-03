@@ -190,4 +190,4 @@ The legacy endpoint `/api/auth/token` that mints tokens from user_id is **disabl
 
 - [Server Structure](server-structure.md) - API route organization
 - [Client Structure](client-structure.md) - Frontend auth integration
-- [Constraints](constraints.md) - Security constraints
+- [Constraints](CONSTRAINTS.md) - Security constraints
