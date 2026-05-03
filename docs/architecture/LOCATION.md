@@ -666,4 +666,4 @@ Chronological list of invariants encoded in inline `//` comments. Dates are abso
 - `docs/EVENT_FRESHNESS_AND_TTL.md` — downstream event staleness rules
 - `docs/architecture/DB_SCHEMA.md` — canonical table definitions (`users`, `snapshots`, `coords_cache`, `markets`, `driver_profiles`, `travel_disruptions`)
 - `LESSONS_LEARNED.md` — "Auth Loop on Login" (BR-6), past incidents
-- `docs/review-queue/pending.md` — doc updates pending Melody approval
+- `claude_memory` table (Postgres, `status='active'`) — doc updates pending Melody approval (replaced retired `pending.md` 2026-04-29; see CLAUDE.md Rule 15)

@@ -12,7 +12,7 @@ These are blocking issues that affect production stability or security.
 - **Standard JWT Migration:** Migrate away from the custom HMAC-SHA256 tokens (`userId.signature`) to standard JWTs to unblock third-party integrations. (ARCH-001)
 - **Payload & Timeout Limits:** Fix the 90s timeout dropping high-impact events and the 413 "Payload Too Large" errors occurring during image uploads. (D-099, D-100)
 - **Concierge Rate Limiting:** Prevent unlimited feedback submissions and secure the Concierge API against abuse. (CM-5)
-- **Split-Brain Governance:** Audit and reconcile `CLAUDE.md` against the new `GEMINI.md` mandates. Remove stale AI directives (such as the false rule claiming sub-READMEs are deleted) to prevent autonomous agents from accidentally deleting active repository documentation.
+- [x] **Split-Brain Governance:** Audited and reconciled `CLAUDE.md` against the `GEMINI.md` mandates 2026-05-03. Reversed the false "109 sub-READMEs deleted" rule (verified 89+ exist), aligned both docs on `claude_memory` as the canonical "unfinished work" surface (replacing retired `pending.md`), corrected GEMINI.md's "both Helium" DB claim. Swept 12 stale `pending.md` citations across canonical docs. Added structural `pending-md-drift` lint to `scripts/check-standards.js` with timestamp-pattern exemption for immutable historical files. Case-collision duplicate files (`DECISIONS.md`/`decisions.md`, etc.) logged as D-104 + claude_memory for next-session resolution. (COMPLETED — feat/workstream1-governance-audit)
 
 ## 🚗 Workstream 2: Platform Integrations (Uber API)
 **Source:** `UBER_INTEGRATION_TODO.md`

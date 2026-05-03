@@ -201,7 +201,7 @@ by real market data at runtime whenever it's wired in.
   annotation now also happens at the strategist layer (not just Smart Blocks),
   and both use the same 15-mile NEAR/FAR threshold for mental-model
   consistency.
-- **`docs/review-queue/pending.md`** — New entry logging the
+- **`docs/review-queue/pending.md`** *(historical — `pending.md` retired 2026-04-29; current canon: `claude_memory` active rows)* — New entry logging the
   `driver_profiles` schema migration as pending follow-up work. The
   consolidator code falls through to defaults until the migration runs.
 

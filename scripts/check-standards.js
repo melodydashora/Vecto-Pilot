@@ -556,6 +556,101 @@ function checkLintConfig() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CHECK: pending.md drift (Workstream 1 Split-Brain Governance Audit, 2026-05-03)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// docs/review-queue/pending.md was retired 2026-04-29; canonical "unfinished
+// work" surface is the claude_memory table (CLAUDE.md Rules 3, 12, 15).
+// This check fails CI when a markdown file under repo control still cites
+// pending.md as if active — preventing future doctrine drift of the same
+// shape that bit Workstream 6 (source_model + briefing-service.js refs).
+//
+// Whitelist:
+//  - Explicit historical-by-design files (LESSONS_LEARNED.md, the retirement
+//    notice itself in docs/review-queue/README.md, this lint file).
+//  - Session-bookkeeping directories (.claude/) and reviewed-queue/.
+//  - STRUCTURAL exemption: any file with a timestamp pattern in its name
+//    (e.g., full-audit-2026-04-04.md, HANDOFF_2026-04-24.md, 2026-01-26.md)
+//    is treated as an immutable historical record — pattern: 202[0-9]-MM-DD
+//    anywhere in the path. Adopted per Option C 2026-05-03 instead of a
+//    hardcoded whitelist so new timestamped audits don't trip the check.
+//  - Lines that explicitly mark the reference as retired/historical
+//    ("retired", "RETIRED", "historical", "2026-04-29") are not flagged.
+
+function checkPendingMdDrift() {
+  log('Checking for stale references to retired pending.md...');
+  checksRun++;
+
+  const explicitFileWhitelist = new Set([
+    'LESSONS_LEARNED.md',
+    'docs/review-queue/README.md',
+    'scripts/check-standards.js',
+    // 2026-04-28 merge-conflict resolution snapshot — historical artifact
+    // (dot-prefixed; doesn't trip timestamp-pattern). Treat as immutable.
+    '.merge-log-docs.md',
+    // 2026-05-03 (Workstream 1 audit): the three case-collision lowercase
+    // duplicates below are NOT to be edited in this branch — they're a
+    // separate filesystem-level drift bug logged in DOC_DISCREPANCIES (D-CASE)
+    // and tracked in claude_memory for next-session resolution. Once the
+    // case-collision is resolved (one canonical version chosen, the other
+    // deleted), REMOVE these three entries from this whitelist.
+    'docs/architecture/decisions.md',
+    'docs/architecture/Location.md',
+    'docs/architecture/standards.md',
+  ]);
+  const dirWhitelist = ['.claude/', 'docs/reviewed-queue/', 'node_modules/', '.worktrees/'];
+  const timestampPattern = /202[0-9]-[0-9]{2}-[0-9]{2}/;
+  const historicalMarker = /retired|RETIRED|historical|2026-04-29/;
+  const pendingPattern = /pending\.md|review-queue\/pending/;
+
+  let found = 0;
+
+  function walkMd(dir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      const rel = path.relative(ROOT, full);
+      if (entry.isDirectory()) {
+        if (CONFIG.excludeDirs.some(ex => entry.name === ex)) continue;
+        if (dirWhitelist.some(d => rel.startsWith(d) || rel.startsWith(d.slice(0, -1)))) continue;
+        walkMd(full);
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        if (explicitFileWhitelist.has(rel)) continue;
+        if (timestampPattern.test(rel)) continue;
+        const content = readFile(full);
+        if (!content) continue;
+        const lines = content.split('\n');
+        lines.forEach((line, idx) => {
+          if (pendingPattern.test(line) && !historicalMarker.test(line)) {
+            addViolation(
+              'pending-md-drift',
+              rel,
+              idx + 1,
+              `Active reference to retired pending.md (retired 2026-04-29). Use claude_memory active rows per CLAUDE.md Rule 15, or annotate the line as historical.`
+            );
+            found++;
+          }
+        });
+      }
+    }
+  }
+
+  walkMd(ROOT);
+
+  if (found === 0) {
+    checksPassed++;
+    log('No active references to retired pending.md found', 'success');
+  } else {
+    log(`Found ${found} active reference(s) to retired pending.md`, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -623,6 +718,8 @@ function main() {
   // New AI-Native checks
   if (!checkFilter || checkFilter === 'ai') checkDeprecatedAI();
   if (!checkFilter || checkFilter === 'lint') checkLintConfig();
+  // Workstream 1 (2026-05-03): doctrine drift typecheck
+  if (!checkFilter || checkFilter === 'pending-md-drift') checkPendingMdDrift();
 
   // Print report and exit
   const exitCode = printReport();

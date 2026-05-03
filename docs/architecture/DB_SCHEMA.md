@@ -10,7 +10,7 @@
 | Tier | Artifact | Trust Level |
 |------|----------|-------------|
 | **Canonical** | `shared/schema.js` | Always authoritative. The single source of truth for all table definitions. |
-| **Operational** | `migrations/` + rollout notes in `pending.md` | Tracks how schema changes are deployed. Check for pending prod migrations. |
+| **Operational** | `migrations/` + rollout notes in `claude_memory` active rows (`pending.md` retired 2026-04-29; see CLAUDE.md Rule 15) | Tracks how schema changes are deployed. Check for pending prod migrations. |
 | **Deprecated** | `scripts/create-all-tables.sql` | DO NOT use for recovery. Marked deprecated 2026-04-14 (Issue AL). |
 
 ## Supersedes
@@ -281,17 +281,17 @@ Pool auto-recovers on admin shutdown (code 57P01).
 | **Canonical schema definition** | `shared/schema.js` — all tables, columns, indexes, and relations |
 | **Standard path** | Drizzle-managed migrations via `npm run db:migrate` (uses `drizzle.config.js` → `./drizzle/` output) |
 | **Exception path** | Targeted direct SQL when global `drizzle-kit push` risks drift (e.g., adding a column to a large table without touching unrelated constraints) |
-| **Exception rule** | Every direct-SQL exception MUST be recorded in the exceptions table below AND in `docs/review-queue/pending.md` before deployment |
-| **Backfill policy** | Direct-SQL exceptions do NOT need to be backfilled as committed migration files. The pending.md queue and this exceptions table are sufficient tracking. |
+| **Exception rule** | Every direct-SQL exception MUST be recorded in the exceptions table below AND in `claude_memory` (`category='audit', status='active'`) before deployment per CLAUDE.md Rule 15 (`pending.md` retired 2026-04-29) |
+| **Backfill policy** | Direct-SQL exceptions do NOT need to be backfilled as committed migration files. The `claude_memory` active-rows queue and this exceptions table are sufficient tracking. (Replaced retired `pending.md` 2026-04-29.) |
 | **Manual migrations** | `migrations/` folder for RLS policies, triggers, functions, and one-off fixes that Drizzle doesn't manage |
 
 ### Current Exceptions (Direct SQL, Not Yet in Drizzle History)
 
 | Change | Dev DB | Prod DB | Logged In |
 |--------|--------|---------|-----------|
-| `discovered_events.schema_version` (INTEGER NOT NULL DEFAULT 1) | Applied 2026-04-14 | **Pending** | pending.md §Pass 1 |
-| `claude_memory` table (14 columns, 3 indexes) | Applied 2026-04-14 | **Pending** | pending.md §Memory Table |
-| `driver_profiles` — 4 preference columns (fuel_economy_mpg, earnings_goal_daily, shift_hours_target, max_deadhead_mi) | **Deferred** | **Deferred** | pending.md §Driver Prefs |
+| `discovered_events.schema_version` (INTEGER NOT NULL DEFAULT 1) | Applied 2026-04-14 | **Pending** | `claude_memory` (was `pending.md` §Pass 1, retired 2026-04-29) |
+| `claude_memory` table (14 columns, 3 indexes) | Applied 2026-04-14 | **Pending** | `claude_memory` (was `pending.md` §Memory Table, retired 2026-04-29) |
+| `driver_profiles` — 4 preference columns (fuel_economy_mpg, earnings_goal_daily, shift_hours_target, max_deadhead_mi) | **Deferred** | **Deferred** | `claude_memory` (was `pending.md` §Driver Prefs, retired 2026-04-29) |
 
 ---
 

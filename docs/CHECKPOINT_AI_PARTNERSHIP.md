@@ -201,7 +201,7 @@ Automated change detection for documentation maintenance.
 1. `server/jobs/change-analyzer-job.js` - Main analyzer logic
 2. `server/lib/change-analyzer/file-doc-mapping.js` - File→doc mapping
 3. `docs/review-queue/README.md` - Review queue documentation
-4. `docs/review-queue/pending.md` - Pending items template
+4. `claude_memory` table (Postgres) - Pending items (queryable, replaced `pending.md` 2026-04-29 per CLAUDE.md Rule 15)
 5. MCP tool `analyze_changes` for manual triggering
 
 ### Integration

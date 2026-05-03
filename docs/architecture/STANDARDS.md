@@ -233,7 +233,7 @@ When code and docs contradict:
 ### 7.2 Review Queue Protocol
 
 All documentation changes flow through:
-1. `docs/review-queue/pending.md` - Flagged items
+1. `claude_memory` table (Postgres, `status='active'`) - Flagged items (replaced `pending.md` 2026-04-29 per CLAUDE.md Rule 15)
 2. `docs/review-queue/YYYY-MM-DD.md` - Daily analysis
 3. `docs/reviewed-queue/CHANGES.md` - Historical record
 

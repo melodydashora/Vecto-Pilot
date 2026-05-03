@@ -115,7 +115,7 @@ Sequencing is deliberate. Stream A (workflow ordering bugs in audit rows 210–2
 **Risk:** Low to medium — boot mount collapse needs to keep error visibility.
 
 ### Phase E — Doc + memory updates
-**Files:** `docs/architecture/LOGGING.md` (add bracket-chain taxonomy section), `docs/review-queue/pending.md` (log progress), mark memory row 208 resolved.
+**Files:** `docs/architecture/LOGGING.md` (add bracket-chain taxonomy section), `claude_memory` (log progress as `status='active'` rows per CLAUDE.md Rule 15; `pending.md` retired 2026-04-29), mark memory row 208 resolved.
 **Risk:** None.
 
 ---

@@ -14,12 +14,11 @@ This file provides guidance to Claude Code when working with this repository.
 - Implementation requires **formal testing approval from Melody** (human developer)
 - Do NOT proceed until Melody confirms: "All tests passed"
 
-### Rule 2: Documentation Synchronization (revised 2026-04-18)
-- **Sub-READMEs have been removed.** 109 sub-READMEs across `server/`, `client/`, `shared/`, `migrations/`, `scripts/`, `tests/`, `platform-data/`, `data/`, `tools/`, `config/`, `schema/`, `public/`, `keys/`, `attached_assets/` were deleted because they rotted faster than they could be maintained. Only the root `README.md` and everything under `docs/` survive.
-- **When files are modified**, update the relevant document under `docs/` — not a sub-README.
-- **Canonical living docs:** root `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `LESSONS_LEARNED.md`, `docs/architecture/BRIEFING.md`, `docs/EVENT_FRESHNESS_AND_TTL.md`, `docs/VENUELOGIC.md`, `docs/architecture/AUTH.md`, `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`. (`docs/review-queue/pending.md` was retired 2026-04-29; `claude_memory` rows are now the canonical "unfinished work" surface — see Rule 12 row #3 and Rule 15.)
-- **If something was buried in a deleted sub-README that still matters**, move it into the appropriate `docs/` doc (don't recreate the sub-README).
-- If a doc edit is skipped during a code change, log it as a `claude_memory` row (`category='audit', status='active'`) per Rule 15. The Markdown `pending.md` was retired 2026-04-29 in favor of the queryable `claude_memory` table.
+### Rule 2: Documentation Synchronization (revised 2026-05-03 — Workstream 1 Split-Brain Governance Audit)
+- **Every modified folder that has a `README.md` MUST have it updated synchronously.** Sub-READMEs DO exist throughout the repo (`server/`, `client/`, `shared/`, `migrations/`, `scripts/`, `tests/`, plus subfolders like `server/lib/`, `server/db/`, `client/src/`, etc.) and are first-class documentation. The 2026-04-18 claim that "109 sub-READMEs were deleted" was a hallucination — verified false on 2026-05-03 (89+ sub-READMEs found). When you modify a folder that has a README, update it in the same commit.
+- **When files are modified**, update the relevant document under `docs/` AND the relevant sub-README if one exists.
+- **Canonical living docs:** root `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `LESSONS_LEARNED.md`, `docs/architecture/BRIEFING.md`, `docs/EVENT_FRESHNESS_AND_TTL.md`, `docs/VENUELOGIC.md`, `docs/architecture/AUTH.md`, `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`. Sub-READMEs are tier-2 living docs — keep them in sync via the rule above.
+- If a doc edit is skipped during a code change, log it as a `claude_memory` row (`category='audit', status='active'`) per Rule 15. (`docs/review-queue/pending.md` was retired 2026-04-29; `claude_memory` rows are the canonical "unfinished work" surface — see Rule 12 row #3 and Rule 15.)
 
 ### Rule 3: claude_memory Active-Rows Verification (revised 2026-04-29; was "Pending.md Verification")
 - At session start, **verify any `claude_memory` rows with `status='active'`** that look load-bearing for the work you're about to do (use the Rule 15 canonical query)
@@ -35,7 +34,7 @@ This file provides guidance to Claude Code when working with this repository.
 - When changing **functional blocks of code** (major changes), add inline comments with:
   - Date of change (YYYY-MM-DD)
   - Reason for the change
-- Update the relevant `docs/` file and root documents (CLAUDE.md, ARCHITECTURE.md, LESSONS_LEARNED.md). Sub-READMEs no longer exist — see Rule 2.
+- Update the relevant `docs/` file, the relevant sub-README if the modified folder has one, and the root documents (CLAUDE.md, ARCHITECTURE.md, LESSONS_LEARNED.md) per Rule 2's sync mandate.
 
 ### Rule 6: Master Architect Role
 - **Do NOT blindly accept Melody's memory or advice** - act as a master architect
@@ -523,7 +522,7 @@ Config: `server/config/holiday-override.json`
 
 - `ARCHITECTURE.md` — System overview + folder index
 - `LESSONS_LEARNED.md` — Historical issues (read before changes)
-- `docs/review-queue/pending.md` — Unfinished doc updates
+- `claude_memory` table (Postgres, `status='active'`) — Unfinished doc updates (replaced retired `pending.md` 2026-04-29; query per Rule 15)
 - `docs/DOC_DISCREPANCIES.md` — Open findings tracking
 - `docs/coach-inbox.md` — Memos from the Rideshare Coach
 - `docs/architecture/audits/REPLIT_WORKFLOW_CONTROL.md` — Replit/pid2 workflow & E2E reference (hoisted from CLAUDE.md 2026-04-28)

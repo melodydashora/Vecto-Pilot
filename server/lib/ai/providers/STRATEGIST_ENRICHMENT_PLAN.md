@@ -376,7 +376,7 @@ return {
 | `server/lib/briefing/README.md` | **Modify** | Add a "Traffic Intelligence Persistence (2026-04-11)" subsection documenting the additive changes to `analyzeTrafficWithGemini`. |
 | `docs/architecture/VENUES.md` | **Not affected** | Smart Blocks pipeline unchanged. |
 | `docs/EVENTS.md` | **Modify** | Add a note under Section 10 that events now flow through distance annotation at strategist-build time AS WELL AS at Smart Blocks time, and both use the same 15-mile NEAR/FAR threshold. |
-| `docs/review-queue/pending.md` | **Append** | Log the schema migration as pending follow-up work. |
+| `claude_memory` table | **Insert** | Log the schema migration as a `status='active'` row per CLAUDE.md Rule 15 (`pending.md` retired 2026-04-29). |
 
 ---
 
@@ -461,7 +461,7 @@ Each enrichment is an additive change. Rollback is one-commit-revert:
 5. **Modify `analyzeTrafficWithGemini`** in briefing-service.js to preserve raw TomTom data additively.
 6. **Update docs** per Section 7.
 7. **`node --check` on every modified file.**
-8. **Log findings to pending.md** so future sessions know the migration is outstanding.
+8. **Log findings to `claude_memory`** (`category='audit', status='active'`) so future sessions know the migration is outstanding (replaced retired `pending.md` 2026-04-29; see CLAUDE.md Rule 15).
 
 ---
 

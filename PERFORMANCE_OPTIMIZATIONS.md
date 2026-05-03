@@ -237,7 +237,7 @@ Performance optimizations include helpful log messages:
 3. **Query Optimization:** Analyze slow query logs for further improvements
 4. **CDN Integration:** Cache static venue data at edge locations
 5. **Worker Queues:** Offload heavy processing to background workers
-6. **pending.md Archival:** Truncate entries older than 2 weeks (currently 257KB and growing)
+6. ~~**pending.md Archival:** Truncate entries older than 2 weeks (currently 257KB and growing)~~ — **Superseded:** `pending.md` was retired 2026-04-29; queue now lives in `claude_memory` table with structured `status` lifecycle (`active`/`resolved`/`superseded`). No archival job needed.
 
 ## Testing
 

@@ -30,4 +30,4 @@ Documents here should be reviewed within 30 days. If not updated, consider archi
 
 ## See Also
 
-- [docs/review-queue/pending.md](../../review-queue/pending.md) - Active review items
+- `claude_memory` table (Postgres) - Active review items (query `status='active'` per CLAUDE.md Rule 15; replaced retired `pending.md` 2026-04-29)

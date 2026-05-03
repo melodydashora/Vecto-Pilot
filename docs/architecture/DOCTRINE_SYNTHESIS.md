@@ -5,6 +5,8 @@
 **Source commit:** 7670a63b
 **Purpose:** Consolidated doctrine read-pass for architect decision-making. This file becomes the durable reference so we do not repeat the read pass.
 
+> **2026-05-03 update (Workstream 1 Split-Brain Governance Audit):** This file is a snapshot of doctrine as it stood on 2026-04-16. Several references below cite `docs/review-queue/pending.md`, which was **retired on 2026-04-29**. The canonical "unfinished work" surface is now the `claude_memory` table — see CLAUDE.md Rules 3, 12, and 15 for the canonical query. The quoted text below is preserved for historical fidelity; do not act on `pending.md` references — translate them mentally to `claude_memory` active rows when consuming this synthesis.
+
 ---
 
 ## === CONSTRAINTS.md (165 lines) ===
@@ -71,7 +73,7 @@
 **Hard rules (exact quotes with line numbers):**
 1. **Line 10-14 — Trust Tiers:** `shared/schema.js` is "Always authoritative. The single source of truth for all table definitions." `scripts/create-all-tables.sql` is "DO NOT use for recovery."
 2. **Line 5:** "Always check that section before assuming the documented schema matches prod."
-3. **Line 279-286 — Migration Policy:** "Every direct-SQL exception MUST be recorded in the exceptions table below AND in `docs/review-queue/pending.md` before deployment"
+3. **Line 279-286 — Migration Policy:** "Every direct-SQL exception MUST be recorded in the exceptions table below AND in `docs/review-queue/pending.md` before deployment" *(historical quote — `pending.md` retired 2026-04-29; current canon: `claude_memory` active rows)*
 4. **Line 74:** `formatted_address` is "CRITICAL for LLM" in the snapshots table.
 
 **What the doc says is true today:** 57 tables via Drizzle, 25-connection pool, 27 Drizzle-managed migrations + direct-SQL exceptions.
@@ -86,7 +88,7 @@
 
 **driver_profiles section (line 191-193):** Brief — "65+ columns including identity, location preferences, vehicle eligibility, service preferences, account status." Full schema is in `shared/schema.js`, not here.
 
-**Contradictions spotted:** None internally. The deferred status for the 4-column migration aligns with pending.md.
+**Contradictions spotted:** None internally. The deferred status for the 4-column migration aligns with pending.md *(historical — pending.md retired 2026-04-29)*.
 
 **Architect read:** The trust-tier framework is strong. The exceptions table is the right mechanism for tracking direct-SQL changes. The file should be updated to note that our P0-6 commit now depends on the deferred `max_deadhead_mi` column (with fallback default until migration runs).
 
@@ -277,7 +279,9 @@
 
 ---
 
-## === pending.md (90 lines) ===
+## === pending.md (90 lines, RETIRED 2026-04-29) ===
+
+> **Note:** This section synthesizes the contents of `docs/review-queue/pending.md` as of the 2026-04-16 read pass. The file was retired 2026-04-29; current "unfinished work" tracking lives in `claude_memory`. Treat the items below as historical context, not an active queue.
 
 **Purpose:** Migration queue and test-approval backlog.
 
@@ -317,7 +321,7 @@ ALTER TABLE driver_profiles
 
 3. **`shared/schema.js` is "Always authoritative. The single source of truth for all table definitions."** — DB_SCHEMA.md line 10. All other schema representations (docs, SQL scripts) defer to this file.
 
-4. **"Every direct-SQL exception MUST be recorded in the exceptions table AND in pending.md before deployment"** — DB_SCHEMA.md line 282. No rogue migrations.
+4. **"Every direct-SQL exception MUST be recorded in the exceptions table AND in pending.md before deployment"** — DB_SCHEMA.md line 282. No rogue migrations. *(Historical quote — pending.md retired 2026-04-29; DB_SCHEMA.md was updated 2026-05-03 in the Workstream 1 audit to point at `claude_memory`.)*
 
 5. **"DO NOT: Re-implement multi-model fallbacks / Add global JSON parsing / Use index-based merging / Allow client to override server coordinates / Add stub/placeholder data / Create development-only behavior"** — DEPRECATED.md lines 227-233. Anti-regression guardrails.
 
@@ -353,7 +357,7 @@ ALTER TABLE driver_profiles
 
 | # | Action | Scope | Blast Radius | What Changes for the Driver |
 |---|--------|-------|--------------|----------------------------|
-| 1 | **Run the 4-column pending migration** (pending.md:31-36) | 1 SQL statement, 4 columns | Zero — `ADD COLUMN IF NOT EXISTS` is safe, and `loadDriverPreferences()` already handles both states | Drivers can eventually set real deadhead/fuel/goal prefs once SettingsPage UI is built |
+| 1 | **Run the 4-column pending migration** (synthesized from pending.md:31-36 *— historical; pending.md retired 2026-04-29, see `claude_memory` for current tracking*) | 1 SQL statement, 4 columns | Zero — `ADD COLUMN IF NOT EXISTS` is safe, and `loadDriverPreferences()` already handles both states | Drivers can eventually set real deadhead/fuel/goal prefs once SettingsPage UI is built |
 | 2 | **Delete or gut `perplexity-api.js`** to resolve the DEPRECATED.md contradiction | 1 file delete + grep for imports | Low — if truly dead code, no runtime change; if still imported, need to trace and redirect | None directly — removes dead code / resolves doc contradiction |
 | 3 | **Add decisions #15-17 to DECISIONS.md** (Hours Trust, Always-6, Prefs-as-Tiebreaker) | ~30 lines in 1 doc | Zero — doc-only | None — governance clarity |
 | 4 | **Rename CONSTRAINTS.md to ENV_VARS.md** or rewrite as actual constraints | 1 file rename | Zero — doc-only | None |
