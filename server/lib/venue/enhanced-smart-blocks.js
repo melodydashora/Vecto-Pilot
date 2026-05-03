@@ -27,7 +27,7 @@ import { db } from '../../db/drizzle.js';
 // 2026-04-11: Added discovered_events + venue_catalog for fetchTodayDiscoveredEventsWithVenue —
 // the Smart Blocks pipeline now fetches today's events at the top of the try block
 // and passes them to both filterBriefingForPlanner and matchVenuesToEvents.
-import { rankings, ranking_candidates, discovered_events, venue_catalog } from '../../../shared/schema.js';
+import { rankings, ranking_candidates, discovered_events, venue_catalog, strategies } from '../../../shared/schema.js';
 
 // 2026-01-14: Time-sensitive event badge filtering
 // Only show event badges for events that are time-relevant (within 2h future or 4h past start)
@@ -462,6 +462,19 @@ export async function generateEnhancedSmartBlocks({ snapshotId, immediateStrateg
     }
 
     venuesLog.done(1, `VENUE_SCORER returned ${venuesPlan.recommended_venues.length} venues`, plannerMs);
+
+    // 2026-05-03 Workstream 6 Step 3: persist rolled-up venue-catalog cache stats
+    // to the strategies row. Best-effort write — if this fails we log and continue;
+    // the metric is operational telemetry, not on the user's critical path.
+    if (venuesPlan.cache_metrics) {
+      try {
+        await db.update(strategies)
+          .set({ venue_cache_metrics: venuesPlan.cache_metrics })
+          .where(eq(strategies.snapshot_id, snapshotId));
+      } catch (err) {
+        venuesLog.warn(1, `Failed to persist venue_cache_metrics for snapshot ${snapshotId}: ${err.message}`);
+      }
+    }
 
     // Step 2: Enrich venues with Google APIs (Places, Routes, Geocoding)
     // Phase: 'routing' - Google Routes + Places (NEW) APIs
