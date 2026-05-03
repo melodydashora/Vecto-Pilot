@@ -242,6 +242,6 @@ Hooks that called non-existent backend endpoints:
 
 ## See Also
 
-- [Decisions](decisions.md) - Why we made these choices
-- [Constraints](constraints.md) - Current architectural rules
+- [Decisions](DECISIONS.md) - Why we made these choices
+- [Constraints](CONSTRAINTS.md) - Current architectural rules
 - [LESSONS_LEARNED.md](/LESSONS_LEARNED.md) - Historical issues

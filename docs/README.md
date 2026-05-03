@@ -29,7 +29,7 @@ Detailed technical documentation split by domain. See [architecture/README.md](a
 | [AI Pipeline](architecture/ai-pipeline.md) | TRIAD architecture and model configuration |
 | [Rideshare Coach](architecture/ai-coach.md) | Rideshare Coach system architecture |
 | [Event Discovery](architecture/event-discovery.md) | Multi-model AI event search system |
-| [Constraints](architecture/constraints.md) | Critical rules and limitations |
+| [Constraints](architecture/CONSTRAINTS.md) | Critical rules and limitations |
 | [Google Cloud APIs](architecture/google-cloud-apis.md) | Google APIs reference and usage patterns |
 | [Client Structure](architecture/client-structure.md) | Frontend architecture |
 | [Server Structure](architecture/server-structure.md) | Backend architecture |

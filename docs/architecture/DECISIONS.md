@@ -400,7 +400,7 @@ Format:
 
 ## See Also
 
-- [Constraints](constraints.md) - Current rules
-- [Deprecated](deprecated.md) - What we removed
+- [Constraints](CONSTRAINTS.md) - Current rules
+- [Deprecated](DEPRECATED.md) - What we removed
 - [AI Pipeline](ai-pipeline.md) - Model configuration
 - [LESSONS_LEARNED.md](/LESSONS_LEARNED.md) - Historical issues

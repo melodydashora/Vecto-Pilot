@@ -186,4 +186,4 @@ import { getSnapshotContext } from '../../lib/location/get-snapshot-context.js';
 - [API Reference](api-reference.md) - Endpoint documentation
 - [AI Pipeline](ai-pipeline.md) - Model configuration
 - [Database Schema](database-schema.md) - Table structures
-- [Logging](logging.md) - Workflow logging conventions
+- [Logging](LOGGING.md) - Workflow logging conventions
