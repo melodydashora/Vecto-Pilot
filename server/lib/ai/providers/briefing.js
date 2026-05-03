@@ -11,7 +11,7 @@
 import { db } from '../../../db/drizzle.js';
 import { snapshots } from '../../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
-import { generateAndStoreBriefing } from '../../briefing/briefing-service.js';
+import { generateAndStoreBriefing } from '../../briefing/briefing-aggregator.js';
 import { briefingLog, OP } from '../../../logger/workflow.js';
 
 // ============================================================================

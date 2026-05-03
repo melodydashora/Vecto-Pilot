@@ -58,8 +58,7 @@ This document is a compiled list of all `TODO` comments extracted from the sourc
   - `DEPRECATED: Session-level locks - kept for reference only`
 - **`server/api/health/diagnostics.js`** (Line 521)
   - `max_tokens is DEPRECATED - use max_completion_tokens` (Fix needed for older models)
-- **`server/lib/briefing/briefing-service.js`** (Line 284)
-  - `DEPRECATED - Delegates to canonical validateEventsHard module` (Code cleanup needed)
+
 ### Future Features
 - **`client/src/_future/user-settings/vehicleTiers.ts`** (Line 7)
   - `Connect to user profile settings modal`

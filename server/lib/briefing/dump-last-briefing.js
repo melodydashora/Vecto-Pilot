@@ -5,7 +5,7 @@ import { briefings, snapshots, strategies } from '../../../shared/schema.js';
 import { desc, eq } from 'drizzle-orm';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
-import { filterInvalidEvents } from './briefing-service.js';
+import { filterInvalidEvents } from './pipelines/events.js';
 
 /**
  * Write the last briefing + snapshot + strategy to sent-to-strategist.txt

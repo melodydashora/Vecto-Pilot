@@ -18,4 +18,10 @@
 // as a caller importing directly from briefing-service.js or briefing-aggregator.js.
 // The inFlightBriefings concurrency Map remains a single per-process instance.
 
-export * from './briefing-service.js';
+export * from './briefing-aggregator.js';
+export * from './pipelines/schools.js';
+export * from './pipelines/weather.js';
+export * from './pipelines/airport.js';
+export * from './pipelines/news.js';
+export * from './pipelines/traffic.js';
+export * from './pipelines/events.js';

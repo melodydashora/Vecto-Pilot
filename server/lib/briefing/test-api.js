@@ -2,7 +2,7 @@
 import { db } from '../../db/drizzle.js';
 import { briefings } from '../../../shared/schema.js';
 import { desc, eq } from 'drizzle-orm';
-import { getBriefingBySnapshotId } from './briefing-service.js';
+import { getBriefingBySnapshotId } from './briefing-aggregator.js';
 
 // Get most recent briefing
 const [row] = await db.select().from(briefings).orderBy(desc(briefings.created_at)).limit(1);

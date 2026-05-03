@@ -2272,7 +2272,7 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
     };
 
     // Generate news briefing using briefing-service
-    const { generateAndStoreBriefing } = await import('../../lib/briefing/briefing-service.js');
+    const { generateAndStoreBriefing } = await import('../../lib/briefing/briefing-aggregator.js');
     const result = await generateAndStoreBriefing({
       snapshotId: snapshot.snapshot_id,
       lat: latitude,

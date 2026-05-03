@@ -6,7 +6,7 @@ import { sql, eq } from "drizzle-orm";
 import { snapshots, strategies, coords_cache } from "../../../shared/schema.js";
 import { validateIncomingSnapshot, validateSnapshotFields } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
-import { generateAndStoreBriefing } from "../../lib/briefing/briefing-service.js";
+import { generateAndStoreBriefing } from "../../lib/briefing/briefing-aggregator.js";
 import { httpError } from "../utils/http-helpers.js";
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from "../../lib/location/coords-key.js";

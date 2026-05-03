@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 // 2026-04-04: FIX C-2 — Added fetchTrafficConditions (was missing, causing ReferenceError on /traffic/realtime)
-import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing, filterInvalidEvents, fetchWeatherConditions, fetchTrafficConditions, fetchRideshareNews } from '../../lib/briefing/briefing-service.js';
+import { generateAndStoreBriefing, getBriefingBySnapshotId, getOrGenerateBriefing } from '../../lib/briefing/briefing-aggregator.js';
+import { filterInvalidEvents } from '../../lib/briefing/pipelines/events.js';
+import { fetchWeatherConditions } from '../../lib/briefing/pipelines/weather.js';
+import { fetchTrafficConditions } from '../../lib/briefing/pipelines/traffic.js';
+import { fetchRideshareNews } from '../../lib/briefing/pipelines/news.js';
 import { db } from '../../db/drizzle.js';
 import { snapshots, discovered_events, news_deactivations, briefings, market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte, ilike, not, or, sql } from 'drizzle-orm';
