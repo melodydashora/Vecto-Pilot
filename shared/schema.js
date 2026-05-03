@@ -98,6 +98,11 @@ export const strategies = pgTable("strategies", {
   // Strategy outputs - THE PRODUCT
   strategy_for_now: text('strategy_for_now'), // Immediate 1-hour tactical strategy (STRATEGY_TACTICAL role)
 
+  // 2026-05-03 Workstream 6 Step 3: rolled-up venue-catalog cache stats from
+  // tactical-planner.js's catalog-first resolve chain.
+  // Shape: { hits: int, misses: int, hit_rate: float|null }. Null when tactical-planner did not run.
+  venue_cache_metrics: jsonb('venue_cache_metrics'),
+
   // Timestamps
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

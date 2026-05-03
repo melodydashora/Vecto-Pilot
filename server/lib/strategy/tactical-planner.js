@@ -38,8 +38,15 @@ import { z } from "zod";
 import { safeJsonParse } from "../../api/utils/http-helpers.js";
 import { formatBriefingForPrompt } from "../briefing/filter-for-planner.js";
 // 2026-04-16 (P0-6): Import resolver + catalog for post-LLM coordinate resolution
+// 2026-05-03 Workstream 6 Step 3: catalog-first cache enforcement — lookupVenue
+// short-circuits the Places API call when the venue is already in venue_catalog.
+// Plan: docs/review-queue/PLAN_workstream6_step3_api_cache_enforcement-2026-05-03.md
 import { searchPlaceByText } from "../venue/venue-enrichment.js";
-import { getVenuesByType } from "../venue/venue-cache.js";
+import { getVenuesByType, lookupVenue, normalizeVenueName } from "../venue/venue-cache.js";
+import { normalizeDistrictSlug } from "../venue/district-detection.js";
+import { db } from "../../db/drizzle.js";
+import { venue_catalog } from "../../../shared/schema.js";
+import { and, eq, ilike } from "drizzle-orm";
 // 2026-04-16: Import driver preferences for prompt injection + deadhead flagging
 import { loadDriverPreferences, buildDriverPreferencesSection } from "../ai/providers/consolidator.js";
 // 2026-04-27 (Commit 6 of CLEAR_CONSOLE_WORKFLOW): emoji-prefixed raw console.log
@@ -71,6 +78,109 @@ const GPT5ResponseSchema = z.object({
 
 const TARGET_VENUE_COUNT = 6;
 
+// ============================================================================
+// 2026-05-03 Workstream 6 Step 3 — catalog-first venue resolution
+// ============================================================================
+//
+// Replaces the previous "Places API first, catalog fallback by category" chain
+// at the per-venue resolve step. The wrapper checks venue_catalog by exact
+// normalized name + city + state BEFORE issuing a paid Places API text search;
+// the API call only fires on cache miss (or when the cached venue is closed
+// and needs re-validation).
+//
+// Locked-in decisions (plan §8):
+//  - Lookup is exact-only via lookupVenue (fuzzy deferred — false-positive
+//    fuzzy match in the rideshare domain is catastrophic).
+//  - Closure-status check is the only freshness gate (no TTL in Step 3).
+//  - District tie-break is wrapper-level — lookupVenue's contract stays pure;
+//    multi-row collisions on (normalized_name, city, state) are resolved here.
+//  - Per-call structured logs use CACHE_HIT / CACHE_MISS action verbs.
+//  - Rolled-up { hits, misses, hit_rate } counter is persisted to
+//    strategies.venue_cache_metrics by enhanced-smart-blocks (the caller).
+//
+// Returns the same shape as searchPlaceByText so the call sites stay stable:
+//   { place_id, google_name, business_status, formatted_address, isOpen,
+//     businessHours, allHours, similarity, matchMethod, google_lat, google_lng }
+export async function resolveVenueWithCache(venue, ctx) {
+  const { city, state, tz, cacheMetrics } = ctx;
+
+  let cached = null;
+
+  if (venue.name && city && state) {
+    cached = await lookupVenue({ venueName: venue.name, city, state });
+
+    // District tie-break: lookupVenue returns a single row by (normalized_name,
+    // city, state). When the catalog holds multiple rows for the same name in
+    // the same city (chain locations across districts) and the LLM specified a
+    // district, prefer the row whose district_slug matches. Single extra query
+    // only on detected mismatch — common path stays at one DB roundtrip.
+    if (cached && venue.district) {
+      const targetSlug = normalizeDistrictSlug(venue.district);
+      if (targetSlug && cached.district_slug && cached.district_slug !== targetSlug) {
+        const normalized = normalizeVenueName(venue.name);
+        if (normalized) {
+          const candidates = await db.select().from(venue_catalog)
+            .where(and(
+              eq(venue_catalog.normalized_name, normalized),
+              ilike(venue_catalog.city, city),
+              eq(venue_catalog.state, state.toUpperCase())
+            ))
+            .limit(5);
+          const better = candidates.find(c => c.district_slug === targetSlug);
+          if (better) cached = better;
+        }
+      }
+    }
+  }
+
+  if (cached && cached.lat != null && cached.lng != null) {
+    const closed = cached.last_known_status === 'permanently_closed'
+                || cached.last_known_status === 'temporarily_closed';
+    if (!closed) {
+      cacheMetrics.hits++;
+      matrixLog.info({
+        category: 'VENUE',
+        connection: 'DB',
+        action: 'CACHE_HIT',
+        tableName: 'VENUE_CATALOG',
+        location: 'tactical-planner.js:resolveVenueWithCache',
+      }, `Cache hit for "${venue.name}" (place_id: ${cached.place_id || 'none'})`);
+
+      return {
+        place_id: cached.place_id || null,
+        google_name: cached.venue_name,
+        business_status: 'OPERATIONAL',
+        formatted_address: cached.formatted_address || cached.address || null,
+        isOpen: null,
+        businessHours: cached.business_hours || null,
+        allHours: null,
+        similarity: 1.0,
+        matchMethod: 'cache_hit',
+        google_lat: parseFloat(cached.lat),
+        google_lng: parseFloat(cached.lng),
+      };
+    }
+    // Closed venue → fall through to Places API to re-verify or replace
+  }
+
+  cacheMetrics.misses++;
+  matrixLog.info({
+    category: 'VENUE',
+    connection: 'DB',
+    action: 'CACHE_MISS',
+    tableName: 'VENUE_CATALOG',
+    secondaryCat: 'PLACES',
+    location: 'tactical-planner.js:resolveVenueWithCache',
+  }, `Cache miss for "${venue.name}" — calling Places API`);
+
+  let placeResult = await searchPlaceByText(venue.name, venue.district || null, city, state, tz);
+  if (!placeResult && venue.district) {
+    venuesLog.debug(`Retry without district: "${venue.name}" (was: ${venue.district})`);
+    placeResult = await searchPlaceByText(venue.name, null, city, state, tz);
+  }
+  return placeResult;
+}
+
 /**
  * Generate tactical venue recommendations using VENUE_SCORER role
  *
@@ -95,6 +205,10 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
   const startTime = Date.now();
   const driverAddress = snapshot?.formatted_address || `${snapshot?.city}, ${snapshot?.state}` || 'unknown';
+
+  // 2026-05-03 Workstream 6 Step 3: rolled-up venue-catalog cache stats; mutated
+  // by resolveVenueWithCache and surfaced on the return value's cache_metrics.
+  const cacheMetrics = { hits: 0, misses: 0 };
 
   // 2026-04-16: Load driver preferences (single indexed DB row lookup, sub-ms).
   // If profile doesn't exist or user_id is null, returns defaults with profile_loaded=false.
@@ -444,14 +558,12 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
     for (const venue of llmVenues) {
       const districtInfo = venue.district ? ` @ ${venue.district}` : '';
 
-      // Step 1: RESOLVE — full text search with district
-      let placeResult = await searchPlaceByText(venue.name, venue.district || null, city, state, tz);
-
-      // Step 2: RETRY — drop district from query string
-      if (!placeResult && venue.district) {
-        venuesLog.debug(`Retry without district: "${venue.name}" (was: ${venue.district})`);
-        placeResult = await searchPlaceByText(venue.name, null, city, state, tz);
-      }
+      // Step 1: RESOLVE — catalog-first cache lookup (Workstream 6 Step 3, 2026-05-03).
+      // Wrapper checks venue_catalog by exact normalized name + city + state and only
+      // falls through to Places API on cache miss. Replaces the prior Pass 1 text
+      // search → Pass 2 catalog-by-category fallback ordering. Per-venue retry
+      // (drop district) is encapsulated inside the wrapper.
+      let placeResult = await resolveVenueWithCache(venue, { city, state, tz, cacheMetrics });
 
       if (placeResult && placeResult.google_lat != null && placeResult.google_lng != null) {
         resolvedVenues.push({
@@ -542,10 +654,8 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
           for (const rv of replacementParsed.replacements.slice(0, needed)) {
             if (resolvedVenues.length >= TARGET_VENUE_COUNT) break;
 
-            let rvResult = await searchPlaceByText(rv.name, rv.district || null, city, state, tz);
-            if (!rvResult && rv.district) {
-              rvResult = await searchPlaceByText(rv.name, null, city, state, tz);
-            }
+            // 2026-05-03 Workstream 6 Step 3: catalog-first lookup for replacement venues.
+            let rvResult = await resolveVenueWithCache(rv, { city, state, tz, cacheMetrics });
 
             if (rvResult && rvResult.google_lat != null && rvResult.google_lng != null) {
               resolvedVenues.push({
@@ -631,6 +741,21 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       console.log(`   ${i+1}. "${v.name}"${districtInfo} (${v.category})${tag}${deadheadTag}`);
     });
 
+    // 2026-05-03 Workstream 6 Step 3: compute final cache-hit rate. NULL when no
+    // resolutions ran (e.g., LLM returned 0 venues). Surfaces the rolled-up
+    // counter on the return value; enhanced-smart-blocks persists it to
+    // strategies.venue_cache_metrics.
+    const totalResolves = cacheMetrics.hits + cacheMetrics.misses;
+    const cache_metrics = {
+      hits: cacheMetrics.hits,
+      misses: cacheMetrics.misses,
+      hit_rate: totalResolves > 0 ? cacheMetrics.hits / totalResolves : null,
+    };
+
+    if (totalResolves > 0) {
+      venuesLog.info(`Cache: ${cacheMetrics.hits}/${totalResolves} hits (${(cache_metrics.hit_rate * 100).toFixed(0)}%)`);
+    }
+
     // Prepare final response — staging location is name+reason only (no coords)
     const normalized = {
       recommended_venues: resolvedVenues.map((v, i) => ({
@@ -641,6 +766,7 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       tactical_summary: validated.tactical_summary,
       degraded,
       degradedReason,
+      cache_metrics,
       metadata: {
         model: process.env.STRATEGY_CONSOLIDATOR || "gpt-5.5-2026-04-23",
         duration_ms: Date.now() - startTime, // includes resolution time
