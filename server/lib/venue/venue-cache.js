@@ -192,7 +192,6 @@ export async function lookupVenueFuzzy(criteria) {
  * @param {string} [venue.venueType] - Type (stadium, arena, bar, restaurant, etc.)
  * @param {string[]} [venue.venueTypes] - Multiple types ['bar', 'event_host']
  * @param {number} [venue.capacityEstimate] - Estimated capacity
- * @param {string} [venue.sourceModel] - AI model if from LLM
  * @param {number} [venue.expenseRank] - 1-4 expense ranking
  * @param {string} [venue.category] - Category for venue_catalog
  * @param {string} [venue.country] - Country code (ISO-2, default: 'US')
@@ -244,7 +243,6 @@ export async function insertVenue(venue) {
     category: venue.category || venue.venueType || 'venue',
     capacity_estimate: venue.capacityEstimate,
     source: venue.source,
-    source_model: venue.sourceModel,
     expense_rank: venue.expenseRank,
     discovery_source: venue.source,
     district: district,
