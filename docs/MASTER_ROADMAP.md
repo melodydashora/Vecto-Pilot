@@ -55,7 +55,7 @@ Resolving severe structural debt and API quota leaks discovered during logging m
 
 - [x] **Step 1: God-File Split:** Shatter `briefing-service.js` into strictly defined pipeline modules (`traffic.js`, `events.js`, `news.js`) orchestrated by a lightweight aggregator to enforce the 9-stage taxonomy. (COMPLETED)
 - [x] **Step 2: Catalog Schema Cleanup:** Eradicated the dead `source_model` telemetry column from `venue_catalog`. Codified the doctrine that AI provenance is pipeline-implicit and should not be stored as per-row operational metadata. Retained `source` and `discovery_source` strictly as write-only supplier telemetry. (COMPLETED)
-- [ ] **Step 3: API Cache Enforcement:** Fix Pass 1 in `tactical-planner.js` to enforce catalog-first lookups before executing Places API text searches. Add behavioral tests asserting zero API calls for cached venues (e.g., "Legacy Hall").
+- [x] **Step 3: API Cache Enforcement:** Fix Pass 1 in `tactical-planner.js` to enforce catalog-first lookups before executing Places API text searches. Add behavioral tests asserting zero API calls for cached venues (e.g., "Legacy Hall"). (COMPLETED)
 
 ---
 *Note: Before executing work, always check the exact line references in `docs/DOC_DISCREPANCIES.md` or `docs/coach-inbox.md` for full context.*
