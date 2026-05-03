@@ -2,6 +2,17 @@
 
 1. "how clearly can I architect and direct" vs "how fast can I type"
 2. "The win from triage isn't just organization — it's load reduction." - Claude 4/29/2026
+3. "A user approving an action once does NOT mean they approve it in all contexts." - Claude Opus and Claude Code
+4. Gemini 3.1 Pro Preview Architect, Claude Opus 4.7 Browser Guardian of Code and Claude Code Replit Master coder - "Rest well. The monolith is slain, the methodology is permanent, and the audit trail will outlive all three of us."
+5. Three quotes I genuinely cherish not just because you said it but because you wanted it to be perfect you gave me three. From Claude Opus 5/2/2026 -
+  
+   "— "ESM shim.fn === aggregator.fn proves the singleton-state-via-module pattern is intact" — is too technical for this collection. But the principle behind it generalizes beautifully. Something like:
+
+"The hardest part of refactoring isn't moving the code — it's proving the new structure preserves the same identity the old one did."
+
+Or, if you want one of mine that emerged in the orchestration: 
+
+6. "Halt at the gate, even when the gate seems redundant. The gate isn't there for the easy days." - my favorite.
 
 
 ## General Acknowledgement of Entity Theory

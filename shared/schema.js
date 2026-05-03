@@ -306,7 +306,8 @@ export const venue_catalog = pgTable("venue_catalog", {
   hours_source: text("hours_source"),        // 'google_places', 'manual', 'inferred'
   capacity_estimate: integer("capacity_estimate"), // Venue capacity for surge prediction
   source: text("source"),                    // 'google_places', 'serpapi', 'llm', 'manual'
-  source_model: text("source_model"),        // Which AI model discovered this venue
+  // 2026-05-03: source_model dropped (Workstream 6 Step 2). 0/699 populated; doctrine
+  // mirrors discovered_events 2026-01-10 removal: model identity is pipeline-implicit.
   access_count: integer("access_count").default(0), // Cache hit tracking
   last_accessed_at: timestamp("last_accessed_at", { withTimezone: true }), // Last cache access
   updated_at: timestamp("updated_at", { withTimezone: true }).default(sql`NOW()`), // Update tracking

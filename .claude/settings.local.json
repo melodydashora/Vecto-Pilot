@@ -336,7 +336,16 @@
       "Bash(read f *)",
       "Bash(npm i *)",
       "Bash(sed -n '19,70p' client/src/components/MapTab.tsx)",
-      "Bash(sed -n '59,130p' client/src/components/strategy/StrategyMap.tsx)"
+      "Bash(sed -n '59,130p' client/src/components/strategy/StrategyMap.tsx)",
+      "Bash(git -C .worktrees/logger-tier3 status --short)",
+      "Bash(git -C .worktrees/logger-tier3 branch --show-current)",
+      "Bash(git *)",
+      "Bash(sed -i '704,917d' server/lib/briefing/briefing-service.js)",
+      "Bash(sed -n '698,712p' server/lib/briefing/briefing-service.js)",
+      "Bash(sed -i '3133,3210d' server/lib/briefing/briefing-service.js)",
+      "Bash(sed -n '3128,3140p' server/lib/briefing/briefing-service.js)",
+      "Bash(sed -i '1753,1877d' server/lib/briefing/briefing-service.js)",
+      "Bash(sed -n '1748,1760p' server/lib/briefing/briefing-service.js)"
     ],
     "deny": [],
     "ask": []

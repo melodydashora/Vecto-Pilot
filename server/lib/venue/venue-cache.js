@@ -181,7 +181,10 @@ export async function lookupVenueFuzzy(criteria) {
  * @param {string} venue.state - State code
  * @param {number} venue.lat - Latitude (full precision)
  * @param {number} venue.lng - Longitude (full precision)
- * @param {string} venue.source - Where data came from
+ * @param {string} venue.source - External supplier (e.g., 'google_places_new', 'serpapi', 'llm', 'manual')
+ * @param {string} [venue.discoverySource] - Internal flow that added the row
+ *   (e.g., 'briefing_discovery', 'address_resolver'). Defaults to venue.source for back-compat;
+ *   prefer passing a distinct value so the supplier vs flow distinction is preserved.
  * @param {string} [venue.address] - Street address
  * @param {string} [venue.formattedAddress] - Full formatted address
  * @param {string} [venue.zip] - ZIP code
@@ -192,7 +195,6 @@ export async function lookupVenueFuzzy(criteria) {
  * @param {string} [venue.venueType] - Type (stadium, arena, bar, restaurant, etc.)
  * @param {string[]} [venue.venueTypes] - Multiple types ['bar', 'event_host']
  * @param {number} [venue.capacityEstimate] - Estimated capacity
- * @param {string} [venue.sourceModel] - AI model if from LLM
  * @param {number} [venue.expenseRank] - 1-4 expense ranking
  * @param {string} [venue.category] - Category for venue_catalog
  * @param {string} [venue.country] - Country code (ISO-2, default: 'US')
@@ -244,9 +246,11 @@ export async function insertVenue(venue) {
     category: venue.category || venue.venueType || 'venue',
     capacity_estimate: venue.capacityEstimate,
     source: venue.source,
-    source_model: venue.sourceModel,
     expense_rank: venue.expenseRank,
-    discovery_source: venue.source,
+    // 2026-05-03: prefer venue.discoverySource (internal flow) over venue.source (external
+    // supplier) so the two columns encode distinct facts. Fallback preserves callers that
+    // haven't been updated yet — the address-resolver path already passes them separately.
+    discovery_source: venue.discoverySource || venue.source,
     district: district,
     district_slug: districtSlug,
     access_count: 1,
