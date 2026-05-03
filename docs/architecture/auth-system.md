@@ -2,6 +2,8 @@
 
 JWT-based authentication with user isolation. **All users must be signed in** to use the app.
 
+> **Updated 2026-05-03 for AUTH-003 migration.** Until 2026-05-03 this doc described the system as "JWT" but the actual format was a custom 2-segment `userId.HMAC-SHA256(userId, secret)` — the doctrine was ahead of the code. Post-AUTH-003, tokens are real JWTs (HS256, claims `sub`/`iat`/`exp`/`iss`/`aud`) issued via `server/lib/jwt.js` using the `jose` library. Legacy 2-segment tokens are still accepted during the transition window via dual-verify dispatch (`server/middleware/auth.js`). Canonical token lifecycle reference: `docs/architecture/AUTH.md` §2.
+
 ## Architecture Overview (December 2025)
 
 ```
@@ -82,7 +84,7 @@ const response = await fetch('/api/briefing/weather/' + snapshotId, {
 // Server: requireAuth middleware
 const token = req.headers.authorization?.split(' ')[1];
 if (!token) return res.status(401).json({ error: 'no_token' });
-const payload = verifyAppToken(token); // HMAC verification
+const payload = await verifyAppToken(token); // 2026-05-03: dual-verify dispatch by segment count — JWT (3 segs) or legacy HMAC (2 segs)
 req.auth = { userId: payload.userId };
 next();
 

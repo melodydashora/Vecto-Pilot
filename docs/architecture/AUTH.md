@@ -129,19 +129,26 @@ Returns 403 in production. In dev: generates token for testing without validatio
 
 ### Creation
 
-**Function:** `generateAuthToken(userId, email)` — `server/api/auth/auth.js` (lines 43–58)
+**Function:** `generateAuthToken(userId)` — `server/api/auth/auth.js`. Internally calls `signJWT({ sub: userId })` from `server/lib/jwt.js`.
 
-**Format:** `userId.hmacSha256Signature` — this is a **custom HMAC format, NOT a JWT**.
+**Format (since 2026-05-03, AUTH-003):** Standard 3-segment JWT (HS256), per RFC 7519.
 
 ```
-Token = userId + "." + HMAC-SHA256(userId, secret)
+header  = { "alg": "HS256", "typ": "JWT" }
+payload = { "sub": <userId>, "iat": <issued unix>, "exp": <iat + 2h>, "iss": "vecto-pilot", "aud": "vecto-pilot-api" }
+sig     = HMAC-SHA256(base64url(header).base64url(payload), secret)
+token   = base64url(header) + "." + base64url(payload) + "." + base64url(sig)
 ```
+
+**Algorithm pinned:** `verifyJWT` passes `algorithms: ['HS256']` to `jose.jwtVerify` — defends against algorithm-confusion attacks (e.g., an attacker crafts a token with `alg: none` or `alg: HS512` to bypass signature validation).
 
 **Secret source:**
-- Production: `JWT_SECRET` env var (required)
+- Production: `JWT_SECRET` env var (required, validated at startup via `server/config/validate-env.js`)
 - Dev: Falls back to `REPLIT_DEVSERVER_INTERNAL_ID` (per-workspace unique)
 
-**No expiry encoded in token.** Expiry is enforced via server-side session TTL (see [Session Management](#4-session-management)).
+**Token-level expiry:** `exp = iat + 2h`, aligned to the existing session hard-limit. When the JWT expires, the server-side session has expired anyway, so no refresh-token endpoint is needed in v1. Future: short-lived (15m) access + long-lived (7d) refresh tokens (separate workstream, not currently scheduled).
+
+**Legacy format (transition window):** Pre-AUTH-003 tokens were `userId.HMAC-SHA256(userId, secret)` — 2 segments, no claims. They are still verified during the transition via the dual-verify dispatcher in `server/middleware/auth.js` (segment-count routing). Legacy verifier deletion is the Phase 1.5 cleanup PR (~T+24h post-deploy, when matrixLog `[AUTH] [LEGACY_HMAC_USED]` count drops to 0).
 
 ### Storage
 
@@ -152,19 +159,40 @@ Token = userId + "." + HMAC-SHA256(userId, secret)
 
 ### Verification
 
-**Function:** `verifyAppToken(token)` — `server/middleware/auth.js` (lines 71–108)
+**Function:** `verifyAppToken(token)` — `server/middleware/auth.js`. Async dispatcher (since 2026-05-03, AUTH-003).
 
-1. Splits token on `.`
-2. Regenerates HMAC-SHA256 signature with same secret
-3. Constant-time comparison
-4. Returns `{ userId, verified: true }` on success
-5. Throws `"Invalid or expired token"` on failure
+```
+verifyAppToken(token):
+  segments = token.split('.')
+  if segments.length === 3 → verifyJWT(token)        // server/lib/jwt.js — jose-based, HS256-pinned
+  if segments.length === 2 → verifyLegacyHMAC(token) // middleware/auth.js — legacy path, removed in Phase 1.5
+  else → throw 'Invalid token format'
+```
+
+**JWT verification (`verifyJWT`):**
+1. Decodes header + payload (jose)
+2. Verifies HMAC-SHA256 signature with the configured secret
+3. Validates `iss === 'vecto-pilot'`, `aud === 'vecto-pilot-api'`, `exp > now`, `alg === 'HS256'`
+4. Throws on any failure (malformed, tampered, expired, wrong issuer/audience/algorithm, missing `sub`)
+5. Returns `{ userId: payload.sub, verified: true }` on success
+
+**Legacy HMAC verification (`verifyLegacyHMAC`, removed in Phase 1.5):**
+1. Splits `userId.signature`
+2. Recomputes HMAC-SHA256(userId, secret), compares to received signature
+3. Validates userId length ≥ 8
+4. Emits matrixLog `[AUTH] [LEGACY_HMAC_USED]` per call (drain-tracking metric — Phase 1.5 cleanup gates on this hitting 0)
+5. Returns `{ userId, verified: true }` on success
+
+**No fall-through between paths.** A 3-segment token that fails JWT verification does NOT get retried as legacy HMAC. Each segment count maps to exactly one verifier — preventing downgrade attacks where an attacker strips a segment to bypass JWT validation.
 
 ### Revocation
 
-There is no token blacklist. "Revocation" works by clearing the session:
-- `users.session_id` set to `null` on logout
-- Next `requireAuth` call sees `session_id = null` → returns 401
+Two complementary mechanisms (since 2026-05-03, AUTH-003):
+
+1. **Token-level expiry:** JWT `exp` claim caps validity at 2 hours from issuance. After expiry, `verifyJWT` rejects regardless of server-side session state.
+2. **Session-level revocation:** `users.session_id` set to `null` on logout (or when the 2-hour hard limit fires in `requireAuth`). Next `requireAuth` call sees `session_id = null` → returns 401.
+
+There is still no JWT blacklist. A leaked token is valid until `exp` (≤2h) or until the session is cleared, whichever comes first. For a true blacklist, see the deferred refresh-token mechanism (separate workstream).
 
 ---
 
@@ -348,7 +376,7 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 | Google OAuth | Working, production-tested |
 | Uber OAuth | Working (platform data integration, not login) |
 | Apple OAuth | Stub only — returns 501 |
-| Token format | Custom HMAC-SHA256 (not standard JWT) |
+| Token format | Standard JWT (HS256) — claims `sub`/`iat`/`exp`/`iss`/`aud`. Migrated 2026-05-03 (AUTH-003). Legacy 2-segment HMAC tokens still accepted during transition (Phase 1.5 PR removes legacy path). |
 | Session TTL (60 min sliding + 2 hr hard) | Enforced in middleware |
 | Logout cleanup | Complete (7-step cascade with zombie fix) |
 | Account lockout | 5 failures = 15-min lock |
@@ -364,7 +392,7 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 
 2. **No token refresh/rotation** — Token is valid until session expires. No refresh token mechanism. If token is stolen, attacker has access until 2-hour hard limit.
 
-3. **Token format is non-standard** — Custom `userId.hmacSignature` instead of JWT. No `exp` claim, no `iat`, no audience/issuer validation. Token verification is signature-only.
+3. ~~**Token format is non-standard**~~ → **RESOLVED 2026-05-03 (AUTH-003).** Tokens are now standard JWTs (HS256) with `sub`/`iat`/`exp`/`iss`/`aud` claims, signed/verified via `server/lib/jwt.js` using the `jose` library. Algorithm pinned via `algorithms: ['HS256']` to defend against algorithm-confusion attacks. See §2.
 
 4. **No email verification on registration** — Account is immediately usable after registration. No email confirmation flow.
 
@@ -382,7 +410,7 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 
 - [ ] **Add dedicated auth rate limiter** — 10 login attempts/min per IP, 5/min per email
 - [ ] **Implement token refresh** — Short-lived access token (15 min) + refresh token (7 days)
-- [ ] **Migrate to standard JWT** — Add `exp`, `iat`, `iss`, `aud` claims for interop and security
+- [x] **Migrate to standard JWT** — DONE 2026-05-03 via AUTH-003. HS256 + claims `sub`/`iat`/`exp`/`iss`/`aud` via `server/lib/jwt.js`. RS256 (asymmetric — third-party verifiers can validate without holding the signing secret) deferred to a separate Phase 2 PR with keypair-rotation runbook.
 - [ ] **Add email verification** — Send confirmation link on registration, require verification before first login
 - [ ] **Enforce OAuth profile completion** — Redirect new OAuth users to complete vehicle/preferences
 - [ ] **Implement Apple OAuth** — Required for iOS App Store submission
@@ -397,8 +425,9 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 
 | File | Purpose |
 |------|---------|
-| `server/middleware/auth.js` | `requireAuth`, `optionalAuth`, `verifyAppToken` |
-| `server/api/auth/auth.js` | All auth routes (login, register, logout, OAuth, reset) |
+| `server/lib/jwt.js` | `signJWT` / `verifyJWT` helpers (jose-based, HS256, claims pinned). New 2026-05-03 (AUTH-003) — replaces former `lib/jwt.ts` dev stub. |
+| `server/middleware/auth.js` | `requireAuth`, `optionalAuth`, `verifyAppToken` (dual-verify dispatcher), `verifyLegacyHMAC` (transition path, deleted in Phase 1.5) |
+| `server/api/auth/auth.js` | All auth routes (login, register, logout, OAuth, reset). `generateAuthToken` calls `signJWT`. |
 | `server/lib/auth/password.js` | bcrypt hash/verify, password strength validation |
 | `server/lib/auth/oauth/google-oauth.js` | Google OAuth utilities |
 | `server/lib/auth/oauth/uber-oauth.js` | Uber OAuth + AES-256-GCM token encryption |

@@ -433,64 +433,17 @@ router.get('/resolve', async (req, res) => {
     const lng = Number(req.query.lng);
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // AUTH: Extract authenticated user_id from Authorization header ONLY
-    // 2026-01-09: P0-2 FIX - Removed query param bypass (was security vulnerability)
-    // IMPORTANT: If a token was provided but invalid, reject the request entirely
-    // to prevent stale tokens from creating orphan snapshots
+    // AUTH: requireAuth middleware (line 30: router.use(requireAuth)) has already
+    // verified the token and populated req.auth.userId before this handler runs.
+    // 2026-05-03: AUTH-003 — Removed inline HMAC verifier (Rule 9: duplicate logic).
+    //   The 53-line inline verifier was redundant with requireAuth AND would have
+    //   silently rejected new JWT-format tokens because it only knew HMAC. Now
+    //   delegated to middleware/auth.js verifyAppToken which dual-dispatches by
+    //   token segment count.
+    // 2026-01-09: P0-2 FIX (preserved) — `?user_id=` query param bypass was removed.
+    //   Authentication MUST come from validated Authorization header only.
     // ═══════════════════════════════════════════════════════════════════════════
-    let authenticatedUserId = null;
-    let tokenWasAttempted = false; // Track if auth was attempted (reject if it fails)
-    const authHeader = req.get('Authorization');
-
-    if (authHeader?.startsWith('Bearer ')) {
-      tokenWasAttempted = true;
-      try {
-        // Token format is "userId.hmacSignature" (NOT JWT)
-        // Use same verification as auth middleware
-        const token = authHeader.slice(7);
-        const [userId, signature] = token.split('.');
-
-        // 2026-01-09: P0-2 FIX - Removed sensitive token logging
-        // Token prefixes and userIds were being logged, exposing auth details
-
-        if (!userId || !signature) {
-          throw new Error('Invalid token format - expected userId.signature');
-        }
-
-        // Verify HMAC signature
-        // 2026-01-05: Must match fallback in auth.js for consistency
-        // 2026-03-17: SECURITY FIX (F-10) — Removed hardcoded dev secret fallback
-        const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
-        const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
-
-        // 2026-01-07: DEBUG - Log signature comparison
-        console.log('[LOCATION] [API] Secret source:', process.env.JWT_SECRET ? 'JWT_SECRET' : (process.env.REPLIT_DEVSERVER_INTERNAL_ID ? 'REPLIT_ID' : 'fallback'));
-        console.log('[LOCATION] [API] Sig match:', signature === expectedSig);
-
-        if (signature !== expectedSig) {
-          console.error('[LOCATION] [API] Signature mismatch!');
-          console.error('[LOCATION] [API] Expected sig prefix:', expectedSig.substring(0, 20));
-          console.error('[LOCATION] [API] Received sig prefix:', signature.substring(0, 20));
-          throw new Error('Invalid signature');
-        }
-
-        // Validate userId format (UUID or at least 8 chars)
-        if (!userId || userId.length < 8) {
-          throw new Error('Invalid userId format');
-        }
-
-        authenticatedUserId = userId;
-        console.log(`[LOCATION] [API] Authenticated user: ${authenticatedUserId}`);
-      } catch (tokenErr) {
-        console.warn('[LOCATION] [API] Invalid auth token:', tokenErr.message);
-        // Token was provided but invalid - reject to prevent orphan snapshots
-        return res.status(401).json({
-          error: 'INVALID_TOKEN',
-          message: 'Authentication token is invalid or expired. Please sign in again.',
-          ok: false
-        });
-      }
-    }
+    const authenticatedUserId = req.auth?.userId || null;
     // 2026-01-09: P0-2 FIX - REMOVED user_id query param bypass
     // Previous code allowed impersonation: ?user_id=X would authenticate as user X
     // Authentication MUST come from validated Authorization header only

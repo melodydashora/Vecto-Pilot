@@ -35,34 +35,39 @@ import { requireAuth } from '../../middleware/auth.js';
 import { matrixLog } from '../../logger/workflow.js';
 import { geocodeAddress } from '../../lib/location/geocode.js';
 import { validateAddress } from '../../lib/location/address-validation.js';
+import { signJWT } from '../../lib/jwt.js';
 
 const router = Router();
 
-// 2026-03-17: SECURITY FIX (F-10) — Removed hardcoded 'dev-secret-change-in-production' fallback.
+// 2026-03-17: SECURITY FIX (F-10) — No hardcoded fallback secret.
 // REPLIT_DEVSERVER_INTERNAL_ID is per-workspace (not predictable), acceptable for dev.
-const JWT_SECRET = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
-if (!JWT_SECRET) {
+// 2026-05-03: AUTH-003 — JWT signing/verification moved to server/lib/jwt.js.
+// This block is the startup-time fail-fast check; runtime uses signJWT/verifyJWT.
+if (!process.env.JWT_SECRET && !process.env.REPLIT_DEVSERVER_INTERNAL_ID) {
   matrixLog.error({
     category: 'AUTH',
     action: 'BOOT_FAIL',
     location: 'auth.js:module',
-  }, 'JWT_SECRET missing — token signing will fail');
+  }, 'JWT_SECRET (or REPLIT_DEVSERVER_INTERNAL_ID dev fallback) missing — JWT signing will fail');
 }
 
 /**
- * Generate an HMAC auth token for a user
+ * Generate an auth token (JWT, HS256) for a user.
+ * Format: standard 3-segment JWT with claims sub/iat/exp/iss/aud (see server/lib/jwt.js).
+ * Legacy 2-segment HMAC tokens (userId.signature) issued before AUTH-003 are still
+ * verified during the transition window via middleware/auth.js dual-verify dispatch.
  * @param {string} userId - User UUID
- * @param {string} email - User email (optional, for logging)
- * @returns {string} Auth token (userId.hmacSignature format, not standard JWT)
+ * @param {string} _email - User email (no longer used; kept for call-site signature stability)
+ * @returns {Promise<string>} JWT
  */
-function generateAuthToken(userId, email = '') {
-  const signature = crypto.createHmac('sha256', JWT_SECRET).update(userId).digest('hex');
+async function generateAuthToken(userId, _email = '') {
+  const token = await signJWT({ sub: userId });
   matrixLog.info({
     category: 'AUTH',
     action: 'TOKEN_ISSUE',
     location: 'auth.js:generateAuthToken',
-  }, `Token generated for ${userId.substring(0, 8)}`);
-  return `${userId}.${signature}`;
+  }, `JWT issued for ${userId.substring(0, 8)}`);
+  return token;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -501,7 +506,7 @@ router.post('/register', async (req, res) => {
     }, `Auth credentials created for user ${newUser.user_id.substring(0, 8)} (creds id: ${createdCreds?.id?.substring(0, 8) || 'none'})`);
 
     // Generate auth token
-    const token = generateAuthToken(newUser.user_id, email);
+    const token = await generateAuthToken(newUser.user_id, email);
 
     // Send welcome email (non-blocking)
     sendWelcomeEmail(email, firstName).catch(err => {
@@ -774,7 +779,7 @@ router.post('/login', async (req, res) => {
     }, `Session created for user ${profile.user_id.substring(0, 8)} (session ${newSessionId.substring(0, 8)})`);
 
     // Generate token
-    const token = generateAuthToken(profile.user_id, email);
+    const token = await generateAuthToken(profile.user_id, email);
 
     // Fetch vehicle
     const vehicle = await db.query.driver_vehicles.findFirst({
@@ -1739,7 +1744,7 @@ router.post('/google/exchange', async (req, res) => {
     }
 
     // 7. Generate app token
-    const token = generateAuthToken(activeProfile.user_id, activeProfile.email);
+    const token = await generateAuthToken(activeProfile.user_id, activeProfile.email);
 
     // 8. Fetch vehicle for response (may be null for new Google users)
     const vehicle = await db.query.driver_vehicles.findFirst({
@@ -1865,7 +1870,7 @@ router.post('/token', async (req, res) => {
     return res.status(400).json({ error: 'user_id required' });
   }
 
-  const token = generateAuthToken(user_id, 'dev-token');
+  const token = await generateAuthToken(user_id, 'dev-token');
 
   res.json({
     token,
