@@ -139,7 +139,7 @@ export const ENV_VARS = {
   // === Auth ===
   JWT_SECRET: {
     required: false,
-    description: 'JWT signing secret (dev fallback available)',
+    description: 'JWT (HS256) signing secret — see server/lib/jwt.js (dev fallback: REPLIT_DEVSERVER_INTERNAL_ID)',
     sensitive: true,
   },
   AGENT_TOKEN: {

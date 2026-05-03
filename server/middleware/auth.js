@@ -1,10 +1,11 @@
 // server/middleware/auth.js
 // Converted from auth.ts to JavaScript for Node.js compatibility
 import crypto from 'crypto';
-import { authLog } from '../logger/workflow.js';
+import { authLog, matrixLog } from '../logger/workflow.js';
 import { db } from '../db/drizzle.js';
 import { users } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
+import { verifyJWT } from '../lib/jwt.js';
 
 // 2026-01-05: Session TTL Constants (per SAVE-IMPORTANT.md)
 const SESSION_SLIDING_WINDOW_MS = 60 * 60 * 1000;   // 60 min sliding window
@@ -67,42 +68,57 @@ function validateAgentAuth(req) {
   return SYSTEM_AGENT_USER_ID;
 }
 
-// Auth token functions — HMAC-SHA256 userId.signature format (not standard JWT despite env var name)
-function verifyAppToken(token) {
-  // Security: Require auth signing secret (JWT_SECRET env var) in production
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
+// 2026-05-03: AUTH-003 dual-verify dispatcher.
+// 3-segment tokens → verifyJWT (standard JWT, HS256, claims sub/iat/exp/iss/aud — see server/lib/jwt.js).
+// 2-segment tokens → verifyLegacyHMAC (transition path; deleted in Phase 1.5 PR
+// once matrixLog [AUTH] [LEGACY_HMAC_USED] count drops to 0, typically T+24h post-deploy).
+// SECURITY: No fall-through between paths — preventing downgrade attacks (a malformed JWT
+// must not be re-tried as HMAC by stripping a segment).
+export async function verifyAppToken(token) {
+  if (typeof token !== 'string' || !token) {
+    throw new Error('Invalid token format');
+  }
+  const segments = token.split('.');
+  if (segments.length === 3) {
+    return await verifyJWT(token);
+  }
+  if (segments.length === 2) {
+    return verifyLegacyHMAC(token);
+  }
+  throw new Error('Invalid token format');
+}
 
+// Legacy HMAC verifier — pre-AUTH-003 token format `userId.HMAC-SHA256(userId, secret)`.
+// Kept ONLY for the transition window. Removed in Phase 1.5 PR (~T+24h post-deploy)
+// once the matrixLog tracker confirms zero legacy traffic.
+function verifyLegacyHMAC(token) {
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.REPLIT_DEPLOYMENT === '1';
   if (isProduction && !process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET must be configured in production');
   }
-
-  // Use auth signing secret (JWT_SECRET env var), fallback to Replit device ID for dev
   const secret = process.env.JWT_SECRET || process.env.REPLIT_DEVSERVER_INTERNAL_ID;
-
   if (!secret) {
     throw new Error('No JWT_SECRET or REPLIT_DEVSERVER_INTERNAL_ID available for token verification');
   }
-  
   try {
-    // Simple token verification: token format is "userId.signature"
     const [userId, signature] = token.split('.');
     if (!userId || !signature) throw new Error('Invalid token format');
-    
-    // Verify signature
     const expectedSig = crypto.createHmac('sha256', secret).update(userId).digest('hex');
     if (signature !== expectedSig) throw new Error('Invalid signature');
-    
-    // Ensure userId exists and is not empty
-    // Accept UUIDs (primary format), emails, and user- prefix formats
     if (!userId || userId.length < 8) {
       throw new Error('Invalid userId format');
     }
-    
-    // Token verified - no log needed (too noisy on every API call)
+    // AUTH-003 migration tracking — intentionally per-call so the legacy traffic
+    // drain is observable. Phase 1.5 PR removes this function + log together.
+    matrixLog.info({
+      category: 'AUTH',
+      action: 'LEGACY_HMAC_USED',
+      location: 'middleware/auth.js:verifyLegacyHMAC',
+    }, `Legacy HMAC token verified for ${userId.substring(0, 8)} — transition window`);
     return { userId, verified: true };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    authLog.error(1, `Token verification failed: ${errMsg}`);
+    authLog.error(1, `Legacy HMAC verification failed: ${errMsg}`);
     throw new Error('Invalid or expired token');
   }
 }
@@ -137,7 +153,7 @@ export async function requireAuth(req, res, next) {
     const hdr = req.headers.authorization || '';
     const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : '';
     if (!token) return res.status(401).json({ error: 'no_token' });
-    const payload = verifyAppToken(token);
+    const payload = await verifyAppToken(token);
 
     // 2026-01-05: Lazy session cleanup (per SAVE-IMPORTANT.md)
     // Check session validity on every authenticated request
@@ -233,7 +249,8 @@ export async function requireAuth(req, res, next) {
 // If token is provided, it validates it. If not, request continues anyway.
 // This supports both unauthenticated and authenticated flows.
 // 2026-01-09: Also supports Service Account auth via x-vecto-agent-secret header
-export function optionalAuth(req, res, next) {
+// 2026-05-03: Made async to await dual-verify dispatch (AUTH-003)
+export async function optionalAuth(req, res, next) {
   try {
     // Check for Agent/Service Account auth first
     const agentUserId = validateAgentAuth(req);
@@ -259,7 +276,7 @@ export function optionalAuth(req, res, next) {
     if (token) {
       // Token provided - verify it
       try {
-        const payload = verifyAppToken(token);
+        const payload = await verifyAppToken(token);
         req.auth = { userId: payload.userId, phantom: isPhantom(payload.userId, payload.tetherSig) };
         console.log(`[AUTH] Token verified for user ${payload.userId.slice(0, 8)}`);
       } catch (e) {

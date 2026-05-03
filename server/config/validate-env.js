@@ -34,11 +34,14 @@ export function validateEnvironment() {
   
   // 2026-03-17: SECURITY FIX (F-12) — Auth secret validation.
   // Production MUST have a proper JWT_SECRET; dev falls back to REPLIT_DEVSERVER_INTERNAL_ID.
+  // 2026-05-03: AUTH-003 — JWT_SECRET now signs standard JWTs (HS256) via server/lib/jwt.js.
+  // Legacy 2-segment HMAC tokens are still verified during the transition window via
+  // server/middleware/auth.js dual-verify dispatch; same secret powers both paths in v1.
   const isProd = process.env.NODE_ENV === 'production';
   if (isProd && !process.env.JWT_SECRET) {
-    errors.push('JWT_SECRET is required in production (token signing will fail)');
+    errors.push('JWT_SECRET is required in production (JWT signing will fail)');
   } else if (!process.env.JWT_SECRET && !process.env.REPLIT_DEVSERVER_INTERNAL_ID) {
-    warnings.push('JWT_SECRET not set and no REPLIT_DEVSERVER_INTERNAL_ID fallback — auth tokens cannot be signed');
+    warnings.push('JWT_SECRET not set and no REPLIT_DEVSERVER_INTERNAL_ID fallback — JWTs cannot be signed');
   }
 
   // 2026-04-09: Promoted to production error. Without this secret, agent/system auth
