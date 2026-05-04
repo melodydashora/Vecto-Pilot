@@ -429,9 +429,16 @@ export default function RideshareCoach({
 
   return (
     <Card className="relative flex flex-col h-[580px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 overflow-hidden shadow-lg rounded-xl">
-      {/* 2026-05-04 (COACH-V1): Driver-safety STOP bar — full-width, 80px tall, always at top.
-          Tap stops Coach TTS only; mic remains listening for the next question. */}
-      <CoachStopBar isSpeaking={isSpeaking} onStop={stopSpeak} />
+      {/* 2026-05-04 (COACH-V1): Driver-safety three-state bar — full-width, 80px tall, always at top.
+          IDLE (green) → tap starts mic via synchronous user gesture (mobile-safe bootstrap).
+          LISTENING (blue) → tap stops mic and sends captured speech.
+          SPEAKING (red) → tap cancels Coach TTS only; mic remains listening. */}
+      <CoachStopBar
+        isSpeaking={isSpeaking}
+        isListening={isListening}
+        onStopSpeak={stopSpeak}
+        onMicToggle={handleMicToggle}
+      />
       {/* Clean Header with Notes Button */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
         <div className="flex items-center justify-center h-8 w-8 rounded-full bg-white/20">
