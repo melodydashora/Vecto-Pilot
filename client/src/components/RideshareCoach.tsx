@@ -14,9 +14,13 @@ const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
 
 // 2026-05-04 (COACH-V1): Hands-free voice stop phrases. Word-boundary, case-insensitive.
 // "stop and output" → stop mic + auto-send the phrase-stripped transcript.
-// "stop replying"  → cancel Coach TTS only; mic stays listening for the next utterance.
+// TTS-stop variants (multiple — testing 2026-05-04 surfaced that "stop replying"
+// is unintuitive while driving; "stop and listen" and "I am done" are the natural
+// phrasings drivers actually use):
+//   "stop replying" / "stop and listen" / "I am done" / "I'm done" → cancel TTS,
+//   mic stays listening for the next utterance.
 const STOP_AND_OUTPUT_REGEX = /\bstop\s+and\s+output\b/i;
-const STOP_REPLYING_REGEX = /\bstop\s+replying\b/i;
+const STOP_REPLYING_REGEX = /\b(stop\s+replying|stop\s+and\s+listen|i'?m\s+done|i\s+am\s+done)\b/i;
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { COACH_STREAMING_TTS_ENABLED } from "@/constants/featureFlags";
@@ -224,12 +228,17 @@ export default function RideshareCoach({
         console.warn('[RideshareCoach] [COACH-V1] Auto-listen: permission denied', err?.message);
       });
 
-    // Tab leave / component unmount → stop mic per Melody's lifecycle spec.
+    // Tab leave / component unmount → stop EVERYTHING audio (mic + TTS).
+    // 2026-05-04 (test feedback): TTS was persisting across tab navigation because
+    // the cleanup only killed the mic. Streaming chunks kept draining their buffer
+    // independently of the non-streaming audio path, so both must be stopped.
     return () => {
       cancelled = true;
       stopMic();
+      try { streaming.abort(); } catch { /* no-op if not initialized */ }
+      try { stopSpeak(); } catch { /* no-op */ }
     };
-  }, []); // Mount-only, intentional — destructured callbacks (micSupported/startMic/stopMic) are stable refs
+  }, []); // Mount-only, intentional — destructured callbacks are stable refs
 
   // 2026-03-18: FIX (C-4) — Always refetch when panel opens (was only fetching when empty)
   useEffect(() => {
@@ -340,6 +349,15 @@ export default function RideshareCoach({
     }
   }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send, streaming]);
 
+  // 2026-05-04 (COACH-V1, fix-2): hard-cancel BOTH audio paths. The bar's STOP
+  // button and the verbal stop-phrase MUST kill the streaming chunk queue too,
+  // not just the non-streaming HTMLAudioElement. Without this, the streaming
+  // buffer drains independently and the user perceives "stop did nothing."
+  const handleStopAllAudio = useCallback(() => {
+    try { streaming.abort(); } catch { /* no-op */ }
+    try { stopSpeak(); } catch { /* no-op */ }
+  }, [stopSpeak, streaming]);
+
   // 2026-05-04 (COACH-V1): "stop and output" stop phrase. Fires only while listening
   // AND not speaking (suppress during TTS — Coach saying the phrase via speaker bleed
   // would otherwise trigger a self-stop). Mirrors handleMicToggle's stop-then-send-after-
@@ -384,15 +402,11 @@ export default function RideshareCoach({
     if (!STOP_REPLYING_REGEX.test(transcript)) return;
 
     stopReplyingFiredRef.current = true;
-    console.log('[RideshareCoach] [COACH-V1] "stop replying" detected — cancelling TTS, mic continues');
+    console.log('[RideshareCoach] [COACH-V1] TTS-stop phrase detected (replying/listen/done) — hard-cancelling all audio, mic continues');
 
-    if (COACH_STREAMING_TTS_ENABLED) {
-      streaming.abort();
-    } else {
-      stopSpeak();
-    }
+    handleStopAllAudio();
     clearTranscript();
-  }, [transcript, isSpeaking, stopSpeak, clearTranscript, streaming]);
+  }, [transcript, isSpeaking, handleStopAllAudio, clearTranscript]);
 
   // 2026-05-04 (COACH-V1): Auto-resume mic on TTS end. Clears any transcript
   // captured during TTS (likely the Coach's own voice via speaker bleed) so the
@@ -436,7 +450,7 @@ export default function RideshareCoach({
       <CoachStopBar
         isSpeaking={isSpeaking}
         isListening={isListening}
-        onStopSpeak={stopSpeak}
+        onStopSpeak={handleStopAllAudio}
         onMicToggle={handleMicToggle}
       />
       {/* Clean Header with Notes Button */}
