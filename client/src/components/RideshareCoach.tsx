@@ -7,9 +7,27 @@ import { useCoachChat } from "@/hooks/coach/useCoachChat";
 import { useCoachAudioState, type CoachPlaybackSpeed } from "@/hooks/coach/useCoachAudioState";
 import { useStreamingReadAloud } from "@/hooks/coach/useStreamingReadAloud";
 import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
+import { CoachStopBar } from "@/components/coach/CoachStopBar";
 
 // 2026-04-29: TTS speed-selector tier values, used in the chip UI.
 const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
+
+// 2026-05-04 (COACH-V1): Hands-free voice stop phrases. Word-boundary, case-insensitive.
+//
+// Two semantic intents, each with multiple natural-language variants. The same
+// phrase ("I'm done") is in both — disambiguated at runtime by which effect
+// is gated active: the stop-and-output effect requires (isListening && !isSpeaking),
+// and the stop-replying effect requires (isSpeaking). So "I'm done" fires the
+// correct intent based on context. Drivers don't have to learn separate phrases.
+//
+// Phrase set comes from in-vehicle test feedback 2026-05-04: drivers naturally
+// say things like "go ahead", "I've completed my thoughts", "this feature is
+// complete" — broader than the original "stop and output" / "stop replying".
+//
+// SUBMIT/STOP-MIC intent (while listening): captured speech → send to Coach.
+const STOP_AND_OUTPUT_REGEX = /\b(stop\s+and\s+output|i'?m\s+done|i\s+am\s+done|i'?ve\s+completed\s+my\s+thoughts|this\s+feature\s+is\s+complete|go\s+ahead|send\s+it|that'?s\s+all)\b/i;
+// INTERRUPT-TTS intent (while Coach speaking): cancel TTS, mic continues.
+const STOP_REPLYING_REGEX = /\b(stop\s+replying|stop\s+and\s+listen|stop\s+talking|be\s+quiet|hold\s+on|pause|i'?m\s+done|i\s+am\s+done)\b/i;
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { COACH_STREAMING_TTS_ENABLED } from "@/constants/featureFlags";
@@ -91,6 +109,12 @@ export default function RideshareCoach({
   const latestTranscriptRef = useRef('');
   // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
   const sentViaVoiceRef = useRef(false);
+  // 2026-05-04 (COACH-V1): once-per-session guards for the stop-phrase effects
+  // (transcript changes per recognition tick; without these the effects re-fire).
+  const stopAndOutputFiredRef = useRef(false);
+  const stopReplyingFiredRef = useRef(false);
+  // 2026-05-04 (COACH-V1): tracks isSpeaking transition true→false for auto-resume mic on TTS end.
+  const wasSpeakingRef = useRef(false);
 
   // 2026-04-27: Step 5 — streaming TTS chunks. Flag-gated OFF by default;
   // Step 6 flips the default. When OFF, pushDelta/flush are never called.
@@ -183,6 +207,49 @@ export default function RideshareCoach({
   useEffect(() => {
     latestTranscriptRef.current = transcript;
   }, [transcript]);
+
+  // 2026-05-04 (COACH-V1): Hands-free auto-listen on Coach tab mount.
+  // Pre-flight mic permission (TranslationOverlay pattern), then auto-start
+  // listening so the driver doesn't tap anything when entering the Coach tab.
+  // Tab leave (component unmount) stops the mic via cleanup. Default on;
+  // opt out by setting localStorage[COACH_AUTO_LISTEN_ENABLED] = 'false'.
+  useEffect(() => {
+    const autoListenEnabled =
+      localStorage.getItem(STORAGE_KEYS.COACH_AUTO_LISTEN_ENABLED) !== 'false';
+    if (!autoListenEnabled) return;
+    if (!micSupported) return;
+    if (!navigator.mediaDevices?.getUserMedia) return;
+
+    let cancelled = false;
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (!cancelled) {
+          console.log('[RideshareCoach] [COACH-V1] Auto-listen: permission granted, starting mic');
+          startMic('en');
+        }
+      })
+      .catch((err) => {
+        // Permission denied — manual mic toggle (line ~672) remains as fallback.
+        console.warn('[RideshareCoach] [COACH-V1] Auto-listen: permission denied', err?.message);
+      });
+
+    // Tab leave / component unmount → stop MIC ONLY. TTS intentionally persists
+    // across tab changes per Melody's in-vehicle test feedback 2026-05-04:
+    //   "I like this speaking that persist when I switch tabs cause I may need
+    //    to go back to strategy or to briefing to verify something while I am
+    //    on the app."
+    // The driver wants to navigate to Strategy/Briefing/etc. while Coach reads
+    // the answer aloud. Killing TTS on unmount would break that flow.
+    // The big red STOP bar remains the manual cancel for TTS when the driver
+    // actually wants playback to stop.
+    return () => {
+      cancelled = true;
+      stopMic();
+      // Do NOT call stopSpeak() or streaming.abort() here — TTS must persist.
+    };
+  }, []); // Mount-only, intentional — destructured callbacks are stable refs
 
   // 2026-03-18: FIX (C-4) — Always refetch when panel opens (was only fetching when empty)
   useEffect(() => {
@@ -293,6 +360,81 @@ export default function RideshareCoach({
     }
   }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send, streaming]);
 
+  // 2026-05-04 (COACH-V1, fix-2): hard-cancel BOTH audio paths. The bar's STOP
+  // button and the verbal stop-phrase MUST kill the streaming chunk queue too,
+  // not just the non-streaming HTMLAudioElement. Without this, the streaming
+  // buffer drains independently and the user perceives "stop did nothing."
+  const handleStopAllAudio = useCallback(() => {
+    try { streaming.abort(); } catch { /* no-op */ }
+    try { stopSpeak(); } catch { /* no-op */ }
+  }, [stopSpeak, streaming]);
+
+  // 2026-05-04 (COACH-V1): "stop and output" stop phrase. Fires only while listening
+  // AND not speaking (suppress during TTS — Coach saying the phrase via speaker bleed
+  // would otherwise trigger a self-stop). Mirrors handleMicToggle's stop-then-send-after-
+  // 300ms pattern, but reads the cleaned (phrase-stripped) transcript so the trigger
+  // text doesn't appear in the user's question.
+  useEffect(() => {
+    if (!isListening) {
+      stopAndOutputFiredRef.current = false;
+      return;
+    }
+    if (isSpeaking) return; // feedback-loop guard
+    if (stopAndOutputFiredRef.current) return;
+    if (!STOP_AND_OUTPUT_REGEX.test(transcript)) return;
+
+    stopAndOutputFiredRef.current = true;
+    const cleaned = transcript.replace(STOP_AND_OUTPUT_REGEX, '').trim();
+    latestTranscriptRef.current = cleaned;
+    console.log('[RideshareCoach] [COACH-V1] "stop and output" detected — sending cleaned transcript');
+
+    warmUp();
+    stopMic();
+    setTimeout(() => {
+      const text = latestTranscriptRef.current.trim();
+      if (text) {
+        sentViaVoiceRef.current = true;
+        send(text);
+      }
+      clearTranscript();
+    }, 300);
+  }, [transcript, isListening, isSpeaking, warmUp, stopMic, send, clearTranscript]);
+
+  // 2026-05-04 (COACH-V1): "stop replying" stop phrase. Only acts while TTS is
+  // speaking. Cancels TTS; mic stays listening so the driver can immediately
+  // ask a follow-up without re-tapping. Once-per-speaking-session via the
+  // stopReplyingFiredRef guard.
+  useEffect(() => {
+    if (!isSpeaking) {
+      stopReplyingFiredRef.current = false;
+      return;
+    }
+    if (stopReplyingFiredRef.current) return;
+    if (!STOP_REPLYING_REGEX.test(transcript)) return;
+
+    stopReplyingFiredRef.current = true;
+    console.log('[RideshareCoach] [COACH-V1] TTS-stop phrase detected (replying/listen/done) — hard-cancelling all audio, mic continues');
+
+    handleStopAllAudio();
+    clearTranscript();
+  }, [transcript, isSpeaking, handleStopAllAudio, clearTranscript]);
+
+  // 2026-05-04 (COACH-V1): Auto-resume mic on TTS end. Clears any transcript
+  // captured during TTS (likely the Coach's own voice via speaker bleed) so the
+  // driver's next utterance starts from a clean slate.
+  useEffect(() => {
+    if (wasSpeakingRef.current && !isSpeaking) {
+      console.log('[RideshareCoach] [COACH-V1] TTS ended — clearing transcript, resuming mic');
+      clearTranscript();
+      const autoListenEnabled =
+        localStorage.getItem(STORAGE_KEYS.COACH_AUTO_LISTEN_ENABLED) !== 'false';
+      if (autoListenEnabled && !isListening && micSupported) {
+        startMic('en');
+      }
+    }
+    wasSpeakingRef.current = isSpeaking;
+  }, [isSpeaking, isListening, micSupported, startMic, clearTranscript]);
+
   // 2026-04-26: Submit handler — gates and clears input, then delegates to chat.send.
   // Preserves the original semantics: empty input + no attachments → no-op (input untouched);
   // mid-stream click → no-op (typing preserved).
@@ -311,7 +453,17 @@ export default function RideshareCoach({
   ];
 
   return (
-    <Card className="relative flex flex-col h-[500px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 overflow-hidden shadow-lg rounded-xl">
+    <Card className="relative flex flex-col h-[580px] border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 overflow-hidden shadow-lg rounded-xl">
+      {/* 2026-05-04 (COACH-V1): Driver-safety three-state bar — full-width, 80px tall, always at top.
+          IDLE (green) → tap starts mic via synchronous user gesture (mobile-safe bootstrap).
+          LISTENING (blue) → tap stops mic and sends captured speech.
+          SPEAKING (red) → tap cancels Coach TTS only; mic remains listening. */}
+      <CoachStopBar
+        isSpeaking={isSpeaking}
+        isListening={isListening}
+        onStopSpeak={handleStopAllAudio}
+        onMicToggle={handleMicToggle}
+      />
       {/* Clean Header with Notes Button */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
         <div className="flex items-center justify-center h-8 w-8 rounded-full bg-white/20">

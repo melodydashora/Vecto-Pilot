@@ -39,6 +39,11 @@ export const STORAGE_KEYS = {
   // 2026-04-29: TTS playback speed (1.0 / 1.25 / 1.5 / 2.0×) — per-device,
   // persists across reloads.
   COACH_PLAYBACK_SPEED: 'vectopilot_coach_playback_speed',
+
+  // 2026-05-04 (COACH-V1): Hands-free auto-listen on Coach tab mount.
+  // Default ON for safety (drivers must not tap to start listening — eyes on road).
+  // Set to 'false' in localStorage to opt out of auto-listen.
+  COACH_AUTO_LISTEN_ENABLED: 'vectopilot_coach_auto_listen',
 } as const;
 
 /**
