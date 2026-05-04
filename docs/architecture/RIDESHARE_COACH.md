@@ -191,11 +191,88 @@ See `docs/coach-inbox.md` for the full queue with details.
 
 ---
 
+## 9. COACH-V1 — Hands-Free Driver Safety Mode (2026-05-04)
+
+**Problem:** Drivers need to ask Coach questions while driving — "best TSA entrance," "where to go right now," etc. — without taking their eyes off the road. The original move of Coach into its own tab was specifically to enable auto-activation of listening mode.
+
+**Lifecycle (locked):** Tab enter (`/co-pilot/coach` mounts `<RideshareCoach />`) = listening starts. Tab leave (component unmount) = listening stops via cleanup.
+
+### 9.1. Auto-Activate Microphone
+
+`RideshareCoach.tsx` mount effect uses the `TranslationOverlay.tsx` pre-flight pattern:
+
+```tsx
+useEffect(() => {
+  if (localStorage.getItem(STORAGE_KEYS.COACH_AUTO_LISTEN_ENABLED) === 'false') return;
+  if (!micSupported || !navigator.mediaDevices?.getUserMedia) return;
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => { stream.getTracks().forEach(t => t.stop()); startMic('en'); })
+    .catch(() => { /* manual toggle remains as fallback */ });
+  return () => stopMic();  // cleanup on tab leave
+}, []);
+```
+
+**Default:** ON. Persisted opt-out via `localStorage[COACH_AUTO_LISTEN_ENABLED] = 'false'`.
+
+### 9.2. Voice Stop Phrases
+
+| Phrase | Behavior | Conditions |
+|---|---|---|
+| `"stop and output"` | Stops mic + auto-sends the **phrase-stripped** transcript (existing 300ms-delay-then-send pattern) | Only fires while listening AND not speaking (feedback-loop guard) |
+| `"stop replying"` | Cancels Coach TTS only; mic remains listening | Only fires while speaking |
+
+Regex: `/\bstop\s+and\s+output\b/i` and `/\bstop\s+replying\b/i` — word-boundary, case-insensitive substring match. Once-per-session via guard refs (`stopAndOutputFiredRef`, `stopReplyingFiredRef`) so transcript ticks don't re-fire.
+
+### 9.3. Continuous Listen-While-TTS + Feedback-Loop Guard
+
+Mic stays on during TTS playback. To prevent Coach's own voice (via speaker bleed) from triggering false transcript-driven actions, the "stop and output" effect is gated on `!isSpeaking`. During TTS, only the "stop replying" path is active. When TTS ends, `clearTranscript()` wipes any captured noise so the driver's next utterance starts fresh.
+
+### 9.4. Auto-Resume After TTS
+
+`wasSpeakingRef` tracks the speaking→silent transition. On natural TTS end (`isSpeaking` flips false), the effect clears transcript and re-calls `startMic('en')` if not already listening — no tap required.
+
+### 9.5. Driver-Safety Stop Bar
+
+`client/src/components/coach/CoachStopBar.tsx` — full-width band, **80px tall (`h-20`)**, sticky-top of the Coach card. Always rendered; disabled (greyed) when `!isSpeaking`. High-contrast red when active.
+
+```tsx
+<CoachStopBar isSpeaking={isSpeaking} onStop={stopSpeak} />
+```
+
+**Sizing rationale:** 2-3× standard primary CTA sizing because the safety constraint trumps visual hierarchy ("tiny right now could mean the difference between an accident and an accident"). Always-rendered ensures predictable peripheral-vision location.
+
+### 9.6. TTS Pause Reduction
+
+`cleanTextForTTS.ts` now collapses paragraph breaks (`\n{2,}`) to **comma-space** (`, `) instead of period-space (`. `). Period at paragraph boundary creates ~600ms TTS pause; comma is ~150ms — substantial flow improvement for hands-free playback. Period-level pause control is engine-limited (OpenAI TTS doesn't honor SSML; iOS speechSynthesis is OS-driven), so periods within sentences are unchanged.
+
+### 9.7. Storage Key
+
+```ts
+COACH_AUTO_LISTEN_ENABLED: 'vectopilot_coach_auto_listen'  // default: not set = ON
+```
+
+### 9.8. Out of Scope (Logged for Follow-Up)
+
+- **AI_COACH model upgrade:** unlimited tokens at HIGH thinking, web-search verification capability for fact-grounding (e.g., the TomTom 10-mile-radius accuracy concern). Server-side only — `model-registry.js` + `chat.js` system prompt.
+- **Refresh-token / 24h sessions:** existing 2h hard limit is unchanged.
+- **Headphone-required messaging:** mic-while-TTS feedback-loop is mitigated via filter, not eliminated. Documented for ops.
+
+### 9.9. Plan Reference
+
+Phase 0 plan: `docs/review-queue/PLAN_coach_handsfree_voice-2026-05-04.md`. Locked decisions in §3 of that plan (Q1–Q10).
+
+---
+
 ## Key Files
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `client/src/components/RideshareCoach.tsx` | 885 | React chat component + voice |
+| `client/src/components/RideshareCoach.tsx` | ~1000 (was 885; +122 for COACH-V1) | React chat component + voice + hands-free |
+| `client/src/components/coach/CoachStopBar.tsx` | 50 | Driver-safety STOP button (NEW 2026-05-04) |
+| `client/src/utils/coach/cleanTextForTTS.ts` | 25 | TTS text preprocessing (paragraph→comma) |
+| `client/src/hooks/useSpeechRecognition.ts` | 218 | Browser Web Speech API wrapper |
+| `client/src/hooks/useTTS.ts` | 220 | OpenAI TTS + iOS speechSynthesis fallback |
+| `client/src/hooks/coach/useCoachAudioState.ts` | 132 | Coach audio state aggregator |
 | `server/api/chat/chat.js` | 1,572 | Chat endpoint, streaming, action parsing |
 | `server/lib/ai/rideshare-coach-dal.js` | 2,575 | Data access layer (11 sources) |
 | `server/api/rideshare-coach/validate.js` | 423 | Zod validation for all action types |
