@@ -13,14 +13,21 @@ import { CoachStopBar } from "@/components/coach/CoachStopBar";
 const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
 
 // 2026-05-04 (COACH-V1): Hands-free voice stop phrases. Word-boundary, case-insensitive.
-// "stop and output" → stop mic + auto-send the phrase-stripped transcript.
-// TTS-stop variants (multiple — testing 2026-05-04 surfaced that "stop replying"
-// is unintuitive while driving; "stop and listen" and "I am done" are the natural
-// phrasings drivers actually use):
-//   "stop replying" / "stop and listen" / "I am done" / "I'm done" → cancel TTS,
-//   mic stays listening for the next utterance.
-const STOP_AND_OUTPUT_REGEX = /\bstop\s+and\s+output\b/i;
-const STOP_REPLYING_REGEX = /\b(stop\s+replying|stop\s+and\s+listen|i'?m\s+done|i\s+am\s+done)\b/i;
+//
+// Two semantic intents, each with multiple natural-language variants. The same
+// phrase ("I'm done") is in both — disambiguated at runtime by which effect
+// is gated active: the stop-and-output effect requires (isListening && !isSpeaking),
+// and the stop-replying effect requires (isSpeaking). So "I'm done" fires the
+// correct intent based on context. Drivers don't have to learn separate phrases.
+//
+// Phrase set comes from in-vehicle test feedback 2026-05-04: drivers naturally
+// say things like "go ahead", "I've completed my thoughts", "this feature is
+// complete" — broader than the original "stop and output" / "stop replying".
+//
+// SUBMIT/STOP-MIC intent (while listening): captured speech → send to Coach.
+const STOP_AND_OUTPUT_REGEX = /\b(stop\s+and\s+output|i'?m\s+done|i\s+am\s+done|i'?ve\s+completed\s+my\s+thoughts|this\s+feature\s+is\s+complete|go\s+ahead|send\s+it|that'?s\s+all)\b/i;
+// INTERRUPT-TTS intent (while Coach speaking): cancel TTS, mic continues.
+const STOP_REPLYING_REGEX = /\b(stop\s+replying|stop\s+and\s+listen|stop\s+talking|be\s+quiet|hold\s+on|pause|i'?m\s+done|i\s+am\s+done)\b/i;
 // 2026-01-09: P1-6 FIX - Use centralized storage keys
 import { STORAGE_KEYS } from "@/constants/storageKeys";
 import { COACH_STREAMING_TTS_ENABLED } from "@/constants/featureFlags";
@@ -228,15 +235,19 @@ export default function RideshareCoach({
         console.warn('[RideshareCoach] [COACH-V1] Auto-listen: permission denied', err?.message);
       });
 
-    // Tab leave / component unmount → stop EVERYTHING audio (mic + TTS).
-    // 2026-05-04 (test feedback): TTS was persisting across tab navigation because
-    // the cleanup only killed the mic. Streaming chunks kept draining their buffer
-    // independently of the non-streaming audio path, so both must be stopped.
+    // Tab leave / component unmount → stop MIC ONLY. TTS intentionally persists
+    // across tab changes per Melody's in-vehicle test feedback 2026-05-04:
+    //   "I like this speaking that persist when I switch tabs cause I may need
+    //    to go back to strategy or to briefing to verify something while I am
+    //    on the app."
+    // The driver wants to navigate to Strategy/Briefing/etc. while Coach reads
+    // the answer aloud. Killing TTS on unmount would break that flow.
+    // The big red STOP bar remains the manual cancel for TTS when the driver
+    // actually wants playback to stop.
     return () => {
       cancelled = true;
       stopMic();
-      try { streaming.abort(); } catch { /* no-op if not initialized */ }
-      try { stopSpeak(); } catch { /* no-op */ }
+      // Do NOT call stopSpeak() or streaming.abort() here — TTS must persist.
     };
   }, []); // Mount-only, intentional — destructured callbacks are stable refs
 
