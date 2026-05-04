@@ -134,3 +134,49 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 ### [BUG] TTS playback lag between sentences
 - **Priority:** medium | **Date:** 2026-04-30 00:12
 - Noticed a slight lag between sentences during voice playback. Might need to tweak the TTS engine settings, adjust the pause duration for punctuation, or pre-buffer the audio chunks more aggressively.
+
+### [TODO] Auto-activate microphone on Coach screen open
+- **Priority:** medium | **Date:** 2026-05-04 14:25
+- Melody is currently working on auto-activating the microphone/listening state as soon as the Coach screen is opened. Ensure lifecycle hooks and audio permissions handle this smoothly.
+
+### [BUG] Voice input stuck in continuous listening mode
+- **Priority:** high | **Date:** 2026-05-04 15:56
+- The dictation/microphone feature stays in listening mode indefinitely and transcribes everything until the user manually hits stop. Needs silence detection (VAD) or a timeout to auto-stop and submit, or we need to ensure the SpeechRecognition continuous flag is handled correctly.
+  - Files: client/src/components/chat/ChatInput.tsx, client/src/hooks/useSpeechRecognition.ts
+
+### [FEATURE_REQUEST] Hands-free voice loop: Keyword submit and Auto-listen
+- **Priority:** high | **Date:** 2026-05-04 16:00
+- Implement a continuous hands-free voice loop. 1. Keyword Submit: Check real-time transcript for phrases like 'Okay I'm done' to trigger auto-submit. 2. Auto-Listen: Automatically restart speech recognition as soon as the AI's Text-to-Speech finishes talking.
+  - Files: client/src/components/chat/ChatInput.tsx, client/src/hooks/useSpeechRecognition.ts
+
+### [FEATURE_REQUEST] Voice interruption and auto-listen command
+- **Priority:** high | **Date:** 2026-05-04 16:18
+- Implement voice interruption where the user can say 'I am done' or 'stop and listen' to halt TTS playback and immediately activate the microphone for the next input, eliminating the need to tap buttons or switch tabs.
+
+### [BUG] TTS Audio Lifecycle & Tab Navigation
+- **Priority:** high | **Date:** 2026-05-04 16:20
+- Audio playback persists across tab changes and the STOP button does not kill the system-level Siri/iOS speech queue. User is blocked from asking new questions while audio is playing. Need to implement a hard cancel on the speech queue on component unmount and button press.
+
+### [BUG] Speech Recognition & TTS State Clash
+- **Priority:** high | **Date:** 2026-05-04 16:22
+- The STOP button and speech recognition are causing state conflicts. Pressing stop while it says 'listening' alters the mic state unexpectedly (user's voice input was cut off mid-sentence). Need to strictly separate isListening (mic) and isPlaying (audio) states, ensuring Stop only kills audio playback without aborting the active microphone connection.
+
+### [BUG] Stop button does not interrupt TTS audio playback
+- **Priority:** high | **Date:** 2026-05-04 16:51
+- The stop button is not halting the AI's voice output. The UI state might be updating, but the actual audio stream or speech synthesis queue is not being cleared or paused. Need to ensure window.speechSynthesis.cancel() or audio.pause() is explicitly called on the stop event.
+
+### [OBSERVATION] Chat state persistence during active generation
+- **Priority:** medium | **Date:** 2026-05-04 16:55
+- Melody noted that text persistence across tabs currently only works if the AI is allowed to finish its thinking (since it's not streaming yet). We need to ensure the loading/generating state is held in a global store so navigating away during generation doesn't wipe the incoming response.
+
+### [FEATURE_REQUEST] Verbal stop/submit commands for STT
+- **Priority:** high | **Date:** 2026-05-04 16:57
+- Implement verbal cues like 'I'm done', 'go ahead', or 'send' to automatically stop the microphone and submit the prompt. This eliminates the need for the driver to tap the screen to stop recording, keeping the app truly hands-free.
+
+### [BUG] Stop button kills audio but automatically re-opens microphone
+- **Priority:** high | **Date:** 2026-05-04 17:00
+- When the user taps 'Stop' to halt the AI's voice output, it successfully stops the audio but immediately triggers the STT to start listening again. The Stop button should return the app to an idle state, not auto-trigger the mic, unless it's specifically designed as an 'Interrupt' button.
+
+### [FEATURE_REQUEST] Implement specific verbal trigger phrase to stop STT
+- **Priority:** high | **Date:** 2026-05-04 17:01
+- Melody specifically requested using a set phrase (like a 4-word command) to automatically end the 'listening' state and submit the prompt without touching the screen. The STT engine needs to watch the transcript for this trigger phrase and auto-fire the submit function.
