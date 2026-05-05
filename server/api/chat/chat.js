@@ -1304,7 +1304,12 @@ Full transparency. Maximum insight.
       }
 
       // 2026-03-18: Declared outside if(totalText) so done event can always reference it
+      // 2026-05-05: Same hoist for persistenceError — line 1380 references it after
+      // the if-block, and `let` block-scoping was throwing ReferenceError on every
+      // request, landing in the outer catch and appending "Coach will be back soon."
+      // to the already-streamed bubble.
       let actionsResult = null;
+      let persistenceError = null;
 
       if (totalText) {
         console.log(`[COACH] Gemini streamed response: ${totalText.length} chars`);
@@ -1330,7 +1335,8 @@ Full transparency. Maximum insight.
         }
 
         // Save assistant response to coach_conversations (authenticated users only)
-        let persistenceError = null;
+        // 2026-05-05: persistenceError hoisted above (next to actionsResult) so the
+        // donePayload reader at line ~1385 can see assignments made inside this branch.
         if (isAuthenticated) {
           try {
             // 2026-03-18: FIX (M-7) — Skip auto-tip extraction if SAVE_NOTE actions

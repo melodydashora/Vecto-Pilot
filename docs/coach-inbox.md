@@ -188,3 +188,7 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 ### [FEATURE_REQUEST] Reduce TTS delays on punctuation
 - **Priority:** medium | **Date:** 2026-05-05 02:12
 - Decrease the pause and delay duration between paragraphs and periods during voice playback. The current pauses are too long and slow down the conversational flow.
+
+### [FEATURE_REQUEST] Create Offer Intelligence Table
+- **Priority:** high | **Date:** 2026-05-05 07:52
+- Add a dedicated database table to track Melody's accepted, rejected, and cancelled offers. Include fields for fare, mileage, locations, and the AI's recommendation. This will allow the Coach to learn her exact $/mile thresholds and zone preferences over time for hyper-personalized offer analysis.
