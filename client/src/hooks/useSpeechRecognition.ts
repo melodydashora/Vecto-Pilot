@@ -219,9 +219,20 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
     recognition.onend = () => {
       setIsListening(false);
       console.log('[SpeechRecognition] Stopped');
+      // 2026-05-05: Browsers fire onend on internal silence detection (~3s on
+      // Chrome/Edge) — earlier than our configured silenceThresholdMs. If our
+      // timer was still active when onend fired, the browser detected silence
+      // for us; trust it and fire onSilence immediately. Manual stop() clears
+      // the timer FIRST before calling recognition.stop(), so a null timer
+      // here means user-initiated stop and we don't auto-fire.
       if (silenceTimeoutRef.current !== null) {
         window.clearTimeout(silenceTimeoutRef.current);
         silenceTimeoutRef.current = null;
+        const currentOptions = optionsRef.current;
+        if (currentOptions.onSilence) {
+          console.log('[SpeechRecognition] Browser ended on silence — firing onSilence early');
+          currentOptions.onSilence();
+        }
       }
     };
 
