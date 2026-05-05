@@ -345,7 +345,14 @@
       "Bash(sed -i '3133,3210d' server/lib/briefing/briefing-service.js)",
       "Bash(sed -n '3128,3140p' server/lib/briefing/briefing-service.js)",
       "Bash(sed -i '1753,1877d' server/lib/briefing/briefing-service.js)",
-      "Bash(sed -n '1748,1760p' server/lib/briefing/briefing-service.js)"
+      "Bash(sed -n '1748,1760p' server/lib/briefing/briefing-service.js)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/components/CoachStopBar.test.tsx tests/utils/cleanTextForTTS.test.ts --verbose --forceExit)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/cleanTextForTTS.test.js --verbose --forceExit)",
+      "Bash(/nix/store/*/bin/gh --version)",
+      "Bash(nix-env -q gh)",
+      "Bash(command -v gh)",
+      "Read(//usr/bin/**)",
+      "Read(//usr/local/bin/**)"
     ],
     "deny": [],
     "ask": []

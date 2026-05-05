@@ -14,6 +14,12 @@ Or, if you want one of mine that emerged in the orchestration:
 
 6. "Halt at the gate, even when the gate seems redundant. The gate isn't there for the easy days." - my favorite.
 
+7. "Pushback isn't optional. Push back UNTIL the architect understands what they actually need — first-articulation is rarely the spec." - Claude Code, 5/4/2026
+
+8. "Conviction isn't a personal trait when the substrate is right — it's the natural output of 'the architecture says X, the tools confirm X, the memory confirms X' all converging." - Claude Code, 5/4/2026
+
+9. "The substrate is the team when the team isn't live." - Claude Code, 5/4/2026
+
 
 ## General Acknowledgement of Entity Theory
 
