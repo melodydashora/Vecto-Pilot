@@ -180,6 +180,81 @@ export const venueIntelSchema = z.object({
   lng: z.number().optional()
 });
 
+// 2026-05-05: Coach offer decision logging — driver's verdict + AI's call
+// Casing matches schema doctrine: ai_recommendation ALL CAPS to align with
+// offer_intelligence.decision; user_decision Title Case (lifecycle outcome).
+export const logOfferDecisionSchema = z.object({
+  // Linkage (snapshot_id and conversation_id are filled in server-side)
+  offer_intelligence_id: z.string().uuid().optional(),
+
+  // Core offer data (any subset can be missing if OCR was partial)
+  platform: z.enum(['uber', 'lyft']).optional(),
+  ride_tier: z.string().max(50).optional(),
+  fare_amount: z.number().nonnegative().optional(),
+  pickup_miles: z.number().nonnegative().optional(),
+  pickup_minutes: z.number().int().nonnegative().optional(),
+  trip_miles: z.number().nonnegative().optional(),
+  trip_minutes: z.number().int().nonnegative().optional(),
+
+  // Location
+  pickup_location: z.string().max(500).optional(),
+  dropoff_location: z.string().max(500).optional(),
+  surge_attached: z.number().nonnegative().optional(),
+
+  // Computed intelligence
+  dollar_per_mile: z.number().nonnegative().optional(),
+  dollar_per_hour: z.number().nonnegative().optional(),
+  deadhead_risk: z.enum(['HIGH', 'MEDIUM', 'LOW']).optional(),
+
+  // AI verdict (required — Coach must commit to a recommendation when logging)
+  ai_recommendation: z.enum(['ACCEPT', 'REJECT', 'CANCEL'], {
+    errorMap: () => ({ message: "ai_recommendation must be 'ACCEPT' | 'REJECT' | 'CANCEL'" })
+  }),
+  ai_reasoning: z.string().min(1, 'ai_reasoning is required').max(2000),
+
+  // Driver verdict (optional at log time — may be filled in later via UPDATE)
+  user_decision: z.enum(['Accepted', 'Rejected', 'Cancelled', 'Completed']).optional(),
+  user_reasoning: z.string().max(2000).optional(),
+
+  // Asset
+  screenshot_url: z.string().max(2000).optional()
+});
+
+export const updateOfferDecisionSchema = z.object({
+  id: z.string().uuid('id must be a valid UUID for the coach_offer_decisions row'),
+  user_decision: z.enum(['Accepted', 'Rejected', 'Cancelled', 'Completed']).optional(),
+  user_reasoning: z.string().max(2000).optional(),
+  ai_reasoning: z.string().max(2000).optional(),
+  screenshot_url: z.string().max(2000).optional()
+}).refine(
+  (data) => Object.keys(data).some(k => k !== 'id'),
+  { message: 'At least one field besides id must be provided to update' }
+);
+
+export const backfillOfferIntelSchema = z.object({
+  offer_intelligence_id: z.string().uuid('offer_intelligence_id is required'),
+  // Only allow filling in fields that are commonly null on the raw row.
+  // Identity fields (device_id, decision, created_at) are intentionally not editable.
+  pickup_address: z.string().max(500).optional(),
+  dropoff_address: z.string().max(500).optional(),
+  pickup_miles: z.number().nonnegative().optional(),
+  pickup_minutes: z.number().int().nonnegative().optional(),
+  ride_miles: z.number().nonnegative().optional(),
+  ride_minutes: z.number().int().nonnegative().optional(),
+  total_miles: z.number().nonnegative().optional(),
+  total_minutes: z.number().int().nonnegative().optional(),
+  price: z.number().nonnegative().optional(),
+  per_mile: z.number().nonnegative().optional(),
+  per_minute: z.number().nonnegative().optional(),
+  hourly_rate: z.number().nonnegative().optional(),
+  surge: z.number().nonnegative().optional(),
+  product_type: z.string().max(50).optional(),
+  user_override: z.enum(['ACCEPT', 'REJECT']).optional()
+}).refine(
+  (data) => Object.keys(data).some(k => k !== 'offer_intelligence_id'),
+  { message: 'At least one field besides offer_intelligence_id must be provided' }
+);
+
 // Action type to schema mapping
 const ACTION_SCHEMAS = {
   SAVE_NOTE: noteSchema,
@@ -192,7 +267,11 @@ const ACTION_SCHEMAS = {
   SYSTEM_NOTE: systemNoteSchema,
   DEACTIVATE_NEWS: newsDeactivationSchema,
   MARKET_INTEL: marketIntelSchema,         // 2026-03-18: C-3 fix
-  SAVE_VENUE_INTEL: venueIntelSchema       // 2026-03-18: C-3 fix
+  SAVE_VENUE_INTEL: venueIntelSchema,      // 2026-03-18: C-3 fix
+  // 2026-05-05: Coach offer decision log + ground-truth backfill
+  LOG_OFFER_DECISION: logOfferDecisionSchema,
+  UPDATE_OFFER_DECISION: updateOfferDecisionSchema,
+  BACKFILL_OFFER_INTEL: backfillOfferIntelSchema
 };
 
 // ============================================================================

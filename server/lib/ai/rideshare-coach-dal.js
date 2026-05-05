@@ -23,7 +23,8 @@ import {
   coach_system_notes,
   news_deactivations,
   zone_intelligence,
-  offer_intelligence    // 2026-02-17: Structured offer analytics (replaces intercepted_signals)
+  offer_intelligence,   // 2026-02-17: Structured offer analytics (replaces intercepted_signals)
+  coach_offer_decisions // 2026-05-05: Driver-decision intel logged from Coach chat
 } from '../../../shared/schema.js';
 import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
 import crypto from 'crypto';
@@ -774,22 +775,28 @@ export class RideshareCoachDAL {
       let driverData = { profile: null, vehicle: null };
       // 2026-02-17: FIX — offerData must be declared in outer scope (was const inside if block, causing ReferenceError)
       let offerData = { offers: [], stats: null };
+      // 2026-05-05: Hoisted alongside offerData for the same reason — outer-scope visibility
+      // for the return assembly below regardless of which branch populates it.
+      let coachOfferDecisions = { decisions: [], stats: null };
 
       if (snapshot) {
         // Use authenticated user ID if provided, otherwise fall back to snapshot's user_id
         const effectiveUserId = authenticatedUserId || snapshot.user_id;
         console.log(`[COACH] getCompleteContext: Snapshot user_id = ${snapshot.user_id || 'NULL'}, authenticated = ${authenticatedUserId || 'NULL'}, effective = ${effectiveUserId || 'NULL'}, city = ${snapshot.city}`);
 
-        const [intel, notes, driver, offers] = await Promise.all([
+        const [intel, notes, driver, offers, coachDecisions] = await Promise.all([
           this.getMarketIntelligence(snapshot.city, snapshot.state),
           effectiveUserId ? this.getUserNotes(effectiveUserId) : Promise.resolve([]),
           effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null }),
-          this.getOfferHistory(20)  // 2026-02-16: Include offer analysis history
+          this.getOfferHistory(20),  // 2026-02-16: Include offer analysis history
+          // 2026-05-05: Coach-driven decision intel for the disagreement-learning loop
+          effectiveUserId ? this.getCoachOfferDecisions(effectiveUserId, 20) : Promise.resolve({ decisions: [], stats: null })
         ]);
         marketIntelligence = intel;
         userNotes = notes;
         driverData = driver;
         offerData = offers || { offers: [], stats: null };
+        coachOfferDecisions = coachDecisions || { decisions: [], stats: null };
       }
 
       return {
@@ -805,6 +812,7 @@ export class RideshareCoachDAL {
         driverProfile: driverData.profile,
         driverVehicle: driverData.vehicle,
         offerHistory: offerData,  // 2026-02-16: Offer log for coach
+        coachOfferDecisions,      // 2026-05-05: Coach-driven decision intel
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
     } catch (error) {
@@ -822,6 +830,7 @@ export class RideshareCoachDAL {
         driverProfile: null,
         driverVehicle: null,
         offerHistory: { offers: [], stats: null },
+        coachOfferDecisions: { decisions: [], stats: null },
         status: 'error',
       };
     }
@@ -1161,16 +1170,49 @@ export class RideshareCoachDAL {
 
       prompt += `\n\n   Recent offers:`;
       offerHistory.offers.slice(0, 5).forEach((offer, i) => {
-        const pd = offer.parsed_data || {};
-        const price = pd.price ? `$${pd.price}` : '?';
-        const miles = pd.miles || pd.total_miles ? `${(pd.miles || pd.total_miles).toFixed(1)}mi` : '?';
-        const pm = pd.per_mile ? `$${pd.per_mile.toFixed(2)}/mi` : '';
+        // 2026-05-05: Read structured columns directly. The earlier `offer.parsed_data?.X`
+        // path was a leftover from the pre-2026-02-17 JSONB era — the SELECT in
+        // getOfferHistory pulls structured columns (price, total_miles, per_mile)
+        // and the JSONB blob was never selected, so price/miles always rendered as '?'.
+        const price = offer.price != null ? `$${Number(offer.price).toFixed(2)}` : '?';
+        const miles = offer.total_miles != null ? `${Number(offer.total_miles).toFixed(1)}mi` : '?';
+        const pm = offer.per_mile != null ? `$${Number(offer.per_mile).toFixed(2)}/mi` : '';
         const override = offer.user_override ? ` [DRIVER OVERRIDE: ${offer.user_override}]` : '';
         const time = new Date(offer.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
         prompt += `\n   ${i + 1}. ${offer.decision} ${price}/${miles} ${pm} (${time})${override}`;
       });
 
       prompt += `\n\n   Use offer patterns to advise on positioning, timing, and offer strategy.`;
+    }
+
+    // ========== COACH-LOGGED DECISIONS (2026-05-05) ==========
+    // The disagreement-learning loop: where the Coach's call differs from
+    // Melody's actual decision. This is the "personal why" intelligence —
+    // when she overrides ACCEPT → Rejected (or REJECT → Accepted), the
+    // user_reasoning field captures her reasoning so future advice adapts.
+    const { coachOfferDecisions } = context;
+    if (coachOfferDecisions?.stats && coachOfferDecisions.stats.total > 0) {
+      const cs = coachOfferDecisions.stats;
+      prompt += `\n\n=== COACH DECISION LOG (your interactive offers) ===`;
+      prompt += `\nLast ${cs.total} chat-logged decisions; ${cs.with_verdict} have a final user verdict.`;
+      if (cs.with_verdict > 0) {
+        prompt += `\n   Driver disagreement rate: ${cs.disagree_rate_pct}% (${cs.disagreed} of ${cs.with_verdict})`;
+      }
+
+      prompt += `\n\n   Recent decisions:`;
+      coachOfferDecisions.decisions.slice(0, 5).forEach((d, i) => {
+        const fare = d.fare_amount != null ? `$${Number(d.fare_amount).toFixed(2)}` : '?';
+        const pm = d.dollar_per_mile != null ? ` $${Number(d.dollar_per_mile).toFixed(2)}/mi` : '';
+        const dh = d.deadhead_risk ? ` ${d.deadhead_risk}-deadhead` : '';
+        const ai = d.ai_recommendation || '?';
+        const usr = d.user_decision ? ` → driver: ${d.user_decision}` : ' → no verdict yet';
+        const why = d.user_reasoning ? ` ("${d.user_reasoning.slice(0, 80)}${d.user_reasoning.length > 80 ? '…' : ''}")` : '';
+        const time = new Date(d.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        prompt += `\n   ${i + 1}. ${d.platform || '?'} ${d.ride_tier || ''} ${fare}${pm}${dh} — coach: ${ai}${usr}${why} (${time})`;
+      });
+
+      prompt += `\n\n   Use these patterns to refine your future recommendations. When the driver overrides`;
+      prompt += `\n   you, the user_reasoning is the learning signal — adjust your future advice.`;
     }
 
     // ========== DATA AVAILABILITY SUMMARY ==========
@@ -1238,8 +1280,11 @@ export class RideshareCoachDAL {
       const accepted = history.filter(h => h.decision === 'ACCEPT');
       const rejected = history.filter(h => h.decision === 'REJECT');
       const overrides = history.filter(h => h.user_override !== null);
+      // 2026-05-05: Read per_mile from the structured column. The legacy
+      // `h.parsed_data?.per_mile` returned undefined because the SELECT no
+      // longer pulls parsed_data_json; per_mile lives in its own column.
       const perMileValues = history
-        .map(h => h.parsed_data?.per_mile)
+        .map(h => h.per_mile)
         .filter(v => v != null && v > 0);
 
       const stats = {
@@ -1261,6 +1306,129 @@ export class RideshareCoachDAL {
     } catch (error) {
       console.error('[COACH] getOfferHistory error:', error);
       return { offers: [], stats: null };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COACH OFFER DECISIONS (2026-05-05) — driver-decision intel from chat tab
+  // Read+write companion to offer_intelligence: only offers Melody actively
+  // reviewed and committed a verdict on, with screenshot + reasoning.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get the driver's recent decision history (with optional Coach-disagreement stats).
+   * Used by getCompleteContext to inject the learning signal into the system prompt.
+   */
+  async getCoachOfferDecisions(userId, limit = 20) {
+    if (!userId) return { decisions: [], stats: null };
+
+    try {
+      const decisions = await db
+        .select()
+        .from(coach_offer_decisions)
+        .where(eq(coach_offer_decisions.user_id, userId))
+        .orderBy(desc(coach_offer_decisions.created_at))
+        .limit(limit);
+
+      if (decisions.length === 0) {
+        return { decisions: [], stats: null };
+      }
+
+      // Disagreement is the learning signal: AI said ACCEPT but driver Rejected, or vice-versa.
+      // user_decision is Title-case lifecycle; ai_recommendation is ALL CAPS binary.
+      const decisionsWithVerdict = decisions.filter(d => d.user_decision != null);
+      const disagreed = decisionsWithVerdict.filter(d => {
+        const ai = d.ai_recommendation;
+        const user = d.user_decision;
+        if (!ai || !user) return false;
+        if (ai === 'ACCEPT' && user === 'Rejected') return true;
+        if (ai === 'REJECT' && (user === 'Accepted' || user === 'Completed')) return true;
+        if (ai === 'CANCEL' && user !== 'Cancelled') return true;
+        return false;
+      });
+
+      const stats = {
+        total: decisions.length,
+        with_verdict: decisionsWithVerdict.length,
+        disagreed: disagreed.length,
+        disagree_rate_pct: decisionsWithVerdict.length > 0
+          ? Math.round((disagreed.length / decisionsWithVerdict.length) * 100)
+          : 0
+      };
+
+      console.log(`[COACH] getCoachOfferDecisions: ${decisions.length} logged, ${stats.disagreed}/${stats.with_verdict} disagreements`);
+      return { decisions, stats };
+    } catch (error) {
+      console.error('[COACH] getCoachOfferDecisions error:', error);
+      return { decisions: [], stats: null };
+    }
+  }
+
+  /**
+   * Log a Coach-driven offer decision. Called by executeActions when the Coach
+   * emits [LOG_OFFER_DECISION: {...}] after analyzing a screenshot.
+   */
+  async saveCoachOfferDecision(payload) {
+    try {
+      const [row] = await db
+        .insert(coach_offer_decisions)
+        .values(payload)
+        .returning();
+      console.log(`[COACH] saveCoachOfferDecision: ${row?.id} (${payload.ai_recommendation})`);
+      return row || null;
+    } catch (error) {
+      console.error('[COACH] saveCoachOfferDecision error:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Update an existing decision row — typically when the user lifecycle resolves
+   * (e.g., accepted then cancelled, or completed). Scoped to user_id for safety.
+   */
+  async updateCoachOfferDecision(id, userId, fields) {
+    try {
+      const [row] = await db
+        .update(coach_offer_decisions)
+        .set({ ...fields, updated_at: new Date() })
+        .where(and(
+          eq(coach_offer_decisions.id, id),
+          eq(coach_offer_decisions.user_id, userId)
+        ))
+        .returning();
+      if (row) {
+        console.log(`[COACH] updateCoachOfferDecision: ${id} fields=${Object.keys(fields).join(',')}`);
+      } else {
+        console.warn(`[COACH] updateCoachOfferDecision: no row matched id=${id} user=${userId.slice(0, 8)}`);
+      }
+      return row || null;
+    } catch (error) {
+      console.error('[COACH] updateCoachOfferDecision error:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Backfill nullable fields on a raw offer_intelligence row using Coach-confirmed
+   * ground truth from a screenshot. Identity fields (decision, device_id, created_at)
+   * are intentionally not editable here — Zod schema gates that at the action layer.
+   */
+  async updateOfferIntelligence(offerId, fields) {
+    try {
+      const [row] = await db
+        .update(offer_intelligence)
+        .set({ ...fields, updated_at: new Date() })
+        .where(eq(offer_intelligence.id, offerId))
+        .returning();
+      if (row) {
+        console.log(`[COACH] updateOfferIntelligence (backfill): ${offerId} fields=${Object.keys(fields).join(',')}`);
+      } else {
+        console.warn(`[COACH] updateOfferIntelligence: no row matched id=${offerId}`);
+      }
+      return row || null;
+    } catch (error) {
+      console.error('[COACH] updateOfferIntelligence error:', error.message);
+      return null;
     }
   }
 

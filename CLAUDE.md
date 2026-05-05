@@ -61,8 +61,12 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 | `coach_system_notes` | **Rideshare Coach observations** about system enhancements |
 | `discovered_events` | Event deactivation/reactivation (via `is_active` flag) |
 | `news_deactivations` | User news hiding preferences |
+| `coach_offer_decisions` | 2026-05-05: Driver-decision intel from Coach chat — offer screenshot OCR + AI recommendation + user verdict + user_reasoning learning signal. New table at `shared/schema.js`; migration `migrations/20260505_coach_offer_decisions.sql`. Coach action tags: `[LOG_OFFER_DECISION]`, `[UPDATE_OFFER_DECISION]`. |
+| `offer_intelligence` | 2026-05-05: Backfill-only — Coach can fill nullable analyzer fields (pickup_address, ride_miles, etc.) from screenshot ground truth via `[BACKFILL_OFFER_INTEL]`. Identity columns (decision, device_id, created_at) stay write-locked at the Zod schema layer (`server/api/rideshare-coach/validate.js`). |
 
 **Note:** School closures and traffic conditions are stored in `briefings.school_closures` and `briefings.traffic_conditions` (JSONB columns), not separate tables. LLM consolidation via `callModel('BRIEFING_TRAFFIC')` at `pipelines/traffic.js`.
+
+**Coach READ-ONLY context (2026-05-05):** The offer-analyzer rules (`docs/architecture/OFFER_ANALYZER.md` + `server/lib/ai/model-registry.js`) are spliced into the Coach's system prompt via `getOfferAnalyzerRules()` at `server/api/chat/chat.js`. The Coach reads the doctrine to explain WHY past offer decisions were made and to identify when its own judgment disagrees with the rules — proposed rule changes route through `[COACH_MEMO]` to `docs/coach-inbox.md`. Files are cached once per process; restart server to pick up edits.
 
 ### Rule 9: ALL FINDINGS ARE HIGH PRIORITY
 

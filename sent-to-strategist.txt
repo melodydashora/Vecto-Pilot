@@ -1,37 +1,37 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 05/05/2026, 2:44:09 AM CDT
-Snapshot ID: 58eebc8c-5f8a-4738-bb10-ffd9b534250a
+Generated: 05/05/2026, 3:25:34 AM CDT
+Snapshot ID: 41e9c37c-c945-440f-ac1a-2291090d2d83
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: 58eebc8c-5f8a-4738-bb10-ffd9b534250a
+snapshot_id: 41e9c37c-c945-440f-ac1a-2291090d2d83
 user_id: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
-  formatted_address: 6029 Midnight Moon Dr, Frisco, TX 75036, USA
-  lat: 33.1286823761825
-  lng: -96.87652783509559
+  formatted_address: 6068 Midnight Moon Dr, Frisco, TX 75036, USA
+  lat: 33.12876379043133
+  lng: -96.87590213499071
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Tue May 05 2026 02:42:19 GMT+0000 (Coordinated Universal Time)
-  formatted_local_time: Tuesday, May 5, 2026 at 2:42 AM
+  local_iso: Tue May 05 2026 03:23:51 GMT+0000 (Coordinated Universal Time)
+  formatted_local_time: Tuesday, May 5, 2026 at 3:23 AM
   dow: 2 (Tuesday)
-  hour: 2
+  hour: 3
   day_part_key: overnight
   is_holiday: false
   holiday: none
 
 WEATHER (from snapshot):
 {
-  "tempF": 73,
+  "tempF": 72,
   "conditions": "Cloudy",
   "description": "Cloudy"
 }
@@ -40,43 +40,50 @@ WEATHER (from snapshot):
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 75be3546-c406-4b45-89b9-e6b1578f6761
-snapshot_id: 58eebc8c-5f8a-4738-bb10-ffd9b534250a
-created_at (UTC): Tue May 05 2026 07:42:19 GMT+0000 (Coordinated Universal Time)
-created_at (local): Tue, May 5, 2:42 AM
-updated_at (UTC): Tue May 05 2026 07:44:09 GMT+0000 (Coordinated Universal Time)
-updated_at (local): Tue, May 5, 2:44 AM
+briefing_id: 2af20d1a-961f-45fa-855b-deffb2e4ab65
+snapshot_id: 41e9c37c-c945-440f-ac1a-2291090d2d83
+created_at (UTC): Tue May 05 2026 08:23:51 GMT+0000 (Coordinated Universal Time)
+created_at (local): Tue, May 5, 3:23 AM
+updated_at (UTC): Tue May 05 2026 08:25:34 GMT+0000 (Coordinated Universal Time)
+updated_at (local): Tue, May 5, 3:25 AM
 
-NEWS (4 items):
+NEWS (5 items):
 {
   "items": [
     {
-      "title": "Severe Thunderstorms and Hail Threaten DFW",
+      "title": "DFW Airport Construction Causes Major Terminal Delays",
       "impact": "high",
-      "summary": "A cold front is bringing strong to severe thunderstorms to the DFW Metroplex starting Tuesday evening and continuing into Wednesday. Drivers should anticipate hazardous conditions including large hail, damaging winds, and isolated tornadoes. This will likely increase surge pricing and ride demand as people avoid walking or public transit, but drivers must prioritize safety and protect vehicles from potential hail damage.",
-      "category": "weather",
+      "summary": "Ongoing construction at DFW Airport is severely impacting traffic patterns, particularly at Terminals B and C. Drivers face new detours, closed flyover access, and forced U-turns that add significant time to airport trips. Expect heavy congestion and plan for longer turnaround times on airport runs, which could lower hourly earnings unless offset by surge pricing.",
+      "category": "airport",
       "published_date": "2026-05-04"
     },
     {
-      "title": "Cinco de Mayo Festivities Drive High Demand Across DFW",
+      "title": "Cinco de Mayo Festivities and 'No Refusal' Patrols Drive Up Demand",
       "impact": "high",
-      "summary": "Major Cinco de Mayo celebrations on Tuesday will create significant ride demand and localized traffic. Key hotspots include the Dallas Arboretum's evening Garden Fiesta and an all-day bar crawl at The Statler Hotel. Drivers should position themselves near these venues and popular nightlife districts for back-to-back rides and potential surge pricing, while being prepared for heavy pedestrian traffic and longer pickup times.",
+      "summary": "Large-scale Cinco de Mayo events across the metroplex today, including the Dallas Arboretum and Fort Worth Stockyards, are expected to create massive ride demand. Local police have enacted 'No Refusal' DUI initiatives, meaning more partygoers will rely on rideshare. Position yourself near major entertainment districts this evening to capitalize on surge pricing.",
       "category": "event",
       "published_date": "2026-05-04"
     },
     {
-      "title": "Police Investigation Closes Belt Line Road in Richardson",
+      "title": "City of Frisco Launches Competing On-Demand Rideshare Service",
       "impact": "medium",
-      "summary": "An ongoing police investigation following an armed robbery and shooting has shut down both east and westbound lanes of Belt Line Road between North Plano Road and North St. Johns Drive in Richardson. Rideshare drivers should completely avoid this corridor and use alternate routes like Arapaho Road or Spring Valley Road to prevent major delays and maintain high trip completion rates.",
-      "category": "traffic",
+      "summary": "Frisco has officially launched 'GoZone,' a city-subsidized microtransit service operating Monday through Friday from 6 a.m. to 6 p.m. Rides cost between $3 and $5. Uber and Lyft drivers may see a noticeable decrease in daytime, short-distance ride requests within the central Frisco zone as residents test out the cheaper public alternative.",
+      "category": "platform",
       "published_date": "2026-05-04"
     },
     {
-      "title": "Fatal Crash Causes Delays in Pleasant Grove Neighborhood",
+      "title": "Tuesday Evening Storms Threaten DFW Metroplex",
       "impact": "medium",
-      "summary": "A severe crash on North Jim Miller Road in the Pleasant Grove area resulted in two fatalities and one critical injury. Drivers should expect lingering police investigations and potential road closures or heavy delays in the 2200 block of North Jim Miller Road. Routing around this area is highly recommended to avoid getting stuck in traffic and negatively impacting hourly earnings.",
+      "summary": "Forecasts predict rain and isolated thunderstorms moving into the DFW area by Tuesday evening. Combined with Cinco de Mayo celebrations, the sudden wet weather is highly likely to trigger surge pricing as pedestrians seek shelter. Ensure your vehicle is prepared for slick roads during the evening rush.",
+      "category": "weather",
+      "published_date": "2026-05-04"
+    },
+    {
+      "title": "Daytime Closures on Eastbound Main Street in Frisco",
+      "impact": "low",
+      "summary": "Eastbound Main Street in downtown Frisco is closed weekdays between 3rd and 5th Streets from 7:30 a.m. to 3:30 p.m. through mid-May. Traffic is being detoured through Elm Street. Drivers should anticipate localized congestion and use alternate routes to maintain hourly earnings when navigating central Frisco.",
       "category": "traffic",
-      "published_date": "2026-05-05"
+      "published_date": "2026-05-04"
     }
   ],
   "reason": null
@@ -84,24 +91,24 @@ NEWS (4 items):
 
 WEATHER_CURRENT:
 {
-  "tempC": 23,
-  "tempF": 73,
+  "tempC": 22,
+  "tempF": 72,
   "country": "US",
   "uvIndex": 0,
-  "humidity": 74,
+  "humidity": 77,
   "tempUnit": "°F",
-  "feelsLike": 77,
+  "feelsLike": 76,
   "isDaytime": false,
   "conditions": "Cloudy",
   "feelsLikeC": 25,
-  "feelsLikeF": 77,
-  "observedAt": "2026-05-05T07:42:20.127053579Z",
+  "feelsLikeF": 76,
+  "observedAt": "2026-05-05T08:23:51.795144848Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 73,
-  "driverImpact": "Cloudy, 73°F — good driving conditions.",
+  "temperature": 72,
+  "driverImpact": "Cloudy, 72°F — good driving conditions.",
   "conditionType": "CLOUDY",
   "precipitation": {
     "qpf": {
@@ -124,7 +131,7 @@ WEATHER_CURRENT:
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-05-05T07:42:20.138Z",
+    "time": "2026-05-05T08:23:51.859Z",
     "tempC": 23,
     "tempF": 73,
     "tempUnit": "°F",
@@ -137,20 +144,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-05-05T08:42:20.138Z",
-    "tempC": 23,
-    "tempF": 73,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 73,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-05-05T09:42:20.138Z",
+    "time": "2026-05-05T09:23:51.859Z",
     "tempC": 22,
     "tempF": 72,
     "tempUnit": "°F",
@@ -163,7 +157,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-05-05T10:42:20.138Z",
+    "time": "2026-05-05T10:23:51.859Z",
     "tempC": 22,
     "tempF": 71,
     "tempUnit": "°F",
@@ -176,8 +170,8 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-05-05T11:42:20.138Z",
-    "tempC": 21,
+    "time": "2026-05-05T11:23:51.859Z",
+    "tempC": 22,
     "tempF": 71,
     "tempUnit": "°F",
     "isDaytime": false,
@@ -189,7 +183,7 @@ WEATHER_FORECAST (6 hours):
     "precipitationProbability": 10
   },
   {
-    "time": "2026-05-05T12:42:20.138Z",
+    "time": "2026-05-05T12:23:51.859Z",
     "tempC": 21,
     "tempF": 71,
     "tempUnit": "°F",
@@ -200,31 +194,44 @@ WEATHER_FORECAST (6 hours):
     "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
+  },
+  {
+    "time": "2026-05-05T13:23:51.859Z",
+    "tempC": 22,
+    "tempF": 71,
+    "tempUnit": "°F",
+    "isDaytime": true,
+    "windSpeed": null,
+    "conditions": "Mostly cloudy",
+    "temperature": 71,
+    "conditionType": "MOSTLY_CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
   }
 ]
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 2,
+  "jams": 0,
   "stats": {
-    "jams": 2,
-    "major": 2,
-    "total": 27,
+    "jams": 0,
+    "major": 0,
+    "total": 25,
     "closures": 17,
     "highways": 14,
     "accidents": 0,
     "construction": 8
   },
-  "summary": "Frisco is currently experiencing heavy congestion driven by 12 active road closures and 14 highway incidents within a 10-mile radius. Critical closures on Dallas Pkwy (5.1mi) and Warren Pkwy (3.6mi) will severely disrupt north-south and local east-west routing. Drivers should rely on alternate arterial roads like Preston Rd or Teel Pkwy and verify drop-off accessibility before entering the Fields Pkwy or Warren Pkwy corridors.",
+  "summary": "Frisco is currently experiencing heavy congestion with 12 active road closures within a 10-mile radius. Critical closures on Dallas Pkwy (5.1mi) and Warren Pkwy (3.6mi) will severely disrupt north-south and local east-west routing. Drivers should rely on alternate arterials like Preston Rd or Teel Pkwy and verify drop-off accessibility before entering the Fields Pkwy or Warren Pkwy corridors.",
   "analyzed": true,
-  "briefing": "Frisco is currently experiencing heavy congestion driven by 12 active road closures and 14 highway incidents within a 10-mile radius. Critical closures on Dallas Pkwy (5.1mi) and Warren Pkwy (3.6mi) will severely disrupt north-south and local east-west routing. Drivers should rely on alternate arterial roads like Preston Rd or Teel Pkwy and verify drop-off accessibility before entering the Fields Pkwy or Warren Pkwy corridors.",
+  "briefing": "Frisco is currently experiencing heavy congestion with 12 active road closures within a 10-mile radius. Critical closures on Dallas Pkwy (5.1mi) and Warren Pkwy (3.6mi) will severely disrupt north-south and local east-west routing. Drivers should rely on alternate arterials like Preston Rd or Teel Pkwy and verify drop-off accessibility before entering the Fields Pkwy or Warren Pkwy corridors.",
   "closures": [
     {
       "road": "",
       "location": "S Stemmons Fwy to E Corporate Dr",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 9.8
+      "distanceFromDriver": 9.9
     },
     {
       "road": "",
@@ -301,21 +308,21 @@ TRAFFIC_CONDITIONS:
       "location": "Valley Ridge Blvd exit [453] to Valley Ridge Blvd exit [453]",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 9.4
+      "distanceFromDriver": 9.5
     },
     {
       "road": "",
       "location": "N Mill St / W College St to N Railroad St",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 8.7
+      "distanceFromDriver": 8.8
     },
     {
       "road": "",
       "location": "Witt Rd to Crystal Ln",
       "severity": "low",
       "isHighway": false,
-      "distanceFromDriver": 2.2
+      "distanceFromDriver": 2.3
     },
     {
       "road": "",
@@ -326,7 +333,7 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Main St to Lamar Hunt Way",
+      "location": "Lamar Hunt Way to Main St",
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 3
@@ -339,9 +346,9 @@ TRAFFIC_CONDITIONS:
       "distanceFromDriver": 3.2
     }
   ],
-  "headline": "Frisco is currently experiencing heavy congestion driven by 12 active road closures and 14 highway incidents within a 10-mile radius.",
+  "headline": "Frisco is currently experiencing heavy congestion with 12 active road closures within a 10-mile radius.",
   "provider": "tomtom",
-  "fetchedAt": "2026-05-05T07:42:20.469Z",
+  "fetchedAt": "2026-05-05T08:23:52.176Z",
   "incidents": [
     {
       "road": "FM-1171",
@@ -364,12 +371,12 @@ TRAFFIC_CONDITIONS:
       "priority": 125,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: S Stemmons Fwy to E Corporate Dr [9.8 mi]",
+      "description": "Road Closed: S Stemmons Fwy to E Corporate Dr [9.9 mi]",
       "incidentLat": 33.0184516708,
       "incidentLon": -96.9838312913,
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 9.8
+      "distanceFromDriver": 9.9
     },
     {
       "road": "",
@@ -485,28 +492,28 @@ TRAFFIC_CONDITIONS:
     }
   ],
   "keyIssues": [
-    "Warren Pkwy closure 3.6mi away - blocks local east-west transit",
-    "Dallas Pkwy to Dallas North Tollway S closure 5.1mi away - disrupts major north-south highway access",
-    "Legacy Dr to Dallas Pkwy closure 5.3mi away - restricts access around Fields Pkwy"
+    "Warren Pkwy closed 3.6mi away - blocks local east-west transit",
+    "Dallas Pkwy to Dallas North Tollway S closed 5.1mi away - major north-south disruption",
+    "Legacy Dr to Dallas Pkwy closed 5.3mi away - impacts northern Frisco routing"
   ],
   "avoidAreas": [
-    "Warren Pkwy corridor (3.6mi): Multiple local road closures restricting east-west movement.",
-    "Fields Pkwy / Universal Pkwy zone (5.3mi): Clustered road closures affecting Legacy Dr and Dallas Pkwy access."
+    "Warren Pkwy corridor (3.6mi): Multiple closures and road works disrupting local traffic",
+    "Fields Pkwy / Universal Pkwy area (5.3mi): Clustered closures severely limiting access"
   ],
   "safetyAlert": "No safety alerts at this time",
-  "driverImpact": "Heavy congestion and clustered closures make short local trips around Warren Pkwy and Fields Pkwy highly inefficient; prioritize longer trips utilizing clear north-south arterials away from the Dallas North Tollway closures.",
+  "driverImpact": "Heavy congestion and clustered closures in northern Frisco require avoiding the Fields Pkwy and Warren Pkwy corridors; prioritize rides in southern or eastern zones using Preston Rd or Custer Rd for north-south movement.",
   "surgePricing": true,
   "closuresCount": 17,
   "repositioning": "No repositioning advice — see AI briefing above",
-  "incidentsCount": 27,
-  "totalIncidents": 27,
-  "closuresSummary": "12 closures within 10mi, most critical: Warren Pkwy (3.6mi) and Dallas Pkwy to Dallas North Tollway S (5.1mi).",
+  "incidentsCount": 25,
+  "totalIncidents": 25,
+  "closuresSummary": "12 closures within 10mi, most critical: Warren Pkwy (3.6mi) and Dallas Pkwy to DNT South (5.1mi).",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Active road works on FM-1171 (9.6mi), Fields Pkwy (5.1mi), and Warren Pkwy (4.6mi) are contributing to local bottlenecks despite no reported delays."
+  "constructionSummary": "Road works on FM-1171 (9.6mi), Fields Pkwy (5.1mi), and Warren Pkwy (4.5mi) adding to local delays."
 }
 
-EVENTS (15 total):
+EVENTS (25 total):
 [
   {
     "title": "Purple Party Weekend: AFTERGLOW XL",
@@ -599,24 +606,6 @@ EVENTS (15 total):
     "event_start_time": "20:00"
   },
   {
-    "title": "Arm's Length",
-    "venue": "The Echo Lounge and Music Hall",
-    "impact": "low",
-    "address": "1323 North Stemmons Freeway",
-    "subtype": "concert",
-    "summary": "Arm's Length • The Echo Lounge and Music Hall • 2026-05-05 • 19:00",
-    "category": "concert",
-    "latitude": 32.790562099999995,
-    "location": "The Echo Lounge and Music Hall, 1323 North Stemmons Freeway",
-    "venue_id": "37f9178b-6b35-4660-a412-8681b234d9e2",
-    "longitude": -96.81445839999999,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "19:00"
-  },
-  {
     "title": "Krooked Kings",
     "venue": "Club Dada",
     "impact": "low",
@@ -633,6 +622,24 @@ EVENTS (15 total):
     "event_end_time": "23:00",
     "event_start_date": "2026-05-05",
     "event_start_time": "20:00"
+  },
+  {
+    "title": "Mighty Dark To Travel",
+    "venue": "Tulips FTW",
+    "impact": "low",
+    "address": "112 Saint Louis Avenue",
+    "subtype": "concert",
+    "summary": "Mighty Dark To Travel • Tulips FTW • 2026-05-05 • 19:00",
+    "category": "concert",
+    "latitude": 32.743148399999995,
+    "location": "Tulips FTW, 112 Saint Louis Avenue",
+    "venue_id": "313ead81-06bd-4d52-9708-ac4a16787e92",
+    "longitude": -97.32897129999999,
+    "event_type": "concert",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "19:00"
   },
   {
     "title": "Saul Eduardo",
@@ -653,22 +660,22 @@ EVENTS (15 total):
     "event_start_time": "19:00"
   },
   {
-    "title": "Mighty Dark To Travel",
-    "venue": "Tulips FTW",
-    "impact": "low",
-    "address": "112 Saint Louis Avenue",
+    "title": "Arms Length",
+    "venue": "The Echo Lounge and Music Hall",
+    "impact": "medium",
+    "address": "1323 North Stemmons Freeway",
     "subtype": "concert",
-    "summary": "Mighty Dark To Travel • Tulips FTW • 2026-05-05 • 19:00",
+    "summary": "Arms Length • The Echo Lounge and Music Hall • 2026-05-05 • 18:00",
     "category": "concert",
-    "latitude": 32.743148399999995,
-    "location": "Tulips FTW, 112 Saint Louis Avenue",
-    "venue_id": "313ead81-06bd-4d52-9708-ac4a16787e92",
-    "longitude": -97.32897129999999,
+    "latitude": 32.790562099999995,
+    "location": "The Echo Lounge and Music Hall, 1323 North Stemmons Freeway",
+    "venue_id": "37f9178b-6b35-4660-a412-8681b234d9e2",
+    "longitude": -96.81445839999999,
     "event_type": "concert",
     "event_end_date": "2026-05-05",
-    "event_end_time": "22:00",
+    "event_end_time": "21:00",
     "event_start_date": "2026-05-05",
-    "event_start_time": "19:00"
+    "event_start_time": "18:00"
   },
   {
     "title": "Cinco De Mayo Party with Mission 5",
@@ -761,9 +768,63 @@ EVENTS (15 total):
     "event_start_time": "18:00"
   },
   {
+    "title": "Frisco RoughRiders vs. Northwest Arkansas Naturals",
+    "venue": "Riders Field",
+    "impact": "medium",
+    "address": "7300 Rough Riders Trl, Frisco, TX 75034, USA",
+    "subtype": "sports",
+    "summary": "Frisco RoughRiders vs. Northwest Arkansas Naturals • Riders Field • 2026-05-05 • 11:05",
+    "category": "sports",
+    "latitude": 33.098583,
+    "location": "Riders Field, 7300 Rough Riders Trl, Frisco, TX 75034, USA",
+    "venue_id": "4ee0721e-4019-4cbe-a859-3895538fe704",
+    "longitude": -96.81951439999999,
+    "event_type": "sports",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "14:05",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "11:05"
+  },
+  {
+    "title": "Isaiah Rashad - It's Been Awful Release Party",
+    "venue": "House of Blues Dallas",
+    "impact": "medium",
+    "address": "2200 North Lamar Street",
+    "subtype": "concert",
+    "summary": "Isaiah Rashad - It's Been Awful Release Party • House of Blues Dallas • 2026-05-05 • 17:00",
+    "category": "concert",
+    "latitude": 32.7850629,
+    "location": "House of Blues Dallas, 2200 North Lamar Street",
+    "venue_id": "39ae2568-2b81-4b7c-be61-5e383996271e",
+    "longitude": -96.80819319999999,
+    "event_type": "concert",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "20:00",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "17:00"
+  },
+  {
+    "title": "Cinco de Mayo Garden Fiesta",
+    "venue": "Dallas Arboretum and Botanical Garden",
+    "impact": "medium",
+    "address": "8525 Garland Rd, Dallas, TX 75218, USA",
+    "subtype": "festival",
+    "summary": "Cinco de Mayo Garden Fiesta • Dallas Arboretum and Botanical Garden • 2026-05-05 • 18:00",
+    "category": "festival",
+    "latitude": 32.823618,
+    "location": "Dallas Arboretum and Botanical Garden, 8525 Garland Rd, Dallas, TX 75218, USA",
+    "venue_id": "3dc418f1-71da-496c-9ff1-577f19b341e4",
+    "longitude": -96.716624,
+    "event_type": "festival",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "20:00",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "18:00"
+  },
+  {
     "title": "Cinco de Mayo @ Second Rodeo Brewing",
     "venue": "Second Rodeo Brewing",
-    "impact": "high",
+    "impact": "medium",
     "address": "122 E Exchange Ave #340, Fort Worth, TX 76164, USA",
     "subtype": "festival",
     "summary": "Cinco de Mayo @ Second Rodeo Brewing • Second Rodeo Brewing • 2026-05-05 • 11:00",
@@ -777,6 +838,132 @@ EVENTS (15 total):
     "event_end_time": "23:00",
     "event_start_date": "2026-05-05",
     "event_start_time": "11:00"
+  },
+  {
+    "title": "Krooked Kings",
+    "venue": "Dada Dallas",
+    "impact": "low",
+    "address": "2720 Elm St, Dallas, TX 75226, USA",
+    "subtype": "concert",
+    "summary": "Krooked Kings • Dada Dallas • 2026-05-05 • 20:00",
+    "category": "concert",
+    "latitude": 32.78447,
+    "location": "Dada Dallas, 2720 Elm St, Dallas, TX 75226, USA",
+    "venue_id": "c947856e-1cb0-4a66-992e-848da0b79aaa",
+    "longitude": -96.783924,
+    "event_type": "concert",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Zillionaire Doe",
+    "venue": "Dada Dallas",
+    "impact": "low",
+    "address": "2720 Elm St, Dallas, TX 75226, USA",
+    "subtype": "concert",
+    "summary": "Zillionaire Doe • Dada Dallas • 2026-05-05 • 21:00",
+    "category": "concert",
+    "latitude": 32.78447,
+    "location": "Dada Dallas, 2720 Elm St, Dallas, TX 75226, USA",
+    "venue_id": "c947856e-1cb0-4a66-992e-848da0b79aaa",
+    "longitude": -96.783924,
+    "event_type": "concert",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "23:59",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "21:00"
+  },
+  {
+    "title": "Star Wars Trivia Night",
+    "venue": "Rollertown Beerworks",
+    "impact": "medium",
+    "address": "6450 Main St, Frisco, TX 75033, USA",
+    "subtype": "nightlife",
+    "summary": "Star Wars Trivia Night • Rollertown Beerworks • 2026-05-05 • 19:00",
+    "category": "nightlife",
+    "latitude": 33.1527741,
+    "location": "Rollertown Beerworks, 6450 Main St, Frisco, TX 75033, USA",
+    "venue_id": "1c81d341-c2c1-4a7c-bcc0-8d7af08d0a88",
+    "longitude": -96.830061,
+    "event_type": "nightlife",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Frisco Social Run Club - Free 5K",
+    "venue": "Frisco Rail Yard",
+    "impact": "low",
+    "address": "9040 First St, Frisco, TX 75034, USA",
+    "subtype": "community",
+    "summary": "Frisco Social Run Club - Free 5K • Frisco Rail Yard • 2026-05-05 • 19:00",
+    "category": "community",
+    "latitude": 33.1525222,
+    "location": "Frisco Rail Yard, 9040 First St, Frisco, TX 75034, USA",
+    "venue_id": "83094ff5-bbbc-474d-90dc-c4fc8f30304d",
+    "longitude": -96.8278417,
+    "event_type": "community",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Cinco de Mayo Festivities at HALL Park Hotel",
+    "venue": "HALL Park Hotel",
+    "impact": "medium",
+    "address": "3220 Internet Blvd, Frisco, TX 75034, USA",
+    "subtype": "nightlife",
+    "summary": "Cinco de Mayo Festivities at HALL Park Hotel • HALL Park Hotel • 2026-05-05 • 17:00",
+    "category": "nightlife",
+    "latitude": 33.1053121,
+    "location": "HALL Park Hotel, 3220 Internet Blvd, Frisco, TX 75034, USA",
+    "venue_id": "298eb796-95a4-4831-9db7-87c5255dacc2",
+    "longitude": -96.8287754,
+    "event_type": "nightlife",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "17:00"
+  },
+  {
+    "title": "Mic Drops Texas Funny 2026 Semi Finals",
+    "venue": "Mic Drop Comedy Plano",
+    "impact": "medium",
+    "address": "7301 Lone Star Dr Suite A-110, Plano, TX 75024, USA",
+    "subtype": "comedy",
+    "summary": "Mic Drops Texas Funny 2026 Semi Finals • Mic Drop Comedy Plano • 2026-05-05 • 19:30",
+    "category": "comedy",
+    "latitude": 33.078730500000006,
+    "location": "Mic Drop Comedy Plano, 7301 Lone Star Dr Suite A-110, Plano, TX 75024, USA",
+    "venue_id": "e02de7c9-687c-44f5-b7b4-ffd18fcc00a4",
+    "longitude": -96.823201,
+    "event_type": "comedy",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "Celebrate Cinco de Mayo at the Top of Dallas!",
+    "venue": "Reunion Tower",
+    "impact": "medium",
+    "address": "300 Reunion Boulevard East",
+    "subtype": "community",
+    "summary": "Celebrate Cinco de Mayo at the Top of Dallas! • Reunion Tower • 2026-05-05 • 19:00",
+    "category": "community",
+    "latitude": 32.775597499999996,
+    "location": "Reunion Tower, 300 Reunion Boulevard East",
+    "venue_id": "5316c59f-710d-4a0c-910f-caa22818abe3",
+    "longitude": -96.8089687,
+    "event_type": "community",
+    "event_end_date": "2026-05-05",
+    "event_end_time": "20:00",
+    "event_start_date": "2026-05-05",
+    "event_start_time": "19:00"
   }
 ]
 
@@ -789,30 +976,14 @@ SCHOOL_CLOSURES (5 total, 0 active today):
     "impact": "high",
     "reason": "Summer Break",
     "end_date": "2026-08-12",
-    "schoolName": "Frisco Independent School District",
+    "schoolName": "Frisco ISD",
     "start_date": "2026-05-25",
-    "school_name": "Frisco Independent School District",
+    "school_name": "Frisco ISD",
     "closureStart": "2026-05-25",
     "reopeningDate": "2026-08-12",
     "closure_reason": "Summer Break",
     "reopening_date": "2026-08-12",
     "distanceFromDriver": 3.4
-  },
-  {
-    "lat": 33.0198,
-    "lng": -96.6989,
-    "type": "public",
-    "impact": "high",
-    "reason": "Summer Break",
-    "end_date": "2026-08-11",
-    "schoolName": "Plano Independent School District",
-    "start_date": "2026-05-25",
-    "school_name": "Plano Independent School District",
-    "closureStart": "2026-05-25",
-    "reopeningDate": "2026-08-11",
-    "closure_reason": "Summer Break",
-    "reopening_date": "2026-08-11",
-    "distanceFromDriver": 12.7
   },
   {
     "lat": 33.2362,
@@ -821,18 +992,34 @@ SCHOOL_CLOSURES (5 total, 0 active today):
     "impact": "high",
     "reason": "Summer Break",
     "end_date": "2026-08-11",
-    "schoolName": "Prosper Independent School District",
-    "start_date": "2026-05-25",
-    "school_name": "Prosper Independent School District",
-    "closureStart": "2026-05-25",
+    "schoolName": "Prosper ISD",
+    "start_date": "2026-05-21",
+    "school_name": "Prosper ISD",
+    "closureStart": "2026-05-21",
     "reopeningDate": "2026-08-11",
     "closure_reason": "Summer Break",
     "reopening_date": "2026-08-11",
     "distanceFromDriver": 8.6
   },
   {
-    "lat": 33.1147,
-    "lng": -96.8044,
+    "lat": 33.0198,
+    "lng": -96.6989,
+    "type": "public",
+    "impact": "high",
+    "reason": "Summer Break",
+    "end_date": "2026-08-11",
+    "schoolName": "Plano ISD",
+    "start_date": "2026-05-25",
+    "school_name": "Plano ISD",
+    "closureStart": "2026-05-25",
+    "reopeningDate": "2026-08-11",
+    "closure_reason": "Summer Break",
+    "reopening_date": "2026-08-11",
+    "distanceFromDriver": 12.7
+  },
+  {
+    "lat": 33.1118,
+    "lng": -96.8021,
     "type": "college",
     "impact": "medium",
     "reason": "Memorial Day",
@@ -844,11 +1031,11 @@ SCHOOL_CLOSURES (5 total, 0 active today):
     "reopeningDate": "2026-05-26",
     "closure_reason": "Memorial Day",
     "reopening_date": "2026-05-26",
-    "distanceFromDriver": 4.3
+    "distanceFromDriver": 4.4
   },
   {
-    "lat": 33.1095,
-    "lng": -96.8258,
+    "lat": 33.134,
+    "lng": -96.822,
     "type": "college",
     "impact": "medium",
     "reason": "Memorial Day",
@@ -860,7 +1047,7 @@ SCHOOL_CLOSURES (5 total, 0 active today):
     "reopeningDate": "2026-05-26",
     "closure_reason": "Memorial Day",
     "reopening_date": "2026-05-26",
-    "distanceFromDriver": 3.2
+    "distanceFromDriver": 3.1
   }
 ]
 
@@ -870,11 +1057,11 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor delays at security checkpoints",
+      "delays": "Minor delays on inbound flights",
       "status": "normal",
       "busyTimes": [
-        "06:00-09:00",
-        "15:00-18:00"
+        "07:00-09:00",
+        "16:00-19:00"
       ]
     },
     {
@@ -883,30 +1070,30 @@ AIRPORT_CONDITIONS:
       "delays": "No significant delays",
       "status": "normal",
       "busyTimes": [
-        "07:00-10:00",
-        "16:00-19:00"
+        "06:00-08:00",
+        "15:00-18:00"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-05-05T07:42:30.086Z",
+  "fetchedAt": "2026-05-05T08:24:06.010Z",
   "busyPeriods": [
-    "Morning rush 6 AM - 10 AM",
-    "Evening rush 3 PM - 7 PM"
+    "Morning rush 6:00 AM - 9:00 AM",
+    "Evening rush 4:00 PM - 7:00 PM"
   ],
-  "recommendations": "Arrive 2 hours before domestic flights. Check traffic on Dallas North Tollway and Sam Rayburn Tollway before departing Frisco."
+  "recommendations": "Monitor traffic on the Dallas North Tollway and TX-121 South. Allow an extra 30 minutes for parking and TSA security checks during morning and evening peak hours."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: d6b1509b-25bf-4b9a-80d4-51b50d74eea0
-snapshot_id: 58eebc8c-5f8a-4738-bb10-ffd9b534250a
+id: 0b118f0c-8252-4f70-bffb-05b72819db65
+snapshot_id: 41e9c37c-c945-440f-ac1a-2291090d2d83
 status: pending
 error_message: (none)
-created_at: Tue May 05 2026 07:42:19 GMT+0000 (Coordinated Universal Time)
-updated_at: Tue May 05 2026 07:42:19 GMT+0000 (Coordinated Universal Time)
+created_at: Tue May 05 2026 08:23:51 GMT+0000 (Coordinated Universal Time)
+updated_at: Tue May 05 2026 08:23:51 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -931,10 +1118,10 @@ School Closures Filter Check:
   (None active today)
 
 Event Count:
-  Total events in briefing: 15
-  High impact: 4
-  Medium impact: 5
-  Low impact: 6
+  Total events in briefing: 25
+  High impact: 3
+  Medium impact: 14
+  Low impact: 8
 
 TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in location: 0
@@ -942,8 +1129,8 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in time: 0
 
 Events AFTER filterInvalidEvents (what LLM actually receives, tz=America/Chicago):
-  Raw events in DB: 15
-  Filtered events (sent to LLM): 15
+  Raw events in DB: 25
+  Filtered events (sent to LLM): 25
   TBD events removed: 0
 
 ════════════════════════════════════════════════════════════════════════════════

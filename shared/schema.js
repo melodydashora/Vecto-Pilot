@@ -1767,6 +1767,90 @@ export const offer_intelligence = pgTable("offer_intelligence", {
   idxNeedGeocode: sql`create index if not exists idx_oi_need_geocode on ${table} (id) where geocoded_at is null and pickup_address is not null`,
 }));
 
+/**
+ * coach_offer_decisions — Driver/Coach decision intelligence (2026-05-05)
+ *
+ * Companion to offer_intelligence. Where offer_intelligence is the *event log*
+ * (every Siri-ingested offer, populated by the analyzer pipeline regardless of
+ * decision), this table is the *decision log* — only offers Melody actively
+ * reviewed in the chat tab and committed to a verdict on.
+ *
+ * Workflow:
+ *   1. Melody screenshots an Uber/Lyft offer card in the Coach chat
+ *   2. Coach OCRs + computes per_mile/per_hour/deadhead_risk
+ *   3. Coach emits ai_recommendation (ACCEPT/REJECT/CANCEL) + ai_reasoning
+ *   4. Melody tells Coach what she actually decided + her reasoning
+ *   5. Coach logs row here with optional FK back to offer_intelligence
+ *      and (later) updates user_decision when the trip lifecycle resolves
+ *
+ * Coach can ALSO use ground-truth fields from this row to backfill nulls on
+ * the linked offer_intelligence row — Melody-confirmed screenshot data
+ * outranks Siri's parse on disputes.
+ *
+ * Read+write access: Coach has both. user_decision is the lifecycle outcome
+ * (Accepted | Rejected | Cancelled | Completed); ai_recommendation is the
+ * Coach's binary call (ACCEPT | REJECT | CANCEL all-caps to match
+ * offer_intelligence.decision so SQL joins don't need UPPER()).
+ */
+export const coach_offer_decisions = pgTable("coach_offer_decisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Linkage
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'cascade' }),
+  conversation_id: uuid("conversation_id"),                                          // optional FK to coach_conversations
+  snapshot_id: uuid("snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'set null' }),
+  offer_intelligence_id: uuid("offer_intelligence_id").references(() => offer_intelligence.id, { onDelete: 'set null' }),
+
+  // Core offer data (raw numbers from screenshot OCR)
+  platform: text("platform"),                                                        // 'uber' | 'lyft'
+  ride_tier: text("ride_tier"),                                                      // 'UberX', 'XL', 'Comfort', etc.
+  fare_amount: doublePrecision("fare_amount"),
+  pickup_miles: doublePrecision("pickup_miles"),
+  pickup_minutes: integer("pickup_minutes"),
+  trip_miles: doublePrecision("trip_miles"),
+  trip_minutes: integer("trip_minutes"),
+
+  // Location
+  pickup_location: text("pickup_location"),
+  dropoff_location: text("dropoff_location"),
+  surge_attached: doublePrecision("surge_attached"),
+
+  // Computed intelligence (the Coach's brain)
+  dollar_per_mile: doublePrecision("dollar_per_mile"),
+  dollar_per_hour: doublePrecision("dollar_per_hour"),
+  deadhead_risk: text("deadhead_risk"),                                              // 'HIGH' | 'MEDIUM' | 'LOW'
+
+  // AI verdict
+  ai_recommendation: text("ai_recommendation"),                                      // 'ACCEPT' | 'REJECT' | 'CANCEL'
+  ai_reasoning: text("ai_reasoning"),
+
+  // Driver verdict — the learning signal
+  user_decision: text("user_decision"),                                              // 'Accepted' | 'Rejected' | 'Cancelled' | 'Completed'
+  user_reasoning: text("user_reasoning"),                                            // Driver's "why" — overrides Coach when AI was wrong
+
+  // Asset
+  screenshot_url: text("screenshot_url"),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  // Driver decision history (most-recent-first for prompt injection)
+  idxUserCreated: sql`create index if not exists idx_cod_user_created on ${table} (user_id, created_at desc)`,
+
+  // Cross-table backfill lookups
+  idxOfferIntel: sql`create index if not exists idx_cod_offer_intel on ${table} (offer_intelligence_id) where offer_intelligence_id is not null`,
+
+  // "Where do AI and Driver disagree" learning queries
+  idxAgreement: sql`create index if not exists idx_cod_agreement on ${table} (ai_recommendation, user_decision) where user_decision is not null`,
+
+  // Conversation thread joins (for context reconstruction)
+  idxConversation: sql`create index if not exists idx_cod_conversation on ${table} (conversation_id) where conversation_id is not null`,
+
+  // Snapshot context joins (where was Melody when she decided)
+  idxSnapshot: sql`create index if not exists idx_cod_snapshot on ${table} (snapshot_id) where snapshot_id is not null`,
+}));
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DISPATCH PRIMITIVES (2026-01-06)
 // Schema additions for "Where do I go to make $500 today and still get home?"

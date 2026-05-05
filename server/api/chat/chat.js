@@ -3,7 +3,7 @@
 // Updated 2026-01-05: Added schema awareness and action validation
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { appendFile } from 'fs/promises';
+import { appendFile, readFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db } from '../../db/drizzle.js';
@@ -16,6 +16,43 @@ import { validateAction } from '../rideshare-coach/validate.js';
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OFFER ANALYZER RULES — read-only context loader (2026-05-05)
+// Caches the canonical rules doc + LLM role registry once per process so the
+// Coach can reason about WHY the analyzer recommended what it did without
+// burning disk reads on every chat turn.
+// ═══════════════════════════════════════════════════════════════════════════
+
+let _offerRulesCache = null;
+async function getOfferAnalyzerRules() {
+  if (_offerRulesCache !== null) return _offerRulesCache;
+
+  const __dirname_chat = path.dirname(fileURLToPath(import.meta.url));
+  const rootDir = path.join(__dirname_chat, '..', '..', '..');
+  const docPath = path.join(rootDir, 'docs', 'architecture', 'OFFER_ANALYZER.md');
+  const registryPath = path.join(rootDir, 'server', 'lib', 'ai', 'model-registry.js');
+
+  try {
+    const [doc, registry] = await Promise.all([
+      readFile(docPath, 'utf-8').catch(err => {
+        console.warn(`[COACH] Failed to read OFFER_ANALYZER.md: ${err.message}`);
+        return '';
+      }),
+      readFile(registryPath, 'utf-8').catch(err => {
+        console.warn(`[COACH] Failed to read model-registry.js: ${err.message}`);
+        return '';
+      })
+    ]);
+    _offerRulesCache = { doc, registry };
+    console.log(`[COACH] Loaded offer analyzer rules: doc=${doc.length}c, registry=${registry.length}c`);
+    return _offerRulesCache;
+  } catch (err) {
+    console.error('[COACH] Unexpected error loading offer rules:', err.message);
+    _offerRulesCache = { doc: '', registry: '' };
+    return _offerRulesCache;
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ACTION PARSING HELPERS
@@ -38,11 +75,14 @@ function parseActions(responseText) {
     systemNotes: [],
     zoneIntel: [],
     eventReactivations: [],
-    addEvents: [],       // 2026-02-17: Coach-created events from driver intel
-    updateEvents: [],    // 2026-02-17: Coach-corrected event details
-    coachMemos: [],      // 2026-02-17: Coach-to-Claude Code bridge memos (writes to file)
-    marketIntel: [],     // 2026-03-18: C-3 — market-wide intelligence from driver conversations
-    venueIntel: []       // 2026-03-18: C-3 — staging spots, GPS dead zones, venue intel
+    addEvents: [],          // 2026-02-17: Coach-created events from driver intel
+    updateEvents: [],       // 2026-02-17: Coach-corrected event details
+    coachMemos: [],         // 2026-02-17: Coach-to-Claude Code bridge memos (writes to file)
+    marketIntel: [],        // 2026-03-18: C-3 — market-wide intelligence from driver conversations
+    venueIntel: [],         // 2026-03-18: C-3 — staging spots, GPS dead zones, venue intel
+    offerDecisions: [],     // 2026-05-05: New offer decisions to log (coach_offer_decisions)
+    offerDecisionUpdates: [],// 2026-05-05: Lifecycle/verdict updates on existing decisions
+    offerIntelBackfills: [] // 2026-05-05: Ground-truth backfills onto offer_intelligence
   };
 
   let cleanedText = responseText;
@@ -69,6 +109,10 @@ function parseActions(responseText) {
           else if (actionType === 'ZONE_INTEL') actions.zoneIntel.push(actionData);
           else if (actionType === 'MARKET_INTEL') actions.marketIntel.push(actionData);
           else if (actionType === 'SAVE_VENUE_INTEL') actions.venueIntel.push(actionData);
+          // 2026-05-05: Offer decision pipeline
+          else if (actionType === 'LOG_OFFER_DECISION') actions.offerDecisions.push(actionData);
+          else if (actionType === 'UPDATE_OFFER_DECISION') actions.offerDecisionUpdates.push(actionData);
+          else if (actionType === 'BACKFILL_OFFER_INTEL') actions.offerIntelBackfills.push(actionData);
         }
         // Use the response field if present, otherwise remove the JSON block
         cleanedText = envelope.response || responseText.replace(jsonEnvelopeMatch[0], '').trim();
@@ -93,7 +137,11 @@ function parseActions(responseText) {
     { prefix: 'SYSTEM_NOTE', key: 'systemNotes' },
     { prefix: 'ZONE_INTEL', key: 'zoneIntel' },
     { prefix: 'MARKET_INTEL', key: 'marketIntel' },
-    { prefix: 'SAVE_VENUE_INTEL', key: 'venueIntel' }
+    { prefix: 'SAVE_VENUE_INTEL', key: 'venueIntel' },
+    // 2026-05-05: Offer decision pipeline (legacy regex form)
+    { prefix: 'LOG_OFFER_DECISION', key: 'offerDecisions' },
+    { prefix: 'UPDATE_OFFER_DECISION', key: 'offerDecisionUpdates' },
+    { prefix: 'BACKFILL_OFFER_INTEL', key: 'offerIntelBackfills' }
   ];
 
   for (const { prefix, key } of actionTypes) {
@@ -578,6 +626,76 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
     }
   }
 
+  // 2026-05-05: Coach offer decision logging — driver-decision intel from chat tab
+  // Each call inserts a new coach_offer_decisions row tagged to user/conversation/snapshot.
+  for (const decision of actions.offerDecisions) {
+    try {
+      const validation = validateAction('LOG_OFFER_DECISION', decision);
+      if (!validation.ok) {
+        results.errors.push(`LogOfferDecision validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+      const decisionRow = await rideshareCoachDAL.saveCoachOfferDecision({
+        ...validation.data,
+        user_id: userId,
+        conversation_id: conversationId,
+        snapshot_id: snapshotId
+      });
+      if (decisionRow) {
+        results.saved++;
+        console.log(`[COACH] [ACTIONS] Logged offer decision ${decisionRow.id?.substring(0, 8)} (${validation.data.ai_recommendation})`);
+      } else {
+        results.errors.push(`LogOfferDecision: write returned null`);
+      }
+    } catch (e) {
+      results.errors.push(`LogOfferDecision: ${e.message}`);
+    }
+  }
+
+  // 2026-05-05: Lifecycle / verdict updates on existing decision rows
+  // (e.g., "I accepted that one but cancelled mid-trip" → user_decision='Cancelled')
+  for (const update of actions.offerDecisionUpdates) {
+    try {
+      const validation = validateAction('UPDATE_OFFER_DECISION', update);
+      if (!validation.ok) {
+        results.errors.push(`UpdateOfferDecision validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+      const { id, ...fields } = validation.data;
+      const updated = await rideshareCoachDAL.updateCoachOfferDecision(id, userId, fields);
+      if (updated) {
+        results.saved++;
+        console.log(`[COACH] [ACTIONS] Updated offer decision ${id?.substring(0, 8)}`);
+      } else {
+        results.errors.push(`UpdateOfferDecision "${id}": no row matched (wrong id or not owned by user)`);
+      }
+    } catch (e) {
+      results.errors.push(`UpdateOfferDecision: ${e.message}`);
+    }
+  }
+
+  // 2026-05-05: Coach backfilling ground-truth from screenshot OCR back into the
+  // raw offer_intelligence row (Siri parse often had nulls; screenshot is canonical).
+  for (const backfill of actions.offerIntelBackfills) {
+    try {
+      const validation = validateAction('BACKFILL_OFFER_INTEL', backfill);
+      if (!validation.ok) {
+        results.errors.push(`BackfillOfferIntel validation: ${validation.errors.map(e => e.message).join(', ')}`);
+        continue;
+      }
+      const { offer_intelligence_id, ...fields } = validation.data;
+      const updated = await rideshareCoachDAL.updateOfferIntelligence(offer_intelligence_id, fields);
+      if (updated) {
+        results.saved++;
+        console.log(`[COACH] [ACTIONS] Backfilled offer_intelligence ${offer_intelligence_id?.substring(0, 8)} (${Object.keys(fields).join(',')})`);
+      } else {
+        results.errors.push(`BackfillOfferIntel "${offer_intelligence_id}": no row matched`);
+      }
+    } catch (e) {
+      results.errors.push(`BackfillOfferIntel: ${e.message}`);
+    }
+  }
+
   if (results.errors.length > 0) {
     console.warn(`[COACH] [ACTIONS] ${results.errors.length} errors:`, results.errors);
   }
@@ -1050,6 +1168,37 @@ You have FULL event management capabilities — add, update, deactivate, and rea
 - ALWAYS include the reason in the driver's words
 - Time constraints are optional but very valuable (e.g., "dead after 10pm", "busy during Cowboys games")
 
+💸 **Offer Decision Logging (2026-05-05) — your interactive offer analyzer:**
+
+When Melody sends you a screenshot of an Uber/Lyft offer card, your job is:
+  1. OCR the card: platform, ride_tier, fare, pickup miles/min, trip miles/min, surge, addresses
+  2. Compute: dollar_per_mile = fare / (pickup_miles + trip_miles); dollar_per_hour = fare / ((pickup_minutes + trip_minutes) / 60)
+  3. Assess deadhead_risk (HIGH/MEDIUM/LOW): consider dropoff distance from her home market, time of day, return-trip demand
+  4. Make a recommendation: ACCEPT / REJECT / CANCEL with a 1-2 sentence reasoning
+  5. **Log it immediately** with [LOG_OFFER_DECISION: {...}]
+  6. Ask: "did you take it?" — when she answers, emit [UPDATE_OFFER_DECISION: {id, user_decision, user_reasoning}]
+
+**LOG_OFFER_DECISION format:**
+\`[LOG_OFFER_DECISION: {"platform": "uber", "ride_tier": "UberX", "fare_amount": 12.45, "pickup_miles": 3.2, "pickup_minutes": 6, "trip_miles": 8.1, "trip_minutes": 18, "pickup_location": "address", "dropoff_location": "address", "surge_attached": 2.50, "dollar_per_mile": 1.10, "dollar_per_hour": 31.10, "deadhead_risk": "MEDIUM", "ai_recommendation": "ACCEPT", "ai_reasoning": "Above $1/mi threshold, dropoff stays inside Frisco core.", "screenshot_url": "<paste url or data: URL if she sent one>"}]\`
+
+**UPDATE_OFFER_DECISION format** (after she tells you what she actually did):
+\`[UPDATE_OFFER_DECISION: {"id": "<uuid from previous log>", "user_decision": "Accepted", "user_reasoning": "I took it because dropoff is near Stonebriar and I wanted the position."}]\`
+- user_decision values: "Accepted" | "Rejected" | "Cancelled" | "Completed" (Title Case — lifecycle outcome)
+- ai_recommendation values: "ACCEPT" | "REJECT" | "CANCEL" (ALL CAPS — matches offer_intelligence.decision)
+- When she overrides you (you said REJECT, she Accepted), her user_reasoning is the LEARNING SIGNAL — read past disagreements (in COACH DECISION LOG context section) and adapt future calls accordingly
+
+**BACKFILL_OFFER_INTEL** — when a screenshot reveals values that the Siri-ingested
+offer_intelligence row got wrong/null (e.g., pickup_address was null but the screenshot shows it):
+\`[BACKFILL_OFFER_INTEL: {"offer_intelligence_id": "<uuid>", "pickup_address": "...", "ride_miles": 8.1}]\`
+Only use this when there's a linked offer_intelligence row (you'll see offer_intelligence_id in the LOG_OFFER_DECISION you previously logged or in the OFFER LOG context section).
+
+📐 **Offer Analyzer Rules (read-only — DO NOT EDIT, only consult):**
+Below is the canonical offer-analyzer doctrine + the LLM role definitions. Use these to:
+- Explain WHY the existing analyzer recommended ACCEPT/REJECT on past offers
+- Identify when your judgment in chat *disagrees* with the rules — propose changes via [COACH_MEMO]
+- Cite the rule by section number (e.g., "per §7 deterministic fallback") when you're applying it
+You do NOT have write access to these — you can only read and reason about them.
+
 📊 **Your Data (Pre-loaded Context):**
 All available data is included in this prompt below. You do NOT have live SQL query access.
 Your data comes from these sources (pre-fetched for you):
@@ -1062,6 +1211,8 @@ Your data comes from these sources (pre-fetched for you):
 - Zone Intelligence: Crowd-sourced zone knowledge (dead zones, honey holes, staging spots)
 - Your Notes: Previous notes you saved about this driver
 - Offer Analysis Log: Recent Siri Shortcut ride offer analyses with accept/reject stats
+- Coach Decision Log: Decisions you logged from chat (with disagreement-rate vs driver verdict)
+- Offer Analyzer Rules: Canonical doctrine + LLM registry (read-only, spliced below)
 - Session History: Recent driving sessions for pattern analysis
 
 **CRITICAL: Do NOT hallucinate or invent data.** If information is not in the context below, say "I don't have that data in my current context" — do NOT make up table names, features, or statistics.
@@ -1087,6 +1238,38 @@ ${contextInfo}
 You're a powerful AI companion with research-backed market intelligence and persistent memory. Help with rideshare strategy when they need it, but be ready to assist with absolutely anything else they want to discuss or research.
 
 **CRITICAL IDENTITY REMINDER:** You are Gemini 3 Pro Preview by Google. You are NOT Claude, NOT GPT, NOT any other AI model. If asked who you are, always respond that you are Gemini 3 Pro Preview.`;
+
+    // 2026-05-05: Splice the read-only offer analyzer rules into the system prompt.
+    // Doc + registry land at the bottom of the prompt so they don't displace
+    // the user's snapshot/strategy context if the model has to truncate.
+    try {
+      const offerRules = await getOfferAnalyzerRules();
+      if (offerRules.doc || offerRules.registry) {
+        systemPrompt += `
+
+══════════════════════════════════════════════════════════════════════════
+**OFFER ANALYZER RULES (READ-ONLY)** — for explaining WHY the analyzer recommends what it does
+══════════════════════════════════════════════════════════════════════════
+
+📄 **Source: \`docs/architecture/OFFER_ANALYZER.md\`** (canonical business rules + LLM phase architecture)
+
+${offerRules.doc}
+
+══════════════════════════════════════════════════════════════════════════
+
+📄 **Source: \`server/lib/ai/model-registry.js\`** (LLM role definitions — system prompts, model IDs, output schemas)
+
+\`\`\`js
+${offerRules.registry}
+\`\`\`
+
+══════════════════════════════════════════════════════════════════════════
+END OFFER ANALYZER RULES (read-only — propose changes via [COACH_MEMO])
+══════════════════════════════════════════════════════════════════════════`;
+      }
+    } catch (e) {
+      console.warn('[COACH] Failed to splice offer analyzer rules:', e.message);
+    }
 
     // SUPER USER ENHANCEMENT: Inject Agent Capabilities & Memory
     if (isSuperUser) {
