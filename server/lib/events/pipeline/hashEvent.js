@@ -165,9 +165,22 @@ export function buildHashInput(event) {
   const venue = normalizeForHash(event.venue_name || event.venue);
   const street = extractStreetName(event.address);
   const city = normalizeForHash(event.city);
-  const date = event.event_start_date || '';
 
-  return `${title}|${venue}|${street}|${city}|${date}`;
+  // 2026-05-05: P0-3 fix per events_e2e_audit.md.
+  // Single-day events: hash date = event_start_date (back-compat with v3 doctrine).
+  // Multi-day events: hash date = "start_end" so a true 7-day festival hashes to the
+  // same identity regardless of which day inside the span it gets discovered on.
+  // Without this, a multi-day event re-discovered tomorrow would get a different
+  // hash from today's row (since the start_date stays stable but the span identity
+  // wasn't represented). The combined start+end span is the right identity for
+  // multi-day events. Existing rows can be re-hashed via migrate-event-hashes.js.
+  const startDate = event.event_start_date || '';
+  const endDate = event.event_end_date || '';
+  const dateComponent = (endDate && endDate !== startDate)
+    ? `${startDate}_${endDate}`
+    : startDate;
+
+  return `${title}|${venue}|${street}|${city}|${dateComponent}`;
 }
 
 /**

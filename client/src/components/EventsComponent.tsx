@@ -226,7 +226,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
                           {event.event_start_date && (
                             <div className="flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-indigo-500 flex-shrink-0" />
-                              <span className={`font-medium ${formatEventDate(event.event_start_date) === 'Today' ? 'text-green-600' : 'text-indigo-600'}`}>
+                              <span className={`font-medium ${formatEventDate(event.event_start_date).startsWith('Today') ? 'text-green-600' : 'text-indigo-600'}`}>
                                 {formatEventDate(event.event_start_date)}
                               </span>
                             </div>

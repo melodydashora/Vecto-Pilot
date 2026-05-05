@@ -180,3 +180,11 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 ### [FEATURE_REQUEST] Implement specific verbal trigger phrase to stop STT [RESOLVED BY PR #31]
 - **Priority:** high | **Date:** 2026-05-04 17:01
 - Melody specifically requested using a set phrase (like a 4-word command) to automatically end the 'listening' state and submit the prompt without touching the screen. The STT engine needs to watch the transcript for this trigger phrase and auto-fire the submit function.
+
+### [OBSERVATION] Voice UI: Tap to stop on tab switch successful
+- **Priority:** low | **Date:** 2026-05-05 02:12
+- Melody confirmed that the 'listening tap to stop' activation on tab switch (with the 3-second wait) is fully working for the first time. Huge milestone achieved for the voice interface.
+
+### [FEATURE_REQUEST] Reduce TTS delays on punctuation
+- **Priority:** medium | **Date:** 2026-05-05 02:12
+- Decrease the pause and delay duration between paragraphs and periods during voice playback. The current pauses are too long and slow down the conversational flow.

@@ -942,9 +942,13 @@ router.get('/resolve', async (req, res) => {
             // Location API was overwriting session_id with null (from query param default),
             // causing immediate session invalidation after login.
             // See LESSONS_LEARNED.md: "Auth Loop on Login" bug.
+            // 2026-05-05: device_id removed from UPDATE — users.device_id is the
+            // SIGNUP device, immutable after registration. Auto-updating it here
+            // overwrote the signup record on every location resolve, creating the
+            // device-resurrection bug that cycled fixed/broken 8 times. snapshots.device_id
+            // captures the current device per-event; users.device_id stays put.
             const updateResult = await db.update(users)
               .set({
-                device_id: deviceId, // Update device_id to current device (links this device to user)
                 new_lat: lat,
                 new_lng: lng,
                 accuracy_m: accuracy,

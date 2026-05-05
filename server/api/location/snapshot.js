@@ -2,8 +2,8 @@
 import express, { Router } from 'express';
 import crypto from "node:crypto";
 import { db } from "../../db/drizzle.js";
-import { sql, eq } from "drizzle-orm";
-import { snapshots, strategies, coords_cache } from "../../../shared/schema.js";
+import { sql, eq, and } from "drizzle-orm";
+import { snapshots, strategies, coords_cache, users, rankings } from "../../../shared/schema.js";
 import { validateIncomingSnapshot, validateSnapshotFields } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
 import { generateAndStoreBriefing } from "../../lib/briefing/briefing-aggregator.js";
@@ -275,6 +275,54 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
   } catch (err) {
     console.error('[SNAPSHOT] Error:', err);
     return res.status(500).json({ ok: false, error: 'INTERNAL_ERROR', message: String(err) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/snapshot/drop
+// 2026-05-05: Drop the user's current snapshot (DELETE the row + null the pointer).
+// Called by manual refresh and (in a follow-up) by logout. The DELETE cascades to
+// briefings, events, traffic, ranking_candidates, etc. via onDelete:'cascade' FKs.
+// On success, the next /location/resolve creates a fresh snapshot row → fires
+// 'vecto-snapshot-saved' → existing observer triggers the waterfall.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post('/drop', requireAuth, async (req, res) => {
+  const userId = req.auth?.userId;
+  if (!userId) {
+    return res.status(401).json({ ok: false, error: 'no_auth', message: 'authenticated user required to drop snapshot' });
+  }
+
+  try {
+    const userRow = await db.query.users.findFirst({ where: eq(users.user_id, userId) });
+    const currentSnapshotId = userRow?.current_snapshot_id;
+
+    if (!currentSnapshotId) {
+      // Already in clean state — pointer null, nothing to drop. Idempotent success.
+      return res.json({ ok: true, dropped: false, reason: 'no_current_snapshot' });
+    }
+
+    // 2026-05-05: rankings.snapshot_id FK at shared/schema.js:139 lacks onDelete:'cascade'
+    // (the only snapshot FK in the schema without cascade — all others cascade or set-null).
+    // So we MUST delete rankings first; ranking_candidates auto-cascades from rankings.
+    // Schema migration to add cascade is a follow-up; explicit delete is the immediate fix.
+    await db.delete(rankings).where(eq(rankings.snapshot_id, currentSnapshotId));
+
+    // DELETE the current snapshot; cascade handles all other dependent rows.
+    // Scope to user_id as well so a stolen/forged snapshot_id can't delete another user's row.
+    await db.delete(snapshots).where(
+      and(eq(snapshots.snapshot_id, currentSnapshotId), eq(snapshots.user_id, userId))
+    );
+
+    // Null the pointer on users so the next resolve sees a clean slate.
+    await db.update(users)
+      .set({ current_snapshot_id: null, updated_at: new Date() })
+      .where(eq(users.user_id, userId));
+
+    console.log(`[SNAPSHOT] [DROP] user=${userId.slice(0, 8)} dropped snapshot=${currentSnapshotId.slice(0, 8)} (cascade)`);
+    return res.json({ ok: true, dropped: true, snapshot_id: currentSnapshotId });
+  } catch (err) {
+    console.error('[SNAPSHOT] [DROP] error:', err);
+    return res.status(500).json({ ok: false, error: 'drop_failed', message: String(err?.message || err) });
   }
 });
 

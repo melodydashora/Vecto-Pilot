@@ -182,6 +182,39 @@ function addDuration(startTime, durationHours) {
 }
 
 /**
+ * 2026-05-05: P0-2 fix per events_e2e_audit.md.
+ * Decide event_end_date for a normalized event, accounting for overnight rollover.
+ *
+ * If the provider supplied an explicit event_end_date, trust it (caller knows best).
+ * Otherwise, if event_end_time is at or before event_start_time (e.g. nightlife
+ * 20:00 → 02:00), the event crosses midnight; end_date = start_date + 1 day.
+ * Else end_date = start_date (single-day event).
+ *
+ * Without this rollover, cleanup and freshness logic treat overnight events as
+ * ending earlier on the same date — deactivating them prematurely.
+ *
+ * @param {string} startDate - YYYY-MM-DD
+ * @param {string} startTime - HH:MM (24-hour)
+ * @param {string} endTime - HH:MM (24-hour)
+ * @param {string|undefined} providerEndDate - Raw provider event_end_date (if any)
+ * @returns {string} YYYY-MM-DD
+ */
+function inferEndDate(startDate, startTime, endTime, providerEndDate) {
+  const explicit = normalizeDate(providerEndDate);
+  if (explicit) return explicit;
+  if (!startDate) return '';
+  if (!startTime || !endTime) return startDate;
+  // String comparison works because both are HH:MM 24-hour
+  if (endTime <= startTime) {
+    // Cross-midnight: bump to next calendar day
+    const d = new Date(`${startDate}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().split('T')[0];
+  }
+  return startDate;
+}
+
+/**
  * Normalize a raw event to canonical format
  * This is the ONLY function that should convert provider output to internal format.
  *
@@ -267,8 +300,9 @@ export function normalizeEvent(rawEvent, context = {}) {
     event_start_date,
     event_start_time,
     event_end_time,
-    // 2026-01-10: Default event_end_date to event_start_date for single-day events
-    event_end_date: normalizeDate(rawEvent.event_end_date) || normalizeDate(rawEvent.event_date || rawEvent.event_start_date || rawEvent.date),
+    // 2026-05-05: P0-2 fix — use inferEndDate() to detect cross-midnight rollover.
+    // Replaces the old "default end_date to start_date" logic that broke nightlife events.
+    event_end_date: inferEndDate(event_start_date, event_start_time, event_end_time, rawEvent.event_end_date),
 
     // Classification
     category,

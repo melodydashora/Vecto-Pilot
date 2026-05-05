@@ -49,6 +49,9 @@ export const API_ROUTES = {
   // =========================================================================
   SNAPSHOT: {
     GET: (snapshotId: string) => `/api/snapshot/${snapshotId}`,
+    // 2026-05-05: Drop primitive — DELETE current snapshot row + cascade dependents.
+    // Called by manual refresh (preserves auth) and (in a follow-up) by logout (drops auth too).
+    DROP: '/api/snapshot/drop',
   },
 
   // =========================================================================

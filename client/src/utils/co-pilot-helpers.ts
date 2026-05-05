@@ -534,10 +534,21 @@ export function formatEventDate(eventDate: string | undefined): string {
   const eventDay = new Date(eventDate + 'T00:00:00');
   const diffDays = Math.floor((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
+  // 2026-05-05: Append explicit MM/DD/YYYY to Today/Tomorrow labels so any
+  // snapshot-vs-wallclock date drift is immediately visible to the user.
+  // If the snapshot's date doesn't match the user's actual local day, the
+  // displayed date will expose the gap rather than hiding it under a generic
+  // "Today" label.
+  const dateStr = eventDay.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+
+  if (diffDays === 0) return `Today (${dateStr})`;
+  if (diffDays === 1) return `Tomorrow (${dateStr})`;
   if (diffDays < 7 && diffDays > 0) {
-    return eventDay.toLocaleDateString('en-US', { weekday: 'long' });
+    return `${eventDay.toLocaleDateString('en-US', { weekday: 'long' })} (${dateStr})`;
   }
 
   return eventDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

@@ -8,7 +8,7 @@ run = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.j
 
 # Nix/packages configuration
 [nix]
-packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "docker", "glib", "google-cloud-sdk-gce", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nano", "nodejs-22", "nspr", "nss", "pango", "pgroll", "python313Packages.conda", "spidermonkey_91", "tmux", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "fetchutils", "solana-cli", "gh"]
+packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "docker", "fetchutils", "gh", "glib", "google-cloud-sdk-gce", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nano", "nodejs-22", "nspr", "nss", "pango", "pgroll", "python313Packages.conda", "solana-cli", "spidermonkey_91", "tmux", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)

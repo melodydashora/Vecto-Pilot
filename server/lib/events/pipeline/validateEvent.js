@@ -159,21 +159,31 @@ export function validateEvent(event, context = {}) {
     }
   }
 
-  // Rule 13: Date must be today or yesterday in the driver's local timezone
-  // 2026-02-26: We only ask Gemini for today's events. Future-dated events are noise.
-  // Allow yesterday to handle events discovered before midnight that end after midnight.
+  // Rule 13: Event span must include today (multi-day inclusive) in driver's local tz.
+  // 2026-05-05: P0-1 fix per events_e2e_audit.md. Old rule rejected events whose
+  // event_start_date was older than yesterday — but a true multi-day event active
+  // today (e.g. start=2026-04-20, end=2026-04-27, today=2026-04-24) is valid.
+  // The old workaround was forcing the prompt to set start_date=today; that
+  // corrupted real spans and produced different hashes across consecutive discovery
+  // days. Now: validate that today falls inside [start_date, end_date].
+  // Yesterday-ended events that are still in the 2-hour surge window are surfaced
+  // by filterFreshEvents at read time, not validated in here.
   // 2026-04-28: tz-aware via context.timezone. UTC fallback preserved for legacy callers
   // (without context). Spec §9.2 — global-app correctness for far-east / Hawaii / etc.
   const tz = context.timezone;
   const today = tz
     ? new Date().toLocaleDateString('en-CA', { timeZone: tz })
     : new Date().toISOString().split('T')[0];
-  const yesterdayDate = new Date(Date.now() - 86400000);
-  const yesterday = tz
-    ? yesterdayDate.toLocaleDateString('en-CA', { timeZone: tz })
-    : yesterdayDate.toISOString().split('T')[0];
-  if (event.event_start_date !== today && event.event_start_date !== yesterday) {
-    return { valid: false, reason: 'not_today', field: 'event_start_date' };
+  const startDate = event.event_start_date;
+  const endDate = event.event_end_date || startDate; // single-day events use start as end
+  if (!startDate) {
+    return { valid: false, reason: 'missing_start_date', field: 'event_start_date' };
+  }
+  if (startDate > today) {
+    return { valid: false, reason: 'starts_in_future', field: 'event_start_date' };
+  }
+  if (endDate < today) {
+    return { valid: false, reason: 'ended_before_today', field: 'event_end_date' };
   }
 
   // All rules passed

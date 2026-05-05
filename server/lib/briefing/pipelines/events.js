@@ -318,21 +318,24 @@ Return JSON array (max ${maxEvents} events). EVERY field below is REQUIRED — e
   "place_id": "ChIJ...",
   "address": "Full Street Address, City, State",
   "category": "${category.eventTypes[0]}",
-  "event_start_date": "${date}",
+  "event_start_date": "YYYY-MM-DD (true start, may be earlier than ${date} for multi-day events)",
   "event_start_time": "7:00 PM",
   "event_end_time": "10:00 PM",
-  "event_end_date": "${date}",
+  "event_end_date": "YYYY-MM-DD (true end, may be later than ${date} for multi-day events; same as start for single-day; start+1 for overnight events)",
   "impact": "high|medium|low"
 }]
 
 RULES:
-- TODAY ONLY — date must be ${date}. Multi-day events active today are included.
-- place_id: The Google Places ID for the venue (starts with "ChIJ"). Use your knowledge of Google Places to provide this. If truly unknown, use "unknown".
+- ACTIVE TODAY: include any event where event_start_date <= ${date} AND event_end_date >= ${date}.
+- 2026-05-05 (P0-1 fix): preserve TRUE multi-day spans. A 7-day festival running ${date} should report its real start (e.g. 4 days ago) and real end (e.g. 3 days from now) — DO NOT collapse the dates to ${date}. Multi-day events re-discovered tomorrow should report the same start/end so they hash identically.
+- 2026-05-05 (P0-2 fix): for OVERNIGHT events (e.g. 9 PM today → 1 AM tomorrow), event_start_date=${date} and event_end_date is the next calendar day. Do not set both end_date and start_date to ${date} when the times cross midnight.
+- For SINGLE-day events: event_start_date and event_end_date are both ${date}.
+- place_id: Google Places ID for the venue (starts with "ChIJ"). Use your knowledge of Google Places to provide this. If truly unknown, use "unknown".
 - category: MUST be one of: concert, sports, comedy, theater, festival, nightlife, convention, community
 - ALL 4 date/time fields REQUIRED — estimate times if unknown (Sports=3h, Concert=3h, Festival=4h, Nightlife=4h)
 - Search the ENTIRE ${searchArea.toUpperCase()} metro, not just ${city}
 - Prioritize high-attendance events that generate rideshare demand
-- Return [] if no events today.`;
+- Return [] if no events active today.`;
 
   try {
     // 2026-01-14: FIX - Add STRICT categorization rules to prevent "concert" over-tagging
@@ -404,8 +407,17 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   }
   const city = snapshot.city;
   const state = snapshot.state;
-  const lat = snapshot.lat;
-  const lng = snapshot.lng;
+  // 2026-05-05: P1-2 fix per events_e2e_audit.md — coerce + validate lat/lng before
+  // they reach `lat.toFixed(6)` in fetchEventCategory's prompt. Without this, an
+  // older snapshot or test object passing string/missing coords throws inside the
+  // catch path, returning an empty category result, which silently degrades the
+  // entire event discovery to "no events found."
+  const lat = Number(snapshot.lat);
+  const lng = Number(snapshot.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    briefingLog.warn(2, `Invalid or missing snapshot coords (lat=${snapshot.lat}, lng=${snapshot.lng}) — skipping event discovery`, OP.AI);
+    return { items: [], reason: 'Location coordinates unavailable for event discovery' };
+  }
   const hour = snapshot?.hour ?? new Date().getHours();
   const timezone = snapshot.timezone;  // NO FALLBACK - timezone is required
 

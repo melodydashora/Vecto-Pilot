@@ -153,6 +153,16 @@ Session clearing on expiration shall null out:
 - `session_id`
 - `current_snapshot_id`
 
+> **[2026-05-05 — needs audit]** This requirement is incomplete relative to the new
+> snapshot-drop contract. The expected behavior on session expiration AND on
+> user-initiated logout is now: DELETE the current snapshot row (which cascades to
+> briefings/events/traffic/etc. via `onDelete:'cascade'` FKs) AND null
+> `current_snapshot_id`. Pointer-detachment alone leaves zombie snapshot rows in
+> the database; the unified contract requires row-level deletion. Pending Melody's
+> AUTH-pipeline audit. Tonight's drive: the snapshot-drop primitive
+> (`POST /api/snapshot/drop`) is implemented and called from the manual-refresh
+> client path; logout still uses pointer-detachment until the audit lands.
+
 #### FR-SESSION-010
 When a session is still valid, the system shall update `last_active_at` asynchronously to extend the sliding window.
 
@@ -423,6 +433,8 @@ The implementation shall not:
 - fail open when database-backed session checks fail
 - omit middleware completion after successful required authentication
 - silently treat invalid optional-auth tokens as anonymous access
+- **resolve user identity by querying the `users` table by `device_id`** — identity comes from the JWT-derived `req.auth.userId` only. `users.device_id` records the *signup* device and is immutable after registration; using it as a current-user resolver creates a resurrection vector for logged-out users and breaks for any multi-device user. (Added 2026-05-05 after this bug cycled fixed/broken 8 times. The violation site is in `server/api/location/location.js`, but the principle is auth-integrity, so it lives here.)
+- **auto-update `users.device_id` on subsequent requests** — the column is set once at registration and may only change through an explicit user-driven preferences flow (future). Location-resolution flows shall not write `users.device_id`. (Added 2026-05-05 alongside the prohibition above.)
 
 ---
 

@@ -414,6 +414,31 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Token prefixes and userIds were being logged, exposing auth details
       console.log('[LocationContext] Making location resolve request');
 
+      // 2026-05-05: Manual refresh drops the current snapshot BEFORE re-resolve.
+      // Server DELETE cascades briefings/events/traffic/etc. for that snapshot,
+      // then this resolve creates a brand-new row with current GPS. This is the
+      // mechanism that breaks the Frisco-lock symptom — without the drop, the
+      // server can reuse the stale snapshot row and the user keeps seeing old
+      // venues / old TomTom incidents from the prior location.
+      // Best-effort: a drop failure should not block the resolve attempt.
+      if (forceRefresh && token) {
+        try {
+          const dropRes = await fetch(API_ROUTES.SNAPSHOT.DROP, {
+            method: 'POST',
+            headers,
+            signal: controller.signal,
+          });
+          if (dropRes.ok) {
+            const body = await dropRes.json().catch(() => ({}));
+            console.log(`[LocationContext] 🗑️ Snapshot drop ok (dropped=${body?.dropped ?? 'unknown'})`);
+          } else {
+            console.warn(`[LocationContext] Snapshot drop returned ${dropRes.status} — proceeding with resolve anyway`);
+          }
+        } catch (err) {
+          console.warn('[LocationContext] Snapshot drop failed (non-blocking):', err);
+        }
+      }
+
       // ═══════════════════════════════════════════════════════════════════════════
       // TWO-PHASE UI UPDATE: Weather/AQI appear ~200-300ms before city/state
       // Weather and AQI are faster (single Google API each), location is slower
