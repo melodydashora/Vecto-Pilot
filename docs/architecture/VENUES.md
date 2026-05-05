@@ -22,7 +22,10 @@
 9. [API Endpoints](#9-api-endpoints)
 10. [Current State](#10-current-state)
 11. [Known Gaps](#11-known-gaps)
-12. [TODO — Hardening Work](#12-todo--hardening-work)
+## 12. TODO — Hardening Work
+
+## 13. Venue Pipeline End-to-End Audit
+See `VENUES_PIPELINE_AUDIT.md` for a comprehensive, line-numbered audit separating the Smart Blocks canonical pipeline from the Bar Tab nearby-venues utility, along with duplication risks.
 
 ---
 

@@ -175,7 +175,13 @@ Data access layer loading 11 parallel context sources:
 
 ---
 
-## 8. Coach Inbox Items
+## 8. Coach Pipeline End-to-End Audit
+
+See `COACH_PIPELINE_AUDIT.md` for a comprehensive, line-numbered audit mapping the architecture, route structure, client entrypoint, prompt injection, action parsing, validation, persistence, and duplicate risk checks.
+
+---
+
+## 9. Coach Inbox Items
 
 The Rideshare Coach writes memos to `docs/coach-inbox.md` via `[COACH_MEMO]` action tags. Key pending items as of 2026-04-14:
 
@@ -195,7 +201,7 @@ See `docs/coach-inbox.md` for the full queue with details.
 
 **Problem:** Drivers need to ask Coach questions while driving — "best TSA entrance," "where to go right now," etc. — without taking their eyes off the road. The original move of Coach into its own tab was specifically to enable auto-activation of listening mode.
 
-**Lifecycle (locked):** Tab enter (`/co-pilot/coach` mounts `<RideshareCoach />`) = listening starts. Tab leave (component unmount) = listening stops via cleanup.
+**Lifecycle (locked):** Tab enter (`/co-pilot/coach` mounts `<RideshareCoach />`) = listening starts. Tab leave (component unmount) = mic listening stops via cleanup. **Note:** TTS playback intentionally persists across tab navigation until it finishes naturally or the user explicitly stops it.
 
 ### 9.1. Auto-Activate Microphone
 
@@ -218,10 +224,10 @@ useEffect(() => {
 
 | Phrase | Behavior | Conditions |
 |---|---|---|
-| `"stop and output"` | Stops mic + auto-sends the **phrase-stripped** transcript (existing 300ms-delay-then-send pattern) | Only fires while listening AND not speaking (feedback-loop guard) |
-| `"stop replying"` | Cancels Coach TTS only; mic remains listening | Only fires while speaking |
+| `"stop and output"` (and 7 variants: `i'm done`, `i am done`, `send it`, `go ahead`, `this feature is complete`, `i've completed my thoughts`, `that's all`) | Stops mic + auto-sends the **phrase-stripped** transcript (existing 300ms-delay-then-send pattern) | Only fires while listening AND not speaking (feedback-loop guard) |
+| `"stop replying"` (and 7 variants: `stop and listen`, `stop talking`, `be quiet`, `hold on`, `pause`, `i'm done`, `i am done`) | Cancels Coach TTS only; mic remains listening | Only fires while speaking |
 
-Regex: `/\bstop\s+and\s+output\b/i` and `/\bstop\s+replying\b/i` — word-boundary, case-insensitive substring match. Once-per-session via guard refs (`stopAndOutputFiredRef`, `stopReplyingFiredRef`) so transcript ticks don't re-fire.
+Regex: Expanded natural-language grammar — word-boundary, case-insensitive substring match. Once-per-session via guard refs (`stopAndOutputFiredRef`, `stopReplyingFiredRef`) so transcript ticks don't re-fire.
 
 ### 9.3. Continuous Listen-While-TTS + Feedback-Loop Guard
 
@@ -233,7 +239,10 @@ Mic stays on during TTS playback. To prevent Coach's own voice (via speaker blee
 
 ### 9.5. Driver-Safety Stop Bar
 
-`client/src/components/coach/CoachStopBar.tsx` — full-width band, **80px tall (`h-20`)**, sticky-top of the Coach card. Always rendered; disabled (greyed) when `!isSpeaking`. High-contrast red when active.
+`client/src/components/coach/CoachStopBar.tsx` — full-width band, **80px tall (`h-20`)**, sticky-top of the Coach card. Implements a 3-state design:
+- **IDLE (Green):** "TAP TO START COACH" (mobile-safe bootstrap)
+- **LISTENING (Blue):** "COACH IS LISTENING..."
+- **SPEAKING (Red):** "STOP" (halts TTS playback)
 
 ```tsx
 <CoachStopBar isSpeaking={isSpeaking} onStop={stopSpeak} />
@@ -248,7 +257,7 @@ Mic stays on during TTS playback. To prevent Coach's own voice (via speaker blee
 ### 9.7. Storage Key
 
 ```ts
-COACH_AUTO_LISTEN_ENABLED: 'vectopilot_coach_auto_listen'  // default: not set = ON
+COACH_AUTO_LISTEN_ENABLED: 'vecto_coach_auto_listen_enabled'  // default: true
 ```
 
 ### 9.8. Out of Scope (Logged for Follow-Up)

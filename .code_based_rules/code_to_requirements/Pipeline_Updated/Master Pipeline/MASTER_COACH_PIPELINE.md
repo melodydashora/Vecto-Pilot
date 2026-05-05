@@ -354,11 +354,11 @@ For every open item, the row gives **(a) the precise current code location** whe
 | H10 | **Action-tag legacy regex parser** still present | `chat.js:99-124` (legacy `[TAG: {...}]` parsing). JSON envelope is preferred (`chat.js:52-81`). Plan: log usage so it can be retired. | 🟡 OPEN (maybe-dead) | Baseline audit §14.4; CLAUDE.md Rule 14.4 |
 | H11 | **Dead `getBriefing()` overlap** | `rideshare-coach-dal.js:353-381` (`getBriefing`) overlaps `getComprehensiveBriefing` at `:227`. Confirm if still called anywhere; if not, candidate for removal (see Rule 16). | 🟡 OPEN | Baseline audit §5 (duplicate-read risk) |
 | H12 | **TTS streaming flag still default-OFF** | `featureFlags.ts:COACH_STREAMING_TTS_ENABLED` default is `false`. Plan said Step 6 flips to `true`. | 🟡 OPEN | Comment in `featureFlags.ts` |
-| H13 | **Documentation drift (RIDESHARE_COACH.md)** | See §7 — multiple line-count and behavior contradictions | 🟡 OPEN | This document |
+| H13 | **Documentation drift (RIDESHARE_COACH.md)** | See §7 — multiple line-count and behavior contradictions | ✅ DONE (Updated to reflect PR #31 behavior) | This document |
 | H14 | **`/server/api/coach/` dead folder** | 4 files, 1,034 lines, no importers — see §3 | ✅ DONE 2026-05-04 — folder deleted; `bootstrap/routes.js:61-65` comment corrected | This document; resolved per Melody decision in §13 |
-| H15 | **Phase 0 plan is historical / not amended** | `docs/review-queue/PLAN_coach_handsfree_voice-2026-05-04.md` says "no code changes yet" but PR #31 has shipped the implementation | 🟡 OPEN | Corrected TODO §3 P1 |
-| H16 | **`coach_full_pipeline.md` line anchors are at `274cadc5`, not current main** | The audit doc itself says it's frozen, but doesn't have a banner | 🟡 OPEN | Corrected TODO §3 P0 |
-| H17 | **`docs/coach-inbox.md` items now resolved by PR #31** | Some inbox items are addressed by PR #31 but inbox is unchanged | 🟡 OPEN | Corrected TODO §3 P1 |
+| H15 | **Phase 0 plan is historical / not amended** | `docs/review-queue/PLAN_coach_handsfree_voice-2026-05-04.md` says "no code changes yet" but PR #31 has shipped the implementation | ✅ DONE (Marked as historical) | Corrected TODO §3 P1 |
+| H16 | **`coach_full_pipeline.md` line anchors are at `274cadc5`, not current main** | The audit doc itself says it's frozen, but doesn't have a banner | ✅ DONE (File consolidated and deleted during audit) | Corrected TODO §3 P0 |
+| H17 | **`docs/coach-inbox.md` items now resolved by PR #31** | Some inbox items are addressed by PR #31 but inbox is unchanged | ✅ DONE (Appended resolution notes) | Corrected TODO §3 P1 |
 
 ---
 

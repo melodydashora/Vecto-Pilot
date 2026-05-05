@@ -46,7 +46,7 @@ Three top-level folders under `server/` with overlapping names and overlapping f
 |---|---|---|
 | `server/agent/` | ✅ **LIVE** | Mounted via `gateway-server.js` → `bootstrap/routes.js:142-151` (`mountAgent` from `agent/embed.js`); `chat.js:16` imports `from '../../agent/enhanced-context.js'`; also imported by `server/lib/subagents/event-verifier.js` and `server/jobs/change-analyzer-job.js` |
 | `server/eidolon/` | ✅ **LIVE** | `eidolon/memory/pg.js` is imported by 5 files (`lib/ai/context/enhanced-context-base.js`, `agent/thread-context.js`, `agent/routes.js`, `agent/context-awareness.js`, `assistant/thread-context.js`); `eidolon/index.ts` exports `core/code-map.js`, `core/memory-store.js`, `core/context-awareness.js`, `core/memory-enhanced.js` |
-| `server/assistant/` | 💀 **DEAD** | **Zero non-self importers.** The only "external" references are TWO **commented-out** export lines in `eidolon/index.ts:17-18` (with the inline comment "Assistant system (commented out - files don't exist)" — but the files DO exist, in `server/assistant/`). `assistant/routes.js` is **not mounted** in `bootstrap/routes.js` or `gateway-server.js`. |
+| `server/assistant/` | ✅ **DELETED 2026-05-04 (was 💀 DEAD)** | **Zero non-self importers.** The only "external" references are TWO **commented-out** export lines in `eidolon/index.ts:17-18` (with the inline comment "Assistant system (commented out - files don't exist)" — but the files DO exist, in `server/assistant/`). `assistant/routes.js` is **not mounted** in `bootstrap/routes.js` or `gateway-server.js`. |
 
 ### 2.2 Files inside the dead `server/assistant/` folder
 
@@ -170,8 +170,11 @@ Documents an API surface (`/assistant/context`, `/assistant/search`, `/assistant
 
 ---
 
-## 6. ❓ DECIDE — `/server/assistant/` Dead Folder
+## 6. ✅ DECIDED 2026-05-04 — `/server/assistant/` Dead Folder (D1 executed)
 
+**Outcome:** Melody chose **D1 — Delete the folder.** Executed. `/server/assistant/` deleted.
+
+### Original context:
 **Pattern matches the `/server/api/coach/` situation exactly:** unmounted, only-self-imported (excluding commented-out lines), filenames collide with live folders, alphabetically-earlier than the live alternative.
 
 **Three options (mirroring Master Pipeline §13):**
@@ -192,17 +195,17 @@ Per Rule 16: this is a Melody decision. Audit flags it; doesn't act.
 
 ---
 
-## 7. ❓ DECIDE — Lower-priority Cleanups
+## 7. ✅ DECIDED 2026-05-04 — Lower-priority Cleanups
 
 Each of the below is a separate Melody decision. Each row is independent; pick zero or any combination.
 
 | # | Cleanup | Where | Cost |
 |---|---|---|---|
-| C1 | Decide fate of `server/lib/ai/providers/briefing.js` (Legacy Adapter) | Verify importers; if zero, candidate for removal | Small |
-| C2 | Resolve `eidolon/index.ts:17-18` commented-out exports + stale "files don't exist" comment | Remove the lines; the comment is incorrect | Small (paired with D1) |
-| C3 | Decide whether `client/src/_future/user-settings/location.ts` should stay parked or be unparked/removed | Check git log for last touch | Small |
-| C4 | Reconcile `assistant/README.md` (or delete it with the folder under D1) | Tied to D1 | None if D1 picked; small otherwise |
-| C5 | Confirm `agent/index.ts` vs `agent/embed.js` canonical entry-point — leave both, or move logic together | `bootstrap/routes.js:142` only references `embed.js` | Small |
+| C1 | Decide fate of `server/lib/ai/providers/briefing.js` (Legacy Adapter) | ✅ KEPT: Verified active imports in `strategy.js`, `blocks-fast.js`, and `diagnostics-strategy.js` | Small |
+| C2 | Resolve `eidolon/index.ts:17-18` commented-out exports + stale "files don't exist" comment | ✅ DONE: Removed dead exports along with D1 execution | Small (paired with D1) |
+| C3 | Decide whether `client/src/_future/user-settings/location.ts` should stay parked or be unparked/removed | ✅ DONE: Deleted (file was parked since Dec 2025 and unused) | Small |
+| C4 | Reconcile `assistant/README.md` (or delete it with the folder under D1) | ✅ DONE: Deleted with D1 | None if D1 picked; small otherwise |
+| C5 | Confirm `agent/index.ts` vs `agent/embed.js` canonical entry-point — leave both, or move logic together | ✅ DONE: Left both, but added inline comment to `agent/index.ts` marking it as a standalone alternative while `embed.js` is the canonical active mount point | Small |
 
 ---
 

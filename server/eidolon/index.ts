@@ -13,9 +13,6 @@ export { memoryManager } from './core/memory-enhanced.js';
 // Configuration
 export { EIDOLON_CONFIG } from './config.js';
 
-// Assistant system (commented out - files don't exist)
-// export { default as unifiedAssistant } from '../assistant/unified-assistant';
-// export { default as memoryRouter } from '../assistant/memory-router';
 
 // Types and interfaces
 export interface EidolonCapabilities {

@@ -1,8 +1,8 @@
 # [INTENT_MAPPING] Coach Hands-Free Voice Mode (Driving Safety)
 
-> **Status:** Phase 0 — awaiting Y/N approval. **No code changes yet.**
+> **Status:** Phase 0 — IMPLEMENTED & HISTORICAL. (Merged in PR #31). **Note:** Final code differs slightly (storage key is `vecto_coach_auto_listen_enabled`, paragraph collapse wording).
 > **Date:** 2026-05-04
-> **Branch:** `feat/coach-handsfree-2026-05-04` (based on `origin/main` @ `9c81fd66`)
+> **Branch:** `feat/coach-handsfree-2026-05-04` (Merged)
 > **Ticket label:** COACH-V1 (proposed — Coach Voice version 1)
 > **Antecedent:** New feature request 2026-05-04, post-AUTH-003 publish freeze lift.
 

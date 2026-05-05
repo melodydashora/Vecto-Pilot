@@ -1,4 +1,6 @@
 // server/agent/index.ts
+// NOTE (2026-05-04): This is a standalone alternative entry point.
+// The canonical active mount point used by the application is `server/agent/embed.js`.
 import http from 'node:http';
 import express from 'express';
 import cors from 'cors';
