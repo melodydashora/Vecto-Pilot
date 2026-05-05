@@ -108,16 +108,28 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   // 2026-03-18: FIX (F-2) — Ref tracks finalTranscript to avoid stale closure in onresult
   const finalTranscriptRef = useRef('');
-  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceTimeoutRef = useRef<number | null>(null);
+  const optionsRef = useRef(options);
+
+  // Always keep optionsRef up to date with latest render
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const resetSilenceTimeout = useCallback(() => {
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-    if (options.onSilence && options.silenceThresholdMs) {
-      silenceTimeoutRef.current = setTimeout(() => {
-        options.onSilence!();
-      }, options.silenceThresholdMs);
+    if (silenceTimeoutRef.current !== null) {
+      window.clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
     }
-  }, [options.onSilence, options.silenceThresholdMs]);
+    
+    const currentOptions = optionsRef.current;
+    if (currentOptions.onSilence && currentOptions.silenceThresholdMs) {
+      silenceTimeoutRef.current = window.setTimeout(() => {
+        console.log('[SpeechRecognition] VAD silence timeout hit! Firing onSilence callback.');
+        currentOptions.onSilence!();
+      }, currentOptions.silenceThresholdMs);
+    }
+  }, []);
 
   const SpeechRecognition = getSpeechRecognition();
   const isSupported = SpeechRecognition !== null;
@@ -125,7 +137,9 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (silenceTimeoutRef.current !== null) {
+        window.clearTimeout(silenceTimeoutRef.current);
+      }
       if (recognitionRef.current) {
         recognitionRef.current.abort();
         recognitionRef.current = null;
@@ -196,13 +210,19 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
       console.error(`[SpeechRecognition] Error: ${event.error}`);
       setError(event.error);
       setIsListening(false);
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (silenceTimeoutRef.current !== null) {
+        window.clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
     };
 
     recognition.onend = () => {
       setIsListening(false);
       console.log('[SpeechRecognition] Stopped');
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (silenceTimeoutRef.current !== null) {
+        window.clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
     };
 
     recognitionRef.current = recognition;
@@ -211,7 +231,10 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}):
   }, [SpeechRecognition]);
 
   const stop = useCallback(() => {
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    if (silenceTimeoutRef.current !== null) {
+      window.clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = null;
+    }
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
