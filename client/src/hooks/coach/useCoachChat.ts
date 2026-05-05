@@ -236,7 +236,11 @@ export function useCoachChat({
               setTimeout(scrollToBottom, 10);
               onStreamDelta?.(msg.delta);
             }
-            if (msg.error) {
+            // 2026-05-05: Discriminate string-shaped error messages (legacy) from
+            // boolean flags (H4 fallback envelope). Boolean true is a signal that
+            // belongs in done payload metadata, not in the message bubble — overwriting
+            // the bubble would nuke the delta-accumulated response that streamed first.
+            if (typeof msg.error === 'string') {
               setMsgs((m) => {
                 const copy = [...m];
                 const last = copy[copy.length - 1];
