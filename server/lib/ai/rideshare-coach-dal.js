@@ -343,46 +343,7 @@ export class RideshareCoachDAL {
     }
   }
 
-  /**
-   * Get briefing data (events, traffic, news) from briefings table
-   * NOTE: Briefing data is in separate `briefings` table, NOT in strategies table
-   * NOTE: Holiday info is in snapshots table (holiday, is_holiday), not briefings
-   * @param {string} snapshotId - Snapshot ID to scope reads
-   * @returns {Promise<Object>} Briefing data
-   */
-  async getBriefing(snapshotId) {
-    try {
-      const [briefingRecord] = await db
-        .select()
-        .from(briefings)
-        .where(eq(briefings.snapshot_id, snapshotId))
-        .limit(1);
 
-      if (!briefingRecord) {
-        return {
-          events: [],
-          traffic: [],
-          news: [],
-        };
-      }
-
-      // 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
-      // Holiday info is now in snapshots table (holiday, is_holiday)
-      return {
-        events: briefingRecord.events || [],
-        traffic: briefingRecord.traffic_conditions || {},
-        news: briefingRecord.news || { items: [] },
-        school_closures: briefingRecord.school_closures || [],
-      };
-    } catch (error) {
-      console.error('[COACH] getBriefing error:', error);
-      return {
-        events: [],
-        traffic: [],
-        news: [],
-      };
-    }
-  }
 
   /**
    * Get smart blocks (location cards with navigation metadata)

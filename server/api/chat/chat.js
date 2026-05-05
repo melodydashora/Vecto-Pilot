@@ -868,6 +868,7 @@ router.post('/', requireAuth, async (req, res) => {
 
     // Save user message to coach_conversations (non-blocking, authenticated users only)
     let userMessageId = null;
+    let userPersistenceError = null;
     if (isAuthenticated) {
       try {
         const userMsg = await rideshareCoachDAL.saveConversationMessage({
@@ -891,6 +892,7 @@ router.post('/', requireAuth, async (req, res) => {
         userMessageId = userMsg?.id;
       } catch (e) {
         console.warn('[COACH] Failed to save user message:', e.message);
+        userPersistenceError = e.message;
       }
     }
 
@@ -1251,7 +1253,9 @@ Full transparency. Maximum insight.
       if (!response.ok) {
         const errText = await response.text();
         console.error(`[COACH] Gemini API error ${response.status}: ${errText.substring(0, 200)}`);
-        res.write(`data: ${JSON.stringify({ error: `API error ${response.status}` })}\n\n`);
+        // H4: Graceful fallback text
+        res.write(`data: ${JSON.stringify({ delta: 'Coach will be back soon.' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
         return res.end();
       }
 
@@ -1326,6 +1330,7 @@ Full transparency. Maximum insight.
         }
 
         // Save assistant response to coach_conversations (authenticated users only)
+        let persistenceError = null;
         if (isAuthenticated) {
           try {
             // 2026-03-18: FIX (M-7) — Skip auto-tip extraction if SAVE_NOTE actions
@@ -1359,11 +1364,12 @@ Full transparency. Maximum insight.
             });
           } catch (e) {
             console.warn('[COACH] Failed to save assistant message:', e.message);
+            persistenceError = e.message;
           }
         }
       } else {
         console.warn('[COACH] Empty streaming response from Gemini');
-        res.write(`data: ${JSON.stringify({ delta: 'I had trouble generating a response. Try again?' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ delta: 'Coach will be back soon.' })}\n\n`);
       }
 
       // 2026-03-18: FIX (C-1) — Include action results so client gets feedback
@@ -1371,11 +1377,16 @@ Full transparency. Maximum insight.
       if (actionsResult) {
         donePayload.actions_result = actionsResult;
       }
+      if (userPersistenceError || persistenceError) {
+        donePayload.persistence_error = userPersistenceError || persistenceError;
+      }
       res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       res.end();
     } catch (error) {
       console.error('[COACH] Gemini request error:', error.message);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      // H4: Graceful fallback text
+      res.write(`data: ${JSON.stringify({ delta: 'Coach will be back soon.' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
       res.end();
     }
 

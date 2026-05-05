@@ -3,7 +3,7 @@
 **File:** `.code_based_rules/code_to_requirements/Pipeline_Updated/Master Pipeline/MASTER_COACH_PIPELINE.md`
 **Author:** Claude (drafted at Melody's direction)
 **Date written:** 2026-05-04
-**Working tree branch when audited:** `feat/coach-handsfree-2026-05-04` @ `acedd54f` (HEAD)
+**Working tree branch when audited:** `feat/coach-handsfree-2026-05-04` @ `acedd54f` (merged to main as `61a2d417`, branch deleted)
 **Doctrine:** This document is a **map**, not a refactor. It records *where every Coach function and call lives in the repo today*, what is done, what is open, and what new options Melody has not yet decided on. It never says "delete this" or "move this" without flagging it as a Melody-decision pending. Per Rule 16 (Melody is the Architect), no architectural change in this document is committed; everything that would alter behavior is presented as **options to choose**.
 
 **Anti-junk rule:** When a TODO is implemented, mark it `DONE → file:line` in §8 or §9. Do **not** delete the row. Do **not** remove file references that were superseded. The point of this document is to show *what currently exists in the repo* so that next session does not "leave junk behind" by losing track of where functions used to live.
@@ -35,7 +35,7 @@ This Coach pipeline is **not on one branch.** Three branch layers contribute to 
 |---|---|---:|---|---|
 | L1 — Frozen historical baseline | `main` @ `274cadc5c96fb4244c81c711951c1b43cb981fd5` | n/a | historical | Baseline state of `chat.js`, `rideshare-coach-dal.js`, `validate.js`, etc. before the hook refactor. Audited in `coach_finalizing/coach_full_pipeline.md`. **Not current main** — line anchors there are stale. |
 | L2 — Hook architecture | `coach-pass2-phase-b` (deleted after merge) | #18, #19 | merged | Introduced `useCoachChat`, `useCoachAudioState`, `useStreamingReadAloud`, `cleanTextForTTS.ts`, `sentenceBoundary.ts`, `featureFlags.ts`. PR #18 was the runtime refactor; PR #19 was docs/spec follow-up. |
-| L3 — Hands-free driver-safety | `feat/coach-handsfree-2026-05-04` (current working branch) | #31 | open | COACH-V1: auto-listen on tab mount, voice stop phrases, three-state `CoachStopBar`, hard-cancel TTS, paragraph-comma TTS cleanup, TTS-persists-on-tab-leave. |
+| L3 — Hands-free driver-safety | `feat/coach-handsfree-2026-05-04` (deleted post-merge; canonical state on main) | #31 | ✅ merged (2026-05-04 via `61a2d417`) | COACH-V1: auto-listen on tab mount, voice stop phrases, three-state `CoachStopBar`, hard-cancel TTS, paragraph-comma TTS cleanup, TTS-persists-on-tab-leave. |
 
 **Verification:**
 - Both PR #18 and PR #19 merge commits exist in `git log` (`e0d79ad6`, `bfbbb18d`).
@@ -355,7 +355,7 @@ For every open item, the row gives **(a) the precise current code location** whe
 | H11 | **Dead `getBriefing()` overlap** | `rideshare-coach-dal.js:353-381` (`getBriefing`) overlaps `getComprehensiveBriefing` at `:227`. Confirm if still called anywhere; if not, candidate for removal (see Rule 16). | 🟡 OPEN | Baseline audit §5 (duplicate-read risk) |
 | H12 | **TTS streaming flag still default-OFF** | `featureFlags.ts:COACH_STREAMING_TTS_ENABLED` default is `false`. Plan said Step 6 flips to `true`. | 🟡 OPEN | Comment in `featureFlags.ts` |
 | H13 | **Documentation drift (RIDESHARE_COACH.md)** | See §7 — multiple line-count and behavior contradictions | ✅ DONE (Updated to reflect PR #31 behavior) | This document |
-| H14 | **`/server/api/coach/` dead folder** | 4 files, 1,034 lines, no importers — see §3 | ✅ DONE 2026-05-04 — folder deleted; `bootstrap/routes.js:61-65` comment corrected | This document; resolved per Melody decision in §13 |
+| H14 | **`/server/api/coach/` dead folder** | 4 files, 1,034 lines, no importers — see §3 | ✅ DONE 2026-05-04 — folder deleted; `bootstrap/routes.js:61-65` comment corrected. ⚠️ Re-introduced 2026-05-05 via merge 2ee72a20; permanently re-deleted via 02a481cd. See §13 second-resolution addendum. | This document; resolved per Melody decision in §13 |
 | H15 | **Phase 0 plan is historical / not amended** | `docs/review-queue/PLAN_coach_handsfree_voice-2026-05-04.md` says "no code changes yet" but PR #31 has shipped the implementation | ✅ DONE (Marked as historical) | Corrected TODO §3 P1 |
 | H16 | **`coach_full_pipeline.md` line anchors are at `274cadc5`, not current main** | The audit doc itself says it's frozen, but doesn't have a banner | ✅ DONE (File consolidated and deleted during audit) | Corrected TODO §3 P0 |
 | H17 | **`docs/coach-inbox.md` items now resolved by PR #31** | Some inbox items are addressed by PR #31 but inbox is unchanged | ✅ DONE (Appended resolution notes) | Corrected TODO §3 P1 |
@@ -432,6 +432,9 @@ Three options:
 Per Rule 16: this is a Melody decision. Master plan flags it; doesn't act.
 
 **Pre-run history check (saves you a step if you pick D1):** `git log --oneline -- server/api/coach/` returns 8 commits, oldest visible is `9c71b8ba Add AI Coach enhancements: schema awareness, validation, notes CRUD` (the original add); newest is `f0246048 refactor(strategy): drop consolidated_strategy column + rewrite ready trigger` (incidental — not Coach-related). No active branches reference these files (verified zero importers in §3 and confirmed no in-flight work touches them).
+
+### 2026-05-05 Follow-up
+The dead folder was accidentally re-introduced on 2026-05-05 via merge `2ee72a20` ("Merge origin/main, keeping server/api/coach/"). It was permanently re-deleted via commit `02a481cd` (5 files / 1,106 lines — the discrepancy from the original 1,034 lines is the 72-line `README.md` that wasn't counted in the initial line audit).
 
 ---
 
@@ -515,7 +518,7 @@ Coach is a three-layer pipeline (frozen baseline 274cadc5 → merged hook archit
 | `docs/architecture/RIDESHARE_COACH.md` | Canonical Coach doctrine doc. Drift items in §7 of this master plan. |
 | `docs/review-queue/PLAN_coach_handsfree_voice-2026-05-04.md` | Phase 0 plan for COACH-V1. Now historical (H15). |
 | `docs/coach-inbox.md` | Coach → Claude memos. PR #31 resolved several items not yet annotated (H17). |
-| `DUPLICATE_FILENAMES_AUDIT.md` (sibling) | Repo-wide duplicate-name risk map. §6 (dead `/server/assistant/` folder) is the open Melody-decision sibling to this doc's §13. |
+| `DUPLICATE_FILENAMES_AUDIT.md` (sibling) | Repo-wide duplicate-name risk map. §6 (dead `/server/assistant/` folder) was the open Melody-decision sibling to this doc's §13. ✅ Resolved 2026-05-05 via `86156fd6` (folder deleted, 6 files / 379 lines). |
 
 ---
 
@@ -527,4 +530,7 @@ Coach is a three-layer pipeline (frozen baseline 274cadc5 → merged hook archit
 | 2026-05-04 | §13 D1 executed. `/server/api/coach/` deleted (4 files, 1,034 lines). `bootstrap/routes.js:61-65` comment corrected to reflect the live `rideshare-coach/` path. §2.3, §3, §9 H14, §13, and §18 updated to mark DONE while preserving prior rows per §15 clause 1. | Claude (at Melody's instruction "Delete the dead folder") |
 | 2026-05-04 | Repo-wide duplicate-filename audit completed (sibling file `DUPLICATE_FILENAMES_AUDIT.md`). Found a second dead parallel folder at `/server/assistant/` — same shape as the deleted `/server/api/coach/`. Open as §6 of the audit. | Claude (at Melody's direction) |
 | 2026-05-04 | **Consolidation commit.** Five predecessor audit files in `coach_finalizing/` deleted after verifying full content coverage in this master plan: `coach_full_pipeline.md`, `coach_pipeline_branch_audit.md`, `coach_remaining_todo_from_last24.md`, `coach_three_branch_reconciliation.md`, `coach_corrected_remaining_todo.md`. §17 updated to record where each predecessor's content now lives. Empty `coach_finalizing/` folder removed. | Claude (at Melody's instruction "if all of the todo's and full understanding of the coach pipeline are in [master plan] remove them from the branch") |
+| 2026-05-04 | PR #31 merged as `61a2d417`, branch deleted. | Melody |
+| 2026-05-05 | `/server/api/coach/` re-introduced via merge `2ee72a20`; permanently re-deleted via `02a481cd`. Cross-refs §9 H14 and §13 updated. | Claude (at Melody's instruction) |
+| 2026-05-05 | Duplicate-filename audit cleanups landed via `86156fd6` (D1, C1–C5). Sibling audit §6 (`/server/assistant/`) resolved; §17 row updated. Same commit flipped H13/H15/H16/H17 to DONE. | Claude (at Melody's instruction) |
 | _(future)_ | _Append a row each time §8 / §9 / §10 / §11 status flips. Never delete prior rows._ | _(implementer)_ |

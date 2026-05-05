@@ -88,13 +88,18 @@ const LANG_TO_BCP47: Record<string, string> = {
   tl: 'fil-PH',
 };
 
+export interface UseSpeechRecognitionOptions {
+  onSilence?: () => void;
+  silenceThresholdMs?: number;
+}
+
 /**
  * Hook for browser-native speech recognition using the Web Speech API.
  * Provides real-time speech-to-text with interim results for conversational UI.
  *
  * @returns Speech recognition state and control functions
  */
-export function useSpeechRecognition(): UseSpeechRecognitionReturn {
+export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}): UseSpeechRecognitionReturn {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [finalTranscript, setFinalTranscript] = useState('');
@@ -103,6 +108,16 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   // 2026-03-18: FIX (F-2) — Ref tracks finalTranscript to avoid stale closure in onresult
   const finalTranscriptRef = useRef('');
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resetSilenceTimeout = useCallback(() => {
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    if (options.onSilence && options.silenceThresholdMs) {
+      silenceTimeoutRef.current = setTimeout(() => {
+        options.onSilence!();
+      }, options.silenceThresholdMs);
+    }
+  }, [options.onSilence, options.silenceThresholdMs]);
 
   const SpeechRecognition = getSpeechRecognition();
   const isSupported = SpeechRecognition !== null;
@@ -110,6 +125,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
       if (recognitionRef.current) {
         recognitionRef.current.abort();
         recognitionRef.current = null;
@@ -139,6 +155,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     recognition.onstart = () => {
       setIsListening(true);
       console.log(`[SpeechRecognition] Started listening (${recognition.lang})`);
+      resetSilenceTimeout();
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -166,6 +183,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
         const base = finalTranscriptRef.current;
         setTranscript(base + (base ? ' ' : '') + interim);
       }
+      
+      resetSilenceTimeout();
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -177,11 +196,13 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
       console.error(`[SpeechRecognition] Error: ${event.error}`);
       setError(event.error);
       setIsListening(false);
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     };
 
     recognition.onend = () => {
       setIsListening(false);
       console.log('[SpeechRecognition] Stopped');
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     };
 
     recognitionRef.current = recognition;
@@ -190,6 +211,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   }, [SpeechRecognition]);
 
   const stop = useCallback(() => {
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }

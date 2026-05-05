@@ -19,7 +19,7 @@ export const COACH_STREAMING_TTS_ENABLED: boolean = (() => {
   const override = import.meta.env.VITE_COACH_STREAMING_TTS;
   if (override === 'true') return true;
   if (override === 'false') return false;
-  return false; // default — Step 6 flips this to true
+  return true; // default enabled for COACH-V1
 })();
 
 // 2026-04-27 (Commit 4 of CLEAR_CONSOLE_WORKFLOW spec):

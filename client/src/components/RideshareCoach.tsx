@@ -85,10 +85,16 @@ export default function RideshareCoach({
   blocks: _blocks = [],
   strategyReady = false
 }: RideshareCoachProps) {
+  const onSilenceRef = useRef<() => void>();
+  const manualStopRef = useRef(false);
+
   // 2026-04-27: Step 4 — audio state (read-aloud toggle, TTS, STT, derived flags)
   // consolidated into useCoachAudioState. Component destructures the surface it
   // actually uses for stable useCallback deps.
-  const audio = useCoachAudioState();
+  const audio = useCoachAudioState({
+    onSilence: () => onSilenceRef.current?.(),
+    silenceThresholdMs: 4000 // H3: 4 seconds silence sends text automatically
+  });
   const {
     readAloudEnabled,
     setReadAloudEnabled,
@@ -128,6 +134,7 @@ export default function RideshareCoach({
   const [notesLoading, setNotesLoading] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
 
   // 2026-01-05: Notes CRUD functions with optimistic UI — defined before useCoachChat
   // so the hook's onNotesSaved callback can reference fetchNotes directly.
@@ -208,6 +215,21 @@ export default function RideshareCoach({
     latestTranscriptRef.current = transcript;
   }, [transcript]);
 
+  // H3: VAD Silence Timeout Implementation
+  onSilenceRef.current = () => {
+    const text = latestTranscriptRef.current.trim();
+    if (text) {
+      console.log('[RideshareCoach] VAD silence timeout triggered (3-5s) — auto-sending');
+      warmUp();
+      stopMic();
+      setTimeout(() => {
+        sentViaVoiceRef.current = true;
+        send(text);
+        clearTranscript();
+      }, 300);
+    }
+  };
+
   // 2026-05-04 (COACH-V1): Hands-free auto-listen on Coach tab mount.
   // Pre-flight mic permission (TranslationOverlay pattern), then auto-start
   // listening so the driver doesn't tap anything when entering the Coach tab.
@@ -233,6 +255,7 @@ export default function RideshareCoach({
       .catch((err) => {
         // Permission denied — manual mic toggle (line ~672) remains as fallback.
         console.warn('[RideshareCoach] [COACH-V1] Auto-listen: permission denied', err?.message);
+        setMicPermissionDenied(true);
       });
 
     // Tab leave / component unmount → stop MIC ONLY. TTS intentionally persists
@@ -333,6 +356,7 @@ export default function RideshareCoach({
   // 2026-04-13: Mic toggle — start/stop speech recognition, auto-send transcript
   // Same pattern as TranslationOverlay: latestTranscriptRef avoids stale closure in setTimeout
   const handleMicToggle = useCallback(() => {
+    manualStopRef.current = false;
     if (isListening) {
       // 2026-04-13: Warm up audio element NOW (user gesture context) so TTS can
       // play later after streaming completes (browsers block delayed audio.play())
@@ -365,6 +389,7 @@ export default function RideshareCoach({
   // not just the non-streaming HTMLAudioElement. Without this, the streaming
   // buffer drains independently and the user perceives "stop did nothing."
   const handleStopAllAudio = useCallback(() => {
+    manualStopRef.current = true;
     try { streaming.abort(); } catch { /* no-op */ }
     try { stopSpeak(); } catch { /* no-op */ }
   }, [stopSpeak, streaming]);
@@ -428,8 +453,14 @@ export default function RideshareCoach({
       clearTranscript();
       const autoListenEnabled =
         localStorage.getItem(STORAGE_KEYS.COACH_AUTO_LISTEN_ENABLED) !== 'false';
-      if (autoListenEnabled && !isListening && micSupported) {
-        startMic('en');
+      if (manualStopRef.current) {
+        console.log('[RideshareCoach] Manual stop detected, skipping auto-resume');
+        manualStopRef.current = false;
+      } else if (autoListenEnabled && !isListening && micSupported) {
+        // H1: 500ms delay before resuming mic to prevent capturing TTS tail/echo
+        setTimeout(() => {
+          if (!manualStopRef.current) startMic('en');
+        }, 500);
       }
     }
     wasSpeakingRef.current = isSpeaking;
@@ -551,6 +582,18 @@ export default function RideshareCoach({
                   {i < validationErrors.length - 1 && ' | '}
                 </span>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mic Permission Denied Banner */}
+      {micPermissionDenied && (
+        <div className="px-4 py-2 bg-yellow-50 dark:bg-yellow-900/50 border-b border-yellow-200 dark:border-yellow-800">
+          <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <div className="text-xs">
+              <strong>Microphone Access Denied:</strong> Coach cannot hear you. Please allow microphone access in your browser settings to use hands-free voice commands.
             </div>
           </div>
         </div>

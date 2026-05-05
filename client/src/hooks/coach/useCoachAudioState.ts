@@ -19,6 +19,8 @@ export interface UseCoachAudioStateParams {
    * derivation). Defaults to `false`. Step 5 wires this from `useCoachChat`.
    */
   chatStreaming?: boolean;
+  onSilence?: () => void;
+  silenceThresholdMs?: number;
 }
 
 /** 2026-04-29: TTS playback speed tier. 1.0 default; 2.0 max (browser timestretch). */
@@ -65,9 +67,9 @@ export interface UseCoachAudioStateReturn {
   realtimeConnected: boolean;
 }
 
-export function useCoachAudioState({ chatStreaming = false }: UseCoachAudioStateParams = {}): UseCoachAudioStateReturn {
+export function useCoachAudioState({ chatStreaming = false, onSilence, silenceThresholdMs }: UseCoachAudioStateParams = {}): UseCoachAudioStateReturn {
   const tts = useTTS();
-  const speech = useSpeechRecognition();
+  const speech = useSpeechRecognition({ onSilence, silenceThresholdMs });
 
   // Idempotent migration: read NEW key first, fall back to LEGACY, write NEW only.
   // Legacy key (vectopilot_coach_voice) intentionally left in place for one release.
