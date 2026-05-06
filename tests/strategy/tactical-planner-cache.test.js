@@ -183,7 +183,7 @@ describe('resolveVenueWithCache — cache miss path (falls through to Places API
     expect(fetchSpy).toHaveBeenCalled();
     // First fetch call should hit the Places text search URL
     const firstCallUrl = fetchSpy.mock.calls[0][0];
-    expect(firstCallUrl).toMatch(/places.googleapis\.com/);
+    expect(firstCallUrl).toMatch(/places\.googleapis\.com/);
     expect(result).toBeNull();  // Places returned no matches
 
     fetchSpy.mockRestore();
