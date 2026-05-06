@@ -61,6 +61,19 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
  * Uses the built-in web_search tool for grounded responses
  * @param {Object} params - { model, system, user, maxTokens, temperature, jsonMode }
  * @returns {Promise<{ok: boolean, output: string, citations?: array}>}
+ *
+ * Engineering note (web tools, captured Dec 2025 prior-assistant findings before
+ * its 2025-12-30 deprecation; preserved here so the knowledge outlives the notes):
+ *
+ *   - If web_fetch is needed alongside web_search, the API request must include
+ *     the beta header `anthropic-beta: web-fetch-2025-09-10` AND the additional
+ *     tool `{ type: 'web_fetch_20250910', name: 'web_fetch', max_uses: N }`.
+ *   - Web tools (web_search and web_fetch) empirically require Claude Opus
+ *     (claude-opus-4-5-20251101 at the time of the finding), not Sonnet —
+ *     Sonnet 4.5 returned errors when web tools were enabled in prior testing.
+ *   - Current implementation below uses web_search only, without the web-fetch
+ *     beta header. To enable web_fetch, route through the SDK's
+ *     `beta.messages.create` or pass the beta header via `defaultHeaders`.
  */
 export async function callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature, jsonMode = true }) {
   try {

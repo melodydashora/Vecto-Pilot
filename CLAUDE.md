@@ -190,6 +190,42 @@ VENUE RECOMMENDATIONS (tactical planner)
 | Strategy | `briefing_row` + `snapshot_row` | "Cannot generate strategy without briefing" |
 | Venues | `strategy_for_now` + `snapshot.lat/lng` | "Cannot recommend venues without strategy" |
 
+### Rule 18: Canonical Environment Variable Contract (added 2026-05-05)
+
+**Source of truth for what each environment variable means and what it's allowed to gate.** Formalized after the 2026-05-05 deep-research audit (`docs/architecture/audits/deep-research-report.md`) found that no doctrine file explicitly distinguished workspace-vs-deployment semantics for `NODE_ENV` vs `REPLIT_DEPLOYMENT`.
+
+| Variable | Role | Notes |
+|----------|------|-------|
+| `DATABASE_URL` | The only application database selector | Auto-injected by Replit (Helium URL in workspace, Neon URL in deployment). **Never** branch between "prod DB" and "dev DB" in code — Replit injects the right URL. CI grep should fail on `DATABASE_URL_PROD`/`DATABASE_URL_DEV`/`NEON_PROD`/`NEON_DEV` in `server/`, `scripts/`, `gateway-server.js`, `agent-server.js`, `package.json`, `.replit`. (Operator-only `scripts/p3-13-prod-recheck.mjs` is the documented exception — takes its own `PROD_DATABASE_URL` from the operator's env.) |
+| `REPLIT_DEPLOYMENT` | Primary deployment signal | `'1'` (string, not number) inside published Replit deployments; unset in workspace. Use this — **not** `NODE_ENV` — to gate deployment-only behavior (auth strictness, IP allowlists, admin-required gates, SSL transport). |
+| `REPL_ID` | Workspace identity | Set inside any Replit context (workspace OR deployment). Useful for "are we in Replit at all" detection, **NOT** for "are we in production." |
+| `NODE_ENV` | Runtime/build mode only | `scripts/start-replit.js` forces `NODE_ENV=production` in workspace unless `FORCE_DEV=1`, so `NODE_ENV` does NOT distinguish workspace from deployment. **Allowed:** build optimization, framework verbosity, severity escalation in `validate-env.js`. **Disallowed:** database selection, route exposure, deployment-mode gating (use `REPLIT_DEPLOYMENT` for that). |
+| `APP_MODE` | Optional process-topology override | Honored by `server/config/validate-env.js`; values `mono` (default, current canonical) or `split`. Controls whether the agent runs as a separate process (`split` → `agent-server.js`) or embedded in gateway (`mono` → `server/agent/embed.js`). Not a deployment flag. |
+| `FORCE_DEV` | Workspace escape hatch | When `'1'`, `start-replit.js` sets `NODE_ENV=development` instead of `production`. Useful for local debugging that depends on `NODE_ENV` being non-prod. Not honored in deployment (start-replit.js doesn't run there). |
+
+**Two intentionally-different startup paths (do not assume one explains the other):**
+
+- **Workspace:** `.replit run` → sources `.env.local` → `node scripts/start-replit.js` → spawns `gateway-server.js`. Forces `NODE_ENV=production` (unless `FORCE_DEV=1`), kills port 5000, builds client if `client/dist/index.html` missing, polls `/health`. Worker lifecycle delegated to gateway.
+- **Deployment:** `.replit [deployment].build` runs `npm ci --omit=dev && npm run build:client`; `.replit [deployment].run` runs `node gateway-server.js` directly — `start-replit.js` is **bypassed entirely**. Cloud Run sets `NODE_ENV` from the build env. `deploymentTarget = "cloudrun"`.
+
+**Canonical compound predicate for "are we in real production?"** (`server/api/auth/auth.js:1855-1858`):
+```js
+const IS_REPLIT = Boolean(process.env.REPL_ID || process.env.REPLIT_DB_URL);
+const IS_PRODUCTION = IS_REPLIT
+  ? process.env.REPLIT_DEPLOYMENT === '1'
+  : process.env.NODE_ENV === 'production';
+```
+Inside Replit, prefer `REPLIT_DEPLOYMENT` because `start-replit.js` corrupts `NODE_ENV` semantics in the workspace. Outside Replit (hypothetical AWS/GCP), fall back to `NODE_ENV`. Reuse this pattern when adding new "real prod only" gates.
+
+**SSL-config compound predicate for DB clients** (canonical at `server/db/db-client.js:178`, `agent-server.js:78`, `scripts/db-detox.js:29`):
+```js
+ssl: (process.env.REPLIT_DEPLOYMENT === '1' || process.env.NODE_ENV === 'production')
+  ? { rejectUnauthorized: false } : false
+```
+The `connectionString` is always `process.env.DATABASE_URL`; only the `ssl:` field branches. This is **transport configuration**, not URL selection — Helium (dev) is local-no-SSL, Neon (prod) requires SSL. See Rule 13 for provider details.
+
+**Cross-references:** Rule 13 (DB providers + SSL); Rule 14 (model adapters decouple model env from API keys); `docs/architecture/DATABASE_ENVIRONMENTS.md`; `docs/architecture/audits/deep-research-report.md` (the audit that surfaced the formal contract).
+
 ---
 
 ## Project Overview
