@@ -20,9 +20,6 @@ export const STORAGE_KEYS = {
   AUTH_TOKEN: 'vectopilot_auth_token',
   USER_ID: 'vecto_user_id', // Legacy key, keep for backward compat
 
-  // Device identification
-  DEVICE_ID: 'vecto_device_id',
-
   // Strategy persistence (survives app switches)
   PERSISTENT_STRATEGY: 'vecto_persistent_strategy',
   STRATEGY_SNAPSHOT_ID: 'vecto_strategy_snapshot_id',

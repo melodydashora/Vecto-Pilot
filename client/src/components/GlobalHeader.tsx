@@ -101,20 +101,13 @@ const GlobalHeaderComponent: React.FC = () => {
   const [holiday, setHoliday] = useState<string | null>(null);
   const [isHoliday, setIsHoliday] = useState(false);
 
-  // CRITICAL FIX Issue #5: Get device_id from localStorage for database query
+  // Query /api/auth/me for registered users only.
   // 2026-01-09: P1-6 FIX - Use centralized STORAGE_KEYS constants
-  const deviceId =
-    typeof window !== "undefined"
-      ? localStorage.getItem(STORAGE_KEYS.DEVICE_ID)
-      : null;
-
-  // Query /api/auth/me for registered users only (anonymous users use snapshot ownership)
-  // This is disabled for anonymous users who don't have auth tokens
   const authToken = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
   const { data: dbUserLocation } = useQuery({
-    queryKey: QUERY_KEYS.AUTH_ME(deviceId || ''),
+    queryKey: QUERY_KEYS.AUTH_ME(),
     queryFn: async () => {
-      if (!deviceId || !authToken) return null;
+      if (!authToken) return null;
       const res = await fetch(
         API_ROUTES.AUTH.ME,
         { headers: { Authorization: `Bearer ${authToken}` } }
@@ -124,7 +117,7 @@ const GlobalHeaderComponent: React.FC = () => {
     },
     staleTime: 60000, // Keep data fresh for 1 minute
     refetchInterval: false, // DISABLED: No polling. Location updates flow through context.
-    enabled: !!deviceId && !!authToken, // Only for registered users with auth token
+    enabled: !!authToken,
   });
 
   // location from context, supporting both shapes

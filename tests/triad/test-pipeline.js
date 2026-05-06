@@ -55,7 +55,6 @@ class TriadPipelineTester {
         body: JSON.stringify({
           snapshot_id: crypto.randomUUID(),
           user_id: null,
-          device_id: crypto.randomUUID(),
           session_id: crypto.randomUUID(),
           created_at: new Date().toISOString(),
           coord: {
@@ -124,7 +123,6 @@ class TriadPipelineTester {
         body: JSON.stringify({
           snapshot_id: crypto.randomUUID(),
           user_id: null,
-          device_id: crypto.randomUUID(),
           session_id: crypto.randomUUID(),
           created_at: new Date().toISOString(),
           coord: {
@@ -262,7 +260,6 @@ class TriadPipelineTester {
           body: JSON.stringify({
             ...baseData,
             snapshot_id: crypto.randomUUID(),
-            device_id: crypto.randomUUID(),
             session_id: crypto.randomUUID()
           })
         }),
@@ -272,7 +269,6 @@ class TriadPipelineTester {
           body: JSON.stringify({
             ...baseData,
             snapshot_id: crypto.randomUUID(),
-            device_id: crypto.randomUUID(),
             session_id: crypto.randomUUID()
           })
         }),
@@ -282,7 +278,6 @@ class TriadPipelineTester {
           body: JSON.stringify({
             ...baseData,
             snapshot_id: crypto.randomUUID(),
-            device_id: crypto.randomUUID(),
             session_id: crypto.randomUUID()
           })
         })

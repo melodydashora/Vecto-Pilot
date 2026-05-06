@@ -244,7 +244,6 @@ router.post('/:snapshotId/retry', async (req, res) => {
       created_at: now,
       date: today,
       user_id: originalSnapshot.user_id,
-      device_id: originalSnapshot.device_id,
       session_id: originalSnapshot.session_id,
       lat: originalSnapshot.lat,
       lng: originalSnapshot.lng,

@@ -409,12 +409,10 @@ router.post('/register', async (req, res) => {
     // Location data lives in snapshots, not users. See SAVE-IMPORTANT.md
     const newUserId = crypto.randomUUID();
     const newSessionId = crypto.randomUUID();
-    const newDeviceId = `web-${crypto.randomUUID().substring(0, 8)}`;
     const now = new Date();
 
     const [newUser] = await db.insert(users).values({
       user_id: newUserId,
-      device_id: newDeviceId,
       session_id: newSessionId,
       current_snapshot_id: null, // Set when first snapshot created
       session_start_at: now,
@@ -748,7 +746,6 @@ router.post('/login', async (req, res) => {
       // UPDATE existing session - preserves foreign key relationships
       await db.update(users)
         .set({
-          device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
           session_id: newSessionId,
           current_snapshot_id: null,
           session_start_at: now,
@@ -760,7 +757,6 @@ router.post('/login', async (req, res) => {
       // INSERT new session row (first login after registration)
       await db.insert(users).values({
         user_id: profile.user_id,
-        device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
         session_id: newSessionId,
         current_snapshot_id: null,
         session_start_at: now,
@@ -1634,14 +1630,12 @@ router.post('/google/exchange', async (req, res) => {
       }, `Google OAuth: creating new account (sub: ${googleUser.sub.substring(0, 8)})`);
 
       const newUserId = crypto.randomUUID();
-      const newDeviceId = `web-${crypto.randomUUID().substring(0, 8)}`;
       const newSessionId = crypto.randomUUID();
       const now = new Date();
 
       // Create users row (session)
       await db.insert(users).values({
         user_id: newUserId,
-        device_id: newDeviceId,
         session_id: newSessionId,
         current_snapshot_id: null,
         session_start_at: now,
@@ -1722,7 +1716,6 @@ router.post('/google/exchange', async (req, res) => {
     if (existingUser) {
       await db.update(users)
         .set({
-          device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
           session_id: newSessionId,
           current_snapshot_id: null,
           session_start_at: now,
@@ -1733,7 +1726,6 @@ router.post('/google/exchange', async (req, res) => {
     } else {
       await db.insert(users).values({
         user_id: activeProfile.user_id,
-        device_id: `web-${crypto.randomUUID().substring(0, 8)}`,
         session_id: newSessionId,
         current_snapshot_id: null,
         session_start_at: now,

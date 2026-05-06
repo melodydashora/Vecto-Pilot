@@ -402,26 +402,25 @@ router.get('/timezone', async (req, res) => {
 /**
  * GET /api/location/resolve
  * Resolves GPS coordinates to formatted address and timezone in a single call
- * 
+ *
  * Query Parameters:
  *   - lat (number, required): Latitude coordinate
  *   - lng (number, required): Longitude coordinate
- *   - device_id (string, optional): Device identifier for tracking across sessions
  *   - accuracy (number, optional): GPS accuracy radius in meters
  *   - session_id (string, optional): Session identifier for telemetry
  *   - coord_source (string, optional): Source of coordinates (default: "gps")
- * 
+ *
  * Returns:
  *   - city, state, country: Resolved address components
  *   - formattedAddress: Full street address from Google Geocoding API
  *   - timeZone: IANA timezone identifier
- *   - user_id: UUID of created/updated user record in users table
- * 
+ *   - user_id: UUID of the authenticated user record in users table
+ *
  * Side Effects:
- *   - Creates or updates user record in users table with rich telemetry
+ *   - Creates or updates user record (keyed on req.auth.userId) with rich telemetry
  *   - Validates formatted_address is not null before database write
  *   - Throws 502 error if address resolution fails (prevents bad data)
- * 
+ *
  * Data Quality:
  *   - Captures accuracy_m, session_id, coord_source for density analysis
  *   - Computes local time context (dow, hour, day_part) in user's timezone
@@ -432,27 +431,8 @@ router.get('/resolve', async (req, res) => {
     const lat = Number(req.query.lat);
     const lng = Number(req.query.lng);
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // AUTH: requireAuth middleware (line 30: router.use(requireAuth)) has already
-    // verified the token and populated req.auth.userId before this handler runs.
-    // 2026-05-03: AUTH-003 — Removed inline HMAC verifier (Rule 9: duplicate logic).
-    //   The 53-line inline verifier was redundant with requireAuth AND would have
-    //   silently rejected new JWT-format tokens because it only knew HMAC. Now
-    //   delegated to middleware/auth.js verifyAppToken which dual-dispatches by
-    //   token segment count.
-    // 2026-01-09: P0-2 FIX (preserved) — `?user_id=` query param bypass was removed.
-    //   Authentication MUST come from validated Authorization header only.
-    // ═══════════════════════════════════════════════════════════════════════════
     const authenticatedUserId = req.auth?.userId || null;
-    // 2026-01-09: P0-2 FIX - REMOVED user_id query param bypass
-    // Previous code allowed impersonation: ?user_id=X would authenticate as user X
-    // Authentication MUST come from validated Authorization header only
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // REQUIRE AUTHENTICATION: No anonymous snapshots allowed
-    // Protected routes mean only logged-in users should reach here
-    // If no authenticated user, reject the request
-    // ═══════════════════════════════════════════════════════════════════════════
     if (!authenticatedUserId) {
       console.warn('[LOCATION] [API] No authenticated user - rejecting anonymous request');
       return res.status(401).json({
@@ -462,21 +442,9 @@ router.get('/resolve', async (req, res) => {
       });
     }
 
-    // Dev fallback: Generate deterministic device_id from coords if not provided
-    // Uses 6 decimal precision (~0.1m) to ensure unique user per exact address
-    // This ensures user records are created even in dev/testing without a real device
-    // 2026-04-05: SECURITY — sanitize to prevent type confusion (CodeQL)
-    const { sanitizeString } = await import('../../lib/utils/sanitize.js');
-    let deviceId = sanitizeString(req.query.device_id);
-    const isProduction = process.env.NODE_ENV === 'production' && !process.env.REPLIT_DEPLOYMENT;
-
-    if (!deviceId && !isProduction) {
-      deviceId = `dev-admin-${lat.toFixed(6)}_${lng.toFixed(6)}`;
-    }
-
     const accuracy = req.query.accuracy ? Number(req.query.accuracy) : null;
     const sessionId = req.query.session_id || null;
-    const coordSource = req.query.coord_source || (deviceId?.startsWith('dev-') ? 'dev-coords' : 'gps');
+    const coordSource = req.query.coord_source || 'gps';
 
     if (!isFinite(lat) || !isFinite(lng)) {
       console.error('[LOCATION] [API] INVALID COORDINATES - lat/lng required for precise location resolution', {
@@ -873,8 +841,7 @@ router.get('/resolve', async (req, res) => {
       resolvedData.formattedAddress = formattedAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     }
 
-    // Save to users table if device_id provided
-    if (deviceId) {
+    if (authenticatedUserId) {
       try {
         const now = new Date();
         // NO FALLBACK - timezone is required for accurate time calculations
@@ -890,33 +857,14 @@ router.get('/resolve', async (req, res) => {
         const hour = new Date(now.toLocaleString('en-US', { timeZone: tz })).getHours();
         const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
         const dayPartKey = getDayPartKey(hour);
-        
-        // Check for existing user by device_id OR by authenticated user_id
-        // Registration creates a user record, so authenticated users may already exist
-        let existingUser = await db.query.users.findFirst({
-          where: eq(users.device_id, deviceId),
+
+        const existingUser = await db.query.users.findFirst({
+          where: eq(users.user_id, authenticatedUserId),
         }).catch(() => null);
 
-        // If no device match but user is authenticated, check by user_id
-        // This handles the case where registration created the user with a different device_id
-        if (!existingUser && authenticatedUserId) {
-          existingUser = await db.query.users.findFirst({
-            where: eq(users.user_id, authenticatedUserId),
-          }).catch(() => null);
-          if (existingUser) {
-            console.log(`🔐 [LOCATION] [API] Found user by user_id (different device): ${authenticatedUserId.slice(0, 8)}`);
-          }
-        }
-
         if (existingUser) {
-          // Use authenticated user_id if logged in, otherwise use device-based user_id
-          userId = authenticatedUserId || existingUser.user_id;
+          userId = authenticatedUserId;
 
-          // If authenticated user differs from device's current user, update the user_id
-          if (authenticatedUserId && existingUser.user_id !== authenticatedUserId) {
-            console.log(`🔐 [LOCATION] [API] Linking device ${deviceId.slice(0, 8)} to authenticated user ${authenticatedUserId}`);
-          }
-          
           try {
             // CRITICAL FIX: Validate formatted_address is not null before database write
             if (!formattedAddress) {
@@ -934,40 +882,29 @@ router.get('/resolve', async (req, res) => {
               });
             }
             
-            // CRITICAL FIX Finding #4: Verify database write committed before returning
-            // Use raw query with RETURNING to get confirmation row was updated
-            // Update by user_id (more reliable than device_id when user was found by user_id)
-            // 2026-01-07: CRITICAL FIX - Do NOT update session_id here!
-            // session_id must only be managed by login/logout/auth middleware.
-            // Location API was overwriting session_id with null (from query param default),
-            // causing immediate session invalidation after login.
-            // See LESSONS_LEARNED.md: "Auth Loop on Login" bug.
-            // 2026-05-05: device_id removed from UPDATE — users.device_id is the
-            // SIGNUP device, immutable after registration. Auto-updating it here
-            // overwrote the signup record on every location resolve, creating the
-            // device-resurrection bug that cycled fixed/broken 8 times. snapshots.device_id
-            // captures the current device per-event; users.device_id stays put.
+            // 2026-01-07: Do NOT update session_id here — session_id is managed
+            // exclusively by login/logout/auth middleware. Overwriting it from
+            // /resolve invalidated freshly-logged-in sessions.
             const updateResult = await db.update(users)
               .set({
                 new_lat: lat,
                 new_lng: lng,
                 accuracy_m: accuracy,
-                // session_id: REMOVED - was overwriting auth session with null!
-                coord_key: coordKey, // FK to coords_cache for location identity
+                coord_key: coordKey,
                 formatted_address: formattedAddress,
                 city,
                 state,
                 country,
                 timezone: tz,
                 coord_source: coordSource,
-                // 2026-02-17: FIX - was storing UTC (new Date()), must store driver's local time
+                // 2026-02-17: store driver's local wall-clock time, not UTC
                 local_iso: toLocalTimestamp(now, tz),
                 dow,
                 hour,
                 day_part_key: dayPartKey,
                 updated_at: now,
               })
-              .where(eq(users.user_id, existingUser.user_id));
+              .where(eq(users.user_id, authenticatedUserId));
             
             // CRITICAL: Verify at least 1 row was updated (write committed)
             if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
@@ -1000,29 +937,24 @@ router.get('/resolve', async (req, res) => {
             });
           }
         } else {
-          // Use authenticated user_id if logged in, otherwise generate new UUID
-          userId = authenticatedUserId || crypto.randomUUID();
-          console.log(`🔐 [LOCATION] [API] Creating user record with ${authenticatedUserId ? 'authenticated' : 'anonymous'} user_id: ${userId.slice(0, 8)}`);
-          // 2026-01-07: CRITICAL FIX - Do NOT set session_id here!
-          // session_id must only be managed by login/logout/auth middleware.
-          // For authenticated users, login should have already created the users row.
-          // If we're here, it's either a race condition or edge case - leave session_id null
-          // and let login handle it properly.
+          // Race/edge case: registration normally creates the users row, but if
+          // we're here without one, create it now keyed to the authenticated id.
+          // session_id is intentionally left null — login owns that field.
+          userId = authenticatedUserId;
+          console.log(`🔐 [LOCATION] [API] Creating user record for authenticated user_id: ${userId.slice(0, 8)}`);
           const newUser = {
             user_id: userId,
-            device_id: deviceId,
             lat,
             lng,
             accuracy_m: accuracy,
-            // session_id: REMOVED - must be set by login, not location API
             coord_source: coordSource,
-            coord_key: coordKey, // FK to coords_cache for location identity
+            coord_key: coordKey,
             formatted_address: formattedAddress,
             city,
             state,
             country,
             timezone: tz,
-            // 2026-02-17: FIX - was storing UTC, must store driver's local time
+            // 2026-02-17: store driver's local wall-clock time, not UTC
             local_iso: toLocalTimestamp(now, tz),
             dow,
             hour,
@@ -1207,7 +1139,6 @@ router.get('/resolve', async (req, res) => {
             created_at: now,
             date: localDate,
             user_id: userId,
-            device_id: deviceId,
             session_id: finalSessionId,
             // Location coordinates
             lat,
@@ -1729,7 +1660,6 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       
       snapshotV1.snapshot_id = snapshot_id;
       snapshotV1.created_at = now.toISOString();
-      snapshotV1.device_id = snapshotV1.device_id || crypto.randomUUID();
       snapshotV1.session_id = snapshotV1.session_id || crypto.randomUUID();
       snapshotV1.coord = { lat, lng, source: 'manual' };
       snapshotV1.resolved = {
@@ -1984,7 +1914,6 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       user_id: req.auth?.userId ?? null,
       created_at: createdAtDate,
       date: today,
-      device_id: snapshotV1.device_id,
       session_id: snapshotV1.session_id,
       // Location coordinates
       lat: snapLat ?? null,
@@ -2407,7 +2336,7 @@ router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
     // 2026-04-14: Phase 3 resolution — classification of required vs optional fields pinned in
     // BRIEFING-DATA-MODEL.md §9 decision 1. Previous list (v1.0) included h3_r8 and omitted the
     // temporal fields + user_id; corrected here. Fields NOT in this list (coord_key, h3_r8,
-    // formatted_address, country, device_id, session_id, permissions, holiday, is_holiday) may
+    // formatted_address, country, session_id, permissions, holiday, is_holiday) may
     // be null without blocking the gate.
     const REQUIRED_FIELDS = ['lat', 'lng', 'city', 'state', 'timezone', 'local_iso', 'date', 'dow', 'hour', 'day_part_key', 'weather', 'air', 'market', 'user_id'];
     const [fullRow] = await db

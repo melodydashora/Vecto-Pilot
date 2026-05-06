@@ -341,7 +341,7 @@ export async function fetchTrafficConditions({ snapshot }) {
         // Best-effort: failure here is logged but does not break the briefing
         // path. The Phase F render path (briefingData.traffic.incidents) is
         // unchanged; this write is purely additive for the API consumer.
-        if (snapshot?.snapshot_id && snapshot?.device_id) {
+        if (snapshot?.snapshot_id) {
           const incidentsWithCoords = prioritizedIncidents.filter(
             (inc) => inc.incidentLat != null && inc.incidentLon != null && inc.category
           );
@@ -349,7 +349,6 @@ export async function fetchTrafficConditions({ snapshot }) {
             try {
               const rows = incidentsWithCoords.map((inc, idx) => ({
                 snapshot_id: snapshot.snapshot_id,
-                device_id: snapshot.device_id,
                 // TomTom doesn't expose a stable id at this layer; synthesize one
                 // from coords + category that's stable for the same incident across
                 // duplicate fetches but unique across distinct incidents.

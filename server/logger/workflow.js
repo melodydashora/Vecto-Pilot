@@ -25,7 +25,6 @@
  *
  * 2. SNAPSHOT CREATION
  *    [SNAPSHOT] Creating snapshot record
- *    [SNAPSHOT] [DB] [USERS] fetch for snapshot.device_id
  *    [SNAPSHOT] [DB] [USERS] fetch for snapshot.user_id
  *    [SNAPSHOT] [LOCATION] GPS DB snapshots.lat, snapshots.lng received 
  *    [SNAPSHOT] [LOCATION] API Geocoding for formal address snapshots.

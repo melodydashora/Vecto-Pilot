@@ -12,13 +12,12 @@ import { sql, relations } from "drizzle-orm";
 // Session Rules:
 //   - Created on login, deleted on logout or 60 min inactivity
 //   - Sliding window: last_active_at updates on every request
-//   - Highlander Rule: One device per user (login on new device kills old session)
+//   - Highlander Rule: One session per user (re-login replaces the previous session)
 //   - Lazy Cleanup: Expired sessions deleted on next requireAuth check
 //
 // NO LOCATION DATA - all location goes to snapshots table
 export const users = pgTable("users", {
   user_id: uuid("user_id").primaryKey().defaultRandom(), // Links to driver_profiles
-  device_id: text("device_id").notNull(),                // Device making request
   session_id: uuid("session_id"),                        // Current session UUID
   current_snapshot_id: uuid("current_snapshot_id"),      // Their ONE active snapshot
   // Session timing (sliding window)
@@ -33,7 +32,6 @@ export const snapshots = pgTable("snapshots", {
   snapshot_id: uuid("snapshot_id").primaryKey(),
   created_at: timestamp("created_at", { withTimezone: true }).notNull(),
   date: text("date").notNull(), // Today's date in YYYY-MM-DD format (e.g., "2025-12-05")
-  device_id: text("device_id").notNull(),
   session_id: uuid("session_id").notNull(),
   // User ID for ownership verification (links to users table)
   // Required for requireSnapshotOwnership middleware to verify authenticated users
@@ -650,7 +648,6 @@ export const discovered_events = pgTable("discovered_events", {
 export const discovered_traffic = pgTable("discovered_traffic", {
   id: uuid("id").primaryKey().defaultRandom(),
   snapshot_id: uuid("snapshot_id").notNull(), // FK enforced at DB level via migration
-  device_id: text("device_id").notNull(),
   incident_id: text("incident_id").notNull(), // TomTom's stable id; per-snapshot dedup
   category: text("category").notNull(), // 'Jam' | 'Lane Closed' | 'Road Works' | 'Accident' | etc.
   severity: text("severity").notNull(), // 'high' | 'medium' | 'low'
@@ -668,7 +665,6 @@ export const discovered_traffic = pgTable("discovered_traffic", {
 }, (table) => ({
   uniqSnapshotIncident: sql`create unique index if not exists discovered_traffic_snapshot_incident_unique on ${table} (snapshot_id, incident_id)`,
   idxSnapshot: sql`create index if not exists idx_discovered_traffic_snapshot on ${table} (snapshot_id)`,
-  idxDevice: sql`create index if not exists idx_discovered_traffic_device on ${table} (device_id)`,
 }));
 
 // Traffic zones for real-time traffic intelligence

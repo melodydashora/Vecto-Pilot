@@ -378,9 +378,6 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const deviceId = localStorage.getItem(STORAGE_KEYS.DEVICE_ID) || crypto.randomUUID();
-    localStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
-
     const currentGeneration = ++generationCounterRef.current;
     console.log(`🔢 Generation #${currentGeneration} starting for GPS update`);
     console.log(`🔐 [LocationContext] Auth state: token=${token ? 'yes' : 'no'}, userId=${user?.userId || 'anonymous'}`);
@@ -397,7 +394,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // 2026-01-09: P0-2 FIX - Removed user_id query param (was security bypass)
       // Authentication ONLY comes from Authorization header now
       // 2026-01-15: Using centralized API_ROUTES constant
-      let resolveUrl = API_ROUTES.LOCATION.RESOLVE_WITH_PARAMS(lat, lng, deviceId, accuracy);
+      let resolveUrl = API_ROUTES.LOCATION.RESOLVE_WITH_PARAMS(lat, lng, accuracy);
       // Force refresh bypasses server-side snapshot reuse (60 min TTL)
       // This is used when user explicitly clicks the refresh button
       if (forceRefresh) {
@@ -641,7 +638,6 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const snapshot = {
           snapshot_id: fallbackSnapshotId,
           user_id: locationData.user_id,
-          device_id: deviceId,
           session_id: crypto.randomUUID(),
           created_at: now.toISOString(),
           coord: { lat, lng, source: 'gps' },

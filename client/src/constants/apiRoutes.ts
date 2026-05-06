@@ -34,8 +34,8 @@ export const API_ROUTES = {
   LOCATION: {
     RELEASE_SNAPSHOT: '/api/location/release-snapshot',
     RESOLVE: '/api/location/resolve',
-    RESOLVE_WITH_PARAMS: (lat: number, lng: number, deviceId: string, accuracy: number) =>
-      `/api/location/resolve?lat=${lat}&lng=${lng}&device_id=${encodeURIComponent(deviceId)}&accuracy=${accuracy}&coord_source=gps`,
+    RESOLVE_WITH_PARAMS: (lat: number, lng: number, accuracy: number) =>
+      `/api/location/resolve?lat=${lat}&lng=${lng}&accuracy=${accuracy}&coord_source=gps`,
     SNAPSHOT: '/api/location/snapshot',
     SNAPSHOT_ENRICH: (snapshotId: string) => `/api/location/snapshot/${snapshotId}/enrich`,
     WEATHER: '/api/location/weather',
@@ -275,7 +275,7 @@ export const QUERY_KEYS = {
   // =========================================================================
   // Auth
   // =========================================================================
-  AUTH_ME: (deviceId: string) => ['/api/auth/me', deviceId] as const,
+  AUTH_ME: () => ['/api/auth/me'] as const,
 
   // =========================================================================
   // Intelligence

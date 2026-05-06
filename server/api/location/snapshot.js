@@ -119,7 +119,6 @@ router.post("/", requireAuth, async (req, res) => {
       snapshot_id,
       created_at: createdAtDate,
       date: today,
-      device_id: snap.device_id || uuid(),
       session_id: snap.session_id || uuid(),
       // Location coordinates
       lat: typeof lat === 'number' ? lat : null,

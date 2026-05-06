@@ -57,7 +57,6 @@
 | Column | Type | Purpose |
 |--------|------|---------|
 | `user_id` | UUID PK | Links to driver_profiles |
-| `device_id` | text | Device identifier |
 | `session_id` | UUID (nullable) | Current session (null = logged out) |
 | `current_snapshot_id` | UUID (nullable) | Active snapshot |
 | `session_start_at` | timestamp | Session began |
@@ -93,7 +92,7 @@
 | `status` | text | pending → running → ok / failed |
 | `phase` | text | Pipeline phase |
 | `strategy_for_now` | text | 1-hour tactical (NOW) — single live strategy output |
-| `consolidated_strategy` | text | unused |
+| `consolidated_strategy` | text | DEPRECATED — no longer written; consolidator output goes to `strategy_for_now`. Safe to drop in a future migration. |
 
 ### `briefings` — 1:1 with snapshots
 

@@ -6,7 +6,7 @@ import { eq, desc, sql } from 'drizzle-orm';
 import { setTimeout } from 'timers/promises';
 
 const REQUIRED_SNAPSHOT_FIELDS = [
-  'snapshot_id', 'created_at', 'device_id', 'session_id', 'lat', 'lng',
+  'snapshot_id', 'created_at', 'session_id', 'lat', 'lng',
   'coord_source', 'city', 'state', 'day_part_key', 'weather', 'air'
 ];
 

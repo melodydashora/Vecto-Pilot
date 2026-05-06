@@ -66,15 +66,18 @@ POST /api/location/news-briefing  - Generate news briefing for location
 GPS coords → /api/location/resolve
                     ↓
         ┌───────────────────────────────────┐
-        │ 1. Check users table (device_id)  │
-        │    ├─ MATCH + <100m? → REUSE      │
-        │    └─ NO MATCH → check cache/API  │
+        │ 1. Look up users by req.auth.userId│
+        │    ├─ EXISTS → UPDATE that row    │
+        │    └─ MISSING → INSERT row keyed  │
+        │       on the authenticated user_id │
         │                                   │
         │ 2. Check coords_cache (~11m)      │
         │    ├─ HIT → use cached address    │
         │    └─ MISS → call Google APIs     │
         │                                   │
-        │ 3. Update users table             │
+        │ 3. Reuse current_snapshot_id      │
+        │    if fresh + same city, else     │
+        │    create new snapshot            │
         └───────────────────────────────────┘
                     ↓
         Return: city, state, formattedAddress, timeZone, user_id
