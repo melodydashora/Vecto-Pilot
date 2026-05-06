@@ -100,7 +100,10 @@ The Rideshare Coach needs **write access** to capture learnings from real user i
 - **Applying the principle to new work:** before adding asynchronous event handling, ask — *would a user receive events that don't reflect their current snapshot?* If yes, that work belongs inside the per-snapshot path. If async work genuinely preserves snapshot fidelity (e.g., a webhook that updates an event in-place after a snapshot fired, or a scheduled refresh that re-keys to the latest snapshot), it can be considered on its merits. The constraint to honor is **snapshot fidelity**, not "no async, ever."
 - **Cross-references:** EVENTS.md, LOCATION.md, FRISCO_LOCK_DIAGNOSIS_2026-04-18.md, RECON_2026-04-17_HANDLES_LOCALITY.md, and BRIEFING-DATA-MODEL.md cite this rule by number — amendments stay under Rule 11 to preserve those links.
 
-### Rule 12: Session-Start Review Protocol (2026-02-25, expanded 2026-04-28)
+### Rule 12: Session-Start Review Protocol (2026-02-25, expanded 2026-04-28, agreement-first added 2026-05-06)
+
+**Before this priority list, read `AI_PARTNERSHIP_AGREEMENT.md` (root) as the overarching constitutional agreement between Melody and Claude.** That document defines authority, decision categories, citation provenance rules, execution autonomy boundaries, source reading order (§3), and the model-to-model instruction boundary (§19.1) — all of which inform how the priorities below should be weighted. Treat the agreement as upstream of every other artifact in this list, including this CLAUDE.md. If a rule below conflicts with the agreement, the agreement wins.
+
 **At the start of EVERY session, review these documents before doing any work:**
 
 | Priority | Document | Why |

@@ -7,10 +7,11 @@
 >
 > **Status:** AI-extracted history. This document captures *why* a configuration
 > file in the codebase exists; it is **not** Melody-authored doctrine. The
-> authoritative agreement layer is `docs/AI_PARTNERSHIP_PLAN.md` (the previous
-> version was archived to `docs/archive/AI_PARTNERSHIP_PLAN.md` on 2026-05-06;
-> Melody is currently consolidating a new version). This document is a candidate
-> Melody can revise, replace, or delete.
+> authoritative agreement layer is `AI_PARTNERSHIP_AGREEMENT.md` at the repo
+> root (Melody-authored consolidation, 2026-05-06; supersedes
+> `docs/AI_PARTNERSHIP_PLAN.md` and `docs/CHECKPOINT_AI_PARTNERSHIP.md`,
+> both archived to `docs/archive/`). This document is a candidate Melody can
+> revise, replace, or delete.
 
 ---
 
@@ -84,8 +85,8 @@ to be authored and modified.
 
 ## What this document is NOT
 
-- **Not Melody's authored doctrine.** `docs/AI_PARTNERSHIP_PLAN.md` is the
-  authoritative agreement layer (in active consolidation as of 2026-05-06).
+- **Not Melody's authored doctrine.** `AI_PARTNERSHIP_AGREEMENT.md` (root) is
+  the authoritative agreement layer.
 - **Not a description of every field in `.replit-assistant-override.json`.**
   For the current configuration, read the file directly.
 - **Not a rule.** This is engineering history extracted from a soon-to-be-
