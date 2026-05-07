@@ -11,7 +11,6 @@ async function seed() {
   console.log('🌱 Seeding development data...');
 
   const userId = randomUUID();
-  const deviceId = randomUUID();
   const sessionId = randomUUID();
   const testSnapshotId = process.env.TEST_SNAPSHOT_ID || crypto.randomUUID();
 
@@ -22,7 +21,6 @@ async function seed() {
       .values({
         snapshot_id: testSnapshotId,
         user_id: userId,
-        device_id: deviceId,
         session_id: sessionId,
         lat: 37.7749,
         lng: -122.4194,

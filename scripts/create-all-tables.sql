@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS snapshots (
   snapshot_id UUID PRIMARY KEY,
   created_at TIMESTAMPTZ NOT NULL,
   user_id UUID,
-  device_id UUID NOT NULL,
   session_id UUID NOT NULL,
   lat DOUBLE PRECISION NOT NULL,
   lng DOUBLE PRECISION NOT NULL,

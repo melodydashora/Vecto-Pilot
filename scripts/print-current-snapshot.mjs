@@ -13,7 +13,6 @@ const latestSnapshotSql = `
 SELECT
   snapshot_id,
   created_at,
-  device_id,
   session_id,
   h3_r8,
   weather,
@@ -53,7 +52,6 @@ function formatSnapshot(row) {
   const fields = [
     "snapshot_id",
     "created_at",
-    "device_id",
     "session_id",
     "h3_r8",
     "weather",

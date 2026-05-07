@@ -5,7 +5,6 @@ export type SnapshotV1 = {
   schema_version: 1;
   snapshot_id: UUID;
   user_id: UUID | null;
-  device_id: UUID;
   session_id: UUID;
   created_at: string;
   coord: Coord;
