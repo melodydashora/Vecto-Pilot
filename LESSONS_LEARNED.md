@@ -2,6 +2,52 @@
 AGENT DIRECTIVE: This file contains resolved historical post-mortems. Do NOT attempt to fix the bugs listed here. Use this file STRICTLY as read-only context to avoid repeating past architectural mistakes.
 
 
+## 2026-05-07 (late): Falsy-temperature sweep + dead `users`-write deletion — code that lied about behavior
+
+Two findings, both about *code that asserts something the runtime quietly ignores or contradicts.* Different from the earlier "silent-at-load-fires-at-runtime" forensic class (those were ReferenceErrors); these are "code looks correct, runtime semantics are wrong" cases.
+
+### Finding A — Falsy-temperature trap (sister of falsy-coord, higher practical urgency)
+
+`tempC ? convert : null` rejects `0°C` (freezing point, exactly 32°F). Same JavaScript-falsy class as the falsy-coord sweep (`32a6d472`), but with **higher practical urgency** — DFW gets sub-32°F multiple times per winter, so this bug fires for current users on cold mornings, unlike the lat/lng=0 case which has no current user impact.
+
+Three direct conversion sites + ~12 display/filter/prompt sites swept. Display sites that emitted `'N/A'` or `'??'` for `0°` to LLM prompts were the most pernicious — silent miscommunication into Coach/consolidator prompt context. A driver opening the app on a freezing morning saw `Weather unavailable` in the UI and `"N/A°F"` in Coach reasoning prompts; the AI made cold-weather decisions without the cold-weather signal.
+
+Already-correct shape coexisted at `consolidator.js:1241` (`!= null`), confirming the codebase knew the right pattern but hadn't applied it consistently. Same drift shape as the falsy-coord case.
+
+**Lesson 1 — Falsy-zero is a recurring class, not a one-time bug.** Coordinates yesterday, temperatures today. Tomorrow it'll be percentages, accuracy values, surge multipliers, or anything else where `0` is a valid value but `!value` rejects it. The class is structural; it'll keep producing instances until either (a) TypeScript's strict-null-check forces explicit `lat: number | null` typing that makes `!lat` look wrong, (b) an ESLint rule flags `||` and `?:` shapes on numeric values, or (c) project culture shifts to `!= null` / `??` as the default. We've now done two sweep commits in three days; that's evidence the per-instance fix doesn't generalize on its own. Worth filing a follow-up: explicit project-wide convention against `||` substitution on numeric-typed values.
+
+**Lesson 2 — `??` chains preserve `0`, `||` chains drop it.** `lat ?? defaultLat` returns `lat` even if `lat === 0`; `lat || defaultLat` returns `defaultLat`. Same JS-spec rule applied to temperature. The replacement was mechanical: `temperature || weather.temp || null` → `temperature ?? weather.temp ?? null`.
+
+**Lesson 3 — LLM-prompt strings are the most invisible failure mode of this class.** A driver-facing UI showing "N/A°F" is at least visible. An LLM prompt containing `"Temperature: N/A°F"` produces *plausible-sounding strategy recommendations that ignore weather*. The Coach won't say "I don't know the temperature so I can't reason about it" — it'll output cold-weather-blind heuristics, and a driver on a 32°F morning will follow them without realizing the AI never had the signal. **Fix priority: prompt-prep sites > display sites > filter sites.** Prompt sites pollute downstream reasoning; display sites at least signal "data missing" to the user; filter sites just drop a row.
+
+### Finding B — Dead `users`-table writes ("code lying about behavior")
+
+`shared/schema.js:18` declares "users: SESSION TRACKING ONLY (Ephemeral) ... NO LOCATION DATA - all location goes to snapshots table." The live DB matches: `users` has 7 columns, zero of them location.
+
+But `server/api/location/location.js:889-984` (pre-fix) had 13 location fields in two `db.update(users).set({...})` and `db.insert(users).values({...})` blocks. **Drizzle silently dropped every field that didn't match the schema definition.** So the actual SQL drizzle generated was: `UPDATE users SET updated_at = now() WHERE user_id = ?` and `INSERT INTO users (user_id, created_at, updated_at) VALUES (...)`. The 13 location fields were dead writes — present in the source code, never reaching the DB.
+
+**Net runtime impact today: zero data leakage.** The DB and schema enforced the doctrine. **But the code was misleading by ~95 lines.** A future contributor reading the handler reasonably concludes "we write the active location to users on every resolve" and may build downstream logic on that false premise. Worse: someone could "fix" the apparent inconsistency by adding the missing columns to the schema, which would then activate the dead writes and contradict the doctrine without anyone noticing.
+
+**Lesson 4 — Drizzle's silent-column-filtering is a feature with a UX cost.** When a schema definition doesn't include a column, Drizzle won't emit it in INSERT/UPDATE — and won't error. That's correct ORM behavior (lets you write code against the schema definition without fighting type errors), but it produces a class of bug where the source code says one thing and the runtime does another. This isn't unique to Drizzle — Prisma, TypeORM, and Sequelize all do similar filtering — but worth knowing. **Mitigation:** never trust the runtime SQL by reading the source's `.set({...})`. Read the schema definition for what actually lands. Even better: log the generated SQL during dev and verify the column list matches expectations.
+
+**Lesson 5 — Doctrine update from Melody (2026-05-07): `users` is the table to hold sign-up data, nothing should change after registration.** The schema comment "users: Session (who's online now) - TEMPORARY" was the architectural mistake the project lived with for months. The new doctrine: `users` is immutable identity (sign-up record), session data lives in a separate table to be designed (queued for tomorrow's architectural refactor). Tonight's commit deletes the dead location-writes outright (~95 lines). The bigger architectural refactor — moving `session_id`, `current_snapshot_id`, `session_start_at`, `last_active_at` OUT of `users` to a new `active_context` table per Melody's target diagram — is filed at `docs/review-queue/PLAN_QUEUED_session-out-of-users-architecture-2026-05-08.md`.
+
+### Resolution
+
+- **Phase 1 (falsy-temp sweep):** ~17 sites in 11 files. `tempC ? f : null` → `tempC != null ? f : null`. `temp || default` → `temp ?? default`. `temp || 'N/A'` → `temp ?? 'N/A'` for LLM prompts.
+- **Phase 2 (dead-write deletion):** removed the entire `if (existingUser) { UPDATE } else { INSERT }` block at `location.js:891-984` (~95 lines). Replaced with `userId = authenticatedUserId; resolvedData.user_id = userId;`. Preserved the `existingUser` lookup at line 862 because the snapshot-reuse path still reads `existingUser?.current_snapshot_id`.
+- **Order:** Phase 2 first (one file, surgical, low risk), Phase 1 second (11-file sweep, lint-protected per `32a6d472`).
+- **Sites preserved tonight (architectural-refactor scope):** the 4 other `db.update(users)` sites at `location.js:170, 891, 1053, 1904` that manage `current_snapshot_id` and `last_active_at`. Those are part of the session-on-users architecture that the queued plan removes wholesale. Untouched tonight to keep this commit scope-bounded.
+
+**Files (this commit):** `server/api/location/location.js`, `server/api/concierge/concierge.js`, `server/api/briefing/briefing.js`, `server/api/chat/chat.js`, `server/lib/briefing/filter-for-planner.js`, `server/lib/briefing/pipelines/weather.js`, `server/lib/external/faa-asws.js`, `server/lib/ai/coach-dal.js`, `server/lib/ai/rideshare-coach-dal.js`, `server/lib/ai/providers/consolidator.js`, `client/src/components/briefing/WeatherCard.tsx`, `LESSONS_LEARNED.md`, plus `docs/review-queue/PLAN_falsy-temp-and-users-location-cleanup-2026-05-07.md` and the queued architectural plan.
+
+**Plans:** `docs/review-queue/PLAN_falsy-temp-and-users-location-cleanup-2026-05-07.md` (this commit), `docs/review-queue/PLAN_QUEUED_session-out-of-users-architecture-2026-05-08.md` (next session).
+
+**Forensic precedent:** `32a6d472` (falsy-coord sweep + ESLint coverage). Same pattern recognition.
+
+**CLAUDE.md doctrines reinforced:** NO FALLBACKS — GLOBAL APP RULE; ABSOLUTE PRECISION — GPS & DATA ACCURACY; new doctrine pinned (Melody, 2026-05-07): **`users` is sign-up data, immutable after registration; sessions live elsewhere.**
+
+
 ## 2026-05-07: Falsy-coordinate sweep + ESLint `no-undef` coverage on server JS — closing the class, not just the instance
 
 - **Symptom (Phase 1, falsy coords):** 25+ sites across the codebase used `!lat || !lng`, `lat || defaultValue`, or `if (lat && lng)` to guard or substitute coordinate values. Each site silently rejected valid latitude `0` (the equator: Ecuador, Kenya, Indonesia, Singapore, Brazil) and valid longitude `0` (the prime meridian: London, parts of West Africa). Practical impact today is zero — Vecto Pilot's user base is DFW (lat ~32.78, lng ~-96.8) — but the codebase's own "NO FALLBACKS — GLOBAL APP RULE" forbids this kind of regional assumption baked into the data path.

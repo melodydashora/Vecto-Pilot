@@ -194,7 +194,7 @@ router.get('/p/:token/weather', weatherLimiter, validateShareToken, async (req, 
     if (weatherRes.ok) {
       const data = await weatherRes.json();
       const tempC = data.temperature?.degrees ?? data.temperature;
-      const tempF = tempC ? Math.round((tempC * 9 / 5) + 32) : null;
+      const tempF = tempC != null ? Math.round((tempC * 9 / 5) + 32) : null;
       weather = {
         available: true,
         temperature: tempF,

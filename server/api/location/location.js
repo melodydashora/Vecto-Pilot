@@ -863,135 +863,8 @@ router.get('/resolve', async (req, res) => {
           where: eq(users.user_id, authenticatedUserId),
         }).catch(() => null);
 
-        if (existingUser) {
-          userId = authenticatedUserId;
-
-          try {
-            // CRITICAL FIX: Validate formatted_address is not null before database write
-            if (!formattedAddress) {
-              matrixLog.error({
-                category: 'LOCATION',
-                connection: 'DB',
-                action: 'USERS_UPDATE_BLOCKED_NO_ADDRESS',
-                tableName: 'USERS',
-                location: 'location.js:resolveLocation',
-              }, `CRITICAL: formattedAddress null/empty — refusing users UPDATE (city: ${!!city}, state: ${!!state}, accuracy: ${accuracy}, coordSource: ${coordSource})`);
-              return res.status(502).json({
-                ok: false,
-                error: 'location_persistence_failed',
-                message: 'Location could not be resolved to precise address. Try allowing GPS permissions or moving to a different location.'
-              });
-            }
-            
-            // 2026-01-07: Do NOT update session_id here — session_id is managed
-            // exclusively by login/logout/auth middleware. Overwriting it from
-            // /resolve invalidated freshly-logged-in sessions.
-            const updateResult = await db.update(users)
-              .set({
-                new_lat: lat,
-                new_lng: lng,
-                accuracy_m: accuracy,
-                coord_key: coordKey,
-                formatted_address: formattedAddress,
-                city,
-                state,
-                country,
-                timezone: tz,
-                coord_source: coordSource,
-                // 2026-02-17: store driver's local wall-clock time, not UTC
-                local_iso: toLocalTimestamp(now, tz),
-                dow,
-                hour,
-                day_part_key: dayPartKey,
-                updated_at: now,
-              })
-              .where(eq(users.user_id, authenticatedUserId));
-            
-            // CRITICAL: Verify at least 1 row was updated (write committed)
-            if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
-              matrixLog.error({
-                category: 'LOCATION',
-                connection: 'DB',
-                action: 'USERS_UPDATE_NO_ROWS',
-                tableName: 'USERS',
-                location: 'location.js:resolveLocation',
-              }, 'Users UPDATE failed — no rows affected');
-              return res.status(502).json({
-                ok: false,
-                error: 'location_persistence_failed',
-                message: 'Database write did not commit - no rows updated'
-              });
-            }
-          } catch (updateErr) {
-            matrixLog.error({
-              category: 'LOCATION',
-              connection: 'DB',
-              action: 'USERS_UPDATE_FAIL',
-              tableName: 'USERS',
-              location: 'location.js:resolveLocation',
-            }, 'Users UPDATE failed', updateErr);
-            return res.status(502).json({
-              ok: false,
-              error: 'location_persistence_failed',
-              message: 'Failed to save location to database',
-              details: updateErr.message
-            });
-          }
-        } else {
-          // Race/edge case: registration normally creates the users row, but if
-          // we're here without one, create it now keyed to the authenticated id.
-          // session_id is intentionally left null — login owns that field.
-          userId = authenticatedUserId;
-          console.log(`🔐 [LOCATION] [API] Creating user record for authenticated user_id: ${userId.slice(0, 8)}`);
-          const newUser = {
-            user_id: userId,
-            lat,
-            lng,
-            accuracy_m: accuracy,
-            coord_source: coordSource,
-            coord_key: coordKey,
-            formatted_address: formattedAddress,
-            city,
-            state,
-            country,
-            timezone: tz,
-            // 2026-02-17: store driver's local wall-clock time, not UTC
-            local_iso: toLocalTimestamp(now, tz),
-            dow,
-            hour,
-            day_part_key: dayPartKey,
-            created_at: now,
-            updated_at: now,
-          };
-          
-          try {
-            await db.insert(users).values(newUser);
-          } catch (insertErr) {
-            matrixLog.error({
-              category: 'LOCATION',
-              connection: 'DB',
-              action: 'USERS_INSERT_FAIL',
-              tableName: 'USERS',
-              location: 'location.js:resolveLocation',
-            }, 'Users INSERT failed', insertErr);
-            return res.status(502).json({
-              ok: false,
-              error: 'location_persistence_failed',
-              message: 'Failed to save location to database',
-              details: insertErr.message
-            });
-          }
-        }
-
-        // Update response with user_id for client-side tracking
+        userId = authenticatedUserId;
         resolvedData.user_id = userId;
-        matrixLog.info({
-          category: 'LOCATION',
-          connection: 'DB',
-          action: 'USERS_WRITE',
-          tableName: 'USERS',
-          location: 'location.js:resolveLocation',
-        }, 'Users table written (city/state redacted)');
 
         // ═══════════════════════════════════════════════════════════════════════════
         // SNAPSHOT REUSE: One snapshot per authenticated session
@@ -1278,7 +1151,7 @@ router.get('/weather', async (req, res) => {
       
       // Google Weather API returns Celsius in nested structure: {degrees: 8.2, unit: "CELSIUS"}
       const tempC = currentData.temperature?.degrees ?? currentData.temperature;
-      const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
+      const tempF = tempC != null ? Math.round((tempC * 9/5) + 32) : null;
       const feelsLikeC = currentData.feelsLikeTemperature?.degrees ?? currentData.feelsLikeTemperature;
       const feelsLikeF = feelsLikeC ? Math.round((feelsLikeC * 9/5) + 32) : null;
       
@@ -1303,7 +1176,7 @@ router.get('/weather', async (req, res) => {
       const forecastData = await forecastRes.json();
       forecast = (forecastData.forecastHours || []).slice(0, 6).map((hour) => {
         const tempC = hour.temperature?.degrees ?? hour.temperature;
-        const tempF = tempC ? Math.round((tempC * 9/5) + 32) : null;
+        const tempF = tempC != null ? Math.round((tempC * 9/5) + 32) : null;
         return {
           time: hour.time,
           temperature: tempF,

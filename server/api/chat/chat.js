@@ -1091,7 +1091,7 @@ This is the driver's ACTUAL local date and time. Use this when discussing events
 **Your Data Access (Current Session):**
 - Driver: ${fullContext?.driverProfile ? `${fullContext.driverProfile.first_name} ${fullContext.driverProfile.last_name}` : 'Unknown'} ${fullContext?.driverVehicle ? `driving ${fullContext.driverVehicle.year} ${fullContext.driverVehicle.make} ${fullContext.driverVehicle.model}` : ''}
 - Home: ${fullContext?.driverProfile?.city || 'Unknown'}, ${fullContext?.driverProfile?.state_territory || ''}
-- Snapshot: ${fullContext?.snapshot?.city || 'Unknown'}, ${fullContext?.snapshot?.state || ''} | ${fullContext?.snapshot?.weather?.tempF || 'N/A'}°F ${fullContext?.snapshot?.weather?.conditions || ''}
+- Snapshot: ${fullContext?.snapshot?.city || 'Unknown'}, ${fullContext?.snapshot?.state || ''} | ${fullContext?.snapshot?.weather?.tempF ?? 'N/A'}°F ${fullContext?.snapshot?.weather?.conditions || ''}
 - Venues: ${fullContext?.smartBlocks?.length || 0} ranked recommendations with full details
 - Strategy: ${fullContext?.strategy?.status === 'ready' ? 'Ready' : 'Generating...'}
 - Events/Traffic/News: From real-time briefing data

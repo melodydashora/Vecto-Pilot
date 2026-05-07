@@ -156,7 +156,7 @@ function parseAuthAirportData(data) {
   if (!data) return null;
   
   const weather = data.Weather ? {
-    temperature: data.Weather.Temp?.[0] || null,
+    temperature: data.Weather.Temp?.[0] ?? null,
     conditions: data.Weather.Weather?.[0]?.Temp?.[0] || null,
     visibility: data.Weather.Visibility?.[0] || null,
     wind: data.Weather.Wind?.[0] || null,

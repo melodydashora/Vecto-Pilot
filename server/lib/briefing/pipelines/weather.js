@@ -82,7 +82,7 @@ function formatWindSpeed(windSpeedMs, country) {
 function generateWeatherDriverImpact(current, forecast = []) {
   const parts = [];
 
-  const temp = current.tempF || current.temperature;
+  const temp = current.tempF ?? current.temperature;
   const conditions = (current.conditions || '').toLowerCase();
   const condType = (current.conditionType || '').toLowerCase();
 

@@ -105,7 +105,7 @@ export function WeatherCard({ weatherData, timezone }: WeatherCardProps) {
               </span>
               <div className="my-1">{getWeatherIcon(hour.conditionType, hour.isDaytime)}</div>
               <span className="text-sm font-medium text-gray-800">
-                {hour.tempF || 0}°F
+                {hour.tempF ?? 0}°F
               </span>
               {hour.precipitationProbability !== null && hour.precipitationProbability !== undefined && hour.precipitationProbability > 0 && (
                 <span className="text-xs text-blue-600 font-medium">{hour.precipitationProbability}% rain</span>

@@ -969,7 +969,7 @@ export class CoachDAL {
       // Weather
       if (snapshot.weather) {
         prompt += `\n\n🌤️  WEATHER CONDITIONS`;
-        prompt += `\n   Temperature: ${snapshot.weather.tempF || snapshot.weather.temp || 'N/A'}°F`;
+        prompt += `\n   Temperature: ${snapshot.weather.tempF ?? snapshot.weather.temp ?? 'N/A'}°F`;
         prompt += `\n   Conditions: ${snapshot.weather.conditions || snapshot.weather.condition || 'N/A'}`;
         if (snapshot.weather.windSpeed) prompt += `\n   Wind: ${snapshot.weather.windSpeed} mph`;
       }
@@ -1013,7 +1013,7 @@ export class CoachDAL {
       if (briefing.weather_current) {
         prompt += `\n\n🌤️  REAL-TIME WEATHER (from Google Weather API)`;
         const w = briefing.weather_current;
-        prompt += `\n   Current: ${w.temperature?.degrees || 'N/A'}°${w.temperature?.unit === 'FAHRENHEIT' ? 'F' : 'C'}`;
+        prompt += `\n   Current: ${w.temperature?.degrees ?? 'N/A'}°${w.temperature?.unit === 'FAHRENHEIT' ? 'F' : 'C'}`;
         prompt += `\n   Conditions: ${w.conditions || 'N/A'}`;
         if (w.humidity) prompt += `\n   Humidity: ${w.humidity}%`;
         if (w.windSpeed) prompt += `\n   Wind: ${w.windSpeed.value || 'N/A'} ${w.windSpeed.unit || 'mph'}`;
@@ -1022,7 +1022,7 @@ export class CoachDAL {
       if (briefing.weather_forecast?.length > 0) {
         prompt += `\n   Forecast (next 6h): `;
         briefing.weather_forecast.slice(0, 3).forEach((h, i) => {
-          const temp = h.temperature?.degrees || 'N/A';
+          const temp = h.temperature?.degrees ?? 'N/A';
           prompt += `${i > 0 ? ' | ' : ''}${temp}° `;
         });
       }

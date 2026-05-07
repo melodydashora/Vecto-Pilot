@@ -469,7 +469,7 @@ function optimizeWeatherForLLM(weather) {
   if (!weather) return 'No weather data';
   if (weather.driverImpact) return weather.driverImpact;
   // Fallback for legacy rows without driverImpact
-  const temp = weather.tempF || weather.temperature || '??';
+  const temp = weather.tempF ?? weather.temperature ?? '??';
   return `${weather.conditions || 'Unknown conditions'}, ${temp}°F`;
 }
 
@@ -1212,7 +1212,7 @@ function formatWeatherForStrategist(weatherCurrent, weatherForecast, timezone) {
 
   const lines = [];
   const currentLine = weatherCurrent.driverImpact
-    || `${weatherCurrent.conditions || 'Unknown conditions'}, ${weatherCurrent.tempF || weatherCurrent.temperature || '??'}°F`;
+    || `${weatherCurrent.conditions || 'Unknown conditions'}, ${weatherCurrent.tempF ?? weatherCurrent.temperature ?? '??'}°F`;
   lines.push(`WEATHER: ${currentLine}`);
 
   if (!Array.isArray(weatherForecast) || weatherForecast.length === 0) {

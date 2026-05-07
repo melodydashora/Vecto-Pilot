@@ -668,7 +668,7 @@ router.get('/weather/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 
     const weatherResponse = freshWeather ? {
       current: {
-        tempF: freshWeather.tempF || null,
+        tempF: freshWeather.tempF ?? null,
         conditions: freshWeather.conditions || null,
         humidity: freshWeather.humidity || null,
         windDirection: freshWeather.windDirection || null,

@@ -254,7 +254,7 @@ export function filterBriefingForPlanner(briefing, snapshot, todayEvents) {
   const weatherData = briefing.weather_current;
   const weatherSummary = weatherData ? {
     condition: weatherData.condition || weatherData.conditions || null,
-    temperature: weatherData.temperature || weatherData.temp || null,
+    temperature: weatherData.temperature ?? weatherData.temp ?? null,
     impact: weatherData.driverImpact || weatherData.impact || null
   } : null;
 
