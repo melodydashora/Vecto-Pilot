@@ -74,5 +74,31 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       'no-unused-vars': 'off',
     },
+  },
+
+  // Server JS Config — enforces no-undef on the majority of the server
+  // surface. Other recommended rules are disabled to keep this block scoped
+  // to the structural defense (catching the thinkingLevel = high / reqId
+  // ReferenceError class).
+  {
+    files: ['server/**/*.{js,mjs}', 'gateway-server.js', 'agent-server.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: globals.node,
+    },
+    rules: {
+      'no-undef': 'error',
+      'no-unused-vars': 'off',
+      'no-console': 'off',
+      'no-empty': 'off',
+      'no-constant-condition': 'off',
+      'no-useless-escape': 'off',
+      'no-prototype-builtins': 'off',
+      'no-control-regex': 'off',
+      'no-misleading-character-class': 'off',
+      'no-async-promise-executor': 'off',
+      'no-irregular-whitespace': 'off',
+    },
   }
 );

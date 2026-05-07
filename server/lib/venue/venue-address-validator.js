@@ -155,7 +155,7 @@ export function validateVenueAddress({ formattedAddress, venueName, lat, lng, ci
   // require API calls, which violates the "lightweight" requirement.
   // We only flag obvious mismatches where the address mentions a very different
   // location than the coordinates suggest.
-  if (lat && lng && city && typeof city === 'string') {
+  if (Number.isFinite(lat) && Number.isFinite(lng) && city && typeof city === 'string') {
     // We skip coord sanity for now — it requires a city→coord lookup table
     // which would be a separate concern. The other 3 checks catch the Majestic Theatre bug.
     // TODO: Implement when we have a metro-area bounding box table.

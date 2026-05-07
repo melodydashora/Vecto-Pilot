@@ -316,7 +316,7 @@ export function openGoogleMaps(options: {
   }
 
   // Good: Use coordinates for directions
-  if (lat && lng) {
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
     return;
   }
@@ -340,7 +340,7 @@ export function openAppleMaps(options: {
   const { lat, lng, name, address } = options;
 
   // Best: Use coordinates
-  if (lat && lng) {
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
     const query = name ? `&q=${encodeURIComponent(name)}` : '';
     window.open(`https://maps.apple.com/?daddr=${lat},${lng}${query}`, '_blank');
     return;

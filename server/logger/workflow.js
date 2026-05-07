@@ -149,7 +149,6 @@ const COMPONENT_LABELS = {
   TRANSLATION: 'TRANSLATION',
   HEALTH: 'HEALTH',
   TTS: 'TTS',
-  ROUTES: 'ROUTES',
   FEEDBACK: 'FEEDBACK',
   VEHICLE: 'VEHICLE',
   HOOKS: 'HOOKS',
@@ -437,7 +436,8 @@ const WORKFLOWS = {
   ROUTES: { phases: 1, emoji: '🚗' },
   // 2026-04-27: Waterfall taxonomy components for top-level 5-stage pipeline.
   // Commit 5: VENUE_PLANNING renamed to VENUE per "one word in [Example]" spec.
-  STRATEGY: { phases: 1, emoji: '🎯' },
+  // Note: STRATEGY is defined above (4 phases). The waterfall view treats it
+  // as a single stage but reuses the same key; the `phases: 4` definition wins.
   VENUE:    { phases: 1, emoji: '🏢' },
   WATERFALL: { phases: 5, emoji: '🌊' },
   // Generic fallback for misc emitters

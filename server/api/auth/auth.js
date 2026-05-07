@@ -437,8 +437,8 @@ router.post('/register', async (req, res) => {
       zip_code: finalAddress.zipCode,
       country: finalAddress.country,
       // Store geocoded home coordinates (from validation or geocoding fallback)
-      home_lat: geocodeResult?.lat || null,
-      home_lng: geocodeResult?.lng || null,
+      home_lat: geocodeResult?.lat ?? null,
+      home_lng: geocodeResult?.lng ?? null,
       home_formatted_address: geocodeResult?.formattedAddress || null,
       home_timezone: geocodeResult?.timezone || null,
       market: resolvedMarket, // Looked up from platform_data based on city

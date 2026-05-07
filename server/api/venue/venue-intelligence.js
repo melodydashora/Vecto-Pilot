@@ -23,7 +23,7 @@ router.get('/nearby', async (req, res) => {
   try {
     const { lat, lng, city, state, radius, timezone } = req.query;
 
-    if (!lat || !lng) {
+    if (!Number.isFinite(parseFloat(lat)) || !Number.isFinite(parseFloat(lng))) {
       return res.status(400).json({
         error: 'Missing required parameters: lat, lng'
       });
@@ -75,9 +75,9 @@ router.get('/traffic', async (req, res) => {
   try {
     const { lat, lng, city, state } = req.query;
     
-    if (!lat || !lng) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: lat, lng' 
+    if (!Number.isFinite(parseFloat(lat)) || !Number.isFinite(parseFloat(lng))) {
+      return res.status(400).json({
+        error: 'Missing required parameters: lat, lng'
       });
     }
 
@@ -110,9 +110,9 @@ router.get('/smart-blocks', async (req, res) => {
   try {
     const { lat, lng, city, state, radius, holiday } = req.query;
     
-    if (!lat || !lng) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: lat, lng' 
+    if (!Number.isFinite(parseFloat(lat)) || !Number.isFinite(parseFloat(lng))) {
+      return res.status(400).json({
+        error: 'Missing required parameters: lat, lng'
       });
     }
 
@@ -147,9 +147,9 @@ router.get('/last-call', async (req, res) => {
   try {
     const { lat, lng, city, state } = req.query;
     
-    if (!lat || !lng) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: lat, lng' 
+    if (!Number.isFinite(parseFloat(lat)) || !Number.isFinite(parseFloat(lng))) {
+      return res.status(400).json({
+        error: 'Missing required parameters: lat, lng'
       });
     }
 

@@ -104,12 +104,12 @@ function stagingPriority(candidate, nearbyVenuesOpenCount = 0, nearbyEventsHighC
  * @returns {number} Count of open venues
  */
 function countOpenVenuesWithinRadius(anchorCoord, candidates, radiusMeters = 250) {
-  if (!anchorCoord?.lat || !anchorCoord?.lng) return 0;
-  
+  if (!Number.isFinite(anchorCoord?.lat) || !Number.isFinite(anchorCoord?.lng)) return 0;
+
   return candidates.filter(c => {
     if (c.node_type !== 'venue') return false;
     if (!c.is_open_now && c.is_open_now !== undefined) return false;
-    if (!c.coords?.lat || !c.coords?.lng) return false;
+    if (!Number.isFinite(c.coords?.lat) || !Number.isFinite(c.coords?.lng)) return false;
     
     const dist = haversineDistanceMeters(
       anchorCoord.lat,
@@ -130,10 +130,10 @@ function countOpenVenuesWithinRadius(anchorCoord, candidates, radiusMeters = 250
  * @returns {number} Count of high-impact events
  */
 function countHighImpactEventsNearby(anchorCoord, candidates, radiusMeters = 350) {
-  if (!anchorCoord?.lat || !anchorCoord?.lng) return 0;
-  
+  if (!Number.isFinite(anchorCoord?.lat) || !Number.isFinite(anchorCoord?.lng)) return 0;
+
   return candidates.filter(c => {
-    if (!c.venue_events || !c.coords?.lat || !c.coords?.lng) return false;
+    if (!c.venue_events || !Number.isFinite(c.coords?.lat) || !Number.isFinite(c.coords?.lng)) return false;
     
     const dist = haversineDistanceMeters(
       anchorCoord.lat,

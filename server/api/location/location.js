@@ -505,6 +505,7 @@ router.get('/resolve', async (req, res) => {
     const coordKey = makeCoordsKey(lat, lng);
     let cacheHit = null;
     let city, state, country, formattedAddress, timeZone;
+    let marketResult = null;
     
     try {
       cacheHit = await db.query.coords_cache.findFirst({
@@ -684,7 +685,6 @@ router.get('/resolve', async (req, res) => {
       // Step 2: Timezone resolution via shared module (2026-02-17)
       // Fast path: market lookup (~5ms, 102 markets + 3,300 city aliases)
       // Slow path: Google Timezone API (~200-300ms, for unknown locations)
-      let marketResult = null;
       if (city) {
         marketResult = await resolveTimezoneFromMarket(city, state, country);
       }
@@ -1583,13 +1583,13 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     const snapshotV1 = req.body;
 
     // Minimal mode support for curl/preflight tests
-    const isMinimalMode = snapshotV1?.lat && snapshotV1?.lng && !snapshotV1?.resolved;
-    
+    const isMinimalMode = Number.isFinite(snapshotV1?.lat) && Number.isFinite(snapshotV1?.lng) && !snapshotV1?.resolved;
+
     if (isMinimalMode) {
       console.log('[SNAPSHOT] Minimal mode detected - resolving city/timezone server-side');
       const { lat, lng, userId } = snapshotV1;
-      
-      if (!lat || !lng) {
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         ndjson('snapshot.bad_payload', { cid, reason: 'missing_lat_lng' });
         return httpError(res, 400, 'missing_lat_lng', 'Coordinates required', cid);
       }
@@ -2139,9 +2139,9 @@ router.post('/news-briefing', validateBody(newsBriefingSchema), async (req, res)
     // 2026-04-05: Global app fix — accept country from client instead of hardcoding 'United States'
     const { latitude, longitude, address, city, state, country, radius = 10 } = req.body;
     
-    if (!latitude || !longitude || !address) {
-      return res.status(400).json({ 
-        ok: false, 
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !address) {
+      return res.status(400).json({
+        ok: false,
         error: 'missing_params',
         message: 'latitude, longitude, and address are required'
       });

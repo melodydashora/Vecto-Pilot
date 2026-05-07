@@ -596,7 +596,7 @@ router.get('/traffic/realtime', requireAuth, async (req, res) => {
   try {
     const { lat, lng, city, state, timezone } = req.query;
 
-    if (!lat || !lng || !city || !state || !timezone) {
+    if (!Number.isFinite(parseFloat(lat)) || !Number.isFinite(parseFloat(lng)) || !city || !state || !timezone) {
       return res.status(400).json({ error: 'Missing required parameters: lat, lng, city, state, timezone' });
     }
 
@@ -623,7 +623,7 @@ router.get('/weather/realtime', requireAuth, async (req, res) => {
   try {
     const { lat, lng, country } = req.query;
 
-    if (!lat || !lng) {
+    if (!Number.isFinite(parseFloat(lat)) || !Number.isFinite(parseFloat(lng))) {
       return res.status(400).json({ error: 'Missing required parameters: lat, lng' });
     }
 

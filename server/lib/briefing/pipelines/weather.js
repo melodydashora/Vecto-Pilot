@@ -144,7 +144,7 @@ export async function fetchWeatherConditions({ snapshot }) {
     };
   }
 
-  if (!snapshot?.lat || !snapshot?.lng) {
+  if (!Number.isFinite(snapshot?.lat) || !Number.isFinite(snapshot?.lng)) {
     return {
       current: { temperature: 'N/A', conditions: 'Weather unavailable', reason: 'Snapshot missing GPS coordinates' },
       forecast: [],

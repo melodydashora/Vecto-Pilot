@@ -11,6 +11,8 @@
 // 2026-01-10: D-014 Gap Fix - Use canonical hours module
 import { parseStructuredHoursFullWeek, getOpenStatus } from './hours/index.js';
 
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
 /**
  * Check if venue is open at a specific time
  *

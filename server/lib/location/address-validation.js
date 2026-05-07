@@ -126,8 +126,8 @@ export async function validateAddress({ address1, address2, city, state, zipCode
 
     // Get precise coordinates
     const location = geocode?.location;
-    const lat = location?.latitude || null;
-    const lng = location?.longitude || null;
+    const lat = location?.latitude ?? null;
+    const lng = location?.longitude ?? null;
 
     // Determine validation status
     let validationStatus = ValidationVerdict.CONFIRMED;

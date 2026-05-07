@@ -538,7 +538,7 @@ export async function findOrCreateVenue(eventData, source) {
   }
 
   // Strategy 2: Check by coord_key (exact coordinate match)
-  if (latitude && longitude) {
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
     const coordKey = generateCoordKey(latitude, longitude);
     const byCoords = await lookupVenue({ coordKey });
     if (byCoords) {
@@ -590,7 +590,7 @@ export async function findOrCreateVenue(eventData, source) {
   }
 
   // Only create if we have coordinates
-  if (!latitude || !longitude) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return null;
   }
 
@@ -684,11 +684,11 @@ async function maybeReResolveAddress(venue, venueName, lat, lng, city, state) {
 
   try {
     // Use venue's own coords if available, otherwise caller's coords
-    const searchLat = venue.lat || lat;
-    const searchLng = venue.lng || lng;
+    const searchLat = venue.lat ?? lat;
+    const searchLng = venue.lng ?? lng;
     const searchName = venueName || venue.venue_name;
 
-    if (!searchLat || !searchLng || !searchName) return null;
+    if (!Number.isFinite(searchLat) || !Number.isFinite(searchLng) || !searchName) return null;
 
     // 50km radius — metro-wide search to find the real venue
     const placeResult = await searchPlaceWithTextSearch(searchLat, searchLng, searchName, { radius: 50000 });

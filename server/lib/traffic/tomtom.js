@@ -185,7 +185,7 @@ export async function fetchRawTraffic(lat, lng, radiusMeters = 5000) {
     return null;
   }
 
-  if (!lat || !lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     console.warn('[BRIEFING] [TRAFFIC] Coordinates required. Returning null.');
     return null;
   }
@@ -455,7 +455,7 @@ export async function getTomTomTraffic({ lat, lon, radiusMiles = 10, maxDistance
  * @returns {Promise<Object>} - Traffic data
  */
 export async function getTomTomTrafficForCity({ city, state, lat, lon, radiusMiles = 15 }) {
-  if (!lat || !lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     return {
       traffic: {
         summary: `Traffic data unavailable - no coordinates for ${city}, ${state}`,

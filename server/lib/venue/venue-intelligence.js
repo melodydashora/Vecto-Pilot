@@ -425,7 +425,7 @@ export async function discoverNearbyVenues({ lat, lng, city, state, radiusMiles 
 
       // Filter to venues within search radius using Haversine distance
       const nearbyBars = cachedBars.filter(v => {
-        if (!v.lat || !v.lng) return false;
+        if (!Number.isFinite(v.lat) || !Number.isFinite(v.lng)) return false;
         const distance = haversineDistanceMiles(lat, lng, v.lat, v.lng);
         return distance <= radiusMiles;
       });

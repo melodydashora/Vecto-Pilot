@@ -46,7 +46,7 @@ const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchTe
 export async function resolveVenueAddress(lat, lng, venueName = null, options = {}) {
   const { skipCache = false, upsertCache = true } = options;
 
-  if (!lat || !lng) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
   const coordKey = generateCoordKey(lat, lng);
   const normalizedName = normalizeVenueName(venueName);
@@ -98,8 +98,8 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
             place_id: placeResult.placeId,
             formatted_address: placeResult.formattedAddress,
             ...placeResult.parsed,
-            lat: placeResult.lat || lat,
-            lng: placeResult.lng || lng,
+            lat: placeResult.lat ?? lat,
+            lng: placeResult.lng ?? lng,
             coord_key: coordKey,
             normalized_name: normalizedName,
             source: 'google_places_new'

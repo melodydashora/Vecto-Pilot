@@ -163,7 +163,7 @@ router.post("/", requireAuth, async (req, res) => {
     // This prevents race conditions and ensures model_name attribution is preserved
     
     // Generate briefing data BEFORE responding (so data is ready when frontend queries)
-    if (lat && lng) {
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
       console.log(`[BRIEFING] starting`, { snapshot_id, city, state });
       // Pass the full DB record (not individual fields) so all snapshot context is available
       // fullSnapshot uses already-validated timezone (validated above)

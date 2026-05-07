@@ -66,7 +66,7 @@ export async function geocodeEventAddress(address, city, state) {
  * @returns {Promise<Array<Object>>} Same array with coordinates populated where possible
  */
 export async function geocodeMissingCoordinates(events) {
-  const eventsNeedingGeocode = events.filter(e => !e.lat || !e.lng);
+  const eventsNeedingGeocode = events.filter(e => !Number.isFinite(e.lat) || !Number.isFinite(e.lng));
 
   if (eventsNeedingGeocode.length === 0) {
     return events;

@@ -2142,8 +2142,8 @@ export class CoachDAL {
             last_reported_at: new Date(),
             updated_at: new Date(),
             // Update coordinates if we now have them
-            lat: lat || matchingZone.lat,
-            lng: lng || matchingZone.lng,
+            lat: lat ?? matchingZone.lat,
+            lng: lng ?? matchingZone.lng,
             address_hint: address_hint || matchingZone.address_hint,
           })
           .where(eq(zone_intelligence.id, matchingZone.id))
@@ -2160,8 +2160,8 @@ export class CoachDAL {
             zone_type,
             zone_name,
             zone_description: zone_description || reason,
-            lat: lat || null,
-            lng: lng || null,
+            lat: lat ?? null,
+            lng: lng ?? null,
             radius_miles: radius_miles || 0.5,
             address_hint: address_hint || null,
             time_constraints: time_constraints || {},
