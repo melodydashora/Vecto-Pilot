@@ -2,6 +2,52 @@
 AGENT DIRECTIVE: This file contains resolved historical post-mortems. Do NOT attempt to fix the bugs listed here. Use this file STRICTLY as read-only context to avoid repeating past architectural mistakes.
 
 
+## 2026-05-07 (late evening): Coach payload-error fix + attachment options (Files / Folder / Camera)
+
+Two related Coach UX gaps. Both client-side, no server changes.
+
+### Finding A — Coach payload error (base64 inflation hits 10MB JSON limit)
+
+`server/bootstrap/middleware.js:210` sets the `/api/chat` JSON body limit to **10MB**. Coach attachments encoded via `reader.readAsDataURL(file)` produce a base64 data URL that **inflates the payload by ~33%**. Trigger: a single 4K screenshot or two phone photos easily exceeded 10MB after base64 encoding, returning HTTP 413 with `code: 'payload_too_large'`. The client at `useCoachChat.ts:193-209` only special-cased `missing_timezone`; everything else fell through to a generic `"Sorry—chat failed: ..."` message. Driver hit this on cold-screenshot offers and didn't know what to do.
+
+**Lesson 1 — Base64 inflation is a recurring class of "the limit you set is not the limit you have."** Whatever JSON body limit you configure, the actual content limit is ~75% of that for base64-encoded binary attachments. If the server says 10MB, drivers can effectively send 7.5MB of raw image data; anything more 413s. This is invisible in the limit definition itself and only surfaces at the failure threshold. Mitigation: either advertise the effective limit (compute and display "max 7.5MB images") or compress before encoding.
+
+**Lesson 2 — The Coach LLM doesn't benefit from 4K image input.** Vision models like Gemini 3 internally downsample to ~768×768 or 1024×1024 before model input. Sending a 4MB photo to be downsampled to 800×800 by the cloud is pure cost (network, base64 inflation, JSON parse) for zero quality gain. Client-side compression to 2048px / JPEG quality 0.85 is essentially free win on payload size with zero loss for the actual use case. The cost is ~500ms-1s of compression on a mid-tier Android phone — visible enough to need a per-attachment loading state, fast enough not to be a UX problem.
+
+**Lesson 3 — Specific error codes get specific UX, fallthroughs get generic text.** Pre-fix: `errData.code === 'payload_too_large'` fell through to `"Sorry—chat failed: ..."`. Post-fix: maps to `"Attachments are too large for the coach. Try a smaller image, take a new photo at lower resolution, or attach fewer files."` The driver knows what to do. Same pattern as the existing `missing_timezone` branch — it's the only error code with helpful UX, and we just expanded the list. Worth pinning as a convention: every server-side error code that has a clear user-action gets a corresponding client-side message.
+
+**Lesson 4 — The 9MB precheck budget vs 10MB server limit.** Easy to set the precheck at 10MB and have the server still 413 because of message + thread history + snapshot + IDs eating into the limit beyond the attachment payload. The 1MB headroom is small but load-bearing. Worth pinning: when you have a server-side limit and a client-side precheck against the same number, they should differ by enough to absorb non-payload overhead.
+
+### Finding B — Attachment options surface (Files / Folder / Camera)
+
+Pre-fix: one Paperclip button → file picker. Post-fix: Paperclip button → popover with three options (Files / Folder / Camera), each routing to its own hidden input or modal.
+
+**Lesson 5 — Mobile camera is one HTML attribute (`capture="environment"`).** The native camera UI on iOS and Android is opened by a regular `<input type="file" accept="image/*" capture="environment">`. No JavaScript needed for the mobile path; the OS handles capture. Desktop fallback uses `getUserMedia` + a canvas snapshot, but mobile is the dominant Coach use case (drivers in cars, taking dash/offer photos), so the simple attribute path covers ~80% of usage. Worth pinning: when implementing camera/file/microphone capture, check whether a plain HTML attribute already does what you need on mobile before reaching for `getUserMedia`.
+
+**Lesson 6 — Mobile detection via UA-string is brittle on iPad.** iPad-in-desktop-mode (default on iPadOS 13+) reports as Mac in `navigator.userAgent`. Naïve `/iPhone|iPad|iPod|Android/i.test(...)` misroutes iPad users to the desktop modal even though their device has a real camera with a native picker. Feature-detect via `'ontouchstart' in window` correctly catches iPad-in-desktop-mode and any other touch-capable device. Always feature-detect over UA-sniffing when the feature decision matters.
+
+**Lesson 7 — Folder pickers (`webkitdirectory`) return everything in the directory.** A driver picking their Downloads folder by accident could send 500 random files. The accept-list filter (only image/PDF/doc) plus a max-attachments cap (10) plus a count message ("3 unsupported skipped") is the guardrail. Without those three pieces, the folder option is a footgun.
+
+**Lesson 8 — `getUserMedia` cleanup is privacy-load-bearing.** If a component unmounts (or modal closes) without calling `stream.getTracks().forEach(t => t.stop())`, the camera light stays on. This is one of the most user-visible privacy violations possible in a web app. The useEffect cleanup must include the explicit stop. Same pattern for microphone streams (Web Speech API's underlying MediaStream).
+
+**Lesson 9 — `cancelled` flag in async start prevents close-during-init race.** If the modal opens and the user immediately closes it, `getUserMedia` could resolve into the void with the camera still running. The `cancelled` boolean closure pattern + check after await + close-tracks-if-cancelled handles this race. Pattern is general for any "open modal, async-fetch resource, render" component.
+
+### Resolution
+
+- **Phase 1 — `useCoachChat.ts`:** added `compressImageToDataUrl` helper (createImageBitmap → canvas → toDataURL JPEG); refactored `handleFileSelect` to filter accepted types, cap at 10 attachments, compress in parallel with per-file loading state; added 9MB pre-send precheck; mapped `code: 'payload_too_large'` to actionable user message; added `appendAttachmentFromDataUrl` for camera-modal output.
+- **Phase 2 — `RideshareCoach.tsx`:** replaced single Paperclip button with shadcn Popover containing Files / Folder / Camera options; added two new hidden inputs (folder via `webkitdirectory`, mobile camera via `capture="environment"`); added `compressingFiles` chip rendering with spinner.
+- **Phase 3 — `CameraCaptureModal.tsx` (new):** desktop fallback using `getUserMedia({video: {facingMode: 'environment'}})` + `<video>` preview + canvas snapshot. Permission errors handled explicitly (`NotAllowedError` vs `NotFoundError` vs generic). Cleanup via useEffect + `cancelled` flag + `streamRef.current?.getTracks().forEach(t => t.stop())`.
+- **Feature-detect for camera path:** `'ontouchstart' in window` routes touch devices (including iPad-in-desktop-mode) to the native camera input, non-touch desktops to the modal.
+
+**Files (this commit):** `client/src/hooks/coach/useCoachChat.ts`, `client/src/components/RideshareCoach.tsx`, `client/src/components/coach/CameraCaptureModal.tsx` (new), `LESSONS_LEARNED.md`, plus the plan file at `docs/review-queue/PLAN_coach-payload-fix-and-attachment-options-2026-05-07.md`.
+
+**Plan:** `docs/review-queue/PLAN_coach-payload-fix-and-attachment-options-2026-05-07.md`
+
+**No server changes.** The 10MB `/api/chat` limit stays; client-side compression keeps payloads well under it.
+
+**CLAUDE.md doctrines reinforced:** NO FALLBACKS — GLOBAL APP RULE (compression preserves visible content rather than masking missing data). Rule 16 (architectural decisions are Melody's — she gave defaults via "you've taken into account everything that can go wrong so I trust you").
+
+
 ## 2026-05-07 (late): Falsy-temperature sweep + dead `users`-write deletion — code that lied about behavior
 
 Two findings, both about *code that asserts something the runtime quietly ignores or contradicts.* Different from the earlier "silent-at-load-fires-at-runtime" forensic class (those were ReferenceErrors); these are "code looks correct, runtime semantics are wrong" cases.

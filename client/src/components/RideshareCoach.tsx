@@ -2,12 +2,14 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { MessageSquare, Send, Loader, Zap, Paperclip, X, BookOpen, Pin, Trash2, Edit2, ChevronRight, AlertCircle, Mic, MicOff, Volume2, VolumeX, FileText, FolderOpen, Camera } from "lucide-react";
 import { useCoachChat } from "@/hooks/coach/useCoachChat";
 import { useCoachAudioState, type CoachPlaybackSpeed } from "@/hooks/coach/useCoachAudioState";
 import { useStreamingReadAloud } from "@/hooks/coach/useStreamingReadAloud";
 import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
 import { CoachStopBar } from "@/components/coach/CoachStopBar";
+import { CameraCaptureModal } from "@/components/coach/CameraCaptureModal";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 // 2026-04-29: TTS speed-selector tier values, used in the chip UI.
 const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
@@ -128,6 +130,23 @@ export default function RideshareCoach({
 
   const [input, setInput] = useState("");
 
+  // Attachment popover + camera modal state.
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
+
+  // Feature-detect: touch-capable devices route Camera to the native input
+  // (which opens iOS/Android camera UI); non-touch desktops open the modal.
+  const preferNativeCamera = typeof window !== 'undefined' && 'ontouchstart' in window;
+
+  const handleOpenCamera = useCallback(() => {
+    setAttachMenuOpen(false);
+    if (preferNativeCamera) {
+      cameraInputRef.current?.click();
+    } else {
+      setCameraModalOpen(true);
+    }
+  }, [preferNativeCamera, cameraInputRef]);
+
   // 2026-01-05: Notes panel state for Coach memory feature
   const [notes, setNotes] = useState<UserNote[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -196,7 +215,11 @@ export default function RideshareCoach({
     attachments,
     setAttachments,
     fileInputRef,
+    folderInputRef,
+    cameraInputRef,
     handleFileSelect,
+    appendAttachmentFromDataUrl,
+    compressingFiles,
     messagesEndRef,
   } = useCoachChat({
     userId,
@@ -790,7 +813,7 @@ export default function RideshareCoach({
       </div>
 
       {/* Attachments Display */}
-      {attachments.length > 0 && (
+      {(attachments.length > 0 || compressingFiles.size > 0) && (
         <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/50 border-t border-blue-200 dark:border-blue-800 flex flex-wrap gap-2">
           {attachments.map((file, i) => (
             <div key={i} className="flex items-center gap-1 bg-white dark:bg-slate-700 px-2 py-1 rounded-full text-xs text-gray-700 dark:text-gray-200 border border-blue-200 dark:border-blue-600">
@@ -803,6 +826,12 @@ export default function RideshareCoach({
               >
                 <X className="h-3 w-3" />
               </button>
+            </div>
+          ))}
+          {Array.from(compressingFiles).map((name) => (
+            <div key={`compressing-${name}`} className="flex items-center gap-1 bg-white dark:bg-slate-700 px-2 py-1 rounded-full text-xs text-gray-500 dark:text-gray-400 border border-blue-200 dark:border-blue-600 opacity-70">
+              <Loader className="h-3 w-3 animate-spin" />
+              <span className="truncate max-w-[100px]">{name}</span>
             </div>
           ))}
         </div>
@@ -839,7 +868,7 @@ export default function RideshareCoach({
           data-testid="input-chat-message"
         />
 
-        {/* File Input (Hidden) */}
+        {/* Hidden inputs — three sources, one handler */}
         <input
           id="coach-file-upload"
           name="coach-file-upload"
@@ -851,18 +880,78 @@ export default function RideshareCoach({
           accept="image/*,.pdf,.doc,.docx,.txt"
           data-testid="input-file-upload"
         />
+        <input
+          id="coach-folder-upload"
+          name="coach-folder-upload"
+          ref={folderInputRef}
+          type="file"
+          multiple
+          // @ts-expect-error - webkitdirectory not in standard HTMLInputElement types
+          webkitdirectory=""
+          directory=""
+          onChange={handleFileSelect}
+          className="hidden"
+          data-testid="input-folder-upload"
+        />
+        <input
+          id="coach-camera-capture"
+          name="coach-camera-capture"
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileSelect}
+          className="hidden"
+          data-testid="input-camera-capture"
+        />
 
-        {/* File Upload Button */}
-        <Button
-          onClick={() => fileInputRef.current?.click()}
-          size="icon"
-          className="rounded-full h-10 w-10 bg-gray-500 hover:bg-gray-600 text-white"
-          title="Upload files (images, PDFs, documents)"
-          disabled={isStreaming || isListening}
-          data-testid="button-upload-file"
-        >
-          <Paperclip className="h-4 w-4" />
-        </Button>
+        {/* Attachment Popover Menu */}
+        <Popover open={attachMenuOpen} onOpenChange={setAttachMenuOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              size="icon"
+              className="rounded-full h-10 w-10 bg-gray-500 hover:bg-gray-600 text-white"
+              title="Attach files, folder, or camera"
+              disabled={isStreaming || isListening}
+              data-testid="button-attachment-menu"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-44 p-1" align="end" side="top">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm hover:bg-accent text-left"
+              onClick={() => { setAttachMenuOpen(false); fileInputRef.current?.click(); }}
+              data-testid="button-attach-files"
+            >
+              <FileText className="h-4 w-4" /> Files
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm hover:bg-accent text-left"
+              onClick={() => { setAttachMenuOpen(false); folderInputRef.current?.click(); }}
+              data-testid="button-attach-folder"
+            >
+              <FolderOpen className="h-4 w-4" /> Folder
+            </button>
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm hover:bg-accent text-left"
+              onClick={handleOpenCamera}
+              data-testid="button-attach-camera"
+            >
+              <Camera className="h-4 w-4" /> Camera
+            </button>
+          </PopoverContent>
+        </Popover>
+
+        {/* Camera Capture Modal (desktop path) */}
+        <CameraCaptureModal
+          open={cameraModalOpen}
+          onClose={() => setCameraModalOpen(false)}
+          onCapture={(dataUrl) => appendAttachmentFromDataUrl(dataUrl)}
+        />
 
         {/* 2026-04-13: Mic Button — big, prominent, pulses red while listening */}
         {micSupported && (

@@ -15,6 +15,80 @@
 
 The doctrine reverses what `shared/schema.js:4-18` currently says ("users: Session (who's online now) - TEMPORARY (60 min TTL)"). The schema comment IS the architectural mistake; this plan corrects it.
 
+## 1.6 Split-brain telemetry & context (Melody's expanded diagram, 2026-05-07 late)
+
+A second diagram named the *write paths* and the *separation of cognitive concerns* — this is structurally as significant as the 3-tier table model.
+
+### Two endpoints, two cadences, two cognitive consumers
+
+```
+[GLOBAL HEADER]                  [MACRO ENDPOINT]
+  Ticking time          ───────► Heavy / Expensive / Comprehensive
+  Manual Refresh                 - Geocodes, calls Maps/Weather
+  "Update My Context"            - Fires Full Waterfall Pipeline
+                                 - Updates Strategist Briefing
+                                 - UPSERT active_context + APPEND travel_telemetry
+
+[AI COACH HEADER]                [MICRO-PING ENDPOINT]
+  Voice Mode Active     ───────► Lightweight / Fast / O(1)
+  Silent Coord Pings             - Bypasses Waterfall Completely
+  "Immediate Local Insight"      - Direct Database Append Only
+                                 - APPEND travel_telemetry only
+```
+
+**Why "split-brain":** the Strategist and the Coach are two distinct AI consumers with two distinct context-refresh needs. Today they share one write path (the heavy `/resolve` waterfall). The split-brain architecture gives each a dedicated path:
+
+- **Strategist (Macro path):** comprehensive context refresh. Fires when the user explicitly says "update my context" — manual refresh button, session start, or "Update My Context" UI control. Heavy: geocodes, calls Google Maps/Weather, runs briefing → strategy → venues. Cadence: ~once per session, or on driver-initiated refresh.
+- **Coach (Micro path):** street-level awareness during active coaching. Fires repeatedly while voice mode is active, every few seconds. Lightweight: just appends `(timestamp, coordinates, metrics)` to `travel_telemetry`. Cadence: many times per minute during a Coach session. Reads the *last N* telemetry rows for "where are we now."
+
+### Implications for the refactor scope
+
+This is a **performance and cost architecture**, not just a schema cleanup:
+
+| Today | Target |
+|---|---|
+| Every location change → /resolve → full waterfall → ~5-15s LLM-call latency, $$ in tokens | Coach awareness → micro-ping → ~10ms DB insert. Strategist context → macro path → only on intent. |
+| LLM token spend scales with movement frequency | LLM token spend scales with intent frequency |
+| Coach can drag the briefing pipeline into spurious recomputation | Coach is decoupled from briefing; reads telemetry for street awareness |
+
+This is what the queued migration is *really* unlocking. It's not just "move session out of users" — it's "stop firing the heavy pipeline for events that don't need it."
+
+### `active_context.expires_at` materialized
+
+The previous diagram showed `session_token` + `user_id` + `live_payload` with a note "drops on session end." This diagram pins the mechanism:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `session_token` | STR PK | Looked up via O(1) indexed query (probably text PK rather than UUID for direct browser-cookie compatibility) |
+| `user_id` | UUID FK | Owner — optional for SYSTEM_AGENT_USER_ID per the static-config diagram |
+| `live_payload` | JSONB (Zod-validated at edge) | The strategist context — what the previous diagram called "live_payload" without specifying contents |
+| `expires_at` | TZ | Sliding-window expiry **as a stored column**, not a computed difference. Refresh = UPDATE expires_at = now() + N. Cleanup = DELETE WHERE expires_at < NOW(). |
+
+The `expires_at` change is small but important: it lets a periodic cleanup job hard-delete expired rows in O(1), rather than every request computing `now - last_active_at < SLIDING_WINDOW_MS` against a stale row.
+
+### `travel_telemetry` as the predictive-models data source
+
+The diagram explicitly names "Future Predictive Routing Models" as the consumer of `travel_telemetry`. Every Macro update AND every Micro-ping lands a row here. Consequence:
+
+- `travel_telemetry` is high-volume (potentially many writes per minute per active driver).
+- Quarterly partitioning is the storage strategy (older partitions can be archived/dropped wholesale).
+- The (user_id, timestamp, coordinates POINT, metrics JSONB) tuple is the canonical "trajectory point" — a model trained on this can do predictive routing without needing any other data.
+- `*Agent Allowed*` on user_id means synthetic/simulator data can flow into the same table for training augmentation.
+
+### Doctrine implications for the migration plan
+
+The migration must establish the Micro-Ping endpoint before any read consumer can take advantage of it. Suggested per-PR ordering:
+
+1. **PR 1 — schema:** create `active_context` + `travel_telemetry` (with partitions), define Zod contracts for `live_payload` and `metrics`. Don't wire writers/readers yet.
+2. **PR 2 — Macro endpoint:** add `/api/context/update` (or similar). Mirror current `/resolve` write surface but writes to `active_context` + `travel_telemetry`. Dual-write phase.
+3. **PR 3 — Micro endpoint:** add `/api/context/ping`. Append-only to `travel_telemetry`. Wire the Coach client to call this instead of `/resolve` for silent coord updates.
+4. **PR 4 — readers migration:** auth middleware reads `active_context` for session lookup; briefing/strategy/venues read `active_context.live_payload` or `travel_telemetry` recent rows.
+5. **PR 5 — backfill + cut over:** copy existing `users` session columns + `snapshots` to new tables. Switch reads. Confirm dual-write is no-op.
+6. **PR 6 — drop:** remove session columns from `users`, drop old `snapshots` (or keep as historical archive — TBD), drop dead code.
+7. **PR 7 — Future predictive routing scaffolding:** stub the model-input pipeline against `travel_telemetry`. Optional, can defer.
+
+`*Agent Allowed*` is already a hint that this architecture is preparing for ML-driven driver augmentation — a System Agent can act as a synthetic driver, fire telemetry, and contribute training data without polluting real-user analytics. Same column, different row.
+
 ## 1.5 Target architecture (from Melody's diagram, 2026-05-07)
 
 Three tiers, each with one purpose. Schema enforcement & integrity via Zod contracts at the application edge.

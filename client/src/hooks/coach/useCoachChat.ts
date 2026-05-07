@@ -17,6 +17,53 @@ export interface CoachAttachment {
   data: string;
 }
 
+const MAX_ATTACHMENTS = 10;
+// 9 MB precheck — server limit is 10 MB at /api/chat (server/bootstrap/middleware.js:210),
+// leaving ~1 MB headroom for message + threadHistory + snapshot + IDs.
+const PAYLOAD_BUDGET_BYTES = 9 * 1024 * 1024;
+
+const ACCEPTED_NON_IMAGE_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+]);
+
+function isAcceptedFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  if (ACCEPTED_NON_IMAGE_TYPES.has(file.type)) return true;
+  return /\.(pdf|doc|docx|txt)$/i.test(file.name);
+}
+
+async function compressImageToDataUrl(file: File, maxDim = 2048, quality = 0.85): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const bitmap = await createImageBitmap(file);
+  const ratio = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * ratio));
+  const h = Math.max(1, Math.round(bitmap.height * ratio));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close();
+    throw new Error('Canvas 2D context unavailable');
+  }
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
 export interface CoachValidationError {
   field: string;
   message: string;
@@ -58,7 +105,13 @@ export interface UseCoachChatReturn {
   attachments: CoachAttachment[];
   setAttachments: React.Dispatch<React.SetStateAction<CoachAttachment[]>>;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  folderInputRef: React.RefObject<HTMLInputElement | null>;
+  cameraInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Append a pre-encoded data URL as an attachment (used by CameraCaptureModal). */
+  appendAttachmentFromDataUrl: (dataUrl: string, name?: string) => void;
+  /** Filenames currently being compressed — chip UI shows a spinner for these. */
+  compressingFiles: Set<string>;
 
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -80,8 +133,11 @@ export function useCoachChat({
   const [validationErrors, setValidationErrors] = useState<CoachValidationError[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [compressingFiles, setCompressingFiles] = useState<Set<string>>(new Set());
 
   const { logConversation, summarizeConversation } = useMemory({
     userId,
@@ -117,29 +173,80 @@ export function useCoachChat({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.currentTarget.files;
-    if (!files) return;
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const filesList = e.currentTarget.files;
+    if (!filesList) return;
+    const inputEl = e.currentTarget;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const reader = new FileReader();
+    // Filter: only accepted types. Folder pickers return everything in the dir;
+    // we drop unsupported files quietly with a count message.
+    const accepted = Array.from(filesList).filter(isAcceptedFile);
+    const droppedByType = filesList.length - accepted.length;
 
-      reader.onload = (evt) => {
-        const data = evt.target?.result as string;
-        setAttachments(prev => [...prev, {
-          name: file.name,
-          type: file.type,
-          data: data
-        }]);
-      };
+    // Cap: never exceed MAX_ATTACHMENTS in total.
+    const remaining = MAX_ATTACHMENTS - attachments.length;
+    if (remaining <= 0) {
+      setValidationErrors([{ field: 'attachments', message: `Max ${MAX_ATTACHMENTS} attachments` }]);
+      setTimeout(() => setValidationErrors([]), 5000);
+      if (inputEl) inputEl.value = '';
+      return;
+    }
+    const toProcess = accepted.slice(0, remaining);
+    const droppedByCap = accepted.length - toProcess.length;
 
-      reader.readAsDataURL(file);
+    if (droppedByType > 0 || droppedByCap > 0) {
+      const parts: string[] = [];
+      if (droppedByType > 0) parts.push(`${droppedByType} unsupported`);
+      if (droppedByCap > 0) parts.push(`${droppedByCap} over ${MAX_ATTACHMENTS}-file cap`);
+      setValidationErrors([{ field: 'attachments', message: `Skipped: ${parts.join(', ')}` }]);
+      setTimeout(() => setValidationErrors([]), 5000);
     }
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    // Mark each file as "compressing" while we run it through the helper.
+    setCompressingFiles(prev => {
+      const next = new Set(prev);
+      toProcess.forEach(f => next.add(f.name));
+      return next;
+    });
+
+    // Compress in parallel; each promise individually appends + clears its compressing state.
+    await Promise.all(
+      toProcess.map(async (file) => {
+        try {
+          const data = await compressImageToDataUrl(file);
+          setAttachments(prev => [...prev, {
+            name: file.name,
+            type: file.type.startsWith('image/') ? 'image/jpeg' : file.type,
+            data,
+          }]);
+        } catch (err) {
+          console.warn(`[Coach] Failed to encode attachment ${file.name}:`, err);
+        } finally {
+          setCompressingFiles(prev => {
+            const next = new Set(prev);
+            next.delete(file.name);
+            return next;
+          });
+        }
+      })
+    );
+
+    if (inputEl) inputEl.value = '';
+  }, [attachments.length]);
+
+  const appendAttachmentFromDataUrl = useCallback((dataUrl: string, name?: string) => {
+    setAttachments(prev => {
+      if (prev.length >= MAX_ATTACHMENTS) {
+        setValidationErrors([{ field: 'attachments', message: `Max ${MAX_ATTACHMENTS} attachments` }]);
+        setTimeout(() => setValidationErrors([]), 5000);
+        return prev;
+      }
+      return [...prev, {
+        name: name ?? `camera-${Date.now()}.jpg`,
+        type: 'image/jpeg',
+        data: dataUrl,
+      }];
+    });
   }, []);
 
   const abort = useCallback(() => {
@@ -151,6 +258,18 @@ export function useCoachChat({
     const filesToSend = attachmentsOverride ?? attachments;
     if (!messageText && filesToSend.length === 0) return;
     if (isStreaming) return;
+
+    // Precheck: total attachment payload must fit under server's 10 MB limit
+    // with headroom for message + thread history + snapshot + IDs.
+    const totalAttachmentBytes = filesToSend.reduce((sum, a) => sum + a.data.length, 0);
+    if (totalAttachmentBytes > PAYLOAD_BUDGET_BYTES) {
+      setValidationErrors([{
+        field: 'attachments',
+        message: 'Attachments are too large. Try fewer files or a smaller photo.',
+      }]);
+      setTimeout(() => setValidationErrors([]), 5000);
+      return;
+    }
 
     if (!attachmentsOverride) setAttachments([]);
     setMsgs((m) => [...m, { role: "user", content: messageText || "(uploaded files)", attachments: filesToSend }, { role: "assistant", content: "" }]);
@@ -197,6 +316,11 @@ export function useCoachChat({
             setMsgs((m) => [...m.slice(0, -1), {
               role: "assistant",
               content: "I need your location to give you accurate advice! Please enable GPS in your browser settings and refresh the page."
+            }]);
+          } else if (errData.code === 'payload_too_large') {
+            setMsgs((m) => [...m.slice(0, -1), {
+              role: "assistant",
+              content: "Attachments are too large for the coach. Try a smaller image, take a new photo at lower resolution, or attach fewer files."
             }]);
           } else {
             setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${errData.message || errData.error}` }]);
@@ -307,7 +431,11 @@ export function useCoachChat({
     attachments,
     setAttachments,
     fileInputRef,
+    folderInputRef,
+    cameraInputRef,
     handleFileSelect,
+    appendAttachmentFromDataUrl,
+    compressingFiles,
     messagesEndRef,
   };
 }
