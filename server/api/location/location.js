@@ -1548,7 +1548,9 @@ router.get('/pollen', async (req, res) => {
 // Supports minimal mode: if only lat/lng provided, resolves city/timezone server-side
 router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) => {
   const cid = req.cid || req.get('x-correlation-id') || crypto.randomUUID();
+  const reqId = crypto.randomUUID();
   res.setHeader('x-correlation-id', cid);
+  res.setHeader('x-req-id', reqId);
 
   // Import ndjson and getAgentState
   const { ndjson } = await import('../../logger/ndjson.js');
