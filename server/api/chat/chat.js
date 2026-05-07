@@ -1427,63 +1427,99 @@ Full transparency. Maximum insight.
       const ac = new AbortController();
       req.on('close', () => ac.abort());
 
-      const response = await callModelStream('AI_COACH', {
-        system: systemPrompt,
-        messageHistory,
-        signal: ac.signal
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error(`[COACH] Gemini API error ${response.status}: ${errText.substring(0, 200)}`);
-        // H4: Graceful fallback text
-        res.write(`data: ${JSON.stringify({ delta: 'Coach will be back soon.' })}\n\n`);
-        res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
-        return res.end();
-      }
-
-      // Stream the response chunks to client
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      // 2026-05-07: Retry once on empty response. Gemini sometimes returns 200
+      // with an empty stream (transient quota exhaustion or upstream hiccup);
+      // a single retry typically succeeds. If both attempts fail, fall through
+      // to the empty-response branch with a clear user message.
+      let response = null;
       let totalText = '';
+      let lastResponseStatus = 0;
+      let lastErrText = '';
+      let safetyBlocked = false;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        response = await callModelStream('AI_COACH', {
+          system: systemPrompt,
+          messageHistory,
+          signal: ac.signal
+        });
 
-        buffer += decoder.decode(value, { stream: true });
+        if (!response.ok) {
+          lastResponseStatus = response.status;
+          lastErrText = await response.text();
+          console.error(`[COACH] Gemini API error attempt ${attempt} status=${response.status}: ${lastErrText.substring(0, 200)}`);
+          if (attempt === 2) break;
+          // Brief backoff before retry; non-OK responses are usually transient.
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
 
-        // Process complete SSE messages from buffer
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        // Stream the response chunks to client
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let attemptText = '';
+        safetyBlocked = false;
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.slice(6).trim();
-            if (!jsonStr || jsonStr === '[DONE]') continue;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-            try {
-              const data = JSON.parse(jsonStr);
-              const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-              if (text) {
-                totalText += text;
-                // Stream each chunk to the client immediately
-                res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr || jsonStr === '[DONE]') continue;
+
+              try {
+                const data = JSON.parse(jsonStr);
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (text) {
+                  attemptText += text;
+                  // Stream chunk to client only on the attempt we're keeping (first or retry).
+                  res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
+                }
+
+                const finishReason = data.candidates?.[0]?.finishReason;
+                if (finishReason === 'SAFETY') {
+                  console.warn('[COACH] Response blocked by safety filter');
+                  safetyBlocked = true;
+                  res.write(`data: ${JSON.stringify({ delta: '\n\nI apologize, but I cannot continue with that response.' })}\n\n`);
+                }
+              } catch (parseErr) {
+                // Skip unparseable chunks (partial JSON, etc.)
               }
-
-              // Check for safety blocking
-              const finishReason = data.candidates?.[0]?.finishReason;
-              if (finishReason === 'SAFETY') {
-                console.warn('[COACH] Response blocked by safety filter');
-                res.write(`data: ${JSON.stringify({ delta: '\n\nI apologize, but I cannot continue with that response.' })}\n\n`);
-              }
-            } catch (parseErr) {
-              // Skip unparseable chunks (partial JSON, etc.)
             }
           }
         }
+
+        if (attemptText) {
+          totalText = attemptText;
+          break; // Success — keep this attempt's text and stop retrying.
+        }
+
+        if (safetyBlocked) {
+          // Safety-block message already streamed; no retry needed.
+          break;
+        }
+
+        console.warn(`[COACH] Empty streaming response from Gemini (attempt ${attempt})`);
+        if (attempt === 2) break;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // Surface non-OK status with a retryable hint when applicable.
+      if (response && !response.ok) {
+        const friendlyMsg = lastResponseStatus === 429
+          ? 'Coach is briefly rate-limited. Try again in a few seconds.'
+          : 'Coach hit an upstream error. Try sending again.';
+        res.write(`data: ${JSON.stringify({ delta: friendlyMsg })}\n\n`);
+        res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
+        return res.end();
       }
 
       // 2026-03-18: Declared outside if(totalText) so done event can always reference it
@@ -1556,9 +1592,11 @@ Full transparency. Maximum insight.
             persistenceError = e.message;
           }
         }
-      } else {
-        console.warn('[COACH] Empty streaming response from Gemini');
-        res.write(`data: ${JSON.stringify({ delta: 'Coach will be back soon.' })}\n\n`);
+      } else if (!safetyBlocked) {
+        // Reached here only if BOTH retry attempts produced empty streams AND
+        // safety filter wasn't the cause (safety case streamed its own message).
+        console.warn('[COACH] Empty streaming response from Gemini after retry');
+        res.write(`data: ${JSON.stringify({ delta: "Coach didn't return a response. Try sending again or rephrasing your question." })}\n\n`);
       }
 
       // 2026-03-18: FIX (C-1) — Include action results so client gets feedback
@@ -1573,8 +1611,10 @@ Full transparency. Maximum insight.
       res.end();
     } catch (error) {
       console.error('[COACH] Gemini request error:', error.message);
-      // H4: Graceful fallback text
-      res.write(`data: ${JSON.stringify({ delta: 'Coach will be back soon.' })}\n\n`);
+      const friendlyMsg = error.name === 'AbortError'
+        ? 'Coach request was canceled.'
+        : 'Coach hit an error. Try sending again.';
+      res.write(`data: ${JSON.stringify({ delta: friendlyMsg })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true, error: true })}\n\n`);
       res.end();
     }
