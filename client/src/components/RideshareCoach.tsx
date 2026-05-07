@@ -138,14 +138,8 @@ export default function RideshareCoach({
   // (which opens iOS/Android camera UI); non-touch desktops open the modal.
   const preferNativeCamera = typeof window !== 'undefined' && 'ontouchstart' in window;
 
-  const handleOpenCamera = useCallback(() => {
-    setAttachMenuOpen(false);
-    if (preferNativeCamera) {
-      cameraInputRef.current?.click();
-    } else {
-      setCameraModalOpen(true);
-    }
-  }, [preferNativeCamera, cameraInputRef]);
+  // handleOpenCamera is defined later (after useCoachChat destructures
+  // cameraInputRef); declaring it here would TDZ.
 
   // 2026-01-05: Notes panel state for Coach memory feature
   const [notes, setNotes] = useState<UserNote[]>([]);
@@ -232,6 +226,15 @@ export default function RideshareCoach({
     onNotesSaved: fetchNotes,
   });
   void _setMsgs;
+
+  const handleOpenCamera = useCallback(() => {
+    setAttachMenuOpen(false);
+    if (preferNativeCamera) {
+      cameraInputRef.current?.click();
+    } else {
+      setCameraModalOpen(true);
+    }
+  }, [preferNativeCamera, cameraInputRef]);
 
   // 2026-04-13: Sync speech transcript to ref to avoid stale closure in setTimeout
   useEffect(() => {
