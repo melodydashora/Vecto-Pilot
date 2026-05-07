@@ -1,8 +1,9 @@
 import { defineConfig } from "drizzle-kit";
 
-// Replit Managed PostgreSQL Database - ONLY SOURCE
-// DATABASE_URL is automatically injected by Replit for all environments (dev + production)
-// No external databases (Neon, Vercel, Railway, etc.) are used
+// DATABASE_URL is automatically injected by Replit:
+//   - dev workspace: Helium PostgreSQL 16 (local, no SSL)
+//   - published deployment: Neon serverless Postgres (SSL required)
+// drizzle-kit reads whichever URL is injected for the current environment.
 const dbUrl = process.env.DATABASE_URL;
 
 if (!dbUrl) {

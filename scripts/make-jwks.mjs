@@ -3,7 +3,7 @@
  * Generate JWKS (JSON Web Key Set) from RSA public key
  * 
  * This creates a public JWKS file at public/.well-known/jwks.json
- * that Neon (and other services) can use to verify JWTs.
+ * that JWKS-aware services can use to verify JWTs.
  * 
  * Usage:
  *   node scripts/make-jwks.mjs
@@ -44,7 +44,7 @@ try {
   console.log('\n📋 JWKS Preview:');
   console.log(JSON.stringify(jwks, null, 2));
   console.log('\n🌐 Serve this file at: https://<your-domain>/.well-known/jwks.json');
-  console.log('🔐 Register this URL in Neon Console → Settings → RLS / Auth providers');
+  console.log('🔐 Register this URL in your auth provider\'s JWKS / RLS settings');
   
 } catch (error) {
   console.error('❌ Error generating JWKS:', error.message);

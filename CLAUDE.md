@@ -547,7 +547,7 @@ For controlling Replit's dev workflow from Claude's shell, running real browser 
 - **Stop the workflow** via `/proc/net/tcp` → inode → `kill -TERM <pid>` (pid2 reports workflow-ended to the IDE)
 - **Run real Playwright tests** by pointing `launchOptions.executablePath` at `$REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE` (do NOT use `npx playwright install chromium` — `libgbm.so.1` missing in Nix env)
 - **Authenticated API testing**: `POST /api/auth/register` for HMAC token; pass realistic `User-Agent` (bot-blocker 403's curl default)
-- **`bin/vecto-runner start`** runs the gateway from shell, but the IDE Run button shows Play (not Stop) — pid2's token gating is browser-side only and is not programmatically reachable from inside the workspace
+- **Starting the gateway from shell** (`node gateway-server.js`) works, but the IDE Run button shows Play (not Stop) — pid2's token gating is browser-side only and is not programmatically reachable from inside the workspace. (A planned `bin/vecto-runner` wrapper was never landed; references in older audits no longer apply.)
 
 ---
 

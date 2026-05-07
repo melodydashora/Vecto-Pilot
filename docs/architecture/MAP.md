@@ -41,9 +41,13 @@
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `MapTab.tsx` | `client/src/components/MapTab.tsx` (649 lines) | Main strategy map with venues/events |
-| `TacticalStagingMap.tsx` | `client/src/components/intel/TacticalStagingMap.tsx` (300+ lines) | Staging zone visualization |
-| `ConciergeMap.tsx` | `client/src/components/concierge/ConciergeMap.tsx` | Public concierge venue map |
+| `StrategyMap.tsx` | `client/src/components/StrategyMap.tsx` | **Canonical map** — venues, events, bars, traffic, GPS marker. Singleton Google Maps loader (`client/src/lib/maps/google-maps-loader.ts`), escapeHtml content, layer-aware fitBounds. |
+
+> **Map consolidation status (2026-05-06):** Phase B/C consolidated three legacy components into `StrategyMap.tsx`. Two are still on disk as orphans, queued for deletion:
+> - `MapTab.tsx` (649 lines) — only importer is orphan `MapPage.tsx`
+> - `TacticalStagingMap.tsx` (300+ lines) — render call removed Phase C; file remains
+>
+> `ConciergeMap.tsx` and `EventsExplorer.tsx` were deleted as part of the consolidation.
 
 ---
 
@@ -245,8 +249,8 @@ No feature exists to share the driver's real-time location with other users or s
 
 | File | Purpose |
 |------|---------|
-| `client/src/components/MapTab.tsx` | Main strategy map (649 lines) |
-| `client/src/components/intel/TacticalStagingMap.tsx` | Staging zone map |
+| `client/src/components/StrategyMap.tsx` | Canonical map (post-Phase-B/C consolidation) |
+| `client/src/lib/maps/google-maps-loader.ts` | Singleton Google Maps SDK loader |
 | `client/src/contexts/location-context-clean.tsx` | GPS + LocationContext |
 | `server/api/intelligence/index.js` | Staging areas endpoint |
 | `shared/schema.js` (zone_intelligence) | Zone table schema |

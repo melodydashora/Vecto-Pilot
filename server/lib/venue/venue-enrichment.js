@@ -2,13 +2,13 @@
  * VENUE ENRICHMENT LAYER
  *
  * Takes minimal VENUE_SCORER output (coords + category + tips) and enriches with Google APIs:
- * - Places API (New): Resolve addresses, business status, place details
+ * - Place (NEW) API: Resolve addresses, business status, place details
  * - Routes API (New): Calculate accurate distances and drive times with traffic
  *
  * Architecture: Separate AI reasoning (VENUE_SCORER role) from factual lookups (Google)
  *
  * District Fallback (Dec 2025):
- * When coordinate-based Places API search fails (name match < 20%),
+ * When coordinate-based Place (NEW) API search fails (name match < 20%),
  * falls back to text search using: "venue_name district city"
  * This handles LLM coordinate imprecision (50-150m off target).
  *
@@ -321,7 +321,7 @@ function calculateIsOpenFromGoogleWeekdayText(weekdayTexts, timezone = null) {
 // getCoordsKey imported from canonical coords-key.js module (2026-01-10)
 
 /**
- * Get place details from Google Places API (New) with caching and retry logic
+ * Get place details from Google Place (NEW) API with caching and retry logic
  * @param {number} lat
  * @param {number} lng
  * @param {string} name - Venue name for verification
@@ -365,14 +365,14 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
     venuesLog.warn(3, `Places cache check failed: ${cacheErr.message}`, OP.CACHE);
   }
 
-  // 3. No cache hit - call Google Places API
+  // 3. No cache hit - call Google Place (NEW) API
   // CRITICAL: Add retry logic for transient Google API failures (5xx, 429)
   const maxRetries = 3;
   const baseDelay = 1000; // 1 second base delay
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      // Use Places API (New) - Search Nearby with PRECISE location
+      // Use Place (NEW) API - Search Nearby with PRECISE location
       // 2026-01-05: Radius increased from 150m to 500m to catch venues with slight coord mismatch
       const response = await fetch(PLACES_NEW_URL, {
         method: "POST",
@@ -414,7 +414,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
           errorText,
         );
         throw new Error(
-          `Places API returned ${response.status}: ${errorText.substring(0, 200)}`,
+          `Place (NEW) API returned ${response.status}: ${errorText.substring(0, 200)}`,
         );
       }
 
@@ -451,7 +451,7 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
 
         // Only log if name mismatch or significant distance
         if (distance && distance > 50) {
-          venuesLog.info(`Places API: "${name}" → "${googleName}" (${distance.toFixed(0)}m away, ${(bestSimilarity * 100).toFixed(0)}% match)`, OP.API);
+          venuesLog.info(`Place (NEW) API: "${name}" → "${googleName}" (${distance.toFixed(0)}m away, ${(bestSimilarity * 100).toFixed(0)}% match)`, OP.API);
         }
 
         // Extract business hours
@@ -502,20 +502,20 @@ async function getPlaceDetails(lat, lng, name, timezone = null) {
       }
 
       // 2026-01-05: Use 6 decimals in logs for consistency
-      venuesLog.warn(3, `Places API: No results for "${name}" at ${lat.toFixed(6)},${lng.toFixed(6)}`, OP.API);
+      venuesLog.warn(3, `Place (NEW) API: No results for "${name}" at ${lat.toFixed(6)},${lng.toFixed(6)}`, OP.API);
 
       return null;
     } catch (error) {
       // Network errors: retry
       if (attempt < maxRetries - 1) {
         const delay = baseDelay * Math.pow(2, attempt);
-        venuesLog.warn(3, `Places API: ${error.message} - retry ${attempt + 1}/${maxRetries} in ${delay}ms`, OP.RETRY);
+        venuesLog.warn(3, `Place (NEW) API: ${error.message} - retry ${attempt + 1}/${maxRetries} in ${delay}ms`, OP.RETRY);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue; // Retry
       }
 
       // Final attempt failed
-      venuesLog.error(3, `Places API failed for "${name}"`, error, OP.API);
+      venuesLog.error(3, `Place (NEW) API failed for "${name}"`, error, OP.API);
       return null;
     }
   }

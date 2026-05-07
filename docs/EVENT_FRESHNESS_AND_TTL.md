@@ -1,5 +1,7 @@
 # Event Freshness and TTL System
 
+> **2026-05-06: SUPERSEDED by [docs/EVENTS.md](EVENTS.md)** — that document is the canonical events doctrine (dedup, hash, lifecycle, freshness). This file is retained for historical context on the per-snapshot soft-deactivation + read-time freshness mechanism described below.
+
 Describes how the briefing pipeline keeps `discovered_events` fresh and how stale events are filtered out before they reach the driver's briefing tab.
 
 **Last Updated:** 2026-04-18 — **MAJOR REWRITE.** The previous version of this document described a TTL automation system (`expires_at` column, BEFORE INSERT trigger on a table called `events_facts`, a scheduled `startCleanupLoop()`, and an LLM-powered event-verifier subagent) that was designed in January 2026 but **never implemented in the database or wired into the runtime**. The actual mechanism is simpler: per-snapshot soft deactivation via `is_active` flag + read-time freshness filter. This rewrite replaces the phantom content with the mechanism that actually runs in production.

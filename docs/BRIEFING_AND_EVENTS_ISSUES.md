@@ -1,5 +1,7 @@
 # Briefing & Events Pipeline: Known Issues
 
+> **2026-05-06: SUPERSEDED by [docs/EVENTS.md](architecture/../EVENTS.md)** — canonical events doctrine. This file captures the historical issue inventory from the 2026-02-17 deep-analysis pass; check `EVENTS.md` and `docs/architecture/audits/STILL_EXTANT_ISSUES_2026-05-06.md` for current status.
+
 **Created:** 2026-02-17
 **Last Updated:** 2026-04-14
 **Context:** Deep analysis of the briefing pipeline during event-sync-job removal. These issues were identified by tracing the complete flow from snapshot creation through event discovery, venue linking, and strategist delivery.

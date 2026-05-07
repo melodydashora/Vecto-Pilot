@@ -1,7 +1,7 @@
 -- Migration 004: JWT Helper Functions for RLS
 -- This migration creates helper functions to extract JWT claims
--- from the request.jwt.claims setting that Neon populates when
--- a valid JWT is provided via Authorization: Bearer <token>
+-- from the request.jwt.claims setting populated when a valid JWT is
+-- provided via Authorization: Bearer <token>
 
 -- Create app schema for utility functions
 CREATE SCHEMA IF NOT EXISTS app;

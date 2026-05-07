@@ -78,14 +78,15 @@ generateEnhancedSmartBlocks(snapshotId)
 ```typescript
 VenueRecommendation {
   name: string;                    // Venue name (1-200 chars)
-  lat, lng: number;                // Coordinates
-  staging_lat, staging_lng: number; // WHERE TO PARK (separate from venue)
   staging_name: string;            // "Nearby parking lot name"
   district: string;                // "Legacy West", "Deep Ellum"
   category: enum;                  // airport|entertainment|shopping|dining|sports_venue|transit_hub|hotel|nightlife|event_venue|other
   pro_tips: string[];              // 1-3 tactical tips (max 500 chars each)
   strategic_timing: string;        // "Opens in 30 min", "Event at 7 PM"
 }
+// 2026-04-16 redesign: coordinates removed from LLM output. Venue lat/lng and
+// staging lat/lng are resolved post-LLM via Google Places (New) and attached
+// to the row downstream. The LLM is not trusted with coordinate hallucinations.
 ```
 
 ### Value Scoring (Post-Enrichment) — HEURISTIC

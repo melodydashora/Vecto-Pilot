@@ -1,8 +1,10 @@
 // server/lib/adapters/openai-adapter.js
 // Generic OpenAI adapter - returns { ok, output } shape
 //
-// 2026-01-05: Added callOpenAIWithWebSearch for GPT-5.2 web search capability
-// Used by BRIEFING_NEWS_GPT role for parallel news fetching
+// 2026-01-05: Added callOpenAIWithWebSearch for GPT-5.2 web search capability.
+// 2026-05-06: BRIEFING_NEWS_GPT (the original consumer) was deprecated in the
+//   2026-01-14 dual-news cleanup. The web-search adapter is retained — any role
+//   can opt in via the model registry.
 // 2026-04-28 (Phase A of log format merge plan): MOCK-client diagnostics gated
 //   behind LOG_LEVEL=debug. The aiLog.phase/done emits below remain at info for
 //   now — Phase B will address model-name leakage in those callsites.

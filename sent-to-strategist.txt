@@ -1,37 +1,37 @@
 ════════════════════════════════════════════════════════════════════════════════
 SENT TO STRATEGIST - Verification File
 ════════════════════════════════════════════════════════════════════════════════
-Generated: 05/05/2026, 3:25:34 AM CDT
-Snapshot ID: 41e9c37c-c945-440f-ac1a-2291090d2d83
+Generated: 05/06/2026, 7:28:01 PM CDT
+Snapshot ID: ad3d71a7-664f-4854-8795-0e0937d56445
 ════════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 1: SNAPSHOT ROW (Driver Context)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-snapshot_id: 41e9c37c-c945-440f-ac1a-2291090d2d83
+snapshot_id: ad3d71a7-664f-4854-8795-0e0937d56445
 user_id: 2f22004b-c5cc-43c9-a5a6-02f50ccff571
 
 LOCATION (what strategist sees):
   city: Frisco
   state: TX
   formatted_address: 6068 Midnight Moon Dr, Frisco, TX 75036, USA
-  lat: 33.12876379043133
-  lng: -96.87590213499071
+  lat: 33.12862606465505
+  lng: -96.87587869917941
   timezone: America/Chicago
 
 TIME (what strategist sees):
-  local_iso: Tue May 05 2026 03:23:51 GMT+0000 (Coordinated Universal Time)
-  formatted_local_time: Tuesday, May 5, 2026 at 3:23 AM
-  dow: 2 (Tuesday)
-  hour: 3
-  day_part_key: overnight
+  local_iso: Wed May 06 2026 19:26:54 GMT+0000 (Coordinated Universal Time)
+  formatted_local_time: Wednesday, May 6, 2026 at 7:26 PM
+  dow: 3 (Wednesday)
+  hour: 19
+  day_part_key: early_evening
   is_holiday: false
   holiday: none
 
 WEATHER (from snapshot):
 {
-  "tempF": 72,
+  "tempF": 60,
   "conditions": "Cloudy",
   "description": "Cloudy"
 }
@@ -40,50 +40,57 @@ WEATHER (from snapshot):
 │ SECTION 2: BRIEFING ROW (AI Context Data)                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-briefing_id: 2af20d1a-961f-45fa-855b-deffb2e4ab65
-snapshot_id: 41e9c37c-c945-440f-ac1a-2291090d2d83
-created_at (UTC): Tue May 05 2026 08:23:51 GMT+0000 (Coordinated Universal Time)
-created_at (local): Tue, May 5, 3:23 AM
-updated_at (UTC): Tue May 05 2026 08:25:34 GMT+0000 (Coordinated Universal Time)
-updated_at (local): Tue, May 5, 3:25 AM
+briefing_id: ca7bbb50-9452-46e0-ae22-ac6902b2a184
+snapshot_id: ad3d71a7-664f-4854-8795-0e0937d56445
+created_at (UTC): Thu May 07 2026 00:26:55 GMT+0000 (Coordinated Universal Time)
+created_at (local): Wed, May 6, 7:26 PM
+updated_at (UTC): Thu May 07 2026 00:28:01 GMT+0000 (Coordinated Universal Time)
+updated_at (local): Wed, May 6, 7:28 PM
 
-NEWS (5 items):
+NEWS (6 items):
 {
   "items": [
     {
-      "title": "DFW Airport Construction Causes Major Terminal Delays",
+      "title": "Spirit Airlines Permanently Ceases Operations at DFW Airport",
       "impact": "high",
-      "summary": "Ongoing construction at DFW Airport is severely impacting traffic patterns, particularly at Terminals B and C. Drivers face new detours, closed flyover access, and forced U-turns that add significant time to airport trips. Expect heavy congestion and plan for longer turnaround times on airport runs, which could lower hourly earnings unless offset by surge pricing.",
+      "summary": "Spirit Airlines has permanently shut down operations and laid off over 400 employees at DFW Airport following a failed bankruptcy bailout. This collapse removes over 4,000 scheduled flights from DFW through November. Rideshare drivers should expect a significant drop in budget traveler demand at DFW Airport and may need to adjust their airport queue strategies, potentially shifting focus to American Airlines terminals or Dallas Love Field to maintain earnings.",
       "category": "airport",
-      "published_date": "2026-05-04"
+      "published_date": "2026-05-06"
     },
     {
-      "title": "Cinco de Mayo Festivities and 'No Refusal' Patrols Drive Up Demand",
+      "title": "New Rideshare Competitor 'Empower' Expands into Dallas-Fort Worth",
       "impact": "high",
-      "summary": "Large-scale Cinco de Mayo events across the metroplex today, including the Dallas Arboretum and Fort Worth Stockyards, are expected to create massive ride demand. Local police have enacted 'No Refusal' DUI initiatives, meaning more partygoers will rely on rideshare. Position yourself near major entertainment districts this evening to capitalize on surge pricing.",
-      "category": "event",
-      "published_date": "2026-05-04"
-    },
-    {
-      "title": "City of Frisco Launches Competing On-Demand Rideshare Service",
-      "impact": "medium",
-      "summary": "Frisco has officially launched 'GoZone,' a city-subsidized microtransit service operating Monday through Friday from 6 a.m. to 6 p.m. Rides cost between $3 and $5. Uber and Lyft drivers may see a noticeable decrease in daytime, short-distance ride requests within the central Frisco zone as residents test out the cheaper public alternative.",
+      "summary": "A new rideshare platform called Empower has officially launched in the Dallas-Fort Worth market. The company claims to offer drivers more control over their earnings compared to Uber and Lyft by operating on a subscription model rather than taking a percentage cut of each fare. Drivers looking to maximize their income or diversify their app usage should monitor Empower's local rider demand and promotional incentives as it attempts to capture market share.",
       "category": "platform",
-      "published_date": "2026-05-04"
+      "published_date": "2026-05-06"
     },
     {
-      "title": "Tuesday Evening Storms Threaten DFW Metroplex",
+      "title": "DFW Gas Prices Surge Past $4 Per Gallon",
+      "impact": "high",
+      "summary": "Average gas prices across the Dallas-Fort Worth metroplex have reached or exceeded $4 per gallon, with Tarrant, Dallas, and Wise counties seeing the highest spikes. This sharp increase in fuel costs will directly cut into the net earnings of drivers using internal combustion engine vehicles. Drivers should utilize fuel reward programs, optimize their routes to reduce deadhead miles, and consider driving during peak surge hours to offset the higher operating expenses.",
+      "category": "cost",
+      "published_date": "2026-05-06"
+    },
+    {
+      "title": "Frisco Prepares for World Cup Training and Watch Parties",
       "impact": "medium",
-      "summary": "Forecasts predict rain and isolated thunderstorms moving into the DFW area by Tuesday evening. Combined with Cinco de Mayo celebrations, the sudden wet weather is highly likely to trigger surge pricing as pedestrians seek shelter. Ensure your vehicle is prepared for slick roads during the evening rush.",
-      "category": "weather",
-      "published_date": "2026-05-04"
+      "summary": "Frisco is gearing up for the 2026 World Cup, with the Swedish Men's National Team scheduled to train at Toyota Stadium. Local officials are planning massive watch parties expected to draw up to 2,000 attendees each in Frisco Square and the Rail District. Rideshare drivers in the northern suburbs should anticipate localized traffic and high ride demand around these venues during the summer tournament, offering lucrative surge opportunities.",
+      "category": "event",
+      "published_date": "2026-05-06"
     },
     {
-      "title": "Daytime Closures on Eastbound Main Street in Frisco",
-      "impact": "low",
-      "summary": "Eastbound Main Street in downtown Frisco is closed weekdays between 3rd and 5th Streets from 7:30 a.m. to 3:30 p.m. through mid-May. Traffic is being detoured through Elm Street. Drivers should anticipate localized congestion and use alternate routes to maintain hourly earnings when navigating central Frisco.",
+      "title": "Nightly Closures on Southbound Dallas Parkway in Frisco",
+      "impact": "medium",
+      "summary": "As part of an ongoing widening project, all lanes of the southbound Dallas Parkway frontage road between PGA Parkway and Panther Creek Parkway will be closed nightly from 9 p.m. to 5 a.m. Drivers operating in northern Frisco during the evening and overnight hours will face detours via Legacy Drive. This will increase trip times for drop-offs and pick-ups near the PGA district, so drivers should rely on updated GPS routing to avoid delays.",
       "category": "traffic",
-      "published_date": "2026-05-04"
+      "published_date": "2026-05-05"
+    },
+    {
+      "title": "Police Activity Following Shootings in Carrollton",
+      "impact": "low",
+      "summary": "A major police investigation is underway following fatal shootings at K Towne Plaza and a nearby apartment complex in Carrollton. Drivers should expect localized road closures, heavy police presence, and potential traffic delays in the area. It is advisable to avoid the immediate vicinity of K Towne Plaza to prevent getting stuck in crime scene perimeters or traffic bottlenecks, which could negatively impact hourly earnings.",
+      "category": "event",
+      "published_date": "2026-05-06"
     }
   ],
   "reason": null
@@ -91,24 +98,24 @@ NEWS (5 items):
 
 WEATHER_CURRENT:
 {
-  "tempC": 22,
-  "tempF": 72,
+  "tempC": 16,
+  "tempF": 60,
   "country": "US",
   "uvIndex": 0,
-  "humidity": 77,
+  "humidity": 74,
   "tempUnit": "°F",
-  "feelsLike": 76,
-  "isDaytime": false,
+  "feelsLike": 58,
+  "isDaytime": true,
   "conditions": "Cloudy",
-  "feelsLikeC": 25,
-  "feelsLikeF": 76,
-  "observedAt": "2026-05-05T08:23:51.795144848Z",
+  "feelsLikeC": 15,
+  "feelsLikeF": 58,
+  "observedAt": "2026-05-07T00:26:55.429607778Z",
   "visibility": {
     "unit": "KILOMETERS",
     "distance": 16
   },
-  "temperature": 72,
-  "driverImpact": "Cloudy, 72°F — good driving conditions.",
+  "temperature": 60,
+  "driverImpact": "Cloudy, 60°F — good driving conditions.",
   "conditionType": "CLOUDY",
   "precipitation": {
     "qpf": {
@@ -124,87 +131,87 @@ WEATHER_CURRENT:
       "percent": 10
     }
   },
-  "windDirection": "SOUTH",
+  "windDirection": "NORTH_NORTHEAST",
   "windSpeedUnit": "mph"
 }
 
 WEATHER_FORECAST (6 hours):
 [
   {
-    "time": "2026-05-05T08:23:51.859Z",
-    "tempC": 23,
-    "tempF": 73,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 73,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-05-05T09:23:51.859Z",
-    "tempC": 22,
-    "tempF": 72,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 72,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-05-05T10:23:51.859Z",
-    "tempC": 22,
-    "tempF": 71,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Mostly cloudy",
-    "temperature": 71,
-    "conditionType": "MOSTLY_CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-05-05T11:23:51.859Z",
-    "tempC": 22,
-    "tempF": 71,
-    "tempUnit": "°F",
-    "isDaytime": false,
-    "windSpeed": null,
-    "conditions": "Cloudy",
-    "temperature": 71,
-    "conditionType": "CLOUDY",
-    "windSpeedUnit": "mph",
-    "precipitationProbability": 10
-  },
-  {
-    "time": "2026-05-05T12:23:51.859Z",
-    "tempC": 21,
-    "tempF": 71,
+    "time": "2026-05-07T00:26:55.447Z",
+    "tempC": 16,
+    "tempF": 61,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
     "conditions": "Cloudy",
-    "temperature": 71,
+    "temperature": 61,
     "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
   },
   {
-    "time": "2026-05-05T13:23:51.859Z",
-    "tempC": 22,
-    "tempF": 71,
+    "time": "2026-05-07T01:26:55.447Z",
+    "tempC": 15,
+    "tempF": 60,
     "tempUnit": "°F",
     "isDaytime": true,
     "windSpeed": null,
-    "conditions": "Mostly cloudy",
-    "temperature": 71,
-    "conditionType": "MOSTLY_CLOUDY",
+    "conditions": "Cloudy",
+    "temperature": 60,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-05-07T02:26:55.447Z",
+    "tempC": 15,
+    "tempF": 59,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 59,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-05-07T03:26:55.447Z",
+    "tempC": 14,
+    "tempF": 58,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 58,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-05-07T04:26:55.447Z",
+    "tempC": 14,
+    "tempF": 57,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 57,
+    "conditionType": "CLOUDY",
+    "windSpeedUnit": "mph",
+    "precipitationProbability": 10
+  },
+  {
+    "time": "2026-05-07T05:26:55.447Z",
+    "tempC": 13,
+    "tempF": 56,
+    "tempUnit": "°F",
+    "isDaytime": false,
+    "windSpeed": null,
+    "conditions": "Cloudy",
+    "temperature": 56,
+    "conditionType": "CLOUDY",
     "windSpeedUnit": "mph",
     "precipitationProbability": 10
   }
@@ -212,26 +219,26 @@ WEATHER_FORECAST (6 hours):
 
 TRAFFIC_CONDITIONS:
 {
-  "jams": 0,
+  "jams": 17,
   "stats": {
-    "jams": 0,
-    "major": 0,
-    "total": 25,
-    "closures": 17,
-    "highways": 14,
+    "jams": 17,
+    "major": 15,
+    "total": 46,
+    "closures": 19,
+    "highways": 22,
     "accidents": 0,
-    "construction": 8
+    "construction": 10
   },
-  "summary": "Frisco is currently experiencing heavy congestion with 12 active road closures within a 10-mile radius. Critical closures on Dallas Pkwy (5.1mi) and Warren Pkwy (3.6mi) will severely disrupt north-south and local east-west routing. Drivers should rely on alternate arterials like Preston Rd or Teel Pkwy and verify drop-off accessibility before entering the Fields Pkwy or Warren Pkwy corridors.",
+  "summary": "Traffic in Frisco is currently heavy with 46 incidents within a 10-mile radius, including 6 road closures and 7 major jams. Key bottlenecks include closures on Dallas Pkwy to Dallas North Tollway S (5.1mi) and Legacy Dr to Dallas Pkwy (5.3mi), alongside significant delays on Dallas Pkwy to W Frontier Pkwy. Drivers should avoid the Dallas Pkwy corridor and prioritize east-west routes away from the tollway construction zones.",
   "analyzed": true,
-  "briefing": "Frisco is currently experiencing heavy congestion with 12 active road closures within a 10-mile radius. Critical closures on Dallas Pkwy (5.1mi) and Warren Pkwy (3.6mi) will severely disrupt north-south and local east-west routing. Drivers should rely on alternate arterials like Preston Rd or Teel Pkwy and verify drop-off accessibility before entering the Fields Pkwy or Warren Pkwy corridors.",
+  "briefing": "Traffic in Frisco is currently heavy with 46 incidents within a 10-mile radius, including 6 road closures and 7 major jams. Key bottlenecks include closures on Dallas Pkwy to Dallas North Tollway S (5.1mi) and Legacy Dr to Dallas Pkwy (5.3mi), alongside significant delays on Dallas Pkwy to W Frontier Pkwy. Drivers should avoid the Dallas Pkwy corridor and prioritize east-west routes away from the tollway construction zones.",
   "closures": [
     {
       "road": "",
       "location": "S Stemmons Fwy to E Corporate Dr",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 9.9
+      "distanceFromDriver": 9.8
     },
     {
       "road": "",
@@ -256,10 +263,10 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Everwell Ln / Universal Pkwy to McKinney",
+      "location": "McKinney to Everwell Ln / Universal Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 5
+      "distanceFromDriver": 4.9
     },
     {
       "road": "",
@@ -280,7 +287,7 @@ TRAFFIC_CONDITIONS:
       "location": "Warren Pkwy to Warren Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 3.6
+      "distanceFromDriver": 3.5
     },
     {
       "road": "",
@@ -291,17 +298,24 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "PGA Pkwy / Rockhill Pkwy to Ortega St",
+      "location": "PGA Pkwy / Rockhill Pkwy to Rosario Rd",
       "severity": "low",
       "isHighway": true,
       "distanceFromDriver": 7.5
     },
     {
       "road": "",
-      "location": "Chapel Hill Ln to Rockhill Pkwy",
+      "location": "Ortega St to PGA Pkwy / Rockhill Pkwy",
       "severity": "low",
       "isHighway": true,
-      "distanceFromDriver": 7.7
+      "distanceFromDriver": 7.4
+    },
+    {
+      "road": "",
+      "location": "Rockhill Pkwy to Chapel Hill Ln",
+      "severity": "low",
+      "isHighway": true,
+      "distanceFromDriver": 7.8
     },
     {
       "road": "",
@@ -333,7 +347,7 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "location": "Lamar Hunt Way to Main St",
+      "location": "Main St to Lamar Hunt Way",
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 3
@@ -344,12 +358,33 @@ TRAFFIC_CONDITIONS:
       "severity": "low",
       "isHighway": false,
       "distanceFromDriver": 3.2
+    },
+    {
+      "road": "",
+      "location": "S Horseshoe Trl to N Horseshoe Trl",
+      "severity": "low",
+      "isHighway": false,
+      "distanceFromDriver": 2
     }
   ],
-  "headline": "Frisco is currently experiencing heavy congestion with 12 active road closures within a 10-mile radius.",
+  "headline": "Traffic in Frisco is currently heavy with 46 incidents within a 10-mile radius, including 6 road closures and 7 major jams.",
   "provider": "tomtom",
-  "fetchedAt": "2026-05-05T08:23:52.176Z",
+  "fetchedAt": "2026-05-07T00:26:55.694Z",
   "incidents": [
+    {
+      "road": "FM-1385",
+      "category": "Jam",
+      "location": "US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)",
+      "priority": 158,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: FM-1385 (US-380 (FM-1385) to FM-428 (Aubrey) (FM-1385)) [6.8 mi]",
+      "incidentLat": 33.2259902827,
+      "incidentLon": -96.8971892346,
+      "lengthMiles": 0.3,
+      "delayMinutes": 3,
+      "distanceFromDriver": 6.8
+    },
     {
       "road": "FM-1171",
       "category": "Road Works",
@@ -366,17 +401,59 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
+      "category": "Jam",
+      "location": "Pilot Point-Aubrey to US Highway 380",
+      "priority": 127,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Pilot Point-Aubrey to US Highway 380 [9.2 mi]",
+      "incidentLat": 33.2282782063,
+      "incidentLon": -96.9826162506,
+      "lengthMiles": 0.1,
+      "delayMinutes": 2,
+      "distanceFromDriver": 9.2
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Dallas Pkwy to W Frontier Pkwy / County Road 50",
+      "priority": 127,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Dallas Pkwy to W Frontier Pkwy / County Road 50 [9.7 mi]",
+      "incidentLat": 33.2603748322,
+      "incidentLon": -96.8174645949,
+      "lengthMiles": 0.1,
+      "delayMinutes": 7,
+      "distanceFromDriver": 9.7
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Eldorado Pkwy / Orion Dr to S Custer Rd",
+      "priority": 126,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Eldorado Pkwy / Orion Dr to S Custer Rd [9.2 mi]",
+      "incidentLat": 33.1769219412,
+      "incidentLon": -96.7272498358,
+      "lengthMiles": 0.1,
+      "delayMinutes": 6,
+      "distanceFromDriver": 9.2
+    },
+    {
+      "road": "",
       "category": "Road Closed",
       "location": "S Stemmons Fwy to E Corporate Dr",
       "priority": 125,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: S Stemmons Fwy to E Corporate Dr [9.9 mi]",
+      "description": "Road Closed: S Stemmons Fwy to E Corporate Dr [9.8 mi]",
       "incidentLat": 33.0184516708,
       "incidentLon": -96.9838312913,
       "lengthMiles": 0.1,
       "delayMinutes": 0,
-      "distanceFromDriver": 9.9
+      "distanceFromDriver": 9.8
     },
     {
       "road": "",
@@ -394,576 +471,916 @@ TRAFFIC_CONDITIONS:
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "Clear Creek Ln to E Rosemeade Pkwy",
-      "priority": 105,
+      "category": "Road Works",
+      "location": "US-380 (Dallas Pkwy) to Panther Creek Pkwy (Dallas Pkwy)",
+      "priority": 125,
       "severity": "low",
       "isHighway": true,
-      "description": "Road Closed: Clear Creek Ln to E Rosemeade Pkwy [8.3 mi]",
-      "incidentLat": 33.0094703175,
-      "incidentLon": -96.8918100644,
+      "description": "Road Works: US-380 (Dallas Pkwy) to Panther Creek Pkwy (Dallas Pkwy) [5.9 mi]",
+      "incidentLat": 33.2023399223,
+      "incidentLon": -96.8256453324,
+      "lengthMiles": 0.6,
+      "delayMinutes": 0,
+      "distanceFromDriver": 5.9
+    },
+    {
+      "road": "",
+      "category": "Jam",
+      "location": "Oakridge Dr to E Eldorado Pkwy / Hillside Beach Dr",
+      "priority": 124,
+      "severity": "high",
+      "isHighway": true,
+      "description": "Jam: Oakridge Dr to E Eldorado Pkwy / Hillside Beach Dr [4.2 mi]",
+      "incidentLat": 33.1682691262,
+      "incidentLon": -96.9298746337,
       "lengthMiles": 0.2,
-      "delayMinutes": 0,
-      "distanceFromDriver": 8.3
+      "delayMinutes": 4,
+      "distanceFromDriver": 4.2
     },
     {
       "road": "",
-      "category": "Road Closed",
-      "location": "CR-5/W Frontier Pkwy (Legacy Dr/CR-6) to Parvin Rd (Legacy Dr/CR-6)",
-      "priority": 105,
-      "severity": "low",
+      "category": "Jam",
+      "location": "International Pkwy to E Hebron Pkwy",
+      "priority": 124,
+      "severity": "high",
       "isHighway": true,
-      "description": "Road Closed: CR-5/W Frontier Pkwy (Legacy Dr/CR-6) to Parvin Rd (Legacy Dr/CR-6) [9.5 mi]",
-      "incidentLat": 33.2618500398,
-      "incidentLon": -96.8378171969,
-      "lengthMiles": 0.4,
-      "delayMinutes": 0,
-      "distanceFromDriver": 9.5
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Everwell Ln / Universal Pkwy to McKinney",
-      "priority": 105,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Everwell Ln / Universal Pkwy to McKinney [5 mi]",
-      "incidentLat": 33.1920549469,
-      "incidentLon": -96.8353307892,
+      "description": "Jam: International Pkwy to E Hebron Pkwy [7.3 mi]",
+      "incidentLat": 33.0249090712,
+      "incidentLon": -96.8489859153,
       "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 5
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Legacy Dr (Fields Pkwy) to Dallas Pkwy (Fields Pkwy)",
-      "priority": 105,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Legacy Dr (Fields Pkwy) to Dallas Pkwy (Fields Pkwy) [5.3 mi]",
-      "incidentLat": 33.1967421367,
-      "incidentLon": -96.8350504983,
-      "lengthMiles": 0,
-      "delayMinutes": 0,
-      "distanceFromDriver": 5.3
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Universal Pkwy to Fields Pkwy",
-      "priority": 105,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Universal Pkwy to Fields Pkwy [5.3 mi]",
-      "incidentLat": 33.1963277522,
-      "incidentLon": -96.8342967976,
-      "lengthMiles": 0,
-      "delayMinutes": 0,
-      "distanceFromDriver": 5.3
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Warren Pkwy to Warren Pkwy",
-      "priority": 105,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Warren Pkwy to Warren Pkwy [3.6 mi]",
-      "incidentLat": 33.1023873668,
-      "incidentLon": -96.8231897701,
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 3.6
-    },
-    {
-      "road": "",
-      "category": "Road Closed",
-      "location": "Ohio Dr (Gaylord Pkwy) to TX-289/Preston Rd (Gaylord Pkwy)",
-      "priority": 105,
-      "severity": "low",
-      "isHighway": true,
-      "description": "Road Closed: Ohio Dr (Gaylord Pkwy) to TX-289/Preston Rd (Gaylord Pkwy) [4.6 mi]",
-      "incidentLat": 33.1054356923,
-      "incidentLon": -96.8011259187,
-      "lengthMiles": 0.1,
-      "delayMinutes": 0,
-      "distanceFromDriver": 4.6
+      "delayMinutes": 4,
+      "distanceFromDriver": 7.3
     }
   ],
   "keyIssues": [
-    "Warren Pkwy closed 3.6mi away - blocks local east-west transit",
-    "Dallas Pkwy to Dallas North Tollway S closed 5.1mi away - major north-south disruption",
-    "Legacy Dr to Dallas Pkwy closed 5.3mi away - impacts northern Frisco routing"
+    "Dallas Pkwy to W Frontier Pkwy jam 9.7mi away - 7min delays",
+    "Eldorado Pkwy to S Custer Rd jam 9.2mi away - 6min delays",
+    "Oakridge Dr to E Eldorado Pkwy jam 4.2mi away - 4min delays"
   ],
   "avoidAreas": [
-    "Warren Pkwy corridor (3.6mi): Multiple closures and road works disrupting local traffic",
-    "Fields Pkwy / Universal Pkwy area (5.3mi): Clustered closures severely limiting access"
+    "Dallas Pkwy / Dallas North Tollway corridor: Multiple closures and heavy jams starting 5.1mi away",
+    "Eldorado Pkwy corridor: Major jams causing up to 6min delays between 4.2mi and 9.2mi away"
   ],
-  "safetyAlert": "No safety alerts at this time",
-  "driverImpact": "Heavy congestion and clustered closures in northern Frisco require avoiding the Fields Pkwy and Warren Pkwy corridors; prioritize rides in southern or eastern zones using Preston Rd or Custer Rd for north-south movement.",
+  "safetyAlert": "17 active traffic jams in the area",
+  "driverImpact": "Avoid the heavily congested Dallas Pkwy and Eldorado Pkwy corridors; instead, position yourself in central Frisco neighborhoods or alternate north-south arterials like Preston Rd to maintain trip efficiency.",
   "surgePricing": true,
-  "closuresCount": 17,
+  "closuresCount": 19,
   "repositioning": "No repositioning advice — see AI briefing above",
-  "incidentsCount": 25,
-  "totalIncidents": 25,
-  "closuresSummary": "12 closures within 10mi, most critical: Warren Pkwy (3.6mi) and Dallas Pkwy to DNT South (5.1mi).",
+  "incidentsCount": 46,
+  "totalIncidents": 46,
+  "closuresSummary": "6 closures within 10mi, most critical: Dallas Pkwy to Dallas North Tollway S (5.1mi) and Legacy Dr to Dallas Pkwy (5.3mi).",
   "congestionLevel": "high",
   "highDemandZones": [],
-  "constructionSummary": "Road works on FM-1171 (9.6mi), Fields Pkwy (5.1mi), and Warren Pkwy (4.5mi) adding to local delays."
+  "constructionSummary": "Active road works on US-380 to Panther Creek Pkwy (5.9mi) and FM-1171 (9.6mi) causing localized disruptions."
 }
 
-EVENTS (25 total):
+EVENTS (47 total):
 [
   {
-    "title": "Purple Party Weekend: AFTERGLOW XL",
-    "venue": "Dallas Marriott Suites Medical/Market Center",
-    "impact": "high",
-    "address": "2493 N Stemmons Fwy, Dallas, TX 75207, USA",
-    "subtype": "festival",
-    "summary": "Purple Party Weekend: AFTERGLOW XL • Dallas Marriott Suites Medical/Market Center • 2026-04-30 • 22:00",
-    "category": "festival",
-    "latitude": 32.804929,
-    "location": "Dallas Marriott Suites Medical/Market Center, 2493 N Stemmons Fwy, Dallas, TX 75207, USA",
-    "venue_id": "855c339c-fa6a-4746-b337-be34afe5c689",
-    "longitude": -96.838669,
-    "event_type": "festival",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "02:00",
-    "event_start_date": "2026-04-30",
-    "event_start_time": "22:00"
-  },
-  {
-    "title": "NO LIMITS Karaoke & Open Mic Night!",
-    "venue": "Reservoir",
-    "impact": "low",
-    "address": "1001 Foch St, Fort Worth, TX 76107, USA",
-    "subtype": "nightlife",
-    "summary": "NO LIMITS Karaoke & Open Mic Night! • Reservoir • 2026-05-04 • 19:30",
-    "category": "nightlife",
-    "latitude": 32.748958,
-    "location": "Reservoir, 1001 Foch St, Fort Worth, TX 76107, USA",
-    "venue_id": "bc2e87d9-6cc1-4c9c-956d-6bd9eedb0142",
-    "longitude": -97.356137,
-    "event_type": "nightlife",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "01:30",
-    "event_start_date": "2026-05-04",
-    "event_start_time": "19:30"
-  },
-  {
-    "title": "Specialized Karaoke Night with RUEN",
-    "venue": "Three Links Deep Ellum",
+    "title": "Mike Doughty",
+    "venue": "The Kessler Theater",
     "impact": "medium",
-    "address": "2704 Elm Street",
-    "subtype": "nightlife",
-    "summary": "Specialized Karaoke Night with RUEN • Three Links Deep Ellum • 2026-05-04 • 21:00",
-    "category": "nightlife",
-    "latitude": 32.784391299999996,
-    "location": "Three Links Deep Ellum, 2704 Elm Street",
-    "venue_id": "3f172dcf-31ad-41a6-bfd2-4b4075826432",
-    "longitude": -96.7844901,
-    "event_type": "nightlife",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "02:00",
-    "event_start_date": "2026-05-04",
-    "event_start_time": "21:00"
-  },
-  {
-    "title": "Frisco RoughRiders vs. Northwest Arkansas Naturals",
-    "venue": "Riders Field",
-    "impact": "medium",
-    "address": "7300 Rough Riders Trl, Frisco, TX 75034, USA",
-    "subtype": "sports",
-    "summary": "Frisco RoughRiders vs. Northwest Arkansas Naturals • Riders Field • 2026-05-05 • 11:05",
-    "category": "sports",
-    "latitude": 33.098583,
-    "location": "Riders Field, 7300 Rough Riders Trl, Frisco, TX 75034, USA",
-    "venue_id": "4ee0721e-4019-4cbe-a859-3895538fe704",
-    "longitude": -96.81951439999999,
-    "event_type": "sports",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "14:05",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "11:05"
-  },
-  {
-    "title": "BLESSD",
-    "venue": "The Pavilion at Toyota Music Factory",
-    "impact": "medium",
-    "address": "300 W Las Colinas Blvd., Irving, TX 75039, USA",
+    "address": "1230 W Davis St, Dallas, TX 75208, USA",
     "subtype": "concert",
-    "summary": "BLESSD • The Pavilion at Toyota Music Factory • 2026-05-05 • 20:00",
+    "summary": "Mike Doughty • The Kessler Theater • 2026-05-06 • 20:00",
     "category": "concert",
-    "latitude": 32.873415,
-    "location": "The Pavilion at Toyota Music Factory, 300 W Las Colinas Blvd., Irving, TX 75039, USA",
-    "venue_id": "53c29bd3-e7de-4b0b-992f-15e732129869",
-    "longitude": -96.944636,
+    "latitude": 32.7493,
+    "location": "The Kessler Theater, 1230 W Davis St, Dallas, TX 75208, USA",
+    "venue_id": "ea4d5e3a-8ca8-4da0-94b9-0c958ac3e73d",
+    "longitude": -96.842625,
     "event_type": "concert",
-    "event_end_date": "2026-05-05",
+    "event_end_date": "2026-05-06",
     "event_end_time": "23:00",
-    "event_start_date": "2026-05-05",
+    "event_start_date": "2026-05-06",
     "event_start_time": "20:00"
   },
   {
-    "title": "Krooked Kings",
-    "venue": "Club Dada",
-    "impact": "low",
-    "address": "2720 Elm St, Dallas, TX 75226, USA",
-    "subtype": "concert",
-    "summary": "Krooked Kings • Club Dada • 2026-05-05 • 20:00",
-    "category": "concert",
-    "latitude": 32.78447,
-    "location": "Club Dada, 2720 Elm St, Dallas, TX 75226, USA",
-    "venue_id": "c947856e-1cb0-4a66-992e-848da0b79aaa",
-    "longitude": -96.783924,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Mighty Dark To Travel",
-    "venue": "Tulips FTW",
-    "impact": "low",
-    "address": "112 Saint Louis Avenue",
-    "subtype": "concert",
-    "summary": "Mighty Dark To Travel • Tulips FTW • 2026-05-05 • 19:00",
-    "category": "concert",
-    "latitude": 32.743148399999995,
-    "location": "Tulips FTW, 112 Saint Louis Avenue",
-    "venue_id": "313ead81-06bd-4d52-9708-ac4a16787e92",
-    "longitude": -97.32897129999999,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Saul Eduardo",
-    "venue": "Ferris Wheelers Backyard & BBQ",
-    "impact": "low",
-    "address": "1950 Market Center Blvd, Dallas, TX 75207, USA",
-    "subtype": "concert",
-    "summary": "Saul Eduardo • Ferris Wheelers Backyard & BBQ • 2026-05-05 • 19:00",
-    "category": "concert",
-    "latitude": 32.797564,
-    "location": "Ferris Wheelers Backyard & BBQ, 1950 Market Center Blvd, Dallas, TX 75207, USA",
-    "venue_id": "5fd32e89-6a24-42f5-b189-b72a999991dc",
-    "longitude": -96.824331,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "22:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Arms Length",
-    "venue": "The Echo Lounge and Music Hall",
-    "impact": "medium",
-    "address": "1323 North Stemmons Freeway",
-    "subtype": "concert",
-    "summary": "Arms Length • The Echo Lounge and Music Hall • 2026-05-05 • 18:00",
-    "category": "concert",
-    "latitude": 32.790562099999995,
-    "location": "The Echo Lounge and Music Hall, 1323 North Stemmons Freeway",
-    "venue_id": "37f9178b-6b35-4660-a412-8681b234d9e2",
-    "longitude": -96.81445839999999,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "18:00"
-  },
-  {
-    "title": "Cinco De Mayo Party with Mission 5",
-    "venue": "The Revel Patio Grill",
-    "impact": "medium",
-    "address": "9305 Preston Rd, Frisco, TX 75033, USA",
-    "subtype": "concert",
-    "summary": "Cinco De Mayo Party with Mission 5 • The Revel Patio Grill • 2026-05-05 • 19:00",
-    "category": "concert",
-    "latitude": 33.1552065,
-    "location": "The Revel Patio Grill, 9305 Preston Rd, Frisco, TX 75033, USA",
-    "venue_id": "67d63cb6-8d35-42f1-b4ae-f88ee7dab124",
-    "longitude": -96.8044103,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "22:45",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Major League Volleyball Championship",
-    "venue": "Comerica Center",
-    "impact": "high",
-    "address": "2601 Avenue of the Stars, Frisco, TX 75034, USA",
-    "subtype": "sports",
-    "summary": "Major League Volleyball Championship • Comerica Center • 2026-05-05 • 09:00",
-    "category": "sports",
-    "latitude": 33.1005264,
-    "location": "Comerica Center, 2601 Avenue of the Stars, Frisco, TX 75034, USA",
-    "venue_id": "3c506624-7eaa-465b-adce-56f4ea7fe521",
-    "longitude": -96.8191214,
-    "event_type": "sports",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "12:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "09:00"
-  },
-  {
-    "title": "UP CLOSE: Doing Business as a World Cup Base Camp",
-    "venue": "Collin College Frisco Campus",
-    "impact": "low",
-    "address": "9700 Wade Blvd, Frisco, TX 75035, USA",
-    "subtype": "convention",
-    "summary": "UP CLOSE: Doing Business as a World Cup Base Camp • Collin College Frisco Campus • 2026-05-05 • 11:00",
-    "category": "convention",
-    "latitude": 33.132282,
-    "location": "Collin College Frisco Campus, 9700 Wade Blvd, Frisco, TX 75035, USA",
-    "venue_id": "2b56bd2c-4bc4-46f8-82bb-8c2b91f3d036",
-    "longitude": -96.79399579999999,
-    "event_type": "convention",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "13:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "11:00"
-  },
-  {
-    "title": "Isaiah Rashad - It's Been Awful Release Party",
-    "venue": "The Cambridge Room at House Of Blues",
-    "impact": "high",
-    "address": "2200 North Lamar Street",
-    "subtype": "concert",
-    "summary": "Isaiah Rashad - It's Been Awful Release Party • The Cambridge Room at House Of Blues • 2026-05-05 • 18:00",
-    "category": "concert",
-    "latitude": 32.7850629,
-    "location": "The Cambridge Room at House Of Blues, 2200 North Lamar Street",
-    "venue_id": "39ae2568-2b81-4b7c-be61-5e383996271e",
-    "longitude": -96.80819319999999,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "18:00"
-  },
-  {
-    "title": "A Garden Fiesta",
-    "venue": "Dallas Arboretum and Botanical Garden",
-    "impact": "medium",
-    "address": "8525 Garland Rd, Dallas, TX 75218, USA",
-    "subtype": "community",
-    "summary": "A Garden Fiesta • Dallas Arboretum and Botanical Garden • 2026-05-05 • 18:00",
-    "category": "community",
-    "latitude": 32.823618,
-    "location": "Dallas Arboretum and Botanical Garden, 8525 Garland Rd, Dallas, TX 75218, USA",
-    "venue_id": "3dc418f1-71da-496c-9ff1-577f19b341e4",
-    "longitude": -96.716624,
-    "event_type": "community",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "20:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "18:00"
-  },
-  {
-    "title": "Frisco RoughRiders vs. Northwest Arkansas Naturals",
-    "venue": "Riders Field",
-    "impact": "medium",
-    "address": "7300 Rough Riders Trl, Frisco, TX 75034, USA",
-    "subtype": "sports",
-    "summary": "Frisco RoughRiders vs. Northwest Arkansas Naturals • Riders Field • 2026-05-05 • 11:05",
-    "category": "sports",
-    "latitude": 33.098583,
-    "location": "Riders Field, 7300 Rough Riders Trl, Frisco, TX 75034, USA",
-    "venue_id": "4ee0721e-4019-4cbe-a859-3895538fe704",
-    "longitude": -96.81951439999999,
-    "event_type": "sports",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "14:05",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "11:05"
-  },
-  {
-    "title": "Isaiah Rashad - It's Been Awful Release Party",
-    "venue": "House of Blues Dallas",
-    "impact": "medium",
-    "address": "2200 North Lamar Street",
-    "subtype": "concert",
-    "summary": "Isaiah Rashad - It's Been Awful Release Party • House of Blues Dallas • 2026-05-05 • 17:00",
-    "category": "concert",
-    "latitude": 32.7850629,
-    "location": "House of Blues Dallas, 2200 North Lamar Street",
-    "venue_id": "39ae2568-2b81-4b7c-be61-5e383996271e",
-    "longitude": -96.80819319999999,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "20:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "17:00"
-  },
-  {
-    "title": "Cinco de Mayo Garden Fiesta",
-    "venue": "Dallas Arboretum and Botanical Garden",
-    "impact": "medium",
-    "address": "8525 Garland Rd, Dallas, TX 75218, USA",
-    "subtype": "festival",
-    "summary": "Cinco de Mayo Garden Fiesta • Dallas Arboretum and Botanical Garden • 2026-05-05 • 18:00",
-    "category": "festival",
-    "latitude": 32.823618,
-    "location": "Dallas Arboretum and Botanical Garden, 8525 Garland Rd, Dallas, TX 75218, USA",
-    "venue_id": "3dc418f1-71da-496c-9ff1-577f19b341e4",
-    "longitude": -96.716624,
-    "event_type": "festival",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "20:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "18:00"
-  },
-  {
-    "title": "Cinco de Mayo @ Second Rodeo Brewing",
-    "venue": "Second Rodeo Brewing",
-    "impact": "medium",
-    "address": "122 E Exchange Ave #340, Fort Worth, TX 76164, USA",
-    "subtype": "festival",
-    "summary": "Cinco de Mayo @ Second Rodeo Brewing • Second Rodeo Brewing • 2026-05-05 • 11:00",
-    "category": "festival",
-    "latitude": 32.7879,
-    "location": "Second Rodeo Brewing, 122 E Exchange Ave #340, Fort Worth, TX 76164, USA",
-    "venue_id": "4251f8f2-19e2-4b8c-8a0f-216500f8cbc7",
-    "longitude": -97.347709,
-    "event_type": "festival",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "11:00"
-  },
-  {
-    "title": "Krooked Kings",
-    "venue": "Dada Dallas",
-    "impact": "low",
-    "address": "2720 Elm St, Dallas, TX 75226, USA",
-    "subtype": "concert",
-    "summary": "Krooked Kings • Dada Dallas • 2026-05-05 • 20:00",
-    "category": "concert",
-    "latitude": 32.78447,
-    "location": "Dada Dallas, 2720 Elm St, Dallas, TX 75226, USA",
-    "venue_id": "c947856e-1cb0-4a66-992e-848da0b79aaa",
-    "longitude": -96.783924,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "23:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "20:00"
-  },
-  {
-    "title": "Zillionaire Doe",
-    "venue": "Dada Dallas",
-    "impact": "low",
-    "address": "2720 Elm St, Dallas, TX 75226, USA",
-    "subtype": "concert",
-    "summary": "Zillionaire Doe • Dada Dallas • 2026-05-05 • 21:00",
-    "category": "concert",
-    "latitude": 32.78447,
-    "location": "Dada Dallas, 2720 Elm St, Dallas, TX 75226, USA",
-    "venue_id": "c947856e-1cb0-4a66-992e-848da0b79aaa",
-    "longitude": -96.783924,
-    "event_type": "concert",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "23:59",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "21:00"
-  },
-  {
-    "title": "Star Wars Trivia Night",
+    "title": "Mahjong Night at Rollertown",
     "venue": "Rollertown Beerworks",
     "impact": "medium",
     "address": "6450 Main St, Frisco, TX 75033, USA",
     "subtype": "nightlife",
-    "summary": "Star Wars Trivia Night • Rollertown Beerworks • 2026-05-05 • 19:00",
+    "summary": "Mahjong Night at Rollertown • Rollertown Beerworks • 2026-05-06 • 18:00",
     "category": "nightlife",
     "latitude": 33.1527741,
     "location": "Rollertown Beerworks, 6450 Main St, Frisco, TX 75033, USA",
     "venue_id": "1c81d341-c2c1-4a7c-bcc0-8d7af08d0a88",
     "longitude": -96.830061,
     "event_type": "nightlife",
-    "event_end_date": "2026-05-05",
+    "event_end_date": "2026-05-06",
     "event_end_time": "22:00",
-    "event_start_date": "2026-05-05",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "18:00"
+  },
+  {
+    "title": "Cirque Du Soleil Echo",
+    "venue": "Under the White Big Top Frisco",
+    "impact": "high",
+    "address": "5454 Main St #123, Frisco, TX 75033, USA",
+    "subtype": "theater",
+    "summary": "Cirque Du Soleil Echo • Under the White Big Top Frisco • 2026-05-06 • 19:00",
+    "category": "theater",
+    "latitude": 33.153061699999995,
+    "location": "Under the White Big Top Frisco, 5454 Main St #123, Frisco, TX 75033, USA",
+    "venue_id": "1d50bb88-6a4f-4ecd-800c-5800f86fe6fa",
+    "longitude": -96.8395176,
+    "event_type": "theater",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-05-06",
     "event_start_time": "19:00"
   },
   {
-    "title": "Frisco Social Run Club - Free 5K",
-    "venue": "Frisco Rail Yard",
-    "impact": "low",
-    "address": "9040 First St, Frisco, TX 75034, USA",
-    "subtype": "community",
-    "summary": "Frisco Social Run Club - Free 5K • Frisco Rail Yard • 2026-05-05 • 19:00",
-    "category": "community",
-    "latitude": 33.1525222,
-    "location": "Frisco Rail Yard, 9040 First St, Frisco, TX 75034, USA",
-    "venue_id": "83094ff5-bbbc-474d-90dc-c4fc8f30304d",
-    "longitude": -96.8278417,
-    "event_type": "community",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "21:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "19:00"
-  },
-  {
-    "title": "Cinco de Mayo Festivities at HALL Park Hotel",
-    "venue": "HALL Park Hotel",
+    "title": "Taproom Trivia",
+    "venue": "TUPPS Brewery",
     "impact": "medium",
-    "address": "3220 Internet Blvd, Frisco, TX 75034, USA",
+    "address": "402 East Louisiana Street",
     "subtype": "nightlife",
-    "summary": "Cinco de Mayo Festivities at HALL Park Hotel • HALL Park Hotel • 2026-05-05 • 17:00",
+    "summary": "Taproom Trivia • TUPPS Brewery • 2026-05-06 • 19:00",
     "category": "nightlife",
-    "latitude": 33.1053121,
-    "location": "HALL Park Hotel, 3220 Internet Blvd, Frisco, TX 75034, USA",
-    "venue_id": "298eb796-95a4-4831-9db7-87c5255dacc2",
-    "longitude": -96.8287754,
+    "latitude": 33.1966932,
+    "location": "TUPPS Brewery, 402 East Louisiana Street",
+    "venue_id": "9dd4fc0d-6563-4dfc-aa2a-7fae9a1d2e93",
+    "longitude": -96.6095015,
     "event_type": "nightlife",
-    "event_end_date": "2026-05-05",
+    "event_end_date": "2026-05-06",
     "event_end_time": "21:00",
-    "event_start_date": "2026-05-05",
-    "event_start_time": "17:00"
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
   },
   {
-    "title": "Mic Drops Texas Funny 2026 Semi Finals",
+    "title": "Star Wars Trivia Night!",
+    "venue": "Community Beer Co.",
+    "impact": "medium",
+    "address": "3110 Commonwealth Dr, Dallas, TX 75247, USA",
+    "subtype": "nightlife",
+    "summary": "Star Wars Trivia Night! • Community Beer Co. • 2026-05-06 • 19:00",
+    "category": "nightlife",
+    "latitude": 32.81093,
+    "location": "Community Beer Co., 3110 Commonwealth Dr, Dallas, TX 75247, USA",
+    "venue_id": "5e88943d-6283-4c37-8769-029f4175497b",
+    "longitude": -96.861653,
+    "event_type": "nightlife",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Timecop1983",
+    "venue": "AM/FM - Backyard",
+    "impact": "medium",
+    "address": "1950 Market Center Boulevard",
+    "subtype": "concert",
+    "summary": "Timecop1983 • AM/FM - Backyard • 2026-05-06 • 19:00",
+    "category": "concert",
+    "latitude": 32.797547699999996,
+    "location": "AM/FM - Backyard, 1950 Market Center Boulevard",
+    "venue_id": "83e8a310-eaa5-46aa-8fee-22dfadb3eed5",
+    "longitude": -96.8243408,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Michael Quu",
     "venue": "Mic Drop Comedy Plano",
     "impact": "medium",
     "address": "7301 Lone Star Dr Suite A-110, Plano, TX 75024, USA",
     "subtype": "comedy",
-    "summary": "Mic Drops Texas Funny 2026 Semi Finals • Mic Drop Comedy Plano • 2026-05-05 • 19:30",
+    "summary": "Michael Quu • Mic Drop Comedy Plano • 2026-05-06 • 20:00",
     "category": "comedy",
     "latitude": 33.078730500000006,
     "location": "Mic Drop Comedy Plano, 7301 Lone Star Dr Suite A-110, Plano, TX 75024, USA",
     "venue_id": "e02de7c9-687c-44f5-b7b4-ffd18fcc00a4",
     "longitude": -96.823201,
     "event_type": "comedy",
-    "event_end_date": "2026-05-05",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Community Event: Build, Make & Mingle",
+    "venue": "Sidecar Social",
+    "impact": "low",
+    "address": "6770 Winning Dr, Frisco, TX 75034, USA",
+    "subtype": "community",
+    "summary": "Community Event: Build, Make & Mingle • Sidecar Social • 2026-05-06 • 16:00",
+    "category": "community",
+    "latitude": 33.1077444,
+    "location": "Sidecar Social, 6770 Winning Dr, Frisco, TX 75034, USA",
+    "venue_id": "d61f98b2-26e2-40f7-b238-dc141612f236",
+    "longitude": -96.82701879999999,
+    "event_type": "community",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "18:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "16:00"
+  },
+  {
+    "title": "Infected Rain - Mutation Phase Tour",
+    "venue": "Club Dada",
+    "impact": "medium",
+    "address": "2720 Elm St, Dallas, TX 75226, USA",
+    "subtype": "concert",
+    "summary": "Infected Rain - Mutation Phase Tour • Club Dada • 2026-05-06 • 19:00",
+    "category": "concert",
+    "latitude": 32.78447,
+    "location": "Club Dada, 2720 Elm St, Dallas, TX 75226, USA",
+    "venue_id": "c947856e-1cb0-4a66-992e-848da0b79aaa",
+    "longitude": -96.783924,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Diaper Hub Community Event",
+    "venue": "Martin Luther King Community Center",
+    "impact": "low",
+    "address": "2922 Martin Luther King Jr Blvd, Dallas, TX 75215, USA",
+    "subtype": "community",
+    "summary": "Diaper Hub Community Event • Martin Luther King Community Center • 2026-05-06 • 14:00",
+    "category": "community",
+    "latitude": 32.770263,
+    "location": "Martin Luther King Community Center, 2922 Martin Luther King Jr Blvd, Dallas, TX 75215, USA",
+    "venue_id": "16a61dca-6f7b-407f-a4ff-ea99e48a288b",
+    "longitude": -96.766504,
+    "event_type": "community",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "18:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "14:00"
+  },
+  {
+    "title": "Dallas is Lit! Festival",
+    "venue": "Downtown Dallas",
+    "impact": "medium",
+    "address": "Dallas Downtown Historic District, Dallas, TX, USA",
+    "subtype": "festival",
+    "summary": "Dallas is Lit! Festival • Downtown Dallas • 2026-05-06 • 10:00",
+    "category": "festival",
+    "latitude": 32.779091,
+    "location": "Downtown Dallas, Dallas Downtown Historic District, Dallas, TX, USA",
+    "venue_id": "32be835c-c599-4712-a4ca-9db8ce78811a",
+    "longitude": -96.80027,
+    "event_type": "festival",
+    "event_end_date": "2026-05-09",
+    "event_end_time": "20:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "10:00"
+  },
+  {
+    "title": "Wednesday Night Karaoke",
+    "venue": "Legacy Hall",
+    "impact": "medium",
+    "address": "7800 Windrose Ave., Plano, TX 75024, USA",
+    "subtype": "nightlife",
+    "summary": "Wednesday Night Karaoke • Legacy Hall • 2026-05-06 • 19:00",
+    "category": "nightlife",
+    "latitude": 33.08319290000001,
+    "location": "Legacy Hall, 7800 Windrose Ave., Plano, TX 75024, USA",
+    "venue_id": "d506b8c5-fc07-4bbf-b80c-15378017026e",
+    "longitude": -96.825834,
+    "event_type": "nightlife",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Live Music in Sundance Square Plaza",
+    "venue": "Sundance Square Plaza",
+    "impact": "medium",
+    "address": "Sundance Square Plaza, Fort Worth, TX 76102, USA",
+    "subtype": "community",
+    "summary": "Live Music in Sundance Square Plaza • Sundance Square Plaza • 2026-05-06 • 18:00",
+    "category": "community",
+    "latitude": 32.754824299999996,
+    "location": "Sundance Square Plaza, Sundance Square Plaza, Fort Worth, TX 76102, USA",
+    "venue_id": "bf9ebbd0-ed0b-4aca-a49b-7d3a19566414",
+    "longitude": -97.33138290000001,
+    "event_type": "community",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "18:00"
+  },
+  {
+    "title": "Cirque du Soleil - Echo",
+    "venue": "Under The White Big Top - Frisco",
+    "impact": "high",
+    "address": "Rough Riders Trl, Frisco, TX 75034, USA",
+    "subtype": "theater",
+    "summary": "Cirque du Soleil - Echo • Under The White Big Top - Frisco • 2026-05-06 • 19:00",
+    "category": "theater",
+    "latitude": 33.096196,
+    "location": "Under The White Big Top - Frisco, Rough Riders Trl, Frisco, TX 75034, USA",
+    "venue_id": "8829aa08-c948-40a6-8629-b8405f8efd08",
+    "longitude": -96.821274,
+    "event_type": "theater",
+    "event_end_date": "2026-05-06",
     "event_end_time": "21:30",
-    "event_start_date": "2026-05-05",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "DIIV",
+    "venue": "Tulips FTW",
+    "impact": "low",
+    "address": "112 Saint Louis Avenue",
+    "subtype": "concert",
+    "summary": "DIIV • Tulips FTW • 2026-05-06 • 20:00",
+    "category": "concert",
+    "latitude": 32.743148399999995,
+    "location": "Tulips FTW, 112 Saint Louis Avenue",
+    "venue_id": "313ead81-06bd-4d52-9708-ac4a16787e92",
+    "longitude": -97.32897129999999,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Call Me Karizma - I'm No American Idol Tour",
+    "venue": "AM/FM Backyard",
+    "impact": "medium",
+    "address": "1950 Market Center Boulevard",
+    "subtype": "concert",
+    "summary": "Call Me Karizma - I'm No American Idol Tour • AM/FM Backyard • 2026-05-06 • 20:00",
+    "category": "concert",
+    "latitude": 32.797547699999996,
+    "location": "AM/FM Backyard, 1950 Market Center Boulevard",
+    "venue_id": "83e8a310-eaa5-46aa-8fee-22dfadb3eed5",
+    "longitude": -96.8243408,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Dance Gavin Dance",
+    "venue": "South Side Ballroom",
+    "impact": "high",
+    "address": "1135 Botham Jean Blvd #101, Dallas, TX 75215, USA",
+    "subtype": "concert",
+    "summary": "Dance Gavin Dance • South Side Ballroom • 2026-05-06 • 19:00",
+    "category": "concert",
+    "latitude": 32.768715,
+    "location": "South Side Ballroom, 1135 Botham Jean Blvd #101, Dallas, TX 75215, USA",
+    "venue_id": "cdb5c438-e6c5-4f74-97ca-3fbdcabac8dc",
+    "longitude": -96.798195,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Florence and The Machine",
+    "venue": "Dickies Arena",
+    "impact": "high",
+    "address": "1911 Montgomery Street",
+    "subtype": "concert",
+    "summary": "Florence and The Machine • Dickies Arena • 2026-05-06 • 20:00",
+    "category": "concert",
+    "latitude": 32.7410208,
+    "location": "Dickies Arena, 1911 Montgomery Street",
+    "venue_id": "bdd59708-7681-4752-a4ba-e9bf71edecc0",
+    "longitude": -97.36895659999999,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Shadow of Intent - Imperium Delirium North American Tour",
+    "venue": "The Echo Lounge & Music Hall",
+    "impact": "high",
+    "address": "1323 North Stemmons Freeway",
+    "subtype": "concert",
+    "summary": "Shadow of Intent - Imperium Delirium North American Tour • The Echo Lounge & Music Hall • 2026-05-06 • 18:00",
+    "category": "concert",
+    "latitude": 32.790562099999995,
+    "location": "The Echo Lounge & Music Hall, 1323 North Stemmons Freeway",
+    "venue_id": "37f9178b-6b35-4660-a412-8681b234d9e2",
+    "longitude": -96.81445839999999,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "18:00"
+  },
+  {
+    "title": "Cirque du Soleil ECHO",
+    "venue": "Under the White Big Top Frisco",
+    "impact": "high",
+    "address": "5454 Main St #123, Frisco, TX 75033, USA",
+    "subtype": "theater",
+    "summary": "Cirque du Soleil ECHO • Under the White Big Top Frisco • 2026-05-06 • 19:00",
+    "category": "theater",
+    "latitude": 33.153061699999995,
+    "location": "Under the White Big Top Frisco, 5454 Main St #123, Frisco, TX 75033, USA",
+    "venue_id": "1d50bb88-6a4f-4ecd-800c-5800f86fe6fa",
+    "longitude": -96.8395176,
+    "event_type": "theater",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Alejandro Sanz",
+    "venue": "The Pavilion at Toyota Music Factory",
+    "impact": "high",
+    "address": "300 W Las Colinas Blvd., Irving, TX 75039, USA",
+    "subtype": "concert",
+    "summary": "Alejandro Sanz • The Pavilion at Toyota Music Factory • 2026-05-06 • 20:00",
+    "category": "concert",
+    "latitude": 32.873415,
+    "location": "The Pavilion at Toyota Music Factory, 300 W Las Colinas Blvd., Irving, TX 75039, USA",
+    "venue_id": "53c29bd3-e7de-4b0b-992f-15e732129869",
+    "longitude": -96.944636,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "ComedySportz: Dallas Laughricks VS Green Bay Wisecrackers",
+    "venue": "The Comedy Arena",
+    "impact": "low",
+    "address": "305 East Virginia Street",
+    "subtype": "comedy",
+    "summary": "ComedySportz: Dallas Laughricks VS Green Bay Wisecrackers • The Comedy Arena • 2026-05-06 • 19:30",
+    "category": "comedy",
+    "latitude": 33.1981344,
+    "location": "The Comedy Arena, 305 East Virginia Street",
+    "venue_id": "8b8997cc-1d51-48ac-b981-5db9436f3ef6",
+    "longitude": -96.61269759999999,
+    "event_type": "comedy",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-05-06",
     "event_start_time": "19:30"
   },
   {
-    "title": "Celebrate Cinco de Mayo at the Top of Dallas!",
-    "venue": "Reunion Tower",
-    "impact": "medium",
-    "address": "300 Reunion Boulevard East",
-    "subtype": "community",
-    "summary": "Celebrate Cinco de Mayo at the Top of Dallas! • Reunion Tower • 2026-05-05 • 19:00",
-    "category": "community",
-    "latitude": 32.775597499999996,
-    "location": "Reunion Tower, 300 Reunion Boulevard East",
-    "venue_id": "5316c59f-710d-4a0c-910f-caa22818abe3",
-    "longitude": -96.8089687,
-    "event_type": "community",
-    "event_end_date": "2026-05-05",
-    "event_end_time": "20:00",
-    "event_start_date": "2026-05-05",
+    "title": "Colorado Avalanche at Dallas Stars (Game 3)",
+    "venue": "American Airlines Center",
+    "impact": "high",
+    "address": "2500 Victory Ave, Dallas, TX 75219, USA",
+    "subtype": "sports",
+    "summary": "Colorado Avalanche at Dallas Stars (Game 3) • American Airlines Center • 2026-05-06 • 19:00",
+    "category": "sports",
+    "latitude": 32.790391,
+    "location": "American Airlines Center, 2500 Victory Ave, Dallas, TX 75219, USA",
+    "venue_id": "ca6f9618-0cc6-4b93-a711-f9dba9ad2192",
+    "longitude": -96.810255,
+    "event_type": "sports",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
     "event_start_time": "19:00"
+  },
+  {
+    "title": "Comedy Madness with Michael Quu",
+    "venue": "Mic Drop Comedy Plano",
+    "impact": "medium",
+    "address": "7301 Lone Star Dr Suite A-110, Plano, TX 75024, USA",
+    "subtype": "comedy",
+    "summary": "Comedy Madness with Michael Quu • Mic Drop Comedy Plano • 2026-05-06 • 20:00",
+    "category": "comedy",
+    "latitude": 33.078730500000006,
+    "location": "Mic Drop Comedy Plano, 7301 Lone Star Dr Suite A-110, Plano, TX 75024, USA",
+    "venue_id": "e02de7c9-687c-44f5-b7b4-ffd18fcc00a4",
+    "longitude": -96.823201,
+    "event_type": "comedy",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Dance Gavin Dance",
+    "venue": "South Side Ballroom",
+    "impact": "high",
+    "address": "1135 Botham Jean Blvd #101, Dallas, TX 75215, USA",
+    "subtype": "concert",
+    "summary": "Dance Gavin Dance • South Side Ballroom • 2026-05-06 • 18:30",
+    "category": "concert",
+    "latitude": 32.768715,
+    "location": "South Side Ballroom, 1135 Botham Jean Blvd #101, Dallas, TX 75215, USA",
+    "venue_id": "cdb5c438-e6c5-4f74-97ca-3fbdcabac8dc",
+    "longitude": -96.798195,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "18:30"
+  },
+  {
+    "title": "Mike Doughty - Solo Tour '26",
+    "venue": "The Kessler Theater",
+    "impact": "medium",
+    "address": "1230 W Davis St, Dallas, TX 75208, USA",
+    "subtype": "concert",
+    "summary": "Mike Doughty - Solo Tour '26 • The Kessler Theater • 2026-05-06 • 20:00",
+    "category": "concert",
+    "latitude": 32.7493,
+    "location": "The Kessler Theater, 1230 W Davis St, Dallas, TX 75208, USA",
+    "venue_id": "ea4d5e3a-8ca8-4da0-94b9-0c958ac3e73d",
+    "longitude": -96.842625,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Wicked (Touring)",
+    "venue": "Music Hall at Fair Park",
+    "impact": "high",
+    "address": "3809 Grand Avenue",
+    "subtype": "theater",
+    "summary": "Wicked (Touring) • Music Hall at Fair Park • 2026-05-06 • 19:30",
+    "category": "theater",
+    "latitude": 32.7782181,
+    "location": "Music Hall at Fair Park, 3809 Grand Avenue",
+    "venue_id": "de5dc2f1-ef9c-4e38-b1bf-4aa40be17001",
+    "longitude": -96.75927089999999,
+    "event_type": "theater",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "Cirque du Soleil - Echo",
+    "venue": "Under The White Big Top - Frisco",
+    "impact": "medium",
+    "address": "Rough Riders Trl, Frisco, TX 75034, USA",
+    "subtype": "theater",
+    "summary": "Cirque du Soleil - Echo • Under The White Big Top - Frisco • 2026-05-06 • 19:00",
+    "category": "theater",
+    "latitude": 33.096196,
+    "location": "Under The White Big Top - Frisco, Rough Riders Trl, Frisco, TX 75034, USA",
+    "venue_id": "8829aa08-c948-40a6-8629-b8405f8efd08",
+    "longitude": -96.821274,
+    "event_type": "theater",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Alejandro Sanz - ¿y Ahora Que? Gira Usa",
+    "venue": "The Pavilion at Toyota Music Factory",
+    "impact": "high",
+    "address": "300 W Las Colinas Blvd., Irving, TX 75039, USA",
+    "subtype": "concert",
+    "summary": "Alejandro Sanz - ¿y Ahora Que? Gira Usa • The Pavilion at Toyota Music Factory • 2026-05-06 • 20:00",
+    "category": "concert",
+    "latitude": 32.873415,
+    "location": "The Pavilion at Toyota Music Factory, 300 W Las Colinas Blvd., Irving, TX 75039, USA",
+    "venue_id": "53c29bd3-e7de-4b0b-992f-15e732129869",
+    "longitude": -96.944636,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Wicked (Touring)",
+    "venue": "Music Hall At Fair Park",
+    "impact": "high",
+    "address": "3809 Grand Avenue",
+    "subtype": "theater",
+    "summary": "Wicked (Touring) • Music Hall At Fair Park • 2026-05-06 • 19:30",
+    "category": "theater",
+    "latitude": 32.7782181,
+    "location": "Music Hall At Fair Park, 3809 Grand Avenue",
+    "venue_id": "de5dc2f1-ef9c-4e38-b1bf-4aa40be17001",
+    "longitude": -96.75927089999999,
+    "event_type": "theater",
+    "event_end_date": "2026-06-14",
+    "event_end_time": "22:15",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "Build, Make & Mingle Networking Event",
+    "venue": "Sidecar Social",
+    "impact": "medium",
+    "address": "6770 Winning Dr, Frisco, TX 75034, USA",
+    "subtype": "community",
+    "summary": "Build, Make & Mingle Networking Event • Sidecar Social • 2026-05-06 • 16:00",
+    "category": "community",
+    "latitude": 33.1077444,
+    "location": "Sidecar Social, 6770 Winning Dr, Frisco, TX 75034, USA",
+    "venue_id": "d61f98b2-26e2-40f7-b238-dc141612f236",
+    "longitude": -96.82701879999999,
+    "event_type": "community",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "18:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "16:00"
+  },
+  {
+    "title": "Comedy Allstars",
+    "venue": "Punch Line Comedy Club",
+    "impact": "medium",
+    "address": "310 W Las Colinas Blvd. suite 130, Irving, TX 75039, USA",
+    "subtype": "comedy",
+    "summary": "Comedy Allstars • Punch Line Comedy Club • 2026-05-06 • 19:30",
+    "category": "comedy",
+    "latitude": 32.873445499999995,
+    "location": "Punch Line Comedy Club, 310 W Las Colinas Blvd. suite 130, Irving, TX 75039, USA",
+    "venue_id": "5894558c-90f8-4901-98b7-846cdbab4a4d",
+    "longitude": -96.9445654,
+    "event_type": "comedy",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "Improv Happy Hour",
+    "venue": "Dallas Comedy Club",
+    "impact": "medium",
+    "address": "3036 Elm Street",
+    "subtype": "comedy",
+    "summary": "Improv Happy Hour • Dallas Comedy Club • 2026-05-06 • 19:30",
+    "category": "comedy",
+    "latitude": 32.7852898,
+    "location": "Dallas Comedy Club, 3036 Elm Street",
+    "venue_id": "1abc8e9d-b312-40be-9359-db1aef0d5a3c",
+    "longitude": -96.77937419999999,
+    "event_type": "comedy",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "Frisco RoughRiders vs. Northwest Arkansas Naturals",
+    "venue": "Riders Field",
+    "impact": "medium",
+    "address": "7300 Rough Riders Trl, Frisco, TX 75034, USA",
+    "subtype": "sports",
+    "summary": "Frisco RoughRiders vs. Northwest Arkansas Naturals • Riders Field • 2026-05-06 • 12:05",
+    "category": "sports",
+    "latitude": 33.098583,
+    "location": "Riders Field, 7300 Rough Riders Trl, Frisco, TX 75034, USA",
+    "venue_id": "4ee0721e-4019-4cbe-a859-3895538fe704",
+    "longitude": -96.81951439999999,
+    "event_type": "sports",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "15:05",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "12:05"
+  },
+  {
+    "title": "Balloon Museum | Let's Fly - Art Has No Limits",
+    "venue": "South Side Studios",
+    "impact": "high",
+    "address": "2901 Botham Jean Blvd, Dallas, TX 75215, USA",
+    "subtype": "community",
+    "summary": "Balloon Museum | Let's Fly - Art Has No Limits • South Side Studios • 2026-05-06 • 17:30",
+    "category": "community",
+    "latitude": 32.759066,
+    "location": "South Side Studios, 2901 Botham Jean Blvd, Dallas, TX 75215, USA",
+    "venue_id": "ddfc211d-419b-4568-9231-dc8dc51d15fe",
+    "longitude": -96.782519,
+    "event_type": "community",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "20:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "17:30"
+  },
+  {
+    "title": "Dallas Stars Playoff Game (Round 2, Home Game 1)",
+    "venue": "American Airlines Center",
+    "impact": "high",
+    "address": "2500 Victory Ave, Dallas, TX 75219, USA",
+    "subtype": "sports",
+    "summary": "Dallas Stars Playoff Game (Round 2, Home Game 1) • American Airlines Center • 2026-05-06 • 19:00",
+    "category": "sports",
+    "latitude": 32.790391,
+    "location": "American Airlines Center, 2500 Victory Ave, Dallas, TX 75219, USA",
+    "venue_id": "ca6f9618-0cc6-4b93-a711-f9dba9ad2192",
+    "longitude": -96.810255,
+    "event_type": "sports",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "John Butler",
+    "venue": "Granada Theater",
+    "impact": "medium",
+    "address": "3524 Greenville Avenue",
+    "subtype": "concert",
+    "summary": "John Butler • Granada Theater • 2026-05-06 • 20:00",
+    "category": "concert",
+    "latitude": 32.8308235,
+    "location": "Granada Theater, 3524 Greenville Avenue",
+    "venue_id": "d34e09ab-a9d0-4ce6-a49c-090ddd4f230d",
+    "longitude": -96.76978509999999,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Infected Rain",
+    "venue": "Club Dada",
+    "impact": "low",
+    "address": "2720 Elm St, Dallas, TX 75226, USA",
+    "subtype": "concert",
+    "summary": "Infected Rain • Club Dada • 2026-05-06 • 21:30",
+    "category": "concert",
+    "latitude": 32.78447,
+    "location": "Club Dada, 2720 Elm St, Dallas, TX 75226, USA",
+    "venue_id": "c947856e-1cb0-4a66-992e-848da0b79aaa",
+    "longitude": -96.783924,
+    "event_type": "concert",
+    "event_end_date": "2026-05-07",
+    "event_end_time": "00:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "21:30"
+  },
+  {
+    "title": "Dance Gavin Dance & The Fall of Troy",
+    "venue": "South Side Ballroom",
+    "impact": "medium",
+    "address": "1135 Botham Jean Blvd #101, Dallas, TX 75215, USA",
+    "subtype": "concert",
+    "summary": "Dance Gavin Dance & The Fall of Troy • South Side Ballroom • 2026-05-06 • 18:30",
+    "category": "concert",
+    "latitude": 32.768715,
+    "location": "South Side Ballroom, 1135 Botham Jean Blvd #101, Dallas, TX 75215, USA",
+    "venue_id": "cdb5c438-e6c5-4f74-97ca-3fbdcabac8dc",
+    "longitude": -96.798195,
+    "event_type": "concert",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "18:30"
+  },
+  {
+    "title": "Comedy Allstars",
+    "venue": "Punch Line Irving",
+    "impact": "medium",
+    "address": "310 W Las Colinas Blvd. suite 130, Irving, TX 75039, USA",
+    "subtype": "comedy",
+    "summary": "Comedy Allstars • Punch Line Irving • 2026-05-06 • 19:30",
+    "category": "comedy",
+    "latitude": 32.873445499999995,
+    "location": "Punch Line Irving, 310 W Las Colinas Blvd. suite 130, Irving, TX 75039, USA",
+    "venue_id": "5894558c-90f8-4901-98b7-846cdbab4a4d",
+    "longitude": -96.9445654,
+    "event_type": "comedy",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "21:30",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "Cirque Du Soleil: Echo",
+    "venue": "Under The White Big Top - Frisco",
+    "impact": "high",
+    "address": "Rough Riders Trl, Frisco, TX 75034, USA",
+    "subtype": "theater",
+    "summary": "Cirque Du Soleil: Echo • Under The White Big Top - Frisco • 2026-05-06 • 19:00",
+    "category": "theater",
+    "latitude": 33.096196,
+    "location": "Under The White Big Top - Frisco, Rough Riders Trl, Frisco, TX 75034, USA",
+    "venue_id": "8829aa08-c948-40a6-8629-b8405f8efd08",
+    "longitude": -96.821274,
+    "event_type": "theater",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Dallas Is Lit! Literary Festival",
+    "venue": "Bishop Arts Theatre Center",
+    "impact": "medium",
+    "address": "215 S Tyler St, Dallas, TX 75208, USA",
+    "subtype": "festival",
+    "summary": "Dallas Is Lit! Literary Festival • Bishop Arts Theatre Center • 2026-05-06 • 19:30",
+    "category": "festival",
+    "latitude": 32.743676,
+    "location": "Bishop Arts Theatre Center, 215 S Tyler St, Dallas, TX 75208, USA",
+    "venue_id": "cf936343-86a6-4385-8c2b-e7a1f1fa49b3",
+    "longitude": -96.837865,
+    "event_type": "festival",
+    "event_end_date": "2026-05-09",
+    "event_end_time": "21:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:30"
+  },
+  {
+    "title": "Michael Quu Live Comedy",
+    "venue": "Mic Drop Comedy",
+    "impact": "medium",
+    "address": "7301 Lone Star Dr Suite A-110, Plano, TX 75024, USA",
+    "subtype": "comedy",
+    "summary": "Michael Quu Live Comedy • Mic Drop Comedy • 2026-05-06 • 20:00",
+    "category": "comedy",
+    "latitude": 33.078730500000006,
+    "location": "Mic Drop Comedy, 7301 Lone Star Dr Suite A-110, Plano, TX 75024, USA",
+    "venue_id": "e02de7c9-687c-44f5-b7b4-ffd18fcc00a4",
+    "longitude": -96.823201,
+    "event_type": "comedy",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "22:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "20:00"
+  },
+  {
+    "title": "Build, Make & Mingle",
+    "venue": "Sidecar Social",
+    "impact": "medium",
+    "address": "6770 Winning Dr, Frisco, TX 75034, USA",
+    "subtype": "community",
+    "summary": "Build, Make & Mingle • Sidecar Social • 2026-05-06 • 16:00",
+    "category": "community",
+    "latitude": 33.1077444,
+    "location": "Sidecar Social, 6770 Winning Dr, Frisco, TX 75034, USA",
+    "venue_id": "d61f98b2-26e2-40f7-b238-dc141612f236",
+    "longitude": -96.82701879999999,
+    "event_type": "community",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "18:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "16:00"
+  },
+  {
+    "title": "Wednesday Salsa & Bachata",
+    "venue": "Stratos",
+    "impact": "medium",
+    "address": "2907 W Northwest Hwy, Dallas, TX 75220, USA",
+    "subtype": "nightlife",
+    "summary": "Wednesday Salsa & Bachata • Stratos • 2026-05-06 • 21:30",
+    "category": "nightlife",
+    "latitude": 32.857269,
+    "location": "Stratos, 2907 W Northwest Hwy, Dallas, TX 75220, USA",
+    "venue_id": "46c3e0fe-5c2d-4f4a-9ef7-bf0610d19931",
+    "longitude": -96.871964,
+    "event_type": "nightlife",
+    "event_end_date": "2026-05-07",
+    "event_end_time": "02:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "21:30"
+  },
+  {
+    "title": "DHA Monthly Meetup & Mini-Con",
+    "venue": "Family Karaoke",
+    "impact": "low",
+    "address": "11433 Goodnight Ln, Dallas, TX 75229, USA",
+    "subtype": "community",
+    "summary": "DHA Monthly Meetup & Mini-Con • Family Karaoke • 2026-05-06 • 19:00",
+    "category": "community",
+    "latitude": 32.896797,
+    "location": "Family Karaoke, 11433 Goodnight Ln, Dallas, TX 75229, USA",
+    "venue_id": "b35702a6-f4cd-471e-a955-33a6841bc6e1",
+    "longitude": -96.902529,
+    "event_type": "community",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "23:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "19:00"
+  },
+  {
+    "title": "Diaper Hub",
+    "venue": "Martin Luther King Community Center",
+    "impact": "low",
+    "address": "2922 Martin Luther King Jr Blvd, Dallas, TX 75215, USA",
+    "subtype": "community",
+    "summary": "Diaper Hub • Martin Luther King Community Center • 2026-05-06 • 14:00",
+    "category": "community",
+    "latitude": 32.770263,
+    "location": "Martin Luther King Community Center, 2922 Martin Luther King Jr Blvd, Dallas, TX 75215, USA",
+    "venue_id": "16a61dca-6f7b-407f-a4ff-ea99e48a288b",
+    "longitude": -96.766504,
+    "event_type": "community",
+    "event_end_date": "2026-05-06",
+    "event_end_time": "18:00",
+    "event_start_date": "2026-05-06",
+    "event_start_time": "14:00"
   }
 ]
 
@@ -977,9 +1394,9 @@ SCHOOL_CLOSURES (5 total, 0 active today):
     "reason": "Summer Break",
     "end_date": "2026-08-12",
     "schoolName": "Frisco ISD",
-    "start_date": "2026-05-25",
+    "start_date": "2026-05-23",
     "school_name": "Frisco ISD",
-    "closureStart": "2026-05-25",
+    "closureStart": "2026-05-23",
     "reopeningDate": "2026-08-12",
     "closure_reason": "Summer Break",
     "reopening_date": "2026-08-12",
@@ -1009,45 +1426,45 @@ SCHOOL_CLOSURES (5 total, 0 active today):
     "reason": "Summer Break",
     "end_date": "2026-08-11",
     "schoolName": "Plano ISD",
-    "start_date": "2026-05-25",
+    "start_date": "2026-05-23",
     "school_name": "Plano ISD",
-    "closureStart": "2026-05-25",
+    "closureStart": "2026-05-23",
     "reopeningDate": "2026-08-11",
     "closure_reason": "Summer Break",
     "reopening_date": "2026-08-11",
     "distanceFromDriver": 12.7
   },
   {
-    "lat": 33.1118,
-    "lng": -96.8021,
+    "lat": 33.1165,
+    "lng": -96.8052,
     "type": "college",
-    "impact": "medium",
+    "impact": "high",
     "reason": "Memorial Day",
     "end_date": "2026-05-26",
-    "schoolName": "Collin College - Frisco Campus",
+    "schoolName": "Collin College",
     "start_date": "2026-05-25",
-    "school_name": "Collin College - Frisco Campus",
+    "school_name": "Collin College",
     "closureStart": "2026-05-25",
     "reopeningDate": "2026-05-26",
     "closure_reason": "Memorial Day",
     "reopening_date": "2026-05-26",
-    "distanceFromDriver": 4.4
+    "distanceFromDriver": 4.2
   },
   {
-    "lat": 33.134,
-    "lng": -96.822,
-    "type": "college",
+    "lat": 33.125,
+    "lng": -96.83,
+    "type": "private",
     "impact": "medium",
-    "reason": "Memorial Day",
-    "end_date": "2026-05-26",
-    "schoolName": "University of North Texas at Frisco",
-    "start_date": "2026-05-25",
-    "school_name": "University of North Texas at Frisco",
-    "closureStart": "2026-05-25",
-    "reopeningDate": "2026-05-26",
-    "closure_reason": "Memorial Day",
-    "reopening_date": "2026-05-26",
-    "distanceFromDriver": 3.1
+    "reason": "Summer Break",
+    "end_date": "2026-08-12",
+    "schoolName": "Legacy Christian Academy",
+    "start_date": "2026-05-21",
+    "school_name": "Legacy Christian Academy",
+    "closureStart": "2026-05-21",
+    "reopeningDate": "2026-08-12",
+    "closure_reason": "Summer Break",
+    "reopening_date": "2026-08-12",
+    "distanceFromDriver": 2.7
   }
 ]
 
@@ -1057,7 +1474,7 @@ AIRPORT_CONDITIONS:
     {
       "code": "DFW",
       "name": "Dallas/Fort Worth International Airport",
-      "delays": "Minor delays on inbound flights",
+      "delays": "Minor delays on arrival",
       "status": "normal",
       "busyTimes": [
         "07:00-09:00",
@@ -1071,29 +1488,29 @@ AIRPORT_CONDITIONS:
       "status": "normal",
       "busyTimes": [
         "06:00-08:00",
-        "15:00-18:00"
+        "15:00-17:00"
       ]
     }
   ],
   "provider": "gemini",
-  "fetchedAt": "2026-05-05T08:24:06.010Z",
+  "fetchedAt": "2026-05-07T00:27:04.958Z",
   "busyPeriods": [
-    "Morning rush 6:00 AM - 9:00 AM",
-    "Evening rush 4:00 PM - 7:00 PM"
+    "Morning rush 6 AM - 9 AM",
+    "Evening rush 4 PM - 7 PM"
   ],
-  "recommendations": "Monitor traffic on the Dallas North Tollway and TX-121 South. Allow an extra 30 minutes for parking and TSA security checks during morning and evening peak hours."
+  "recommendations": "Arrive 2 hours before domestic flights. Use the Express drop-off lanes at DFW to avoid terminal congestion."
 }
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-id: 0b118f0c-8252-4f70-bffb-05b72819db65
-snapshot_id: 41e9c37c-c945-440f-ac1a-2291090d2d83
+id: 124dbf10-517f-4a29-9f6d-521771881d69
+snapshot_id: ad3d71a7-664f-4854-8795-0e0937d56445
 status: pending
 error_message: (none)
-created_at: Tue May 05 2026 08:23:51 GMT+0000 (Coordinated Universal Time)
-updated_at: Tue May 05 2026 08:23:51 GMT+0000 (Coordinated Universal Time)
+created_at: Thu May 07 2026 00:26:55 GMT+0000 (Coordinated Universal Time)
+updated_at: Thu May 07 2026 00:26:55 GMT+0000 (Coordinated Universal Time)
 
 STRATEGY_FOR_NOW (Immediate Strategy):
 ────────────────────────────────────────────────────────────────────────────────
@@ -1113,15 +1530,15 @@ Data Integrity:
   ✓ IDs match: YES
 
 School Closures Filter Check:
-  Today's date (America/Chicago): 2026-05-05
+  Today's date (America/Chicago): 2026-05-06
   Active closures (start_date <= today <= end_date): 0 / 5
   (None active today)
 
 Event Count:
-  Total events in briefing: 25
-  High impact: 3
-  Medium impact: 14
-  Low impact: 8
+  Total events in briefing: 47
+  High impact: 15
+  Medium impact: 25
+  Low impact: 7
 
 TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in location: 0
@@ -1129,8 +1546,8 @@ TBD/Unknown Check (RAW DB data - these get filtered at read time):
   Events with TBD in time: 0
 
 Events AFTER filterInvalidEvents (what LLM actually receives, tz=America/Chicago):
-  Raw events in DB: 25
-  Filtered events (sent to LLM): 25
+  Raw events in DB: 47
+  Filtered events (sent to LLM): 47
   TBD events removed: 0
 
 ════════════════════════════════════════════════════════════════════════════════

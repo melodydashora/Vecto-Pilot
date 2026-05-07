@@ -55,7 +55,7 @@ Different stores, different contracts, same component.
 
 | Action Tag | Destination |
 |------------|-------------|
-| `SAVE_NOTE` | user notes (coach_notes table) |
+| `SAVE_NOTE` | user notes (`user_intel_notes` table) |
 | `SYSTEM_NOTE` | system notes |
 | `ZONE_INTEL` | zone intelligence |
 | `MARKET_INTEL` | market intelligence |

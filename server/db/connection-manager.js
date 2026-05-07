@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 
-// DATABASE_URL auto-injected by Replit (Helium PostgreSQL 16).
+// DATABASE_URL auto-injected by Replit: Helium PostgreSQL 16 in dev workspace,
+// Neon serverless Postgres in published deployment.
 // Dev: local, no SSL. Production: SSL required.
 
 if (!process.env.DATABASE_URL) {

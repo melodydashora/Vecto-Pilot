@@ -264,8 +264,8 @@ export async function callGeminiStream({
   messageHistory = [], // Array of { role: 'user'|'model', parts: [{ text }] }
   maxTokens,
   temperature,
-  useSearch = false,
-  thinkingLevel = null, // Gemini 3: "low", "high" - null = disabled
+  useSearch = true,
+  thinkingLevel = "high", // Gemini 3: "low", "high" - null = disabled
   timeoutMs = 90000,
   signal              // Optional caller AbortSignal — forwarded so client disconnect cancels the upstream Gemini call
 }) {

@@ -2,6 +2,8 @@
 
 **Originally captured in CLAUDE.md, hoisted here 2026-04-28 to keep CLAUDE.md focused on doctrine.**
 
+> **2026-05-06 NOTE:** This document references `bin/vecto-runner`, a wrapper script that was planned but **never landed in the repository** (the binary does not exist on disk). The underlying technique still works — replace `bin/vecto-runner start` with `node gateway-server.js` directly, and the rest of the document holds. Retained for the broader workflow-control techniques (pid2 detection, `/proc/net/tcp` inode mapping, Playwright executable path, authenticated API testing patterns).
+
 This document captures hard-won, session-verified knowledge about controlling
 Replit's dev workflow from Claude Code's shell, running real browser E2E tests,
 and bypassing assumed limits. Everything here was empirically proven in a live

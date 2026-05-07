@@ -116,10 +116,9 @@ export default function StrategyPage() {
   } = useCoPilot();
 
   // 2026-04-26: Embedded-MapTab data prep. Memos lifted from MapPage.tsx
-  // verbatim — same field names, same dedup logic, same type shapes — so
-  // the embedded map and the standalone /co-pilot/map page produce identical
-  // marker sets. Refactor into a shared hook only when a third consumer
-  // shows up (currently 2: this page + MapPage).
+  // verbatim — same field names, same dedup logic, same type shapes.
+  // 2026-05-06: MapPage was removed in Phase B; this is now the sole
+  // consumer. Refactor into a shared hook if a second consumer appears.
   const { data: activeEventsData } = useActiveEventsQuery(lastSnapshotId);
   // 2026-04-26 PHASE F: TomTom traffic incidents from briefing payload
   // (filtered to incidents that have coords; off-by-default in the map UI).
