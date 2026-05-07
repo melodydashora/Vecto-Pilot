@@ -20,6 +20,7 @@ import { validateBody, validateQuery } from '../../middleware/validate.js';
 import { snapshotMinimalSchema, locationResolveSchema, newsBriefingSchema } from '../../validation/schemas.js';
 // 2026-02-12: Added requireAuth - all location routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
+import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 // 2026-02-17: Shared timezone resolution (extracted from private lookupMarketTimezone)
 import { resolveTimezoneFromMarket, resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
 
@@ -2290,26 +2291,15 @@ router.get('/ip', async (req, res) => {
 // here anyway. Zero callers per audit.
 
 // PATCH /api/location/snapshot/:snapshotId/enrich
-// Enrich an existing snapshot with weather/air data
-router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
+// Enrich an existing snapshot with weather/air data.
+// Auth: requireAuth (global, line 30) + requireSnapshotOwnership (per-route).
+// The middleware validates snapshotId presence, snapshot existence, and that
+// snapshot.user_id matches req.auth.userId. req.snapshot is populated for
+// the handler if downstream needs it.
+router.patch('/snapshot/:snapshotId/enrich', requireSnapshotOwnership, async (req, res) => {
   try {
     const { snapshotId } = req.params;
     const { weather, air } = req.body;
-
-    if (!snapshotId) {
-      return res.status(400).json({ error: 'snapshot_id_required' });
-    }
-
-    // Verify snapshot exists
-    const [existing] = await db
-      .select({ snapshot_id: snapshots.snapshot_id })
-      .from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId))
-      .limit(1);
-
-    if (!existing) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
 
     // Build update payload (only include provided fields)
     const updatePayload = {};
@@ -2366,36 +2356,6 @@ router.patch('/snapshot/:snapshotId/enrich', async (req, res) => {
     console.error('[LOCATION] snapshot enrich error:', err);
     res.status(500).json({
       error: 'enrich_failed',
-      message: String(err?.message || err)
-    });
-  }
-});
-
-// GET /api/snapshots/:snapshotId
-// Fetch snapshot data including airport context
-router.get('/snapshots/:snapshotId', async (req, res) => {
-  try {
-    const { snapshotId } = req.params;
-    
-    if (!snapshotId) {
-      return res.status(400).json({ error: 'snapshot_id_required' });
-    }
-    
-    const [snapshot] = await db
-      .select()
-      .from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId))
-      .limit(1);
-    
-    if (!snapshot) {
-      return res.status(404).json({ error: 'snapshot_not_found' });
-    }
-    
-    res.json(snapshot);
-  } catch (err) {
-    console.error('[LOCATION] snapshot fetch error:', err);
-    res.status(500).json({ 
-      error: 'fetch_failed',
       message: String(err?.message || err)
     });
   }
