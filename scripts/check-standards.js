@@ -467,10 +467,26 @@ function checkDeprecatedAI() {
     { regex: /['"]gpt-4['"]/g, message: "Deprecated model 'gpt-4'. Consult server/lib/ai/model-registry.js for the active OpenAI flagship default." },
     { regex: /['"]gpt-4-turbo['"]/g, message: "Deprecated model 'gpt-4-turbo'. Consult server/lib/ai/model-registry.js for the active OpenAI flagship default." },
     { regex: /['"]claude-3-5-sonnet['"]/g, message: "Deprecated model 'claude-3-5-sonnet'. Consult server/lib/ai/model-registry.js for the active Anthropic Sonnet default." },
-    { regex: /['"]gemini-pro['"]/g, message: "Ambiguous model 'gemini-pro'. Consult server/lib/ai/model-registry.js for the active Gemini Pro default." },
+    // 2026-05-08: Skip model-registry.js (the SOURCE of model identity per Rule 14) and
+    // models-dictionary.js (metadata file). Both legitimately reference 'gemini-pro' as
+    // a quirk-prefix key matching gemini-pro-latest, not as a hardcoded model ID.
+    { regex: /['"]gemini-pro['"]/g, message: "Ambiguous model 'gemini-pro'. Consult server/lib/ai/model-registry.js for the active Gemini Pro default.", pathSkip: /model-registry|models-dictionary/i },
     
     // Parameters
-    { regex: /max_tokens(?=:)/g, message: "Deprecated parameter 'max_tokens' (OpenAI). Use 'max_completion_tokens'." },
+    // 2026-05-08: max_tokens is the CORRECT param for Anthropic Messages API and for
+    // Perplexity's chat/completions endpoint. Gemini uses maxOutputTokens (different name).
+    // Only OpenAI deprecated max_tokens in favor of max_completion_tokens. The rule below
+    // scopes detection by skipping known non-OpenAI files. pathSkip is a file-path regex.
+    // D-101: rule used to fire false-positive on every Anthropic+Perplexity call site,
+    // exiting check-standards non-zero against correct code. Inventory of skipped paths:
+    //   - anthropic / claude   → Anthropic adapter family
+    //   - perplexity            → Perplexity client (Perplexity uses max_tokens)
+    //   - sync-events           → calls both Anthropic and Perplexity
+    //   - models-dictionary     → metadata file; uses max_tokens as a generic config key
+    //   - agent-override-llm    → Anthropic agent client
+    //   - diagnostics           → Anthropic ping helper
+    //   - eidolon               → Anthropic + metadata config (eidolon/core, eidolon/config)
+    { regex: /max_tokens(?=:)/g, message: "Deprecated parameter 'max_tokens' (OpenAI). Use 'max_completion_tokens'.", pathSkip: /anthropic|claude|perplexity|sync-events|models-dictionary|agent-override-llm|diagnostics|eidolon/i },
     { regex: /thinking_budget(?=:)/g, message: "Deprecated parameter 'thinking_budget' (Gemini). Use 'thinkingConfig.thinkingLevel'." },
   ];
 
@@ -490,6 +506,10 @@ function checkDeprecatedAI() {
       const lines = content.split('\n');
       lines.forEach((line, idx) => {
         for (const pattern of deprecatedPatterns) {
+          // 2026-05-08: Honor pathSkip (D-101) — skip rule when file path matches.
+          // Used to prevent max_tokens deprecation rule from firing on Anthropic
+          // adapter files where max_tokens is the correct parameter.
+          if (pattern.pathSkip && pattern.pathSkip.test(relativePath)) continue;
           pattern.regex.lastIndex = 0;
           if (pattern.regex.test(line)) {
             addViolation(
