@@ -211,11 +211,27 @@ process.on('unhandledRejection', (reason, promise) => {
       }
     }
 
-    // Graceful shutdown
+    // Graceful shutdown.
+    // 2026-05-08: server.close() alone waits for all open connections to drain
+    // before its callback fires. SSE endpoints (/events/strategy, /events/blocks,
+    // /events/briefing, /events/phase) never drain on their own — they're
+    // long-lived by design. Without forcibly closing connections first, the
+    // callback never fires and process.exit() is never reached, wedging the
+    // server permanently against SIGTERM. Node 18.2+ provides
+    // server.closeAllConnections() for exactly this case. The .unref()'d hard
+    // timeout is the last-resort exit if anything still hangs (the timer itself
+    // must not keep the event loop alive, hence unref).
     const shutdown = (signal) => {
       console.log(`[signal] ${signal} received, shutting down...`);
       killAllChildren(signal);
+      if (typeof server.closeAllConnections === 'function') {
+        server.closeAllConnections();
+      }
       server.close(() => process.exit(0));
+      setTimeout(() => {
+        console.error('[signal] Shutdown timeout exceeded (5s), forcing exit');
+        process.exit(1);
+      }, 5000).unref();
     };
 
     process.on('SIGINT', () => shutdown('SIGINT'));
