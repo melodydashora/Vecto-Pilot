@@ -358,6 +358,15 @@ async function promoteToVenueCatalog(enrichedVenues, snapshot) {
   results.forEach((result, index) => {
     if (result.status === 'fulfilled' && result.value?.venue_id) {
       venueIdMap.set(promotable[index].name, result.value.venue_id);
+    } else if (result.status === 'fulfilled') {
+      // 2026-05-08: Fulfilled but no venue_id — rare race (UPDATE matched 0 rows
+      // because the existing row was deleted between lookup and update, or
+      // insertVenue's place_id fallback couldn't find the row). Pre-fix this
+      // silently dropped the venue with no telemetry, leaving promoteToVenueCatalog
+      // callers wondering why the venue never appeared in the map. Log explicitly
+      // and skip — the map entry is correctly omitted; the venue stays
+      // non-promoted but the cause is now visible.
+      venuesLog.warn(3, `Catalog promotion fulfilled with no venue_id for "${promotable[index].name}" — skipped (likely race or place_id-fallback miss)`);
     } else if (result.status === 'rejected') {
       // 2026-04-09: D-096 FIX - Unwrap Drizzle ORM error wrappers to surface real PG error code/detail.
       // Drizzle wraps PostgreSQL errors in .cause or .original; err.code is undefined on the wrapper.

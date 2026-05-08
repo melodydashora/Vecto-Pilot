@@ -346,7 +346,11 @@ export async function upsertVenue(venue, options = {}) {
   const coordKey = generateCoordKey(venue.lat, venue.lng);
 
   // Check if venue exists
+  // 2026-05-08: FIX — include placeId so lookupVenue's Strategy 1 (exact place_id match)
+  // runs first. Without it, coord drift causes a miss on all three strategies → insertVenue
+  // is called → 23505 on venue_catalog_place_id_unique for already-cataloged venues.
   const existing = await lookupVenue({
+    placeId: venue.placeId,
     venueName: venue.venueName,
     city: venue.city,
     state: venue.state,
