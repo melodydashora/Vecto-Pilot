@@ -105,8 +105,8 @@ Auto-generated from Perplexity web search research.
     md += `| Provider | Flagship Model | Endpoint |\n`;
     md += `|----------|----------------|----------|\n`;
     md += `| OpenAI | gpt-5.2 | https://api.openai.com/v1/chat/completions |\n`;
-    md += `| Anthropic | claude-opus-4-5-20251101 | https://api.anthropic.com/v1/messages |\n`;
-    md += `| Google | gemini-3-pro-preview | https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent |\n`;
+    md += `| Anthropic | claude-opus-4-7 | https://api.anthropic.com/v1/messages |\n`;
+    md += `| Google | gemini-pro-latest | https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent |\n`;
     md += `| Perplexity | sonar-pro | https://api.perplexity.ai/chat/completions |\n\n`;
     md += `---\n\n`;
 

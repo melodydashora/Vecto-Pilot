@@ -9,9 +9,9 @@ if (!GEMINI_API_KEY) {
 }
 
 async function testGeminiConnection() {
-  console.log("Starting Gemini 3.0 Pro Preview Search Tool Test...");
+  console.log("Starting Gemini Pro Latest Search Tool Test...");
 
-  const model = "gemini-3.1-pro-preview";
+  const model = "gemini-pro-latest";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const payload = {

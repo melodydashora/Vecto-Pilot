@@ -630,10 +630,9 @@ async function searchWithGoogleSearch(city, state, lat, lng, existingEvents = []
   try {
     const prompt = buildEventPrompt(city, state, date, lat, lng, existingEvents, options);
 
-    // 2026-01-09: Uses gemini-3-pro-preview with google_search tool
-    // Model ID requires -preview suffix per project memory
+    // 2026-05-08: Migrated to gemini-pro-latest alias (server-resolved by Google).
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -724,7 +723,7 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-5-20251101',
+        model: 'claude-opus-4-7',
         max_tokens: 32000,
         tools: [{
           type: 'web_search_20250305',

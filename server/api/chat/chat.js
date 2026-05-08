@@ -1414,7 +1414,7 @@ Full transparency. Maximum insight.
 
     // 2026-01-06: Use adapter pattern for AI_COACH role (P1-A fix)
     // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing branding
-    // Model config (gemini-3.1-pro-preview, temp=0.7, google_search) is now in model-registry.js
+    // Model config (gemini-pro-latest alias, temp=0.7, google_search) is now in model-registry.js
     try {
       console.log(`[COACH] Calling AI_COACH role via adapter with streaming...`);
 
@@ -1580,7 +1580,7 @@ Full transparency. Maximum insight.
               market_slug: fullContext?.marketSlug || null, // For cross-driver learning
               // 2026-03-18: extractAndSaveTips returns a number, not an object
               extracted_tips: [],
-              model_used: 'gemini-3.1-pro-preview',
+              model_used: 'gemini-pro-latest',
               location_context: fullContext?.snapshot ? {
                 city: fullContext.snapshot.city,
                 state: fullContext.snapshot.state,

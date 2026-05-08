@@ -198,8 +198,9 @@ export async function callModel(role, params) {
     // Same provider, different model. Briefing roles need google_search which only Gemini supports,
     // so cross-provider fallback doesn't work for them.
     // 2026-03-28: Updated fallback from gemini-3.0-pro-preview → gemini-3-pro-preview (verified available)
+    // 2026-05-08: Migrated to gemini-pro-latest alias (server-resolved by Google).
     const is503 = err.message.includes('503') || err.message.includes('UNAVAILABLE');
-    const GEMINI_FALLBACK_MODEL = 'gemini-3-pro-preview';
+    const GEMINI_FALLBACK_MODEL = 'gemini-pro-latest';
     if (is503 && primaryConfig.provider === 'google' && primaryConfig.model !== GEMINI_FALLBACK_MODEL) {
       aiLog.debug(`RETRY ${primaryConfig.role} got 503 on ${primaryConfig.model} - retrying with ${GEMINI_FALLBACK_MODEL}...`);
       try {

@@ -59,7 +59,7 @@ const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(__filename), '..');
 const THREADS_DIR = path.join(REPO_ROOT, '.gemini-threads');
 
-const DEFAULT_MODEL = 'gemini-3.1-pro-preview';
+const DEFAULT_MODEL = 'gemini-pro-latest';
 const DEFAULT_MAX_TOKENS = 8192;
 const DEFAULT_THINK = 'high';
 const VALID_PRO_THINK = ['low', 'high'];
@@ -113,7 +113,7 @@ PROMPT SOURCES
 
 MODEL
   --model <id>            Default: ${DEFAULT_MODEL}
-                          Alternatives: gemini-3-flash-preview (cheap+fast)
+                          Alternatives: gemini-flash-latest (cheap+fast), gemini-flash-lite-latest (cheapest)
   --think <low|med|high>  Thinking level. Pro supports low|high only. Default: ${DEFAULT_THINK}
   --max-tokens <n>        Default: ${DEFAULT_MAX_TOKENS}
   --no-search             Disable Google Search grounding (default: enabled)

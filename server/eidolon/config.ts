@@ -1,17 +1,18 @@
 
 /**
  * Eidolon Enhanced SDK - MAXIMUM CONTEXT & CAPABILITIES
- * Gemini 3 Pro (gemini-3.1-pro-preview) with 1M context window
+ * Gemini Pro (gemini-pro-latest alias, server-resolved) with 1M context window
+ * 2026-05-08: Migrated from pinned gemini-3.1-pro-preview to gemini-pro-latest
  */
 
 export const EIDOLON_CONFIG = {
   version: "8.0.0-unified-max",
-  identity: "Eidolon Unified AI - Complete IDE Integration (Gemini 3 Pro - 1M Context + High Thinking)",
+  identity: "Eidolon Unified AI - Complete IDE Integration (Gemini Pro Latest - 1M Context + High Thinking)",
 
   // UNIFIED MAXIMUM CAPABILITIES - All AI systems have identical access
   capabilities: {
     // Model & Thinking
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-pro-latest",
     context_window: 1000000,
     thinking_mode: "high",
     
@@ -156,9 +157,9 @@ export const EIDOLON_CONFIG = {
     ]
   },
 
-  // Model configuration - Gemini 3 Pro ULTRA-ENHANCED MODE
+  // Model configuration - Gemini Pro Latest ULTRA-ENHANCED MODE (2026-05-08)
   model: {
-    primary: "gemini-3.1-pro-preview",
+    primary: "gemini-pro-latest",
     provider: "google",
     max_tokens: 65536, // MAXIMUM - Full output capacity
     temperature: 0.7, // Optimal for thinking models

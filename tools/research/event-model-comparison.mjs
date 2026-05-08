@@ -109,7 +109,7 @@ async function searchWithGemini(city, state, date, lat, lng) {
   const prompt = buildEventPrompt(city, state, date, lat, lng);
 
   const params = {
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-pro-latest',
     tools: 'google_search',
     temperature: 0.1,
     maxOutputTokens: 16384,

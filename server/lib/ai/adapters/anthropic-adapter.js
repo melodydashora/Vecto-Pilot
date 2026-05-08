@@ -75,7 +75,10 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
  *     beta header. To enable web_fetch, route through the SDK's
  *     `beta.messages.create` or pass the beta header via `defaultHeaders`.
  */
-export async function callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature, jsonMode = true }) {
+// 2026-05-08: jsonMode default changed from true → false. Opus 4.6+ rejects
+// assistant message prefill (the mechanism jsonMode used to force `[` start).
+// Callers needing JSON output should use system-prompt instructions instead.
+export async function callAnthropicWithWebSearch({ model, system, user, maxTokens, temperature, jsonMode = false }) {
   try {
     _aiDebug(`[AI] calling ${model} with web_search tool, max_tokens=${maxTokens}, jsonMode=${jsonMode}`);
 

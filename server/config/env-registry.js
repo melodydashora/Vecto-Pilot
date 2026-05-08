@@ -74,12 +74,12 @@ export const ENV_VARS = {
   // === Strategy Model Configuration ===
   STRATEGY_STRATEGIST: {
     required: false,
-    default: 'claude-opus-4-6',
-    description: 'Model for minstrategy generation',
+    default: 'claude-opus-4-7',
+    description: 'Model for main strategy generation',
   },
   STRATEGY_BRIEFER: {
     required: false,
-    default: 'gemini-3.1-pro-preview',
+    default: 'gemini-pro-latest',
     description: 'Model for briefing (events, traffic, news)',
   },
   STRATEGY_CONSOLIDATOR: {
@@ -89,7 +89,7 @@ export const ENV_VARS = {
   },
   STRATEGY_EVENT_VALIDATOR: {
     required: false,
-    default: 'claude-opus-4-6',
+    default: 'claude-opus-4-7',
     description: 'Model for event validation (with web search)',
   },
   STRATEGY_VENUE_PLANNER: {

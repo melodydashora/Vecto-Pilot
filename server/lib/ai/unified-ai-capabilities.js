@@ -6,8 +6,9 @@
  */
 
 export const UNIFIED_CAPABILITIES = {
-  // Model Configuration - All systems use Claude Opus 4.6
-  model: "claude-opus-4-6",
+  // 2026-05-08: Upgraded to Claude Opus 4.7 (max). Capability declaration only —
+  // active routing is in server/lib/ai/model-registry.js per Rule 14.
+  model: "claude-opus-4-7",
   context_window: 200000,
   thinking_mode: "ultra-deep",
   
