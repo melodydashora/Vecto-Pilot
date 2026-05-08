@@ -17,37 +17,6 @@ build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
 run = ["sh", "-c", "node gateway-server.js"]
 deploymentTarget = "cloudrun"
 
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Run App"
-
-[[workflows.workflow]]
-name = "Run App"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\""
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[agent]
-integrations = ["perplexity_v0:1.0.0"]
-expertMode = true
 # System prompt for Replit IDE Assistant
 system_prompt = """
 You are Replit Assistant Enhanced. You have FULL shell execution capabilities.
@@ -61,20 +30,9 @@ web_search = true
 web_fetch = true
 shell_exec = true
 
-[userenv]
+[[ports]]
+localPort = 5000
+externalPort = 80
 
-[userenv.shared]
-# ==========================
-# AI Model Configuration
-# ==========================
-# 2026-02-13: ALL model defaults are in server/lib/ai/model-registry.js
-# DO NOT override models here — the codebase is the single source of truth.
-# Replit env vars should ONLY contain API keys and secrets, not model selections.
-#
-# See model-registry.js for the authoritative model configuration:
-#   Anthropic: claude-opus-4-6 (strategy, discovery) / claude-haiku-4-5-20251001 (bar filter)
-#   Google:    gemini-3.1-pro-preview (briefing, events, coach, concierge)
-#   OpenAI:    gpt-5.2 (consolidator, venue scorer, parsing)
-# ==========================
-
-[userenv.development]
+[agent]
+expertMode = true
