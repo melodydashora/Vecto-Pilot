@@ -17,6 +17,25 @@ build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
 run = ["sh", "-c", "node gateway-server.js"]
 deploymentTarget = "cloudrun"
 
+# Run button workflow: single sequential task that starts the gateway.
+# Replaces the previous parallel-with-broken-reference setup that fired
+# `workflow.run "Run App"` (undefined name) alongside the actual shell.exec.
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "sequential"
+author = "user"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\""
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
 # System prompt for Replit IDE Assistant
 system_prompt = """
 You are Replit Assistant Enhanced. You have FULL shell execution capabilities.
