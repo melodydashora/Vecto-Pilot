@@ -356,7 +356,8 @@
       "Read(//proc/2/**)",
       "Bash(mv \"Pasted-First-let-me-try-using-web-search-through-the-Anthropic_1765396332105.txt\" \"2025-12-09-prior-assistant-override-rationale-and-deprecation-context.txt\")",
       "Bash(mv \"Pasted--Vecto-Pilot-Co-Pilot-Real-time-AI-powered-staging-loca_1766623933571.txt\" \"2025-12-25-CoPilot-pre-refactor-monolith-snapshot.txt\")",
-      "Bash(<div\" client/src/components/MapTab.tsx 2>/dev/null | head -15)"
+      "Bash(<div\" client/src/components/MapTab.tsx 2>/dev/null | head -15)",
+      "Bash(kill -TERM 41765)"
     ],
     "deny": [],
     "ask": []
