@@ -14,18 +14,22 @@ function _aiDebug(...args) {
 }
 
 /**
- * 2026-02-15: F-002 fix — Validate and normalize thinkingLevel for Gemini 3 models.
- * Gemini 3 Pro only supports LOW and HIGH (MEDIUM causes 400 errors).
- * Gemini 3 Flash supports LOW, MEDIUM, and HIGH.
+ * 2026-02-15: F-002 fix — Validate and normalize thinkingLevel for Gemini models.
+ * Pro models only support LOW and HIGH (MEDIUM causes 400 errors).
+ * Flash models support LOW, MEDIUM, and HIGH.
+ * 2026-05-08: Predicate broadened from 'gemini-3' to 'gemini-' so the new
+ * server-resolved aliases (gemini-pro-latest, gemini-flash-latest,
+ * gemini-flash-lite-latest) also route through validation. Without this fix
+ * the new aliases would skip validation entirely and 400 on MEDIUM-against-Pro.
  * Returns the validated level in UPPERCASE for consistency; callers
  * convert to lowercase for the SDK or keep uppercase for REST API.
  *
- * @param {string} model - The Gemini model name (e.g. "gemini-3.1-pro-preview")
+ * @param {string} model - The Gemini model name (e.g. "gemini-pro-latest", "gemini-flash-latest")
  * @param {string|null} thinkingLevel - Requested thinking level
  * @returns {string|null} Validated thinking level (UPPERCASE) or null if disabled
  */
 function validateThinkingLevel(model, thinkingLevel) {
-  if (!thinkingLevel || !model.includes('gemini-3')) return null;
+  if (!thinkingLevel || !model.includes('gemini-')) return null;
 
   const normalized = thinkingLevel.toUpperCase();
 

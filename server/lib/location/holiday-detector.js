@@ -423,7 +423,7 @@ export async function detectHoliday(context) {
 
   try {
     // 2026-02-13: Uses BRIEFING_HOLIDAY role via callModel adapter (hedged router + fallback)
-    // Registry config: gemini-3.1-pro-preview, thinkingLevel HIGH, google_search enabled
+    // Registry config: gemini-pro-latest, thinkingLevel HIGH, google_search enabled
     const response = await callModel('BRIEFING_HOLIDAY', {
       user: prompt
     });

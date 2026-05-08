@@ -78,8 +78,8 @@ fetch('/agent/memory/preference', {
   body: JSON.stringify({
     key: 'ai_model_preferences',
     value: {
-      strategist: 'claude-opus-4-6',
-      briefer: 'gemini-3-pro-preview',
+      strategist: 'claude-opus-4-7',
+      briefer: 'gemini-pro-latest',
       consolidator: 'gpt-5.2'
     },
     userId: 'system'
@@ -176,8 +176,8 @@ Key decisions that should always be in memory:
 ```
 Key: decision_ai_models
 Content: Use callModel() adapter, never direct API calls.
-- Strategist: claude-opus-4-6
-- Briefer: gemini-3-pro-preview
+- Strategist: claude-opus-4-7
+- Briefer: gemini-pro-latest
 - Consolidator: gpt-5.2 (reasoning_effort: "medium", max_completion_tokens: 32000)
 Tags: [decision, ai, models]
 ```

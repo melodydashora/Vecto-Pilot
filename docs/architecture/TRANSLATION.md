@@ -85,7 +85,7 @@ Driver speaks English          Rider speaks Spanish
 - Text >2000 chars → 400
 - Translation failure → 500
 
-**Model:** `UTIL_TRANSLATION` → `gemini-3.1-flash-lite-preview` | maxTokens: 512 | temp: 0.1
+**Model:** `UTIL_TRANSLATION` → `gemini-flash-lite-latest` | maxTokens: 512 | temp: 0.1
 
 ### Language List Endpoint
 

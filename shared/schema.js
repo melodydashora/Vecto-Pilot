@@ -1403,7 +1403,7 @@ export const coach_conversations = pgTable("coach_conversations", {
   // Token usage (for cost tracking)
   tokens_in: integer("tokens_in"),
   tokens_out: integer("tokens_out"),
-  model_used: text("model_used"), // 'claude-opus-4.5', 'gpt-5.2', etc.
+  model_used: text("model_used"), // 'claude-opus-4-7', 'gpt-5.5-2026-04-23', 'gemini-pro-latest', etc.
 
   // Status
   is_edited: boolean("is_edited").default(false), // Was this message edited?

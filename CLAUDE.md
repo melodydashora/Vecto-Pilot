@@ -403,10 +403,10 @@ GOOGLE_MAPS_API_KEY=...    # Places, Routes, Weather
 
 ### Model Configuration
 ```bash
-STRATEGY_STRATEGIST=claude-opus-4-5-20251101
-STRATEGY_BRIEFER=gemini-3-pro-preview
-STRATEGY_CONSOLIDATOR=gpt-5.2
-STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101
+STRATEGY_STRATEGIST=claude-opus-4-7
+STRATEGY_BRIEFER=gemini-pro-latest
+STRATEGY_CONSOLIDATOR=gpt-5.5-2026-04-23
+STRATEGY_EVENT_VALIDATOR=claude-opus-4-7
 ```
 
 ---

@@ -155,8 +155,8 @@ Key decisions that should always be in memory:
 ```
 Key: decision_ai_models
 Content: Use callModel() adapter, never direct API calls.
-- Strategist: claude-opus-4-6
-- Briefer: gemini-3-pro-preview
+- Strategist: claude-opus-4-7
+- Briefer: gemini-pro-latest
 - Consolidator: gpt-5.2 (reasoning_effort: "medium", max_completion_tokens: 32000)
 Tags: [decision, ai, models]
 ```

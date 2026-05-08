@@ -75,7 +75,7 @@ To change a role's model:
 ```javascript
 // In MODEL_ROLES:
 STRATEGY_TACTICAL: {
-  default: 'claude-opus-4-6',  // ← Change this
+  default: 'claude-opus-4-7',  // ← Change this
   purpose: '1-hour tactical',
   maxTokens: 16000,
   temperature: 0.5

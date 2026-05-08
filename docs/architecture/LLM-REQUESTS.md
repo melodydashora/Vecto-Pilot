@@ -42,7 +42,7 @@ callModelStream(role, params)  // Streaming (returns SSE-style chunks)
 callModel('STRATEGY_TACTICAL', { system, user })
   │
   ├─ 1. Look up role in model-registry.js → get model config
-  │     { model: 'claude-opus-4-6', provider: 'anthropic', features: [...] }
+  │     { model: 'claude-opus-4-7', provider: 'anthropic', features: [...] }
   │
   ├─ 2. Select adapter based on provider
   │     ├─ 'anthropic' → anthropic-adapter.js
@@ -85,22 +85,22 @@ Provides cross-provider fallback:
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `BRIEFING_WEATHER` | gemini-3.1-pro-preview | search | Weather analysis |
-| `BRIEFING_TRAFFIC` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | Traffic consolidation |
-| `BRIEFING_NEWS` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | Rideshare news |
-| `BRIEFING_EVENTS_DISCOVERY` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | Event discovery |
-| `BRIEFING_SCHOOLS` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | School closures |
-| `BRIEFING_AIRPORT` | gemini-3.1-pro-preview | search | Airport conditions |
-| `BRIEFING_HOLIDAY` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | Holiday detection |
-| `BRIEFING_FALLBACK` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | Fallback for failed calls |
+| `BRIEFING_WEATHER` | gemini-pro-latest | search | Weather analysis |
+| `BRIEFING_TRAFFIC` | gemini-pro-latest | search, thinkingLevel=HIGH | Traffic consolidation |
+| `BRIEFING_NEWS` | gemini-pro-latest | search, thinkingLevel=HIGH | Rideshare news |
+| `BRIEFING_EVENTS_DISCOVERY` | gemini-pro-latest | search, thinkingLevel=HIGH | Event discovery |
+| `BRIEFING_SCHOOLS` | gemini-pro-latest | search, thinkingLevel=HIGH | School closures |
+| `BRIEFING_AIRPORT` | gemini-pro-latest | search | Airport conditions |
+| `BRIEFING_HOLIDAY` | gemini-pro-latest | search, thinkingLevel=HIGH | Holiday detection |
+| `BRIEFING_FALLBACK` | gemini-pro-latest | search, thinkingLevel=HIGH | Fallback for failed calls |
 
 #### Strategy Roles
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `STRATEGY_CORE` | claude-opus-4-6 | — | Core strategic plan |
-| `STRATEGY_CONTEXT` | gemini-3.1-pro-preview | search, thinkingLevel=HIGH | Real-time context gathering |
-| `STRATEGY_TACTICAL` | claude-opus-4-6 | — | 1-hour tactical consolidation |
+| `STRATEGY_CORE` | claude-opus-4-7 | — | Core strategic plan |
+| `STRATEGY_CONTEXT` | gemini-pro-latest | search, thinkingLevel=HIGH | Real-time context gathering |
+| `STRATEGY_TACTICAL` | claude-opus-4-7 | — | 1-hour tactical consolidation |
 
 #### Venue/Ranking Roles
 
@@ -108,36 +108,36 @@ Provides cross-provider fallback:
 |------|-------|----------|---------|
 | `VENUE_SCORER` | OpenAI (GPT-5 reasoning) — see registry | reasoningEffort=medium | Venue scoring |
 | `VENUE_FILTER` | claude-haiku-4-5-20251001 | — | Fast venue classification |
-| `VENUE_TRAFFIC` | gemini-3.1-pro-preview | — | Venue traffic analysis |
-| `VENUE_EVENT_VERIFIER` | gemini-3.1-pro-preview | — | Event verification |
+| `VENUE_TRAFFIC` | gemini-pro-latest | — | Venue traffic analysis |
+| `VENUE_EVENT_VERIFIER` | gemini-pro-latest | — | Event verification |
 
 #### Coach/Conversation
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `AI_COACH` | gemini-3.1-pro-preview | streaming, search, vision, OCR | Rideshare Coach chat |
+| `AI_COACH` | gemini-pro-latest | streaming, search, vision, OCR | Rideshare Coach chat |
 
 #### Concierge
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `CONCIERGE_SEARCH` | gemini-3.1-pro-preview | search, thinkingLevel=LOW | Venue/event search |
-| `CONCIERGE_CHAT` | gemini-3.1-pro-preview | search, thinkingLevel=LOW | Public Q&A |
+| `CONCIERGE_SEARCH` | gemini-pro-latest | search, thinkingLevel=LOW | Venue/event search |
+| `CONCIERGE_CHAT` | gemini-pro-latest | search, thinkingLevel=LOW | Public Q&A |
 
 #### Utilities
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `UTIL_TRANSLATION` | gemini-3.1-flash-lite-preview | — | Driver-rider translation |
-| `UTIL_RESEARCH` | gemini-3.1-pro-preview | search | General research |
+| `UTIL_TRANSLATION` | gemini-flash-lite-latest | — | Driver-rider translation |
+| `UTIL_RESEARCH` | gemini-pro-latest | search | General research |
 | `UTIL_MARKET_PARSER` | OpenAI (GPT-5 reasoning) — see registry | reasoningEffort=low | Market data parsing |
 
 #### Offer Analysis
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `OFFER_ANALYZER` | gemini-3-flash-preview | vision | Phase 1: <2s rapid decision |
-| `OFFER_ANALYZER_DEEP` | gemini-3.1-pro-preview | thinkingLevel=LOW | Phase 2: async enrichment |
+| `OFFER_ANALYZER` | gemini-flash-latest | vision | Phase 1: <2s rapid decision |
+| `OFFER_ANALYZER_DEEP` | gemini-pro-latest | thinkingLevel=LOW | Phase 2: async enrichment |
 
 ### Override Env Vars
 
@@ -238,12 +238,12 @@ All briefing LLM calls are made during `generateAndStoreBriefing()`, triggered b
 
 | Data Source | Role | Model | File Line | Features |
 |-------------|------|-------|-----------|----------|
-| Traffic analysis | `BRIEFING_TRAFFIC` | gemini-3.1-pro-preview | 495 | search, thinking=HIGH |
-| News discovery | `BRIEFING_FALLBACK` / `BRIEFING_NEWS` | gemini-3.1-pro-preview | 542, 2256 | web_search (Claude) / search (Gemini) |
-| Event discovery (×2) | `BRIEFING_EVENTS_DISCOVERY` | gemini-3.1-pro-preview | 995, 1166 | search, thinking=HIGH |
-| School closures | `BRIEFING_SCHOOLS` | gemini-3.1-pro-preview | 1753 | search, thinking=HIGH |
-| Airport conditions | `BRIEFING_AIRPORT` | gemini-3.1-pro-preview | 2126 | search |
-| Holiday detection | `BRIEFING_HOLIDAY` | gemini-3.1-pro-preview | N/A | search, thinking=HIGH |
+| Traffic analysis | `BRIEFING_TRAFFIC` | gemini-pro-latest | 495 | search, thinking=HIGH |
+| News discovery | `BRIEFING_FALLBACK` / `BRIEFING_NEWS` | gemini-pro-latest | 542, 2256 | web_search (Claude) / search (Gemini) |
+| Event discovery (×2) | `BRIEFING_EVENTS_DISCOVERY` | gemini-pro-latest | 995, 1166 | search, thinking=HIGH |
+| School closures | `BRIEFING_SCHOOLS` | gemini-pro-latest | 1753 | search, thinking=HIGH |
+| Airport conditions | `BRIEFING_AIRPORT` | gemini-pro-latest | 2126 | search |
+| Holiday detection | `BRIEFING_HOLIDAY` | gemini-pro-latest | N/A | search, thinking=HIGH |
 
 **Non-LLM data sources in the briefing:**
 - Weather: Google Weather API (direct HTTP, no LLM)

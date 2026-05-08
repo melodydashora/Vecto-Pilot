@@ -149,7 +149,7 @@ Tier drives which prompt template, rule set, and fallback thresholds apply. Dete
 ## 4. Phase 1 — Synchronous Analysis (Gemini Flash)
 
 **Source:** `server/api/hooks/analyze-offer.js` lines 227–439
-**Model role:** `OFFER_ANALYZER` → `gemini-3-flash-preview` (default)
+**Model role:** `OFFER_ANALYZER` → `gemini-flash-latest` (default)
 **Registry config:** `server/lib/ai/model-registry.js:328` — `maxTokens: 1024`, `temperature: 0.1`, `features: ['vision']`, no thinking level
 
 ### 4.1 Control Flow
@@ -225,7 +225,7 @@ REJECT. Share rides always rejected.
 ## 5. Phase 2 — Asynchronous Deep Analysis (Gemini Pro)
 
 **Source:** `analyze-offer.js:456–657`
-**Model role:** `OFFER_ANALYZER_DEEP` → `gemini-3.1-pro-preview`
+**Model role:** `OFFER_ANALYZER_DEEP` → `gemini-pro-latest`
 **Registry config:** `model-registry.js:341` — `maxTokens: 2048`, `temperature: 0.2`, `thinkingLevel: 'LOW'`, `features: ['vision']`
 **Timeout:** 45 seconds, enforced via `Promise.race` (the Gemini SDK has no built-in timeout).
 

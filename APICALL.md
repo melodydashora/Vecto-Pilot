@@ -71,7 +71,7 @@
   - [server/eidolon/core/llm.ts](/server/eidolon/core/llm.ts)
 - **Endpoints**: `https://api.anthropic.com/v1/messages`
 - **Models**:
-  - `claude-opus-4-6` (primary — STRATEGY_CORE, STRATEGY_TACTICAL)
+  - `claude-opus-4-7` (primary — STRATEGY_CORE, STRATEGY_TACTICAL)
 - **Purpose**: Strategic analysis and planning
 - **UI Location**: StrategyPage strategy display
 
@@ -91,8 +91,8 @@
   - [server/lib/ai/providers/](/server/lib/ai/providers/)
 - **Endpoints**: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
 - **Models**:
-  - `gemini-3.1-pro-preview` (primary — 9 BRIEFING_* roles, COACH_CHAT, DOCS_GENERATOR)
-  - `gemini-3-flash-preview` (fallback, low-cost tasks)
+  - `gemini-pro-latest` (primary — 9 BRIEFING_* roles, COACH_CHAT, DOCS_GENERATOR)
+  - `gemini-flash-latest` (fallback, low-cost tasks)
 - **Purpose**: News briefing, event discovery, traffic analysis, coach chat, docs generation
 - **UI Location**: BriefingTab (news, traffic, events sections), AICoach, SmartBlocks
 

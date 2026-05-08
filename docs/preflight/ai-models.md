@@ -23,7 +23,7 @@ Roles use the `{TABLE}_{FUNCTION}` convention, mapping to their downstream data 
 Each role in `MODEL_ROLES` defines:
 
 *   **envKey**: Environment variable override for model ID.
-*   **default**: Model version (e.g., `gemini-3.1-pro-preview`).
+*   **default**: Model version (e.g., `gemini-pro-latest`).
 *   **purpose**: Task description and output goals.
 *   **maxTokens**: Output token limit.
 *   **temperature**: Creativity (0.0-1.0). Not supported on GPT-5.2/o1.

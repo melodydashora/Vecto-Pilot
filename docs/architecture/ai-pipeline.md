@@ -200,7 +200,7 @@ Claude Opus 4.5 with web search serves as automatic fallback when primary models
 ```javascript
 // Standard Anthropic format
 {
-  model: "claude-opus-4-5-20251101",
+  model: "claude-opus-4-7",
   max_tokens: 8000,
   temperature: 0.3
 }
@@ -210,11 +210,11 @@ Claude Opus 4.5 with web search serves as automatic fallback when primary models
 
 ```bash
 # Model configuration
-STRATEGY_STRATEGIST=claude-opus-4-5-20251101
-STRATEGY_BRIEFER=gemini-3-pro-preview
+STRATEGY_STRATEGIST=claude-opus-4-7
+STRATEGY_BRIEFER=gemini-pro-latest
 STRATEGY_CONSOLIDATOR=gpt-5.2
-STRATEGY_HOLIDAY_CHECKER=gemini-3-pro-preview
-STRATEGY_EVENT_VALIDATOR=claude-opus-4-5-20251101  # Event validation with web search
+STRATEGY_HOLIDAY_CHECKER=gemini-pro-latest
+STRATEGY_EVENT_VALIDATOR=claude-opus-4-7  # Event validation with web search
 
 # API keys
 ANTHROPIC_API_KEY=...

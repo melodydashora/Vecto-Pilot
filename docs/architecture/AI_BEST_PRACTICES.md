@@ -166,7 +166,7 @@ Primary and fallback execute concurrently. First success wins.
 
 ### Same-Provider Fallback
 
-Gemini 503 → try previous generation (e.g., `gemini-3.1-pro-preview` → `gemini-3-pro-preview`).
+Gemini 503 → try previous generation (e.g., `gemini-pro-latest` → `gemini-pro-latest`).
 
 ### No Fallback (Excluded)
 

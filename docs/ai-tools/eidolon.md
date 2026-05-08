@@ -44,7 +44,7 @@ eidolon/
 The `EIDOLON_CONFIG` object defines the core identity, model parameters, and unified capabilities of the Eidolon AI system.
 
 - **Version:** `8.0.0-unified-max`
-- **Model:** `gemini-3.1-pro-preview`
+- **Model:** `gemini-pro-latest`
 - **Context Window:** 1,000,000 tokens
 - **Thinking Mode:** `high`
 - **Access Level:** Complete IDE Integration with full root access, bypassing the standard assistant entirely.
@@ -98,7 +98,7 @@ import { LLMClient, llmPlan } from './core/llm';
 // Basic Chat
 const client = new LLMClient({
   apiKey: process.env.GEMINI_API_KEY,
-  model: 'gemini-3.1-pro-preview',
+  model: 'gemini-pro-latest',
   maxTokens: 1000000,
   temperature: 0.1,
   thinkingMode: 'high'

@@ -32,7 +32,7 @@
  *   node scripts/ask-gemini.mjs --reset refactor-auth
  *
  * Defaults:
- *   --model gemini-3.1-pro-preview
+ *   --model gemini-pro-latest
  *   --think high           (Pro supports low|high only)
  *   --max-tokens 8192
  *   Google Search: ENABLED  (disable with --no-search)

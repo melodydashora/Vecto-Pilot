@@ -362,11 +362,11 @@ iOS Device                      Vecto Server                    Database
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google Gemini 3.0 Pro + Search (Events, Traffic, News, Coach)  │   │
 │  │ • File: server/lib/ai/adapters/gemini-adapter.js                │   │
-│  │ • Rideshare Coach: gemini-3.1-pro-preview (streaming, vision, search)  │   │
+│  │ • Rideshare Coach: gemini-pro-latest (streaming, vision, search)  │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google Gemini 3.0 Flash (Offer Analysis — Vision)              │   │
-│  │ • Role: OFFER_ANALYZER (gemini-3-flash-preview)                 │   │
+│  │ • Role: OFFER_ANALYZER (gemini-flash-latest)                 │   │
 │  │ • SDK: @google/genai (API key auth, NOT Vertex AI)              │   │
 │  │ • Extracts ride offer data from screenshots (<3s response)      │   │
 │  │ • Fallback: GPT-5.2 if Google is down                          │   │

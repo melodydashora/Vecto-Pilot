@@ -251,7 +251,7 @@ Examples:
   node scripts/memory-cli.mjs stats
   node scripts/memory-cli.mjs list 5
   node scripts/memory-cli.mjs log "Router Refactor" "Completed React Router migration"
-  node scripts/memory-cli.mjs pref ai_models '{"strategist":"claude-opus-4-5"}'
+  node scripts/memory-cli.mjs pref ai_models '{"strategist":"claude-opus-4-7"}'
   node scripts/memory-cli.mjs session current_task "Working on memory integration"
 
 Environment:

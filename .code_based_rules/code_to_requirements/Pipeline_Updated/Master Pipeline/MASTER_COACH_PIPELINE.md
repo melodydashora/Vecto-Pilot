@@ -379,7 +379,7 @@ Melody: **which of R1–R4 (or a different definition) did you mean?** If multip
 
 ## 11. ❓ DECIDE — Token-Budget Options (Melody has not considered this)
 
-**Important framing:** AI_COACH (`model-registry.js:193-203`) uses `gemini-3.1-pro-preview` with `maxTokens: 8192` (output cap) on a model with **1M-token input context window**. The risk is **not** "exceeding the input context window" — that almost can't happen. The real risks are:
+**Important framing:** AI_COACH (`model-registry.js:193-203`) uses `gemini-pro-latest` with `maxTokens: 8192` (output cap) on a model with **1M-token input context window**. The risk is **not** "exceeding the input context window" — that almost can't happen. The real risks are:
 
 1. **Cost** — every turn re-injects the full ~358-line `formatContextForPrompt` output (§6) + full thread history. Estimated ~30-60K input tokens per turn currently. Cost scales linearly per token per driver per turn.
 2. **Latency** — Gemini ingests the full prompt before producing the first token. Bigger prompt = slower time-to-first-audio in hands-free mode.

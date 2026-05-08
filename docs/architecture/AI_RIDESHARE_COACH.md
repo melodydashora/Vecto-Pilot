@@ -256,7 +256,7 @@ Each action validated via Zod schemas in `server/api/coach/validate.js` (428 lin
 | `role` | text | 'user' / 'assistant' |
 | `content` | text | Message body |
 | `content_type` | text | 'text' / 'text+attachment' / 'image' / 'audio' |
-| `model_used` | text | e.g., 'gemini-3.1-pro-preview' |
+| `model_used` | text | e.g., 'gemini-pro-latest' |
 | `market_slug` | text | For cross-driver learning |
 | `location_context` | json | {city, state, country} |
 | `time_context` | json | {local_time, daypart} |

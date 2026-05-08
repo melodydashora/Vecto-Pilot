@@ -133,15 +133,15 @@ Fallback-enabled roles: `STRATEGY_TACTICAL`, `STRATEGY_CONTEXT`, `STRATEGY_DAILY
 
 ```bash
 # Role → Model mapping (new {TABLE}_{FUNCTION} convention)
-STRATEGY_CORE_MODEL=claude-opus-4-5-20251101
-STRATEGY_CONTEXT_MODEL=gemini-3-pro-preview
+STRATEGY_CORE_MODEL=claude-opus-4-7
+STRATEGY_CONTEXT_MODEL=gemini-pro-latest
 STRATEGY_TACTICAL_MODEL=gpt-5.2
-STRATEGY_DAILY_MODEL=gemini-3-pro-preview
-BRIEFING_EVENTS_MODEL=gemini-3-pro-preview
-BRIEFING_VALIDATOR_MODEL=claude-opus-4-5-20251101
+STRATEGY_DAILY_MODEL=gemini-pro-latest
+BRIEFING_EVENTS_MODEL=gemini-pro-latest
+BRIEFING_VALIDATOR_MODEL=claude-opus-4-7
 VENUE_SCORER_MODEL=gpt-5.2
 VENUE_FILTER_MODEL=claude-3-5-haiku-20241022
-COACH_CHAT_MODEL=gemini-3-pro-preview
+COACH_CHAT_MODEL=gemini-pro-latest
 ```
 
 ## Legacy Role Mapping

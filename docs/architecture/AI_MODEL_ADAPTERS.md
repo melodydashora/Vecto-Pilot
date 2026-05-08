@@ -28,7 +28,7 @@
 ```
 callModel('STRATEGY_TACTICAL', { system, user })
   │
-  ├─ model-registry.js → { model: 'claude-opus-4-6', maxTokens: 16000, temp: 0.5 }
+  ├─ model-registry.js → { model: 'claude-opus-4-7', maxTokens: 16000, temp: 0.5 }
   │
   ├─ adapters/index.js → Route by provider prefix:
   │   ├─ 'claude-*' → anthropic-adapter.js
@@ -37,7 +37,7 @@ callModel('STRATEGY_TACTICAL', { system, user })
   │   └─ 'vertex-*' → vertex-adapter.js (optional)
   │
   ├─ HedgedRouter (if fallback enabled):
-  │   ├─ Primary: claude-opus-4-6 via Anthropic
+  │   ├─ Primary: claude-opus-4-7 via Anthropic
   │   └─ Fallback: gemini-3.1-flash via Gemini (if primary fails)
   │
   └─ Return { ok, output, provider, latencyMs, citations }
