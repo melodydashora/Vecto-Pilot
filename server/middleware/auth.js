@@ -33,39 +33,56 @@ const AGENT_SECRET_HEADER = 'x-vecto-agent-secret';
  * Returns null if no agent auth attempted or invalid secret.
  */
 function validateAgentAuth(req) {
-  const agentSecret = req.headers[AGENT_SECRET_HEADER];
+  // 2026-05-08: Two parallel Service Account paths.
+  //   - x-vecto-agent-secret (existing) → VECTO_AGENT_SECRET
+  //   - x-claude-bridge-token (new)     → CLAUDE_BRIDGE_TOKEN
+  // Both grant identical access; separation exists so Claude's bridge token can be
+  // rotated as a kill-switch without disturbing other Service Account consumers
+  // (MCP env, infra health checks). See docs/architecture/agent-bridge.md.
+  const presented =
+    req.headers[AGENT_SECRET_HEADER] ||
+    req.headers['x-claude-bridge-token'];
+  const headerName = req.headers[AGENT_SECRET_HEADER]
+    ? AGENT_SECRET_HEADER
+    : (req.headers['x-claude-bridge-token'] ? 'x-claude-bridge-token' : null);
 
   // No agent auth attempted
-  if (!agentSecret) return null;
+  if (!presented) return null;
 
-  const expectedSecret = process.env.VECTO_AGENT_SECRET;
+  const expectedSecret = headerName === 'x-claude-bridge-token'
+    ? process.env.CLAUDE_BRIDGE_TOKEN
+    : process.env.VECTO_AGENT_SECRET;
 
   // 2026-03-17: SECURITY FIX (F-7) — Reject agent auth in ALL environments
-  // when VECTO_AGENT_SECRET is not configured. Previously dev mode accepted
+  // when the corresponding env var is not configured. Previously dev mode accepted
   // any header value, granting full system access without validation.
   if (!expectedSecret) {
-    authLog.error(1, 'Agent auth attempted but VECTO_AGENT_SECRET not configured — set this env var');
+    authLog.error(1, `Agent auth attempted via ${headerName} but corresponding env var not configured`);
     return null;
   }
 
   // Constant-time comparison to prevent timing attacks
-  if (agentSecret.length !== expectedSecret.length) {
-    authLog.warn(1, 'Agent auth failed: secret length mismatch');
+  if (presented.length !== expectedSecret.length) {
+    authLog.warn(1, `Agent auth failed (${headerName}): secret length mismatch`);
     return null;
   }
 
   const isValid = crypto.timingSafeEqual(
-    Buffer.from(agentSecret),
+    Buffer.from(presented),
     Buffer.from(expectedSecret)
   );
 
   if (!isValid) {
-    authLog.warn(1, 'Agent auth failed: invalid secret');
+    authLog.warn(1, `Agent auth failed (${headerName}): invalid secret`);
     return null;
   }
 
-  authLog.info(1, `Agent authenticated as system user ${SYSTEM_AGENT_USER_ID.slice(0, 8)}`);
-  return SYSTEM_AGENT_USER_ID;
+  // 2026-05-08: Return tokenSource for per-token audit logging.
+  // Downstream handlers (e.g. server/agent/bridge.js) read req.auth.tokenSource
+  // to distinguish CLAUDE_BRIDGE_TOKEN traffic from VECTO_AGENT_SECRET traffic.
+  const tokenSource = headerName === 'x-claude-bridge-token' ? 'claude-bridge' : 'vecto-secret';
+  authLog.info(1, `Agent authenticated as system user ${SYSTEM_AGENT_USER_ID.slice(0, 8)} via ${tokenSource}`);
+  return { userId: SYSTEM_AGENT_USER_ID, tokenSource };
 }
 
 // 2026-05-03: AUTH-003 dual-verify dispatcher.
@@ -134,14 +151,15 @@ export async function requireAuth(req, res, next) {
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 1: Check for Agent/Service Account auth (takes priority)
     // ═══════════════════════════════════════════════════════════════════════════
-    const agentUserId = validateAgentAuth(req);
-    if (agentUserId) {
+    const agentAuth = validateAgentAuth(req);
+    if (agentAuth) {
       // Agent authenticated - bypass session checks, use system user ID
       req.auth = {
-        userId: agentUserId,
-        isAgent: true,           // Flag for downstream handlers
-        sessionId: null,         // Agents don't have sessions
-        currentSnapshotId: null, // Agents don't have current snapshot
+        userId: agentAuth.userId,
+        isAgent: true,                       // Flag for downstream handlers
+        tokenSource: agentAuth.tokenSource,  // 2026-05-08: 'vecto-secret' or 'claude-bridge'
+        sessionId: null,                     // Agents don't have sessions
+        currentSnapshotId: null,             // Agents don't have current snapshot
         phantom: false
       };
       return next();

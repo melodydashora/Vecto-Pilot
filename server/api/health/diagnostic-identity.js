@@ -43,8 +43,6 @@ router.get('/identity', requireAuth, (req, res) => {
     overrides: {
       ai_coach_active: process.env.AI_COACH_TOKEN ? 'ENABLED' : 'DISABLED',
       agent_shell_whitelist: process.env.AGENT_SHELL_WHITELIST || 'restricted',
-      disable_spawn_sdk: process.env.DISABLE_SPAWN_SDK === '1',
-      disable_spawn_agent: process.env.DISABLE_SPAWN_AGENT === '1',
     },
     
     // Request context

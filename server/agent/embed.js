@@ -2,6 +2,7 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import agentRoutes from './routes.js';
 import { requireAuth } from '../middleware/auth.js';
+import { proxyToStandaloneAgent } from './bridge.js';
 
 // 2026-01-06: Security - IP allowlist check for agent routes
 // 2026-01-07: SECURITY FIX - Block '*' wildcard in production (was defeating IP protection)
@@ -141,6 +142,13 @@ export function mountAgent({ app, basePath, wsPath, server }) {
       mode: 'embedded'
     });
   });
+
+  // 2026-05-08: Bridge — catch-all proxy to standalone agent-server.js (port 43717).
+  // Mounted AFTER agentRoutes + explicit health/capabilities so this only fires for
+  // unmatched /agent/* paths (fs/shell/sql/search-internet/etc.). The earlier app.use
+  // at line ~114 already ran checkAgentAllowlist + requireAuth, populating req.auth,
+  // so we don't re-run them here. See docs/architecture/agent-bridge.md.
+  app.use(basePath, proxyToStandaloneAgent);
 
   // Minimal WebSocket server for agent communication
   const wss = new WebSocketServer({ 

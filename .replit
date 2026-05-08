@@ -17,21 +17,29 @@ build = ["sh", "-c", "npm ci --omit=dev && npm run build:client"]
 run = ["sh", "-c", "node gateway-server.js"]
 deploymentTarget = "cloudrun"
 
-# Run button workflow: single sequential task that starts the gateway.
-# Replaces the previous parallel-with-broken-reference setup that fired
-# `workflow.run "Run App"` (undefined name) alongside the actual shell.exec.
+# Run button workflow: Project + Run App in parallel.
+# - Project task: starts the gateway (port 5000) — webview attaches here.
+# - Run App task: starts the standalone agent server on AGENT_PORT (43717,
+#   from .env.local) so the remote MCP env connects to a STABLE pinned port
+#   instead of whatever Replit assigns. DISABLE_SPAWN_AGENT=1 in .env.local
+#   means the gateway does not spawn the agent itself, so we run it here.
 [workflows]
 runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
-mode = "sequential"
+mode = "parallel"
 author = "user"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\""
 waitForPort = 5000
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sh -c \"set -a && . ./.env.local && set +a && node agent-server.js\""
+waitForPort = 43717
 
 [workflows.workflow.metadata]
 outputType = "webview"
@@ -77,10 +85,3 @@ externalPort = 3001
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 24282
-
-[[ports]]
-localPort = 62789
-externalPort = 3000
