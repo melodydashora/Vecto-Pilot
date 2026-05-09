@@ -361,7 +361,14 @@
       "Bash(dir)",
       "Read(//home/**)",
       "Bash(ps -u runner --no-headers)",
-      "Bash(ps -u runner -o pid,ppid,rss,etime,comm,args --sort=-rss --no-headers)"
+      "Bash(ps -u runner -o pid,ppid,rss,etime,comm,args --sort=-rss --no-headers)",
+      "Bash(sed -n '25,50p' server/api/concierge/concierge.js)",
+      "Bash(sed -n '150,165p' server/api/concierge/concierge.js)",
+      "Bash(sed -n '22,32p' server/agent/agent-override-llm.js)",
+      "Bash(sed -n '438,446p' server/api/health/diagnostics.js)",
+      "Bash(sed -n '608,615p' server/api/health/diagnostics.js)",
+      "Bash(sed -n '160,170p' server/eidolon/config.ts)",
+      "Bash(sed -n '38,48p' server/eidolon/core/llm.ts)"
     ],
     "deny": [],
     "ask": []
