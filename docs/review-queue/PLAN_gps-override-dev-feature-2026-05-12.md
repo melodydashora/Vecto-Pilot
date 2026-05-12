@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-12
 **Author:** Claude (Opus 4.7) + Melody
-**Status:** PENDING APPROVAL (Rule 1 — awaiting Melody's "All tests passed" before implementation lands)
+**Status:** RETIRED 2026-05-12 — feature lived for the duration of a single test session; all `// 2026-05-12 OVERRIDE-FEATURE:` markers were stripped per §5 (Removal Checklist). Auto-GPS is back on.
 **Scope:** Client-only. No server changes. Temporary feature — see "Removal Checklist" at the end of this doc.
 **Why this exists:** Dev testing has been using uniform Frisco/DFW coordinates, which masks bugs that only manifest with other cities, timezones, or country-specific code paths (school search terms, metric/imperial units, IANA-zone date math). This feature lets Melody push arbitrary lat/lng through the **exact same** enrichment pipeline that live GPS uses, exercising every downstream consumer (snapshot creation, briefing waterfall, strategy, venues) with non-uniform inputs.
 
