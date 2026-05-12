@@ -108,7 +108,7 @@ Data access layer loading 11 parallel context sources:
 | `ZONE_INTEL` | `zone_intelligence` | Crowd-sourced zone knowledge |
 | `MARKET_INTEL` | `market_intelligence` | Market-specific patterns |
 | `SAVE_VENUE_INTEL` | `venue_catalog` | Staging spots, GPS dead zones |
-| `COACH_MEMO` | `docs/coach-inbox.md` | Memo to Claude Code (filesystem) |
+| `COACH_MEMO` | `coach_memos` table (Neon/Helium) + `docs/coach-inbox.md` (best-effort) | 2026-05-12: DB-backed for Cloud Run survivability; workspace materializes new rows into the file via `npm run pull-coach-memos`. Plan: `docs/review-queue/PLAN_coach-memo-db-route-and-workspace-pull-2026-05-12.md`. |
 
 **Parsing:** JSON envelope (preferred) or legacy inline `[TAG: {...}]` format.
 **Validation:** Zod schemas in `validate.js` before any DB write.

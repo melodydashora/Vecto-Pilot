@@ -13,6 +13,7 @@
     "db:push": "drizzle-kit generate && drizzle-kit push",
     "db:migrate": "for f in migrations/*.sql; do echo \"Running $f...\"; psql $DATABASE_URL -f \"$f\"; done",
     "db:migrate:latest": "psql $DATABASE_URL -f migrations/20260114_create_places_cache.sql && psql $DATABASE_URL -f migrations/20260114_progressive_enrichment.sql",
+    "pull-coach-memos": "node scripts/pull-coach-memos.mjs",
     "build": "vite build",
     "dev:client": "vite dev",
     "lint": "eslint client/src 'server/**/*.{js,mjs}' gateway-server.js agent-server.js --report-unused-disable-directives --max-warnings 0",

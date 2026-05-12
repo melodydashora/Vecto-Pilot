@@ -1485,6 +1485,52 @@ export const coach_system_notes = pgTable("coach_system_notes", {
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
+// COACH MEMOS (2026-05-12)
+// Coach → Claude Code memo queue, DB-backed for Cloud Run survivability.
+//
+// Replaces the prior fs.appendFile-only path that died on every Cloud Run redeploy
+// (ephemeral container filesystem). Rows persist in Neon (prod) / Helium (dev) and
+// are materialized into docs/coach-inbox.md by the workspace operator script
+// `npm run pull-coach-memos`. See:
+//   - Plan: docs/review-queue/PLAN_coach-memo-db-route-and-workspace-pull-2026-05-12.md
+//   - Audit: docs/architecture/audits/pass-f-issue-logging-survivability.md
+//
+// status lifecycle:
+//   new       → just written by chat.js (or auto-marked exported in dev workspace)
+//   exported  → workspace pull script has materialized into docs/coach-inbox.md
+//   reviewed  → Claude Code picked it up at session start
+//   implemented → fix shipped
+//   rejected  → won't implement
+// ═══════════════════════════════════════════════════════════════════════════
+export const coach_memos = pgTable("coach_memos", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Validated COACH_MEMO payload (mirrors rideshareCoachMemoSchema)
+  type: text("type").notNull(),                              // 'feature_request' | 'remember' | 'bug' | 'code_suggestion' | 'observation' | 'todo'
+  title: text("title").notNull(),
+  detail: text("detail").notNull(),
+  priority: text("priority").notNull().default('medium'),   // 'high' | 'medium' | 'low'
+  related_files: jsonb("related_files"),                    // string[] | null
+
+  // Status state machine
+  status: text("status").notNull().default('new'),          // 'new' | 'exported' | 'reviewed' | 'implemented' | 'rejected'
+  source: text("source").notNull().default('coach'),        // 'coach' | 'system' | 'manual'
+  exported_at: timestamp("exported_at", { withTimezone: true }),
+
+  // Provenance — optional, useful for cross-referencing back to the original chat
+  triggering_user_id: uuid("triggering_user_id").references(() => users.user_id, { onDelete: 'set null' }),
+  triggering_conversation_id: uuid("triggering_conversation_id"),
+  triggering_snapshot_id: uuid("triggering_snapshot_id").references(() => snapshots.snapshot_id, { onDelete: 'set null' }),
+
+  // Timestamps
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  idxStatus: sql`create index if not exists idx_coach_memos_status on ${table} (status)`,
+  idxCreatedAt: sql`create index if not exists idx_coach_memos_created_at on ${table} (created_at desc)`,
+}));
+
+// ═══════════════════════════════════════════════════════════════════════════
 // OMNI-PRESENCE / SIRI INTERCEPTOR (2026-01-08)
 // Level 4 Architecture: Headless client integration for external data ingestion.
 // Allows iOS Shortcuts, Android automations, etc. to push data without auth.

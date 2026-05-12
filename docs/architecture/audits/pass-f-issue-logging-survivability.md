@@ -6,6 +6,8 @@
 **Predecessor:** `pass-f-issue-logging-observability.md` (2026-04-16, Claude Opus 4.6) — established lane inventory; this pass re-verifies *survivability* through a single tracer.
 **Scope:** Read-only. Dev DB only (no prod). No schema changes, no migrations.
 
+**2026-05-12 follow-up:** The survivability gap on lane (b) (`docs/coach-inbox.md` ephemeral in Cloud Run) has been addressed by routing `[COACH_MEMO]` writes to a new DB table `coach_memos` (survives Neon prod across redeploys). The filesystem write in `chat.js:488-517` is retained as a best-effort dev convenience but is no longer the source of truth. A workspace operator script `npm run pull-coach-memos` materializes new rows from prod into the repo's `docs/coach-inbox.md`. See `docs/review-queue/PLAN_coach-memo-db-route-and-workspace-pull-2026-05-12.md`. The trigger-side issue described in Finding #2 below (Coach picks `[SYSTEM_NOTE]` over `[COACH_MEMO]` for bug reports) is a separate concern and not addressed by this change — it remains open.
+
 ---
 
 ## Verdict in one line

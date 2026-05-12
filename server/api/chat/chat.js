@@ -485,7 +485,12 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
     }
   }
 
-  // 2026-02-17: Coach memos — write to docs/coach-inbox.md for Claude Code to pick up
+  // 2026-05-12: Coach memos route to coach_memos DB table for Cloud Run survivability.
+  // The docs/coach-inbox.md filesystem write is preserved as a best-effort dev convenience —
+  // in prod, that path is ephemeral and the write vanishes on next deploy. The DB row is the
+  // source of truth; workspace `npm run pull-coach-memos` materializes new rows into
+  // docs/coach-inbox.md for Claude Code to read per CLAUDE.md Rule 12.
+  // See plan: docs/review-queue/PLAN_coach-memo-db-route-and-workspace-pull-2026-05-12.md
   const __dirname_chat = path.dirname(fileURLToPath(import.meta.url));
   const coachInboxPath = path.join(__dirname_chat, '..', '..', '..', 'docs', 'coach-inbox.md');
 
@@ -504,13 +509,32 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
       }
 
       const { type, title, detail, priority, related_files } = validation.data;
-      const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-      const filesLine = related_files?.length ? `\n  - Files: ${related_files.join(', ')}` : '';
-      const entry = `\n### [${type.toUpperCase()}] ${title}\n- **Priority:** ${priority} | **Date:** ${timestamp}\n- ${detail}${filesLine}\n`;
 
-      await appendFile(coachInboxPath, entry, 'utf-8');
+      // PRIMARY WRITE: DB (survives Cloud Run). Throws on failure → propagates to results.errors.
+      const dbRow = await rideshareCoachDAL.saveCoachMemo({
+        type,
+        title,
+        detail,
+        priority,
+        related_files,
+        triggering_user_id: userId ?? null,
+        triggering_conversation_id: conversationId ?? null,
+        triggering_snapshot_id: snapshotId ?? null,
+      });
       results.saved++;
-      console.log(`[COACH] [ACTIONS] 📝 Coach memo saved to inbox: "${title}" (${type})`);
+      console.log(`[COACH] [ACTIONS] 📝 Coach memo saved to DB: "${title}" (${type}) id=${dbRow.id}`);
+
+      // SECONDARY WRITE: filesystem (dev convenience). Best-effort — failure is logged, not raised.
+      // In prod (Cloud Run), this either succeeds-then-vanishes or fails silently; either way the
+      // DB row is the source of truth.
+      try {
+        const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        const filesLine = related_files?.length ? `\n  - Files: ${related_files.join(', ')}` : '';
+        const entry = `\n### [${type.toUpperCase()}] ${title}\n- **Priority:** ${priority} | **Date:** ${timestamp}\n- ${detail}${filesLine}\n`;
+        await appendFile(coachInboxPath, entry, 'utf-8');
+      } catch (fsErr) {
+        console.warn(`[COACH] [ACTIONS] FS write failed (non-fatal, DB row id=${dbRow.id}):`, fsErr.message);
+      }
     } catch (e) {
       results.errors.push(`CoachMemo: ${e.message}`);
     }

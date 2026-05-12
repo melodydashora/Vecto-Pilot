@@ -24,7 +24,8 @@ import {
   news_deactivations,
   zone_intelligence,
   offer_intelligence,   // 2026-02-17: Structured offer analytics (replaces intercepted_signals)
-  coach_offer_decisions // 2026-05-05: Driver-decision intel logged from Coach chat
+  coach_offer_decisions, // 2026-05-05: Driver-decision intel logged from Coach chat
+  coach_memos           // 2026-05-12: Coach → Claude Code memo queue, DB-backed for Cloud Run survivability
 } from '../../../shared/schema.js';
 import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
 import crypto from 'crypto';
@@ -1723,6 +1724,69 @@ export class RideshareCoachDAL {
       console.error('[COACH] saveSystemNote error:', error);
       return null;
     }
+  }
+
+  /**
+   * Save a Coach memo (Coach → Claude Code bridge).
+   *
+   * 2026-05-12: Coach memos route through coach_memos DB table for Cloud Run survivability.
+   * Replaces the prior fs.appendFile-only path in chat.js that died on container redeploys.
+   * Workspace operator pulls fresh rows into docs/coach-inbox.md via `npm run pull-coach-memos`.
+   *
+   * Dev-workspace auto-export: when not in a Replit deployment (i.e., running in the dev
+   * workspace), the row is created with status='exported' and exported_at=NOW() so the
+   * synchronous fs.appendFile that chat.js also performs is not double-appended later by
+   * the pull script. See plan §8 (Risk: Dev double-write).
+   *
+   * Throws on validation/db failure (no silent null return) — callers in chat.js push the
+   * error to results.errors so the SSE done frame surfaces it.
+   *
+   * @param {Object} memo - Validated COACH_MEMO payload + provenance.
+   * @returns {Promise<Object>} The inserted coach_memos row.
+   */
+  async saveCoachMemo(memo) {
+    const {
+      type,
+      title,
+      detail,
+      priority = 'medium',
+      related_files = null,
+      triggering_user_id = null,
+      triggering_conversation_id = null,
+      triggering_snapshot_id = null
+    } = memo;
+
+    if (!type || !title || !detail) {
+      throw new Error(`saveCoachMemo: missing required field (type=${!!type}, title=${!!title}, detail=${!!detail})`);
+    }
+
+    const isDeployment = process.env.REPLIT_DEPLOYMENT === '1';
+    const initialStatus = isDeployment ? 'new' : 'exported';
+    const initialExportedAt = isDeployment ? null : new Date();
+
+    const [row] = await db
+      .insert(coach_memos)
+      .values({
+        type,
+        title,
+        detail,
+        priority,
+        related_files,
+        status: initialStatus,
+        source: 'coach',
+        exported_at: initialExportedAt,
+        triggering_user_id,
+        triggering_conversation_id,
+        triggering_snapshot_id,
+      })
+      .returning();
+
+    if (!row) {
+      throw new Error('saveCoachMemo: INSERT returned no row');
+    }
+
+    console.log(`[COACH] Saved coach memo: ${row.id} (${type}/${priority}) status=${row.status}`);
+    return row;
   }
 
   /**
