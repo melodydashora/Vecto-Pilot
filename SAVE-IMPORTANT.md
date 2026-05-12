@@ -30,7 +30,6 @@ All edge cases resolved and implementation complete. See "Implementation Details
 ```sql
 users (
   user_id             UUID PRIMARY KEY,     -- Links to driver_profiles
-  device_id           TEXT NOT NULL,        -- Device making request
   session_id          UUID,                 -- Current session UUID
   current_snapshot_id UUID,                 -- Their ONE active snapshot
   session_start_at    TIMESTAMP NOT NULL,   -- When session began (2hr hard limit)
@@ -40,7 +39,8 @@ users (
 )
 ```
 
-**NO location fields in users table** - all location data lives in snapshots.
+**NO location fields in users table** — all location data lives in snapshots.
+**NO `device_id` field on users either** — `device_id` exists on Siri-integration tables only (`intercepted_signals`, `offer_intelligence`), where requests can't carry a JWT. User sessions are tracked exclusively by `user_id` + `session_id` (corrected 2026-05-12; see DOC_DISCREPANCIES.md D-106).
 
 ---
 

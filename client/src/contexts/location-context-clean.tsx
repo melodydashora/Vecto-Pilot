@@ -167,6 +167,15 @@ interface LocationContextType {
   // Expose snapshot ID directly so co-pilot can access it as fallback
   lastSnapshotId: string | null;
   locationError?: { code: string; message: string } | null;
+  // 2026-05-12 OVERRIDE-FEATURE: Manual coord entry (dev test feature — REMOVE WHEN DONE).
+  // When true, auto-GPS detection is paused and the header renders lat/lng input fields
+  // so the developer can push arbitrary coords through the same pipeline live GPS uses.
+  // See docs/review-queue/PLAN_gps-override-dev-feature-2026-05-12.md for removal checklist.
+  isWaitingForManualCoords: boolean;
+  submitManualCoords: (lat: number, lng: number) => Promise<void>;
+  // dropSnapshotForManualEntry: equivalent to refreshGPS(forceNewSnapshot=true) but without the
+  // trailing GPS fetch — lands in the empty waiting state so the user can re-enter coords.
+  dropSnapshotForManualEntry: () => Promise<void>;
 }
 
 export const LocationContext = createContext<LocationContextType | null>(null);
@@ -307,6 +316,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (data.locationString) setCurrentLocationString(data.locationString);
       if (data.weather) setWeather(data.weather);
       if (data.airQuality) setAirQuality(data.airQuality);
+      // 2026-05-12 OVERRIDE-FEATURE: No explicit flag flip needed here — setCurrentCoords above
+      // is what makes the derived `isWaitingForManualCoords` (= currentCoords === null) flip false.
 
       // 2026-01-07: DO NOT set isLocationResolved during restore
       // LESSON LEARNED: Setting isLocationResolved = true here caused auth loop bug.
@@ -700,6 +711,87 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // This prevents callback recreation when user object reference changes but userId stays the same
   }, [token, user?.userId]);
 
+  // 2026-05-12 OVERRIDE-FEATURE: Manual coord submission (dev test feature — REMOVE WHEN DONE).
+  // Coords ARE the contract — entering them is equivalent to GPS permission being granted.
+  // Only sets currentCoords (the canonical "we have a location" signal) and calls enrichLocation;
+  // no extra null-clearing or flag-flipping. The derived `isWaitingForManualCoords` flag flips
+  // false automatically because currentCoords is now non-null. enrichLocation then resolves
+  // city/state/timezone/snapshot through the SAME path live GPS uses. 6-decimal normalization
+  // matches makeCoordsKey() to avoid coords_cache collisions.
+  // See docs/review-queue/PLAN_gps-override-dev-feature-2026-05-12.md for removal checklist.
+  const submitManualCoords = useCallback(async (lat: number, lng: number) => {
+    const lat6 = parseFloat(lat.toFixed(6));
+    const lng6 = parseFloat(lng.toFixed(6));
+    console.log(`📍 [LocationContext] 2026-05-12 OVERRIDE-FEATURE: Submitting manual coords (${lat6}, ${lng6})`);
+    setCurrentCoords({ latitude: lat6, longitude: lng6 });
+    await enrichLocation(lat6, lng6, 10, true);
+  }, [enrichLocation]);
+
+  // 2026-05-12 OVERRIDE-FEATURE: Drop the current snapshot to re-show manual entry inputs.
+  // Mirrors refreshGPS(forceNewSnapshot=true) — server-side snapshot release + client-side cache
+  // clear — MINUS the getGeoPosition() call (in manual mode, GPS isn't a useful follow-up; we want
+  // to land in the empty waiting state so the user can type new coords). Setting currentCoords to
+  // null naturally flips the derived isWaitingForManualCoords flag back to true, re-rendering the
+  // header inputs. AUTH SURVIVES: only the snapshot's location/session_id is touched server-side
+  // via /api/auth/release-snapshot; the users row + auth token are untouched.
+  const dropSnapshotForManualEntry = useCallback(async () => {
+    console.log('🗑️ [LocationContext] 2026-05-12 OVERRIDE-FEATURE: Dropping snapshot for manual re-entry');
+    setIsUpdating(true);
+    try {
+      // Server-side: null users.current_snapshot_id (preserves users row + auth token)
+      const authToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      if (authToken) {
+        try {
+          await fetch(API_ROUTES.LOCATION.RELEASE_SNAPSHOT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
+        } catch {
+          // Best-effort — local clear below still proceeds
+        }
+      }
+      // React Query: cancel in-flight + drop cache so stale data doesn't repaint
+      queryClient.cancelQueries();
+      queryClient.clear();
+      // Snapshot identity
+      setLastSnapshotId(null);
+      lastSnapshotIdRef.current = null;
+      // sessionStorage + localStorage strategy keys
+      clearSnapshotStorage();
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+      window.dispatchEvent(new CustomEvent('vecto-strategy-cleared'));
+      // Local location state: nulling these is intentional — derived isWaitingForManualCoords
+      // flips true and the FAIL HARD timer gate catches on the same render.
+      setCurrentCoords(null);
+      setCity(null);
+      setState(null);
+      setTimeZone(null);
+      setCurrentLocationString('Getting location...');
+      setWeather(null);
+      setAirQuality(null);
+      setIsLocationResolved(false);
+      setOverrideCoords(null);
+      setLocationError(null);
+      setLastUpdated(null);
+    } finally {
+      setIsUpdating(false);
+    }
+  }, []);
+
+  // 2026-05-12 OVERRIDE-FEATURE: Derived flag — true while we have no resolved coords yet.
+  // The header renders manual-entry inputs when true. Flips false naturally when currentCoords
+  // becomes non-null (via session restore OR via submitManualCoords). No setState — coords drive
+  // the state. When auth is lost, the existing cleanup nulls currentCoords, so the flag becomes
+  // true again automatically without needing a separate reset path.
+  const isWaitingForManualCoords = currentCoords === null;
+
+  // 2026-05-12 OVERRIDE-FEATURE: While this feature exists, auto-GPS detection is paused
+  // and the dashboard waits for the user to type lat/lng in the header. Setting this to false
+  // (or deleting it and replacing every `MANUAL_COORD_MODE_ACTIVE` reference with `false`)
+  // restores the live GPS behavior. Module-level constant — no state needed.
+  const MANUAL_COORD_MODE_ACTIVE = true;
+
   // refreshGPS: Fetch GPS and resolve location
   // forceNewSnapshot: true = user clicked refresh button, always create new snapshot
   //                   false = initial mount, allow server to reuse existing snapshot if < 60 min
@@ -857,6 +949,17 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return;
       }
 
+      // 2026-05-12 OVERRIDE-FEATURE: When manual coord mode is active and we have no cached
+      // data to resume from, skip the fresh GPS fetch — the user will type coords in the header.
+      // The submitManualCoords callback drives enrichLocation directly when OK is clicked.
+      // Gated on the module-level MANUAL_COORD_MODE_ACTIVE constant, not on derived state,
+      // because this needs to be a stable mode signal independent of current coord state.
+      if (MANUAL_COORD_MODE_ACTIVE) {
+        console.log('🛑 [LocationContext] 2026-05-12 OVERRIDE-FEATURE: Manual coord mode active — skipping GPS auto-fetch');
+        gpsEffectRanRef.current = true;
+        return;
+      }
+
       // Resume failed or no cached data (fresh sign-in).
       // No need to clear lastEnrichmentCoordsRef — snapshot is null so dedup won't skip.
       gpsEffectRanRef.current = true;
@@ -924,7 +1027,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     isLoading: isUpdating,
     setOverrideCoords,
     // 2026-02-01: FAIL HARD - Expose location error for CoPilotContext to trigger CriticalError
-    locationError
+    locationError,
+    // 2026-05-12 OVERRIDE-FEATURE: Expose manual-coord state + submitter + clearer to header UI
+    isWaitingForManualCoords,
+    submitManualCoords,
+    dropSnapshotForManualEntry
   }), [
     currentCoords,
     currentLocationString,
@@ -940,7 +1047,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     isLocationResolved,
     lastSnapshotId,
     setOverrideCoords,
-    locationError
+    locationError,
+    // 2026-05-12 OVERRIDE-FEATURE: Manual-coord deps
+    isWaitingForManualCoords,
+    submitManualCoords,
+    dropSnapshotForManualEntry
   ]);
 
   return (

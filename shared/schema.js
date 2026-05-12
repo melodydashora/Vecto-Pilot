@@ -47,8 +47,12 @@ export const snapshots = pgTable("snapshots", {
   country: text("country").notNull(),
   formatted_address: text("formatted_address").notNull(),
   timezone: text("timezone").notNull(),
-  // 2026-02-01: Market from driver_profiles.market - captured at snapshot creation
-  // Used for market-wide event discovery (e.g., "Dallas-Fort Worth" instead of just "Frisco")
+  // 2026-05-12 (D-107): Market derived from snapshot's GPS-resolved (city, state) via
+  // resolveTimezoneFromMarket() — NOT copied from driver_profiles.market. Drivers are
+  // mobile; a Dallas-based driver dispatched to NYC must see NYC market data, not DFW.
+  // profile.market remains as identity ("first known market", stable, set once);
+  // snapshot.market is per-trip (location, mobile). Used for market-wide event/news
+  // discovery scope in AI prompts. See PLAN_snapshot-market-gps-derived-2026-05-12.md.
   market: text("market"),
   // Time context (authoritative for this snapshot)
   local_iso: timestamp("local_iso", { withTimezone: false }).notNull(),

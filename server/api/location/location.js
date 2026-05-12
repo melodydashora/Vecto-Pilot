@@ -966,44 +966,63 @@ router.get('/resolve', async (req, res) => {
           const localDate = dateFormatter.format(now);
           const finalSessionId = sessionId || crypto.randomUUID();
 
-          // 2026-02-01: Look up user's market from driver_profiles (set at signup)
-          // This is used for market-wide event discovery (e.g., "Dallas-Fort Worth" not just "Frisco")
+          // 2026-05-12 (D-107 FIX): snapshot.market is location-derived, not identity-derived.
+          // Drivers are mobile — a Dallas-based driver in NYC must see NYC market data, not DFW.
+          // Resolve from GPS-derived (city, state) first; fall back to profile only if coord
+          // resolution genuinely fails. driver_profiles.market is preserved as the driver's
+          // "first known market" (identity, stable); snapshot.market is per-trip (location, mobile).
+          //
+          // Was: `select({ market }) from driver_profiles` ran first and "won" if profile had any
+          // market, leaking DFW market into NYC/SF/Chicago snapshots. Real-world impact:
+          // Melody drove across 6 states in 2 days and saw DFW Rideshare News throughout.
+          // See docs/review-queue/PLAN_snapshot-market-gps-derived-2026-05-12.md.
           let userMarket = null;
           if (userId) {
             try {
-              const [profileResult] = await db
-                .select({ market: driver_profiles.market, home_timezone: driver_profiles.home_timezone })
-                .from(driver_profiles)
-                .where(eq(driver_profiles.user_id, userId))
-                .limit(1);
-              userMarket = profileResult?.market || null;
-              if (userMarket) {
-                console.log(`[SNAPSHOT] User market from profile: ${userMarket}`);
-              }
+              // PATH 1 (preferred): resolve market from current snapshot's GPS coords.
+              // marketResult was already populated earlier in this function during timezone
+              // resolution if the (city, state) pair matched the markets table — reuse it.
+              const coordResolvedMarket = marketResult || await resolveTimezoneFromMarket(city, state, country);
 
-              // 2026-02-17: Google OAuth backfill — set market + timezone on first GPS use
-              // Google OAuth users have market=null until profile completion.
-              // On first GPS snapshot, we already resolved timezone + city/state,
-              // so we can backfill both market and home_timezone from the market lookup.
-              if (!userMarket && city && state) {
-                // Use marketResult from Step 2 timezone resolution if available
-                const backfillMarket = marketResult || await resolveTimezoneFromMarket(city, state, country);
-                if (backfillMarket) {
+              if (coordResolvedMarket?.market_name) {
+                userMarket = coordResolvedMarket.market_name;
+                console.log(`[SNAPSHOT] Market from GPS coords (${city}, ${state}): ${userMarket}`);
+
+                // First-snapshot backfill: if profile.market is still NULL (Google OAuth signup
+                // path), persist this as the driver's "first known market". Later snapshots in
+                // different markets will NOT overwrite the profile — profile is identity.
+                const [profileResult] = await db
+                  .select({ market: driver_profiles.market })
+                  .from(driver_profiles)
+                  .where(eq(driver_profiles.user_id, userId))
+                  .limit(1);
+                if (profileResult && !profileResult.market) {
                   await db.update(driver_profiles)
                     .set({
-                      market: backfillMarket.market_name,
-                      home_timezone: backfillMarket.timezone,
+                      market: coordResolvedMarket.market_name,
+                      home_timezone: coordResolvedMarket.timezone,
                       updated_at: new Date()
                     })
                     .where(eq(driver_profiles.user_id, userId));
-
-                  userMarket = backfillMarket.market_name;
-                  console.log(`[SNAPSHOT] 🔗 Backfilled market+timezone on profile: ${backfillMarket.market_name} (${backfillMarket.timezone})`);
+                  console.log(`[SNAPSHOT] 🔗 Backfilled profile market (first snapshot): ${coordResolvedMarket.market_name} (${coordResolvedMarket.timezone})`);
+                }
+              } else {
+                // PATH 2 (fallback): coord resolution returned nothing (unknown city/state combo,
+                // e.g., international where markets table has no entry). Fall back to profile
+                // market — better stale-but-domestic than null for AI prompt scope.
+                const [profileResult] = await db
+                  .select({ market: driver_profiles.market })
+                  .from(driver_profiles)
+                  .where(eq(driver_profiles.user_id, userId))
+                  .limit(1);
+                userMarket = profileResult?.market || null;
+                if (userMarket) {
+                  console.log(`[SNAPSHOT] Market fallback from profile (coord lookup failed for ${city}, ${state}): ${userMarket}`);
                 }
               }
             } catch (err) {
-              // Non-fatal: market is optional enhancement for event discovery
-              console.warn(`[SNAPSHOT] Could not lookup/backfill user market: ${err.message}`);
+              // Non-fatal: market is optional enhancement for event/news discovery scope
+              console.warn(`[SNAPSHOT] Could not resolve user market: ${err.message}`);
             }
           }
 

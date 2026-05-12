@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from "react";
 import {
   MapPin,
+  MapPinOff,
   Clock,
   RefreshCw,
   Car,
@@ -48,6 +49,11 @@ type ExtendedLocationContext = {
   lastSnapshotId?: string | null;
   isLoading?: boolean;
   setOverrideCoords?: (coords: { latitude: number; longitude: number; city?: string } | null) => void;
+  // 2026-05-12 OVERRIDE-FEATURE: Manual coord entry types (dev test feature — REMOVE WHEN DONE).
+  // See docs/review-queue/PLAN_gps-override-dev-feature-2026-05-12.md
+  isWaitingForManualCoords?: boolean;
+  submitManualCoords?: (lat: number, lng: number) => Promise<void>;
+  dropSnapshotForManualEntry?: () => Promise<void>;
   // Legacy nested location shape
   location?: {
     currentCoords?: { latitude: number; longitude: number } | null;
@@ -100,6 +106,18 @@ const GlobalHeaderComponent: React.FC = () => {
   const airQuality = loc?.airQuality ?? null;
   const [holiday, setHoliday] = useState<string | null>(null);
   const [isHoliday, setIsHoliday] = useState(false);
+
+  // 2026-05-12 OVERRIDE-FEATURE: Manual coord entry state (dev test feature — REMOVE WHEN DONE).
+  // While `isWaitingForManualCoords` is true and location is not yet resolved, the location
+  // strip renders two lat/lng inputs + OK button instead of the normal location display, and
+  // the 30-second FAIL HARD timer is suppressed. See docs/review-queue/PLAN_gps-override-dev-feature-2026-05-12.md.
+  const isWaitingForManualCoords = loc?.isWaitingForManualCoords ?? false;
+  const submitManualCoords = loc?.submitManualCoords;
+  const dropSnapshotForManualEntry = loc?.dropSnapshotForManualEntry;
+  const [manualLatInput, setManualLatInput] = useState<string>("");
+  const [manualLngInput, setManualLngInput] = useState<string>("");
+  const [isSubmittingManual, setIsSubmittingManual] = useState<boolean>(false);
+  const [isClearingManual, setIsClearingManual] = useState<boolean>(false);
 
   // Query /api/auth/me for registered users only.
   // 2026-01-09: P1-6 FIX - Use centralized STORAGE_KEYS constants
@@ -192,7 +210,11 @@ const GlobalHeaderComponent: React.FC = () => {
 
   useEffect(() => {
     // Don't start timeout if already resolved or already errored
-    if (isLocationResolved || hasTriggeredErrorRef.current) {
+    // 2026-05-12 OVERRIDE-FEATURE: Also suppress the 30s FAIL HARD timer while waiting for
+    // user to type manual coords in the header. Without this gate, the modal would fire
+    // before the user finishes typing. Once submitManualCoords flips the flag to false,
+    // this effect re-runs and the normal 30s safety net resumes.
+    if (isLocationResolved || hasTriggeredErrorRef.current || isWaitingForManualCoords) {
       if (locationTimeoutRef.current) {
         clearTimeout(locationTimeoutRef.current);
         locationTimeoutRef.current = null;
@@ -219,7 +241,9 @@ const GlobalHeaderComponent: React.FC = () => {
         locationTimeoutRef.current = null;
       }
     };
-  }, [isLocationResolved, coords, currentLocationString, setCriticalError]);
+  // 2026-05-12 OVERRIDE-FEATURE: Added isWaitingForManualCoords to deps so timer restarts
+  // when the user submits manual coords and the flag flips from true to false.
+  }, [isLocationResolved, coords, currentLocationString, setCriticalError, isWaitingForManualCoords]);
 
   // CRITICAL FIX Issue #3: Get refreshGPS from the correctly imported context
   const refreshGPS: undefined | (() => Promise<void>) =
@@ -419,6 +443,62 @@ const GlobalHeaderComponent: React.FC = () => {
     }, 500);
   }, [toast]);
 
+  // 2026-05-12 OVERRIDE-FEATURE: Manual coord submit handler (dev test feature — REMOVE WHEN DONE).
+  // Parses the two input strings, validates lat ∈ [-90, 90] and lng ∈ [-180, 180], and calls
+  // submitManualCoords from the context. Coords flow through the same enrichLocation path that
+  // live GPS would use. See docs/review-queue/PLAN_gps-override-dev-feature-2026-05-12.md.
+  const parsedManualLat = parseFloat(manualLatInput);
+  const parsedManualLng = parseFloat(manualLngInput);
+  const isManualLatValid = Number.isFinite(parsedManualLat) && parsedManualLat >= -90 && parsedManualLat <= 90;
+  const isManualLngValid = Number.isFinite(parsedManualLng) && parsedManualLng >= -180 && parsedManualLng <= 180;
+  const canSubmitManual = isManualLatValid && isManualLngValid && !isSubmittingManual && !!submitManualCoords;
+
+  const handleManualCoordSubmit = useCallback(async () => {
+    if (!submitManualCoords || !isManualLatValid || !isManualLngValid) return;
+    setIsSubmittingManual(true);
+    try {
+      console.log(`[GlobalHeader] 2026-05-12 OVERRIDE-FEATURE: Submitting manual coords (${parsedManualLat}, ${parsedManualLng})`);
+      await submitManualCoords(parsedManualLat, parsedManualLng);
+    } catch (err) {
+      console.error('[GlobalHeader] 2026-05-12 OVERRIDE-FEATURE: submitManualCoords failed', err);
+      toast({
+        title: 'Manual coord submit failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmittingManual(false);
+    }
+  }, [submitManualCoords, isManualLatValid, isManualLngValid, parsedManualLat, parsedManualLng, toast]);
+
+  // 2026-05-12 OVERRIDE-FEATURE: Clear button handler (dev test feature — REMOVE WHEN DONE).
+  // Drops the snapshot (server-side users.current_snapshot_id = NULL) + clears the local cache
+  // so the derived isWaitingForManualCoords flips back to true and the lat/lng inputs reappear.
+  // Auth + session survive — only the snapshot pointer is released. After clear, also reset the
+  // local input strings so the user starts with empty fields.
+  const handleClearForManualEntry = useCallback(async () => {
+    if (!dropSnapshotForManualEntry) return;
+    setIsClearingManual(true);
+    try {
+      await dropSnapshotForManualEntry();
+      setManualLatInput("");
+      setManualLngInput("");
+      toast({
+        title: "Snapshot cleared",
+        description: "Enter new test coordinates above.",
+      });
+    } catch (err) {
+      console.error('[GlobalHeader] 2026-05-12 OVERRIDE-FEATURE: dropSnapshotForManualEntry failed', err);
+      toast({
+        title: 'Clear failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsClearingManual(false);
+    }
+  }, [dropSnapshotForManualEntry, toast]);
+
   return (
     <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
       {/* Main Header Row */}
@@ -509,65 +589,136 @@ const GlobalHeaderComponent: React.FC = () => {
       <div className="bg-black/10 backdrop-blur-sm border-t border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4" />
-              <span className="font-medium">{formatLocation()}</span>
-              <span className="text-white/70 ml-1">
-                ({lastUpdated ? timeAgo(lastUpdated) : "just now"})
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* Location Resolution Indicator - shows when coords + city are available */}
-              {!isLocationResolved ? (
-                <div className="flex items-center gap-1.5 text-xs text-white/70">
-                  <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
-                  <span>getting location...</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>location ready</span>
-                </div>
-              )}
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRefreshLocation}
-                disabled={isRefreshing || !refreshGPS || isUpdating}
-                className="text-white hover:bg-white/20 p-1"
-                aria-label="Refresh current GPS location"
-                title={
-                  !refreshGPS
-                    ? "Location service unavailable"
-                    : isUpdating
-                      ? "Updating..."
-                      : "Refresh location"
-                }
-                data-testid="button-refresh-location"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${
-                    isRefreshing || isUpdating ? "animate-spin" : ""
-                  }`}
+            {/* 2026-05-12 OVERRIDE-FEATURE: Manual coord entry UI (dev test feature — REMOVE WHEN DONE).
+                See docs/review-queue/PLAN_gps-override-dev-feature-2026-05-12.md for full removal checklist. */}
+            {isWaitingForManualCoords && !isLocationResolved ? (
+              <div className="flex items-center gap-2 text-sm flex-wrap w-full">
+                <MapPin className="h-4 w-4" />
+                <span className="font-medium mr-1">DEV: Enter test coords</span>
+                <input
+                  type="number"
+                  step="0.000001"
+                  placeholder="lat (e.g. 41.878100)"
+                  value={manualLatInput}
+                  onChange={(e) => setManualLatInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && canSubmitManual) handleManualCoordSubmit(); }}
+                  disabled={isSubmittingManual}
+                  className="px-2 py-1 rounded bg-white/15 text-white placeholder-white/50 text-xs w-40 border border-white/20 focus:border-white/60 focus:outline-none"
+                  data-testid="input-manual-lat"
+                  aria-label="Manual latitude input"
                 />
-              </Button>
-
-              {/* DEV ONLY: Force fresh session button */}
-              {import.meta.env.DEV && (
+                <input
+                  type="number"
+                  step="0.000001"
+                  placeholder="lng (e.g. -87.629800)"
+                  value={manualLngInput}
+                  onChange={(e) => setManualLngInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && canSubmitManual) handleManualCoordSubmit(); }}
+                  disabled={isSubmittingManual}
+                  className="px-2 py-1 rounded bg-white/15 text-white placeholder-white/50 text-xs w-40 border border-white/20 focus:border-white/60 focus:outline-none"
+                  data-testid="input-manual-lng"
+                  aria-label="Manual longitude input"
+                />
                 <Button
-                  variant="ghost"
                   size="sm"
-                  onClick={handleForceFreshSession}
-                  className="text-white hover:bg-red-500/30 p-1 border border-white/20"
-                  aria-label="Force fresh session (clear all data)"
-                  title="DEV: Clear all localStorage and reload (simulates new user)"
-                  data-testid="button-force-fresh-session"
+                  onClick={handleManualCoordSubmit}
+                  disabled={!canSubmitManual}
+                  className="px-3 py-1 text-xs bg-white/20 hover:bg-white/30 text-white"
+                  data-testid="button-submit-manual-coords"
+                  aria-label="Submit manual coordinates"
+                  title={canSubmitManual ? "Submit coordinates" : "Enter valid lat (-90..90) and lng (-180..180)"}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  {isSubmittingManual ? "..." : "OK"}
                 </Button>
-              )}
-            </div>
+                {(manualLatInput && !isManualLatValid) || (manualLngInput && !isManualLngValid) ? (
+                  <span className="text-xs text-orange-300 ml-2" data-testid="text-manual-coord-error">
+                    {!isManualLatValid && manualLatInput ? "lat must be -90 to 90" : ""}
+                    {!isManualLatValid && manualLatInput && !isManualLngValid && manualLngInput ? "; " : ""}
+                    {!isManualLngValid && manualLngInput ? "lng must be -180 to 180" : ""}
+                  </span>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className="h-4 w-4" />
+                  <span className="font-medium">{formatLocation()}</span>
+                  <span className="text-white/70 ml-1">
+                    ({lastUpdated ? timeAgo(lastUpdated) : "just now"})
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* Location Resolution Indicator - shows when coords + city are available */}
+                  {!isLocationResolved ? (
+                    <div className="flex items-center gap-1.5 text-xs text-white/70">
+                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
+                      <span>getting location...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>location ready</span>
+                    </div>
+                  )}
+
+                  {/* 2026-05-12 OVERRIDE-FEATURE: When manual mode is active, hide the refresh
+                      button (which tries GPS — useless in manual mode and would fall back to
+                      profile.homeLat, defeating the test) and show a Clear button instead. */}
+                  {dropSnapshotForManualEntry ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearForManualEntry}
+                      disabled={isClearingManual || isUpdating}
+                      className="text-white hover:bg-orange-500/30 p-1 border border-white/20"
+                      aria-label="Clear snapshot and re-enter manual coordinates"
+                      title="DEV: Drop snapshot and re-enter test coordinates (auth + session preserved)"
+                      data-testid="button-clear-for-manual-entry"
+                    >
+                      <MapPinOff className={`h-4 w-4 ${isClearingManual ? "animate-pulse" : ""}`} />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRefreshLocation}
+                      disabled={isRefreshing || !refreshGPS || isUpdating}
+                      className="text-white hover:bg-white/20 p-1"
+                      aria-label="Refresh current GPS location"
+                      title={
+                        !refreshGPS
+                          ? "Location service unavailable"
+                          : isUpdating
+                            ? "Updating..."
+                            : "Refresh location"
+                      }
+                      data-testid="button-refresh-location"
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 ${
+                          isRefreshing || isUpdating ? "animate-spin" : ""
+                        }`}
+                      />
+                    </Button>
+                  )}
+
+                  {/* DEV ONLY: Force fresh session button */}
+                  {import.meta.env.DEV && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleForceFreshSession}
+                      className="text-white hover:bg-red-500/30 p-1 border border-white/20"
+                      aria-label="Force fresh session (clear all data)"
+                      title="DEV: Clear all localStorage and reload (simulates new user)"
+                      data-testid="button-force-fresh-session"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1,11 +1,27 @@
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plane, Loader, Sparkles, Clock, PlaneLanding, PlaneTakeoff, AlertTriangle, Cloud, ChevronUp, ChevronDown } from "lucide-react";
+import { Plane, Loader, Sparkles, Clock, PlaneLanding, PlaneTakeoff, AlertTriangle, Cloud, ChevronUp, ChevronDown, ShieldCheck } from "lucide-react";
 
 interface AirportDelay {
   status: string;
   avgMinutes: number;
+}
+
+// 2026-05-12 (D-108 step 2): TSA wait times per checkpoint type. Gemini returns
+// "unreported" (string) when search results don't surface real-time TSA data, or
+// when a checkpoint type isn't operational at the airport (small airports often
+// lack TSA Clear). Render gracefully — show "—" for unreported, integer + "min"
+// for numeric values.
+interface TSALane {
+  waitMinutes?: number | string;
+  entryPoint?: string;
+}
+
+interface AirportTSA {
+  general?: TSALane;
+  preCheck?: TSALane;
+  clear?: TSALane;
 }
 
 interface Airport {
@@ -21,6 +37,7 @@ interface Airport {
   weather?: string;
   groundStops?: boolean;
   tipsForDrivers?: string;
+  tsa?: AirportTSA;
 }
 
 type BusyPeriod = string | {
@@ -154,6 +171,49 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                           {time}
                         </Badge>
                       ))}
+                    </div>
+                  )}
+
+                  {/* 2026-05-12 (D-108 step 2): TSA wait times per checkpoint type. Renders only when the airport
+                      pipeline returned a `tsa` object with at least one lane. Handles "unreported" gracefully by
+                      showing "—" instead of a fabricated number. */}
+                  {airport.tsa && (airport.tsa.general || airport.tsa.preCheck || airport.tsa.clear) && (
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                        <span className="text-xs font-medium text-gray-700">TSA Wait Times</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(['general', 'preCheck', 'clear'] as const).map((lane) => {
+                          const laneData = airport.tsa?.[lane];
+                          if (!laneData) return null;
+                          const laneLabel = lane === 'preCheck' ? 'PreCheck' : lane === 'clear' ? 'Clear' : 'General';
+                          const isNumericWait = typeof laneData.waitMinutes === 'number';
+                          const isReported = isNumericWait || (laneData.waitMinutes && laneData.waitMinutes !== 'unreported');
+                          const laneAccent = lane === 'clear'
+                            ? 'bg-purple-50 border-purple-100 text-purple-700'
+                            : lane === 'preCheck'
+                              ? 'bg-emerald-50 border-emerald-100 text-emerald-700'
+                              : 'bg-gray-50 border-gray-200 text-gray-700';
+                          return (
+                            <div key={lane} className={`p-2 rounded border ${laneAccent}`}>
+                              <p className="text-xs opacity-75">{laneLabel}</p>
+                              <p className="text-sm font-medium">
+                                {isNumericWait
+                                  ? `${laneData.waitMinutes} min`
+                                  : isReported
+                                    ? String(laneData.waitMinutes)
+                                    : '—'}
+                              </p>
+                              {laneData.entryPoint && laneData.entryPoint !== 'unreported' && (
+                                <p className="text-xs opacity-75 mt-0.5 truncate" title={laneData.entryPoint}>
+                                  {laneData.entryPoint}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

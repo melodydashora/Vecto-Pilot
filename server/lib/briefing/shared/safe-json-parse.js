@@ -108,13 +108,49 @@ export function safeJsonParse(jsonString) {
     // Only strip when // follows a JSON value terminator to avoid matching URLs.
     fixed = fixed.replace(/([\]}"'\d])\s*\/\/[^\n]*$/gm, '$1');
 
-    // 2026-02-17: FIX - Loop newline replacement to handle MULTIPLE newlines per string.
-    // Only escapes newlines INSIDE quoted string values.
-    let prevFixed;
-    do {
-      prevFixed = fixed;
-      fixed = fixed.replace(/"([^"]*)\n([^"]*)"/g, (match, p1, p2) => `"${p1}\\n${p2}"`);
-    } while (fixed !== prevFixed);
+    // 2026-05-12 (D-109 FIX): Replace buggy regex `"([^"]*)\n([^"]*)"` with a state-machine
+    // walker. The old regex was supposed to escape newlines inside string values, but [^"]*
+    // could greedily match across separate sibling properties — so given valid JSON like
+    // `"code": "LAS",\n      "name": ...`, the regex would match the closing-of-LAS through
+    // opening-of-name as if it were one string and replace the structural \n with a literal
+    // \n character, corrupting the JSON. The walker below tracks `inString` state correctly
+    // (toggled only on unescaped `"`) and escapes \n only when truly inside a quoted string.
+    // Surfaced 2026-05-12 by airport pipeline TSA addition; affected all 5 briefing pipelines
+    // that consume safeJsonParse (news, events, traffic, schools, airport). See DOC_DISCREPANCIES.md D-109.
+    {
+      let result = '';
+      let inString = false;
+      let escapeNext = false;
+      for (let i = 0; i < fixed.length; i++) {
+        const c = fixed[i];
+        if (escapeNext) {
+          // The previous char was an unescaped backslash — pass this char through verbatim
+          // without toggling string state. Handles cases like \" (escaped quote inside string).
+          result += c;
+          escapeNext = false;
+          continue;
+        }
+        if (c === '\\') {
+          result += c;
+          escapeNext = true;
+          continue;
+        }
+        if (c === '"') {
+          inString = !inString;
+          result += c;
+          continue;
+        }
+        if (c === '\n' && inString) {
+          // Real newline inside a quoted string value → escape it for valid JSON.
+          result += '\\n';
+          continue;
+        }
+        // Newline OUTSIDE a string (structural whitespace) → leave as-is. JSON.parse
+        // handles real newlines as whitespace natively, so no transformation needed.
+        result += c;
+      }
+      fixed = result;
+    }
 
     // 2026-02-19: FIX - Replace tabs with spaces instead of escaping to literal \t.
     fixed = fixed.replace(/\t/g, ' ');
@@ -157,6 +193,21 @@ export function safeJsonParse(jsonString) {
       } catch (e4) {
         // 2026-02-17: Enhanced logging — show BOTH raw extraction and post-fix to diagnose
         console.error('[BRIEFING] All 4 parse attempts failed:', e4.message);
+        // 2026-05-12 (D-110): Focused failure-window log. The 500-char prefix log misses
+        // errors deep in the response (e.g., position 1286+). Parse the position out of
+        // the JSON.parse error message and print a 200-char window centered on it.
+        // JSON.stringify reveals escape sequences for any non-printable characters that
+        // might be the actual culprit (literal \n, citation markers, smart quotes, etc.).
+        const posMatch = e4.message?.match(/at position (\d+)/);
+        if (posMatch && fixedExtracted) {
+          const pos = parseInt(posMatch[1], 10);
+          const start = Math.max(0, pos - 100);
+          const end = Math.min(fixedExtracted.length, pos + 100);
+          console.error(
+            `[BRIEFING] Failure window [${start}..${end}] (pos=${pos}, ±100 chars):`,
+            JSON.stringify(fixedExtracted.substring(start, end))
+          );
+        }
         console.error('[BRIEFING] RAW extracted (first 500 chars):', jsonMatch[0].substring(0, 500));
         console.error('[BRIEFING] AFTER fixes (first 500 chars):', fixedExtracted?.substring(0, 500) ?? '(null)');
       }
