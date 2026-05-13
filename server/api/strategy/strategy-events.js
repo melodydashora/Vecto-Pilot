@@ -26,8 +26,16 @@ import { phaseEmitter } from '../../events/phase-emitter.js';
 import { db } from '../../db/drizzle.js';
 import { briefings, strategies, rankings } from '../../../shared/schema.js';
 import { eq, and, isNotNull, desc, or, sql as drizzleSql } from 'drizzle-orm';
+import { requireAuthAllowQueryToken } from '../../middleware/auth.js';
 
 const router = express.Router();
+
+// 2026-05-12 SECURITY (Item 2 of auth-hardening): all SSE routes below are
+// gated by requireAuthAllowQueryToken because EventSource cannot send custom
+// headers. ?token=<bearer> in the query string is accepted as a fallback only
+// when no Authorization header is present (header preferred). See
+// server/middleware/auth.js for the wrapper definition.
+router.use(requireAuthAllowQueryToken);
 
 // 2026-04-18 (F2): Helper to write the initial-state SSE event after subscribe.
 // Each per-channel handler calls a tailored variant below; this wraps the wire format.
