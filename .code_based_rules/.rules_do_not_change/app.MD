@@ -2,9 +2,10 @@
 
 ## Rules
 
-### General Rules
+### Claude Rules
 
-- Use your memory table
+- Use your memory table for our session memory
+  - Add id to connect session memory to features table, app rules table, (use) BSA best practices and use  
 - - Claude = claude_memory table
 - Please use historical comments as a changelog
 - - please create a changelog and add comments before deletion

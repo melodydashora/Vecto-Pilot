@@ -428,6 +428,13 @@ export async function getIdentityMemory(identity, memoryTable, userId = null, li
 
 // Store cross-thread memory
 export async function storeCrossThreadMemory(key, content, userId = null, ttlDays = 730) {
+  // 2026-05-12 SECURITY STOP-GAP: refuse 'recentPaths' writes — sdk-embed.js:52
+  // is an unauthenticated /api/* catch-all middleware that persists req.originalUrl
+  // and req.ip into cross_thread_memory. Scanner traffic (34.46.158.82, 35.185.191.37)
+  // is producing rows like path=/api/staging/.env. Block until full hardening lands.
+  if (key === 'recentPaths') {
+    return null;
+  }
   const { memoryPut } = await import("../../../eidolon/memory/pg.js");
   return await memoryPut({
     table: "cross_thread_memory",
