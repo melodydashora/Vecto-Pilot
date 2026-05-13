@@ -4,7 +4,7 @@ modules = ["python-3.11", "nodejs-20", "postgresql-16"]
 
 # Primary run command (Run button / default start)
 # Source env safely so comments/quotes are handled correctly
-run = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\""
+run = "sh -c \"set -a && . ./.env.local && set +a && bash scripts/dev-prerun.sh && APP_RUNTIME=workspace node gateway-server.js\""
 
 # Nix/packages configuration
 [nix]
@@ -33,7 +33,7 @@ author = "user"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "sh -c \"set -a && . ./.env.local && set +a && node scripts/start-replit.js\""
+args = "sh -c \"set -a && . ./.env.local && set +a && bash scripts/dev-prerun.sh && APP_RUNTIME=workspace node gateway-server.js\""
 waitForPort = 5000
 
 [[workflows.workflow.tasks]]
