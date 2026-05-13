@@ -38,7 +38,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'client', 'dist');
 
 // Deployment detection
-const isDeployment = process.env.REPLIT_DEPLOYMENT === '1' || process.env.REPLIT_DEPLOYMENT === 'true';
+// 2026-05-13: Reads APP_RUNTIME (sanctioned env-class enum, set by loadEnvironment()
+// at line 31 via resolveAppRuntime()) rather than REPLIT_DEPLOYMENT directly. Per
+// env-registry.js doctrine: once APP_RUNTIME is computed, application code uses
+// APP_RUNTIME only. REPLIT_DEPLOYMENT is still consumed in infrastructure code
+// (load-env.js:138, where it drives the resolution).
+const isDeployment = process.env.APP_RUNTIME === 'deployment';
 
 // 2026-02-25: Autoscale detection — checks EITHER flag independently (Phase 6 Refactor)
 // If either flag is set, the intent is clear: this is an autoscale environment.
@@ -58,9 +63,16 @@ if (isAutoscaleMode) {
 export let app = null;
 
 // Global error handlers
+// 2026-05-13: uncaughtException now always exits(1) — supervisor (Replit deployment
+// infra, Cloud Run, jest test runner) restarts the process. Workspace operator hits
+// Run again. Drops the prior `if (NODE_ENV !== 'production')` branch per Manifesto
+// §5 (crash policy) and §7 D6 (NODE_ENV→APP_RUNTIME migration). The branch was
+// Replit-Agent-authored scar tissue (Step B B2, commit 2bc210ae 2025-11-03) and
+// was inverted in workspace because the wrapper forced NODE_ENV='production' —
+// resolved structurally here rather than papered over.
 process.on('uncaughtException', (err) => {
   console.error('[GATEWAY] Uncaught exception:', err);
-  if (process.env.NODE_ENV !== 'production') process.exit(1);
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
