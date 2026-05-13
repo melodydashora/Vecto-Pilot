@@ -81,7 +81,18 @@ process.on('unhandledRejection', (reason, promise) => {
     // Express level. helmet().hidePoweredBy strips the header after the fact;
     // app.disable() prevents it from ever being emitted, race-free.
     app.disable('x-powered-by');
-    app.set('trust proxy', 1);
+    // 2026-05-12 SECURITY (Item 5 of auth-hardening): trust proxy hop count is
+    // env-configurable. Default 1 = trust the single upstream proxy (Replit
+    // edge in workspace, Cloud Run frontend in deployment, Cloudflare for
+    // typical reverse-proxy setups). Raise to 2+ if a multi-hop CDN chain
+    // sits in front (e.g. Cloudflare → load balancer → app). Set to 0 to
+    // distrust all X-Forwarded-For headers (direct-internet deployment with
+    // no reverse proxy in front). A fixed integer beats `true` because
+    // `true` lets any client spoof its own req.ip via a crafted X-Forwarded-For
+    // header, which would defeat req.ip-based rate-limiting (rate-limit.js:96)
+    // and the agent IP allowlist (server/agent/embed.js:11).
+    const trustProxyHops = parseInt(process.env.TRUST_PROXY_HOPS, 10);
+    app.set('trust proxy', Number.isInteger(trustProxyHops) ? trustProxyHops : 1);
 
     // Import bootstrap modules
     const { configureHealthEndpoints, mountHealthRouter } = await import('./server/bootstrap/health.js');
