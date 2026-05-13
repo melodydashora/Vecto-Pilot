@@ -172,7 +172,7 @@ do_start_app() {
 do_stop_app() {
   echo -e "\n${FG_WARN}  Stopping services...${RST}\n"
   # Kill node processes related to gateway
-  local pids; pids=$(pgrep -f "gateway-server\|agent-server\|start-replit" 2>/dev/null || true)
+  local pids; pids=$(pgrep -f "gateway-server\|agent-server" 2>/dev/null || true)
   if [[ -n "$pids" ]]; then
     echo "$pids" | xargs kill 2>/dev/null || true
     echo -e "  ${FG_OK}  Services stopped.${RST}"

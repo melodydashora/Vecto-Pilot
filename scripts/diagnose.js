@@ -83,7 +83,7 @@ async function main() {
 
   // ── Process Check
   section('Running Processes');
-  const procs = run("ps aux | grep -E 'gateway|start-replit|vite|node.*server' | grep -v grep | grep -v diagnose");
+  const procs = run("ps aux | grep -E 'gateway|vite|node.*server' | grep -v grep | grep -v diagnose");
   procs.split('\n').filter(Boolean).forEach(p => {
     const parts = p.trim().split(/\s+/);
     log(`  PID=${parts[1]} CPU=${parts[2]}% MEM=${parts[3]}% CMD=${parts.slice(10).join(' ').slice(0, 80)}`);

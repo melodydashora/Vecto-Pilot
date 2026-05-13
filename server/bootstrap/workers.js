@@ -13,7 +13,7 @@ const children = new Map();
 let isShuttingDown = false;
 const workerLogPath = path.join(os.tmpdir(), 'worker.log');
 
-// 2026-02-25: Restart limits (ported from start-replit.js during Phase 6 refactor)
+// 2026-02-25: Restart limits (ported from start-replit.js during Phase 6 refactor; that file was removed 2026-05-13)
 // Prevents infinite restart loops that exhaust DB connection pool
 const MAX_WORKER_RESTARTS = parseInt(process.env.MAX_WORKER_RESTARTS || '10', 10);
 const RESTART_BACKOFF_MS = parseInt(process.env.RESTART_BACKOFF_MS || '5000', 10);
@@ -72,7 +72,7 @@ export function spawnChild(name, command, args, env = {}) {
 /**
  * Start strategy generator worker with restart limits.
  *
- * 2026-02-25: Added MAX_WORKER_RESTARTS guard (ported from start-replit.js).
+ * 2026-02-25: Added MAX_WORKER_RESTARTS guard (ported from start-replit.js; that file was removed 2026-05-13).
  * Without this, a crashing worker creates an infinite restart loop that
  * exhausts the DB connection pool and cascades failures to auth queries.
  *
@@ -132,7 +132,7 @@ export function startStrategyWorker(options = {}) {
  * Schedule a worker restart with backoff and failure limit.
  * Prevents infinite restart loops that exhaust DB connections.
  *
- * 2026-02-25: Extracted from start-replit.js during Phase 6 refactor.
+ * 2026-02-25: Extracted from start-replit.js during Phase 6 refactor; that file was removed 2026-05-13.
  */
 function scheduleWorkerRestart(options) {
   if (isShuttingDown) return;
