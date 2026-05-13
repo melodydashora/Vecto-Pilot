@@ -2,15 +2,22 @@
 // CRUD endpoints for claude_memory table — Claude Code's persistent knowledge base
 // 2026-04-14: Created for memory-keeper agent and internal tooling
 //
-// NOTE: No auth middleware — this API is for Claude Code internal use,
-// not exposed to end users. If exposed publicly, add requireAuth.
+// 2026-05-12 SECURITY (Item 3 of auth-hardening): this router IS mounted
+// publicly under /api (see server/bootstrap/routes.js:117). The prior comment
+// claimed it was internal-only — that was wrong. requireAuth is now applied
+// at the top to gate every route below. Authenticated callers (bearer JWT or
+// x-vecto-agent-secret / x-claude-bridge-token service-account headers) are
+// required.
 
 import { Router } from 'express';
 import { db } from '../../db/drizzle.js';
 import { claudeMemory } from '../../../shared/schema.js';
 import { eq, desc, and, ilike, sql } from 'drizzle-orm';
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+
+router.use(requireAuth);
 
 // ============================================================================
 // GET /api/memory — List memories with optional filters
