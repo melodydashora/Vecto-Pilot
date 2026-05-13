@@ -121,6 +121,28 @@ function ensureGoogleCloudProject() {
 }
 
 /**
+ * Resolve APP_RUNTIME — the sanctioned environment-class enum.
+ *
+ * Resolution precedence (per Manifesto §3b, see env-registry.js doctrine comment):
+ *   1. Explicit APP_RUNTIME env var (highest) — set by .replit:run or test runner
+ *   2. Derived from REPLIT_DEPLOYMENT === '1' → 'deployment'
+ *   3. Default: 'workspace' (local dev outside Replit)
+ *
+ * 2026-05-13: Added during Phase 2 v2 startup unification (step 2 of the Manifesto
+ * Appendix). Idempotent — safe to call multiple times.
+ */
+export function resolveAppRuntime() {
+  const explicit = process.env.APP_RUNTIME;
+  if (explicit && ['workspace', 'deployment', 'test'].includes(explicit)) {
+    return explicit;
+  }
+  if (process.env.REPLIT_DEPLOYMENT === '1') {
+    return 'deployment';
+  }
+  return 'workspace';
+}
+
+/**
  * Load environment configuration.
  *
  * Two paths:
@@ -128,6 +150,9 @@ function ensureGoogleCloudProject() {
  *   2. Dev/workspace → load .env.local as baseline (Replit Secrets still take precedence)
  *
  * GCP credentials are reconstructed first in both paths.
+ * 2026-05-13: APP_RUNTIME side-effect added to both paths so downstream consumers
+ * (validate-env.js, gateway-server.js bootstrap, future feature code) can read
+ * process.env.APP_RUNTIME directly in any environment.
  */
 export function loadEnvironment() {
   // 2026-02-11: Reconstruct GCP credentials FIRST (before any env file loading)
@@ -145,6 +170,12 @@ export function loadEnvironment() {
   if (isReplitDeployment) {
     console.log('[CONFIG] [ENV] Replit deployment detected - using Replit Secrets (skipping .env files)');
     console.log('[CONFIG] [ENV] ========================================');
+    // 2026-05-13: Resolve APP_RUNTIME (Phase 2 v2 §3) before returning so deployment
+    // callers have process.env.APP_RUNTIME set when they reach validate-env.js.
+    if (!process.env.APP_RUNTIME) {
+      process.env.APP_RUNTIME = resolveAppRuntime();
+      console.log(`[CONFIG] [ENV] APP_RUNTIME resolved: ${process.env.APP_RUNTIME}`);
+    }
     return;
   }
 
@@ -155,5 +186,14 @@ export function loadEnvironment() {
     console.log('[CONFIG] [ENV] Loaded: .env.local');
   } else {
     console.warn('[CONFIG] [ENV] .env.local not found (dev baseline)');
+  }
+
+  // 2026-05-13: Resolve APP_RUNTIME and persist into process.env if not already set.
+  // Downstream consumers (validate-env.js, gateway-server.js bootstrap, feature code)
+  // read process.env.APP_RUNTIME directly. resolveAppRuntime() is also exported for
+  // callers that need the value before loadEnvironment() has run (e.g., test setup).
+  if (!process.env.APP_RUNTIME) {
+    process.env.APP_RUNTIME = resolveAppRuntime();
+    console.log(`[CONFIG] [ENV] APP_RUNTIME resolved: ${process.env.APP_RUNTIME}`);
   }
 }
