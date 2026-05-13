@@ -161,6 +161,22 @@ router.get('/stream', logsRateLimiter, requireAuthFromQueryOrHeader, async (req,
 });
 
 // ----- /api/logs/viewer (HTML page; no auth here; page does its own auth) -----
+// TODO(auth-hardening Item 7, preserve-as-designed 2026-05-13): /viewer is
+// intentionally left unauthenticated as an HTML shell — the page itself
+// authenticates its own fetch calls via bearer token (localStorage or
+// ?token= query param, per the VIEWER_HTML body below). The architect
+// chose Option B in the Item 7 plan over the plan doc's literal "add
+// requireAuth" because gating the HTML route would break the mobile-
+// bookmark flow: opening /api/logs/viewer from a phone bookmark presents
+// no Authorization header, so requireAuth would 401 before the page's
+// own auth JS can run. The HTML payload itself is non-sensitive (viewer
+// chrome + auth JS); all actual log data is gated by sibling /api/logs,
+// /api/logs/raw, and /api/logs/stream routes which DO use requireAuth.
+// See also the file-header comments at lines 12-15 and the inline header
+// at line 163 for the pre-existing rationale. This preserve-as-designed
+// call is captured in claude_memory (session_id
+// auth-hardening-pass-2026-05-13, tags auth-hardening + item-7 +
+// deferred) so future audits don't flag this as missed auth.
 router.get('/viewer', (req, res) => {
   res.type('text/html').send(VIEWER_HTML);
 });

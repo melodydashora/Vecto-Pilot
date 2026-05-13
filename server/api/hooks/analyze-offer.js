@@ -27,6 +27,22 @@ import { latLngToCell } from 'h3-js';
 // 2026-04-16: FIX — resolve driver timezone from coords so temporal columns are local, not UTC
 import { resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
 
+// TODO(auth-hardening Item 7, deferred 2026-05-13): treatment (B) — this
+// router is intentionally left unauthenticated pending Siri Shortcut
+// migration to user_id auth. Owner: Melody. The file header (line 13)
+// states the historical rationale: "Auth: Explicitly public — Siri
+// Shortcuts cannot send JWT tokens" — that constraint still holds today
+// (Siri Shortcuts have no programmable bearer-token surface), so adding
+// requireAuth here would break the "Vecto Analyze" Shortcut Melody uses
+// live on her phone. The follow-up workstream covering this deferral is
+// tracked in claude_memory (session_id auth-hardening-pass-2026-05-13,
+// tags auth-hardening + item-7 + deferred). The plan: migrate the Siri
+// Shortcut to attach a per-user token, then layer requireAuth here in a
+// separate commit. HooksCatalog.md additionally flags two future
+// workstreams for this route — adding an offerHookLimiter (parallel to
+// translate.js's translationLimiter) and an optional Phase 2
+// VECTO_HOOK_TOKEN shared-secret gate. Those are tracked separately and
+// are NOT in scope for this commit.
 const router = Router();
 
 // 2026-04-16: Build TTS-friendly voice line for Siri Shortcuts "Speak Text" action.

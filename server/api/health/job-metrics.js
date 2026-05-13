@@ -1,8 +1,14 @@
 
 import { Router } from 'express';
+import { requireAuth } from '../../middleware/auth.js';
 import { jobQueue } from '../../lib/infrastructure/job-queue.js';
 
 const router = Router();
+
+// 2026-05-13 SECURITY (Item 7 of auth-hardening): gate /api/job-metrics
+// behind requireAuth. Endpoint exposes internal job-queue state useful to
+// attackers for fingerprinting; no external consumer requires unauth.
+router.use(requireAuth);
 
 // 2026-04-25 (P1-6): Use mount-relative paths. Mounted at /api/job-metrics in
 // server/bootstrap/routes.js, so the prior absolute paths doubled the prefix
