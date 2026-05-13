@@ -382,6 +382,21 @@ export async function analyzeWorkspaceDeepBase(identity) {
 }
 
 // Store identity-specific memory
+// TODO(auth-hardening Item 6, deferred 2026-05-13): this writer is a silent
+// no-op for every identity table currently in use — the INSERT below targets
+// columns (session_id, entry_type, title, metadata) that do not exist on
+// agent_memory, assistant_memory, or eidolon_memory. All three were unified
+// to (scope, key, user_id, content, ...) at some point; see
+// shared/schema.js:490, :507, :523. The try/catch on line 404 silently
+// swallows the resulting "column does not exist" error, so every call to
+// this function has been failing without surfacing. Item 6 was scoped to
+// agent_memory only, so we defer the cross-table repair to a future
+// schema-repair workstream. When repaired, the function should accept a
+// userId parameter and apply the ENFORCE_USERID_UUID flag-gated guard per
+// Item 1 commit 8c26e84b (cross_thread_memory closure): reject non-uuid
+// userId when the flag is on, warn + accept when off. Until then this path
+// is left intentionally broken as a passive log signature for the
+// auth-hardening rollout (see Item 6 commit body for rationale).
 export async function storeIdentityMemory(identity, memoryTable, title, content, metadata = {}, ttlDays = 730) {
   try {
     const { getSharedPool } = await import("../../../db/pool.js");
@@ -408,6 +423,20 @@ export async function storeIdentityMemory(identity, memoryTable, title, content,
 }
 
 // Get identity-specific memory
+// TODO(auth-hardening Item 6, deferred 2026-05-13): this reader is a silent
+// no-op for every identity table currently in use — the SELECT below filters
+// WHERE session_id = $1 against a column that does not exist on agent_memory,
+// assistant_memory, or eidolon_memory (live schema: scope, key, user_id,
+// content, ...; see shared/schema.js:490, :507, :523). The try/catch wrapper
+// silently returns [] when the query throws "column does not exist". The
+// userId parameter is accepted but never used in the WHERE clause, so even
+// once the column reference is fixed the function would still aggregate
+// cross-user rows. Item 6 was scoped to agent_memory only, so we defer the
+// cross-table repair to a future schema-repair workstream. When repaired,
+// change the WHERE to filter by user_id, require a non-null userId under
+// ENFORCE_USERID_UUID=1 per Item 1 commit 8c26e84b, and warn + return []
+// when called without one. Until then this path is left intentionally
+// broken (see Item 6 commit body).
 export async function getIdentityMemory(identity, memoryTable, userId = null, limit = 50) {
   try {
     const { getSharedPool } = await import("../../../db/pool.js");
