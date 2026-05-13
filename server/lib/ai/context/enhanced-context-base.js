@@ -15,7 +15,19 @@ const BASE_DIR = process.env.BASE_DIR || process.cwd();
  * Consolidates duplicate logic from Agent, Assistant, and Eidolon
  */
 export async function getEnhancedProjectContextBase(identity, memoryTable, options = {}) {
-  const { threadId = null, includeThreadContext = true } = options;
+  const { threadId = null, includeThreadContext = true, userId = null } = options;
+
+  // 2026-05-12 SECURITY (Item 1 of auth-hardening): callers MUST pass an
+  // authenticated user UUID. Querying with userId=null aggregates rows from
+  // the cross-user NULL pool into the LLM prompt (see plan §3 item 1).
+  // Behind ENFORCE_USERID_UUID=1 we throw. Without the flag we warn and fall
+  // back to today's NULL-pool query for the rollout observation window.
+  if (!userId) {
+    if (process.env.ENFORCE_USERID_UUID === '1') {
+      throw new Error(`getEnhancedProjectContextBase(${identity}): refusing NULL-pool query (pass userId in options) under ENFORCE_USERID_UUID=1`);
+    }
+    console.warn(`[${identity} Enhanced Context] called with userId=null — NULL-pool fallback (insecure; will throw under ENFORCE_USERID_UUID=1)`);
+  }
 
   const context = {
     currentTime: new Date().toISOString(),
@@ -151,11 +163,11 @@ export async function getEnhancedProjectContextBase(identity, memoryTable, optio
 
   // Gather memory context
   try {
-    const prefs = await memoryQuery({ 
-      table: memoryTable, 
-      scope: `${identity}_preferences`, 
-      userId: null,
-      limit: 50 
+    const prefs = await memoryQuery({
+      table: memoryTable,
+      scope: `${identity}_preferences`,
+      userId,
+      limit: 50
     });
     context[`${identity}Preferences`] = Object.fromEntries(
       prefs.map(p => [p.key, p.content])
@@ -165,11 +177,11 @@ export async function getEnhancedProjectContextBase(identity, memoryTable, optio
   }
 
   try {
-    const session = await memoryQuery({ 
-      table: memoryTable, 
-      scope: "session_state", 
-      userId: null,
-      limit: 20 
+    const session = await memoryQuery({
+      table: memoryTable,
+      scope: "session_state",
+      userId,
+      limit: 20
     });
     context.sessionHistory = Object.fromEntries(
       session.map(s => [s.key, s.content])
@@ -179,11 +191,11 @@ export async function getEnhancedProjectContextBase(identity, memoryTable, optio
   }
 
   try {
-    const state = await memoryQuery({ 
-      table: memoryTable, 
-      scope: "project_state", 
-      userId: null,
-      limit: 20 
+    const state = await memoryQuery({
+      table: memoryTable,
+      scope: "project_state",
+      userId,
+      limit: 20
     });
     context.projectState = Object.fromEntries(
       state.map(s => [s.key, s.content])
@@ -196,7 +208,7 @@ export async function getEnhancedProjectContextBase(identity, memoryTable, optio
     const convs = await memoryQuery({
       table: memoryTable,
       scope: "conversations",
-      userId: null,
+      userId,
       limit: 30,
     });
     context.conversationHistory = convs.map(c => c.content);
