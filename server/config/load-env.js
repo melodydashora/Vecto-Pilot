@@ -125,7 +125,7 @@ function ensureGoogleCloudProject() {
  *
  * Resolution precedence (per Manifesto §3b, see env-registry.js doctrine comment):
  *   1. Explicit APP_RUNTIME env var (highest) — set by .replit:run or test runner
- *   2. Derived from REPLIT_DEPLOYMENT === '1' → 'deployment'
+ *   2. Derived from REPLIT_DEPLOYMENT in ['1', 'true'] → 'deployment'
  *   3. Default: 'workspace' (local dev outside Replit)
  *
  * 2026-05-13: Added during Phase 2 v2 startup unification (step 2 of the Manifesto
@@ -136,7 +136,7 @@ export function resolveAppRuntime() {
   if (explicit && ['workspace', 'deployment', 'test'].includes(explicit)) {
     return explicit;
   }
-  if (process.env.REPLIT_DEPLOYMENT === '1') {
+  if (['1', 'true'].includes(process.env.REPLIT_DEPLOYMENT)) {
     return 'deployment';
   }
   return 'workspace';

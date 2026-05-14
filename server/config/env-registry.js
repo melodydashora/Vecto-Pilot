@@ -91,7 +91,7 @@ export const ENV_VARS = {
   },
   GOOGLE_AI_API_KEY: {
     required: false,
-    description: 'DEPRECATED — use GEMINI_API_KEY. Slated for removal in Phase 2 v2 deletion D4. validate-env.js:27 emits a deprecation warning when set without GEMINI_API_KEY.',
+    description: 'DEPRECATED — use GEMINI_API_KEY. Accepted by validate-env.js:23 as a Gemini auth alias with deprecation warning at validate-env.js:29-31 when set without GEMINI_API_KEY. Hard removal was attempted in Step 2 (Manifesto §7 D4) but Codex review on PR #33 caught that the operator surface (Replit Secrets, .env files) had not been verified as migrated; deprecation cycle restored in Step 8. Hard removal deferred until the warning cycle surfaces operator-side migration completion.',
     sensitive: true,
   },
 

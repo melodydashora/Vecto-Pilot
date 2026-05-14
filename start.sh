@@ -16,8 +16,12 @@
 #   4. Optionally starts the background worker for strategy generation
 #
 # PRODUCTION vs DEVELOPMENT:
-#   - Production: Uses npm run start:replit (builds client first)
-#   - Development: Uses node gateway-server.js directly (assumes client built)
+#   - Both modes invoke `node gateway-server.js` directly (canonical entrypoint
+#     per the 2026-05-13 startup unification pass).
+#   - The only mode difference is the NODE_ENV export, which Vite/framework code
+#     still reads for build-mode optimization. App code reads APP_RUNTIME.
+#   - Client build is assumed present in client/dist/. Run `npm run build:client`
+#     first if missing (or invoke via .replit:run which chains dev-prerun.sh).
 #
 # =============================================================================
 
@@ -67,5 +71,5 @@ if [ "$MODE" = "dev" ] || [ "$MODE" = "clean" ]; then
 else
   echo "[start] 🌐 Starting in production mode (with client build)..."
   export NODE_ENV=production
-  exec npm run start:replit
+  exec node gateway-server.js
 fi

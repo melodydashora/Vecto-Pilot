@@ -20,10 +20,14 @@ export function validateEnvironment() {
   // CRITICAL: AI providers (at least one required for strategy generation)
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
   const hasOpenAI = !!process.env.OPENAI_API_KEY;
-  const hasGemini = !!process.env.GEMINI_API_KEY;
+  const hasGemini = !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_AI_API_KEY;
 
   if (!hasAnthropic && !hasOpenAI && !hasGemini) {
     errors.push('At least one AI provider API key required: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY');
+  }
+
+  if (process.env.GOOGLE_AI_API_KEY && !process.env.GEMINI_API_KEY) {
+    warnings.push('GOOGLE_AI_API_KEY is deprecated - use GEMINI_API_KEY instead');
   }
 
   // CRITICAL: Google Maps (required for location services)
