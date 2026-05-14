@@ -45,7 +45,7 @@ import { searchPlaceByText } from "../venue/venue-enrichment.js";
 import { getVenuesByType, lookupVenue, normalizeVenueName } from "../venue/venue-cache.js";
 import { normalizeDistrictSlug } from "../venue/district-detection.js";
 import { db } from "../../db/drizzle.js";
-import { venue_catalog } from "../../../shared/schema.js";
+import { venue_catalog, claudeMemory } from "../../../shared/schema.js";
 import { and, eq, ilike } from "drizzle-orm";
 // 2026-04-16: Import driver preferences for prompt injection + deadhead flagging
 import { loadDriverPreferences, buildDriverPreferencesSection } from "../ai/providers/consolidator.js";
@@ -704,19 +704,26 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
         location: 'tactical-planner.js:generateTacticalPlan',
       }, `Resolved ${resolvedVenues.length}/${TARGET_VENUE_COUNT} venues — degraded`);
 
-      // 2026-04-16: Fire-and-forget degradation memory entry for catalog gap tracking
+      // 2026-04-16: Fire-and-forget degradation memory entry for catalog gap tracking.
+      // 2026-05-12 SECURITY (Item 3 of auth-hardening): migrated from a self-call
+      // (`fetch('http://localhost:5000/api/memory', ...)`) to a direct Drizzle insert.
+      // The prior code hit this same Node process over the loopback interface and
+      // would have broken once Item 3 added requireAuth to /api/memory/*. Direct
+      // insert removes both the round-trip and the auth requirement. Field set and
+      // validation match the POST handler at server/api/memory/index.js:98-111
+      // (4-required-fields truthiness check, then values(...) over the same columns).
+      // Same fire-and-forget posture: outer try/catch swallows sync errors, .catch
+      // on the returned Promise swallows async errors. Schema defaults (source,
+      // priority, status, empty tags, timestamps) apply automatically.
       try {
-        fetch('http://localhost:5000/api/memory', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            session_id: `degradation-${snapshot?.id || 'unknown'}`,
-            category: 'degradation',
-            title: `Venue resolution degraded: ${resolvedVenues.length}/${TARGET_VENUE_COUNT} at ${city}, ${state}`,
-            content: `Failed venues: ${failedVenues.map(v => `${v.name} (${v.category}${v.district ? `, ${v.district}` : ''}, ${city}, ${state})`).join('; ')}. Resolved: ${resolvedNames.size}. Snapshot: ${snapshot?.id || 'unknown'}.`,
-            tags: ['degradation', 'venue-resolution', city, state].filter(Boolean)
-          })
-        }).catch(() => {}); // fire and forget
+        const session_id = `degradation-${snapshot?.id || 'unknown'}`;
+        const category = 'degradation';
+        const title = `Venue resolution degraded: ${resolvedVenues.length}/${TARGET_VENUE_COUNT} at ${city}, ${state}`;
+        const content = `Failed venues: ${failedVenues.map(v => `${v.name} (${v.category}${v.district ? `, ${v.district}` : ''}, ${city}, ${state})`).join('; ')}. Resolved: ${resolvedNames.size}. Snapshot: ${snapshot?.id || 'unknown'}.`;
+        const tags = ['degradation', 'venue-resolution', city, state].filter(Boolean);
+        if (session_id && category && title && content) {
+          db.insert(claudeMemory).values({ session_id, category, title, content, tags }).catch(() => {});
+        }
       } catch { /* non-blocking */ }
     }
 

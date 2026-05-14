@@ -117,6 +117,22 @@ export class ThreadContextManager {
     });
 
     // Store agent memory if role is 'agent' (using correct schema)
+    // TODO(auth-hardening Item 6, deferred 2026-05-13): this writer is a
+    // silent no-op due to a schema-vs-code mismatch. The INSERT below targets
+    // columns (session_id, entry_type, title, metadata) that do not exist on
+    // the live agent_memory table — the schema is (scope, key, user_id,
+    // content, ...); see shared/schema.js:490. The try/catch on line ~140
+    // swallows the resulting "column does not exist" error, so every call to
+    // this branch has been silently failing. When the schema-repair
+    // workstream lands, repair this INSERT to match the live columns AND
+    // layer the ENFORCE_USERID_UUID flag-gated guard per Item 1 commit
+    // 8c26e84b (cross_thread_memory closure): require a valid uuid user_id
+    // (this.threadMetadata.userId is already in scope here — see line 110
+    // where it's used for cross_thread_memory), reject non-uuid when the
+    // flag is on, warn + fall back when off. Until then this path is left
+    // intentionally broken as a passive log signature for the auth-hardening
+    // rollout (see Item 6 commit body for the operational-instrumentation
+    // and archeological-clarity rationale).
     if (role === "agent") {
       try {
         const { getSharedPool } = await import("../db/pool.js");

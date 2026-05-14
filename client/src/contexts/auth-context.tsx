@@ -157,24 +157,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: data.message || data.error || 'Login failed' };
       }
 
-      if (data.token) {
-        // 2026-02-17: FIX - Clear stale snapshot from previous session on login
-        // Without this, sessionStorage restore in location-context serves the OLD snapshot
-        // from before logout, bypassing the server entirely (never creates a new one)
-        sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
-        localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
-        localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-
-        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-        setState({
-          user: data.user || null,
-          profile: data.profile || null,
-          vehicle: data.vehicle || null,
-          token: data.token,
-          isAuthenticated: true,
-          isLoading: false,
-        });
+      // 2026-05-13 FAIL-LOUD (silent-fallthrough hardening, Item 2 followup):
+      // If the server ever returns 200 OK without a token in the body, treat
+      // it as an explicit error rather than silently returning success and
+      // letting the next authenticated request 401 with no_token. Currently
+      // unreachable after commit 7e7d875b (which fixed an upstream regression
+      // that could mask this fragility), but the invariant is preserved
+      // defensively so any future server-side breakage of the success response
+      // shape surfaces here instead of as a phantom auth state.
+      if (!data.token) {
+        return { success: false, error: 'Login succeeded but no token was returned' };
       }
+
+      // 2026-02-17: FIX - Clear stale snapshot from previous session on login
+      // Without this, sessionStorage restore in location-context serves the OLD snapshot
+      // from before logout, bypassing the server entirely (never creates a new one)
+      sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
+      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+
+      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
+      setState({
+        user: data.user || null,
+        profile: data.profile || null,
+        vehicle: data.vehicle || null,
+        token: data.token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
 
       return { success: true };
     } catch (error) {

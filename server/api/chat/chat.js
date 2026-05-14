@@ -1298,7 +1298,9 @@ END OFFER ANALYZER RULES (read-only — propose changes via [COACH_MEMO])
     // SUPER USER ENHANCEMENT: Inject Agent Capabilities & Memory
     if (isSuperUser) {
       try {
-        const agentContext = await getEnhancedProjectContext();
+        // 2026-05-12 SECURITY (Item 1 of auth-hardening): pass req.auth.userId so the
+        // Coach context queries are scoped to this user, not the cross-user NULL pool.
+        const agentContext = await getEnhancedProjectContext({ userId: req.auth?.userId });
         
         // 2026-02-13: Super User context for Melody (architect/developer)
         // 2026-03-17: SECURITY FIX (F-16) — Removed false capability claims.

@@ -50,7 +50,17 @@ function subscribeSSE(
     // Create new connection - first subscriber for this endpoint
     if (DEBUG_SSE_ENABLED) console.log(`[SSE Manager] 🔌 Creating singleton connection: ${endpoint} (${eventName})`);
 
-    const eventSource = new EventSource(endpoint);
+    // 2026-05-12 SECURITY (Item 2 of auth-hardening): SSE routes now require
+    // auth. EventSource cannot attach Authorization headers, so we append the
+    // bearer token from localStorage as a query param. The server's
+    // requireAuthAllowQueryToken wrapper accepts ?token= when no Authorization
+    // header is present. If no token is available the EventSource will receive
+    // 401 from the server and the existing onerror handler below fires.
+    const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
+    const endpointWithToken = token
+      ? `${endpoint}${endpoint.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+      : endpoint;
+    const eventSource = new EventSource(endpointWithToken);
     subscription = {
       eventSource,
       subscribers: new Set(),

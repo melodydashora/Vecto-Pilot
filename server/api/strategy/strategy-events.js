@@ -26,8 +26,15 @@ import { phaseEmitter } from '../../events/phase-emitter.js';
 import { db } from '../../db/drizzle.js';
 import { briefings, strategies, rankings } from '../../../shared/schema.js';
 import { eq, and, isNotNull, desc, or, sql as drizzleSql } from 'drizzle-orm';
+import { requireAuthAllowQueryToken } from '../../middleware/auth.js';
 
 const router = express.Router();
+
+// 2026-05-12 SECURITY (Item 2 of auth-hardening; per-route scope from
+// 2026-05-13 followup): each of the five SSE routes below is gated by
+// requireAuthAllowQueryToken in its per-route middleware slot. NOT attached
+// via router.use because this SSE router is mounted at '/' in
+// bootstrap/routes.js, which would gate every request to the gateway.
 
 // 2026-04-18 (F2): Helper to write the initial-state SSE event after subscribe.
 // Each per-channel handler calls a tailored variant below; this wraps the wire format.
@@ -65,7 +72,7 @@ function startHeartbeat(res) {
   }, HEARTBEAT_INTERVAL_MS);
 }
 
-router.get('/events/strategy', async (req, res) => {
+router.get('/events/strategy', requireAuthAllowQueryToken, async (req, res) => {
   strategyConnections++;
   chainLog({ parent: 'STRATEGY', callTypes: ['SSE'] }, `connected (${strategyConnections} active) - /events/strategy`);
 
@@ -141,7 +148,7 @@ router.get('/events/strategy', async (req, res) => {
   }
 });
 
-router.get('/events/briefing', async (req, res) => {
+router.get('/events/briefing', requireAuthAllowQueryToken, async (req, res) => {
   briefingConnections++;
   chainLog({ parent: 'BRIEFING', callTypes: ['SSE'] }, `connected (${briefingConnections} active) - /events/briefing`);
 
@@ -259,7 +266,7 @@ router.get('/events/briefing', async (req, res) => {
   }
 });
 
-router.get('/events/blocks', async (req, res) => {
+router.get('/events/blocks', requireAuthAllowQueryToken, async (req, res) => {
   blocksConnections++;
   chainLog({ parent: 'VENUE', callTypes: ['SSE'] }, `connected (${blocksConnections} active) - /events/blocks`);
 
@@ -331,7 +338,7 @@ router.get('/events/blocks', async (req, res) => {
 
 // 2026-01-09: /events/phase migrated from briefing/events.js (EventEmitter SSE)
 // Phase updates are high-frequency ephemeral events - no DB NOTIFY needed
-router.get('/events/phase', (req, res) => {
+router.get('/events/phase', requireAuthAllowQueryToken, (req, res) => {
   phaseConnections++;
   chainLog({ parent: 'WATERFALL', callTypes: ['SSE'] }, `connected (${phaseConnections} active) - /events/phase`);
 
@@ -374,7 +381,7 @@ router.get('/events/phase', (req, res) => {
 // is in the Uber app — the notification appears when they return to Vecto.
 let offerConnections = 0;
 
-router.get('/events/offers', async (req, res) => {
+router.get('/events/offers', requireAuthAllowQueryToken, async (req, res) => {
   offerConnections++;
   chainLog({ parent: 'STRATEGY', sub: 'OFFERS', callTypes: ['SSE'] }, `connected (${offerConnections} active) - /events/offers`);
 

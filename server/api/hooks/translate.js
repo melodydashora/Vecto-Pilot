@@ -22,6 +22,21 @@ import {
   parseTranslationResponse,
 } from '../translate/translation-prompt.js';
 
+// TODO(auth-hardening Item 7, deferred 2026-05-13): treatment (B), symmetric
+// with analyze-offer.js — this router is intentionally left unauthenticated
+// pending Siri Shortcut migration to user_id auth. Owner: Melody. The file
+// header (line 5) states the historical rationale: "Auth: Device-based
+// (device_id header) — Siri Shortcuts cannot send JWT tokens" — that
+// constraint still holds today, and adding requireAuth here would break the
+// live "Vecto Translate" Siri Shortcut Melody is actively demoing. The
+// in-app translator tab (client/src/components/co-pilot/TranslationOverlay.tsx)
+// runs through the JWT-authed /api/translate sibling mount, NOT
+// /api/hooks/translate, so this hook has no legitimate non-Siri consumer
+// today and migration scope is bounded. The follow-up workstream is tracked
+// in claude_memory (session_id auth-hardening-pass-2026-05-13, tags
+// auth-hardening + item-7 + deferred) on a parallel migration path to
+// analyze-offer.js: migrate the Siri Shortcut to attach a per-user token,
+// then layer requireAuth here in a separate commit.
 const router = Router();
 
 /**

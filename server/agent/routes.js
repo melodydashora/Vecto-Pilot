@@ -137,7 +137,17 @@ router.get("/threads/recent", async (req, res) => {
 // Memory endpoints
 router.post("/memory/preference", async (req, res) => {
   try {
-    const { key, value, userId = "system" } = req.body;
+    const { key, value } = req.body;
+    // 2026-05-12 SECURITY (Item 1 of auth-hardening): use req.auth.userId from
+    // requireAuth middleware, not body. Default userId="system" silently coerced
+    // to NULL in normalizeUserId → cross-user pool. Reject behind ENFORCE_USERID_UUID=1.
+    const userId = req.auth?.userId;
+    if (!userId || !/^[0-9a-fA-F\-]{36}$/.test(userId)) {
+      if (process.env.ENFORCE_USERID_UUID === '1') {
+        return res.status(400).json({ ok: false, error: 'user_id_required', detail: '[memory/preference] req.auth.userId missing or non-UUID' });
+      }
+      console.warn(`[agent:memory/preference] req.auth.userId missing or non-UUID — would 400 under ENFORCE_USERID_UUID=1`);
+    }
     await memoryPut({
       table: "assistant_memory",
       scope: "user_preferences",
@@ -154,7 +164,17 @@ router.post("/memory/preference", async (req, res) => {
 
 router.post("/memory/session", async (req, res) => {
   try {
-    const { key, data, userId = "system" } = req.body;
+    const { key, data } = req.body;
+    // 2026-05-12 SECURITY (Item 1 of auth-hardening): use req.auth.userId from
+    // requireAuth middleware, not body. Default userId="system" silently coerced
+    // to NULL in normalizeUserId → cross-user pool. Reject behind ENFORCE_USERID_UUID=1.
+    const userId = req.auth?.userId;
+    if (!userId || !/^[0-9a-fA-F\-]{36}$/.test(userId)) {
+      if (process.env.ENFORCE_USERID_UUID === '1') {
+        return res.status(400).json({ ok: false, error: 'user_id_required', detail: '[memory/session] req.auth.userId missing or non-UUID' });
+      }
+      console.warn(`[agent:memory/session] req.auth.userId missing or non-UUID — would 400 under ENFORCE_USERID_UUID=1`);
+    }
     await memoryPut({
       table: "eidolon_memory",
       scope: "session_state",
@@ -171,7 +191,17 @@ router.post("/memory/session", async (req, res) => {
 
 router.post("/memory/project", async (req, res) => {
   try {
-    const { key, data, userId = "system" } = req.body;
+    const { key, data } = req.body;
+    // 2026-05-12 SECURITY (Item 1 of auth-hardening): use req.auth.userId from
+    // requireAuth middleware, not body. Default userId="system" silently coerced
+    // to NULL in normalizeUserId → cross-user pool. Reject behind ENFORCE_USERID_UUID=1.
+    const userId = req.auth?.userId;
+    if (!userId || !/^[0-9a-fA-F\-]{36}$/.test(userId)) {
+      if (process.env.ENFORCE_USERID_UUID === '1') {
+        return res.status(400).json({ ok: false, error: 'user_id_required', detail: '[memory/project] req.auth.userId missing or non-UUID' });
+      }
+      console.warn(`[agent:memory/project] req.auth.userId missing or non-UUID — would 400 under ENFORCE_USERID_UUID=1`);
+    }
     await memoryPut({
       table: "eidolon_memory",
       scope: "project_state",
@@ -188,7 +218,17 @@ router.post("/memory/project", async (req, res) => {
 
 router.post("/memory/conversation", async (req, res) => {
   try {
-    const { topic, summary, userId = "system" } = req.body;
+    const { topic, summary } = req.body;
+    // 2026-05-12 SECURITY (Item 1 of auth-hardening): use req.auth.userId from
+    // requireAuth middleware, not body. Default userId="system" silently coerced
+    // to NULL in normalizeUserId → cross-user pool. Reject behind ENFORCE_USERID_UUID=1.
+    const userId = req.auth?.userId;
+    if (!userId || !/^[0-9a-fA-F\-]{36}$/.test(userId)) {
+      if (process.env.ENFORCE_USERID_UUID === '1') {
+        return res.status(400).json({ ok: false, error: 'user_id_required', detail: '[memory/conversation] req.auth.userId missing or non-UUID' });
+      }
+      console.warn(`[agent:memory/conversation] req.auth.userId missing or non-UUID — would 400 under ENFORCE_USERID_UUID=1`);
+    }
     await memoryPut({
       table: "assistant_memory",
       scope: "conversations",
@@ -205,7 +245,18 @@ router.post("/memory/conversation", async (req, res) => {
 
 router.get("/memory/conversations", async (req, res) => {
   try {
-    const { userId = "system", limit = 30 } = req.query;
+    const { limit = 30 } = req.query;
+    // 2026-05-12 SECURITY (Item 1 of auth-hardening): use req.auth.userId from
+    // requireAuth middleware, not query string. Default userId="system" silently
+    // coerced to NULL in normalizeUserId → returned the cross-user NULL pool.
+    // Reject behind ENFORCE_USERID_UUID=1.
+    const userId = req.auth?.userId;
+    if (!userId || !/^[0-9a-fA-F\-]{36}$/.test(userId)) {
+      if (process.env.ENFORCE_USERID_UUID === '1') {
+        return res.status(400).json({ ok: false, error: 'user_id_required', detail: '[memory/conversations] req.auth.userId missing or non-UUID' });
+      }
+      console.warn(`[agent:memory/conversations] req.auth.userId missing or non-UUID — would 400 under ENFORCE_USERID_UUID=1`);
+    }
     const convs = await memoryQuery({
       table: "assistant_memory",
       scope: "conversations",

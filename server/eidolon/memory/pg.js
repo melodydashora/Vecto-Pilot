@@ -22,6 +22,14 @@ function normalizeUserId(userId) {
   // If schema uses UUID, ensure valid or fallback to null
   if (!userId) return null;
   if (/^[0-9a-fA-F\-]{36}$/.test(userId)) return userId;
+  // 2026-05-12 SECURITY (Item 1 of auth-hardening): non-UUID strings used to
+  // silently coerce to NULL, pooling cross-user writes into one row. Behind
+  // ENFORCE_USERID_UUID=1 we throw (strict). Without the flag we log + fall
+  // back to NULL for the rollout window so accidental callers surface in logs.
+  if (process.env.ENFORCE_USERID_UUID === '1') {
+    throw new Error(`normalizeUserId: non-UUID userId rejected: ${String(userId).slice(0, 32)}`);
+  }
+  console.warn(`[memory] normalizeUserId silently coerced non-UUID userId "${String(userId).slice(0, 32)}" to NULL — would throw under ENFORCE_USERID_UUID=1`);
   return null;
 }
 

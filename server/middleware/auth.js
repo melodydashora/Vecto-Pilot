@@ -313,5 +313,32 @@ export async function optionalAuth(req, res, next) {
   }
 }
 
+// TODO (Phase 2 sunset target): replace this ?token= query-param fallback with
+// an HttpOnly-cookie ticket layer (POST /api/logs/ticket-style — see logs.js:36-42
+// for the design reference). Once that ships, this wrapper should be removed
+// and SSE routes should fall back to plain requireAuth (browsers will present
+// the HttpOnly cookie automatically with no JS involvement). The query-param
+// path below is a known URL-leak risk via platform-level access logs and is
+// intentionally accepted in prod only because there is no polling fallback for
+// browser EventSource — bounded by the 60-min sliding window + 2-hour hard cap
+// session TTL at auth.js:200-203.
+//
+// 2026-05-12 SECURITY (Item 2 of auth-hardening): SSE-flavor of requireAuth.
+// EventSource (the browser API used to consume SSE streams) cannot attach
+// custom HTTP headers, so SSE routes need a way to receive a token outside
+// of the Authorization header. This wrapper accepts ?token=<bearer> as a
+// fallback ONLY when no Authorization header is present (header takes
+// precedence for server-to-server callers). The token is moved into
+// req.headers.authorization before requireAuth runs and is never logged
+// by this wrapper. Same verifyAppToken dispatch underneath; no new auth
+// path, no new secret material. Opt-in only — routes that need this
+// behavior import this function explicitly. Default requireAuth unchanged.
+export async function requireAuthAllowQueryToken(req, res, next) {
+  if (!req.headers.authorization && req.query.token) {
+    req.headers.authorization = 'Bearer ' + String(req.query.token);
+  }
+  return requireAuth(req, res, next);
+}
+
 // Export constants for use in other modules
 export { SYSTEM_AGENT_USER_ID, AGENT_SECRET_HEADER };

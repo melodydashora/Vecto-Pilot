@@ -17,7 +17,33 @@ export const ENV_VARS = {
   NODE_ENV: {
     required: false,
     default: 'development',
-    description: 'Environment mode (development, production)',
+    description: 'Build-mode only (Vite/framework verbosity). NOT consumed by app logic at runtime — use APP_RUNTIME for runtime-topology decisions per the doctrine comment at the bottom of this file.',
+  },
+
+  // 2026-05-13: APP_RUNTIME is the sanctioned environment-class enum (see doctrine
+  // comment at bottom of file). Replaces NODE_ENV as the runtime-topology signal.
+  APP_RUNTIME: {
+    required: false,
+    description: 'Runtime topology: workspace | deployment | test. Resolution at module load: explicit env var > derived from REPLIT_DEPLOYMENT === "1" → deployment > default "workspace". Set explicitly in .replit:run as APP_RUNTIME=workspace; test runner sets APP_RUNTIME=test. Resolution implemented in gateway-server.js.',
+  },
+
+  APP_MODE: {
+    required: false,
+    default: 'mono',
+    description: 'Process topology: mono (default; gateway + embedded agent) | split (gateway + standalone agent-server.js on AGENT_PORT). Read by gateway-server.js:35, validate-env.js:94.',
+  },
+  MODE: {
+    required: false,
+    description: 'DEPRECATED — legacy alias for APP_MODE. Slated for removal in Phase 2 v2 deletion D3. Both still accepted by validate-env.js:94 during transition.',
+  },
+  TRUST_PROXY_HOPS: {
+    required: false,
+    default: '1',
+    description: 'Express trust-proxy hop count for req.ip resolution. 0 = distrust all X-Forwarded-For; 1 = trust single edge (Replit/Cloud Run/Cloudflare); 2+ = multi-hop CDN chain. Read by gateway-server.js:94.',
+  },
+  EIDOLON_PORT: {
+    required: false,
+    description: 'Legacy SDK port (default 3102 in shared/ports.js). Separate from gateway PORT. Read by shared/ports.js:15, shared/config.js:20, server/api/health/diagnostic-identity.js:17. Note: the misplaced fallback at validate-env.js:88 is dropped in Phase 2 v2 deletion D2.',
   },
 
   // === Database ===
@@ -61,6 +87,11 @@ export const ENV_VARS = {
   GEMINI_API_KEY: {
     required: true,
     description: 'Google Gemini API key',
+    sensitive: true,
+  },
+  GOOGLE_AI_API_KEY: {
+    required: false,
+    description: 'DEPRECATED — use GEMINI_API_KEY. Accepted by validate-env.js:23 as a Gemini auth alias with deprecation warning at validate-env.js:29-31 when set without GEMINI_API_KEY. Hard removal was attempted in Step 2 (Manifesto §7 D4) but Codex review on PR #33 caught that the operator surface (Replit Secrets, .env files) had not been verified as migrated; deprecation cycle restored in Step 8. Hard removal deferred until the warning cycle surfaces operator-side migration completion.',
     sensitive: true,
   },
 
@@ -135,6 +166,16 @@ export const ENV_VARS = {
     description: 'Perplexity API key (holiday detection)',
     sensitive: true,
   },
+  OPENWEATHER_API_KEY: {
+    required: false,
+    description: 'OpenWeather API key. Warning if missing — weather data degrades gracefully (validate-env.js:58).',
+    sensitive: true,
+  },
+  GOOGLEAQ_API_KEY: {
+    required: false,
+    description: 'Google Air Quality API key. Warning if missing — AQ data unavailable (validate-env.js:62).',
+    sensitive: true,
+  },
 
   // === Auth ===
   JWT_SECRET: {
@@ -146,6 +187,37 @@ export const ENV_VARS = {
     required: false,
     description: 'Bearer token for agent server endpoints',
     sensitive: true,
+  },
+  VECTO_AGENT_SECRET: {
+    required: false,
+    description: 'Bearer secret for agent/system auth endpoints. Hard error in APP_RUNTIME=deployment (agent endpoints reject all requests without it). Warning otherwise. Read by validate-env.js:49.',
+    sensitive: true,
+  },
+  REPLIT_DEVSERVER_INTERNAL_ID: {
+    required: false,
+    description: 'Dev-only fallback for JWT_SECRET when unset. Auto-injected by Replit IDE in workspace; absent in deployment. Read by validate-env.js:43, server/lib/jwt.js.',
+    sensitive: true,
+  },
+  TOKEN_ENCRYPTION_KEY: {
+    required: false,
+    description: 'AES key for Uber OAuth token encryption at rest. Required if any UBER_* var is set. Hard error in APP_RUNTIME=deployment (Uber auth breaks). Warning otherwise. Read by validate-env.js:71.',
+    sensitive: true,
+  },
+
+  // === Uber Integration ===
+  UBER_CLIENT_ID: {
+    required: false,
+    description: 'Uber OAuth client ID. If set, CLIENT_SECRET and REDIRECT_URI must also be set. Read by validate-env.js:69,78.',
+    sensitive: true,
+  },
+  UBER_CLIENT_SECRET: {
+    required: false,
+    description: 'Uber OAuth client secret. Required if UBER_CLIENT_ID is set.',
+    sensitive: true,
+  },
+  UBER_REDIRECT_URI: {
+    required: false,
+    description: 'Uber OAuth redirect URI. Required if UBER_CLIENT_ID is set.',
   },
 
   // === Deployment ===
@@ -175,6 +247,10 @@ export const ENV_VARS = {
   FAST_BOOT: {
     required: false,
     description: 'Skip cache warmup on boot',
+  },
+  DISABLE_SPAWN_AGENT: {
+    required: false,
+    description: 'When set to "1", gateway does not spawn embedded agent. Used in workflow mode where agent runs as standalone process on AGENT_PORT (43717). Read by server/agent/embed.js.',
   },
 };
 
@@ -250,6 +326,26 @@ export function logEnvConfig() {
   }
 }
 
-// 2026-02-25: Removed isProduction() and isDevelopment() — environment-based branching
-// is an anti-pattern in autoscale deployments. Route logic by capability flags instead
-// (e.g., ENABLE_BACKGROUND_WORKER, CLOUD_RUN_AUTOSCALE, REPLIT_AUTOSCALE).
+// 2026-05-13: Doctrine update (Phase 2 v2 startup unification, full-lead-authorization).
+// APP_RUNTIME (workspace|deployment|test) is the SOLE sanctioned environment-class enum
+// for branching application behavior. Every other concern routes through a capability flag.
+//
+// Allowed in application code: branch on APP_RUNTIME for validator severity policy,
+//   test-skip policy, and any true runtime-topology decision where workspace/deployment/
+//   test differ structurally.
+// Disallowed in application code: NODE_ENV reads (build-mode only, owned by Vite/framework);
+//   ad-hoc REPLIT_DEPLOYMENT or REPL_ID reads for non-topology concerns; resurrecting
+//   isProduction()/isDevelopment() helpers.
+// Allowed in infrastructure code (server/config/*, gateway-server.js pre-main bootstrap):
+//   REPLIT_DEPLOYMENT may be read at module load to drive APP_RUNTIME resolution or
+//   env-loading-strategy selection (see load-env.js:138-149). Once APP_RUNTIME is
+//   computed, application code uses APP_RUNTIME only.
+//
+// Capability flags kept: ENABLE_BACKGROUND_WORKER, CLOUD_RUN_AUTOSCALE, REPLIT_AUTOSCALE,
+//   DISABLE_SPAWN_AGENT, FAST_BOOT, TRUST_PROXY_HOPS, AGENT_ENABLED. These remain the
+//   right tool for "can this process do X here?" — APP_RUNTIME answers only "what
+//   topology am I in?", which is a strictly narrower question.
+//
+// Historical: isProduction()/isDevelopment() were removed 2026-02-25 because they
+//   conflated build-mode with runtime topology. APP_RUNTIME re-introduces that
+//   distinction cleanly without the conflation.
