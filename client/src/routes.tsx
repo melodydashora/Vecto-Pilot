@@ -34,6 +34,10 @@ import AuthRedirect from '@/components/auth/AuthRedirect';
 import ConciergePage from '@/pages/co-pilot/ConciergePage';
 import PublicConciergePage from '@/pages/concierge/PublicConciergePage';
 import LandingPage from '@/pages/landing/LandingPage';
+// 2026-05-15: Public iPad kiosk "Welcome to My Car" — passenger-education flow with quiz + QR triptych.
+import WelcomePage from '@/pages/welcome/WelcomePage';
+// 2026-05-15: Public donate page reached from the welcome farewell QR (square.link CTA + cost breakdown + future scope).
+import PublicDonatePage from '@/pages/welcome/PublicDonatePage';
 
 export const router = createBrowserRouter([
   // ═══════════════════════════════════════════════════════════════════════════
@@ -81,6 +85,19 @@ export const router = createBrowserRouter([
   {
     path: '/demo',
     element: <LandingPage />,
+  },
+
+  // 2026-05-15: Public in-car iPad kiosk experience — passenger education + QR triptych.
+  // No auth required: iPad mounted in the car points to /welcome and the rider can interact without signing in.
+  {
+    path: '/welcome',
+    element: <WelcomePage />,
+  },
+
+  // 2026-05-15: Public donate page (reached from welcome farewell QR). No auth.
+  {
+    path: '/welcome/support',
+    element: <PublicDonatePage />,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

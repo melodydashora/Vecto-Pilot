@@ -110,6 +110,11 @@ export async function mountRoutes(app, server) {
     // Concierge (server/api/concierge/) - 2026-02-13: QR code sharing + public event discovery
     { path: '/api/concierge', module: './server/api/concierge/concierge.js', desc: 'Concierge' },
 
+    // Welcome AI Co-Pilot (server/api/welcome-ai/) — 2026-05-15: PUBLIC Gemini endpoints
+    // for the /welcome iPad kiosk. No auth (iPad has no rider identity); aggressive
+    // per-IP rate limiting (20 req / 10 min) at the route level.
+    { path: '/api/welcome-ai', module: './server/api/welcome-ai/welcome-ai.js', desc: 'Welcome AI Co-Pilot' },
+
     // Translation (server/api/translate/) - 2026-03-16: Real-time rider translation
     { path: '/api/translate', module: './server/api/translate/index.js', desc: 'Translation API' },
 
