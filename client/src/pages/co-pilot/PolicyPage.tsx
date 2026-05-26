@@ -1,5 +1,7 @@
 // client/src/pages/co-pilot/PolicyPage.tsx
-// 2026-02-03: Made publicly accessible at /policy for OAuth provider requirements (Uber)
+// 2026-02-03: Made publicly accessible at /policy for OAuth provider requirements (Uber).
+// 2026-05-23: Also mounted at /privacy (Uber verification requires that canonical URL);
+// both paths render this page. In-app users still reach it via /co-pilot/policy.
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
@@ -7,8 +9,8 @@ export default function PolicyPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Determine if user came from within the app or accessed directly
-  const isPublicAccess = location.pathname === '/policy';
+  const isPublicAccess =
+    location.pathname === '/privacy' || location.pathname === '/policy';
 
   const handleBack = () => {
     // If there's history, go back; otherwise go to home

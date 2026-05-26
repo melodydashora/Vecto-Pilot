@@ -59,10 +59,6 @@ export async function mountRoutes(app, server) {
     { path: '/api/realtime', module: './server/api/chat/realtime.js', desc: 'OpenAI Realtime voice' },
 
     // Coach API (server/api/rideshare-coach/) - Schema awareness, validation, notes CRUD
-    // 2026-01-05: Added for AI Coach enhancements
-    // 2026-05-04: Comment corrected — module lives in `rideshare-coach/`. The
-    //   parallel stale fork at `server/api/coach/` (1,034 lines, zero importers)
-    //   was deleted as part of Master Pipeline §13 D1 cleanup.
     { path: '/api/coach', module: './server/api/rideshare-coach/index.js', desc: 'Rideshare Coach API (schema, validate, notes)' },
 
     // Venue Intelligence (server/api/venue/)

@@ -222,3 +222,4 @@ gha-creds-*.json
 
 # Git worktrees (local workspace isolation per superpowers:using-git-worktrees)
 .worktrees/
+uber-env.txt

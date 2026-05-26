@@ -8,20 +8,18 @@ import {
   TrendingDown, Quote, Snowflake,
 } from 'lucide-react';
 
-// ── Theme tokens — 2026-05-15: re-skinned from the PDF cream/burgundy/navy
-// palette to Vecto Pilot brand (blue / violet / amber) so the welcome page
-// matches the rest of the app (LandingPage, GlobalHeader, /co-pilot routes).
-// Token names kept the same so all 22 slides re-skin automatically without
-// per-slide edits — just the hex values change here.
+// 2026-05-16: Re-skinned to match live vectopilot.com (light SaaS, blue→purple gradient,
+// white cards on gray-50, slate-900 text). T tokens now resolve to light-theme values.
+// Token names retained for backwards-compat with all 22 slide components.
 export const T = {
-  navy:     '#1e40af',  // blue-800   (was #1f2238 deep ink)
-  navyDeep: '#172554',  // blue-950   (was #13152b near-black)
-  cream:    '#f8fafc',  // slate-50   (was #f7f2ec warm cream)
-  rose:     '#a78bfa',  // violet-400 (was #d99696 dusty rose)
-  burgundy: '#1d4ed8',  // blue-700   (was #7a4a5e wine)
-  slate:    '#475569',  // slate-600  (kept neutral; was #4b556d)
-  terracotta:'#f59e0b', // amber-500  (was #c47c5e terracotta — now gold accent)
-  cardCream:'#eff6ff',  // blue-50    (was #fdf9f3 cream — now soft blue card bg)
+  navy:     '#1e293b', // slate-800 — dark text on light bg
+  navyDeep: '#0f172a', // slate-900 — primary heading text
+  cream:    '#f9fafb', // gray-50   — light body bg
+  rose:     '#a855f7', // purple-500 — secondary accent
+  burgundy: '#2563eb', // blue-600  — primary brand / CTA
+  slate:    '#64748b', // slate-500 — muted neutral text
+  terracotta:'#9333ea', // purple-600 — strong accent
+  cardCream:'#ffffff', // white     — card surface
 };
 
 // ── Slide registry: order defines navigation ──────────────────────────────
@@ -59,23 +57,28 @@ export interface QuizSlideProps {
 }
 
 // ── Shared layout primitives ──────────────────────────────────────────────
+// 2026-05-16: light SaaS shell — gray-50 body + 8px blue→purple brand stripe at top.
+// All themes now light. The 'gradient' theme renders a hero card with the brand gradient
+// inside the light shell (was full-bleed dark). 'navy' and 'cream' both = light gray-50.
 const SlideShell: FC<{
   theme: 'navy' | 'cream' | 'gradient';
   children: ReactNode;
   align?: 'center' | 'start';
 }> = ({ theme, children, align = 'start' }) => {
-  const bg =
-    theme === 'navy'
-      ? { backgroundColor: T.navy, color: T.cream }
-      : theme === 'cream'
-      ? { backgroundColor: T.cream, color: T.navyDeep }
-      : { background: `linear-gradient(135deg, ${T.navyDeep} 0%, ${T.burgundy} 70%, ${T.rose} 100%)`, color: T.cream };
   return (
-    <div
-      className={`h-full w-full flex flex-col ${align === 'center' ? 'items-center justify-center' : 'justify-center'} px-5 py-6 md:px-16 md:py-14 overflow-y-auto md:overflow-hidden`}
-      style={bg}
-    >
-      {children}
+    <div className="h-full w-full flex flex-col bg-gray-50 overflow-y-auto md:overflow-hidden">
+      <div className="h-2 bg-gradient-to-r from-blue-600 to-purple-600 shrink-0" />
+      <div
+        className={`flex-1 flex flex-col ${align === 'center' ? 'items-center justify-center' : 'justify-center'} px-5 py-6 md:px-16 md:py-14 text-gray-900`}
+      >
+        {theme === 'gradient' ? (
+          <div className="w-full bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-2xl shadow-lg p-6 md:p-12">
+            {children}
+          </div>
+        ) : (
+          children
+        )}
+      </div>
     </div>
   );
 };
@@ -107,7 +110,7 @@ export const SlideHero: FC<{ onHonk?: () => void }> = ({ onHonk }) => (
       <div className="relative inline-block mb-6 md:mb-12">
         <div
           className="text-7xl md:text-[10rem] leading-none drop-shadow-2xl"
-          style={{ filter: 'drop-shadow(0 0 30px rgba(217,150,150,0.6))' }}
+          style={{ filter: 'drop-shadow(0 0 30px rgba(168,85,247,0.4))' }}
         >
           ❤️
         </div>
@@ -125,7 +128,7 @@ export const SlideHero: FC<{ onHonk?: () => void }> = ({ onHonk }) => (
           type="button"
           onClick={(e) => { e.stopPropagation(); onHonk(); }}
           className="mt-6 md:mt-10 inline-flex items-center gap-2 md:gap-3 px-5 md:px-8 py-3 md:py-4 rounded-full text-lg md:text-2xl font-bold transition-transform hover:scale-105 active:scale-95 shadow-2xl"
-          style={{ backgroundColor: '#facc15', color: '#1a1a2e' }}
+          style={{ backgroundColor: T.burgundy, color: '#ffffff' }}
         >
           📢 HONK HORN
         </button>
@@ -290,7 +293,7 @@ export const SlideHousekeeping: FC = () => {
           <div
             key={r.title}
             className="rounded-2xl p-3 md:p-5 border-l-8"
-            style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderLeftColor: r.tone }}
+            style={{ backgroundColor: '#ffffff', borderLeftColor: r.tone }}
           >
             <div className="font-serif font-bold text-lg md:text-2xl">{r.title}</div>
             <div className="text-sm md:text-lg mt-1 opacity-85 leading-snug">{r.body}</div>
@@ -310,8 +313,8 @@ export const SlideHousekeeping: FC = () => {
               onClick={() => setExpandedId(isExpanded ? null : i)}
               className={`md:col-span-2 ${startClass} rounded-2xl p-3 md:p-5 text-left transition-all border-t-4 ${
                 isExpanded
-                  ? 'bg-white/15 ring-2 scale-[1.02]'
-                  : 'bg-white/[0.04] hover:bg-white/[0.08] active:scale-95'
+                  ? 'bg-blue-50 ring-2 scale-[1.02]'
+                  : 'bg-white hover:bg-gray-50 border border-gray-200 active:scale-95'
               }`}
               style={{ borderTopColor: T.rose, ...(isExpanded ? { boxShadow: `0 0 0 2px ${T.rose}` } : {}) }}
               aria-expanded={isExpanded}
@@ -672,7 +675,7 @@ export const SlideAICoPilot: FC = () => {
     <SlideShell theme="navy">
       <TitleBlock eyebrow="Powered by Gemini AI" title="AI Co-Pilot" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6 mt-2">
-        <div className="rounded-2xl p-4 md:p-6 border border-white/10" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+        <div className="rounded-2xl p-4 md:p-6 border border-white/10" style={{ backgroundColor: '#ffffff' }}>
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <Snowflake className="w-6 h-6 md:w-8 md:h-8" style={{ color: T.rose }} />
             <div className="font-serif font-bold text-lg md:text-2xl">Break the Ice</div>
@@ -688,18 +691,18 @@ export const SlideAICoPilot: FC = () => {
             {iceLoading ? '⏳ Thinking…' : iceText ? '✨ Generate Another' : '✨ Generate Starter'}
           </button>
           {iceText && (
-            <div className="mt-3 md:mt-4 p-3 md:p-4 rounded-xl text-base md:text-lg italic" style={{ backgroundColor: 'rgba(217,150,150,0.12)', borderLeft: `4px solid ${T.rose}` }}>
+            <div className="mt-3 md:mt-4 p-3 md:p-4 rounded-xl text-base md:text-lg italic" style={{ backgroundColor: '#f5f3ff', borderLeft: `4px solid ${T.rose}` }}>
               &ldquo;{iceText}&rdquo;
             </div>
           )}
           {iceError && (
-            <div className="mt-3 md:mt-4 p-3 rounded-xl text-sm md:text-base" style={{ backgroundColor: 'rgba(255,80,80,0.12)', color: '#ffc8c8' }}>
+            <div className="mt-3 md:mt-4 p-3 rounded-xl text-sm md:text-base" style={{ backgroundColor: '#fef2f2', color: '#b91c1c' }}>
               {iceError}
             </div>
           )}
         </div>
 
-        <div className="rounded-2xl p-4 md:p-6 border border-white/10" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+        <div className="rounded-2xl p-4 md:p-6 border border-white/10" style={{ backgroundColor: '#ffffff' }}>
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <Quote className="w-6 h-6 md:w-8 md:h-8" style={{ color: T.rose }} />
             <div className="font-serif font-bold text-lg md:text-2xl">Ask the Driver</div>
@@ -713,7 +716,7 @@ export const SlideAICoPilot: FC = () => {
             maxLength={500}
             placeholder='e.g., "Can I roll the window down?"'
             className="w-full rounded-xl px-3 md:px-4 py-2 md:py-3 text-base md:text-lg mb-2 md:mb-3 outline-none focus:ring-2"
-            style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: T.cream, border: '1px solid rgba(255,255,255,0.15)' }}
+            style={{ backgroundColor: '#f9fafb', color: T.cream, border: '1px solid rgba(255,255,255,0.15)' }}
           />
           <button
             type="button"
@@ -725,13 +728,13 @@ export const SlideAICoPilot: FC = () => {
             {chatLoading ? '⏳ Asking…' : '🤖 Ask AI'}
           </button>
           {chatText && (
-            <div className="mt-3 md:mt-4 p-3 md:p-4 rounded-xl text-base md:text-lg" style={{ backgroundColor: 'rgba(217,150,150,0.12)', borderLeft: `4px solid ${T.rose}` }}>
+            <div className="mt-3 md:mt-4 p-3 md:p-4 rounded-xl text-base md:text-lg" style={{ backgroundColor: '#f5f3ff', borderLeft: `4px solid ${T.rose}` }}>
               <div className="font-bold text-sm md:text-base mb-1" style={{ color: T.rose }}>Driver says:</div>
               {chatText}
             </div>
           )}
           {chatError && (
-            <div className="mt-3 md:mt-4 p-3 rounded-xl text-sm md:text-base" style={{ backgroundColor: 'rgba(255,80,80,0.12)', color: '#ffc8c8' }}>
+            <div className="mt-3 md:mt-4 p-3 rounded-xl text-sm md:text-base" style={{ backgroundColor: '#fef2f2', color: '#b91c1c' }}>
               {chatError}
             </div>
           )}
@@ -823,7 +826,7 @@ export const SlideQuizDoors: FC<QuizSlideProps> = ({ selected, onAnswer }) => {
                 style={{
                   backgroundColor: isRight ? '#4a7c4a' : isPicked ? '#c0392b' : c.tone,
                   color: T.cream,
-                  boxShadow: isPicked ? '0 0 0 4px rgba(217,150,150,0.5)' : undefined,
+                  boxShadow: isPicked ? '0 0 0 4px rgba(37,99,235,0.4)' : undefined,
                 }}
               >
                 <div className="font-serif font-black text-4xl md:text-7xl">{c.letter}</div>
@@ -875,7 +878,7 @@ export const SlideQuizExperience: FC<QuizSlideProps> = ({ selected, onAnswer }) 
 export const SlideQuizStars: FC<QuizSlideProps> = ({ selected, onAnswer }) => {
   const correct = 'A'; // "4 stars is good" is the myth
   const options = [
-    { letter: 'A' as const, label: '"4 stars is still a good rating for my driver"', tone: '#9c7a87', kind: 'MYTH?' },
+    { letter: 'A' as const, label: '"4 stars is still a good rating for my driver"', tone: T.slate, kind: 'MYTH?' },
     { letter: 'B' as const, label: '"Only 5 stars means my driver met the standard"', tone: T.burgundy, kind: 'FACT?' },
   ];
   const renderBtn = (c: (typeof options)[number]) => {
@@ -973,7 +976,7 @@ export const SlideScoreboard: FC<{ correctCount: number; total: number }> = ({ c
                 <div
                   className="w-12 h-12 md:w-24 md:h-24 rounded-full flex items-center justify-center font-serif font-bold text-xl md:text-4xl transition-transform"
                   style={{
-                    backgroundColor: lit ? T.burgundy : '#cfc6bd',
+                    backgroundColor: lit ? T.burgundy : '#e5e7eb',
                     color: lit ? T.cream : T.navyDeep,
                     transform: lit ? 'scale(1.05)' : 'scale(0.95)',
                   }}

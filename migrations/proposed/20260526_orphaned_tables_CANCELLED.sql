@@ -1,0 +1,13 @@
+-- CANCELLED: These tables are NOT orphaned.
+--
+-- app_feedback:  0 rows but ACTIVE writer at server/api/feedback/feedback.js:349
+-- agent_memory:  0 rows but ACTIVE writer at server/agent/thread-context.js:143
+--                          ACTIVE reader at server/agent/thread-context.js:404
+--                          ACTIVE references in server/agent/enhanced-context.js,
+--                                              server/eidolon/enhanced-context.js,
+--                                              server/lib/ai/context/enhanced-context-base.js
+--
+-- Phase 1 audit incorrectly flagged them as orphaned based on row count alone.
+-- Corrected during Phase 2 Step 5 verification (2026-05-26).
+--
+-- NO TABLES SHOULD BE DROPPED.

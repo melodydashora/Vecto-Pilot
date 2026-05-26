@@ -368,7 +368,13 @@
       "Bash(sed -n '438,446p' server/api/health/diagnostics.js)",
       "Bash(sed -n '608,615p' server/api/health/diagnostics.js)",
       "Bash(sed -n '160,170p' server/eidolon/config.ts)",
-      "Bash(sed -n '38,48p' server/eidolon/core/llm.ts)"
+      "Bash(sed -n '38,48p' server/eidolon/core/llm.ts)",
+      "Bash(kill -TERM 393)",
+      "Bash(kill -9 393)",
+      "Bash(openssl s_client -servername vectopilot.com -connect vectopilot.com:443)",
+      "Bash(openssl x509 *)",
+      "Bash(npm --version)",
+      "Bash(fuser -k 5000/tcp)"
     ],
     "deny": [],
     "ask": []

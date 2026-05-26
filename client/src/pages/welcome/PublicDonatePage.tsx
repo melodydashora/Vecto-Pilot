@@ -1,6 +1,6 @@
 // client/src/pages/welcome/PublicDonatePage.tsx
 // 2026-05-15: Public donate page reachable from the /welcome iPad kiosk's farewell QR.
-// Uses Vecto Pilot brand colors (blue-600 → violet-600 gradient, gold accents).
+// Uses Vecto Pilot brand colors (blue-600 → purple-600 gradient, gold accents).
 // Reuses the existing Square link from /co-pilot/donate and the cost data.
 //
 // PUBLIC route, no auth. Riders scan the QR on the farewell slide and land here.
@@ -33,7 +33,7 @@ export default function PublicDonatePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Hero */}
-      <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-violet-700 text-white">
+      <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-purple-700 text-white">
         <div className="max-w-4xl mx-auto px-5 py-10 md:px-8 md:py-16">
           <Link
             to="/welcome"
@@ -58,7 +58,7 @@ export default function PublicDonatePage() {
                 href={SQUARE_DONATE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 md:gap-3 bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-bold px-6 md:px-8 py-3 md:py-4 rounded-full shadow-xl transition-transform hover:scale-105 active:scale-95 text-base md:text-xl"
+                className="inline-flex items-center gap-2 md:gap-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold px-6 md:px-8 py-3 md:py-4 rounded-full shadow-xl transition-transform hover:scale-105 active:scale-95 text-base md:text-xl"
               >
                 <Heart size={20} /> Donate via Square
               </a>
@@ -84,7 +84,7 @@ export default function PublicDonatePage() {
           ))}
           <div className="flex justify-between items-center pt-3 md:pt-4 border-t-2 border-blue-200 mt-2">
             <span className="font-bold text-slate-900 text-base md:text-lg">Roughly per month</span>
-            <span className="font-mono font-bold text-violet-700 text-base md:text-lg">$2,470+</span>
+            <span className="font-mono font-bold text-purple-700 text-base md:text-lg">$2,470+</span>
           </div>
         </div>
         <p className="text-xs md:text-sm text-slate-500 mt-3 md:mt-4 italic">
@@ -95,14 +95,14 @@ export default function PublicDonatePage() {
       {/* Future scope */}
       <section className="max-w-4xl mx-auto px-5 pb-10 md:px-8 md:pb-16">
         <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
-          <Sparkles className="w-6 h-6 md:w-7 md:h-7 text-violet-600" />
+          <Sparkles className="w-6 h-6 md:w-7 md:h-7 text-purple-600" />
           <h2 className="text-xl md:text-3xl font-bold text-slate-900">What's coming next</h2>
         </div>
-        <div className="bg-white rounded-2xl shadow-md border border-violet-100 p-5 md:p-8">
+        <div className="bg-white rounded-2xl shadow-md border border-purple-100 p-5 md:p-8">
           <ul className="space-y-3 md:space-y-4">
             {FUTURE_SCOPE.map(f => (
               <li key={f} className="flex gap-3 md:gap-4 text-slate-700 text-sm md:text-base">
-                <span className="w-2 h-2 mt-2 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 shrink-0" />
+                <span className="w-2 h-2 mt-2 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shrink-0" />
                 <span>{f}</span>
               </li>
             ))}
@@ -116,7 +116,7 @@ export default function PublicDonatePage() {
           href={SQUARE_DONATE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 md:gap-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-bold px-6 md:px-10 py-3 md:py-5 rounded-full shadow-xl transition-transform hover:scale-105 active:scale-95 text-base md:text-xl"
+          className="inline-flex items-center gap-2 md:gap-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold px-6 md:px-10 py-3 md:py-5 rounded-full shadow-xl transition-transform hover:scale-105 active:scale-95 text-base md:text-xl"
         >
           <Heart size={20} fill="currentColor" /> Donate via Square
         </a>

@@ -1,6 +1,17 @@
 // client/src/pages/welcome/WelcomePage.tsx
-// 2026-05-15: Public /welcome iPad kiosk experience.
-// Slide-deck "Welcome to My Car" with voice control, sound effects, QR triptych end card.
+// 2026-05-16: Public /welcome iPad kiosk — re-skinned to match the live vectopilot.com aesthetic.
+//
+// SOURCE-OF-TRUTH BRAND VALUES (extracted from live app):
+//   Body bg:           bg-gray-50                                        (CoPilotLayout.tsx:16)
+//   Header gradient:   bg-gradient-to-r from-blue-600 to-purple-600      (GlobalHeader.tsx:423)
+//   Header text:       text-white                                        (GlobalHeader.tsx:423)
+//   Card:              bg-white border border-gray-200 rounded-xl shadow-sm
+//   Heading text:      text-gray-900 / text-gray-800
+//   Body text:         text-gray-700 / text-gray-600
+//   Primary CTA:       bg-blue-600 hover:bg-blue-700 text-white          (StrategyPage.tsx:405)
+//   Purple accent:     text-purple-600                                   (StrategyPage.tsx:421)
+//
+// Modern light SaaS aesthetic. NOT a dark moody slide deck.
 // Public route — no auth required. Designed for landscape iPad as an in-car kiosk.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -52,9 +63,9 @@ function FarewellTriptych({ onRestart }: { onRestart: () => void }) {
   // 2026-05-15: Vecto Pilot brand colors (blue-600/violet-600 gradient on cards).
   // QRs: support (donate page), concierge (rider companion), Uber (mobile web → app).
   const cards = [
-    { icon: Heart, label: 'Support Vecto Pilot', sub: 'Help cover API costs + future development', url: QR_LINKS.donate,    gradient: 'from-blue-600 to-violet-600' },
-    { icon: QrCode,   label: 'Ask the Concierge',  sub: 'AI assistant for your ride',                 url: QR_LINKS.concierge, gradient: 'from-violet-600 to-blue-600' },
-    { icon: Star,     label: 'Rate Your Driver',   sub: 'Open Uber → tap profile → Ratings',         url: QR_LINKS.uber,      gradient: 'from-blue-500 to-violet-500' },
+    { icon: Heart, label: 'Support Vecto Pilot', sub: 'Help cover API costs + future development', url: QR_LINKS.donate,    gradient: 'from-blue-600 to-purple-600' },
+    { icon: QrCode,   label: 'Ask the Concierge',  sub: 'AI assistant for your ride',                 url: QR_LINKS.concierge, gradient: 'from-purple-600 to-blue-600' },
+    { icon: Star,     label: 'Rate Your Driver',   sub: 'Open Uber → tap profile → Ratings',         url: QR_LINKS.uber,      gradient: 'from-blue-500 to-purple-500' },
   ];
   return (
     <div className="w-full max-w-6xl text-center">
@@ -81,7 +92,7 @@ function FarewellTriptych({ onRestart }: { onRestart: () => void }) {
                 size={130}
                 level="M"
                 bgColor="#ffffff"
-                fgColor="#1d4ed8"
+                fgColor={T.burgundy}
                 className="md:!w-[170px] md:!h-[170px]"
               />
             </div>
@@ -94,7 +105,7 @@ function FarewellTriptych({ onRestart }: { onRestart: () => void }) {
 
       <button
         onClick={onRestart}
-        className="mt-5 md:mt-10 inline-flex items-center gap-2 md:gap-3 px-5 md:px-8 py-3 md:py-4 rounded-full text-base md:text-2xl font-semibold bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+        className="mt-5 md:mt-10 inline-flex items-center gap-2 md:gap-3 px-5 md:px-8 py-3 md:py-4 rounded-full text-base md:text-2xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
       >
         <RotateCcw className="w-5 h-5 md:w-7 md:h-7" /> Start Over for Next Rider
       </button>
@@ -111,7 +122,7 @@ function Confetti({ count = 60 }: { count?: number }) {
     left: Math.random() * 100,
     delay: Math.random() * 0.8,
     duration: 2.5 + Math.random() * 1.5,
-    color: ['#d99696', '#7a4a5e', '#c47c5e', '#f7f2ec', '#4b556d'][i % 5],
+    color: [T.rose, T.burgundy, T.terracotta, T.cream, T.slate][i % 5],
     size: 8 + Math.random() * 6,
   })), [count]);
   return (
@@ -259,17 +270,18 @@ export default function WelcomePage() {
     return (
       <button
         onClick={() => { unlockAudio(); setUnlocked(true); }}
-        className="fixed inset-0 w-screen h-screen flex items-center justify-center text-left"
-        style={{ background: `linear-gradient(135deg, ${T.navyDeep} 0%, ${T.burgundy} 70%, ${T.rose} 100%)`, color: T.cream }}
+        className="fixed inset-0 w-screen h-screen flex items-center justify-center text-left bg-gray-50"
       >
-        <div className="text-center animate-[fadeUp_900ms_ease-out] px-6">
-          <Heart fill={T.rose} stroke={T.rose} className="mx-auto drop-shadow-2xl w-20 h-20 md:w-[140px] md:h-[140px]" />
-          <h1 className="font-serif font-black text-4xl md:text-8xl mt-3 md:mt-6 tracking-tight">Welcome.</h1>
-          <p className="text-lg md:text-3xl mt-2 md:mt-4 italic opacity-90">An interactive tour of your ride</p>
-          <div className="mt-6 md:mt-12 inline-flex items-center gap-2 md:gap-4 px-5 md:px-10 py-3 md:py-5 rounded-full text-lg md:text-3xl font-semibold" style={{ backgroundColor: T.cream, color: T.navyDeep }}>
-            <Hand className="w-5 h-5 md:w-8 md:h-8" /> Tap anywhere to begin
+        <div className="text-center animate-[fadeUp_900ms_ease-out] px-6 max-w-2xl">
+          <div className="inline-block p-4 md:p-6 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg mb-4 md:mb-6">
+            <Heart fill="#ffffff" stroke="#ffffff" className="w-12 h-12 md:w-20 md:h-20" />
           </div>
-          <p className="text-xs md:text-base mt-5 md:mt-10 opacity-60">Sound and voice control will turn on once you tap.</p>
+          <h1 className="font-serif font-black text-4xl md:text-7xl mt-3 md:mt-6 tracking-tight text-gray-900">Welcome.</h1>
+          <p className="text-lg md:text-2xl mt-2 md:mt-4 italic text-gray-600">An interactive tour of your ride</p>
+          <div className="mt-6 md:mt-12 inline-flex items-center gap-2 md:gap-4 px-5 md:px-10 py-3 md:py-5 rounded-full text-lg md:text-2xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
+            <Hand className="w-5 h-5 md:w-7 md:h-7" /> Tap anywhere to begin
+          </div>
+          <p className="text-xs md:text-base mt-5 md:mt-10 text-gray-500">Sound and voice control will turn on once you tap.</p>
         </div>
       </button>
     );
@@ -284,8 +296,7 @@ export default function WelcomePage() {
 
   return (
     <div
-      className={`fixed inset-0 w-screen h-screen overflow-hidden select-none ${shaking ? 'animate-shake' : ''}`}
-      style={{ backgroundColor: T.navyDeep }}
+      className={`fixed inset-0 w-screen h-screen overflow-hidden select-none bg-gray-50 ${shaking ? 'animate-shake' : ''}`}
     >
       {/* Inline keyframes — co-located so the whole experience is one file's worth of CSS */}
       <style>{`
@@ -329,14 +340,16 @@ export default function WelcomePage() {
             })}
       </div>
 
-      {/* Top bar — progress + controls */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 md:px-6 py-2 md:py-3 pointer-events-none">
+      {/* Top bar — light SaaS pills on the gray-50 body. Parent has pointer-events-none
+          so the body underneath stays tappable; both inner button groups must keep
+          pointer-events-auto so volume/mic/fullscreen remain clickable (2026-05-16 fix). */}
+      <div className="absolute top-3 left-0 right-0 z-20 flex items-center justify-between px-3 md:px-6 pointer-events-none">
         <div className="flex items-center gap-2 md:gap-3 pointer-events-auto">
-          <div className="rounded-full px-3 py-1 md:px-4 md:py-1.5 text-xs md:text-sm font-mono backdrop-blur-md" style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: T.cream }}>
+          <div className="rounded-full px-3 py-1 md:px-4 md:py-1.5 text-xs md:text-sm font-mono bg-white border border-gray-200 shadow-sm text-gray-700">
             {index + 1} / {total}
           </div>
           {inQuiz && (
-            <div className="rounded-full px-3 py-1 md:px-4 md:py-1.5 text-xs md:text-sm font-semibold backdrop-blur-md" style={{ backgroundColor: T.burgundy, color: T.cream }}>
+            <div className="rounded-full px-3 py-1 md:px-4 md:py-1.5 text-xs md:text-sm font-semibold shadow-sm bg-gradient-to-r from-blue-600 to-purple-600 text-white">
               Score: {correctCount} / {QUIZ_KEYS.length}
             </div>
           )}
@@ -344,8 +357,7 @@ export default function WelcomePage() {
         <div className="flex items-center gap-1 md:gap-2 pointer-events-auto">
           <button
             onClick={() => setSoundOn(s => !s)}
-            className="p-2 md:p-3 rounded-full backdrop-blur-md transition-colors"
-            style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: T.cream }}
+            className="p-2 md:p-3 rounded-full bg-white border border-gray-200 shadow-sm text-blue-600 hover:bg-gray-50 transition-colors"
             aria-label={soundOn ? 'Mute sounds' : 'Enable sounds'}
           >
             {soundOn ? <Volume2 className="w-4 h-4 md:w-5 md:h-5" /> : <VolumeX className="w-4 h-4 md:w-5 md:h-5" />}
@@ -353,11 +365,11 @@ export default function WelcomePage() {
           {voiceSupported && (
             <button
               onClick={() => setVoiceOn(v => !v)}
-              className="p-2 md:p-3 rounded-full backdrop-blur-md transition-colors"
-              style={{
-                backgroundColor: voiceListening ? T.rose : 'rgba(255,255,255,0.15)',
-                color: T.cream,
-              }}
+              className={`p-2 md:p-3 rounded-full border shadow-sm transition-colors ${
+                voiceListening
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white border-transparent'
+                  : 'bg-white border-gray-200 text-blue-600 hover:bg-gray-50'
+              }`}
               aria-label={voiceOn ? 'Disable voice control' : 'Enable voice control'}
               title={voiceOn ? 'Listening — say "next", "back", "A", "B", "true", "false"' : 'Enable voice control'}
             >
@@ -366,8 +378,7 @@ export default function WelcomePage() {
           )}
           <button
             onClick={() => toggleFullscreen()}
-            className="p-2 md:p-3 rounded-full backdrop-blur-md transition-colors"
-            style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: T.cream }}
+            className="p-2 md:p-3 rounded-full bg-white border border-gray-200 shadow-sm text-blue-600 hover:bg-gray-50 transition-colors"
             aria-label="Toggle fullscreen"
           >
             <Maximize className="w-4 h-4 md:w-5 md:h-5" />
@@ -376,10 +387,10 @@ export default function WelcomePage() {
       </div>
 
       {/* Bottom progress bar — taxi rides the fill as the rider advances */}
-      <div className="absolute bottom-0 left-0 right-0 h-2 bg-black/30 z-20">
+      <div className="absolute bottom-0 left-0 right-0 h-2 bg-gray-200 z-20">
         <div
-          className="h-full transition-all duration-500 ease-out relative"
-          style={{ width: `${progress}%`, backgroundColor: T.rose }}
+          className="h-full transition-all duration-500 ease-out relative bg-gradient-to-r from-blue-600 to-purple-600"
+          style={{ width: `${progress}%` }}
         >
           <div className="absolute -top-4 -right-3 text-2xl drop-shadow-lg pointer-events-none" aria-hidden>🚕</div>
         </div>
@@ -391,7 +402,7 @@ export default function WelcomePage() {
       {index > 0 && (
         <button
           onClick={goBack}
-          className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 z-20 w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/70 hover:bg-white backdrop-blur-md flex items-center justify-center text-blue-600 hover:text-blue-700 shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+          className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 z-20 w-12 h-12 md:w-14 md:h-14 rounded-full bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center text-blue-600 hover:text-blue-700 shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
           aria-label="Previous slide"
         >
           <ChevronLeft size={26} strokeWidth={2.2} />
@@ -400,7 +411,7 @@ export default function WelcomePage() {
       {index < total - 1 && (
         <button
           onClick={goNext}
-          className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 z-20 w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/70 hover:bg-white backdrop-blur-md flex items-center justify-center text-blue-600 hover:text-blue-700 shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+          className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 z-20 w-12 h-12 md:w-14 md:h-14 rounded-full bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center text-blue-600 hover:text-blue-700 shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
           aria-label="Next slide"
         >
           <ChevronRight size={26} strokeWidth={2.2} />
@@ -411,7 +422,7 @@ export default function WelcomePage() {
       {index > 0 && (
         <button
           onClick={() => goTo('hero')}
-          className="absolute bottom-5 md:bottom-7 left-1/2 -translate-x-1/2 z-20 w-12 h-12 md:w-14 md:h-14 rounded-full bg-white/70 hover:bg-white backdrop-blur-md flex items-center justify-center text-blue-600 hover:text-blue-700 shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+          className="absolute bottom-5 md:bottom-7 left-1/2 -translate-x-1/2 z-20 w-12 h-12 md:w-14 md:h-14 rounded-full bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center text-blue-600 hover:text-blue-700 shadow-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
           aria-label="Return to welcome screen"
         >
           <Home size={22} strokeWidth={2.2} />

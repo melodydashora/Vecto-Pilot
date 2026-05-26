@@ -192,3 +192,7 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 ### [FEATURE_REQUEST] Create Offer Intelligence Table
 - **Priority:** high | **Date:** 2026-05-05 07:52
 - Add a dedicated database table to track Melody's accepted, rejected, and cancelled offers. Include fields for fare, mileage, locations, and the AI's recommendation. This will allow the Coach to learn her exact $/mile thresholds and zone preferences over time for hyper-personalized offer analysis.
+
+### [FEATURE_REQUEST] Hands-free Voice Activation & TTS for Coach
+- **Priority:** high | **Date:** 2026-05-16 16:35
+- Melody wants a fully hands-free, voice-activated mode for the Coach tab. When she switches to the tab, it should automatically listen so she can just ask 'Where should I go right now?' and get a spoken response (TTS) without touching the phone. She noted this is critical for safety and split-second decisions in traffic jams (e.g., whether to take an exit).
