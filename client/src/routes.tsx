@@ -36,6 +36,7 @@ import AuthRedirect from '@/components/auth/AuthRedirect';
 import ConciergePage from '@/pages/co-pilot/ConciergePage';
 import PublicConciergePage from '@/pages/concierge/PublicConciergePage';
 import LandingPage from '@/pages/landing/LandingPage';
+import PortfolioPage from '@/pages/portfolio/PortfolioPage';
 // 2026-05-15: Public iPad kiosk "Welcome to My Car" — passenger-education flow with quiz + QR triptych.
 import WelcomePage from '@/pages/welcome/WelcomePage';
 // 2026-05-15: Public donate page reached from the welcome farewell QR (square.link CTA + cost breakdown + future scope).
@@ -90,6 +91,12 @@ export const router = createBrowserRouter([
   {
     path: '/demo',
     element: <LandingPage />,
+  },
+
+  // 2026-05-26: Public portfolio page — Melody's builder portfolio, resume, and live Vecto demo.
+  {
+    path: '/portfolio',
+    element: <PortfolioPage />,
   },
 
   // 2026-05-15: Public in-car iPad kiosk experience — passenger education + QR triptych.

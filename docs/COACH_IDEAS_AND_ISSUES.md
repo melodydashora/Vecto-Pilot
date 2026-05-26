@@ -15,6 +15,7 @@ Capture file for Melody's notes. Drop anything here so it stops getting lost.
 | 2026-05-26 | Coach system prompt (L1162) still says COACH_MEMO "writes to docs/coach-inbox.md" — primary write is now to DB | `server/api/chat/chat.js:1162` |
 | 2026-05-26 | `GET /api/chat/system-notes` endpoint exists but no UI calls it — 7 real observations invisible | `server/api/chat/chat.js:1735` |
 | 2026-05-26 | Duplicate note endpoints: `/api/chat/notes` and `/api/coach/notes` both read `user_intel_notes` | `chat.js:769` + `rideshare-coach/notes.js` |
+| 2026-05-26 | Coach has no read access to its own past `coach_memos` or `coach_system_notes` — `getCompleteContext()` loads 13 data elements but neither table is included; Coach reported "Agent Memory and Project State context came in completely empty" | `server/lib/ai/rideshare-coach-dal.js:732-838` (`getCompleteContext`), `server/lib/ai/rideshare-coach-dal.js:858-1235` (`formatContextForPrompt`) — repro: start any Coach chat session and observe the system prompt has no memo/system-note sections |
 
 ---
 

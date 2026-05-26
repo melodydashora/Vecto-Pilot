@@ -90,6 +90,7 @@
     "eventsource": "^4.0.0",
     "express": "^4.22.1",
     "express-rate-limit": "^8.2.1",
+    "framer-motion": "^12.40.0",
     "google-auth-library": "^10.5.0",
     "googleapis": "^166.0.0",
     "h3-js": "^4.3.0",
