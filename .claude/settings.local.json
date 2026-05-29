@@ -374,7 +374,8 @@
       "Bash(openssl s_client -servername vectopilot.com -connect vectopilot.com:443)",
       "Bash(openssl x509 *)",
       "Bash(npm --version)",
-      "Bash(fuser -k 5000/tcp)"
+      "Bash(fuser -k 5000/tcp)",
+      "Bash([ -e \"/home/runner/workspace/$f\" ])"
     ],
     "deny": [],
     "ask": []

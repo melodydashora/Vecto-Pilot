@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft, ChevronRight, Mic, MicOff, Volume2, VolumeX,
-  Maximize, RotateCcw, Heart, Hand, QrCode, Gift, Sparkles, Home, Star,
+  Maximize, RotateCcw, Heart, Hand, QrCode, Home, Star,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
