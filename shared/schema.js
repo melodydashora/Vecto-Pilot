@@ -1,4 +1,4 @@
-import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar, serial, numeric } from "drizzle-orm/pg-core";
+import { pgTable, uuid, timestamp, jsonb, text, integer, boolean, doublePrecision, varchar, serial, numeric, check } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
 
 // Users table: SESSION TRACKING ONLY (Ephemeral)
@@ -2284,3 +2284,43 @@ export const claudeMemory = pgTable("claude_memory", {
   idxCategory: sql`create index if not exists idx_claude_memory_category on ${table} (category)`,
   idxStatus: sql`create index if not exists idx_claude_memory_status on ${table} (status)`,
 }));
+
+// ============================================================================
+// REPO-CLARITY TABLES (2026-05-29) — todo, lessons_learned, definitions
+// ============================================================================
+// Added via migrations/20260529_add_todo_lessons_definitions.sql (purely additive).
+// Drizzle definitions mirror the live DDL exactly: SERIAL PKs, NOT NULL timestamptz
+// defaults, the todo.status CHECK (todo_status_check), and todo.source_memory_id as
+// a bare INTEGER logical reference to claude_memory.id — NO foreign key, mirroring
+// claudeMemory.parent_id (itself a bare integer self-reference with no FK).
+export const todo = pgTable("todo", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  detail: text("detail"),
+  status: text("status").notNull().default("open"),    // 'open' | 'in_progress' | 'done' | 'wontfix' (enforced by statusCheck below)
+  priority: integer("priority").default(3),
+  source_memory_id: integer("source_memory_id"),        // logical ref to claude_memory.id — bare INTEGER, NO FK (mirrors claudeMemory.parent_id)
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  statusCheck: check("todo_status_check", sql`${table.status} IN ('open', 'in_progress', 'done', 'wontfix')`),
+}));
+
+export const lessons_learned = pgTable("lessons_learned", {
+  id: serial("id").primaryKey(),
+  lesson: text("lesson").notNull(),
+  trigger: text("trigger"),                             // what caused it (PostgreSQL non-reserved keyword; valid unquoted)
+  rule: text("rule"),                                   // the resulting rule (PostgreSQL non-reserved keyword; valid unquoted)
+  severity: text("severity").default("medium"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const definitions = pgTable("definitions", {
+  id: serial("id").primaryKey(),
+  term: text("term").notNull().unique("definitions_term_key"),  // UNIQUE → constraint definitions_term_key
+  meaning: text("meaning").notNull(),
+  location: text("location"),                           // canonical file/path or tab where it lives
+  aliases: text("aliases"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

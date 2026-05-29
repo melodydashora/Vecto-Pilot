@@ -34,6 +34,8 @@ YYYYMMDD_description.sql   # Date-prefixed for manual migrations
 | `20251228_auth_system_tables.sql` | Authentication system tables |
 | `20251228_drop_snapshot_user_device.sql` | Drop snapshot user device columns |
 | `20251229_district_tagging.sql` | District tagging feature |
+| … | _(2026-01 → 2026-05 migrations not yet catalogued here — pre-existing doc drift, flagged 2026-05-29)_ |
+| `20260529_add_todo_lessons_definitions.sql` | Repo-clarity tables: `todo`, `lessons_learned`, `definitions` (purely additive — creates 3 new tables, touches no existing table) |
 
 ## Running Migrations
 
