@@ -47,7 +47,7 @@ export const MODEL_ROLES = {
   // 2026-02-11: Added thinkingLevel HIGH + bumped tokens 4096→8192 (thinking consumes output tokens)
   BRIEFING_TRAFFIC: {
     envKey: 'BRIEFING_TRAFFIC_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Traffic conditions analysis (TomTom JSON → Driver Advice)',
     maxTokens: 8192,
     temperature: 0.2,
@@ -57,7 +57,7 @@ export const MODEL_ROLES = {
   // 2026-01-10: Added thinkingLevel HIGH for news analysis
   BRIEFING_NEWS: {
     envKey: 'BRIEFING_NEWS_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Local news research (last 7 days) - Gemini + Google Search',
     maxTokens: 8192,
     temperature: 0.4,
@@ -71,7 +71,7 @@ export const MODEL_ROLES = {
   // 2026-01-10: Added thinkingLevel HIGH for event discovery accuracy
   BRIEFING_EVENTS_DISCOVERY: {
     envKey: 'BRIEFING_EVENTS_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Event discovery (parallel category search)',
     maxTokens: 8192,
     temperature: 0.4,
@@ -83,7 +83,7 @@ export const MODEL_ROLES = {
   // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_FALLBACK: {
     envKey: 'BRIEFING_FALLBACK_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'General fallback for failed briefing calls',
     maxTokens: 8192,
     temperature: 0.3,
@@ -93,7 +93,7 @@ export const MODEL_ROLES = {
   // 2026-02-11: Added thinkingLevel HIGH for consistent briefing quality
   BRIEFING_SCHOOLS: {
     envKey: 'BRIEFING_SCHOOLS_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'School closures and calendar lookup',
     maxTokens: 8192,
     temperature: 0.2,
@@ -102,7 +102,7 @@ export const MODEL_ROLES = {
   },
   BRIEFING_AIRPORT: {
     envKey: 'BRIEFING_AIRPORT_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Airport conditions and flight status',
     maxTokens: 4096,
     temperature: 0.1,
@@ -111,7 +111,7 @@ export const MODEL_ROLES = {
   // 2026-02-13: Registered — was previously a direct callGemini in holiday-detector.js
   BRIEFING_HOLIDAY: {
     envKey: 'BRIEFING_HOLIDAY_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Holiday detection with real-time search verification',
     maxTokens: 1024,
     temperature: 0.1,
@@ -125,7 +125,7 @@ export const MODEL_ROLES = {
   // 2026-02-13: Claude Opus 4.6 — best reasoning model for core strategy generation
   STRATEGY_CORE: {
     envKey: 'STRATEGY_CORE_MODEL',
-    default: 'claude-opus-4-7',
+    default: 'claude-opus-4-8',
     purpose: 'Core strategic plan generation',
     maxTokens: 8192,
     temperature: 0.7,
@@ -133,7 +133,7 @@ export const MODEL_ROLES = {
   // 2026-01-10: Added thinkingLevel HIGH for deeper analysis (token budget sufficient)
   STRATEGY_CONTEXT: {
     envKey: 'STRATEGY_CONTEXT_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Real-time context gathering for strategy pipeline',
     maxTokens: 8192,
     temperature: 0.4,
@@ -143,7 +143,7 @@ export const MODEL_ROLES = {
   // 2026-02-26: Switched GPT-5.2 → Claude Opus 4.6 — all strategy roles use Claude
   STRATEGY_TACTICAL: {
     envKey: 'STRATEGY_TACTICAL_MODEL',
-    default: 'claude-opus-4-7',
+    default: 'claude-opus-4-8',
     purpose: 'Immediate 1-hour tactical strategy consolidation',
     maxTokens: 16000,
     temperature: 0.5,
@@ -170,7 +170,7 @@ export const MODEL_ROLES = {
   },
   VENUE_TRAFFIC: {
     envKey: 'VENUE_TRAFFIC_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Venue-specific traffic intelligence',
     maxTokens: 4096,
     temperature: 0.1,
@@ -178,7 +178,7 @@ export const MODEL_ROLES = {
   },
   VENUE_EVENT_VERIFIER: {
     envKey: 'VENUE_EVENT_VERIFIER_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Verify venue events during SmartBlocks enrichment',
     maxTokens: 256,
     temperature: 0.1,
@@ -192,7 +192,7 @@ export const MODEL_ROLES = {
   // 2026-02-26: Upgraded to Gemini 3.1 Pro — 2x reasoning over 3.0 Pro (ARC-AGI-2: 77.1%)
   AI_COACH: {
     envKey: 'AI_COACH_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'AI Coach conversation (streaming, multimodal)',
     maxTokens: 8192,
     temperature: 0.7,
@@ -207,7 +207,7 @@ export const MODEL_ROLES = {
   // ==========================
   UTIL_RESEARCH: {
     envKey: 'UTIL_RESEARCH_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Internet-powered research via API',
     maxTokens: 2000,
     temperature: 0.3,
@@ -215,14 +215,14 @@ export const MODEL_ROLES = {
   },
   UTIL_WEATHER_VALIDATOR: {
     envKey: 'UTIL_WEATHER_VALIDATOR_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Validate weather data structure',
     maxTokens: 2048,
     temperature: 0.1,
   },
   UTIL_TRAFFIC_VALIDATOR: {
     envKey: 'UTIL_TRAFFIC_VALIDATOR_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Validate traffic data structure',
     maxTokens: 2048,
     temperature: 0.1,
@@ -242,7 +242,7 @@ export const MODEL_ROLES = {
   // 2026-02-13: Public-facing event search for Concierge QR code page
   CONCIERGE_SEARCH: {
     envKey: 'CONCIERGE_SEARCH_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Public concierge event/venue discovery (no auth required)',
     maxTokens: 4096,
     temperature: 0.3,
@@ -252,7 +252,7 @@ export const MODEL_ROLES = {
   // 2026-02-13: Public-facing AI Q&A for passenger concierge page
   CONCIERGE_CHAT: {
     envKey: 'CONCIERGE_CHAT_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Public concierge Q&A — passengers ask about local area',
     maxTokens: 2048,
     temperature: 0.5,
@@ -270,7 +270,7 @@ export const MODEL_ROLES = {
   // Flash Live (audio WebSocket) was considered but is wrong fit for text-to-text.
   UTIL_TRANSLATION: {
     envKey: 'UTIL_TRANSLATION_MODEL',
-    default: 'gemini-flash-lite-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Real-time text translation for driver-rider communication',
     maxTokens: 512,
     temperature: 0.1, // Near-deterministic for consistent translations
@@ -283,13 +283,27 @@ export const MODEL_ROLES = {
   // 2026-02-26: Reverted Pro → Flash. Pro with thinking timed out Siri Shortcuts (~30s limit).
   // Flash is purpose-built for fast vision extraction: <2s for screenshot → JSON decision.
   // No thinking needed — this is OCR + math + rule application, not reasoning.
+  // 2026-05-29: Pinned to gemini-3.5-flash + HIGH thinking per Melody's request.
+  // gemini-3.5-flash is the stable GA model (released 2026-05-19) that replaces the
+  // gemini-3-flash-preview identifier. Verified live via ai.google.dev/gemini-api/docs:
+  //   - multimodal (vision OK for offer screenshots)
+  //   - thinkingLevel supports minimal/low/medium/high (default medium); HIGH is valid
+  //   - JS field is thinkingConfig.thinkingLevel (lowercase value) — emitted by gemini-adapter.js
+  // ⚠️ LATENCY TRADE-OFF: Phase 1 is the SYNCHRONOUS, Siri-bound path (<2s target,
+  //    ~30s Shortcut hard timeout). HIGH thinking adds latency — the 2026-02-26 note below
+  //    records that Pro+thinking previously timed out Shortcuts. Monitor response_time_ms;
+  //    if Siri times out, step down to 'LOW'/'MINIMAL' or move deep reasoning to Phase 2
+  //    (OFFER_ANALYZER_DEEP, which is async and not latency-sensitive).
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
-    default: 'gemini-flash-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Phase 1: Real-time ride offer analysis from Siri Shortcuts (ACCEPT/REJECT)',
-    maxTokens: 1024, // Minimal — just JSON decision + short reasoning
+    // 2026-05-29: Raised 1024 → 8192. HIGH thinking consumes the output-token budget
+    // (same rationale as BRIEFING_TRAFFIC's 4096→8192 bump). At 1024 the JSON decision
+    // truncates mid-token — the exact "[HOOKS] Phase 1 JSON parse failed" symptom.
+    maxTokens: 8192,
     temperature: 0.1, // Near-deterministic for consistent decisions
-    // No thinkingLevel — Flash doesn't need it for OCR/extraction tasks
+    thinkingLevel: 'HIGH', // 2026-05-29: per request (see latency trade-off note above)
     features: ['vision'],
   },
 
@@ -298,7 +312,7 @@ export const MODEL_ROLES = {
   // Not latency-sensitive — driver already has their answer from Flash.
   OFFER_ANALYZER_DEEP: {
     envKey: 'OFFER_ANALYZER_DEEP_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Phase 2: Async deep ride offer analysis for DB enrichment (runs after Siri response)',
     maxTokens: 2048,
     temperature: 0.2,
@@ -311,7 +325,7 @@ export const MODEL_ROLES = {
   // ==========================
   DOCS_GENERATOR: {
     envKey: 'DOCS_GENERATOR_MODEL',
-    default: 'gemini-pro-latest',
+    default: 'gemini-3.5-flash',
     purpose: 'Autonomous documentation generation',
     maxTokens: 8192,
     temperature: 0.7,
@@ -387,7 +401,7 @@ export const FALLBACK_ENABLED_ROLES = [
  * This is a TEMPORARY fallback - Claude remains the primary model
  */
 export const FALLBACK_CONFIG = {
-  model: 'gemini-flash-latest',
+  model: 'gemini-3.5-flash',
   maxTokens: 8192,
   temperature: 0.2,
   features: ['google_search'], // Gemini tool for web search if needed
@@ -422,7 +436,7 @@ export function getFallbackConfig(primaryProvider) {
 
 /**
  * Get provider for a model name
- * @param {string} model - Model name (e.g., 'gpt-5.5-2026-04-23', 'claude-opus-4-7')
+ * @param {string} model - Model name (e.g., 'gpt-5.5-2026-04-23', 'claude-opus-4-8')
  * @returns {string} Provider name ('openai', 'anthropic', 'google', 'unknown')
  */
 export function getProviderForModel(model) {
@@ -658,6 +672,18 @@ export const MODEL_QUIRKS = {
   'gemini-3-flash': {
     validThinkingLevels: ['LOW', 'MEDIUM', 'HIGH'],
   },
+  // 2026-05-29: gemini-3.5-flash (GA 2026-05-19) adds a MINIMAL thinking level on top of
+  // LOW/MEDIUM/HIGH (default MEDIUM). Verified via ai.google.dev/gemini-api/docs.
+  'gemini-3.5-flash': {
+    validThinkingLevels: ['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'],
+  },
+  // 2026-05-29: claude-opus-4-8 deprecates the `temperature` request parameter —
+  // sending it returns HTTP 400 ("`temperature` is deprecated for this model").
+  // anthropic-adapter.js reads this quirk and omits temperature for opus 4.8.
+  // (opus 4.7 and haiku 4.5 still accept temperature, so this is version-scoped.)
+  'claude-opus-4-8': {
+    noTemperature: true,
+  },
 };
 
 /**
@@ -691,7 +717,7 @@ export function getLLMDiagnostics() {
 
   // Check Anthropic
   if (process.env.ANTHROPIC_API_KEY) {
-    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-7';
+    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
     providers.push({ key: 'anthropic', model });
   }
 
@@ -703,14 +729,14 @@ export function getLLMDiagnostics() {
 
   // Check Gemini
   if (process.env.GEMINI_API_KEY) {
-    const model = process.env.GEMINI_MODEL || 'gemini-pro-latest';
+    const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
     providers.push({ key: 'google', model });
   }
 
   return {
     providers,
-    preferred: process.env.PREFERRED_MODEL || 'google:gemini-pro-latest',
-    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-opus-4-7',
+    preferred: process.env.PREFERRED_MODEL || 'google:gemini-3.5-flash',
+    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-opus-4-8',
   };
 }
 

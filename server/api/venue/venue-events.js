@@ -43,7 +43,7 @@ router.post('/events', async (req, res) => {
 
     // Create promise for this research task
     const researchPromise = (async () => {
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent', {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

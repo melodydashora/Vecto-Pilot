@@ -21,7 +21,7 @@ const publicLimiter = rateLimit({
 router.post('/icebreaker', publicLimiter, async (req, res) => {
   try {
     const result = await callGemini({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3.5-flash',
       system: 'You are an expert in casual conversation and rideshare etiquette. Output only the conversation starter directly — no quotes, no framing, no "Here is" preamble. Just the question or comment a passenger could actually say.',
       user: 'Generate a single fun, polite icebreaker a passenger can use with their rideshare driver. Keep it casual, friendly, and short (1–2 sentences). Avoid politics, religion, romance, and anything personal or sensitive.',
       maxTokens: 200,
@@ -46,7 +46,7 @@ router.post('/ask', publicLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Provide a question between 1 and 500 characters.' });
     }
     const result = await callGemini({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3.5-flash',
       system: 'You are a friendly, professional rideshare driver answering a passenger\'s question. Be polite, brief (2–3 sentences max), and keep passenger safety and rideshare rules in mind. If the question is unsafe, inappropriate, or asks the driver to break platform rules, politely decline. Always speak in first person as the driver.',
       user: `A passenger in your car just asked: "${question.trim()}"`,
       maxTokens: 300,
