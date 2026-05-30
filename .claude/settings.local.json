@@ -375,7 +375,8 @@
       "Bash(openssl x509 *)",
       "Bash(npm --version)",
       "Bash(fuser -k 5000/tcp)",
-      "Bash([ -e \"/home/runner/workspace/$f\" ])"
+      "Bash([ -e \"/home/runner/workspace/$f\" ])",
+      "Bash(rg -n \"createViteServer|vite|middlewareMode|express\\\\.static|sirv|distPath|client/dist|serveStatic\" gateway-server.js server/bootstrap/*.js)"
     ],
     "deny": [],
     "ask": []
