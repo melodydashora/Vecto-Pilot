@@ -69,6 +69,12 @@ export const MODEL_ROLES = {
   // This role is NO LONGER CALLED - kept for backwards compatibility only
   // Original: BRIEFING_NEWS_GPT used GPT-5.2 in parallel with Gemini for news
   // 2026-01-10: Added thinkingLevel HIGH for event discovery accuracy
+  // 2026-05-30: DELIBERATELY on gemini-3.5-flash (not gemini-3.1-pro-preview like the
+  // sibling briefings). Event discovery is grounded retrieval, not deep reasoning, and
+  // Pro + HIGH thinking + google_search was blowing the 90s cap ("[BRIEFING] Event search
+  // … timed out after 90000ms"). Flash 3.5 keeps grounding + HIGH thinking but is ~4× faster.
+  // NOTE: the controlling env var is BRIEFING_EVENTS_MODEL (the envKey below) — NOT
+  // BRIEFING_EVENTS_DISCOVERY_MODEL, which does not match this key and is silently ignored.
   BRIEFING_EVENTS_DISCOVERY: {
     envKey: 'BRIEFING_EVENTS_MODEL',
     default: 'gemini-3.5-flash',
