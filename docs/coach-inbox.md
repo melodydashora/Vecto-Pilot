@@ -196,3 +196,18 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 ### [FEATURE_REQUEST] Hands-free Voice Activation & TTS for Coach
 - **Priority:** high | **Date:** 2026-05-16 16:35
 - Melody wants a fully hands-free, voice-activated mode for the Coach tab. When she switches to the tab, it should automatically listen so she can just ask 'Where should I go right now?' and get a spoken response (TTS) without touching the phone. She noted this is critical for safety and split-second decisions in traffic jams (e.g., whether to take an exit).
+
+### [BUG] Fix Stale Event Data Architecture
+- **Priority:** high | **Date:** 2026-05-30 02:21
+- Melody is frustrated with stale events persisting despite recent fixes. Three strategic fixes needed: 1. Update briefing-service.js validateEventsHard() to strictly enforce date bounds using the driver's local timezone (America/Chicago), not UTC. 2. Harden the BRIEFING_EVENTS_DISCOVERY system prompt to aggressively reject any event not happening on the exact current date. 3. Ensure the DB query fetching active events has a deterministic WHERE clause filtering out past events based on local time. (Currently showing Wicked and Cirque Du Soleil which may be stale).
+  - Files: server/services/briefing-service.js, server/lib/ai/prompts/events.js, server/db/queries/events.js
+
+### [CODE_SUGGESTION] Implement Deterministic Temporal Bounds for Event Discovery
+- **Priority:** high | **Date:** 2026-05-30 02:22
+- Melody explicitly requested this sync. The event discovery pipeline is leaking stale events. Action items for Claude Code: 1. Rewrite validateEventsHard() in briefing-service.js to strictly enforce date bounds using the driver local timezone (America/Chicago) via date-fns-tz, completely rejecting anything outside the current day. 2. Update the BRIEFING_EVENTS_DISCOVERY system prompt to aggressively enforce the current date. 3. Ensure the SQL query for active events includes a strict deterministic filter for event_end_time against local time.
+  - Files: server/services/briefing-service.js
+
+### [TODO] Add SSL Certificate Expiration Monitoring
+- **Priority:** high | **Date:** 2026-06-01 12:31
+- The production SSL certificate expired mid-day causing Siri Shortcuts to fail with 'invalid certificate' errors. Implement a daily health check that reads the SSL certificate expiration date and triggers an alert 7 days before expiration so the driver isn't caught off guard on the road.
+  - Files: server/api/hooks/analyze-offer.js
