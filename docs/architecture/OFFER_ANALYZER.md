@@ -148,9 +148,9 @@ Tier drives which prompt template, rule set, and fallback thresholds apply. Dete
 
 ## 4. Phase 1 — Synchronous Analysis (Gemini Flash)
 
-**Source:** `server/api/hooks/analyze-offer.js` lines 227–439
-**Model role:** `OFFER_ANALYZER` → `gemini-flash-latest` (default)
-**Registry config:** `server/lib/ai/model-registry.js:328` — `maxTokens: 1024`, `temperature: 0.1`, `features: ['vision']`, no thinking level
+**Source:** `server/api/hooks/analyze-offer.js` lines 260–439
+**Model role:** `OFFER_ANALYZER` → `gemini-3.5-flash` (pinned default — NEVER a `*-latest` alias; see Memory #342)
+**Registry config:** `server/lib/ai/model-registry.js:303` — `maxTokens: 8192`, `temperature: 0.1`, `thinkingLevel: 'HIGH'`, `features: ['vision']`
 
 ### 4.1 Control Flow
 
@@ -224,9 +224,9 @@ REJECT. Share rides always rejected.
 
 ## 5. Phase 2 — Asynchronous Deep Analysis (Gemini Pro)
 
-**Source:** `analyze-offer.js:456–657`
-**Model role:** `OFFER_ANALYZER_DEEP` → `gemini-pro-latest`
-**Registry config:** `model-registry.js:341` — `maxTokens: 2048`, `temperature: 0.2`, `thinkingLevel: 'LOW'`, `features: ['vision']`
+**Source:** `analyze-offer.js:481–657`
+**Model role:** `OFFER_ANALYZER_DEEP` → `gemini-3.1-pro-preview` (pinned default — NEVER a `*-latest` alias; see Memory #342)
+**Registry config:** `model-registry.js:319` — `maxTokens: 2048`, `temperature: 0.2`, `thinkingLevel: 'LOW'`, `features: ['vision']`
 **Timeout:** 45 seconds, enforced via `Promise.race` (the Gemini SDK has no built-in timeout).
 
 ### 5.1 Flow
@@ -236,8 +236,8 @@ REJECT. Share rides always rejected.
 3. Call Gemini Pro with same screenshot and same text.
 4. If Phase 2 succeeds:
    - Parse its JSON (includes `parsed_data`, `decision`, `reasoning`, `confidence`, `location_analysis`).
-   - `aiModelUsed = 'gemini-3.1-pro'`.
-5. If Phase 2 fails (timeout, error, non-JSON): fall back to Phase 1 result. `aiModelUsed = 'gemini-3-flash'`.
+   - `aiModelUsed = 'gemini-3.1-pro-preview'`.
+5. If Phase 2 fails (timeout, error, non-JSON): fall back to Phase 1 result. `aiModelUsed = 'gemini-3.5-flash'`.
 6. Merge `preParsed + phase2Result.parsed_data` into `mergedParsedData`.
 7. Compute geographic columns (`coord_key`, `h3_index`), temporal columns (`local_date`, `local_hour`, `day_of_week`, `day_part`, `is_weekend`).
 8. Compute offer-session bucket (30-min window): same `offer_session_id` if prior offer for this device within 1800 s, else new UUID; `offer_sequence_num` increments.
@@ -269,9 +269,9 @@ REJECT. Share rides always rejected.
 
 | Failure | Fallback behavior | `ai_model` recorded |
 |---------|-------------------|---------------------|
-| Timeout after 45 s | Phase 1 result saved to DB | `gemini-3-flash` |
-| Gemini error (5xx, auth, quota) | Phase 1 result saved to DB | `gemini-3-flash` |
-| Non-JSON response | Phase 1 result saved to DB | `gemini-3-flash` |
+| Timeout after 45 s | Phase 1 result saved to DB | `gemini-3.5-flash` |
+| Gemini error (5xx, auth, quota) | Phase 1 result saved to DB | `gemini-3.5-flash` |
+| Non-JSON response | Phase 1 result saved to DB | `gemini-3.5-flash` |
 | Any thrown exception | Logged to console, DB insert skipped entirely (best-effort; Siri already answered) | n/a |
 
 Currently **Phase 2 reasoning does not surface back to Siri** — the driver hears the Phase 1 `voice` and never learns of Phase 2's richer verdict. Tracked in §16.
@@ -616,7 +616,7 @@ Miles are rounded to the nearest whole number with plural handling (`1 mile`, `6
 | `decision` | text NOT NULL | `'ACCEPT' \| 'REJECT' \| 'NO DATA'` — persisted verbatim from Phase 2 if available, else Phase 1 |
 | `decision_reasoning` | text | Phase 2 prose reasoning if available, else Phase 1 terse reason |
 | `confidence_score` | integer | 0-100 |
-| `ai_model` | text | `'gemini-3.1-pro'` on Phase 2 success, `'gemini-3-flash'` on Phase 2 fallback |
+| `ai_model` | text | `'gemini-3.1-pro-preview'` on Phase 2 success, `'gemini-3.5-flash'` on Phase 2 fallback |
 | `response_time_ms` | integer | Phase 1 latency (the only latency the driver experienced) |
 
 #### Driver Feedback
@@ -808,7 +808,7 @@ What is missing: native app, share-intent handler, accessibility service, notifi
 | Tier classification (share/standard/premium) | ✅ Working |
 | Share auto-reject (skip AI) | ✅ Working |
 | Deterministic fallback rule engine | ✅ Working |
-| `offer_intelligence` DB storage (107-column structured) | ✅ Working |
+| `offer_intelligence` DB storage (52-column structured) | ✅ Working |
 | Coach integration (last 20 offers + stats) | ✅ Working |
 | SSE broadcast (`offer_analyzed`) | ✅ Working |
 | `reason` field surfaced to Siri | ✅ Added 2026-04-15 (Memory #120) |

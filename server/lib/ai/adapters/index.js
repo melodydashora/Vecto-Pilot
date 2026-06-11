@@ -186,6 +186,7 @@ export async function callModel(role, params) {
       ok: true,
       text: response.output, // Ensure 'text' property is available for legacy code
       output: response.output,
+      model: primaryConfig.model, // 2026-06-11: expose the RESOLVED model id so callers log the truth, not a hardcoded literal
       provider: result.provider,
       latencyMs: result.latencyMs,
       citations: response.citations
@@ -223,6 +224,7 @@ export async function callModel(role, params) {
             ok: true,
             text: retryResult.output,
             output: retryResult.output,
+            model: GEMINI_FALLBACK_MODEL, // 2026-06-11: the 503 fallback actually ran flash — report THAT, not the primary
             provider: 'google-fallback',
             latencyMs: retryDuration,
             citations: retryResult.citations,
