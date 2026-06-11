@@ -121,6 +121,12 @@ export async function mountRoutes(app, server) {
     { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
     { path: '/api/hooks', module: './server/api/hooks/translate.js', desc: 'Siri Translation Hook' },
 
+    // 2026-06-11: Admin prod read-only observability bridge (server/api/admin/) — bridge-auth ONLY.
+    // Lets the terminal dev agent monitor prod over HTTPS (prod DB is app-scoped, not
+    // reachable from the dev terminal). Structured /offer-monitor (Drizzle) + raw /query
+    // (dedicated read-only role). See docs/architecture/PROD_QUERY_BRIDGE.md.
+    { path: '/api/admin', module: './server/api/admin/monitor.js', desc: 'Admin prod-query/monitor (bridge-auth, read-only)' },
+
     // 2026-01-09: Removed EventEmitter SSE - DB NOTIFY SSE is canonical (mountSSE)
     // The /events mount was duplicating /events/strategy, /events/blocks with EventEmitter
     // while mountSSE() mounts DB-backed versions at same paths. See LESSONS_LEARNED.md.

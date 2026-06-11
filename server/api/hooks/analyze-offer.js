@@ -752,6 +752,8 @@ router.get('/offer-history', async (req, res) => {
         decision: offer_intelligence.decision,
         decision_reasoning: offer_intelligence.decision_reasoning,
         confidence_score: offer_intelligence.confidence_score,
+        ai_model: offer_intelligence.ai_model,        // 2026-06-11: surface the model that decided (telemetry verification)
+        input_mode: offer_intelligence.input_mode,    // 2026-06-11: 'vision' | 'text'
         user_override: offer_intelligence.user_override,
         response_time_ms: offer_intelligence.response_time_ms,
         local_date: offer_intelligence.local_date,
