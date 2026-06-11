@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp, Navigation, Calendar } from "lucide-react";
-import { filterValidEvents, formatEventDate, formatEventTimeRange } from "@/utils/co-pilot-helpers";
+import { filterValidEvents, formatEventRunDisplay, formatEventTimeRange } from "@/utils/co-pilot-helpers";
 
 // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
 interface Event {
@@ -223,14 +223,23 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
                         {/* Date and Time - Always show for valid events */}
                         {/* 2026-01-10: Use symmetric field names (event_start_date, event_start_time) */}
                         <div className="flex flex-wrap items-center gap-2">
-                          {event.event_start_date && (
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-indigo-500 flex-shrink-0" />
-                              <span className={`font-medium ${formatEventDate(event.event_start_date).startsWith('Today') ? 'text-green-600' : 'text-indigo-600'}`}>
-                                {formatEventDate(event.event_start_date)}
-                              </span>
-                            </div>
-                          )}
+                          {event.event_start_date && (() => {
+                            // 2026-06-11: For an active multi-day run, show "Today … · runs
+                            // through <end>" instead of the run START date (which can be weeks
+                            // ago and read as stale). Single-day events are unchanged.
+                            const run = formatEventRunDisplay(event.event_start_date, event.event_end_date);
+                            return (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-indigo-500 flex-shrink-0" />
+                                <span className={`font-medium ${run.isToday ? 'text-green-600' : 'text-indigo-600'}`}>
+                                  {run.dateLabel}
+                                </span>
+                                {run.runThrough && (
+                                  <span className="text-gray-500">· runs through {run.runThrough}</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                           {event.event_start_time && (
                             <div className="flex items-center gap-1">
                               <Clock className="w-3 h-3 text-gray-500 flex-shrink-0" />

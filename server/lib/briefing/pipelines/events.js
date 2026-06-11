@@ -43,7 +43,7 @@ import { findOrCreateVenue, lookupVenue } from '../../venue/venue-cache.js';
 import { geocodeEventAddress } from '../../events/pipeline/geocodeEvent.js';
 import { searchPlaceWithTextSearch } from '../../venue/venue-address-resolver.js';
 import { validateVenueAddress } from '../../venue/venue-address-validator.js';
-import { deactivatePastEvents, collapseDuplicateEventSpans, clearOrphanedEventVenueTags } from '../cleanup-events.js';
+import { deactivatePastEvents, collapseDuplicateEventSpans, clearOrphanedEventVenueTags, mergeIntoOverlappingActiveSpan } from '../cleanup-events.js';
 
 // Per-category Gemini search timeout. Each category runs in parallel; total fan-out
 // time is bounded by max(category_timeouts), not sum, since they're Promise.all'd.
@@ -737,6 +737,23 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             if (!addrValid) {
               briefingLog.warn(2, `[VENUE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
             }
+          }
+
+          // 2026-06-11: Write-time root-cause guard for duplicate multi-day spans. If an
+          // active overlapping same-venue + title-match span already exists (e.g. this run
+          // re-discovered on a later day with a different start), extend it and skip the
+          // insert instead of creating another hash row. collapseDuplicateEventSpans()
+          // stays as the after-the-fact safety net for anything this misses (e.g. a venue
+          // that resolved to a different venue_id across discoveries).
+          const mergedSpanId = await mergeIntoOverlappingActiveSpan({
+            venueId,
+            title: event.title,
+            startDate: event.event_start_date,
+            endDate: event.event_end_date,
+          });
+          if (mergedSpanId) {
+            briefingLog.info(`Merged "${event.title?.slice(0, 40)}" into active span ${mergedSpanId.slice(0, 8)} (skipped duplicate multi-day insert)`);
+            continue;
           }
 
           // Store event with venue_catalog truth (city/address from Places (NEW) API, not Gemini guess)

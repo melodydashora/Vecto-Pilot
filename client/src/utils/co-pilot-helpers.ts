@@ -565,6 +565,48 @@ export function formatEventDate(eventDate: string | undefined): string {
 }
 
 /**
+ * Display model for an event date that accounts for multi-day runs.
+ *
+ * 2026-06-11: A long run (e.g. "Wicked", May 1 → Jun 14) was showing its run START date
+ * (e.g. "May 1") even though there's a performance TODAY — which reads as stale. For an
+ * active multi-day run (today falls inside [start, end] and end > start) this returns a
+ * "Today" date label plus a "runs through <end>" note, so drivers see that it's on today
+ * and how long the run lasts. Single-day events fall back to the plain start-date label.
+ *
+ * Uses the browser's local day for "today" — consistent with formatEventDate above.
+ */
+export function formatEventRunDisplay(
+  startDate?: string,
+  endDate?: string,
+): { dateLabel: string; isToday: boolean; runThrough?: string } {
+  if (!startDate) return { dateLabel: '', isToday: false };
+
+  const end = endDate || startDate;
+  const isMultiDay = end !== startDate;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate + 'T00:00:00');
+  const endDay = new Date(end + 'T00:00:00');
+  const todayWithinRun =
+    start.getTime() <= today.getTime() && today.getTime() <= endDay.getTime();
+
+  if (isMultiDay && todayWithinRun) {
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    return {
+      dateLabel: formatEventDate(`${y}-${m}-${d}`), // "Today (MM/DD/YYYY)"
+      isToday: true,
+      runThrough: endDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    };
+  }
+
+  const dateLabel = formatEventDate(startDate);
+  return { dateLabel, isToday: dateLabel.startsWith('Today') };
+}
+
+/**
  * Convert 24h time string (HH:MM) to 12h AM/PM format
  * Examples: "15:00" → "3:00 PM", "09:30" → "9:30 AM", "00:00" → "12:00 AM"
  * 2026-01-14: FIX - Users expect 12h AM/PM format, not military time

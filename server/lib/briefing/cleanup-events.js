@@ -203,3 +203,51 @@ export async function collapseDuplicateEventSpans() {
     return 0;
   }
 }
+
+/**
+ * Write-time guard against duplicate multi-day spans — the root-cause complement to
+ * collapseDuplicateEventSpans (which is the after-the-fact safety net).
+ *
+ * 2026-06-11: Before INSERTing a newly-discovered multi-day event, check for an existing
+ * ACTIVE row at the same venue whose title matches (titlesMatch) and whose date range
+ * overlaps. If found, extend that row to the union span (keeping its event_hash and
+ * is_active=true) and return its id so the caller SKIPS inserting a new hash row. Without
+ * this, the same run re-discovered on later days (slightly different start → different
+ * `start_end` hash) accumulates "Wicked May 1 / May 5 / …" duplicate rows.
+ *
+ * Single-day events (start == end) are skipped — they already dedupe via the exact
+ * event_hash, and merging same-venue single-day shows on different dates would be wrong.
+ *
+ * @param {{ venueId: string, title: string, startDate: string, endDate: string }} ev
+ * @returns {Promise<string|null>} surviving row id if merged, else null (caller inserts)
+ */
+export async function mergeIntoOverlappingActiveSpan({ venueId, title, startDate, endDate }) {
+  if (!venueId || !title || !startDate || !endDate || endDate === startDate) return null;
+  try {
+    // Date columns are TEXT 'YYYY-MM-DD' → lexical compare == chronological.
+    const res = await db.execute(sql`
+      SELECT id, title, event_start_date, event_end_date
+      FROM discovered_events
+      WHERE venue_id = ${venueId} AND is_active = true
+        AND event_start_date <= ${endDate} AND event_end_date >= ${startDate}
+    `);
+    const rows = res.rows || res;
+    const match = Array.isArray(rows) ? rows.find((r) => titlesMatch(r.title, title)) : null;
+    if (!match) return null;
+
+    const unionStart = match.event_start_date < startDate ? match.event_start_date : startDate;
+    const unionEnd = match.event_end_date > endDate ? match.event_end_date : endDate;
+    if (unionStart !== match.event_start_date || unionEnd !== match.event_end_date) {
+      await db.execute(sql`
+        UPDATE discovered_events
+        SET event_start_date = ${unionStart}, event_end_date = ${unionEnd}, updated_at = NOW()
+        WHERE id = ${match.id}
+      `);
+    }
+    return match.id;
+  } catch (error) {
+    // Non-fatal — on any error, return null so the caller falls back to a normal insert.
+    briefingLog.error(1, `mergeIntoOverlappingActiveSpan failed (non-fatal, inserting normally): ${error.message}`, error, OP.DB);
+    return null;
+  }
+}
