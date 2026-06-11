@@ -340,5 +340,20 @@ export async function requireAuthAllowQueryToken(req, res, next) {
   return requireAuth(req, res, next);
 }
 
+// 2026-06-11: Strict agent-ONLY guard for admin/observability routes.
+// Unlike requireAuth (which ALSO accepts valid end-user sessions), this rejects
+// everything except a valid agent/bridge token (x-vecto-agent-secret /
+// x-claude-bridge-token, constant-time compared in validateAgentAuth). Used by the
+// prod read-only query bridge (server/api/admin/monitor.js) so a logged-in end user
+// can never reach the raw-query surface — only a bridge-token holder can.
+export function requireAgentOnly(req, res, next) {
+  const agentAuth = validateAgentAuth(req);
+  if (!agentAuth) {
+    return res.status(401).json({ error: 'agent_auth_required', message: 'This endpoint requires a valid agent/bridge token.' });
+  }
+  req.auth = { userId: agentAuth.userId, isAgent: true, tokenSource: agentAuth.tokenSource };
+  return next();
+}
+
 // Export constants for use in other modules
 export { SYSTEM_AGENT_USER_ID, AGENT_SECRET_HEADER };
