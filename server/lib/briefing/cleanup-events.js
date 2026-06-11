@@ -1,6 +1,9 @@
 import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
 import { briefingLog, OP } from '../../logger/workflow.js';
+// 2026-06-11: reuse the discovery-pipeline title matcher so span-collapse uses the same
+// "Broadway Dallas presents Wicked" ⊃ "Wicked" logic as deduplicateEventsSemantic.
+import { titlesMatch } from '../events/pipeline/deduplicateEventsSemantic.js';
 
 /**
  * Deactivate past events in discovered_events.
@@ -66,6 +69,137 @@ export async function deactivatePastEvents(timezone) {
   } catch (error) {
     // Non-fatal — cleanup failure shouldn't block event discovery
     briefingLog.error(1, `Failed to deactivate past events: ${error.message}`, error, OP.DB);
+    return 0;
+  }
+}
+
+/**
+ * Clear the `is_event_venue` tag on venue_catalog rows that no longer have any
+ * active discovered_events.
+ *
+ * 2026-06-11: Added because `is_event_venue` was monotonic ("once true, stays true" —
+ * venue-cache.js) and only ever SET (events.js:701), never cleared. The tag had
+ * accumulated to ~95% orphaned (533 tagged / 505 with no active event). This is the
+ * "clear the event tag for events no longer valid" removal step.
+ *
+ * SAFETY: only flips the boolean tag — it NEVER deletes a venue_catalog row. Venues are
+ * persistent; the event association is what's transient. (discovered_events.venue_id has
+ * ON DELETE SET NULL, so even an unrelated venue delete elsewhere can't orphan events.)
+ *
+ * Coexists with the venue-cache OR-merge: that path only re-sets the tag true for venues
+ * that receive a NEW event, so tag = true ⟺ venue currently anchors ≥1 active event.
+ *
+ * @returns {Promise<number>} Number of venue tags cleared
+ */
+export async function clearOrphanedEventVenueTags() {
+  try {
+    const result = await db.execute(sql`
+      UPDATE venue_catalog
+      SET is_event_venue = false,
+          updated_at = NOW()
+      WHERE is_event_venue = true
+        AND NOT EXISTS (
+          SELECT 1 FROM discovered_events de
+          WHERE de.venue_id = venue_catalog.venue_id
+            AND de.is_active = true
+        )
+    `);
+
+    const cleared = result.rowCount || result.count || 0;
+    if (cleared > 0) {
+      briefingLog.phase(1, `Cleared is_event_venue tag on ${cleared} venues with no active events`, OP.DB);
+    }
+    return cleared;
+  } catch (error) {
+    // Non-fatal — tag hygiene must not block discovery.
+    briefingLog.error(1, `Failed to clear orphaned event-venue tags: ${error.message}`, error, OP.DB);
+    return 0;
+  }
+}
+
+/**
+ * Collapse duplicate multi-day event spans into one canonical row.
+ *
+ * 2026-06-11: A long-running show (e.g. "Wicked" at one venue, May 1 → Jun 14) is
+ * re-discovered by Gemini on multiple days. Because the multi-day event_hash includes the
+ * start date (`start_end`) and Gemini reports a slightly different run-start each time, each
+ * re-discovery inserts a NEW row with the same end date — producing overlapping duplicate
+ * spans (6 "Wicked" rows here). Per-batch deduplicateEventsSemantic can't catch this (the
+ * duplicates arrive across different discovery days/batches), so it's handled here at
+ * cleanup time across the whole active set.
+ *
+ * Grouping is conservative — a cluster requires ALL THREE: same venue_id, title match
+ * (titlesMatch, the discovery matcher), AND overlapping date ranges. Two genuinely-distinct
+ * concurrent shows at one venue (different titles) are never merged. The widest-span row
+ * (longest [start,end], tie → earliest start) survives; the rest are soft-deactivated
+ * (is_active=false, deactivation_reason='duplicate_span') — never deleted.
+ *
+ * @returns {Promise<number>} Number of duplicate spans deactivated
+ */
+export async function collapseDuplicateEventSpans() {
+  try {
+    const res = await db.execute(sql`
+      SELECT id, venue_id, title, event_start_date, event_end_date
+      FROM discovered_events
+      WHERE is_active = true AND venue_id IS NOT NULL
+    `);
+    const rows = res.rows || res;
+    if (!Array.isArray(rows) || rows.length === 0) return 0;
+
+    // Date strings are 'YYYY-MM-DD' → lexical compare == chronological.
+    const overlaps = (a, b) =>
+      a.event_start_date <= b.event_end_date && b.event_start_date <= a.event_end_date;
+    const spanDays = (r) =>
+      (Date.parse(`${r.event_end_date}T00:00:00Z`) - Date.parse(`${r.event_start_date}T00:00:00Z`)) /
+      86400000;
+
+    // Group by venue, then cluster within a venue by title-match + date overlap.
+    const byVenue = new Map();
+    for (const r of rows) {
+      if (!byVenue.has(r.venue_id)) byVenue.set(r.venue_id, []);
+      byVenue.get(r.venue_id).push(r);
+    }
+
+    const loserIds = [];
+    for (const group of byVenue.values()) {
+      const assigned = new Set();
+      for (let i = 0; i < group.length; i++) {
+        if (assigned.has(i)) continue;
+        const cluster = [group[i]];
+        assigned.add(i);
+        for (let j = i + 1; j < group.length; j++) {
+          if (assigned.has(j)) continue;
+          if (titlesMatch(group[i].title, group[j].title) && overlaps(group[i], group[j])) {
+            cluster.push(group[j]);
+            assigned.add(j);
+          }
+        }
+        if (cluster.length < 2) continue;
+        // Survivor = widest span; tiebreak earliest start.
+        cluster.sort((a, b) =>
+          spanDays(b) - spanDays(a) || a.event_start_date.localeCompare(b.event_start_date)
+        );
+        for (let k = 1; k < cluster.length; k++) loserIds.push(cluster[k].id);
+      }
+    }
+
+    if (loserIds.length === 0) return 0;
+
+    await db.execute(sql`
+      UPDATE discovered_events
+      SET is_active = false,
+          deactivated_at = NOW(),
+          deactivation_reason = 'duplicate_span',
+          deactivated_by = 'cleanup',
+          updated_at = NOW()
+      WHERE id IN (${sql.join(loserIds.map((id) => sql`${id}`), sql`, `)})
+    `);
+
+    briefingLog.phase(1, `Collapsed ${loserIds.length} duplicate event spans (same venue + title + overlapping dates)`, OP.DB);
+    return loserIds.length;
+  } catch (error) {
+    // Non-fatal — collapse failure must not block discovery.
+    briefingLog.error(1, `Failed to collapse duplicate event spans: ${error.message}`, error, OP.DB);
     return 0;
   }
 }

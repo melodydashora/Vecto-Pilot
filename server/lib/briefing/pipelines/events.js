@@ -43,7 +43,7 @@ import { findOrCreateVenue, lookupVenue } from '../../venue/venue-cache.js';
 import { geocodeEventAddress } from '../../events/pipeline/geocodeEvent.js';
 import { searchPlaceWithTextSearch } from '../../venue/venue-address-resolver.js';
 import { validateVenueAddress } from '../../venue/venue-address-validator.js';
-import { deactivatePastEvents } from '../cleanup-events.js';
+import { deactivatePastEvents, collapseDuplicateEventSpans, clearOrphanedEventVenueTags } from '../cleanup-events.js';
 
 // Per-category Gemini search timeout. Each category runs in parallel; total fan-out
 // time is bounded by max(category_timeouts), not sum, since they're Promise.all'd.
@@ -569,6 +569,14 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   if (deactivated > 0) {
     briefingLog.phase(2, `Cleaned up ${deactivated} past events`, OP.DB);
   }
+
+  // 2026-06-11: Opportunistic event-lifecycle hygiene, ordered so each step sees the
+  // prior step's results: (1) deactivate ended events (above), (2) collapse cross-day
+  // duplicate spans of the same run (e.g. 6 "Wicked" rows), (3) clear is_event_venue tags
+  // on venues left with no active event. All soft (deactivate / flag-off) — never delete a
+  // venue. Each is non-fatal and returns 0 on error so cleanup can't block discovery.
+  await collapseDuplicateEventSpans();
+  await clearOrphanedEventVenueTags();
 
   // 2026-04-04: FIX C-5 — Use user's timezone for date range, not UTC
   // Previously used toISOString() which is UTC-based. A driver in UTC-8 at 11PM local

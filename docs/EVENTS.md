@@ -471,9 +471,15 @@ The internal `createDateInTimezone(year, month, day, hours, minutes, timezone)` 
 2. **API-side** (`briefing.js`): `filterFreshEvents()` before response
 3. **Client-side** (`BriefingPage.tsx`): `useMemo()` with local `filterFreshEvents()` fallback
 
-### Soft Deactivation
+### Soft Deactivation & Lifecycle Hygiene
 
-Past events are soft-deactivated (`is_active = false`, `deactivated_at = NOW()`) per-snapshot via `deactivatePastEvents()` before each discovery cycle. This is the canonical cleanup mechanism — there is **NO hourly cleanup job** and **NO background event sync job** (Rule 11 in CLAUDE.md).
+Three soft, reversible cleanup steps run per-snapshot (opportunistically, before each discovery cycle, in `pipelines/events.js`) — there is **NO hourly cleanup job** and **NO background event sync job** (Rule 11 in CLAUDE.md). None of them ever deletes a row; venues in `venue_catalog` are persistent.
+
+1. **`deactivatePastEvents(timezone)`** — soft-deactivates (`is_active = false`, `deactivated_at = NOW()`) events whose end is past the `now − 2h` surge cutoff (timezone-aware).
+2. **`collapseDuplicateEventSpans()`** (2026-06-11) — a long-running show re-discovered across days inserts overlapping duplicate spans (the multi-day hash is `start_end`, and Gemini reports a slightly different run-start each day → different hash → no per-batch dedup). This collapses them: rows are clustered by **same `venue_id` + `titlesMatch` + overlapping date range** (all three required, so distinct concurrent shows at one venue are never merged), the widest-span row survives, the rest are deactivated with `deactivation_reason = 'duplicate_span'`. Example: 6 overlapping "Wicked" spans → 1.
+3. **`clearOrphanedEventVenueTags()`** (2026-06-11) — flips `venue_catalog.is_event_venue = false` for venues left with no active `discovered_events` (the tag was previously monotonic and had accumulated to ~95% orphaned). Never deletes the venue.
+
+One-time backfill of the existing backlog: `node server/scripts/backfill-event-venue-cleanup.mjs` (idempotent; run once per environment — dev/Helium and prod/Neon are separate backlogs).
 
 ---
 
@@ -497,12 +503,12 @@ New event-discovered venues get:
 
 ### When to Flag Existing Venues
 
-An existing venue's `is_event_venue` flag is set to `true` when it's linked to a discovered event for the first time. This enables filtering for "venues that host events" in the Market Map.
+An existing venue's `is_event_venue` flag is set to `true` when it's linked to a discovered event. **2026-06-11: it is also CLEARED back to `false` by `clearOrphanedEventVenueTags()` (cleanup-events.js) once the venue has no remaining active events** — so the tag now means "currently anchors ≥1 active event," not "ever hosted one." The venue row itself is never deleted.
 
 ### Progressive Enrichment
 
 Venue data quality follows the "Best Write Wins" pattern:
-- Boolean flags (`is_bar`, `is_event_venue`): OR logic — once true, stays true
+- Boolean flags during enrichment: OR logic — once true, stays true. **Exception (2026-06-11): `is_event_venue` is no longer monotonic — `clearOrphanedEventVenueTags()` flips it back to `false` when a venue has no active events, so it tracks current event-anchoring. `is_bar` remains monotonic.**
 - `record_status`: MAX logic — `stub` < `enriched` < `verified`
 - `place_id`: Backfilled on any match if existing venue doesn't have one
 - `formatted_address`: Overwritten by validation gate if quality check fails
@@ -907,6 +913,7 @@ These files are referenced in older docs but are NOT active in the pipeline:
 
 | Date | Change | Files |
 |------|--------|-------|
+| 2026-06-11 | **Event-lifecycle hygiene: span-collapse + event-venue-tag clearing**: Added `collapseDuplicateEventSpans()` (soft-deactivates cross-day duplicate run spans — same `venue_id` + `titlesMatch` + overlapping dates — keeping the widest; e.g. 6 "Wicked" → 1) and `clearOrphanedEventVenueTags()` (flips `is_event_venue=false` for venues with no active events; **never deletes venues**), both wired into the opportunistic per-snapshot cleanup after `deactivatePastEvents`. One-time dev backfill: collapsed 10 spans, cleared 505 orphaned tags (964 venue rows untouched). Prod/Neon backfill still pending. | cleanup-events.js, pipelines/events.js, scripts/backfill-event-venue-cleanup.mjs |
 | 2026-06-11 | **Rule 13 fail-loud + tz-library swap + dead-code removal**: Rule 13's silent UTC fallback removed — `validateEvent` now THROWS on missing `context.timezone` (NO FALLBACKS, memory #255); `fetchEventsForBriefing` gained a top-level tz guard and dropped its scattered UTC ternaries; consolidator `filterEventsReadTime` now threads `snapshot.timezone`; `POST /filter-invalid-events` returns **400** on missing tz instead of WARN+UTC. `createDateInTimezone` reimplemented on `date-fns-tz` `fromZonedTime` (fixes a midnight-"24" + server-tz bug). Deleted the dead `filterEventsForPlanner`/`isLargeEvent`/`LARGE_EVENT_*` (memory #258). Repaired 4 date-rotted validate tests + added Rule 13 / AHEAD-tz (Kiritimati) + tz-parity regression suites; jest now ignores `.worktrees`. | validateEvent.js, pipelines/events.js, consolidator.js, briefing.js, strategy-utils.js, filter-for-planner.js, tests/events/pipeline.test.js, tests/strategy/timezone-parity.test.js, jest.config.js |
 | 2026-04-28 | **Read-path Rule 13 tz-awareness (schema v5 → v6)**: `filterInvalidEvents` shim now accepts `{ timezone }`; threaded by `briefing-service.js:1607` (read-after-fetch revalidation), `briefing.js:1216` (`POST /filter-invalid-events` API — WARN-on-missing), and `dump-last-briefing.js`. Also fixed Path B (`GET /api/briefing/events/:snapshotId`) multi-day predicate from start-only to overlap window. Closes the gap commit 5cecd113 left open. | validateEvent.js, briefing-service.js, briefing.js, dump-last-briefing.js |
 | 2026-04-28 | **Write-path Rule 13 tz-awareness (schema v4 → v5) + multi-day predicate (Path A) + planner-grade gate**: `validateEvent` accepts `context.timezone`; `briefing-service.js:1339` threads `snapshot.timezone`; `enhanced-smart-blocks.js:213-272` uses `lte/gte` overlap predicate + `isPlannerGradeVenue` 3-bucket classification. Five hardening steps from `PLAN_events-pipeline-verification-2026-04-28.md` landed atomically as commit `5cecd113`. | validateEvent.js, briefing-service.js, enhanced-smart-blocks.js, venue-cache.js |
