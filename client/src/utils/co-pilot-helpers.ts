@@ -417,14 +417,39 @@ export interface FilterableEvent {
 }
 
 /**
+ * Compute "today" as a YYYY-MM-DD calendar day in a specific IANA timezone.
+ *
+ * 2026-06-11: Mirrors the snapshot-tz-aware approach filterValidEvents has used since
+ * 2026-03-28 (see line ~489). When a timezone is provided we resolve the calendar day in
+ * THAT zone via Intl.DateTimeFormat, so a driver near midnight in an AHEAD zone (JST/AEST/
+ * Kiritimati) sees the same "today" the backend validates against (Rule 13, fail-loud).
+ * Without a timezone we fall back to the BROWSER-LOCAL calendar day (not UTC): that is the
+ * driver's actual day, and it preserves the prior behavior of the label functions
+ * (formatEventDate/formatEventRunDisplay used browser-local before this refactor). Using UTC
+ * here would mislabel an event "Tomorrow" for any driver west of UTC after ~6pm local.
+ */
+function todayInTimezone(timezone?: string): string {
+  // Both branches: en-CA yields YYYY-MM-DD. With a timezone we resolve the day in that zone;
+  // without one, omitting timeZone uses the browser's local zone.
+  return new Intl.DateTimeFormat('en-CA', {
+    ...(timezone ? { timeZone: timezone } : {}),
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
+
+/**
  * Check if an event is happening today
  * For single-day events: checks event_start_date === today
  * For multi-day events: checks if today falls within event_start_date to event_end_date range
+ *
+ * 2026-06-11: accepts an optional snapshot/venue timezone so "today" is the driver's
+ * calendar day, not the browser's UTC clock (the old new Date().toISOString() could be a
+ * full day off near midnight for the local driver). Falls back to UTC when absent.
  */
-export function isEventToday(event: FilterableEvent): boolean {
+export function isEventToday(event: FilterableEvent, timezone?: string): boolean {
   if (!event.event_start_date) return false;
 
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = todayInTimezone(timezone); // YYYY-MM-DD in the driver's timezone
 
   // Multi-day event: check if today falls within the date range
   if (event.event_end_date) {
@@ -457,9 +482,10 @@ export function hasValidEventTime(event: FilterableEvent): boolean {
  */
 // 2026-04-04: Removed per-event console.logs that fired every ~500ms in the render loop.
 // These are pure filter functions — log only at the caller level when the count changes.
-export function filterTodayEvents<T extends FilterableEvent>(events: T[]): T[] {
+export function filterTodayEvents<T extends FilterableEvent>(events: T[], timezone?: string): T[] {
   if (!events || !Array.isArray(events)) return [];
-  return events.filter(event => isEventToday(event) && hasValidEventTime(event));
+  // 2026-06-11: thread timezone so map markers reflect the driver's "today", not UTC.
+  return events.filter(event => isEventToday(event, timezone) && hasValidEventTime(event));
 }
 
 /**
@@ -485,15 +511,9 @@ export function filterValidEvents<T extends FilterableEvent>(
 
   // 2026-03-28: Use timezone-aware date when timezone provided (fixes UTC mismatch near day boundaries)
   // Previously used UTC toISOString which caused events to appear/disappear incorrectly near midnight
-  let today: string;
-  if (timezone) {
-    today = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric', month: '2-digit', day: '2-digit'
-    }).format(new Date());
-  } else {
-    today = new Date().toISOString().split('T')[0];
-  }
+  // 2026-06-11: extracted the tz-today computation into todayInTimezone() so the label layer
+  // (formatEventDate / formatEventRunDisplay) resolves "today" identically to this filter.
+  const today = todayInTimezone(timezone);
   const todayEvents: T[] = [];
   const upcomingEvents: T[] = [];
   const invalidEvents: T[] = [];
@@ -535,33 +555,38 @@ export function filterValidEvents<T extends FilterableEvent>(
  * Format event date for display
  * Returns "Today", "Tomorrow", day name for this week, or formatted date
  */
-export function formatEventDate(eventDate: string | undefined): string {
+export function formatEventDate(eventDate: string | undefined, timezone?: string): string {
   if (!eventDate) return '';
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // 2026-06-11: compute "today" in the driver's timezone (was browser-local midnight, which
+  // could label an event "Tomorrow" that the tz-aware filter already treats as today).
+  const todayStr = todayInTimezone(timezone);
 
-  const eventDay = new Date(eventDate + 'T00:00:00');
-  const diffDays = Math.floor((eventDay.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  // Calendar-day difference, frame-independent: parse both YYYY-MM-DD as UTC midnight so the
+  // day count never skews with the browser's timezone or DST.
+  const eventMs = Date.parse(eventDate + 'T00:00:00Z');
+  const todayMs = Date.parse(todayStr + 'T00:00:00Z');
+  const diffDays = Math.round((eventMs - todayMs) / (1000 * 60 * 60 * 24));
 
   // 2026-05-05: Append explicit MM/DD/YYYY to Today/Tomorrow labels so any
   // snapshot-vs-wallclock date drift is immediately visible to the user.
-  // If the snapshot's date doesn't match the user's actual local day, the
-  // displayed date will expose the gap rather than hiding it under a generic
-  // "Today" label.
+  // 2026-06-11: format from the UTC-parsed event date (timeZone: 'UTC') so the printed
+  // calendar date always matches event_start_date exactly, with no browser-tz rollover.
+  const eventDay = new Date(eventMs);
   const dateStr = eventDay.toLocaleDateString('en-US', {
     month: '2-digit',
     day: '2-digit',
     year: 'numeric',
+    timeZone: 'UTC',
   });
 
   if (diffDays === 0) return `Today (${dateStr})`;
   if (diffDays === 1) return `Tomorrow (${dateStr})`;
   if (diffDays < 7 && diffDays > 0) {
-    return `${eventDay.toLocaleDateString('en-US', { weekday: 'long' })} (${dateStr})`;
+    return `${eventDay.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })} (${dateStr})`;
   }
 
-  return eventDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return eventDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 /**
@@ -573,36 +598,35 @@ export function formatEventDate(eventDate: string | undefined): string {
  * "Today" date label plus a "runs through <end>" note, so drivers see that it's on today
  * and how long the run lasts. Single-day events fall back to the plain start-date label.
  *
- * Uses the browser's local day for "today" — consistent with formatEventDate above.
+ * 2026-06-11: accepts an optional snapshot/venue timezone so "today" is the driver's
+ * calendar day (resolved via todayInTimezone), consistent with the tz-aware filter layer.
  */
 export function formatEventRunDisplay(
   startDate?: string,
   endDate?: string,
+  timezone?: string,
 ): { dateLabel: string; isToday: boolean; runThrough?: string } {
   if (!startDate) return { dateLabel: '', isToday: false };
 
   const end = endDate || startDate;
   const isMultiDay = end !== startDate;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(startDate + 'T00:00:00');
-  const endDay = new Date(end + 'T00:00:00');
-  const todayWithinRun =
-    start.getTime() <= today.getTime() && today.getTime() <= endDay.getTime();
+  // YYYY-MM-DD strings compare lexicographically as calendar dates — no Date math needed.
+  const todayStr = todayInTimezone(timezone);
+  const todayWithinRun = startDate <= todayStr && todayStr <= end;
 
   if (isMultiDay && todayWithinRun) {
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
+    const endMs = Date.parse(end + 'T00:00:00Z');
     return {
-      dateLabel: formatEventDate(`${y}-${m}-${d}`), // "Today (MM/DD/YYYY)"
+      dateLabel: formatEventDate(todayStr, timezone), // "Today (MM/DD/YYYY)"
       isToday: true,
-      runThrough: endDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      runThrough: new Date(endMs).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', timeZone: 'UTC',
+      }),
     };
   }
 
-  const dateLabel = formatEventDate(startDate);
+  const dateLabel = formatEventDate(startDate, timezone);
   return { dateLabel, isToday: dateLabel.startsWith('Today') };
 }
 

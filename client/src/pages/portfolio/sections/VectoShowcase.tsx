@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import {
   Navigation, Coffee, FileText, BarChart2, Languages, QrCode,
   Map, Smartphone, Cloud, Thermometer, Car, MapPin, Star,
@@ -31,11 +31,13 @@ const VENUES = [
   { name: 'Toyota Music Factory', dist: '12.3mi', time: '18min', grade: 'B', event: null },
 ];
 
-const container = {
+// 2026-06-11: type as framer-motion Variants so the cubic-bezier ease literal is
+// contextually typed to the 4-tuple Easing type (a bare number[] is not assignable).
+const container: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.06 } },
 };
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
 };

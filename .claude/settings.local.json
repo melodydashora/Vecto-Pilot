@@ -376,7 +376,11 @@
       "Bash(npm --version)",
       "Bash(fuser -k 5000/tcp)",
       "Bash([ -e \"/home/runner/workspace/$f\" ])",
-      "Bash(rg -n \"createViteServer|vite|middlewareMode|express\\\\.static|sirv|distPath|client/dist|serveStatic\" gateway-server.js server/bootstrap/*.js)"
+      "Bash(rg -n \"createViteServer|vite|middlewareMode|express\\\\.static|sirv|distPath|client/dist|serveStatic\" gateway-server.js server/bootstrap/*.js)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/eventMatchupDedup.test.js)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/auth-token-validation.test.js tests/blocksApi.test.js tests/coach-schema.test.js tests/coach-validation.test.js tests/near-event-ranking.test.js tests/rideshare-coach-schema.test.js tests/schema-validation.test.js)",
+      "Bash(sed -n '62,90p' client/src/components/MapTab.tsx)",
+      "Bash(sed -n '113,200p' client/src/components/strategy/StrategyMap.tsx)"
     ],
     "deny": [],
     "ask": []

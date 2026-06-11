@@ -112,7 +112,8 @@ export default function StrategyPage() {
     strategyProgress,
     enrichmentPhase,
     pipelinePhase,
-    timeRemainingText
+    timeRemainingText,
+    timezone
   } = useCoPilot();
 
   // 2026-04-26: Embedded-MapTab data prep. Memos lifted from MapPage.tsx
@@ -1009,6 +1010,7 @@ export default function StrategyPage() {
             events={mapEvents}
             incidents={trafficIncidents}
             snapshotId={lastSnapshotId ?? undefined}
+            timezone={timezone ?? undefined}
             isLoading={isBlocksLoading}
           />
         </div>

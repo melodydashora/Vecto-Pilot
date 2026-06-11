@@ -15,7 +15,7 @@
     "build": "vite build",
     "dev:client": "vite dev",
     "lint": "eslint client/src 'server/**/*.{js,mjs}' gateway-server.js agent-server.js --report-unused-disable-directives --max-warnings 0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b",
     "preview": "vite preview",
     "agent": "node agent-server.js",
     "test": "npm run test:unit && npm run test:e2e",

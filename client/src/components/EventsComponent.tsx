@@ -227,7 +227,7 @@ export default function EventsComponent({ events, isLoading: _isLoading, timezon
                             // 2026-06-11: For an active multi-day run, show "Today … · runs
                             // through <end>" instead of the run START date (which can be weeks
                             // ago and read as stale). Single-day events are unchanged.
-                            const run = formatEventRunDisplay(event.event_start_date, event.event_end_date);
+                            const run = formatEventRunDisplay(event.event_start_date, event.event_end_date, timezone);
                             return (
                               <div className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3 text-indigo-500 flex-shrink-0" />

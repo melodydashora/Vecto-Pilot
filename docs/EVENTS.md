@@ -352,13 +352,14 @@ Three dedup layers run in sequence. Each catches different failure modes.
 
 ### Layer 1: Hash-Based Dedup (Storage Level)
 
-**File:** `hashEvent.js` (v2, 2026-04-10)
-**Hash input:** `normalize(title) | normalize(venue_name) | normalize(city) | event_start_date`
+**File:** `hashEvent.js` (v4, 2026-06-11)
+**Hash input:** `canonicalizeMatchup(normalize(title)) | normalize(venue_name) | extract_street(address) | normalize(city) | date`
 **Algorithm:** MD5, 32-char hex, stored in `discovered_events.event_hash` (UNIQUE constraint).
+**`date`:** `event_start_date` for single-day; `"start_end"` span for multi-day (a festival re-discovered mid-run keeps one identity).
 
 | Component | Why |
 |-----------|-----|
-| `title` | Core event identity. Stripped of `" at Venue"`, `" @ Venue"`, `" - Venue"` suffixes by `stripVenueSuffix()`. Lowercased, non-alphanumerics removed. |
+| `title` | Core event identity. Stripped of `" at Venue"`, `" @ Venue"`, `" - Venue"` suffixes by `stripVenueSuffix()`, content prefixes, and parentheticals. Lowercased, non-alphanumerics removed. **v4 (2026-06-11):** `canonicalizeMatchup()` sorts the two sides of a `"a vs b"` title so `"Cowboys vs Eagles"` === `"Eagles vs Cowboys"`. Migration: v3 matchup rows re-hash via `migrate-event-hashes.js` (or drain through the collapse safety net). |
 | `venue_name` | Stable across discovery runs (unlike `address`, which varies). `"American Airlines Center"` stays consistent. |
 | `city` | Prevents collisions: `"Fair Park, Dallas"` != `"Fair Park, Houston"`. City comes from `venue_catalog` (Places (NEW) API) or snapshot context. |
 | `event_start_date` | Same event on different dates = different events. |
@@ -376,7 +377,7 @@ Three dedup layers run in sequence. Each catches different failure modes.
 **Two-phase approach inside the module:**
 
 1. **Grouping phase (O(n²) union-find):** For each pair of events, check if they belong to the same group.
-   - **Title match:** `titlesMatch(a, b)` — normalized equality OR substring containment OR primary-artist match. Normalization strips parentheticals, `"at Venue"` / `"- Venue"` suffixes, `"Live music:"` prefixes, non-alphanumerics, then pops trailing suffix words (`concert`, `live`, `show`, `tour`, `performance`, `experience`, `night`, `standup`, `comedy`, `acoustic`, `unplugged`, `in concert`, …).
+   - **Title match:** `titlesMatch(a, b)` — normalized equality OR substring containment OR primary-artist match. Normalization strips parentheticals, `"at Venue"` / `"- Venue"` suffixes, `"Live music:"` prefixes, non-alphanumerics, then pops trailing suffix words (`concert`, `live`, `show`, `tour`, `performance`, `experience`, `night`, `standup`, `comedy`, `acoustic`, `unplugged`, `in concert`, …). **2026-06-11:** `canonicalizeMatchup()` makes `"a vs b"` order-invariant (same helper as the hash stage), and a **matchup-asymmetry guard** blocks the looser containment/artist rules across a matchup and a non-matchup so a bare `"Cowboys"` can't absorb into the `"Cowboys vs Eagles"` game.
    - **Time-slot match:** `sameTimeSlot(a, b, 120)` — same `event_start_date` required; if both have start times, within 120 minutes; if one or both lack times, same date is sufficient (conservative: prefer false positive over false negative).
    - **Primary-artist extraction:** For titles like `"Fatboy Slim, Coco & Breezy, Jay Pryor"`, extracts `"fatboy slim"` (first segment before comma or `&`). Guards against splitting legitimate two-word artist names like `"Tito & Tarantula"` by requiring both sides of the `&` to be at least one/two words.
    - **Acceptable n:** O(n²) is fine because n is typically 20–60 events per discovery run.

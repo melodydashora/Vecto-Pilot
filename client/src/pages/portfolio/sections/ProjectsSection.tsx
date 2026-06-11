@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import {
   ExternalLink, Zap, Cloud, Star, BarChart2, Clock,
   FileText, Rocket, Building2, Shield,
@@ -52,11 +52,13 @@ const PAST_WORK = [
   },
 ];
 
-const stagger = {
+// 2026-06-11: type as framer-motion Variants so the cubic-bezier ease literal is
+// contextually typed to the 4-tuple Easing type (a bare number[] is not assignable).
+const stagger: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.06 } },
 };
-const fadeItem = {
+const fadeItem: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
 };

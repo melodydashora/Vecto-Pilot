@@ -3,11 +3,20 @@
  *
  * Canonical event hashing for deduplication.
  *
- * HASH CONTRACT (2026-04-30, v3 — Choice A normalization parity):
+ * HASH CONTRACT (2026-06-11, v4 — matchup order-invariance):
  * ═══════════════════════════════════════════════════════════════════════════
- * Hash input = normalize(title) | normalize(venue_name) | extract_street(address) | normalize(city) | date
+ * Hash input = canonicalizeMatchup(normalize(title)) | normalize(venue_name) | extract_street(address) | normalize(city) | date
  * Hash algorithm = MD5 (32-char hex)
  *
+ * 2026-06-11 (v4): ADDED canonicalizeMatchup() to title normalization so a re-scrape that
+ * flips team order ("Cowboys vs Eagles" ↔ "Eagles vs Cowboys") hashes to the SAME identity.
+ * Same helper runs in deduplicateEventsSemantic.normalizeTitleForComparison so the hash and
+ * semantic stages agree. MIGRATION: matchup-titled rows stored under v3 hashes will not
+ * collide with the new canonical hash until re-hashed — run migrate-event-hashes.js in the
+ * deployed env for an immediate reconcile; otherwise the existing safety nets
+ * (collapseDuplicateEventSpans + deactivatePastEvents) drain the transient duplicate.
+ *
+
  * 2026-04-30 (v3): EXPANDED title normalization for parity with deduplicateEvents.
  * - Strip common content prefixes: "Live Music:", "Live Band:", "Concert:", "Show:",
  *   "Event:", "Performance:", "DJ Set:", "Acoustic:"
@@ -42,6 +51,7 @@
  */
 
 import crypto from 'crypto';
+import { canonicalizeMatchup } from './canonicalizeMatchup.js';
 
 /**
  * Strip "at Venue" suffixes from event titles.
@@ -160,7 +170,10 @@ export function buildHashInput(event) {
   let titleClean = stripVenueSuffix(event.title);
   titleClean = stripPrefixes(titleClean);
   titleClean = stripParentheticals(titleClean);
-  const title = normalizeForHash(titleClean);
+  // 2026-06-11: canonicalize reversed matchups ("a vs b" === "b vs a") so a re-scrape that
+  // flips team order hashes to the same identity. Same helper runs in the semantic stage
+  // (deduplicateEventsSemantic.normalizeTitleForComparison) to keep the two layers in sync.
+  const title = canonicalizeMatchup(normalizeForHash(titleClean));
 
   const venue = normalizeForHash(event.venue_name || event.venue);
   const street = extractStreetName(event.address);

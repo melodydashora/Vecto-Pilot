@@ -87,7 +87,10 @@ export default function RideshareCoach({
   blocks: _blocks = [],
   strategyReady = false
 }: RideshareCoachProps) {
-  const onSilenceRef = useRef<() => void>();
+  // 2026-06-11: React 19 @types removed the no-arg useRef overload — pass an explicit
+  // initial value. Union with undefined preserves the prior "assign later" semantics
+  // (read site already uses optional chaining: onSilenceRef.current?.()).
+  const onSilenceRef = useRef<(() => void) | undefined>(undefined);
   const manualStopRef = useRef(false);
 
   // 2026-04-27: Step 4 — audio state (read-aloud toggle, TTS, STT, derived flags)
