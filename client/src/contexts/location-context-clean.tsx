@@ -82,15 +82,16 @@ function getGeoPosition(): Promise<{ latitude: number; longitude: number; accura
       return;
     }
 
-    // Manual timeout - must be > browser timeout to let browser respond first
-    // Browser timeout is 10s, so manual is 12s as fallback
+    // Manual timeout - must be > browser timeout to let browser respond first.
+    // 2026-06-11: browser GPS timeout raised to 15s (high-accuracy cold start needs room),
+    // so this anti-hang fallback is 17s (> 15s) — otherwise it would preempt a slow GPS fix.
     const manualTimeout = setTimeout(() => {
       if (!resolved) {
         resolved = true;
-        console.warn('[getGeoPosition] Manual timeout (12s) - browser geolocation hung.');
+        console.warn('[getGeoPosition] Manual timeout (17s) - browser geolocation hung.');
         resolve(null);
       }
-    }, 12000);
+    }, 17000);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -104,44 +105,23 @@ function getGeoPosition(): Promise<{ latitude: number; longitude: number; accura
           accuracy: position.coords.accuracy
         });
       },
-      async (error) => {
+      (error) => {
         if (resolved) return;
-        console.warn('[getGeoPosition] Browser failed:', error.code, error.message);
-
-        // Fallback: Google Geolocation API (works when browser GPS fails)
-        const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-        if (GOOGLE_API_KEY) {
-          try {
-            console.log('[getGeoPosition] Trying Google Geolocation API fallback...');
-            const res = await fetch(
-              `https://www.googleapis.com/geolocation/v1/geolocate?key=${GOOGLE_API_KEY}`,
-              { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
-            );
-            if (res.ok) {
-              const data = await res.json();
-              if (data?.location) {
-                resolved = true;
-                clearTimeout(manualTimeout);
-                console.log('[getGeoPosition] Google API success:', data.location.lat, data.location.lng);
-                resolve({
-                  latitude: data.location.lat,
-                  longitude: data.location.lng,
-                  accuracy: data.accuracy || 100
-                });
-                return;
-              }
-            }
-          } catch (e) {
-            console.warn('[getGeoPosition] Google API fallback failed:', e);
-          }
-        }
-
-        // No fallback worked
+        // 2026-06-11: NO FALLBACK — fail hard (per Melody + CLAUDE.md "fail hard on missing GPS").
+        // The previous Wi-Fi/IP geolocate fallback returned COARSE coords (false 6-decimal
+        // precision) that silently corrupted the whole GPS-derived pipeline (city, timezone,
+        // coords_key, venue ranking). Returning null makes the caller raise a CriticalError that
+        // prompts the driver to enable precise Location Services — a wrong location is worse than none.
         resolved = true;
         clearTimeout(manualTimeout);
+        console.error('[getGeoPosition] GPS unavailable (no fallback by design):', error.code, error.message);
         resolve(null);
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      // 2026-06-11: ALWAYS request a fresh GPS fix. enableHighAccuracy:false previously let
+      // Safari position by Wi-Fi/IP (~28 mi off) and maximumAge:60000 accepted a 60s-stale cache.
+      // The entire pipeline (city → timezone → venue ranking) keys off this coordinate, so
+      // accuracy here is non-negotiable. (PublicConciergePage already uses highAccuracy:true.)
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   });
 }
@@ -752,15 +732,14 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Driver may be at same coords but needs fresh snapshot data every sign-in.
         // The dedup check only applies to the auto-enrich effect (coord change detection).
         await enrichLocation(coords.latitude, coords.longitude, coords.accuracy, true);
-      } else if (profile?.homeLat && profile?.homeLng) {
-        // Fallback to home location from user's profile (set during registration)
-        console.log('🏠 [LocationContext] GPS unavailable - using home location from profile');
-        setCurrentCoords({ latitude: profile.homeLat, longitude: profile.homeLng });
-        await enrichLocation(profile.homeLat, profile.homeLng, 100, true);
       } else {
-        // No GPS and no home location - user needs to enable GPS
-        console.warn('[LocationContext] No GPS and no home location - cannot proceed');
-        setCurrentLocationString('Location unavailable - enable GPS');
+        // 2026-06-11: NO FALLBACK — fail hard. This previously fell back to profile.homeLat/homeLng,
+        // silently substituting the driver's REGISTERED HOME for their LIVE location (often tens of
+        // miles off) — and because that path never calls the Geolocation API, Safari never prompts.
+        // Location MUST come from live GPS, never the profile (memory #213 / #231 / #332). Surface a
+        // CriticalError so the driver enables precise Location Services and retries.
+        console.error('[LocationContext] GPS unavailable — failing hard (no profile/home fallback)');
+        setLocationError({ code: 'gps_unavailable', message: 'Location Services are off or blocked. Enable precise location for Safari, then retry.' });
       }
     } finally {
       setIsUpdating(false);
