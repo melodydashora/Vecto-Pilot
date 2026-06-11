@@ -5,6 +5,9 @@ import { db } from '../../db/drizzle.js';
 import { strategies } from '../../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 import { triadLog, OP, tagLog } from '../../logger/workflow.js';
+// 2026-06-11: vetted IANA-aware wall-clock→UTC conversion (replaces the hand-rolled
+// Intl offset math in createDateInTimezone, which had fragile month-end/DST heuristics).
+import { fromZonedTime } from 'date-fns-tz';
 
 /**
  * CRITICAL: Create strategy row with snapshot location data
@@ -508,8 +511,16 @@ function parseTimeString(timeStr) {
 }
 
 /**
- * Convert a date/time in a specific timezone to UTC Date object
- * Handles the case where server runs in UTC but events are in local timezone
+ * Convert a wall-clock date/time in a specific IANA timezone to a UTC Date.
+ * Handles the case where the server runs in UTC but events store local wall-clock times.
+ *
+ * 2026-06-11: Reimplemented on date-fns-tz `fromZonedTime`. The previous hand-rolled
+ * Intl.DateTimeFormat offset calculation used heuristic day-boundary corrections
+ * (`tzDay === 1 && getUTCDate() > 27`) that were fragile across month boundaries and the
+ * DST transition hour (the offset could be off by 60 min). fromZonedTime resolves the
+ * offset (including DST gaps/overlaps) per the IANA database. Non-existent spring-forward
+ * wall times resolve to the post-transition instant and ambiguous fall-back times to the
+ * earlier offset — both acceptable for the 2-hour event-freshness window this feeds.
  *
  * @param {number} year - Year
  * @param {number} month - Month (1-12)
@@ -520,54 +531,9 @@ function parseTimeString(timeStr) {
  * @returns {Date} - Date object in UTC
  */
 function createDateInTimezone(year, month, day, hours, minutes, timezone) {
-  // Create ISO string with the time we want
   const pad = (n) => String(n).padStart(2, '0');
-  const isoBase = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
-
-  // Use Intl.DateTimeFormat to figure out the UTC offset for this timezone at this date/time
-  // Create a reference date to get the timezone offset
-  const refDate = new Date(`${isoBase}Z`); // Start with UTC interpretation
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  });
-
-  // Get what time it would be in the target timezone if refDate was UTC
-  // Then calculate the offset
-  const parts = formatter.formatToParts(refDate);
-  const getPart = (type) => parts.find(p => p.type === type)?.value;
-
-  const tzYear = parseInt(getPart('year'));
-  const tzMonth = parseInt(getPart('month'));
-  const tzDay = parseInt(getPart('day'));
-  const tzHour = parseInt(getPart('hour'));
-  const tzMinute = parseInt(getPart('minute'));
-
-  // Calculate the offset in minutes between UTC and target timezone
-  // We want: localTime = UTC + offset, so offset = localTime - UTC
-  const utcMinutes = refDate.getUTCHours() * 60 + refDate.getUTCMinutes();
-  const tzMinutes = tzHour * 60 + tzMinute;
-
-  // Handle day boundary (timezone might be different day)
-  let offsetMinutes = tzMinutes - utcMinutes;
-  if (tzDay > refDate.getUTCDate() || (tzDay === 1 && refDate.getUTCDate() > 27)) {
-    offsetMinutes += 24 * 60; // Next day in timezone
-  } else if (tzDay < refDate.getUTCDate() || (refDate.getUTCDate() === 1 && tzDay > 27)) {
-    offsetMinutes -= 24 * 60; // Previous day in timezone
-  }
-
-  // Now create the correct UTC time
-  // We have the LOCAL time (hours, minutes) and need to convert to UTC
-  // UTC = local - offset
-  const localMs = new Date(year, month - 1, day, hours, minutes).getTime();
-  const utcMs = localMs - (offsetMinutes * 60 * 1000);
-
-  return new Date(utcMs);
+  const wallClock = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
+  return fromZonedTime(wallClock, timezone);
 }
 
 /**

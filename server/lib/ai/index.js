@@ -27,7 +27,7 @@ export { unifiedCapabilities } from './unified-ai-capabilities.js';
 // - adapters/*: Provider-specific adapters
 // - providers/briefing.js: Gemini-based briefing generation
 // - providers/consolidator.js: Strategy consolidation (STRATEGY_TACTICAL role)
-// - coach-dal.js: Data access layer for AI Coach
+// - rideshare-coach-dal.js: Data access layer for AI Coach (coach-dal.js archived 2026-05-26)
 // - model-registry.js: Role configuration, LLM status and diagnostics (SINGLE SOURCE OF TRUTH)
 // - unified-ai-capabilities.js: AI capability manager
 // 2026-02-26: Removed models-dictionary.js (dead code — zero imports, superseded by model-registry.js)

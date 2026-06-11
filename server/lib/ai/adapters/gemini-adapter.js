@@ -16,15 +16,20 @@ function _aiDebug(...args) {
 /**
  * 2026-02-15: F-002 fix — Validate and normalize thinkingLevel for Gemini models.
  * Pro models only support LOW and HIGH (MEDIUM causes 400 errors).
- * Flash models support LOW, MEDIUM, and HIGH.
+ * Flash models support MINIMAL, LOW, MEDIUM, and HIGH.
  * 2026-05-08: Predicate broadened from 'gemini-3' to 'gemini-' so the new
  * server-resolved aliases (gemini-pro-latest, gemini-flash-latest,
  * gemini-flash-lite-latest) also route through validation. Without this fix
  * the new aliases would skip validation entirely and 400 on MEDIUM-against-Pro.
+ * 2026-05-29: Added MINIMAL to the Flash level set. gemini-3.5-flash (GA 2026-05-19)
+ * exposes thinkingLevel minimal/low/medium/high (default medium) per
+ * ai.google.dev/gemini-api/docs/interactions/whats-new-gemini-3.5. The SDK takes the
+ * lowercase value via thinkingConfig.thinkingLevel; thinking_budget must NOT also be
+ * sent (400) — this adapter never sends it, so HIGH thinking is safe here.
  * Returns the validated level in UPPERCASE for consistency; callers
  * convert to lowercase for the SDK or keep uppercase for REST API.
  *
- * @param {string} model - The Gemini model name (e.g. "gemini-pro-latest", "gemini-flash-latest")
+ * @param {string} model - The Gemini model name (e.g. "gemini-3.5-flash", "gemini-pro-latest")
  * @param {string|null} thinkingLevel - Requested thinking level
  * @returns {string|null} Validated thinking level (UPPERCASE) or null if disabled
  */
@@ -33,9 +38,9 @@ function validateThinkingLevel(model, thinkingLevel) {
 
   const normalized = thinkingLevel.toUpperCase();
 
-  // Flash models support all three levels
+  // Flash models support all four levels (minimal added for 3.5 Flash)
   if (model.includes('flash')) {
-    const flashLevels = ['LOW', 'MEDIUM', 'HIGH'];
+    const flashLevels = ['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'];
     if (!flashLevels.includes(normalized)) {
       console.warn(`[AI] Invalid thinkingLevel "${thinkingLevel}" for Flash model. Valid: ${flashLevels.join(', ')}. Defaulting to LOW.`);
       return 'LOW';

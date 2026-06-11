@@ -1,0 +1,2 @@
+- [Welcome kiosk schema source of truth](welcome-schema-source.md) — UI_SCHEMA_COLOR_PALETTE-DONE.md governs the welcome surface; T-tokens live in slides.tsx lines 16-25.
+- [Build-vs-source drift caveat](build-source-drift-caveat.md) — when auditing visual fidelity against source code, always verify the deployed bundle matches; client/dist can lag source by hours.

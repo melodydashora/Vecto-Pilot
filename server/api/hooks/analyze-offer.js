@@ -519,7 +519,7 @@ PRE-PARSED DATA (server-verified):
         const phase2Start = Date.now();
 
         let deepResult = null;
-        let aiModelUsed = 'gemini-flash-latest'; // Default: Phase 1 model (used if Phase 2 fails)
+        let aiModelUsed = 'gemini-3.5-flash'; // Default: Phase 1 model (used if Phase 2 fails)
         let phase2RawText = null;
 
         try {
@@ -538,7 +538,7 @@ PRE-PARSED DATA (server-verified):
             const cleaned = phase2Response.text
               .replace(/```json/g, '').replace(/```/g, '').trim();
             deepResult = JSON.parse(cleaned);
-            aiModelUsed = 'gemini-pro-latest';
+            aiModelUsed = 'gemini-3.1-pro-preview'; // Phase 2 = OFFER_ANALYZER_DEEP (kept on Pro for deep reasoning)
             console.log(`[HOOKS] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
           } else {
             console.warn(`[HOOKS] Phase 2 AI call failed: ${phase2Response.error} — falling back to Phase 1 result`);

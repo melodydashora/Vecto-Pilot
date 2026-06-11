@@ -463,7 +463,7 @@ filterFreshEvents(events, new Date(), snapshot.timezone);
 filterFreshEvents(events, new Date()); // DO NOT DO THIS
 ```
 
-The internal `createDateInTimezone(year, month, day, hours, minutes, timezone)` utility converts local event times + IANA timezone to UTC `Date` objects for comparison.
+The internal `createDateInTimezone(year, month, day, hours, minutes, timezone)` utility converts local event times + IANA timezone to UTC `Date` objects for comparison. (2026-06-11: reimplemented on `date-fns-tz` `fromZonedTime`, replacing a hand-rolled `Intl` offset calc that mishandled midnight wall-times — en-US `hour12:false` formats 00:00 as "24" — and depended on the server's local timezone. See `tests/strategy/timezone-parity.test.js`.)
 
 ### Defense-in-Depth (3 Filter Layers)
 
@@ -471,9 +471,15 @@ The internal `createDateInTimezone(year, month, day, hours, minutes, timezone)` 
 2. **API-side** (`briefing.js`): `filterFreshEvents()` before response
 3. **Client-side** (`BriefingPage.tsx`): `useMemo()` with local `filterFreshEvents()` fallback
 
-### Soft Deactivation
+### Soft Deactivation & Lifecycle Hygiene
 
-Past events are soft-deactivated (`is_active = false`, `deactivated_at = NOW()`) per-snapshot via `deactivatePastEvents()` before each discovery cycle. This is the canonical cleanup mechanism — there is **NO hourly cleanup job** and **NO background event sync job** (Rule 11 in CLAUDE.md).
+Three soft, reversible cleanup steps run per-snapshot (opportunistically, before each discovery cycle, in `pipelines/events.js`) — there is **NO hourly cleanup job** and **NO background event sync job** (Rule 11 in CLAUDE.md). None of them ever deletes a row; venues in `venue_catalog` are persistent.
+
+1. **`deactivatePastEvents(timezone)`** — soft-deactivates (`is_active = false`, `deactivated_at = NOW()`) events whose end is past the `now − 2h` surge cutoff (timezone-aware).
+2. **`collapseDuplicateEventSpans()`** (2026-06-11) — a long-running show re-discovered across days inserts overlapping duplicate spans (the multi-day hash is `start_end`, and Gemini reports a slightly different run-start each day → different hash → no per-batch dedup). This collapses them: rows are clustered by **same `venue_id` + `titlesMatch` + overlapping date range** (all three required, so distinct concurrent shows at one venue are never merged), the widest-span row survives, the rest are deactivated with `deactivation_reason = 'duplicate_span'`. Example: 6 overlapping "Wicked" spans → 1. **Root-cause complement (2026-06-11): `mergeIntoOverlappingActiveSpan()` runs at WRITE time in the discovery upsert loop — before inserting a multi-day event it merges into an existing active same-venue + title-match + overlapping row (extending it to the union span) instead of inserting a new hash row, so duplicates are prevented at the source; the cleanup collapse stays as the after-the-fact safety net.**
+3. **`clearOrphanedEventVenueTags()`** (2026-06-11) — flips `venue_catalog.is_event_venue = false` for venues left with no active `discovered_events` (the tag was previously monotonic and had accumulated to ~95% orphaned). Never deletes the venue.
+
+One-time backfill of the existing backlog: `node server/scripts/backfill-event-venue-cleanup.mjs` (idempotent; run once per environment — dev/Helium and prod/Neon are separate backlogs).
 
 ---
 
@@ -497,12 +503,12 @@ New event-discovered venues get:
 
 ### When to Flag Existing Venues
 
-An existing venue's `is_event_venue` flag is set to `true` when it's linked to a discovered event for the first time. This enables filtering for "venues that host events" in the Market Map.
+An existing venue's `is_event_venue` flag is set to `true` when it's linked to a discovered event. **2026-06-11: it is also CLEARED back to `false` by `clearOrphanedEventVenueTags()` (cleanup-events.js) once the venue has no remaining active events** — so the tag now means "currently anchors ≥1 active event," not "ever hosted one." The venue row itself is never deleted.
 
 ### Progressive Enrichment
 
 Venue data quality follows the "Best Write Wins" pattern:
-- Boolean flags (`is_bar`, `is_event_venue`): OR logic — once true, stays true
+- Boolean flags during enrichment: OR logic — once true, stays true. **Exception (2026-06-11): `is_event_venue` is no longer monotonic — `clearOrphanedEventVenueTags()` flips it back to `false` when a venue has no active events, so it tracks current event-anchoring. `is_bar` remains monotonic.**
 - `record_status`: MAX logic — `stub` < `enriched` < `verified`
 - `place_id`: Backfilled on any match if existing venue doesn't have one
 - `formatted_address`: Overwritten by validation gate if quality check fails
@@ -834,7 +840,7 @@ Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION
 
 **Rule 12 fuzzy rescue (2026-04-05, self-healing):** If `event.category` is missing or not in the allowed list, `validateEvent` calls `normalizeCategory(event.category, event.subtype)` as a last-ditch remap before rejecting. This handles cases where Gemini returns unmapped values like `"live_music"`, `"game"`, `"hockey"`, `"concert_live"`. If the remap produces an allowed category, `event.category` is mutated in place and validation continues. Only unrecoverable values fall through to `missing_or_invalid_category`.
 
-**Rule 13 window:** `today` OR `yesterday` in the driver's local timezone (passed via `context.timezone`). Yesterday is allowed to cover late-night events discovered before midnight that cross into the next day. Without `context.timezone`, falls back to UTC for backwards compatibility — but every live caller now threads timezone (schema v6 confirms both write and read paths are tz-aware).
+**Rule 13 window:** the event span must include `today` in the driver's local timezone — `validateEvent` rejects `event_start_date > today` (`starts_in_future`) and `event_end_date < today` (`ended_before_today`), so multi-day events that are active today are kept (2026-05-05 multi-day-inclusive fix). `today` is computed via `toLocaleDateString('en-CA', { timeZone: context.timezone })`. **2026-06-11: `context.timezone` is REQUIRED — the former silent UTC fallback was removed and Rule 13 now THROWS if it is missing (NO FALLBACKS), because a UTC "today" wrongly strips valid local-today events for AHEAD-timezone drivers (memory #255). Already-ended *same-day* events are not caught here (date-only compare); they are dropped downstream by `isEventFresh`'s 2-hour instant window.**
 
 ---
 
@@ -907,6 +913,9 @@ These files are referenced in older docs but are NOT active in the pipeline:
 
 | Date | Change | Files |
 |------|--------|-------|
+| 2026-06-11 | **Write-time span merge + "Tonight + run window" display**: Added `mergeIntoOverlappingActiveSpan()` — write-time root-cause guard that merges a new multi-day event into an existing active same-venue + title-match + overlapping span instead of inserting a duplicate hash row (collapse cleanup kept as safety net). Frontend: `formatEventRunDisplay()` shows an active multi-day run as "Today … · runs through &lt;end&gt;" instead of the run START date (which read as stale) — applied in `EventsComponent` (briefing tab) and `MapTab` (map popups). | cleanup-events.js, pipelines/events.js, co-pilot-helpers.ts, EventsComponent.tsx, MapTab.tsx |
+| 2026-06-11 | **Event-lifecycle hygiene: span-collapse + event-venue-tag clearing**: Added `collapseDuplicateEventSpans()` (soft-deactivates cross-day duplicate run spans — same `venue_id` + `titlesMatch` + overlapping dates — keeping the widest; e.g. 6 "Wicked" → 1) and `clearOrphanedEventVenueTags()` (flips `is_event_venue=false` for venues with no active events; **never deletes venues**), both wired into the opportunistic per-snapshot cleanup after `deactivatePastEvents`. One-time dev backfill: collapsed 10 spans, cleared 505 orphaned tags (964 venue rows untouched). Prod/Neon backfill still pending. | cleanup-events.js, pipelines/events.js, scripts/backfill-event-venue-cleanup.mjs |
+| 2026-06-11 | **Rule 13 fail-loud + tz-library swap + dead-code removal**: Rule 13's silent UTC fallback removed — `validateEvent` now THROWS on missing `context.timezone` (NO FALLBACKS, memory #255); `fetchEventsForBriefing` gained a top-level tz guard and dropped its scattered UTC ternaries; consolidator `filterEventsReadTime` now threads `snapshot.timezone`; `POST /filter-invalid-events` returns **400** on missing tz instead of WARN+UTC. `createDateInTimezone` reimplemented on `date-fns-tz` `fromZonedTime` (fixes a midnight-"24" + server-tz bug). Deleted the dead `filterEventsForPlanner`/`isLargeEvent`/`LARGE_EVENT_*` (memory #258). Repaired 4 date-rotted validate tests + added Rule 13 / AHEAD-tz (Kiritimati) + tz-parity regression suites; jest now ignores `.worktrees`. | validateEvent.js, pipelines/events.js, consolidator.js, briefing.js, strategy-utils.js, filter-for-planner.js, tests/events/pipeline.test.js, tests/strategy/timezone-parity.test.js, jest.config.js |
 | 2026-04-28 | **Read-path Rule 13 tz-awareness (schema v5 → v6)**: `filterInvalidEvents` shim now accepts `{ timezone }`; threaded by `briefing-service.js:1607` (read-after-fetch revalidation), `briefing.js:1216` (`POST /filter-invalid-events` API — WARN-on-missing), and `dump-last-briefing.js`. Also fixed Path B (`GET /api/briefing/events/:snapshotId`) multi-day predicate from start-only to overlap window. Closes the gap commit 5cecd113 left open. | validateEvent.js, briefing-service.js, briefing.js, dump-last-briefing.js |
 | 2026-04-28 | **Write-path Rule 13 tz-awareness (schema v4 → v5) + multi-day predicate (Path A) + planner-grade gate**: `validateEvent` accepts `context.timezone`; `briefing-service.js:1339` threads `snapshot.timezone`; `enhanced-smart-blocks.js:213-272` uses `lte/gte` overlap predicate + `isPlannerGradeVenue` 3-bucket classification. Five hardening steps from `PLAN_events-pipeline-verification-2026-04-28.md` landed atomically as commit `5cecd113`. | validateEvent.js, briefing-service.js, enhanced-smart-blocks.js, venue-cache.js |
 | 2026-04-11 | **Address quality validation layer**: `venue-address-validator.js` (4 checks, hard fail + soft signals, international patterns). `maybeReResolveAddress()` gate on all 4 `findOrCreateVenue` return paths — re-resolves bad addresses via Places (NEW) API 50km search, re-validates to refuse replacing bad with bad. | venue-address-validator.js, venue-cache.js |

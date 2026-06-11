@@ -6,7 +6,7 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Loader } from 'lucide-react';
-import { filterTodayEvents, formatEventDate, formatEventTimeRange } from '@/utils/co-pilot-helpers';
+import { filterTodayEvents, formatEventRunDisplay, formatEventTimeRange } from '@/utils/co-pilot-helpers';
 
 // Google Maps types come from @types/google.maps (see tsconfig.client.json).
 // Window.google is augmented in client/src/vite-env.d.ts.
@@ -291,7 +291,11 @@ const MapTab: React.FC<MapTabProps> = ({
 
       // Build date and time display
       // 2026-01-10: Use symmetric field names (event_start_date, event_start_time)
-      const dateDisplay = formatEventDate(event.event_start_date);
+      // 2026-06-11: active multi-day runs show "Today … · runs through <end>" (see EventsComponent).
+      const runDisplay = formatEventRunDisplay(event.event_start_date, event.event_end_date);
+      const dateDisplay = runDisplay.runThrough
+        ? `${runDisplay.dateLabel} · runs through ${runDisplay.runThrough}`
+        : runDisplay.dateLabel;
       const timeDisplay = formatEventTimeRange(event.event_start_time, event.event_end_time);
 
       // Get event category icon
