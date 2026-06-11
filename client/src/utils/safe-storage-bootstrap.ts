@@ -52,7 +52,6 @@ function harden(kind: 'localStorage' | 'sessionStorage'): void {
         value: createMemoryStorage(),
         configurable: true,
       });
-      // eslint-disable-next-line no-console
       console.warn(
         `[VectoPilot] ${kind} is blocked (cross-site iframe / private mode) — ` +
           `using an in-memory fallback. Sessions will not persist in this context.`,

@@ -1259,10 +1259,10 @@ router.get('/airport/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 // Events with TBD/Unknown in critical fields are now REMOVED, not repaired
 router.post('/filter-invalid-events', requireAuth, async (req, res) => {
   try {
-    // 2026-04-28: Accept optional `timezone` in the body so Rule 13 today-check
-    // honors the driver's local tz. WARN-on-missing surfaces clients that haven't
-    // migrated to the new contract; UTC fallback is preserved for backwards compat
-    // but logs a clear note explaining the silent-failure mode it masks.
+    // 2026-04-28: Accept `timezone` in the body so Rule 13 today-check honors the driver's
+    // local tz. 2026-06-11: timezone is now REQUIRED — the old WARN + UTC fallback let
+    // AHEAD-tz clients silently strip valid local-today events (memory #255). filterInvalidEvents
+    // → Rule 13 throws on missing tz, so reject with a clear 400 at the boundary instead.
     const { events, timezone } = req.body;
 
     if (!events || !Array.isArray(events)) {
@@ -1270,13 +1270,12 @@ router.post('/filter-invalid-events', requireAuth, async (req, res) => {
     }
 
     if (!timezone) {
-      chainLog(
-        { parent: 'BRIEFING', sub: 'EVENTS', callTypes: ['API', 'FILTER'], callName: 'filter-invalid-events' },
-        `WARN: client did not supply timezone — Rule 13 falling back to UTC; AHEAD-timezone events may be incorrectly stripped`
-      );
+      return res.status(400).json({
+        error: 'timezone is required (IANA, e.g. "America/Chicago"). Rule 13\'s today-window is timezone-dependent; the UTC fallback was removed 2026-06-11 to avoid mis-stripping AHEAD-timezone events.',
+      });
     }
 
-    console.log(`[BRIEFING] Filtering ${events.length} events (removing TBD/Unknown, tz=${timezone || 'UTC-fallback'})`);
+    console.log(`[BRIEFING] Filtering ${events.length} events (removing TBD/Unknown, tz=${timezone})`);
     const filtered = filterInvalidEvents(events, { timezone });
 
     res.json({

@@ -35,10 +35,12 @@ import { validateEventsHard, needsReadTimeValidation, VALIDATION_SCHEMA_VERSION 
  * pass the row's schema_version to enable the optimization.
  *
  * @param {Array} events - Events array
+ * @param {string} timezone - IANA timezone from the snapshot. REQUIRED when revalidation
+ *   actually runs (legacy/null-schema rows): Rule 13 throws on missing tz (2026-06-11).
  * @param {number|null} [schemaVersion=null] - schema_version from discovered_events row (if available)
  * @returns {Array} Validated events (TBD/Unknown removed)
  */
-function filterEventsReadTime(events, schemaVersion = null) {
+function filterEventsReadTime(events, timezone, schemaVersion = null) {
   if (!events || !Array.isArray(events) || events.length === 0) {
     return events || [];
   }
@@ -48,10 +50,13 @@ function filterEventsReadTime(events, schemaVersion = null) {
     return events;
   }
 
-  // Legacy, older-version, or briefing-sourced events need revalidation
+  // Legacy, older-version, or briefing-sourced events need revalidation.
+  // 2026-06-11: thread timezone — these briefing-sourced rows reach Rule 13, which now
+  // throws on missing tz (NO FALLBACKS). timezone is the snapshot's IANA tz.
   const result = validateEventsHard(events, {
     logRemovals: false,  // Don't spam logs for read-time validation
-    phase: 'CONSOLIDATOR_READ'
+    phase: 'CONSOLIDATOR_READ',
+    context: { timezone }
   });
 
   return result.valid;
@@ -1380,8 +1385,9 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
     const filteredNews = await filterDeactivatedNews(rawNews, snapshot.user_id);
 
     // 2026-01-09: Apply canonical validation at READ time for legacy briefings
+    // 2026-06-11: pass snapshot.timezone — Rule 13 (reached by these rows) now requires it.
     const rawEvents = parseJsonField(briefingRow.events);
-    const cleanEvents = filterEventsReadTime(rawEvents);
+    const cleanEvents = filterEventsReadTime(rawEvents, snapshot.timezone);
 
     const briefing = {
       traffic: parseJsonField(briefingRow.traffic_conditions),

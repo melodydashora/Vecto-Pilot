@@ -618,7 +618,10 @@ export const discovered_events = pgTable("discovered_events", {
   expected_attendance: text("expected_attendance").default('medium'), // high, medium, low
   // 2026-01-10: Removed source_model - not needed, all events come from Gemini discovery
   // Deduplication
-  event_hash: text("event_hash").notNull().unique(), // MD5 of normalized(title + venue + date + city)
+  // 2026-06-11: comment corrected to match hashEvent.js buildHashInput (v3, 2026-04-30).
+  // MD5 of normalized(title | venue_name | street | city) + dateComponent, where
+  // dateComponent = event_start_date (single-day) or `${start}_${end}` (multi-day span).
+  event_hash: text("event_hash").notNull().unique(),
   // Timestamps
   discovered_at: timestamp("discovered_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
