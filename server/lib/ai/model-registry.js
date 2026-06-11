@@ -300,10 +300,21 @@ export const MODEL_ROLES = {
   //    records that Pro+thinking previously timed out Shortcuts. Monitor response_time_ms;
   //    if Siri times out, step down to 'LOW'/'MINIMAL' or move deep reasoning to Phase 2
   //    (OFFER_ANALYZER_DEEP, which is async and not latency-sensitive).
+  // ── HARDENED 2026-06-11 (determinism doctrine — do NOT regress) ──────────────
+  //  ROLE: Phase 1 is the SINGLE fast analyzer for BOTH offer modalities —
+  //    • VISUAL path: Siri Vision shortcut sends a screenshot (analyze-offer.js:275 → images[])
+  //    • TEXT path:   Siri text shortcut → parseOfferText() regex pre-parse → same model
+  //  MODEL gemini-3.5-flash — verified live (/v1beta/models) + web-benchmarked (I/O 2026):
+  //    Flash 3.5 LEADS multimodal/vision (84.2% CharXiv) AND runs ~4× throughput / 2.6× faster
+  //    than 3.1 Pro. It is simultaneously the most-accurate-vision and the fastest model — exactly
+  //    what the eyes-on-road, Siri-bound decision needs. Do NOT "upgrade" Phase 1 to a Pro model:
+  //    Pro is slower, weaker on multimodal, and would blow the ~30s Shortcut timeout.
+  //  ⚠️ PINNED, NOT FLOATING: never gemini-flash-latest or any *-latest alias. Memory #342: a
+  //    floating alias resolved server-side to an internal Google build and 404'd in production.
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
     default: 'gemini-3.5-flash',
-    purpose: 'Phase 1: Real-time ride offer analysis from Siri Shortcuts (ACCEPT/REJECT)',
+    purpose: 'Phase 1: Real-time fast analysis (visual screenshot OR parsed text) from Siri Shortcuts (ACCEPT/REJECT)',
     // 2026-05-29: Raised 1024 → 8192. HIGH thinking consumes the output-token budget
     // (same rationale as BRIEFING_TRAFFIC's 4096→8192 bump). At 1024 the JSON decision
     // truncates mid-token — the exact "[HOOKS] Phase 1 JSON parse failed" symptom.
@@ -316,10 +327,23 @@ export const MODEL_ROLES = {
   // 2026-02-28: Phase 2 deep analysis — runs async AFTER Siri gets its fast response.
   // Pro 3.1 provides richer reasoning, location analysis, and confidence scoring for DB storage.
   // Not latency-sensitive — driver already has their answer from Flash.
+  // ── HARDENED 2026-06-11 (determinism doctrine — do NOT regress) ──────────────
+  //  MODEL gemini-3.1-pro-preview — the DEEPEST reasoner currently available.
+  //  WHY Pro (not Flash): Phase 2 is async — it runs AFTER Siri already answered, so it costs
+  //    ZERO eyes-on-road latency and we trade speed for depth. Web-benchmarked (I/O 2026): 3.1
+  //    Pro LEADS pure abstract reasoning (ARC-AGI-2 77.1 vs Flash 72.1) + long-context — exactly
+  //    what the enriched offer_intelligence row wants.
+  //  WHY 3.1 (not "3.5 Pro"): as of 2026-06-11 NO gemini-3.5-pro / high-thinking-3.5 exists
+  //    (confirmed live — only gemini-3.5-FLASH ships). 3.1 Pro is the latest Pro. WHEN a newer
+  //    Pro (or a high-thinking 3.5) lands, re-verify it live in /v1beta/models and bump here.
+  //  ⚠️ DO NOT downgrade to flash in a fleet migration. The 2026-05-30 migration did exactly that
+  //    (pinning every role to gemini-3.5-flash to kill the #342 404), silently making "deep" ==
+  //    Phase 1 and turning analyze-offer.js:541 aiModelUsed into a lie for ~12 days.
+  //  ⚠️ PINNED, NOT FLOATING: never gemini-pro-latest / *-latest (see OFFER_ANALYZER + #342).
   OFFER_ANALYZER_DEEP: {
     envKey: 'OFFER_ANALYZER_DEEP_MODEL',
-    default: 'gemini-3.5-flash',
-    purpose: 'Phase 2: Async deep ride offer analysis for DB enrichment (runs after Siri response)',
+    default: 'gemini-3.1-pro-preview',
+    purpose: 'Phase 2: Async deep analysis (visual + text) for offer_intelligence enrichment — runs after Siri response',
     maxTokens: 2048,
     temperature: 0.2,
     thinkingLevel: 'LOW', // Pro only supports LOW/HIGH; LOW gives reasoning boost without full latency
