@@ -186,6 +186,7 @@ export async function callModel(role, params) {
       ok: true,
       text: response.output, // Ensure 'text' property is available for legacy code
       output: response.output,
+      model: primaryConfig.model, // 2026-06-11: expose the RESOLVED model id so callers log the truth, not a hardcoded literal
       provider: result.provider,
       latencyMs: result.latencyMs,
       citations: response.citations
@@ -200,7 +201,7 @@ export async function callModel(role, params) {
     // 2026-03-28: Updated fallback from gemini-3.0-pro-preview → gemini-3-pro-preview (verified available)
     // 2026-05-08: Migrated to gemini-pro-latest alias (server-resolved by Google).
     const is503 = err.message.includes('503') || err.message.includes('UNAVAILABLE');
-    const GEMINI_FALLBACK_MODEL = 'gemini-pro-latest';
+    const GEMINI_FALLBACK_MODEL = 'gemini-3.5-flash';
     if (is503 && primaryConfig.provider === 'google' && primaryConfig.model !== GEMINI_FALLBACK_MODEL) {
       aiLog.debug(`RETRY ${primaryConfig.role} got 503 on ${primaryConfig.model} - retrying with ${GEMINI_FALLBACK_MODEL}...`);
       try {
@@ -223,6 +224,7 @@ export async function callModel(role, params) {
             ok: true,
             text: retryResult.output,
             output: retryResult.output,
+            model: GEMINI_FALLBACK_MODEL, // 2026-06-11: the 503 fallback actually ran flash — report THAT, not the primary
             provider: 'google-fallback',
             latencyMs: retryDuration,
             citations: retryResult.citations,

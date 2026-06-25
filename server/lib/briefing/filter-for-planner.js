@@ -10,9 +10,11 @@
 // Problem: Venue Planner receives ALL briefing data (stale events, full traffic)
 // Solution: Filter to today's events + summarized traffic + weather + airport
 //
-// FILTERING RULES:
-//   - Large market-wide events (stadiums, arenas): Keep from entire market
-//   - Small local events (bars, clubs): Only if in user's city
+// FILTERING RULES (2026-06-11: event city/state split removed — see below):
+//   - Events: pass through the pre-fetched state-scoped todayEvents array as-is.
+//       Scope (state-wide + active-today + multi-day window) is already applied by the
+//       DB query (fetchTodayDiscoveredEventsWithVenue); this layer only buckets NEAR/FAR
+//       (15-mile rule) at prompt-format time in formatBriefingForPrompt.
 //   - Traffic: Summary only (briefing, keyIssues, avoidAreas)
 //   - Weather: Current conditions and driver impact
 //   - School closures: Today only
@@ -23,21 +25,10 @@
 
 import { briefingLog } from '../../logger/workflow.js';
 
-/**
- * Large event indicators - venues/keywords that suggest market-wide impact
- * These events affect traffic and demand across the entire metro area
- */
-const LARGE_EVENT_INDICATORS = [
-  'stadium', 'arena', 'coliseum', 'amphitheater', 'amphitheatre',
-  'convention center', 'convention centre', 'expo center',
-  'nfl', 'nba', 'mlb', 'nhl', 'mls', 'college football',
-  'concert tour', 'world tour', 'national tour'
-];
-
-/**
- * Categories that are typically large market-wide events
- */
-const LARGE_EVENT_CATEGORIES = ['sports', 'concert'];
+// 2026-06-11: Removed LARGE_EVENT_INDICATORS / LARGE_EVENT_CATEGORIES — their only
+// consumers were the now-deleted isLargeEvent + filterEventsForPlanner (memory #258).
+// Large-event market-wide scoping lives in the DB query (state-scoped
+// fetchTodayDiscoveredEventsWithVenue) per FR-PROD-002, not in this prompt-shaping layer.
 
 /**
  * Get today's date in the snapshot's timezone (YYYY-MM-DD format)
@@ -53,100 +44,11 @@ function getLocalDate(timezone) {
   return new Date().toLocaleDateString('en-CA', { timeZone: timezone });
 }
 
-/**
- * Check if an event is a "large" market-wide event that affects the entire metro
- *
- * Large events include:
- * - Stadium/arena events (concerts, sports)
- * - Convention center events
- * - Major league sports (NFL, NBA, MLB, etc.)
- * - Large concert tours
- *
- * @param {Object} event - Event object with title, venue_name, category, expected_crowd
- * @returns {boolean} True if this is a large market-wide event
- */
-function isLargeEvent(event) {
-  const venueName = (event.venue_name || event.venue || '').toLowerCase();
-  const title = (event.title || '').toLowerCase();
-  const category = (event.category || event.event_type || '').toLowerCase();
-  const expectedCrowd = (event.expected_crowd || '').toLowerCase();
-
-  // Check if category indicates large event
-  if (LARGE_EVENT_CATEGORIES.includes(category)) {
-    return true;
-  }
-
-  // Check if venue name contains large venue indicators
-  if (LARGE_EVENT_INDICATORS.some(indicator => venueName.includes(indicator))) {
-    return true;
-  }
-
-  // Check if title contains large event indicators
-  if (LARGE_EVENT_INDICATORS.some(indicator => title.includes(indicator))) {
-    return true;
-  }
-
-  // Check if expected crowd is high
-  if (expectedCrowd === 'high') {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Filter events for venue planner:
- * - KEEP: Large events (stadiums, arenas, major concerts) from entire market (same state)
- * - FILTER: Small events to user's city only
- * - FILTER: Only today's events
- *
- * @deprecated 2026-04-28: No longer reachable from filterBriefingForPlanner. The
- *   legacy `else` branch that called this was deleted because it silently substituted
- *   a city-scope filter for the spec's required state-scope contract (FR-PROD-002).
- *   All live callers pre-fetch state-scoped events at the DB query level
- *   (enhanced-smart-blocks.js :: fetchTodayDiscoveredEventsWithVenue) and pass them
- *   to filterBriefingForPlanner directly. Kept exported for backwards compatibility
- *   with any test fixtures that import it; scheduled for removal in a follow-up
- *   commit after test imports are verified by Read.
- *
- * @param {Array} events - Array of event objects
- * @param {Object} options - Filter options
- * @param {string} options.today - Today's date in YYYY-MM-DD format
- * @param {string} options.userCity - User's current city
- * @param {string} options.userState - User's current state
- * @returns {Array} Filtered events for venue planner
- */
-function filterEventsForPlanner(events, { today, userCity, userState }) {
-  if (!events || !Array.isArray(events) || events.length === 0) {
-    return [];
-  }
-
-  const filtered = events.filter(event => {
-    // Get event date - support multiple field names
-    const eventDate = event.event_start_date || event.event_date || event.date;
-
-    // Must be today
-    if (eventDate !== today) {
-      return false;
-    }
-
-    // Check if this is a large market-wide event
-    const isLarge = isLargeEvent(event);
-
-    // Large events: keep from entire market (same state)
-    if (isLarge) {
-      const eventState = event.state || '';
-      // Keep if same state (market-wide relevance)
-      return eventState.toLowerCase() === (userState || '').toLowerCase();
-    }
-
-    // Small events: only keep if in user's city
-    const eventCity = event.city || '';
-    return eventCity.toLowerCase() === (userCity || '').toLowerCase();
-  });
-
-  return filtered;
-}
+// 2026-06-11: Removed isLargeEvent + filterEventsForPlanner (dead since 2026-04-28,
+// memory #258). filterBriefingForPlanner now passes pre-fetched state-scoped todayEvents
+// straight through (and throws TypeError if they are missing), so the city/state split
+// these performed is unreachable. Confirmed zero importers by reading every caller
+// (enhanced-smart-blocks.js, tactical-planner.js, schools.js) and grepping tests/.
 
 /**
  * Filter school closures to only those active today
@@ -188,8 +90,9 @@ function filterClosuresToToday(closures, today) {
  * fetchTodayDiscoveredEventsWithVenue) before calling this function.
  *
  * 2026-04-28: `todayEvents` is now REQUIRED (must be an array). The legacy
- * fallback to briefing.events with a city/state split via filterEventsForPlanner
- * was deleted. That fallback violated FR-PROD-002 by silently substituting a
+ * fallback to briefing.events with a city/state split (the since-deleted
+ * filterEventsForPlanner, removed 2026-06-11) was deleted. That fallback violated
+ * FR-PROD-002 by silently substituting a
  * city filter for the spec's state-scoped event contract — it dropped metro-wide
  * events whose Google-Places-resolved city differed from the driver's snapshot
  * city. All live callers pre-fetch and pass todayEvents; this validation surfaces
@@ -440,8 +343,6 @@ export default {
   filterBriefingForPlanner,
   formatBriefingForPrompt,
   // Export for testing
-  filterEventsForPlanner,
   filterClosuresToToday,
-  isLargeEvent,
   getLocalDate
 };

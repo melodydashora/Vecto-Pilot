@@ -23,7 +23,9 @@ BriefingEvent ← (DB read) ← discovered_events ← (DB write)
 | `types.js` | JSDoc type definitions | RawEvent, NormalizedEvent, ValidatedEvent, StoredEvent, BriefingEvent |
 | `normalizeEvent.js` | Raw → Normalized transformation | normalizeEvent, normalizeEvents, normalizeTitle, normalizeDate, normalizeTime |
 | `validateEvent.js` | Hard filter validation | validateEvent, validateEventsHard, needsReadTimeValidation |
-| `hashEvent.js` | MD5 hash for deduplication | generateEventHash, buildHashInput, eventsHaveSameHash |
+| `hashEvent.js` | MD5 hash for storage dedup (ON CONFLICT) | generateEventHash, buildHashInput, eventsHaveSameHash |
+| `deduplicateEventsSemantic.js` | Title-similarity (semantic) dedup, runs after hash dedup | deduplicateEventsSemantic, titlesMatch, normalizeTitleForComparison |
+| `canonicalizeMatchup.js` | Order-invariant "a vs b" === "b vs a" canonicalization (shared by hash + semantic stages) | canonicalizeMatchup |
 
 ## Usage
 
@@ -70,19 +72,27 @@ if (eventsHaveSameHash(event1, event2)) {
 }
 ```
 
-## Hash Contract (2026-01-09)
+## Hash Contract (2026-06-11, v4 — see hashEvent.js header for the full history)
 
 ```
-Hash input = normalize(title_stripped) + "|" + normalize(venue_address) + "|" + date + "|" + time
+Hash input = canonicalizeMatchup(normalize(title)) | normalize(venue_name) | extract_street(address) | normalize(city) | date
 Hash algorithm = MD5 (32-char hex)
+date = event_start_date for single-day; "start_end" span for multi-day events
 ```
 
-**Title Stripping:** Removes venue suffixes like " at Venue", " @ Venue", " - Venue" to prevent duplicates like:
-- "Cirque du Soleil" vs "Cirque du Soleil at Cosm"
+**Title Stripping:** Removes venue suffixes (" at Venue", " @ Venue", " - Venue"), content
+prefixes ("Live Music:", "Concert:", …) and parentheticals, so e.g.
+"Cirque du Soleil at Cosm" === "Cirque du Soleil".
 
-**Time Inclusion:** Same event at different times produces different hashes:
-- Matinee show at 14:00
-- Evening show at 20:00
+**Matchup order-invariance (v4, 2026-06-11):** `canonicalizeMatchup` sorts the two sides of a
+"a vs b" / "a versus b" title so "Cowboys vs Eagles" === "Eagles vs Cowboys". The SAME helper
+runs in `deduplicateEventsSemantic.normalizeTitleForComparison`, keeping the hash and semantic
+stages in agreement. **Migration:** v3 matchup rows won't collide with the new canonical hash
+until re-hashed — run `server/scripts/migrate-event-hashes.js` in the deployed env, or let the
+in-pipeline safety net (`collapseDuplicateEventSpans`, per briefing fetch) drain the transient.
+
+**No time component (since v2):** "Bruno Mars 7:00 PM" and "7:30 PM" at the same venue/date are
+the same event with a corrected time — they UPDATE rather than create a duplicate.
 
 ## Validation Rules (VALIDATION_SCHEMA_VERSION = 3)
 

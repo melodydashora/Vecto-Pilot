@@ -34,6 +34,11 @@ import { normalizeCategory } from './normalizeEvent.js';
 // to AHEAD-tz drivers, recurring the bug v5 was meant to fix. v6 marks the moment
 // both paths honor driver tz; v5-stamped rows still revalidate correctly because
 // v5<v6 satisfies needsReadTimeValidation.
+// 2026-06-11: Rule 13's silent UTC fallback was replaced with a hard throw on missing
+// timezone (NO FALLBACKS). VERSION NOT bumped: validation semantics for VALID data are
+// unchanged (a correctly-tz'd event validates identically); only the missing-tz error path
+// changed. Stored rows were written with tz via the events.js write path, so v6 rows remain
+// correct and need no forced revalidation.
 export const VALIDATION_SCHEMA_VERSION = 6;
 
 /**
@@ -77,11 +82,13 @@ function hasInvalidPattern(value) {
  *
  * @param {Object} event - NormalizedEvent to validate
  * @param {Object} [context={}] - Optional context for timezone-aware checks
- * @param {string} [context.timezone] - IANA timezone for Rule 13 today/yesterday check.
- *   When provided, today/yesterday are computed in the driver's local timezone instead
- *   of UTC. Required for global-app correctness — a Pacific/Honolulu driver at 11:30 PM
- *   local has UTC tomorrow, and the UTC-only check would reject all of today's events.
- *   Without context.timezone, falls back to UTC for backwards compatibility.
+ * @param {string} context.timezone - IANA timezone for Rule 13's today-window check.
+ *   REQUIRED for any event that reaches Rule 13 (i.e. passes content Rules 1–12): today is
+ *   computed in the driver's local timezone. 2026-06-11: the former UTC fallback was removed —
+ *   Rule 13 now THROWS if timezone is missing, because a UTC "today" wrongly strips valid
+ *   local-today events for AHEAD-tz drivers (memory #255). Pass { timezone: snapshot.timezone }.
+ *   Events that fail an earlier content rule never reach Rule 13, so unit tests of Rules 1–12
+ *   need no timezone.
  * @returns {ValidationResult} Validation result
  */
 export function validateEvent(event, context = {}) {
@@ -168,12 +175,18 @@ export function validateEvent(event, context = {}) {
   // days. Now: validate that today falls inside [start_date, end_date].
   // Yesterday-ended events that are still in the 2-hour surge window are surfaced
   // by filterFreshEvents at read time, not validated in here.
-  // 2026-04-28: tz-aware via context.timezone. UTC fallback preserved for legacy callers
-  // (without context). Spec §9.2 — global-app correctness for far-east / Hawaii / etc.
+  // 2026-06-11: Fail loud on missing timezone (was a silent UTC fallback). Rule 13's
+  // today-window is timezone-dependent; under UTC an AHEAD-tz driver (JST/AEST/Kiritimati)
+  // has UTC == local-tomorrow for a 9–14h window each day, so a UTC "today" wrongly strips
+  // valid local-today events (memory #255). All production callers thread snapshot.timezone
+  // (validateEventsHard context at events.js, the filterInvalidEvents shim, the
+  // /filter-invalid-events route, and consolidator read-time revalidation). A missing tz is
+  // a caller bug — surface it instead of silently mis-truncating (NO FALLBACKS, CLAUDE.md §4).
   const tz = context.timezone;
-  const today = tz
-    ? new Date().toLocaleDateString('en-CA', { timeZone: tz })
-    : new Date().toISOString().split('T')[0];
+  if (!tz) {
+    throw new Error('validateEvent Rule 13 requires context.timezone (IANA) — NO FALLBACKS. Pass { timezone: snapshot.timezone }.');
+  }
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
   const startDate = event.event_start_date;
   const endDate = event.event_end_date || startDate; // single-day events use start as end
   if (!startDate) {

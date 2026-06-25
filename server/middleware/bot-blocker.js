@@ -138,6 +138,14 @@ export function botBlocker(req, res, next) {
     return next();
   }
 
+  // 2026-05-23: Allow public legal pages. Privacy policy and terms must be
+  // probeable by any user agent — regulators, OAuth provider review tooling
+  // (Uber), search engines that respect robots.txt but still verify the page
+  // exists, and uptime monitors. Same exception class as /robots.txt.
+  if (path === '/privacy' || path === '/policy' || path === '/auth/terms') {
+    return next();
+  }
+
   // 2026-04-09: Allow Replit internal proxy probes (preview pane reachability checks)
   // Replit probes /__repl* paths with no/internal User-Agent to decide if the app is reachable.
   // Blocking these causes the preview pane to show "We couldn't reach this app."

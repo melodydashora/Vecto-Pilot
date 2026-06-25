@@ -368,7 +368,19 @@
       "Bash(sed -n '438,446p' server/api/health/diagnostics.js)",
       "Bash(sed -n '608,615p' server/api/health/diagnostics.js)",
       "Bash(sed -n '160,170p' server/eidolon/config.ts)",
-      "Bash(sed -n '38,48p' server/eidolon/core/llm.ts)"
+      "Bash(sed -n '38,48p' server/eidolon/core/llm.ts)",
+      "Bash(kill -TERM 393)",
+      "Bash(kill -9 393)",
+      "Bash(openssl s_client -servername vectopilot.com -connect vectopilot.com:443)",
+      "Bash(openssl x509 *)",
+      "Bash(npm --version)",
+      "Bash(fuser -k 5000/tcp)",
+      "Bash([ -e \"/home/runner/workspace/$f\" ])",
+      "Bash(rg -n \"createViteServer|vite|middlewareMode|express\\\\.static|sirv|distPath|client/dist|serveStatic\" gateway-server.js server/bootstrap/*.js)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/eventMatchupDedup.test.js)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/auth-token-validation.test.js tests/blocksApi.test.js tests/coach-schema.test.js tests/coach-validation.test.js tests/near-event-ranking.test.js tests/rideshare-coach-schema.test.js tests/schema-validation.test.js)",
+      "Bash(sed -n '62,90p' client/src/components/MapTab.tsx)",
+      "Bash(sed -n '113,200p' client/src/components/strategy/StrategyMap.tsx)"
     ],
     "deny": [],
     "ask": []

@@ -59,10 +59,6 @@ export async function mountRoutes(app, server) {
     { path: '/api/realtime', module: './server/api/chat/realtime.js', desc: 'OpenAI Realtime voice' },
 
     // Coach API (server/api/rideshare-coach/) - Schema awareness, validation, notes CRUD
-    // 2026-01-05: Added for AI Coach enhancements
-    // 2026-05-04: Comment corrected — module lives in `rideshare-coach/`. The
-    //   parallel stale fork at `server/api/coach/` (1,034 lines, zero importers)
-    //   was deleted as part of Master Pipeline §13 D1 cleanup.
     { path: '/api/coach', module: './server/api/rideshare-coach/index.js', desc: 'Rideshare Coach API (schema, validate, notes)' },
 
     // Venue Intelligence (server/api/venue/)
@@ -110,6 +106,11 @@ export async function mountRoutes(app, server) {
     // Concierge (server/api/concierge/) - 2026-02-13: QR code sharing + public event discovery
     { path: '/api/concierge', module: './server/api/concierge/concierge.js', desc: 'Concierge' },
 
+    // Welcome AI Co-Pilot (server/api/welcome-ai/) — 2026-05-15: PUBLIC Gemini endpoints
+    // for the /welcome iPad kiosk. No auth (iPad has no rider identity); aggressive
+    // per-IP rate limiting (20 req / 10 min) at the route level.
+    { path: '/api/welcome-ai', module: './server/api/welcome-ai/welcome-ai.js', desc: 'Welcome AI Co-Pilot' },
+
     // Translation (server/api/translate/) - 2026-03-16: Real-time rider translation
     { path: '/api/translate', module: './server/api/translate/index.js', desc: 'Translation API' },
 
@@ -119,6 +120,12 @@ export async function mountRoutes(app, server) {
     // External Hooks (server/api/hooks/)
     { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
     { path: '/api/hooks', module: './server/api/hooks/translate.js', desc: 'Siri Translation Hook' },
+
+    // 2026-06-11: Admin prod read-only observability bridge (server/api/admin/) — bridge-auth ONLY.
+    // Lets the terminal dev agent monitor prod over HTTPS (prod DB is app-scoped, not
+    // reachable from the dev terminal). Structured /offer-monitor (Drizzle) + raw /query
+    // (dedicated read-only role). See docs/architecture/PROD_QUERY_BRIDGE.md.
+    { path: '/api/admin', module: './server/api/admin/monitor.js', desc: 'Admin prod-query/monitor (bridge-auth, read-only)' },
 
     // 2026-01-09: Removed EventEmitter SSE - DB NOTIFY SSE is canonical (mountSSE)
     // The /events mount was duplicating /events/strategy, /events/blocks with EventEmitter

@@ -145,8 +145,12 @@ export async function configureMiddleware(app) {
     if (allowedOrigins.includes(origin)) return true;
     if (/\.(replit\.dev|repl\.co|replit\.app)$/.test(origin)) return true;
     if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return true;
-    // 2026-03-18: Allow production custom domain
-    if (/^https?:\/\/(www\.)?vectopilot\.com$/.test(origin)) return true;
+    // 2026-03-18: Allow production custom domains (www optional).
+    // 2026-05-30: Extended vectopilot.com → vectopilot | vectocopilot | engelpilot.
+    // These three .com domains were CORS-blocked on /assets/* requests, breaking the
+    // white-label sites. The 4th published domain, vecto-pilot-melodydashora.replit.app,
+    // is already covered by the .replit.app rule above.
+    if (/^https?:\/\/(www\.)?(vectopilot|vectocopilot|engelpilot)\.com$/.test(origin)) return true;
     return false;
   };
 

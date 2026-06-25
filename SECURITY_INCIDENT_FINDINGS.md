@@ -136,8 +136,7 @@ All of the following likely share the suspended GCP project (`quantum-fusion-486
 | Replit Secret name | Status | Action |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Not leaked per this audit; change only if precautionary | Optional precautionary rotation |
-| `ANTHROPIC_API_KEY1` | Vestigial naming — test/backup? | Audit use; delete if dead |
-| `STRATEGIST_ANTHROPIC_API_KEY` | Role-specific key | Keep if distinct purpose; rotate if shares value with main |
+`STRATEGIST_ANTHROPIC_API_KEY` | Role-specific key | Keep if distinct purpose; rotate if shares value with main |
 | `your_dev_test_key` | Template-name leftover | Audit — likely dead, delete |
 | `NEON_DATABASE_URL` | Separate from auto-injected `DATABASE_URL` | If prod uses `DATABASE_URL` only, this is redundant — delete. Otherwise rotate Neon password covers both. |
 | `VECTO_AGENT_SECRET` | Flagged in DOC_DISCREPANCIES.md D-092 as missing in prod | Generate + set in prod Replit Secrets |

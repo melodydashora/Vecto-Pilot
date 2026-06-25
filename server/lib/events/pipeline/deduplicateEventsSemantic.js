@@ -26,6 +26,8 @@
  * @module server/lib/events/pipeline/deduplicateEventsSemantic
  */
 
+import { canonicalizeMatchup } from './canonicalizeMatchup.js';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LARGE VENUE PATTERNS — venues where small events don't belong
 // These are stadiums, arenas, and mega-venues. If an event with <5000 attendance
@@ -95,7 +97,9 @@ export function normalizeTitleForComparison(title) {
     words.pop();
   }
 
-  return words.join(' ');
+  // 2026-06-11: canonicalize reversed matchups ("a vs b" === "b vs a") so the semantic
+  // stage agrees with the hash stage (hashEvent.buildHashInput applies the same helper).
+  return canonicalizeMatchup(words.join(' '));
 }
 
 /**
@@ -181,8 +185,17 @@ export function titlesMatch(titleA, titleB) {
 
   if (!normA || !normB) return false;
 
-  // Exact match after normalization
+  // Exact match after normalization (canonicalizeMatchup makes "a vs b" === "b vs a")
   if (normA === normB) return true;
+
+  // 2026-06-11: matchup-asymmetry guard. The looser containment/primary-artist rules below
+  // would otherwise let a bare team name absorb into a full matchup — "Cowboys vs Eagles"
+  // .includes("cowboys") is true, wrongly merging a generic "Cowboys" event into the game.
+  // A matchup ("a vs b") and a non-matchup are distinct events; require both sides to be the
+  // same shape before applying the fuzzy rules.
+  const aIsMatchup = normA.split(' ').includes('vs');
+  const bIsMatchup = normB.split(' ').includes('vs');
+  if (aIsMatchup !== bIsMatchup) return false;
 
   // Containment: "jon wolfe" is contained in "jon wolfe live" (after normalization)
   if (normA.includes(normB) || normB.includes(normA)) return true;

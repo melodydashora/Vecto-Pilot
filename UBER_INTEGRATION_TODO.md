@@ -27,7 +27,9 @@ Integrate Uber Driver API to allow drivers to connect their accounts and access 
 ```
   UBER_CLIENT_ID=Bdpb2tLU6Povh38h9n3MegyyidEtbKuh
   UBER_CLIENT_SECRET=<your_secret>
-  UBER_REDIRECT_URI=https://vectopilot.com/auth/uber/callback
+  # 2026-05-23: server-side callback (Path B). Client-side /auth/uber/callback
+  # was orphan code; deleted. See uber-env.txt for full context.
+  UBER_REDIRECT_URI=https://vectopilot.com/api/auth/uber/callback
 ```
 
 ### 1.3 Create Auth UI Components
@@ -248,14 +250,29 @@ Integrate Uber Driver API to allow drivers to connect their accounts and access 
 
 ---
 
-## Progress (Feb 2026)
+## Progress (Feb 2026 — superseded entries marked, see May 2026 below)
 
-- [x] OAuth callback route created: `/auth/uber/callback` → `UberCallbackPage.tsx`
+- [x] ~~OAuth callback route created: `/auth/uber/callback` → `UberCallbackPage.tsx`~~
+      SUPERSEDED 2026-05-23: client route + UberCallbackPage deleted; canonical
+      callback is the server endpoint `GET /api/auth/uber/callback` (Path B).
 - [x] Server-side auth route: `server/api/auth/uber.js`
 - [x] Environment variables configured (`UBER_CLIENT_ID`, `UBER_CLIENT_SECRET`)
 - [ ] Data sync service (pending)
 - [ ] Trip analytics processing (pending)
 - [ ] UI components for earnings dashboard (pending)
+
+## Progress (May 2026 — Path B + verification resubmit)
+
+- [x] Path B decision: server-side OAuth via client_secret_post is canonical.
+      Path A (asymmetric-key JWT bearer) deferred to post-verification sprint.
+- [x] Orphan client OAuth flow removed: `client/src/pages/auth/uber/Callback.tsx`
+      and `client/src/services/uber/uberAuth.ts` deleted; `/auth/uber/callback`
+      client route removed; `UberConnectButton` repointed at `GET /api/auth/uber`.
+- [x] Privacy policy publicly reachable at `/privacy` (P1: route + bot-blocker
+      allowlist landing in branch `startup-unification-pass`).
+- [ ] Deploy `startup-unification-pass` to production.
+- [ ] Update Uber dashboard fields per `uber-env.txt`.
+- [ ] Re-request Uber Integration Verification.
 
 ## Notes
 

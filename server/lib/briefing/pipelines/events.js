@@ -43,7 +43,7 @@ import { findOrCreateVenue, lookupVenue } from '../../venue/venue-cache.js';
 import { geocodeEventAddress } from '../../events/pipeline/geocodeEvent.js';
 import { searchPlaceWithTextSearch } from '../../venue/venue-address-resolver.js';
 import { validateVenueAddress } from '../../venue/venue-address-validator.js';
-import { deactivatePastEvents } from '../cleanup-events.js';
+import { deactivatePastEvents, collapseDuplicateEventSpans, clearOrphanedEventVenueTags, mergeIntoOverlappingActiveSpan } from '../cleanup-events.js';
 
 // Per-category Gemini search timeout. Each category runs in parallel; total fan-out
 // time is bounded by max(category_timeouts), not sum, since they're Promise.all'd.
@@ -547,6 +547,16 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
 
   const { city, state, lat, lng, timezone } = snapshot;
 
+  // 2026-06-11: Fail loud on missing timezone. Both the DB date-window (todayStr/endDateStr
+  // below) and Rule 13 inside validateEventsHard are timezone-dependent; a missing tz used to
+  // silently fall back to UTC, which mis-truncates AHEAD-tz drivers (JST/AEST/Kiritimati) for
+  // a 9–14h window each day (memory #255). snapshot.timezone is NOT NULL in schema and the
+  // readiness gate (memory #111) blocks briefing until it is populated, so this guard should
+  // never fire in practice — it surfaces a data-integrity bug instead of hiding it (NO FALLBACKS).
+  if (!timezone) {
+    throw new Error('fetchEventsForBriefing requires snapshot.timezone — NO FALLBACKS (date window + Rule 13 are tz-dependent)');
+  }
+
   // 2026-02-17: FIX Issue 3 — Deactivate past events before discovery
   // Soft-deactivates events that have ended (is_active = false, deactivated_at = NOW())
   // Uses snapshot timezone for accurate "now" calculation — NO FALLBACKS
@@ -554,26 +564,30 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   // 2026-03-28: ARCHITECTURE NOTE — Cleanup is intentionally opportunistic (per-briefing-fetch).
   // No cron dependency. If scheduled cleanup is needed later for dashboard accuracy when
   // no users are active, add a cron job calling deactivatePastEvents() per market timezone.
-  if (timezone) {
-    const deactivated = await deactivatePastEvents(timezone);
-    if (deactivated > 0) {
-      briefingLog.phase(2, `Cleaned up ${deactivated} past events`, OP.DB);
-    }
+  // 2026-06-11: timezone is guaranteed non-null by the guard above (was `if (timezone)`).
+  const deactivated = await deactivatePastEvents(timezone);
+  if (deactivated > 0) {
+    briefingLog.phase(2, `Cleaned up ${deactivated} past events`, OP.DB);
   }
+
+  // 2026-06-11: Opportunistic event-lifecycle hygiene, ordered so each step sees the
+  // prior step's results: (1) deactivate ended events (above), (2) collapse cross-day
+  // duplicate spans of the same run (e.g. 6 "Wicked" rows), (3) clear is_event_venue tags
+  // on venues left with no active event. All soft (deactivate / flag-off) — never delete a
+  // venue. Each is non-fatal and returns 0 on error so cleanup can't block discovery.
+  await collapseDuplicateEventSpans();
+  await clearOrphanedEventVenueTags();
 
   // 2026-04-04: FIX C-5 — Use user's timezone for date range, not UTC
   // Previously used toISOString() which is UTC-based. A driver in UTC-8 at 11PM local
   // would get tomorrow's UTC date as "today", misaligning the 7-day event window.
   // toLocaleDateString('en-CA') returns YYYY-MM-DD format in the correct timezone.
+  // 2026-06-11: timezone guaranteed by the guard above — UTC ternary fallback removed.
   const today = new Date();
-  const todayStr = timezone
-    ? today.toLocaleDateString('en-CA', { timeZone: timezone })
-    : today.toISOString().split('T')[0];
+  const todayStr = today.toLocaleDateString('en-CA', { timeZone: timezone });
   const weekFromNow = new Date();
   weekFromNow.setDate(weekFromNow.getDate() + 7);
-  const endDateStr = timezone
-    ? weekFromNow.toLocaleDateString('en-CA', { timeZone: timezone })
-    : weekFromNow.toISOString().split('T')[0];
+  const endDateStr = weekFromNow.toLocaleDateString('en-CA', { timeZone: timezone });
 
   // 2026-01-10: Consolidated event discovery using Briefer model with Google Search tools
   // Simpler pipeline, lower cost, cleaner data - model-agnostic (configured via BRIEFING_EVENTS_MODEL)
@@ -599,6 +613,12 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
         context: { timezone: timezone }
       });
 
+      // 2026-06-11: Two-stage dedup here is intentionally retained (NOT redundant with the
+      // raw-stage deduplicateEventsSemantic in fetchEventsWithGemini3ProPreview). The earlier
+      // pass runs on RAW Gemini titles; THIS pass runs on NORMALIZED + validated events, where
+      // normalizeEvent has canonicalized titles/venues/categories and can surface new
+      // title-variant collisions the raw pass could not see. Hash dedup runs first (cheap exact
+      // key) to shrink the input before the O(n²) semantic pass.
       const hashDeduped = deduplicateEvents(validatedEvents);
       const { deduplicated: semanticDeduped } = deduplicateEventsSemantic(hashDeduped);
       console.log(
@@ -717,6 +737,23 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
             if (!addrValid) {
               briefingLog.warn(2, `[VENUE] Event "${event.title}" has low-quality venue address: "${resolvedAddress}" — ${addrIssues.join('; ')}`, OP.DB);
             }
+          }
+
+          // 2026-06-11: Write-time root-cause guard for duplicate multi-day spans. If an
+          // active overlapping same-venue + title-match span already exists (e.g. this run
+          // re-discovered on a later day with a different start), extend it and skip the
+          // insert instead of creating another hash row. collapseDuplicateEventSpans()
+          // stays as the after-the-fact safety net for anything this misses (e.g. a venue
+          // that resolved to a different venue_id across discoveries).
+          const mergedSpanId = await mergeIntoOverlappingActiveSpan({
+            venueId,
+            title: event.title,
+            startDate: event.event_start_date,
+            endDate: event.event_end_date,
+          });
+          if (mergedSpanId) {
+            briefingLog.info(`Merged "${event.title?.slice(0, 40)}" into active span ${mergedSpanId.slice(0, 8)} (skipped duplicate multi-day insert)`);
+            continue;
           }
 
           // Store event with venue_catalog truth (city/address from Places (NEW) API, not Gemini guess)

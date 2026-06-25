@@ -38,7 +38,7 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Loader, AlertTriangle } from 'lucide-react';
-import { filterTodayEvents, formatEventDate, formatEventTimeRange } from '@/utils/co-pilot-helpers';
+import { filterTodayEvents, formatEventRunDisplay, formatEventTimeRange } from '@/utils/co-pilot-helpers';
 import { loadGoogleMaps, getMapId } from '@/lib/maps/google-maps-loader';
 import { escapeHtml } from '@/lib/maps/escape-html';
 // 2026-04-27 (Commit 4 of CLEAR_CONSOLE_WORKFLOW spec): gate noisy diagnostic
@@ -118,6 +118,7 @@ interface StrategyMapProps {
   events?: MapEvent[];
   incidents?: MapIncident[];   // PHASE F: live TomTom incidents
   snapshotId?: string;
+  timezone?: string;  // 2026-06-11: snapshot/venue tz so event "today" matches the driver's day
   isLoading?: boolean;
 }
 
@@ -194,6 +195,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
   events = [],
   incidents = [],
   snapshotId: _snapshotId,
+  timezone,
   isLoading = false
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -227,7 +229,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
   const lastEventKeyRef = useRef<string>('');
 
   // Filter events to only show TODAY's events with valid start/end times
-  const todayEvents = useMemo(() => filterTodayEvents(events), [events]);
+  const todayEvents = useMemo(() => filterTodayEvents(events, timezone), [events, timezone]);
 
   // Initialize Google Map via singleton loader (Phase A.1/A.3/A.4).
   useEffect(() => {
@@ -479,7 +481,13 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
         zIndex: 800,
       });
 
-      const dateDisplay = formatEventDate(event.event_start_date);
+      // 2026-06-11: active multi-day runs show "Today … · runs through <end>" instead of a
+      // stale run-START date — converges StrategyMap with EventsComponent + MapTab (the fix
+      // that landed there 2026-06-11 missed this third surface). tz-aware via the prop.
+      const runDisplay = formatEventRunDisplay(event.event_start_date, event.event_end_date, timezone);
+      const dateDisplay = runDisplay.runThrough
+        ? `${runDisplay.dateLabel} · runs through ${runDisplay.runThrough}`
+        : runDisplay.dateLabel;
       const timeDisplay = formatEventTimeRange(event.event_start_time, event.event_end_time);
 
       const getCategoryIcon = (subtype?: string) => {
@@ -527,7 +535,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; padding: 10px; background: linear-gradient(135deg, #f3e8ff, #e0f2fe); border-radius: 8px;">
               <div style="display: flex; align-items: center; gap: 4px;">
                 <span style="font-size: 14px;">📅</span>
-                <span style="font-weight: 600; color: ${dateDisplay === 'Today' ? '#059669' : '#7c3aed'}; font-size: 13px;">${safeDateDisplay}</span>
+                <span style="font-weight: 600; color: ${runDisplay.isToday ? '#059669' : '#7c3aed'}; font-size: 13px;">${safeDateDisplay}</span>
               </div>
               ${safeTimeDisplay ? `
                 <div style="display: flex; align-items: center; gap: 4px;">
@@ -574,7 +582,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({
     if (eventsWithCoords.length > 0) {
       if (DEBUG_VENUES_ENABLED) console.log(`[StrategyMap] Added ${eventsWithCoords.length} event markers to map`);
     }
-  }, [mapReady, todayEvents]);
+  }, [mapReady, todayEvents, timezone]);
 
   // Add bar markers ($$+ venues; green=open, orange=closed-go-anyway, red=closing-soon)
   useEffect(() => {

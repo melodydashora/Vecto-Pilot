@@ -519,7 +519,9 @@ PRE-PARSED DATA (server-verified):
         const phase2Start = Date.now();
 
         let deepResult = null;
-        let aiModelUsed = 'gemini-flash-latest'; // Default: Phase 1 model (used if Phase 2 fails)
+        // 2026-06-11: derive from the model callModel ACTUALLY resolved (captures a Phase-1 503→flash
+        // fallback too) instead of a hardcoded literal that silently lies after a fleet migration.
+        let aiModelUsed = phase1Response.model || 'gemini-3.5-flash'; // Phase 1 model (used if Phase 2 fails)
         let phase2RawText = null;
 
         try {
@@ -538,7 +540,7 @@ PRE-PARSED DATA (server-verified):
             const cleaned = phase2Response.text
               .replace(/```json/g, '').replace(/```/g, '').trim();
             deepResult = JSON.parse(cleaned);
-            aiModelUsed = 'gemini-pro-latest';
+            aiModelUsed = phase2Response.model || 'gemini-3.1-pro-preview'; // 2026-06-11: the model Phase 2 ACTUALLY ran (a 503 fallback correctly reports flash here)
             console.log(`[HOOKS] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
           } else {
             console.warn(`[HOOKS] Phase 2 AI call failed: ${phase2Response.error} — falling back to Phase 1 result`);
@@ -551,7 +553,7 @@ PRE-PARSED DATA (server-verified):
         const dbParsedData = deepResult?.parsed_data || phase1Result;
         const dbDecision = deepResult?.decision || decision;
         const dbReasoning = deepResult?.reasoning || reason;
-        const dbConfidence = deepResult?.confidence || confidence;
+        const dbConfidence = deepResult?.confidence ?? confidence; // ?? not || — a legit model confidence of 0 must survive
         const locationAnalysis = deepResult?.location_analysis || null;
 
         // Merge all parsed data for the raw JSON column
@@ -750,6 +752,8 @@ router.get('/offer-history', async (req, res) => {
         decision: offer_intelligence.decision,
         decision_reasoning: offer_intelligence.decision_reasoning,
         confidence_score: offer_intelligence.confidence_score,
+        ai_model: offer_intelligence.ai_model,        // 2026-06-11: surface the model that decided (telemetry verification)
+        input_mode: offer_intelligence.input_mode,    // 2026-06-11: 'vision' | 'text'
         user_override: offer_intelligence.user_override,
         response_time_ms: offer_intelligence.response_time_ms,
         local_date: offer_intelligence.local_date,

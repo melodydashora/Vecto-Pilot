@@ -263,10 +263,10 @@ export async function performInternetSearchBase(query, userId, identity, memoryT
 
   try {
     // 2026-05-08: Was hardcoded to claude-opus-4-6 (Rule 14 violation). Now reads
-    // ANTHROPIC_MODEL env (set by Replit Secrets to claude-opus-4-7) with explicit
-    // 4-7 fallback. Future: thread through registry getRoleConfig('UTIL_RESEARCH')
+    // ANTHROPIC_MODEL env (set by Replit Secrets to claude-opus-4-8) with explicit
+    // 4-8 fallback. Future: thread through registry getRoleConfig('UTIL_RESEARCH')
     // once that role supports Anthropic web-search routing.
-    const ANTHROPIC_SEARCH_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-7';
+    const ANTHROPIC_SEARCH_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
     const response = await callAnthropicWithWebSearch({
       model: ANTHROPIC_SEARCH_MODEL,
       maxTokens: 4096,

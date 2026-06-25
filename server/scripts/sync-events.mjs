@@ -632,7 +632,7 @@ async function searchWithGoogleSearch(city, state, lat, lng, existingEvents = []
 
     // 2026-05-08: Migrated to gemini-pro-latest alias (server-resolved by Google).
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -723,7 +723,7 @@ async function searchWithClaude(city, state, lat, lng, existingEvents = [], opti
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-7',
+        model: 'claude-opus-4-8',
         max_tokens: 32000,
         tools: [{
           type: 'web_search_20250305',

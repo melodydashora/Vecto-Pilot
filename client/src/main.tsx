@@ -1,3 +1,8 @@
+// 2026-05-30: MUST be first — hardens window.localStorage/sessionStorage against
+// SecurityError in cross-site iframes (Replit webview / iOS Safari) before any
+// provider module touches storage. Without it the auth/location/co-pilot providers
+// crash the tree into the SafeScaffold "Something went wrong loading the app" fallback.
+import './utils/safe-storage-bootstrap'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { COACH_STREAMING_TTS_ENABLED } from './constants/featureFlags';

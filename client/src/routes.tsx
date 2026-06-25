@@ -28,12 +28,19 @@ import {
   ResetPasswordPage,
   TermsPage,
 } from '@/pages/auth';
-import { UberCallbackPage } from '@/pages/auth/uber/Callback';
+// 2026-05-23 (Path B): Uber callback handled entirely server-side at
+// GET /api/auth/uber/callback (server/api/auth/uber.js). No client-side
+// landing page; the server handler 302s directly to the post-OAuth destination.
 import { GoogleCallbackPage } from '@/pages/auth/google/Callback';
 import AuthRedirect from '@/components/auth/AuthRedirect';
 import ConciergePage from '@/pages/co-pilot/ConciergePage';
 import PublicConciergePage from '@/pages/concierge/PublicConciergePage';
 import LandingPage from '@/pages/landing/LandingPage';
+import PortfolioPage from '@/pages/portfolio/PortfolioPage';
+// 2026-05-15: Public iPad kiosk "Welcome to My Car" — passenger-education flow with quiz + QR triptych.
+import WelcomePage from '@/pages/welcome/WelcomePage';
+// 2026-05-15: Public donate page reached from the welcome farewell QR (square.link CTA + cost breakdown + future scope).
+import PublicDonatePage from '@/pages/welcome/PublicDonatePage';
 
 export const router = createBrowserRouter([
   // ═══════════════════════════════════════════════════════════════════════════
@@ -50,20 +57,23 @@ export const router = createBrowserRouter([
   // Public Routes (no authentication required)
   // ═══════════════════════════════════════════════════════════════════════════
   {
-    // 2026-02-03: Public privacy policy for OAuth providers (Uber requires public access)
+    // 2026-05-23: Uber verification requires the privacy policy at the canonical /privacy URL.
+    // /policy retained as an alias so existing in-app links (AboutPage, GoogleCallback) stay valid.
+    path: '/privacy',
+    element: <PolicyPage />,
+  },
+  {
     path: '/policy',
     element: <PolicyPage />,
   },
   
-  // 2026-02-03: Uber OAuth Callback (Must be public/handled specially)
-  {
-    path: '/auth/uber/callback',
-    element: (
-      <ProtectedRoute>
-        <UberCallbackPage />
-      </ProtectedRoute>
-    ),
-  },
+  // 2026-05-23 (Path B): No client-side /auth/uber/callback route. Uber redirects
+  // to the server endpoint GET /api/auth/uber/callback (server/api/auth/uber.js),
+  // which exchanges the code, encrypts tokens, persists to uber_connections, and
+  // 302s the browser directly to the post-OAuth destination. Removed the prior
+  // client landing page (Callback.tsx) and its client-side code-exchange helper
+  // (uberAuth.ts) — both depended on a /api/auth/uber/exchange server endpoint
+  // that does not exist. Path A (asymmetric-key JWT) deferred to a follow-up sprint.
 
   // 2026-02-13: Google OAuth Callback (PUBLIC - user is NOT authenticated when arriving from Google)
   {
@@ -81,6 +91,25 @@ export const router = createBrowserRouter([
   {
     path: '/demo',
     element: <LandingPage />,
+  },
+
+  // 2026-05-26: Public portfolio page — Melody's builder portfolio, resume, and live Vecto demo.
+  {
+    path: '/portfolio',
+    element: <PortfolioPage />,
+  },
+
+  // 2026-05-15: Public in-car iPad kiosk experience — passenger education + QR triptych.
+  // No auth required: iPad mounted in the car points to /welcome and the rider can interact without signing in.
+  {
+    path: '/welcome',
+    element: <WelcomePage />,
+  },
+
+  // 2026-05-15: Public donate page (reached from welcome farewell QR). No auth.
+  {
+    path: '/welcome/support',
+    element: <PublicDonatePage />,
   },
 
   // ═══════════════════════════════════════════════════════════════════════════

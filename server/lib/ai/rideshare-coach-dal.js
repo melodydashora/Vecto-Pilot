@@ -779,25 +779,33 @@ export class RideshareCoachDAL {
       // 2026-05-05: Hoisted alongside offerData for the same reason — outer-scope visibility
       // for the return assembly below regardless of which branch populates it.
       let coachOfferDecisions = { decisions: [], stats: null };
+      // 2026-05-26: Coach self-context — its own prior memos and system notes about this driver
+      let coachMemos = [];
+      let coachSystemNotes = [];
 
       if (snapshot) {
         // Use authenticated user ID if provided, otherwise fall back to snapshot's user_id
         const effectiveUserId = authenticatedUserId || snapshot.user_id;
         console.log(`[COACH] getCompleteContext: Snapshot user_id = ${snapshot.user_id || 'NULL'}, authenticated = ${authenticatedUserId || 'NULL'}, effective = ${effectiveUserId || 'NULL'}, city = ${snapshot.city}`);
 
-        const [intel, notes, driver, offers, coachDecisions] = await Promise.all([
+        const [intel, notes, driver, offers, coachDecisions, memos, sysNotes] = await Promise.all([
           this.getMarketIntelligence(snapshot.city, snapshot.state),
           effectiveUserId ? this.getUserNotes(effectiveUserId) : Promise.resolve([]),
           effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null }),
           this.getOfferHistory(20),  // 2026-02-16: Include offer analysis history
           // 2026-05-05: Coach-driven decision intel for the disagreement-learning loop
-          effectiveUserId ? this.getCoachOfferDecisions(effectiveUserId, 20) : Promise.resolve({ decisions: [], stats: null })
+          effectiveUserId ? this.getCoachOfferDecisions(effectiveUserId, 20) : Promise.resolve({ decisions: [], stats: null }),
+          // 2026-05-26: Coach self-context — read its own prior memos and system notes
+          effectiveUserId ? this.getCoachMemosForContext(effectiveUserId) : Promise.resolve([]),
+          effectiveUserId ? this.getCoachSystemNotesForContext(effectiveUserId) : Promise.resolve([]),
         ]);
         marketIntelligence = intel;
         userNotes = notes;
         driverData = driver;
         offerData = offers || { offers: [], stats: null };
         coachOfferDecisions = coachDecisions || { decisions: [], stats: null };
+        coachMemos = memos || [];
+        coachSystemNotes = sysNotes || [];
       }
 
       return {
@@ -814,6 +822,8 @@ export class RideshareCoachDAL {
         driverVehicle: driverData.vehicle,
         offerHistory: offerData,  // 2026-02-16: Offer log for coach
         coachOfferDecisions,      // 2026-05-05: Coach-driven decision intel
+        coachMemos,               // 2026-05-26: Coach's own prior memos about this driver
+        coachSystemNotes,         // 2026-05-26: Coach's system-level observations for this driver
         status: this._determineStatus(snapshot, strategy, briefing, smartBlocks),
       };
     } catch (error) {
@@ -832,6 +842,8 @@ export class RideshareCoachDAL {
         driverVehicle: null,
         offerHistory: { offers: [], stats: null },
         coachOfferDecisions: { decisions: [], stats: null },
+        coachMemos: [],
+        coachSystemNotes: [],
         status: 'error',
       };
     }
@@ -847,6 +859,18 @@ export class RideshareCoachDAL {
     if (!strategy.strategy_for_now) return 'pending_strategy';
     if (smartBlocks.length === 0) return 'pending_blocks';
     return 'ready';
+  }
+
+  /** @private */
+  _relativeAge(date) {
+    const ms = Date.now() - new Date(date).getTime();
+    const mins = Math.floor(ms / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return `${days}d ago`;
+    return new Date(date).toISOString().slice(0, 10);
   }
 
   /**
@@ -868,6 +892,8 @@ export class RideshareCoachDAL {
       userNotes,
       driverProfile,
       driverVehicle,
+      coachMemos,
+      coachSystemNotes,
       status
     } = context;
 
@@ -935,6 +961,35 @@ export class RideshareCoachDAL {
       prompt += `\n\n🚙 VEHICLE: ${driverVehicle.year} ${driverVehicle.make} ${driverVehicle.model}`;
       if (driverVehicle.color) prompt += ` (${driverVehicle.color})`;
       if (driverVehicle.seatbelts) prompt += `\n   Capacity: ${driverVehicle.seatbelts} passengers`;
+    }
+
+    // ========== COACH MEMORY (2026-05-26: Coach's own prior notes) ==========
+    {
+      const hasSystemNotes = coachSystemNotes?.length > 0;
+      const hasMemos = coachMemos?.length > 0;
+      prompt += `\n\n=== COACH MEMORY (read-only, your own prior notes about this driver) ===`;
+
+      if (!hasSystemNotes && !hasMemos) {
+        prompt += `\n   (No prior memos for this driver yet.)`;
+      }
+
+      if (hasSystemNotes) {
+        prompt += `\n\n📋 SYSTEM OBSERVATIONS (${coachSystemNotes.length}):`;
+        coachSystemNotes.forEach(n => {
+          const age = this._relativeAge(n.created_at);
+          const desc = (n.description || '').substring(0, 280);
+          prompt += `\n   [P${n.priority}] ${n.title} — ${desc}${n.description?.length > 280 ? '…' : ''}  (${age})`;
+        });
+      }
+
+      if (hasMemos) {
+        prompt += `\n\n📝 COACH MEMOS (${coachMemos.length}):`;
+        coachMemos.forEach(m => {
+          const age = this._relativeAge(m.created_at);
+          const body = (m.detail || '').substring(0, 280);
+          prompt += `\n   [${m.priority}] ${m.title} — ${body}${m.detail?.length > 280 ? '…' : ''}  (${age})`;
+        });
+      }
     }
 
     // ========== SNAPSHOT DATA (Location, Time, Weather, Air Quality) ==========
@@ -1229,6 +1284,8 @@ export class RideshareCoachDAL {
     prompt += `\n   ✓ Market Intel: ${marketIntelligence?.intelligence?.length || 0} items`;
     prompt += `\n   ✓ User Notes: ${userNotes?.length || 0} notes`;
     prompt += `\n   ✓ Offer Log: ${offerHistory?.stats?.total || 0} analyzed`;
+    prompt += `\n   ✓ Coach System Notes: ${coachSystemNotes?.length || 0} observations`;
+    prompt += `\n   ✓ Coach Memos: ${coachMemos?.length || 0} memos`;
     prompt += `\n   Status: ${status}`;
 
     return prompt;
@@ -1812,6 +1869,53 @@ export class RideshareCoachDAL {
       return notes;
     } catch (error) {
       console.error('[COACH] getSystemNotes error:', error);
+      return [];
+    }
+  }
+
+  // 2026-05-26: Per-user context readers for Coach self-memory
+
+  async getCoachMemosForContext(userId, limit = 25) {
+    try {
+      return await db
+        .select({
+          id: coach_memos.id,
+          type: coach_memos.type,
+          title: coach_memos.title,
+          detail: coach_memos.detail,
+          priority: coach_memos.priority,
+          status: coach_memos.status,
+          created_at: coach_memos.created_at,
+        })
+        .from(coach_memos)
+        .where(eq(coach_memos.triggering_user_id, userId))
+        .orderBy(desc(coach_memos.created_at))
+        .limit(limit);
+    } catch (error) {
+      console.error('[COACH] getCoachMemosForContext error:', error);
+      return [];
+    }
+  }
+
+  async getCoachSystemNotesForContext(userId, limit = 25) {
+    try {
+      return await db
+        .select({
+          id: coach_system_notes.id,
+          note_type: coach_system_notes.note_type,
+          category: coach_system_notes.category,
+          title: coach_system_notes.title,
+          description: coach_system_notes.description,
+          priority: coach_system_notes.priority,
+          status: coach_system_notes.status,
+          created_at: coach_system_notes.created_at,
+        })
+        .from(coach_system_notes)
+        .where(eq(coach_system_notes.triggering_user_id, userId))
+        .orderBy(desc(coach_system_notes.priority), desc(coach_system_notes.created_at))
+        .limit(limit);
+    } catch (error) {
+      console.error('[COACH] getCoachSystemNotesForContext error:', error);
       return [];
     }
   }

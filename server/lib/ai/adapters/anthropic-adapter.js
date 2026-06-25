@@ -2,6 +2,7 @@
 // Generic Anthropic adapter - returns { ok, output } shape
 
 import Anthropic from "@anthropic-ai/sdk";
+import { hasQuirk } from "../model-registry.js";
 
 // 2026-04-28 (Phase A of log format merge plan): gate per-call adapter logs
 // behind LOG_LEVEL=debug. Adapter-level [AI] noise (model names, raw resp
@@ -31,13 +32,22 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
     // Allow passing full messages array (for chat history) OR simple user string
     const finalMessages = messages || [{ role: "user", content: user }];
 
-    const res = await anthropic.messages.create({
+    // 2026-05-29: Opus 4.8 deprecates the `temperature` parameter — sending it
+    // returns HTTP 400 ("`temperature` is deprecated for this model"). Gate it
+    // behind the noTemperature quirk (MODEL_QUIRKS in model-registry.js), mirroring
+    // the GPT-5 / o-series handling in openai-adapter.js. Older Claude models
+    // (opus 4.7, haiku 4.5) keep temperature.
+    const createParams = {
       model,
       max_tokens: maxTokens,
-      temperature,
       system,
       messages: finalMessages
-    });
+    };
+    if (temperature !== undefined && !hasQuirk(model, 'noTemperature')) {
+      createParams.temperature = temperature;
+    }
+
+    const res = await anthropic.messages.create(createParams);
 
     const output = res?.content?.[0]?.text?.trim() || "";
 
@@ -91,10 +101,10 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
     }
 
     const anthropic = getClient();
-    const res = await anthropic.messages.create({
+    // 2026-05-29: gate `temperature` behind the noTemperature quirk (opus 4.8 rejects it).
+    const createParams = {
       model,
       max_tokens: maxTokens,
-      temperature,
       system,
       messages,
       tools: [
@@ -104,7 +114,11 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
           max_uses: 5
         }
       ]
-    });
+    };
+    if (temperature !== undefined && !hasQuirk(model, 'noTemperature')) {
+      createParams.temperature = temperature;
+    }
+    const res = await anthropic.messages.create(createParams);
 
     // Extract text from response (may have tool_use blocks interspersed)
     let output = "";

@@ -83,7 +83,8 @@
  *
  * @typedef {Object} StoredEvent
  * @property {string} id - UUID primary key
- * @property {string} event_hash - MD5 hash of normalized(title|venue|date|city)
+ * @property {string} event_hash - MD5 of normalized(title|venue_name|street|city) + dateComponent
+ *   (dateComponent = event_start_date single-day, or `start_end` multi-day). See hashEvent.js buildHashInput.
  * @property {string} title
  * @property {string} venue_name
  * @property {string} address

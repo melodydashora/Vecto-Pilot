@@ -50,7 +50,7 @@ import { getTomTomTraffic, fetchRawTraffic } from '../../traffic/tomtom.js';
 async function analyzeTrafficWithAI({ tomtomData, rawTraffic, city, state, formattedAddress, driverLat, driverLon }) {
   // 2026-02-11: FIX - Route through callModel adapter (was direct GoogleGenAI SDK call)
   // This ensures thinkingLevel HIGH, safety settings, and JSON cleanup are applied
-  // Model is resolved from BRIEFING_TRAFFIC registry role (gemini-pro-latest)
+  // Model is resolved from BRIEFING_TRAFFIC registry role (gemini-3.5-flash)
 
   const startTime = Date.now();
   matrixLog.info({

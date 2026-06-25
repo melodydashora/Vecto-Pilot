@@ -234,7 +234,7 @@ router.post('/', requireAuth, async (req, res) => {
       avoidZones,
       strategy: tacticalSummary,
       metadata: {
-        model: 'gemini-pro-latest',
+        model: 'gemini-3.5-flash',
         latencyMs,
         generatedAt: new Date().toISOString(),
         searchGrounded: true,

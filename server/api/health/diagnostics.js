@@ -436,7 +436,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-7';
+        const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-8';
         const response = await anthropic.messages.create({
           model: modelId,
           max_tokens: 10,
@@ -477,7 +477,7 @@ router.get('/model-ping', requireAuth, async (req, res) => {
 
       try {
         const ai = new GoogleGenAI({ apiKey });
-        const modelId = process.env.GEMINI_MODEL || 'gemini-pro-latest';
+        const modelId = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
         const result = await ai.models.generateContent({
           model: modelId,
           contents: 'ping'
@@ -604,7 +604,7 @@ router.get('/workflow-dry-run', requireAuth, async (req, res) => {
     try {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-7';
+      const modelId = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-opus-4-8';
       
       await anthropic.messages.create({
         model: modelId,

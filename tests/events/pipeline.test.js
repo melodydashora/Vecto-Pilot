@@ -34,7 +34,17 @@ import {
   findDuplicatesByHash
 } from '../../server/lib/events/pipeline/hashEvent.js';
 
+// 2026-06-11: native-ESM Jest does not auto-inject the `jest` object — import it explicitly
+// for the fake-timer clock used by the timezone-aware Rule 13 tests.
+import { jest } from '@jest/globals';
+
 describe('ETL Pipeline Integration', () => {
+
+  // 2026-06-11: validateEvent Rule 13 is timezone + today dependent and now THROWS on a
+  // missing timezone (the silent UTC fallback was removed — memory #255). Tests that reach
+  // Rule 13 mock the system clock (deterministic, rot-proof) and pass a driver timezone.
+  // Rules 1–12 short-circuit before Rule 13, so their tests need neither a clock nor a tz.
+  const TEST_TZ = 'America/Chicago';
 
   // =========================================================================
   // NORMALIZATION TESTS
@@ -202,18 +212,25 @@ describe('ETL Pipeline Integration', () => {
   // =========================================================================
 
   describe('validateEvent.js', () => {
+    // Fixed "now" so Rule 13's today-window is deterministic: 12:00 PM America/Chicago
+    // (CDT, UTC-5) on 2026-06-15. Fixtures that must be "active today" use TODAY.
+    const NOW = new Date('2026-06-15T17:00:00Z');
+    const TODAY = '2026-06-15';
+    beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(NOW); });
+    afterEach(() => { jest.useRealTimers(); });
+
     describe('Single Event Validation', () => {
       test('passes valid event', () => {
         const event = {
           title: 'Valid Concert',
           venue_name: 'Madison Square Garden',
           address: '4 Penn Plaza, New York, NY',
-          event_start_date: '2026-01-15',
+          event_start_date: TODAY,
           event_start_time: '19:00',
           event_end_time: '22:00'
         };
 
-        const result = validateEvent(event);
+        const result = validateEvent(event, { timezone: TEST_TZ });
         expect(result.valid).toBe(true);
         expect(result.reason).toBeNull();
       });
@@ -257,12 +274,12 @@ describe('ETL Pipeline Integration', () => {
         const event = {
           title: 'Valid Event',
           address: '123 Main St',
-          event_start_date: '2026-01-15',
+          event_start_date: TODAY,
           event_start_time: '19:00',
           event_end_time: '22:00'
         };
 
-        const result = validateEvent(event);
+        const result = validateEvent(event, { timezone: TEST_TZ });
         expect(result.valid).toBe(true);
       });
 
@@ -280,16 +297,64 @@ describe('ETL Pipeline Integration', () => {
       });
     });
 
+    // 2026-06-11: Rule 13 date/timezone window — the regression coverage memory #255 prescribed.
+    describe('Rule 13 — timezone + today window (memory #255)', () => {
+      const base = {
+        title: 'Window Show', venue_name: 'The Venue',
+        event_start_time: '7:00 PM', event_end_time: '10:00 PM', category: 'concert',
+      };
+
+      test('throws when timezone is missing (NO FALLBACKS, not a silent UTC fallback)', () => {
+        jest.setSystemTime(new Date('2026-06-15T17:00:00Z'));
+        const event = { ...base, event_start_date: '2026-06-15', event_end_date: '2026-06-15' };
+        // Event passes content Rules 1–12 and reaches Rule 13, which now requires tz.
+        expect(() => validateEvent(event)).toThrow(/requires context\.timezone/);
+      });
+
+      test('rejects event that already ended before today (ended_before_today)', () => {
+        jest.setSystemTime(new Date('2026-06-15T17:00:00Z'));
+        const event = { ...base, event_start_date: '2026-06-10', event_end_date: '2026-06-10' };
+        const r = validateEvent(event, { timezone: TEST_TZ });
+        expect(r.valid).toBe(false);
+        expect(r.reason).toBe('ended_before_today');
+      });
+
+      test('rejects event that starts after today (starts_in_future)', () => {
+        jest.setSystemTime(new Date('2026-06-15T17:00:00Z'));
+        const event = { ...base, event_start_date: '2026-06-20', event_end_date: '2026-06-20' };
+        const r = validateEvent(event, { timezone: TEST_TZ });
+        expect(r.valid).toBe(false);
+        expect(r.reason).toBe('starts_in_future');
+      });
+
+      test('keeps a multi-day event whose span includes today', () => {
+        jest.setSystemTime(new Date('2026-06-15T17:00:00Z'));
+        const event = { ...base, category: 'festival', event_start_date: '2026-06-13', event_end_date: '2026-06-18' };
+        expect(validateEvent(event, { timezone: TEST_TZ }).valid).toBe(true);
+      });
+
+      test('AHEAD timezone (Kiritimati, UTC+14): local-today event is valid even when UTC reads tomorrow', () => {
+        // 2026-04-28 15:00 UTC → Pacific/Kiritimati local clock is 2026-04-29 05:00.
+        // A UTC-only "today" (04-28) would wrongly mark a 04-29 event as starts_in_future;
+        // the driver-tz check keeps it. This is the exact regression memory #255 describes.
+        jest.setSystemTime(new Date('2026-04-28T15:00:00Z'));
+        const event = { ...base, event_start_date: '2026-04-29', event_end_date: '2026-04-29' };
+        expect(validateEvent(event, { timezone: 'Pacific/Kiritimati' }).valid).toBe(true);
+      });
+    });
+
     describe('Batch Validation', () => {
       test('separates valid and invalid', () => {
+        // Both valid fixtures are dated TODAY so they pass Rule 13; the two invalid ones
+        // (TBD title, missing end time) reject at Rules 2/8 before Rule 13 is reached.
         const events = [
-          { title: 'Valid 1', venue_name: 'V1', event_start_date: '2026-01-15', event_start_time: '19:00', event_end_time: '22:00' },
-          { title: 'TBD Event', venue_name: 'V2', event_start_date: '2026-01-15', event_start_time: '19:00', event_end_time: '22:00' },
-          { title: 'Valid 2', venue_name: 'V3', event_start_date: '2026-01-16', event_start_time: '20:00', event_end_time: '23:00' },
-          { title: 'No End Time', venue_name: 'V4', event_start_date: '2026-01-15', event_start_time: '19:00' }
+          { title: 'Valid 1', venue_name: 'V1', event_start_date: TODAY, event_start_time: '19:00', event_end_time: '22:00' },
+          { title: 'TBD Event', venue_name: 'V2', event_start_date: TODAY, event_start_time: '19:00', event_end_time: '22:00' },
+          { title: 'Valid 2', venue_name: 'V3', event_start_date: TODAY, event_start_time: '20:00', event_end_time: '23:00' },
+          { title: 'No End Time', venue_name: 'V4', event_start_date: TODAY, event_start_time: '19:00' }
         ];
 
-        const result = validateEventsHard(events, { logRemovals: false });
+        const result = validateEventsHard(events, { logRemovals: false, context: { timezone: TEST_TZ } });
 
         expect(result.valid.length).toBe(2);
         expect(result.invalid.length).toBe(2);
@@ -582,6 +647,11 @@ describe('ETL Pipeline Integration', () => {
   // =========================================================================
 
   describe('Full Pipeline Integration', () => {
+    // Fixtures are dated 2026-01-15; freeze "now" to noon Central that day so Rule 13 keeps
+    // the two complete events active (the clock is restored after each test).
+    beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date('2026-01-15T18:00:00Z')); });
+    afterEach(() => { jest.useRealTimers(); });
+
     test('raw → normalized → validated → hashed', () => {
       const rawEvents = [
         {
@@ -607,7 +677,8 @@ describe('ETL Pipeline Integration', () => {
           title: '"Dallas Mavericks vs Lakers"',
           venue: 'American Airlines Center',
           address: '2500 Victory Ave, Dallas, TX',
-          event_date: '01/17/2026',
+          // 2026-06-11: aligned to the frozen "today" (was 01/17) so Rule 13 keeps it active.
+          event_date: '01/15/2026',
           event_time: '7:30 PM',
           event_end_time: '10:30 PM',
           category: 'NBA Game',
@@ -621,8 +692,8 @@ describe('ETL Pipeline Integration', () => {
       expect(normalized[0].event_start_time).toBe('19:00');
       expect(normalized[2].category).toBe('sports');
 
-      // Step 2: Validate
-      const validated = validateEventsHard(normalized, { logRemovals: false });
+      // Step 2: Validate (Rule 13 needs the driver tz now that the UTC fallback is gone)
+      const validated = validateEventsHard(normalized, { logRemovals: false, context: { timezone: TEST_TZ } });
       expect(validated.valid.length).toBe(2);
       expect(validated.invalid.length).toBe(1);
       expect(validated.invalid[0].reason).toBe('tbd_in_title');

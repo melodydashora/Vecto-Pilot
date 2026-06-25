@@ -12,7 +12,7 @@ export const EIDOLON_CONFIG = {
   // UNIFIED MAXIMUM CAPABILITIES - All AI systems have identical access
   capabilities: {
     // Model & Thinking
-    model: "gemini-pro-latest",
+    model: "gemini-3.5-flash",
     context_window: 1000000,
     thinking_mode: "high",
     
@@ -159,7 +159,7 @@ export const EIDOLON_CONFIG = {
 
   // Model configuration - Gemini Pro Latest ULTRA-ENHANCED MODE (2026-05-08)
   model: {
-    primary: "gemini-pro-latest",
+    primary: "gemini-3.5-flash",
     provider: "google",
     max_tokens: 65536, // MAXIMUM - Full output capacity
     temperature: 0.7, // Optimal for thinking models

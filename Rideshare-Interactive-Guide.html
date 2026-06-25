@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en"><head><title>Welcome to My Car — Interactive Rideshare Guide</title><meta name="viewport" content="width=device-width, initial-scale=1"><style id="main-style">
+*{margin:0!important;padding:0!important;box-sizing:border-box!important;font-family:-apple-system,Segoe UI,Roboto,sans-serif!important}
+html,body{background:linear-gradient(135deg,#1a1a2e 0%,#2d1b4e 50%,#3d2f5f 100%)!important;color:#f5f5f5!important;min-height:100vh;padding:20px!important;line-height:1.6}
+body{padding:20px!important}
+.container{max-width:1100px;margin:0 auto!important;padding:0!important}
+.hero{background:linear-gradient(135deg,#2c2848 0%,#4a3868 100%)!important;border-radius:24px;padding:60px 40px!important;text-align:center;margin-bottom:30px!important;box-shadow:0 20px 60px rgba(0,0,0,0.4);position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;width:300px;height:300px;background:radial-gradient(circle,rgba(217,164,164,0.3),transparent);top:-100px;right:-100px;border-radius:50%}
+.hero h1{font-size:3.5em!important;font-weight:900!important;letter-spacing:-2px;background:linear-gradient(135deg,#fff,#d9a4a4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:15px!important;position:relative;color:transparent!important}
+.hero p{font-size:1.3em!important;opacity:0.85;position:relative;color:#fff!important}
+.progress-bar{background:rgba(255,255,255,0.1)!important;height:10px;border-radius:10px;margin:25px 0!important;overflow:hidden}
+.progress-fill{background:linear-gradient(90deg,#d9a4a4,#b87878)!important;height:100%;width:0%;transition:width 0.5s ease;border-radius:10px}
+.nav-tabs{display:flex!important;gap:8px!important;margin-bottom:25px!important;flex-wrap:wrap;justify-content:center}
+.nav-tab{padding:10px 18px!important;background:rgba(255,255,255,0.08)!important;border:1px solid rgba(255,255,255,0.15)!important;border-radius:30px!important;color:#fff!important;cursor:pointer;transition:all 0.3s;font-size:0.9em!important;font-weight:500!important;list-style:none}
+.nav-tab:hover{background:rgba(217,164,164,0.3)!important;transform:translateY(-2px)}
+.nav-tab.active{background:linear-gradient(135deg,#d9a4a4,#b87878)!important;box-shadow:0 4px 15px rgba(217,164,164,0.4);color:#fff!important}
+.section{display:none!important}
+.section.active{display:block!important;animation:fadeIn 0.5s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.card{background:rgba(255,255,255,0.05)!important;backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.1)!important;border-radius:20px!important;padding:35px!important;margin-bottom:25px!important;box-shadow:0 10px 40px rgba(0,0,0,0.2);color:#f5f5f5!important}
+.card h2{font-size:2.2em!important;margin-bottom:10px!important;color:#fff!important;font-weight:800!important}
+.card p{color:#e5e5e5!important;margin-bottom:10px!important}
+.card .subtitle{color:#d9a4a4!important;font-size:1em!important;letter-spacing:2px;text-transform:uppercase;margin-bottom:25px!important;font-weight:600!important}
+.stats-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))!important;gap:18px!important;margin:25px 0!important}
+.stat-card{background:linear-gradient(135deg,#3d2f5f,#5a4480)!important;padding:25px!important;border-radius:16px!important;cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;color:#fff!important}
+.stat-card:hover{transform:translateY(-5px);box-shadow:0 15px 30px rgba(0,0,0,0.4)}
+.stat-card.alt{background:linear-gradient(135deg,#6b5078,#8b6892)!important}
+.stat-card.accent{background:linear-gradient(135deg,#a26b6b,#c48989)!important}
+.stat-num{font-size:3em!important;font-weight:900!important;color:#fff!important;line-height:1!important;display:block}
+.stat-label{font-size:1.1em!important;color:#fff!important;margin-top:8px!important;font-weight:600!important}
+.stat-sub{font-size:0.85em!important;opacity:0.8;margin-top:5px!important;color:#fff!important}
+.rule-list{list-style:none!important;padding:0!important}
+.rule-item{display:flex!important;gap:20px!important;background:rgba(255,255,255,0.05)!important;padding:25px!important;margin-bottom:15px!important;border-radius:14px!important;border-left:4px solid #d9a4a4!important;transition:all 0.3s;cursor:pointer;list-style:none!important;color:#f5f5f5!important}
+.rule-item:hover{background:rgba(217,164,164,0.1)!important;transform:translateX(8px)}
+.rule-num{background:linear-gradient(135deg,#d9a4a4,#b87878)!important;width:50px!important;height:50px!important;border-radius:50%!important;display:flex!important;align-items:center;justify-content:center;font-weight:900!important;font-size:1.4em!important;flex-shrink:0;color:#fff!important}
+.rule-content h3{margin-bottom:6px!important;font-size:1.2em!important;color:#fff!important}
+.rule-content p{opacity:0.9;color:#e5e5e5!important}
+.req-list{display:grid!important;gap:12px!important}
+.req-item{background:rgba(255,255,255,0.05)!important;padding:18px 22px!important;border-radius:12px!important;border-left:3px solid #b87878!important;display:flex!important;align-items:center;gap:15px!important;transition:all 0.3s;color:#f5f5f5!important}
+.req-item:hover{background:rgba(217,164,164,0.08)!important;border-left-color:#d9a4a4!important}
+.req-item .check{color:#7ec979!important;font-size:1.4em!important;font-weight:bold!important}
+.req-item strong{color:#d9a4a4!important;margin-right:8px!important;display:block;margin-bottom:4px}
+.comparison{display:grid!important;grid-template-columns:1fr 1fr!important;gap:20px!important;margin:20px 0!important}
+.compare-col{background:rgba(255,255,255,0.05)!important;padding:25px!important;border-radius:14px!important;color:#f5f5f5!important}
+.compare-col.old{border-left:3px solid #e8b87a!important}
+.compare-col.new{border-left:3px solid #7ec979!important}
+.compare-col h3{margin-bottom:15px!important;color:#fff!important;font-size:1.3em!important}
+.compare-col ul{list-style:none!important;padding:0!important}
+.compare-col li{padding:10px 0!important;border-bottom:1px solid rgba(255,255,255,0.1)!important;font-size:0.95em!important;list-style:none!important;color:#e5e5e5!important}
+.compare-col li:last-child{border:none!important}
+.compare-col strong{color:#d9a4a4!important}
+.earnings-viz{background:linear-gradient(135deg,#2d1b4e,#3d2f5f)!important;padding:30px!important;border-radius:18px!important;margin:20px 0!important}
+.earnings-row{display:flex!important;justify-content:space-between!important;align-items:center;padding:12px 18px!important;margin-bottom:8px!important;border-radius:8px!important;font-weight:600!important;color:#fff!important}
+.earnings-row.gross{background:linear-gradient(90deg,#7ec979,#5ca85d)!important;font-size:1.3em!important}
+.earnings-row.profit{background:linear-gradient(90deg,#d9a4a4,#b87878)!important;font-size:1.3em!important;margin-top:15px!important}
+.earnings-row.expense{background:rgba(255,255,255,0.05)!important;color:#ddd!important;font-size:0.95em!important}
+.tier-card{background:linear-gradient(135deg,rgba(217,164,164,0.15),rgba(184,120,120,0.15))!important;border:1px solid rgba(217,164,164,0.3)!important;padding:22px!important;border-radius:14px!important;margin-bottom:15px!important;color:#f5f5f5!important}
+.tier-card h3{color:#d9a4a4!important;margin-bottom:8px!important;font-size:1.4em!important}
+.tier-card p{color:#e5e5e5!important}
+.quiz-q{background:rgba(255,255,255,0.05)!important;padding:30px!important;border-radius:18px!important;margin-bottom:25px!important;color:#f5f5f5!important}
+.quiz-q h3{font-size:1.5em!important;margin-bottom:20px!important;text-align:center;color:#fff!important}
+.quiz-opts{display:grid!important;gap:12px!important;margin-bottom:15px!important}
+.quiz-opts.tf{grid-template-columns:1fr 1fr!important}
+.quiz-opts.mc{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))!important}
+.quiz-opt{padding:20px!important;background:rgba(255,255,255,0.08)!important;border:2px solid rgba(255,255,255,0.1)!important;border-radius:12px!important;cursor:pointer;text-align:center;transition:all 0.3s;font-size:1.05em!important;font-weight:600!important;color:#fff!important}
+.quiz-opt:hover{background:rgba(217,164,164,0.2)!important;transform:translateY(-2px);border-color:#d9a4a4!important}
+.quiz-opt.correct{background:linear-gradient(135deg,#7ec979,#5ca85d)!important;border-color:#7ec979!important;animation:pulse 0.5s}
+.quiz-opt.wrong{background:linear-gradient(135deg,#c46b6b,#a04848)!important;border-color:#c46b6b!important}
+.quiz-opt.disabled{cursor:not-allowed!important;pointer-events:none!important}
+@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.05)}100%{transform:scale(1)}}
+.feedback{padding:18px!important;border-radius:12px!important;margin-top:15px!important;display:none;font-weight:500!important;color:#fff!important}
+.feedback.show{display:block!important;animation:fadeIn 0.4s}
+.feedback.right{background:linear-gradient(135deg,rgba(126,201,121,0.2),rgba(92,168,93,0.2))!important;border-left:4px solid #7ec979!important}
+.feedback.wrong{background:linear-gradient(135deg,rgba(196,107,107,0.2),rgba(160,72,72,0.2))!important;border-left:4px solid #c46b6b!important}
+.score-board{background:linear-gradient(135deg,#d9a4a4,#b87878)!important;padding:40px!important;border-radius:24px!important;text-align:center;margin-top:30px!important;display:none;color:#fff!important}
+.score-board.show{display:block!important;animation:fadeIn 0.6s}
+.score-board h2{font-size:2.5em!important;margin-bottom:15px!important;color:#fff!important}
+.score-num{font-size:5em!important;font-weight:900!important;margin:20px 0!important;color:#fff!important}
+.btn{background:linear-gradient(135deg,#d9a4a4,#b87878)!important;color:#fff!important;border:none!important;padding:14px 30px!important;border-radius:30px!important;font-size:1.05em!important;cursor:pointer;font-weight:600!important;transition:all 0.3s;margin-top:15px!important;margin-right:10px!important}
+.btn:hover{transform:translateY(-3px);box-shadow:0 10px 25px rgba(217,164,164,0.4)}
+.score-board .btn{background:#fff!important;color:#b87878!important}
+.fact-box{background:linear-gradient(135deg,rgba(217,164,164,0.15),rgba(184,120,120,0.1))!important;border:1px solid rgba(217,164,164,0.3)!important;padding:22px!important;border-radius:14px!important;margin:18px 0!important;color:#f5f5f5!important}
+.fact-box strong{color:#d9a4a4!important}
+.highlight{color:#d9a4a4!important;font-weight:700!important}
+.icon-row{display:flex!important;justify-content:space-around;margin:25px 0!important;flex-wrap:wrap;gap:20px!important}
+.icon-item{text-align:center;flex:1;min-width:140px;background:rgba(255,255,255,0.04)!important;padding:20px!important;border-radius:14px!important;color:#f5f5f5!important}
+.icon-item .icon{font-size:3em!important;margin-bottom:10px!important;display:block}
+.icon-item h3{color:#d9a4a4!important;margin-bottom:8px!important;font-size:1.1em!important}
+.icon-item p{font-size:0.92em!important;opacity:0.9;color:#e5e5e5!important}
+.icon-item strong{color:#d9a4a4!important}
+.toc-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))!important;gap:15px!important;margin:20px 0!important}
+.toc-card{background:rgba(255,255,255,0.05)!important;padding:25px!important;border-radius:14px!important;cursor:pointer;transition:all 0.3s;border-left:4px solid #d9a4a4!important;color:#f5f5f5!important}
+.toc-card:hover{background:rgba(217,164,164,0.15)!important;transform:translateY(-5px)}
+.toc-card .toc-num{font-size:0.85em!important;color:#d9a4a4!important;font-weight:700!important;display:block;margin-bottom:6px}
+.toc-card h3{margin:6px 0!important;font-size:1.15em!important;color:#fff!important}
+.toc-card p{font-size:0.85em!important;opacity:0.8;color:#e5e5e5!important}
+.final-test{background:linear-gradient(135deg,#2d1b4e,#4a2868)!important;padding:40px!important;border-radius:24px!important;margin-top:30px!important;color:#f5f5f5!important}
+.final-test h2{text-align:center;margin-bottom:10px!important;font-size:2.5em!important;color:#fff!important}
+.final-test .subtitle{color:#d9a4a4!important;text-align:center!important;letter-spacing:2px;text-transform:uppercase;margin-bottom:25px!important}
+@media (max-width:768px){.hero h1{font-size:2.3em!important}.comparison{grid-template-columns:1fr!important}.quiz-opts.tf{grid-template-columns:1fr!important}}
+</style></head><body style="margin: 0px;">
+<div class="container">
+  <div class="hero">
+    <h1>WELCOME TO MY CAR</h1>
+    <p>Your interactive guide to understanding rideshare — from the driver's seat</p>
+    <div class="progress-bar"><div class="progress-fill" id="progress" style="width: 64%;"></div></div>
+    <p style="font-size:0.95em;opacity:0.75" id="progressText">64% complete — Halfway there!</p>
+  </div>
+
+  <div class="nav-tabs" id="navTabs">
+    <div class="nav-tab" data-sec="home">🏠 Start</div>
+    <div class="nav-tab" data-sec="stats">📊 Stats</div>
+    <div class="nav-tab" data-sec="define">🚗 What Is Rideshare</div>
+    <div class="nav-tab" data-sec="housekeeping">✨ Housekeeping</div>
+    <div class="nav-tab active" data-sec="amenities">🌡️ Amenities</div>
+    <div class="nav-tab" data-sec="vehicle">🛠️ Vehicle &amp; Driver</div>
+    <div class="nav-tab" data-sec="tiers">⭐ Tiers</div>
+    <div class="nav-tab" data-sec="vstaxi">🚕 vs Taxis</div>
+    <div class="nav-tab" data-sec="earnings">💰 Earnings</div>
+    <div class="nav-tab" data-sec="ratings">⭐ Ratings</div>
+    <div class="nav-tab" data-sec="quiz">🎯 Quiz</div>
+    <div class="nav-tab" data-sec="final">🏆 Final Test</div>
+  </div>
+
+  <!-- HOME -->
+  <div class="section" id="sec-home">
+    <div class="card">
+      <h2>Your Guide to a Great Ride</h2>
+      <div class="subtitle">A driver-passenger handbook</div>
+      <p>Most riders never think about what's actually happening behind the wheel — the costs, the rules, the rating system that can end a driver's career. This guide changes that.</p>
+      <p style="margin-top:15px">By the end you'll genuinely understand: how rideshare works, what drivers actually earn, why a 4-star rating is a big deal, and how to be a great passenger.</p>
+      <p style="margin-top:15px">Click through the tabs in order, or jump around. The progress bar tracks your completion. There's a quiz at the end!</p>
+      <div class="toc-grid" style="margin-top:30px">
+        <div class="toc-card" onclick="showSec('define')"><div class="toc-num">SECTION 01</div><h3>Defining the Ride</h3><p>What rideshare really is</p></div>
+        <div class="toc-card" onclick="showSec('housekeeping')"><div class="toc-num">SECTION 02</div><h3>Housekeeping</h3><p>Rules for a comfortable ride</p></div>
+        <div class="toc-card" onclick="showSec('amenities')"><div class="toc-num">SECTION 03</div><h3>Amenities</h3><p>Charger, air, mints</p></div>
+        <div class="toc-card" onclick="showSec('vehicle')"><div class="toc-num">SECTION 04</div><h3>Vehicle &amp; Driver</h3><p>Requirements &amp; standards</p></div>
+        <div class="toc-card" onclick="showSec('tiers')"><div class="toc-num">SECTION 05</div><h3>Tiers</h3><p>UberX, XL, Comfort, XXL</p></div>
+        <div class="toc-card" onclick="showSec('vstaxi')"><div class="toc-num">SECTION 06</div><h3>Taxis vs Rideshare</h3><p>Old way vs new way</p></div>
+        <div class="toc-card" onclick="showSec('earnings')"><div class="toc-num">SECTION 07</div><h3>Driver Earnings</h3><p>Where the money goes</p></div>
+        <div class="toc-card" onclick="showSec('ratings')"><div class="toc-num">SECTION 08</div><h3>Star Ratings</h3><p>Why they matter so much</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="section" id="sec-stats">
+    <div class="card">
+      <h2>My Current Stats</h2>
+      <div class="subtitle">Verified Uber driver statistics — hover the cards</div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-num">4.98</div><div class="stat-label">Star Rating</div><div class="stat-sub">out of 5.0 stars</div></div>
+        <div class="stat-card alt"><div class="stat-num">5,200+</div><div class="stat-label">Total Trips</div><div class="stat-sub">rides completed</div></div>
+        <div class="stat-card accent"><div class="stat-num">&lt;1%</div><div class="stat-label">Cancellation Rate</div><div class="stat-sub">industry leading</div></div>
+        <div class="stat-card"><div class="stat-num">95%</div><div class="stat-label">Acceptance Rate</div><div class="stat-sub">always ready to drive</div></div>
+        <div class="stat-card alt"><div class="stat-num">98%</div><div class="stat-label">Satisfaction</div><div class="stat-sub">happy passengers</div></div>
+      </div>
+      <div class="fact-box"><strong>What does this mean?</strong> These numbers tell the full story of a driver's reputation. A platform like Uber tracks every single one of these — and any can be the reason a driver gets removed.</div>
+    </div>
+  </div>
+
+  <!-- DEFINE -->
+  <div class="section" id="sec-define">
+    <div class="card">
+      <h2>Defining the Ride</h2>
+      <div class="subtitle">What is rideshare?</div>
+      <ul class="rule-list">
+        <li class="rule-item"><div class="rule-num">1</div><div class="rule-content"><h3>It's a transportation service</h3><p>Users request rides from nearby drivers using apps like <span class="highlight">Uber</span> or <span class="highlight">Lyft</span>.</p></div></li>
+        <li class="rule-item"><div class="rule-num">2</div><div class="rule-content"><h3>Platforms don't pay drivers for the car</h3><p>Drivers cover their own car, equipment, cleaning, amenities, and gas — <span class="highlight">and only keep a portion of the fare</span>.</p></div></li>
+        <li class="rule-item"><div class="rule-num">3</div><div class="rule-content"><h3>Drivers are everyday people</h3><p>Parents, business owners, full-time workers — who maintain vehicles and rely on the platform and <span class="highlight">tips</span>.</p></div></li>
+        <li class="rule-item"><div class="rule-num">4</div><div class="rule-content"><h3>Star ratings are two-way</h3><p>Even a <span class="highlight">4-star rating</span> can mean removal from the platform for drivers — and riders are rated too.</p></div></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- HOUSEKEEPING -->
+  <div class="section" id="sec-housekeeping">
+    <div class="card">
+      <h2>Housekeeping</h2>
+      <div class="subtitle">Guidelines for a comfortable ride</div>
+      <ul class="rule-list">
+        <li class="rule-item"><div class="rule-num">1</div><div class="rule-content"><h3>Food &amp; Drinks</h3><p>Please keep coffee lids on and avoid eating food in the car.</p></div></li>
+        <li class="rule-item"><div class="rule-num">2</div><div class="rule-content"><h3>Noise &amp; Calls</h3><p>Let the driver know if you need quiet time or plan to make calls. Use headphones when possible.</p></div></li>
+        <li class="rule-item"><div class="rule-num">3</div><div class="rule-content"><h3>A Note from the Driver</h3><p>"I have autism, so I may not always pick up on social cues. Please communicate your needs directly — I'll do my best!"</p></div></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- AMENITIES -->
+  <div class="section active" id="sec-amenities">
+    <div class="card">
+      <h2>In-Car Amenities</h2>
+      <div class="subtitle">Things you can use during your ride</div>
+      <div class="icon-row">
+        <div class="icon-item"><div class="icon">🌬️</div><h3>Cabin Air Control</h3><p>Located <strong>under the vents behind the center console</strong> — controls only the rear cabin. Ask the driver for temperature help!</p></div>
+        <div class="icon-item"><div class="icon">🔌</div><h3>Multi-Device Charger</h3><p>Located on the <strong>right side of the backseat, attached to the headrest</strong>. Micro-USB, USB-C, and USB-i. Feel free to charge!</p></div>
+        <div class="icon-item"><div class="icon">🍬</div><h3>Mints</h3><p>Provided in the <strong>seat pockets</strong> in front of you. Help yourself!</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VEHICLE -->
+  <div class="section" id="sec-vehicle">
+    <div class="card">
+      <h2>Vehicle Requirements</h2>
+      <div class="subtitle">UberX minimum standards</div>
+      <div class="req-list">
+        <div class="req-item"><span class="check">✓</span><div><strong>4 Doors Minimum</strong>All vehicles must have at least four doors for passenger safety and convenience</div></div>
+        <div class="req-item"><span class="check">✓</span><div><strong>Good Condition</strong>No cosmetic damage, clean interior, and all safety features fully functional</div></div>
+        <div class="req-item"><span class="check">✓</span><div><strong>Model Year</strong>Must be 16 years old or newer (varies by market)</div></div>
+        <div class="req-item"><span class="check">✓</span><div><strong>AC &amp; Seatbelts</strong>Working air conditioning and seatbelts for every passenger are required</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Driver Requirements</h2>
+      <div class="subtitle">Steps and qualifications to get started</div>
+      <div class="req-list">
+        <div class="req-item"><span class="check">✓</span><div><strong>Age 25+</strong>Drivers must be at least 25 years old</div></div>
+        <div class="req-item"><span class="check">✓</span><div><strong>Valid License</strong>At least 1 year of licensed driving history (3 years if under 25)</div></div>
+        <div class="req-item"><span class="check">✓</span><div><strong>Background Check</strong>Clean driving record and criminal background screening required</div></div>
+        <div class="req-item"><span class="check">✓</span><div><strong>Insurance &amp; Registration</strong>Valid auto insurance and vehicle registration</div></div>
+        <div class="req-item"><span class="check">✓</span><div><strong>No Experience Needed</strong>No commercial driving license or taxi experience required</div></div>
+      </div>
+    </div>
+    <div class="card" style="background:linear-gradient(135deg,rgba(217,164,164,0.15),rgba(184,120,120,0.15));text-align:center">
+      <h2 style="font-size:1.6em">Did You Know?</h2>
+      <div class="stat-num" style="color:#d9a4a4;margin:20px 0">90%</div>
+      <p style="font-size:1.3em"><strong>of UberX drivers do not get tipped.</strong></p>
+      <p style="margin-top:15px;opacity:0.85">A small tip goes a long way! Whether it's a 2010 Toyota Camry or a brand new car, both can provide UberX rides. Tips are always appreciated!</p>
+    </div>
+  </div>
+
+  <!-- TIERS -->
+  <div class="section" id="sec-tiers">
+    <div class="card">
+      <h2>UberXL &amp; Comfort</h2>
+      <div class="subtitle">Premium tier vehicle requirements</div>
+      <div class="tier-card"><h3>UberXL</h3><p>Must seat <strong>6-7+ passengers</strong>, 16 years or newer</p></div>
+      <div class="tier-card"><h3>Comfort</h3><p>Midsize or larger, <strong>10 years or newer</strong> with extra legroom</p></div>
+      <div class="tier-card"><h3>4 Doors Required</h3><p>All premium tiers require four-door vehicles</p></div>
+      <div class="tier-card"><h3>No Cosmetic Damage</h3><p>Clean interior and exterior with no visible damage</p></div>
+      <div class="tier-card"><h3>Higher Earnings</h3><p>Premium tiers earn higher per-trip rates</p></div>
+    </div>
+    <div class="card">
+      <h2>UberXXL Eligible Vehicles</h2>
+      <div class="subtitle">Approved models for the largest ride tier</div>
+      <div class="stats-grid">
+        <div class="stat-card" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Cadillac Escalade ESV</div></div>
+        <div class="stat-card alt" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Chevrolet Suburban</div></div>
+        <div class="stat-card accent" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Chevrolet Express (12-15)</div></div>
+        <div class="stat-card" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Chrysler Pacifica</div></div>
+        <div class="stat-card alt" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Dodge Grand Caravan</div></div>
+        <div class="stat-card accent" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Ford Expedition EL/MAX</div></div>
+        <div class="stat-card" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Ford Transit (12-15)</div></div>
+        <div class="stat-card alt" style="padding:15px"><div style="font-size:0.95em;font-weight:700">GMC Yukon XL/Denali XL</div></div>
+        <div class="stat-card accent" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Honda Odyssey</div></div>
+        <div class="stat-card" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Kia Carnival/Sedona</div></div>
+        <div class="stat-card alt" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Mercedes-Benz Sprinter</div></div>
+        <div class="stat-card accent" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Nissan NV (12 Passenger)</div></div>
+        <div class="stat-card" style="padding:15px"><div style="font-size:0.95em;font-weight:700">Toyota Sienna</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VS TAXI -->
+  <div class="section" id="sec-vstaxi">
+    <div class="card">
+      <h2>Taxis vs. Ride-Share</h2>
+      <div class="subtitle">The old way vs the new way</div>
+      <p>Remember the old days? Hailing a cab meant standing on a corner, hoping one would stop. You had no idea who was driving, what the fare would be, or how long you'd wait.</p>
+      <p style="margin-top:15px">Ride-share changed everything: <span class="highlight">transparent pricing, driver ratings, GPS tracking</span>, and the ability to see exactly who's picking you up. And the best part? It's still <span class="highlight">significantly cheaper</span> than a traditional taxi.</p>
+      <div class="comparison">
+        <div class="compare-col old">
+          <h3>🚕 Taxis in the Past</h3>
+          <ul>
+            <li>🕐 <strong>Long Waits</strong> — No tracking, had to call or hail</li>
+            <li>📞 <strong>Manual Dispatch</strong> — Phones or curbside only</li>
+            <li>💸 <strong>High Fares</strong> — Costly licenses and limited vehicles</li>
+            <li>💵 <strong>Cash-Based</strong> — Credit cards uncertain</li>
+          </ul>
+        </div>
+        <div class="compare-col new">
+          <h3>📱 Modern Ride-Share</h3>
+          <ul>
+            <li>⚡ <strong>On-Demand Booking</strong> — Real-time tracking &amp; matching</li>
+            <li>🗺️ <strong>Smart Routing</strong> — GPS + algorithms for faster rides</li>
+            <li>💰 <strong>Lower Costs</strong> — No medallions, fewer fees</li>
+            <li>🎯 <strong>Driver Flexibility</strong> — Drivers choose when to drive</li>
+          </ul>
+        </div>
+      </div>
+      <div class="fact-box"><strong>Is it still cheaper?</strong> Yes — you still pay <span class="highlight">less than half</span> of what a taxi used to cost.</div>
+    </div>
+  </div>
+
+  <!-- EARNINGS -->
+  <div class="section" id="sec-earnings">
+    <div class="card">
+      <h2>Ride-Share Driver Profit</h2>
+      <div class="subtitle">Why drivers depend on tips</div>
+      <p>For a typical <strong>28-mile airport trip</strong>, after the rideshare platform takes its cut, the driver receives $30. But that isn't profit — here's where it actually goes:</p>
+      <div class="earnings-viz">
+        <div class="earnings-row gross"><span>💰 Driver receives (after platform cut)</span><span>$30.00</span></div>
+        <div class="earnings-row expense"><span>📉 Depreciation</span><span>$4.84</span></div>
+        <div class="earnings-row expense"><span>📊 Tax preparation</span><span>$0.33</span></div>
+        <div class="earnings-row expense"><span>🔧 Maintenance</span><span>$4.34</span></div>
+        <div class="earnings-row expense"><span>⛽ Gas</span><span>$3.77</span></div>
+        <div class="earnings-row expense"><span>🛣️ Non-reimbursed tolls</span><span>$0.60</span></div>
+        <div class="earnings-row expense"><span>🚗 Insurance</span><span>$4.17</span></div>
+        <div class="earnings-row expense"><span>🏥 Vision, dental, health insurance</span><span>$3.05</span></div>
+        <div class="earnings-row expense"><span>📱 Phone, charging, modifications</span><span>$2.37</span></div>
+        <div class="earnings-row expense"><span>🧾 Taxes</span><span>$0.00</span></div>
+        <div class="earnings-row profit"><span>✨ Actual Profit</span><span>$6.53</span></div>
+      </div>
+      <div class="fact-box"><strong>This is even less when factoring in the unpaid pickup trip.</strong> Low ratings for things outside a driver's control (missed turns, traffic, subjective complaints) can cost them platform access. That's why a small tip means a lot.</div>
+    </div>
+  </div>
+
+  <!-- RATINGS -->
+  <div class="section" id="sec-ratings">
+    <div class="card">
+      <h2>Why Ratings Matter More for Some Drivers</h2>
+      <div class="subtitle">Special driver eligibility</div>
+      <ul class="rule-list">
+        <li class="rule-item"><div class="rule-num">!</div><div class="rule-content"><h3>Special Background Checks</h3><p>Some drivers undergo <span class="highlight">special background checks</span> to drive military families to and from their base.</p></div></li>
+        <li class="rule-item"><div class="rule-num">!</div><div class="rule-content"><h3>Base Access</h3><p>Without this eligibility, drivers can only drop families at the security gate — they must walk to their barracks.</p></div></li>
+        <li class="rule-item"><div class="rule-num">!</div><div class="rule-content"><h3>Low Ratings = Lost Access</h3><p>Low ratings for a missed turn, traffic, or subjective complaints can cause drivers to <span class="highlight">lose platform access</span>.</p></div></li>
+        <li class="rule-item"><div class="rule-num">!</div><div class="rule-content"><h3>4 Stars Is Considered Bad</h3><p>Anything less than 5 stars for a safe A-to-B ride should be reserved for serious issues.</p></div></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Star Ratings Matter</h2>
+      <div class="subtitle">Your driver is not a chauffeur</div>
+      <p>Drivers are not chauffeurs — they're regular people making a living, often supporting families. Special programs like driving military families require <span class="highlight">5-star averages</span>. Anything less can permanently cost a driver their job.</p>
+      <p style="margin-top:15px">When in doubt: was it a safe A-to-B ride? Give 5 stars. Save lower ratings for genuine, serious problems.</p>
+    </div>
+  </div>
+
+  <!-- QUIZ -->
+  <div class="section" id="sec-quiz">
+    <div class="card">
+      <h2>🎯 Quiz Time!</h2>
+      <div class="subtitle">Think you were paying attention? Let's find out!</div>
+      <div id="quizContainer"><div class="quiz-q"><h3>Q1. How many doors must an UberX vehicle have?</h3><div class="quiz-opts mc" id="q0opts"><div class="quiz-opt disabled" data-q="0" data-i="0">A) 2 Doors</div><div class="quiz-opt disabled correct" data-q="0" data-i="1">B) 4 Doors</div><div class="quiz-opt disabled" data-q="0" data-i="2">C) 6 Doors</div></div><div class="feedback show right" id="q0fb">✅ Correct! 4 Doors is the minimum requirement for UberX — for passenger safety and convenience.</div></div><div class="quiz-q"><h3>Q2. "Drivers need customer service experience to drive for Uber."</h3><div class="quiz-opts tf" id="q1opts"><div class="quiz-opt" data-q="1" data-i="0">TRUE</div><div class="quiz-opt" data-q="1" data-i="1">FALSE</div></div><div class="feedback" id="q1fb"></div></div><div class="quiz-q"><h3>Q3. MYTH or FACT: "4 stars is still a good rating for my driver."</h3><div class="quiz-opts tf" id="q2opts"><div class="quiz-opt" data-q="2" data-i="0">FACT</div><div class="quiz-opt" data-q="2" data-i="1">MYTH</div></div><div class="feedback" id="q2fb"></div></div><div class="quiz-q"><h3>Q4. "Any Uber driver can pick up and drop off passengers on a military base."</h3><div class="quiz-opts tf" id="q3opts"><div class="quiz-opt" data-q="3" data-i="0">TRUE</div><div class="quiz-opt" data-q="3" data-i="1">FALSE</div></div><div class="feedback" id="q3fb"></div></div></div>
+      <div class="score-board" id="scoreBoard">
+        <h2>🏆 How Did You Do?</h2>
+        <div class="score-num" id="scoreNum">0 / 4</div>
+        <p id="scoreMsg" style="font-size:1.2em">Great job!</p>
+        <button class="btn" onclick="resetQuiz()">🔄 Try Again</button>
+        <button class="btn" onclick="showSec('final')">🚀 Take the Final Test</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FINAL -->
+  <div class="section" id="sec-final">
+    <div class="final-test">
+      <h2>🏆 Final Understanding Test</h2>
+      <div class="subtitle" style="text-align:center">Do you truly understand rideshare? 8 questions, no peeking!</div>
+      <div id="finalContainer"><div class="quiz-q"><h3>Q1. Why do drivers depend on tips? (For a 28-mile airport trip after the platform's cut)</h3><div class="quiz-opts mc" id="fq0opts"><div class="quiz-opt" data-fq="0" data-fi="0">Drivers receive $30 and that's pure profit</div><div class="quiz-opt" data-fq="0" data-fi="1">Drivers receive $30 but only ~$6.53 is actual profit</div><div class="quiz-opt" data-fq="0" data-fi="2">Tips are split with the platform</div><div class="quiz-opt" data-fq="0" data-fi="3">Drivers don't actually need tips</div></div><div class="feedback" id="fq0fb"></div></div><div class="quiz-q"><h3>Q2. What's the minimum age for an UberX vehicle?</h3><div class="quiz-opts mc" id="fq1opts"><div class="quiz-opt" data-fq="1" data-fi="0">5 years or newer</div><div class="quiz-opt" data-fq="1" data-fi="1">10 years or newer</div><div class="quiz-opt" data-fq="1" data-fi="2">16 years or newer</div><div class="quiz-opt" data-fq="1" data-fi="3">25 years or newer</div></div><div class="feedback" id="fq1fb"></div></div><div class="quiz-q"><h3>Q3. Which of these is NOT a requirement to become a driver?</h3><div class="quiz-opts mc" id="fq2opts"><div class="quiz-opt" data-fq="2" data-fi="0">At least 25 years old</div><div class="quiz-opt" data-fq="2" data-fi="1">Clean background check</div><div class="quiz-opt" data-fq="2" data-fi="2">Valid auto insurance</div><div class="quiz-opt" data-fq="2" data-fi="3">Customer service experience</div></div><div class="feedback" id="fq2fb"></div></div><div class="quiz-q"><h3>Q4. What does an UberXL vehicle require?</h3><div class="quiz-opts mc" id="fq3opts"><div class="quiz-opt" data-fq="3" data-fi="0">Must seat 6-7+ passengers, 16 years or newer</div><div class="quiz-opt" data-fq="3" data-fi="1">Must be a luxury sedan</div><div class="quiz-opt" data-fq="3" data-fi="2">Must be electric</div><div class="quiz-opt" data-fq="3" data-fi="3">Must be brand new</div></div><div class="feedback" id="fq3fb"></div></div><div class="quiz-q"><h3>Q5. What's the BIG advantage of rideshare over traditional taxis?</h3><div class="quiz-opts mc" id="fq4opts"><div class="quiz-opt" data-fq="4" data-fi="0">Drivers wear uniforms</div><div class="quiz-opt" data-fq="4" data-fi="1">Cars are always new</div><div class="quiz-opt" data-fq="4" data-fi="2">Transparent pricing, ratings, GPS tracking, and ~half the cost</div><div class="quiz-opt" data-fq="4" data-fi="3">Free rides on weekends</div></div><div class="feedback" id="fq4fb"></div></div><div class="quiz-q"><h3>Q6. If you got a perfectly safe, on-time ride from A to B — what rating should you give?</h3><div class="quiz-opts mc" id="fq5opts"><div class="quiz-opt" data-fq="5" data-fi="0">3 stars (it was fine)</div><div class="quiz-opt" data-fq="5" data-fi="1">4 stars (good but not great)</div><div class="quiz-opt" data-fq="5" data-fi="2">5 stars (the standard)</div><div class="quiz-opt" data-fq="5" data-fi="3">Don't rate them</div></div><div class="feedback" id="fq5fb"></div></div><div class="quiz-q"><h3>Q7. Why is access to military bases special for some drivers?</h3><div class="quiz-opts mc" id="fq6opts"><div class="quiz-opt" data-fq="6" data-fi="0">The pay is double</div><div class="quiz-opt" data-fq="6" data-fi="1">They need special background checks and high ratings</div><div class="quiz-opt" data-fq="6" data-fi="2">All drivers can do it</div><div class="quiz-opt" data-fq="6" data-fi="3">The platform doesn't allow it</div></div><div class="feedback" id="fq6fb"></div></div><div class="quiz-q"><h3>Q8. What's the right takeaway about rideshare drivers?</h3><div class="quiz-opts mc" id="fq7opts"><div class="quiz-opt" data-fq="7" data-fi="0">They're chauffeurs paid by the platform</div><div class="quiz-opt" data-fq="7" data-fi="1">They're everyday people who own their cars, pay all expenses, and rely on tips</div><div class="quiz-opt" data-fq="7" data-fi="2">The platform pays for everything</div><div class="quiz-opt" data-fq="7" data-fi="3">They're hired employees with benefits</div></div><div class="feedback" id="fq7fb"></div></div></div>
+      <div class="score-board" id="finalScoreBoard">
+        <h2 id="finalTitle">🎉 You Did It!</h2>
+        <div class="score-num" id="finalScoreNum">0 / 8</div>
+        <p id="finalScoreMsg" style="font-size:1.2em"></p>
+        <p style="margin-top:20px;font-size:1em;opacity:0.9" id="finalCertify"></p>
+        <button class="btn" onclick="resetFinal()">🔄 Retake</button>
+        <button class="btn" onclick="showSec('home')">🏠 Back to Start</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="claude-static-indicator-container" style="position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); align-items: center; justify-content: center; padding: 6px 6px 6px 16px; background: rgb(250, 249, 245); border: 0.5px solid rgba(31, 30, 29, 0.3); border-radius: 14px; box-shadow: rgba(0, 0, 0, 0.15) 0px 40px 80px 0px; z-index: 2147483647; pointer-events: none; white-space: nowrap; user-select: none; font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, &quot;Helvetica Neue&quot;, Arial, sans-serif;">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; flex-shrink: 0; margin-right: 8px;">
+        <path d="M3.13946 10.6399L6.28757 8.87462L6.37405 8.73821L6.28757 8.6339H6.13189L5.60432 8.6018L3.80541 8.55366L2.24865 8.48947L0.735135 8.40923H0.492973L0.354595 8.32899L0.181622 8.1685L0.0345946 8.01605L0 7.85557L0.0345946 7.62287L0.138378 7.44634L0.224865 7.40622H0.354595L0.812973 7.44634L1.82486 7.51856L3.34703 7.62287L4.44541 7.68706L6.08 7.85557H6.33946L6.37405 7.75125L6.28757 7.68706L6.21838 7.62287L4.64432 6.55567L2.94054 5.4323L2.04973 4.78235L1.57405 4.45336L1.33189 4.14845L1.22811 3.92377L1.17622 3.69107L1.22811 3.47442L1.33189 3.28185L1.46162 3.13741L1.66054 2.99298H1.87676L2.24865 3.0331L2.39568 3.07322L2.99243 3.53059L4.26378 4.51755L5.92432 5.73721L6.16649 5.93781H6.27892V5.82548L6.16649 5.64092L5.26703 4.01204L4.30703 2.35105L3.87459 1.66098L3.76216 1.25176C3.7391 1.16082 3.69297 0.977332 3.69297 0.970913V0.762287L3.77946 0.505517L3.93513 0.240722L4.18595 0.0882648L4.4627 0H4.67892L4.83459 0.0240722L5.12865 0.0882648L5.4054 0.328987L5.82054 1.27583L6.48649 2.76028L7.52432 4.78235L7.82703 5.38415L7.99135 5.93781L8.05189 6.10632H8.15567V6.01003L8.24216 4.87061L8.39784 3.47442L8.55351 1.67703L8.6054 1.17151L8.85622 0.561685L8.9773 0.417252L9.21946 0.232698H9.35784L9.74703 0.417252L9.97189 0.665998L10.067 0.874624L10.0238 1.17151L9.83351 2.40722L9.46162 4.34102L9.21946 5.64092H9.35784L9.52216 5.47242L10.1795 4.60582L11.2778 3.22568L11.7622 2.68004L12.333 2.07823L12.6962 1.78937L13.0162 1.67703L13.3881 1.78937L13.7168 2.06219L13.8897 2.54363V2.76028L13.6649 3.32197L12.9557 4.22066L12.3676 4.98295L12.0043 5.56871L11.0011 7.02106V7.08526H11.1741L13.0768 6.67603L14.1059 6.49147L15.3341 6.28285L15.5762 6.34704L15.8876 6.53962L15.9481 6.80441L15.8876 7.12538L15.7319 7.34203L14.4173 7.66299L12.8778 7.97593L10.5854 8.51559C10.5705 8.51909 10.56 8.53236 10.56 8.54764C10.56 8.56468 10.573 8.57891 10.59 8.58044L11.6238 8.67402L12.0649 8.69809H13.1459L15.1611 8.85055L15.6886 9.19559L15.9481 9.39619L16 9.62086L15.9481 9.94985L15.8443 10.1023L15.4119 10.3029L15.1351 10.3591L14.0454 10.1023L11.4941 9.49248L10.6205 9.27583H10.4995V9.34804L11.2259 10.0622L12.5665 11.2658L14.2357 12.8225L14.3222 13.0953V13.2076L14.1059 13.5125L13.9243 13.5206L13.8811 13.4804L12.4108 12.3731L12.2984 12.325L11.84 11.8756L10.56 10.7924H10.4735V10.9047L10.7676 11.338L12.333 13.6891L12.4108 14.4112L12.2984 14.6439L11.8919 14.7884L11.667 14.7563L11.4508 14.7081L11.2605 14.5396L10.5254 13.4162L9.5827 11.9719L8.82162 10.672H8.79342C8.76039 10.672 8.73278 10.6972 8.7297 10.73L8.27676 15.5667L8.06919 15.8154L7.6454 16H7.58486L7.17838 15.6951L6.96216 15.1976L7.17838 14.2106L7.43784 12.9268L7.6454 11.9077L7.83567 10.6399L7.95187 10.2164C7.9548 10.2057 7.95069 10.1944 7.94161 10.1881C7.91157 10.1672 7.87034 10.1741 7.84878 10.2037L6.89297 11.5145L5.44 13.4804L4.28973 14.7081L4.01297 14.8205H3.80541L3.5373 14.5717V14.4514L3.58054 14.1304L3.84865 13.7372L5.44 11.7151L6.4 10.4554L7.01872 9.73222C7.04511 9.70139 7.04245 9.65523 7.0127 9.62763C7.00333 9.61894 6.98925 9.61773 6.97854 9.62471L2.75027 12.3811L1.99784 12.4774L1.66919 12.1725L1.71243 11.675L1.86811 11.5145L3.13946 10.6399Z" fill="#D97757"></path>
+      </svg>
+      <span style="vertical-align: middle; color: #141413; font-size: 14px; display: inline-block;">Claude is active in this tab group</span>
+      <div style="display: inline-block; width: 0.5px; height: 32px; background: rgba(31, 30, 29, 0.15); margin: 0 8px; vertical-align: middle;"></div>
+      <button id="claude-static-chat-button" style="position: relative; display: inline-flex; align-items: center; justify-content: center; padding: 6px; background: transparent; border: none; cursor: pointer; pointer-events: auto; vertical-align: middle; width: 32px; height: 32px; border-radius: 8px; transition: background 0.2s;">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="#141413" xmlns="http://www.w3.org/2000/svg" style="width: 20px; height: 20px; display: block;">
+          <path d="M10 2.5C14.1421 2.5 17.5 5.85786 17.5 10C17.5 14.1421 14.1421 17.5 10 17.5H3C2.79779 17.5 2.61549 17.3782 2.53809 17.1914C2.4607 17.0046 2.50349 16.7895 2.64648 16.6465L4.35547 14.9365C3.20124 13.6175 2.5 11.8906 2.5 10C2.5 5.85786 5.85786 2.5 10 2.5ZM10 3.5C6.41015 3.5 3.5 6.41015 3.5 10C3.5 11.7952 4.22659 13.4199 5.40332 14.5967L5.46582 14.6729C5.52017 14.7544 5.5498 14.8508 5.5498 14.9502C5.5498 15.0828 5.49709 15.2099 5.40332 15.3037L4.20703 16.5H10C13.5899 16.5 16.5 13.5899 16.5 10C16.5 6.41015 13.5899 3.5 10 3.5ZM13.29 9.30371C13.3986 9.05001 13.6925 8.93174 13.9463 9.04004C14.2 9.14863 14.3183 9.44253 14.21 9.69629C13.8506 10.536 13.1645 11.25 12.25 11.25C11.6372 11.25 11.128 10.9289 10.75 10.4648C10.372 10.9289 9.86276 11.25 9.25 11.25C8.63724 11.25 8.12801 10.9289 7.75 10.4648C7.37198 10.9289 6.86276 11.25 6.25 11.25C5.97386 11.25 5.75 11.0261 5.75 10.75C5.75 10.4739 5.97386 10.25 6.25 10.25C6.58764 10.25 7.00448 9.97056 7.29004 9.30371L7.32422 9.2373C7.41431 9.09121 7.5749 9 7.75 9C7.9501 9 8.13123 9.11975 8.20996 9.30371L8.32227 9.53516C8.59804 10.0359 8.95442 10.25 9.25 10.25C9.58764 10.25 10.0045 9.97056 10.29 9.30371L10.3242 9.2373C10.4143 9.09121 10.5749 9 10.75 9C10.9501 9 11.1312 9.11975 11.21 9.30371L11.3223 9.53516C11.598 10.0359 11.9544 10.25 12.25 10.25C12.5876 10.25 13.0045 9.97056 13.29 9.30371Z"></path>
+        </svg>
+        <span id="claude-static-chat-tooltip" style="position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%); padding: 6px 12px; background: #30302E; color: #FAF9F5; border-radius: 6px; font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">Open chat</span>
+      </button>
+      <button id="claude-static-close-button" style="position: relative; display: inline-flex; align-items: center; justify-content: center; padding: 6px; background: transparent; border: none; cursor: pointer; pointer-events: auto; vertical-align: middle; width: 32px; height: 32px; margin-left: 4px; border-radius: 8px; transition: background 0.2s;">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 20px; height: 20px; display: block;">
+          <path d="M15.1464 4.14642C15.3417 3.95121 15.6582 3.95118 15.8534 4.14642C16.0486 4.34168 16.0486 4.65822 15.8534 4.85346L10.7069 9.99997L15.8534 15.1465C16.0486 15.3417 16.0486 15.6583 15.8534 15.8535C15.6826 16.0244 15.4186 16.0461 15.2245 15.918L15.1464 15.8535L9.99989 10.707L4.85338 15.8535C4.65813 16.0486 4.34155 16.0486 4.14634 15.8535C3.95115 15.6583 3.95129 15.3418 4.14634 15.1465L9.29286 9.99997L4.14634 4.85346C3.95129 4.65818 3.95115 4.34162 4.14634 4.14642C4.34154 3.95128 4.65812 3.95138 4.85338 4.14642L9.99989 9.29294L15.1464 4.14642Z" fill="#141413"></path>
+        </svg>
+        <span id="claude-static-close-tooltip" style="position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%); padding: 6px 12px; background: #30302E; color: #FAF9F5; border-radius: 6px; font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">Dismiss</span>
+      </button>
+    </div></body></html>

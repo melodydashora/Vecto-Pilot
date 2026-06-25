@@ -79,7 +79,7 @@ function reconstructGcpCredentials() {
   console.log('[CONFIG] [ENV] Reconstructing GCP service account credentials from individual env vars...');
 
   // Handle private_key: Replit Secrets may store \n as literal two-char sequence
-  let privateKey = process.env.private_key || '';
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY_ID || '';
   if (privateKey && !privateKey.includes('\n')) {
     privateKey = privateKey.replace(/\\n/g, '\n');
   }
