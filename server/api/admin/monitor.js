@@ -20,6 +20,7 @@
 
 import express, { Router } from 'express';
 import pkg from 'pg';
+import rateLimit from 'express-rate-limit';
 import { sql } from 'drizzle-orm';
 import { db } from '../../db/drizzle.js';
 import { offer_intelligence } from '../../../shared/schema.js';
@@ -31,6 +32,22 @@ const router = Router();
 // Auth first (reject unauthenticated before parsing a body), then JSON parsing.
 router.use(requireAgentOnly);
 router.use(express.json({ limit: '64kb' }));
+
+const monitorReadLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited', message: 'Too many requests. Please retry shortly.' },
+});
+
+const monitorQueryLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited', message: 'Too many query requests. Please retry shortly.' },
+});
 
 const MAX_ROWS = 1000;
 const STMT_TIMEOUT_MS = 10000;
@@ -53,7 +70,7 @@ function getReadonlyPool() {
 
 // ─── GET /api/admin/offer-monitor ─────────────────────────────────────────────
 // Fleet-wide recent offers + aggregate stats. Fixed Drizzle query (no user SQL).
-router.get('/offer-monitor', async (req, res) => {
+router.get('/offer-monitor', monitorReadLimiter, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 500);
     const rows = await db
@@ -107,7 +124,7 @@ router.get('/offer-monitor', async (req, res) => {
 
 // ─── POST /api/admin/query ────────────────────────────────────────────────────
 // Arbitrary read-only SELECT, executed under the dedicated read-only role.
-router.post('/query', async (req, res) => {
+router.post('/query', monitorQueryLimiter, async (req, res) => {
   const pool = getReadonlyPool();
   if (!pool) {
     return res.status(503).json({
