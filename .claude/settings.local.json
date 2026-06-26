@@ -380,7 +380,11 @@
       "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/eventMatchupDedup.test.js)",
       "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/auth-token-validation.test.js tests/blocksApi.test.js tests/coach-schema.test.js tests/coach-validation.test.js tests/near-event-ranking.test.js tests/rideshare-coach-schema.test.js tests/schema-validation.test.js)",
       "Bash(sed -n '62,90p' client/src/components/MapTab.tsx)",
-      "Bash(sed -n '113,200p' client/src/components/strategy/StrategyMap.tsx)"
+      "Bash(sed -n '113,200p' client/src/components/strategy/StrategyMap.tsx)",
+      "Bash(ps -eo pid,etime,args)",
+      "Skill(claude-api)",
+      "Bash(npx vitest *)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/offers/rules-engine-parity.test.js)"
     ],
     "deny": [],
     "ask": []

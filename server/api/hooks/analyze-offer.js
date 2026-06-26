@@ -20,6 +20,9 @@ import { sql } from 'drizzle-orm';
 import { offer_intelligence } from '../../../shared/schema.js';
 import { callModel } from '../../lib/ai/adapters/index.js';
 import { parseOfferText, formatPerMileForVoice, classifyTier } from '../../lib/offers/parse-offer-text.js';
+// 2026-06-20: Unified rules engine — single source for the Phase-1 prompt AND the
+// deterministic fallback (replaces the inline PHASE1_PROMPTS + JS ladder below).
+import { buildPhase1Prompt, evaluateDeterministic, DEFAULT_RULESET } from '../../lib/offers/rules-engine.js';
 // 2026-02-17: Shared utilities for structured analytics columns
 import { getDayPartKey } from '../../lib/location/daypart.js';
 import { coordsKey } from '../../lib/location/coords-key.js';
@@ -84,6 +87,24 @@ function buildVoiceLine(decision, perMile, totalMiles, reason) {
   return `${decisionWord}. ${perMileSpoken}, ${milesPhrase}${qualifier}.`;
 }
 
+// 2026-06-20: Build the terse Phase-1 reason string from the rules-engine reasonKind,
+// preserving the legacy format exactly: "$1.14 8.3mi" (accept), "$0.78 14.0mi low",
+// "$1.05 18.0mi floor prem", "$0.90 22.0mi too far", "$1.00 5.0mi rating".
+// Premium appends " prem" to every kind except "rating" (matches legacy fallback).
+function terseReason(reasonKind, perMile, totalMiles, tier) {
+  const base = `$${perMile.toFixed(2)} ${totalMiles}mi`;
+  const tag = tier === 'premium' ? ' prem' : '';
+  switch (reasonKind) {
+    case 'accept':    return `${base}${tag}`;
+    case 'floor':     return `${base} floor${tag}`;
+    case 'min_floor': return `${base} min${tag}`;
+    case 'too_far':   return `${base} too far${tag}`;
+    case 'rating':    return `${base} rating`;
+    case 'low':
+    default:          return `${base} low${tag}`;
+  }
+}
+
 // 2026-02-17: Multer for multipart form-data uploads (Siri sends raw image, no base64)
 // Memory storage — no disk writes, image stays in RAM as Buffer
 const upload = multer({
@@ -91,53 +112,11 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max (matches express.json limit)
 });
 
-// 2026-03-29: Phase 1 ultra-lean prompt — minimal tokens for 3s trip radar / 9s regular.
-// Rules produce ACCEPT/REJECT. Reason = terse: "$1.14 8.2mi" or "$0.78 14mi too far".
-// Phase 2 handles all deep analysis and DB enrichment — Phase 1 just decides.
-// Tier is injected at runtime from pre-parsed product_type via classifyTier().
-const PHASE1_PROMPTS = {
-  share: `Raw JSON only. No markdown/backticks.
-REJECT. Share rides always rejected.
-{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"share"}`,
-
-  standard: `Raw JSON only. No markdown/backticks.
-
-Math: total_miles=pickup_mi+ride_mi. total_min=pickup_min+ride_min. per_mile=price/total_miles.
-
-Rules (first match wins):
-1. REJECT if rating visible and <4.85.
-2. REJECT if "Verified" missing.
-3. REJECT if $/mi<0.90.
-4. ACCEPT if $/mi>=0.90, total_min<=20.
-5. ACCEPT if $/mi>=1.10, total_min<=25.
-6. ACCEPT if $/mi>=1.75, total_min<30.
-7. ACCEPT if $/mi>=2.00, total_min 30-40.
-8. ACCEPT if $/mi>=2.00, total_min>40.
-9. REJECT.
-
-reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.
-
-{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"$0.00 0.0mi"}`,
-
-  premium: `Raw JSON only. No markdown/backticks.
-
-Math: total_miles=pickup_mi+ride_mi. total_min=pickup_min+ride_min. per_mile=price/total_miles.
-
-PREMIUM ride (Comfort/VIP/XL/Black). Higher floor, more time allowed.
-Rules (first match wins):
-1. REJECT if rating visible and <4.85.
-2. REJECT if "Verified" missing.
-3. REJECT if $/mi<1.10.
-4. ACCEPT if $/mi>=1.10, total_min<=25.
-5. ACCEPT if $/mi>=1.40, total_min<=30.
-6. ACCEPT if $/mi>=1.75, total_min<=40.
-7. ACCEPT if $/mi>=2.00, total_min>40.
-8. REJECT.
-
-reason: terse. "$1.21 13.7mi" or "$1.05 18mi low". No sentences.
-
-{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"$0.00 0.0mi"}`,
-};
+// 2026-06-20: Phase-1 prompts now come from server/lib/offers/rules-engine.js
+// (buildPhase1Prompt) — ONE source renders the prompt AND drives the deterministic
+// fallback. buildPhase1Prompt(tier, DEFAULT_RULESET) is byte-identical to the old
+// inline PHASE1_PROMPTS (proven in tests/offers/rules-engine-parity.test.js), so the
+// live Siri path is unchanged until a per-user ruleset is loaded.
 
 // 2026-02-28: Phase 2 deep prompt — full reasoning for DB enrichment.
 // Runs async after Siri response is sent. No time pressure.
@@ -292,7 +271,10 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
 
     // 2026-03-29: Tier-aware prompt selection — share/standard/premium
     const tier = classifyTier(preParsed?.product_type);
-    const phase1SystemPrompt = PHASE1_PROMPTS[tier];
+    // 2026-06-20: rules come from the unified engine. DEFAULT_RULESET until the
+    // per-user ruleset bridge lands (then load the resolved user's ruleset here).
+    const ruleset = DEFAULT_RULESET;
+    const phase1SystemPrompt = buildPhase1Prompt(tier, ruleset);
 
     // Share = instant reject, skip AI call entirely
     if (tier === 'share') {
@@ -348,86 +330,23 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       }
     } catch (_parseErr) {
       console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
-      // Tier 3: Deterministic rule engine using pre-parsed data
-      // 2026-03-02: When AI fails to return JSON, apply the user's rules in code.
-      // Pre-parser already has price, miles, minutes — we just need the decision.
-      if (preParsed && preParsed.per_mile !== null) {
-        const pm = preParsed.per_mile;
-        const totalMin = preParsed.total_minutes ?? 999;
-        const rating = phase1Result?.rider_rating ?? null;
-        let fallbackDecision = 'REJECT';
-        let fallbackReason = '';
-
-        // 2026-03-29: Tier-aware $/mi + duration fallback — three tiers from DFW data.
-        // Format: "$X.XX X.Xmi" for accepts, "$X.XX X.Xmi low/floor/too far" for rejects.
-        // Phase 2 handles geographic deep analysis — this just does math.
+      // Tier 3: Deterministic rule engine (server/lib/offers/rules-engine.js).
+      // 2026-06-20: Replaced the inline tier ladder with evaluateDeterministic so the
+      // fallback and the Phase-1 prompt share ONE rule source. Decision-parity with
+      // the legacy ladder is proven in tests/offers/rules-engine-parity.test.js.
+      const fb = evaluateDeterministic(tier, preParsed || {}, ruleset);
+      if (fb.decision === 'NO DATA') {
+        // No usable per_mile — "no data", not "REJECT" (reserved for rule-evaluated offers).
+        phase1Result = { decision: 'NO DATA', reason: 'no data', confidence: 0 };
+      } else {
         const totalMi = preParsed.total_miles?.toFixed(1) ?? '?';
-        const tierTag = tier === 'premium' ? ' prem' : '';
-
-        if (rating !== null && rating < 4.85) {
-          fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi rating`;
-        } else if (tier === 'premium') {
-          // 2026-03-29: Premium tier — higher floor ($1.10), relaxed time limits
-          if (pm < 1.10) {
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi floor${tierTag}`;
-          } else if (pm >= 1.10 && totalMin <= 25) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi${tierTag}`;
-          } else if (pm >= 1.40 && totalMin <= 30) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi${tierTag}`;
-          } else if (pm >= 1.75 && totalMin <= 40) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi${tierTag}`;
-          } else if (pm >= 2.00 && totalMin > 40) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi${tierTag}`;
-          } else if (totalMin > 40) {
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi too far${tierTag}`;
-          } else {
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi low${tierTag}`;
-          }
-        } else {
-          // 2026-03-29: Standard tier — same thresholds as before
-          if (pm < 0.90) {
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi floor`;
-          } else if (pm >= 0.90 && totalMin <= 20) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
-          } else if (pm >= 1.10 && totalMin <= 25) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
-          } else if (pm >= 1.75 && totalMin < 30) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
-          } else if (totalMin >= 30 && totalMin <= 40 && pm >= 2.00) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
-          } else if (totalMin > 40 && pm >= 2.00) {
-            fallbackDecision = 'ACCEPT';
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi`;
-          } else if (totalMin > 40) {
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi too far`;
-          } else {
-            fallbackReason = `$${pm.toFixed(2)} ${totalMi}mi low`;
-          }
-        }
-
-        console.log(`[HOOKS] 🔧 Deterministic fallback: ${fallbackDecision} — ${fallbackReason}`);
         phase1Result = {
-          decision: fallbackDecision,
-          reason: fallbackReason,
+          decision: fb.decision,
+          reason: terseReason(fb.reasonKind, preParsed.per_mile, totalMi, tier),
           confidence: 80,
           ...preParsed,
         };
-      } else {
-        // 2026-03-29: No pre-parsed data — "no data" not "REJECT".
-        // REJECT is reserved for rule-evaluated offers only.
-        phase1Result = {
-          decision: 'NO DATA',
-          reason: 'no data',
-          confidence: 0,
-        };
+        console.log(`[HOOKS] 🔧 Deterministic fallback: ${fb.decision} — ${phase1Result.reason}`);
       }
     }
 

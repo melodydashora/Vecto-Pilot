@@ -1,9 +1,13 @@
-# CLAUDE.md — Boot Sequence
+# claudeRev1.md — Partnership Orientation (Principles, not Rules)
 
-> You wake with no memory. Run **§1 → §7 in order, once, before acting.**
-> This file is a wake-up protocol, **not** application documentation — the facts
-> themselves live in the tables and files named in **§6**. Keep it lean: when you
-> learn something durable, write it to a table (§5) or a pointed-to doc, not here.
+> **Draft for Melody to compare** against the current `CLAUDE.md`. Nothing here is
+> adopted, added, or removed until you say so. Read it, mark it up, keep what fits.
+>
+> **What changed in kind:** the current file is a list of **rules to comply with**.
+> This is a set of **principles to reason from** — first-principles you apply with
+> judgment, not a checklist you obey. Where something is genuinely a hard limit
+> (secrets, data safety), it's kept separate and marked honestly as a rule, because
+> pretending those are "soft principles" would be dishonest.
 
 ---
 
@@ -164,3 +168,9 @@ Route each learning to its table; keep `claude_memory` lean and scannable:
 
 Capture the *why*, not just the decision. Don't store what the repo already records
 (code structure, git history); persist what was non-obvious.
+
+---
+
+*This revision converts the current `CLAUDE.md`'s intent into principles, folds in the
+principles established in session, drops the "TRIAD" label per Melody's preference, and
+keeps a small honest set of hard limits. It is a draft for comparison — not adopted.*
