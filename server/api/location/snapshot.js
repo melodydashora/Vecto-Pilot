@@ -12,9 +12,8 @@ import { httpError } from "../utils/http-helpers.js";
 import { makeCoordsKey } from "../../lib/location/coords-key.js";
 // 2026-07-06: daypart adapter — never trust/store a client daypart string verbatim
 import { normalizeDayPartKey, getDayPartKey } from "../../lib/location/daypart.js";
-// 2026-07-06: holiday is a required snapshot field — detected server-side on
-// every write path, never trusted from the client, never defaulted
-import { detectHoliday } from "../../lib/location/holiday-detector.js";
+// 2026-07-06: holiday detection lives in the briefing pipeline
+// (server/lib/briefing/pipelines/holiday.js) — NOT at snapshot creation
 // 2026-03-17: Moved import to top — now used by both POST and GET routes
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -127,30 +126,10 @@ router.post("/", requireAuth, async (req, res) => {
     const parts = formatter.formatToParts(createdAtDate);
     const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
 
-    // 2026-07-06: Holiday is REQUIRED on every snapshot row (header aesthetics
-    // + LLM waterfall). Server-side detection; failure fails the request —
-    // a defaulted 'none' is bad data in every downstream call.
-    let holidayInfo;
-    try {
-      holidayInfo = await detectHoliday({
-        created_at: createdAtDate.toISOString(),
-        city,
-        state,
-        country,
-        timezone: driverTimezone,
-        // Everything the snapshot has resolved so far — global grounding
-        formattedAddress: formatted_address ?? null,
-        lat,
-        lng,
-      });
-    } catch (holidayErr) {
-      console.error('[SNAPSHOT] Holiday detection failed — snapshot rejected:', holidayErr.message);
-      return res.status(502).json({
-        ok: false,
-        error: 'holiday_detection_failed',
-        message: holidayErr.message
-      });
-    }
+    // 2026-07-06: holiday detection moved to the briefing pipeline
+    // (pipelines/holiday.js) — it runs with the COMPLETE snapshot row and a
+    // model outage degrades the briefing with a recorded reason instead of
+    // failing snapshot creation. The snapshot stays purely deterministic.
 
     const dbSnapshot = {
       snapshot_id,
@@ -173,9 +152,6 @@ router.post("/", requireAuth, async (req, res) => {
       dow: typeof dow === 'number' ? dow : null,
       hour: typeof hour === 'number' ? hour : null,
       day_part_key: day_part_key || null,
-      // Holiday context (required — detected server-side above)
-      holiday: holidayInfo.holiday,
-      is_holiday: holidayInfo.is_holiday,
       // API data
       weather: snap.weather || null,
       air: snap.air || null,
@@ -308,8 +284,7 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
       weather: snapshot.weather,
       air: snapshot.air,
       // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
-      holiday: snapshot.holiday,
-      is_holiday: snapshot.is_holiday,
+      // 2026-07-06: holiday dropped - now in briefings.holiday (aggregate endpoint)
       h3_r8: snapshot.h3_r8,
       created_at: snapshot.created_at?.toISOString()
     });

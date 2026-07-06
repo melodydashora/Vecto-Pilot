@@ -57,9 +57,7 @@ export async function getSnapshotContext(snapshotId, options = {}) {
     day_part_key: snapshot.day_part_key,
     local_iso: snapshot.local_iso,
     created_at: snapshot.created_at,
-    // Holiday
-    holiday: snapshot.holiday,
-    is_holiday: snapshot.is_holiday,
+    // 2026-07-06: holiday moved to briefings.holiday
     // Conditions (needed for strategist prompt)
     weather: snapshot.weather,
     air: snapshot.air
@@ -79,7 +77,6 @@ export async function getSnapshotContext(snapshotId, options = {}) {
     hour: ctx.hour,
     dow: ctx.dow,
     day_part_key: ctx.day_part_key,
-    is_holiday: ctx.is_holiday,
     weather: ctx.weather ? { tempF: ctx.weather.tempF, conditions: ctx.weather.conditions } : null,
     air: ctx.air ? { aqi: ctx.air.aqi, category: ctx.air.category } : null
   });
@@ -133,9 +130,7 @@ export async function getFullSnapshot(snapshotId) {
     iso_timestamp: snapshot.created_at?.toISOString(),
     created_at: snapshot.created_at,
 
-    // Holiday
-    holiday: snapshot.holiday,
-    is_holiday: snapshot.is_holiday,
+    // 2026-07-06: holiday moved to briefings.holiday
 
     // Enriched data
     weather: snapshot.weather,

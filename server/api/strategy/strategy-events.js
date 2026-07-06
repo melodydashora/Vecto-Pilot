@@ -226,6 +226,7 @@ router.get('/events/briefing', requireAuthAllowQueryToken, async (req, res) => {
       'briefing_news_ready',
       'briefing_airport_ready',
       'briefing_school_closures_ready',
+      'briefing_holiday_ready', // 2026-07-06: holiday moved from snapshot to briefing
     ];
     const unsubscribers = [];
 

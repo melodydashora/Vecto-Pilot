@@ -556,6 +556,13 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
           ...(briefing.airport_conditions || {}),
           _generationFailed: sectionFailed(briefing.airport_conditions),
         },
+        // 2026-07-06: holiday section (moved from snapshots — pipelines/holiday.js).
+        // Success: { holiday, is_holiday, detectedAt }; failure: errorMarker.
+        // GlobalHeader reads this for the amber holiday display.
+        holiday: {
+          ...(briefing.holiday || {}),
+          _generationFailed: sectionFailed(briefing.holiday),
+        },
       },
       created_at: briefing.created_at,
       updated_at: briefing.updated_at,

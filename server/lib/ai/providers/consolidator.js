@@ -206,7 +206,7 @@ ${homeBaseLine || ''}
 City: ${snapshot.city}, ${snapshot.state}
 Timezone: ${snapshot.timezone}
 Time: ${localTime} (${snapshot.day_part_key})
-${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
+${briefing?.holiday?.is_holiday === true && !briefing.holiday._generationFailed ? `HOLIDAY: ${briefing.holiday.holiday}` : ''}
 
 === DRIVER PREFERENCES ===
 ${driverPrefBlock}
@@ -1399,7 +1399,10 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       weather_forecast: parseJsonField(briefingRow.weather_forecast),
       news: filteredNews,
       school_closures: parseJsonField(briefingRow.school_closures),
-      airport: parseJsonField(briefingRow.airport_conditions)
+      airport: parseJsonField(briefingRow.airport_conditions),
+      // 2026-07-06: holiday moved from snapshots to briefings.holiday
+      // ({ holiday, is_holiday, detectedAt } | errorMarker)
+      holiday: parseJsonField(briefingRow.holiday)
     };
 
     triadLog.phase(3, `Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);

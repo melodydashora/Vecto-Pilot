@@ -10,8 +10,6 @@ import { matrixLog } from '../../logger/workflow.js';
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
 // 2026-02-17: Daypart extracted to shared module for reuse in offer_intelligence
 import { getDayPartKey, getLocalHour, getLocalDow } from '../../lib/location/daypart.js';
-// 2026-07-06: holiday is a required snapshot field on EVERY creation path
-import { detectHoliday } from '../../lib/location/holiday-detector.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
 import { validateLocationFreshness } from '../../lib/location/validation-gates.js';
@@ -893,9 +891,7 @@ router.get('/resolve', async (req, res) => {
           // 2026-01-31: FIX - Also check if city changed (user moved to different city)
           const existingSnapshot = await db.query.snapshots.findFirst({
             where: eq(snapshots.snapshot_id, existingUser.current_snapshot_id),
-            // 2026-07-06: holiday fields included so the reuse path returns them
-            // to the client (header aesthetics read the snapshot row's truth)
-            columns: { snapshot_id: true, created_at: true, city: true, state: true, holiday: true, is_holiday: true }
+            columns: { snapshot_id: true, created_at: true, city: true, state: true }
           }).catch(() => null);
 
           if (existingSnapshot?.created_at) {
@@ -914,8 +910,6 @@ router.get('/resolve', async (req, res) => {
               console.log(`[SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (age: ${Math.round(snapshotAge / 60000)}min)`);
               resolvedData.snapshot_id = existingUser.current_snapshot_id;
               resolvedData.snapshot_reused = true;
-              resolvedData.holiday = existingSnapshot.holiday;
-              resolvedData.is_holiday = existingSnapshot.is_holiday;
 
               // Return existing - no new snapshot needed
               res.setHeader('Content-Type', 'application/json');
@@ -1021,21 +1015,11 @@ router.get('/resolve', async (req, res) => {
             }
           }
 
-          // 2026-07-06: Holiday is a REQUIRED snapshot field (drives header
-          // aesthetics and rides the row into every LLM call in the waterfall).
-          // detectHoliday throws on failure — the catch below fails the request,
-          // because a snapshot with a guessed 'none' is bad data downstream.
-          const holidayInfo = await detectHoliday({
-            created_at: now.toISOString(),
-            city,
-            state,
-            country,
-            timezone: timeZone,
-            // Everything the snapshot has resolved so far — global grounding
-            formattedAddress,
-            lat,
-            lng,
-          });
+          // 2026-07-06 (Melody): holiday detection moved to the briefing
+          // pipeline (pipelines/holiday.js) — the snapshot stays purely
+          // deterministic (GPS → Google APIs), so a model outage can never
+          // block snapshot creation/login. The briefing receives the COMPLETE
+          // snapshot row per the waterfall rule.
 
           // Create snapshot with location identity from users table
           const snapshotRecord = {
@@ -1065,9 +1049,6 @@ router.get('/resolve', async (req, res) => {
             day_part_key: dayPartKey,
             // H3 geohash for density analysis
             h3_r8: latLngToCell(lat, lng, 8),
-            // Holiday context (required — header aesthetics + LLM waterfall)
-            holiday: holidayInfo.holiday,
-            is_holiday: holidayInfo.is_holiday,
             // Weather/air will be enriched by client or separate call
             weather: null,
             air: null,
@@ -1095,11 +1076,9 @@ router.get('/resolve', async (req, res) => {
             location: 'location.js:resolveLocation',
           }, `Snapshot ${snapshotId.slice(0, 8)} created (parallel write)`);
 
-          // Add snapshot_id + holiday truth to response (client event forwards
-          // these to the header — previously hardcoded null/false client-side)
+          // Add snapshot_id to response. Holiday is NOT here anymore — the
+          // header reads it from the briefing (briefings.holiday section).
           resolvedData.snapshot_id = snapshotId;
-          resolvedData.holiday = holidayInfo.holiday;
-          resolvedData.is_holiday = holidayInfo.is_holiday;
 
         } catch (snapshotErr) {
           matrixLog.error({
@@ -1670,16 +1649,14 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // Calculate H3 geohash at resolution 8 (~0.46 km² hexagons)
     const h3_r8 = latLngToCell(snapshotV1.coord.lat, snapshotV1.coord.lng, 8);
 
-    // Fetch holiday and airport context in parallel (both are fast enrichments)
-    console.log('[SNAPSHOT] Fetching airport context and holiday info in parallel...');
+    // Fetch airport context (holiday detection moved to the briefing pipeline
+    // 2026-07-06 — pipelines/holiday.js runs with the COMPLETE snapshot row)
+    console.log('[SNAPSHOT] Fetching airport context...');
     const { getNearestMajorAirport, fetchFAADelayData } = await import('../../lib/external/faa-asws.js');
-    // detectHoliday is statically imported at the top of this file
-    
-    let airportContext = null;
-    let holidayInfo = null;
 
-    // Run airport and holiday detection in parallel
-    const [airportResult, holidayResult] = await Promise.allSettled([
+    let airportContext = null;
+
+    const [airportResult] = await Promise.allSettled([
       // Airport detection
       (async () => {
         try {
@@ -1749,45 +1726,16 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
           console.warn('[SNAPSHOT] Airport context fetch failed:', airportErr.message);
           return null;
         }
-      })(),
-      // Holiday detection — pass everything the snapshot has resolved so far
-      // 2026-07-06: country is null when unresolved (never 'Unknown'/'US' —
-      // the static detector then limits itself to global holidays + Easter)
-      detectHoliday({
-        created_at: snapshotV1.created_at,
-        city: snapshotV1.resolved?.city,
-        state: snapshotV1.resolved?.state,
-        country: snapshotV1.resolved?.country ?? null,
-        timezone: snapshotV1.resolved?.timezone,
-        formattedAddress: snapshotV1.resolved?.formattedAddress ?? null,
-        lat: snapshotV1.coord?.lat,
-        lng: snapshotV1.coord?.lng
-      })
+      })()
     ]);
 
-    // Extract results from parallel promises.
     // Airport context stays lenient — "no nearby airport" is a truthful absence.
     if (airportResult.status === 'fulfilled') {
       airportContext = airportResult.value;
     }
-    // 2026-07-06: Holiday is REQUIRED — a failed detection fails the snapshot
-    // (the old default silently stored 'none', poisoning the LLM waterfall).
-    if (holidayResult.status === 'fulfilled') {
-      holidayInfo = holidayResult.value;
-    } else {
-      const reason = holidayResult.reason?.message || 'unknown error';
-      console.error('[SNAPSHOT] Holiday detection failed — snapshot rejected:', reason);
-      return res.status(502).json({
-        ok: false,
-        error: 'holiday_detection_failed',
-        message: `Holiday detection failed: ${reason}`
-      });
-    }
-    
-    console.log('[SNAPSHOT] Parallel enrichment complete:', {
-      airport: airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi)` : 'none',
-      holiday: holidayInfo.holiday || 'none',
-      is_holiday: holidayInfo.is_holiday
+
+    console.log('[SNAPSHOT] Enrichment complete:', {
+      airport: airportContext ? `${airportContext.airport_code} (${airportContext.distance_miles}mi)` : 'none'
     });
 
     // NOTE: Briefing data is now stored in separate 'briefings' table (generated via blocks-fast pipeline)
@@ -1859,8 +1807,7 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         category: snapshotV1.air.category
       } : null,
       // 2026-01-14: airport_context dropped - now stored in briefings.airport_conditions
-      holiday: holidayInfo.holiday,
-      is_holiday: holidayInfo.is_holiday,
+      // 2026-07-06: holiday dropped - now stored in briefings.holiday (pipelines/holiday.js)
       permissions: snapshotV1.permissions || null,
     };
 
@@ -2240,17 +2187,16 @@ router.patch('/snapshot/:snapshotId/enrich', requireSnapshotOwnership, async (re
     // Memory #110: Readiness gate — re-read row and flip status to 'ok' when all required fields populated.
     // 2026-07-06 (Melody, app_rules 'snapshot-no-nulls-post-enrichment'): "no
     // field in snapshot row should be null after api calls/llm requirements are
-    // ran." The 2026-04-14 exclusion list (coord_key, h3_r8, formatted_address,
-    // country, session_id, permissions, holiday, is_holiday) is superseded —
-    // 30-day dev data showed zero nulls in all of them, so gating on every
-    // column (except `status`, the gate's own output) is safe and enforces the
-    // rule structurally. Supersedes BRIEFING-DATA-MODEL.md §9 decision 1.
+    // ran." The 2026-04-14 exclusion list is superseded — 30-day dev data
+    // showed zero nulls, so the gate covers every column except `status` (the
+    // gate's own output). Holiday is NOT here: it moved to briefings.holiday
+    // (LLM-involved → briefing pipeline; snapshot stays deterministic).
+    // Supersedes BRIEFING-DATA-MODEL.md §9 decision 1.
     const REQUIRED_FIELDS = [
       'snapshot_id', 'created_at', 'session_id', 'user_id',
       'lat', 'lng', 'coord_key', 'h3_r8',
       'city', 'state', 'country', 'formatted_address', 'timezone', 'market',
       'local_iso', 'date', 'dow', 'hour', 'day_part_key',
-      'holiday', 'is_holiday',
       'weather', 'air', 'permissions',
     ];
     const [fullRow] = await db

@@ -24,7 +24,6 @@ import { Router } from "express";
 import { db } from "../../db/drizzle.js";
 import {
   strategies,
-  snapshots,
   rankings,
   ranking_candidates,
   briefings,
@@ -74,23 +73,23 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       });
     }
 
-    const [snapshot] = await db
-      .select()
-      .from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId))
-      .limit(1);
-
-    // Fetch briefing from separate briefings table
+    // Fetch briefing from separate briefings table.
+    // 2026-07-06: the snapshots fetch that used to sit here is gone — its only
+    // consumers were the holiday reads, which now come from briefings.holiday.
     const [briefingRow] = await db
       .select()
       .from(briefings)
       .where(eq(briefings.snapshot_id, snapshotId))
       .limit(1);
 
+    // Holiday from the briefing section (errorMarker-guarded; null when the
+    // section failed or hasn't landed yet — never a fabricated value)
+    const briefingHoliday =
+      (briefingRow?.holiday && !briefingRow.holiday._generationFailed && briefingRow.holiday.holiday) || null;
+
     // Format briefing for frontend (useStrategy expects camelCase per API contract)
     // 2026-01-10: Fixed snake_case → camelCase for schoolClosures
-    // 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
-    //             Holiday info is now in snapshots table (holiday, is_holiday)
+    // 2026-07-06: Holiday info now in briefings.holiday jsonb section
     const briefingData = briefingRow ? {
       events: briefingRow.events || [],
       news: briefingRow.news?.items || briefingRow.news || [],
@@ -143,7 +142,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         waitFor: ["strategy"],
         strategy: {
           strategyForNow: "",
-          holiday: snapshot?.holiday || 'none',
+          holiday: briefingHoliday || 'none',
           briefing: briefingData,
         },
       });
@@ -197,7 +196,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
         waitFor: ["blocks"],
         strategy: {
           strategyForNow: strategy.strategy_for_now || "",
-          holiday: snapshot?.holiday || 'none',
+          holiday: briefingHoliday || 'none',
           briefing: briefingData,
         },
         blocks: [],
@@ -219,7 +218,7 @@ router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
       phase: 'complete',
       strategy: {
         strategyForNow: strategy.strategy_for_now || "",
-        holiday: snapshot?.holiday || null,
+        holiday: briefingHoliday,
         briefing: briefingData,
       },
       blocks,

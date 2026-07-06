@@ -193,17 +193,28 @@ export class RideshareCoachDAL {
 
       if (!strat) return null;
 
-      // Fetch snapshot for location/holiday context
+      // Fetch snapshot for location context (holiday moved to briefings 2026-07-06)
       const [snapshot] = await db
         .select({
           formatted_address: snapshots.formatted_address,
           city: snapshots.city,
           state: snapshots.state,
-          holiday: snapshots.holiday,
         })
         .from(snapshots)
         .where(eq(snapshots.snapshot_id, snapshotId))
         .limit(1);
+
+      // 2026-07-06: holiday from briefings.holiday jsonb section (normalized
+      // to string|null: name when verified holiday, else null)
+      const [holidayRow] = await db
+        .select({ holiday: briefings.holiday })
+        .from(briefings)
+        .where(eq(briefings.snapshot_id, snapshotId))
+        .limit(1);
+      const holidayName =
+        holidayRow?.holiday && !holidayRow.holiday._generationFailed && holidayRow.holiday.is_holiday === true
+          ? holidayRow.holiday.holiday
+          : null;
 
       // 2026-01-14: Lean strategies table - removed strategy_timestamp and model_name columns
       return {
@@ -212,7 +223,7 @@ export class RideshareCoachDAL {
         strategy_text: strat.strategy_for_now || null,
         strategy_for_now: strat.strategy_for_now,
         strategy_timestamp: strat.created_at?.toISOString() || null,
-        holiday: snapshot?.holiday || null,
+        holiday: holidayName,
         user_address: snapshot?.formatted_address || null,
         user_city: snapshot?.city || null,
         user_state: snapshot?.state || null,
@@ -259,6 +270,9 @@ export class RideshareCoachDAL {
         traffic_conditions: briefingRecord.traffic_conditions || null,
         briefing_news: briefingRecord.news || null,
         briefing_events: briefingRecord.events || null,
+        airport_conditions: briefingRecord.airport_conditions || null,
+        // 2026-07-06: holiday section (moved from snapshots)
+        holiday: briefingRecord.holiday || null,
       };
     } catch (error) {
       console.error('[COACH] getComprehensiveBriefing error:', error);
@@ -1032,9 +1046,10 @@ export class RideshareCoachDAL {
         });
       }
 
-      // Holiday
-      if (snapshot.holiday || snapshot.is_holiday) {
-        prompt += `\n\n🎉 SPECIAL DATE: ${snapshot.holiday || 'Holiday'} (surge likely)`;
+      // Holiday — 2026-07-06: from briefings.holiday (verified detection only;
+      // errorMarker/failed sections never claim a holiday)
+      if (briefing?.holiday?.is_holiday === true && !briefing.holiday._generationFailed) {
+        prompt += `\n\n🎉 SPECIAL DATE: ${briefing.holiday.holiday} (surge likely)`;
       }
     }
 
@@ -1521,7 +1536,11 @@ export class RideshareCoachDAL {
         conditions.push(gte(snapshots.created_at, since));
       }
 
-      const snapshotHistory = await db
+      // 2026-07-06: holiday joined from briefings (1:1 — briefings.snapshot_id
+      // is unique) and normalized to string|null: name only when a VERIFIED
+      // holiday, else null. Preserves downstream consumers' string contract
+      // (chat.js snapshot-history prompt).
+      const snapshotHistory = (await db
         .select({
           snapshot_id: snapshots.snapshot_id,
           created_at: snapshots.created_at,
@@ -1530,13 +1549,21 @@ export class RideshareCoachDAL {
           dow: snapshots.dow,
           hour: snapshots.hour,
           day_part_key: snapshots.day_part_key,
-          holiday: snapshots.holiday,
+          holiday: briefings.holiday,
           weather: snapshots.weather,
         })
         .from(snapshots)
+        .leftJoin(briefings, eq(briefings.snapshot_id, snapshots.snapshot_id))
         .where(and(...conditions))
         .orderBy(desc(snapshots.created_at))
-        .limit(limit);
+        .limit(limit)
+      ).map((row) => ({
+        ...row,
+        holiday:
+          row.holiday && !row.holiday._generationFailed && row.holiday.is_holiday === true
+            ? row.holiday.holiday
+            : null,
+      }));
 
       // Enrich with strategy status
       const enrichedHistory = await Promise.all(

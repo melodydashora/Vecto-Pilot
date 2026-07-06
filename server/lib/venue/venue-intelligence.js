@@ -859,15 +859,14 @@ Return ONLY valid JSON:
 /**
  * Combined venue + traffic intelligence for Smart Blocks
  * @param {Object} params - Query parameters
- * @param {string} [params.holiday] - Current holiday name (optional)
  * @returns {Promise<Object>} Combined intelligence
  */
-export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, holiday = null, timezone = null, localIso = null }) {
+export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, timezone = null, localIso = null }) {
   try {
     venuesLog.start(`Venue cards for ${city}, ${state} (${radiusMiles} mile radius)`);
 
     // Run venue discovery and traffic intelligence in parallel
-    const venuePromise = discoverNearbyVenues({ lat, lng, city, state, radiusMiles, holiday, timezone, localIso });
+    const venuePromise = discoverNearbyVenues({ lat, lng, city, state, radiusMiles, timezone, localIso });
     const trafficPromise = getTrafficIntelligence({ lat, lng, city, state }).catch(err => {
       venuesLog.warn(1, `Traffic intelligence failed: ${err.message}`);
       return { density_level: 'unknown', high_demand_zones: [], driver_advice: '' };

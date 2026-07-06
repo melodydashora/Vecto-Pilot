@@ -27,6 +27,7 @@ export const CHANNELS = Object.freeze({
   AIRPORT: 'briefing_airport_ready',
   NEWS: 'briefing_news_ready',
   SCHOOL_CLOSURES: 'briefing_school_closures_ready',
+  HOLIDAY: 'briefing_holiday_ready', // 2026-07-06: holiday moved from snapshot to briefing
 });
 
 /**

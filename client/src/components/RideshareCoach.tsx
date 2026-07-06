@@ -61,8 +61,6 @@ interface SnapshotData {
   day_part_key?: string;
   weather?: any; // { temp, condition, windSpeed, etc. }
   air?: any; // { aqi, pollutants, etc. }
-  holiday?: string;
-  is_holiday?: boolean;
   timezone?: string;
   lat?: number;
   lng?: number;

@@ -69,9 +69,10 @@ export const snapshots = pgTable("snapshots", {
   // - briefing data is now in separate 'briefings' table
   // - trigger_reason moved to strategies table
   permissions: jsonb("permissions"),
-  // Holiday detection at snapshot creation (via Gemini 3.0 Pro + Google Search)
-  holiday: text("holiday").notNull().default('none'), // Holiday name (e.g., "Thanksgiving", "Christmas") or 'none'
-  is_holiday: boolean("is_holiday").notNull().default(false), // Boolean flag: true if today is a holiday
+  // 2026-07-06: holiday/is_holiday columns DROPPED — holiday detection moved to
+  // the briefing pipeline (briefings.holiday jsonb section, pipelines/holiday.js).
+  // The snapshot is purely deterministic (GPS → Google APIs); LLM-involved
+  // enrichment lives in the briefing per Melody's pipeline rules.
   // Snapshot readiness gate: 'pending' until all required fields are populated, then 'ok'
   status: text("status").default('pending'),
 });
@@ -127,7 +128,11 @@ export const briefings = pgTable("briefings", {
   airport_conditions: jsonb("airport_conditions"), // Airport: delays, arrivals, busy periods, recommendations
 
   // === METADATA ===
-  holiday: text("holiday"), // Holiday name if applicable (from snapshot context)
+  // 2026-07-06: holiday section (moved from snapshots; pipelines/holiday.js).
+  // Success: { holiday, is_holiday, detectedAt } — 'none' means VERIFIED not a
+  // holiday. Failure: errorMarker { _generationFailed, error, failedAt } — never
+  // a fabricated 'none'.
+  holiday: jsonb("holiday"),
   status: text("status"), // Briefing status: pending, complete, error
   generated_at: timestamp("generated_at", { withTimezone: true }), // When briefing was fully generated
 

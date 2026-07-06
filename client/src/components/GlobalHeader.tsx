@@ -14,6 +14,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
 import { LocationContext } from "@/contexts/location-context-clean";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
+import { getAuthHeader, subscribeBriefingReady } from '@/utils/co-pilot-helpers';
 // 2026-01-15: FAIL HARD - Access critical error setter from CoPilotContext
 import { useCoPilot } from '@/contexts/co-pilot-context';
 // 2026-04-05: Hamburger menu for secondary pages (Sign Out, Settings, About, etc.)
@@ -90,8 +93,46 @@ const GlobalHeaderComponent: React.FC = () => {
   // Weather and air quality from context (fetched once in LocationContext, no duplicate calls)
   const weather = loc?.weather ?? null;
   const airQuality = loc?.airQuality ?? null;
-  const [holiday, setHoliday] = useState<string | null>(null);
-  const [isHoliday, setIsHoliday] = useState(false);
+
+  // 2026-07-06: Holiday moved off the snapshot into the BRIEFING row
+  // (briefings.holiday section, detected by pipelines/holiday.js with the
+  // complete snapshot). Query key matches useBriefingQueries' aggregate so
+  // React Query dedupes with the briefing tab; we select only the holiday
+  // section. Refetches on briefing_ready SSE as sections land.
+  const snapshotId = loc?.lastSnapshotId ?? null;
+  const queryClient = useQueryClient();
+  const { data: holidaySection } = useQuery({
+    queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId!),
+    queryFn: async () => {
+      const response = await fetch(API_ROUTES.BRIEFING.AGGREGATE(snapshotId!), {
+        headers: getAuthHeader(),
+      });
+      if (!response.ok) return null; // 404 = briefing not generated yet; retried on SSE
+      return response.json();
+    },
+    enabled: !!snapshotId,
+    staleTime: 60_000,
+    select: (data: any) => data?.briefing?.holiday ?? null,
+  });
+
+  useEffect(() => {
+    if (!snapshotId) return;
+    const unsubscribe = subscribeBriefingReady(snapshotId, (readyId: string) => {
+      if (readyId === snapshotId) {
+        queryClient.refetchQueries({ queryKey: QUERY_KEYS.BRIEFING_AGGREGATE(snapshotId) });
+      }
+    });
+    return () => unsubscribe();
+  }, [snapshotId, queryClient]);
+
+  // 'none' = VERIFIED not a holiday; errorMarker/_generationFailed = detection
+  // failed (reason recorded in the briefing row) — either way, no amber banner.
+  const isHoliday =
+    holidaySection?.is_holiday === true &&
+    !!holidaySection?.holiday &&
+    holidaySection.holiday !== 'none' &&
+    !holidaySection?._generationFailed;
+  const holiday = isHoliday ? holidaySection.holiday : null;
 
   // 2026-07-06: Removed the /api/auth/me query. Its response is
   // { user, profile, vehicle } — the `ok`/`timezone`/`city`/`formatted_address`
@@ -221,31 +262,10 @@ const GlobalHeaderComponent: React.FC = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Listen for snapshot saved event to update indicator (and holiday info)
-  useEffect(() => {
-    const handleSnapshotSaved = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const holidayName = customEvent.detail?.holiday;
-      const holidayFlag = customEvent.detail?.is_holiday;
-      // Update holiday state if provided (exclude 'none' as it means no holiday)
-      if (holidayName && holidayName !== 'none') {
-        setHoliday(holidayName);
-        setIsHoliday(true);
-      } else if (holidayFlag === false || holidayName === 'none') {
-        setHoliday(null);
-        setIsHoliday(false);
-      }
-    };
-    window.addEventListener(
-      "vecto-snapshot-saved",
-      handleSnapshotSaved as EventListener,
-    );
-    return () =>
-      window.removeEventListener(
-        "vecto-snapshot-saved",
-        handleSnapshotSaved as EventListener,
-      );
-  }, []);
+  // 2026-07-06: the old vecto-snapshot-saved holiday listener is gone —
+  // holiday now arrives via the briefing aggregate query above (the event no
+  // longer carries holiday fields, and for months it only ever carried
+  // hardcoded null/false anyway).
 
   // Compute local time fields for display — GPS-resolved timezone ONLY.
   // The timezone is resolved server-side from GPS coords via the Google

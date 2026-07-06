@@ -174,7 +174,7 @@ export function hasRenderableBriefing(briefing) {
  * Guarantees all fields are arrays/objects even if input is malformed
  *
  * 2026-01-14: Removed holidays (column dropped in 20251209_drop_unused_briefing_columns.sql)
- * Holiday info is now in snapshots table (holiday, is_holiday)
+ * Holiday info now lives in briefings.holiday (jsonb section, errorMarker on failure)
  *
  * @param {any} briefing - Raw briefing data
  * @returns {Object} - Normalized briefing with guaranteed shape

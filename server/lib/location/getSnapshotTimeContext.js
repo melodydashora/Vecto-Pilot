@@ -104,10 +104,9 @@ export function getSnapshotTimeContext(snapshot) {
     lat: snapshot.lat,
     lng: snapshot.lng,
 
-    // Holiday status (from snapshot row — NOT NULL columns, read verbatim;
-    // 'none' means verified-not-a-holiday, detected at snapshot creation)
-    isHoliday: snapshot.is_holiday,
-    holiday: snapshot.holiday,
+    // 2026-07-06: holiday removed — it lives in briefings.holiday now (this
+    // function receives only the snapshot row; briefing-aware consumers read
+    // the section themselves)
 
     // Raw snapshot reference
     snapshotId: snapshot.snapshot_id

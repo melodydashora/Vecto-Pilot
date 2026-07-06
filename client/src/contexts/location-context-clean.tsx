@@ -605,17 +605,12 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         // 2026-01-06: P3-D - Include reason for smart resume support
         // CoPilotContext uses this to decide whether to trigger blocks-fast
-        // 2026-07-06: FIX — holiday was hardcoded null/false here, so the
-        // header could NEVER show a holiday even when the snapshot row had
-        // one. Forward the truth from the /resolve response (snapshot row).
+        // 2026-07-06: holiday is NOT in this event anymore — it moved to the
+        // briefing (briefings.holiday); GlobalHeader reads it from the
+        // aggregate briefing query and refetches on briefing_ready SSE.
         const reason = forceRefresh ? 'manual_refresh' : 'init';
         window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-          detail: {
-            snapshotId,
-            holiday: locationData.holiday ?? null,
-            is_holiday: locationData.is_holiday ?? false,
-            reason
-          }
+          detail: { snapshotId, reason }
         }));
       } else {
         // Fallback: Server didn't return snapshot_id, create one client-side (legacy path)
@@ -680,7 +675,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           // 2026-01-06: P3-D - Include reason (legacy path uses same logic)
           const fallbackReason = forceRefresh ? 'manual_refresh' : 'init';
           window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-            detail: { snapshotId: fallbackSnapshotId, holiday: null, is_holiday: false, reason: fallbackReason }
+            detail: { snapshotId: fallbackSnapshotId, reason: fallbackReason }
           }));
         }
       }
@@ -846,7 +841,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Dispatch event so CoPilotContext can use the cached snapshotId
         // reason: 'resume' tells it not to regenerate strategy
         window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-          detail: { snapshotId: cachedSnapshotId, holiday: null, is_holiday: false, reason: 'resume' }
+          detail: { snapshotId: cachedSnapshotId, reason: 'resume' }
         }));
 
         gpsEffectRanRef.current = true;
