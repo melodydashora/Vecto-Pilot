@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Newspaper, Loader, ExternalLink, ChevronUp, ChevronDown } from "lucide-react";
+import { Newspaper, Loader, ExternalLink, ChevronUp, ChevronDown, AlertTriangle } from "lucide-react";
 
 interface NewsItem {
   title?: string;
@@ -20,6 +20,9 @@ interface NewsData {
     filtered?: NewsItem[];
     reason?: string;
   };
+  // 2026-07-06 (todo #24): pending/failed/verified-empty are three states
+  _pending?: boolean;
+  _generationFailed?: boolean;
 }
 
 interface NewsCardProps {
@@ -113,6 +116,12 @@ export function NewsCard({ newsData, isNewsLoading }: NewsCardProps) {
                   </div>
                 </article>
               ))}
+            </div>
+          ) : newsData?._generationFailed ? (
+            // Failed ≠ empty: show the recorded reason, never "no news" (todo #24)
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>News couldn't be generated{newsReason ? ` — ${newsReason}` : ''}. It will retry on the next briefing refresh.</span>
             </div>
           ) : (
             <p className="text-gray-500 text-sm text-center py-4">

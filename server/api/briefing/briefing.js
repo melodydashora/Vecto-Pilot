@@ -517,23 +517,37 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
       );
     }
 
+    // 2026-07-06 (Melody, todo #24): every section carries THREE distinct states
+    // so the UI can stop rendering pending/failed as verified-empty:
+    //   _pending: raw column is still NULL — the pipeline hasn't landed this
+    //             section yet (progressive generation in flight)
+    //   _generationFailed: section ran and failed — `reason`/`error` says why
+    //   neither: verified result (which may be a genuinely empty list)
+    // Pending sections must NOT fabricate "No X for this area" reasons — that
+    // masked in-flight generation as a verified answer (the "No nearby
+    // airports found in Dallas" screenshot).
     res.json({
       snapshot_id: req.snapshot.snapshot_id,
       briefing: {
         weather: {
           current: briefing.weather_current,
           forecast: briefing.weather_forecast,
+          _pending: briefing.weather_current == null,
           _generationFailed: sectionFailed(briefing.weather_current),
         },
         traffic: {
           ...(briefing.traffic_conditions || {}),
+          _pending: briefing.traffic_conditions == null,
           _generationFailed: sectionFailed(briefing.traffic_conditions),
         },
         news: {
           items: freshNews,
           reason: newsFailed
             ? (briefing.news?.error || 'News generation failed')
-            : (briefing.news?.reason || (freshNews.length === 0 ? 'No rideshare news for this area' : null)),
+            : briefing.news == null
+              ? null // pending — no fabricated emptiness
+              : (briefing.news?.reason || (freshNews.length === 0 ? 'No rideshare news for this area' : null)),
+          _pending: briefing.news == null,
           _generationFailed: newsFailed,
         },
         events: {
@@ -542,7 +556,10 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
           market_name: marketName,
           reason: localEventsFailed
             ? (briefing.events?.error || 'Events generation failed')
-            : (briefing.events?.reason || (freshEvents.length === 0 ? 'No events found for this location' : null)),
+            : briefing.events == null
+              ? null // pending — no fabricated emptiness
+              : (briefing.events?.reason || (freshEvents.length === 0 ? 'No events found for this location' : null)),
+          _pending: briefing.events == null,
           _generationFailed: localEventsFailed,
         },
         school_closures: {
@@ -550,10 +567,12 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
             ? briefing.school_closures
             : (briefing.school_closures?.items || []),
           reason: briefing.school_closures?.reason || null,
+          _pending: briefing.school_closures == null,
           _generationFailed: sectionFailed(briefing.school_closures),
         },
         airport_conditions: {
           ...(briefing.airport_conditions || {}),
+          _pending: briefing.airport_conditions == null,
           _generationFailed: sectionFailed(briefing.airport_conditions),
         },
         // 2026-07-06: holiday section (moved from snapshots — pipelines/holiday.js).
@@ -561,6 +580,7 @@ router.get('/snapshot/:snapshotId', requireAuth, requireSnapshotOwnership, async
         // GlobalHeader reads this for the amber holiday display.
         holiday: {
           ...(briefing.holiday || {}),
+          _pending: briefing.holiday == null,
           _generationFailed: sectionFailed(briefing.holiday),
         },
       },

@@ -133,14 +133,14 @@ export function timeSinceLastUpdate(lastUpdateTime) {
 }
 
 /**
- * Check if driver is near a major airport (within 15 miles)
+ * Check if driver is near a major airport (within 50 miles)
  * @param {number} latitude - Driver latitude
  * @param {number} longitude - Driver longitude
  * @returns {Promise<Object|null>} Airport info if nearby, null otherwise
  */
 export async function checkAirportProximity(latitude, longitude) {
   const { getNearestMajorAirport } = await import('./faa-asws.js');
-  const AIRPORT_PROXIMITY_THRESHOLD = 25; // miles (expanded for suburban metro areas)
+  const AIRPORT_PROXIMITY_THRESHOLD = 50; // miles (expanded for suburban metro areas)
   
   const nearest = await getNearestMajorAirport(latitude, longitude, AIRPORT_PROXIMITY_THRESHOLD);
   return nearest;

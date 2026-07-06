@@ -19,7 +19,11 @@ interface TrafficData {
     congestionLevel?: 'low' | 'medium' | 'high';
     keyIssues?: string[];
     driverImpact?: string;
+    reason?: string;
   };
+  // 2026-07-06 (todo #24): pending/failed/verified-empty are three states
+  _pending?: boolean;
+  _generationFailed?: boolean;
 }
 
 interface TrafficCardProps {
@@ -76,6 +80,12 @@ export function TrafficCard({ trafficData, isTrafficLoading }: TrafficCardProps)
             <div className="flex items-center justify-center py-8">
               <Loader className="w-5 h-5 animate-spin text-orange-600 mr-2" />
               <span className="text-gray-600">Loading traffic...</span>
+            </div>
+          ) : trafficData?._generationFailed ? (
+            // Failed ≠ empty: show the recorded reason, never "no issues" (todo #24)
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>Traffic data couldn't be retrieved{traffic?.reason ? ` — ${traffic.reason}` : ''}. It will retry on the next briefing refresh.</span>
             </div>
           ) : traffic ? (
             <div className="space-y-3">

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, Loader, Clock, ChevronUp, ChevronDown } from "lucide-react";
+import { BookOpen, Loader, Clock, ChevronUp, ChevronDown, AlertTriangle } from "lucide-react";
 
 interface SchoolClosure {
   schoolName: string;
@@ -15,6 +15,9 @@ interface SchoolClosure {
 interface SchoolClosuresData {
   school_closures?: SchoolClosure[];
   reason?: string;
+  // 2026-07-06 (todo #24): pending/failed/verified-empty are three states
+  _pending?: boolean;
+  _generationFailed?: boolean;
 }
 
 interface SchoolClosuresCardProps {
@@ -119,6 +122,12 @@ export function SchoolClosuresCard({ schoolClosuresData, isSchoolClosuresLoading
                   </div>
                 </div>
               ))}
+            </div>
+          ) : schoolClosuresData?._generationFailed ? (
+            // Failed ≠ empty: show the recorded reason, never "no closures" (todo #24)
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>School closure data couldn't be retrieved{closuresReason ? ` — ${closuresReason}` : ''}. It will retry on the next briefing refresh.</span>
             </div>
           ) : (
             <p className="text-gray-500 text-sm text-center py-4">

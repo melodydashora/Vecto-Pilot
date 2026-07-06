@@ -53,10 +53,13 @@ interface AirportConditions {
   fetchedAt?: string;
   isFallback?: boolean;
   provider?: string;
+  reason?: string;
+  error?: string;
 }
 
 interface AirportCardProps {
-  airportData?: { airport_conditions?: AirportConditions };
+  // 2026-07-06 (todo #24): pending/failed/verified-empty are three states
+  airportData?: { airport_conditions?: AirportConditions; _pending?: boolean; _generationFailed?: boolean };
   isAirportLoading: boolean;
 }
 
@@ -64,6 +67,10 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
   const [expandedAirport, setExpandedAirport] = useState(true);
 
   const airportConditions = airportData?.airport_conditions;
+  // Failed ≠ empty: a provider failure or fallback object must never render
+  // as "No nearby airports found" (the Dallas screenshot, todo #24)
+  const airportFailed = !!airportData?._generationFailed || !!airportConditions?.isFallback;
+  const airportReason = airportConditions?.reason || airportConditions?.error || null;
   const airports = airportConditions?.airports || [];
   const busyPeriods = airportConditions?.busyPeriods || [];
   const airportRecommendations = airportConditions?.recommendations;
@@ -298,9 +305,14 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                 </div>
               )}
             </div>
+          ) : airportFailed ? (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>Airport data couldn't be retrieved{airportReason ? ` — ${airportReason}` : ''}. It will retry on the next briefing refresh.</span>
+            </div>
           ) : (
             <p className="text-gray-500 text-sm text-center py-4">
-              {airportConditions?.isFallback ? 'Airport data temporarily unavailable' : 'No nearby airports found'}
+              No nearby airports found
             </p>
           )}
         </CardContent>
