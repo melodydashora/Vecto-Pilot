@@ -567,7 +567,7 @@ Other endpoints rely on auth + upstream Google quotas for rate protection.
 - **FAA delay service** (`server/lib/external/faa-asws.js`) — `/snapshot` calls `getNearestMajorAirport(25)` and `fetchFAADelayData()`; logs `travel_disruptions` rows.
 - **Holiday detector** (`server/lib/location/holiday-detector.js`) — parallel with airport lookup in `/snapshot`.
 - **Coords-key module** (`server/lib/location/coords-key.js`) — consolidates the 6-decimal rounding previously duplicated in 4 places.
-- **Daypart module** (`server/lib/location/daypart.js`) — `getDayPartKey(hour)` shared with offer-intelligence (2026-02-17 extraction).
+- **Daypart / time-context adapter** — since 2026-07-06 the implementation lives in `shared/dayparts.js` (the single server+client adapter for hour/dow/local-iso/daypart derivation); `server/lib/location/daypart.js` is now a re-export shim. Exposes `getDayPartKey(hour)`, `getLocalHour`/`getLocalDow`/`getLocalDateString`/`getLocalIso`/`classifyDayPart` — all of which REQUIRE an IANA timezone and throw if it is missing (no device/UTC fallback). Shared with offer-intelligence (2026-02-17 extraction).
 - **`resolveTimezone` module** (`server/lib/location/resolveTimezone.js`) — market fast-path extracted 2026-02-17.
 - **Validation gates** (`server/lib/location/validation-gates.js`) — `validateLocationFreshness`.
 - **Validation middleware** (`server/middleware/validate.js`) + schemas (`server/validation/schemas.js`) — `snapshotMinimalSchema`, `locationResolveSchema`, `newsBriefingSchema`.
@@ -655,6 +655,7 @@ Chronological list of invariants encoded in inline `//` comments. Dates are abso
 | 2026-04-14 (#108) | Multi-source user_id resolution + FAIL-LOUD fallback in `/snapshot` | `/snapshot` session update |
 | 2026-04-14 (#110) | Enrichment readiness gate — flip `status: 'pending' → 'ok'` | `/snapshot/:id/enrich` |
 | 2026-04-18 | SSE handshake improvements (F2) — initial-state payload on subscribe | (external to this file) |
+| 2026-07-06 | Daypart/time-context moved to `shared/dayparts.js` (server+client adapter; `daypart.js` now a shim); h23 midnight-safe extraction; timezone REQUIRED (throws — no device/UTC fallback); taxonomy rename `late_morning_noon`→`early_afternoon`, `afternoon`→`late_afternoon` | `shared/dayparts.js`, `getSnapshotTimeContext` |
 
 ---
 

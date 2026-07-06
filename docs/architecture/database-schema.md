@@ -47,7 +47,7 @@ PostgreSQL database using Drizzle ORM. Schema defined in `shared/schema.js`.
 | `date` | DATE | Snapshot date (YYYY-MM-DD) |
 | `dow` | INTEGER | Day of week (0=Sunday) |
 | `hour` | INTEGER | Hour (0-23) |
-| `day_part_key` | VARCHAR | morning/afternoon/evening/night |
+| `day_part_key` | VARCHAR | Daypart bucket from `shared/dayparts.js`: overnight/morning/early_afternoon/late_afternoon/early_evening/evening. Legacy late_morning_noon/afternoon normalize on read; there is no `night` value. |
 | `weather` | JSONB | `{tempF, conditions, description}` |
 | `air` | JSONB | `{aqi, category, dominantPollutant}` |
 | `holiday` | VARCHAR | Holiday name or 'none' |

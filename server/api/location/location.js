@@ -9,7 +9,9 @@ import { matrixLog } from '../../logger/workflow.js';
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
 // 2026-02-17: Daypart extracted to shared module for reuse in offer_intelligence
-import { getDayPartKey } from '../../lib/location/daypart.js';
+import { getDayPartKey, getLocalHour, getLocalDow } from '../../lib/location/daypart.js';
+// 2026-07-06: holiday is a required snapshot field on EVERY creation path
+import { detectHoliday } from '../../lib/location/holiday-detector.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
 import { validateLocationFreshness } from '../../lib/location/validation-gates.js';
@@ -505,7 +507,6 @@ router.get('/resolve', async (req, res) => {
     const coordKey = makeCoordsKey(lat, lng);
     let cacheHit = null;
     let city, state, country, formattedAddress, timeZone;
-    let marketResult = null;
     
     try {
       cacheHit = await db.query.coords_cache.findFirst({
@@ -682,31 +683,18 @@ router.get('/resolve', async (req, res) => {
         });
       }
 
-      // Step 2: Timezone resolution via shared module (2026-02-17)
-      // Fast path: market lookup (~5ms, 102 markets + 3,300 city aliases)
-      // Slow path: Google Timezone API (~200-300ms, for unknown locations)
-      if (city) {
-        marketResult = await resolveTimezoneFromMarket(city, state, country);
-      }
-
-      if (marketResult) {
-        // FAST PATH: Use pre-stored timezone from markets table
-        timeZone = marketResult.timezone;
-        matrixLog.info({
-          category: 'LOCATION',
-          connection: 'DB',
-          action: 'TIMEZONE_FROM_MARKET',
-          tableName: 'MARKETS',
-          location: 'location.js:resolveLocation',
-        }, `Timezone from market: ${marketResult.market_name} (skipped Google API)`);
-      } else {
-        // SLOW PATH: Call Google Timezone API via circuit breaker
+      // Step 2: Timezone resolution — ALWAYS GPS coords → Google Timezone API
+      // (2026-07-06, Melody). The old "fast path" took the timezone from the
+      // markets table by city name; a market's blanket timezone is wrong near
+      // zone borders (Indiana splits Central/Eastern by county). The markets
+      // table is for market IDENTITY (snapshot linkage below), never for time.
+      {
         matrixLog.info({
           category: 'LOCATION',
           connection: 'API',
           action: 'TIMEZONE_REQUEST',
           location: 'location.js:resolveLocation',
-        }, 'Market not found, calling Google Timezone API');
+        }, 'Calling Google Timezone API (coords-based, no market shortcut)');
         const timezoneData = await googleMapsCircuit(async (signal) => {
           const response = await fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${Math.floor(Date.now() / 1000)}&key=${GOOGLE_MAPS_API_KEY}`, { signal });
           if (!response.ok) {
@@ -854,9 +842,12 @@ router.get('/resolve', async (req, res) => {
             message: 'Timezone could not be determined from location'
           });
         }
+        // 2026-07-06: shared/dayparts.js adapter — the old toLocaleString
+        // round-trip re-parse was implementation-defined (NaN hour on parse
+        // failure silently classified as 'evening').
         const tz = timeZone;
-        const hour = new Date(now.toLocaleString('en-US', { timeZone: tz })).getHours();
-        const dow = new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay();
+        const hour = getLocalHour(now, tz);
+        const dow = getLocalDow(now, tz);
         const dayPartKey = getDayPartKey(hour);
 
         const existingUser = await db.query.users.findFirst({
@@ -902,7 +893,9 @@ router.get('/resolve', async (req, res) => {
           // 2026-01-31: FIX - Also check if city changed (user moved to different city)
           const existingSnapshot = await db.query.snapshots.findFirst({
             where: eq(snapshots.snapshot_id, existingUser.current_snapshot_id),
-            columns: { snapshot_id: true, created_at: true, city: true, state: true }
+            // 2026-07-06: holiday fields included so the reuse path returns them
+            // to the client (header aesthetics read the snapshot row's truth)
+            columns: { snapshot_id: true, created_at: true, city: true, state: true, holiday: true, is_holiday: true }
           }).catch(() => null);
 
           if (existingSnapshot?.created_at) {
@@ -921,6 +914,8 @@ router.get('/resolve', async (req, res) => {
               console.log(`[SNAPSHOT] ♻️ Reusing existing snapshot ${existingUser.current_snapshot_id.slice(0, 8)} for ${city} (age: ${Math.round(snapshotAge / 60000)}min)`);
               resolvedData.snapshot_id = existingUser.current_snapshot_id;
               resolvedData.snapshot_reused = true;
+              resolvedData.holiday = existingSnapshot.holiday;
+              resolvedData.is_holiday = existingSnapshot.is_holiday;
 
               // Return existing - no new snapshot needed
               res.setHeader('Content-Type', 'application/json');
@@ -979,10 +974,10 @@ router.get('/resolve', async (req, res) => {
           let userMarket = null;
           if (userId) {
             try {
-              // PATH 1 (preferred): resolve market from current snapshot's GPS coords.
-              // marketResult was already populated earlier in this function during timezone
-              // resolution if the (city, state) pair matched the markets table — reuse it.
-              const coordResolvedMarket = marketResult || await resolveTimezoneFromMarket(city, state, country);
+              // PATH 1 (preferred): resolve market from current snapshot's GPS-resolved
+              // (city, state). 2026-07-06: this lookup is for market IDENTITY only —
+              // the snapshot's timezone always comes from the Google Timezone API above.
+              const coordResolvedMarket = await resolveTimezoneFromMarket(city, state, country);
 
               if (coordResolvedMarket?.market_name) {
                 userMarket = coordResolvedMarket.market_name;
@@ -1026,6 +1021,22 @@ router.get('/resolve', async (req, res) => {
             }
           }
 
+          // 2026-07-06: Holiday is a REQUIRED snapshot field (drives header
+          // aesthetics and rides the row into every LLM call in the waterfall).
+          // detectHoliday throws on failure — the catch below fails the request,
+          // because a snapshot with a guessed 'none' is bad data downstream.
+          const holidayInfo = await detectHoliday({
+            created_at: now.toISOString(),
+            city,
+            state,
+            country,
+            timezone: timeZone,
+            // Everything the snapshot has resolved so far — global grounding
+            formattedAddress,
+            lat,
+            lng,
+          });
+
           // Create snapshot with location identity from users table
           const snapshotRecord = {
             snapshot_id: snapshotId,
@@ -1054,6 +1065,9 @@ router.get('/resolve', async (req, res) => {
             day_part_key: dayPartKey,
             // H3 geohash for density analysis
             h3_r8: latLngToCell(lat, lng, 8),
+            // Holiday context (required — header aesthetics + LLM waterfall)
+            holiday: holidayInfo.holiday,
+            is_holiday: holidayInfo.is_holiday,
             // Weather/air will be enriched by client or separate call
             weather: null,
             air: null,
@@ -1081,8 +1095,11 @@ router.get('/resolve', async (req, res) => {
             location: 'location.js:resolveLocation',
           }, `Snapshot ${snapshotId.slice(0, 8)} created (parallel write)`);
 
-          // Add snapshot_id to response
+          // Add snapshot_id + holiday truth to response (client event forwards
+          // these to the header — previously hardcoded null/false client-side)
           resolvedData.snapshot_id = snapshotId;
+          resolvedData.holiday = holidayInfo.holiday;
+          resolvedData.is_holiday = holidayInfo.is_holiday;
 
         } catch (snapshotErr) {
           matrixLog.error({
@@ -1565,28 +1582,17 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
         timezone: resolved.timeZone
       };
       
-      // Add time context with proper timezone handling
-      // Extract hour using Intl.DateTimeFormat with the target timezone
-      const hourFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: resolved.timeZone,
-        hour: 'numeric',
-        hour12: false
-      });
-      const hour = parseInt(hourFormatter.format(now));
-      
-      // Extract day of week using Intl.DateTimeFormat with the target timezone
-      const dayFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: resolved.timeZone,
-        weekday: 'long'
-      });
-      const dayName = dayFormatter.format(now);
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const localDow = dayNames.indexOf(dayName);
-      
+      // Add time context via the shared/dayparts.js adapter.
+      // 2026-07-06: the previous inline `hour12: false` extraction stored
+      // hour=24 and day_part 'evening' for the 12:00-12:59 AM hour on Node
+      // <=21 (V8 h24 hourCycle); getLocalHour uses hourCycle 'h23' + guards.
+      const hour = getLocalHour(now, resolved.timeZone);
+      const localDow = getLocalDow(now, resolved.timeZone);
+
       snapshotV1.time_context = {
         // 2026-02-17: FIX - was storing UTC ISO, must store driver's local time
         local_iso: toLocalTimestamp(now, resolved.timeZone).toISOString(),
-        dow: localDow >= 0 ? localDow : now.getDay(), // Fallback to UTC day if parse fails
+        dow: localDow,
         hour: hour,
         day_part_key: getDayPartKey(hour)
       };
@@ -1667,10 +1673,10 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // Fetch holiday and airport context in parallel (both are fast enrichments)
     console.log('[SNAPSHOT] Fetching airport context and holiday info in parallel...');
     const { getNearestMajorAirport, fetchFAADelayData } = await import('../../lib/external/faa-asws.js');
-    const { detectHoliday } = await import('../../lib/location/holiday-detector.js');
+    // detectHoliday is statically imported at the top of this file
     
     let airportContext = null;
-    let holidayInfo = { holiday: 'none', is_holiday: false };
+    let holidayInfo = null;
 
     // Run airport and holiday detection in parallel
     const [airportResult, holidayResult] = await Promise.allSettled([
@@ -1744,23 +1750,38 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
           return null;
         }
       })(),
-      // Holiday detection
+      // Holiday detection — pass everything the snapshot has resolved so far
+      // 2026-07-06: country is null when unresolved (never 'Unknown'/'US' —
+      // the static detector then limits itself to global holidays + Easter)
       detectHoliday({
         created_at: snapshotV1.created_at,
         city: snapshotV1.resolved?.city,
         state: snapshotV1.resolved?.state,
-        // 2026-04-05: Global app fix — use resolved country, fall back to 'Unknown' not 'United States'
-        country: snapshotV1.resolved?.country || 'Unknown',
-        timezone: snapshotV1.resolved?.timezone
+        country: snapshotV1.resolved?.country ?? null,
+        timezone: snapshotV1.resolved?.timezone,
+        formattedAddress: snapshotV1.resolved?.formattedAddress ?? null,
+        lat: snapshotV1.coord?.lat,
+        lng: snapshotV1.coord?.lng
       })
     ]);
 
-    // Extract results from parallel promises
+    // Extract results from parallel promises.
+    // Airport context stays lenient — "no nearby airport" is a truthful absence.
     if (airportResult.status === 'fulfilled') {
       airportContext = airportResult.value;
     }
+    // 2026-07-06: Holiday is REQUIRED — a failed detection fails the snapshot
+    // (the old default silently stored 'none', poisoning the LLM waterfall).
     if (holidayResult.status === 'fulfilled') {
       holidayInfo = holidayResult.value;
+    } else {
+      const reason = holidayResult.reason?.message || 'unknown error';
+      console.error('[SNAPSHOT] Holiday detection failed — snapshot rejected:', reason);
+      return res.status(502).json({
+        ok: false,
+        error: 'holiday_detection_failed',
+        message: `Holiday detection failed: ${reason}`
+      });
     }
     
     console.log('[SNAPSHOT] Parallel enrichment complete:', {
@@ -2217,12 +2238,21 @@ router.patch('/snapshot/:snapshotId/enrich', requireSnapshotOwnership, async (re
     }, `Enriched snapshot ${snapshotId.slice(0, 8)} (fields: ${Object.keys(updatePayload).join(', ')})`);
 
     // Memory #110: Readiness gate — re-read row and flip status to 'ok' when all required fields populated.
-    // 2026-04-14: Phase 3 resolution — classification of required vs optional fields pinned in
-    // BRIEFING-DATA-MODEL.md §9 decision 1. Previous list (v1.0) included h3_r8 and omitted the
-    // temporal fields + user_id; corrected here. Fields NOT in this list (coord_key, h3_r8,
-    // formatted_address, country, session_id, permissions, holiday, is_holiday) may
-    // be null without blocking the gate.
-    const REQUIRED_FIELDS = ['lat', 'lng', 'city', 'state', 'timezone', 'local_iso', 'date', 'dow', 'hour', 'day_part_key', 'weather', 'air', 'market', 'user_id'];
+    // 2026-07-06 (Melody, app_rules 'snapshot-no-nulls-post-enrichment'): "no
+    // field in snapshot row should be null after api calls/llm requirements are
+    // ran." The 2026-04-14 exclusion list (coord_key, h3_r8, formatted_address,
+    // country, session_id, permissions, holiday, is_holiday) is superseded —
+    // 30-day dev data showed zero nulls in all of them, so gating on every
+    // column (except `status`, the gate's own output) is safe and enforces the
+    // rule structurally. Supersedes BRIEFING-DATA-MODEL.md §9 decision 1.
+    const REQUIRED_FIELDS = [
+      'snapshot_id', 'created_at', 'session_id', 'user_id',
+      'lat', 'lng', 'coord_key', 'h3_r8',
+      'city', 'state', 'country', 'formatted_address', 'timezone', 'market',
+      'local_iso', 'date', 'dow', 'hour', 'day_part_key',
+      'holiday', 'is_holiday',
+      'weather', 'air', 'permissions',
+    ];
     const [fullRow] = await db
       .select()
       .from(snapshots)

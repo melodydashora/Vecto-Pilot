@@ -11,6 +11,7 @@
 
 import { Router } from 'express';
 import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
+import { dayPartLabel } from '../../lib/location/daypart.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { db } from '../../db/drizzle.js';
 import { snapshots } from '../../../shared/schema.js';
@@ -98,7 +99,9 @@ router.post('/token', requireAuth, async (req, res) => {
             state: fullContext.snapshot.state,
             weather: fullContext.snapshot.weather,
             air: fullContext.snapshot.air,
-            dayPart: fullContext.snapshot.day_part_key,
+            // 2026-07-06: human label via the dayparts adapter — the raw key
+            // (e.g. legacy 'late_morning_noon' at 2 PM) was confusing the model.
+            dayPart: dayPartLabel(fullContext.snapshot.day_part_key) || 'current time',
             hour: fullContext.snapshot.hour,
             address: fullContext.snapshot.formatted_address,
             timezone: fullContext.snapshot.timezone,

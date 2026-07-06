@@ -14,22 +14,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/useToast";
 import { LocationContext } from "@/contexts/location-context-clean";
-import { useQuery } from "@tanstack/react-query";
-// 2026-01-09: P1-6 FIX - Use centralized storage keys
-import { STORAGE_KEYS } from "@/constants/storageKeys";
-import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 // 2026-01-15: FAIL HARD - Access critical error setter from CoPilotContext
 import { useCoPilot } from '@/contexts/co-pilot-context';
 // 2026-04-05: Hamburger menu for secondary pages (Sign Out, Settings, About, etc.)
 import HamburgerMenu from '@/components/HamburgerMenu';
 
-// helpers (add these files from sections 2 and 3 below)
+// Daypart classification — shared/dayparts.js adapter (via @shared re-export).
+// Requires the GPS-resolved timezone; there is no device-timezone fallback.
 import { classifyDayPart } from "@/lib/daypart";
-
-// Optional server endpoints this file calls:
-//   POST /api/context/snapshot      -> store the snapshot (db learning)
-//   GET  /api/geocode/reverse?lat=..&lng=..  -> { city, state, country }
-//   GET  /api/timezone?lat=..&lng=.. -> { timeZone }  (fallbacks included)
 
 // Extended type to support legacy location context shapes (backwards compatibility)
 type ExtendedLocationContext = {
@@ -101,24 +93,13 @@ const GlobalHeaderComponent: React.FC = () => {
   const [holiday, setHoliday] = useState<string | null>(null);
   const [isHoliday, setIsHoliday] = useState(false);
 
-  // Query /api/auth/me for registered users only.
-  // 2026-01-09: P1-6 FIX - Use centralized STORAGE_KEYS constants
-  const authToken = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) : null;
-  const { data: dbUserLocation } = useQuery({
-    queryKey: QUERY_KEYS.AUTH_ME(),
-    queryFn: async () => {
-      if (!authToken) return null;
-      const res = await fetch(
-        API_ROUTES.AUTH.ME,
-        { headers: { Authorization: `Bearer ${authToken}` } }
-      );
-      if (!res.ok) return null;
-      return res.json();
-    },
-    staleTime: 60000, // Keep data fresh for 1 minute
-    refetchInterval: false, // DISABLED: No polling. Location updates flow through context.
-    enabled: !!authToken,
-  });
+  // 2026-07-06: Removed the /api/auth/me query. Its response is
+  // { user, profile, vehicle } — the `ok`/`timezone`/`city`/`formatted_address`
+  // keys this header used to read never existed, so that "database priority"
+  // path was dead code. Worse, the only timezone in that response is the
+  // driver's HOME timezone from registration — wrong whenever they work
+  // another market. Time context comes from LocationContext only, which is
+  // GPS coords → Google Timezone API. No other source is acceptable.
 
   // location from context, supporting both shapes
   // PRIORITY: Use override coords if available (manual city search), otherwise use GPS
@@ -132,10 +113,9 @@ const GlobalHeaderComponent: React.FC = () => {
 
   const coords = overrideCoords || gpsCoords;
 
-  // CRITICAL FIX Issue #5 & #8: PRIORITY - Use database location, then override city, then context city/state
+  // Priority: override city (manual search), then GPS-resolved context city/state
   const currentLocationString =
     overrideCoords?.city ??
-    (dbUserLocation?.ok && dbUserLocation?.city ? dbUserLocation.city : null) ??
     (loc?.city && loc?.state ? `${loc.city}, ${loc.state}` : null) ??
     (loc?.location?.city && loc?.location?.state
       ? `${loc.location.city}, ${loc.location.state}`
@@ -267,32 +247,40 @@ const GlobalHeaderComponent: React.FC = () => {
       );
   }, []);
 
-  // Compute local time fields for display with timezone
-  // CRITICAL FIX Issue #5: PRIORITY database timezone over context
+  // Compute local time fields for display — GPS-resolved timezone ONLY.
+  // The timezone is resolved server-side from GPS coords via the Google
+  // Timezone API and arrives through LocationContext. Until it arrives we
+  // show an explicit syncing state: rendering the device's timezone here
+  // would fabricate time context for drivers working outside their home
+  // market (2026-07-06 Indiana incident) — fallbacks are not allowed.
   useEffect(() => {
-    const tz =
-      dbUserLocation?.ok && dbUserLocation?.timezone
-        ? dbUserLocation.timezone
-        : loc?.timeZone || loc?.location?.timeZone;
+    const tz = loc?.timeZone || loc?.location?.timeZone || null;
 
-    // Only pass timeZone if we have it, otherwise use browser's local timezone
+    if (!tz) {
+      setTimeString("--:--:--");
+      setDateString("");
+      setDayOfWeek("");
+      setTimeContextLabel("syncing local time…");
+      return;
+    }
+
     const formatter = new Intl.DateTimeFormat("en-US", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
       hour12: true,
-      ...(tz && { timeZone: tz }),
+      timeZone: tz,
     });
     const dayFmt = new Intl.DateTimeFormat("en-US", {
       weekday: "long",
-      ...(tz && { timeZone: tz }),
+      timeZone: tz,
     });
 
     // Format date with timezone awareness (e.g., "Dec 17")
     const dateFmt = new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
-      ...(tz && { timeZone: tz }),
+      timeZone: tz,
     });
 
     setTimeString(formatter.format(now));
@@ -303,7 +291,7 @@ const GlobalHeaderComponent: React.FC = () => {
     // Just show day and context label separately (avoid duplicate)
     setDayOfWeek(day);
     setTimeContextLabel(label);
-  }, [now, dbUserLocation, loc?.timeZone, loc?.location?.timeZone]);
+  }, [now, loc?.timeZone, loc?.location?.timeZone]);
 
   // ---- helpers -------------------------------------------------------------
 
@@ -317,16 +305,12 @@ const GlobalHeaderComponent: React.FC = () => {
   };
 
   const formatLocation = () => {
-    // CRITICAL FIX Issue #5: Show resolved city from database (freshest source)
+    // Show the GPS-resolved city from LocationContext
     if (
       currentLocationString &&
       currentLocationString !== "Getting location..." &&
       currentLocationString !== "Detecting..."
     ) {
-      // If database location, show with formatted_address for precision
-      if (dbUserLocation?.ok && dbUserLocation?.formatted_address) {
-        return `📍 ${dbUserLocation.formatted_address}`;
-      }
       return currentLocationString;
     }
     // Show "Resolving..." instead of raw coordinates (less scary for users)
@@ -452,14 +436,16 @@ const GlobalHeaderComponent: React.FC = () => {
               <div className="text-xs text-white/80 flex items-center gap-2">
                 <span>
                   <Clock className="inline mr-1 h-3 w-3" />
-                  {/* Prioritize holiday name over day part label when available */}
+                  {/* Prioritize holiday name over day part label when available.
+                      While the GPS timezone is unresolved, dayOfWeek/dateString are
+                      empty and only the syncing label renders — never device time. */}
                   {isHoliday && holiday ? (
                     <span className="text-amber-300 font-semibold">
-                      {dayOfWeek}, {dateString} • {holiday}
+                      {dayOfWeek ? `${dayOfWeek}, ${dateString} • ${holiday}` : holiday}
                     </span>
                   ) : (
                     <>
-                      {dayOfWeek}, {dateString} • {timeContextLabel}
+                      {dayOfWeek ? `${dayOfWeek}, ${dateString} • ${timeContextLabel}` : timeContextLabel}
                     </>
                   )}
                 </span>

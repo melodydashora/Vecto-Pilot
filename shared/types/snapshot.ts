@@ -20,7 +20,10 @@ export type SnapshotV1 = {
     dow: number;
     hour: number;
     is_weekend: boolean;
-    day_part_key: "overnight" | "morning" | "late_morning_noon" | "afternoon" | "early_evening" | "evening" | "late_evening";
+    // Canonical taxonomy from shared/dayparts.js (2026-07-06 rename).
+    // Legacy stored rows may still contain late_morning_noon/afternoon —
+    // normalize on read via normalizeDayPartKey().
+    day_part_key: "overnight" | "morning" | "early_afternoon" | "late_afternoon" | "early_evening" | "evening";
   };
   weather?: Record<string, any>;
   air?: Record<string, any>;

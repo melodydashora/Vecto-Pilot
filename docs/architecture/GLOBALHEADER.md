@@ -34,10 +34,25 @@ The GlobalHeader is the persistent top bar visible on all authenticated pages. I
 | City, State | `LocationContext.city`, `.state` | Location resolves |
 | Current time | `Intl.DateTimeFormat` with `LocationContext.timeZone` | Every second |
 | Day of week | Computed from timezone | Location resolves |
+| Daypart label | `classifyDayPart(now, tz)` from `shared/dayparts.js` (via `@/lib/daypart`) | Every second |
 | Weather (temp + conditions) | `LocationContext.weather` | Snapshot enriched |
 | AQI badge | `LocationContext.airQuality` | Snapshot enriched |
 | GPS refresh button | Triggers `LocationContext.refreshGPS()` | On click |
 | Snapshot status | Pipeline phase indicator | SSE phase events |
+
+**Timezone rule (2026-07-06):** the clock, date, and daypart label render ONLY
+from the GPS-resolved timezone (`LocationContext.timeZone`, sourced from the
+Google Timezone API in `/api/location/resolve`). While it is unresolved the
+header shows `--:--:--` / "syncing local time…" — it never falls back to the
+device timezone (a driver working outside their home market would see wrong
+time context). The `/api/auth/me` "database timezone" path that used to sit in
+this component was dead code (wrong response keys) and was removed.
+
+Daypart taxonomy (shared/dayparts.js — single adapter for server + client):
+`overnight` 0-5 · `morning` 5-12 · `early_afternoon` 12-15 ·
+`late_afternoon` 15-17 · `early_evening` 17-21 · `evening` 21-24.
+Legacy stored keys `late_morning_noon`/`afternoon` normalize on read via
+`normalizeDayPartKey()`.
 
 ### Data Binding
 

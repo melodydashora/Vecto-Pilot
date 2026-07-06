@@ -44,11 +44,13 @@ function getTimeInTimezone(timezone, now = new Date()) {
       weekday: 'long'
     });
 
+    // 2026-07-06: hourCycle 'h23' — `hour12: false` yields "24" at midnight on
+    // Node <=21 (V8 h24), corrupting minutes-since-midnight for 12:00-12:59 AM.
     const timeFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hourCycle: 'h23'
     });
 
     const dayName = dayFormatter.format(now).toLowerCase();
@@ -60,7 +62,7 @@ function getTimeInTimezone(timezone, now = new Date()) {
     const yesterdayName = WEEKDAY_KEYS[yesterdayIndex];
 
     const timeParts = timeFormatter.formatToParts(now);
-    const hour = parseInt(timeParts.find(p => p.type === 'hour')?.value || '0', 10);
+    const hour = parseInt(timeParts.find(p => p.type === 'hour')?.value || '0', 10) % 24;
     const minute = parseInt(timeParts.find(p => p.type === 'minute')?.value || '0', 10);
     const currentMinutes = hour * 60 + minute;
 

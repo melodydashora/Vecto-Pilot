@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, Sparkles, Send, MessageSquare } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { getLocalHour } from '@/lib/daypart';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -18,7 +19,9 @@ interface AskConciergeProps {
   token: string;
   lat: number;
   lng: number;
-  timezone: string;
+  /** GPS-resolved IANA timezone (coords → Google Timezone API). Null while
+   *  resolving — time-aware features are omitted rather than guessed. */
+  timezone: string | null;
   venueContext?: string;
   eventContext?: string;
 }
@@ -27,38 +30,33 @@ const MAX_QUESTIONS_PER_SESSION = 5;
 
 // 2026-04-18: Replaced the static SUGGESTED_QUESTIONS array with a daypart-aware
 // builder per the Coach inbox request (2026-04-09 "Dynamic Time-Aware Concierge
-// Prompts"). Uses the driver's timezone (already passed via props) to compute
-// local hour and serve morning / afternoon / evening / late-night prompts.
-function getDaypart(timezone: string): 'morning' | 'afternoon' | 'evening' | 'late-night' {
+// Prompts"). Uses the driver's GPS-resolved timezone (passed via props) to
+// compute local hour and serve morning / afternoon / evening / late-night prompts.
+// NOTE: these 4 buckets are a UI prompt-suggestion scheme, deliberately distinct
+// from the canonical 6-part daypart taxonomy in shared/dayparts.js.
+// 2026-07-06: hour now comes from the shared adapter (the old inline
+// `hour12: false` extraction returned "24" at midnight on Chromium < 124 and
+// then silently defaulted to 'afternoon'). If the timezone is missing/invalid
+// we OMIT the suggestion chips instead of guessing a daypart — no fallbacks.
+function getSuggestedQuestions(timezone: string | null): string[] {
+  if (!timezone) return []; // still resolving GPS timezone — omit, don't guess
+  let hour: number;
   try {
-    const hourStr = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      hour: 'numeric',
-      hour12: false,
-    }).format(new Date());
-    const hour = parseInt(hourStr, 10);
-    if (Number.isNaN(hour)) return 'afternoon';
-    if (hour >= 5 && hour < 11) return 'morning';
-    if (hour >= 11 && hour < 17) return 'afternoon';
-    if (hour >= 17 && hour < 22) return 'evening';
-    return 'late-night';
-  } catch {
-    return 'afternoon';
+    hour = getLocalHour(new Date(), timezone);
+  } catch (err) {
+    console.error('[AskConcierge] Cannot derive local hour — hiding suggested prompts:', err);
+    return [];
   }
-}
-
-function getSuggestedQuestions(timezone: string): string[] {
-  switch (getDaypart(timezone)) {
-    case 'morning':
-      return ['Coffee nearby?', 'Quick breakfast spots', "What's open now?", 'Morning commute tips'];
-    case 'afternoon':
-      return ['Lunch spots nearby', 'Things to do here', "What's nearby?", 'Sightseeing ideas'];
-    case 'evening':
-      return ['Dinner spots nearby', 'Events happening now', 'Best places to eat', 'Nightlife options'];
-    case 'late-night':
-    default:
-      return ['Late-night food', "What's open now?", 'Safe spots nearby', 'Events happening now'];
+  if (hour >= 5 && hour < 11) {
+    return ['Coffee nearby?', 'Quick breakfast spots', "What's open now?", 'Morning commute tips'];
   }
+  if (hour >= 11 && hour < 17) {
+    return ['Lunch spots nearby', 'Things to do here', "What's nearby?", 'Sightseeing ideas'];
+  }
+  if (hour >= 17 && hour < 22) {
+    return ['Dinner spots nearby', 'Events happening now', 'Best places to eat', 'Nightlife options'];
+  }
+  return ['Late-night food', "What's open now?", 'Safe spots nearby', 'Events happening now'];
 }
 
 export function AskConcierge({ token, lat, lng, timezone, venueContext, eventContext }: AskConciergeProps) {
@@ -102,7 +100,8 @@ export function AskConcierge({ token, lat, lng, timezone, venueContext, eventCon
           question: question.trim(),
           lat,
           lng,
-          timezone,
+          // Omit timezone entirely while unresolved — never send a guess
+          ...(timezone ? { timezone } : {}),
           venueContext: venueContext || '',
           eventContext: eventContext || '',
         }),

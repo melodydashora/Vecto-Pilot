@@ -5,6 +5,8 @@ import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
 // 2026-02-17: Import queryClient for full cache reset on manual refresh (matches logout behavior)
 import { queryClient } from '@/lib/queryClient';
+// 2026-07-06: shared daypart adapter — GPS-resolved timezone required, no device-tz math
+import { classifyDayPart, getLocalDow, getLocalIso } from '@/lib/daypart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SNAPSHOT ARCHITECTURE (Updated 2026-01-05)
@@ -603,17 +605,30 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         // 2026-01-06: P3-D - Include reason for smart resume support
         // CoPilotContext uses this to decide whether to trigger blocks-fast
+        // 2026-07-06: FIX — holiday was hardcoded null/false here, so the
+        // header could NEVER show a holiday even when the snapshot row had
+        // one. Forward the truth from the /resolve response (snapshot row).
         const reason = forceRefresh ? 'manual_refresh' : 'init';
         window.dispatchEvent(new CustomEvent('vecto-snapshot-saved', {
-          detail: { snapshotId, holiday: null, is_holiday: false, reason }
+          detail: {
+            snapshotId,
+            holiday: locationData.holiday ?? null,
+            is_holiday: locationData.is_holiday ?? false,
+            reason
+          }
         }));
       } else {
         // Fallback: Server didn't return snapshot_id, create one client-side (legacy path)
         console.warn('⚠️ [LocationContext] No snapshot_id from server - using legacy client creation');
         const fallbackSnapshotId = crypto.randomUUID();
         const now = new Date();
-        const hour = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getHours();
-        const dow = new Date(now.toLocaleString('en-US', { timeZone: locationData.timeZone })).getDay();
+        // 2026-07-06: shared/dayparts adapter — the old toLocaleString re-parse
+        // was implementation-defined, and this path carried its own 3-bucket
+        // daypart scheme that disagreed with the canonical 6-bucket taxonomy.
+        // classifyDayPart throws if timeZone is missing (no fallbacks) — and it
+        // can't be missing here: /api/location/resolve 400s without a timezone.
+        const { key: dayPartKey, hour } = classifyDayPart(now, locationData.timeZone);
+        const dow = getLocalDow(now, locationData.timeZone);
 
         const snapshot = {
           snapshot_id: fallbackSnapshotId,
@@ -629,11 +644,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             formattedAddress: locationData.formattedAddress
           },
           time_context: {
-            local_iso: now.toISOString(),
+            // local_iso convention: driver's wall-clock time stored as a naive
+            // timestamp (was incorrectly sending UTC here)
+            local_iso: getLocalIso(now, locationData.timeZone),
             dow,
             hour,
             is_weekend: dow === 0 || dow === 6,
-            day_part_key: hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+            day_part_key: dayPartKey
           },
           weather: weatherData?.available ? {
             tempF: weatherData.temperature,

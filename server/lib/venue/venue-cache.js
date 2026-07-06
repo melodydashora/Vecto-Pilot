@@ -16,7 +16,7 @@ import {
 } from './venue-utils.js';
 import { extractDistrictFromVenueName, normalizeDistrictSlug } from './district-detection.js';
 // 2026-02-17: Shared timezone resolution — set timezone + market_slug on venue creation
-import { resolveTimezoneFromMarket } from '../location/resolveTimezone.js';
+import { resolveTimezoneFromMarket, resolveTimezoneFromCoords } from '../location/resolveTimezone.js';
 // 2026-04-11: Address quality validation — catches bad Places (NEW) API results before they persist
 // 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW spec): per-venue enrichment lines
 // demoted from info to debug. Set LOG_VERBOSE_COMPONENTS=VENUES to see them again.
@@ -601,18 +601,25 @@ export async function findOrCreateVenue(eventData, source) {
   // Create new venue with District Tagging
   const district = extractDistrictFromVenueName(venueName);
 
-  // 2026-02-17: Resolve timezone + market_slug from market lookup
-  // Non-blocking: venue creation succeeds even if timezone resolution fails
+  // 2026-07-06: Venue timezone from its GPS coords via the Google Timezone API
+  // (was: market lookup by city name — a market's blanket timezone is wrong
+  // near zone borders, which corrupts open/closed math). Market lookup remains
+  // for market_slug IDENTITY only. Non-blocking: venue creation succeeds with
+  // timezone omitted (null) — never guessed.
   let venueTimezone = null;
   let venueMarketSlug = null;
   try {
-    const tzResult = await resolveTimezoneFromMarket(city, state);
-    if (tzResult) {
-      venueTimezone = tzResult.timezone;
-      venueMarketSlug = tzResult.market_slug;
+    venueTimezone = await resolveTimezoneFromCoords(latitude, longitude);
+  } catch (_err) {
+    // Non-fatal — timezone omitted when unresolvable, never substituted
+  }
+  try {
+    const mktResult = await resolveTimezoneFromMarket(city, state);
+    if (mktResult) {
+      venueMarketSlug = mktResult.market_slug;
     }
   } catch (_err) {
-    // Non-fatal — timezone is a nice-to-have, not required for venue creation
+    // Non-fatal — market linkage is optional
   }
 
   // 2026-01-10: AUDIT FIX - Include place_id and formatted_address in new venue

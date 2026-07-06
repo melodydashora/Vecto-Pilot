@@ -31,6 +31,8 @@ import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-
 import crypto from 'crypto';
 // Path: from server/lib/ai/ → ../events/ resolves to server/lib/events/
 import { VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
+// 2026-07-06: daypart adapter — normalize legacy keys, human labels for prompts
+import { normalizeDayPartKey, dayPartLabel } from '../location/daypart.js';
 
 /**
  * CoachDAL - Full schema read access for AI Coach
@@ -148,7 +150,9 @@ export class RideshareCoachDAL {
         is_weekend,
         dow: dow,
         hour: snap.hour ?? 0,
-        day_part: snap.day_part_key || 'unknown',
+        // 2026-07-06: normalized canonical key (legacy late_morning_noon/afternoon
+        // rows map to early_afternoon/late_afternoon); 'unknown' states absence honestly
+        day_part: normalizeDayPartKey(snap.day_part_key) || 'unknown',
         location_display: snap.formatted_address || `${snap.city || 'Unknown'}, ${snap.state || ''}`,
         city: snap.city || null,
         state: snap.state || null,
@@ -997,7 +1001,7 @@ export class RideshareCoachDAL {
       prompt += `\n\n=== CURRENT LOCATION & TIME CONTEXT ===`;
       prompt += `\n📍 Location: ${snapshot.location_display || `${snapshot.city}, ${snapshot.state}`}`;
       prompt += `\n   Coordinates: ${parseFloat(snapshot.lat).toFixed(6)},${parseFloat(snapshot.lng).toFixed(6)}`;
-      prompt += `\n🕐 Time: ${snapshot.day_of_week}, ${snapshot.day_part}`;
+      prompt += `\n🕐 Time: ${snapshot.day_of_week}, ${dayPartLabel(snapshot.day_part) || snapshot.day_part}`;
       if (snapshot.hour != null) prompt += ` (${snapshot.hour}:00)`;
       if (snapshot.is_weekend) prompt += ` [WEEKEND]`;
       prompt += `\n🌍 Timezone: ${snapshot.timezone}`;
@@ -1360,7 +1364,14 @@ export class RideshareCoachDAL {
       };
 
       console.log(`[COACH] getOfferHistory: ${history.length} offers, ${stats.accept_rate_pct}% accept rate`);
-      return { offers: history, stats };
+      // 2026-07-06: normalize legacy daypart keys in historical rows so LLM/
+      // analytics consumers see one taxonomy (raw value passes through only if
+      // it's not a known key — stored data, not a fabrication).
+      const offers = history.map(h => ({
+        ...h,
+        day_part: h.day_part ? (normalizeDayPartKey(h.day_part) ?? h.day_part) : null,
+      }));
+      return { offers, stats };
     } catch (error) {
       console.error('[COACH] getOfferHistory error:', error);
       return { offers: [], stats: null };

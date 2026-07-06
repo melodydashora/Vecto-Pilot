@@ -10,6 +10,11 @@ import { generateAndStoreBriefing } from "../../lib/briefing/briefing-aggregator
 import { httpError } from "../utils/http-helpers.js";
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from "../../lib/location/coords-key.js";
+// 2026-07-06: daypart adapter — never trust/store a client daypart string verbatim
+import { normalizeDayPartKey, getDayPartKey } from "../../lib/location/daypart.js";
+// 2026-07-06: holiday is a required snapshot field — detected server-side on
+// every write path, never trusted from the client, never defaulted
+import { detectHoliday } from "../../lib/location/holiday-detector.js";
 // 2026-03-17: Moved import to top — now used by both POST and GET routes
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -88,7 +93,14 @@ router.post("/", requireAuth, async (req, res) => {
 
     const hour = snap.time_context?.hour;
     const dow = snap.time_context?.dow;
-    const day_part_key = snap.time_context?.day_part_key;
+    // 2026-07-06: validate the client-computed daypart server-side — normalize
+    // legacy keys (late_morning_noon/afternoon → early_afternoon/late_afternoon);
+    // if missing/unknown, derive from the hour instead of storing garbage. A
+    // still-null result hits the NOT NULL constraint and fails loud, as it should.
+    const validHour = Number.isInteger(hour) && hour >= 0 && hour <= 23;
+    const day_part_key =
+      normalizeDayPartKey(snap.time_context?.day_part_key) ??
+      (validHour ? getDayPartKey(hour) : null);
     const local_iso = snap.time_context?.local_iso;
     
     // Build DB record
@@ -115,6 +127,31 @@ router.post("/", requireAuth, async (req, res) => {
     const parts = formatter.formatToParts(createdAtDate);
     const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
 
+    // 2026-07-06: Holiday is REQUIRED on every snapshot row (header aesthetics
+    // + LLM waterfall). Server-side detection; failure fails the request —
+    // a defaulted 'none' is bad data in every downstream call.
+    let holidayInfo;
+    try {
+      holidayInfo = await detectHoliday({
+        created_at: createdAtDate.toISOString(),
+        city,
+        state,
+        country,
+        timezone: driverTimezone,
+        // Everything the snapshot has resolved so far — global grounding
+        formattedAddress: formatted_address ?? null,
+        lat,
+        lng,
+      });
+    } catch (holidayErr) {
+      console.error('[SNAPSHOT] Holiday detection failed — snapshot rejected:', holidayErr.message);
+      return res.status(502).json({
+        ok: false,
+        error: 'holiday_detection_failed',
+        message: holidayErr.message
+      });
+    }
+
     const dbSnapshot = {
       snapshot_id,
       created_at: createdAtDate,
@@ -136,6 +173,9 @@ router.post("/", requireAuth, async (req, res) => {
       dow: typeof dow === 'number' ? dow : null,
       hour: typeof hour === 'number' ? hour : null,
       day_part_key: day_part_key || null,
+      // Holiday context (required — detected server-side above)
+      holiday: holidayInfo.holiday,
+      is_holiday: holidayInfo.is_holiday,
       // API data
       weather: snap.weather || null,
       air: snap.air || null,
@@ -262,7 +302,9 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
       lng: snapshot.lng,
       hour: snapshot.hour,
       dow: snapshot.dow,
-      day_part_key: snapshot.day_part_key,
+      // 2026-07-06: normalize legacy keys on read (pre-rename rows); null only
+      // if the stored value is corrupt, which the client treats as absent
+      day_part_key: normalizeDayPartKey(snapshot.day_part_key),
       weather: snapshot.weather,
       air: snapshot.air,
       // 2026-01-14: airport_context dropped - now in briefings.airport_conditions

@@ -605,9 +605,11 @@ Miles are rounded to the nearest whole number with plural handling (`1 mile`, `6
 | `local_date` | text | `YYYY-MM-DD` in driver's local timezone (via `resolveTimezoneFromCoords`) |
 | `local_hour` | integer | 0-23 in driver's local timezone |
 | `day_of_week` | integer | 0=Sun … 6=Sat (local timezone) |
-| `day_part` | text | `getDayPartKey(hour)` |
+| `day_part` | text | `getDayPartKey(getLocalHour(...))` via `shared/dayparts.js` |
 | `is_weekend` | boolean | Saturday or Sunday (local timezone) |
 | `timezone` | text | IANA zone from Google Timezone API (e.g., `America/Chicago`) |
+
+**No-fallback (2026-07-06):** when the timezone cannot be resolved from the GPS coords, all five temporal columns (`local_date`, `local_hour`, `day_of_week`, `day_part`, `is_weekend`) are stored as `NULL` — never UTC-derived. Previously a 7 PM CDT offer with an unresolved zone stored a UTC-derived `day_part` (e.g. `'overnight'`), corrupting the offer's time-of-day signal.
 
 #### AI Analysis
 
@@ -847,7 +849,7 @@ What is missing: native app, share-intent handler, accessibility service, notifi
 | `server/lib/ai/rideshare-coach-dal.js` | Coach reads offer history (`getOfferHistory(20)`) |
 | `shared/schema.js` (lines 1553–1718) | `offer_intelligence` table + 13 indexes |
 | `server/lib/location/coords-key.js` | 6-decimal `coord_key` formatter |
-| `server/lib/location/daypart.js` | `getDayPartKey(hour)` for temporal column |
+| `shared/dayparts.js` | `getDayPartKey`/`getLocalHour` for temporal columns (imported via the `server/lib/location/daypart.js` re-export shim) |
 | `server/bootstrap/middleware.js` | 5 MB body limit for `/api/hooks` |
 
 ---
@@ -864,3 +866,4 @@ What is missing: native app, share-intent handler, accessibility service, notifi
 | 2026-04-10 | 1.0 | First comprehensive doc pass |
 | 2026-04-15 | — | `reason` field added to response (Memory #120) |
 | 2026-04-16 | 2.0 | `voice` field wired via `buildVoiceLine` + qualifier map (Memory #121); this doc rewritten end-to-end |
+| 2026-07-06 | — | Daypart logic moved to `shared/dayparts.js` (h23 midnight-safe extraction); temporal columns now `NULL` when timezone unresolved (no UTC fallback); taxonomy rename `late_morning_noon`→`early_afternoon`, `afternoon`→`late_afternoon` |

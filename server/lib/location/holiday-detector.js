@@ -10,15 +10,33 @@
 import { readFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+// 2026-07-06: local-date derivation via the shared time-context adapter
+// (h23-safe, throws without a timezone — no UTC-date fallback)
+import { getLocalDateString } from './daypart.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+/**
+ * 2026-07-06: Holiday is a REQUIRED snapshot field (Melody): it drives the
+ * driver-facing header aesthetics AND rides the snapshot row into every LLM
+ * call in the waterfall. Detection failure must therefore FAIL the snapshot —
+ * a silently-defaulted 'none' is bad data downstream. 'none' now means
+ * "verified not a holiday", never "we couldn't tell".
+ */
+export class HolidayDetectionError extends Error {
+  constructor(reason) {
+    super(`Holiday detection failed: ${reason}`);
+    this.name = 'HolidayDetectionError';
+    this.code = 'HOLIDAY_DETECTION_FAILED';
+  }
+}
 
 // ============================================================================
 // L1 CACHE - In-memory cache for holiday detection results
 // Key: "YYYY-MM-DD|City|Country", Value: { result, expiresAt }
 // TTL: 24 hours (86400000 ms)
-// Updated 2026-01-05: Reduces redundant Gemini API calls
+// Updated 2026-01-05: Reduces redundant BRIEFING_HOLIDAY model calls
 // ============================================================================
 const HOLIDAY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const holidayCache = new Map();
@@ -34,11 +52,10 @@ const holidayCache = new Map();
  * @returns {string} Cache key
  */
 function getHolidayCacheKey(date, city, country, timezone) {
-  // Use timezone-aware date to avoid UTC date mismatch
-  const dateStr = timezone
-    ? new Date(date.toLocaleString('en-US', { timeZone: timezone })).toLocaleDateString('en-CA') // YYYY-MM-DD
-    : date.toISOString().split('T')[0]; // Fallback to UTC if no timezone
-  return `${dateStr}|${city?.toLowerCase() || 'unknown'}|${country?.toLowerCase() || 'us'}`;
+  // getLocalDateString throws without a timezone — no UTC-date fallback
+  // (UTC can be a day ahead of the driver's local date)
+  const dateStr = getLocalDateString(date, timezone);
+  return `${dateStr}|${city?.toLowerCase() || 'unknown'}|${country?.toLowerCase() || 'unknown'}`;
 }
 
 /**
@@ -100,7 +117,10 @@ setInterval(cleanupHolidayCache, 60 * 60 * 1000);
  */
 function getHolidayOverride(date) {
   try {
-    const configPath = join(__dirname, '../config/holiday-override.json');
+    // 2026-07-06: FIX — the config lives at server/config/holiday-override.json;
+    // the old '../config/' resolved to server/lib/config/ (nonexistent), so
+    // overrides SILENTLY never loaded. This is why holiday aesthetics never fired.
+    const configPath = join(__dirname, '../../config/holiday-override.json');
 
     if (!existsSync(configPath)) {
       return null;
@@ -136,17 +156,17 @@ function getHolidayOverride(date) {
       superseded_by_actual: override.superseded_by_actual !== false // default true
     };
   } catch (error) {
-    console.warn('[BRIEFING] [HOLIDAY] Error reading override config:', error.message);
-    return null;
+    // A corrupt override file is a config bug that must surface, not vanish
+    throw new HolidayDetectionError(`corrupt holiday-override.json: ${error.message}`);
   }
 }
 
-// 2026-02-13: Migrated from direct callGemini to callModel adapter (hedged router + fallback)
+// 2026-02-13: Migrated to the callModel adapter (hedged router + fallback) — model-agnostic, role-addressed
 import { callModel } from '../ai/adapters/index.js';
 
 // ============================================================================
 // 2026-04-05: LOCAL STATIC HOLIDAY DETECTOR
-// Runs BEFORE the Gemini API call — zero cost, zero latency, 100% reliable
+// Runs BEFORE the BRIEFING_HOLIDAY model call — zero cost, zero latency, 100% reliable
 // for well-known US holidays and Easter (which requires dynamic computation).
 // ============================================================================
 
@@ -252,11 +272,13 @@ const COUNTRY_FIXED_HOLIDAYS = {
  * @param {string} countryCode - ISO 3166-1 alpha-2 code (e.g., 'US', 'GB', 'CA')
  * @returns {{ holiday: string, is_holiday: boolean } | null}
  */
-function detectStaticHoliday(dateStr, countryCode = 'US') {
+function detectStaticHoliday(dateStr, countryCode = null) {
   const [year, month, day] = dateStr.split('-').map(Number);
   const dateMs = Date.UTC(year, month - 1, day);
   const mmdd = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  const cc = (countryCode || 'US').toUpperCase();
+  // 2026-07-06: no 'US' default — unknown country means only global holidays
+  // and Easter can be statically confirmed (never a guessed nationality)
+  const cc = countryCode ? countryCode.toUpperCase() : null;
 
   // === GLOBAL FIXED-DATE HOLIDAYS ===
   if (GLOBAL_FIXED_HOLIDAYS[mmdd]) {
@@ -264,7 +286,7 @@ function detectStaticHoliday(dateStr, countryCode = 'US') {
   }
 
   // === COUNTRY-SPECIFIC FIXED-DATE HOLIDAYS ===
-  const countryHolidays = COUNTRY_FIXED_HOLIDAYS[cc] || {};
+  const countryHolidays = (cc && COUNTRY_FIXED_HOLIDAYS[cc]) || {};
   if (countryHolidays[mmdd]) {
     return { holiday: countryHolidays[mmdd], is_holiday: true };
   }
@@ -332,23 +354,35 @@ function detectStaticHoliday(dateStr, countryCode = 'US') {
 }
 
 /**
- * Detect holiday for a given date/location using BRIEFING_HOLIDAY role
- * @param {Object} context - { created_at, city, state, country, timezone }
- * @returns {Promise<{ holiday: string, is_holiday: boolean }>} holiday is 'none' or holiday name
+ * Detect holiday for a given date/location using the BRIEFING_HOLIDAY role.
+ * Pass everything the snapshot has resolved so far — richer location context
+ * grounds the search better for a global app.
+ * @param {Object} context - { created_at, city, state, country, timezone,
+ *                             formattedAddress?, lat?, lng? }
+ * @returns {Promise<{ holiday: string, is_holiday: boolean }>} holiday is 'none' (verified) or holiday name
+ * @throws {HolidayDetectionError} on any detection failure (no fallbacks)
  */
 export async function detectHoliday(context) {
+  // 2026-07-06: timezone is REQUIRED (GPS coords → Google Timezone API).
+  // Without it the "local date" is a guess, and holidays land on wrong days.
+  if (!context?.timezone) {
+    throw new HolidayDetectionError(
+      'timezone is required (GPS-resolved IANA zone) — holiday is a required snapshot field'
+    );
+  }
+
   const checkDate = context.created_at ? new Date(context.created_at) : new Date();
 
   // L1 Cache Check - before any API calls
-  // Updated 2026-01-05: Reduces redundant Gemini API calls
+  // Updated 2026-01-05: Reduces redundant BRIEFING_HOLIDAY model calls
   // 2026-02-17: FIX - Pass timezone for local-date-aware cache key
-  const cacheKey = getHolidayCacheKey(checkDate, context.city, context.country || 'us', context.timezone);
+  const cacheKey = getHolidayCacheKey(checkDate, context.city, context.country, context.timezone);
   const cached = getFromHolidayCache(cacheKey);
   if (cached) {
     return cached;
   }
 
-  // Check for holiday override first
+  // Check for holiday override first (explicit human config — throws if corrupt)
   const override = getHolidayOverride(checkDate);
 
   // If override exists and is NOT superseded by actual holidays, return immediately
@@ -358,61 +392,74 @@ export async function detectHoliday(context) {
 
   // 2026-04-05: Static holiday detection — zero cost, zero latency, 100% reliable
   // Runs BEFORE any API call. Covers US federal holidays, Easter, Thanksgiving,
-  // and major holidays for CA, GB, AU, MX. Uses snapshot's country field.
+  // and major holidays for CA, GB, AU, MX. Uses snapshot's country field —
+  // 2026-07-06: no 'US' default; unknown country limits static detection to
+  // global holidays + Easter (truthful, not a guessed nationality).
   {
-    const localDateStr = context.timezone
-      ? new Date(checkDate.toLocaleString('en-US', { timeZone: context.timezone })).toLocaleDateString('en-CA')
-      : checkDate.toISOString().split('T')[0];
-    const countryCode = context.country || 'US';
-    const staticResult = detectStaticHoliday(localDateStr, countryCode);
+    const localDateStr = getLocalDateString(checkDate, context.timezone);
+    const staticResult = detectStaticHoliday(localDateStr, context.country || null);
     if (staticResult) {
-      console.log(`[BRIEFING] [HOLIDAY] 📅 Static detection: ${staticResult.holiday} (${localDateStr}, ${countryCode})`);
+      console.log(`[BRIEFING] [HOLIDAY] 📅 Static detection: ${staticResult.holiday} (${localDateStr}, ${context.country || 'no-country'})`);
       setHolidayCache(cacheKey, staticResult);
       return staticResult;
     }
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('[BRIEFING] [HOLIDAY] GEMINI_API_KEY not set - skipping holiday detection');
-    // Use override if available when API key is missing
-    if (override) {
-      return { holiday: override.holiday, is_holiday: true };
-    }
-    return { holiday: 'none', is_holiday: false };
-  }
+  // 2026-07-06 (Melody): model-agnostic — no vendor env-key gate here. The
+  // BRIEFING_HOLIDAY role is dispatched by the callModel adapter, which owns
+  // provider auth; if the role's provider is unconfigured the call fails and
+  // we throw below with the ROLE name, never a vendor name.
 
-  // 1. Format date for the user's specific timezone - NO FALLBACK
-  let formattedDate;
-  try {
-    if (!context.timezone) {
-      console.warn('[BRIEFING] [HOLIDAY] Missing timezone - cannot accurately detect holidays');
-      return { holiday: 'none', is_holiday: false, reason: 'timezone_missing' };
-    }
-    const utcTime = new Date(context.created_at || new Date());
-    formattedDate = new Intl.DateTimeFormat('en-US', {
-      timeZone: context.timezone,
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    }).format(utcTime);
-  } catch (e) {
-    console.warn('[BRIEFING] [HOLIDAY] Date formatting error:', e.message);
-    formattedDate = new Date().toISOString();
-  }
+  // Format date for the user's specific timezone (validated above — no fallback)
+  const utcTime = new Date(context.created_at || new Date());
+  const formattedDate = new Intl.DateTimeFormat('en-US', {
+    timeZone: context.timezone,
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(utcTime);
 
   // 2. Strict JSON Prompt
-  const prompt = `Use Google Search to determine if ${formattedDate} is a significant holiday in ${context.city}, ${context.state}.
+  // 2026-07-06: asks about observed dates and holiday WEEKENDS too — on
+  // July 5 after a Saturday July 4, drivers still see holiday demand and the
+  // header should greet "Independence Day Weekend", not silently show nothing.
+  // 2026-07-06 (Melody): model-agnostic ("web search", not a vendor's search
+  // product — the registry wires whichever search tool the role's provider
+  // has) and GLOBAL (country-relative criteria, no US-only examples). Location
+  // grounding uses the richest snapshot fields available: formatted address
+  // and 6-decimal GPS coords beat "city, state" everywhere outside the US.
+  const locationParts = [];
+  if (context.formattedAddress) {
+    locationParts.push(context.formattedAddress);
+  } else {
+    const cityLine = [context.city, context.state, context.country].filter(Boolean).join(', ');
+    if (cityLine) locationParts.push(cityLine);
+  }
+  const latNum = Number(context.lat);
+  const lngNum = Number(context.lng);
+  if (Number.isFinite(latNum) && Number.isFinite(lngNum)) {
+    locationParts.push(`(GPS: ${latNum.toFixed(6)}, ${lngNum.toFixed(6)})`);
+  }
+  const locationDescriptor = locationParts.join(' ');
+  if (!locationDescriptor) {
+    throw new HolidayDetectionError('no location context provided (need formattedAddress, city, or coords from the snapshot)');
+  }
 
-  CRITERIA for "Significant":
-  - Federal/National holidays (e.g. Thanksgiving, Christmas, Memorial Day)
-  - Major religious observances (e.g. Easter, Eid, Yom Kippur)
-  - Major cultural events affecting traffic/business (e.g. Mardi Gras)
+  const prompt = `Use web search to determine if ${formattedDate} is a significant holiday, an observed holiday date, or part of a major holiday weekend for this location: ${locationDescriptor}.
+
+  CRITERIA for "Significant" (relative to that location's country/region):
+  - National/public holidays of that country or region
+  - OBSERVED dates when such a holiday falls on a weekend
+  - The surrounding holiday WEEKEND of a major holiday (e.g. the Sunday after a Saturday national day → "<Holiday> Weekend")
+  - Major religious observances (e.g. Easter, Eid, Diwali, Yom Kippur, Lunar New Year)
+  - Major cultural events affecting that city's traffic/business (e.g. Carnival, Mardi Gras, Oktoberfest)
 
   EXCLUDE:
   - Minor awareness days (e.g. Pizza Day, Siblings Day)
   - Time changes (e.g. Daylight Savings)
+
+  NAMING: use the holiday's common English name; for weekend/observed continuation days, append "Weekend" or "(Observed)" so greetings read naturally (e.g. "Independence Day Weekend").
 
   RETURN ONLY JSON:
   {
@@ -423,29 +470,29 @@ export async function detectHoliday(context) {
 
   try {
     // 2026-02-13: Uses BRIEFING_HOLIDAY role via callModel adapter (hedged router + fallback)
-    // Registry config: gemini-3.5-flash, thinkingLevel HIGH, google_search enabled
+    // Model/params come from the registry entry for BRIEFING_HOLIDAY (model-registry.js) — never named here
     const response = await callModel('BRIEFING_HOLIDAY', {
       user: prompt
     });
 
     if (!response.ok) {
-      console.error(`[BRIEFING] [HOLIDAY] Gemini API Error: ${response.error}`);
-      // Fall back to override if API fails
+      console.error(`[BRIEFING] [HOLIDAY] BRIEFING_HOLIDAY role error: ${response.error}`);
+      // Explicit override config still satisfies the requirement; otherwise
+      // an API failure must surface — never silently stored as 'none'.
       if (override) {
         return { holiday: override.holiday, is_holiday: true };
       }
-      return { holiday: 'none', is_holiday: false };
+      throw new HolidayDetectionError(`BRIEFING_HOLIDAY model call failed: ${response.error}`);
     }
 
     const text = response.output;
 
     if (!text) {
-      console.warn('[BRIEFING] [HOLIDAY] Empty response from Gemini');
-      // Fall back to override if no response
+      console.warn('[BRIEFING] [HOLIDAY] Empty response from BRIEFING_HOLIDAY role');
       if (override) {
         return { holiday: override.holiday, is_holiday: true };
       }
-      return { holiday: 'none', is_holiday: false };
+      throw new HolidayDetectionError('empty response from BRIEFING_HOLIDAY model');
     }
 
     // 4. Parse Strict JSON
@@ -478,19 +525,18 @@ export async function detectHoliday(context) {
       return result;
     } catch (parseErr) {
       console.error('[BRIEFING] [HOLIDAY] JSON Parse Failed:', parseErr.message, 'Raw:', text.substring(0, 100));
-      // Fall back to override on parse error
       if (override) {
         return { holiday: override.holiday, is_holiday: true };
       }
-      return { holiday: 'none', is_holiday: false };
+      throw new HolidayDetectionError(`unparseable model response: ${parseErr.message}`);
     }
 
   } catch (error) {
+    if (error instanceof HolidayDetectionError) throw error;
     console.error('[BRIEFING] [HOLIDAY] Network/System Error:', error.message);
-    // Fall back to override on network error
     if (override) {
       return { holiday: override.holiday, is_holiday: true };
     }
-    return { holiday: 'none', is_holiday: false };
+    throw new HolidayDetectionError(`network/system error: ${error.message}`);
   }
 }
