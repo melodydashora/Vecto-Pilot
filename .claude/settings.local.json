@@ -384,7 +384,8 @@
       "Bash(ps -eo pid,etime,args)",
       "Skill(claude-api)",
       "Bash(npx vitest *)",
-      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/offers/rules-engine-parity.test.js)"
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/offers/rules-engine-parity.test.js)",
+      "Bash(claude install *)"
     ],
     "deny": [],
     "ask": []

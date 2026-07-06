@@ -8,7 +8,7 @@ run = "sh -c \"set -a && . ./.env.local && set +a && bash scripts/dev-prerun.sh 
 
 # Nix/packages configuration
 [nix]
-packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "docker", "fetchutils", "gh", "glib", "google-cloud-sdk-gce", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "nano", "nodejs-22", "nspr", "nss", "pango", "pgroll", "python313Packages.conda", "solana-cli", "spidermonkey_91", "tmux", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "molly-guard"]
+packages = ["alsa-lib", "at", "at-spi2-atk", "at-spi2-core", "atk", "cairo", "cups", "dbus", "docker", "fetchutils", "gh", "glib", "google-cloud-sdk-gce", "imagemagick_light", "jq", "libxcb", "libxkbcommon", "lsof", "mailutils", "mesa", "molly-guard", "nano", "nodejs-22", "nspr", "nss", "pango", "pgroll", "python313Packages.conda", "solana-cli", "spidermonkey_91", "tmux", "tree", "unpackerr", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr"]
 channel = "stable-25_05"
 
 # Deployment settings (CI-like build/start)
@@ -63,6 +63,7 @@ shell_exec = true
 [userenv]
 
 [userenv.shared]
+PROJECT_ID = "gen-lang-client-0361505751"
 # ==========================
 # AI Model Configuration
 # ==========================
@@ -84,6 +85,7 @@ externalPort = 3001
 
 [[ports]]
 localPort = 5000
+externalPort = 80
 
 [[ports]]
 localPort = 5099
