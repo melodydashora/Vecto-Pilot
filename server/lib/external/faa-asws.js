@@ -1,6 +1,5 @@
 // Using Node.js built-in fetch (available in Node 18+)
 import { parseStringPromise } from 'xml2js';
-import { haversineDistanceMiles } from '../location/geo.js';
 
 const PUBLIC_API_URL = 'https://nasstatus.faa.gov/api/airport-status-information';
 const AUTH_API_BASE = 'https://external-api.faa.gov/asws';
@@ -100,8 +99,16 @@ async function fetchAuthenticatedAPI(specificAirport = null) {
       return [parseAuthAirportData(data)];
     }
 
-    const airports = await getMajorUSAirports();
-    const requests = airports.map(airport => 
+    // 2026-07-06: US majors from the airports table (Google-seeded), not a
+    // hardcoded list. Dynamic import avoids a module cycle at load time.
+    const { db } = await import('../../db/drizzle.js');
+    const { airports: airportsTable } = await import('../../../shared/schema.js');
+    const { eq } = await import('drizzle-orm');
+    const usAirports = await db
+      .select({ code: airportsTable.iata })
+      .from(airportsTable)
+      .where(eq(airportsTable.country, 'US'));
+    const requests = usAirports.map(airport =>
       fetch(`${AUTH_API_BASE}/api/airport/status/${airport.code}`, {
         headers: {
           'Authorization': authHeader,
@@ -245,77 +252,9 @@ function mergeAllAirportData(publicData, authData) {
   return result;
 }
 
-export async function getMajorUSAirports() {
-  // Alphabetically ordered to avoid location bias
-  return [
-    { code: 'ATL', name: 'Hartsfield-Jackson Atlanta International' },
-    { code: 'BOS', name: 'Logan International' },
-    { code: 'DAL', name: 'Dallas Love Field' },
-    { code: 'DEN', name: 'Denver International' },
-    { code: 'DFW', name: 'Dallas/Fort Worth International' },
-    { code: 'DTW', name: 'Detroit Metropolitan Wayne County' },
-    { code: 'EWR', name: 'Newark Liberty International' },
-    { code: 'IAH', name: 'George Bush Intercontinental' },
-    { code: 'JFK', name: 'John F. Kennedy International' },
-    { code: 'LAS', name: 'Harry Reid International' },
-    { code: 'LAX', name: 'Los Angeles International' },
-    { code: 'LGA', name: 'LaGuardia' },
-    { code: 'MCO', name: 'Orlando International' },
-    { code: 'MDW', name: 'Chicago Midway International' },
-    { code: 'MIA', name: 'Miami International' },
-    { code: 'MSP', name: 'Minneapolis-St. Paul International' },
-    { code: 'ORD', name: "Chicago O'Hare International" },
-    { code: 'PHX', name: 'Phoenix Sky Harbor International' },
-    { code: 'SEA', name: 'Seattle-Tacoma International' },
-    { code: 'SFO', name: 'San Francisco International' }
-  ];
-}
-
-/**
- * Find nearest major airport within rideshare-relevant proximity
- * @param {number} latitude - User's current latitude
- * @param {number} longitude - User's current longitude
- * @param {number} maxDistanceMiles - Maximum straight-line distance in miles (default 50)
- * @returns {Object|null} Nearest airport with distance, or null if none within range
- */
-export async function getNearestMajorAirport(latitude, longitude, maxDistanceMiles = 50) {
-  const airports = await getMajorUSAirports();
-  
-  // Alphabetically ordered to match airport list - no location preference
-  const airportCoordinates = {
-    'ATL': { lat: 33.6407, lon: -84.4277 },
-    'BOS': { lat: 42.3656, lon: -71.0096 },
-    'DAL': { lat: 32.8471, lon: -96.8518 },
-    'DEN': { lat: 39.8561, lon: -104.6737 },
-    'DFW': { lat: 32.8968, lon: -97.0380 },
-    'DTW': { lat: 42.2162, lon: -83.3554 },
-    'EWR': { lat: 40.6895, lon: -74.1745 },
-    'IAH': { lat: 29.9902, lon: -95.3368 },
-    'JFK': { lat: 40.6413, lon: -73.7781 },
-    'LAS': { lat: 36.0840, lon: -115.1537 },
-    'LAX': { lat: 33.9416, lon: -118.4085 },
-    'LGA': { lat: 40.7769, lon: -73.8740 },
-    'MCO': { lat: 28.4312, lon: -81.3081 },
-    'MDW': { lat: 41.7868, lon: -87.7522 },
-    'MIA': { lat: 25.7959, lon: -80.2870 },
-    'MSP': { lat: 44.8848, lon: -93.2223 },
-    'ORD': { lat: 41.9742, lon: -87.9073 },
-    'PHX': { lat: 33.4352, lon: -112.0101 },
-    'SEA': { lat: 47.4502, lon: -122.3088 },
-    'SFO': { lat: 37.6213, lon: -122.3790 }
-  };
-
-  // Calculate distance to ALL airports, then filter and sort by proximity
-  const distances = airports.map(airport => {
-    const coords = airportCoordinates[airport.code];
-    if (!coords) return null;
-    
-    const distance = haversineDistanceMiles(latitude, longitude, coords.lat, coords.lon);
-    return { ...airport, distance };
-  }).filter(a => a && a.distance <= maxDistanceMiles);
-
-  // Sort by distance (nearest first) - truly location-agnostic
-  distances.sort((a, b) => a.distance - b.distance);
-  
-  return distances[0] || null;
-}
+// 2026-07-06 (todo #22): getMajorUSAirports + getNearestMajorAirport DELETED.
+// They were a hardcoded 20-airport US-only list with coordinates baked into
+// code (app_rules no-hardcoded-location violation; Austin/Nashville/San Diego
+// missing entirely). Airport identity now lives in the airports table (seeded
+// from Google Places by scripts/seed-airports.mjs) and selection goes through
+// server/lib/location/airports.js findNearbyAirports (AIRPORT_RADIUS_MILES).

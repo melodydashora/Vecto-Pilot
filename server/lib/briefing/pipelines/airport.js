@@ -2,24 +2,37 @@
 // Owns: airport_conditions section of the briefings row + briefing_airport_ready
 // pg_notify channel.
 //
-// Live path: callModel('BRIEFING_AIRPORT') (Gemini with Google Search grounding).
-// Includes a manual JSON-extraction fallback (extractAirportJson) used when
-// safeJsonParse can't recover JSON from a markdown-wrapped Gemini response.
+// 2026-07-06 (todo #22, Melody): REBUILT around deterministic selection.
+//   - WHICH airports: findNearbyAirports (airports table, Google-seeded
+//     coords, AIRPORT_RADIUS_MILES=50) — the model NEVER discovers airports
+//     (the old "find airports within 50 miles of {city}" prompt returned a
+//     different set every run: the 1-vs-3 nondeterminism).
+//   - WHAT's happening at them: the BRIEFING_AIRPORT role researches the
+//     NAMED airports only — per-terminal checkpoint waits (~2 checkpoints per
+//     terminal; Clear only where the seeded inventory says it exists),
+//     arrivals activity, rideshare pickup points, delays.
+//   - best_entry per lane type is COMPUTED server-side from returned waits
+//     (min across checkpoints) — never chosen by the model. Melody: "knowing
+//     the best entry point is one of the best pieces of information to give
+//     for airports."
+//   - FAA ASWS delay data merged per US airport (deterministic API).
+//   - Model-agnostic: role-addressed, no vendor names, no vendor env gates.
 //
 // Internal-only: fetchAirportConditions and extractAirportJson are NOT re-exported.
-// The orchestrator (briefing-service.js) imports only `discoverAirport`.
+// The orchestrator imports only `discoverAirport`.
 //
-// Logging tag: [BRIEFING][AIRPORT] (per the 9-stage taxonomy enforcement principle —
-// the file location IS the taxonomy declaration).
+// Logging tag: [BRIEFING][AIRPORT]
 
 import { briefingLog, OP, matrixLog } from '../../../logger/workflow.js';
 import { callModel } from '../../ai/adapters/index.js';
 import { safeJsonParse } from '../shared/safe-json-parse.js';
 import { writeSectionAndNotify, CHANNELS, errorMarker } from '../briefing-notify.js';
+import { findNearbyAirports, AIRPORT_RADIUS_MILES } from '../../location/airports.js';
+import { fetchFAADelayData } from '../../external/faa-asws.js';
 
 /**
  * 2026-04-05: Manual airport JSON extraction — last resort when safeJsonParse fails.
- * Gemini with google_search often wraps JSON in markdown narrative. This function
+ * Search-grounded models often wrap JSON in markdown narrative. This function
  * extracts airport data by walking braces and looking for the "airports" key.
  *
  * 2026-05-12 (D-110): The brace walker is now string-aware — it tracks whether we're
@@ -95,7 +108,8 @@ function extractAirportJson(rawText) {
 }
 
 /**
- * Fetch airport conditions using Gemini with Google Search.
+ * Fetch airport conditions: deterministic airport selection + BRIEFING_AIRPORT
+ * role research of the named airports (model-agnostic, role-addressed).
  * Includes flight delays, arrivals, departures, and airport recommendations for drivers.
  *
  * Contract: never throws on graceful path — internal try/catch returns a fallback
@@ -107,19 +121,39 @@ function extractAirportJson(rawText) {
  * @returns {Promise<Object>} Airport conditions data (object with `airports`, `busyPeriods`,
  *   `recommendations`; on no-data path also includes `reason` and `isFallback: true`)
  */
+/**
+ * Compute the best entry point per lane type from returned checkpoint waits.
+ * Deterministic server-side computation — the model reports waits, it never
+ * picks winners. Returns { general?, preCheck?, clear? } where each value is
+ * { terminal, checkpoint, waitMinutes } for the minimum numeric wait found.
+ */
+function computeBestEntry(terminals) {
+  const best = {};
+  for (const t of terminals || []) {
+    for (const cp of t.checkpoints || []) {
+      for (const [lane, wait] of Object.entries(cp.lanes || {})) {
+        const minutes = typeof wait === 'number' ? wait : parseInt(wait, 10);
+        if (!Number.isFinite(minutes)) continue; // 'unreported' — never a candidate
+        if (!best[lane] || minutes < best[lane].waitMinutes) {
+          best[lane] = { terminal: t.terminal, checkpoint: cp.name || null, waitMinutes: minutes };
+        }
+      }
+    }
+  }
+  return best;
+}
+
 async function fetchAirportConditions({ snapshot }) {
-  // Require valid location data - no fallbacks for global app
-  if (!snapshot?.city || !snapshot?.state || !snapshot?.timezone) {
-    briefingLog.warn(2, 'Missing location data in snapshot - cannot fetch airport conditions', OP.AI);
+  // Require GPS coords + timezone — selection is coords-based (no fallbacks)
+  if (!Number.isFinite(snapshot?.lat) || !Number.isFinite(snapshot?.lng) || !snapshot?.timezone) {
+    briefingLog.warn(2, 'Snapshot missing lat/lng/timezone - cannot select airports', OP.AI);
     return {
       airports: [],
       busyPeriods: [],
-      recommendations: 'Airport data unavailable — snapshot missing city, state, or timezone',
-      reason: 'Snapshot missing required location data (city/state/timezone)'
+      recommendations: 'Airport data unavailable — snapshot missing coordinates or timezone',
+      reason: 'Snapshot missing required lat/lng/timezone for airport selection'
     };
   }
-  const city = snapshot.city;
-  const state = snapshot.state;
   const timezone = snapshot.timezone;
 
   // Get current date in user's timezone
@@ -130,21 +164,55 @@ async function fetchAirportConditions({ snapshot }) {
     date = new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   }
 
-  // Fallback for API failures — NO NULLS: always include reason
-  const fallbackAirport = {
-    airports: [],
+  // STEP 1 — deterministic selection: which airports (never the model's call)
+  const nearby = await findNearbyAirports(snapshot.lat, snapshot.lng);
+
+  if (nearby.length === 0) {
+    // VERIFIED empty — a true geographic fact, not a failure or a guess
+    return {
+      airports: [],
+      busyPeriods: [],
+      recommendations: `No major airports within ${AIRPORT_RADIUS_MILES} miles of this location`,
+      reason: `verified: no airports in the ${AIRPORT_RADIUS_MILES}-mile radius`,
+      verifiedEmpty: true,
+      fetchedAt: new Date().toISOString()
+    };
+  }
+
+  const airportList = nearby.map((a) => `${a.iata} (${a.name}, ${a.distance_miles} mi away)`).join('; ');
+
+  // Failure object for the research call — reason recorded, role-addressed,
+  // and the deterministic airport list is preserved so the UI can still show
+  // WHICH airports exist even when live conditions are unavailable.
+  const failureResult = (why) => ({
+    airports: nearby.map((a) => ({
+      code: a.iata,
+      name: a.name,
+      distance_miles: a.distance_miles,
+      status: 'unknown',
+      delays: 'Live conditions unavailable',
+    })),
     busyPeriods: [],
-    recommendations: `Airport data for ${city}, ${state} could not be retrieved`,
+    recommendations: `Live airport conditions could not be researched — airports within ${AIRPORT_RADIUS_MILES} mi: ${nearby.map((a) => a.iata).join(', ')}`,
     fetchedAt: new Date().toISOString(),
     isFallback: true,
-    reason: `Airport conditions provider (Gemini) failed for ${city}, ${state}`
-  };
+    reason: why
+  });
 
-  // GEMINI 3 PRO PREVIEW (PRIMARY) - uses Google Search grounding
-  if (!process.env.GEMINI_API_KEY) {
-    briefingLog.warn(2, `GEMINI_API_KEY not set - skipping airport search`, OP.AI);
-    return fallbackAirport;
-  }
+  // STEP 2 — FAA ASWS delay data per US airport (deterministic API, per-airport non-fatal)
+  const faaByCode = {};
+  await Promise.all(
+    nearby
+      .filter((a) => a.country === 'US')
+      .map(async (a) => {
+        try {
+          const faa = await fetchFAADelayData(a.iata);
+          if (faa) faaByCode[a.iata] = faa;
+        } catch {
+          // per-airport FAA miss is recorded by absence; model research still runs
+        }
+      })
+  );
 
   try {
     matrixLog.info({
@@ -154,38 +222,37 @@ async function fetchAirportConditions({ snapshot }) {
       roleName: 'BRIEFER',
       secondaryCat: 'AIRPORT',
       location: 'pipelines/airport.js:fetchAirportConditions',
-    }, 'Calling Briefer for airport conditions');
+    }, `Researching ${nearby.length} named airports: ${nearby.map((a) => a.iata).join(', ')}`);
 
-    // 2026-05-12 (D-108 step 1): Prompt rewrite. Previous version used example values
-    // ("status":"normal", "delays":"description") in the JSON schema, which biased Gemini
-    // to return generic "normal" status regardless of real-world events. The morning ground
-    // stop / 150+ delayed flights at LAX that the news pipeline correctly surfaced was being
-    // rendered as "On Time / Minor arrival delays averaging 15 minutes" by this pipeline —
-    // a schema-priming bug, not a search-grounding bug.
-    //
-    // Fix: (1) system prompt declares quality intent (CURRENT real-time, 24-hr window),
-    // (2) user prompt enumerates 5 search categories instead of leaving "conditions"
-    // undefined, (3) JSON schema uses <type|hint> placeholders that LLMs interpret as slot
-    // descriptions rather than as default values, (4) explicit anti-default instruction
-    // ("If search results show ANY disruption, surface it specifically — do not default
-    // to 'normal'"). TSA wait times (TSA Clear / PreCheck / general) are intentionally
-    // NOT added in this iteration — Melody is testing step 1 first before layering them in.
-    // See D-108 in docs/DOC_DISCREPANCIES.md.
-    const system = `You are an airport conditions research assistant for rideshare drivers. Use Google Search to find CURRENT real-time airport status — delays, closures, ground stops, customs backups, weather diversions, security incidents, and operational disruptions affecting passenger flow within the last 24 hours. Return ONLY valid JSON. No prose, no markdown, no explanatory text, no code fences.`;
-    const user = `Search for current airport conditions for ${city}, ${state} as of ${date}.
+    // STEP 3 — the model researches the NAMED airports only. Terminal
+    // inventory (where seeded) tells it the terminal list, checkpoint count
+    // expectation, and where Clear exists — so it fills a known structure
+    // instead of inventing one (the old single-tsa-per-airport schema could
+    // not even represent "2 checkpoints per terminal, Clear at E").
+    const inventoryLines = nearby
+      .filter((a) => Array.isArray(a.terminals) && a.terminals.length > 0)
+      .map((a) =>
+        `${a.iata} terminals: ${a.terminals
+          .map((t) => `${t.terminal}${t.clear_available ? ' (has Clear)' : ''} (~${t.checkpoints_estimate || 2} checkpoints)`)
+          .join(', ')}`
+      )
+      .join('\n');
 
-Find airports within 50 miles. For EACH airport, search for:
-1. CURRENT FLIGHT DELAYS (specific flight counts, average delay minutes — from today's news, not historical patterns)
-2. GROUND STOPS, CLOSURES, or DIVERSIONS (any FAA or airline-initiated disruption)
-3. CUSTOMS / TSA / SECURITY BACKUPS (especially at international terminals)
-4. WEATHER OR INFRASTRUCTURE EVENTS (storms, runway closures, power issues)
-5. TYPICAL BUSY WINDOWS for rideshare pickup demand
-6. TSA WAIT TIMES per checkpoint type — TSA Clear lane wait, TSA PreCheck wait, and general TSA wait. For each, identify the BEST ENTRY POINT (terminal/checkpoint name) that minimizes the wait. Use current-day search results, not historical averages. If a checkpoint type isn't operational at this airport (small airports often lack Clear), or wait data isn't available from search, use "unreported" for waitMinutes — do not fabricate numbers.
+    const system = `You are an airport conditions research assistant for rideshare drivers. Use web search to find CURRENT real-time status for the SPECIFIC airports you are given — delays, closures, ground stops, customs backups, weather diversions, security incidents, per-terminal TSA checkpoint waits, arrivals activity, and rideshare pickup locations, within the last 24 hours. Research ONLY the airports listed — do not add or substitute airports. Return ONLY valid JSON. No prose, no markdown, no code fences.`;
+    const user = `Research current conditions as of ${date} for exactly these airports: ${airportList}.
+${inventoryLines ? `\nKnown terminal structure (fill waits for THESE terminals; expect roughly the stated checkpoint count per terminal; Clear lanes exist ONLY where marked):\n${inventoryLines}\n` : ''}
+For EACH airport, search for:
+1. CURRENT FLIGHT DELAYS (specific counts and average minutes — from today's data, not historical patterns)
+2. GROUND STOPS, CLOSURES, or DIVERSIONS
+3. PER-TERMINAL TSA CHECKPOINT WAITS — each terminal usually has MULTIPLE checkpoints; report each checkpoint you can find by name with its general/PreCheck/Clear waits in minutes. Use "unreported" when search gives no number — never fabricate.
+4. PER-TERMINAL ARRIVALS ACTIVITY (which terminals have arrival banks now / next hour)
+5. PER-TERMINAL RIDESHARE PICKUP location (where drivers meet passengers for that terminal)
+6. TYPICAL BUSY WINDOWS for rideshare pickup demand
 
-If search results show NO current disruption, return status "normal". If search results show ANY disruption, surface it specifically — do not default to "normal".
+If search shows NO current disruption for an airport, use status "normal". If search shows ANY disruption, surface it specifically — do not default to "normal".
 
-Return ONLY this JSON structure (placeholders in <angle brackets> indicate value types, not literal text):
-{"airports":[{"code":"<IATA>","name":"<Airport name>","status":"<normal|delayed|severe|closed|ground-stop>","delays":"<specific current delay info from search OR 'No current delays reported'>","busyTimes":["<HH:MM-HH:MM>"],"tsa":{"general":{"waitMinutes":"<integer minutes OR 'unreported'>","entryPoint":"<terminal/checkpoint name OR 'unreported'>"},"preCheck":{"waitMinutes":"<integer minutes OR 'unreported'>","entryPoint":"<terminal/checkpoint name OR 'unreported'>"},"clear":{"waitMinutes":"<integer minutes OR 'unreported'>","entryPoint":"<terminal/checkpoint name OR 'unreported'>"}}}],"busyPeriods":["<HH:MM-HH:MM driver pickup demand windows>"],"recommendations":"<2-3 sentences of driver-specific tactical advice based on current conditions>"}`;
+Return ONLY this JSON structure (placeholders in <angle brackets> are value types, not literal text):
+{"airports":[{"code":"<IATA from the given list>","status":"<normal|delayed|severe|closed|ground-stop>","delays":"<specific current info OR 'No current delays reported'>","busyTimes":["<HH:MM-HH:MM>"],"terminals":[{"terminal":"<terminal name>","arrivalsActivity":"<current arrivals info OR 'unreported'>","ridesharePickup":"<pickup location OR 'unreported'>","checkpoints":[{"name":"<checkpoint name OR 'unreported'>","lanes":{"general":<minutes OR "unreported">,"preCheck":<minutes OR "unreported">,"clear":<minutes OR "unreported">}}]}]}],"busyPeriods":["<HH:MM-HH:MM driver demand windows>"],"recommendations":"<2-3 sentences of driver-specific tactical advice>"}`;
 
     const result = await callModel('BRIEFING_AIRPORT', { system, user });
 
@@ -197,40 +264,96 @@ Return ONLY this JSON structure (placeholders in <angle brackets> indicate value
         roleName: 'BRIEFER',
         secondaryCat: 'AIRPORT',
         location: 'pipelines/airport.js:fetchAirportConditions',
-      }, 'Briefer call failed', result.error);
-      return fallbackAirport;
+      }, 'BRIEFING_AIRPORT role call failed', result.error);
+      return failureResult(`BRIEFING_AIRPORT role call failed: ${result.error}`);
     }
 
-    // 2026-04-05: Try safeJsonParse first, fall back to manual extraction if it fails.
-    // Gemini with google_search often wraps JSON in markdown narrative text.
+    // Parse: safeJsonParse first, manual brace-walk extraction as recovery
+    // (search-grounded models often wrap JSON in narrative markdown).
     let parsed;
     try {
       parsed = safeJsonParse(result.output);
     } catch (parseErr) {
-      // Manual extraction: find {"airports" or [{"code" in the raw text
       console.warn(`[BRIEFING] [AIRPORT] safeJsonParse failed (${parseErr.message}), trying manual extraction...`);
       console.log(`[BRIEFING] [AIRPORT] Raw (first 300):`, result.output?.substring(0, 300));
       parsed = extractAirportJson(result.output);
     }
-    briefingLog.done(2, `Gemini airport: ${parsed.airports?.length || 0} airports`, OP.AI);
+
+    // A response that yields ZERO airports is a parse/truncation failure, not
+    // data — the prompt requires an entry per named airport. Record it as a
+    // failure with reason (todo #24 renders it honestly) instead of emitting
+    // every airport as 'unreported', which would read like researched fact.
+    if (!Array.isArray(parsed.airports) || parsed.airports.length === 0) {
+      return failureResult('model response unparseable or truncated (no airports extracted)');
+    }
+
+    // STEP 4 — deterministic post-processing:
+    //  - keep ONLY airports from the deterministic set (keyed by IATA);
+    //    identity (name/distance) comes from the airports table, not the model
+    //  - merge FAA delay data per US airport
+    //  - compute best_entry per lane type from returned checkpoint waits
+    const byCode = new Map((parsed.airports || []).map((a) => [a.code, a]));
+    const airportsOut = nearby.map((known) => {
+      const researched = byCode.get(known.iata) || {};
+      let terminals = Array.isArray(researched.terminals) ? researched.terminals : [];
+
+      // Enforce the seeded inventory DETERMINISTICALLY: where the inventory
+      // says a terminal has no Clear lane, strip any Clear wait the model
+      // reported there (live test: the model returned a Clear wait at DAL,
+      // which has none — the prompt asks, the server enforces).
+      if (Array.isArray(known.terminals) && known.terminals.length > 0) {
+        const clearAllowed = new Map(known.terminals.map((t) => [String(t.terminal).toLowerCase(), !!t.clear_available]));
+        terminals = terminals.map((t) => {
+          const allowed = clearAllowed.get(String(t.terminal).toLowerCase());
+          if (allowed !== false) return t; // unknown terminal name or Clear permitted
+          return {
+            ...t,
+            checkpoints: (t.checkpoints || []).map((cp) => {
+              if (!cp.lanes || cp.lanes.clear === undefined) return cp;
+              const { clear: _clear, ...lanes } = cp.lanes;
+              return { ...cp, lanes };
+            }),
+          };
+        });
+      }
+      const faa = faaByCode[known.iata];
+      return {
+        code: known.iata,
+        name: known.name,
+        distance_miles: known.distance_miles,
+        status: researched.status || 'unreported',
+        delays: researched.delays || 'unreported',
+        busyTimes: Array.isArray(researched.busyTimes) ? researched.busyTimes : [],
+        terminals,
+        best_entry: computeBestEntry(terminals),
+        ...(faa ? {
+          faa_delay_minutes: faa.delay_minutes ?? 0,
+          faa_delay_reason: faa.delay_reason ?? null,
+          faa_closure_status: faa.closure_status ?? 'open',
+        } : {}),
+      };
+    });
+
+    briefingLog.done(2, `Airport research: ${airportsOut.length} named airports (${airportsOut.map((a) => a.code).join(', ')})`, OP.AI);
 
     return {
-      airports: Array.isArray(parsed.airports) ? parsed.airports : [],
+      airports: airportsOut,
       busyPeriods: Array.isArray(parsed.busyPeriods) ? parsed.busyPeriods : [],
       recommendations: parsed.recommendations || 'No specific airport recommendations at this time',
       fetchedAt: new Date().toISOString(),
-      provider: 'gemini'
+      radiusMiles: AIRPORT_RADIUS_MILES,
+      role: 'BRIEFING_AIRPORT'
     };
   } catch (err) {
-    briefingLog.warn(2, `Gemini airport error: ${err.message}`, OP.FALLBACK);
-    return fallbackAirport;
+    briefingLog.warn(2, `Airport research error: ${err.message}`, OP.FALLBACK);
+    return failureResult(`airport research error: ${err.message}`);
   }
 }
 
 /**
  * Pipeline contract: discover airport conditions for a snapshot.
  *
- * Calls Gemini (via fetchAirportConditions), writes airport_conditions section to
+ * Calls the BRIEFING_AIRPORT role (via fetchAirportConditions), writes airport_conditions section to
  * the briefings row, fires CHANNELS.AIRPORT pg_notify, returns
  * { airport_conditions, reason }.
  *

@@ -24,6 +24,28 @@ interface AirportTSA {
   clear?: TSALane;
 }
 
+// 2026-07-06 (todo #22): per-terminal structure — terminals usually have
+// MULTIPLE checkpoints (~2 each; Clear only at specific terminals, e.g. DFW E).
+// best_entry is computed SERVER-side (min wait per lane type) — "knowing the
+// best entry point is one of the best pieces of information to give" (Melody).
+interface Checkpoint {
+  name?: string;
+  lanes?: { general?: number | string; preCheck?: number | string; clear?: number | string };
+}
+
+interface TerminalInfo {
+  terminal: string;
+  arrivalsActivity?: string;
+  ridesharePickup?: string;
+  checkpoints?: Checkpoint[];
+}
+
+interface BestEntryLane {
+  terminal: string;
+  checkpoint?: string | null;
+  waitMinutes: number;
+}
+
 interface Airport {
   code: string;
   name: string;
@@ -37,7 +59,12 @@ interface Airport {
   weather?: string;
   groundStops?: boolean;
   tipsForDrivers?: string;
-  tsa?: AirportTSA;
+  tsa?: AirportTSA; // legacy shape (pre-2026-07-06 briefing rows)
+  distance_miles?: number;
+  terminals?: TerminalInfo[];
+  best_entry?: { general?: BestEntryLane; preCheck?: BestEntryLane; clear?: BestEntryLane };
+  faa_delay_minutes?: number;
+  faa_closure_status?: string;
 }
 
 type BusyPeriod = string | {
@@ -221,6 +248,74 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                           );
                         })}
                       </div>
+                    </div>
+                  )}
+
+                  {/* 2026-07-06 (todo #22): BEST ENTRY — the headline answer per lane
+                      type, computed server-side from per-checkpoint waits. */}
+                  {airport.best_entry && (airport.best_entry.general || airport.best_entry.preCheck || airport.best_entry.clear) && (
+                    <div className="mb-3 p-2.5 bg-indigo-50 border border-indigo-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Sparkles className="w-4 h-4 text-indigo-600" />
+                        <span className="text-xs font-semibold text-indigo-800">Best Entry Points</span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        {(['general', 'preCheck', 'clear'] as const).map((lane) => {
+                          const be = airport.best_entry?.[lane];
+                          if (!be) return null;
+                          const laneLabel = lane === 'preCheck' ? 'PreCheck' : lane === 'clear' ? 'Clear' : 'General';
+                          return (
+                            <span key={lane} className="text-xs text-indigo-900">
+                              <span className="font-medium">{laneLabel}:</span>{' '}
+                              {be.terminal}{be.checkpoint && be.checkpoint !== 'unreported' ? ` · ${be.checkpoint}` : ''} ({be.waitMinutes} min)
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Per-terminal breakdown: checkpoints with lane waits, arrivals
+                      activity, and rideshare pickup location per terminal. */}
+                  {airport.terminals && airport.terminals.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {airport.terminals.map((t, tIdx) => (
+                        <div key={tIdx} className="p-2.5 bg-white/60 rounded-lg border border-sky-100">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-semibold text-gray-800">Terminal {t.terminal}</span>
+                            {t.arrivalsActivity && t.arrivalsActivity !== 'unreported' && (
+                              <span className="text-xs text-gray-600 flex items-center gap-1">
+                                <PlaneLanding className="w-3 h-3 text-green-600" />{t.arrivalsActivity}
+                              </span>
+                            )}
+                          </div>
+                          {t.checkpoints && t.checkpoints.length > 0 && (
+                            <div className="space-y-1">
+                              {t.checkpoints.map((cp, cpIdx) => (
+                                <div key={cpIdx} className="flex items-center gap-2 text-xs text-gray-700">
+                                  <ShieldCheck className="w-3 h-3 text-indigo-400 shrink-0" />
+                                  <span className="font-medium min-w-0 truncate">
+                                    {cp.name && cp.name !== 'unreported' ? cp.name : 'Checkpoint'}
+                                  </span>
+                                  {(['general', 'preCheck', 'clear'] as const).map((lane) => {
+                                    const wait = cp.lanes?.[lane];
+                                    if (wait === undefined || wait === null) return null;
+                                    const laneLabel = lane === 'preCheck' ? 'Pre✓' : lane === 'clear' ? 'Clear' : 'Gen';
+                                    return (
+                                      <span key={lane} className="text-gray-500">
+                                        {laneLabel}: {typeof wait === 'number' ? `${wait}m` : '—'}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {t.ridesharePickup && t.ridesharePickup !== 'unreported' && (
+                            <p className="text-xs text-sky-700 mt-1.5">🚗 Pickup: {t.ridesharePickup}</p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
 

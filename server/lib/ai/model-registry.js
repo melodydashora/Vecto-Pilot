@@ -110,7 +110,12 @@ export const MODEL_ROLES = {
     envKey: 'BRIEFING_AIRPORT_MODEL',
     default: 'gemini-3.5-flash',
     purpose: 'Airport conditions and flight status',
-    maxTokens: 4096,
+    // 2026-07-06 (todo #22): 4096 truncated the per-terminal schema mid-JSON
+    // (2 airports × 5 terminals × checkpoints × 3 lanes is a much larger
+    // response than the old one-TSA-block-per-airport shape) — both parsers
+    // failed on the cut-off output in live testing. 16384 gives headroom for
+    // metros with several multi-terminal airports.
+    maxTokens: 16384,
     temperature: 0.1,
     features: ['google_search'],
   },

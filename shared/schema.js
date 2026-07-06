@@ -2414,6 +2414,30 @@ export const definitions = pgTable("definitions", {
 });
 
 /**
+ * airports — deterministic airport identity + static terminal inventory
+ * (todo #22). Coordinates seeded ONLY via scripts/seed-airports.mjs (Google
+ * Places Text Search — never model-generated). terminals jsonb holds the
+ * static per-terminal inventory (Clear availability, checkpoint estimates,
+ * rideshare pickup notes) with provenance; live conditions are researched by
+ * the BRIEFING_AIRPORT role against these NAMED airports at briefing time.
+ * Selection: server/lib/location/airports.js (AIRPORT_RADIUS_MILES = 50).
+ */
+export const airports = pgTable("airports", {
+  iata: text("iata").primaryKey(),
+  name: text("name").notNull(),
+  city: text("city"),
+  country: text("country").notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  coord_source: text("coord_source").notNull().default("google_places"),
+  is_major: boolean("is_major").notNull().default(true),
+  terminals: jsonb("terminals"),
+  terminals_provenance: text("terminals_provenance"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * app_rules — the canonical, queryable home for product invariants ("the rules").
  * Loaded at session boot (CLAUDE.md §3 step 3) so every session checks changes
  * against them instead of re-deriving doctrine from incident archaeology.

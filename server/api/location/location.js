@@ -1653,7 +1653,11 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // Fetch airport context (holiday detection moved to the briefing pipeline
     // 2026-07-06 — pipelines/holiday.js runs with the COMPLETE snapshot row)
     console.log('[SNAPSHOT] Fetching airport context...');
-    const { getNearestMajorAirport, fetchFAADelayData } = await import('../../lib/external/faa-asws.js');
+    const { fetchFAADelayData } = await import('../../lib/external/faa-asws.js');
+    // 2026-07-06 (todo #22): deterministic airport selection — airports table
+    // (Google-seeded coords) at the ONE canonical radius. Replaces the
+    // hardcoded 20-airport list at a divergent 25-mile radius.
+    const { findNearbyAirports, AIRPORT_RADIUS_MILES } = await import('../../lib/location/airports.js');
 
     let airportContext = null;
 
@@ -1661,12 +1665,11 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       // Airport detection
       (async () => {
         try {
-      console.log('[Airport API] 🛫 Searching for nearby airports within 25 miles...');
-      const nearbyAirport = await getNearestMajorAirport(
-        snapshotV1.coord.lat, 
-        snapshotV1.coord.lng, 
-        25 // 25 mile threshold for suburban metro areas
-      );
+      console.log(`[Airport API] 🛫 Searching for nearby airports within ${AIRPORT_RADIUS_MILES} miles...`);
+      const [nearest] = await findNearbyAirports(snapshotV1.coord.lat, snapshotV1.coord.lng);
+      const nearbyAirport = nearest
+        ? { code: nearest.iata, name: nearest.name, distance: nearest.distance_miles }
+        : null;
 
       if (nearbyAirport) {
         console.log('[Airport API] 🛫 Found airport:', {
