@@ -238,9 +238,9 @@ async function fetchAirportConditions({ snapshot }) {
       )
       .join('\n');
 
-    const system = `You are an airport conditions research assistant for rideshare drivers. Use web search to find CURRENT real-time status for the SPECIFIC airports you are given — delays, closures, ground stops, customs backups, weather diversions, security incidents, per-terminal TSA checkpoint waits, arrivals activity, and rideshare pickup locations, within the last 24 hours. Research ONLY the airports listed — do not add or substitute airports. Return ONLY valid JSON. No prose, no markdown, no code fences.`;
-    const user = `Research current conditions as of ${date} for exactly these airports: ${airportList}.
-${inventoryLines ? `\nKnown terminal structure (fill waits for THESE terminals; expect roughly the stated checkpoint count per terminal; Clear lanes exist ONLY where marked):\n${inventoryLines}\n` : ''}
+    const system = `You are an airport conditions research assistant for rideshare drivers. Use web search to find CURRENT real-time status for the SPECIFIC airports you are given — delays, closures, ground stops, customs backups, weather diversions, security incidents, per-terminal TSA checkpoint waits, arrivals activity, and rideshare pickup locations, within the last 24 hours. Research ONLY the airports listed — do not add or substitute airports. Express EVERY clock time in the driver's local timezone (${timezone}) — never quote another timezone's clock (an FAA advisory in PDT must be converted for a ${timezone} driver). Return ONLY valid JSON. No prose, no markdown, no code fences.`;
+    const user = `Research current conditions as of ${date} for exactly these airports: ${airportList}. All times in ${timezone} local time.
+${inventoryLines ? `\nKnown terminal structure — your terminals array for these airports MUST contain one entry per terminal listed here (fill what search finds; use "unreported" for what it doesn't; Clear lanes exist ONLY where marked):\n${inventoryLines}\n` : ''}
 For EACH airport, search for:
 1. CURRENT FLIGHT DELAYS (specific counts and average minutes — from today's data, not historical patterns)
 2. GROUND STOPS, CLOSURES, or DIVERSIONS
@@ -297,24 +297,47 @@ Return ONLY this JSON structure (placeholders in <angle brackets> are value type
       const researched = byCode.get(known.iata) || {};
       let terminals = Array.isArray(researched.terminals) ? researched.terminals : [];
 
-      // Enforce the seeded inventory DETERMINISTICALLY: where the inventory
-      // says a terminal has no Clear lane, strip any Clear wait the model
-      // reported there (live test: the model returned a Clear wait at DAL,
-      // which has none — the prompt asks, the server enforces).
+      // Enforce the seeded inventory DETERMINISTICALLY, two ways:
+      //   1. SCAFFOLD: every seeded terminal ALWAYS appears in the output —
+      //      the model's research is merged ONTO the inventory, so the card
+      //      shows DFW A–E every run regardless of model variance (Melody's
+      //      before/after screenshots: one run returned terminals, the next
+      //      returned none — structure must never be the model's whim).
+      //   2. CLEAR STRIPPING: where the inventory says a terminal has no
+      //      Clear lane, drop any Clear wait the model reported there (live
+      //      test: the model returned a Clear wait at DAL, which has none).
       if (Array.isArray(known.terminals) && known.terminals.length > 0) {
-        const clearAllowed = new Map(known.terminals.map((t) => [String(t.terminal).toLowerCase(), !!t.clear_available]));
-        terminals = terminals.map((t) => {
-          const allowed = clearAllowed.get(String(t.terminal).toLowerCase());
-          if (allowed !== false) return t; // unknown terminal name or Clear permitted
+        const researchedByName = new Map(terminals.map((t) => [String(t.terminal).toLowerCase(), t]));
+        const scaffolded = known.terminals.map((inv) => {
+          const invName = String(inv.terminal).toLowerCase();
+          // Match "E" against "E", "Terminal E", etc.
+          const match = researchedByName.get(invName)
+            || terminals.find((t) => {
+              const rt = String(t.terminal).toLowerCase();
+              return rt.endsWith(` ${invName}`) || invName.endsWith(` ${rt}`) || rt === `terminal ${invName}`;
+            });
+          const base = match || { terminal: inv.terminal, arrivalsActivity: 'unreported', ridesharePickup: 'unreported', checkpoints: [] };
+          if (inv.clear_available !== false) return { ...base, terminal: inv.terminal };
           return {
-            ...t,
-            checkpoints: (t.checkpoints || []).map((cp) => {
+            ...base,
+            terminal: inv.terminal,
+            checkpoints: (base.checkpoints || []).map((cp) => {
               if (!cp.lanes || cp.lanes.clear === undefined) return cp;
               const { clear: _clear, ...lanes } = cp.lanes;
               return { ...cp, lanes };
             }),
           };
         });
+        // Keep any researched terminals the inventory doesn't know about
+        const scaffoldNames = new Set(scaffolded.map((t) => String(t.terminal).toLowerCase()));
+        const extras = terminals.filter((t) => {
+          const rt = String(t.terminal).toLowerCase();
+          return !scaffoldNames.has(rt) && !known.terminals.some((inv) => {
+            const invName = String(inv.terminal).toLowerCase();
+            return rt.endsWith(` ${invName}`) || rt === `terminal ${invName}`;
+          });
+        });
+        terminals = [...scaffolded, ...extras];
       }
       const faa = faaByCode[known.iata];
       return {
