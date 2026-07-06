@@ -126,7 +126,9 @@ export function extractProductType(text) {
 // Data-driven from 300+ DFW offer_intelligence records.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const PREMIUM_PRODUCTS = new Set([
+// 2026-07-03 (todo #10): exported so the rules engine can compute which premium
+// products remain in the 'premium' tier once a driver enables comfort/xl splits.
+export const PREMIUM_PRODUCTS = new Set([
   'Comfort', 'VIP', 'Black', 'UberXL', 'UberXL Exclusive',
   'Lyft XL', 'Lyft Lux', 'Lyft Black',
 ]);

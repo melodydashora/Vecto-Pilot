@@ -16,6 +16,8 @@ import IntelPage from '@/pages/co-pilot/IntelPage';
 import AboutPage from '@/pages/co-pilot/AboutPage';
 import PolicyPage from '@/pages/co-pilot/PolicyPage';
 import SettingsPage from '@/pages/co-pilot/SettingsPage';
+// 2026-07-03 (todo #10): Offer Analyzer — rules editor + Siri Shortcut setup + offer history
+import OfferAnalyzerPage from '@/pages/co-pilot/OfferAnalyzerPage';
 import TranslationPage from '@/pages/co-pilot/TranslationPage';
 // 2026-04-05: Hamburger menu pages
 import SchedulePage from '@/pages/co-pilot/SchedulePage';
@@ -188,6 +190,11 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />,
+      },
+      {
+        // 2026-07-03 (todo #10): per-driver offer rules + shortcut token + offers
+        path: 'offer-analyzer',
+        element: <OfferAnalyzerPage />,
       },
       {
         // 2026-03-16: Real-time rider translation for FIFA World Cup

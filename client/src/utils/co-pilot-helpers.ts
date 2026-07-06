@@ -283,6 +283,18 @@ export function subscribeBriefingReady(
 }
 
 /**
+ * Subscribe to SSE offer_analyzed events.
+ * Uses Postgres LISTEN/NOTIFY via /events/offers endpoint.
+ * 2026-07-03 (todo #10): fires when the Offer Analyzer ingests + scores a new
+ * offer (Siri Shortcut → analyze-offer.js) so the Offers card refetches live.
+ */
+export function subscribeOfferAnalyzed(
+  callback: (data: { offer_id?: string }) => void
+): () => void {
+  return subscribeSSE('/events/offers', 'offer_analyzed', callback);
+}
+
+/**
  * Subscribe to SSE phase_change events for real-time progress tracking
  * Uses /events/phase endpoint that emits on every pipeline phase transition
  * Fires with timing metadata for accurate progress bar calculation

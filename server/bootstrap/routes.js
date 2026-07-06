@@ -121,6 +121,11 @@ export async function mountRoutes(app, server) {
     { path: '/api/hooks', module: './server/api/hooks/analyze-offer.js', desc: 'External Hooks (OCR/Signals)' },
     { path: '/api/hooks', module: './server/api/hooks/translate.js', desc: 'Siri Translation Hook' },
 
+    // 2026-07-03 (todo #10): Offer Analyzer editor — per-driver rules, shortcut
+    // token (identity bridge), offers+outcomes, avoid-places picker. All authed;
+    // the public ingest stays in analyze-offer.js above.
+    { path: '/api/offer-analyzer', module: './server/api/offer-analyzer/index.js', desc: 'Offer Analyzer rules + outcomes (authed)' },
+
     // 2026-06-11: Admin prod read-only observability bridge (server/api/admin/) — bridge-auth ONLY.
     // Lets the terminal dev agent monitor prod over HTTPS (prod DB is app-scoped, not
     // reachable from the dev terminal). Structured /offer-monitor (Drizzle) + raw /query

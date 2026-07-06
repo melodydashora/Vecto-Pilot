@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Settings, Calendar, Info, Heart, HelpCircle, LogOut, TrendingUp, X } from 'lucide-react';
+import { Menu, Settings, Calendar, Gauge, Info, Heart, HelpCircle, LogOut, TrendingUp, X } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +22,8 @@ import {
 // stays the most-discoverable item moving out of the bottom nav.
 const MENU_ITEMS = [
   { label: 'Market Intel', icon: TrendingUp, path: '/co-pilot/intel' },
+  // 2026-07-03 (todo #10): Offer Analyzer rules editor + Siri Shortcut setup
+  { label: 'Offer Analyzer', icon: Gauge, path: '/co-pilot/offer-analyzer' },
   { label: 'Preferences', icon: Settings, path: '/co-pilot/settings' },
   { label: 'Schedule', icon: Calendar, path: '/co-pilot/schedule' },
   { label: 'About', icon: Info, path: '/co-pilot/about' },
