@@ -12,7 +12,8 @@ import { makeCoordsKey } from '../../lib/location/coords-key.js';
 import { getDayPartKey, getLocalHour, getLocalDow } from '../../lib/location/daypart.js';
 import { validateSnapshotV1, validateSnapshotFields } from '../../util/validate-snapshot.js';
 import { haversineDistanceMeters } from '../../lib/location/geo.js';
-import { validateLocationFreshness } from '../../lib/location/validation-gates.js';
+// 2026-07-06: validation-gates.js deleted (consolidation Phase 1) — its
+// validateLocationFreshness import here was never called.
 import { uuidOrNull } from '../../util/uuid.js';
 import { makeCircuit } from '../../util/circuit.js';
 import { jobQueue } from '../../lib/infrastructure/job-queue.js';

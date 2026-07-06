@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { db } from "../../db/drizzle.js";
 import { sql, eq, and } from "drizzle-orm";
 import { snapshots, strategies, coords_cache, users, rankings } from "../../../shared/schema.js";
-import { validateIncomingSnapshot, validateSnapshotFields } from "../../util/validate-snapshot.js";
+import { validateSnapshotFields } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
 import { generateAndStoreBriefing } from "../../lib/briefing/briefing-aggregator.js";
 import { httpError } from "../utils/http-helpers.js";

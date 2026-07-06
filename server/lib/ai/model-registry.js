@@ -219,20 +219,9 @@ export const MODEL_ROLES = {
     temperature: 0.3,
     features: ['google_search'],
   },
-  UTIL_WEATHER_VALIDATOR: {
-    envKey: 'UTIL_WEATHER_VALIDATOR_MODEL',
-    default: 'gemini-3.5-flash',
-    purpose: 'Validate weather data structure',
-    maxTokens: 2048,
-    temperature: 0.1,
-  },
-  UTIL_TRAFFIC_VALIDATOR: {
-    envKey: 'UTIL_TRAFFIC_VALIDATOR_MODEL',
-    default: 'gemini-3.5-flash',
-    purpose: 'Validate traffic data structure',
-    maxTokens: 2048,
-    temperature: 0.1,
-  },
+  // 2026-07-06: UTIL_WEATHER_VALIDATOR + UTIL_TRAFFIC_VALIDATOR roles removed —
+  // their only caller (weather-traffic-validator.js, zero importers) was deleted
+  // in consolidation Phase 1 (docs/architecture/audits/2026-07-06 audit).
   // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23
   UTIL_MARKET_PARSER: {
     envKey: 'UTIL_PARSER_MODEL',
