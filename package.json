@@ -180,6 +180,7 @@
   },
   "overrides": {
     "underscore": "^1.13.6",
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "qs": "^6.15.3"
   }
 }
