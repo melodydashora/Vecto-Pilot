@@ -70,9 +70,28 @@ The application code reads `process.env.DATABASE_URL` and connects. That's it. N
 
 ### 3. Schema Synchronization
 
-- **Schema is identical** in both environments
-- Replit runs automated migrations on deployment to match schema
-- Dev data is NEVER copied to prod (and vice versa)
+- **Schema parity is AUTOMATED at boot (since 2026-08-06):**
+  `server/db/run-migrations.js` runs at the top of `gateway-server.js` bootstrap
+  and applies `/migrations/*.sql` in filename order, each exactly once, tracked
+  in the `schema_migrations` table and serialized across autoscale instances by
+  a pg advisory lock. **Fail-loud**: a bad migration crashes boot visibly.
+  Files older than the `20260703` baseline cutoff were recorded as
+  already-applied without execution (both DBs verifiably predate-applied them).
+- **Doctrine note (Melody, 2026-08-06):** "no prod migrations without explicit
+  human approval" is satisfied at *design time* — a migration file reviewed,
+  merged, and published IS the approval; the runner just executes it
+  deterministically. Migrations MUST be idempotent/additive (`IF NOT EXISTS`,
+  `ON CONFLICT`, type guards) — the runner re-executes post-cutoff files on any
+  DB that hasn't recorded them.
+- **History (kept so the lesson survives):** from the death of the original
+  drizzle-kit pipeline (its artifacts live in `migrations/manual/`) until
+  2026-08-06, parity was manual, and this doc falsely claimed "Replit runs
+  automated migrations on deployment." The gap silently cost prod the
+  `airports` and `offer_rulesets` tables for a month (2026-07-06 publish).
+- Dev data is NEVER copied to prod (and vice versa). The one deliberate
+  exception: provenance-carrying data migrations (e.g.
+  `20260806_seed_airports_data.sql`, Google-sourced identity data) that both
+  environments need identically.
 - Migration files live in `/migrations/*.sql`
 
 ---

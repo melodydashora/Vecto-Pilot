@@ -18,10 +18,21 @@
 
 BEGIN;
 
-ALTER TABLE briefings
-  ALTER COLUMN holiday TYPE jsonb
-  USING CASE WHEN holiday IS NULL THEN NULL
-             ELSE jsonb_build_object('holiday', holiday) END;
+-- 2026-08-06: guarded for the boot-time migration runner. Dev applied this
+-- file by hand, so the runner re-executes it once — re-running the USING cast
+-- on an already-jsonb column would DOUBLE-WRAP every stored holiday section
+-- ({"holiday": {"holiday": ...}}). Only convert when the column is still text.
+DO $mig$
+BEGIN
+  IF (SELECT data_type FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'briefings' AND column_name = 'holiday') = 'text' THEN
+    ALTER TABLE briefings
+      ALTER COLUMN holiday TYPE jsonb
+      USING CASE WHEN holiday IS NULL THEN NULL
+                 ELSE jsonb_build_object('holiday', holiday) END;
+  END IF;
+END
+$mig$;
 
 ALTER TABLE snapshots DROP COLUMN IF EXISTS holiday;
 ALTER TABLE snapshots DROP COLUMN IF EXISTS is_holiday;

@@ -87,6 +87,16 @@ process.on('unhandledRejection', (reason, promise) => {
     console.log(`[GATEWAY] Mode: ${MODE.toUpperCase()}, Port: ${PORT}`);
     console.log(`[GATEWAY] Deployment: ${isDeployment}, Autoscale: ${isAutoscaleMode}`);
 
+    // 2026-08-06 (Melody's green light): schema parity is AUTOMATED — the
+    // runner applies migrations/*.sql exactly once each before anything
+    // touches the DB, serialized across autoscale instances by advisory lock.
+    // Fail-loud by design: a bad migration crashes boot visibly instead of
+    // letting prod drift silently (the airports/offer_rulesets incident —
+    // manual parity had been the unresolved gap since the original drizzle-kit
+    // pipeline died). See server/db/run-migrations.js for the full contract.
+    const { runMigrations } = await import('./server/db/run-migrations.js');
+    await runMigrations();
+
     // Create Express app
     app = express();
     // 2026-04-25 (helmet-hardening): kill the X-Powered-By: Express leak at the

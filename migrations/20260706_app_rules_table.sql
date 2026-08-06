@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS app_rules (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 2026-08-06: idempotency verified for the boot-time migration runner — the
+-- ON CONFLICT (rule_key) DO NOTHING terminator below makes re-execution safe
+-- (dev applied this file by hand before the runner existed, so the runner's
+-- first pass re-executes it; DO NOTHING also means rule rows edited after
+-- seeding are never overwritten by a boot).
 INSERT INTO app_rules (rule_key, rule_text, rationale, provenance, enforced_by) VALUES
 (
   'no-fallbacks',

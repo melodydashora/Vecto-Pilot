@@ -26,6 +26,16 @@ export function errorTo503(err, req, res, next) {
     return next(err);
   }
 
+  // 2026-08-06: a client that aborted its own request mid-body (page nav,
+  // superseded fetch) is NOT a server error — the socket is gone, nobody
+  // receives a response, and counting it as http.500 pollutes the exact
+  // 500-signal used to judge prod health (observed in Melody's 2026-08-06
+  // dev console during normal briefing usage).
+  if (err.type === 'request.aborted' || err.code === 'ECONNABORTED') {
+    ndjson('http.client_abort', { cid, path: req.originalUrl });
+    return res.end();
+  }
+
   // 2026-02-17: Surface payload-too-large errors clearly instead of masking as 500
   if (err.type === 'entity.too.large') {
     console.warn(`[error-handler] Payload too large: ${err.message}`);
