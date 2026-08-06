@@ -200,9 +200,19 @@ export async function callModel(role, params) {
     // so cross-provider fallback doesn't work for them.
     // 2026-03-28: Updated fallback from gemini-3.0-pro-preview → gemini-3-pro-preview (verified available)
     // 2026-05-08: Migrated to gemini-pro-latest alias (server-resolved by Google).
-    const is503 = err.message.includes('503') || err.message.includes('UNAVAILABLE');
-    const GEMINI_FALLBACK_MODEL = 'gemini-3.5-flash';
-    if (is503 && primaryConfig.provider === 'google' && primaryConfig.model !== GEMINI_FALLBACK_MODEL) {
+    // 2026-08-06: DEAD-CODE FIX — the 2026-04-24 hedged-router sanitization rewrote
+    // every provider error to a generic message, so matching '503' on err.message
+    // could never fire. Match the router's causeCode/causeCodes (and originalError
+    // as belt-and-braces for non-hedged throws) instead. Also: most Gemini roles now
+    // default to gemini-3.5-flash, so the retry model must be picked to DIFFER from
+    // the primary rather than hardcoded to flash.
+    const is503 = err.causeCode === 'unavailable'
+      || (Array.isArray(err.causeCodes) && err.causeCodes.some(c => c.code === 'unavailable'))
+      || err.message.includes('503') || err.message.includes('UNAVAILABLE')
+      || String(err.originalError?.message || '').includes('503')
+      || String(err.originalError?.message || '').includes('UNAVAILABLE');
+    const GEMINI_FALLBACK_MODEL = primaryConfig.model === 'gemini-3.5-flash' ? 'gemini-pro-latest' : 'gemini-3.5-flash';
+    if (is503 && primaryConfig.provider === 'google') {
       aiLog.debug(`RETRY ${primaryConfig.role} got 503 on ${primaryConfig.model} - retrying with ${GEMINI_FALLBACK_MODEL}...`);
       try {
         const needsSearch = roleUsesGoogleSearch(role);

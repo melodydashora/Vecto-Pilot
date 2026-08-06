@@ -9,6 +9,23 @@ import { ConcurrencyGate } from './concurrency-gate.js';
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_PROVIDERS = ['anthropic', 'openai'];
 
+// 2026-08-06: stable, SAFE cause codes for sanitized provider errors. The
+// 2026-04-24 sanitization below correctly keeps raw upstream messages (which can
+// echo API keys) out of thrown messages — but it also erased the CAUSE, so every
+// stored reason field read "All hedged providers failed" and callModel's 503
+// retry could never match. A closed vocabulary of codes carries the cause
+// without carrying upstream content.
+function classifyCauseCode(message) {
+  const msg = String(message || '').toLowerCase();
+  if (msg.includes('truncated at max_tokens')) return 'truncated';
+  if (msg.includes('empty response')) return 'empty-response';
+  if (msg.includes('429') || msg.includes('quota') || msg.includes('rate limit')) return 'quota';
+  if (msg.includes('503') || msg.includes('unavailable') || msg.includes('overloaded')) return 'unavailable';
+  if (msg.includes('401') || msg.includes('403') || msg.includes('api key') || msg.includes('permission')) return 'auth';
+  if (msg.includes('timeout') || msg.includes('abort')) return 'timeout';
+  return 'unknown';
+}
+
 export class HedgedRouter {
   constructor(options = {}) {
     this.timeout = options.timeout || DEFAULT_TIMEOUT_MS;
@@ -211,8 +228,12 @@ export class HedgedRouter {
         // the API key back, and that message bubbles up to client responses via
         // callModel result.error. Keep the detail on a property for structured
         // logging; use a generic message string.
-        const enhancedError = new Error(`${provider}: upstream request failed`);
+        // 2026-08-06: + closed-vocabulary causeCode so the cause survives
+        // sanitization (see classifyCauseCode above).
+        const causeCode = classifyCauseCode(error?.message);
+        const enhancedError = new Error(`${provider}: upstream request failed (${causeCode})`);
         enhancedError.provider = provider;
+        enhancedError.causeCode = causeCode;
         enhancedError.originalError = error;
         throw enhancedError;
       } finally {
@@ -228,9 +249,11 @@ export class HedgedRouter {
       // "provider: upstream request failed" strings) are attached as .providerErrors
       // for structured logging but NOT joined into the thrown message.
       const errors = aggregateError.errors.map(e => e.message);
+      const causeCodes = aggregateError.errors.map(e => ({ provider: e.provider || 'unknown', code: e.causeCode || 'unknown' }));
       console.error('[AI] All providers failed details:', JSON.stringify(errors, null, 2));
-      const aggError = new Error('All hedged providers failed');
+      const aggError = new Error(`All hedged providers failed (${causeCodes.map(c => `${c.provider}:${c.code}`).join(', ')})`);
       aggError.providerErrors = errors;
+      aggError.causeCodes = causeCodes;
       aggError.cause = aggregateError;
       throw aggError;
     }

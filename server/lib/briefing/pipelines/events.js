@@ -384,7 +384,18 @@ DO NOT use any other category values.`;
     }
 
     const parsed = safeJsonParse(result.output);
-    const items = Array.isArray(parsed) ? parsed : [];
+    // 2026-08-06: providers vary between bare-array and object-wrapped JSON
+    // ({events:[...]} / {items:[...]}). A successfully-parsed non-array was
+    // previously discarded as [] with NO error recorded — format variance
+    // masquerading as verified-empty.
+    const items = Array.isArray(parsed) ? parsed
+      : Array.isArray(parsed?.events) ? parsed.events
+      : Array.isArray(parsed?.items) ? parsed.items
+      : null;
+    if (items === null) {
+      const shape = parsed && typeof parsed === 'object' ? `object with keys [${Object.keys(parsed).slice(0, 5).join(', ')}]` : typeof parsed;
+      return { category: category.name, items: [], error: `parsed non-array response without events/items key (${shape})` };
+    }
     return { category: category.name, items: items.filter(e => e.title && e.venue) };
   } catch (err) {
     return { category: category.name, items: [], error: err.message };
@@ -466,6 +477,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
   const seenTitles = new Set();
   let totalFound = 0;
   let timedOutCount = 0;
+  let erroredCount = 0;
 
   for (const result of categoryResults) {
     // 2026-01-15: Handle timeout results - treat as empty with warning
@@ -483,6 +495,7 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
       }
     }
     if (result.error) {
+      erroredCount++;
       briefingLog.warn(2, `Category ${result.category} failed: ${result.error}`, OP.AI);
     }
   }
@@ -515,11 +528,13 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
 
   // 2026-02-26: No cross-provider fallback. If Gemini returns 0, return empty.
   // The Strategist AI can flag gaps; a second LLM returning different JSON made things worse.
+  // 2026-08-06: timedOutCount/erroredCount ride along so the caller can distinguish
+  // "searched and found nothing" from "searches never completed" (todo #24 honesty).
   if (allEvents.length === 0) {
-    return { items: [], reason: 'No events found across all categories', provider: 'gemini' };
+    return { items: [], reason: 'No events found across all categories', provider: 'gemini', timedOutCount, erroredCount };
   }
 
-  return { items: allEvents, reason: null, provider: 'gemini' };
+  return { items: allEvents, reason: null, provider: 'gemini', timedOutCount, erroredCount };
 }
 
 /**
@@ -593,9 +608,18 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   // Simpler pipeline, lower cost, cleaner data - model-agnostic (configured via BRIEFING_EVENTS_MODEL)
   briefingLog.phase(2, `Event discovery for ${city}, ${state} (${todayStr})`, OP.AI);
 
+  // 2026-08-06: discovery health survives the swallow-and-continue catch below, so
+  // the final empty-DB-read branch can distinguish "searched, found nothing" from
+  // "searches never completed" (todo #24: verified-empty vs failed are different states).
+  let discoveryHealth = { timedOutCount: 0, erroredCount: 0 };
+
   try {
     // Run parallel category search using configured Briefer model
     const discoveryResult = await fetchEventsWithGemini3ProPreview({ snapshot });
+    discoveryHealth = {
+      timedOutCount: discoveryResult.timedOutCount || 0,
+      erroredCount: discoveryResult.erroredCount || 0,
+    };
 
     if (discoveryResult.items && discoveryResult.items.length > 0) {
       briefingLog.done(2, `Events: ${discoveryResult.items.length} discovered`, OP.AI);
@@ -810,6 +834,8 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
   } catch (discoveryErr) {
     briefingLog.warn(2, `Event discovery failed: ${discoveryErr.message}`, OP.AI);
     // Continue - we can still read cached events from DB
+    // 2026-08-06: record the failure so an empty cache read reports failed, not verified-empty
+    discoveryHealth.erroredCount = EVENT_CATEGORIES.length;
   }
 
   // Read events from discovered_events table for this city/state and date range
@@ -908,6 +934,17 @@ export async function fetchEventsForBriefing({ snapshot } = {}) {
     }
 
     briefingLog.info(`No events found for ${city}, ${state}`);
+    // 2026-08-06: empty cache AFTER incomplete discovery is a FAILURE, not a
+    // verified-empty — the section never actually searched successfully.
+    const failedSearches = discoveryHealth.timedOutCount + discoveryHealth.erroredCount;
+    if (failedSearches > 0) {
+      return {
+        items: [],
+        reason: `Event discovery incomplete (${discoveryHealth.timedOutCount} timed out, ${discoveryHealth.erroredCount} failed of ${EVENT_CATEGORIES.length} searches) — no cached events available`,
+        discoveryFailed: true,
+        provider: 'discovered_events'
+      };
+    }
     return { items: [], reason: 'No events found for this location', provider: 'discovered_events' };
   } catch (dbErr) {
     briefingLog.error(2, `Events DB read failed: ${dbErr.message}`, dbErr, OP.DB);
@@ -948,6 +985,14 @@ export async function discoverEvents({ snapshot, snapshotId }) {
   try {
     const r = await fetchEventsForBriefing({ snapshot });
     const items = Array.isArray(r?.items) ? r.items : [];
+
+    // 2026-08-06 (todo #24): incomplete discovery + empty cache = FAILED section.
+    // Throwing routes through the errorMarker write below, so the UI renders the
+    // amber failed state instead of asserting "no events" it never verified.
+    if (items.length === 0 && r?.discoveryFailed) {
+      throw new Error(r.reason || 'Event discovery failed with no cached events');
+    }
+
     events = {
       items,
       reason: r?.reason || (items.length === 0 ? 'No events found for this area' : null)

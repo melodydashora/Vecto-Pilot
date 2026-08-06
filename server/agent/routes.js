@@ -16,8 +16,12 @@ const router = express.Router();
 router.get("/context", async (req, res) => {
   try {
     const { threadId, includeThreadContext = "true" } = req.query;
+    // 2026-08-06: thread the authenticated user through — requireAuth already
+    // ran (embed.js mount), so omitting userId here forced the NULL-pool
+    // fallback warning on every call.
     const context = await getEnhancedProjectContext({
       threadId,
+      userId: req.auth?.userId ?? null,
       includeThreadContext: includeThreadContext === "true"
     });
     res.json({ ok: true, context });

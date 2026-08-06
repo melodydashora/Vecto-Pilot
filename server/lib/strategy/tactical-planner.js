@@ -503,6 +503,20 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
 
     const duration = Date.now() - startTime;
 
+    // 2026-08-06: check ok BEFORE parsing — callModel's failure shape has no
+    // output key, so a provider failure was previously misreported downstream
+    // as 'Invalid JSON response from AI'.
+    if (!rawResponse.ok) {
+      matrixLog.error({
+        category: 'VENUE',
+        connection: 'AI',
+        action: 'COMPLETE',
+        roleName: 'VENUE_SCORER',
+        location: 'tactical-planner.js:generateTacticalPlan',
+      }, 'Planner call failed', rawResponse.error);
+      throw new Error(`VENUE_SCORER call failed: ${rawResponse.error}`);
+    }
+
     // Parse JSON response
     const parsed = safeJsonParse(rawResponse.output);
 
@@ -644,10 +658,23 @@ export async function generateTacticalPlan({ strategy, snapshot, briefingContext
       }, `Calling Planner for ${needed} replacement venue(s)`);
 
       try {
+        // 2026-08-06: was `developer:` — a param no adapter reads ({system, user,
+        // messages} only), so the model received NO system prompt and NO JSON
+        // schema, and every parse failure was silently swallowed below.
         const replacementResult = await callModel('VENUE_SCORER', {
-          developer: `You are a rideshare venue expert for ${location}. Give me ${needed} replacement venue(s). Return JSON: {"replacements": [{"name": "...", "district": "...", "category": "...", "staging_name": "...", "pro_tips": ["..."], "strategic_timing": "..."}]}`,
+          system: `You are a rideshare venue expert for ${location}. Give me ${needed} replacement venue(s). Return JSON: {"replacements": [{"name": "...", "district": "...", "category": "...", "staging_name": "...", "pro_tips": ["..."], "strategic_timing": "..."}]}`,
           user: `I need ${needed} replacement venue(s) near ${location}. Type: similar to ${failedSummary}. Do NOT suggest: ${alreadyResolved}. Real Google Maps business names only.`
         });
+
+        if (!replacementResult.ok) {
+          matrixLog.error({
+            category: 'VENUE',
+            connection: 'AI',
+            action: 'COMPLETE',
+            roleName: 'VENUE_SCORER',
+            location: 'tactical-planner.js:generateTacticalPlan',
+          }, 'Replacement call failed', replacementResult.error);
+        }
 
         const replacementParsed = safeJsonParse(replacementResult.output);
         if (replacementParsed?.replacements) {

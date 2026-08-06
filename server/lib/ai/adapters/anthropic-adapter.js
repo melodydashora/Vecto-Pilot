@@ -49,17 +49,32 @@ export async function callAnthropic({ model, system, user, messages, maxTokens, 
 
     const res = await anthropic.messages.create(createParams);
 
-    const output = res?.content?.[0]?.text?.trim() || "";
+    // 2026-08-06: concatenate ALL text blocks, matching the web-search path below.
+    // content[0] alone fabricates "Empty response" when the first block is a
+    // non-text block, and silently drops any text past the first block.
+    let output = "";
+    for (const block of res?.content || []) {
+      if (block.type === "text") output += block.text;
+    }
+    output = output.trim();
+
+    // 2026-08-06: stop_reason is part of the adapter contract — max_tokens
+    // truncation must fail loud, not flow downstream as ok:true cut-off JSON.
+    if (res?.stop_reason === 'max_tokens') {
+      console.warn(`[AI] ${model} truncated at max_tokens=${maxTokens} (stop_reason=max_tokens) — returning ok:false with partial output (${output.length} chars)`);
+      return { ok: false, output, truncated: true, error: `truncated at max_tokens=${maxTokens} (stop_reason=max_tokens)` };
+    }
 
     _aiDebug("[AI] resp:", {
       model,
       content: !!res?.content,
-      len: output?.length ?? 0
+      len: output?.length ?? 0,
+      stop_reason: res?.stop_reason
     });
 
     return output
       ? { ok: true, output }
-      : { ok: false, output: "", error: "Empty response from Anthropic" };
+      : { ok: false, output: "", error: `Empty response from Anthropic${res?.stop_reason ? ` (stop_reason=${res.stop_reason})` : ''}` };
   } catch (err) {
     console.error("[AI] error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };
@@ -141,6 +156,13 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
       output = "[" + output;
     }
 
+    // 2026-08-06: same truncation gate as callAnthropic — stop_reason was
+    // previously logged at debug only and never acted on.
+    if (res?.stop_reason === 'max_tokens') {
+      console.warn(`[AI] ${model} truncated at max_tokens=${maxTokens} (stop_reason=max_tokens) — returning ok:false with partial output (${output.length} chars)`);
+      return { ok: false, output, truncated: true, citations, error: `truncated at max_tokens=${maxTokens} (stop_reason=max_tokens)` };
+    }
+
     _aiDebug("[AI] resp:", {
       model,
       content: !!res?.content,
@@ -151,7 +173,7 @@ export async function callAnthropicWithWebSearch({ model, system, user, maxToken
 
     return output
       ? { ok: true, output, citations }
-      : { ok: false, output: "", error: "Empty response from Anthropic" };
+      : { ok: false, output: "", error: `Empty response from Anthropic${res?.stop_reason ? ` (stop_reason=${res.stop_reason})` : ''}` };
   } catch (err) {
     console.error("[AI] error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };

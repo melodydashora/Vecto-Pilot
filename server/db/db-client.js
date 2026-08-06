@@ -6,7 +6,7 @@ import { dbLog, chainLog, OP } from '../logger/workflow.js';
 // stage (e.g. briefing_weather_ready -> [BRIEFING] [WEATHER] [DB] [LISTEN/NOTIFY]
 // [briefing_weather_ready]).
 function _chainFromChannel(channel) {
-  if (!channel) return { parent: 'WORKFLOW', sub: null };
+  if (!channel) return { parent: 'GATEWAY', sub: null };
   const parts = String(channel).split('_');
   const head = parts[0]?.toLowerCase();
   if (head === 'briefing') {
@@ -21,7 +21,13 @@ function _chainFromChannel(channel) {
   if (head === 'venue' || head === 'venuecards') return { parent: 'VENUE', sub: null };
   if (head === 'blocks') return { parent: 'VENUE', sub: null };
   if (head === 'events') return { parent: 'EVENTS', sub: null };
-  return { parent: 'WORKFLOW', sub: null };
+  // 2026-08-06: offer_analyzed brackets under the feature's existing chain
+  // (strategy-events.js logs it as [STRATEGY] [OFFERS]). The old fallback
+  // 'WORKFLOW' is not a registered main category — every emit for an unmapped
+  // channel triggered the chainLog LOGGER WARN. GATEWAY is the registered
+  // orphan fail-safe (workflow.js tagLog).
+  if (head === 'offer') return { parent: 'STRATEGY', sub: 'OFFERS' };
+  return { parent: 'GATEWAY', sub: null };
 }
 
 function _emitChannel(channel, message, level = 'info') {
@@ -64,6 +70,13 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
             keepaliveInterval = null;
           }
           pgClient.removeAllListeners();
+          // 2026-08-06: a previously-connected client can emit a late socket
+          // 'error' between removeAllListeners() and teardown. With zero
+          // listeners, that raises Node's unhandled-'error'-event exception →
+          // gateway uncaughtException → process.exit(1). Neon idle disconnects
+          // exercise this window on a multi-hour cadence (verified crash
+          // candidate for the prod healthcheck bursts).
+          pgClient.on('error', () => {});
           await pgClient.end();
         } catch (cleanupErr) {
           // Ignore cleanup errors
@@ -118,6 +131,7 @@ function setupErrorHandlers(connectionString) {
       reconnectWithBackoff(connectionString).catch(() => {
         if (pgClient) {
           pgClient.removeAllListeners();
+          pgClient.on('error', () => {}); // 2026-08-06: never leave a client listener-less (see reconnect cleanup)
           pgClient = null;
         }
       });
@@ -129,6 +143,7 @@ function setupErrorHandlers(connectionString) {
       reconnectWithBackoff(connectionString).catch(() => {
         if (pgClient) {
           pgClient.removeAllListeners();
+          pgClient.on('error', () => {}); // 2026-08-06: never leave a client listener-less (see reconnect cleanup)
           pgClient = null;
         }
       });

@@ -82,6 +82,11 @@ interface AirportConditions {
   provider?: string;
   reason?: string;
   error?: string;
+  // 2026-08-06: server errorMarker writes _generationFailed INSIDE
+  // airport_conditions; the wrapper-level flag is dropped by the real mount
+  // path (co-pilot-context unwraps, BriefingPage rewraps without flags).
+  _generationFailed?: boolean;
+  verifiedEmpty?: boolean;
 }
 
 interface AirportCardProps {
@@ -96,26 +101,37 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
   const airportConditions = airportData?.airport_conditions;
   // Failed ≠ empty: a provider failure or fallback object must never render
   // as "No nearby airports found" (the Dallas screenshot, todo #24)
-  const airportFailed = !!airportData?._generationFailed || !!airportConditions?.isFallback;
+  // 2026-08-06: also read the INNER flag — the server errorMarker writes
+  // _generationFailed inside airport_conditions, and the wrapper-level flag is
+  // dropped by the real mount path (co-pilot-context unwraps, BriefingPage
+  // rewraps without flags), so DB failures rendered as "No nearby airports found".
+  const airportFailed = !!airportData?._generationFailed || !!airportConditions?._generationFailed || !!airportConditions?.isFallback;
   const airportReason = airportConditions?.reason || airportConditions?.error || null;
   const airports = airportConditions?.airports || [];
   const busyPeriods = airportConditions?.busyPeriods || [];
   const airportRecommendations = airportConditions?.recommendations;
 
+  // 2026-08-06: map BOTH status vocabularies — legacy ('delays',
+  // 'severe_delays') and current DB values ('normal', 'delayed', 'severe',
+  // 'ground-stop', 'closed', 'unreported', 'unknown') plus free-form legacy
+  // strings ('moderate delays', 'impacted', 'disrupted'). Unrecognized values
+  // fall through to neutral gray "Unknown" — never a green "On Time" badge.
   const getAirportStatusColor = (status: string) => {
-    switch (status) {
-      case 'severe_delays': return 'bg-red-100 text-red-700 border-red-300';
-      case 'delays': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      default: return 'bg-green-100 text-green-700 border-green-300';
-    }
+    const s = (status || '').toLowerCase();
+    if (s === 'normal') return 'bg-green-100 text-green-700 border-green-300';
+    if (s === 'severe_delays' || s === 'severe' || s === 'closed' || s === 'ground-stop') return 'bg-red-100 text-red-700 border-red-300';
+    if (s === 'delays' || s === 'delayed' || s.includes('delay') || s.includes('impacted') || s.includes('disrupted')) return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+    return 'bg-gray-100 text-gray-700 border-gray-300';
   };
 
   const getAirportStatusLabel = (status: string) => {
-    switch (status) {
-      case 'severe_delays': return 'Severe Delays';
-      case 'delays': return 'Delays';
-      default: return 'On Time';
-    }
+    const s = (status || '').toLowerCase();
+    if (s === 'normal') return 'On Time';
+    if (s === 'severe_delays' || s === 'severe') return 'Severe Delays';
+    if (s === 'closed') return 'Closed';
+    if (s === 'ground-stop') return 'Ground Stop';
+    if (s === 'delays' || s === 'delayed' || s.includes('delay') || s.includes('impacted') || s.includes('disrupted')) return 'Delays';
+    return 'Unknown';
   };
 
   return (
@@ -407,7 +423,11 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
             </div>
           ) : (
             <p className="text-gray-500 text-sm text-center py-4">
-              No nearby airports found
+              {/* 2026-08-06: verifiedEmpty shape carries server-provided text
+                  (e.g., "No major airports within 50 miles of this location") —
+                  prefer it so verified-empty / missing-coords / residual
+                  failures are distinguishable. Static string is final fallback. */}
+              {airportConditions?.reason || airportConditions?.recommendations || 'No nearby airports found'}
             </p>
           )}
         </CardContent>

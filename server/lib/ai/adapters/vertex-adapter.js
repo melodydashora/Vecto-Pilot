@@ -133,6 +133,14 @@ export async function callVertexAI({
       output = parts.map((p) => p.text || "").join("").trim();
     }
 
+    // 2026-08-06: finishReason is part of the adapter contract — MAX_TOKENS
+    // truncation must fail loud, not flow downstream as ok:true cut-off JSON.
+    const finishReason = response.candidates?.[0]?.finishReason || null;
+    if (finishReason === 'MAX_TOKENS') {
+      console.warn(`[AI] ${model} truncated at max_tokens=${maxTokens} (finishReason=MAX_TOKENS) — returning ok:false with partial output (${output.length} chars)`);
+      return { ok: false, output, truncated: true, error: `truncated at max_tokens=${maxTokens} (finishReason=MAX_TOKENS)` };
+    }
+
     // Clean up JSON responses (same as gemini-adapter)
     if (output) {
       const rawLength = output.length;

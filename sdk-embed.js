@@ -20,12 +20,6 @@ import contentBlocksRoutes from "./server/api/strategy/content-blocks.js";
 // Legacy processor retired — do not import
 // Fast path is mounted via the gateway (server/api/strategy/blocks-fast.js)
 // Logging and security handled by gateway middleware - not duplicated here
-import { 
-  getEnhancedProjectContext,
-  storeCrossThreadMemory,
-  // Removed duplicate import of storeAgentMemory - already imported via getEnhancedProjectContext -to do list (agent deleted both imports)
-  storeAgentMemory
-} from "./server/agent/enhanced-context.js";
 import { getThreadManager } from "./server/agent/thread-context.js";
 
 // NOTE: Triad worker runs in strategy-generator.js (separate process)
@@ -38,33 +32,16 @@ export default function createSdkRouter(opts = {}) {
   // JSON parsing for SDK routes
   r.use(express.json({ limit: '1mb' }));
 
-  // Enhanced context middleware (logging/security handled by gateway)
-  r.use(async (req, res, next) => {
-    try {
-      const ctx = await getEnhancedProjectContext({
-        method: req.method,
-        path: req.originalUrl,
-        ip: req.ip,
-        userAgent: req.headers['user-agent'],
-        includeThreadContext: true
-      });
-
-      await storeCrossThreadMemory('recentPaths', { 
-        path: req.originalUrl, 
-        method: req.method,
-        t: Date.now(),
-        ip: req.ip
-      }, null, 7); // Use null for system-level data (UUID field) - to do list this is not correct logic and causes errors
-
-      req.extendedContext = ctx;
-      req.threadManager = threadManager;
-      
-      next();
-    } catch (err) {
-      console.error('[SDK embed] Context enrichment failed:', err.message);
-      req.extendedContext = { error: err.message };
-      next();
-    }
+  // 2026-08-06: removed the per-request getEnhancedProjectContext +
+  // storeCrossThreadMemory('recentPaths') middleware. req.extendedContext had
+  // ZERO consumers (repo-wide, verified), the recentPaths store was a hard-coded
+  // no-op, and the context call ran ~7 DB queries + file reads with userId=null
+  // on EVERY request reaching this catch-all router — including scanner probes.
+  // It was the prod source of the '[agent Enhanced Context] called with
+  // userId=null — NULL-pool fallback' warning.
+  r.use((req, _res, next) => {
+    req.threadManager = threadManager;
+    next();
   });
 
   // Mount all SDK routes

@@ -78,8 +78,12 @@ function BriefingPage() {
     () => schoolClosuresData ? { school_closures: schoolClosuresData, reason: schoolClosuresReason } : undefined,
     [schoolClosuresData, schoolClosuresReason]
   );
+  // 2026-08-06: carry _pending/_generationFailed through the rewrap
+  // (defense-in-depth; matches AirportCardProps contract) — CoPilotContext
+  // unwraps airport_conditions, and rewrapping without the flags made DB
+  // failures render as "No nearby airports found".
   const wrappedAirportData = useMemo(
-    () => airportData ? { airport_conditions: airportData } : undefined,
+    () => airportData ? { airport_conditions: airportData, _pending: !!airportData._pending, _generationFailed: !!airportData._generationFailed } : undefined,
     [airportData]
   );
 

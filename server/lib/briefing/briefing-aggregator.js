@@ -404,7 +404,14 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     },
     weather_current: weatherCurrent,
     weather_forecast: weatherResult?.weather_forecast || [],
+    // 2026-08-06: failed sections must carry _generationFailed (mirroring
+    // errorMarker, as the holiday section below already does). Without it, this
+    // final atomic write OVERWROTE the pipeline's progressive errorMarker with a
+    // flag-less fallback, so the aggregate endpoint reported DB/pipeline failures
+    // as VERIFIED-EMPTY sections — the todo #24 three-state violation that made
+    // prod airport failures render as "No nearby airports found".
     traffic_conditions: trafficResult?.traffic_conditions || {
+      ...(failedReasons.traffic ? { _generationFailed: true, error: failedReasons.traffic, failedAt: new Date().toISOString() } : {}),
       summary: failedReasons.traffic
         ? `Traffic unavailable: ${failedReasons.traffic}`
         : 'No traffic data available for this area',
@@ -418,6 +425,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     events: eventsItems.length > 0
       ? eventsItems
       : {
+          ...(failedReasons.events ? { _generationFailed: true, error: failedReasons.events, failedAt: new Date().toISOString() } : {}),
           items: [],
           reason: failedReasons.events
             ? `Events fetch failed: ${failedReasons.events}`
@@ -427,6 +435,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       ? schoolClosures
       : { items: [], reason: schoolClosuresReason },
     airport_conditions: airportResult?.airport_conditions || {
+      ...(failedReasons.airport ? { _generationFailed: true, error: failedReasons.airport, failedAt: new Date().toISOString() } : {}),
       airports: [],
       busyPeriods: [],
       recommendations: failedReasons.airport

@@ -43,31 +43,80 @@ async function fetchPublicAPI() {
     
     delayTypes.forEach(delayType => {
       if (delayType?.Arrival_Departure_Delay_List?.Delay) {
-        const delays = Array.isArray(delayType.Arrival_Departure_Delay_List.Delay) 
-          ? delayType.Arrival_Departure_Delay_List.Delay 
+        const delays = Array.isArray(delayType.Arrival_Departure_Delay_List.Delay)
+          ? delayType.Arrival_Departure_Delay_List.Delay
           : [delayType.Arrival_Departure_Delay_List.Delay];
-        
+
         delays.forEach(delay => {
           if (delay.ARPT) {
             airportData.push(parseDelayData(delay));
           }
         });
       }
-      
+
       if (delayType?.Airport_Closure_List?.Airport) {
-        const closures = Array.isArray(delayType.Airport_Closure_List.Airport) 
-          ? delayType.Airport_Closure_List.Airport 
+        const closures = Array.isArray(delayType.Airport_Closure_List.Airport)
+          ? delayType.Airport_Closure_List.Airport
           : [delayType.Airport_Closure_List.Airport];
-        
+
         closures.forEach(closure => {
           if (closure.ARPT) {
             airportData.push(parseClosureData(closure));
           }
         });
       }
+
+      // 2026-08-06: the feed's other two list types were silently ignored —
+      // verified live: an active MCO/DCA/LGA ground stop and 43-90min SFO/JFK
+      // ground delays were invisible to the app. Ground stops mean no arrivals
+      // (no pickup queue) — the most driver-relevant signal in the feed.
+      if (delayType?.Ground_Stop_List?.Program) {
+        const programs = Array.isArray(delayType.Ground_Stop_List.Program)
+          ? delayType.Ground_Stop_List.Program
+          : [delayType.Ground_Stop_List.Program];
+
+        programs.forEach(program => {
+          if (program.ARPT) {
+            airportData.push(parseGroundStopData(program));
+          }
+        });
+      }
+
+      if (delayType?.Ground_Delay_List?.Ground_Delay) {
+        const groundDelays = Array.isArray(delayType.Ground_Delay_List.Ground_Delay)
+          ? delayType.Ground_Delay_List.Ground_Delay
+          : [delayType.Ground_Delay_List.Ground_Delay];
+
+        groundDelays.forEach(gd => {
+          if (gd.ARPT) {
+            airportData.push(parseGroundDelayData(gd));
+          }
+        });
+      }
     });
 
-    return airportData;
+    // 2026-08-06: one airport can appear in multiple lists (e.g. a ground stop
+    // AND arrival delays). The downstream merges use find()/Map.set() which take
+    // one entry per code — combine here so nothing is dropped.
+    const byCode = new Map();
+    for (const entry of airportData) {
+      const existing = byCode.get(entry.airport_code);
+      if (!existing) {
+        byCode.set(entry.airport_code, { ground_stops: [], ...entry });
+        continue;
+      }
+      existing.delay_minutes = Math.max(existing.delay_minutes || 0, entry.delay_minutes || 0);
+      existing.ground_delay_programs = [...(existing.ground_delay_programs || []), ...(entry.ground_delay_programs || [])];
+      existing.ground_stops = [...(existing.ground_stops || []), ...(entry.ground_stops || [])];
+      if (existing.closure_status === 'open' && entry.closure_status !== 'open') {
+        existing.closure_status = entry.closure_status;
+      }
+      existing.delay_reason = existing.delay_reason || entry.delay_reason;
+      if (entry.closure_start) existing.closure_start = entry.closure_start;
+      if (entry.closure_end) existing.closure_end = entry.closure_end;
+    }
+
+    return Array.from(byCode.values());
   } catch (error) {
     console.error('[FAA Public API] Error:', error.message);
     return null;
@@ -159,6 +208,46 @@ function parseClosureData(closure) {
   };
 }
 
+// 2026-08-06: "1 hour and 32 minutes" / "43 minutes" → total minutes
+function parseDurationMinutes(text) {
+  if (!text) return 0;
+  const hours = text.match(/(\d+)\s*hour/);
+  const minutes = text.match(/(\d+)\s*minute/);
+  return (hours ? parseInt(hours[1], 10) * 60 : 0) + (minutes ? parseInt(minutes[1], 10) : 0);
+}
+
+function parseGroundStopData(program) {
+  return {
+    airport_code: program.ARPT,
+    delay_minutes: 0,
+    ground_delay_programs: [],
+    ground_stops: [{
+      reason: program.Reason || 'Unknown',
+      end_time: program.End_Time || null
+    }],
+    closure_status: 'ground-stop',
+    delay_reason: program.Reason
+  };
+}
+
+function parseGroundDelayData(gd) {
+  const avgMinutes = parseDurationMinutes(gd.Avg);
+  return {
+    airport_code: gd.ARPT,
+    delay_minutes: avgMinutes,
+    ground_delay_programs: [{
+      reason: gd.Reason || 'Unknown',
+      min_delay: avgMinutes,
+      max_delay: parseDurationMinutes(gd.Max),
+      trend: null,
+      type: 'Ground Delay Program'
+    }],
+    ground_stops: [],
+    closure_status: 'open',
+    delay_reason: gd.Reason
+  };
+}
+
 function parseAuthAirportData(data) {
   if (!data) return null;
   
@@ -192,7 +281,7 @@ function mergeAirportData(airportCode, publicData, authData) {
     city: authInfo?.city || null,
     state: authInfo?.state || null,
     delay_minutes: publicInfo?.delay_minutes || 0,
-    ground_stops: [],
+    ground_stops: publicInfo?.ground_stops || [],
     ground_delay_programs: publicInfo?.ground_delay_programs || [],
     closure_status: publicInfo?.closure_status || 'open',
     delay_reason: publicInfo?.delay_reason || null,
@@ -210,6 +299,7 @@ function mergeAllAirportData(publicData, authData) {
     mergedMap.set(airport.airport_code, {
       airport_code: airport.airport_code,
       delay_minutes: airport.delay_minutes,
+      ground_stops: airport.ground_stops || [],
       ground_delay_programs: airport.ground_delay_programs,
       closure_status: airport.closure_status,
       delay_reason: airport.delay_reason,
@@ -245,7 +335,7 @@ function mergeAllAirportData(publicData, authData) {
 
   const result = Array.from(mergedMap.values()).map(airport => ({
     ...airport,
-    ground_stops: [],
+    ground_stops: airport.ground_stops || [],
     last_updated: new Date().toISOString()
   }));
 
