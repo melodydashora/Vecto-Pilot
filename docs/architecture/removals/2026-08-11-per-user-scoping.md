@@ -155,3 +155,22 @@ silenceThresholdMs: 4000 // H3: 4 seconds silence sends text automatically
 after the driver stops talking; lowered to 1500 ms. The H3 label referenced an
 audit finding whose number no longer decodes without the old doc — reasoning now
 stated inline. (Full realtime speech-to-speech replacement is Phase C.)
+
+## 9. `.replit` — stale model-name list in the [userenv.shared] comment
+
+**Removed comment lines:**
+
+```
+# See model-registry.js for the authoritative model configuration:
+#   Anthropic: claude-opus-4-6 (strategy, discovery) / claude-haiku-4-5-20251001 (bar filter)
+#   Google:    gemini-3.1-pro-preview (briefing, events, coach, concierge)
+#   OpenAI:    gpt-5.2 (consolidator, venue scorer, parsing)
+```
+
+**Reason:** Every named model was outdated (registry now runs gemini-3.5/3.6-flash,
+gpt-5.5, claude-sonnet-5 fallback) — the list contradicted the very
+"codebase is the single source of truth" rule it sat under. The pointer stays;
+the names are gone so the comment can't drift again (app_rules verify-models-live).
+Added in the same edit: two new Run-button workflows — "Verify (lint + tsc + tests)"
+and "Test Boot (gateway on 5199)" — at Melody's direction so any session can run
+the global quality gate and a disposable test server with one click.

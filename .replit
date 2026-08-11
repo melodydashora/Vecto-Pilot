@@ -44,6 +44,39 @@ waitForPort = 43717
 [workflows.workflow.metadata]
 outputType = "webview"
 
+# Verify: the global quality gate (2026-08-11, added at Melody's direction so
+# any session — human or Claude — can truly verify work with one click).
+# Sequential: stops at the first failure. Mirrors the checks Claude runs
+# before claiming "done": eslint 0-warnings → tsc → jest unit suite.
+[[workflows.workflow]]
+name = "Verify (lint + tsc + tests)"
+mode = "sequential"
+author = "user"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sh -c \"set -a && . ./.env.local && set +a && npm run lint\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sh -c \"set -a && . ./.env.local && set +a && npx tsc --noEmit\""
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sh -c \"set -a && . ./.env.local && set +a && npm run test:unit\""
+
+# Test Boot: disposable gateway on port 5199 (already port-mapped above) for
+# live endpoint verification — never touches the Run-button server on 5000.
+[[workflows.workflow]]
+name = "Test Boot (gateway on 5199)"
+mode = "sequential"
+author = "user"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sh -c \"set -a && . ./.env.local && set +a && APP_RUNTIME=workspace PORT=5199 node gateway-server.js\""
+waitForPort = 5199
+
 [agent]
 integrations = ["perplexity_v0:1.0.0"]
 expertMode = true
@@ -67,14 +100,10 @@ PROJECT_ID = "gen-lang-client-0361505751"
 # ==========================
 # AI Model Configuration
 # ==========================
-# 2026-02-13: ALL model defaults are in server/lib/ai/model-registry.js
-# DO NOT override models here — the codebase is the single source of truth.
-# Replit env vars should ONLY contain API keys and secrets, not model selections.
-#
-# See model-registry.js for the authoritative model configuration:
-#   Anthropic: claude-opus-4-6 (strategy, discovery) / claude-haiku-4-5-20251001 (bar filter)
-#   Google:    gemini-3.1-pro-preview (briefing, events, coach, concierge)
-#   OpenAI:    gpt-5.2 (consolidator, venue scorer, parsing)
+# ALL model defaults live in server/lib/ai/model-registry.js — the single
+# source of truth. DO NOT override models here; Replit env vars carry ONLY
+# API keys and secrets. (No model names in this comment on purpose: they
+# drift — app_rules 'verify-models-live'.)
 # ==========================
 
 [userenv.development]
