@@ -11,17 +11,11 @@
 // AudioBufferSourceNodes (the context resamples buffers automatically, so we
 // never force a context sampleRate — Safari-safe).
 
-/** Inline AudioWorklet module (Blob URL avoids a Vite asset pipeline entry). */
-const CAPTURE_WORKLET = `
-class PcmCaptureProcessor extends AudioWorkletProcessor {
-  process(inputs) {
-    const ch = inputs[0] && inputs[0][0];
-    if (ch && ch.length) this.port.postMessage(ch.slice(0));
-    return true;
-  }
-}
-registerProcessor('pcm-capture', PcmCaptureProcessor);
-`;
+// 2026-08-11: worklet is a static file (client/public/pcm-capture.worklet.js),
+// NOT an inline Blob URL — worklet modules are governed by CSP script-src, and
+// the Blob approach needed script-src blob: (Melody's phone test: "Unable to
+// load a worklet's module"). Serving from 'self' keeps the CSP tight.
+const CAPTURE_WORKLET_URL = '/pcm-capture.worklet.js';
 
 function floatTo16(f32: Float32Array): Int16Array {
   const out = new Int16Array(f32.length);
@@ -90,12 +84,7 @@ export class MicCapture {
       },
     });
     this.ctx = new AudioContext();
-    const workletUrl = URL.createObjectURL(new Blob([CAPTURE_WORKLET], { type: 'text/javascript' }));
-    try {
-      await this.ctx.audioWorklet.addModule(workletUrl);
-    } finally {
-      URL.revokeObjectURL(workletUrl);
-    }
+    await this.ctx.audioWorklet.addModule(CAPTURE_WORKLET_URL);
     const source = this.ctx.createMediaStreamSource(this.stream);
     this.node = new AudioWorkletNode(this.ctx, 'pcm-capture');
     const batchSamples = Math.floor(this.ctx.sampleRate * 0.128); // ~128 ms

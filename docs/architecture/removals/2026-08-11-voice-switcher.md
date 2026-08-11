@@ -25,3 +25,19 @@ still true and now lives on the `COACH_VOICE_REALTIME` role entry in
 The env var `VOICE_MODEL` keeps working — it is the role's `envKey`. The
 speculative "COACH_VOICE role" name the old comment wished for became two real
 roles: `COACH_VOICE_REALTIME` (OpenAI arm) and `COACH_VOICE_LIVE` (Gemini arm).
+
+## client/src/lib/voice/pcm.ts — inline Blob-URL worklet replaced with static file
+
+Removed (committed in 2abdef36, replaced same day after Melody's phone test):
+
+```ts
+/** Inline AudioWorklet module (Blob URL avoids a Vite asset pipeline entry). */
+const CAPTURE_WORKLET = `...registerProcessor('pcm-capture', PcmCaptureProcessor);`;
+const workletUrl = URL.createObjectURL(new Blob([CAPTURE_WORKLET], { type: 'text/javascript' }));
+await this.ctx.audioWorklet.addModule(workletUrl);
+```
+
+**Why:** worklet modules are governed by CSP `script-src`; the Blob URL needed
+`script-src blob:` and failed on-device ("Unable to load a worklet's module").
+Serving `client/public/pcm-capture.worklet.js` from `'self'` fixes it while
+keeping the CSP tight — preferable to widening script-src.

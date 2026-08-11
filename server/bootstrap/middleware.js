@@ -96,7 +96,14 @@ export async function configureMiddleware(app) {
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "blob:", "https://maps.googleapis.com", "https://maps.gstatic.com", "https://*.ggpht.com", "https://places.googleapis.com"],
         mediaSrc: ["'self'", "data:", "blob:"],
-        connectSrc: ["'self'", "data:", "https://*.googleapis.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
+        // 2026-08-11 (todo #33 voice switcher, Melody's phone test: "failed to
+        // fetch"): wss://*.googleapis.com — the Gemini Live API is WebSocket-only
+        // (the https wildcard did NOT cover wss:, killing the Gemini arm at
+        // connect); https://api.openai.com — the GPT Realtime WebRTC SDP
+        // exchange POSTs to /v1/realtime/calls from the browser (ephemeral
+        // token, never the real key). Same discovery pattern as the 2026-04-26
+        // Maps entries: each blocked layer surfaces as a DevTools console error.
+        connectSrc: ["'self'", "data:", "https://*.googleapis.com", "wss://*.googleapis.com", "https://api.openai.com", "https://*.replit.dev", "https://*.replit.app", "wss://*.replit.dev", "wss://*.replit.app"],
         workerSrc: ["'self'", "blob:"],
         frameSrc: ["'self'"],
         objectSrc: ["'none'"],
