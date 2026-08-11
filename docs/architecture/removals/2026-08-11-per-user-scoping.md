@@ -128,3 +128,30 @@ drivers' offers, and the note denied `user_id` exists (it has existed since
 is filtered by authenticated user_id." Replaced with a user-scoped sample and an
 explicit "ALWAYS filter by user_id" instruction, so the doc, the scoping claim, and
 the (now-fixed) DAL all say the same thing.
+
+## 8. Coach voice interim fixes (separate commit, same session)
+
+**Removed from `client/src/hooks/useTTS.ts`:**
+
+```
+if (isSpeaking) {
+  stop();
+}
+```
+
+**Reason:** `isSpeaking` was a stale closure on rapid successive `speak()` calls
+within one render tick, skipping the interrupt. Replaced with an unconditional
+`stop()` that also aborts the in-flight TTS fetch (new AbortController +
+generation counter — the root of the "chunks come back on top of each other"
+overlapping-voices bug Melody hit while driving).
+
+**Removed from `client/src/components/RideshareCoach.tsx`:**
+
+```
+silenceThresholdMs: 4000 // H3: 4 seconds silence sends text automatically
+```
+
+**Reason:** The 4s wait was the single biggest chunk of the felt "3-second delay"
+after the driver stops talking; lowered to 1500 ms. The H3 label referenced an
+audit finding whose number no longer decodes without the old doc — reasoning now
+stated inline. (Full realtime speech-to-speech replacement is Phase C.)

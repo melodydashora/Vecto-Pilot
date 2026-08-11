@@ -96,7 +96,12 @@ export default function RideshareCoach({
   // actually uses for stable useCallback deps.
   const audio = useCoachAudioState({
     onSilence: () => onSilenceRef.current?.(),
-    silenceThresholdMs: 4000 // H3: 4 seconds silence sends text automatically
+    // 2026-08-11: 4000 → 1500. The 4s wait was the single biggest chunk of the
+    // felt "3-second delay" after the driver stops talking (Chrome's own ~3s
+    // onend usually fired first, making 4s dead weight). 1.5s still tolerates
+    // natural mid-sentence pauses at driving cadence.
+    silenceThresholdMs: 1500
+
   });
   const {
     readAloudEnabled,
