@@ -4,9 +4,9 @@
 
 VectoPilot uses a multi-layer authentication system supporting:
 - **Email/password** authentication with bcrypt hashing
-- **Social login** (Google, Apple) via OAuth 2.0
+- **Social login** (Google; Apple is an unimplemented stub) via OAuth 2.0
 - **SMS verification** via Twilio for password reset
-- **Email verification** via SendGrid
+- **Email verification**: NOT implemented (helper exists in `server/lib/auth/email.js` but is never called)
 
 ## Architecture
 
@@ -41,7 +41,7 @@ VectoPilot uses a multi-layer authentication system supporting:
 │                        Server Libraries                             │
 ├─────────────────────────────────────────────────────────────────────┤
 │  server/lib/auth/                                                   │
-│  ├── password.js ──▶ bcrypt hash/verify, JWT token generation       │
+│  ├── password.js ──▶ bcrypt hash/verify, reset tokens/codes         │
 │  ├── email.js ────▶ SendGrid: welcome email, password reset         │
 │  └── sms.js ──────▶ Twilio: SMS verification codes                  │
 │                                                                     │
@@ -53,7 +53,7 @@ VectoPilot uses a multi-layer authentication system supporting:
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          Database (PostgreSQL)                      │
 ├─────────────────────────────────────────────────────────────────────┤
-│  users                 │ Session tracking (device_id, NO location)  │
+│  users                 │ Session tracking (session_id, current_snapshot_id, NO location) │
 │  auth_credentials      │ Password hash, login attempts, reset tokens│
 │  driver_profiles       │ Personal info, address, market, geocoded   │
 │  driver_vehicles       │ Year, make, model, seatbelts               │
@@ -74,7 +74,7 @@ VectoPilot uses a multi-layer authentication system supporting:
 | failed_login_attempts | INTEGER | Lockout counter |
 | locked_until | TIMESTAMP | Account lock expiry |
 | last_login_at | TIMESTAMP | Last successful login |
-| password_reset_token | TEXT | Email reset token (hashed) |
+| password_reset_token | TEXT | Email reset token (64-char hex, stored plaintext, 1-hour expiry) |
 | password_reset_expires | TIMESTAMP | Token expiry |
 | created_at, updated_at | TIMESTAMP | Audit timestamps |
 
@@ -194,7 +194,7 @@ Authenticates user with email/password.
 
 **Errors:**
 - 401: Invalid credentials
-- 403: Account locked (after 5 failed attempts)
+- 423: Account locked (after 5 failed attempts; error code `ACCOUNT_LOCKED`)
 
 ---
 
@@ -270,10 +270,9 @@ Authorization: Bearer <jwt_token>
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/auth/google` | Redirects to Google OAuth |
-| `GET /api/auth/google/callback` | Handles Google OAuth callback |
-| `GET /api/auth/apple` | Redirects to Apple Sign-In |
-| `GET /api/auth/apple/callback` | Handles Apple callback |
+| `GET /api/auth/google` | Redirects to Google consent |
+| `POST /api/auth/google/exchange` | Exchanges code + CSRF state for app token (client callback page calls this) |
+| `GET /api/auth/apple` | Stub, redirects to /auth/sign-in?error=social_not_implemented |
 
 **Query Parameters:**
 - `mode=signup` - Indicate signup intent (vs login)
@@ -361,14 +360,14 @@ Displays Terms of Use with sections:
 
 ### JWT Tokens
 - HMAC-SHA256 signing
-- 30-day expiration
+- 2-hour expiration (`exp = iat + 2h`, aligned to the session hard limit — see docs/architecture/AUTH.md §2)
 - Stored in localStorage (client)
 
 ### Verification Codes
 - 6-digit numeric codes
 - 15-minute expiration
-- Max 5 attempts per code
-- Rate limited: 1 code per minute
+- Attempt limiting: NOT enforced (attempts/max_attempts columns exist but are unused)
+- Code issuance rate limiting: global 100 req/min/IP only — no dedicated limiter
 
 ---
 
@@ -403,7 +402,7 @@ GOOGLE_MAPS_API_KEY=xxx
 
 ---
 
-## Test Cases
+## Proposed Test Cases (not yet implemented)
 
 ### Unit Tests
 
@@ -452,7 +451,6 @@ describe('generateAuthToken', () => {
     const token = generateAuthToken('user-123', 'test@example.com');
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
     expect(payload.sub).toBe('user-123');
-    expect(payload.email).toBe('test@example.com');
   });
 });
 ```
@@ -576,7 +574,7 @@ describe('POST /api/auth/login', () => {
       .post('/api/auth/login')
       .send({ email: 'test@example.com', password: 'Test123!' });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(423);
     expect(response.body.error).toContain('locked');
   });
 });
@@ -719,7 +717,7 @@ test('shows error for invalid credentials', async ({ page }) => {
 |------|---------|
 | `shared/schema.js` | Database schema (Drizzle ORM) |
 | `server/api/auth/auth.js` | Auth API routes |
-| `server/lib/auth/password.js` | Password hashing, JWT tokens |
+| `server/lib/auth/password.js` | Password hashing, reset tokens (JWTs live in `server/lib/jwt.js`) |
 | `server/lib/auth/email.js` | SendGrid email service |
 | `server/lib/auth/sms.js` | Twilio SMS service |
 | `server/lib/location/geocode.js` | Google Geocoding API |

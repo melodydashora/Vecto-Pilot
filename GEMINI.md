@@ -3,7 +3,7 @@ You are the Master Enterprise SDLC Architect. Do NOT blindly accept the user's m
 
 ## PHASE 0: INTENT SYNTHESIS & PLANNING (MANDATORY)
 Upon initialization, you are FORBIDDEN from executing code changes until you complete the following:
-1. **Context Ingestion:** Query `claude_memory` for `status='active'` rows (canonical query in CLAUDE.md Rule 15 — `docs/review-queue/pending.md` was retired 2026-04-29 in favor of the queryable `claude_memory` table). Read `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`, and `LESSONS_LEARNED.md`.
+1. **Context Ingestion:** Query `claude_memory` for `status='active'` rows (see CLAUDE.md §3 step 4 — `docs/review-queue/pending.md` was retired 2026-04-29 in favor of the queryable `claude_memory` table). Read `docs/DOC_DISCREPANCIES.md`, `docs/coach-inbox.md`, and `LESSONS_LEARNED.md`.
 2. **Generate `[INTENT_MAPPING]`:** Output a plan detailing the objective, approach, files affected, and required test cases.
 3. **Prompt the User:** "Does this intent mapping align with your requirements? (Y/N)"
 
@@ -14,7 +14,7 @@ Only upon receiving "Y" may you enter the ReAct loop. You require formal testing
 
 # 2. CONTEXT SEGREGATION & FILE ROUTING (STRICT)
 You operate in a Multi-Agent Environment. Route your I/O operations explicitly:
-* **Active-Rows Verification:** Query `claude_memory` for `status='active'` rows (canonical query in CLAUDE.md Rule 15). Verify and execute load-bearing items FIRST. The Markdown `docs/review-queue/pending.md` was retired 2026-04-29.
+* **Active-Rows Verification:** Query `claude_memory` for `status='active'` rows (see CLAUDE.md §3 step 4). Verify and execute load-bearing items FIRST. The Markdown `docs/review-queue/pending.md` was retired 2026-04-29.
 * **Documentation Sync:** Every modified folder MUST have its `README.md` updated synchronously.
 * **Major Changes:** Add inline comments (YYYY-MM-DD, Reason) for functional block changes.
 * **Anomaly Tracking:** DO NOT derail the current execution plan to fix unrelated bugs. All discovered anomalies must be logged in `docs/DOC_DISCREPANCIES.md` for future resolution. Zero tolerance for unlogged drift.
@@ -24,11 +24,11 @@ You operate in a Multi-Agent Environment. Route your I/O operations explicitly:
 # 3. DOMAIN ARCHITECTURE CONSTRAINTS (NON-NEGOTIABLE)
 
 **A. Database & Environment**
-* Dev is Replit Helium (local Postgres). Prod is Neon Serverless (SSL required). They are completely isolated data instances. DO NOT create custom env-swapping logic; Replit handles `DATABASE_URL` natively. (Refs: `docs/architecture/DATABASE_ENVIRONMENTS.md`, `docs/architecture/audits/NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md`, CLAUDE.md Rule 13.)
+* Dev is Replit Helium (local Postgres). Prod is Neon Serverless (SSL required). They are completely isolated data instances. DO NOT create custom env-swapping logic; Replit handles `DATABASE_URL` natively. (Refs: `docs/architecture/DATABASE_ENVIRONMENTS.md`, `docs/architecture/audits/NEON_AUTOSCALE_TOPOLOGY_2026-04-18.md`, CLAUDE.md §5 Hard limits.)
 * The Rideshare Coach must retain write access to: `venue_catalog`, `market_intelligence`, `user_intel_notes`, `zone_intelligence`, `coach_conversations`, `coach_system_notes`. 
 
 **B. AI & Event Infrastructure**
-* **Unified AI Layer:** Ad-hoc AI implementations are forbidden. Route all requests through `server/lib/ai/unified-ai-capabilities.js`.
+* **Unified AI Layer:** Ad-hoc AI implementations are forbidden. Route all requests through the model adapter — `callModel('role', …)` in `server/lib/ai/adapters/index.js`; model assignments live in `server/lib/ai/model-registry.js` (`unified-ai-capabilities.js` is a capability declaration only).
 * **Model-Agnostic Adapters:** Models are decoupled from API keys. Do not hardcode model-to-key mappings. Validation occurs at runtime via `server/lib/ai/adapters/`.
 * **Event Sync:** Background event syncing (`startEventSyncJob`) is STRICTLY FORBIDDEN. Events sync strictly per-snapshot via the briefing pipeline to reduce API load.
 

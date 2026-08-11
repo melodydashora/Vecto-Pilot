@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+Notable changes through 2026-04-25 are documented in this file; later work (2026-06 onward) is tracked in git history and the todo table.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
@@ -964,4 +964,4 @@ Removing it would be simpler but wrong. General venues (hotels, dining, airport)
 
 ---
 
-[Unreleased]: #unreleased--2026-04-11
+[Unreleased]: #unreleased--2026-04-25-p3-db-sanity--audit-verification

@@ -52,7 +52,7 @@ This security policy covers:
 ### Data Protection
 
 - User credentials are hashed with bcrypt
-- Sessions use secure, httpOnly cookies
+- Sessions are server-side rows in the `users` table (60-min sliding window, 2-hour hard cap) validated on every request; the client holds a short-lived (2h) HS256 JWT in localStorage sent as `Authorization: Bearer`
 - Sensitive data is never logged
 - Database connections use SSL
 
@@ -63,10 +63,10 @@ This security policy covers:
 | Authentication | JWT tokens with expiration |
 | Authorization | Resource ownership verification |
 | Rate Limiting | Per-user and per-IP limits on expensive endpoints |
-| Input Validation | Zod schemas on all API endpoints |
+| Input Validation | Zod schemas on high-write routes (actions, strategy, location); manual validation elsewhere |
 | SQL Injection | Drizzle ORM parameterized queries |
 | XSS | React's built-in escaping |
-| CSRF | SameSite cookies |
+| CSRF | One-time state tokens on OAuth flows (`oauth_states`, 10-min expiry); token-in-header auth (no cookies) makes classic CSRF inapplicable to API calls |
 
 ## Security Changelog
 

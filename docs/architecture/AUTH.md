@@ -24,7 +24,7 @@
 ### 1a. Email/Password (IMPLEMENTED)
 
 **Route:** `POST /api/auth/login`
-**File:** `server/api/auth/auth.js` (lines 531–750)
+**File:** `server/api/auth/auth.js` (lines 608–868)
 
 **Flow:**
 1. Client sends `{ email, password }` from `SignInPage.tsx`
@@ -53,7 +53,7 @@
 - `GET /api/auth/google` — Redirects to Google consent screen
 - `POST /api/auth/google/exchange` — Exchanges auth code for token
 
-**File:** `server/api/auth/auth.js` (lines 1307–1597)
+**File:** `server/api/auth/auth.js` (lines 1492–1832)
 **OAuth lib:** `google-auth-library`
 **Scopes:** `openid email profile`
 
@@ -93,13 +93,13 @@ Uber OAuth connects the driver's Uber account for trip/payment data — it does 
 
 ### 1d. Apple OAuth (NOT IMPLEMENTED)
 
-**Route:** `GET /api/auth/apple` — Returns 501 Not Implemented
-**File:** `server/api/auth/auth.js` (lines 1598–1611)
+**Route:** `GET /api/auth/apple` — Redirects to `/auth/sign-in?error=social_not_implemented&provider=apple` (stub, no Apple flow)
+**File:** `server/api/auth/auth.js` (lines 1834–1842)
 
 ### 1e. Registration
 
 **Route:** `POST /api/auth/register`
-**File:** `server/api/auth/auth.js` (lines 63–530)
+**File:** `server/api/auth/auth.js` (lines 76–606)
 
 Creates `users` row + `driver_profiles` + `driver_vehicles` + `auth_credentials`.
 Validates and geocodes address via Google Address Validation API.
@@ -108,7 +108,7 @@ Registration returns a token in the response body for compatibility and future S
 ### 1f. Password Reset
 
 **Route:** `POST /api/auth/forgot-password` → `POST /api/auth/reset-password`
-**File:** `server/api/auth/auth.js` (lines 753–960)
+**File:** `server/api/auth/auth.js` (lines 870–1102)
 
 Two methods:
 - **Email (default):** 64-char hex reset token, stored in `auth_credentials.password_reset_token`, 1-hour expiry. Sent via SendGrid.
@@ -119,7 +119,7 @@ Returns generic success regardless of email existence (prevents enumeration).
 ### 1g. Dev Token (DISABLED IN PROD)
 
 **Route:** `POST /api/auth/token`
-**File:** `server/api/auth/auth.js` (lines 1612–1633)
+**File:** `server/api/auth/auth.js` (lines 1852–1874)
 
 Returns 403 in production. In dev: generates token for testing without validation.
 
@@ -200,11 +200,11 @@ There is still no JWT blacklist. A leaked token is valid until `exp` (≤2h) or 
 
 ### requireAuth (Primary)
 
-**File:** `server/middleware/auth.js` (lines 116–230)
+**File:** `server/middleware/auth.js` (lines 149–264)
 
 **Checks (in order):**
 
-1. **Service account auth** (lines 121–132): `x-vecto-agent-secret` header → constant-time comparison via `crypto.timingSafeEqual()`
+1. **Service account auth** (lines 121–132): `x-vecto-agent-secret` or `x-claude-bridge-token` header → constant-time comparison via `crypto.timingSafeEqual()` (see `docs/architecture/agent-bridge.md`)
 2. **Bearer token extraction** (lines 137–141): `Authorization: Bearer <token>`
 3. **Token verification** (line 143): `verifyAppToken(token)` → extracts `userId`
 4. **Session lookup** (line 148): `SELECT * FROM users WHERE user_id = ?`
@@ -240,7 +240,7 @@ req.auth = {
 
 ### optionalAuth (Secondary)
 
-**File:** `server/middleware/auth.js` (lines 236–279)
+**File:** `server/middleware/auth.js` (lines 271–314)
 
 Same as `requireAuth` but continues as anonymous if no token provided. Used for endpoints that work for both authenticated and anonymous users.
 
@@ -262,8 +262,7 @@ Same as `requireAuth` but continues as anonymous if no token provided. Used for 
 
 ```
 users table:
-  user_id          UUID (PK, FK → driver_profiles)
-  device_id        text
+  user_id          UUID (PK — referenced by driver_profiles.user_id / auth_credentials.user_id)
   session_id       UUID (nullable — null = logged out)
   current_snapshot_id  UUID (nullable — null = no active snapshot)
   session_start_at     timestamp
@@ -289,7 +288,6 @@ Expired sessions are **updated** (set `session_id = null`), NOT deleted — pres
 | `localStorage` | `vectopilot_auth_token` | JWT-like token | Survives tab close, used for API auth |
 | `localStorage` | `vecto_persistent_strategy` | Strategy text | Survives app switches |
 | `localStorage` | `vecto_strategy_snapshot_id` | Snapshot ID | Links strategy to snapshot |
-| `localStorage` | `vecto_device_id` | Device UUID | Device tracking |
 | `sessionStorage` | `vecto_snapshot` | Full snapshot JSON | Resume on tab return |
 | `sessionStorage` | `vecto_resume_reason` | `'resume'` flag | Tells CoPilot to skip regeneration |
 
@@ -299,7 +297,7 @@ Expired sessions are **updated** (set `session_id = null`), NOT deleted — pres
 
 ### What Gets Cleared and In What Order
 
-**Trigger:** User clicks logout → `auth-context.tsx` `logout()` (line 209)
+**Trigger:** User clicks logout → `auth-context.tsx` `logout()` (line 219)
 
 ```
 Step 1: Cancel all React Query operations (prevents 401 cascade)
@@ -375,7 +373,7 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 | Email/password login | Working, production-tested |
 | Google OAuth | Working, production-tested |
 | Uber OAuth | Working (platform data integration, not login) |
-| Apple OAuth | Stub only — returns 501 |
+| Apple OAuth | Stub only — redirects to sign-in with error param |
 | Token format | Standard JWT (HS256) — claims `sub`/`iat`/`exp`/`iss`/`aud`. Migrated 2026-05-03 (AUTH-003). Legacy 2-segment HMAC tokens still accepted during transition (Phase 1.5 PR removes legacy path). |
 | Session TTL (60 min sliding + 2 hr hard) | Enforced in middleware |
 | Logout cleanup | Complete (7-step cascade with zombie fix) |
@@ -398,11 +396,11 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 
 5. **Google OAuth profile_complete flag** — New OAuth users have `profile_complete = false` but the client doesn't enforce profile completion (vehicle, preferences, etc.).
 
-6. **Apple OAuth not implemented** — Stub returns 501.
+6. **Apple OAuth not implemented** — stub redirects to sign-in with an error param.
 
 7. **Session cleanup is lazy** — Expired sessions are only detected on next `requireAuth` call. Orphaned sessions accumulate in DB.
 
-8. **No concurrent session detection** — Token format is `userId.hmacSignature` with no session UUID binding. A new login overwrites the `users` session row (so only one session_id exists), but the old token remains cryptographically valid until the overwritten session check fails. There is no active "logged in elsewhere" notification.
+8. **No concurrent session detection** — The JWT carries only `sub` (userId), no session UUID binding. A new login overwrites the `users` session row, but an older token remains cryptographically valid until `exp` or until the session check fails. No 'logged in elsewhere' notification.
 
 ---
 
@@ -426,7 +424,7 @@ After logout, `CoPilotContext` cleared its `lastSnapshotId`, but `LocationContex
 | File | Purpose |
 |------|---------|
 | `server/lib/jwt.js` | `signJWT` / `verifyJWT` helpers (jose-based, HS256, claims pinned). New 2026-05-03 (AUTH-003) — replaces former `lib/jwt.ts` dev stub. |
-| `server/middleware/auth.js` | `requireAuth`, `optionalAuth`, `verifyAppToken` (dual-verify dispatcher), `verifyLegacyHMAC` (transition path, deleted in Phase 1.5) |
+| `server/middleware/auth.js` | `requireAuth`, `optionalAuth`, `verifyAppToken` (dual-verify dispatcher), `verifyLegacyHMAC` (transition path, deleted in Phase 1.5), `requireAuthAllowQueryToken` (SSE ?token= fallback), `requireAgentOnly` (agent/bridge-token-only guard) |
 | `server/api/auth/auth.js` | All auth routes (login, register, logout, OAuth, reset). `generateAuthToken` calls `signJWT`. |
 | `server/lib/auth/password.js` | bcrypt hash/verify, password strength validation |
 | `server/lib/auth/oauth/google-oauth.js` | Google OAuth utilities |

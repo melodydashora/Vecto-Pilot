@@ -12,7 +12,6 @@ Complete frontend → backend API endpoint reference.
 | `/api/blocks-fast` | GET | `server/api/strategy/blocks-fast.js` | Retrieve existing blocks (generates if missing) |
 | `/api/blocks/strategy/:id` | GET | `server/api/strategy/content-blocks.js` | Fetch strategy content blocks |
 | `/api/strategy/:snapshotId` | GET | `server/api/strategy/strategy.js` | Fetch strategy for snapshot |
-| `/api/strategy/daily/:snapshotId` | POST | `server/api/strategy/daily.js` | On-demand daily strategy (user-triggered) |
 
 #### Strategy API Details (Updated 2026-01-14)
 
@@ -21,7 +20,7 @@ Complete frontend → backend API endpoint reference.
 Triggers the full TRIAD pipeline:
 1. Phase 1 (Resolving): Location validation
 2. Phase 2 (Analyzing): Briefing generation (Gemini with Google Search)
-3. Phase 3 (Immediate): GPT-5.2 immediate strategy
+3. Phase 3 (Immediate): STRATEGY_TACTICAL immediate strategy (model per registry)
 4. Phase 4 (Venues): SmartBlocks generation + Google enrichment
 
 **Response Fields:**
@@ -44,13 +43,12 @@ Strategy-first gating ensures blocks are not generated until strategy_for_now ex
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/location/resolve` | POST | `server/api/location/location.js` | Resolve GPS → address + user_id |
+| `/api/location/resolve` | GET | `server/api/location/location.js` | Resolve GPS → address + user_id |
 | `/api/location/weather` | GET | `server/api/location/location.js` | Current weather for location |
 | `/api/location/airquality` | GET | `server/api/location/location.js` | Air quality index for location |
 | `/api/location/snapshot` | POST | `server/api/location/location.js` | Create location snapshot |
-| `/api/geocode/reverse` | GET | `server/api/location/location.js` | Reverse geocode coordinates |
-| `/api/timezone` | GET | `server/api/location/location.js` | Get timezone for coordinates |
-| `/api/users/me` | GET | `server/api/location/location.js` | Get current user data |
+| `/api/location/geocode/reverse` | GET | `server/api/location/location.js` | Reverse geocode coordinates |
+| `/api/location/timezone` | GET | `server/api/location/location.js` | Get timezone for coordinates |
 | `/api/snapshot/:id` | GET | `server/api/location/snapshot.js` | Fetch snapshot by ID |
 
 ### Briefing Data
@@ -64,7 +62,7 @@ Strategy-first gating ensures blocks are not generated until strategy_for_now ex
 | `/api/briefing/rideshare-news/:snapshotId` | GET | `server/api/briefing/briefing.js` | Rideshare-relevant news |
 | `/api/briefing/school-closures/:snapshotId` | GET | `server/api/briefing/briefing.js` | School/college closures |
 | `/api/briefing/airport/:snapshotId` | GET | `server/api/briefing/briefing.js` | Airport delays and conditions |
-| `/api/briefing/refresh-daily/:snapshotId` | POST | `server/api/briefing/briefing.js` | On-demand refresh of events + news (daily data) |
+| `/api/briefing/refresh` | POST | `server/api/briefing/briefing.js` | On-demand refresh of events + news (daily data) |
 
 ### Chat & Voice
 
@@ -84,7 +82,7 @@ Strategy-first gating ensures blocks are not generated until strategy_for_now ex
 | `/api/chat/deactivated-news` | GET | `server/api/chat/chat.js` | Get deactivated news hashes |
 | `/api/chat/deactivate-event` | POST | `server/api/chat/chat.js` | Deactivate an event for user |
 | `/api/chat/snapshot-history` | GET | `server/api/chat/chat.js` | Get user's location snapshot history |
-| `/api/realtime/token` | GET | `server/api/chat/realtime.js` | OpenAI Realtime API token for voice |
+| `/api/realtime/token` | POST | `server/api/chat/realtime.js` | OpenAI Realtime API token for voice |
 | `/api/tts` | POST | `server/api/chat/tts.js` | Text-to-speech generation |
 
 #### AI Coach Action Parsing
@@ -125,8 +123,7 @@ The `/api/chat` POST endpoint parses special action tags from AI responses and e
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/closed-venue-reasoning` | POST | `server/api/venue/closed-venue-reasoning.js` | AI reasoning for closed venues |
-| `/api/venues/:placeId` | GET | `server/api/venue/venue-intelligence.js` | Get venue details |
+| `/api/venues/nearby` | GET | `server/api/venue/venue-intelligence.js` | Nearby venue intelligence |
 
 ### Authentication
 
@@ -134,20 +131,18 @@ The `/api/chat` POST endpoint parses special action tags from AI responses and e
 |----------|--------|---------|---------|
 | `/api/auth/register` | POST | `server/api/auth/auth.js` | Create new driver account |
 | `/api/auth/login` | POST | `server/api/auth/auth.js` | Login with email/password |
-| `/api/auth/verify-email` | POST | `server/api/auth/auth.js` | Verify email with code |
-| `/api/auth/resend-verification` | POST | `server/api/auth/auth.js` | Resend verification email |
 | `/api/auth/forgot-password` | POST | `server/api/auth/auth.js` | Request password reset |
 | `/api/auth/reset-password` | POST | `server/api/auth/auth.js` | Reset password with token |
 | `/api/auth/me` | GET | `server/api/auth/auth.js` | Get current user profile |
 | `/api/auth/profile` | PUT | `server/api/auth/auth.js` | Update driver profile |
-| `/api/auth/token` | POST | `server/api/auth/auth.js` | **DISABLED** - Legacy token endpoint |
+| `/api/auth/token` | POST | `server/api/auth/auth.js` | Dev-only token minting (403 in production) |
 
 ### Health & Diagnostics
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/` | GET | `server/api/health/health.js` | Basic health check |
-| `/health` | GET | `server/api/health/health.js` | Detailed health with DB/API status |
+| `/api/health` | GET | `server/api/health/health.js` | Public liveness JSON |
+| `/health` | GET | `server/bootstrap/health.js` | Load-balancer probe (plain OK; detailed status at /api/health/details, auth) |
 | `/ready` | GET | `server/api/health/health.js` | Kubernetes readiness probe |
 | `/api/diagnostic/identity` | GET | `server/api/health/diagnostic-identity.js` | System identity check |
 
@@ -157,23 +152,20 @@ AI Coach endpoints for notes, schema discovery, and data validation.
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/coach/notes` | GET | `server/api/coach/notes.js` | List user's coach notes |
-| `/api/coach/notes/:id` | GET | `server/api/coach/notes.js` | Get specific note |
-| `/api/coach/notes` | POST | `server/api/coach/notes.js` | Create new note |
-| `/api/coach/notes/:id` | PUT | `server/api/coach/notes.js` | Update note |
-| `/api/coach/notes/:id` | DELETE | `server/api/coach/notes.js` | Soft delete note |
-| `/api/coach/notes/:id/pin` | POST | `server/api/coach/notes.js` | Pin/unpin note |
-| `/api/coach/notes/:id/restore` | POST | `server/api/coach/notes.js` | Restore deleted note |
-| `/api/coach/notes/stats/summary` | GET | `server/api/coach/notes.js` | Notes statistics |
-| `/api/coach/schema` | GET | `server/api/coach/schema.js` | Full database schema info |
-| `/api/coach/schema/tables` | GET | `server/api/coach/schema.js` | List available tables |
-| `/api/coach/schema/table/:name` | GET | `server/api/coach/schema.js` | Get table schema details |
-| `/api/coach/schema/prompt` | GET | `server/api/coach/schema.js` | Schema formatted for AI prompts |
-| `/api/coach/validate` | POST | `server/api/coach/validate.js` | Validate data against schema |
-| `/api/coach/validate/schemas` | GET | `server/api/coach/validate.js` | Get validation schemas |
-| `/api/coach/validate/batch` | POST | `server/api/coach/validate.js` | Batch validation |
-| `/api/coach/validate/event` | POST | `server/api/coach/validate.js` | Validate event data |
-| `/api/coach/validate/venue` | POST | `server/api/coach/validate.js` | Validate venue data |
+| `/api/coach/notes` | GET | `server/api/rideshare-coach/notes.js` | List user's coach notes |
+| `/api/coach/notes/:id` | GET | `server/api/rideshare-coach/notes.js` | Get specific note |
+| `/api/coach/notes` | POST | `server/api/rideshare-coach/notes.js` | Create new note |
+| `/api/coach/notes/:id` | PUT | `server/api/rideshare-coach/notes.js` | Update note |
+| `/api/coach/notes/:id` | DELETE | `server/api/rideshare-coach/notes.js` | Soft delete note |
+| `/api/coach/notes/:id/pin` | POST | `server/api/rideshare-coach/notes.js` | Pin/unpin note |
+| `/api/coach/notes/:id/restore` | POST | `server/api/rideshare-coach/notes.js` | Restore deleted note |
+| `/api/coach/notes/stats/summary` | GET | `server/api/rideshare-coach/notes.js` | Notes statistics |
+| `/api/coach/schema` | GET | `server/api/rideshare-coach/schema.js` | Full database schema info |
+| `/api/coach/schema/tables` | GET | `server/api/rideshare-coach/schema.js` | List available tables |
+| `/api/coach/schema/prompt` | GET | `server/api/rideshare-coach/schema.js` | Schema formatted for AI prompts |
+| `/api/coach/validate` | POST | `server/api/rideshare-coach/validate.js` | Validate data against schema |
+| `/api/coach/validate/schemas` | GET | `server/api/rideshare-coach/validate.js` | Get validation schemas |
+| `/api/coach/validate/batch` | POST | `server/api/rideshare-coach/validate.js` | Batch validation |
 
 ### Intelligence API (Added 2026-02-01)
 
@@ -181,18 +173,18 @@ Market intelligence endpoints for rideshare strategy research.
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/intelligence` | GET | `server/api/intelligence/intelligence.js` | List all intelligence records |
-| `/api/intelligence/markets` | GET | `server/api/intelligence/intelligence.js` | List markets with intel |
-| `/api/intelligence/markets-dropdown` | GET | `server/api/intelligence/intelligence.js` | Markets for dropdown UI |
-| `/api/intelligence/for-location` | GET | `server/api/intelligence/intelligence.js` | Intel for specific location |
-| `/api/intelligence/market/:slug` | GET | `server/api/intelligence/intelligence.js` | Market details by slug |
-| `/api/intelligence/coach/:market` | GET | `server/api/intelligence/intelligence.js` | Coach-ready intel for market |
-| `/api/intelligence/staging-areas` | GET | `server/api/intelligence/intelligence.js` | Staging area recommendations |
-| `/api/intelligence/:id` | GET | `server/api/intelligence/intelligence.js` | Specific intel record |
-| `/api/intelligence` | POST | `server/api/intelligence/intelligence.js` | Create intel record |
-| `/api/intelligence/add-market` | POST | `server/api/intelligence/intelligence.js` | Add market intelligence |
-| `/api/intelligence/:id` | PUT | `server/api/intelligence/intelligence.js` | Update intel record |
-| `/api/intelligence/:id` | DELETE | `server/api/intelligence/intelligence.js` | Delete intel record |
+| `/api/intelligence` | GET | `server/api/intelligence/index.js` | List all intelligence records |
+| `/api/intelligence/markets` | GET | `server/api/intelligence/index.js` | List markets with intel |
+| `/api/intelligence/markets-dropdown` | GET | `server/api/intelligence/index.js` | Markets for dropdown UI |
+| `/api/intelligence/for-location` | GET | `server/api/intelligence/index.js` | Intel for specific location |
+| `/api/intelligence/market/:slug` | GET | `server/api/intelligence/index.js` | Market details by slug |
+| `/api/intelligence/coach/:market` | GET | `server/api/intelligence/index.js` | Coach-ready intel for market |
+| `/api/intelligence/staging-areas` | GET | `server/api/intelligence/index.js` | Staging area recommendations |
+| `/api/intelligence/:id` | GET | `server/api/intelligence/index.js` | Specific intel record |
+| `/api/intelligence` | POST | `server/api/intelligence/index.js` | Create intel record |
+| `/api/intelligence/add-market` | POST | `server/api/intelligence/index.js` | Add market intelligence |
+| `/api/intelligence/:id` | PUT | `server/api/intelligence/index.js` | Update intel record |
+| `/api/intelligence/:id` | DELETE | `server/api/intelligence/index.js` | Delete intel record |
 
 ### Platform API (Added 2026-02-01)
 
@@ -200,15 +192,15 @@ Platform statistics and market data endpoints.
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/platform/stats` | GET | `server/api/platform/platform.js` | Platform statistics |
-| `/api/platform/markets` | GET | `server/api/platform/platform.js` | List all markets |
-| `/api/platform/markets/:market` | GET | `server/api/platform/platform.js` | Market details |
-| `/api/platform/countries` | GET | `server/api/platform/platform.js` | List countries |
-| `/api/platform/countries-dropdown` | GET | `server/api/platform/platform.js` | Countries for dropdown UI |
-| `/api/platform/regions-dropdown` | GET | `server/api/platform/platform.js` | Regions for dropdown UI |
-| `/api/platform/markets-dropdown` | GET | `server/api/platform/platform.js` | Markets for dropdown UI |
-| `/api/platform/search` | GET | `server/api/platform/platform.js` | Search markets/cities |
-| `/api/platform/city/:city` | GET | `server/api/platform/platform.js` | City details |
+| `/api/platform/stats` | GET | `server/api/platform/index.js` | Platform statistics |
+| `/api/platform/markets` | GET | `server/api/platform/index.js` | List all markets |
+| `/api/platform/markets/:market` | GET | `server/api/platform/index.js` | Market details |
+| `/api/platform/countries` | GET | `server/api/platform/index.js` | List countries |
+| `/api/platform/countries-dropdown` | GET | `server/api/platform/index.js` | Countries for dropdown UI |
+| `/api/platform/regions-dropdown` | GET | `server/api/platform/index.js` | Regions for dropdown UI |
+| `/api/platform/markets-dropdown` | GET | `server/api/platform/index.js` | Markets for dropdown UI |
+| `/api/platform/search` | GET | `server/api/platform/index.js` | Search markets/cities |
+| `/api/platform/city/:city` | GET | `server/api/platform/index.js` | City details |
 
 ## Authentication
 

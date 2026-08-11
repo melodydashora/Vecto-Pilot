@@ -11,14 +11,14 @@ All navigation, document indexes, quick-reference tables, and onboarding guidanc
 |------|-------|
 | **Architecture index** | [docs/architecture/README.md](docs/architecture/README.md) |
 | **AI role map** | [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md) |
-| **Constraints** | [docs/architecture/CONSTRAINTS.md](docs/architecture/CONSTRAINTS.md) |
+| **Constraints / product invariants** | `app_rules` table (Postgres) — `SELECT rule_key, rule_text FROM app_rules WHERE status='active'` |
 | **Decisions log** | [docs/architecture/DECISIONS.md](docs/architecture/DECISIONS.md) |
 | **Discrepancy tracker** | [docs/DOC_DISCREPANCIES.md](docs/DOC_DISCREPANCIES.md) |
 | **Lessons learned** | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) |
 
 ## Folder READMEs
 
-Every folder has a README.md. Use your editor's file search or `find . -name README.md` to locate them. The `docs/architecture/` index provides document-level navigation.
+Most folders have a README.md. Use your editor's file search or `find . -name README.md` to locate them. The `docs/architecture/` index provides document-level navigation.
 
 ---
 

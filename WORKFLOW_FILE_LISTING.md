@@ -3,15 +3,15 @@
 Generated: 2026-01-02T12:00:00.000Z
 **Last Review:** 2026-01-02 UTC
 
-> ✅ **Updated:** This file reflects the current repository structure as of January 1, 2026:
+> ⚠️ **STALE (verified 2026-08-11):** Generated 2026-01-02; 161 of 241 listed paths no longer exist — server/routes/ and flat server/lib/ were reorganized into server/api/ and domain-folder server/lib/. A newer generation was already archived at docs/archive/WORKFLOW_FILE_LISTING.md. Regenerate before trusting any entry.
 > - **Authentication System:** Full JWT-based auth with sign-up, sign-in, verification, password reset
 > - **Server Organization:** Domain-based folders (`server/lib/ai/`, `server/lib/auth/`, `server/lib/briefing/`, etc.)
 > - **API Routes:** Organized by domain in `server/api/` (auth, briefing, chat, feedback, health, intelligence, location, platform, research, strategy, vehicle, venue)
-> - **Client Architecture:** React Router with 13 pages (8 co-pilot + 5 auth + SafeScaffold)
+> - **Client Architecture:** React Router with 30 routes — 14 co-pilot pages, 5 auth pages, SafeScaffold, plus public landing/welcome/portfolio/concierge pages
 > - **Route Protection:** `ProtectedRoute` wrapper, `AuthRedirect` for smart routing
 > - **Providers:** AuthProvider, CoPilotProvider, LocationProvider in App.tsx
 > - **Bootstrap System:** Separated into `server/bootstrap/` for route mounting, middleware, workers
-> - **Documentation:** 95+ README files across all folders
+> - **Documentation:** 500+ README files across all folders
 
 Workflow files organized by event flow order. Non-active files appear at the end of each category.
 
@@ -106,36 +106,52 @@ Workflow files organized by event flow order. Non-active files appear at the end
 ### Files
 
 - [server/scripts/continuous-monitor.js](./server/scripts/continuous-monitor.js) (active)
-- [server/scripts/db-doctor.js](./server/scripts/db-doctor.js) (active)
 - [server/scripts/run-sql-migration.js](./server/scripts/run-sql-migration.js) (active)
 - [server/scripts/seed-dfw-venues.js](./server/scripts/seed-dfw-venues.js) (active)
 - [server/scripts/seed-markets.js](./server/scripts/seed-markets.js) (active) → Seeds 102 global markets with timezones
 - [server/scripts/seed-countries.js](./server/scripts/seed-countries.js) (active) → Seeds countries table
 - [server/scripts/self-healing-monitor.js](./server/scripts/self-healing-monitor.js) (active)
 - [server/scripts/workspace-startup.sh](./server/scripts/workspace-startup.sh) (active)
-- [scripts/capture-workflow-logs.js](./scripts/capture-workflow-logs.js) (not active)
-- [scripts/check-no-hardcoded-location.mjs](./scripts/check-no-hardcoded-location.mjs) (not active) → UI: [location.ts](./client/src/types/location.ts)
-- [scripts/complete-workflow-capture.sh](./scripts/complete-workflow-capture.sh) (not active)
+- [scripts/analyze-data-flow.js](./scripts/analyze-data-flow.js) (active)
+- [scripts/ask-gemini.mjs](./scripts/ask-gemini.mjs) (active) → Delegate to Gemini (web / vision / large-context)
+- [scripts/backfill-venue-addresses.js](./scripts/backfill-venue-addresses.js) (active)
+- [scripts/briefing/](./scripts/briefing/) (active, directory)
+- [scripts/check-standards.js](./scripts/check-standards.js) (active)
 - [scripts/create-all-tables.sql](./scripts/create-all-tables.sql) (not active) → UI: [table.tsx](./client/src/components/ui/table.tsx)
-- [scripts/enhanced-db-logger.js](./scripts/enhanced-db-logger.js) (not active)
-- [scripts/find-json-errors.mjs](./scripts/find-json-errors.mjs) (not active)
-- [scripts/fix-progress.js](./scripts/fix-progress.js) (not active) → UI: [progress.tsx](./client/src/components/ui/progress.tsx)
-- [scripts/full-workflow-analysis.mjs](./scripts/full-workflow-analysis.mjs) (not active)
+- [scripts/database/](./scripts/database/) (active, directory)
+- [scripts/db-detox.js](./scripts/db-detox.js) (active)
+- [scripts/dev-prerun.sh](./scripts/dev-prerun.sh) (active)
+- [scripts/diagnose.js](./scripts/diagnose.js) (active)
+- [scripts/ensure-claude.sh](./scripts/ensure-claude.sh) (active)
+- [scripts/export-notes.js](./scripts/export-notes.js) (active)
+- [scripts/fix-market-names.js](./scripts/fix-market-names.js) (active)
+- [scripts/generate-schema-docs.js](./scripts/generate-schema-docs.js) (active)
+- [scripts/generate-schema-docs.sh](./scripts/generate-schema-docs.sh) (active)
+- [scripts/import-market-cities.js](./scripts/import-market-cities.js) (active)
+- [scripts/import-market-intelligence.js](./scripts/import-market-intelligence.js) (active)
+- [scripts/import-platform-data.js](./scripts/import-platform-data.js) (active)
+- [scripts/load-market-research.js](./scripts/load-market-research.js) (active)
 - [scripts/make-jwks.mjs](./scripts/make-jwks.mjs) (not active)
-- [scripts/port-probe.mjs](./scripts/port-probe.mjs) (not active)
-- [scripts/postdeploy-sql.mjs](./scripts/postdeploy-sql.mjs) (not active)
-- [scripts/README.md](./scripts/README.md) (not active)
-- [scripts/refresh-enrichment.mjs](./scripts/refresh-enrichment.mjs) (not active)
-- [scripts/seed-event.mjs](./scripts/seed-event.mjs) (not active)
+- [scripts/memory-cli.mjs](./scripts/memory-cli.mjs) (active)
+- [scripts/p3-13-prod-recheck.mjs](./scripts/p3-13-prod-recheck.mjs) (active)
+- [scripts/populate-market-data.js](./scripts/populate-market-data.js) (active)
+- [scripts/prebuild-check.js](./scripts/prebuild-check.js) (active)
+- [scripts/print-current-snapshot.mjs](./scripts/print-current-snapshot.mjs) (active)
+- [scripts/pull-coach-memos.mjs](./scripts/pull-coach-memos.mjs) (active)
+- [scripts/query-prod.js](./scripts/query-prod.js) (active)
+- [scripts/remote/](./scripts/remote/) (active, directory)
+- [scripts/resolve-venue-addresses.js](./scripts/resolve-venue-addresses.js) (active)
+- [scripts/seed-airports.mjs](./scripts/seed-airports.mjs) (active)
+- [scripts/seed-dev.js](./scripts/seed-dev.js) (active)
+- [scripts/seed-market-intelligence.js](./scripts/seed-market-intelligence.js) (active)
 - [scripts/sign-token.mjs](./scripts/sign-token.mjs) (not active)
-- [scripts/simple-capture.sh](./scripts/simple-capture.sh) (not active)
-- [scripts/smoke-coach-context.mjs](./scripts/smoke-coach-context.mjs) (not active)
-- [scripts/smoke-strategy.mjs](./scripts/smoke-strategy.mjs) (not active)
-- [scripts/start-replit.js](./scripts/start-replit.js) (not active)
-- [scripts/trace-workflow-detailed.sh](./scripts/trace-workflow-detailed.sh) (not active)
-- [scripts/typescript-error-counter.js](./scripts/typescript-error-counter.js) (not active)
-- [scripts/validate-all.sh](./scripts/validate-all.sh) (not active)
-- [scripts/which-assistant.mjs](./scripts/which-assistant.mjs) (not active)
+- [scripts/test-event-dedup.js](./scripts/test-event-dedup.js) (active)
+- [scripts/test-news-fetch.js](./scripts/test-news-fetch.js) (active)
+- [scripts/test-uber-webhook.js](./scripts/test-uber-webhook.js) (active)
+- [scripts/venue-data-cleanup.js](./scripts/venue-data-cleanup.js) (active)
+- [scripts/verify-hallucination-fixes.mjs](./scripts/verify-hallucination-fixes.mjs) (active)
+- [scripts/verify-models.sh](./scripts/verify-models.sh) (active)
+- [scripts/write-current-snapshot-file.mjs](./scripts/write-current-snapshot-file.mjs) (active)
 
 ### 1. Schema
 

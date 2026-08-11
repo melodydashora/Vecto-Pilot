@@ -140,4 +140,4 @@ In the shortcut editor, tap the info (i) button → toggle **"Show in Share Shee
 | `/api/memory/rules` | GET | All active rules |
 | `/api/memory/session/:id` | GET | Memories from a specific session |
 | `/api/hooks/analyze-offer` | POST | OCR/Signals hook |
-| `/api/hooks` | POST | Siri Translation hook |
+| `/api/hooks/translate` | POST | Siri Translation hook |

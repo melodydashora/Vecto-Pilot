@@ -865,33 +865,13 @@ router.post('/', requireAuth, async (req, res) => {
   // Generate or use existing conversation_id for thread tracking
   const conversationId = clientConversationId || randomUUID();
 
-  // 2026-01-06: CRITICAL - NO FALLBACKS (per global app rule)
-  // Timezone MUST come from snapshot. If missing, we cannot provide accurate time-based advice.
-  const userTimezone = clientSnapshot?.timezone;
-  if (!userTimezone) {
-    console.warn('[COACH] Missing timezone in snapshot - cannot provide accurate time context');
-    return res.status(400).json({
-      error: 'TIMEZONE_REQUIRED',
-      message: 'Location snapshot with timezone required for coach. Please enable GPS and refresh.',
-      code: 'missing_timezone',
-      hint: 'Ensure GPS is enabled and location permission granted'
-    });
-  }
-
-  const userLocalDate = new Date().toLocaleDateString('en-US', {
-    timeZone: userTimezone,
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  const userLocalTime = new Date().toLocaleTimeString('en-US', {
-    timeZone: userTimezone,
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-  const userLocalDateTime = `${userLocalDate} at ${userLocalTime}`;
+  // Timezone MUST come from the snapshot (GPS→Google, no fallbacks). The
+  // client-sent copy is a hint only; the DB snapshot row is authoritative and
+  // is checked after snapshot resolution below. 2026-08-11: previously a hard
+  // 400 fired here whenever the browser hadn't hydrated its snapshot copy yet,
+  // even though the driver's snapshot row carried the timezone all along.
+  let userTimezone = clientSnapshot?.timezone || null;
+  let userLocalDateTime = null;
 
   // 2026-01-06: SECURITY - Redact sensitive data from logs
   // Log only metadata, never message content or PII
@@ -958,6 +938,33 @@ router.post('/', requireAuth, async (req, res) => {
       } else {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
+
+      // Authoritative timezone from the loaded snapshot row when the client
+      // copy was absent. Still no invented values: neither source → 400.
+      if (!userTimezone) userTimezone = fullContext?.snapshot?.timezone || null;
+      if (!userTimezone) {
+        console.warn('[COACH] No timezone from client copy or DB snapshot row - cannot provide time context');
+        return res.status(400).json({
+          error: 'TIMEZONE_REQUIRED',
+          message: 'Location snapshot with timezone required for coach. Please enable GPS and refresh.',
+          code: 'missing_timezone',
+          hint: 'Ensure GPS is enabled and location permission granted'
+        });
+      }
+      const userLocalDate = new Date().toLocaleDateString('en-US', {
+        timeZone: userTimezone,
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      const userLocalTime = new Date().toLocaleTimeString('en-US', {
+        timeZone: userTimezone,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      userLocalDateTime = `${userLocalDate} at ${userLocalTime}`;
 
       // Add snapshot history for authenticated users (last 10 sessions)
       if (isAuthenticated) {

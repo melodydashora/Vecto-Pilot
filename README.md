@@ -28,34 +28,34 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 ## Feature Set
 
 ### Strategic Intelligence
-- **TRIAD Waterfall Pipeline**: Parallel AI processing — Claude Opus 4.6 (strategy) + Gemini 3 Pro (briefing) + GPT-5.2 (tactical planning) — consolidated into a single directive in ~35-50 seconds
+- **TRIAD Waterfall Pipeline**: Parallel AI processing — Claude Opus 4.8 (strategy + tactical consolidation) + Gemini 3.5 Flash (briefing) + GPT-5.5 (venue planning) — consolidated into a single directive in ~35-50 seconds
 - **Smart Blocks**: Context-aware venue cards with validated hours, pricing tiers, "last call" countdowns, and drive-time estimates
 - **Daily + Hourly Strategy**: Morning briefing covering weather/traffic/events, plus a rolling "Right Now" tactical plan for the next 60 minutes
-- **Holiday Awareness**: Perplexity Sonar Pro detects local holidays and adjusts demand forecasts
+- **Holiday Awareness**: Gemini (BRIEFING_HOLIDAY role, search-grounded) detects local holidays in the briefing pipeline and adjusts demand forecasts
 
 ### Venue & Location Intelligence
 - **Real-time Venue Scoring**: Bars, clubs, and restaurants ranked by expense level, closing time, and proximity — enriched via Google Places + Routes APIs
 - **Event ETL Pipeline**: 5-phase Extract-Transform-Load system discovering events from multiple providers, normalizing field names, geocoding, deduplicating via hash, and storing for briefings
 - **6-Decimal GPS Precision**: ~11cm accuracy for cache keys and venue matching — coordinates always from Google APIs, never AI-generated
-- **140+ Global Markets**: Pre-stored timezone and airport data for 69 US + 71 international markets, saving ~200-300ms per request
+- **330+ Global Markets**: Pre-stored timezone and airport data for 267 US + 71 international markets, saving ~200-300ms per request
 
 ### Rideshare Coach (Voice & Text)
-- **Conversational AI**: Gemini 3 Pro-powered coach with full context awareness — knows your location, strategy, events, and market intelligence
+- **Conversational AI**: Gemini 3.5 Flash-powered coach with full context awareness — knows your location, strategy, events, and market intelligence
 - **Voice Mode**: Hands-free voice conversations via OpenAI Realtime API while driving
 - **Cross-Session Memory**: Coach remembers preferences, vehicle type, past strategies, and driver-contributed zone intelligence
 - **Action System**: Coach can write notes, deactivate irrelevant events/news, and contribute zone intelligence — all stored in the database
 
 ### Security & Authentication
 - **Multi-Provider OAuth**: Email/password + Google OAuth + Uber OAuth (in progress)
-- **Custom HMAC-SHA256 Auth Tokens**: `userId.signature` format (standard JWT migration pending — see [SECURITY.md](docs/architecture/SECURITY.md))
+- **Standard JWT Auth Tokens (HS256)**: 3-segment JWTs via `server/lib/jwt.js` (AUTH-003); legacy `userId.signature` HMAC accepted only during the transition window — see [SECURITY.md](docs/architecture/SECURITY.md)
 - **9 Previously Unprotected Routes Secured**: Full auth audit completed Feb 2026
 - **Public endpoint exceptions**: `/api/hooks/*` (Siri Shortcuts), `/api/platform/*` (reference data), health/monitoring — see SECURITY.md for full list
 - **RLS**: Planned (currently enforced at application layer via `requireAuth` middleware)
 
 ### Assisted Documentation Maintenance
 - **Docs Agent**: Gemini-powered orchestrator that detects code changes and proposes documentation updates — operates under guard rails (protected-file list, shrinkage detection, structural validation, trust tiers)
-- **Change Analyzer**: Runs on server startup, detects git changes, and flags documentation that may need review
-- **95+ README Files**: Every folder in the codebase has its own README
+- **Change Analyzer**: Available as a manual job (`server/jobs/change-analyzer-job.js`) that detects git changes and flags documentation for review — not currently wired into server startup
+- **300+ README Files**: Most folders in the codebase have their own README
 
 ---
 
@@ -69,27 +69,26 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 │                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐ │
 │  │         React Client (Vite 7 + React Router v7)              │ │
-│  │  20 Routes (9 Co-Pilot + 5 Auth + 6 System)                 │ │
-│  │  3 Context Providers | 48 shadcn/ui Components | 16 Hooks    │ │
+│  │  28 Routes (14 Co-Pilot + 6 Auth + 8 Public)                 │ │
+│  │  3 Context Providers | 47 shadcn/ui Components | 16 Hooks    │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                              ↓                                     │
 │  ┌──────────────────────────────────────────────────────────────┐ │
 │  │             Gateway Server (Express, Port 5000)               │ │
 │  │  30+ API Routes | SSE Real-time | Model Adapter Pattern       │ │
-│  │  31 AI Roles via model-registry.js | Hedged Router            │ │
+│  │  23 AI Roles via model-registry.js | Hedged Router            │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                              ↓                                     │
 │  ┌──────────────────────────────────────────────────────────────┐ │
-│  │          PostgreSQL (Drizzle ORM, 25+ Tables)                 │ │
+│  │          PostgreSQL (Drizzle ORM, 66 Tables)                  │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
                               ↓
 ┌──────────────────────────────────────────────────────────────────┐
 │                    EXTERNAL AI & API SERVICES                      │
-│  • Anthropic Claude Opus 4.6  — Strategic reasoning               │
-│  • OpenAI GPT-5.2             — Tactical planning                 │
-│  • Google Gemini 3 Pro        — Briefing synthesis                │
-│  • Perplexity Sonar Pro       — Real-time web research            │
+│  • Anthropic Claude Opus 4.8  — Strategic + tactical reasoning    │
+│  • OpenAI GPT-5.5             — Venue planning/parsing            │
+│  • Google Gemini 3.5 Flash / 3.1 Pro — Briefing synthesis, coach, offer analysis │
 │  • Google Maps Platform       — Places, Routes, Weather, AQ       │
 │  • TomTom Traffic             — Incident prioritization            │
 │  • FAA ASWS                   — Airport delay data                 │
@@ -100,31 +99,32 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 
 ```
 POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
-├── Phase 1 (Parallel): Strategist (Claude) + Briefer (Gemini) + Holiday (Perplexity)
-├── Phase 2 (Parallel): Daily Strategy + Immediate "Right Now" Strategy (GPT-5.2)
-├── Phase 3: Venue Planner (GPT-5.2) + Google Places/Routes Enrichment
-└── Phase 4: Event Validator (Claude)
+├── Phase 1 (Parallel): Strategist (Claude) + Briefer (Gemini) + Holiday (Gemini)
+├── Phase 2: Immediate "Right Now" tactical strategy (Claude Opus 4.8)
+├── Phase 3: Venue Planner (GPT-5.5) + Google Places/Routes Enrichment
+└── Phase 4: Deterministic event validation + venue event verification (Gemini Flash)
 ```
 
-### Model Registry (31 Roles)
+### Model Registry (23 Roles)
 
 All AI interactions go through the adapter pattern — never direct API calls:
 
 ```javascript
 import { callModel } from './lib/ai/adapters/index.js';
 const result = await callModel('STRATEGY_CORE', { system, user });
-// Routes to Claude Opus 4.6 with hedged fallback to Gemini Flash
+// Routes to Claude Opus 4.8 with hedged fallback to Gemini Flash
 ```
 
 | Category | Roles | Primary Model |
 |----------|-------|---------------|
-| Briefing | 9 roles (weather, traffic, news, events, validation) | Gemini 3 Pro |
-| Strategy | 4 roles (core, context, tactical, daily) | Claude / GPT-5.2 |
-| Venue | 6 roles (scorer, filter, traffic, events, reasoning) | GPT-5.2 |
-| Coach | 1 role (conversational AI) | Gemini 3 Pro |
-| Utilities | 4 roles (validators, parsers) | Mixed |
-| Discovery | 2 roles (event/concierge) | Gemini 3 Pro |
-| Docs | 1 role (autonomous doc generation) | Gemini 3 Pro |
+| Briefing | 7 roles (traffic, news, events, fallback, schools, airport, holiday) | Gemini 3.5 Flash |
+| Strategy | 3 roles (core, context, tactical) | Claude Opus 4.8 / Gemini Flash |
+| Venue | 4 roles (scorer, filter, traffic, event verifier) | GPT-5.5 / Claude Haiku / Gemini Flash |
+| Coach | 1 role (conversational AI) | Gemini 3.5 Flash |
+| Utilities | 3 roles (research, market parser, translation) | Mixed |
+| Concierge | 2 roles (search, chat) | Gemini 3.5 Flash |
+| Offer Analyzer | 2 roles (fast Siri path, async deep) | Gemini 3.5 Flash / Gemini 3.1 Pro |
+| Docs | 1 role (autonomous doc generation) | Gemini 3.5 Flash |
 
 ---
 
@@ -134,23 +134,22 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 - **Framework**: React 19 + React Router v7
 - **Build Tool**: Vite 7
 - **Language**: TypeScript 5 (strict mode)
-- **Styling**: TailwindCSS 4 + Radix UI Primitives (48 shadcn/ui components)
+- **Styling**: TailwindCSS 4 + Radix UI Primitives (47 shadcn/ui components)
 - **State**: React Query (TanStack) + 3 Context Providers + Local State
 - **Real-time**: SSE via singleton connection manager
 
 **Backend**
 - **Runtime**: Node.js 18+
 - **Server**: Express.js (gateway-server.js)
-- **Database**: PostgreSQL 16 (Replit Helium) with Drizzle ORM (57+ tables)
+- **Database**: PostgreSQL 16 (Replit Helium) with Drizzle ORM (66 tables)
 - **Real-time**: Server-Sent Events (SSE) for strategy updates, WebSocket for Voice
-- **Auth**: Custom HMAC-SHA256 tokens + Google OAuth + Uber OAuth
-- **Workers**: Background strategy generator, change analyzer
+- **Auth**: Standard JWT (HS256) + Google OAuth + Uber OAuth
+- **Workers**: Background strategy generator
 
 **AI & APIs** (see [docs/AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md) for current model assignments)
 - **Anthropic**: Strategy, validation
 - **Google Gemini**: Briefing synthesis, coach, news/events
 - **OpenAI**: Venue scoring, voice
-- **Perplexity Sonar Pro**: Real-time web research (holidays, local news)
 - **Google Maps Platform**: Places, Routes, Weather, Air Quality, Geocoding, Timezone
 - **TomTom Traffic API**: Traffic incident prioritization
 - **FAA ASWS**: Airport delay and disruption data
@@ -166,11 +165,17 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 | `/co-pilot/strategy` | StrategyPage | AI strategy + Smart Blocks + Coach |
 | `/co-pilot/bars` | VenueManagerPage | Premium venue listings |
 | `/co-pilot/briefing` | BriefingPage | Weather, traffic, news, events |
-| `/co-pilot/map` | MapPage | Interactive venue + event map |
 | `/co-pilot/intel` | IntelPage | Rideshare intelligence |
 | `/co-pilot/settings` | SettingsPage | User preferences + vehicle |
 | `/co-pilot/about` | AboutPage | About + donation |
 | `/co-pilot/policy` | PolicyPage | Privacy policy |
+| `/co-pilot/coach` | CoachPage | Dedicated AI Coach surface |
+| `/co-pilot/concierge` | ConciergePage | Driver concierge/QR management |
+| `/co-pilot/offer-analyzer` | OfferAnalyzerPage | Per-driver offer rules + Siri shortcut + offer history |
+| `/co-pilot/translate` | TranslationPage | Real-time rider translation |
+| `/co-pilot/schedule` | SchedulePage | Driving schedule |
+| `/co-pilot/donate` | DonatePage | Donations |
+| `/co-pilot/help` | HelpPage | Help |
 
 ### Auth Routes (Public)
 
@@ -179,9 +184,11 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 | `/auth/sign-in` | SignInPage | Email/password login |
 | `/auth/sign-up` | SignUpPage | Multi-step registration |
 | `/auth/google/callback` | GoogleCallbackPage | Google OAuth code exchange |
-| `/auth/uber/callback` | UberCallbackPage | Uber OAuth code exchange |
+| `/auth/terms` | TermsPage | Terms of service |
 | `/auth/forgot-password` | ForgotPasswordPage | Password reset request |
 | `/auth/reset-password` | ResetPasswordPage | Reset with token |
+
+> Uber OAuth is handled server-side at GET /api/auth/uber/callback (no client route).
 
 ---
 
@@ -190,7 +197,7 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 ### Prerequisites
 - Node.js 18+ (see `package.json` engines)
 - PostgreSQL 16 (Replit Helium, or any PostgreSQL 15+)
-- API Keys: OpenAI, Anthropic, Google Gemini, Google Maps, Perplexity
+- API Keys: OpenAI, Anthropic, Google Gemini, Google Maps
 
 ### Quick Start
 
@@ -209,7 +216,7 @@ DATABASE_URL="postgresql://user:pass@host:5432/db"
 OPENAI_API_KEY="$OPENAI_API_KEY"
 ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 GEMINI_API_KEY="$GEMINI_API_KEY"
-PERPLEXITY_API_KEY="$PERPLEXITY_API_KEY"
+PERPLEXITY_API_KEY="$PERPLEXITY_API_KEY"  # optional — currently unused
 
 # Google Maps
 GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY"
@@ -257,10 +264,10 @@ const strategy = await callModel('STRATEGY_CORE', {
 ### Triggering a Strategy Refresh (Client)
 
 ```typescript
-const { refreshStrategy, isGenerating } = useCoPilot();
+const { refetchBlocks, isBlocksLoading } = useCoPilot();
 
-<Button onClick={() => refreshStrategy({ force: true })} disabled={isGenerating}>
-  Generate New Strategy
+<Button onClick={() => refetchBlocks()} disabled={isBlocksLoading}>
+  Refresh Blocks
 </Button>
 ```
 
@@ -268,7 +275,7 @@ const { refreshStrategy, isGenerating } = useCoPilot();
 
 ## Documentation
 
-This codebase has **95+ README files** — every folder documents its own purpose.
+This codebase has **300+ README files** — most folders document their own purpose.
 
 ### Quick Navigation
 
@@ -279,20 +286,20 @@ This codebase has **95+ README files** — every folder documents its own purpos
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical bugs and their fixes |
 | [docs/preflight/ai-models.md](docs/preflight/ai-models.md) | AI model reference and parameter constraints |
 | [LEXICON.md](LEXICON.md) | Terminology and codebase reference |
-| [docs/architecture/](docs/architecture/README.md) | 50 architecture documents (canonical index) |
+| [docs/architecture/](docs/architecture/README.md) | 75+ architecture documents (canonical index) |
 | [docs/preflight/](docs/preflight/README.md) | Pre-flight cards (read before edits) |
 | [docs/review-queue/](docs/review-queue/README.md) | Change analyzer findings |
 
 ### Architecture Documents
 
-> Full index at [docs/architecture/README.md](docs/architecture/README.md) (50 documents). Key entry points:
+> Full index at [docs/architecture/README.md](docs/architecture/README.md) (75+ documents). Key entry points:
 
 | Document | When to Read |
 |----------|--------------|
-| [CONSTRAINTS.md](docs/architecture/CONSTRAINTS.md) | **Before ANY code change** |
+| `app_rules` table (Postgres) — active product invariants | **Before ANY code change** |
 | [DB_SCHEMA.md](docs/architecture/DB_SCHEMA.md) | Working with tables or migrations |
 | [API_REFERENCE.md](docs/architecture/API_REFERENCE.md) | Adding/modifying endpoints |
-| [STRATEGY.md](docs/architecture/STRATEGY.md) | Modifying strategy pipeline |
+| [ai-pipeline.md](docs/architecture/ai-pipeline.md) | Modifying strategy pipeline |
 | [VENUES.md](docs/architecture/VENUES.md) | Working with venues/blocks |
 | [AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md) | AI model assignments per role |
 
@@ -302,22 +309,22 @@ This codebase has **95+ README files** — every folder documents its own purpos
 
 | Category | Count |
 |----------|-------|
-| Server JS/TS Files | ~245 |
-| Client TSX/TS Files | ~161 |
-| AI Model Roles | 31 |
+| Server JS/TS Files | ~260 |
+| Client TSX/TS Files | ~195 |
+| AI Model Roles | 23 |
 | API Routes | 30+ |
-| Database Tables | 57+ |
-| README Files | 95+ |
-| shadcn/ui Components | 48 |
+| Database Tables | 66 |
+| README Files | 300+ |
+| shadcn/ui Components | 47 |
 | Custom React Hooks | 16 |
-| Global Markets | 140+ |
-| City Aliases | 3,333 |
+| Global Markets | 338 |
+| City Aliases | 3,437 |
 
 ---
 
 ## Security
 
-- Custom HMAC-SHA256 auth tokens (standard JWT migration pending)
+- Standard JWT auth tokens (HS256); legacy HMAC transition path pending removal
 - Google OAuth 2.0 integration
 - Most API routes require `requireAuth` middleware (9 gaps fixed Feb 2026); intentionally public exceptions documented
 - RLS planned — currently enforced at application layer
@@ -359,7 +366,7 @@ See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for can
 
 ### Completed (v4.0 - v4.3)
 - [x] Multi-model TRIAD pipeline (Claude + Gemini + GPT-5.2)
-- [x] 31-role model registry with hedged routing and fallback
+- [x] 23-role model registry with hedged routing and fallback
 - [x] Smart Blocks with real-time venue enrichment
 - [x] Rideshare Coach with voice and text (Gemini 3 Pro + OpenAI Realtime)
 - [x] Event ETL pipeline with 5-phase processing
@@ -371,14 +378,14 @@ See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for can
 - [x] Full auth audit — 9 routes secured
 - [x] Adapter pattern hardening — 8 direct API calls eliminated
 - [x] Change Analyzer with automated doc flagging
+- [x] Concierge chat system (public /c/:token passenger page + driver concierge management)
+- [x] Siri ride-offer analysis (Offer Analyzer: per-driver DB rulesets, Siri Shortcut token bridge, two-phase Gemini analysis)
 
 ### In Progress
 - [ ] Uber Driver API integration (OAuth connected, data sync pending)
-- [ ] Concierge chat system for venue/event exploration
 - [ ] Driver earnings analytics dashboard
 
 ### Planned
-- [ ] Omni-Presence / Siri Interceptor (headless client for ride offer analysis)
 - [ ] Reflection engine for AI self-improvement
 - [ ] Redis caching for multi-instance deployments
 - [ ] Push notifications for strategy alerts

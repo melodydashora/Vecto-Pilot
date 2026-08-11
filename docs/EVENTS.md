@@ -2,7 +2,7 @@
 
 > **This is the single source of truth** for event discovery, venue matching, deduplication, freshness, and driver-relevant event logic. Supersedes: `EVENT_FRESHNESS_AND_TTL.md`, `VENUELOGIC.md` (event sections), `BRIEFING_AND_EVENTS_ISSUES.md`.
 
-**Last Updated:** 2026-04-28
+**Last Updated:** 2026-06-11
 **Schema Version:** `VALIDATION_SCHEMA_VERSION = 6` (validateEvent.js)
 
 ---
@@ -63,14 +63,14 @@ Driver Snapshot (city, state, lat, lng, timezone, market)
  │ 2. VALIDATE        │  validateEvent.js: 13 hard filter rules
  │    (ETL Phase 2)   │  • Title / venue / address / all 4 date+time fields required
  │                    │  • Reject TBD/Unknown/various patterns
- │                    │  • Reject events outside [yesterday, today]
+ │                    │  • Reject events whose span does not include today (driver tz)
  │                    │  • Rule 12 fuzzy rescue: unmapped categories re-run through
  │                    │    normalizeCategory() before rejection (self-healing)
  └────────────────────┘
           │
           ▼
  ┌────────────────────┐
- │ 3. HASH (Phase 3a) │  hashEvent.js v2: MD5(title | venue_name | city | date)
+ │ 3. HASH (Phase 3a) │  hashEvent.js v4: MD5(canonicalizeMatchup(title) | venue_name | street | city | date-span)
  │                    │  • stripVenueSuffix() removes " at Venue", " @ Venue", " - Venue"
  │                    │  • city INCLUDED → prevents "Fair Park, Dallas" vs "Fair Park, Houston"
  │                    │  • time EXCLUDED → time corrections UPDATE, not duplicate
@@ -95,7 +95,7 @@ Driver Snapshot (city, state, lat, lng, timezone, market)
  ╔════════════════════════╗
  ║ 4. VENUE RESOLUTION    ║  THE CRITICAL STEP — Google Places (NEW) API (New) is source of truth
  ║    (ETL Phase 4)       ║
- ║                        ║  THREE-STEP PRIORITY CHAIN (briefing-service.js):
+ ║                        ║  THREE-STEP PRIORITY CHAIN (pipelines/events.js):
  ║                        ║
  ║                        ║  (a) Place-ID CACHE HIT
  ║                        ║      lookupVenue({ placeId: "ChIJ…" })
@@ -135,26 +135,25 @@ Driver Snapshot (city, state, lat, lng, timezone, market)
           ▼
  ┌────────────────────┐
  │ 6. FRESHNESS       │  strategy-utils.js: filterFreshEvents()
- │    FILTER          │  • Applied server-side, API-side, AND client-side (defense in depth)
+ │    FILTER          │  • Applied in briefing.js read endpoints (API layer)
  │                    │  • Timezone-aware using snapshot.timezone
- │                    │  • POST_EVENT_SURGE_MS = 1 hour extension past end time
- │                    │  • Inferred end = start + 3h + 1h surge if no end_time
+ │                    │  • POST_EVENT_SURGE_MS = 2 hour extension past end time
+ │                    │  • Inferred end = start + 3h + 2h surge if no end_time
  └────────────────────┘
           │
           ▼
  ┌────────────────────┐
- │ 7. READ-TIME       │  Read-level normalization dedup + semantic dedup safety net
- │    DEDUP (read)    │  • deduplicateEvents() — legacy normalization (strip "Live Music:",
- │                    │    "The ", parentheticals, match on normalized name+addr+time)
- │                    │  • deduplicateEventsSemantic() — title-similarity safety net for
- │                    │    any duplicates that survived write-time dedup
+ │ 7. READ-TIME       │  briefing.js read endpoints: local dedupeEvents() (2026-05-30)
+ │    DEDUP (read)    │  • identity = normalized(title) | event_start_date | normalized(venue)
+ │                    │    (time excluded so time corrections collapse)
+ │                    │  • applied with the eventActiveToday today-window
+ │                    │  • semantic dedup (deduplicateEventsSemantic) runs at WRITE time only
  └────────────────────┘
 ```
 
 ### Trigger
 
-Events are discovered **per-snapshot** as Phase 1 of the `blocks-fast` waterfall in
-`briefing-service.js`. There is **NO background event sync job** (Rule 11 in CLAUDE.md).
+Events are discovered **per-snapshot** by `discoverEvents` (`pipelines/events.js`), one arm of the briefing aggregator's Promise.allSettled pipeline fan-out (`briefing-aggregator.js`). There is **NO background event sync job**.
 
 ### Key Files
 
@@ -169,10 +168,9 @@ Events are discovered **per-snapshot** as Phase 1 of the `blocks-fast` waterfall
 | `server/lib/venue/venue-address-resolver.js` | **Google Places (NEW) API (New)** — authoritative venue resolution (`searchPlaceWithTextSearch`) |
 | `server/lib/venue/venue-address-validator.js` | **Address quality validation** (string-only, no API calls) |
 | `server/lib/venue/venue-cache.js` | `findOrCreateVenue()`, `maybeReResolveAddress()` validation gate |
-| `server/lib/briefing/briefing-service.js` | Orchestrator: Gemini prompt, three-step venue chain, DB storage |
+| `server/lib/briefing/pipelines/events.js` | Orchestrator: Gemini prompt, three-step venue chain, DB storage (fetchEventsForBriefing) |
 | `server/api/briefing/briefing.js` | API routes, read-time dedup safety net, zombie recovery |
 | `server/lib/strategy/strategy-utils.js` | `filterFreshEvents()`, `isEventFresh()` — freshness + post-event surge |
-| `client/src/pages/co-pilot/BriefingPage.tsx` | Client-side freshness fallback |
 | `scripts/backfill-venue-addresses.js` | One-time backfill script (opt-in) for existing bad venue addresses |
 
 ---
@@ -195,7 +193,7 @@ Events are discovered **per-snapshot** as Phase 1 of the `blocks-fast` waterfall
 
 ### Three-Step Venue Resolution Priority Chain
 
-Implemented in `briefing-service.js :: fetchEventsForBriefing()`. Every event discovered by Gemini flows through this chain:
+Implemented in `pipelines/events.js :: fetchEventsForBriefing()`. Every event discovered by Gemini flows through this chain:
 
 ```
 Event from Gemini: { venue_name, place_id (maybe), title, category, date, time }
@@ -403,17 +401,9 @@ Three dedup layers run in sequence. Each catches different failure modes.
 - `"Jon Wolfe"` at Billy Bob's Texas vs. `"Jon Wolfe"` at Globe Life Field → Billy Bob's version kept (+10 non-stadium bonus).
 - `"Fatboy Slim"` vs. `"Fatboy Slim, Coco & Breezy, Jay Pryor"` at SILO Dallas → longer-title version kept (+2 for >20 char title).
 
-### Layer 3: Read-Level Normalization Dedup + Semantic Safety Net
+### Layer 3: Read-Level Dedup
 
-**Files:** `briefing-service.js :: deduplicateEvents()` (legacy) + `briefing.js` read endpoints.
-
-Applied after DB read, before response:
-
-1. **`deduplicateEvents()` (legacy normalization):** Strips `"Live Music:"`, `"The "`, parenthetical suffixes, then groups by `normalized(name + address + time)`. Catches cases like `"Bruno Mars Romantic Tour"` vs. `"Bruno Mars - The Romantic Tour"`.
-
-2. **`deduplicateEventsSemantic()` (safety net):** Re-runs the title-similarity dedup at read time. Catches any duplicates that somehow survived the write-time dedup (e.g., older rows written before the semantic deduper existed).
-
-Both `GET /events/:snapshotId` and the market-proxy event set run through both layers. Logs appear as `[BriefingRoute] Dedup: N → M events` and `[BriefingRoute] Semantic dedup: N → M events`.
+**File:** `briefing.js` read endpoints — local `dedupeEvents()` (2026-05-30): identity = normalized(title) | event_start_date | normalized(venue); time excluded so time corrections collapse. Applied with the `eventActiveToday` today-window on GET /events/:snapshotId and the market-proxy set. Semantic dedup (`deduplicateEventsSemantic`) runs at WRITE time only.
 
 ### Title Normalization Reference
 
@@ -442,14 +432,14 @@ Implemented in `strategy-utils.js :: isEventFresh()` and `filterFreshEvents()`.
 | Scenario | Behavior |
 |----------|----------|
 | Event in progress | Show (now is between start and end time) |
-| Event ended < 1 hour ago | Show (post-event pickup surge still relevant for drivers) |
-| Event ended > 1 hour ago | Remove (surge has dissipated) |
-| Event has no end time | Infer: start + 3 hours + 1 hour surge window |
+| Event ended < 2 hours ago | Show (post-event pickup surge still relevant for drivers) |
+| Event ended > 2 hours ago | Remove (surge has dissipated) |
+| Event has no end time | Infer: start + 3 hours + 2 hour surge window |
 | Event has no date info at all | Remove (no way to determine relevance) |
-| Multi-day event | Keep showing until LAST day's end time + 1 hour |
+| Multi-day event | Keep showing until LAST day's end time + 2 hours |
 
 **Constants:**
-- `POST_EVENT_SURGE_MS = 60 * 60 * 1000` — 1 hour post-event extension
+- `POST_EVENT_SURGE_MS = 2 * 60 * 60 * 1000` — 2 hour post-event extension
 - Default inferred duration: 3 hours (from `isEventFresh` when no `end_time`)
 
 ### Timezone Handling
@@ -466,15 +456,13 @@ filterFreshEvents(events, new Date()); // DO NOT DO THIS
 
 The internal `createDateInTimezone(year, month, day, hours, minutes, timezone)` utility converts local event times + IANA timezone to UTC `Date` objects for comparison. (2026-06-11: reimplemented on `date-fns-tz` `fromZonedTime`, replacing a hand-rolled `Intl` offset calc that mishandled midnight wall-times — en-US `hour12:false` formats 00:00 as "24" — and depended on the server's local timezone. See `tests/strategy/timezone-parity.test.js`.)
 
-### Defense-in-Depth (3 Filter Layers)
+### Freshness Filtering (API layer)
 
-1. **Server-side** (`briefing-service.js`): `filterFreshEvents(events, now, snapshot.timezone)`
-2. **API-side** (`briefing.js`): `filterFreshEvents()` before response
-3. **Client-side** (`BriefingPage.tsx`): `useMemo()` with local `filterFreshEvents()` fallback
+Applied in `briefing.js` read endpoints: `filterFreshEvents(events, new Date(), snapshot.timezone)` plus the `eventActiveToday` today-window (2026-05-30). The write pipeline stores unfiltered; the client renders what the API returns (no client-side fallback).
 
 ### Soft Deactivation & Lifecycle Hygiene
 
-Three soft, reversible cleanup steps run per-snapshot (opportunistically, before each discovery cycle, in `pipelines/events.js`) — there is **NO hourly cleanup job** and **NO background event sync job** (Rule 11 in CLAUDE.md). None of them ever deletes a row; venues in `venue_catalog` are persistent.
+Three soft, reversible cleanup steps run per-snapshot (opportunistically, before each discovery cycle, in `pipelines/events.js`) — there is **NO hourly cleanup job** and **NO background event sync job** (product invariant: events sync per-snapshot only — no cron, no worker). None of them ever deletes a row; venues in `venue_catalog` are persistent.
 
 1. **`deactivatePastEvents(timezone)`** — soft-deactivates (`is_active = false`, `deactivated_at = NOW()`) events whose end is past the `now − 2h` surge cutoff (timezone-aware).
 2. **`collapseDuplicateEventSpans()`** (2026-06-11) — a long-running show re-discovered across days inserts overlapping duplicate spans (the multi-day hash is `start_end`, and Gemini reports a slightly different run-start each day → different hash → no per-batch dedup). This collapses them: rows are clustered by **same `venue_id` + `titlesMatch` + overlapping date range** (all three required, so distinct concurrent shows at one venue are never merged), the widest-span row survives, the rest are deactivated with `deactivation_reason = 'duplicate_span'`. Example: 6 overlapping "Wicked" spans → 1. **Root-cause complement (2026-06-11): `mergeIntoOverlappingActiveSpan()` runs at WRITE time in the discovery upsert loop — before inserting a multi-day event it merges into an existing active same-venue + title-match + overlapping row (extending it to the union span) instead of inserting a new hash row, so duplicates are prevented at the source; the cleanup collapse stays as the after-the-fact safety net.**
@@ -541,12 +529,12 @@ The script is **opt-in and not wired into any boot path, cron, or route**. Run m
 ### Metro-Wide Discovery
 
 Events are discovered for the **entire metro market**, not just the driver's city:
-- Market resolved from `snapshot.market` (set at signup) or `getMarketForLocation(city, state)`
+- Market resolved from `snapshot.market` (GPS-derived per snapshot from the resolved city/state via `market_cities` — D-107, 2026-05-12; `profile.market` is only a fallback when the coord lookup misses) or `getMarketForLocation(city, state)` (`server/lib/briefing/shared/get-market-for-location.js`; returns null on miss — no city substitution)
 - Gemini searches `"Dallas-Fort Worth metro"` not just `"Dallas"`
 - DB read queries filter by **state only** (not city) — now that venues store their actual Places-API-resolved city (e.g., `"Arlington"`, `"Fort Worth"`, `"Frisco"` for a Dallas driver), filtering by the driver's snapshot city would mask legitimate metro events
 
 **Affected queries (all state-scoped, no city filter):**
-- `briefing-service.js :: fetchEventsForBriefing` post-discovery read
+- `pipelines/events.js :: fetchEventsForBriefing` post-discovery read
 - `briefing.js :: GET /events/:snapshotId`
 - `briefing.js :: GET /discovered-events/:snapshotId`
 
@@ -813,7 +801,7 @@ Both layers share `NEAR_EVENT_RADIUS_MILES = 15` as the single source of truth. 
 | `place_id` | `ChIJ…` or null | No | Google Places ID |
 | `category` | Enum | Yes | `concert` / `sports` / `comedy` / `theater` / `festival` / `nightlife` / `convention` / `community` / `other` |
 | `expected_attendance` | Enum | No | `high` / `medium` / `low` (default: `medium`) |
-| `event_hash` | MD5 hex (32 chars) | Yes | Deduplication hash (title\|venue_name\|city\|date) |
+| `event_hash` | MD5 hex (32 chars) | Yes | Deduplication hash (canonicalizeMatchup(title)\|venue_name\|street\|city\|date-span) |
 
 ---
 
@@ -835,7 +823,7 @@ Implemented in `validateEvent.js :: validateEvent()`. `VALIDATION_SCHEMA_VERSION
 | 10 | Start date required | `event_start_date` | `missing_start_date` |
 | 11 | Date format `YYYY-MM-DD` | `event_start_date` | `invalid_date_format` |
 | 12 | Category from allowed list (with fuzzy rescue) | `category` | `missing_or_invalid_category` |
-| 13 | Date is today or yesterday | `event_start_date` | `not_today` |
+| 13 | Event span must include today (driver tz) | `event_start_date`/`event_end_date` | `starts_in_future` / `ended_before_today` |
 
 **Invalid patterns matched** (case-insensitive): `\btbd\b`, `\bunknown\b`, `venue\s*tbd`, `location\s*tbd`, `time\s*tbd`, `\(tbd\)`, `to\s*be\s*determined`, `not\s*yet\s*announced`, `coming\s*soon`, `various\s*(locations?|venues?)`.
 
@@ -863,13 +851,15 @@ event_end_date      TEXT                 -- Defaults to event_start_date
 event_end_time      TEXT NOT NULL        -- Required since schema v3
 category            TEXT NOT NULL DEFAULT 'other'
 expected_attendance TEXT DEFAULT 'medium'
-event_hash          TEXT NOT NULL UNIQUE -- MD5(title|venue_name|city|date) for dedup
+event_hash          TEXT NOT NULL UNIQUE -- MD5(canonicalizeMatchup(title)|venue_name|street|city|date-span) for dedup
+is_verified         BOOLEAN DEFAULT false  -- Human verified
 is_active           BOOLEAN DEFAULT true
+schema_version      INTEGER NOT NULL DEFAULT 1  -- VALIDATION_SCHEMA_VERSION stamped at write; enables skipping read-time revalidation
 deactivated_at      TIMESTAMP
 deactivation_reason TEXT
 deactivated_by      TEXT               -- 'ai_coach' or user_id
-discovered_at       TIMESTAMP
-updated_at          TIMESTAMP
+discovered_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 
 ### `venue_catalog` (Event-Relevant Fields)
@@ -906,7 +896,7 @@ These files are referenced in older docs but are NOT active in the pipeline:
 | `server/jobs/event-cleanup.js` | Dead code | Never imported in gateway-server.js |
 | `server/lib/subagents/event-verifier.js` | Dead code | Never called; replaced by rule-based validation |
 | `EVENT_FRESHNESS_AND_TTL.md` sections 4-5 | Inaccurate | TTL automation, cleanup loop, `expires_at` column never implemented |
-| Background event sync job | Forbidden (Rule 11) | Events sync per-snapshot only; no cron, no worker |
+| Background event sync job | Forbidden (product invariant: events sync per-snapshot only — no cron, no worker) | Events sync per-snapshot only; no cron, no worker |
 
 ---
 

@@ -211,3 +211,7 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 - **Priority:** high | **Date:** 2026-06-01 12:31
 - The production SSL certificate expired mid-day causing Siri Shortcuts to fail with 'invalid certificate' errors. Implement a daily health check that reads the SSL certificate expiration date and triggers an alert 7 days before expiration so the driver isn't caught off guard on the road.
   - Files: server/api/hooks/analyze-offer.js
+
+### [BUG] Fix double-read on Response body stream
+- **Priority:** medium | **Date:** 2026-08-11 17:19
+- Hit a 'Failed to execute text on Response: body stream already read' error during chat. Likely an issue with the SSE or fetch handling in the frontend where the stream is being consumed twice.

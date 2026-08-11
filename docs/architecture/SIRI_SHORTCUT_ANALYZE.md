@@ -28,7 +28,7 @@
 |-------|-------|--------------------------------|
 | `text` | Combined OCR text | `req.body.text` ✅ |
 | `device_id` | literal `Melody's Iphone` (curly apostrophe U+2019) | `req.body.device_id` ✅ |
-| `lattitude` | Current Location.Latitude | ⚠️ **server reads `latitude` (:206,:213) — MISMATCH, GPS silently null** |
+| `lattitude` | Current Location.Latitude | ✅ accepted — server also reads the `lattitude` alias with a warn log (`analyze-offer.js:190–193`, landed 2026-07-03); rename the Shortcut key to `latitude` when convenient |
 | `longitude` | Current Location.Longitude | `req.body.longitude` ✅ |
 | `source` | `siri_shortcut` | `req.body.source` ✅ |
 
@@ -40,7 +40,9 @@ Headers: one **empty key/value row left open by Melody** — reserved slot for
 1. **`lattitude` typo drops GPS silently.** Every request from this shortcut lands
    with `driver_lat/driver_lng = null` in `offer_intelligence`. Fix in the shortcut
    (rename key) AND accept the alias server-side with a warn log (fail-loud: never
-   silently null a provided coordinate).
+   silently null a provided coordinate). **Server-side half done 2026-07-03** — the
+   alias is accepted with a warn log (`analyze-offer.js:190–193`); the shortcut-side
+   rename is still pending.
 2. **Text-only today; vision requires one edit.** The screenshot is saved + OCR'd
    but never uploaded. The endpoint already accepts a multipart file field named
    `image` (multer, `analyze-offer.js:189`) → base64 → Gemini vision. Adding a form

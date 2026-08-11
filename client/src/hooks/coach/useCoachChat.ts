@@ -310,24 +310,28 @@ export function useCoachChat({
       });
 
       if (!res.ok && res.headers.get("content-type")?.includes("text/event-stream") === false) {
-        try {
-          const errData = await res.json();
-          if (errData.code === 'missing_timezone') {
-            setMsgs((m) => [...m.slice(0, -1), {
-              role: "assistant",
-              content: "I need your location to give you accurate advice! Please enable GPS in your browser settings and refresh the page."
-            }]);
-          } else if (errData.code === 'payload_too_large') {
-            setMsgs((m) => [...m.slice(0, -1), {
-              role: "assistant",
-              content: "Attachments are too large for the coach. Try a smaller image, take a new photo at lower resolution, or attach fewer files."
-            }]);
-          } else {
-            setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${errData.message || errData.error}` }]);
-          }
-        } catch {
-          const t = await res.text();
-          setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${t}` }]);
+        // 2026-08-11: read the body ONCE. res.json() consumes the stream even
+        // when parsing fails, so the old json()-then-text() fallback threw
+        // "body stream already read" whenever the error body wasn't JSON
+        // (e.g., the platform proxy's HTML page during a server restart).
+        const raw = await res.text();
+        let errData: { code?: string; message?: string; error?: string } = {};
+        try { errData = JSON.parse(raw); } catch { /* non-JSON error body */ }
+        if (errData.code === 'missing_timezone') {
+          setMsgs((m) => [...m.slice(0, -1), {
+            role: "assistant",
+            content: "I need your location to give you accurate advice! Please enable GPS in your browser settings and refresh the page."
+          }]);
+        } else if (errData.code === 'payload_too_large') {
+          setMsgs((m) => [...m.slice(0, -1), {
+            role: "assistant",
+            content: "Attachments are too large for the coach. Try a smaller image, take a new photo at lower resolution, or attach fewer files."
+          }]);
+        } else if (errData.message || errData.error) {
+          setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—chat failed: ${errData.message || errData.error}` }]);
+        } else {
+          // Non-JSON body (proxy/HTML error page) — likely a restarting server
+          setMsgs((m) => [...m.slice(0, -1), { role: "assistant", content: `Sorry—the coach server isn't reachable right now (HTTP ${res.status}). Give it a few seconds and try again.` }]);
         }
         setIsStreaming(false);
         return;

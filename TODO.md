@@ -5,11 +5,11 @@ This document is a compiled list of all `TODO` comments extracted from the sourc
 ## Backend (`server/`)
 
 ### Authentication & Auth
-- **`server/api/auth/auth.js`** (Line 1596)
+- **`server/api/auth/auth.js`** (Line 1832)
   - `Implement full Apple Sign In with passport-apple`
 
 ### Venue Intelligence
-- **`server/lib/venue/venue-intelligence.js`** (Line 390)
+- **`server/lib/venue/venue-intelligence.js`** (Line 393)
   - `(2026-04-16): Bars tab does not compute beyond_deadhead. The strategy pipeline sets this flag via tactical-planner.js, but the Bars pipeline is independent. Decision pending...`
 - **`server/lib/venue/venue-address-validator.js`** (Line 161)
   - `Implement when we have a metro-area bounding box table.`
@@ -33,6 +33,15 @@ This document is a compiled list of all `TODO` comments extracted from the sourc
 - **`server/middleware/learning-capture.js`** (Line 36)
   - `Store in assistant_memory when rememberContext is available`
 
+### Auth Hardening (deferred 2026-05-13)
+- **`server/agent/enhanced-context.js`** (Lines 27, 39) — `TODO(auth-hardening Item 6): wrapper delegates ...`
+- **`server/agent/thread-context.js`** (Line 120) — `TODO(auth-hardening Item 6): silent writer`
+- **`server/lib/ai/context/enhanced-context-base.js`** (Lines 385, 426) — `TODO(auth-hardening Item 6): silent writer/reader`
+- **`server/api/health/logs.js`** (Line 164) — `TODO(auth-hardening Item 7, preserve-as-designed): /viewer`
+- **`server/api/hooks/analyze-offer.js`** (Line 48) — `TODO(auth-hardening Item 7): treatment (B)`
+- **`server/api/hooks/translate.js`** (Line 25) — `TODO(auth-hardening Item 7): treatment (B), symmetric`
+- **`server/middleware/auth.js`** (Line 316) — `TODO (Phase 2 sunset target): replace ?token= query-param fallback`
+
 ---
 
 ## Frontend (`client/`)
@@ -48,7 +57,7 @@ This document is a compiled list of all `TODO` comments extracted from the sourc
 ### Known Bugs
 - **`server/middleware/learning-capture.js`** (Line 41)
   - `Flag missing userId as bug, don't mask with 'anonymous'`
-- **`client/src/contexts/location-context-clean.tsx`** (Line 391)
+- **`client/src/contexts/location-context-clean.tsx`** (Line 370)
   - `BUG: enrichLocation called without auth! Aborting to prevent 401 loop.`
 
 ### Deprecations to Clean Up
@@ -56,17 +65,15 @@ This document is a compiled list of all `TODO` comments extracted from the sourc
   - This entire hook is marked as `DEPRECATED - 2026-01-15` and should be removed.
 - **`server/api/strategy/blocks-fast.js`** (Line 120)
   - `DEPRECATED: Session-level locks - kept for reference only`
-- **`server/api/health/diagnostics.js`** (Line 521)
-  - `max_tokens is DEPRECATED - use max_completion_tokens` (Fix needed for older models)
 
 ### Future Features
 - **`client/src/_future/user-settings/vehicleTiers.ts`** (Line 7)
   - `Connect to user profile settings modal`
 
 ### Workarounds & Technical Debt (Found via Script)
-- **`scripts/db-detox.js`** (Line 408)
+- **`scripts/db-detox.js`** (Line 411)
   - `Must clean up FK references (venue_metrics, ranking_candidates) first` (Blocks deduplication)
-- **`server/lib/ai/adapters/gemini-adapter.js`** (Line 72)
+- **`server/lib/ai/adapters/gemini-adapter.js`** (Line 81)
   - `WORKAROUND: The @google/genai SDK prioritizes GOOGLE_API_KEY from env over the apiKey passed in constructor`
-- **`server/lib/ai/model-registry.js`** (Line 386)
+- **`server/lib/ai/model-registry.js`** (Line 425)
   - `This is a TEMPORARY fallback - Claude remains the primary model`
