@@ -146,6 +146,17 @@ export const DEFAULT_RULESET = {
   home: null,
 };
 
+// 2026-08-11: DEFAULT_RULESET is handed out BY REFERENCE to every untokened
+// request (ruleset-store.js). Deep-freeze makes accidental in-place mutation —
+// which would contaminate every driver at once — throw instead of corrupt.
+function deepFreeze(obj) {
+  for (const value of Object.values(obj)) {
+    if (value && typeof value === 'object') deepFreeze(value);
+  }
+  return Object.freeze(obj);
+}
+deepFreeze(DEFAULT_RULESET);
+
 /**
  * Default premium split when comfort/xl tiers are enabled but tier_products is
  * not customized. Canonical product names from parse-offer-text.js.

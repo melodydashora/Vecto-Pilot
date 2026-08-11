@@ -11,6 +11,7 @@ import { snapshots, strategies, driver_profiles } from '../../../shared/schema.j
 import { eq, desc, sql } from 'drizzle-orm';
 import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { validateAction } from '../rideshare-coach/validate.js';
 // @ts-ignore
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
@@ -708,7 +709,8 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
       const { offer_intelligence_id, ...fields } = validation.data;
-      const updated = await rideshareCoachDAL.updateOfferIntelligence(offer_intelligence_id, fields);
+      // 2026-08-11: user-scoped — the id is LLM-emitted, never trust it alone
+      const updated = await rideshareCoachDAL.updateOfferIntelligence(offer_intelligence_id, userId, fields);
       if (updated) {
         results.saved++;
         console.log(`[COACH] [ACTIONS] Backfilled offer_intelligence ${offer_intelligence_id?.substring(0, 8)} (${Object.keys(fields).join(',')})`);
@@ -812,11 +814,12 @@ router.delete('/notes/:noteId', requireAuth, async (req, res) => {
 
 // GET /coach/context/:snapshotId - Snapshot-wide context for strategy coach
 // SECURITY: Requires auth (returns strategy and venue data)
-router.get('/context/:snapshotId', requireAuth, async (req, res) => {
+// 2026-08-11: ownership middleware before context — multi-user app
+router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
-  
+
   console.log('[coach] Fetching context for snapshot:', snapshotId);
-  
+
   try {
     // Use CoachDAL for read-only access
     const context = await rideshareCoachDAL.getCompleteContext(snapshotId);
@@ -934,6 +937,14 @@ router.post('/', requireAuth, async (req, res) => {
           activeSnapshotId = latestSnap.snapshot_id;
           console.log('[COACH] Using latest snapshot for authenticated user:', activeSnapshotId);
         }
+      }
+
+      // 2026-08-11: client-supplied snapshot/strategy ids must be owned by the
+      // authenticated user before any context loads (multi-user app). The
+      // latest-own-snapshot branch above is inherently owned and skips this.
+      if (activeSnapshotId && (snapshotId || strategyId)) {
+        const owned = await verifySnapshotOwnership(activeSnapshotId, authUserId);
+        if (!owned.ok) return res.status(owned.status).json(owned.body);
       }
 
       // Get COMPLETE context using CoachDAL (full schema access)
@@ -1731,13 +1742,14 @@ router.get('/history', requireAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // GET /api/chat/system-notes - Get system notes (AI observations about improvements)
-// SECURITY: Requires auth (consider making admin-only in production)
+// SECURITY: Requires auth; scoped to notes triggered by the requesting user's
+// own chats (2026-08-11 — rows quote verbatim user messages)
 router.get('/system-notes', requireAuth, async (req, res) => {
   const status = req.query.status || null; // 'new', 'reviewed', 'planned', 'implemented'
   const limit = parseInt(req.query.limit) || 50;
 
   try {
-    const notes = await rideshareCoachDAL.getSystemNotes(status, limit);
+    const notes = await rideshareCoachDAL.getSystemNotes(req.auth.userId, status, limit);
     res.json({ notes, count: notes.length });
   } catch (error) {
     console.error('[chat/system-notes] Error fetching system notes:', error);

@@ -44,24 +44,37 @@ import { coordsKey } from '../../lib/location/coords-key.js';
 import { latLngToCell } from 'h3-js';
 // 2026-04-16: FIX — resolve driver timezone from coords so temporal columns are local, not UTC
 import { resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
+import { offerHookLimiter } from '../../middleware/rate-limit.js';
 
-// TODO(auth-hardening Item 7, deferred 2026-05-13): treatment (B) — this
-// router is intentionally left unauthenticated pending Siri Shortcut
-// migration to user_id auth. Owner: Melody. The file header (line 13)
-// states the historical rationale: "Auth: Explicitly public — Siri
-// Shortcuts cannot send JWT tokens" — that constraint still holds today
-// (Siri Shortcuts have no programmable bearer-token surface), so adding
-// requireAuth here would break the "Vecto Analyze" Shortcut Melody uses
-// live on her phone. The follow-up workstream covering this deferral is
-// tracked in claude_memory (session_id auth-hardening-pass-2026-05-13,
-// tags auth-hardening + item-7 + deferred). The plan: migrate the Siri
-// Shortcut to attach a per-user token, then layer requireAuth here in a
-// separate commit. HooksCatalog.md additionally flags two future
-// workstreams for this route — adding an offerHookLimiter (parallel to
-// translate.js's translationLimiter) and an optional Phase 2
-// VECTO_HOOK_TOKEN shared-secret gate. Those are tracked separately and
-// are NOT in scope for this commit.
+// Auth model (2026-08-11, auth-hardening Item 7 partially closed): Siri
+// Shortcuts can't send JWTs, so identity here is the per-user shortcut token
+// (x-shortcut-token). /analyze-offer stays token-OPTIONAL (an untokened legacy
+// Shortcut still gets a decision; its offer just isn't stored per-user); the
+// read/mutate endpoints below are token-REQUIRED. All four are rate-limited.
 const router = Router();
+
+// 2026-08-11: Shortcut-token auth for the offer read/mutate endpoints below.
+// The Shortcut already sends this token for /analyze-offer; the same token is
+// the identity for history/override/cleanup. device_id is NOT a credential —
+// it was the only "ownership" scope here before, which let anyone read or
+// delete any device's offers (multi-user scoping sweep, Phase A finding 2).
+async function requireShortcutUser(req, res, next) {
+  const token = req.get('x-shortcut-token') || req.body?.shortcut_token || req.query?.shortcut_token || null;
+  if (!token) {
+    return res.status(401).json({ error: 'shortcut_token required (header x-shortcut-token or shortcut_token field)' });
+  }
+  try {
+    const { userId } = await resolveRuleset(token);
+    if (!userId) {
+      return res.status(401).json({ error: 'invalid shortcut token' });
+    }
+    req.shortcutUserId = userId;
+    next();
+  } catch (err) {
+    console.error('[HOOKS] shortcut token resolution failed:', err.message);
+    res.status(500).json({ error: 'token_resolution_failed' });
+  }
+}
 
 // 2026-04-16: Build TTS-friendly voice line for Siri Shortcuts "Speak Text" action.
 // Composes: "<Decision>. <perMileSpoken>, <N> mile(s)[, <qualifier>]."
@@ -157,7 +170,7 @@ const upload = multer({
 //      (2026-02-17: Fastest — Siri skips base64 encoding, server handles it in <1ms)
 //
 // Multipart detection: multer runs first. If no file uploaded, falls through to JSON body.
-router.post('/analyze-offer', upload.single('image'), async (req, res) => {
+router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (req, res) => {
   const startTime = Date.now();
 
   try {
@@ -604,18 +617,30 @@ PRE-PARSED DATA (server-verified):
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
         const localDate = getLocalDateString(now, driverTimezone);
 
-        // 2026-02-17: Session tracking — group offers within 30-min windows
+        // 2026-02-17: Session tracking — group offers within 30-min windows.
+        // 2026-08-11: chain by user_id when tokened (a driver may switch
+        // phones), by device_id only for a REAL untokened device. Untokened
+        // AND deviceless requests get a fresh session — previously they all
+        // shared the literal 'anonymous_device' bucket, stitching different
+        // drivers into one sequence and poisoning seconds_since_last.
         let offerSessionId = crypto.randomUUID();
         let offerSequenceNum = 1;
         let secondsSinceLast = null;
 
         try {
-          const lastOfferResult = await db.execute(
-            sql`SELECT offer_session_id, offer_sequence_num, created_at
-                FROM offer_intelligence
-                WHERE device_id = ${deviceId}
-                ORDER BY created_at DESC LIMIT 1`
-          );
+          const lastOfferResult = userId
+            ? await db.execute(
+                sql`SELECT offer_session_id, offer_sequence_num, created_at
+                    FROM offer_intelligence
+                    WHERE user_id = ${userId}
+                    ORDER BY created_at DESC LIMIT 1`)
+            : device_id
+              ? await db.execute(
+                  sql`SELECT offer_session_id, offer_sequence_num, created_at
+                      FROM offer_intelligence
+                      WHERE device_id = ${deviceId} AND user_id IS NULL
+                      ORDER BY created_at DESC LIMIT 1`)
+              : { rows: [] };
           const lastOffer = lastOfferResult.rows?.[0];
           if (lastOffer) {
             secondsSinceLast = Math.round((Date.now() - new Date(lastOffer.created_at).getTime()) / 1000);
@@ -795,16 +820,10 @@ PRE-PARSED DATA (server-verified):
 });
 
 // GET /api/hooks/offer-history
-// Returns recent offer analyses for a device — no auth required (device_id based)
-// 2026-02-17: Updated to use offer_intelligence with structured columns
-router.get('/offer-history', async (req, res) => {
+// Recent offer analyses for the tokened driver (user-scoped since 2026-08-11)
+router.get('/offer-history', offerHookLimiter, requireShortcutUser, async (req, res) => {
   try {
-    const { device_id, limit = 20 } = req.query;
-
-    if (!device_id) {
-      return res.status(400).json({ error: 'Missing device_id query parameter' });
-    }
-
+    const { limit = 20 } = req.query;
     const maxLimit = Math.min(parseInt(limit, 10) || 20, 100);
 
     const history = await db
@@ -838,7 +857,7 @@ router.get('/offer-history', async (req, res) => {
         created_at: offer_intelligence.created_at,
       })
       .from(offer_intelligence)
-      .where(sql`device_id = ${device_id}`)
+      .where(sql`user_id = ${req.shortcutUserId}`)
       .orderBy(sql`created_at DESC`)
       .limit(maxLimit);
 
@@ -864,7 +883,6 @@ router.get('/offer-history', async (req, res) => {
 
     res.json({
       success: true,
-      device_id,
       stats,
       offers: history,
     });
@@ -877,25 +895,24 @@ router.get('/offer-history', async (req, res) => {
 
 // POST /api/hooks/offer-override
 // Driver disagreed with AI decision — record the override for training data
-// 2026-02-17: Updated to use offer_intelligence table
-router.post('/offer-override', async (req, res) => {
+// (user-scoped since 2026-08-11: only the owning driver can override)
+router.post('/offer-override', offerHookLimiter, requireShortcutUser, async (req, res) => {
   try {
-    const { id, user_override, device_id } = req.body;
+    const { id, user_override } = req.body;
 
     if (!id || !user_override || !['ACCEPT', 'REJECT'].includes(user_override)) {
       return res.status(400).json({ error: 'Missing id or valid user_override (ACCEPT/REJECT)' });
     }
 
-    // 2026-02-15: Only allow the same device to override its own analyses
     const updated = await db.execute(
       sql`UPDATE offer_intelligence
           SET user_override = ${user_override}, updated_at = NOW()
-          WHERE id = ${id} AND device_id = ${device_id}
+          WHERE id = ${id} AND user_id = ${req.shortcutUserId}
           RETURNING id, decision, user_override`
     );
 
     if (updated.rows?.length === 0) {
-      return res.status(404).json({ error: 'Offer not found or device mismatch' });
+      return res.status(404).json({ error: 'Offer not found or not owned by this driver' });
     }
 
     const record = updated.rows[0];
@@ -915,16 +932,10 @@ router.post('/offer-override', async (req, res) => {
 
 // POST /api/hooks/offer-cleanup
 // Batch delete test/duplicate entries from offer_intelligence
-// 2026-02-17: Updated to use offer_intelligence table
-// 2026-03-17: SECURITY FIX (F-3) — Require device_id ownership scope.
-// Previously deleted arbitrary rows by id with no auth or ownership check.
-router.post('/offer-cleanup', async (req, res) => {
+// (user-scoped since 2026-08-11: a device_id is not a credential)
+router.post('/offer-cleanup', offerHookLimiter, requireShortcutUser, async (req, res) => {
   try {
-    const { ids, device_id } = req.body;
-
-    if (!device_id || typeof device_id !== 'string' || device_id.length > 128) {
-      return res.status(400).json({ error: 'Valid device_id required' });
-    }
+    const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'Missing ids array' });
@@ -935,7 +946,7 @@ router.post('/offer-cleanup', async (req, res) => {
     }
 
     const result = await db.execute(
-      sql`DELETE FROM offer_intelligence WHERE id = ANY(${ids}) AND device_id = ${device_id} RETURNING id`
+      sql`DELETE FROM offer_intelligence WHERE id = ANY(${ids}) AND user_id = ${req.shortcutUserId} RETURNING id`
     );
 
     console.log(`[hooks/offer-cleanup] 🗑️ Deleted ${result.rows?.length || 0} of ${ids.length} requested`);

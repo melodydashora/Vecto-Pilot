@@ -372,3 +372,14 @@ describe('write-gate validation + hashing', () => {
     expect(a).toMatch(/^[0-9a-f]{64}$/);
   });
 });
+
+// 2026-08-11: DEFAULT_RULESET is shared by reference with every untokened
+// request — a single in-place mutation would contaminate all drivers at once.
+// Pin that it is deeply frozen (mutation throws in strict/ESM mode).
+describe('DEFAULT_RULESET immutability', () => {
+  test('top-level and nested mutation both throw', () => {
+    expect(() => { DEFAULT_RULESET.basis = 'active_time'; }).toThrow(TypeError);
+    expect(() => { DEFAULT_RULESET.global.rating_floor = 0; }).toThrow(TypeError);
+    expect(() => { DEFAULT_RULESET.tiers.standard.floor_per_mile = 0; }).toThrow(TypeError);
+  });
+});

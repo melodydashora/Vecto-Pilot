@@ -242,8 +242,14 @@ export class HedgedRouter {
         ? this._combineSignals(controller.signal, masterSignal)
         : controller.signal;
 
+      // 2026-08-11: release only what was acquired — when acquire() itself
+      // rejects (queue timeout / abort-while-queued) the old finally still
+      // released, decrementing another request's slot and over-admitting the
+      // process-wide gate.
+      let acquired = false;
       try {
         await this.concurrencyGate.acquire(provider, combinedSignal);
+        acquired = true;
 
         const response = await this._callProvider(provider, request, combinedSignal);
 
@@ -268,7 +274,21 @@ export class HedgedRouter {
         failures.push(enhancedError);
         // fall through to the next provider
       } finally {
-        this.concurrencyGate.release(provider);
+        if (acquired) this.concurrencyGate.release(provider);
+      }
+    }
+
+    // 2026-08-11: master timeout can expire before ANY provider was tried
+    // (loop breaks with failures=[]), which produced "All hedged providers
+    // failed ()" with empty causeCodes — nothing for the 503-retry logic to
+    // match on. Synthesize one entry per untried provider so the contract
+    // shape holds.
+    if (failures.length === 0) {
+      for (const provider of providers) {
+        const timeoutError = new Error(`${provider}: upstream request failed (timeout)`);
+        timeoutError.provider = provider;
+        timeoutError.causeCode = 'timeout';
+        failures.push(timeoutError);
       }
     }
 

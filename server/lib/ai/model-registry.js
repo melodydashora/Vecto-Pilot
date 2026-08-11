@@ -201,9 +201,14 @@ export const MODEL_ROLES = {
   // 2026-02-13: Gemini 3 Pro Preview — vision, OCR, Google Search, multimodal
   // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing "AI Coach" branding
   // 2026-02-26: Upgraded to Gemini 3.1 Pro — 2x reasoning over 3.0 Pro (ARC-AGI-2: 77.1%)
+  // 2026-08-11: gemini-3.5-flash → gemini-3.6-flash (GA 2026-07-21) at Melody's
+  // "update adapters, verify live" direction. Verified this session: listed in
+  // /v1beta/models AND a live streamGenerateContent SSE ping succeeded. Text-role
+  // win only: 17% fewer output tokens, $7.50/M out (vs $9), better agentic scores.
+  // Vision roles (OFFER_ANALYZER*) stay on 3.5 — 3.6 regresses object detection.
   AI_COACH: {
     envKey: 'AI_COACH_MODEL',
-    default: 'gemini-3.5-flash',
+    default: 'gemini-3.6-flash',
     purpose: 'AI Coach conversation (streaming, multimodal)',
     maxTokens: 8192,
     temperature: 0.7,
@@ -305,6 +310,9 @@ export const MODEL_ROLES = {
   //    Pro is slower, weaker on multimodal, and would blow the ~30s Shortcut timeout.
   //  ⚠️ PINNED, NOT FLOATING: never gemini-flash-latest or any *-latest alias. Memory #342: a
   //    floating alias resolved server-side to an internal Google build and 404'd in production.
+  //  2026-08-11: re-verified against gemini-3.6-flash (GA 2026-07-21) — do NOT move this
+  //    role to 3.6: it regresses vision object detection (56.0% mAP@50, bottom half of
+  //    Roboflow's Aug-2026 evals) while 3.5-flash stays the vision+speed leader.
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
     default: 'gemini-3.5-flash',
@@ -760,7 +768,9 @@ export function getLLMDiagnostics() {
   return {
     providers,
     preferred: process.env.PREFERRED_MODEL || 'google:gemini-3.5-flash',
-    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-opus-4-8',
+    // 2026-08-11: anthropic fallback claude-opus-4-8 → claude-sonnet-5 (Claude 5
+    // family GA; live-verified via /v1/models + a messages ping this session)
+    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-sonnet-5',
   };
 }
 

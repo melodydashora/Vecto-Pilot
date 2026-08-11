@@ -97,3 +97,47 @@ describe('HedgedRouter — sequential failover (no racing)', () => {
     expect(result.response.output).toBe('solo');
   });
 });
+
+// 2026-08-11: residue fixes found in the post-racing audit — the gate must
+// only release slots it actually acquired, and a pre-loop master abort must
+// still produce a contract-shaped aggregate error.
+describe('HedgedRouter — gate accounting and empty-failure aggregate', () => {
+  test('acquire rejection: release() is NOT called for a slot never acquired', async () => {
+    const events = [];
+    const gate = {
+      acquire: async () => { events.push('acquire'); throw new Error('gate queue timeout'); },
+      release: () => { events.push('release'); },
+    };
+    const adapters = new Map([['google', async () => ({ ok: true })]]);
+    const router = new HedgedRouter({ providers: ['google'], adapters, concurrencyGate: gate, timeout: 5000 });
+
+    await expect(
+      router.execute({ role: 'TEST' }, { providers: ['google'] })
+    ).rejects.toThrow('All hedged providers failed');
+
+    expect(events).toEqual(['acquire']); // no release-without-acquire drift
+  });
+
+  test('master signal aborted before first provider: causeCodes still populated', async () => {
+    const router = makeRouter({
+      google: async () => ({ ok: true, output: 'g' }),
+      openai: async () => ({ ok: true, output: 'o' }),
+    });
+    const aborted = new AbortController();
+    aborted.abort();
+    const controllers = new Map([
+      ['google', new AbortController()],
+      ['openai', new AbortController()],
+    ]);
+
+    await expect(
+      router._tryProvidersSequentially({ role: 'TEST' }, ['google', 'openai'], controllers, aborted.signal)
+    ).rejects.toMatchObject({
+      message: 'All hedged providers failed (google:timeout, openai:timeout)',
+      causeCodes: [
+        { provider: 'google', code: 'timeout' },
+        { provider: 'openai', code: 'timeout' },
+      ],
+    });
+  });
+});

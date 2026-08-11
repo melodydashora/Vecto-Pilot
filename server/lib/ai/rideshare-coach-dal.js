@@ -810,7 +810,8 @@ export class RideshareCoachDAL {
           this.getMarketIntelligence(snapshot.city, snapshot.state),
           effectiveUserId ? this.getUserNotes(effectiveUserId) : Promise.resolve([]),
           effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null }),
-          this.getOfferHistory(20),  // 2026-02-16: Include offer analysis history
+          // 2026-08-11: user-scoped — offers belong to the driver, not the deployment
+          this.getOfferHistory(effectiveUserId, 20),
           // 2026-05-05: Coach-driven decision intel for the disagreement-learning loop
           effectiveUserId ? this.getCoachOfferDecisions(effectiveUserId, 20) : Promise.resolve({ decisions: [], stats: null }),
           // 2026-05-26: Coach self-context — read its own prior memos and system notes
@@ -1317,13 +1318,20 @@ export class RideshareCoachDAL {
   /**
    * Get offer analysis history for AI Coach context.
    * 2026-02-17: Migrated to offer_intelligence — structured columns, no more JSONB unpacking.
-   * Queries ALL recent offers (single-user system for now).
-   * Future: link device_id → user_id for multi-user support.
+   * 2026-08-11: Scoped to the requesting user. The unscoped version predates
+   * offer_intelligence.user_id (added 2026-07-03) and leaked every driver's
+   * offers (addresses, prices) into every Coach prompt once the app went
+   * multi-user. No user → no history — never the global log.
    *
+   * @param {string|null} userId - Owner of the offers; required for any rows
    * @param {number} limit - Max offers to retrieve (default 20)
    * @returns {Promise<Object>} { offers: Array, stats: Object }
    */
-  async getOfferHistory(limit = 20) {
+  async getOfferHistory(userId, limit = 20) {
+    if (!userId) {
+      console.warn('[COACH] getOfferHistory: no userId — returning empty history (offers are per-user)');
+      return { offers: [], stats: null };
+    }
     try {
       const history = await db
         .select({
@@ -1347,6 +1355,7 @@ export class RideshareCoachDAL {
           created_at: offer_intelligence.created_at,
         })
         .from(offer_intelligence)
+        .where(eq(offer_intelligence.user_id, userId))
         .orderBy(desc(offer_intelligence.created_at))
         .limit(limit);
 
@@ -1496,18 +1505,27 @@ export class RideshareCoachDAL {
    * Backfill nullable fields on a raw offer_intelligence row using Coach-confirmed
    * ground truth from a screenshot. Identity fields (decision, device_id, created_at)
    * are intentionally not editable here — Zod schema gates that at the action layer.
+   * 2026-08-11: user-scoped — the offer id is LLM-emitted text (BACKFILL_OFFER_INTEL
+   * action tag), so without the user predicate this was an unscoped cross-tenant write.
    */
-  async updateOfferIntelligence(offerId, fields) {
+  async updateOfferIntelligence(offerId, userId, fields) {
+    if (!userId) {
+      console.warn('[COACH] updateOfferIntelligence: no userId — refusing unscoped write');
+      return null;
+    }
     try {
       const [row] = await db
         .update(offer_intelligence)
         .set({ ...fields, updated_at: new Date() })
-        .where(eq(offer_intelligence.id, offerId))
+        .where(and(
+          eq(offer_intelligence.id, offerId),
+          eq(offer_intelligence.user_id, userId)
+        ))
         .returning();
       if (row) {
         console.log(`[COACH] updateOfferIntelligence (backfill): ${offerId} fields=${Object.keys(fields).join(',')}`);
       } else {
-        console.warn(`[COACH] updateOfferIntelligence: no row matched id=${offerId}`);
+        console.warn(`[COACH] updateOfferIntelligence: no row matched id=${offerId} user=${userId.slice(0, 8)}`);
       }
       return row || null;
     } catch (error) {
@@ -1885,14 +1903,23 @@ export class RideshareCoachDAL {
   }
 
   /**
-   * Get system notes (for admin review)
+   * Get system notes triggered by a user's own chats.
+   * 2026-08-11: user-scoped — rows carry user_quote (verbatim chat text), so
+   * the previous global read let any authenticated user see every user's
+   * quoted messages. An admin surface, if wanted later, is a separate
+   * explicitly-gated route, not a default.
+   * @param {string} userId - Requesting user (required)
    * @param {string} status - Filter by status (optional)
    * @param {number} limit - Max notes to retrieve
    * @returns {Promise<Array>} Array of system notes
    */
-  async getSystemNotes(status = null, limit = 50) {
+  async getSystemNotes(userId, status = null, limit = 50) {
+    if (!userId) {
+      console.warn('[COACH] getSystemNotes: no userId — returning empty (notes quote user chats)');
+      return [];
+    }
     try {
-      const conditions = [];
+      const conditions = [eq(coach_system_notes.triggering_user_id, userId)];
       if (status) {
         conditions.push(eq(coach_system_notes.status, status));
       }
@@ -1900,7 +1927,7 @@ export class RideshareCoachDAL {
       const notes = await db
         .select()
         .from(coach_system_notes)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(and(...conditions))
         .orderBy(desc(coach_system_notes.priority), desc(coach_system_notes.created_at))
         .limit(limit);
 

@@ -13,9 +13,7 @@ import { Router } from 'express';
 import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { dayPartLabel } from '../../lib/location/daypart.js';
 import { requireAuth } from '../../middleware/auth.js';
-import { db } from '../../db/drizzle.js';
-import { snapshots } from '../../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 // Node.js 18+ has built-in fetch — no import needed
 
 const router = Router();
@@ -55,30 +53,13 @@ router.post('/token', requireAuth, async (req, res) => {
       '| model:', VOICE_MODEL
     );
 
-    // 2026-04-25 (audit §1.5): Ownership check moved BEFORE the OpenAI mint.
-    // Previously the order was auth → mint → ownership, which meant a billed
-    // OpenAI token could be issued for a snapshot the caller did not own —
-    // even if the response was withheld, the cost had already been incurred.
-    // If snapshotId is omitted (some flows allow user-only context), skip the
-    // ownership check and proceed to fetch context with the user identity.
+    // Ownership BEFORE the OpenAI mint (billed token must never be issued for
+    // a snapshot the caller does not own). Shared guard since 2026-08-11 —
+    // mismatch is now 404 (anti-enumeration policy), previously 403 here.
+    // If snapshotId is omitted (user-only context flows), skip and proceed.
     if (snapshotId) {
-      try {
-        const [snap] = await db
-          .select({ user_id: snapshots.user_id })
-          .from(snapshots)
-          .where(eq(snapshots.snapshot_id, snapshotId))
-          .limit(1);
-
-        if (!snap || snap.user_id !== req.auth.userId) {
-          return res.status(403).json({
-            error: 'snapshot_not_owned',
-            message: 'Snapshot does not belong to this user',
-          });
-        }
-      } catch (ownerErr) {
-        console.warn('[COACH] [REALTIME] ownership check failed:', ownerErr.message);
-        return res.status(500).json({ error: 'ownership_check_failed' });
-      }
+      const owned = await verifySnapshotOwnership(snapshotId, req.auth?.userId);
+      if (!owned.ok) return res.status(owned.status).json(owned.body);
     }
 
     // Fetch snapshot context for the session prompt (after ownership clears).

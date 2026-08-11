@@ -30,6 +30,7 @@ import {
 } from "../../../shared/schema.js";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../../middleware/auth.js";
+import { requireSnapshotOwnership } from "../../middleware/require-snapshot-ownership.js";
 import { PHASE_EXPECTED_DURATIONS, updatePhase } from "../../lib/strategy/strategy-utils.js";
 import { toApiBlock } from "../../validation/transformers.js";
 // 2026-01-10: S-004 FIX - Use canonical status constants
@@ -52,7 +53,8 @@ export const router = Router();
  * @param {string} snapshotId - UUID of the snapshot
  * @returns {Object} { status, snapshot_id, timeElapsedMs, strategy?, blocks?, ranking_id? }
  */
-router.get("/strategy/:snapshotId", requireAuth, async (req, res) => {
+// 2026-08-11 (todo #31): ownership middleware before any strategy/briefing read
+router.get("/strategy/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
 
   try {

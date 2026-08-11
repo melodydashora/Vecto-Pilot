@@ -48,6 +48,26 @@ export const translationLimiter = rateLimit({
   }
 });
 
+// 2026-08-11: Offer-hook limiter — the /api/hooks offer endpoints are public
+// (Siri Shortcuts can't send JWTs) and the analyze path bills a vision model
+// per call. Keyed by IP + shortcut token/device so one driver's burst can't
+// starve another behind the same NAT. 20/min covers any real offer cadence
+// (platform offers arrive at most every few seconds during a surge burst).
+export const offerHookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: {
+    ok: false,
+    error: 'Offer analysis rate limit exceeded. Please wait a moment.'
+  },
+  standardHeaders: true,
+  validate: { keyGeneratorIpFallback: false },
+  keyGenerator: (req) => {
+    const ident = req.get('x-shortcut-token') || req.body?.shortcut_token || req.body?.device_id || req.query?.device_id || 'unknown';
+    return `${req.ip}-${ident}`;
+  }
+});
+
 // 2026-04-05: SECURITY — Global rate limiter for all /api routes (CodeQL: missing rate limiting)
 // Applied in server/bootstrap/middleware.js on all /api/* routes.
 // Per-route limiters (expensiveEndpointLimiter, chatLimiter) are stricter overrides.
