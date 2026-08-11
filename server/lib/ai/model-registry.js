@@ -212,6 +212,11 @@ export const MODEL_ROLES = {
     purpose: 'AI Coach conversation (streaming, multimodal)',
     maxTokens: 8192,
     temperature: 0.7,
+    // 2026-08-11: Melody: "the coach is the cost" — the Coach is the flagship
+    // and gets maximum reasoning. Known tradeoff: HIGH thinking delays the
+    // first streamed token (and therefore first TTS audio); drop to MEDIUM if
+    // the pause reads as lag in voice use.
+    thinkingLevel: 'HIGH',
     features: ['google_search', 'vision', 'ocr'],
     // 2026-02-17: AI_COACH uses callModelStream() which only supports Gemini.
     // Non-Gemini overrides are rejected by the streaming guard below.
