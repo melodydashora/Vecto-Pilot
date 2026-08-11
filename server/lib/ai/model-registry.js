@@ -224,6 +224,39 @@ export const MODEL_ROLES = {
   },
 
   // ==========================
+  // 4b. COACH VOICE — live bidirectional audio (the MOUTH of the mouth-vs-brain split)
+  // ==========================
+  // 2026-08-11 (todo #33, joint decision): three-way voice switcher on the Coach
+  // tab — Classic / Gemini Live / GPT Realtime. These roles are the mouth ONLY:
+  // listening, speaking, barge-in. Intelligence stays in AI_COACH (the brain) —
+  // the live session's ask_coach_backend function call routes through /api/chat,
+  // which carries google_search grounding and the full action-tag tool surface.
+  // Live-verified 2026-08-11 (ai.google.dev/gemini-api/docs/live-tools): search
+  // grounding + function calling combine in ONE Live session on both Gemini
+  // lines; every live model is Preview — pin dated IDs, expect ~6mo migrations.
+  COACH_VOICE_LIVE: {
+    envKey: 'COACH_VOICE_LIVE_MODEL',
+    // gemini-3.1-flash-live-preview: newest live line, Google's designated
+    // replacement for all prior live models; sync-only function calling.
+    // (gemini-2.5-flash-native-audio-preview-12-2025 has NON_BLOCKING function
+    // calls but is already slated for replacement BY this model.)
+    default: 'gemini-3.1-flash-live-preview',
+    purpose: 'Coach voice mouth: Gemini Live bidirectional audio (WebSocket, ephemeral tokens)',
+    temperature: 0.7,
+    features: ['google_search'],
+    requiresLive: true,
+  },
+  // 2026-08-11: role moved out of realtime.js, which read process.env.VOICE_MODEL
+  // directly (registry-bypass doctrine violation). envKey stays VOICE_MODEL —
+  // it is the already-documented env var for this concern (env-registry.js).
+  COACH_VOICE_REALTIME: {
+    envKey: 'VOICE_MODEL',
+    default: 'gpt-realtime',
+    purpose: 'Coach voice mouth: OpenAI Realtime session (WebRTC, ephemeral client_secrets)',
+    requiresLive: true,
+  },
+
+  // ==========================
   // 5. UTILITIES (no direct DB write)
   // ==========================
   UTIL_RESEARCH: {
@@ -561,6 +594,18 @@ export function getRoleConfig(role) {
     registryLog.warn(0, `${canonicalRole} requires streaming (Gemini only), but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
     model = roleConfig.default;
     sourceInfo = 'default (streaming fallback)';
+  }
+
+  // 2026-08-11: Live guard — COACH_VOICE_* roles must resolve to a live/realtime-
+  // class model. The session-mint endpoints reject chat-class models (OpenAI:
+  // realtime.js 2026-04-25 note; Gemini: only bidiGenerateContent-capable models
+  // accept Live connections). This matters because AI_COACH_OVERRIDE_MODEL
+  // catches every COACH_* role above — a text-model override must not silently
+  // break voice session minting.
+  if (roleConfig.requiresLive && !/(^gpt-realtime)|(-live)|(-native-audio)/.test(model)) {
+    registryLog.warn(0, `${canonicalRole} requires a live/realtime-class model, but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
+    model = roleConfig.default;
+    sourceInfo = 'default (live fallback)';
   }
 
   const provider = getProviderForModel(model);

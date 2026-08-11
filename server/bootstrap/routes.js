@@ -57,6 +57,8 @@ export async function mountRoutes(app, server) {
     { path: '/api/chat', module: './server/api/chat/chat.js', desc: 'AI Coach' },
     { path: '/api/tts', module: './server/api/chat/tts.js', desc: 'TTS endpoint' },
     { path: '/api/realtime', module: './server/api/chat/realtime.js', desc: 'OpenAI Realtime voice' },
+    // 2026-08-11 (todo #33): Gemini arm of the Coach voice switcher.
+    { path: '/api/gemini-live', module: './server/api/chat/gemini-live.js', desc: 'Gemini Live voice' },
 
     // Coach API (server/api/rideshare-coach/) - Schema awareness, validation, notes CRUD
     { path: '/api/coach', module: './server/api/rideshare-coach/index.js', desc: 'Rideshare Coach API (schema, validate, notes)' },

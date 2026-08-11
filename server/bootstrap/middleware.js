@@ -194,6 +194,9 @@ export async function configureMiddleware(app) {
     // billable OpenAI client_secret. 5/min/user is generous for legit voice
     // session starts; anything above is bug or abuse.
     app.use('/api/realtime/token', realtimeMintLimiter);
+    // 2026-08-11 (todo #33): same policy for the Gemini Live mint — billable
+    // ephemeral auth token per call, same legit-use ceiling.
+    app.use('/api/gemini-live/token', realtimeMintLimiter);
     console.log('[GATEWAY] Global rate limiting enabled (100/min API, 200/min health, 5/min realtime mint)');
   } catch (e) {
     console.warn('[GATEWAY] Rate limiting not available:', e?.message);

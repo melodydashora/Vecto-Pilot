@@ -14,17 +14,18 @@ import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { dayPartLabel } from '../../lib/location/daypart.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
+import { getRoleConfig } from '../../lib/ai/model-registry.js';
 // Node.js 18+ has built-in fetch — no import needed
 
 const router = Router();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// COACH_VOICE role: real-time voice chat with snapshot context.
-// 2026-04-25: 'gpt-realtime' is the realtime-class default. The Realtime API
-// (/v1/realtime/client_secrets) only accepts realtime-class models; chat
-// models like gpt-5.x will fail. Text/reasoning paths use
-// OPENAI_MODEL=gpt-5.5-2026-04-23, which is intentionally distinct.
-const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-realtime';
+// 2026-08-11: model now resolves through the registry (COACH_VOICE_REALTIME
+// role) instead of a raw VOICE_MODEL env read — the env var still works (it is
+// the role's envKey) but the registry's requiresLive guard now rejects
+// chat-class overrides, and the realtime-vs-chat-class doctrine lives on the
+// role entry in model-registry.js.
+const VOICE_MODEL = getRoleConfig('COACH_VOICE_REALTIME').model;
 
 /**
  * POST /api/realtime/token
