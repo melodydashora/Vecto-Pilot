@@ -56,7 +56,6 @@ export class RealtimeSession implements VoiceSession {
     // audible with ringer off, correct call routing. Applied synchronously
     // inside the user's tap.
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (navigator as any).audioSession.type = 'play-and-record';
     } catch { /* API absent outside Safari — fine */ }
 

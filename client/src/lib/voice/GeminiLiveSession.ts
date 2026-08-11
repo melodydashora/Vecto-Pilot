@@ -63,7 +63,6 @@ export class GeminiLiveSession implements VoiceSession {
     //    keeps playback audible with the ringer switch off and pairs
     //    mic + speaker routes. Routing-only — not a background entitlement.
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (navigator as any).audioSession.type = 'play-and-record';
     } catch { /* API absent outside Safari — fine */ }
 
