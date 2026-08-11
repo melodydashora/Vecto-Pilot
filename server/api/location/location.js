@@ -987,14 +987,18 @@ router.get('/resolve', async (req, res) => {
                   .where(eq(driver_profiles.user_id, userId))
                   .limit(1);
                 if (profileResult && !profileResult.market) {
+                  // 2026-08-11: home_timezone from the GPS→Google-resolved timeZone
+                  // (in scope, guarded non-null above), NOT the market's blanket
+                  // timezone — gps-only-timezone doctrine. The market row supplies
+                  // IDENTITY (market_name) only.
                   await db.update(driver_profiles)
                     .set({
                       market: coordResolvedMarket.market_name,
-                      home_timezone: coordResolvedMarket.timezone,
+                      home_timezone: timeZone,
                       updated_at: new Date()
                     })
                     .where(eq(driver_profiles.user_id, userId));
-                  console.log(`[SNAPSHOT] 🔗 Backfilled profile market (first snapshot): ${coordResolvedMarket.market_name} (${coordResolvedMarket.timezone})`);
+                  console.log(`[SNAPSHOT] 🔗 Backfilled profile market (first snapshot): ${coordResolvedMarket.market_name} (tz ${timeZone} from GPS→Google)`);
                 }
               } else {
                 // PATH 2 (fallback): coord resolution returned nothing (unknown city/state combo,
