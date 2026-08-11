@@ -31,6 +31,10 @@ export interface UseStreamingReadAloudReturn {
   flush: () => void;
   /** Cancel: clear queue + buffer, stop in-flight audio. */
   abort: () => void;
+  /** True while the chunked audio session is live (chunks queued or draining).
+   *  2026-08-11 echo-loop fix: `isSpeaking` alone flickers false in the fetch gap
+   *  between chunks — callers gating "is Coach audio active" must use this. */
+  isActive: () => boolean;
 }
 
 export function useStreamingReadAloud({
@@ -112,5 +116,10 @@ export function useStreamingReadAloud({
     stopSpeak();
   }, [stopSpeak]);
 
-  return { pushDelta, flush, abort };
+  const isActive = useCallback(
+    () => drainingRef.current || queueRef.current.length > 0,
+    []
+  );
+
+  return { pushDelta, flush, abort, isActive };
 }

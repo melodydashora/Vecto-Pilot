@@ -249,6 +249,21 @@ export default function RideshareCoach({
 
   // H3: VAD Silence Timeout Implementation
   onSilenceRef.current = () => {
+    // 2026-08-11: echo-loop fix (coach_memos 8f41cf30). The mic listens during
+    // TTS BY DESIGN (verbal barge-in phrases need it), so the recognizer
+    // captures the Coach's own voice via speaker bleed. This auto-send was the
+    // one path where that bleed became a *message*: a ≥1.5s gap in Coach audio
+    // (pause between streamed chunks) fired the silence timer and sent the
+    // Coach's own words back as user input. While the Coach's audio session is
+    // active — isSpeaking, or chunks queued/draining (isSpeaking flickers false
+    // in the fetch gap between chunks) — discard the bleed instead of sending.
+    // Mic stays on so stop-phrases keep working; the TTS-end effect below
+    // handles the final clear + auto-resume.
+    if (isSpeaking || streaming.isActive()) {
+      console.log('[RideshareCoach] VAD silence during Coach audio — discarding speaker bleed, not sending');
+      clearTranscript();
+      return;
+    }
     const text = latestTranscriptRef.current.trim();
     if (text) {
       console.log('[RideshareCoach] VAD silence timeout triggered (3-5s) — auto-sending');
