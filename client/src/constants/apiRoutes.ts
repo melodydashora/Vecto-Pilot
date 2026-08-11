@@ -174,10 +174,13 @@ export const API_ROUTES = {
   },
 
   // =========================================================================
-  // Realtime
+  // Realtime voice (todo #33 switcher: OpenAI WebRTC arm + Gemini Live arm)
   // =========================================================================
   REALTIME: {
     TOKEN: '/api/realtime/token',
+  },
+  GEMINI_LIVE: {
+    TOKEN: '/api/gemini-live/token',
   },
 
   // =========================================================================

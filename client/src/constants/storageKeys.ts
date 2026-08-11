@@ -41,6 +41,9 @@ export const STORAGE_KEYS = {
   // Default ON for safety (drivers must not tap to start listening — eyes on road).
   // Set to 'false' in localStorage to opt out of auto-listen.
   COACH_AUTO_LISTEN_ENABLED: 'vectopilot_coach_auto_listen',
+  // 2026-08-11 (todo #33): Coach voice engine — 'classic' | 'gemini' | 'openai'.
+  // Classic is the default/control arm; live modes are the A/B experiment.
+  COACH_VOICE_MODE: 'vectopilot_coach_voice_mode',
 } as const;
 
 /**
