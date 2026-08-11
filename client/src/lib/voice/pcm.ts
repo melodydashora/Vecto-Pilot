@@ -138,6 +138,14 @@ export class PcmPlayer {
     return this.ctx;
   }
 
+  /** Create + resume the playback context INSIDE the user's tap (iOS unlock).
+   *  2026-08-11 device test: creating it lazily on the first audio chunk left
+   *  it 'suspended' — the session went live, transcripts flowed, but the
+   *  Coach was silent ("it only replied via text"). Call from the gesture. */
+  unlock(): void {
+    this.ensureCtx();
+  }
+
   enqueue(base64Pcm16: string): void {
     const ctx = this.ensureCtx();
     const f32 = base64ToFloat32(base64Pcm16);

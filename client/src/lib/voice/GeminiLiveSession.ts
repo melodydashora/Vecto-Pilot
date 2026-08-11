@@ -55,6 +55,18 @@ export class GeminiLiveSession implements VoiceSession {
     const { events } = this.opts;
     events.onStatus('connecting');
 
+    // Synchronously inside the tap, before any await:
+    // 1. Unlock the PLAYBACK context (iOS suspends contexts created later —
+    //    2026-08-11 device test: live session, transcripts, no sound).
+    this.player.unlock();
+    // 2. Declare two-way-call audio routing (Safari 16.4+ Audio Session API):
+    //    keeps playback audible with the ringer switch off and pairs
+    //    mic + speaker routes. Routing-only — not a background entitlement.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (navigator as any).audioSession.type = 'play-and-record';
+    } catch { /* API absent outside Safari — fine */ }
+
     // 1. Mint the ephemeral token (backend enforces auth + ownership).
     const authToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     const res = await fetch(API_ROUTES.GEMINI_LIVE.TOKEN, {

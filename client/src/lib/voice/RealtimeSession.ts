@@ -52,6 +52,14 @@ export class RealtimeSession implements VoiceSession {
     const { events } = this.opts;
     events.onStatus('connecting');
 
+    // Same iOS audio-routing declaration as the Gemini arm (see its start()):
+    // audible with ringer off, correct call routing. Applied synchronously
+    // inside the user's tap.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (navigator as any).audioSession.type = 'play-and-record';
+    } catch { /* API absent outside Safari — fine */ }
+
     // 1. Mint the ephemeral client_secret (backend enforces auth + ownership).
     const authToken = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     const res = await fetch(API_ROUTES.REALTIME.TOKEN, {
