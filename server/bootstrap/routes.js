@@ -44,9 +44,12 @@ export async function mountRoutes(app, server) {
   // Routes organized by domain in server/api/
   const routes = [
     // Health & Diagnostics (server/api/health/)
+    // NOTE: /api/health itself is NOT in this table — GATEWAY.md §"health router
+    // before general application routes" mandates the early mount in
+    // server/bootstrap/health.js (mountHealthRouter). A second mount of the same
+    // module here would be dead code (first mount wins for every route).
     { path: '/api/diagnostics', module: './server/api/health/diagnostics.js', desc: 'Diagnostics' },
     { path: '/api/diagnostic', module: './server/api/health/diagnostic-identity.js', desc: 'Diagnostic Identity' },
-    { path: '/api/health', module: './server/api/health/health.js', desc: 'Health Check' },
     { path: '/api/ml-health', module: './server/api/health/ml-health.js', desc: 'ML Health' },
     { path: '/api/job-metrics', module: './server/api/health/job-metrics.js', desc: 'Job Metrics' },
     // 2026-04-27: Mobile log viewer — auth-gated tail/stream + embedded HTML page.
@@ -74,9 +77,10 @@ export async function mountRoutes(app, server) {
     { path: '/api/traffic', module: './server/api/traffic/index.js', desc: 'Traffic Incidents Cache' },
 
     // Auth (server/api/auth/)
-    { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
-    // 2026-02-03: Uber OAuth
+    // 2026-02-03: Uber OAuth. Mounted BEFORE /api/auth (specific-before-general):
+    // a later route added to auth.js can never shadow the /uber sub-mount.
     { path: '/api/auth/uber', module: './server/api/auth/uber.js', desc: 'Uber OAuth' },
+    { path: '/api/auth', module: './server/api/auth/auth.js', desc: 'Auth' },
 
     // Location (server/api/location/)
     { path: '/api/location', module: './server/api/location/location.js', desc: 'Location' },
@@ -85,8 +89,12 @@ export async function mountRoutes(app, server) {
     // Strategy (server/api/strategy/)
     { path: '/api/blocks-fast', module: './server/api/strategy/blocks-fast.js', desc: 'Blocks Fast' },
     { path: '/api/blocks', module: './server/api/strategy/content-blocks.js', desc: 'Content Blocks' },
-    { path: '/api/strategy', module: './server/api/strategy/strategy.js', desc: 'Strategy' },
+    // Tactical Plan BEFORE /api/strategy (specific-before-general): strategy.js
+    // has a GET /:snapshotId param catch-all that would swallow any future GET
+    // on this sub-path, and its router-level requireAuth was running twice per
+    // tactical-plan call when mounted general-first.
     { path: '/api/strategy/tactical-plan', module: './server/api/strategy/tactical-plan.js', desc: 'Tactical Plan' },
+    { path: '/api/strategy', module: './server/api/strategy/strategy.js', desc: 'Strategy' },
 
     // Feedback (server/api/feedback/)
     { path: '/api/feedback', module: './server/api/feedback/feedback.js', desc: 'Feedback' },
