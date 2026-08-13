@@ -1,5 +1,12 @@
-/* Tailwind v4 imports */
-@import "tailwindcss";
+/* Tailwind v4 imports.
+   source(none) disables v4's automatic repo-wide content scan — without it,
+   bracketed log tags in server code and docs (e.g. "[file:func]", "[memory:get]")
+   get emitted as arbitrary-property CSS rules. The @source globs below restore
+   the intended scan scope: client + shared only. */
+@import "tailwindcss" source(none);
+@source "../index.html";
+@source "./**/*.{ts,tsx,js,jsx}";
+@source "../../shared/**/*.{ts,tsx,js,jsx}";
 
 /* ---- Tailwind v4 Theme Configuration ---- */
 /* Maps CSS variables to Tailwind utility classes */
