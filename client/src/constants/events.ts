@@ -32,8 +32,8 @@ export const EVENTS = {
  */
 export interface SnapshotSavedDetail {
   snapshotId: string;
-  holiday: string | null;
-  is_holiday: boolean;
+  // 2026-07-06: holiday removed — it lives in briefings.holiday now;
+  // GlobalHeader reads it via the briefing aggregate query
   reason?: 'init' | 'manual_refresh' | 'resume';
 }
 

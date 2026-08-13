@@ -10,6 +10,12 @@ import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
 import { CoachStopBar } from "@/components/coach/CoachStopBar";
 import { CameraCaptureModal } from "@/components/coach/CameraCaptureModal";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+// 2026-08-11 (todo #33): three-way voice engine switcher (Classic / Gemini
+// Live / GPT Realtime). Classic keeps the STT/TTS pipeline below untouched;
+// live modes run a bidirectional session with native barge-in, mouth-vs-brain.
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useVoiceSession, getStoredVoiceMode } from "@/hooks/coach/useVoiceSession";
+import type { VoiceMode } from "@/lib/voice/types";
 
 // 2026-04-29: TTS speed-selector tier values, used in the chip UI.
 const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
@@ -61,8 +67,6 @@ interface SnapshotData {
   day_part_key?: string;
   weather?: any; // { temp, condition, windSpeed, etc. }
   air?: any; // { aqi, pollutants, etc. }
-  holiday?: string;
-  is_holiday?: boolean;
   timezone?: string;
   lat?: number;
   lng?: number;
@@ -98,7 +102,12 @@ export default function RideshareCoach({
   // actually uses for stable useCallback deps.
   const audio = useCoachAudioState({
     onSilence: () => onSilenceRef.current?.(),
-    silenceThresholdMs: 4000 // H3: 4 seconds silence sends text automatically
+    // 2026-08-11: 4000 → 1500. The 4s wait was the single biggest chunk of the
+    // felt "3-second delay" after the driver stops talking (Chrome's own ~3s
+    // onend usually fired first, making 4s dead weight). 1.5s still tolerates
+    // natural mid-sentence pauses at driving cadence.
+    silenceThresholdMs: 1500
+
   });
   const {
     readAloudEnabled,
@@ -116,6 +125,20 @@ export default function RideshareCoach({
     stopMic,
     clearTranscript,
   } = audio;
+
+  // 2026-08-11 (todo #33): live voice session (Gemini Live / GPT Realtime arms).
+  // Mode 'classic' = hook is inert and the pipeline below owns the mic.
+  const voice = useVoiceSession({
+    userId,
+    snapshotId,
+    snapshot: snapshot ? {
+      city: snapshot.city,
+      state: snapshot.state,
+      timezone: snapshot.timezone,
+      hour: snapshot.hour,
+      day_part_key: snapshot.day_part_key,
+    } : undefined,
+  });
 
   const latestTranscriptRef = useRef('');
   // 2026-04-13: Track whether current message was sent via mic — auto-speak response if so
@@ -246,6 +269,21 @@ export default function RideshareCoach({
 
   // H3: VAD Silence Timeout Implementation
   onSilenceRef.current = () => {
+    // 2026-08-11: echo-loop fix (coach_memos 8f41cf30). The mic listens during
+    // TTS BY DESIGN (verbal barge-in phrases need it), so the recognizer
+    // captures the Coach's own voice via speaker bleed. This auto-send was the
+    // one path where that bleed became a *message*: a ≥1.5s gap in Coach audio
+    // (pause between streamed chunks) fired the silence timer and sent the
+    // Coach's own words back as user input. While the Coach's audio session is
+    // active — isSpeaking, or chunks queued/draining (isSpeaking flickers false
+    // in the fetch gap between chunks) — discard the bleed instead of sending.
+    // Mic stays on so stop-phrases keep working; the TTS-end effect below
+    // handles the final clear + auto-resume.
+    if (isSpeaking || streaming.isActive()) {
+      console.log('[RideshareCoach] VAD silence during Coach audio — discarding speaker bleed, not sending');
+      clearTranscript();
+      return;
+    }
     const text = latestTranscriptRef.current.trim();
     if (text) {
       console.log('[RideshareCoach] VAD silence timeout triggered (3-5s) — auto-sending');
@@ -265,6 +303,9 @@ export default function RideshareCoach({
   // Tab leave (component unmount) stops the mic via cleanup. Default on;
   // opt out by setting localStorage[COACH_AUTO_LISTEN_ENABLED] = 'false'.
   useEffect(() => {
+    // 2026-08-11 (todo #33): a live voice engine owns the mic exclusively —
+    // classic auto-listen must not grab it underneath the session.
+    if (getStoredVoiceMode() !== 'classic') return;
     const autoListenEnabled =
       localStorage.getItem(STORAGE_KEYS.COACH_AUTO_LISTEN_ENABLED) !== 'false';
     if (!autoListenEnabled) return;
@@ -423,6 +464,21 @@ export default function RideshareCoach({
     try { stopSpeak(); } catch { /* no-op */ }
   }, [stopSpeak, streaming]);
 
+  // 2026-08-11 (todo #33): engine switch. Leaving classic silences the whole
+  // classic pipeline (mic + TTS) so the live session has exclusive audio;
+  // setMode() itself tears down any live session when switching away.
+  const { setMode: setVoiceMode } = voice;
+  const handleVoiceModeChange = useCallback((value: string) => {
+    const next = value as VoiceMode;
+    if (next !== 'classic') {
+      manualStopRef.current = true;
+      stopMic();
+      try { streaming.abort(); } catch { /* no-op */ }
+      try { stopSpeak(); } catch { /* no-op */ }
+    }
+    setVoiceMode(next);
+  }, [setVoiceMode, stopMic, stopSpeak, streaming]);
+
   // 2026-05-04 (COACH-V1): "stop and output" stop phrase. Fires only while listening
   // AND not speaking (suppress during TTS — Coach saying the phrase via speaker bleed
   // would otherwise trigger a self-stop). Mirrors handleMicToggle's stop-then-send-after-
@@ -518,12 +574,16 @@ export default function RideshareCoach({
           IDLE (green) → tap starts mic via synchronous user gesture (mobile-safe bootstrap).
           LISTENING (blue) → tap stops mic and sends captured speech.
           SPEAKING (red) → tap cancels Coach TTS only; mic remains listening. */}
-      <CoachStopBar
-        isSpeaking={isSpeaking}
-        isListening={isListening}
-        onStopSpeak={handleStopAllAudio}
-        onMicToggle={handleMicToggle}
-      />
+      {/* 2026-08-11 (todo #33): the three-state bar drives the CLASSIC pipeline
+          only — live engines render their own control strip below the header. */}
+      {voice.mode === 'classic' && (
+        <CoachStopBar
+          isSpeaking={isSpeaking}
+          isListening={isListening}
+          onStopSpeak={handleStopAllAudio}
+          onMicToggle={handleMicToggle}
+        />
+      )}
       {/* Clean Header with Notes Button */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
         <div className="flex items-center justify-center h-8 w-8 rounded-full bg-white/20">
@@ -533,6 +593,23 @@ export default function RideshareCoach({
           <h3 className="font-semibold text-sm">Coach</h3>
           <p className="text-xs text-white/80">Powered by Gemini 3 Pro</p>
         </div>
+        {/* 2026-08-11 (todo #33): voice engine selector — the A/B switch.
+            Classic = control arm; live arms show which model they run so the
+            driver always knows what they're comparing. */}
+        <Select value={voice.mode} onValueChange={handleVoiceModeChange}>
+          <SelectTrigger
+            className="h-7 w-[130px] border-white/30 bg-white/10 text-white text-xs focus:ring-white/40"
+            data-testid="select-voice-engine"
+            title="Voice engine (A/B test)"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="classic">Classic voice</SelectItem>
+            <SelectItem value="gemini">Gemini Live</SelectItem>
+            <SelectItem value="openai">GPT Realtime</SelectItem>
+          </SelectContent>
+        </Select>
         {/* 2026-04-13: Voice Output Toggle */}
         <Button
           onClick={() => {
@@ -598,6 +675,68 @@ export default function RideshareCoach({
           )}
         </Button>
       </div>
+
+      {/* 2026-08-11 (todo #33): live voice session strip — only for live engines.
+          Native barge-in means no stop buttons or stop phrases: talking IS the
+          interrupt. iOS reality (verified 2026-08-11): switching apps suspends
+          the session — treated as an expected disconnect, restart on return. */}
+      {voice.mode !== 'classic' && (
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800/60">
+          <div className="flex items-center gap-2">
+            <div className={`h-2.5 w-2.5 rounded-full ${
+              voice.status === 'live' ? 'bg-green-500 animate-pulse'
+              : voice.status === 'connecting' ? 'bg-yellow-500 animate-pulse'
+              : voice.status === 'error' ? 'bg-red-500'
+              : 'bg-gray-400'
+            }`} />
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">
+              {voice.status === 'live'
+                ? `Live — just talk (${voice.statusDetail || (voice.mode === 'gemini' ? 'Gemini' : 'GPT')})`
+                : voice.status === 'connecting'
+                ? 'Connecting…'
+                : voice.status === 'error'
+                ? 'Session error'
+                : `${voice.mode === 'gemini' ? 'Gemini Live' : 'GPT Realtime'} ready`}
+            </span>
+            <div className="flex-1" />
+            {voice.isLive ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs"
+                onClick={voice.stop}
+                data-testid="button-voice-end"
+              >
+                End session
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => { warmUp(); void voice.start(); }}
+                data-testid="button-voice-start"
+              >
+                Start talking
+              </Button>
+            )}
+          </div>
+          {voice.error && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1.5" data-testid="text-voice-error">
+              {voice.error}
+            </p>
+          )}
+          {(voice.userLine || voice.modelLine) && (
+            <div className="mt-2 space-y-0.5 text-xs">
+              {voice.userLine && (
+                <p className="text-gray-600 dark:text-gray-300 truncate"><span className="font-semibold">You:</span> {voice.userLine}</p>
+              )}
+              {voice.modelLine && (
+                <p className="text-blue-700 dark:text-blue-300 truncate"><span className="font-semibold">Coach:</span> {voice.modelLine}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Validation Errors Banner */}
       {validationErrors.length > 0 && (

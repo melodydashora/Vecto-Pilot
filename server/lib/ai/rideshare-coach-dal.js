@@ -31,6 +31,8 @@ import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-
 import crypto from 'crypto';
 // Path: from server/lib/ai/ → ../events/ resolves to server/lib/events/
 import { VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
+// 2026-07-06: daypart adapter — normalize legacy keys, human labels for prompts
+import { normalizeDayPartKey, dayPartLabel } from '../location/daypart.js';
 
 /**
  * CoachDAL - Full schema read access for AI Coach
@@ -148,7 +150,9 @@ export class RideshareCoachDAL {
         is_weekend,
         dow: dow,
         hour: snap.hour ?? 0,
-        day_part: snap.day_part_key || 'unknown',
+        // 2026-07-06: normalized canonical key (legacy late_morning_noon/afternoon
+        // rows map to early_afternoon/late_afternoon); 'unknown' states absence honestly
+        day_part: normalizeDayPartKey(snap.day_part_key) || 'unknown',
         location_display: snap.formatted_address || `${snap.city || 'Unknown'}, ${snap.state || ''}`,
         city: snap.city || null,
         state: snap.state || null,
@@ -189,17 +193,28 @@ export class RideshareCoachDAL {
 
       if (!strat) return null;
 
-      // Fetch snapshot for location/holiday context
+      // Fetch snapshot for location context (holiday moved to briefings 2026-07-06)
       const [snapshot] = await db
         .select({
           formatted_address: snapshots.formatted_address,
           city: snapshots.city,
           state: snapshots.state,
-          holiday: snapshots.holiday,
         })
         .from(snapshots)
         .where(eq(snapshots.snapshot_id, snapshotId))
         .limit(1);
+
+      // 2026-07-06: holiday from briefings.holiday jsonb section (normalized
+      // to string|null: name when verified holiday, else null)
+      const [holidayRow] = await db
+        .select({ holiday: briefings.holiday })
+        .from(briefings)
+        .where(eq(briefings.snapshot_id, snapshotId))
+        .limit(1);
+      const holidayName =
+        holidayRow?.holiday && !holidayRow.holiday._generationFailed && holidayRow.holiday.is_holiday === true
+          ? holidayRow.holiday.holiday
+          : null;
 
       // 2026-01-14: Lean strategies table - removed strategy_timestamp and model_name columns
       return {
@@ -208,7 +223,7 @@ export class RideshareCoachDAL {
         strategy_text: strat.strategy_for_now || null,
         strategy_for_now: strat.strategy_for_now,
         strategy_timestamp: strat.created_at?.toISOString() || null,
-        holiday: snapshot?.holiday || null,
+        holiday: holidayName,
         user_address: snapshot?.formatted_address || null,
         user_city: snapshot?.city || null,
         user_state: snapshot?.state || null,
@@ -255,6 +270,9 @@ export class RideshareCoachDAL {
         traffic_conditions: briefingRecord.traffic_conditions || null,
         briefing_news: briefingRecord.news || null,
         briefing_events: briefingRecord.events || null,
+        airport_conditions: briefingRecord.airport_conditions || null,
+        // 2026-07-06: holiday section (moved from snapshots)
+        holiday: briefingRecord.holiday || null,
       };
     } catch (error) {
       console.error('[COACH] getComprehensiveBriefing error:', error);
@@ -792,7 +810,8 @@ export class RideshareCoachDAL {
           this.getMarketIntelligence(snapshot.city, snapshot.state),
           effectiveUserId ? this.getUserNotes(effectiveUserId) : Promise.resolve([]),
           effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null }),
-          this.getOfferHistory(20),  // 2026-02-16: Include offer analysis history
+          // 2026-08-11: user-scoped — offers belong to the driver, not the deployment
+          this.getOfferHistory(effectiveUserId, 20),
           // 2026-05-05: Coach-driven decision intel for the disagreement-learning loop
           effectiveUserId ? this.getCoachOfferDecisions(effectiveUserId, 20) : Promise.resolve({ decisions: [], stats: null }),
           // 2026-05-26: Coach self-context — read its own prior memos and system notes
@@ -997,7 +1016,7 @@ export class RideshareCoachDAL {
       prompt += `\n\n=== CURRENT LOCATION & TIME CONTEXT ===`;
       prompt += `\n📍 Location: ${snapshot.location_display || `${snapshot.city}, ${snapshot.state}`}`;
       prompt += `\n   Coordinates: ${parseFloat(snapshot.lat).toFixed(6)},${parseFloat(snapshot.lng).toFixed(6)}`;
-      prompt += `\n🕐 Time: ${snapshot.day_of_week}, ${snapshot.day_part}`;
+      prompt += `\n🕐 Time: ${snapshot.day_of_week}, ${dayPartLabel(snapshot.day_part) || snapshot.day_part}`;
       if (snapshot.hour != null) prompt += ` (${snapshot.hour}:00)`;
       if (snapshot.is_weekend) prompt += ` [WEEKEND]`;
       prompt += `\n🌍 Timezone: ${snapshot.timezone}`;
@@ -1028,9 +1047,10 @@ export class RideshareCoachDAL {
         });
       }
 
-      // Holiday
-      if (snapshot.holiday || snapshot.is_holiday) {
-        prompt += `\n\n🎉 SPECIAL DATE: ${snapshot.holiday || 'Holiday'} (surge likely)`;
+      // Holiday — 2026-07-06: from briefings.holiday (verified detection only;
+      // errorMarker/failed sections never claim a holiday)
+      if (briefing?.holiday?.is_holiday === true && !briefing.holiday._generationFailed) {
+        prompt += `\n\n🎉 SPECIAL DATE: ${briefing.holiday.holiday} (surge likely)`;
       }
     }
 
@@ -1298,13 +1318,20 @@ export class RideshareCoachDAL {
   /**
    * Get offer analysis history for AI Coach context.
    * 2026-02-17: Migrated to offer_intelligence — structured columns, no more JSONB unpacking.
-   * Queries ALL recent offers (single-user system for now).
-   * Future: link device_id → user_id for multi-user support.
+   * 2026-08-11: Scoped to the requesting user. The unscoped version predates
+   * offer_intelligence.user_id (added 2026-07-03) and leaked every driver's
+   * offers (addresses, prices) into every Coach prompt once the app went
+   * multi-user. No user → no history — never the global log.
    *
+   * @param {string|null} userId - Owner of the offers; required for any rows
    * @param {number} limit - Max offers to retrieve (default 20)
    * @returns {Promise<Object>} { offers: Array, stats: Object }
    */
-  async getOfferHistory(limit = 20) {
+  async getOfferHistory(userId, limit = 20) {
+    if (!userId) {
+      console.warn('[COACH] getOfferHistory: no userId — returning empty history (offers are per-user)');
+      return { offers: [], stats: null };
+    }
     try {
       const history = await db
         .select({
@@ -1328,6 +1355,7 @@ export class RideshareCoachDAL {
           created_at: offer_intelligence.created_at,
         })
         .from(offer_intelligence)
+        .where(eq(offer_intelligence.user_id, userId))
         .orderBy(desc(offer_intelligence.created_at))
         .limit(limit);
 
@@ -1360,7 +1388,14 @@ export class RideshareCoachDAL {
       };
 
       console.log(`[COACH] getOfferHistory: ${history.length} offers, ${stats.accept_rate_pct}% accept rate`);
-      return { offers: history, stats };
+      // 2026-07-06: normalize legacy daypart keys in historical rows so LLM/
+      // analytics consumers see one taxonomy (raw value passes through only if
+      // it's not a known key — stored data, not a fabrication).
+      const offers = history.map(h => ({
+        ...h,
+        day_part: h.day_part ? (normalizeDayPartKey(h.day_part) ?? h.day_part) : null,
+      }));
+      return { offers, stats };
     } catch (error) {
       console.error('[COACH] getOfferHistory error:', error);
       return { offers: [], stats: null };
@@ -1470,18 +1505,27 @@ export class RideshareCoachDAL {
    * Backfill nullable fields on a raw offer_intelligence row using Coach-confirmed
    * ground truth from a screenshot. Identity fields (decision, device_id, created_at)
    * are intentionally not editable here — Zod schema gates that at the action layer.
+   * 2026-08-11: user-scoped — the offer id is LLM-emitted text (BACKFILL_OFFER_INTEL
+   * action tag), so without the user predicate this was an unscoped cross-tenant write.
    */
-  async updateOfferIntelligence(offerId, fields) {
+  async updateOfferIntelligence(offerId, userId, fields) {
+    if (!userId) {
+      console.warn('[COACH] updateOfferIntelligence: no userId — refusing unscoped write');
+      return null;
+    }
     try {
       const [row] = await db
         .update(offer_intelligence)
         .set({ ...fields, updated_at: new Date() })
-        .where(eq(offer_intelligence.id, offerId))
+        .where(and(
+          eq(offer_intelligence.id, offerId),
+          eq(offer_intelligence.user_id, userId)
+        ))
         .returning();
       if (row) {
         console.log(`[COACH] updateOfferIntelligence (backfill): ${offerId} fields=${Object.keys(fields).join(',')}`);
       } else {
-        console.warn(`[COACH] updateOfferIntelligence: no row matched id=${offerId}`);
+        console.warn(`[COACH] updateOfferIntelligence: no row matched id=${offerId} user=${userId.slice(0, 8)}`);
       }
       return row || null;
     } catch (error) {
@@ -1510,7 +1554,11 @@ export class RideshareCoachDAL {
         conditions.push(gte(snapshots.created_at, since));
       }
 
-      const snapshotHistory = await db
+      // 2026-07-06: holiday joined from briefings (1:1 — briefings.snapshot_id
+      // is unique) and normalized to string|null: name only when a VERIFIED
+      // holiday, else null. Preserves downstream consumers' string contract
+      // (chat.js snapshot-history prompt).
+      const snapshotHistory = (await db
         .select({
           snapshot_id: snapshots.snapshot_id,
           created_at: snapshots.created_at,
@@ -1519,13 +1567,21 @@ export class RideshareCoachDAL {
           dow: snapshots.dow,
           hour: snapshots.hour,
           day_part_key: snapshots.day_part_key,
-          holiday: snapshots.holiday,
+          holiday: briefings.holiday,
           weather: snapshots.weather,
         })
         .from(snapshots)
+        .leftJoin(briefings, eq(briefings.snapshot_id, snapshots.snapshot_id))
         .where(and(...conditions))
         .orderBy(desc(snapshots.created_at))
-        .limit(limit);
+        .limit(limit)
+      ).map((row) => ({
+        ...row,
+        holiday:
+          row.holiday && !row.holiday._generationFailed && row.holiday.is_holiday === true
+            ? row.holiday.holiday
+            : null,
+      }));
 
       // Enrich with strategy status
       const enrichedHistory = await Promise.all(
@@ -1847,14 +1903,23 @@ export class RideshareCoachDAL {
   }
 
   /**
-   * Get system notes (for admin review)
+   * Get system notes triggered by a user's own chats.
+   * 2026-08-11: user-scoped — rows carry user_quote (verbatim chat text), so
+   * the previous global read let any authenticated user see every user's
+   * quoted messages. An admin surface, if wanted later, is a separate
+   * explicitly-gated route, not a default.
+   * @param {string} userId - Requesting user (required)
    * @param {string} status - Filter by status (optional)
    * @param {number} limit - Max notes to retrieve
    * @returns {Promise<Array>} Array of system notes
    */
-  async getSystemNotes(status = null, limit = 50) {
+  async getSystemNotes(userId, status = null, limit = 50) {
+    if (!userId) {
+      console.warn('[COACH] getSystemNotes: no userId — returning empty (notes quote user chats)');
+      return [];
+    }
     try {
-      const conditions = [];
+      const conditions = [eq(coach_system_notes.triggering_user_id, userId)];
       if (status) {
         conditions.push(eq(coach_system_notes.status, status));
       }
@@ -1862,7 +1927,7 @@ export class RideshareCoachDAL {
       const notes = await db
         .select()
         .from(coach_system_notes)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(and(...conditions))
         .orderBy(desc(coach_system_notes.priority), desc(coach_system_notes.created_at))
         .limit(limit);
 

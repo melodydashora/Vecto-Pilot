@@ -19,34 +19,62 @@ import { db } from '../../db/drizzle.js';
 import { sql } from 'drizzle-orm';
 import { offer_intelligence } from '../../../shared/schema.js';
 import { callModel } from '../../lib/ai/adapters/index.js';
-import { parseOfferText, formatPerMileForVoice, classifyTier } from '../../lib/offers/parse-offer-text.js';
-// 2026-06-20: Unified rules engine — single source for the Phase-1 prompt AND the
+import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-offer-text.js';
+// 2026-06-20: Unified rules engine — single source for the prompts AND the
 // deterministic fallback (replaces the inline PHASE1_PROMPTS + JS ladder below).
-import { buildPhase1Prompt, evaluateDeterministic, DEFAULT_RULESET } from '../../lib/offers/rules-engine.js';
+// 2026-07-03 (todo #10): v3 — per-driver rules. classifyTier now comes from the
+// engine (ruleset-aware comfort/xl split); buildPhase1VisionPrompt renders a
+// multi-tier prompt for image-only requests (previously they were silently
+// judged by standard-tier rules); buildPhase2Prompt replaces the hardcoded
+// English ladder that used to live in this file and drift from Phase 1.
+import {
+  buildPhase1Prompt,
+  buildPhase1VisionPrompt,
+  buildPhase2Prompt,
+  evaluateDeterministic,
+  evaluateGeoRules,
+  classifyTier,
+  DEFAULT_RULESET,
+} from '../../lib/offers/rules-engine.js';
+import { resolveRuleset } from '../../lib/offers/ruleset-store.js';
+import { geocodeEventAddress } from '../../lib/events/pipeline/geocodeEvent.js';
 // 2026-02-17: Shared utilities for structured analytics columns
-import { getDayPartKey } from '../../lib/location/daypart.js';
+import { getDayPartKey, getLocalHour, getLocalDow, getLocalDateString } from '../../lib/location/daypart.js';
 import { coordsKey } from '../../lib/location/coords-key.js';
 import { latLngToCell } from 'h3-js';
 // 2026-04-16: FIX — resolve driver timezone from coords so temporal columns are local, not UTC
 import { resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
+import { offerHookLimiter } from '../../middleware/rate-limit.js';
 
-// TODO(auth-hardening Item 7, deferred 2026-05-13): treatment (B) — this
-// router is intentionally left unauthenticated pending Siri Shortcut
-// migration to user_id auth. Owner: Melody. The file header (line 13)
-// states the historical rationale: "Auth: Explicitly public — Siri
-// Shortcuts cannot send JWT tokens" — that constraint still holds today
-// (Siri Shortcuts have no programmable bearer-token surface), so adding
-// requireAuth here would break the "Vecto Analyze" Shortcut Melody uses
-// live on her phone. The follow-up workstream covering this deferral is
-// tracked in claude_memory (session_id auth-hardening-pass-2026-05-13,
-// tags auth-hardening + item-7 + deferred). The plan: migrate the Siri
-// Shortcut to attach a per-user token, then layer requireAuth here in a
-// separate commit. HooksCatalog.md additionally flags two future
-// workstreams for this route — adding an offerHookLimiter (parallel to
-// translate.js's translationLimiter) and an optional Phase 2
-// VECTO_HOOK_TOKEN shared-secret gate. Those are tracked separately and
-// are NOT in scope for this commit.
+// Auth model (2026-08-11, auth-hardening Item 7 partially closed): Siri
+// Shortcuts can't send JWTs, so identity here is the per-user shortcut token
+// (x-shortcut-token). /analyze-offer stays token-OPTIONAL (an untokened legacy
+// Shortcut still gets a decision; its offer just isn't stored per-user); the
+// read/mutate endpoints below are token-REQUIRED. All four are rate-limited.
 const router = Router();
+
+// 2026-08-11: Shortcut-token auth for the offer read/mutate endpoints below.
+// The Shortcut already sends this token for /analyze-offer; the same token is
+// the identity for history/override/cleanup. device_id is NOT a credential —
+// it was the only "ownership" scope here before, which let anyone read or
+// delete any device's offers (multi-user scoping sweep, Phase A finding 2).
+async function requireShortcutUser(req, res, next) {
+  const token = req.get('x-shortcut-token') || req.body?.shortcut_token || req.query?.shortcut_token || null;
+  if (!token) {
+    return res.status(401).json({ error: 'shortcut_token required (header x-shortcut-token or shortcut_token field)' });
+  }
+  try {
+    const { userId } = await resolveRuleset(token);
+    if (!userId) {
+      return res.status(401).json({ error: 'invalid shortcut token' });
+    }
+    req.shortcutUserId = userId;
+    next();
+  } catch (err) {
+    console.error('[HOOKS] shortcut token resolution failed:', err.message);
+    res.status(500).json({ error: 'token_resolution_failed' });
+  }
+}
 
 // 2026-04-16: Build TTS-friendly voice line for Siri Shortcuts "Speak Text" action.
 // Composes: "<Decision>. <perMileSpoken>, <N> mile(s)[, <qualifier>]."
@@ -71,10 +99,14 @@ function buildVoiceLine(decision, perMile, totalMiles, reason) {
   const milesRounded = Math.round(totalMiles);
   const milesPhrase = `${milesRounded} mile${milesRounded === 1 ? '' : 's'}`;
 
-  // Map terse Phase-1 reason tokens → spoken qualifier phrases
+  // Map terse Phase-1 reason tokens → spoken qualifier phrases.
+  // Order matters (first match wins): 'too far' before 'time', 'fallback' before 'low'.
   const qualifierMap = [
     ['too far', 'too far'],
     ['rating', 'low rider rating'],
+    ['fallback', 'fallback accept'],
+    ['pickup', 'long pickup'],
+    ['over time', 'too long'],
     ['floor', 'below floor'],
     ['low', 'rate too low'],
   ];
@@ -93,15 +125,21 @@ function buildVoiceLine(decision, perMile, totalMiles, reason) {
 // Premium appends " prem" to every kind except "rating" (matches legacy fallback).
 function terseReason(reasonKind, perMile, totalMiles, tier) {
   const base = `$${perMile.toFixed(2)} ${totalMiles}mi`;
-  const tag = tier === 'premium' ? ' prem' : '';
+  const tag = tier === 'premium' ? ' prem'
+    : tier === 'comfort' ? ' comf'
+    : tier === 'xl' ? ' xl'
+    : '';
   switch (reasonKind) {
-    case 'accept':    return `${base}${tag}`;
-    case 'floor':     return `${base} floor${tag}`;
-    case 'min_floor': return `${base} min${tag}`;
-    case 'too_far':   return `${base} too far${tag}`;
-    case 'rating':    return `${base} rating`;
+    case 'accept':          return `${base}${tag}`;
+    case 'accept_fallback': return `${base} fallback${tag}`;   // v3 ARP (spec: ACCEPT (FALLBACK))
+    case 'floor':           return `${base} floor${tag}`;
+    case 'min_floor':       return `${base} min${tag}`;
+    case 'pickup':          return `${base} pickup${tag}`;     // v3 pickup limits
+    case 'time_limit':      return `${base} over time${tag}`;  // v3 total-time limit
+    case 'too_far':         return `${base} too far${tag}`;
+    case 'rating':          return `${base} rating`;
     case 'low':
-    default:          return `${base} low${tag}`;
+    default:                return `${base} low${tag}`;
   }
 }
 
@@ -118,65 +156,11 @@ const upload = multer({
 // inline PHASE1_PROMPTS (proven in tests/offers/rules-engine-parity.test.js), so the
 // live Siri path is unchanged until a per-user ruleset is loaded.
 
-// 2026-02-28: Phase 2 deep prompt — full reasoning for DB enrichment.
-// Runs async after Siri response is sent. No time pressure.
-// 2026-04-18: Converted const → builder function. Previously this const baked in
-// "Frisco, TX" home base + DFW-specific rejection zones ("west of DFW Airport,
-// Fort Worth, Denton outskirts, Anna"), which anchored the LLM's offer analysis
-// to Frisco for every driver regardless of actual location. Rule 8 was actively
-// wrong for any non-DFW user (and explicitly violated the "never code location
-// into code" project rule). The builder now describes deadhead/rural zones in
-// generic terms and relies on the driver's GPS (injected via locationContext at
-// the call site) plus optional city/state passed via the `location` arg.
-function buildPhase2SystemPrompt(location) {
-  const homeLine = location?.city && location?.state
-    ? `The driver's current location is ${location.city}, ${location.state} (see GPS below).`
-    : `The driver's GPS is provided below.`;
-  return `You are a rideshare offer analyst. ${homeLine}
-Provide DEEP analysis. Return ONLY valid JSON.
-
-{
-  "parsed_data": {
-    "price": number, "miles": number, "pickup_minutes": number, "ride_minutes": number,
-    "pickup": "street/intersection", "dropoff": "street/intersection",
-    "platform": "uber"|"lyft"|"unknown", "surge": number|null, "per_mile": number,
-    "rider_rating": number|null, "product_type": string|null
-  },
-  "decision": "ACCEPT"|"REJECT",
-  "reasoning": "2-3 sentences: location quality, return-trip viability, economic assessment",
-  "confidence": 0-100,
-  "location_analysis": {
-    "dropoff_zone": "core"|"deadhead"|"fringe",
-    "return_difficulty": "easy"|"moderate"|"hard",
-    "area_demand": "high"|"medium"|"low"
-  }
-}
-
-RULES (tier-aware — check TIER tag below):
-STANDARD (UberX/Exclusive/Priority/Lyft):
-  1. $/mi >= $0.90 + under 20 min → ACCEPT.
-  2. $/mi >= $1.10 + under 25 min → ACCEPT.
-  3. $/mi >= $1.75 + under 30 min → ACCEPT.
-  4. $/mi >= $2.00 + 30-40 min → ACCEPT.
-  5. $/mi >= $2.00 + >40 min → ACCEPT.
-  6. Below $0.90/mi → REJECT always.
-PREMIUM (Comfort/VIP/Black/XL):
-  1. $/mi >= $1.10 + under 25 min → ACCEPT.
-  2. $/mi >= $1.40 + under 30 min → ACCEPT.
-  3. $/mi >= $1.75 + under 40 min → ACCEPT.
-  4. $/mi >= $2.00 + >40 min → ACCEPT.
-  5. Below $1.10/mi → REJECT always.
-SHARE: Always REJECT.
-GENERAL:
-  7. Rider rating < 4.85 → REJECT. Short rides with good $/mi = GOOD.
-  8. Rides to rural outskirts or areas with difficult return trips need >= $2.00/mi.
-     Use the driver's GPS (provided below) to judge what counts as deadhead/rural
-     RELATIVE to the driver's actual location — do NOT assume any specific metro.
-  9. Consider driver's CURRENT LOCATION when evaluating deadhead. If already near
-     dropoff area, deadhead is near-zero.
-
-Trust pre-parsed numbers if provided. Focus on ADDRESSES and DESTINATION QUALITY.`;
-}
+// 2026-07-03 (todo #10): the Phase-2 deep prompt now comes from the rules engine
+// (buildPhase2Prompt) — it renders the driver's ACTUAL ruleset, replacing the
+// hardcoded English ladder that lived here and drifted from Phase 1 by
+// construction the moment per-driver rules existed. The dead `location` param
+// (never passed at the call site) is gone with it.
 
 // POST /api/hooks/analyze-offer
 // Accepts THREE input modes:
@@ -186,7 +170,7 @@ Trust pre-parsed numbers if provided. Focus on ADDRESSES and DESTINATION QUALITY
 //      (2026-02-17: Fastest — Siri skips base64 encoding, server handles it in <1ms)
 //
 // Multipart detection: multer runs first. If no file uploaded, falls through to JSON body.
-router.post('/analyze-offer', upload.single('image'), async (req, res) => {
+router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (req, res) => {
   const startTime = Date.now();
 
   try {
@@ -212,6 +196,20 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       // JSON PATH — existing flow (base64 image or OCR text in JSON body)
       ({ text, image, image_type, device_id, latitude, longitude, source = 'siri_shortcut' } = req.body);
     }
+
+    // 2026-07-03: "lattitude" (double-t) alias — Melody's live Shortcut sent this
+    // misspelling and the mismatch silently dropped GPS to null for months
+    // (docs/architecture/SIRI_SHORTCUT_ANALYZE.md finding 1). Accept it loudly.
+    if (latitude == null && req.body.lattitude != null) {
+      latitude = parseFloat(req.body.lattitude);
+      console.warn('[HOOKS] Body field "lattitude" (misspelled) accepted as latitude — update the Shortcut key name');
+    }
+
+    // 2026-07-03 (todo #10): identity bridge — an unguessable per-user token
+    // resolves user_id + per-driver ruleset. Header preferred; form field
+    // accepted (Shortcuts dictionaries are easier to edit than headers).
+    // No/invalid token → DEFAULT_RULESET + null user_id (legacy behavior).
+    const shortcutToken = req.get('x-shortcut-token') || req.body.shortcut_token || null;
 
     if (!text && !image) {
       return res.status(400).json({ error: 'Missing text or image payload' });
@@ -251,8 +249,10 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       : 'Analyze this ride offer screenshot.';
 
     // 2026-02-16: Build images array for vision path (Siri Vision shortcut sends base64 screenshot)
+    // 2026-07-03: image is included whenever present — previously text+image
+    // requests dropped the screenshot. Spec Data Priority: use BOTH Vision and OCR.
     const images = [];
-    if (image && !text) {
+    if (image) {
       // Strip data URL prefix if present (Siri Shortcuts may send "data:image/jpeg;base64,...")
       let imageData = image;
       let mimeType = image_type || 'image/jpeg';
@@ -269,12 +269,25 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       console.log(`[HOOKS] Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})`);
     }
 
-    // 2026-03-29: Tier-aware prompt selection — share/standard/premium
-    const tier = classifyTier(preParsed?.product_type);
-    // 2026-06-20: rules come from the unified engine. DEFAULT_RULESET until the
-    // per-user ruleset bridge lands (then load the resolved user's ruleset here).
-    const ruleset = DEFAULT_RULESET;
-    const phase1SystemPrompt = buildPhase1Prompt(tier, ruleset);
+    // 2026-07-03 (todo #10): the per-user ruleset bridge. Token → user + rules;
+    // no token → DEFAULT_RULESET (zero change for un-migrated devices). The
+    // store fail-opens loudly and caches 15s, so this read is hot-path safe
+    // (measured Phase-1 p50 is 5.3s; this is ~10ms once per burst).
+    const { ruleset, userId, version: rulesetVersion, hash: rulesetHash } = await resolveRuleset(shortcutToken);
+    if (userId) console.log(`[HOOKS] Ruleset resolved: user=${userId} v${rulesetVersion ?? 'default'}`);
+
+    // 2026-03-29: Tier-aware prompt selection — share/standard/premium (+ v3 comfort/xl)
+    // 2026-07-03: share.auto_reject wired — explicitly false routes share offers
+    // through standard rules instead of the short-circuit (engine self-remaps too).
+    let tier = classifyTier(preParsed?.product_type, ruleset);
+    if (tier === 'share' && ruleset.share?.auto_reject === false) tier = 'standard';
+    // Vision-only requests can't classify tier before the model looks at the
+    // screenshot, so they get the multi-tier vision prompt (the model identifies
+    // the product and applies that tier's rules). Text requests keep the exact
+    // per-tier prompt (byte-pinned at defaults).
+    const phase1SystemPrompt = text
+      ? buildPhase1Prompt(tier, ruleset)
+      : buildPhase1VisionPrompt(ruleset);
 
     // Share = instant reject, skip AI call entirely
     if (tier === 'share') {
@@ -294,61 +307,92 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       });
     }
 
-    // Phase 1 AI call — OFFER_ANALYZER (Flash) for speed
+    // Phase 1 AI call — OFFER_ANALYZER (Flash) for speed.
+    // 2026-07-03: wrapped in a 20s race (the Shortcut gives up at ~30s; the SDK
+    // has no built-in timeout) and made failure-proof — a model failure or
+    // timeout now falls through to the deterministic engine instead of a 500.
+    // The rules always answer; NO DATA is the honest floor when nothing parsed.
     console.log(`[HOOKS] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash) [${tier}]${images.length ? ' [vision]' : ''}...`);
-    const phase1Response = await callModel('OFFER_ANALYZER', {
-      system: phase1SystemPrompt,
-      user: phase1UserMessage,
-      images,
-    });
-
-    if (!phase1Response.success) {
-      throw new Error(`Phase 1 AI analysis failed: ${phase1Response.error}`);
+    const PHASE1_TIMEOUT_MS = 20000;
+    let phase1Response = null;
+    try {
+      phase1Response = await Promise.race([
+        callModel('OFFER_ANALYZER', {
+          system: phase1SystemPrompt,
+          user: phase1UserMessage,
+          images,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Phase 1 timed out after ${PHASE1_TIMEOUT_MS / 1000}s`)), PHASE1_TIMEOUT_MS)
+        ),
+      ]);
+    } catch (aiErr) {
+      console.warn(`[HOOKS] Phase 1 model call failed (${aiErr.message}) — deterministic fallback`);
     }
+    if (phase1Response && !phase1Response.success) {
+      console.warn(`[HOOKS] Phase 1 AI analysis failed (${phase1Response.error}) — deterministic fallback`);
+    }
+
+    // Tier 3 of the extraction ladder AND the answer of last resort: the
+    // deterministic rule engine over the regex pre-parse. Decision-parity with
+    // the legacy ladder is proven in tests/offers/rules-engine-parity.test.js.
+    const deterministicPhase1 = () => {
+      const fb = evaluateDeterministic(tier, preParsed || {}, ruleset);
+      if (fb.decision === 'NO DATA') {
+        // No usable per_mile — "no data", not "REJECT" (reserved for rule-evaluated offers).
+        return { decision: 'NO DATA', reason: 'no data', confidence: 0 };
+      }
+      const totalMi = preParsed.total_miles?.toFixed(1) ?? '?';
+      const result = {
+        decision: fb.decision,
+        reason: terseReason(fb.reasonKind, preParsed.per_mile, totalMi, tier),
+        confidence: 80,
+        ...(fb.fallback ? { fallback: true } : {}),
+        ...preParsed,
+      };
+      console.log(`[HOOKS] 🔧 Deterministic fallback: ${fb.decision} — ${result.reason}`);
+      return result;
+    };
 
     // 2026-03-02: Robust JSON extraction — two-tier approach
     // Tier 1: Direct parse (clean JSON from adapter)
     // Tier 2: Extract first JSON object from prose (Gemini sometimes adds preamble)
     let phase1Result;
-    try {
-      const cleaned = phase1Response.text
-        .replace(/```json/g, '').replace(/```/g, '').trim();
+    if (!phase1Response?.success) {
+      phase1Result = deterministicPhase1();
+    } else {
       try {
-        const raw = JSON.parse(cleaned);
-        phase1Result = raw.parsed_data || raw;
-      } catch {
-        const firstBrace = cleaned.indexOf('{');
-        const lastBrace = cleaned.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-          const extracted = cleaned.slice(firstBrace, lastBrace + 1);
-          const raw = JSON.parse(extracted);
+        const cleaned = phase1Response.text
+          .replace(/```json/g, '').replace(/```/g, '').trim();
+        try {
+          const raw = JSON.parse(cleaned);
           phase1Result = raw.parsed_data || raw;
-          console.log(`[HOOKS] Extracted JSON from preamble (${firstBrace} chars stripped)`);
-        } else {
-          throw new Error('No JSON object found in response');
+        } catch {
+          const firstBrace = cleaned.indexOf('{');
+          const lastBrace = cleaned.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace > firstBrace) {
+            const extracted = cleaned.slice(firstBrace, lastBrace + 1);
+            const raw = JSON.parse(extracted);
+            phase1Result = raw.parsed_data || raw;
+            console.log(`[HOOKS] Extracted JSON from preamble (${firstBrace} chars stripped)`);
+          } else {
+            throw new Error('No JSON object found in response');
+          }
         }
-      }
-    } catch (_parseErr) {
-      console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
-      // Tier 3: Deterministic rule engine (server/lib/offers/rules-engine.js).
-      // 2026-06-20: Replaced the inline tier ladder with evaluateDeterministic so the
-      // fallback and the Phase-1 prompt share ONE rule source. Decision-parity with
-      // the legacy ladder is proven in tests/offers/rules-engine-parity.test.js.
-      const fb = evaluateDeterministic(tier, preParsed || {}, ruleset);
-      if (fb.decision === 'NO DATA') {
-        // No usable per_mile — "no data", not "REJECT" (reserved for rule-evaluated offers).
-        phase1Result = { decision: 'NO DATA', reason: 'no data', confidence: 0 };
-      } else {
-        const totalMi = preParsed.total_miles?.toFixed(1) ?? '?';
-        phase1Result = {
-          decision: fb.decision,
-          reason: terseReason(fb.reasonKind, preParsed.per_mile, totalMi, tier),
-          confidence: 80,
-          ...preParsed,
-        };
-        console.log(`[HOOKS] 🔧 Deterministic fallback: ${fb.decision} — ${phase1Result.reason}`);
+      } catch (_parseErr) {
+        console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
+        phase1Result = deterministicPhase1();
       }
     }
+
+    // Vision path: the model identified the product (multi-tier prompt) — refine
+    // the tier for the terse tags, Phase-2 context, and stored product_type.
+    if (!phase1Result.product_type && typeof phase1Result.product === 'string' && phase1Result.product) {
+      phase1Result.product_type = phase1Result.product;
+    }
+    const effectiveTier = (!text && phase1Result.product_type)
+      ? classifyTier(phase1Result.product_type, ruleset)
+      : tier;
 
     // Extract decision fields from normalized result
     const decision = phase1Result.decision || 'REJECT';
@@ -361,14 +405,37 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
     // 2026-03-29: Terse notification for 3s trip radar / 9s regular offers.
     // Format: "ACCEPT: $1.14 8.2mi core" or "REJECT: $0.78 14.0mi too far"
     // Server builds from pre-parsed data when AI reason is missing/verbose.
-    const perMileValue = preParsed?.per_mile ?? phase1Result.per_mile ?? null;
-    const totalMi = preParsed?.total_miles ?? phase1Result.total_miles ?? null;
-    const terseReason = reason || (perMileValue !== null && totalMi !== null
+    // 2026-07-03: coerce model-sourced numerics — vision JSON can carry numbers
+    // as strings ("1.14"), and .toFixed on a string threw a TypeError → 500,
+    // violating the always-answer contract (adversarial review finding).
+    const toNum = (v) => {
+      const n = typeof v === 'string' ? parseFloat(v) : v;
+      return Number.isFinite(n) ? n : null;
+    };
+    const perMileValue = toNum(preParsed?.per_mile ?? phase1Result.per_mile);
+    const totalMi = toNum(preParsed?.total_miles ?? phase1Result.total_miles);
+    // 2026-07-03: renamed from `terseReason` — that const shadowed the module-level
+    // terseReason() FUNCTION across this whole handler scope (temporal dead zone),
+    // so the deterministic fallback crashed with a ReferenceError → 500 to Siri
+    // exactly when it was needed. Confirmed live bug (ground-truth sweep 2026-07-03).
+    const terseReasonText = reason || (perMileValue !== null && totalMi !== null
       ? `$${perMileValue.toFixed(2)} ${totalMi.toFixed(1)}mi`
       : '');
-    const notification = terseReason
-      ? `${decision}: ${terseReason}`
-      : decision;
+
+    // v3: ACCEPT (FALLBACK) label (spec: Acceptance Rate Protection) + observed
+    // notices ("Verified Rider" / "Filter Detected" / "Deadhead Reduction Pickup").
+    // The `decision` FIELD stays plain ACCEPT/REJECT/NO DATA — only display strings change.
+    const isFallbackAccept = decision === 'ACCEPT' && phase1Result.fallback === true;
+    const decisionLabel = isFallbackAccept ? 'ACCEPT (FALLBACK)' : decision;
+    const noticesArr = Array.isArray(phase1Result.notices)
+      ? phase1Result.notices.filter((n) => typeof n === 'string' && n.length <= 40).slice(0, 4)
+      : [];
+    const notificationBase = terseReasonText
+      ? `${decisionLabel}: ${terseReasonText}`
+      : decisionLabel;
+    const notification = noticesArr.length
+      ? `${notificationBase} | ${noticesArr.join(' | ')}`
+      : notificationBase;
 
     // ══════════════════════════════════════════════════════════════
     // RESPOND TO SIRI — driver is waiting, every ms counts
@@ -376,7 +443,7 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
     // 2026-04-16: TTS line for Siri "Speak Text" — composes decision + spoken $/mi
     // + miles + optional reason qualifier. Uses formatPerMileForVoice() for the dollar
     // amount and falls back to a bare decision word when pre-parse data is unavailable.
-    const voice = buildVoiceLine(decision, perMileValue, totalMi, terseReason);
+    const voice = buildVoiceLine(decision, perMileValue, totalMi, terseReasonText);
 
     res.json({
       success: true,
@@ -385,16 +452,15 @@ router.post('/analyze-offer', upload.single('image'), async (req, res) => {
       decision,
       response_time_ms: responseTimeMs,
       // 2026-04-15: Phase-1 reason exposed independently from notification.
-      // Sourced from terseReason (already computed above from phase1Result.reason
-      // / phase1Result.reasoning / pre-parsed fallback) — same value embedded after
-      // the colon in `notification`, but available standalone for Siri Shortcuts
-      // that want to speak the decision + display the reason separately.
-      // For the no-data path, phase1Result.reason is set to 'no data' at line ~351
-      // and flows through here unchanged.
-      reason: terseReason || '',
+      // Same value embedded after the colon in `notification`, but available
+      // standalone for Siri Shortcuts that speak decision + display reason
+      // separately. For the no-data path this is 'no data'.
+      reason: terseReasonText || '',
+      // v3: observed notices (empty unless the driver enabled them in their rules).
+      notices: noticesArr,
     });
 
-    console.log(`[HOOKS] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi [${tier}]`);
+    console.log(`[HOOKS] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi [${effectiveTier}]`);
 
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2 — ASYNC: Deep Pro 3.1 analysis for DB enrichment
@@ -422,9 +488,11 @@ PRE-PARSED DATA (server-verified):
   Surge: ${preParsed.surge !== null ? `$${preParsed.surge}` : 'none'}` : '';
 
         // 2026-03-29: Inject tier so Phase 2 applies correct rule set
-        const tierContext = `\nTIER: ${tier.toUpperCase()} (${preParsed?.product_type || 'unknown'}). Apply ${tier} rules above.`;
-        // 2026-04-18: Use builder function (not const) to avoid hardcoded Frisco/DFW anchoring.
-        const phase2System = buildPhase2SystemPrompt() + locationContext + tierContext + preParseBlock;
+        const tierContext = `\nTIER: ${effectiveTier.toUpperCase()} (${phase1Result.product_type || preParsed?.product_type || 'unknown'}). Apply ${effectiveTier} rules above.`;
+        // 2026-07-03: Phase-2 prompt rendered from the SAME ruleset as Phase 1
+        // (rules-engine.buildPhase2Prompt) — per-driver rules govern the stored
+        // reasoning too, not just what Siri speaks.
+        const phase2System = buildPhase2Prompt(ruleset) + locationContext + tierContext + preParseBlock;
 
         const phase2UserMessage = text
           ? `Offer text: "${text}"`
@@ -440,7 +508,10 @@ PRE-PARSED DATA (server-verified):
         let deepResult = null;
         // 2026-06-11: derive from the model callModel ACTUALLY resolved (captures a Phase-1 503→flash
         // fallback too) instead of a hardcoded literal that silently lies after a fleet migration.
-        let aiModelUsed = phase1Response.model || 'gemini-3.5-flash'; // Phase 1 model (used if Phase 2 fails)
+        // 2026-07-03: when the model never answered (timeout/failure), the deterministic
+        // engine decided — record that honestly instead of naming a model that didn't run.
+        let aiModelUsed = phase1Response?.model
+          || (phase1Response?.success ? 'gemini-3.5-flash' : 'rules-engine-deterministic');
         let phase2RawText = null;
 
         try {
@@ -468,10 +539,18 @@ PRE-PARSED DATA (server-verified):
           console.warn(`[HOOKS] Phase 2 error: ${phase2Err.message} — falling back to Phase 1 result`);
         }
 
-        // Use deep result if available, otherwise fall back to Phase 1
+        // Use deep result for EXTRACTION, but the stored decision is what Siri
+        // SPOKE (Phase 1 under the driver's rules). 2026-07-03: previously
+        // deepResult.decision silently replaced it — the e2e run caught Phase 2
+        // overriding a spoken time-limit REJECT with ACCEPT, which would make the
+        // outcomes card show a recommendation that never happened. Deep dissent
+        // is preserved as data (deep_decision + prefixed reasoning), not history.
         const dbParsedData = deepResult?.parsed_data || phase1Result;
-        const dbDecision = deepResult?.decision || decision;
-        const dbReasoning = deepResult?.reasoning || reason;
+        const dbDecision = decision;
+        const deepDisagrees = deepResult?.decision != null && deepResult.decision !== decision;
+        const dbReasoning = deepResult?.reasoning
+          ? (deepDisagrees ? `[deep model dissents: ${deepResult.decision}] ${deepResult.reasoning}` : deepResult.reasoning)
+          : reason;
         const dbConfidence = deepResult?.confidence ?? confidence; // ?? not || — a legit model confidence of 0 must survive
         const locationAnalysis = deepResult?.location_analysis || null;
 
@@ -482,6 +561,9 @@ PRE-PARSED DATA (server-verified):
           per_mile: preParsed?.per_mile ?? dbParsedData?.per_mile,
           per_minute: preParsed?.per_minute ?? dbParsedData?.per_minute,
           location_analysis: locationAnalysis,
+          // Phase-2's independent verdict — training signal, never the record.
+          deep_decision: deepResult?.decision ?? null,
+          deep_disagrees: deepDisagrees,
         };
 
         // 2026-02-17: Compute geographic columns
@@ -489,44 +571,76 @@ PRE-PARSED DATA (server-verified):
         const h3Index = (lat && lng) ? latLngToCell(lat, lng, 8) : null;
 
         // 2026-04-16: FIX — temporal columns must reflect driver's local time, not UTC.
-        // getUTCHours() returned server UTC, corrupting local_hour/day_of_week/is_weekend
-        // for time-of-day analytics and the idx_oi_weekend_hour index.
-        // Resolution order: coord-based Google Timezone API (always available on Siri path).
+        // 2026-07-06 (Melody): timezone resolution order, NO NULLS, NO FALLBACKS:
+        //   1. Offer's own GPS coords → Google Timezone API (freshest truth)
+        //   2. The driver's current SNAPSHOT row — the canonical GPS-resolved
+        //      session context that rides the waterfall ("once it is done, the
+        //      snapshot row is sent with all calls after in the waterfall")
+        // If neither source exists the row is NOT stored (we're post-response
+        // here, fire-and-forget) — an offer_intelligence row with absent/wrong
+        // time data poisons time-of-day analytics (Indiana incident).
+        // All derivation goes through the shared/dayparts.js adapter (h23-safe).
         let driverTimezone = null;
         if (lat && lng) {
           try {
             driverTimezone = await resolveTimezoneFromCoords(lat, lng);
           } catch (tzErr) {
-            console.warn(`[HOOKS] Timezone resolution failed (${tzErr.message}) — falling back to UTC`);
+            console.warn(`[HOOKS] Coord timezone resolution failed (${tzErr.message}) — trying snapshot row`);
           }
+        }
+        if (!driverTimezone && userId) {
+          const snapTz = await db.execute(sql`
+            SELECT s.timezone
+            FROM users u
+            JOIN snapshots s ON s.snapshot_id = u.current_snapshot_id
+            WHERE u.user_id = ${userId}
+            LIMIT 1`);
+          const tz = snapTz.rows?.[0]?.timezone;
+          if (tz) {
+            driverTimezone = tz;
+            console.log('[HOOKS] Timezone from current snapshot row');
+          }
+        }
+        if (!driverTimezone) {
+          console.error(
+            `[HOOKS] ❌ No timezone derivable (coords: ${lat && lng ? 'present but API failed' : 'absent'}, ` +
+            `user: ${userId ? 'tokened but no session snapshot' : 'un-tokened device'}) — offer NOT stored. ` +
+            'No fallbacks: a row without real local-time context is bad waterfall data.'
+          );
+          return; // fire-and-forget scope — refuse the INSERT; the decision was already delivered
         }
 
         const now = new Date();
-        // With timezone: derive local hour/day via Intl (exact). Without: UTC fallback (legacy behavior).
-        const localHour = driverTimezone
-          ? parseInt(new Intl.DateTimeFormat('en-US', { timeZone: driverTimezone, hour: 'numeric', hour12: false }).format(now), 10)
-          : now.getUTCHours();
-        const dayOfWeek = driverTimezone
-          ? new Date(now.toLocaleDateString('en-CA', { timeZone: driverTimezone })).getDay()
-          : now.getUTCDay();
+        const localHour = getLocalHour(now, driverTimezone);
+        const dayOfWeek = getLocalDow(now, driverTimezone);
         const dayPart = getDayPartKey(localHour);
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        const localDate = driverTimezone
-          ? now.toLocaleDateString('en-CA', { timeZone: driverTimezone })
-          : now.toISOString().split('T')[0];
+        const localDate = getLocalDateString(now, driverTimezone);
 
-        // 2026-02-17: Session tracking — group offers within 30-min windows
+        // 2026-02-17: Session tracking — group offers within 30-min windows.
+        // 2026-08-11: chain by user_id when tokened (a driver may switch
+        // phones), by device_id only for a REAL untokened device. Untokened
+        // AND deviceless requests get a fresh session — previously they all
+        // shared the literal 'anonymous_device' bucket, stitching different
+        // drivers into one sequence and poisoning seconds_since_last.
         let offerSessionId = crypto.randomUUID();
         let offerSequenceNum = 1;
         let secondsSinceLast = null;
 
         try {
-          const lastOfferResult = await db.execute(
-            sql`SELECT offer_session_id, offer_sequence_num, created_at
-                FROM offer_intelligence
-                WHERE device_id = ${deviceId}
-                ORDER BY created_at DESC LIMIT 1`
-          );
+          const lastOfferResult = userId
+            ? await db.execute(
+                sql`SELECT offer_session_id, offer_sequence_num, created_at
+                    FROM offer_intelligence
+                    WHERE user_id = ${userId}
+                    ORDER BY created_at DESC LIMIT 1`)
+            : device_id
+              ? await db.execute(
+                  sql`SELECT offer_session_id, offer_sequence_num, created_at
+                      FROM offer_intelligence
+                      WHERE device_id = ${deviceId} AND user_id IS NULL
+                      ORDER BY created_at DESC LIMIT 1`)
+              : { rows: [] };
           const lastOffer = lastOfferResult.rows?.[0];
           if (lastOffer) {
             secondsSinceLast = Math.round((Date.now() - new Date(lastOffer.created_at).getTime()) / 1000);
@@ -541,22 +655,34 @@ PRE-PARSED DATA (server-verified):
 
         // 2026-02-28: INSERT with Phase 2 deep data (or Phase 1 fallback)
         // ai_model records which model actually provided the stored analysis
-        await db.insert(offer_intelligence).values({
+        const inserted = await db.insert(offer_intelligence).values({
           device_id: deviceId,
+          // 2026-07-03 (todo #10): identity + rules provenance. NULL user_id =
+          // un-tokened legacy device; NULL ruleset_hash = defaults were applied.
+          user_id: userId,
+          ruleset_version: rulesetVersion,
+          ruleset_hash: rulesetHash,
 
-          // Offer metrics — prefer server pre-parsed (regex) over AI-parsed (LLM math)
-          price: preParsed?.price ?? dbParsedData?.price ?? null,
+          // Offer metrics — prefer server pre-parsed (regex) over AI-parsed (LLM math).
+          // 2026-07-03: vision-only requests have NO pre-parse, so every metric now
+          // falls back to the vision extraction (Phase-2 deep, then Phase-1) —
+          // previously total_minutes/pickup_miles/ride_miles stored NULL for the
+          // exact modality that is becoming primary.
+          price: toNum(preParsed?.price ?? dbParsedData?.price),
           per_mile: perMileValue,
-          per_minute: preParsed?.per_minute ?? dbParsedData?.per_minute ?? null,
-          hourly_rate: preParsed?.hourly_rate ?? null,
-          surge: preParsed?.surge ?? dbParsedData?.surge ?? null,
-          advantage_pct: preParsed?.advantage_pct ?? null,
-          pickup_minutes: preParsed?.pickup_minutes ?? dbParsedData?.pickup_minutes ?? null,
-          pickup_miles: preParsed?.pickup_miles ?? null,
-          ride_minutes: preParsed?.ride_minutes ?? dbParsedData?.ride_minutes ?? null,
-          ride_miles: preParsed?.ride_miles ?? null,
-          total_miles: preParsed?.total_miles ?? dbParsedData?.miles ?? null,
-          total_minutes: preParsed?.total_minutes ?? null,
+          per_minute: toNum(preParsed?.per_minute ?? dbParsedData?.per_minute ?? phase1Result?.per_minute),
+          hourly_rate: toNum(preParsed?.hourly_rate),
+          surge: toNum(preParsed?.surge ?? dbParsedData?.surge),
+          advantage_pct: toNum(preParsed?.advantage_pct),
+          pickup_minutes: toNum(preParsed?.pickup_minutes ?? dbParsedData?.pickup_minutes ?? phase1Result?.pickup_minutes),
+          pickup_miles: toNum(preParsed?.pickup_miles ?? dbParsedData?.pickup_miles ?? phase1Result?.pickup_miles),
+          ride_minutes: toNum(preParsed?.ride_minutes ?? dbParsedData?.ride_minutes),
+          ride_miles: toNum(preParsed?.ride_miles ?? dbParsedData?.ride_miles),
+          total_miles: toNum(preParsed?.total_miles ?? dbParsedData?.miles ?? phase1Result?.total_miles),
+          total_minutes: toNum(preParsed?.total_minutes ?? phase1Result?.total_minutes)
+            ?? ((toNum(dbParsedData?.pickup_minutes) != null && toNum(dbParsedData?.ride_minutes) != null)
+              ? toNum(dbParsedData.pickup_minutes) + toNum(dbParsedData.ride_minutes)
+              : null),
           product_type: preParsed?.product_type ?? dbParsedData?.product_type ?? null,
           platform,
 
@@ -598,15 +724,18 @@ PRE-PARSED DATA (server-verified):
 
           // Raw data preservation
           raw_text: text || `[Vision: ${Math.round((image?.length || 0) / 1024)}KB image]`,
-          raw_ai_response: phase2RawText || phase1Response.text || null,
+          raw_ai_response: phase2RawText || phase1Response?.text || null,
           parsed_data_json: mergedParsedData,
-        });
+        }).returning({ id: offer_intelligence.id });
+        const insertedId = inserted?.[0]?.id ?? null;
 
         console.log(`[HOOKS] Saved: ${dbDecision} (Phase1: ${responseTimeMs}ms, Phase2: ${Date.now() - phase2Start}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [ai_model: ${aiModelUsed}]`);
 
         // SSE broadcast for web app
         const notifyPayload = JSON.stringify({
           device_id: deviceId,
+          user_id: userId,
+          offer_id: insertedId,
           decision: dbDecision,
           reasoning: dbReasoning,
           price: dbParsedData?.price,
@@ -616,6 +745,57 @@ PRE-PARSED DATA (server-verified):
           ai_model: aiModelUsed,
         });
         await db.execute(sql`SELECT pg_notify('offer_analyzed', ${notifyPayload})`);
+
+        // 2026-07-03 (todo #10): the pings/patterns dataset. Geocode the extracted
+        // pickup/dropoff addresses (place_id + 6-decimal coords — the columns and
+        // idx_oi_need_geocode index have waited for this since 2026-02), then run
+        // the deterministic geography audit against the driver's avoid rules.
+        // Non-fatal by design: the offer row is already saved; a geocode failure
+        // must never delete data (fail loud in the log, not in the pipeline).
+        if (insertedId && (dbParsedData?.pickup || dbParsedData?.dropoff)) {
+          try {
+            const round6 = (n) => Math.round(n * 1000000) / 1000000;
+            const [puGeo, drGeo] = await Promise.all([
+              dbParsedData?.pickup ? geocodeEventAddress(dbParsedData.pickup) : null,
+              dbParsedData?.dropoff ? geocodeEventAddress(dbParsedData.dropoff) : null,
+            ]);
+            if (puGeo || drGeo) {
+              const pickupPt = puGeo ? { lat: round6(puGeo.lat), lng: round6(puGeo.lng) } : null;
+              const dropPt = drGeo ? { lat: round6(drGeo.lat), lng: round6(drGeo.lng) } : null;
+
+              // Vision said its piece in Phase 1; geometry gets the audit row.
+              // Disagreements between the two are exactly the training signal.
+              const geoAudit = (ruleset.avoid || []).length
+                ? evaluateGeoRules(ruleset, { pickup: pickupPt, dropoff: dropPt })
+                : null;
+              const geoViolated = geoAudit?.some((r) => r.result === 'violated') ?? false;
+              const auditJson = JSON.stringify({
+                geo_audit: geoAudit,
+                geo_violated: geoViolated,
+                geo_disagreement: geoAudit ? (geoViolated && dbDecision === 'ACCEPT') : null,
+                pickup_place_id: puGeo?.place_id ?? null,
+                dropoff_place_id: drGeo?.place_id ?? null,
+              });
+
+              await db.execute(sql`
+                UPDATE offer_intelligence SET
+                  pickup_lat = ${pickupPt?.lat ?? null},
+                  pickup_lng = ${pickupPt?.lng ?? null},
+                  dropoff_lat = ${dropPt?.lat ?? null},
+                  dropoff_lng = ${dropPt?.lng ?? null},
+                  geocoded_at = NOW(),
+                  parsed_data_json = COALESCE(parsed_data_json, '{}'::jsonb) || ${auditJson}::jsonb,
+                  updated_at = NOW()
+                WHERE id = ${insertedId}
+              `);
+              console.log(`[HOOKS] 📍 Geocoded offer ${insertedId}: pickup=${!!puGeo} dropoff=${!!drGeo}${geoAudit ? ` geo_violated=${geoViolated}` : ''}`);
+            } else {
+              console.warn(`[HOOKS] Geocoding returned nothing for offer ${insertedId} (pickup="${dbParsedData?.pickup || ''}", dropoff="${dbParsedData?.dropoff || ''}")`);
+            }
+          } catch (geoErr) {
+            console.error(`[HOOKS] Offer geocode/audit failed (non-fatal): ${geoErr.message}`);
+          }
+        }
       } catch (err) {
         console.error(`[HOOKS] Phase 2 background error: ${err.message}`);
       }
@@ -640,16 +820,10 @@ PRE-PARSED DATA (server-verified):
 });
 
 // GET /api/hooks/offer-history
-// Returns recent offer analyses for a device — no auth required (device_id based)
-// 2026-02-17: Updated to use offer_intelligence with structured columns
-router.get('/offer-history', async (req, res) => {
+// Recent offer analyses for the tokened driver (user-scoped since 2026-08-11)
+router.get('/offer-history', offerHookLimiter, requireShortcutUser, async (req, res) => {
   try {
-    const { device_id, limit = 20 } = req.query;
-
-    if (!device_id) {
-      return res.status(400).json({ error: 'Missing device_id query parameter' });
-    }
-
+    const { limit = 20 } = req.query;
     const maxLimit = Math.min(parseInt(limit, 10) || 20, 100);
 
     const history = await db
@@ -683,15 +857,22 @@ router.get('/offer-history', async (req, res) => {
         created_at: offer_intelligence.created_at,
       })
       .from(offer_intelligence)
-      .where(sql`device_id = ${device_id}`)
+      .where(sql`user_id = ${req.shortcutUserId}`)
       .orderBy(sql`created_at DESC`)
       .limit(maxLimit);
 
-    // 2026-02-15: Compute aggregate stats for algorithm learning
+    // 2026-02-15: Compute aggregate stats for algorithm learning.
+    // 2026-07-03: `accepted`/`rejected` count the ANALYZER's decisions, not the
+    // driver's actions (the §0 conflation bug in the editor plan doc). The keys
+    // stay for backward compatibility; analyzer_* aliases make the meaning
+    // explicit, and driver-actual outcomes live in /api/offer-analyzer/offers.
     const stats = {
       total: history.length,
       accepted: history.filter(h => h.decision === 'ACCEPT').length,
       rejected: history.filter(h => h.decision === 'REJECT').length,
+      analyzer_accepted: history.filter(h => h.decision === 'ACCEPT').length,
+      analyzer_rejected: history.filter(h => h.decision === 'REJECT').length,
+      no_data: history.filter(h => h.decision === 'NO DATA').length,
       avg_response_ms: history.length > 0
         ? Math.round(history.reduce((sum, h) => sum + (h.response_time_ms || 0), 0) / history.length)
         : 0,
@@ -702,7 +883,6 @@ router.get('/offer-history', async (req, res) => {
 
     res.json({
       success: true,
-      device_id,
       stats,
       offers: history,
     });
@@ -715,25 +895,24 @@ router.get('/offer-history', async (req, res) => {
 
 // POST /api/hooks/offer-override
 // Driver disagreed with AI decision — record the override for training data
-// 2026-02-17: Updated to use offer_intelligence table
-router.post('/offer-override', async (req, res) => {
+// (user-scoped since 2026-08-11: only the owning driver can override)
+router.post('/offer-override', offerHookLimiter, requireShortcutUser, async (req, res) => {
   try {
-    const { id, user_override, device_id } = req.body;
+    const { id, user_override } = req.body;
 
     if (!id || !user_override || !['ACCEPT', 'REJECT'].includes(user_override)) {
       return res.status(400).json({ error: 'Missing id or valid user_override (ACCEPT/REJECT)' });
     }
 
-    // 2026-02-15: Only allow the same device to override its own analyses
     const updated = await db.execute(
       sql`UPDATE offer_intelligence
           SET user_override = ${user_override}, updated_at = NOW()
-          WHERE id = ${id} AND device_id = ${device_id}
+          WHERE id = ${id} AND user_id = ${req.shortcutUserId}
           RETURNING id, decision, user_override`
     );
 
     if (updated.rows?.length === 0) {
-      return res.status(404).json({ error: 'Offer not found or device mismatch' });
+      return res.status(404).json({ error: 'Offer not found or not owned by this driver' });
     }
 
     const record = updated.rows[0];
@@ -753,16 +932,10 @@ router.post('/offer-override', async (req, res) => {
 
 // POST /api/hooks/offer-cleanup
 // Batch delete test/duplicate entries from offer_intelligence
-// 2026-02-17: Updated to use offer_intelligence table
-// 2026-03-17: SECURITY FIX (F-3) — Require device_id ownership scope.
-// Previously deleted arbitrary rows by id with no auth or ownership check.
-router.post('/offer-cleanup', async (req, res) => {
+// (user-scoped since 2026-08-11: a device_id is not a credential)
+router.post('/offer-cleanup', offerHookLimiter, requireShortcutUser, async (req, res) => {
   try {
-    const { ids, device_id } = req.body;
-
-    if (!device_id || typeof device_id !== 'string' || device_id.length > 128) {
-      return res.status(400).json({ error: 'Valid device_id required' });
-    }
+    const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'Missing ids array' });
@@ -773,7 +946,7 @@ router.post('/offer-cleanup', async (req, res) => {
     }
 
     const result = await db.execute(
-      sql`DELETE FROM offer_intelligence WHERE id = ANY(${ids}) AND device_id = ${device_id} RETURNING id`
+      sql`DELETE FROM offer_intelligence WHERE id = ANY(${ids}) AND user_id = ${req.shortcutUserId} RETURNING id`
     );
 
     console.log(`[hooks/offer-cleanup] 🗑️ Deleted ${result.rows?.length || 0} of ${ids.length} requested`);

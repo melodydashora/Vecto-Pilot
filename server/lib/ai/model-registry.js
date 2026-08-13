@@ -110,7 +110,12 @@ export const MODEL_ROLES = {
     envKey: 'BRIEFING_AIRPORT_MODEL',
     default: 'gemini-3.5-flash',
     purpose: 'Airport conditions and flight status',
-    maxTokens: 4096,
+    // 2026-07-06 (todo #22): 4096 truncated the per-terminal schema mid-JSON
+    // (2 airports × 5 terminals × checkpoints × 3 lanes is a much larger
+    // response than the old one-TSA-block-per-airport shape) — both parsers
+    // failed on the cut-off output in live testing. 16384 gives headroom for
+    // metros with several multi-terminal airports.
+    maxTokens: 16384,
     temperature: 0.1,
     features: ['google_search'],
   },
@@ -196,16 +201,59 @@ export const MODEL_ROLES = {
   // 2026-02-13: Gemini 3 Pro Preview — vision, OCR, Google Search, multimodal
   // 2026-02-17: Renamed COACH_CHAT → AI_COACH to match user-facing "AI Coach" branding
   // 2026-02-26: Upgraded to Gemini 3.1 Pro — 2x reasoning over 3.0 Pro (ARC-AGI-2: 77.1%)
+  // 2026-08-11: gemini-3.5-flash → gemini-3.6-flash (GA 2026-07-21) at Melody's
+  // "update adapters, verify live" direction. Verified this session: listed in
+  // /v1beta/models AND a live streamGenerateContent SSE ping succeeded. Text-role
+  // win only: 17% fewer output tokens, $7.50/M out (vs $9), better agentic scores.
+  // Vision roles (OFFER_ANALYZER*) stay on 3.5 — 3.6 regresses object detection.
   AI_COACH: {
     envKey: 'AI_COACH_MODEL',
-    default: 'gemini-3.5-flash',
+    default: 'gemini-3.6-flash',
     purpose: 'AI Coach conversation (streaming, multimodal)',
     maxTokens: 8192,
     temperature: 0.7,
+    // 2026-08-11: Melody: "the coach is the cost" — the Coach is the flagship
+    // and gets maximum reasoning. Known tradeoff: HIGH thinking delays the
+    // first streamed token (and therefore first TTS audio); drop to MEDIUM if
+    // the pause reads as lag in voice use.
+    thinkingLevel: 'HIGH',
     features: ['google_search', 'vision', 'ocr'],
     // 2026-02-17: AI_COACH uses callModelStream() which only supports Gemini.
     // Non-Gemini overrides are rejected by the streaming guard below.
     requiresStreaming: true,
+  },
+
+  // ==========================
+  // 4b. COACH VOICE — live bidirectional audio (the MOUTH of the mouth-vs-brain split)
+  // ==========================
+  // 2026-08-11 (todo #33, joint decision): three-way voice switcher on the Coach
+  // tab — Classic / Gemini Live / GPT Realtime. These roles are the mouth ONLY:
+  // listening, speaking, barge-in. Intelligence stays in AI_COACH (the brain) —
+  // the live session's ask_coach_backend function call routes through /api/chat,
+  // which carries google_search grounding and the full action-tag tool surface.
+  // Live-verified 2026-08-11 (ai.google.dev/gemini-api/docs/live-tools): search
+  // grounding + function calling combine in ONE Live session on both Gemini
+  // lines; every live model is Preview — pin dated IDs, expect ~6mo migrations.
+  COACH_VOICE_LIVE: {
+    envKey: 'COACH_VOICE_LIVE_MODEL',
+    // gemini-3.1-flash-live-preview: newest live line, Google's designated
+    // replacement for all prior live models; sync-only function calling.
+    // (gemini-2.5-flash-native-audio-preview-12-2025 has NON_BLOCKING function
+    // calls but is already slated for replacement BY this model.)
+    default: 'gemini-3.1-flash-live-preview',
+    purpose: 'Coach voice mouth: Gemini Live bidirectional audio (WebSocket, ephemeral tokens)',
+    temperature: 0.7,
+    features: ['google_search'],
+    requiresLive: true,
+  },
+  // 2026-08-11: role moved out of realtime.js, which read process.env.VOICE_MODEL
+  // directly (registry-bypass doctrine violation). envKey stays VOICE_MODEL —
+  // it is the already-documented env var for this concern (env-registry.js).
+  COACH_VOICE_REALTIME: {
+    envKey: 'VOICE_MODEL',
+    default: 'gpt-realtime',
+    purpose: 'Coach voice mouth: OpenAI Realtime session (WebRTC, ephemeral client_secrets)',
+    requiresLive: true,
   },
 
   // ==========================
@@ -219,20 +267,9 @@ export const MODEL_ROLES = {
     temperature: 0.3,
     features: ['google_search'],
   },
-  UTIL_WEATHER_VALIDATOR: {
-    envKey: 'UTIL_WEATHER_VALIDATOR_MODEL',
-    default: 'gemini-3.5-flash',
-    purpose: 'Validate weather data structure',
-    maxTokens: 2048,
-    temperature: 0.1,
-  },
-  UTIL_TRAFFIC_VALIDATOR: {
-    envKey: 'UTIL_TRAFFIC_VALIDATOR_MODEL',
-    default: 'gemini-3.5-flash',
-    purpose: 'Validate traffic data structure',
-    maxTokens: 2048,
-    temperature: 0.1,
-  },
+  // 2026-07-06: UTIL_WEATHER_VALIDATOR + UTIL_TRAFFIC_VALIDATOR roles removed —
+  // their only caller (weather-traffic-validator.js, zero importers) was deleted
+  // in consolidation Phase 1 (docs/architecture/audits/2026-07-06 audit).
   // 2026-04-25: Upgraded gpt-5.4 → gpt-5.5-2026-04-23
   UTIL_MARKET_PARSER: {
     envKey: 'UTIL_PARSER_MODEL',
@@ -311,6 +348,9 @@ export const MODEL_ROLES = {
   //    Pro is slower, weaker on multimodal, and would blow the ~30s Shortcut timeout.
   //  ⚠️ PINNED, NOT FLOATING: never gemini-flash-latest or any *-latest alias. Memory #342: a
   //    floating alias resolved server-side to an internal Google build and 404'd in production.
+  //  2026-08-11: re-verified against gemini-3.6-flash (GA 2026-07-21) — do NOT move this
+  //    role to 3.6: it regresses vision object detection (56.0% mAP@50, bottom half of
+  //    Roboflow's Aug-2026 evals) while 3.5-flash stays the vision+speed leader.
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
     default: 'gemini-3.5-flash',
@@ -556,6 +596,18 @@ export function getRoleConfig(role) {
     sourceInfo = 'default (streaming fallback)';
   }
 
+  // 2026-08-11: Live guard — COACH_VOICE_* roles must resolve to a live/realtime-
+  // class model. The session-mint endpoints reject chat-class models (OpenAI:
+  // realtime.js 2026-04-25 note; Gemini: only bidiGenerateContent-capable models
+  // accept Live connections). This matters because AI_COACH_OVERRIDE_MODEL
+  // catches every COACH_* role above — a text-model override must not silently
+  // break voice session minting.
+  if (roleConfig.requiresLive && !/(^gpt-realtime)|(-live)|(-native-audio)/.test(model)) {
+    registryLog.warn(0, `${canonicalRole} requires a live/realtime-class model, but resolved to ${model} (${sourceInfo}). Falling back to default: ${roleConfig.default}`);
+    model = roleConfig.default;
+    sourceInfo = 'default (live fallback)';
+  }
+
   const provider = getProviderForModel(model);
 
   // 2026-04-27 (Commit 3 of CLEAR_CONSOLE_WORKFLOW): demoted from a 10-line info
@@ -766,7 +818,9 @@ export function getLLMDiagnostics() {
   return {
     providers,
     preferred: process.env.PREFERRED_MODEL || 'google:gemini-3.5-flash',
-    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-opus-4-8',
+    // 2026-08-11: anthropic fallback claude-opus-4-8 → claude-sonnet-5 (Claude 5
+    // family GA; live-verified via /v1/models + a messages ping this session)
+    fallbacks: process.env.FALLBACK_MODELS || 'openai:gpt-5.5-2026-04-23,anthropic:claude-sonnet-5',
   };
 }
 

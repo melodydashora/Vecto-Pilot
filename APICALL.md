@@ -7,8 +7,8 @@
 
 #### Geocoding API
 - **Files**: 
-  - [server/lib/geo/geocoding.js](/server/lib/geo/geocoding.js)
-  - [server/routes/location.js](/server/routes/location.js)
+  - [server/lib/location/geocode.js](/server/lib/location/geocode.js)
+  - [server/api/location/location.js](/server/api/location/location.js)
 - **Endpoints**:
   - `https://maps.googleapis.com/maps/api/geocode/json` (reverse geocoding)
   - `https://maps.googleapis.com/maps/api/geocode/json` (forward geocoding)
@@ -16,15 +16,15 @@
 - **UI Location**: GlobalHeader (displays city name like "Frisco, TX"), Manual city search input
 
 #### Google Maps Timezone API
-- **Files**: [server/routes/location.js](/server/routes/location.js)
+- **Files**: [server/lib/location/geocode.js](/server/lib/location/geocode.js), [server/api/location/location.js](/server/api/location/location.js)
 - **Endpoints**: `https://maps.googleapis.com/maps/api/timezone/json`
 - **Purpose**: Get timezone information for coordinates
 - **UI Location**: Used internally for time-based calculations, not directly displayed
 
 #### Google Places API (New)
 - **Files**:
-  - [server/lib/venues/venue-enrichment.js](/server/lib/venues/venue-enrichment.js)
-  - [server/lib/venues/places-hours.js](/server/lib/venues/places-hours.js)
+  - [server/lib/venue/venue-enrichment.js](/server/lib/venue/venue-enrichment.js)
+  - [server/lib/venue/venue-hours.js](/server/lib/venue/venue-hours.js) + [server/lib/venue/hours/](/server/lib/venue/hours/)
   - [server/lib/venue/venue-cache.js](/server/lib/venue/venue-cache.js) (enrichment on discovery)
 - **Endpoints**:
   - `https://places.googleapis.com/v1/places:searchNearby`
@@ -35,7 +35,7 @@
 - **Pricing Note**: Single-place GET by placeId uses basic detail tier pricing ($5/1000 after free tier), cheaper than searchNearby ($32/1000)
 
 #### Google Routes API
-- **Files**: [server/lib/routes/routes-api.js](/server/lib/routes/routes-api.js)
+- **Files**: [server/lib/external/routes-api.js](/server/lib/external/routes-api.js)
 - **Endpoints**: 
   - `https://routes.googleapis.com/directions/v2:computeRoutes`
   - `https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix`
@@ -43,24 +43,21 @@
 - **UI Location**: SmartBlocks venue cards (drive time display), MapTab route visualization
 
 #### Google Air Quality API
-- **Files**: [server/routes/location.js](/server/routes/location.js)
+- **Files**: [server/api/location/location.js](/server/api/location/location.js)
 - **Endpoints**: `https://airquality.googleapis.com/v1/currentConditions:lookup`
 - **Purpose**: Get current air quality index
 - **UI Location**: GlobalHeader (displays "AQI 83"), BriefingTab air quality section
 
 #### Google Geolocation API
-- **Files**: [client/src/hooks/useGeoPosition.tsx](/client/src/hooks/useGeoPosition.tsx)
-- **Endpoints**: `https://www.googleapis.com/geolocation/v1/geolocate`
-- **Purpose**: Browser fallback for GPS coordinates
-- **UI Location**: Triggers GlobalHeader location update when browser GPS unavailable
+**Removed 2026-06-11.** The Wi-Fi/IP geolocation fallback was deleted by design (coarse coords corrupted the GPS-derived pipeline). GPS comes only from navigator.geolocation with enableHighAccuracy; failure raises a CriticalError instead of falling back. See client/src/contexts/location-context-clean.tsx.
 
 ### Weather API
 
-#### OpenWeather API
-- **Files**: [server/routes/location.js](/server/routes/location.js)
-- **Endpoints**: `https://api.openweathermap.org/data/2.5/weather`
-- **Purpose**: Get current weather conditions
-- **UI Location**: GlobalHeader (displays "69°F"), BriefingTab weather section
+#### Google Weather API
+- **Files**: [server/api/location/location.js](/server/api/location/location.js), [server/lib/briefing/pipelines/weather.js](/server/lib/briefing/pipelines/weather.js)
+- **Endpoints**: `https://weather.googleapis.com/v1/currentConditions:lookup`, `https://weather.googleapis.com/v1/forecast/hours:lookup`
+- **Purpose**: Current conditions + 6-hour forecast
+- **UI Location**: GlobalHeader (temperature), BriefingTab weather section
 
 ### LLM APIs
 
@@ -70,16 +67,14 @@
   - [server/api/chat/chat.js](/server/api/chat/chat.js)
   - [server/eidolon/core/llm.ts](/server/eidolon/core/llm.ts)
 - **Endpoints**: `https://api.anthropic.com/v1/messages`
-- **Models**:
-  - `claude-opus-4-7` (primary — STRATEGY_CORE, STRATEGY_TACTICAL)
+- Active model assignment: see `server/lib/ai/model-registry.js` (`MODEL_ROLES`) — STRATEGY_CORE and STRATEGY_TACTICAL currently default to `claude-opus-4-8`.
 - **Purpose**: Strategic analysis and planning
 - **UI Location**: StrategyPage strategy display
 
 #### OpenAI
 - **Files**:
   - [server/lib/ai/adapters/openai-adapter.js](/server/lib/ai/adapters/openai-adapter.js)
-  - [server/lib/strategy/planner-gpt5.js](/server/lib/strategy/planner-gpt5.js)
-- **Endpoints**: `https://api.openai.com/v1/chat/completions`, `https://api.openai.com/v1/realtime/sessions`
+- **Endpoints**: `https://api.openai.com/v1/chat/completions`, `https://api.openai.com/v1/realtime/client_secrets`
 - **Roles using OpenAI:** `VENUE_SCORER`, `UTIL_MARKET_PARSER`, voice loop (Realtime API).
 - **Active model assignment:** see `server/lib/ai/model-registry.js` (`MODEL_ROLES`). This file no longer hardcodes specific model versions per Rule 14 (model-agnostic adapter architecture).
 - **Purpose**: Venue scoring, market data parsing, Realtime voice-to-voice (`gpt-realtime` class — distinct from chat-class models).
@@ -90,17 +85,13 @@
   - [server/lib/ai/adapters/gemini-adapter.js](/server/lib/ai/adapters/gemini-adapter.js)
   - [server/lib/ai/providers/](/server/lib/ai/providers/)
 - **Endpoints**: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-- **Models**:
-  - `gemini-pro-latest` (primary — 9 BRIEFING_* roles, COACH_CHAT, DOCS_GENERATOR)
-  - `gemini-flash-latest` (fallback, low-cost tasks)
+- Active model assignment: see `server/lib/ai/model-registry.js` (`MODEL_ROLES`) — 7 BRIEFING_* roles, AI_COACH (formerly COACH_CHAT), and DOCS_GENERATOR currently default to `gemini-3.5-flash`.
 - **Purpose**: News briefing, event discovery, traffic analysis, coach chat, docs generation
 - **UI Location**: BriefingTab (news, traffic, events sections), AICoach, SmartBlocks
 
 #### Perplexity API
 - **Files**: 
-  - [server/lib/adapters/perplexity.js](/server/lib/adapters/perplexity.js)
-  - [server/lib/enrichment/perplexity-research.js](/server/lib/enrichment/perplexity-research.js)
-  - [server/lib/venues/venue-event-research.js](/server/lib/venues/venue-event-research.js)
+  - [server/lib/external/perplexity-api.js](/server/lib/external/perplexity-api.js)
 - **Endpoints**: `https://api.perplexity.ai/chat/completions`
 - **Models**: `sonar-pro`
 - **Purpose**: Real-time event research, internet-powered search
@@ -109,7 +100,7 @@
 ### Aviation APIs
 
 #### FAA ASWS (Airport Status Web Service)
-- **Files**: [server/lib/integrations/faa-asws.js](/server/lib/integrations/faa-asws.js)
+- **Files**: [server/lib/external/faa-asws.js](/server/lib/external/faa-asws.js)
 - **Endpoints**: 
   - `https://nasstatus.faa.gov/api/airport-status-information` (public)
   - `https://external-api.faa.gov/asws/api/airport/status/{code}` (authenticated)
@@ -123,7 +114,7 @@
 ### Location & Snapshot Routes
 
 #### `/api/location/*` - Location Services
-- **File**: [server/routes/location.js](/server/routes/location.js)
+- **File**: [server/api/location/location.js](/server/api/location/location.js)
 - **Endpoints**:
   - `GET /api/location/geocode/reverse` - Reverse geocoding
   - `GET /api/location/geocode/forward` - Forward geocoding
@@ -134,14 +125,14 @@
   - `POST /api/location/snapshot` - Save location snapshot
 
 #### `/api/snapshot` - Snapshot Management
-- **File**: [server/routes/snapshot.js](/server/routes/snapshot.js)
+- **File**: [server/api/location/snapshot.js](/server/api/location/snapshot.js)
 - **Endpoints**:
   - `POST /api/snapshot` - Create snapshot
 
 ### Strategy & Planning Routes
 
 #### `/api/strategy/*` - Strategy Engine
-- **File**: [server/routes/strategy.js](/server/routes/strategy.js)
+- **File**: [server/api/strategy/strategy.js](/server/api/strategy/strategy.js)
 - **Endpoints**:
   - `GET /api/strategy/:snapshotId` - Get strategy
   - `POST /api/strategy/seed` - Initialize strategy row
@@ -149,17 +140,17 @@
 
 #### `/api/blocks/*` - Smart Blocks (Venue Recommendations)
 - **Files**: 
-  - [server/routes/blocks.js](/server/routes/blocks.js)
-  - [server/routes/blocks-fast.js](/server/routes/blocks-fast.js)
+  - [server/api/strategy/content-blocks.js](/server/api/strategy/content-blocks.js)
+  - [server/api/strategy/blocks-fast.js](/server/api/strategy/blocks-fast.js)
 - **Endpoints**:
-  - `POST /api/blocks` - Get venue recommendations
+  - `POST /api/blocks-fast` - Trigger pipeline / get venue recommendations
   - `GET /api/blocks/strategy/:snapshotId` - Get strategy for snapshot
 
 ### Chat & Coach Routes
 
 #### `/api/chat` - Rideshare Coach
 - **File**: [server/api/chat/chat.js](/server/api/chat/chat.js)
-- **DAL**: [server/lib/ai/coach-dal.js](/server/lib/ai/coach-dal.js)
+- **DAL**: [server/lib/ai/rideshare-coach-dal.js](/server/lib/ai/rideshare-coach-dal.js)
 - **Endpoints**:
   - `POST /api/chat` - Chat with AI coach (streaming + action parsing)
   - `GET /api/chat/context/:snapshotId` - Get snapshot context
@@ -179,10 +170,11 @@ The chat endpoint parses special action tags from AI responses:
 
 | Action Tag | Table | Purpose |
 |------------|-------|---------|
-| `[NOTE: {...}]` | `coach_notes` | Save note about user |
+| `[SAVE_NOTE: {...}]` | `user_intel_notes` | Save note about user |
 | `[SYSTEM_NOTE: {...}]` | `coach_system_notes` | AI-generated observation |
 | `[DEACTIVATE_NEWS: {...}]` | `news_deactivations` | Hide news for user |
-| `[DEACTIVATE_EVENT: {...}]` | `event_deactivations` | Hide event for user |
+| `[DEACTIVATE_EVENT: {...}]` | `discovered_events` (deactivation flag) | Hide event for user |
+| `[ADD_EVENT: {...}]` | `discovered_events` | Coach-added event |
 | `[ZONE_INTEL: {...}]` | `zone_intelligence` | Crowd-sourced zone learning |
 
 ##### Zone Intelligence (Cross-Driver Learning)
@@ -194,7 +186,7 @@ The chat endpoint parses special action tags from AI responses:
 ### Feedback Routes
 
 #### `/api/feedback/*` - User Feedback
-- **File**: [server/routes/feedback.js](/server/routes/feedback.js)
+- **File**: [server/api/feedback/feedback.js](/server/api/feedback/feedback.js)
 - **Endpoints**:
   - `POST /api/feedback/venue` - Venue feedback
   - `GET /api/feedback/venue/summary` - Venue feedback summary
@@ -204,14 +196,14 @@ The chat endpoint parses special action tags from AI responses:
 ### Actions & Analytics Routes
 
 #### `/api/actions` - User Action Tracking
-- **File**: [server/routes/actions.js](/server/routes/actions.js)
+- **File**: [server/api/feedback/actions.js](/server/api/feedback/actions.js)
 - **Endpoints**:
   - `POST /api/actions` - Log user actions (clicks, dwells, views)
 
 ### Research Routes
 
 #### `/api/research/*` - Internet Research
-- **File**: [server/routes/research.js](/server/routes/research.js)
+- **File**: [server/api/research/research.js](/server/api/research/research.js)
 - **Endpoints**:
   - `GET /api/research/search` - Quick research query
   - `POST /api/research/deep` - Deep research topic
@@ -219,20 +211,19 @@ The chat endpoint parses special action tags from AI responses:
 ### Health & Diagnostics Routes
 
 #### `/health` - Health Checks
-- **File**: [server/routes/health.js](/server/routes/health.js)
+- **File**: [server/api/health/health.js](/server/api/health/health.js)
 - **Endpoints**:
   - `GET /health` - Basic health check
   - `GET /ready` - Readiness check
-  - `GET /health/pool-stats` - PostgreSQL pool statistics
-  - `GET /health/strategies` - Strategy provider health
+  - `GET /api/health/pool-stats` - PostgreSQL pool statistics (auth required)
 
 #### `/api/diagnostics/*` - System Diagnostics
 - **Files**: 
-  - [server/routes/diagnostics.js](/server/routes/diagnostics.js)
-  - [server/routes/diagnostics-strategy.js](/server/routes/diagnostics-strategy.js)
+  - [server/api/health/diagnostics.js](/server/api/health/diagnostics.js)
+  - [server/api/health/diagnostics-strategy.js](/server/api/health/diagnostics-strategy.js)
 - **Endpoints**:
   - `GET /api/diagnostics` - System diagnostics
-  - `GET /api/diagnostics/strategy/:snapshotId` - Strategy diagnostics
+  - `GET /api/diagnostics/strategy-status/:snapshotId` - Strategy pipeline status
 
 ---
 
@@ -241,7 +232,7 @@ The chat endpoint parses special action tags from AI responses:
 ### PostgreSQL via Drizzle ORM
 - **Files**: 
   - [server/db/drizzle.js](/server/db/drizzle.js)
-  - [server/db/client.js](/server/db/client.js)
+  - [server/db/db-client.js](/server/db/db-client.js)
   - [server/db/pool.js](/server/db/pool.js)
 - **Tables Accessed**:
   - `snapshots` - Location snapshots
@@ -254,25 +245,24 @@ The chat endpoint parses special action tags from AI responses:
   - `venue_feedback` - Venue feedback
   - `strategy_feedback` - Strategy feedback
   - `app_feedback` - App feedback
-  - `events_facts` - Event data
+  - `discovered_events` - Event data
   - `places_cache` - Cached place data
   - `briefings` - News briefings
   - `llm_venue_suggestions` - LLM-suggested venues
   - `eidolon_memory` - Eidolon memory store
   - `assistant_memory` - Assistant memory
   - `coach_conversations` - Rideshare Coach chat history (with `market_slug`)
-  - `coach_notes` - User notes from Rideshare Coach
+  - `user_intel_notes` - User notes from Rideshare Coach
   - `coach_system_notes` - AI-generated observations
   - `news_deactivations` - Hidden news items
-  - `event_deactivations` - Hidden events
   - `zone_intelligence` - Crowd-sourced zone learning (cross-driver)
 
 ### Direct SQL Queries
 - **Files**:
-  - [server/lib/ai/coach-dal.js](/server/lib/ai/coach-dal.js) - Coach data access (notes, conversations, zone intel)
-  - [server/lib/providers/briefing.js](/server/lib/providers/briefing.js) - Briefing queries
-  - [server/routes/actions.js](/server/routes/actions.js) - Metrics updates
-  - [scripts/database/postdeploy-sql.mjs](/scripts/database/postdeploy-sql.mjs) - Migration runner
+  - [server/lib/ai/rideshare-coach-dal.js](/server/lib/ai/rideshare-coach-dal.js) - Coach data access (notes, conversations, zone intel)
+  - [server/lib/briefing/briefing-aggregator.js](/server/lib/briefing/briefing-aggregator.js) - Briefing queries
+  - [server/api/feedback/actions.js](/server/api/feedback/actions.js) - Metrics updates
+  - [server/db/run-migrations.js](/server/db/run-migrations.js) - Boot-time migration runner (schema_migrations table)
 
 ---
 
@@ -305,8 +295,8 @@ The chat endpoint parses special action tags from AI responses:
 
 ### Multi-Model Router
 - **Files**: 
-  - [server/lib/llm/llm-router.js](/server/lib/llm/llm-router.js)
-  - [server/lib/llm/llm-router-v2.js](/server/lib/llm/llm-router-v2.js)
+  - [server/lib/ai/router/hedged-router.js](/server/lib/ai/router/hedged-router.js)
+  - [server/lib/ai/model-registry.js](/server/lib/ai/model-registry.js)
 - **Features**:
   - Circuit breakers for each provider
   - Hedging (parallel requests)
@@ -345,6 +335,9 @@ All APIs must be individually enabled in **APIs & Services > Library**. None are
 | 6 | Geolocation API | `geolocation.googleapis.com` | GPS fallback (server-side) |
 | 7 | Maps JavaScript API | `maps.googleapis.com` | Map rendering in browser |
 | 8 | Generative Language API | `generativelanguage.googleapis.com` | Gemini 3 Pro/Flash AI calls |
+| 9 | Weather API | weather.googleapis.com | Current conditions + forecast |
+| 10 | Pollen API | pollen.googleapis.com | Pollen forecast |
+| 11 | Street View Static API | (maps.googleapis.com streetview) | Venue imagery |
 
 > **Important:** "Places API (New)" is a separate API from the legacy "Places API". Enable the **New** version.
 
@@ -366,6 +359,9 @@ API restrictions: Restrict key → select:
   ☑ Routes API
   ☑ Air Quality API
   ☑ Geolocation API
+  ☑ Weather API
+  ☑ Pollen API
+  ☑ Street View Static API
 ```
 
 ### Client Key Configuration (`VITE_GOOGLE_MAPS_API_KEY`)
@@ -471,11 +467,11 @@ If your server runs on a platform with dynamic outbound IPs:
 
 ```
 □ 1. Go to Google Cloud Console → APIs & Services → Library
-□ 2. Enable all 8 APIs listed above
+□ 2. Enable all 11 APIs listed above
 □ 3. Go to Credentials → Create API Key (×3: server, client, gemini)
 □ 4. Configure Server Key:
       □ Application restriction: IP addresses (or None for Replit)
-      □ API restrictions: 6 APIs (Geocoding, Timezone, Places New, Routes, Air Quality, Geolocation)
+      □ API restrictions: 9 APIs (Geocoding, Timezone, Places New, Routes, Air Quality, Geolocation, Weather, Pollen, Street View Static)
 □ 5. Configure Client Key:
       □ Application restriction: HTTP referrers (your domains + localhost)
       □ API restrictions: Maps JavaScript API only
@@ -504,7 +500,7 @@ If your server runs on a platform with dynamic outbound IPs:
 ### Internal APIs
 - **HTTP Routes**: 35+ endpoints
 - **Database Tables**: 15+ tables
-- **WebSocket**: Strategy generation events
+- **SSE**: Strategy generation events (`/events/*`)
 
 ### Key Patterns
 - **Circuit Breakers**: All external LLM calls

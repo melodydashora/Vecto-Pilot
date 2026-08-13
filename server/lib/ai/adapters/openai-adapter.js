@@ -150,13 +150,24 @@ export async function callOpenAI({ model, system, user, messages, maxTokens, tem
 
     const res = await openai.chat.completions.create(body);
 
-    const output = res?.choices?.[0]?.message?.content?.trim() || "";
+    const choice = res?.choices?.[0];
+    const output = choice?.message?.content?.trim() || "";
+    const finishReason = choice?.finish_reason || null;
+
+    // 2026-08-06: finish_reason=length is a contract violation, not a response.
+    // On gpt-5 family, reasoning tokens count against max_completion_tokens — a
+    // budget consumed entirely by reasoning yields EMPTY content with
+    // finish_reason=length, which previously misreported as "Empty response".
+    if (finishReason === 'length') {
+      logAiError(role, `truncated at max_tokens=${maxTokens}`, new Error('finish_reason=length'));
+      return { ok: false, output, truncated: true, error: `truncated at max_tokens=${maxTokens} (finish_reason=length)` };
+    }
 
     logAiDone(role, `response (${output?.length ?? 0} chars)`);
 
     return output
       ? { ok: true, output }
-      : { ok: false, output: "", error: "Empty response from OpenAI" };
+      : { ok: false, output: "", error: `Empty response from OpenAI${finishReason ? ` (finish_reason=${finishReason})` : ''}` };
   } catch (err) {
     logAiError(role, `OpenAI error`, err);
     return { ok: false, output: "", error: err?.message || String(err) };
@@ -217,6 +228,13 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
     // Extract content and any citations/sources from web search
     const choice = res?.choices?.[0];
     const output = choice?.message?.content?.trim() || "";
+    const finishReason = choice?.finish_reason || null;
+
+    // 2026-08-06: same truncation gate as callOpenAI.
+    if (finishReason === 'length') {
+      logAiError(role, `web-search truncated at max_tokens=${maxTokens}`, new Error('finish_reason=length'));
+      return { ok: false, output, truncated: true, error: `truncated at max_tokens=${maxTokens} (finish_reason=length)` };
+    }
 
     // Extract web search annotations/citations if present
     const annotations = choice?.message?.annotations || [];
@@ -233,7 +251,7 @@ export async function callOpenAIWithWebSearch({ model, system, user, maxTokens, 
 
     return output
       ? { ok: true, output, citations }
-      : { ok: false, output: "", error: "Empty response from OpenAI web search" };
+      : { ok: false, output: "", error: `Empty response from OpenAI web search${finishReason ? ` (finish_reason=${finishReason})` : ''}` };
   } catch (err) {
     logAiError(role, `OpenAI web-search error`, err);
     return { ok: false, output: "", error: err?.message || String(err) };

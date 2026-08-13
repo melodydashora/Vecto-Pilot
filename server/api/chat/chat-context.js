@@ -3,6 +3,7 @@ import { getDb } from '../../db/drizzle-lazy.js';
 import { snapshots, strategies, rankings, ranking_candidates } from '../../../shared/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
+import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 
 const router = express.Router();
 
@@ -22,6 +23,11 @@ const router = express.Router();
 router.get('/context', requireAuth, async (req, res) => {
   const sid = req.headers['x-snapshot-id'] || req.query.snapshotId;
   if (!sid) return res.status(400).json({ ok: false, error: 'snapshot_id_required' });
+
+  // 2026-08-11: ownership before context — multi-user app (sid arrives via
+  // header/query, so the param middleware can't cover this route)
+  const owned = await verifySnapshotOwnership(sid, req.auth?.userId);
+  if (!owned.ok) return res.status(owned.status).json(owned.body);
 
   try {
     const db = getDb();

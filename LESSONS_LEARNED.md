@@ -2,6 +2,45 @@
 AGENT DIRECTIVE: This file contains resolved historical post-mortems. Do NOT attempt to fix the bugs listed here. Use this file STRICTLY as read-only context to avoid repeating past architectural mistakes.
 
 
+## 2026-07-06: Midnight "24" hourCycle trap + dead `/api/auth/me` header branch + LLM-legible daypart keys
+
+Three findings from the time-context consolidation into `shared/dayparts.js` (the new single server+client adapter). Different classes, one root theme: *time-of-day context was being silently corrupted before it ever reached the driver or the models.*
+
+### Finding A — `hour12: false` formats midnight as "24" on older ICU builds ("24" falls through every daypart branch → "evening")
+
+Every hour-extraction site used `new Intl.DateTimeFormat(..., { hour: 'numeric', hour12: false })`. On Node ≤21 / Chromium <124, `hour12: false` maps to V8's **`h24` hourCycle**, which formats midnight (00:00) as **`"24"`**, not `"0"`. `parseInt("24", 10)` is `24`, and `24` is outside every `if (hour < N)` daypart branch, so it fell through to the final `else` and classified as **`'evening'`**. Rows created between 12:00 and 12:59 AM were persisted with `hour = 24` and `day_part = 'evening'` — a driver's midnight snapshot told the strategy pipeline it was late evening. The identical `hour12: false` pattern also lived in the venue open/closed math (`venue-intelligence.js`, `hours/evaluator.js`), where a "24" hour skewed is-open windows.
+
+**Lesson 1 — `hour12: false` is not the same as "24-hour clock"; specify `hourCycle` explicitly.** `hour12: false` leaves the hourCycle to the engine's locale/ICU defaults, and `h24` (1–24, midnight = 24) is a legal resolution of it. The two 24-hour cycles differ *only* at midnight: `h23` numbers hours 0–23, `h24` numbers them 1–24. Always pass `hourCycle: 'h23'` when you want 0-based hours, and never trust the numeric output of a formatter without a modulo guard: the canonical extraction now does `parseInt(raw, 10) % 24`, so any engine still emitting "24" collapses to 0. This is an environment-dependent bug — it will pass on a dev machine with new ICU and fail in a container with old ICU, or vice versa — which is exactly why it survived so long.
+
+**Lesson 2 — an out-of-range value that has a valid-looking "home" branch is worse than one that throws.** The old daypart chain was a bare `if (h < 5) ... else 'evening'`. A `24` (or a `NaN`) didn't error — it landed in `'evening'`, a plausible value, so nothing downstream noticed. `getDayPartKey` now **throws `RangeError` on any non-integer or out-of-0–23 hour**: a bad hour is an upstream extraction bug that must surface, not be silently bucketed. Prefer a loud throw over a fallthrough bucket whenever the fallthrough value is indistinguishable from a real one.
+
+### Finding B — `GlobalHeader.tsx` queried `/api/auth/me` for `ok`/`timezone`/`city`/`formatted_address` keys that response never had
+
+`GlobalHeader.tsx` carried a "database timezone" code path that fetched `/api/auth/me` and read `ok`, `timezone`, `city`, and `formatted_address` off the response. **None of those keys exist in `/api/auth/me`'s actual response shape** — the branch had been dead since it was written, silently doing nothing while looking like a functional timezone source. Its presence made the header *look* like it had a fallback timezone, masking that the only real source is the GPS-resolved zone.
+
+**Lesson 3 — verify a response's actual keys before writing code against them; a branch that reads keys that don't exist is invisible dead code.** TypeScript won't catch it when the fetch is typed `any`/untyped, lint won't catch it, and it never throws — it just reads `undefined` and no-ops. The only way it surfaces is reading the endpoint's real output (or its handler) and confirming the field names. This is the client-side sibling of the `reqId`/`thinkingLevel` "silent-at-load, fires-(or no-ops)-at-runtime" class: static tooling passes, runtime does nothing useful. When you code against a response, read the endpoint that produces it — do not trust the field names you expect to be there.
+
+**Lesson 4 — a dead fallback is worse than no fallback, because it hides the absence of a real one.** With the dead `/api/auth/me` branch present, a reader assumed the header degraded gracefully to a DB timezone. It didn't. Removing it forced the honest behavior: the clock/date/daypart render `--:--:--` / "syncing local time…" until the GPS-resolved timezone arrives, and **never** fall back to the device timezone (a driver working outside their home market would otherwise see a confidently-wrong local time). No fallback, loudly, beats a fake fallback that quietly does nothing.
+
+### Finding C — semantic key names matter because the LLM pipeline reads the stored key verbatim
+
+The daypart key `late_morning_noon` covered **12:00 PM–2:59 PM** and rendered the label **"late morning"** — in the GlobalHeader *and* in LLM prompts. So at 2 PM the models were told, verbatim, that it was "late morning." The stored keys in `snapshots.day_part_key` and `offer_intelligence.day_part` are not internal enums; they are read straight into prompt context, so a semantically-wrong key is a semantically-wrong instruction to the model. Renamed: `late_morning_noon`→`early_afternoon` (12–15), `afternoon` (15–17)→`late_afternoon`. Legacy keys normalize on read via `normalizeDayPartKey()`; the row-remap migration exists but is unrun (needs approval).
+
+**Lesson 5 — a stored key that feeds an LLM prompt must be semantically accurate, not just internally consistent.** A conventional enum only has to be *stable* and *unique* — its human meaning is irrelevant because only code reads it. The moment that key is interpolated into a model prompt, its **name becomes content**: `"day_part: late_morning_noon"` at 2 PM tells the model it's late morning as authoritatively as any other prompt sentence. The model won't second-guess a field it's handed; it reasons from "late morning" and produces early-day heuristics in mid-afternoon. Same failure family as the falsy-temp `"N/A°F"` prompt leak (2026-05-07) — the corruption is invisible in the UI-adjacent code and only manifests as subtly-wrong model reasoning. Rule: any identifier that can reach a prompt string is subject to the same accuracy bar as prose, and renames of such keys are behavior changes, not cosmetics.
+
+### Resolution
+
+- **New adapter `shared/dayparts.js` (+ `.d.ts`)** — single source of truth for `DAY_PART_KEYS`/`DAY_PART_LABELS`/`LEGACY_DAY_PART_KEYS`, `normalizeDayPartKey`, `dayPartLabel`, `getDayPartKey` (throws on bad hour), and `getLocalHour`/`getLocalDow`/`getLocalDateString`/`getLocalIso`/`classifyDayPart` (all require an IANA timezone, throw if missing). `server/lib/location/daypart.js` becomes a re-export shim; `client/src/lib/daypart.ts` re-exports via the `@shared` alias. Extraction uses `hourCycle: 'h23'` + `% 24` guard.
+- **No-fallback enforcement** — `getSnapshotTimeContext.js` dropped the `|| 'night'` daypart shadow-fallback (throws on missing/unknown key) and the `new Date()` fallback in `formatLocalTime` (throws on missing `local_iso`). `analyze-offer.js` stores temporal columns (`local_date`/`local_hour`/`day_of_week`/`day_part`/`is_weekend`) as **NULL** when the timezone can't be resolved from GPS, instead of UTC-deriving them (a 7 PM CDT offer used to store `'overnight'`). `snapshot.js` normalizes/derives `day_part_key` server-side rather than trusting the client string. `GlobalHeader.tsx` dead `/api/auth/me` branch removed.
+- **LLM prompt paths** — `realtime.js` and `rideshare-coach-dal.js` now send the human `dayPartLabel(...)` / normalized keys to prompts. Legacy AskConcierge/location-context private daypart buckets replaced with the shared adapter; AskConcierge hides its suggested-prompt chips when the timezone is unavailable.
+- **Tests** — `tests/dayparts.test.js` (16 tests): boundaries, throw-on-invalid, legacy normalization, the midnight-"24" regression, timezone-required, and server-shim identity parity.
+- **Migration `migrations/20260706_daypart_taxonomy_rename.sql` is written but UNRUN** — remaps stored `late_morning_noon`/`afternoon` rows; pending Melody's approval. Reads are safe meanwhile via `normalizeDayPartKey()`.
+
+**Docs updated (this pass):** `docs/architecture/GLOBALHEADER.md` (timezone rule + taxonomy, updated separately), `docs/architecture/SNAPSHOT.md`, `docs/architecture/database-schema.md`, `docs/architecture/OFFER_ANALYZER.md`, `docs/architecture/LOCATION.md`, `LESSONS_LEARNED.md`.
+
+**CLAUDE.md doctrines reinforced:** NO FALLBACKS — GLOBAL APP RULE (timezone required; NULL not UTC; no device-tz clock); ABSOLUTE PRECISION — GPS & DATA ACCURACY (coordinates and time context derive from the GPS-resolved zone only); FAIL LOUD, NEVER FAKE (`getDayPartKey`/`getLocal*` throw rather than bucket a bad value).
+
+
 ## 2026-05-07 (late evening): Coach payload-error fix + attachment options (Files / Folder / Camera)
 
 Two related Coach UX gaps. Both client-side, no server changes.

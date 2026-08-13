@@ -134,7 +134,11 @@ export function botBlocker(req, res, next) {
   }
 
   // Allow health checks
-  if (path === '/health' || path === '/api/health') {
+  // 2026-08-06: added /healthz and /ready — both are registered health probes
+  // (server/bootstrap/health.js) but were missing from this allowlist, so any
+  // non-browser prober (Go-http-client, empty UA) got 403 instead of health
+  // status. Verified live: GET /healthz with a Go UA returned 403.
+  if (path === '/health' || path === '/api/health' || path === '/healthz' || path === '/ready') {
     return next();
   }
 

@@ -27,7 +27,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 - `server/agent/index.ts` - TypeScript implementation
 - `server/agent/embed.js` - Gateway integration
 - `server/agent/routes.js` - API route definitions
-- `server/agent/agent-override-llm.js` - AI model integration (Claude/GPT-5/Gemini fallback chain)
+- `server/agent/agent-override-llm.js` - AI model integration (Claude only, no fallback chain)
 - `server/agent/context-awareness.js` - Memory and project context
 - `server/agent/enhanced-context.js` - Deep workspace analysis
 - `server/agent/thread-context.js` - Conversation threading
@@ -38,11 +38,9 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 - `AGENT_TOKEN` - Bearer auth token
 - `AGENT_SHELL_WHITELIST` - Allowed shell commands
 - `AGENT_OVERRIDE_API_KEY_C` - Claude API key
-- `AGENT_OVERRIDE_API_KEY_5` - GPT-5 API key
-- `AGENT_OVERRIDE_API_KEY_G` - Gemini API key
 
 **API Endpoints:**
-- `/agent/healthz` - Health check
+- `/agent/health` (also bare `/healthz`) - Health check
 - `/agent/fs/read` - Read file contents
 - `/agent/fs/write` - Write file contents
 - `/agent/shell` - Execute shell commands
@@ -53,7 +51,6 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 **Memory Tables:**
 - `agent_memory` - Session state tracking
-- `agent_changes` - File modification audit log
 
 ---
 
@@ -76,13 +73,11 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 - `server/eidolon/core/deep-thinking-engine.ts` - Advanced reasoning
 - `server/eidolon/core/deployment-tracker.ts` - Deployment monitoring
 - `server/eidolon/policy-loader.js` - Policy enforcement
-- `server/eidolon/policy-middleware.js` - Request validation
 - `server/eidolon/memory/pg.js` - PostgreSQL adapter
 - `server/eidolon/memory/compactor.js` - Memory optimization
 
 **Environment Variables:**
 - `EIDOLON_PORT` or `SDK_PORT` (default: 3102)
-- `DISABLE_SPAWN_SDK` - Prevent auto-spawning SDK server
 
 **Memory Tables:**
 - `eidolon_memory` - Project state storage
@@ -104,17 +99,13 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 **Codebase Files:**
 - `server/gateway/assistant-proxy.ts` - Request proxy layer
-- `server/assistant-events.ts` - Event streaming
-- `server/eidolon/policy-middleware.js` - Policy enforcement (shared with Eidolon)
+- `server/eidolon/policy-loader.js` - Policy enforcement (shared with Eidolon)
 
 **Memory Tables:**
 - `assistant_memory` - Conversation history and user preferences
 
 **Configuration:**
 - `config/assistant-policy.json` - Access control policy
-
-**Related Files:**
-- `tools/research/THREAD_AWARENESS_README.md` - Thread system documentation
 
 ---
 
@@ -129,11 +120,9 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 
 **Codebase Files:**
 - `server/api/chat/chat.js` - Chat interface endpoint
-- `server/lib/ai/providers/coach-dal.js` - Data access layer
-- `client/src/components/AICoach.tsx` - UI component
+- `server/lib/ai/rideshare-coach-dal.js` - Data access layer
+- `client/src/components/RideshareCoach.tsx` - UI component
 - `server/api/chat/chat-context.js` - Context builder
-- `server/lib/strategy-generator.js` - Pipeline orchestrator
-- `server/lib/triad-orchestrator.js` - Three-stage coordinator
 - `strategy-generator.js` - Background worker process
 
 **API Endpoints:**
@@ -142,7 +131,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 - `/api/chat/history` - Conversation history
 
 **Related Documentation:**
-- `COACH_DATA_ACCESS.md` - Data access patterns
+- `docs/COACH_RUNBOOK.md` - Coach runbook (data access patterns)
 
 ---
 
@@ -159,23 +148,18 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **What it is:** Multi-provider routing with hedging, circuit breakers, and cross-provider fallback chains.
 
 **Codebase Files:**
-- `server/lib/ai/llm-router-v2.js` - Enhanced router with strict budget control
-- `server/lib/ai/llm-router.js` - Original router implementation
-- `server/lib/ai/model-retry.js` - Retry logic
-- `server/lib/ai/transient-retry.js` - Transient failure handling
+- `server/lib/ai/adapters/index.js` - callModel dispatcher (instantiates the HedgedRouter; cross-provider fallback, Gemini 503 same-provider retry)
+- `server/lib/ai/router/hedged-router.js` - HedgedRouter (hedging, circuit breaker; siblings concurrency-gate.js, error-classifier.js)
+- `server/lib/ai/model-registry.js` - FALLBACK_ENABLED_ROLES + getFallbackConfig()
 
 **Configuration:**
-- `LLM_TOTAL_BUDGET_MS` (default: 8000ms) - Total request timeout
-- `LLM_PRIMARY_TIMEOUT_MS` (default: 1200ms) - Hedging delay
 - `PREFERRED_MODEL` - Primary model selection
 - `FALLBACK_MODELS` - Fallback model chain
-- `CIRCUIT_ERROR_THRESHOLD` (default: 5) - Circuit breaker threshold
-- `CIRCUIT_COOLDOWN_MS` (default: 60000ms) - Breaker reset time
 
 **Fallback Behavior:**
 - Primary is Google provider → fallback to OpenAI (cross-provider)
 - Primary is Anthropic/OpenAI → fallback to Google Flash model
-- BRIEFING and OFFER_ANALYZER roles have **no fallback** (require web search grounding)
+- Fallback is enabled ONLY for STRATEGY_TACTICAL, STRATEGY_CONTEXT, STRATEGY_CORE, VENUE_FILTER (`FALLBACK_ENABLED_ROLES`). All BRIEFING_* roles (cost: hedging doubled briefing spend) and OFFER_ANALYZER (vision can't hedge to a non-vision provider) have no fallback.
 
 ---
 
@@ -236,7 +220,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 | Model tier | Allowed levels |
 |------------|----------------|
 | Pro models | `LOW`, `HIGH` only (NO `MEDIUM` — runtime validated) |
-| Flash models | `LOW`, `MEDIUM`, `HIGH` |
+| Flash models | `MINIMAL`, `LOW`, `MEDIUM`, `HIGH` |
 
 #### Provider: Google Vertex AI
 **Adapter:** `server/lib/ai/adapters/vertex-adapter.js`
@@ -253,7 +237,7 @@ This document defines the core terminology used throughout Vecto Pilot and maps 
 **Notes:** Same parameter format as Gemini adapter. Enables access to Vertex-only models (e.g., native audio).
 
 #### Provider: Perplexity
-**Adapter:** `server/lib/ai/adapters/perplexity-adapter.js`
+**Client:** `server/lib/external/perplexity-api.js` (`searchPerplexity`, model hardcoded to `sonar-pro`) — not routed through `callModel`
 **API Key Env Var:** `PERPLEXITY_API_KEY`
 **Default Model:** `sonar-pro`
 **Purpose:** AI-powered web research for event discovery and holiday detection
@@ -265,7 +249,7 @@ The adapter layer detects provider from model ID prefix:
 
 | Model ID prefix | Provider |
 |----------------|----------|
-| `gpt-*`, `o1-*` | OpenAI |
+| `gpt-*`, `o1-*`, `o3*`, `o4-*` | OpenAI |
 | `claude-*` | Anthropic |
 | `gemini-*` | Google |
 
@@ -291,7 +275,6 @@ The adapter layer detects provider from model ID prefix:
 | Role | Purpose | Override Env Var | Features |
 |------|---------|------------------|----------|
 | **BRIEFINGS TABLE** ||||
-| `BRIEFING_WEATHER` | Weather intelligence | `BRIEFING_WEATHER_MODEL` | web search |
 | `BRIEFING_TRAFFIC` | Traffic conditions analysis | `BRIEFING_TRAFFIC_MODEL` | web search, extended thinking |
 | `BRIEFING_NEWS` | Local news research | `BRIEFING_NEWS_MODEL` | web search, extended thinking |
 | `BRIEFING_EVENTS_DISCOVERY` | Event discovery (parallel category search) | `BRIEFING_EVENTS_MODEL` | web search, extended thinking |
@@ -318,8 +301,6 @@ The adapter layer detects provider from model ID prefix:
 | `CONCIERGE_CHAT` | Public conversational interface | `CONCIERGE_CHAT_MODEL` | web search, thinking |
 | **UTILITIES** ||||
 | `UTIL_RESEARCH` | General research queries | `UTIL_RESEARCH_MODEL` | web search |
-| `UTIL_WEATHER_VALIDATOR` | Validate weather data structure | `UTIL_WEATHER_VALIDATOR_MODEL` | |
-| `UTIL_TRAFFIC_VALIDATOR` | Validate traffic data structure | `UTIL_TRAFFIC_VALIDATOR_MODEL` | |
 | `UTIL_MARKET_PARSER` | Parse unstructured market research | `UTIL_PARSER_MODEL` | reasoning |
 | `UTIL_TRANSLATION` | Text translation | `UTIL_TRANSLATION_MODEL` | minimal tokens |
 | **INTERNAL** ||||
@@ -383,7 +364,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **Documentation:**
 - `docs/preflight/ai-models.md` — Human-readable model landscape and parameter constraints
 
-**Removed (2026-02-26):** `models-dictionary.js` (dead code, zero imports), `MODEL.md` (sync burden), `tools/research/` (orphaned pipeline).
+**Removed (2026-02-26):** MODEL.md (sync burden). `server/lib/ai/models-dictionary.js` remains in-tree but has zero imports (superseded by model-registry.js); `tools/research/` still holds archived model-research snapshots.
 
 ---
 
@@ -393,13 +374,10 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **What it is:** Venue enrichment service providing business details, hours, and coordinates.
 
 **Codebase Files:**
-- `server/lib/venue/places-cache.js` - Caching layer
-- `server/lib/venue/places-hours.js` - Business hours calculation
 - `server/lib/venue/venue-enrichment.js` - Main enrichment logic
 
 **Environment Variables:**
 - `GOOGLE_PLACES_API_KEY` - API key
-- `PLACES_API_CACHE_TTL` - Cache expiration (default: 86400s)
 
 **Database Tables:**
 - `places_cache` - Cached API responses
@@ -410,8 +388,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **What it is:** Real-time distance and drive time calculation service.
 
 **Codebase Files:**
-- `server/lib/location/routes-api.js` - API client
-- `server/lib/location/driveTime.js` - Legacy implementation
+- `server/lib/external/routes-api.js` - API client
 
 **Features:**
 - Traffic-aware routing
@@ -424,12 +401,12 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **What it is:** Address resolution and reverse geocoding service.
 
 **Codebase Files:**
-- `server/lib/location/geocoding.js` - Main implementation
-- `server/api/location/geocode-proxy.js` - HTTP proxy endpoint
+- `server/lib/location/geocode.js` - Main implementation
+- `server/api/location/location.js` - HTTP endpoints (mounted under /api/location)
 
 **API Endpoints:**
-- `/api/geocode/reverse` - Coordinates → address
-- `/api/geocode/forward` - Address → coordinates
+- `/api/location/geocode/reverse` - Coordinates → address
+- `/api/location/geocode/forward` - Address → coordinates
 
 ---
 
@@ -472,8 +449,8 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 |--------|---------|--------|
 | `server/lib/venue/venue-address-resolver.js` | Authoritative place resolution | ✅ CORRECT |
 | `server/lib/venue/venue-cache.js` | Venue CRUD operations | ⚠️ Uses fuzzy matching |
-| `server/lib/venue/venue-enrichment.js` | Places API caching | ⚠️ Wrong key (coords in place_id) |
-| `server/scripts/sync-events.mjs` | Event ETL pipeline | ⚠️ Drops place_id |
+| `server/lib/venue/venue-enrichment.js` | Places API caching | ✅ Keys places_cache by coords_key (D-013 fixed 2026-01-10) |
+| `server/scripts/sync-events.mjs` | Event ETL pipeline | ✅ Captures place_id (audit fix 2026-01-10) |
 
 ### Resolution Priority
 
@@ -486,7 +463,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 ### Related Documentation
 
 - `docs/AUDIT_LEDGER.md` - Current pipeline issues
-- `docs/DOC_DISCREPANCIES.md` - D-013 places_cache mismatch
+- `docs/DOC_DISCREPANCIES.md` - doc/code discrepancy ledger (D-013 places_cache resolved 2026-01-10)
 
 ---
 
@@ -494,8 +471,9 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **What it is:** Airport delay and disruption data service.
 
 **Codebase Files:**
-- `server/lib/external/faa-asws.js` - API client
-- `server/api/venue/venue-events.js` - Event integration
+- `server/lib/external/faa-asws.js` - API client (Ground_Stop_List parsing)
+- `server/lib/briefing/pipelines/airport.js` - Briefing airport pipeline consumer
+- `server/api/location/location.js` - travel_disruptions cache writer
 
 **Database Tables:**
 - `travel_disruptions` - Airport status cache
@@ -506,13 +484,10 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **What it is:** AI-powered research engine for event discovery.
 
 **Codebase Files:**
-- `server/lib/external/perplexity-research.js` - Research orchestrator
-- `server/lib/external/perplexity-event-prompt.js` - Prompt templates
-- `server/lib/ai/adapters/perplexity-adapter.js` - API adapter
+- `server/lib/external/perplexity-api.js` - Perplexity search client (searchPerplexity)
 
 **Environment Variables:**
 - `PERPLEXITY_API_KEY` - API key
-- `PERPLEXITY_MODEL` (default: 'sonar-pro')
 
 ---
 
@@ -521,14 +496,10 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 
 **Codebase Files:**
 - `server/lib/venue/venue-intelligence.js` - Intelligence engine
-- `server/lib/venue/venue-discovery.js` - Venue discovery
-- `server/lib/venue/venue-event-research.js` - Event research
 - `server/lib/venue/venue-event-verifier.js` - Event validation
 - `server/api/venue/venue-intelligence.js` - HTTP endpoints
 
-**API Endpoints:**
-- `/api/venues/intelligence` - Smart recommendations
-- `/api/venues/events` - Event-specific analysis
+**API Endpoints** (router mounted at `/api/venues` via `server/bootstrap/routes.js`): `GET /api/venues/nearby`, `GET /api/venues/traffic`, `GET /api/venues/smart-blocks`, `GET /api/venues/last-call`. There is no `/intelligence` route, and `/api/venues/events` is gone — venue-events.js was unmounted 2026-02-17 and is dead code.
 
 ---
 
@@ -550,7 +521,6 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 
 **Environment Variables:**
 - `APP_MODE` (default: 'mono')
-- `DISABLE_SPAWN_SDK` - Prevent SDK auto-spawn
 - `DISABLE_SPAWN_AGENT` - Prevent Agent auto-spawn
 
 ---
@@ -577,12 +547,11 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 
 **Codebase Files:**
 - `strategy-generator.js` - Worker entry point
-- `server/lib/strategy/strategy-generator.js` - Pipeline logic
-- `server/lib/strategy/triad-orchestrator.js` - Three-stage coordinator
+- `server/jobs/triad-worker.js` - LISTEN-only worker logic (startConsolidationListener)
 
 **Process Management:**
 - Spawned by Gateway in mono mode
-- Listens for `strategy_trigger` database notifications
+- Listens for `strategy_ready` database notifications (emits `blocks_ready` when SmartBlocks are written)
 - Auto-restarts on failure
 
 ---
@@ -593,13 +562,9 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **Codebase Files:**
 - `server/db/pool.js` - Shared pool instance
 - `server/db/connection-manager.js` - Health monitoring
-- `server/db/pool-lazy.js` - Lazy initialization
 
 **Environment Variables:**
-- `DATABASE_URL` - Production database
-- `DEV_DATABASE_URL` - Development database
-- `DB_POOL_MIN` (default: 2)
-- `DB_POOL_MAX` (default: 10)
+- `DATABASE_URL` - The only DB selector (dev vs prod is decided by its value, never by separate env vars)
 
 **Tables:** See `scripts/create-all-tables.sql`
 
@@ -643,8 +608,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **What it is:** Modular units of contextual market data (Traffic, Events, Weather, News) gathered during the briefing pipeline. These are **inputs** to the strategy generation process, NOT displayed as venue cards.
 
 **Codebase Files:**
-- `server/lib/strategy/content-blocks.js` - Block generation
-- `client/src/components/_future/SmartBlocks.tsx` - Renders briefing blocks (Events, Traffic, News)
+- `server/api/strategy/content-blocks.js` - Block generation (mounted at /api/blocks)
 
 **What Briefing Blocks ARE:**
 - Traffic intelligence blocks
@@ -690,7 +654,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 4. **STRATEGY_TACTICAL** - Immediate 1-hour actionable strategy
 
 **Codebase Files:**
-- `server/lib/ai/providers/minstrategy.js` - STRATEGY_CORE role implementation
+- `server/lib/ai/providers/consolidator.js` - STRATEGY_TACTICAL runs directly from snapshot + briefing (no separate STRATEGY_CORE stage)
 - `server/lib/strategy/tactical-planner.js` - VENUE_SCORER role implementation
 - `server/lib/venue/enhanced-smart-blocks.js` - SmartBlocks orchestrator (calls VENUE_SCORER + Google APIs)
 - `server/lib/strategy/strategy-generator.js` - Pipeline orchestrator
@@ -704,13 +668,10 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **What it is:** Perplexity-powered event discovery and verification.
 
 **Codebase Files:**
-- `server/lib/external/perplexity-research.js` - Research orchestrator
-- `server/lib/venue/venue-event-research.js` - Venue-specific research
 - `server/lib/venue/venue-event-verifier.js` - Verification logic
 
 **Database Tables:**
 - `venue_events` - Discovered events
-- `event_research_log` - Research audit trail
 
 ---
 
@@ -720,8 +681,8 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 **What it is:** User authentication token system.
 
 **Codebase Files:**
-- `server/lib/jwt.ts` - Token generation/validation
-- `server/middleware/auth.ts` - Auth middleware
+- `server/lib/jwt.js` - Token generation/validation
+- `server/middleware/auth.js` - Auth middleware
 - `scripts/make-jwks.mjs` - JWKS generation
 - `scripts/sign-token.mjs` - Token signing utility
 
@@ -741,8 +702,7 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 - `migrations/003_rls_security.sql` - RLS policies
 
 **Helper Functions:**
-- `current_user_id()` - Extract user ID from JWT
-- `is_admin()` - Admin privilege check
+- `app.current_user_id()` - Extract user ID from JWT session setting
 
 ---
 
@@ -753,8 +713,6 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 
 **Codebase Files:**
 - `client/src/contexts/location-context-clean.tsx` - React context
-- `client/src/hooks/useGeoPosition.ts` - GPS hook
-- `client/src/hooks/use-geolocation.tsx` - Enhanced geolocation
 
 **Features:**
 - Browser Geolocation API
@@ -770,9 +728,6 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 - `docs/preflight/ai-models.md` - AI model reference and parameter constraints
 - `LEXICON.md` - This file (terminology reference)
 - `replit.md` - Replit-specific documentation
-- `COACH_DATA_ACCESS.md` - Rideshare Coach data access patterns
-- `QUERY_CONVENTIONS.md` - Database query standards
-- `SECURITY_AUDIT_REPORT.md` - Security audit findings
 
 ---
 
@@ -780,18 +735,9 @@ const stream = await callModelStream('AI_COACH', { system, messageHistory });
 
 ### Scripts
 - `scripts/seed-dev.js` - Database seeding
-- `scripts/init-dev-db.js` - Database initialization
-- `scripts/test-all.sh` - Full test suite
-- `scripts/validate-all.sh` - Validation suite
-
-### Debug Tools
-- `tools/debug/test-llm-router.mjs` - Router testing
-- `tools/debug/test-v2-router.mjs` - V2 router testing
-- `tools/debug/hedge-burst-v2.mjs` - Hedge testing
 
 ### Research Tools
-- `tools/research/model-discovery.mjs` - Model API discovery
-- `tools/research/generate-model-md.mjs` - Documentation generator
+- `tools/research/` - Archived model-research snapshots (JSON + parse scripts)
 
 ---
 

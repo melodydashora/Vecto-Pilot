@@ -1,6 +1,18 @@
 /**
  * Hedged Router for LLM Calls
- * Fires concurrent requests to multiple providers, takes first response
+ *
+ * 2026-08-11: SEQUENTIAL FAILOVER (was: concurrent racing). The original
+ * implementation fired ALL providers simultaneously and kept the first
+ * response (Promise.any) — which billed EVERY provider on EVERY call for
+ * fallback-enabled roles. This was identified once before (2026-04-30,
+ * model-registry.js: briefings "~2× more expensive than necessary") and
+ * mitigated by shrinking FALLBACK_ENABLED_ROLES instead of fixing the
+ * mechanism; the four strategy roles kept double-billing and contributed
+ * to the 2026-08 Google billing spike. The documented INTENT was always
+ * failover ("having NO fallback means complete data loss on Gemini
+ * outage"), not racing. execute() now tries providers in order and only
+ * dispatches the next one when the previous FAILED — one bill per call,
+ * same redundancy. Class name kept to avoid rippling imports.
  */
 
 import { classifyError, ErrorType } from './error-classifier.js';
@@ -8,6 +20,23 @@ import { ConcurrencyGate } from './concurrency-gate.js';
 
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_PROVIDERS = ['anthropic', 'openai'];
+
+// 2026-08-06: stable, SAFE cause codes for sanitized provider errors. The
+// 2026-04-24 sanitization below correctly keeps raw upstream messages (which can
+// echo API keys) out of thrown messages — but it also erased the CAUSE, so every
+// stored reason field read "All hedged providers failed" and callModel's 503
+// retry could never match. A closed vocabulary of codes carries the cause
+// without carrying upstream content.
+function classifyCauseCode(message) {
+  const msg = String(message || '').toLowerCase();
+  if (msg.includes('truncated at max_tokens')) return 'truncated';
+  if (msg.includes('empty response')) return 'empty-response';
+  if (msg.includes('429') || msg.includes('quota') || msg.includes('rate limit')) return 'quota';
+  if (msg.includes('503') || msg.includes('unavailable') || msg.includes('overloaded')) return 'unavailable';
+  if (msg.includes('401') || msg.includes('403') || msg.includes('api key') || msg.includes('permission')) return 'auth';
+  if (msg.includes('timeout') || msg.includes('abort')) return 'timeout';
+  return 'unknown';
+}
 
 export class HedgedRouter {
   constructor(options = {}) {
@@ -64,11 +93,11 @@ export class HedgedRouter {
     }
 
     try {
-      // Race all providers
+      // 2026-08-11: sequential failover (was: race all providers)
       const signal = timeoutController ? timeoutController.signal : null;
-      const result = await this._raceProviders(request, providers, controllers, signal);
+      const result = await this._tryProvidersSequentially(request, providers, controllers, signal);
 
-      // Abort all other in-flight requests
+      // Abort any remaining controllers (no-op for providers never dispatched)
       this._abortOthers(controllers, result.provider);
 
       // Record success
@@ -186,17 +215,41 @@ export class HedgedRouter {
 
   // Private methods
 
-  async _raceProviders(request, providers, controllers, masterSignal) {
-    const promises = providers.map(async (provider) => {
+  // 2026-08-11: SEQUENTIAL FAILOVER — was _raceProviders (all providers fired
+  // at once via Promise.any, billing every provider per call). Providers are
+  // now tried strictly in the caller's order (primary first); the next
+  // provider is dispatched ONLY after the previous one failed. Failure
+  // semantics, sanitization, circuit recording, and the aggregate error
+  // contract ("All hedged providers failed (provider:code, ...)") are
+  // byte-identical to the racing version — callModel's 503-retry matches on
+  // causeCode/causeCodes, and briefing failure reasons store these strings.
+  // Timeout note: the master timeout (masterSignal) is an OVERALL budget. The
+  // common failure modes (auth 403, 503, quota) fail in <1s, leaving nearly
+  // the full budget for the fallback; only a primary that hangs to the full
+  // budget forfeits the fallback attempt — the same overall latency the
+  // timeout was chosen to cap.
+  async _tryProvidersSequentially(request, providers, controllers, masterSignal) {
+    const failures = [];
+
+    for (const provider of providers) {
+      // Master timeout already spent — stop, report what failed so far.
+      if (masterSignal?.aborted) break;
+
       const controller = controllers.get(provider);
 
       // Combine with master signal
-      const combinedSignal = masterSignal 
+      const combinedSignal = masterSignal
         ? this._combineSignals(controller.signal, masterSignal)
         : controller.signal;
 
+      // 2026-08-11: release only what was acquired — when acquire() itself
+      // rejects (queue timeout / abort-while-queued) the old finally still
+      // released, decrementing another request's slot and over-admitting the
+      // process-wide gate.
+      let acquired = false;
       try {
         await this.concurrencyGate.acquire(provider, combinedSignal);
+        acquired = true;
 
         const response = await this._callProvider(provider, request, combinedSignal);
 
@@ -211,29 +264,46 @@ export class HedgedRouter {
         // the API key back, and that message bubbles up to client responses via
         // callModel result.error. Keep the detail on a property for structured
         // logging; use a generic message string.
-        const enhancedError = new Error(`${provider}: upstream request failed`);
+        // 2026-08-06: + closed-vocabulary causeCode so the cause survives
+        // sanitization (see classifyCauseCode above).
+        const causeCode = classifyCauseCode(error?.message);
+        const enhancedError = new Error(`${provider}: upstream request failed (${causeCode})`);
         enhancedError.provider = provider;
+        enhancedError.causeCode = causeCode;
         enhancedError.originalError = error;
-        throw enhancedError;
+        failures.push(enhancedError);
+        // fall through to the next provider
       } finally {
-        this.concurrencyGate.release(provider);
+        if (acquired) this.concurrencyGate.release(provider);
       }
-    });
-
-    try {
-      return await Promise.any(promises);
-    } catch (aggregateError) {
-      // 2026-04-24: SECURITY — emit a generic Error.message. The individual provider
-      // errors (which, after the per-provider sanitization above, contain only generic
-      // "provider: upstream request failed" strings) are attached as .providerErrors
-      // for structured logging but NOT joined into the thrown message.
-      const errors = aggregateError.errors.map(e => e.message);
-      console.error('[AI] All providers failed details:', JSON.stringify(errors, null, 2));
-      const aggError = new Error('All hedged providers failed');
-      aggError.providerErrors = errors;
-      aggError.cause = aggregateError;
-      throw aggError;
     }
+
+    // 2026-08-11: master timeout can expire before ANY provider was tried
+    // (loop breaks with failures=[]), which produced "All hedged providers
+    // failed ()" with empty causeCodes — nothing for the 503-retry logic to
+    // match on. Synthesize one entry per untried provider so the contract
+    // shape holds.
+    if (failures.length === 0) {
+      for (const provider of providers) {
+        const timeoutError = new Error(`${provider}: upstream request failed (timeout)`);
+        timeoutError.provider = provider;
+        timeoutError.causeCode = 'timeout';
+        failures.push(timeoutError);
+      }
+    }
+
+    // 2026-04-24: SECURITY — emit a generic Error.message. The individual provider
+    // errors (sanitized above to generic "provider: upstream request failed"
+    // strings) are attached as .providerErrors for structured logging but NOT
+    // joined into the thrown message.
+    const errors = failures.map(e => e.message);
+    const causeCodes = failures.map(e => ({ provider: e.provider || 'unknown', code: e.causeCode || 'unknown' }));
+    console.error('[AI] All providers failed details:', JSON.stringify(errors, null, 2));
+    const aggError = new Error(`All hedged providers failed (${causeCodes.map(c => `${c.provider}:${c.code}`).join(', ')})`);
+    aggError.providerErrors = errors;
+    aggError.causeCodes = causeCodes;
+    aggError.cause = new AggregateError(failures, 'All providers failed');
+    throw aggError;
   }
 
   async _callProvider(provider, request, signal) {

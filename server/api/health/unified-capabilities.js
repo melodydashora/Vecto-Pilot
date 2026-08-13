@@ -9,6 +9,10 @@ export default function unifiedCapabilitiesRoutes(app) {
       const capabilities = unifiedAI.getCapabilities();
       res.json({
         ok: true,
+        // `system` preserved from the retired duplicate route in gateway-server.js
+        // (2026-08-11); every other field it returned is already inside
+        // capabilities via the UNIFIED_CAPABILITIES spread in getCapabilities().
+        system: 'Unified AI (Eidolon/Assistant/Atlas)',
         capabilities,
         timestamp: new Date().toISOString()
       });

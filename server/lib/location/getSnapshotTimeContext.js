@@ -9,6 +9,8 @@
  * @module server/lib/location/getSnapshotTimeContext
  */
 
+import { normalizeDayPartKey } from './daypart.js';
+
 /**
  * Custom error for missing timezone - should never be caught silently
  */
@@ -65,9 +67,19 @@ export function getSnapshotTimeContext(snapshot) {
   // Get day of week (0=Sunday, 6=Saturday) — already resolved in snapshot
   const dayOfWeek = snapshot.dow;
 
-  // Hour and day part — already resolved in snapshot
+  // Hour and day part — already resolved in snapshot.
+  // 2026-07-06: normalize legacy keys (late_morning_noon/afternoon) to the
+  // canonical taxonomy; missing/unknown → throw. The old `|| 'night'` literal
+  // was a shadow daypart no other layer recognized — exactly the silent
+  // fallback this file's doctrine forbids.
   const hour = snapshot.hour;
-  const dayPart = snapshot.day_part_key || 'night';
+  const dayPart = normalizeDayPartKey(snapshot.day_part_key);
+  if (!dayPart) {
+    throw new Error(
+      `Snapshot ${snapshot.snapshot_id || 'unknown'} has missing/unknown day_part_key ` +
+      `${JSON.stringify(snapshot.day_part_key)} — data integrity bug (no fallbacks).`
+    );
+  }
 
   // Weekend check
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
@@ -92,9 +104,9 @@ export function getSnapshotTimeContext(snapshot) {
     lat: snapshot.lat,
     lng: snapshot.lng,
 
-    // Holiday status (from snapshot)
-    isHoliday: snapshot.is_holiday || false,
-    holiday: snapshot.holiday || null,
+    // 2026-07-06: holiday removed — it lives in briefings.holiday now (this
+    // function receives only the snapshot row; briefing-aware consumers read
+    // the section themselves)
 
     // Raw snapshot reference
     snapshotId: snapshot.snapshot_id
@@ -134,10 +146,16 @@ export function getEventDateRange(snapshot, daysAhead = 7) {
 export function formatLocalTime(snapshot) {
   const context = getSnapshotTimeContext(snapshot);
 
-  // Use local_iso if available for precision
   // 2026-02-17: FIX - local_iso stores wall-clock time as fake UTC (timestamp without timezone).
   // Use timeZone: 'UTC' to prevent double-conversion.
-  const baseTime = snapshot.local_iso ? new Date(snapshot.local_iso) : new Date();
+  // 2026-07-06: local_iso is NOT NULL in schema — missing means data corruption.
+  // The old `: new Date()` fallback displayed server-UTC as driver-local time.
+  if (!snapshot.local_iso) {
+    throw new Error(
+      `Snapshot ${snapshot.snapshot_id || 'unknown'} missing local_iso — cannot format local time (no fallbacks).`
+    );
+  }
+  const baseTime = new Date(snapshot.local_iso);
 
   return baseTime.toLocaleString('en-US', {
     timeZone: 'UTC',

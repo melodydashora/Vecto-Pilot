@@ -41,7 +41,9 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │  • Eliminates ~200ms base64 encoding on iOS client                │  │
 │  │                                                                    │  │
 │  │  All modes → POST /api/hooks/analyze-offer                        │  │
-│  │  NO JWT token — uses device_id for identification                 │  │
+│  │  NO JWT token — device_id plus optional x-shortcut-token header  │  │
+│  │  (maps to user_id + per-driver ruleset; absent → DEFAULT_RULESET,│  │
+│  │  null user_id)                                                   │  │
 │  │  TODO: User onboarding for Shortcut setup (needs more testing)    │  │
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
@@ -49,7 +51,8 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │  POST /api/hooks/analyze-offer (server/api/hooks/analyze-offer.js)│  │
 │  │  • Auth: BYPASSES requireAuth (headless endpoint)                 │  │
 │  │  • Accepts: text, base64 image, or multipart image upload         │  │
-│  │  • Pre-parser: regex extraction (parse-offer-text.js, 325 lines) │  │
+│  │  • Pre-parser: regex extraction                                  │  │
+│  │    (server/lib/offers/parse-offer-text.js)                       │  │
 │  │  • Vision: Gemini 3 Flash extracts data from screenshots          │  │
 │  │  • AI Decision: ACCEPT/REJECT with reasoning + confidence score   │  │
 │  │  • Stores to: offer_intelligence table (30+ ML-ready columns)     │  │
@@ -65,15 +68,13 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │  • ML training: decision + user_override = labeled training data  │  │
 │  │  • Sequence: offer_session_id, sequence_num (pattern analysis)    │  │
 │  │  • Quality: parse_confidence, input_mode (text vs vision)         │  │
-│  │  • 15+ indexes for daypart/geographic/platform analytics          │  │
+│  │  • 13 indexes for daypart/geographic/platform analytics          │  │
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  SignalTerminal.tsx (/co-pilot/omni)                              │  │
-│  │  • Real-time display via SSE/Polling                              │  │
-│  │  • Shows: incoming offers + AI decision + reasoning               │  │
-│  │  • Driver confirms/overrides AI decision                          │  │
-│  │  • Override feedback → labeled training data for ML learning      │  │
+│  │  OfferAnalyzerPage.tsx (/co-pilot/offer-analyzer)                │  │
+│  │  • Per-driver rules editor (offer_rulesets) + Siri Shortcut token│  │
+│  │  • Offer history + outcome recording (offer_outcomes)            │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                                                          │
 │  Additional Headless Endpoints (all device_id auth):                    │
@@ -131,7 +132,8 @@ iOS Device                      Vecto Server                    Database
     │                               │                              │
     │                               │  6. SSE push to app          │
     │                               │  ─────────────────────────►  │
-    │                               │  SignalTerminal updates      │
+    │                               │  OfferAnalyzerPage offer list│
+    │                               │  updates                     │
     │                               │                              │
 ```
 
@@ -169,15 +171,14 @@ iOS Device                      Vecto Server                    Database
 │  └────────────────────┬─────────────────────────────────────────────┘  │
 │                       ↓                                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  Route-Based Pages (8 co-pilot + 5 auth + SafeScaffold)          │  │
+│  │  Route-Based Pages (14 co-pilot + 5 auth + public pages +        │  │
+│  │  SafeScaffold)                                                   │  │
 │  │  ┌────────────────────────────────────────────────────────────┐  │  │
 │  │  │ /co-pilot/strategy  → StrategyPage.tsx                     │  │  │
 │  │  │   • AI strategy display                                    │  │  │
 │  │  │   • Smart Blocks (NOW strategy: top 3 Grade A, ≥1mi apart) │  │  │
-│  │  │   • AICoach (Gemini 3 Pro Preview — text + vision + search)│  │  │
-│  │  │     └─ Image uploads: heatmaps, surge maps, screenshots    │  │  │
-│  │  │     └─ Voice: OpenAI Realtime API (integrated, disabled)   │  │  │
-│  │  │     └─ TODO: capture uploaded images for AI/ML learning    │  │  │
+│  │  │   • Includes the venue map (former MapPage,                │  │  │
+│  │  │     merged 2026-04-26)                                     │  │  │
 │  │  │   • FeedbackModal                                          │  │  │
 │  │  │   • SmartBlocksStatus (pipeline progress)                  │  │  │
 │  │  │   • GreetingBanner (holiday OR daypart greeting)           │  │  │
@@ -196,11 +197,6 @@ iOS Device                      Vecto Server                    Database
 │  │  │   • EventsComponent (active events display)                │  │  │
 │  │  │   • useBriefingQueries (direct API fetch)                  │  │  │
 │  │  ├────────────────────────────────────────────────────────────┤  │  │
-│  │  │ /co-pilot/map → MapPage.tsx                                │  │  │
-│  │  │   • MapTab (interactive venue map)                         │  │  │
-│  │  │   • Strategy blocks + bar markers + active events          │  │  │
-│  │  │   • useActiveEventsQuery (happening now filter)            │  │  │
-│  │  ├────────────────────────────────────────────────────────────┤  │  │
 │  │  │ /co-pilot/intel → IntelPage.tsx                            │  │  │
 │  │  │   • RideshareIntelTab                                      │  │  │
 │  │  │   • DeadheadCalculator, ZoneCards, StrategyCards           │  │  │
@@ -210,6 +206,10 @@ iOS Device                      Vecto Server                    Database
 │  │  ├────────────────────────────────────────────────────────────┤  │  │
 │  │  │ /co-pilot/policy → PolicyPage.tsx                          │  │  │
 │  │  │   • Privacy policy (static)                                │  │  │
+│  │  ├────────────────────────────────────────────────────────────┤  │  │
+│  │  │ /co-pilot/coach → CoachPage.tsx                            │  │  │
+│  │  │   • AI Coach (streaming, vision, search — own route        │  │  │
+│  │  │     since 2026-04-25)                                      │  │  │
 │  │  ├────────────────────────────────────────────────────────────┤  │  │
 │  │  │ /co-pilot/settings → SettingsPage.tsx                      │  │  │
 │  │  │   • User profile editing                                   │  │  │
@@ -330,6 +330,11 @@ iOS Device                      Vecto Server                    Database
 │  │  │ • /agent/* → embed.js (workspace agent)                      ││  │
 │  │  │ • /agent/ws → embed.js (WebSocket for agent)                 ││  │
 │  │  └──────────────────────────────────────────────────────────────┘│  │
+│  │  ┌──────────────────────────────────────────────────────────────┐│  │
+│  │  │ Offer Analyzer (server/api/offer-analyzer/)                  ││  │
+│  │  │ • /api/offer-analyzer → index.js (per-driver rules, shortcut ││  │
+│  │  │   token, offer history/outcomes — authed)                    ││  │
+│  │  └──────────────────────────────────────────────────────────────┘│  │
 └─────────────────────────────────────────────────────────────────────────┘
           ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -340,10 +345,13 @@ iOS Device                      Vecto Server                    Database
 │     ↓       ↓           ↓            ↓              ↓                    │
 │  actions    briefings   triad_jobs   venue_feedback strategy_feedback    │
 │                                                                          │
-│  Additional tables: discovered_events, venue_events, market_intelligence │
-│                     platform_data, countries, auth tables                │
+│  Additional tables: discovered_events, venue_events, market_intelligence,│
+│                     platform_data, countries, auth tables,               │
+│                     offer_rulesets, offer_outcomes, airports,            │
+│                     schema_migrations                                    │
 │                                                                          │
-│  Row-Level Security (RLS) policies filter all queries by user_id        │
+│  Per-user filtering is enforced in application queries                  │
+│  (WHERE user_id = ...); RLS exists only on agent_memory                 │
 └─────────────────────────────────────────────────────────────────────────┘
           ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -352,7 +360,7 @@ iOS Device                      Vecto Server                    Database
 │                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Anthropic Claude Sonnet 4.5 (Strategic Overview)               │   │
-│  │ • File: server/lib/ai/adapters/anthropic-sonnet45.js            │   │
+│  │ • File: server/lib/ai/adapters/anthropic-adapter.js             │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ OpenAI GPT-5.2 (Consolidation, Venues, TTS, Voice)            │   │
@@ -372,8 +380,9 @@ iOS Device                      Vecto Server                    Database
 │  │ • Fallback: GPT-5.2 if Google is down                          │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google Gemini 2.5 Pro (Event Verification)                     │   │
-│  │ • File: server/lib/ai/adapters/gemini-2.5-pro.js                │   │
+│  │ Google Gemini (Event Verification — VENUE_EVENT_VERIFIER role)  │   │
+│  │ • File: server/lib/venue/venue-event-verifier.js                │   │
+│  │   via server/lib/ai/adapters/gemini-adapter.js                  │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google APIs (Maps Platform)                                    │   │
@@ -396,8 +405,8 @@ iOS Device                      Vecto Server                    Database
    │  └─ strategies.minstrategy ✓
    ├─ Briefing (Gemini 3.0 Pro + Google Search)
    │  └─ briefings.{news, events, traffic, closures, airport} ✓
-   └─ Holiday Detection (at snapshot creation)
-      └─ snapshots.holiday, snapshots.is_holiday ✓
+   └─ Holiday Detection (briefing pipeline — server/lib/briefing/pipelines/holiday.js)
+      └─ briefings.holiday ✓
    ↓
 3. Consolidator — STRATEGY_TACTICAL role (model: see registry)
    └─ strategies.strategy_for_now ✓ (NOW strategy — sole live strategy output)
@@ -438,13 +447,13 @@ The UI uses **React Router** with:
 
 | Route | Component | Primary Data Sources |
 |-------|-----------|---------------------|
-| `/co-pilot/strategy` | StrategyPage.tsx | CoPilotContext (strategy, blocks), AICoach |
+| `/co-pilot/strategy` | StrategyPage.tsx | CoPilotContext (strategy, blocks) |
 | `/co-pilot/bars` | VenueManagerPage.tsx | `/api/venues/nearby`, BarsDataGrid |
 | `/co-pilot/briefing` | BriefingPage.tsx | useBriefingQueries (6 endpoints) |
-| `/co-pilot/map` | MapPage.tsx | CoPilotContext (blocks), bars API, active events |
 | `/co-pilot/intel` | IntelPage.tsx | RideshareIntelTab (static intelligence) |
 | `/co-pilot/about` | AboutPage.tsx | Static (no API) |
 | `/co-pilot/policy` | PolicyPage.tsx | Static (no API) |
+| `/co-pilot/coach` | CoachPage.tsx | AI Coach (streaming, vision, search) |
 | `/co-pilot/settings` | SettingsPage.tsx | Auth context, platform data APIs |
 
 ---
@@ -453,8 +462,8 @@ The UI uses **React Router** with:
 
 ```
 users (session tracking, auth - NO location data)
-  ├─→ auth_sessions (JWT tokens)
-  ├─→ auth_verification_codes (email/SMS codes)
+  ├─→ auth_credentials (password hashes, refresh/reset tokens)
+  ├─→ verification_codes (email/SMS codes)
   ├─→ intercepted_signals (legacy — migrated to offer_intelligence)
   ├─→ offer_intelligence (structured offer analysis, 30+ ML columns)
   │     └─→ Real-time offer decisions from headless clients (text + vision)
@@ -471,8 +480,8 @@ users (session tracking, auth - NO location data)
 coords_cache (geocode cache with 6-decimal precision)
   └─→ Shared across devices for same location
 
-markets (102 global markets with pre-stored timezones)
-  └─→ 3,333 city aliases for suburb/neighborhood matching
+markets (338 global markets with pre-stored timezones)
+  └─→ 3,400+ city aliases for suburb/neighborhood matching
 
 venue_catalog (persistent venue store with Google place_id)
   └─→ Cache-first pattern: checks DB before calling Places API
@@ -510,7 +519,7 @@ countries (ISO 3166-1 reference)
    - Extract user_id from payload
    - Attach to req.auth.userId
    ↓
-9. Database queries filtered by user_id (RLS policies)
+9. Database queries filtered by user_id in application WHERE clauses (RLS only on agent_memory)
    ↓
 10. Response contains ONLY data for authenticated user
 ```
@@ -520,7 +529,7 @@ countries (ISO 3166-1 reference)
 ## 🎯 KEY TAKEAWAYS
 
 1. **Single Source of Truth:** PostgreSQL database is authoritative for all data
-2. **Route-Based UI:** React Router with 13 pages, shared CoPilotContext
+2. **Route-Based UI:** React Router with 14 co-pilot routes + auth + public pages, shared CoPilotContext
 3. **Dual Auth Model:** JWT for app users, device_id for headless Siri clients
 4. **Domain-Organized APIs:** server/api/* folders by domain (auth, briefing, chat, etc.)
 5. **Model-Agnostic Providers:** Each AI role is pluggable via adapters (model-registry.js)
@@ -529,7 +538,7 @@ countries (ISO 3166-1 reference)
 8. **Snapshot-Centric:** All data scoped to snapshot_id for ML traceability
 9. **Real-Time Updates:** SSE for briefing_ready, strategy_ready, blocks_ready
 10. **Fail-Closed:** Missing data returns null/404, never hallucinated defaults
-11. **Global Markets:** 102 pre-stored markets (31 US + 71 international) skip Google Timezone API
+11. **Global Markets:** 338 pre-stored markets (267 US + 71 international) skip Google Timezone API
 12. **Two-Phase UI Update:** Weather/AQI display before city/state resolution completes
 13. **ML-Ready Offer Data:** offer_intelligence table with 30+ indexed columns for analytics
 14. **Vision + Text Dual-Mode:** Siri Shortcuts support OCR text and direct image analysis

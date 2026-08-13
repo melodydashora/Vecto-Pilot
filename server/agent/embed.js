@@ -162,10 +162,27 @@ export function mountAgent({ app, basePath, wsPath, server }) {
     const url = req.url || '/';
     if (!url.startsWith(wsPath)) return;
 
+    // 2026-08-06: guard the raw socket BEFORE any writes — until
+    // wss.handleUpgrade attaches its own handler, a client resetting the
+    // connection mid-upgrade raises an unhandled socket 'error' →
+    // uncaughtException → process.exit(1). Internet-triggerable crash surface.
+    socket.on('error', (err) => {
+      console.warn(`[agent embed] WS upgrade socket error: ${err.message}`);
+    });
+
     console.log(`[agent embed] WS upgrade request for ${url}`);
 
     // Extract token from query string (WebSockets can't use headers for auth)
-    const urlObj = new URL(url, `http://${req.headers.host}`);
+    // 2026-08-06: new URL() throws synchronously on a malformed Host header —
+    // reject instead of crashing the gateway.
+    let urlObj;
+    try {
+      urlObj = new URL(url, `http://${req.headers.host}`);
+    } catch {
+      console.warn(`[agent embed] ⛔ WS upgrade rejected - malformed URL/Host header`);
+      socket.destroy();
+      return;
+    }
     const token = urlObj.searchParams.get('token');
 
     if (!token) {

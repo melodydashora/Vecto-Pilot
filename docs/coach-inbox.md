@@ -211,3 +211,27 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 - **Priority:** high | **Date:** 2026-06-01 12:31
 - The production SSL certificate expired mid-day causing Siri Shortcuts to fail with 'invalid certificate' errors. Implement a daily health check that reads the SSL certificate expiration date and triggers an alert 7 days before expiration so the driver isn't caught off guard on the road.
   - Files: server/api/hooks/analyze-offer.js
+
+### [BUG] Fix double-read on Response body stream
+- **Priority:** medium | **Date:** 2026-08-11 17:19
+- Hit a 'Failed to execute text on Response: body stream already read' error during chat. Likely an issue with the SSE or fetch handling in the frontend where the stream is being consumed twice.
+
+### [FEATURE_REQUEST] Implement Gemini Multimodal Live API for Real-Time Voice
+- **Priority:** high | **Date:** 2026-08-11 17:56
+- Melody wants true real-time voice conversation with the AI Coach. We should upgrade the current turn-based TTS pipeline in the Coach tab to use the Gemini Multimodal Live API (WebSocket) for low-latency, interruptible, bidirectional voice streaming.
+  - Files: server/lib/ai/model-registry.js
+
+### [FEATURE_REQUEST] Implement Gemini Multimodal Live API for Voice Coach
+- **Priority:** high | **Date:** 2026-08-11 17:57
+- Melody wants true real-time voice conversation. The current STT/TTS loop is causing transcription errors ('Jim and I' instead of 'Gemini') and the mic is picking up the app's own TTS audio. We need to upgrade the Coach tab to use the Gemini Multimodal Live API (WebSocket) for low-latency, interruptible, bidirectional voice streaming without screen taps.
+
+### [BUG] TTS audio feeding back into STT microphone
+- **Priority:** high | **Date:** 2026-08-11 17:57
+- The STT microphone is actively listening while the TTS is playing, causing the AI's own responses to be transcribed and sent back as user messages (echo loop). We need to implement echo cancellation or automatically pause the microphone recording while TTS audio is actively playing in the Coach tab.
+  - Files: client/src/pages/coach/CoachPage.tsx
+
+### [CODE_SUGGESTION] Fix OpenAI Realtime GA session.update payload [RESOLVED — session.type added in RealtimeSession.ts]
+- **Priority:** high | **Date:** 2026-08-12 01:08
+- The OpenAI Realtime GA endpoint enforces a strict schema change requiring 'type': 'realtime' inside the session object during a session.update event. Fixes the 'Missing required parameter: session.type' error.
+  - Files: server/lib/ai/adapters/realtime.js
+  - Resolution note (2026-08-13): the suggested file path does not exist. The server mint (server/api/chat/realtime.js) was already GA-correct; the missing `type: 'realtime'` was in the client's data-channel session.update — fixed in client/src/lib/voice/RealtimeSession.ts.

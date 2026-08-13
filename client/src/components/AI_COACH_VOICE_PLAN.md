@@ -2,6 +2,13 @@
 
 > **LEGACY — Voice status consolidated into [docs/architecture/RIDESHARE_COACH.md](../../../docs/architecture/RIDESHARE_COACH.md) §4 on 2026-04-14.**
 > This file is retained as a detailed implementation reference.
+>
+> **2026-08-11 supersession note (todo #33):** §2's "do NOT use OpenAI Realtime"
+> decision was cost-based and is superseded by Melody's "the Coach is the cost"
+> doctrine and the joint voice-switcher decision. The Coach tab now carries a
+> three-way engine selector — Classic (this plan's pipeline, still the default)
+> / Gemini Live / GPT Realtime — implemented in `client/src/lib/voice/` with the
+> mouth-vs-brain split (`ask_coach_backend` → `/api/chat`).
 
 **Created:** 2026-04-13
 **Author:** Claude Opus 4.6 (in session with Melody)

@@ -80,8 +80,6 @@ TIME (what strategist sees):
   dow: ${snapshot?.dow ?? '(null)'} (${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][snapshot?.dow] || 'unknown'})
   hour: ${snapshot?.hour ?? '(null)'}
   day_part_key: ${snapshot?.day_part_key || '(null)'}
-  is_holiday: ${snapshot?.is_holiday ?? false}
-  holiday: ${snapshot?.holiday || 'none'}
 
 WEATHER (from snapshot):
 ${snapshot?.weather ? JSON.stringify(snapshot.weather, null, 2) : '(null)'}
@@ -117,6 +115,9 @@ ${lastBriefing.school_closures ? JSON.stringify(lastBriefing.school_closures, nu
 
 AIRPORT_CONDITIONS:
 ${lastBriefing.airport_conditions ? JSON.stringify(lastBriefing.airport_conditions, null, 2) : '(null)'}
+
+HOLIDAY:
+${lastBriefing.holiday ? JSON.stringify(lastBriefing.holiday, null, 2) : '(null)'}
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ SECTION 3: STRATEGY ROW (AI Output)                                          │

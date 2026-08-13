@@ -29,6 +29,7 @@ import { discoverSchools } from './pipelines/schools.js';
 import { discoverWeather } from './pipelines/weather.js';
 import { discoverAirport } from './pipelines/airport.js';
 import { discoverNews, fetchRideshareNews } from './pipelines/news.js';
+import { discoverHoliday } from './pipelines/holiday.js';
 import { discoverTraffic, fetchTrafficConditions } from './pipelines/traffic.js';
 import { discoverEvents, fetchEventsForBriefing } from './pipelines/events.js';
 
@@ -264,7 +265,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // original provider result so the extraction and assembly logic below is unchanged;
   // the DB write + NOTIFY are side effects. The final atomic write at the end of
   // this function is the authoritative reconciliation (idempotent).
-  let weatherResult, trafficResult, eventsResult, airportResult, newsResult;
+  let weatherResult, trafficResult, eventsResult, airportResult, newsResult, holidayResult;
 
   // 2026-05-02: Workstream 6 commit 4 — discoverWeather owns its writeSectionAndNotify
   // (single dual-section call) and its errorMarker .catch. Returns
@@ -294,17 +295,25 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
   // block below reads from the new shape.
   const newsPromise = discoverNews({ snapshot, snapshotId });
 
+  // 2026-07-06: holiday moved from snapshot creation to the briefing pipeline
+  // (Melody — snapshot stays deterministic; LLM-involved detection lives here).
+  // discoverHoliday owns its writeSectionAndNotify and writes errorMarker on
+  // failure; the final-assembly block below ALSO carries the section so the
+  // authoritative atomic write never depends on the lossy progressive channel.
+  const holidayPromise = discoverHoliday({ snapshot, snapshotId });
+
   const fetchResults = await Promise.allSettled([
     weatherPromise,
     trafficPromise,
     eventsPromise,
     airportPromise,
     newsPromise,
+    holidayPromise,
   ]);
 
   // 2026-04-05: Extract results with REASON for every outcome (NO NULLS rule).
   // Every subsystem produces either real data or an explanatory error — never bare null.
-  const subsystemNames = ['weather', 'traffic', 'events', 'airport', 'news'];
+  const subsystemNames = ['weather', 'traffic', 'events', 'airport', 'news', 'holiday'];
   const failedReasons = {};
   const extractedResults = fetchResults.map((result, i) => {
     if (result.status === 'fulfilled') {
@@ -315,15 +324,15 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     failedReasons[subsystemNames[i]] = reason;
     return null;
   });
-  [weatherResult, trafficResult, eventsResult, airportResult, newsResult] = extractedResults;
+  [weatherResult, trafficResult, eventsResult, airportResult, newsResult, holidayResult] = extractedResults;
 
   const failedCount = Object.keys(failedReasons).length;
   if (failedCount > 0) {
-    briefingLog.warn(1, `${failedCount}/5 subsystems failed — storing partial results (${Object.keys(failedReasons).join(', ')})`, OP.AI);
+    briefingLog.warn(1, `${failedCount}/6 subsystems failed — storing partial results (${Object.keys(failedReasons).join(', ')})`, OP.AI);
   }
-  // If ALL five failed, that's a systemic problem — throw so the .catch() handler marks the row
-  if (failedCount === 5) {
-    throw new Error(`All 5 briefing subsystems failed: ${Object.values(failedReasons).join('; ')}`);
+  // If ALL six failed, that's a systemic problem — throw so the .catch() handler marks the row
+  if (failedCount === 6) {
+    throw new Error(`All 6 briefing subsystems failed: ${Object.values(failedReasons).join('; ')}`);
   }
 
   // Step 3: Schools pipeline — owns cache-or-fetch decision + SSE write internally.
@@ -362,7 +371,8 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
 
   const airportCount = airportResult?.airport_conditions?.airports?.length || 0;
   const forecastHours = weatherResult?.weather_forecast?.length || 0;
-  briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.traffic_conditions?.congestionLevel || 'N/A'}, airports=${airportCount}`, OP.AI);
+  const holidayLabel = holidayResult?.holiday?.holiday ?? (failedReasons.holiday ? 'FAILED' : 'unknown');
+  briefingLog.done(2, `weather=${forecastHours}hr, events=${eventsItems.length}, news=${newsItems.length}, traffic=${trafficResult?.traffic_conditions?.congestionLevel || 'N/A'}, airports=${airportCount}, holiday=${holidayLabel}`, OP.AI);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // BUILD BRIEFING DATA — NO NULLS RULE
@@ -394,7 +404,14 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     },
     weather_current: weatherCurrent,
     weather_forecast: weatherResult?.weather_forecast || [],
+    // 2026-08-06: failed sections must carry _generationFailed (mirroring
+    // errorMarker, as the holiday section below already does). Without it, this
+    // final atomic write OVERWROTE the pipeline's progressive errorMarker with a
+    // flag-less fallback, so the aggregate endpoint reported DB/pipeline failures
+    // as VERIFIED-EMPTY sections — the todo #24 three-state violation that made
+    // prod airport failures render as "No nearby airports found".
     traffic_conditions: trafficResult?.traffic_conditions || {
+      ...(failedReasons.traffic ? { _generationFailed: true, error: failedReasons.traffic, failedAt: new Date().toISOString() } : {}),
       summary: failedReasons.traffic
         ? `Traffic unavailable: ${failedReasons.traffic}`
         : 'No traffic data available for this area',
@@ -408,6 +425,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
     events: eventsItems.length > 0
       ? eventsItems
       : {
+          ...(failedReasons.events ? { _generationFailed: true, error: failedReasons.events, failedAt: new Date().toISOString() } : {}),
           items: [],
           reason: failedReasons.events
             ? `Events fetch failed: ${failedReasons.events}`
@@ -417,12 +435,23 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
       ? schoolClosures
       : { items: [], reason: schoolClosuresReason },
     airport_conditions: airportResult?.airport_conditions || {
+      ...(failedReasons.airport ? { _generationFailed: true, error: failedReasons.airport, failedAt: new Date().toISOString() } : {}),
       airports: [],
       busyPeriods: [],
       recommendations: failedReasons.airport
         ? `Airport data unavailable: ${failedReasons.airport}`
         : 'No airport data available for this area',
       reason: failedReasons.airport || 'Airport conditions could not be retrieved'
+    },
+    // 2026-07-06: holiday section (moved from snapshot). Success carries the
+    // verified detection; failure carries the error + reason — NEVER a
+    // fabricated 'none'. Included here so the authoritative atomic write does
+    // not depend on the lossy progressive channel (Melody's review).
+    holiday: holidayResult?.holiday || {
+      _generationFailed: true,
+      error: failedReasons.holiday || 'Holiday detection did not run',
+      failedAt: new Date().toISOString(),
+      reason: failedReasons.holiday || 'Holiday detection did not produce a result'
     },
     created_at: new Date(),
     updated_at: new Date(),
@@ -447,6 +476,7 @@ async function generateBriefingInternal({ snapshotId, snapshot }) {
           events: briefingData.events,
           school_closures: briefingData.school_closures,
           airport_conditions: briefingData.airport_conditions,
+          holiday: briefingData.holiday,
           updated_at: new Date(),
           // 2026-04-14: Phase 7 — refresh generated_at on every successful regeneration.
           generated_at: new Date()

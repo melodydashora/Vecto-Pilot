@@ -179,6 +179,19 @@ export async function callGemini({
     // New SDK response: result.text or result.response.text()
     let output = (result?.text || result?.response?.text?.() || "").trim();
 
+    // 2026-08-06: finishReason is part of the adapter contract. MAX_TOKENS means
+    // the response violated the request (truncated mid-JSON for every JSON role) —
+    // returning it as ok:true is how truncation incidents (lessons_learned #17,
+    // OFFER_ANALYZER@1024) masqueraded as downstream parse failures.
+    const finishReason = result?.candidates?.[0]?.finishReason
+      || result?.response?.candidates?.[0]?.finishReason || null;
+    const blockReason = result?.promptFeedback?.blockReason
+      || result?.response?.promptFeedback?.blockReason || null;
+    if (finishReason === 'MAX_TOKENS') {
+      console.warn(`[AI] ${model} truncated at max_tokens=${maxTokens} (finishReason=MAX_TOKENS) — returning ok:false with partial output (${output.length} chars)`);
+      return { ok: false, output, truncated: true, error: `truncated at max_tokens=${maxTokens} (finishReason=MAX_TOKENS)` };
+    }
+
     // GEMINI CLEANUP: Remove markdown code blocks and wrapper text
     if (output) {
       const rawLength = output.length;
@@ -252,7 +265,13 @@ export async function callGemini({
 
     return output
       ? { ok: true, output }
-      : { ok: false, output: "", error: "Empty response from Gemini" };
+      : {
+          ok: false,
+          output: "",
+          error: ['Empty response from Gemini',
+            finishReason && `finishReason=${finishReason}`,
+            blockReason && `blockReason=${blockReason}`].filter(Boolean).join(' '),
+        };
   } catch (err) {
     console.error("[AI] error:", err?.message || err);
     return { ok: false, output: "", error: err?.message || String(err) };

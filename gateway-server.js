@@ -14,7 +14,7 @@ installFileTee();
 
 import { loadEnvironment } from './server/config/load-env.js';
 import { validateOrExit } from './server/config/validate-env.js';
-import { unifiedAI, UNIFIED_CAPABILITIES } from './server/lib/ai/unified-ai-capabilities.js';
+import { unifiedAI } from './server/lib/ai/unified-ai-capabilities.js';
 
 // 2026-02-19: Suppress pg-connection-string SSL mode deprecation warning.
 // 2026-02-26: SSL is now conditional (off for Helium dev, on for production).
@@ -87,6 +87,16 @@ process.on('unhandledRejection', (reason, promise) => {
     console.log(`[GATEWAY] Mode: ${MODE.toUpperCase()}, Port: ${PORT}`);
     console.log(`[GATEWAY] Deployment: ${isDeployment}, Autoscale: ${isAutoscaleMode}`);
 
+    // 2026-08-06 (Melody's green light): schema parity is AUTOMATED — the
+    // runner applies migrations/*.sql exactly once each before anything
+    // touches the DB, serialized across autoscale instances by advisory lock.
+    // Fail-loud by design: a bad migration crashes boot visibly instead of
+    // letting prod drift silently (the airports/offer_rulesets incident —
+    // manual parity had been the unresolved gap since the original drizzle-kit
+    // pipeline died). See server/db/run-migrations.js for the full contract.
+    const { runMigrations } = await import('./server/db/run-migrations.js');
+    await runMigrations();
+
     // Create Express app
     app = express();
     // 2026-04-25 (helmet-hardening): kill the X-Powered-By: Express leak at the
@@ -127,7 +137,13 @@ process.on('unhandledRejection', (reason, promise) => {
     const server = http.createServer(app);
     server.keepAliveTimeout = 65000;
     server.headersTimeout = 66000;
-    server.requestTimeout = 5000;
+    // 2026-08-11: 120s (was 5s). requestTimeout bounds receipt of the ENTIRE
+    // request including body; the 5s value predated (2025-11-03) the large
+    // mobile uploads this app now accepts (/api/chat 10mb vision attachments,
+    // /api/hooks 5mb Siri offer screenshots) and destroyed slow-cellular
+    // uploads mid-transfer. Slowloris defense is unchanged: headersTimeout
+    // (66s) still bounds the header phase, plus bot blocker + rate limiting.
+    server.requestTimeout = 120000;
 
     server.on('error', (err) => {
       console.error('[GATEWAY] Server error:', err);
@@ -162,31 +178,26 @@ process.on('unhandledRejection', (reason, promise) => {
       await mountRoutes(app, server);
     }
 
-    // Error handler (after all routes)
-    await configureErrorHandler(app);
-
-    // Unified capabilities
+    // Unified capabilities (/api/unified/capabilities|health|heal).
+    // 2026-08-11: the inline duplicate app.get('/api/unified/capabilities') that
+    // used to live after the error handler was dead code — this router registers
+    // the path first, so first-match won. Its one unique field (`system` label)
+    // moved into unified-capabilities.js.
     await mountUnifiedCapabilities(app);
 
-    // Unified capabilities API endpoint
-    app.get('/api/unified/capabilities', (_req, res) => {
-      res.json({
-        ok: true,
-        system: 'Unified AI (Eidolon/Assistant/Atlas)',
-        model: UNIFIED_CAPABILITIES.model,
-        context_window: UNIFIED_CAPABILITIES.context_window,
-        thinking_mode: UNIFIED_CAPABILITIES.thinking_mode,
-        capabilities: unifiedAI.getCapabilities()
-      });
-    });
-
-    // SPA catch-all (must be LAST)
+    // SPA catch-all (last ROUTE; only the error handler mounts after it)
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/') || req.path.startsWith('/agent/')) {
         return next();
       }
       res.sendFile(path.join(distDir, 'index.html'));
     });
+
+    // Error handler — must be mounted after EVERY route, including the SPA
+    // catch-all. Express only searches forward in the stack for error
+    // middleware: anything mounted after this line would bypass errorTo503 and
+    // fall through to Express's default handler (stack-trace leak in dev).
+    await configureErrorHandler(app);
 
     console.log('[GATEWAY] All routes and middleware loaded');
 

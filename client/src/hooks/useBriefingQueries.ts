@@ -117,18 +117,23 @@ function shouldDisableQueries(): boolean { return isInCoolingOff; }
 interface BriefingAggregate {
   snapshot_id: string;
   briefing: {
-    weather: { current: any; forecast: any; _generationFailed?: boolean };
-    traffic: any & { _generationFailed?: boolean };
-    news: { items: any[]; reason: string | null; _generationFailed?: boolean };
+    // 2026-07-06 (todo #24): _pending = raw briefing column still NULL
+    // (generation in flight); _generationFailed = ran and failed (reason
+    // recorded); neither = verified result. Three states, never collapsed.
+    weather: { current: any; forecast: any; _pending?: boolean; _generationFailed?: boolean };
+    traffic: any & { _pending?: boolean; _generationFailed?: boolean };
+    news: { items: any[]; reason: string | null; _pending?: boolean; _generationFailed?: boolean };
     events: {
       items: any[];
       marketEvents: any[];
       market_name: string | null;
       reason: string | null;
+      _pending?: boolean;
       _generationFailed?: boolean;
     };
-    school_closures: { items: any[]; reason: string | null; _generationFailed?: boolean };
-    airport_conditions: any & { _generationFailed?: boolean };
+    school_closures: { items: any[]; reason: string | null; _pending?: boolean; _generationFailed?: boolean };
+    airport_conditions: any & { _pending?: boolean; _generationFailed?: boolean };
+    holiday?: any & { _pending?: boolean; _generationFailed?: boolean };
   };
   created_at: string;
   updated_at: string;
@@ -331,18 +336,22 @@ export function useBriefingQueries({
   // 2026-04-19: H3 fix — carry _generationFailed at the outer level so WeatherCard
   // can render a "weather temporarily unavailable" state instead of silently
   // hiding when the weather provider permanently failed.
+  // 2026-07-06 (todo #24): _pending flows from the aggregate endpoint (raw
+  // column nullness) — pending, failed, and verified-empty are THREE states
+  // and must never collapse into "No X found".
   const weatherData = b?.weather
     ? {
         weather: { current: b.weather.current, forecast: b.weather.forecast },
+        _pending: !!b.weather._pending,
         _generationFailed: !!b.weather._generationFailed,
         _exhausted: exhausted,
       }
     : undefined;
   const trafficData = b?.traffic
-    ? { traffic: b.traffic, _generationFailed: !!b.traffic._generationFailed, _exhausted: exhausted }
+    ? { traffic: b.traffic, _pending: !!b.traffic._pending, _generationFailed: !!b.traffic._generationFailed, _exhausted: exhausted }
     : undefined;
   const newsData = b?.news
-    ? { news: { items: b.news.items, reason: b.news.reason }, _generationFailed: !!b.news._generationFailed, _exhausted: exhausted }
+    ? { news: { items: b.news.items, reason: b.news.reason }, _pending: !!b.news._pending, _generationFailed: !!b.news._generationFailed, _exhausted: exhausted }
     : undefined;
   const eventsData = b?.events
     ? {
@@ -350,25 +359,26 @@ export function useBriefingQueries({
         marketEvents: b.events.marketEvents,
         market_name: b.events.market_name,
         reason: b.events.reason,
+        _pending: !!b.events._pending,
         _generationFailed: !!b.events._generationFailed,
         _exhausted: exhausted,
       }
     : undefined;
   const schoolClosuresData = b?.school_closures
-    ? { school_closures: b.school_closures.items, reason: b.school_closures.reason, _generationFailed: !!b.school_closures._generationFailed }
+    ? { school_closures: b.school_closures.items, reason: b.school_closures.reason, _pending: !!b.school_closures._pending, _generationFailed: !!b.school_closures._generationFailed }
     : undefined;
   const airportData = b?.airport_conditions
-    ? { airport_conditions: b.airport_conditions, _generationFailed: !!b.airport_conditions._generationFailed, _exhausted: exhausted }
+    ? { airport_conditions: b.airport_conditions, _pending: !!b.airport_conditions._pending, _generationFailed: !!b.airport_conditions._generationFailed, _exhausted: exhausted }
     : undefined;
 
-  // Per-section loading flags: a section is "loading" while the aggregate
-  // is still in flight AND this section hasn't been populated yet (no data,
-  // no _generationFailed marker, no reason).
-  const sectionLoading = (hasData: boolean, failed: boolean | undefined) => {
+  // Per-section loading flags — explicit _pending from the endpoint replaces
+  // the old content-shape guessing (which counted fabricated "No X for this
+  // area" reasons as data, so pending sections instantly read as loaded-empty).
+  const sectionLoading = (pending: boolean | undefined, failed: boolean | undefined) => {
     if (failed) return false;
-    if (hasData) return false;
     if (exhausted) return false;
-    return aggregateQuery.isLoading || stillLoading;
+    if (aggregateQuery.isLoading || stillLoading) return true;
+    return !!pending; // section column still NULL — briefing generation in flight
   };
 
   return {
@@ -379,27 +389,12 @@ export function useBriefingQueries({
     schoolClosuresData,
     airportData,
     isLoading: {
-      weather: sectionLoading(!!b?.weather?.current, b?.weather?._generationFailed),
-      traffic: sectionLoading(
-        !!b?.traffic && typeof b.traffic === 'object' && Object.keys(b.traffic).some(k => k !== '_generationFailed'),
-        b?.traffic?._generationFailed,
-      ),
-      events: sectionLoading(
-        (Array.isArray(b?.events?.items) && b!.events.items.length > 0) || !!b?.events?.reason,
-        b?.events?._generationFailed,
-      ),
-      news: sectionLoading(
-        (Array.isArray(b?.news?.items) && b!.news.items.length > 0) || !!b?.news?.reason,
-        b?.news?._generationFailed,
-      ),
-      airport: sectionLoading(
-        !!b?.airport_conditions && (b!.airport_conditions.airports?.length > 0 || !!b!.airport_conditions.recommendations),
-        b?.airport_conditions?._generationFailed,
-      ),
-      schoolClosures: sectionLoading(
-        Array.isArray(b?.school_closures?.items),
-        b?.school_closures?._generationFailed,
-      ),
+      weather: sectionLoading(b?.weather?._pending, b?.weather?._generationFailed),
+      traffic: sectionLoading(b?.traffic?._pending, b?.traffic?._generationFailed),
+      events: sectionLoading(b?.events?._pending, b?.events?._generationFailed),
+      news: sectionLoading(b?.news?._pending, b?.news?._generationFailed),
+      airport: sectionLoading(b?.airport_conditions?._pending, b?.airport_conditions?._generationFailed),
+      schoolClosures: sectionLoading(b?.school_closures?._pending, b?.school_closures?._generationFailed),
     },
     isUnavailable: {
       traffic: !!(exhausted || b?.traffic?._generationFailed),

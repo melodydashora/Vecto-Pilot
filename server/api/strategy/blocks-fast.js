@@ -429,7 +429,7 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       strategyForNow: strategyRow.strategy_for_now || null
     } : null;
 
-    // Fetch snapshot for holiday status check
+    // Fetch snapshot for ownership check and block generation context
     const [snapshot] = await db.select().from(snapshots)
       .where(eq(snapshots.snapshot_id, snapshotId)).limit(1);
 
@@ -477,8 +477,16 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
       .where(eq(ranking_candidates.ranking_id, ranking.ranking_id))
       .orderBy(ranking_candidates.rank);
 
-    const isHoliday = snapshot?.is_holiday === true;
-    const hasSpecialHours = snapshot?.holiday && snapshot?.is_holiday === true;
+    // 2026-07-06: holiday moved to briefings.holiday (jsonb section) — read it
+    // from the briefing row; errorMarker-guarded (failed detection ≠ holiday)
+    const [holidayRow] = await db.select({ holiday: briefings.holiday })
+      .from(briefings)
+      .where(eq(briefings.snapshot_id, snapshotId))
+      .limit(1);
+    const holidaySection =
+      holidayRow?.holiday && !holidayRow.holiday._generationFailed ? holidayRow.holiday : null;
+    const isHoliday = holidaySection?.is_holiday === true;
+    const hasSpecialHours = !!(holidaySection?.holiday && holidaySection?.is_holiday === true);
 
     // Map candidates to blocks and filter/sort
     const allBlocks = await mapCandidatesToBlocks(candidates, { isHoliday, hasSpecialHours });
@@ -764,8 +772,8 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
         // Phase 1: Resolving location and examining conditions
         await updatePhase(snapshotId, 'resolving', { phaseEmitter });
 
-        // Phase 2: Run briefing provider (Gemini with Google Search)
-        // Note: Holiday is already in snapshot table from holiday-detector.js
+        // Phase 2: Run briefing provider (BRIEFING_* roles via the model adapter)
+        // Note: Holiday detection runs as a briefing pipeline phase (briefings.holiday)
         await updatePhase(snapshotId, 'analyzing', { phaseEmitter });
 
         // 2026-01-08: FIX - Briefing is now BLOCKING (was non-blocking)
@@ -786,7 +794,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
           category: 'STRATEGY',
           action: 'VERIFY',
           location: 'blocks-fast.js:postHandler',
-        }, `Snapshot context populated (snapshot ${snapshotId.slice(0, 8)}; timezone/day_part/holiday flags present)`);
+        }, `Snapshot context populated (snapshot ${snapshotId.slice(0, 8)}; timezone/day_part flags present)`);
 
         let freshBriefing = null;
         try {
@@ -874,7 +882,7 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
             category: 'STRATEGY',
             action: 'VERIFY',
             location: 'blocks-fast.js:postHandler',
-          }, `Snapshot enrichment (weather: ${!!snapshot.weather}, is_holiday: ${!!snapshot.is_holiday})`);
+          }, `Snapshot enrichment (weather: ${!!snapshot.weather}, holiday_section: ${!!(freshBriefing?.holiday && !freshBriefing.holiday._generationFailed)})`);
 
           // Note: runBriefing logs completion via briefingLog.done()
         } catch (briefingErr) {

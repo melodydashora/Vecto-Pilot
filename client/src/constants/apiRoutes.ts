@@ -38,6 +38,7 @@ export const API_ROUTES = {
       `/api/location/resolve?lat=${lat}&lng=${lng}&accuracy=${accuracy}&coord_source=gps`,
     SNAPSHOT: '/api/location/snapshot',
     SNAPSHOT_ENRICH: (snapshotId: string) => `/api/location/snapshot/${snapshotId}/enrich`,
+    TIMEZONE_WITH_COORDS: (lat: number, lng: number) => `/api/location/timezone?lat=${lat}&lng=${lng}`,
     WEATHER: '/api/location/weather',
     WEATHER_WITH_COORDS: (lat: number, lng: number) => `/api/location/weather?lat=${lat}&lng=${lng}`,
     AIR_QUALITY: '/api/location/airquality',
@@ -173,10 +174,13 @@ export const API_ROUTES = {
   },
 
   // =========================================================================
-  // Realtime
+  // Realtime voice (todo #33 switcher: OpenAI WebRTC arm + Gemini Live arm)
   // =========================================================================
   REALTIME: {
     TOKEN: '/api/realtime/token',
+  },
+  GEMINI_LIVE: {
+    TOKEN: '/api/gemini-live/token',
   },
 
   // =========================================================================
@@ -209,6 +213,20 @@ export const API_ROUTES = {
     PUBLIC_ASK_STREAM: (token: string) => `/api/concierge/p/${token}/ask-stream`,
     PUBLIC_FEEDBACK: (token: string) => `/api/concierge/p/${token}/feedback`,
     FEEDBACK_SUMMARY: '/api/concierge/feedback',
+  },
+
+  // =========================================================================
+  // Offer Analyzer (per-driver rules, shortcut token, offer history)
+  // 2026-07-03 (todo #10): docs/architecture/OFFER_RULESET_V3_DESIGN.md §7
+  // =========================================================================
+  OFFER_ANALYZER: {
+    RULES: '/api/offer-analyzer/rules',
+    SHORTCUT_TOKEN: '/api/offer-analyzer/shortcut-token',
+    SHORTCUT_TOKEN_REGENERATE: '/api/offer-analyzer/shortcut-token/regenerate',
+    SHORTCUT_TOKEN_LABEL: '/api/offer-analyzer/shortcut-token/label',
+    OFFERS: (limit: number) => `/api/offer-analyzer/offers?limit=${limit}`,
+    OFFER_OUTCOME: (id: string) => `/api/offer-analyzer/offers/${encodeURIComponent(id)}/outcome`,
+    PLACES_SEARCH: (q: string) => `/api/offer-analyzer/places/search?q=${encodeURIComponent(q)}`,
   },
 
   // =========================================================================

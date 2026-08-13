@@ -31,7 +31,7 @@
     "build:deploy": "npm run guard && npm run build:client",
     "doctor": "echo '== Deps ==' && npm ls --omit=dev || true && echo '== Audit ==' && npm audit --omit=dev || true && echo '== Orphans ==' && depcheck || true",
     "research:models": "echo 'Removed 2026-02-26: Model research now done via Claude Code. See docs/preflight/ai-models.md'",
-    "devtools": "react-devtools"
+    "devtools": "npx react-devtools"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
@@ -106,6 +106,7 @@
     "node-fetch": "^3.3.2",
     "openai": "^6.9.0",
     "pg": "^8.16.3",
+    "playwright": "^1.61.1",
     "postcss": "^8.5.6",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
@@ -170,7 +171,6 @@
     "jest-environment-jsdom": "^30.2.0",
     "jsonlint": "^1.6.3",
     "npm-run-all": "^4.1.5",
-    "react-devtools": "^7.0.1",
     "sass": "^1.94.0",
     "ts-jest": "^29.4.6",
     "tsx": "^4.20.6",
@@ -179,6 +179,10 @@
   },
   "overrides": {
     "underscore": "^1.13.6",
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "qs": "^6.15.3",
+    "gaxios": {
+      "uuid": "^11.1.1"
+    }
   }
 }

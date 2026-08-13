@@ -22,7 +22,7 @@ The briefing is always bound to exactly one snapshot. A snapshot is the canonica
 
 **Core rule:** These layers must remain separated. Duplication across layers is exception-only (see §7).
 
-- The **Snapshot Contract** owns location, time, weather, air, permissions, holiday — the "who/where/when/what's the environment."
+- The **Snapshot Contract** owns location, time, weather, air, permissions — the "who/where/when/what's the environment." (Holiday moved to the Briefing Row 2026-07-06.)
 - The **Briefing Row** owns generated sections — the "what AI + external APIs produced for this snapshot."
 - The **Global Header Projection** owns display formatting — the "what the user visually sees in the header," derived live from the snapshot and current runtime status.
 
@@ -45,7 +45,6 @@ The snapshot contract is defined in two places that must stay aligned:
 |-------|------|-------|
 | `snapshot_id` | uuid | PK. Primary correlator across snapshot → briefing → strategies. |
 | `created_at` | timestamptz | When the snapshot row was written. |
-| `device_id` | text | Stable per-device identifier. |
 | `session_id` | uuid | Client session binding. |
 | `user_id` | uuid | Required for authenticated flows. DB permits NULL for legacy/anonymous paths — the briefing pipeline requires it. |
 
@@ -61,7 +60,7 @@ The snapshot contract is defined in two places that must stay aligned:
 | `city` | text | |
 | `state` | text | |
 | `country` | text | |
-| `market` | text | Metro market label (e.g. "Dallas-Fort Worth"). Captured from `driver_profiles.market` at snapshot creation. Used for market-wide event discovery. |
+| `market` | text | Metro market label (e.g. 'Dallas'). GPS-derived at snapshot creation from the snapshot's resolved (city, state) via `market_cities` lookup (D-107, 2026-05-12) — NOT copied from `driver_profiles.market` except as a last-resort fallback when the coord lookup misses (location.js PATH 2). `profile.market` remains identity-only ('first known market', backfilled from the first snapshot when NULL). Used for market-wide event discovery. |
 
 ### 3.3 Local Temporal Context (Required)
 
@@ -72,7 +71,7 @@ The snapshot contract is defined in two places that must stay aligned:
 | `date` | text | `YYYY-MM-DD` form of `local_iso`. |
 | `dow` | integer | 0=Sunday … 6=Saturday. **First-class field** — always persisted, never recomputed downstream. |
 | `hour` | integer | 0–23. |
-| `day_part_key` | text | One of: `overnight`, `morning`, `late_morning_noon`, `afternoon`, `early_evening`, `evening`, `late_evening`. |
+| `day_part_key` | text | One of: `overnight`, `morning`, `early_afternoon`, `late_afternoon`, `early_evening`, `evening` (shared/dayparts.js taxonomy, renamed 2026-07-06; legacy keys normalized on read via `normalizeDayPartKey()`). |
 
 > **dow is a first-class field, not optional.** Downstream consumers (rankers, strategists, ML models) must read `dow` from the snapshot directly. They must NOT derive dow from `local_iso` or `date` locally, since the snapshot timezone is the only correct reference and recomputing risks UTC drift.
 
@@ -90,9 +89,9 @@ Both are enriched asynchronously via `PATCH /api/location/snapshot/:id/enrich`. 
 | Field | Type | Notes |
 |-------|------|-------|
 | `permissions` | jsonb | Contains at minimum `geolocation: "granted" \| "denied" \| "prompt" \| "unknown"`. |
-| `holiday` | text | Holiday name (e.g. "Thanksgiving") or `'none'`. Detected via Gemini 3.0 Pro + Google Search at snapshot creation. Default `'none'`. |
-| `is_holiday` | boolean | Default `false`. True iff `holiday !== 'none'`. Redundant with `holiday` but kept for indexable boolean filters. |
 | `market` | text | *(also listed in §3.2; belongs logically in both geo and operational context — single source of truth is the snapshot row)*. |
+
+> **holiday / is_holiday — REMOVED 2026-07-06.** Holiday is a briefing section (`briefings.holiday` jsonb, `pipelines/holiday.js`, BRIEFING_HOLIDAY role). The snapshot is purely deterministic (GPS → Google APIs); LLM-involved enrichment lives in the briefing.
 
 ### 3.6 Precision Rules
 
@@ -109,15 +108,9 @@ The snapshot carries a `status` column (text, default `'pending'`):
 
 Transition from `pending` → `ok` happens in `PATCH /api/location/snapshot/:id/enrich` after re-reading the row and verifying the resolved required-field list (§9 decision 1) is all non-null / non-empty:
 
-```
-REQUIRED_FIELDS = [
-  lat, lng, city, state, timezone,
-  local_iso, date, dow, hour, day_part_key,
-  weather, air, market, user_id
-]
-```
+REQUIRED_FIELDS = every snapshots column except `status` — snapshot_id, created_at, session_id, user_id, lat, lng, coord_key, h3_r8, city, state, country, formatted_address, timezone, market, local_iso, date, dow, hour, day_part_key, weather, air, permissions (app_rules 'snapshot-no-nulls-post-enrichment', 2026-07-06 — supersedes the original 14-field list).
 
-Fields NOT in this list (`coord_key`, `h3_r8`, `formatted_address`, `country`, `device_id`, `session_id`, `permissions`, `holiday`, `is_holiday`) may be null without blocking.
+Only `status` itself is outside the gate; every other column must be non-null/non-empty before status flips to 'ok'.
 
 > **v1.0 note:** earlier drafts of this section listed `h3_r8` as required and did not list `local_iso`, `date`, `dow`, `hour`, or `user_id`. Phase 3 (2026-04-14) resolved both: `h3_r8` is optional (no current readers); the temporal fields and `user_id` are required because the briefing pipeline authoritatively depends on them.
 
@@ -137,7 +130,7 @@ Fields NOT in this list (`coord_key`, `h3_r8`, `formatted_address`, `country`, `
 
 ## 5. Briefing Row Contract
 
-Table: `briefings` (shared/schema.js:110). Exactly one row per snapshot (`snapshot_id` is `UNIQUE`).
+Table: `briefings` (shared/schema.js:117). Exactly one row per snapshot (`snapshot_id` is `UNIQUE`).
 
 ### 5.1 Generated Sections
 
@@ -146,8 +139,8 @@ Table: `briefings` (shared/schema.js:110). Exactly one row per snapshot (`snapsh
 | `news` | jsonb | Rideshare-relevant news from BRIEFING_NEWS role. |
 | `weather_current` | jsonb | Current conditions from Google Weather API (may mirror snapshot.weather when transformed for display). |
 | `weather_forecast` | jsonb | Hourly forecast (next 3–6 hours) from Google Weather API. |
-| `traffic_conditions` | jsonb | Traffic: incidents, construction, closures, demand zones. Consolidated by `callModel('BRIEFING_TRAFFIC')` — see `briefing-service.js:1543`. |
-| `events` | jsonb | Local events: concerts, sports, festivals, nightlife, comedy. Discovered per-snapshot (Rule 11 — no background sync). |
+| `traffic_conditions` | jsonb | Traffic: incidents, construction, closures, demand zones. Consolidated by `callModel('BRIEFING_TRAFFIC')` — see `server/lib/briefing/pipelines/traffic.js`. |
+| `events` | jsonb | Local events: concerts, sports, festivals, nightlife, comedy. Discovered per-snapshot (per-snapshot only — no background sync job). |
 | `school_closures` | jsonb | School district & college closures/reopenings. |
 | `airport_conditions` | jsonb | Airport: delays, arrivals, busy periods, recommendations. |
 
@@ -161,13 +154,13 @@ Table: `briefings` (shared/schema.js:110). Exactly one row per snapshot (`snapsh
 | `updated_at` | timestamptz | Last mutation (partial regeneration, etc.). |
 | `status` | text | `'pending'` \| `'complete'` \| `'error'`. |
 | `generated_at` | timestamptz | Set when briefing is *fully* generated (all sections populated). |
-| `holiday` | text | Mirrored from snapshot — see §7 exception. |
+| `holiday` | jsonb | Generated section (`pipelines/holiday.js`, BRIEFING_HOLIDAY role — moved off the snapshot 2026-07-06). Success: `{holiday, is_holiday, detectedAt}`; failure: `errorMarker` — never a fabricated 'none'. |
 
 ### 5.3 Completeness Rule
 
 **No null or blank fields in any generated section before data reaches the strategist.**
 
-Validation is enforced in `briefing-service.js generateAndStoreBriefing()` against `REQUIRED_BRIEFING_FIELDS = [events, news, weather_current, traffic_conditions]`. If any are missing or empty, the response carries `complete: false` and `missingFields: string[]` so the caller can gate on completeness (memory #112).
+Validation is enforced in `briefing-aggregator.js generateAndStoreBriefing()` against `REQUIRED_BRIEFING_FIELDS = [events, news, weather_current, traffic_conditions]`. If any are missing or empty, the response carries `complete: false` and `missingFields: string[]` so the caller can gate on completeness (memory #112).
 
 The strategist path consumes only *complete* briefings. A briefing with `status !== 'complete'` must not be forwarded.
 
@@ -209,7 +202,7 @@ If a consumer needs a snapshot field, it joins through `snapshot_id` — it does
 
 Any duplicated field added to the briefing row without citing one of these exceptions is a bug and must be removed.
 
-**Currently-held exception inventory:** `briefings.holiday` (exception #1). To be fully enumerated in Phase 7.
+**Currently-held exception inventory:** none — `briefings.holiday` became the sole holiday store when snapshots.holiday was dropped (2026-07-06), so it is no longer a duplication.
 
 ---
 
@@ -226,6 +219,7 @@ Any duplicated field added to the briefing row without citing one of these excep
 All seven open decisions from v1.0 are resolved below. Each decision text is binding for Phases 4–8 and for future work on this data model.
 
 - [x] **Field-by-field required vs optional classification — RESOLVED.**
+  **SUPERSEDED 2026-07-06** by app_rules `snapshot-no-nulls-post-enrichment` — every snapshot column except `status` is now gate-required (see §3.7). Original 2026-04-14 decision retained below for history:
   - **REQUIRED** (must be non-null for `status='ok'`): `lat`, `lng`, `city`, `state`, `timezone`, `local_iso`, `date`, `dow`, `hour`, `day_part_key`, `weather`, `air`, `market`, `user_id`.
   - **OPTIONAL** (may be null without blocking): `coord_key`, `h3_r8`, `formatted_address`, `country`, `device_id`, `session_id`, `permissions`, `holiday`, `is_holiday`.
   - *Note on `formatted_address`:* optional for readiness, but `blocks-fast.js:567` independently hard-fails (400) if missing for LLM geocoding reasons. That stricter path is a per-endpoint product constraint, not a readiness-gate input.
@@ -270,14 +264,14 @@ These are mismatches between this v1.0 spec and the current implementation that 
 
 ## 11. References
 
-- `shared/schema.js` — `snapshots` (line 32), `briefings` (line 110)
+- `shared/schema.js` — `snapshots` (line 31), `briefings` (line 117)
 - `shared/types/snapshot.ts` — `SnapshotV1` wire contract
 - `shared/types/location.ts` — `Coord` wire type
 - `server/api/location/location.js` — snapshot creation, enrichment, readiness-gate transition
 - `server/api/strategy/blocks-fast.js` — pipeline entry, 202 gate on `status !== 'ok'`
-- `server/lib/briefing/briefing-service.js` — `generateAndStoreBriefing`, completeness validation
+- `server/lib/briefing/briefing-aggregator.js` — `generateAndStoreBriefing`, completeness validation (+ `pipelines/*.js` per-section fetchers)
 - Memory #110, #111, #112 — snapshot readiness gate implementation history
-- `CLAUDE.md` — Rules 11 (per-snapshot event sync), 13 (DB environment awareness), 14 (model adapter architecture)
+- `app_rules` table (Postgres) — product invariants (per-snapshot event discovery/no background sync, DB environment isolation via DATABASE_URL, model-agnostic roles via callModel)
 
 ---
 

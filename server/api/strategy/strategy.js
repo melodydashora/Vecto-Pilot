@@ -97,8 +97,8 @@ router.get('/:snapshotId', async (req, res) => {
     const startedAt = row.created_at ?? null;
     const timeElapsedMs = safeElapsedMs(startedAt, Date.now());
 
-    // 2026-01-14: Removed holidays from briefing fallback (column dropped in 20251209_drop_unused_briefing_columns.sql)
-    // Holiday info is now in snapshots table (holiday, is_holiday)
+    // 2026-07-06: Holiday now lives in briefings.holiday (jsonb section
+    // { holiday, is_holiday, detectedAt }, errorMarker on failure)
     res.json({
       status: hasStrategyForNow ? 'ok' : 'pending',
       snapshot_id: snapshotId,
@@ -262,10 +262,9 @@ router.post('/:snapshotId/retry', async (req, res) => {
       weather: originalSnapshot.weather,
       air: originalSnapshot.air,
       // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
+      // 2026-07-06: holiday dropped - detected fresh by the briefing pipeline
       device: originalSnapshot.device,
-      permissions: originalSnapshot.permissions,
-      holiday: originalSnapshot.holiday,
-      is_holiday: originalSnapshot.is_holiday
+      permissions: originalSnapshot.permissions
     };
 
     // 2026-01-14: Validate ALL required fields BEFORE insert (prevents incomplete snapshots)

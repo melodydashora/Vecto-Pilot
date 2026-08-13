@@ -47,7 +47,7 @@ A snapshot is a **point-in-time capture of the driver's context** — location, 
 | `local_iso` | timestamp w/o tz | Driver's wall-clock time |
 | `dow` | integer | Day of week (0=Sunday) |
 | `hour` | integer | Hour in driver's timezone |
-| `day_part_key` | text | `morning` / `afternoon` / `evening` |
+| `day_part_key` | text | Daypart bucket from `shared/dayparts.js`: `overnight` (0-5) / `morning` (5-12) / `early_afternoon` (12-15) / `late_afternoon` (15-17) / `early_evening` (17-21) / `evening` (21-24). Legacy `late_morning_noon`/`afternoon` normalize on read. |
 | `h3_r8` | text (nullable) | H3 geohash at resolution 8 |
 | `weather` | jsonb | Enriched weather data |
 | `air` | jsonb | Air quality data |

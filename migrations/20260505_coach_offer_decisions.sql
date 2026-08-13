@@ -75,10 +75,15 @@ CREATE INDEX IF NOT EXISTS idx_cod_snapshot
   WHERE snapshot_id IS NOT NULL;
 
 -- ────────────────────────────────────────────────────────────────────────────
--- MANUAL TRUNCATE (DO NOT auto-run during deploys; run manually after publish):
+-- MANUAL RESET (DO NOT auto-run during deploys; run manually after publish):
 --
---   TRUNCATE TABLE offer_intelligence;
+--   DELETE FROM offer_intelligence;   -- NOT TRUNCATE (see below)
 --
--- This resets offer_intelligence for "real prod" data after the testing era.
--- Coach's coach_offer_decisions rows survive (FK is ON DELETE SET NULL).
+-- 2026-07-03 correction (verified against live Postgres): the original note
+-- said TRUNCATE and claimed SET NULL rows survive. Wrong on both counts —
+-- plain TRUNCATE FAILS on an FK-referenced table, and TRUNCATE..CASCADE
+-- truncates the referencing tables too (coach_offer_decisions, offer_outcomes),
+-- destroying the rows the FKs were designed to preserve. ON DELETE SET NULL
+-- semantics apply to DELETE, so DELETE FROM is the correct reset: linked rows
+-- survive with their FK nulled.
 -- ────────────────────────────────────────────────────────────────────────────

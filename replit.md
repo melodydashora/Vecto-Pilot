@@ -13,14 +13,14 @@ Vecto Pilot is a full-stack Node.js application with a multi-service architectur
 The frontend is a React + TypeScript Single Page Application (SPA), built with Vite, utilizing Radix UI, TailwindCSS, and React Query. Key features include a Strategy Section, Smart Blocks for venue recommendations, an Rideshare Coach with hands-free voice chat, and a Rideshare Briefing Tab with immutable strategy history. A new ML-focused bars and premium venues table has been added to the Venues tab for structured data capture.
 
 **Technical Implementations**:
-- **Briefing Generation**: All AI calls now use `gemini-pro-latest` with Google tools for consistent web search reliability. Briefing data sources populate with real Gemini API data using **split cache strategy**:
-  - **Daily Briefing** (news, events, closures, construction): 24-hour cache (runs once/day)
-  - **Traffic**: Always refreshes on app open or manual refresh (0 cache TTL)
+- **Briefing Generation**: Briefing roles resolve via the model registry (`server/lib/ai/model-registry.js`; currently `gemini-3.5-flash` with Google Search grounding) — models are never named at call sites. Briefing data sources populate with real Gemini API data using **split cache strategy**:
+  - **School Closures**: 24-hour city-level cache; **Events**: cached in the `discovered_events` DB table with staleness checks
+  - **Traffic, News, Weather, Airport**: always refreshed on app open or manual refresh (never cached)
   - This allows comprehensive daily research for news/events while keeping traffic conditions live throughout the day
 - **Strategy Engine**: Single strategy — Immediate 1-hour tactical guidance via the STRATEGY_TACTICAL role at `server/lib/ai/providers/consolidator.js:157`, triggered synchronously by `POST /api/blocks-fast`. Stored in `strategies.strategy_for_now`.
 - **SmartBlocks**: SmartBlocks race condition (limbo state) fixed with Just-In-Time generation in GET endpoint Gate 2. System now detects "strategy complete but rankings missing" and auto-triggers block generation during polling.
 - **Strategy Loader**: Dynamic progress bar with real-time strategy steps. Shows Phase 1 (Strategy Analysis: 0-30%) and Phase 2 (Venue Discovery: 30-100%) with granular sub-steps during block generation (fetching, calculating distance/drive time, finalizing).
-- **Rideshare Coach**: The Rideshare Coach uses `gemini-pro-latest` for conversational assistance with rideshare strategy, venue interpretation, and file analysis. Note: Web search tool was attempted but causes API timeouts - coach uses Vecto Pilot's data sources (briefing, events, traffic) for instant responses instead. Coach timeout increased to 90 seconds for any future web search attempts.
+- **Rideshare Coach**: The Rideshare Coach uses the AI_COACH role (registry default `gemini-3.5-flash`, streaming-only) for conversational assistance with rideshare strategy, venue interpretation, and file analysis. Note: Web search tool was attempted but causes API timeouts - coach uses Vecto Pilot's data sources (briefing, events, traffic) for instant responses instead. Coach timeout increased to 90 seconds for any future web search attempts.
 - **Data Flow Consistency**: All data flows follow a three-phase pattern: Fetch, Resolve, and Return, ensuring data consistency, validation, and proper formatting.
 - **GPS Location Behavior**: Location refresh is manual only, requesting fresh permissions (`maximumAge: 0`) upon opening or manual trigger.
 - **localStorage Behavior**: Strategy data clears on app mount to show fresh loading states for both consolidated and immediate strategies. Both states reset on new snapshot detection.
@@ -33,18 +33,17 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 
 **Feature Specifications**:
 - **Briefing Data**: Includes real-time traffic analysis, AI-curated local rideshare news, local events with venues/times, concerts, and school closures.
-- **Smart Blocks**: Provide 5 venue recommendations per strategy, displaying venue name, address, distance, drive time, value per minute, grade, and pro tips.
+- **Smart Blocks**: Provide 6 venue recommendations per strategy (TARGET_VENUE_COUNT = 6), displaying venue name, address, distance, drive time, value per minute, grade, and pro tips.
 - **Bars & Premium Venues Table**: Displays filtered SmartBlocks for bars, including business hours for ML training.
 
 **System Design Choices**:
 - **Core Services**: Gateway Server, SDK Server, Agent Server.
 - **Memory Systems & Data Isolation**: Assistant (user preferences), Eidolon (project/session state with snapshots), Agent Memory (agent service state). All are scoped by `user_id` and secured with JWT.
 - **AI Configuration**: Role-based architecture using configurable AI models for event-driven strategy generation:
-  - **Strategist**: Claude Opus 4.6 for strategic overview (minstrategy)
+  - **Strategist (STRATEGY_CORE)**: Claude Opus 4.8 for core strategic plan generation (the former minstrategy step was removed — no such column exists)
   - **Briefer**: Gemini 3 Pro Preview for Type A briefing data (news, events, traffic, weather, closures)
-  - **Consolidator**: Gemini 3 Pro Preview as "Tactical Dispatcher" - receives RAW JSON from briefings table (traffic_conditions, events, news, weather_current, school_closures) + full snapshot + minstrategy. Passes labeled JSON sections directly to Gemini (CURRENT_TRAFFIC_DATA, CURRENT_EVENTS_DATA, etc.) so strategy can reference specific details like "Eastbound Main St closed". Also calls GPT-5.2 post-consolidation for immediate strategy.
-  - **Immediate Strategy Generator**: GPT-5.2 generates "right now" tactical guidance (next 1 hour) using consolidated strategy output + formatted location + timestamp. Uses `reasoning: {effort: "medium"}` and `max_completion_tokens: 500`.
-  - **Holiday Checker**: Perplexity for holiday detection
+  - **Consolidator/Immediate Strategy (STRATEGY_TACTICAL)**: Claude Opus 4.8 generates the immediate 1-hour tactical strategy directly from the full snapshot + raw briefing JSON (traffic_conditions, events, news, weather_current, school_closures) — no minstrategy input and no separate GPT model in the strategy path.
+  - **Holiday Checker (BRIEFING_HOLIDAY)**: Gemini 3.5 Flash with Google Search, run inside the briefing pipeline
 - **Data Storage**: PostgreSQL Database (Replit managed) with Drizzle ORM stores snapshots, strategies, venue events, and ML training data using unique indexes and JSONB.
 - **Architecture Pattern - Snapshots as Central Connector for ML**: Snapshots act as the authoritative connector across all data sources, enabling machine learning and analytics by linking all enrichments (strategies, briefings, rankings, actions, venue feedback) to a `snapshot_id`.
 - **Authentication & Security**: JWT with RS256 Asymmetric Keys and security middleware for rate limiting, CORS, Helmet.js, path traversal protection, and file size limits.
@@ -54,15 +53,15 @@ The frontend is a React + TypeScript Single Page Application (SPA), built with V
 ## External Dependencies
 
 ### Third-Party APIs
--   **AI & Research**: Anthropic (Claude Opus 4.6), OpenAI (GPT-5.2 for immediate strategy generation, Realtime API for voice), Google (Gemini 3.0 Pro Preview with Web Search for briefing + consolidation), Perplexity (holiday detection).
--   **DEPRECATED**: GPT-5.2 consolidation removed - replaced by Gemini 3 Pro Preview Tactical Dispatcher. GPT-5.2 now used only for immediate "right now" strategy generation.
+-   **AI & Research**: Anthropic (Claude Opus 4.8 for strategy roles), OpenAI (GPT-5.5 for venue scoring and market parsing, Realtime API for voice), Google (Gemini 3.5 Flash with Google Search for briefing roles and AI Coach), Perplexity (Sonar web search for briefing research).
+-   **DEPRECATED**: GPT-5.2 removed from the strategy pipeline entirely (2026-02-26) — STRATEGY_TACTICAL now runs on Claude Opus 4.8.
 -   **Voice Chat**: OpenAI Realtime API.
 -   **Location & Mapping**: Google Places API, Google Routes API, Google Geocoding API, Google Timezone API.
 -   **Weather**: Google Weather API.
 -   **Air Quality**: Google Air Quality API.
 
 ### Database
--   **PostgreSQL (Replit Built-in)**: Primary data store, managed by Drizzle ORM.
+-   **PostgreSQL**: Primary data store, managed by Drizzle ORM — Replit Helium (local) in dev, Neon serverless (SSL) in prod; `DATABASE_URL` is the only selector.
 
 ### Infrastructure
 -   **Replit Platform**: Deployment and Nix environment.

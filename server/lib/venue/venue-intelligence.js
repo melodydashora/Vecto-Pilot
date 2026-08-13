@@ -145,15 +145,18 @@ function calculateOpenStatus(place, timezone) {
 
   // Fallback: If canonical status not available but we have Google periods data, calculate manually
   if (!canonicalStatus && hours.periods && timezone) {
-    // Get current time in venue's timezone
+    // Get current time in venue's timezone.
+    // 2026-07-06: hourCycle 'h23' + %24 — `hour12: false` yields "24" at
+    // midnight on Node <=21 (V8 h24), which put currentMinutes at 1440+ and
+    // broke open/closed math for the 12:00-12:59 AM hour.
     const localFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hourCycle: 'h23'
     });
     const parts = localFormatter.formatToParts(now);
-    const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+    const currentHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0') % 24;
     const currentMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
     const currentMinutes = currentHour * 60 + currentMinute;
 
@@ -856,15 +859,14 @@ Return ONLY valid JSON:
 /**
  * Combined venue + traffic intelligence for Smart Blocks
  * @param {Object} params - Query parameters
- * @param {string} [params.holiday] - Current holiday name (optional)
  * @returns {Promise<Object>} Combined intelligence
  */
-export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, holiday = null, timezone = null, localIso = null }) {
+export async function getSmartBlocksIntelligence({ lat, lng, city, state, radiusMiles = 5, timezone = null, localIso = null }) {
   try {
     venuesLog.start(`Venue cards for ${city}, ${state} (${radiusMiles} mile radius)`);
 
     // Run venue discovery and traffic intelligence in parallel
-    const venuePromise = discoverNearbyVenues({ lat, lng, city, state, radiusMiles, holiday, timezone, localIso });
+    const venuePromise = discoverNearbyVenues({ lat, lng, city, state, radiusMiles, timezone, localIso });
     const trafficPromise = getTrafficIntelligence({ lat, lng, city, state }).catch(err => {
       venuesLog.warn(1, `Traffic intelligence failed: ${err.message}`);
       return { density_level: 'unknown', high_demand_zones: [], driver_advice: '' };

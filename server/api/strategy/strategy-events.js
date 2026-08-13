@@ -226,6 +226,7 @@ router.get('/events/briefing', requireAuthAllowQueryToken, async (req, res) => {
       'briefing_news_ready',
       'briefing_airport_ready',
       'briefing_school_closures_ready',
+      'briefing_holiday_ready', // 2026-07-06: holiday moved from snapshot to briefing
     ];
     const unsubscribers = [];
 
@@ -411,6 +412,20 @@ router.get('/events/offers', requireAuthAllowQueryToken, async (req, res) => {
   try {
     unsubscribe = await subscribeToChannel('offer_analyzed', (payload) => {
       if (cleanedUp) return;
+      // 2026-07-03 (todo #10): per-user filtering. The payload now carries
+      // user_id (offers analyzed under a shortcut token) plus reasoning that can
+      // embed pickup/dropoff addresses — broadcasting every driver's offers to
+      // every connected user was a privacy leak. Forward only the connection
+      // owner's offers; anonymous (null user_id) rows reach no one — they are
+      // device-scoped and no signed-in page can claim them. Unparseable payloads
+      // are dropped loudly rather than leaked.
+      try {
+        const parsed = JSON.parse(payload);
+        if (!parsed.user_id || parsed.user_id !== req.auth?.userId) return;
+      } catch (parseErr) {
+        sseLog.error(1, `offer_analyzed payload unparseable — dropped`, parseErr, OP.SSE);
+        return;
+      }
       res.write(`event: offer_analyzed\n`);
       res.write(`data: ${payload}\n\n`);
     });

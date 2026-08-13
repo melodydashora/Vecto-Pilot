@@ -46,7 +46,26 @@ export default function PublicConciergePage() {
   const [isLoadingDriver, setIsLoadingDriver] = useState(true);
   const [showDriverDetails, setShowDriverDetails] = useState(false);
 
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // 2026-07-06: Rider's timezone from GPS coords via the Google Timezone API
+  // (server-proxied /api/location/timezone) — NEVER the device timezone. A
+  // rider traveling with their phone still on home time must get correct
+  // "what's open now" answers for where they physically are, worldwide.
+  // Stays null until resolved; time-aware features stay hidden rather than guess.
+  const [timezone, setTimezone] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!coords) return;
+    fetch(API_ROUTES.LOCATION.TIMEZONE_WITH_COORDS(coords.lat, coords.lng))
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.timeZone) {
+          setTimezone(data.timeZone);
+        } else {
+          console.error('[PublicConcierge] Timezone resolution failed — time-aware features disabled');
+        }
+      })
+      .catch(err => console.error('[PublicConcierge] Timezone lookup error:', err));
+  }, [coords]);
 
   // Fetch driver profile
   useEffect(() => {

@@ -1,6 +1,6 @@
 # OFFER_ANALYZER_EDITOR_PLAN.md — Per-User Offer Analyzer Page
 
-> **Status:** PROPOSED — awaiting Melody's approval before Phase 1.
+> **Status:** IMPLEMENTED (v3, 2026-07-03) — storage/API sections superseded by `OFFER_RULESET_V3_DESIGN.md`; phases 1–4 shipped (`rules-engine.js`, `offer_rulesets`/`offer_outcomes`, `/api/offer-analyzer` router, `OfferAnalyzerPage`).
 > **Created:** 2026-06-01 · **Owner:** Melody + Claude
 > **Goal:** A per-user, real-time **Offer Analyzer** page in the hamburger menu that
 > (1) lets the driver **edit the rules** the analyzer applies, (2) shows **offers
@@ -24,15 +24,16 @@ The entire ML value of this feature rests on keeping these **separate**:
 | 2 | **Driver override** — driver disagreed with the AI in the moment | `offer_intelligence.user_override` (`schema.js:1741`) | `null`/`ACCEPT`/`REJECT` |
 | 3 | **Driver actual outcome** — what the driver *actually did*, ground truth | _NEW_ `offer_outcomes.driver_decision` | `Accepted`/`Rejected`/`Cancelled`/`Completed` |
 
-**Known conflation bug to fix:** `offer-history` (`analyze-offer.js:770`) reports
-`accepted: history.filter(h => h.decision === 'ACCEPT')` — i.e. it counts the
-**analyzer's** ACCEPTs and labels them "accepted," as if the driver took them.
-The new stats must report analyzer-decision and driver-actual-outcome as separate
-columns. (See §6 Phase 4.)
+**Known conflation bug — fixed 2026-07-03:** `offer-history` keeps
+`accepted`/`rejected` for backward compat, adds explicit
+`analyzer_accepted`/`analyzer_rejected` aliases (`analyze-offer.js:850-855`),
+and driver-actual outcomes are served by `GET /api/offer-analyzer/offers`.
 
 **The learning signal** = `(active ruleset) × (analyzer decision) × (driver decision) × (realized total_earned vs offered price)`.
 
 ---
+
+> ⚠️ §1–§2 describe the pre-v3 (2026-06-01) pipeline and are retained as design history; the implemented pipeline is documented in `OFFER_RULESET_V3_DESIGN.md` §2–§6.
 
 ## §1 · CURRENT PIPELINE (verified ground truth)
 

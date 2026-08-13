@@ -24,6 +24,28 @@ interface AirportTSA {
   clear?: TSALane;
 }
 
+// 2026-07-06 (todo #22): per-terminal structure — terminals usually have
+// MULTIPLE checkpoints (~2 each; Clear only at specific terminals, e.g. DFW E).
+// best_entry is computed SERVER-side (min wait per lane type) — "knowing the
+// best entry point is one of the best pieces of information to give" (Melody).
+interface Checkpoint {
+  name?: string;
+  lanes?: { general?: number | string; preCheck?: number | string; clear?: number | string };
+}
+
+interface TerminalInfo {
+  terminal: string;
+  arrivalsActivity?: string;
+  ridesharePickup?: string;
+  checkpoints?: Checkpoint[];
+}
+
+interface BestEntryLane {
+  terminal: string;
+  checkpoint?: string | null;
+  waitMinutes: number;
+}
+
 interface Airport {
   code: string;
   name: string;
@@ -37,7 +59,12 @@ interface Airport {
   weather?: string;
   groundStops?: boolean;
   tipsForDrivers?: string;
-  tsa?: AirportTSA;
+  tsa?: AirportTSA; // legacy shape (pre-2026-07-06 briefing rows)
+  distance_miles?: number;
+  terminals?: TerminalInfo[];
+  best_entry?: { general?: BestEntryLane; preCheck?: BestEntryLane; clear?: BestEntryLane };
+  faa_delay_minutes?: number;
+  faa_closure_status?: string;
 }
 
 type BusyPeriod = string | {
@@ -53,10 +80,18 @@ interface AirportConditions {
   fetchedAt?: string;
   isFallback?: boolean;
   provider?: string;
+  reason?: string;
+  error?: string;
+  // 2026-08-06: server errorMarker writes _generationFailed INSIDE
+  // airport_conditions; the wrapper-level flag is dropped by the real mount
+  // path (co-pilot-context unwraps, BriefingPage rewraps without flags).
+  _generationFailed?: boolean;
+  verifiedEmpty?: boolean;
 }
 
 interface AirportCardProps {
-  airportData?: { airport_conditions?: AirportConditions };
+  // 2026-07-06 (todo #24): pending/failed/verified-empty are three states
+  airportData?: { airport_conditions?: AirportConditions; _pending?: boolean; _generationFailed?: boolean };
   isAirportLoading: boolean;
 }
 
@@ -64,24 +99,39 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
   const [expandedAirport, setExpandedAirport] = useState(true);
 
   const airportConditions = airportData?.airport_conditions;
+  // Failed ≠ empty: a provider failure or fallback object must never render
+  // as "No nearby airports found" (the Dallas screenshot, todo #24)
+  // 2026-08-06: also read the INNER flag — the server errorMarker writes
+  // _generationFailed inside airport_conditions, and the wrapper-level flag is
+  // dropped by the real mount path (co-pilot-context unwraps, BriefingPage
+  // rewraps without flags), so DB failures rendered as "No nearby airports found".
+  const airportFailed = !!airportData?._generationFailed || !!airportConditions?._generationFailed || !!airportConditions?.isFallback;
+  const airportReason = airportConditions?.reason || airportConditions?.error || null;
   const airports = airportConditions?.airports || [];
   const busyPeriods = airportConditions?.busyPeriods || [];
   const airportRecommendations = airportConditions?.recommendations;
 
+  // 2026-08-06: map BOTH status vocabularies — legacy ('delays',
+  // 'severe_delays') and current DB values ('normal', 'delayed', 'severe',
+  // 'ground-stop', 'closed', 'unreported', 'unknown') plus free-form legacy
+  // strings ('moderate delays', 'impacted', 'disrupted'). Unrecognized values
+  // fall through to neutral gray "Unknown" — never a green "On Time" badge.
   const getAirportStatusColor = (status: string) => {
-    switch (status) {
-      case 'severe_delays': return 'bg-red-100 text-red-700 border-red-300';
-      case 'delays': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      default: return 'bg-green-100 text-green-700 border-green-300';
-    }
+    const s = (status || '').toLowerCase();
+    if (s === 'normal') return 'bg-green-100 text-green-700 border-green-300';
+    if (s === 'severe_delays' || s === 'severe' || s === 'closed' || s === 'ground-stop') return 'bg-red-100 text-red-700 border-red-300';
+    if (s === 'delays' || s === 'delayed' || s.includes('delay') || s.includes('impacted') || s.includes('disrupted')) return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+    return 'bg-gray-100 text-gray-700 border-gray-300';
   };
 
   const getAirportStatusLabel = (status: string) => {
-    switch (status) {
-      case 'severe_delays': return 'Severe Delays';
-      case 'delays': return 'Delays';
-      default: return 'On Time';
-    }
+    const s = (status || '').toLowerCase();
+    if (s === 'normal') return 'On Time';
+    if (s === 'severe_delays' || s === 'severe') return 'Severe Delays';
+    if (s === 'closed') return 'Closed';
+    if (s === 'ground-stop') return 'Ground Stop';
+    if (s === 'delays' || s === 'delayed' || s.includes('delay') || s.includes('impacted') || s.includes('disrupted')) return 'Delays';
+    return 'Unknown';
   };
 
   return (
@@ -217,6 +267,74 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                     </div>
                   )}
 
+                  {/* 2026-07-06 (todo #22): BEST ENTRY — the headline answer per lane
+                      type, computed server-side from per-checkpoint waits. */}
+                  {airport.best_entry && (airport.best_entry.general || airport.best_entry.preCheck || airport.best_entry.clear) && (
+                    <div className="mb-3 p-2.5 bg-indigo-50 border border-indigo-200 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Sparkles className="w-4 h-4 text-indigo-600" />
+                        <span className="text-xs font-semibold text-indigo-800">Best Entry Points</span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        {(['general', 'preCheck', 'clear'] as const).map((lane) => {
+                          const be = airport.best_entry?.[lane];
+                          if (!be) return null;
+                          const laneLabel = lane === 'preCheck' ? 'PreCheck' : lane === 'clear' ? 'Clear' : 'General';
+                          return (
+                            <span key={lane} className="text-xs text-indigo-900">
+                              <span className="font-medium">{laneLabel}:</span>{' '}
+                              {be.terminal}{be.checkpoint && be.checkpoint !== 'unreported' ? ` · ${be.checkpoint}` : ''} ({be.waitMinutes} min)
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Per-terminal breakdown: checkpoints with lane waits, arrivals
+                      activity, and rideshare pickup location per terminal. */}
+                  {airport.terminals && airport.terminals.length > 0 && (
+                    <div className="mb-3 space-y-2">
+                      {airport.terminals.map((t, tIdx) => (
+                        <div key={tIdx} className="p-2.5 bg-white/60 rounded-lg border border-sky-100">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-semibold text-gray-800">Terminal {t.terminal}</span>
+                            {t.arrivalsActivity && t.arrivalsActivity !== 'unreported' && (
+                              <span className="text-xs text-gray-600 flex items-center gap-1">
+                                <PlaneLanding className="w-3 h-3 text-green-600" />{t.arrivalsActivity}
+                              </span>
+                            )}
+                          </div>
+                          {t.checkpoints && t.checkpoints.length > 0 && (
+                            <div className="space-y-1">
+                              {t.checkpoints.map((cp, cpIdx) => (
+                                <div key={cpIdx} className="flex items-center gap-2 text-xs text-gray-700">
+                                  <ShieldCheck className="w-3 h-3 text-indigo-400 shrink-0" />
+                                  <span className="font-medium min-w-0 truncate">
+                                    {cp.name && cp.name !== 'unreported' ? cp.name : 'Checkpoint'}
+                                  </span>
+                                  {(['general', 'preCheck', 'clear'] as const).map((lane) => {
+                                    const wait = cp.lanes?.[lane];
+                                    if (wait === undefined || wait === null) return null;
+                                    const laneLabel = lane === 'preCheck' ? 'Pre✓' : lane === 'clear' ? 'Clear' : 'Gen';
+                                    return (
+                                      <span key={lane} className="text-gray-500">
+                                        {laneLabel}: {typeof wait === 'number' ? `${wait}m` : '—'}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {t.ridesharePickup && t.ridesharePickup !== 'unreported' && (
+                            <p className="text-xs text-sky-700 mt-1.5">🚗 Pickup: {t.ridesharePickup}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {(airport.arrivalDelays || airport.departureDelays) && (
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-100">
@@ -298,9 +416,18 @@ export function AirportCard({ airportData, isAirportLoading }: AirportCardProps)
                 </div>
               )}
             </div>
+          ) : airportFailed ? (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>Airport data couldn't be retrieved{airportReason ? ` — ${airportReason}` : ''}. It will retry on the next briefing refresh.</span>
+            </div>
           ) : (
             <p className="text-gray-500 text-sm text-center py-4">
-              {airportConditions?.isFallback ? 'Airport data temporarily unavailable' : 'No nearby airports found'}
+              {/* 2026-08-06: verifiedEmpty shape carries server-provided text
+                  (e.g., "No major airports within 50 miles of this location") —
+                  prefer it so verified-empty / missing-coords / residual
+                  failures are distinguishable. Static string is final fallback. */}
+              {airportConditions?.reason || airportConditions?.recommendations || 'No nearby airports found'}
             </p>
           )}
         </CardContent>

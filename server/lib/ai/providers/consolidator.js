@@ -206,7 +206,7 @@ ${homeBaseLine || ''}
 City: ${snapshot.city}, ${snapshot.state}
 Timezone: ${snapshot.timezone}
 Time: ${localTime} (${snapshot.day_part_key})
-${snapshot.is_holiday ? `HOLIDAY: ${snapshot.holiday}` : ''}
+${briefing?.holiday?.is_holiday === true && !briefing.holiday._generationFailed ? `HOLIDAY: ${briefing.holiday.holiday}` : ''}
 
 === DRIVER PREFERENCES ===
 ${driverPrefBlock}
@@ -390,7 +390,8 @@ function parseJsonField(field) {
 // Previous version looked for event.event_start (combined ISO) which doesn't exist —
 // discovered_events has separate event_start_date + event_start_time fields. All events
 // with unparseable times passed by default, letting wrong-date events into the prompt.
-function filterEventsToTimeWindow(events, timezone) {
+// 2026-08-11 (todo #29): exported for unit tests (tests/events/consolidator-date-gate.test.js).
+export function filterEventsToTimeWindow(events, timezone) {
   if (!events || !Array.isArray(events)) return [];
 
   // Compute today's date in driver's timezone for date-gating
@@ -399,12 +400,28 @@ function filterEventsToTimeWindow(events, timezone) {
     : new Date().toISOString().split('T')[0];
 
   return events.filter(event => {
-    // HARD GATE: event_start_date must be today in driver's timezone
-    const eventDate = event.event_start_date || event.event_date || event.date;
-    if (eventDate && eventDate !== todayLocal) {
-      aiLog.info(`[event-date-gate] Dropping "${event.title}" — date ${eventDate} != today ${todayLocal}`);
+    // HARD GATE — 2026-08-11 (todo #29): end-date aware. The previous gate compared
+    // event_start_date to today only, which dropped ACTIVE multi-day events (prod
+    // 2026-08-06: "Suffs" started 08-04, still running — exactly the surge intel the
+    // Strategist should see). Mirrors the read-path predicate made multi-day-inclusive
+    // on 2026-04-28 (briefing/pipelines/events.js): active today ⇔
+    // event_start_date <= today AND event_end_date >= today.
+    // Dates are YYYY-MM-DD strings, so lexicographic comparison is safe.
+    const startDate = event.event_start_date || event.event_date || event.date;
+    const endDate = event.event_end_date || startDate; // single-day events: end = start
+    if (startDate && startDate > todayLocal) {
+      aiLog.info(`[event-date-gate] Dropping "${event.title}" — starts ${startDate} > today ${todayLocal}`);
       return false;
     }
+    if (endDate && endDate < todayLocal) {
+      aiLog.info(`[event-date-gate] Dropping "${event.title}" — ended ${endDate} < today ${todayLocal}`);
+      return false;
+    }
+
+    // In-progress multi-day event (started before today): its start TIME belongs to a
+    // past day, so the start-time window below would always reject it. The date gate
+    // above already established it is active today — include it.
+    if (startDate && startDate < todayLocal) return true;
 
     // Time window check: try to build a parseable timestamp
     const eventStart = event.event_start
@@ -1399,7 +1416,10 @@ export async function runImmediateStrategy(snapshotId, options = {}) {
       weather_forecast: parseJsonField(briefingRow.weather_forecast),
       news: filteredNews,
       school_closures: parseJsonField(briefingRow.school_closures),
-      airport: parseJsonField(briefingRow.airport_conditions)
+      airport: parseJsonField(briefingRow.airport_conditions),
+      // 2026-07-06: holiday moved from snapshots to briefings.holiday
+      // ({ holiday, is_holiday, detectedAt } | errorMarker)
+      holiday: parseJsonField(briefingRow.holiday)
     };
 
     triadLog.phase(3, `Briefing: traffic=${!!briefing.traffic}, events=${!!briefing.events}, news=${!!briefing.news}, closures=${!!briefing.school_closures}, airport=${!!briefing.airport}`);

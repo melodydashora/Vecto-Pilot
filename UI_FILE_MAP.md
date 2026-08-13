@@ -28,7 +28,7 @@ This document provides a complete mapping of UI components to their source files
 |------|---------|--------|
 | `client/src/main.tsx` | React app entry point | ✅ Active |
 | `client/src/App.tsx` | Root component with AuthProvider, CoPilotProvider, RouterProvider | ✅ Active |
-| `client/src/routes.tsx` | React Router configuration (20 routes) | ✅ Active |
+| `client/src/routes.tsx` | React Router configuration (30 routes) | ✅ Active |
 
 ### Providers & Contexts
 
@@ -49,14 +49,19 @@ This document provides a complete mapping of UI components to their source files
 | File | Purpose | Route | Status |
 |------|---------|-------|--------|
 | `client/src/pages/co-pilot/StrategyPage.tsx` | AI strategy + Smart Blocks + Coach | `/co-pilot/strategy` | ✅ Active |
-| `client/src/pages/co-pilot/BarsPage.tsx` | Premium venue listings ($$ and above, open only) | `/co-pilot/bars` | ✅ Active |
+| `client/src/pages/co-pilot/VenueManagerPage.tsx` | Venue manager (bar listings) | `/co-pilot/bars` | ✅ Active |
 | `client/src/pages/co-pilot/BriefingPage.tsx` | Weather, traffic, news, events briefing | `/co-pilot/briefing` | ✅ Active |
-| `client/src/pages/co-pilot/MapPage.tsx` | Interactive venue map with bars + events | `/co-pilot/map` | ✅ Active |
 | `client/src/pages/co-pilot/IntelPage.tsx` | Rideshare intelligence (deadhead, zones, strategy cards) | `/co-pilot/intel` | ✅ Active |
 | `client/src/pages/co-pilot/AboutPage.tsx` | Donation/about (no GlobalHeader) | `/co-pilot/about` | ✅ Active |
 | `client/src/pages/co-pilot/PolicyPage.tsx` | Privacy policy | `/co-pilot/policy` | ✅ Active |
 | `client/src/pages/co-pilot/SettingsPage.tsx` | User profile + vehicle settings | `/co-pilot/settings` | ✅ Active |
-| `client/src/pages/co-pilot/OmniPage.tsx` | Omni-Presence signal terminal | `/co-pilot/omni` | ✅ Active (Level 4) |
+| `client/src/pages/co-pilot/CoachPage.tsx` | Rideshare Coach (AI chat + voice) | `/co-pilot/coach` | ✅ Active |
+| `client/src/pages/co-pilot/ConciergePage.tsx` | Driver concierge (QR sharing, driver card) | `/co-pilot/concierge` | ✅ Active |
+| `client/src/pages/co-pilot/OfferAnalyzerPage.tsx` | Per-driver offer rules + outcomes | `/co-pilot/offer-analyzer` | ✅ Active |
+| `client/src/pages/co-pilot/TranslationPage.tsx` | Real-time rider translation overlay | `/co-pilot/translate` | ✅ Active |
+| `client/src/pages/co-pilot/SchedulePage.tsx` | Weekly driving schedule + shift preferences | `/co-pilot/schedule` | ✅ Active |
+| `client/src/pages/co-pilot/DonatePage.tsx` | Donation page | `/co-pilot/donate` | ✅ Active |
+| `client/src/pages/co-pilot/HelpPage.tsx` | Instructions/help page | `/co-pilot/help` | ✅ Active |
 | `client/src/pages/co-pilot/index.tsx` | Barrel export | N/A | ✅ Active |
 
 ### Auth Pages (Public Routes)
@@ -68,9 +73,10 @@ This document provides a complete mapping of UI components to their source files
 | `client/src/pages/auth/ForgotPasswordPage.tsx` | Password reset request | `/auth/forgot-password` | ✅ Active |
 | `client/src/pages/auth/ResetPasswordPage.tsx` | Password reset with code | `/auth/reset-password` | ✅ Active |
 | `client/src/pages/auth/TermsPage.tsx` | Terms of service | `/auth/terms` | ✅ Active |
-| `client/src/pages/auth/GoogleCallbackPage.tsx` | Google OAuth code exchange | `/auth/google/callback` | ✅ Active |
-| `client/src/pages/auth/UberCallbackPage.tsx` | Uber OAuth code exchange | `/auth/uber/callback` | ✅ Active |
+| `client/src/pages/auth/google/Callback.tsx` | Google OAuth code exchange | `/auth/google/callback` | ✅ Active |
 | `client/src/pages/auth/index.ts` | Barrel export | N/A | ✅ Active |
+
+> **Note:** Uber OAuth callback is server-side: GET `/api/auth/uber/callback` (`server/api/auth/uber.js`); there is no client-side `/auth/uber/callback` route.
 
 ### Auth Components
 
@@ -84,26 +90,31 @@ This document provides a complete mapping of UI components to their source files
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
 | `GlobalHeader.tsx` | Location, time, weather display | CoPilotLayout.tsx | ✅ Active |
-| `AICoach.tsx` | AI chat + voice interface (GPT-5.2) | StrategyPage.tsx | ✅ Active |
+| `RideshareCoach.tsx` | AI chat + voice interface | CoachPage.tsx | ✅ Active |
 | `BriefingTab.tsx` | Weather, traffic, news, events | BriefingPage.tsx | ✅ Active |
 | `FeedbackModal.tsx` | Venue/strategy feedback dialogs | StrategyPage.tsx | ✅ Active |
 | `SmartBlocksStatus.tsx` | Pipeline loading status with progress bar | StrategyPage.tsx | ✅ Active |
-| `BarsTable.tsx` | Venue table display with open/closing status | BarsPage.tsx, StrategyPage.tsx | ✅ Active |
-| `MapTab.tsx` | Interactive map view with venues, bars, events | MapPage.tsx | ✅ Active |
+| `BarsDataGrid.tsx` | Venue table display | BarsMainTab.tsx | ✅ Active |
+| `strategy/StrategyMap.tsx` | Embedded map view | StrategyPage.tsx | ✅ Active |
 | `DonationTab.tsx` | Donation/support section | AboutPage.tsx | ✅ Active |
 | `InstructionsTab.tsx` | How-to instructions | DonationTab.tsx | ✅ Active |
 | `EventsComponent.tsx` | Event cards display | BriefingTab.tsx | ✅ Active |
 | `ErrorBoundary.tsx` | React error boundary | App.tsx | ✅ Active |
-| `BarTab.tsx` | Bar listings with filters | BarsPage.tsx | ✅ Active |
+| `BarsMainTab.tsx` | Bar listings with filters | VenueManagerPage.tsx | ✅ Active |
 | `RideshareIntelTab.tsx` | Market intelligence display | IntelPage.tsx | ✅ Active |
 
-### Omni-Presence Components (Level 4)
+### Offer Analyzer Components
 
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
-| `client/src/components/omni/SignalTerminal.tsx` | Real-time offer analysis display | OmniPage.tsx | ✅ Active (Level 4) |
-| `client/src/components/omni/OfferCard.tsx` | Individual offer display card | SignalTerminal.tsx | ✅ Active (Level 4) |
-| `client/src/components/omni/DecisionBadge.tsx` | ACCEPT/REJECT badge with reasoning | OfferCard.tsx | ✅ Active (Level 4) |
+| `client/src/components/offer-analyzer/SetupCard.tsx` | Siri Shortcut install + identity-bridge token card | OfferAnalyzerPage.tsx | ✅ Active |
+| `client/src/components/offer-analyzer/RateTargetsCard.tsx` | Rate targets rules card | OfferAnalyzerPage.tsx | ✅ Active |
+| `client/src/components/offer-analyzer/GatesCard.tsx` | Hard gates rules card | OfferAnalyzerPage.tsx | ✅ Active |
+| `client/src/components/offer-analyzer/GeographyCard.tsx` | Geography / avoid-places card | OfferAnalyzerPage.tsx | ✅ Active |
+| `client/src/components/offer-analyzer/LimitsCard.tsx` | Limits rules card | OfferAnalyzerPage.tsx | ✅ Active |
+| `client/src/components/offer-analyzer/VisionRulesCard.tsx` | Vision rules card | OfferAnalyzerPage.tsx | ✅ Active |
+| `client/src/components/offer-analyzer/OffersCard.tsx` | Offer history + outcome capture | OfferAnalyzerPage.tsx | ✅ Active |
+| `client/src/components/offer-analyzer/controls.tsx` | Shared row controls for the rules editor | offer-analyzer cards | ✅ Active |
 
 ### Co-Pilot Sub-Components
 
@@ -124,8 +135,12 @@ This document provides a complete mapping of UI components to their source files
 
 | File | Purpose | Used By | Status |
 |------|---------|---------|--------|
-| `hooks/use-toast.ts` | Toast notifications | Multiple components | ✅ Active |
-| `hooks/use-mobile.tsx` | Mobile detection | UI sidebar | ✅ Active |
+| `hooks/useToast.ts` | Toast notifications | Multiple components | ✅ Active |
+| `hooks/useMobile.tsx` | Mobile detection | UI sidebar | ✅ Active |
+| `hooks/useSpeechRecognition.ts` | Speech-to-text recognition | TranslationOverlay.tsx, hooks/coach | ✅ Active |
+| `hooks/useTrafficIncidents.ts` | Traffic incidents query | StrategyPage.tsx | ✅ Active |
+| `hooks/useStrategy.ts` | Strategy fetching | strategy/_future components | ✅ Active |
+| `hooks/coach/` | Coach hooks (audio state, chat, streaming read-aloud) | RideshareCoach.tsx | ✅ Active |
 | `hooks/useBriefingQueries.ts` | Briefing data queries (6 endpoints) | BriefingPage.tsx | ✅ Active |
 | `hooks/useEnrichmentProgress.ts` | Dynamic progress tracking with timing | StrategyPage.tsx | ✅ Active |
 | `hooks/useStrategyPolling.ts` | Strategy fetching with SSE + caching | co-pilot-context.tsx | ✅ Active |
@@ -288,9 +303,22 @@ This document provides a complete mapping of UI components to their source files
 | Endpoint | Method | Called By | Purpose |
 |----------|--------|-----------|---------|
 | `/api/hooks/analyze-offer` | POST | iOS Siri Shortcut | Analyze ride offer from OCR text |
-| `/api/hooks/signals` | GET | SignalTerminal.tsx | Fetch recent intercepted signals |
-| `/api/hooks/signals/stream` | SSE | SignalTerminal.tsx | Real-time signal updates |
-| `/api/hooks/signal/:id/override` | PUT | OfferCard.tsx | Override AI decision |
+| `/api/hooks/offer-history` | GET | OfferAnalyzerPage | Recent analyzed offers |
+| `/api/hooks/offer-override` | POST | OfferAnalyzerPage | Override AI decision |
+| `/api/hooks/offer-cleanup` | POST | (maintenance) | Purge old offers |
+
+### Offer Analyzer APIs (authed)
+
+| Endpoint | Method | Called By | Purpose |
+|----------|--------|-----------|---------|
+| `/api/offer-analyzer/rules` | GET | OfferAnalyzerPage | Fetch per-driver ruleset |
+| `/api/offer-analyzer/rules` | PUT | OfferAnalyzerPage | Save per-driver ruleset |
+| `/api/offer-analyzer/shortcut-token` | GET | OfferAnalyzerPage | Get-or-create Siri shortcut token |
+| `/api/offer-analyzer/shortcut-token/regenerate` | POST | OfferAnalyzerPage | Rotate shortcut token |
+| `/api/offer-analyzer/shortcut-token/label` | POST | OfferAnalyzerPage | Label shortcut token |
+| `/api/offer-analyzer/offers` | GET | OfferAnalyzerPage | List analyzed offers |
+| `/api/offer-analyzer/offers/:id/outcome` | POST | OfferAnalyzerPage | Record offer outcome |
+| `/api/offer-analyzer/places/search` | GET | OfferAnalyzerPage | Avoid-places search |
 
 ---
 
@@ -387,10 +415,6 @@ main.tsx
             │   ├── BriefingPage.tsx (/co-pilot/briefing)
             │   │   ├── useBriefingQueries.ts
             │   │   └── BriefingTab.tsx → EventsComponent.tsx
-            │   ├── MapPage.tsx (/co-pilot/map)
-            │   │   ├── useBarsQuery.ts
-            │   │   ├── useActiveEventsQuery.ts
-            │   │   └── MapTab.tsx
             │   ├── IntelPage.tsx (/co-pilot/intel)
             │   │   ├── useMarketIntelligence.ts
             │   │   └── RideshareIntelTab.tsx
@@ -501,7 +525,8 @@ main.tsx
 | `/api/platform/*` | `server/api/platform/index.js` |
 | `/api/vehicle/*` | `server/api/vehicle/vehicle.js` |
 | `/api/intelligence/*` | `server/api/intelligence/index.js` |
-| `/api/hooks/*` | `server/api/hooks/analyze-offer.js` [Level 4] |
+| `/api/hooks/*` | `server/api/hooks/analyze-offer.js`, `server/api/hooks/translate.js` |
+| `/api/offer-analyzer/*` | `server/api/offer-analyzer/index.js` |
 
 ---
 
@@ -511,10 +536,10 @@ main.tsx
 - **Entry Points**: 3 (main.tsx, App.tsx, routes.tsx)
 - **Providers**: 3 (AuthProvider, CoPilotProvider, LocationProvider)
 - **Layouts**: 1 (CoPilotLayout.tsx)
-- **Pages**: 14 (9 co-pilot + 5 auth)
+- **Pages**: 19 (14 co-pilot + 5 auth)
 - **Core Components**: 13+
 - **Sub-Components**: 11+ (co-pilot, intel, auth, omni)
-- **Hooks**: 13 active
+- **Hooks**: 17 active (incl. `hooks/coach/`)
 - **Libraries**: 3 active
 - **Types**: 4 active
 - **Utilities**: 1
@@ -529,16 +554,16 @@ main.tsx
 - ✅ Protected routes with JWT authentication
 - ✅ Settings page with profile editing
 - ✅ Platform data integration for dropdowns
-- ✅ Level 4 Architecture: Omni-Presence / Siri Interceptor
+- ✅ Offer Analyzer: per-driver DB rulesets + Siri shortcut token bridge (/api/hooks/analyze-offer, /api/offer-analyzer)
 
 **Active Features:**
-- ✅ 9 co-pilot pages (strategy, bars, briefing, map, intel, about, policy, settings, omni)
+- ✅ 14 co-pilot pages (strategy, bars, briefing, intel, about, policy, concierge, coach, settings, offer-analyzer, translate, schedule, donate, help)
 - ✅ 5 auth pages (sign-in, sign-up, forgot, reset, terms)
 - ✅ Real-time updates via SSE
 - ✅ Smart Blocks with NOW strategy (top 3 Grade A, ≥1mi apart)
 - ✅ Rideshare Coach with text + voice
 - ✅ Market intelligence system
-- ✅ Siri Interceptor (headless client integration via iOS Shortcuts)
+- ✅ Offer Analyzer: per-driver DB rulesets + Siri shortcut token bridge (/api/hooks/analyze-offer, /api/offer-analyzer)
 
 ---
 

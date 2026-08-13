@@ -102,15 +102,22 @@ Do this to **understand**, not to perform a ritual. Go as deep as the task warra
    anything conflicts with it, it wins.
 2. **Ground in reality** — the DB and code are truth. `DATABASE_URL` is the only DB
    selector (see Hard Limits).
-3. **Review the continuity tables** (Postgres) for what past sessions learned:
+3. **Load the product rules** — `SELECT rule_key, rule_text, enforced_by FROM
+   app_rules WHERE status = 'active'`. These are the product invariants (verbatim
+   Melody doctrine unless marked otherwise: no fallbacks, 6-decimal coords,
+   complete snapshot rides the waterfall, no hardcoded location, GPS-only
+   timezone, model-agnostic roles, …). **Check every change against them before
+   writing it** — this checkpoint exists so sessions stop reworking the rework
+   (added 2026-07-06 at Melody's direction).
+4. **Review the continuity tables** (Postgres) for what past sessions learned:
    - `claude_memory` (active rows) — prior decisions, patterns, in-flight context.
    - `todo` (open rows) — the actionable queue.
    - `lessons_learned` — mistakes worth never repeating, and the rule each produced.
    - `definitions` — the glossary; resolve any term, table, column, or flag name here
      **before** you touch it.
-4. **Read the newest audit first** when facts conflict — `docs/architecture/audits/`
+5. **Read the newest audit first** when facts conflict — `docs/architecture/audits/`
    (newest beats older doctrine; then fix the stale doctrine in the same session).
-5. **Skim only the doctrine surfaces** that bear on the task (pointers below).
+6. **Skim only the doctrine surfaces** that bear on the task (pointers below).
 
 ---
 
@@ -119,6 +126,7 @@ Do this to **understand**, not to perform a ritual. Go as deep as the task warra
 | Need | Go to |
 |------|-------|
 | Constitution / authority / provenance | `AI_PARTNERSHIP_AGREEMENT.md` |
+| Product invariants (verbatim rules, provenance-marked) | `app_rules` table (Postgres) |
 | Hard rules + immutable workflow logs | `.code_based_rules/` |
 | System overview + folder index | `ARCHITECTURE.md` |
 | Production mistakes never to repeat | `LESSONS_LEARNED.md` |

@@ -11,21 +11,21 @@
 
 import { Router } from 'express';
 import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
+import { dayPartLabel } from '../../lib/location/daypart.js';
 import { requireAuth } from '../../middleware/auth.js';
-import { db } from '../../db/drizzle.js';
-import { snapshots } from '../../../shared/schema.js';
-import { eq } from 'drizzle-orm';
+import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
+import { getRoleConfig } from '../../lib/ai/model-registry.js';
 // Node.js 18+ has built-in fetch — no import needed
 
 const router = Router();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// COACH_VOICE role: real-time voice chat with snapshot context.
-// 2026-04-25: 'gpt-realtime' is the realtime-class default. The Realtime API
-// (/v1/realtime/client_secrets) only accepts realtime-class models; chat
-// models like gpt-5.x will fail. Text/reasoning paths use
-// OPENAI_MODEL=gpt-5.5-2026-04-23, which is intentionally distinct.
-const VOICE_MODEL = process.env.VOICE_MODEL || 'gpt-realtime';
+// 2026-08-11: model now resolves through the registry (COACH_VOICE_REALTIME
+// role) instead of a raw VOICE_MODEL env read — the env var still works (it is
+// the role's envKey) but the registry's requiresLive guard now rejects
+// chat-class overrides, and the realtime-vs-chat-class doctrine lives on the
+// role entry in model-registry.js.
+const VOICE_MODEL = getRoleConfig('COACH_VOICE_REALTIME').model;
 
 /**
  * POST /api/realtime/token
@@ -54,30 +54,13 @@ router.post('/token', requireAuth, async (req, res) => {
       '| model:', VOICE_MODEL
     );
 
-    // 2026-04-25 (audit §1.5): Ownership check moved BEFORE the OpenAI mint.
-    // Previously the order was auth → mint → ownership, which meant a billed
-    // OpenAI token could be issued for a snapshot the caller did not own —
-    // even if the response was withheld, the cost had already been incurred.
-    // If snapshotId is omitted (some flows allow user-only context), skip the
-    // ownership check and proceed to fetch context with the user identity.
+    // Ownership BEFORE the OpenAI mint (billed token must never be issued for
+    // a snapshot the caller does not own). Shared guard since 2026-08-11 —
+    // mismatch is now 404 (anti-enumeration policy), previously 403 here.
+    // If snapshotId is omitted (user-only context flows), skip and proceed.
     if (snapshotId) {
-      try {
-        const [snap] = await db
-          .select({ user_id: snapshots.user_id })
-          .from(snapshots)
-          .where(eq(snapshots.snapshot_id, snapshotId))
-          .limit(1);
-
-        if (!snap || snap.user_id !== req.auth.userId) {
-          return res.status(403).json({
-            error: 'snapshot_not_owned',
-            message: 'Snapshot does not belong to this user',
-          });
-        }
-      } catch (ownerErr) {
-        console.warn('[COACH] [REALTIME] ownership check failed:', ownerErr.message);
-        return res.status(500).json({ error: 'ownership_check_failed' });
-      }
+      const owned = await verifySnapshotOwnership(snapshotId, req.auth?.userId);
+      if (!owned.ok) return res.status(owned.status).json(owned.body);
     }
 
     // Fetch snapshot context for the session prompt (after ownership clears).
@@ -98,7 +81,9 @@ router.post('/token', requireAuth, async (req, res) => {
             state: fullContext.snapshot.state,
             weather: fullContext.snapshot.weather,
             air: fullContext.snapshot.air,
-            dayPart: fullContext.snapshot.day_part_key,
+            // 2026-07-06: human label via the dayparts adapter — the raw key
+            // (e.g. legacy 'late_morning_noon' at 2 PM) was confusing the model.
+            dayPart: dayPartLabel(fullContext.snapshot.day_part_key) || 'current time',
             hour: fullContext.snapshot.hour,
             address: fullContext.snapshot.formatted_address,
             timezone: fullContext.snapshot.timezone,

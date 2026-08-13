@@ -58,7 +58,7 @@ export const snapshots = pgTable("snapshots", {
   local_iso: timestamp("local_iso", { withTimezone: false }).notNull(),
   dow: integer("dow").notNull(), // 0=Sunday, 1=Monday, etc.
   hour: integer("hour").notNull(),
-  day_part_key: text("day_part_key").notNull(), // 'morning', 'afternoon', 'evening', etc.
+  day_part_key: text("day_part_key").notNull(), // shared/dayparts.js taxonomy: overnight|morning|early_afternoon|late_afternoon|early_evening|evening
   // H3 geohash for density analysis
   h3_r8: text("h3_r8"),
   // API-enriched contextual data only
@@ -69,9 +69,10 @@ export const snapshots = pgTable("snapshots", {
   // - briefing data is now in separate 'briefings' table
   // - trigger_reason moved to strategies table
   permissions: jsonb("permissions"),
-  // Holiday detection at snapshot creation (via Gemini 3.0 Pro + Google Search)
-  holiday: text("holiday").notNull().default('none'), // Holiday name (e.g., "Thanksgiving", "Christmas") or 'none'
-  is_holiday: boolean("is_holiday").notNull().default(false), // Boolean flag: true if today is a holiday
+  // 2026-07-06: holiday/is_holiday columns DROPPED — holiday detection moved to
+  // the briefing pipeline (briefings.holiday jsonb section, pipelines/holiday.js).
+  // The snapshot is purely deterministic (GPS → Google APIs); LLM-involved
+  // enrichment lives in the briefing per Melody's pipeline rules.
   // Snapshot readiness gate: 'pending' until all required fields are populated, then 'ok'
   status: text("status").default('pending'),
 });
@@ -127,7 +128,11 @@ export const briefings = pgTable("briefings", {
   airport_conditions: jsonb("airport_conditions"), // Airport: delays, arrivals, busy periods, recommendations
 
   // === METADATA ===
-  holiday: text("holiday"), // Holiday name if applicable (from snapshot context)
+  // 2026-07-06: holiday section (moved from snapshots; pipelines/holiday.js).
+  // Success: { holiday, is_holiday, detectedAt } — 'none' means VERIFIED not a
+  // holiday. Failure: errorMarker { _generationFailed, error, failedAt } — never
+  // a fabricated 'none'.
+  holiday: jsonb("holiday"),
   status: text("status"), // Briefing status: pending, complete, error
   generated_at: timestamp("generated_at", { withTimezone: true }), // When briefing was fully generated
 
@@ -997,6 +1002,14 @@ export const driver_profiles = pgTable("driver_profiles", {
   // 2026-02-13: Concierge share token for public QR code link
   concierge_share_token: varchar("concierge_share_token", { length: 12 }).unique(),
 
+  // 2026-07-03 (todo #10): Shortcut identity bridge — unguessable token carried by
+  // the Siri Shortcut (X-Shortcut-Token header / shortcut_token form field) so the
+  // public analyze-offer endpoint can resolve user_id + per-driver ruleset.
+  // System-generated only ("vp_" + 40 base62 chars); regenerate = revoke lost device.
+  shortcut_token: varchar("shortcut_token", { length: 43 }).unique(),
+  shortcut_token_created_at: timestamp("shortcut_token_created_at", { withTimezone: true }),
+  shortcut_device_label: text("shortcut_device_label"),
+
   // Address - nullable for Google OAuth sign-up (user completes profile later)
   // 2026-02-13: Made nullable to support OAuth-only registration
   address_1: text("address_1"),
@@ -1645,7 +1658,8 @@ export const intercepted_signals = pgTable("intercepted_signals", {
  * Auth: device_id based (Siri Shortcuts cannot send JWT tokens).
  * GPS: 6-decimal precision (~11cm) per codebase standard.
  * H3: Resolution 8 (~0.7km² hexagons) for density clustering.
- * Daypart: Uses getDayPartKey(hour) from server/lib/location/daypart.js.
+ * Daypart: Uses getDayPartKey(hour) from shared/dayparts.js (re-exported by
+ *   server/lib/location/daypart.js) — the single time-context adapter.
  *
  * 2026-02-17: Created to replace intercepted_signals JSONB blob with structured columns.
  */
@@ -1723,7 +1737,7 @@ export const offer_intelligence = pgTable("offer_intelligence", {
   local_date: text("local_date"),                      // YYYY-MM-DD in driver's local timezone
   local_hour: integer("local_hour"),                   // 0-23 in driver's local timezone
   day_of_week: integer("day_of_week"),                 // 0=Sunday, 6=Saturday (matches snapshots.dow)
-  day_part: text("day_part"),                          // getDayPartKey(hour): overnight|morning|etc.
+  day_part: text("day_part"),                          // getDayPartKey(hour) taxonomy; NULL when timezone unresolvable (never UTC-derived)
   is_weekend: boolean("is_weekend"),                   // true for Saturday (6) and Sunday (0)
   timezone: text("timezone"),                          // IANA timezone (e.g., "America/Chicago")
 
@@ -1731,11 +1745,16 @@ export const offer_intelligence = pgTable("offer_intelligence", {
   // AI ANALYSIS — decision, reasoning, model metadata
   // ═══════════════════════════════════════════════════════════════════
 
-  decision: text("decision").notNull(),                // 'ACCEPT' | 'REJECT' | 'UNKNOWN'
+  decision: text("decision").notNull(),                // 'ACCEPT' | 'REJECT' | 'NO DATA' (write path: analyze-offer.js:340)
   decision_reasoning: text("decision_reasoning"),
   confidence_score: integer("confidence_score"),       // 0-100
   ai_model: text("ai_model"),                         // e.g., "gemini-3-flash"
   response_time_ms: integer("response_time_ms"),
+
+  // 2026-07-03 (todo #10): which ruleset produced this decision.
+  // NULL ruleset_hash = DEFAULT_RULESET applied (visible, never silent).
+  ruleset_version: integer("ruleset_version"),
+  ruleset_hash: text("ruleset_hash"),
 
   // ═══════════════════════════════════════════════════════════════════
   // DRIVER FEEDBACK — human override of AI decision
@@ -1898,6 +1917,72 @@ export const coach_offer_decisions = pgTable("coach_offer_decisions", {
 
   // Snapshot context joins (where was Melody when she decided)
   idxSnapshot: sql`create index if not exists idx_cod_snapshot on ${table} (snapshot_id) where snapshot_id is not null`,
+}));
+
+/**
+ * offer_rulesets — Per-driver Offer Analyzer rules (2026-07-03, todo #10)
+ *
+ * One editable ruleset per user (jsonb, RULESET_SCHEMA_VERSION >= 3 shape from
+ * server/lib/offers/rules-engine.js). The SAME config renders the Phase-1/Phase-2
+ * prompts AND drives the deterministic evaluator — the no-drift invariant.
+ * Validated by Zod at write time (server/api/offer-analyzer/index.js); the analyze
+ * hot path fail-opens to DEFAULT_RULESET with a loud log + NULL provenance stamp.
+ * Design: docs/architecture/OFFER_RULESET_V3_DESIGN.md §5.
+ *
+ * FK is RESTRICT (mirrors driver_profiles): users rows are session-scoped but never
+ * deleted, and rules must not vanish out from under a driver.
+ */
+export const offer_rulesets = pgTable("offer_rulesets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  user_id: uuid("user_id").notNull().unique().references(() => users.user_id, { onDelete: 'restrict' }),
+
+  version: integer("version").notNull().default(1),    // bumps each save; stamped onto offers
+  config: jsonb("config").notNull(),                   // v3 ruleset (see rules-engine.js DEFAULT_RULESET)
+  config_hash: text("config_hash").notNull(),          // sha256 of canonical JSON (provenance key)
+
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * offer_outcomes — What the driver ACTUALLY did (2026-07-03, todo #10)
+ *
+ * Third leg of the learning signal, distinct from both offer_intelligence.decision
+ * (the analyzer's recommendation) and offer_intelligence.user_override (in-the-moment
+ * disagreement). "If I get a reject — I can tell our system I accepted it" (Melody).
+ * ON DELETE SET NULL preserves outcomes across row DELETEs — NOT across TRUNCATE
+ * (plain TRUNCATE of offer_intelligence now fails on this FK; CASCADE would wipe
+ * outcomes; verified live 2026-07-03). Any offer_intelligence reset must DELETE.
+ */
+export const offer_outcomes = pgTable("offer_outcomes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  user_id: uuid("user_id").notNull().references(() => users.user_id, { onDelete: 'restrict' }),
+  offer_intelligence_id: uuid("offer_intelligence_id").references(() => offer_intelligence.id, { onDelete: 'set null' }),
+
+  driver_decision: text("driver_decision"),            // 'Accepted' | 'Rejected' | 'Cancelled' | 'Completed' (CHECK in migration)
+  driver_reasoning: text("driver_reasoning"),          // the "AI was wrong here" signal
+
+  // Realized earnings (meaningful when Accepted/Completed); total is a Postgres
+  // GENERATED STORED column — computed in the DB, cannot drift from the parts.
+  actual_pay: doublePrecision("actual_pay"),
+  reimbursements: doublePrecision("reimbursements"),
+  extras: doublePrecision("extras"),
+  other: doublePrecision("other"),
+  total_earned: doublePrecision("total_earned").generatedAlwaysAs(
+    sql`COALESCE(actual_pay,0) + COALESCE(reimbursements,0) + COALESCE(extras,0) + COALESCE(other,0)`
+  ),
+
+  outcome_source: text("outcome_source").notNull().default('web_app'),
+
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  // One outcome per analyzed offer (upsert target)
+  uqOutcomeOffer: sql`create unique index if not exists uq_outcome_offer on ${table} (offer_intelligence_id) where offer_intelligence_id is not null`,
+  idxOutcomeUserCreated: sql`create index if not exists idx_outcome_user_created on ${table} (user_id, created_at desc)`,
+  idxOutcomeDecision: sql`create index if not exists idx_outcome_decision on ${table} (driver_decision) where driver_decision is not null`,
 }));
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2327,3 +2412,51 @@ export const definitions = pgTable("definitions", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * airports — deterministic airport identity + static terminal inventory
+ * (todo #22). Coordinates seeded ONLY via scripts/seed-airports.mjs (Google
+ * Places Text Search — never model-generated). terminals jsonb holds the
+ * static per-terminal inventory (Clear availability, checkpoint estimates,
+ * rideshare pickup notes) with provenance; live conditions are researched by
+ * the BRIEFING_AIRPORT role against these NAMED airports at briefing time.
+ * Selection: server/lib/location/airports.js (AIRPORT_RADIUS_MILES = 50).
+ */
+export const airports = pgTable("airports", {
+  iata: text("iata").primaryKey(),
+  name: text("name").notNull(),
+  city: text("city"),
+  country: text("country").notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  coord_source: text("coord_source").notNull().default("google_places"),
+  is_major: boolean("is_major").notNull().default(true),
+  terminals: jsonb("terminals"),
+  terminals_provenance: text("terminals_provenance"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * app_rules — the canonical, queryable home for product invariants ("the rules").
+ * Loaded at session boot (CLAUDE.md §3 step 3) so every session checks changes
+ * against them instead of re-deriving doctrine from incident archaeology.
+ * rule_text is verbatim-Melody where provenance='melody'; 'joint' = Melody
+ * directed, Claude formalized. Created 2026-07-06 at Melody's direction
+ * (migrations/20260706_app_rules_table.sql).
+ */
+export const app_rules = pgTable("app_rules", {
+  id: serial("id").primaryKey(),
+  rule_key: text("rule_key").notNull().unique("app_rules_rule_key_key"),
+  rule_text: text("rule_text").notNull(),               // the rule, verbatim
+  rationale: text("rationale"),                         // the why (incident/origin)
+  provenance: text("provenance").notNull().default("melody"),   // 'melody' | 'claude' | 'joint' (CHECK-enforced)
+  status: text("status").notNull().default("active"),   // 'active' | 'superseded' (CHECK-enforced)
+  superseded_by: integer("superseded_by"),              // app_rules.id of the replacement rule
+  enforced_by: text("enforced_by"),                     // module/mechanism that structurally enforces it
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  provenanceCheck: check("app_rules_provenance_check", sql`${table.provenance} IN ('melody', 'claude', 'joint')`),
+  statusCheck: check("app_rules_status_check", sql`${table.status} IN ('active', 'superseded')`),
+}));

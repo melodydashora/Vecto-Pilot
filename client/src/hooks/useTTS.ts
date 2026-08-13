@@ -58,9 +58,22 @@ export function useTTS(): UseTTSReturn {
   // worker hangs forever on a chunk whose audio.onended never fires (because audio.src
   // got reassigned, or because window.speechSynthesis.cancel() killed the fallback).
   const currentResolverRef = useRef<(() => void) | null>(null);
+  // 2026-08-11: overlapping-voices fix. stop() used to clear the queue but NOT
+  // the in-flight fetch — a late-landing TTS response would start playing on
+  // top of the next utterance (or the catch-path fallback would SPEAK the stale
+  // text). Every stop()/speak() bumps the generation; work belonging to an old
+  // generation finishes silently instead of touching the audio element.
+  const generationRef = useRef(0);
+  const fetchAbortRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
 
   const stop = useCallback(() => {
+    generationRef.current++;
+    // Cancel the in-flight synthesis request, if any
+    if (fetchAbortRef.current) {
+      fetchAbortRef.current.abort();
+      fetchAbortRef.current = null;
+    }
     // Stop OpenAI TTS audio element
     if (audioRef.current) {
       audioRef.current.pause();
@@ -107,9 +120,11 @@ export function useTTS(): UseTTSReturn {
   const speak = useCallback(async (text: string, language?: string, playbackRate: number = 1.0): Promise<void> => {
     if (!text) return;
 
-    if (isSpeaking) {
-      stop();
-    }
+    // 2026-08-11: unconditional — the old `if (isSpeaking)` guard read a stale
+    // closure value on rapid successive calls, skipping the interrupt. stop()
+    // also aborts any in-flight fetch and bumps the generation.
+    stop();
+    const gen = generationRef.current;
 
     return new Promise<void>((resolve) => {
       let resolved = false;
@@ -130,13 +145,16 @@ export function useTTS(): UseTTSReturn {
 
           // 2026-03-18: FIX (B-2) — Add auth header for authenticated TTS endpoint
           const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+          const abortController = new AbortController();
+          fetchAbortRef.current = abortController;
           const response = await fetch(API_ROUTES.TTS, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               ...(token && { Authorization: `Bearer ${token}` }),
             },
-            body: JSON.stringify({ text, ...(language && { language }) })
+            body: JSON.stringify({ text, ...(language && { language }) }),
+            signal: abortController.signal,
           });
 
           if (!response.ok) {
@@ -144,6 +162,12 @@ export function useTTS(): UseTTSReturn {
           }
 
           const audioBlob = await response.blob();
+          if (fetchAbortRef.current === abortController) fetchAbortRef.current = null;
+          // Superseded while downloading — never touch the shared audio element
+          if (generationRef.current !== gen) {
+            finish();
+            return;
+          }
           console.log(`[TTS] Received ${audioBlob.size} bytes`);
           const audioUrl = URL.createObjectURL(audioBlob);
 
@@ -169,9 +193,10 @@ export function useTTS(): UseTTSReturn {
             // 2026-04-13: Audio element failed (iOS autoplay restriction) — fall back to browser TTS
             console.log('[TTS] Audio element failed, falling back to browser speechSynthesis');
             if (speakWithBrowserTTS(text, language, playbackRate)) {
-              // Track when browser TTS finishes
+              // Track when browser TTS finishes (generation check ends the
+              // poller promptly when stop()/speak() supersedes this chunk)
               const checkInterval = setInterval(() => {
-                if (!window.speechSynthesis.speaking) {
+                if (!window.speechSynthesis.speaking || generationRef.current !== gen) {
                   clearInterval(checkInterval);
                   setIsSpeaking(false);
                   finish();
@@ -191,12 +216,18 @@ export function useTTS(): UseTTSReturn {
           await audio.play();
           console.log('[TTS] Playing audio via OpenAI TTS');
         } catch (err) {
+          // Superseded (stop()-aborted fetch or a newer speak()) — resolve
+          // silently; the fallback must NOT speak stale text over the new turn
+          if (generationRef.current !== gen) {
+            finish();
+            return;
+          }
           // 2026-04-13: Network/API error — try browser TTS as fallback
           console.warn('[TTS] OpenAI TTS failed, trying browser fallback:', err);
           if (speakWithBrowserTTS(text, language, playbackRate)) {
             console.log('[TTS] Playing audio via browser speechSynthesis (fallback)');
             const checkInterval = setInterval(() => {
-              if (!window.speechSynthesis.speaking) {
+              if (!window.speechSynthesis.speaking || generationRef.current !== gen) {
                 clearInterval(checkInterval);
                 setIsSpeaking(false);
                 finish();
@@ -214,7 +245,7 @@ export function useTTS(): UseTTSReturn {
         }
       })();
     });
-  }, [isSpeaking, stop, toast]);
+  }, [stop, toast]);
 
   return { isSpeaking, speak, stop, warmUp };
 }

@@ -11,6 +11,7 @@ import { snapshots, strategies, driver_profiles } from '../../../shared/schema.j
 import { eq, desc, sql } from 'drizzle-orm';
 import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { validateAction } from '../rideshare-coach/validate.js';
 // @ts-ignore
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
@@ -708,7 +709,8 @@ async function executeActions(actions, userId, snapshotId, conversationId) {
         continue;
       }
       const { offer_intelligence_id, ...fields } = validation.data;
-      const updated = await rideshareCoachDAL.updateOfferIntelligence(offer_intelligence_id, fields);
+      // 2026-08-11: user-scoped — the id is LLM-emitted, never trust it alone
+      const updated = await rideshareCoachDAL.updateOfferIntelligence(offer_intelligence_id, userId, fields);
       if (updated) {
         results.saved++;
         console.log(`[COACH] [ACTIONS] Backfilled offer_intelligence ${offer_intelligence_id?.substring(0, 8)} (${Object.keys(fields).join(',')})`);
@@ -812,11 +814,12 @@ router.delete('/notes/:noteId', requireAuth, async (req, res) => {
 
 // GET /coach/context/:snapshotId - Snapshot-wide context for strategy coach
 // SECURITY: Requires auth (returns strategy and venue data)
-router.get('/context/:snapshotId', requireAuth, async (req, res) => {
+// 2026-08-11: ownership middleware before context — multi-user app
+router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
-  
+
   console.log('[coach] Fetching context for snapshot:', snapshotId);
-  
+
   try {
     // Use CoachDAL for read-only access
     const context = await rideshareCoachDAL.getCompleteContext(snapshotId);
@@ -862,33 +865,13 @@ router.post('/', requireAuth, async (req, res) => {
   // Generate or use existing conversation_id for thread tracking
   const conversationId = clientConversationId || randomUUID();
 
-  // 2026-01-06: CRITICAL - NO FALLBACKS (per global app rule)
-  // Timezone MUST come from snapshot. If missing, we cannot provide accurate time-based advice.
-  const userTimezone = clientSnapshot?.timezone;
-  if (!userTimezone) {
-    console.warn('[COACH] Missing timezone in snapshot - cannot provide accurate time context');
-    return res.status(400).json({
-      error: 'TIMEZONE_REQUIRED',
-      message: 'Location snapshot with timezone required for coach. Please enable GPS and refresh.',
-      code: 'missing_timezone',
-      hint: 'Ensure GPS is enabled and location permission granted'
-    });
-  }
-
-  const userLocalDate = new Date().toLocaleDateString('en-US', {
-    timeZone: userTimezone,
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-  const userLocalTime = new Date().toLocaleTimeString('en-US', {
-    timeZone: userTimezone,
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-  const userLocalDateTime = `${userLocalDate} at ${userLocalTime}`;
+  // Timezone MUST come from the snapshot (GPS→Google, no fallbacks). The
+  // client-sent copy is a hint only; the DB snapshot row is authoritative and
+  // is checked after snapshot resolution below. 2026-08-11: previously a hard
+  // 400 fired here whenever the browser hadn't hydrated its snapshot copy yet,
+  // even though the driver's snapshot row carried the timezone all along.
+  let userTimezone = clientSnapshot?.timezone || null;
+  let userLocalDateTime = null;
 
   // 2026-01-06: SECURITY - Redact sensitive data from logs
   // Log only metadata, never message content or PII
@@ -936,6 +919,14 @@ router.post('/', requireAuth, async (req, res) => {
         }
       }
 
+      // 2026-08-11: client-supplied snapshot/strategy ids must be owned by the
+      // authenticated user before any context loads (multi-user app). The
+      // latest-own-snapshot branch above is inherently owned and skips this.
+      if (activeSnapshotId && (snapshotId || strategyId)) {
+        const owned = await verifySnapshotOwnership(activeSnapshotId, authUserId);
+        if (!owned.ok) return res.status(owned.status).json(owned.body);
+      }
+
       // Get COMPLETE context using CoachDAL (full schema access)
       // Pass authenticated user ID for driver profile lookup (in case snapshot has different/null user_id)
       if (activeSnapshotId) {
@@ -947,6 +938,33 @@ router.post('/', requireAuth, async (req, res) => {
       } else {
         contextInfo = '\n\n⏳ No location snapshot available yet. Enable GPS to receive personalized strategy advice.';
       }
+
+      // Authoritative timezone from the loaded snapshot row when the client
+      // copy was absent. Still no invented values: neither source → 400.
+      if (!userTimezone) userTimezone = fullContext?.snapshot?.timezone || null;
+      if (!userTimezone) {
+        console.warn('[COACH] No timezone from client copy or DB snapshot row - cannot provide time context');
+        return res.status(400).json({
+          error: 'TIMEZONE_REQUIRED',
+          message: 'Location snapshot with timezone required for coach. Please enable GPS and refresh.',
+          code: 'missing_timezone',
+          hint: 'Ensure GPS is enabled and location permission granted'
+        });
+      }
+      const userLocalDate = new Date().toLocaleDateString('en-US', {
+        timeZone: userTimezone,
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      const userLocalTime = new Date().toLocaleTimeString('en-US', {
+        timeZone: userTimezone,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      userLocalDateTime = `${userLocalDate} at ${userLocalTime}`;
 
       // Add snapshot history for authenticated users (last 10 sessions)
       if (isAuthenticated) {
@@ -1731,13 +1749,14 @@ router.get('/history', requireAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // GET /api/chat/system-notes - Get system notes (AI observations about improvements)
-// SECURITY: Requires auth (consider making admin-only in production)
+// SECURITY: Requires auth; scoped to notes triggered by the requesting user's
+// own chats (2026-08-11 — rows quote verbatim user messages)
 router.get('/system-notes', requireAuth, async (req, res) => {
   const status = req.query.status || null; // 'new', 'reviewed', 'planned', 'implemented'
   const limit = parseInt(req.query.limit) || 50;
 
   try {
-    const notes = await rideshareCoachDAL.getSystemNotes(status, limit);
+    const notes = await rideshareCoachDAL.getSystemNotes(req.auth.userId, status, limit);
     res.json({ notes, count: notes.length });
   } catch (error) {
     console.error('[chat/system-notes] Error fetching system notes:', error);

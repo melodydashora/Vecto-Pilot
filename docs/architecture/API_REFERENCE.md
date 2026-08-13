@@ -16,9 +16,9 @@
 
 | Endpoint | Method | Handler | Purpose |
 |----------|--------|---------|---------|
-| `/api/location/resolve` | POST | `server/api/location/location.js` | Resolve GPS coordinates to address, market, and timezone with circuit-breaker protection (Authenticated) |
+| `/api/location/resolve` | GET | `server/api/location/location.js` | Resolve GPS coordinates to address, market, and timezone with circuit-breaker protection (Authenticated) |
 | `/api/location/snapshot` | POST | `server/api/location/location.js` | Create location snapshot, validate freshness, and generate strategy (Authenticated) |
-| `/api/location/news` | GET | `server/api/location/location.js` | Get local news briefing for the current location (Authenticated) |
+| `/api/location/news-briefing` | POST | `server/api/location/location.js` | Generate local news briefing for the current location (Authenticated) |
 
 ### Health & Diagnostics
 

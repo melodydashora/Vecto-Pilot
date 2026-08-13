@@ -37,7 +37,10 @@ interface BriefingTabProps {
     events?: BriefingEvent[];
     marketEvents?: BriefingEvent[];
     market_name?: string;
-    reason?: string
+    reason?: string;
+    // 2026-07-06 (todo #24): pending/failed/verified-empty are three states
+    _pending?: boolean;
+    _generationFailed?: boolean;
   };
   isEventsLoading?: boolean;
   isTrafficLoading?: boolean;
@@ -158,6 +161,15 @@ const BriefingTab = memo(function BriefingTab({
             <div className="flex items-center justify-center py-8">
               <Loader className="w-5 h-5 animate-spin text-indigo-600 mr-2" />
               <span className="text-gray-600">Loading events...</span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : eventsData?._generationFailed ? (
+        // Failed ≠ empty: show the recorded reason, never "no events" (todo #24)
+        <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+          <CardContent className="p-6">
+            <div className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              ⚠ Events couldn't be generated{eventsData?.reason ? ` — ${eventsData.reason}` : ''}. They will retry on the next briefing refresh.
             </div>
           </CardContent>
         </Card>

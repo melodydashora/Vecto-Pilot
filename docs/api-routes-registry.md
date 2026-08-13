@@ -13,14 +13,14 @@ Complete reference of all API endpoints organized by domain.
 | Domain | Base Path | Auth | Purpose |
 |--------|-----------|------|---------|
 | Health | `/`, `/health`, `/ready` | No | Health probes |
-| Location | `/api/location/*` | No | GPS, geocoding, weather |
+| Location | `/api/location/*` | Yes | GPS, geocoding, weather |
 | Strategy | `/api/blocks-fast`, `/api/strategy/*` | Yes | Briefing → Strategy → Blocks pipeline (single STRATEGY_TACTICAL strategy) |
-| Briefing | `/api/briefing/*` | No | Events, traffic, news |
+| Briefing | `/api/briefing/*` | Yes | Events, traffic, news |
 | Chat | `/api/chat/*` | Yes | Rideshare Coach |
 | Voice | `/api/realtime/*`, `/api/tts` | **Yes** | Voice + TTS |
-| Feedback | `/api/feedback/*`, `/api/actions` | No | User feedback |
+| Feedback | `/api/feedback/*`, `/api/actions` | Yes | User feedback |
 | Auth | `/api/auth/*` | No | Token generation |
-| Venue | `/api/venues/*` | No | Venue intelligence |
+| Venue | `/api/venues/*` | Yes | Venue intelligence |
 
 ---
 
@@ -28,10 +28,10 @@ Complete reference of all API endpoints organized by domain.
 
 | Method | Path | Handler | Purpose |
 |--------|------|---------|---------|
-| GET | `/` | `health.js` | Root health check |
+| GET | `/healthz` | `bootstrap/health.js` | SPA-ready health check |
 | GET | `/health` | `health.js` | Kubernetes liveness probe |
 | GET | `/ready` | `health.js` | Kubernetes readiness probe |
-| GET | `/capabilities` | `unified-capabilities.js` | AI model capabilities |
+| GET | `/api/unified/capabilities` | `unified-capabilities.js` | AI model capabilities |
 | GET | `/api/diagnostics/*` | `diagnostics.js` | Debug endpoints |
 | GET | `/api/diagnostic/identity` | `diagnostic-identity.js` | Identity debugging |
 | GET | `/api/ml/*` | `ml-health.js` | ML model health |
@@ -46,9 +46,8 @@ Complete reference of all API endpoints organized by domain.
 | GET | `/api/location/resolve` | `location.js` | GPS → Address + timezone |
 | GET | `/api/location/weather` | `location.js` | Current weather + forecast |
 | GET | `/api/location/airquality` | `location.js` | AQI data |
-| POST | `/api/location/snapshot` | `snapshot.js` | Save location snapshot |
+| POST | `/api/location/snapshot` | `location.js` | Save location snapshot |
 | GET | `/api/snapshot/:id` | `snapshot.js` | Fetch snapshot data |
-| GET | `/api/users/me` | `location.js` | Current user location |
 
 ---
 
@@ -60,7 +59,7 @@ Complete reference of all API endpoints organized by domain.
 | GET | `/api/blocks-fast` | `blocks-fast.js` | Get blocks for snapshot |
 | GET | `/api/blocks/strategy/:snapshotId` | `content-blocks.js` | Get strategy with timing metadata |
 | GET | `/api/strategy/:snapshotId` | `strategy.js` | Get strategy status |
-| GET | `/api/strategy/events` | `strategy-events.js` | SSE for progress updates |
+| GET | `/events/strategy` (also `/events/briefing`, `/events/blocks`, `/events/phase`, `/events/offers`) | `strategy-events.js` | SSE for progress updates |
 
 ### Pipeline Flow
 ```
@@ -70,7 +69,7 @@ Phase 1: Briefing — parallel fetch (weather, traffic, events,
          news, schools, airport) → briefings table
     ↓
 Phase 2: Immediate Strategy — STRATEGY_TACTICAL via
-         consolidator.js:157 → strategies.strategy_for_now
+         server/lib/ai/providers/consolidator.js (runImmediateStrategy) → strategies.strategy_for_now
     ↓
 Phase 3: Smart Blocks — VENUE_SCORER + Google Places +
          Google Routes → rankings, ranking_candidates
@@ -91,7 +90,7 @@ Response: { strategy_for_now, blocks }
 | GET | `/api/briefing/rideshare-news/:snapshotId` | `briefing.js` | Rideshare news |
 | GET | `/api/briefing/events/:snapshotId` | `briefing.js` | Local events |
 | GET | `/api/briefing/school-closures/:snapshotId` | `briefing.js` | School closures |
-| GET | `/events` | `events.js` | SSE stream for updates |
+| GET | `/events/briefing` | `strategy-events.js` | SSE stream for briefing updates |
 
 ---
 
@@ -99,8 +98,8 @@ Response: { strategy_for_now, blocks }
 
 | Method | Path | Handler | Auth | Purpose |
 |--------|------|---------|------|---------|
-| POST | `/api/chat/:snapshotId/message` | `chat.js` | Yes | Rideshare Coach (SSE streaming) |
-| GET | `/coach/context/:snapshotId` | `chat-context.js` | No | Read-only chat context |
+| POST | `/api/chat` | `chat.js` | Yes | Rideshare Coach (SSE streaming) |
+| GET | `/api/chat/context` | `chat-context.js` | No | Read-only chat context |
 
 ---
 
@@ -141,8 +140,6 @@ Response: { strategy_for_now, blocks }
 | Method | Path | Handler | Purpose |
 |--------|------|---------|---------|
 | GET | `/api/venues/*` | `venue-intelligence.js` | Venue recommendations |
-| GET | `/api/venue/events/*` | `venue-events.js` | Venue-specific events |
-| POST | `/api/closed-venue-reasoning` | `closed-venue-reasoning.js` | AI reasoning |
 
 ---
 
@@ -152,7 +149,7 @@ Response: { strategy_for_now, blocks }
 |------|---------|--------|
 | `/events` | `events.js` | `phase_change`, `strategy_complete` |
 | `/api/strategy/events` | `strategy-events.js` | Strategy progress |
-| `/api/chat/:id/message` | `chat.js` | Chat streaming |
+| POST `/api/chat` | `chat.js` | Chat streaming |
 
 ---
 
@@ -165,11 +162,10 @@ server/api/
 │   └── index.js         → Barrel exports
 ├── briefing/
 │   ├── briefing.js      → /api/briefing/*
-│   ├── events.js        → /events (SSE)
 │   └── index.js
 ├── chat/
 │   ├── chat.js          → /api/chat/*
-│   ├── chat-context.js  → /coach/context/*
+│   ├── chat-context.js  → /api/chat/context
 │   ├── realtime.js      → /api/realtime/*
 │   ├── tts.js           → /api/tts
 │   └── index.js
@@ -198,8 +194,6 @@ server/api/
 │   └── index.js
 ├── venue/
 │   ├── venue-intelligence.js → /api/venues/*
-│   ├── venue-events.js  → /api/venue/events/*
-│   ├── closed-venue-reasoning.js → /api/closed-venue-reasoning
 │   └── index.js
 └── utils/
     ├── http-helpers.js  → Shared utilities

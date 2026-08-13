@@ -4,12 +4,16 @@ import crypto from "node:crypto";
 import { db } from "../../db/drizzle.js";
 import { sql, eq, and } from "drizzle-orm";
 import { snapshots, strategies, coords_cache, users, rankings } from "../../../shared/schema.js";
-import { validateIncomingSnapshot, validateSnapshotFields } from "../../util/validate-snapshot.js";
+import { validateSnapshotFields } from "../../util/validate-snapshot.js";
 import { uuidOrNull } from "../../util/uuid.js";
 import { generateAndStoreBriefing } from "../../lib/briefing/briefing-aggregator.js";
 import { httpError } from "../utils/http-helpers.js";
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from "../../lib/location/coords-key.js";
+// 2026-07-06: daypart adapter — never trust/store a client daypart string verbatim
+import { normalizeDayPartKey, getDayPartKey } from "../../lib/location/daypart.js";
+// 2026-07-06: holiday detection lives in the briefing pipeline
+// (server/lib/briefing/pipelines/holiday.js) — NOT at snapshot creation
 // 2026-03-17: Moved import to top — now used by both POST and GET routes
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -88,7 +92,14 @@ router.post("/", requireAuth, async (req, res) => {
 
     const hour = snap.time_context?.hour;
     const dow = snap.time_context?.dow;
-    const day_part_key = snap.time_context?.day_part_key;
+    // 2026-07-06: validate the client-computed daypart server-side — normalize
+    // legacy keys (late_morning_noon/afternoon → early_afternoon/late_afternoon);
+    // if missing/unknown, derive from the hour instead of storing garbage. A
+    // still-null result hits the NOT NULL constraint and fails loud, as it should.
+    const validHour = Number.isInteger(hour) && hour >= 0 && hour <= 23;
+    const day_part_key =
+      normalizeDayPartKey(snap.time_context?.day_part_key) ??
+      (validHour ? getDayPartKey(hour) : null);
     const local_iso = snap.time_context?.local_iso;
     
     // Build DB record
@@ -114,6 +125,11 @@ router.post("/", requireAuth, async (req, res) => {
     });
     const parts = formatter.formatToParts(createdAtDate);
     const today = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
+
+    // 2026-07-06: holiday detection moved to the briefing pipeline
+    // (pipelines/holiday.js) — it runs with the COMPLETE snapshot row and a
+    // model outage degrades the briefing with a recorded reason instead of
+    // failing snapshot creation. The snapshot stays purely deterministic.
 
     const dbSnapshot = {
       snapshot_id,
@@ -262,12 +278,13 @@ router.get("/:snapshotId", requireAuth, requireSnapshotOwnership, async (req, re
       lng: snapshot.lng,
       hour: snapshot.hour,
       dow: snapshot.dow,
-      day_part_key: snapshot.day_part_key,
+      // 2026-07-06: normalize legacy keys on read (pre-rename rows); null only
+      // if the stored value is corrupt, which the client treats as absent
+      day_part_key: normalizeDayPartKey(snapshot.day_part_key),
       weather: snapshot.weather,
       air: snapshot.air,
       // 2026-01-14: airport_context dropped - now in briefings.airport_conditions
-      holiday: snapshot.holiday,
-      is_holiday: snapshot.is_holiday,
+      // 2026-07-06: holiday dropped - now in briefings.holiday (aggregate endpoint)
       h3_r8: snapshot.h3_r8,
       created_at: snapshot.created_at?.toISOString()
     });
