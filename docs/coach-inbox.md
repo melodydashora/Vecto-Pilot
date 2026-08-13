@@ -229,3 +229,9 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 - **Priority:** high | **Date:** 2026-08-11 17:57
 - The STT microphone is actively listening while the TTS is playing, causing the AI's own responses to be transcribed and sent back as user messages (echo loop). We need to implement echo cancellation or automatically pause the microphone recording while TTS audio is actively playing in the Coach tab.
   - Files: client/src/pages/coach/CoachPage.tsx
+
+### [CODE_SUGGESTION] Fix OpenAI Realtime GA session.update payload [RESOLVED — session.type added in RealtimeSession.ts]
+- **Priority:** high | **Date:** 2026-08-12 01:08
+- The OpenAI Realtime GA endpoint enforces a strict schema change requiring 'type': 'realtime' inside the session object during a session.update event. Fixes the 'Missing required parameter: session.type' error.
+  - Files: server/lib/ai/adapters/realtime.js
+  - Resolution note (2026-08-13): the suggested file path does not exist. The server mint (server/api/chat/realtime.js) was already GA-correct; the missing `type: 'realtime'` was in the client's data-channel session.update — fixed in client/src/lib/voice/RealtimeSession.ts.

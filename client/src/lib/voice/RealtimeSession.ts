@@ -112,6 +112,11 @@ export class RealtimeSession implements VoiceSession {
       this.dcSend({
         type: 'session.update',
         session: {
+          // GA schema: session.type is REQUIRED in every session.update —
+          // omitting it is rejected with "Missing required parameter:
+          // session.type" (hit live in the 2026-08-12 phone A/B). The server
+          // mint (server/api/chat/realtime.js) already sends it.
+          type: 'realtime',
           instructions: buildMouthInstructions(mint.context),
           tools: [
             {
