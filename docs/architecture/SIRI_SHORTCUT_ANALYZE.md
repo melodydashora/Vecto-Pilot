@@ -39,11 +39,20 @@ payload is tiny, and the server pre-parses text deterministically in <1ms.
 | 2 | *(optional)* Save to Camera Roll | album "Uber rides" (archive habit) |
 | 3 | Extract Text from Image | input: Screenshot |
 | 4 | Combine Text | separator: New Line, input: Text from step 3 |
-| 5 | Get Contents of URL | POST, body **Form** — fields below |
+| 5 | Get Contents of URL | POST, body **JSON** — fields below (see body-type note) |
 | 6 | Get Dictionary Value | key `notification` |
 | 7 | Show Notification | body: Dictionary Value (step 6) |
 | 8 | Get Dictionary Value | key `voice` (input: step 5's contents) |
 | 9 | Speak Text | text: Dictionary Value (step 8) |
+
+> **Body-type note (2026-08-14 root cause):** a Shortcuts "Form" body with only
+> text fields ships as `application/x-www-form-urlencoded`, which the deployed
+> server never parsed — Melody's first analyze-offer-text build 400ed exactly
+> this way ("Missing text or image payload") with a PERFECT field config
+> (plist-verified). `express.urlencoded` is now mounted on `/api/hooks`
+> (bootstrap/middleware.js), so Form works after the next deploy — but JSON is
+> the canonical choice for the text lane regardless. Vision stays Form: its
+> File field makes the request multipart, which multer always handled.
 
 **Step 5 form fields:**
 
