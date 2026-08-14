@@ -19,6 +19,8 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 // 'classic' in localStorage); the GPT Realtime arm stays in code, unreferenced
 // by any UI.
 import { useVoiceSession, getStoredVoiceMode } from "@/hooks/coach/useVoiceSession";
+import { COACH_VOICE_OPTIONS } from "@/lib/voice/voices";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // 2026-04-29: TTS speed-selector tier values, used in the chip UI.
 const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
@@ -501,6 +503,24 @@ export default function RideshareCoach({
     }
   }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send, streaming]);
 
+  // 2026-08-14 (Melody): Coach voice picker lives in the header — she's
+  // actively voice-shopping and Settings round-trips were too slow. Changing
+  // while live restarts the session (her tap = the authorizing act) so the
+  // new voice speaks immediately.
+  const [coachVoiceName, setCoachVoiceName] = useState<string>(
+    () => localStorage.getItem(STORAGE_KEYS.COACH_VOICE_NAME) ?? ''
+  );
+  const handleVoiceNameChange = useCallback((value: string) => {
+    const name = value === 'default' ? '' : value;
+    if (name) localStorage.setItem(STORAGE_KEYS.COACH_VOICE_NAME, name);
+    else localStorage.removeItem(STORAGE_KEYS.COACH_VOICE_NAME);
+    setCoachVoiceName(name);
+    if (voice.isLive) {
+      voice.stop();
+      void voice.start();
+    }
+  }, [voice.isLive, voice.stop, voice.start]);
+
   // 2026-08-14 (Melody: "take the green mic out... gemini live that can also
   // pause for uploads"): the live-mode mic button is a PAUSE/RESUME toggle
   // only — sessions start automatically on tab entry (green start mic gone).
@@ -672,8 +692,30 @@ export default function RideshareCoach({
               goes stale the moment the registry swaps models. */}
           <p className="text-xs text-white/80">Your AI co-pilot</p>
         </div>
-        {/* 2026-08-14 (Melody): engine dropdown removed — one Coach, one
-            voice (Gemini Live, auto-started). See imports comment. */}
+        {/* 2026-08-14 (Melody): engine dropdown removed — one Coach (Gemini
+            Live, auto-started). Its slot now holds the VOICE picker: she's
+            choosing the one voice by ear, live-restart on change. */}
+        {voice.mode !== 'classic' && (
+          <Select
+            value={coachVoiceName === '' ? 'default' : coachVoiceName}
+            onValueChange={handleVoiceNameChange}
+          >
+            <SelectTrigger
+              className="h-7 w-[130px] border-white/30 bg-white/10 text-white text-xs focus:ring-white/40"
+              data-testid="select-coach-voice"
+              title="Coach voice"
+            >
+              <SelectValue placeholder="Voice" />
+            </SelectTrigger>
+            <SelectContent>
+              {COACH_VOICE_OPTIONS.map((v) => (
+                <SelectItem key={v.value || 'default'} value={v.value === '' ? 'default' : v.value}>
+                  {v.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {/* 2026-04-13: Voice Output Toggle. 2026-08-14: classic-only — these
             controls configure the classic TTS pipeline, which is suppressed
             entirely while a live engine is selected (live mouth owns audio). */}

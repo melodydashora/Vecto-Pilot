@@ -79,7 +79,11 @@ router.post('/token', requireAuth, async (req, res) => {
             hour: fullContext.snapshot.hour,
             address: fullContext.snapshot.formatted_address,
             timezone: fullContext.snapshot.timezone,
-            strategy: fullContext.strategy?.strategy_for_now?.substring(0, 500),
+            // 2026-08-14: 500 → 1500. The mouth now answers "where should I
+            // go right now" directly from this summary (Melody: "it should be
+            // able to give where to go now based off of the snapshot") — 500
+            // chars starved it into generic answers.
+            strategy: fullContext.strategy?.strategy_for_now?.substring(0, 1500),
           };
         }
       } catch (err) {
