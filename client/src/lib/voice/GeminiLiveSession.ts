@@ -113,6 +113,10 @@ export class GeminiLiveSession implements VoiceSession {
       httpOptions: { apiVersion: 'v1alpha' },
     });
 
+    // Driver-chosen voice (Settings → Coach Voice); read at connect time so a
+    // change applies on the next session without a reload.
+    const voiceName = localStorage.getItem(STORAGE_KEYS.COACH_VOICE_NAME) || undefined;
+
     this.session = await ai.live.connect({
       model: mint.model,
       config: {
@@ -145,6 +149,12 @@ export class GeminiLiveSession implements VoiceSession {
         // models without thinking support — surfaced via onerror (fail loud).
         ...(mint.thinkingBudget !== undefined && {
           thinkingConfig: { thinkingBudget: mint.thinkingBudget },
+        }),
+        // 2026-08-14 (Melody: one consistent voice): driver-chosen prebuilt
+        // voice from Settings → Coach Voice. Unset = API default. Invalid
+        // names fail loudly at connect (error strip), never silently.
+        ...(voiceName && {
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
         }),
       },
       callbacks: {

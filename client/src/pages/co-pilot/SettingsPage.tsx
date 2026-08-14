@@ -18,10 +18,28 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/useToast';
-import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, User, MapPin, Car, Briefcase, Volume2 } from 'lucide-react';
+import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { UberSettingsSection } from '@/components/settings/UberSettingsSection';
 import { getAuthHeader } from '@/utils/co-pilot-helpers';
 import type { MarketOption } from '@/types/auth';
+
+// 2026-08-14 (Melody: "keep it as just one or maybe have an AI voice selector
+// in preferences"): Gemini Live prebuilt voices for the Coach. Device-level
+// preference (localStorage) — applied at the next voice session connect.
+// Names are the Live API's prebuilt voice set; an invalid name fails loudly
+// at connect, never silently.
+const COACH_VOICE_OPTIONS = [
+  { value: '', label: 'Default' },
+  { value: 'Aoede', label: 'Aoede — warm, breezy' },
+  { value: 'Kore', label: 'Kore — firm, neutral' },
+  { value: 'Puck', label: 'Puck — upbeat' },
+  { value: 'Charon', label: 'Charon — deep, informative' },
+  { value: 'Leda', label: 'Leda — youthful' },
+  { value: 'Orus', label: 'Orus — confident' },
+  { value: 'Zephyr', label: 'Zephyr — bright' },
+  { value: 'Fenrir', label: 'Fenrir — excitable' },
+];
 
 // Validation schema for settings form
 const settingsSchema = z.object({
@@ -83,6 +101,20 @@ export default function SettingsPage() {
   const { profile, vehicle, isLoading: authLoading, updateProfile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  // Coach voice preference — device-level, saved instantly (no form submit).
+  const [coachVoice, setCoachVoice] = useState<string>(
+    () => localStorage.getItem(STORAGE_KEYS.COACH_VOICE_NAME) ?? ''
+  );
+  const handleCoachVoiceChange = (value: string) => {
+    const voice = value === 'default' ? '' : value;
+    setCoachVoice(voice);
+    if (voice) localStorage.setItem(STORAGE_KEYS.COACH_VOICE_NAME, voice);
+    else localStorage.removeItem(STORAGE_KEYS.COACH_VOICE_NAME);
+    toast({
+      title: 'Coach voice updated',
+      description: 'Takes effect the next time a voice session starts.',
+    });
+  };
 
   // Dropdown data
   const [countries, setCountries] = useState<DropdownOption[]>([]);
@@ -1042,6 +1074,38 @@ export default function SettingsPage() {
                   </div>
                 )}
               />
+            </CardContent>
+          </Card>
+
+          {/* Coach Voice (2026-08-14) — instant-save device preference, not part
+              of the profile form submit. One consistent voice for the AI Coach. */}
+          <Card className="bg-white border-gray-200 shadow-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Volume2 className="h-5 w-5 text-blue-600" />
+                Coach Voice
+              </CardTitle>
+              <CardDescription>
+                The voice your AI Coach speaks with. Saved instantly; applies the
+                next time a voice session starts.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={coachVoice === '' ? 'default' : coachVoice}
+                onValueChange={handleCoachVoiceChange}
+              >
+                <SelectTrigger data-testid="select-coach-voice">
+                  <SelectValue placeholder="Default" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COACH_VOICE_OPTIONS.map((v) => (
+                    <SelectItem key={v.value || 'default'} value={v.value === '' ? 'default' : v.value}>
+                      {v.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardContent>
           </Card>
 
