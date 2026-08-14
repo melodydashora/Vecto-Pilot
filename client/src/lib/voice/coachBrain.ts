@@ -15,6 +15,8 @@
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { cleanTextForTTS } from '@/utils/coach/cleanTextForTTS';
+import { stripActionTags } from '@/utils/coach/stripActionTags';
+import type { DonePayloadMeta } from '@/utils/coach/actionsResult';
 
 export interface CoachBrainParams {
   userId: string;
@@ -27,6 +29,23 @@ export interface CoachBrainParams {
     hour?: number;
     day_part_key?: string;
   };
+  /**
+   * 2026-08-14 (unified voice thread): stable per-session conversation id —
+   * threads all brain calls (and typed messages) of one live session under a
+   * single coach_conversations id server-side.
+   */
+  conversationId?: string;
+  /** External abort (session teardown) — combined with the 60s timeout. */
+  signal?: AbortSignal;
+  /** Done-payload metadata (actions_result / persistence_error) consumer. */
+  onActionsResult?: (payload: DonePayloadMeta) => void;
+  /**
+   * 2026-08-14: the brain's DISPLAY text (tags stripped, markdown + URLs
+   * intact). The mouth only ever speaks a TTS-cleaned rendition — links and
+   * rich content would otherwise never reach the driver's screen (live test:
+   * the mouth claimed "sending that link now" while nothing existed to send).
+   */
+  onBrainAnswer?: (displayText: string) => void;
 }
 
 const BRAIN_TIMEOUT_MS = 60_000;
@@ -38,12 +57,16 @@ const BRAIN_TIMEOUT_MS = 60_000;
  * session degrades loudly, never silently.
  */
 export async function askCoachBrain(
-  { userId, snapshotId, snapshot }: CoachBrainParams,
+  { userId, snapshotId, snapshot, conversationId, signal, onActionsResult, onBrainAnswer }: CoachBrainParams,
   question: string
 ): Promise<string> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), BRAIN_TIMEOUT_MS);
+  // External abort (session teardown) chains into the fetch controller.
+  // Manual chaining instead of AbortSignal.any — wider browser support.
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener('abort', () => controller.abort(), { once: true });
 
   try {
     const res = await fetch(API_ROUTES.CHAT.SEND, {
@@ -61,6 +84,7 @@ export async function askCoachBrain(
         threadHistory: [],
         snapshotId,
         snapshot,
+        conversationId,
         source: 'voice',
       }),
       signal: controller.signal,
@@ -92,6 +116,11 @@ export async function askCoachBrain(
           const msg = JSON.parse(line.slice(5).trim());
           if (msg.delta) full += msg.delta;
           if (typeof msg.error === 'string') streamError = msg.error;
+          // Done payload carries actions_result / persistence_error — surface
+          // through the same handler classic mode uses (notes refresh, errors).
+          if (msg.done && (msg.actions_result || msg.persistence_error)) {
+            onActionsResult?.(msg);
+          }
         } catch { /* partial SSE line */ }
       }
       const lastNl = acc.lastIndexOf('\n');
@@ -99,6 +128,11 @@ export async function askCoachBrain(
     }
 
     if (streamError && !full) throw new Error(streamError);
+
+    // Display text first (links/markdown intact) — the consumer surfaces
+    // rich content (links) into the chat thread.
+    const display = stripActionTags(full);
+    if (display) onBrainAnswer?.(display);
 
     const cleaned = cleanTextForTTS(full).trim();
     if (!cleaned) throw new Error('coach backend returned an empty answer');

@@ -26,6 +26,7 @@ import {
   type VoiceSessionOptions,
   type VoiceTokenContext,
   buildMouthInstructions,
+  buildRelayEnvelope,
   ASK_COACH_TOOL,
 } from './types';
 
@@ -33,6 +34,9 @@ interface MintResponse {
   ok: boolean;
   token: string;
   model: string;
+  /** Optional mouth thinking (server env knob GEMINI_LIVE_THINKING_BUDGET;
+   *  -1 = dynamic). Absent = no thinkingConfig — the low-latency default. */
+  thinkingBudget?: number;
   context?: VoiceTokenContext;
   error?: string;
 }
@@ -46,6 +50,19 @@ export class GeminiLiveSession implements VoiceSession {
   // evolving alongside the preview models (see registry deprecation notes).
   private session: Awaited<ReturnType<GoogleGenAI['live']['connect']>> | null = null;
   private stopped = false;
+
+  // 2026-08-14 (unified voice thread): the session owns turn accumulation.
+  // Transcription events arrive as fragments; the old (text, final) surface
+  // let a final fragment REPLACE the accumulated line upstream.
+  private userBuf = '';
+  private modelBuf = '';
+  private modelSpeaking = false;
+  // Relay machinery (sayText): queue while the model is mid-turn — a
+  // turnComplete:true client turn mid-generation risks cancelling the ongoing
+  // spoken answer. suppressRelayTurn skips the relay response's OWN transcript
+  // events (the answer text is already in the chat thread).
+  private sayQueue: string[] = [];
+  private suppressRelayTurn = false;
 
   constructor(opts: VoiceSessionOptions) {
     this.opts = opts;
@@ -96,6 +113,10 @@ export class GeminiLiveSession implements VoiceSession {
       httpOptions: { apiVersion: 'v1alpha' },
     });
 
+    // Driver-chosen voice (Settings → Coach Voice); read at connect time so a
+    // change applies on the next session without a reload.
+    const voiceName = localStorage.getItem(STORAGE_KEYS.COACH_VOICE_NAME) || undefined;
+
     this.session = await ai.live.connect({
       model: mint.model,
       config: {
@@ -124,6 +145,17 @@ export class GeminiLiveSession implements VoiceSession {
         ],
         inputAudioTranscription: {},
         outputAudioTranscription: {},
+        // Registry-driven mouth-thinking experiment. The SDK errors loudly on
+        // models without thinking support — surfaced via onerror (fail loud).
+        ...(mint.thinkingBudget !== undefined && {
+          thinkingConfig: { thinkingBudget: mint.thinkingBudget },
+        }),
+        // 2026-08-14 (Melody: one consistent voice): driver-chosen prebuilt
+        // voice from Settings → Coach Voice. Unset = API default. Invalid
+        // names fail loudly at connect (error strip), never silently.
+        ...(voiceName && {
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+        }),
       },
       callbacks: {
         onopen: () => {
@@ -148,29 +180,71 @@ export class GeminiLiveSession implements VoiceSession {
     const sc = message?.serverContent;
 
     // Barge-in: server VAD heard the driver — kill queued audio immediately.
+    // The interrupted turn's transcript-so-far commits as final: that is
+    // (approximately) what the driver actually heard before cutting in.
     if (sc?.interrupted) {
       this.player.flush();
+      if (this.suppressRelayTurn) {
+        this.suppressRelayTurn = false; // relay was cut off — nothing to emit
+      } else if (this.modelBuf.trim()) {
+        events.onModelTurnFinal(this.modelBuf.trim());
+      }
+      this.modelBuf = '';
+      this.modelSpeaking = false;
     }
 
     // Model audio chunks (PCM16 24 kHz base64).
     const parts = sc?.modelTurn?.parts;
     if (Array.isArray(parts)) {
       for (const part of parts) {
-        if (part?.inlineData?.data) this.player.enqueue(part.inlineData.data);
+        if (part?.inlineData?.data) {
+          this.player.enqueue(part.inlineData.data);
+          this.modelSpeaking = true;
+        }
       }
     }
 
-    // Transcripts.
-    if (sc?.inputTranscription?.text) {
-      events.onUserTranscript(sc.inputTranscription.text, Boolean(sc.turnComplete));
+    // The model responding marks the driver's turn as committed: flush the
+    // accumulated user transcript into the thread.
+    if ((this.modelSpeaking || sc?.outputTranscription?.text) && this.userBuf.trim()) {
+      events.onUserTurnFinal(this.userBuf.trim());
+      this.userBuf = '';
     }
-    if (sc?.outputTranscription?.text) {
-      events.onModelTranscript(sc.outputTranscription.text, Boolean(sc.turnComplete));
+
+    // Transcripts — fragments accumulate here; deltas carry the whole line.
+    if (sc?.inputTranscription?.text) {
+      this.userBuf += sc.inputTranscription.text;
+      events.onUserTranscriptDelta(this.userBuf);
+    }
+    if (sc?.outputTranscription?.text && !this.suppressRelayTurn) {
+      this.modelBuf += sc.outputTranscription.text;
+      events.onModelTranscriptDelta(this.modelBuf);
+    }
+
+    // Turn boundary: commit the coach turn, then dispatch any queued relay.
+    if (sc?.turnComplete) {
+      if (this.suppressRelayTurn) {
+        this.suppressRelayTurn = false;
+      } else if (this.modelBuf.trim()) {
+        events.onModelTurnFinal(this.modelBuf.trim());
+      }
+      this.modelBuf = '';
+      this.modelSpeaking = false;
+      const queued = this.sayQueue.shift();
+      if (queued) this.dispatchRelay(queued);
     }
 
     // Tool calls → the brain. Live API requires manual tool-response handling.
     const calls = message?.toolCall?.functionCalls;
     if (Array.isArray(calls)) {
+      // 2026-08-14: the ack ("checking that…") is its own turn — commit it
+      // before the tool round-trip. Without this the post-tool answer
+      // concatenated onto the ack in one transcript line (live test:
+      // "…How does that sound to start?Checking on that").
+      if (this.modelBuf.trim() && !this.suppressRelayTurn) {
+        events.onModelTurnFinal(this.modelBuf.trim());
+        this.modelBuf = '';
+      }
       for (const call of calls) {
         if (call?.name === ASK_COACH_TOOL.name) {
           void this.runBrainCall(call.id, String(call.args?.question ?? ''));
@@ -194,6 +268,48 @@ export class GeminiLiveSession implements VoiceSession {
     });
   }
 
+  /** Tap-to-talk pause: mic muted at capture (frames dropped + track disabled).
+   *  The socket stays open — the driver resumes with a tap, never automatically. */
+  pauseMic(): void {
+    this.mic.setEnabled(false);
+    // Anything half-heard before the pause is stale — don't let it commit later.
+    this.userBuf = '';
+    this.opts.events.onUserTranscriptDelta('');
+  }
+
+  resumeMic(): void {
+    this.mic.setEnabled(true);
+  }
+
+  /** iOS playback unlock from a real gesture (auto-started sessions have none). */
+  unlockAudio(): void {
+    this.player.unlock();
+  }
+
+  /** Speak a chat-screen answer through the mouth (see VoiceSession.sayText). */
+  sayText(text: string, context?: { userMessage?: string }): void {
+    if (this.stopped || !this.session) return;
+    const envelope = buildRelayEnvelope(text, context);
+    if (this.modelSpeaking) {
+      // Mid-turn: a turnComplete:true client turn now could cancel the spoken
+      // answer in flight. Queue; dispatched on the turnComplete boundary.
+      this.sayQueue.push(envelope);
+      return;
+    }
+    this.dispatchRelay(envelope);
+  }
+
+  private dispatchRelay(envelope: string): void {
+    if (this.stopped || !this.session) return;
+    // The relay's spoken response is a duplicate of text already in the
+    // thread — suppress its transcript events (audio still plays).
+    this.suppressRelayTurn = true;
+    this.session.sendClientContent({
+      turns: [{ role: 'user', parts: [{ text: envelope }] }],
+      turnComplete: true,
+    });
+  }
+
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
@@ -201,6 +317,14 @@ export class GeminiLiveSession implements VoiceSession {
     this.player.close();
     try { this.session?.close(); } catch { /* already closed */ }
     this.session = null;
+    this.sayQueue = [];
+    // Commit any in-flight coach line so the thread doesn't lose the tail
+    // of a sentence the driver already heard.
+    if (this.modelBuf.trim() && !this.suppressRelayTurn) {
+      this.opts.events.onModelTurnFinal(this.modelBuf.trim());
+    }
+    this.modelBuf = '';
+    this.userBuf = '';
     this.opts.events.onStatus('ended');
   }
 }

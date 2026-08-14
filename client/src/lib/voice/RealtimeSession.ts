@@ -22,6 +22,7 @@ import {
   type VoiceSessionOptions,
   type VoiceTokenContext,
   buildMouthInstructions,
+  buildRelayEnvelope,
   ASK_COACH_TOOL,
 } from './types';
 
@@ -43,6 +44,19 @@ export class RealtimeSession implements VoiceSession {
   private stream: MediaStream | null = null;
   private audioEl: HTMLAudioElement | null = null;
   private stopped = false;
+
+  // 2026-08-14 (unified voice thread): turn accumulation + relay machinery.
+  // Model transcript deltas accumulate here; user turns arrive final-only
+  // (whisper-1 input transcription has no interim events).
+  private modelBuf = '';
+  private activeResponseId: string | null = null;
+  // sayText relays: response.create during an active response errors
+  // (conversation_already_has_active_response) — queue and dispatch on
+  // response.done. The relay response's OWN transcript events are suppressed
+  // by response id (the answer text is already in the chat thread).
+  private sayQueue: string[] = [];
+  private expectRelayResponse = false;
+  private suppressedResponseIds = new Set<string>();
 
   constructor(opts: VoiceSessionOptions) {
     this.opts = opts;
@@ -159,24 +173,69 @@ export class RealtimeSession implements VoiceSession {
     if (this.dc?.readyState === 'open') this.dc.send(JSON.stringify(payload));
   }
 
+  /** delta/done transcript events carry response_id top-level; response.*
+   *  lifecycle events nest it at response.id. Read both defensively. */
+  private eventResponseId(event: any): string | undefined {
+    return event?.response_id ?? event?.response?.id;
+  }
+
   private handleEvent(event: any): void {
     const { events } = this.opts;
     switch (event?.type) {
-      // Driver's speech transcript (whisper-1 input transcription, configured
-      // server-side in the mint).
-      case 'conversation.item.input_audio_transcription.completed':
-        if (event.transcript) events.onUserTranscript(String(event.transcript).trim(), true);
+      // Driver started speaking — no interim text exists (whisper-1 is
+      // final-only), but the UI can show a listening ghost line.
+      case 'input_audio_buffer.speech_started':
+        events.onUserTranscriptDelta('…');
         break;
 
+      // Driver's speech transcript (whisper-1 input transcription, configured
+      // server-side in the mint). Final-only — commits the turn directly.
+      case 'conversation.item.input_audio_transcription.completed':
+        if (event.transcript) events.onUserTurnFinal(String(event.transcript).trim());
+        break;
+
+      // Response lifecycle — needed for relay queueing + suppression.
+      case 'response.created': {
+        const id = this.eventResponseId(event);
+        if (id) {
+          this.activeResponseId = id;
+          if (this.expectRelayResponse) {
+            this.suppressedResponseIds.add(id);
+            this.expectRelayResponse = false;
+          }
+        }
+        break;
+      }
+      case 'response.done': {
+        const id = this.eventResponseId(event);
+        if (id) this.suppressedResponseIds.delete(id);
+        this.activeResponseId = null;
+        const queued = this.sayQueue.shift();
+        if (queued) this.dispatchRelay(queued);
+        break;
+      }
+
       // Model speech transcript — GA name first, beta-era fallback second.
+      // Deltas accumulate; the emitted delta is the whole line so far.
       case 'response.output_audio_transcript.delta':
-      case 'response.audio_transcript.delta':
-        if (event.delta) events.onModelTranscript(event.delta, false);
+      case 'response.audio_transcript.delta': {
+        const id = this.eventResponseId(event);
+        if (id && this.suppressedResponseIds.has(id)) break; // relay speech
+        if (event.delta) {
+          this.modelBuf += event.delta;
+          events.onModelTranscriptDelta(this.modelBuf);
+        }
         break;
+      }
       case 'response.output_audio_transcript.done':
-      case 'response.audio_transcript.done':
-        if (event.transcript) events.onModelTranscript(String(event.transcript).trim(), true);
+      case 'response.audio_transcript.done': {
+        const id = this.eventResponseId(event);
+        const full = String(event.transcript ?? this.modelBuf).trim();
+        this.modelBuf = '';
+        if (id && this.suppressedResponseIds.has(id)) break; // relay speech
+        if (full) events.onModelTurnFinal(full);
         break;
+      }
 
       // Function call completed → run the brain, return output, ask for the
       // spoken follow-up response.
@@ -215,6 +274,44 @@ export class RealtimeSession implements VoiceSession {
     this.dcSend({ type: 'response.create' });
   }
 
+  /** Tap-to-talk pause: WebRTC transmits silence (track.enabled=false), so
+   *  server VAD never fires. Session stays warm; resume is always a user tap. */
+  pauseMic(): void {
+    this.stream?.getAudioTracks().forEach((t) => { t.enabled = false; });
+    this.opts.events.onUserTranscriptDelta('');
+  }
+
+  resumeMic(): void {
+    this.stream?.getAudioTracks().forEach((t) => { t.enabled = true; });
+  }
+
+  /** iOS playback unlock from a real gesture (auto-started sessions have none). */
+  unlockAudio(): void {
+    void this.audioEl?.play().catch(() => undefined);
+  }
+
+  /** Speak a chat-screen answer through the mouth (see VoiceSession.sayText). */
+  sayText(text: string, context?: { userMessage?: string }): void {
+    if (this.stopped || this.dc?.readyState !== 'open') return;
+    const envelope = buildRelayEnvelope(text, context);
+    if (this.activeResponseId) {
+      // response.create during an active response errors — queue for
+      // dispatch on response.done.
+      this.sayQueue.push(envelope);
+      return;
+    }
+    this.dispatchRelay(envelope);
+  }
+
+  private dispatchRelay(envelope: string): void {
+    if (this.stopped) return;
+    // Per-response instructions (GA): no fake user message enters the
+    // conversation; the generated response still joins context
+    // (conversation: 'auto' default) so voice follow-ups work.
+    this.expectRelayResponse = true;
+    this.dcSend({ type: 'response.create', response: { instructions: envelope } });
+  }
+
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
@@ -229,6 +326,13 @@ export class RealtimeSession implements VoiceSession {
     }
     this.pc?.close();
     this.pc = null;
+    this.sayQueue = [];
+    this.suppressedResponseIds.clear();
+    // Commit any in-flight coach line so the thread keeps what was heard.
+    if (this.modelBuf.trim()) {
+      this.opts.events.onModelTurnFinal(this.modelBuf.trim());
+    }
+    this.modelBuf = '';
     this.opts.events.onStatus('ended');
   }
 }

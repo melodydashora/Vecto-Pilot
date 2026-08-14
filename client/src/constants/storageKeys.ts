@@ -42,8 +42,12 @@ export const STORAGE_KEYS = {
   // Set to 'false' in localStorage to opt out of auto-listen.
   COACH_AUTO_LISTEN_ENABLED: 'vectopilot_coach_auto_listen',
   // 2026-08-11 (todo #33): Coach voice engine — 'classic' | 'gemini' | 'openai'.
-  // Classic is the default/control arm; live modes are the A/B experiment.
+  // 2026-08-14: A/B decided — default is gemini; key kept as devtools escape hatch.
   COACH_VOICE_MODE: 'vectopilot_coach_voice_mode',
+  // 2026-08-14 (Melody: "keep it as just one or maybe have an AI voice selector
+  // in preferences"): Gemini Live prebuilt voice name (e.g. 'Aoede'). Unset =
+  // API default. Set from Settings → Coach Voice; applied at session connect.
+  COACH_VOICE_NAME: 'vectopilot_coach_voice_name',
 } as const;
 
 /**

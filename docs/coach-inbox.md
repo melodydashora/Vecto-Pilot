@@ -235,3 +235,7 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 - The OpenAI Realtime GA endpoint enforces a strict schema change requiring 'type': 'realtime' inside the session object during a session.update event. Fixes the 'Missing required parameter: session.type' error.
   - Files: server/lib/ai/adapters/realtime.js
   - Resolution note (2026-08-13): the suggested file path does not exist. The server mint (server/api/chat/realtime.js) was already GA-correct; the missing `type: 'realtime'` was in the client's data-channel session.update — fixed in client/src/lib/voice/RealtimeSession.ts.
+
+### [FEATURE_REQUEST] Add Expandable Chat View or Onboarding for Coach UI
+- **Priority:** medium | **Date:** 2026-08-13 21:32
+- Drivers are confused by the top-bar AI interface. Consider adding a pull-down or expand button to show a traditional chat history view, or add a first-time tooltip explaining that it is a voice-first HUD meant to keep the map visible.

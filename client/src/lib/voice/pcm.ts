@@ -74,6 +74,7 @@ export class MicCapture {
   private node: AudioWorkletNode | null = null;
   private pending: Float32Array[] = [];
   private pendingLen = 0;
+  private enabled = true;
 
   async start(onChunk: (base64Pcm16: string) => void): Promise<void> {
     this.stream = await navigator.mediaDevices.getUserMedia({
@@ -89,6 +90,7 @@ export class MicCapture {
     this.node = new AudioWorkletNode(this.ctx, 'pcm-capture');
     const batchSamples = Math.floor(this.ctx.sampleRate * 0.128); // ~128 ms
     this.node.port.onmessage = (e: MessageEvent<Float32Array>) => {
+      if (!this.enabled) return; // paused — drop frames (see setEnabled)
       this.pending.push(e.data);
       this.pendingLen += e.data.length;
       if (this.pendingLen >= batchSamples) {
@@ -109,6 +111,22 @@ export class MicCapture {
     sink.connect(this.ctx.destination);
   }
 
+  /**
+   * 2026-08-14 (tap-to-talk pause): mute/unmute WITHOUT releasing the stream —
+   * no re-getUserMedia on resume, so iOS gesture requirements stay satisfied.
+   * Belt and suspenders: track.enabled=false makes the OS capture silence AND
+   * the worklet handler drops frames, so no audio leaves the device and any
+   * downstream VAD sees nothing.
+   */
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled;
+    this.stream?.getAudioTracks().forEach((t) => { t.enabled = enabled; });
+    if (!enabled) {
+      this.pending = [];
+      this.pendingLen = 0;
+    }
+  }
+
   stop(): void {
     this.node?.port.close();
     this.node?.disconnect();
@@ -119,6 +137,7 @@ export class MicCapture {
     this.ctx = null;
     this.pending = [];
     this.pendingLen = 0;
+    this.enabled = true;
   }
 }
 

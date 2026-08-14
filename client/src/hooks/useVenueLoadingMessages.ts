@@ -31,7 +31,9 @@ const PHASE_MESSAGES: Record<string, LoadingMessage[]> = {
   // Venue-specific phases with detailed messages
   // SmartBlocks phases: venues → routing → places → verifying → complete
   venues: [
-    { icon: '🤖', text: 'GPT-5.2 tactical planner analyzing your area...' },
+    // 2026-08-14 (model-agnostic-roles → UI): name the ROLE, never the model —
+    // model IDs go stale (registry swaps them) and leak implementation.
+    { icon: '🤖', text: 'Tactical planner analyzing your area...' },
     { icon: '🏢', text: 'Identifying high-value venue categories...' },
     { icon: '🎯', text: 'Selecting optimal pickup locations...' },
     { icon: '⭐', text: 'Ranking venues by rideshare potential...' },
@@ -50,7 +52,7 @@ const PHASE_MESSAGES: Record<string, LoadingMessage[]> = {
     { icon: '🎪', text: 'Matching venues to local events...' },
   ],
   verifying: [
-    { icon: '🔍', text: 'Gemini verifying event information...' },
+    { icon: '🔍', text: 'Verifying event information...' },
     { icon: '✅', text: 'Cross-checking venue details...' },
     { icon: '🏷️', text: 'Assigning venue grades (A/B/C)...' },
     { icon: '✨', text: 'Finalizing Smart Block recommendations...' },

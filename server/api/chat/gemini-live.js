@@ -93,12 +93,23 @@ router.post('/token', requireAuth, async (req, res) => {
       expires_at: minted.expires_at,
     });
 
+    // Optional mouth thinking (registry-declared env knob; see COACH_VOICE_LIVE).
+    // Absent env → field omitted → client connects without thinkingConfig.
+    const thinkingRaw = roleConfig.thinkingBudgetEnvKey
+      ? process.env[roleConfig.thinkingBudgetEnvKey]
+      : undefined;
+    const thinkingBudget =
+      thinkingRaw !== undefined && thinkingRaw !== '' && Number.isInteger(Number(thinkingRaw))
+        ? Number(thinkingRaw)
+        : undefined;
+
     res.json({
       ok: true,
       token: minted.token,
       expires_at: minted.expires_at,
       new_session_expires_at: minted.new_session_expires_at,
       model: roleConfig.model,
+      ...(thinkingBudget !== undefined && { thinkingBudget }),
       context,
     });
   } catch (err) {
