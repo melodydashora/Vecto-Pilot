@@ -657,7 +657,10 @@ export default function RideshareCoach({
         </div>
         <div className="flex-1">
           <h3 className="font-semibold text-sm">Coach</h3>
-          <p className="text-xs text-white/80">Powered by Gemini 3 Pro</p>
+          {/* 2026-08-14 (Melody): NO model names in the UI — the old
+              "Powered by Gemini 3 Pro" tagline leaked a dev-pin detail and
+              goes stale the moment the registry swaps models. */}
+          <p className="text-xs text-white/80">Your AI co-pilot</p>
         </div>
         {/* 2026-08-11 (todo #33): voice engine selector — the A/B switch.
             Classic = control arm; live arms show which model they run so the
@@ -759,9 +762,11 @@ export default function RideshareCoach({
             : voice.status === 'error' ? 'bg-red-500'
             : 'bg-gray-400'
           }`} />
+          {/* 2026-08-14 (Melody): no model names in the UI — statusDetail
+              carries the raw model id from the mint (debug/console only). */}
           <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">
             {voice.status === 'live'
-              ? (voice.micPaused ? 'Paused — tap the mic to resume' : `Live (${voice.statusDetail || (voice.mode === 'gemini' ? 'Gemini' : 'GPT')})`)
+              ? (voice.micPaused ? 'Paused — tap the mic to resume' : 'Live — listening')
               : voice.status === 'connecting'
               ? 'Connecting…'
               : voice.status === 'error'
@@ -1222,7 +1227,7 @@ export default function RideshareCoach({
             }`}
             title={
               !voice.isLive
-                ? `Start ${voice.mode === 'gemini' ? 'Gemini Live' : 'GPT Realtime'} session`
+                ? 'Start live voice session'
                 : voice.micPaused
                 ? 'Resume listening'
                 : 'Pause listening'
