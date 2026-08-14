@@ -760,7 +760,7 @@ export default function RideshareCoach({
           }`} />
           <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">
             {voice.status === 'live'
-              ? (voice.micPaused ? 'Paused — tap the mic to resume' : 'Live — listening')
+              ? (voice.micPaused ? 'Paused — say “hey coach” or tap the mic' : 'Live — listening')
               : voice.status === 'connecting'
               ? 'Connecting…'
               : voice.status === 'error'

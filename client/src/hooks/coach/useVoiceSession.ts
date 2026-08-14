@@ -48,6 +48,26 @@ export function getStoredVoiceMode(): VoiceMode {
 const VOICE_PAUSE_REGEX = /\b(pause|hold on|stop listening|quiet)\b/i;
 const VOICE_STOP_REGEX = /\b(goodbye,?\s+coach|end (?:the )?session|conversation complete|we'?re done)\b/i;
 
+// 2026-08-14 (Melody: "keeping that mic on but with a trigger word instead
+// for hands off approach"): wake-phrase resume. While PAUSED the live session
+// hears nothing (unchanged — frames dropped, track disabled); a local
+// SpeechRecognition watches for the wake phrase and resumes the session mic.
+// The tap-to-talk invariant holds: reactivation only by the driver's explicit
+// act — now a tap OR the wake phrase. End remains final: the wake watcher
+// runs ONLY during pause, never after End/idle.
+const WAKE_REGEX = /\b(?:hey|okay|ok)[,\s]+coach\b|\bresume listening\b/i;
+
+/** Minimal browser SpeechRecognition surface (vendor-prefixed, untyped in TS). */
+interface WakeRecognizer {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((e: { resultIndex: number; results: Array<Array<{ transcript?: string }>> }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
 // 2026-08-14: defense-in-depth against relay-marker mimicry. The live test
 // showed the mouth prefixing its OWN answers with the relay marker it was
 // taught ("[[COACH_RELAY]] ..." appeared verbatim in coach transcript lines).
@@ -94,6 +114,9 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   const [micPaused, setMicPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<VoiceSession | null>(null);
+  // Wake-phrase watcher (browser SpeechRecognition), alive only while paused.
+  // Declared before every callback that captures it (React Compiler contract).
+  const wakeRecRef = useRef<WakeRecognizer | null>(null);
   // Per-session stable conversation id — consumed by useCoachChat's send()
   // so typed messages during a live session join the same server thread.
   const conversationIdRef = useRef<string | null>(null);
@@ -108,6 +131,10 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   }, [params]);
 
   const stop = useCallback(() => {
+    // End is FINAL: kill the wake watcher too — nothing listens after End.
+    const rec = wakeRecRef.current;
+    wakeRecRef.current = null;
+    try { rec?.stop(); } catch { /* already stopped */ }
     brainAbortRef.current?.abort();
     brainAbortRef.current = null;
     conversationIdRef.current = null;
@@ -120,18 +147,52 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     setMicPaused(false);
   }, []);
 
-  // Tap-to-talk: pause mutes the mic but keeps the session warm. Resume is
-  // ONLY ever called from a user tap (see invariant in the header). Defined
-  // before start() so the events closure below can invoke them.
+  const stopWakeWatch = useCallback(() => {
+    const rec = wakeRecRef.current;
+    wakeRecRef.current = null; // null BEFORE stop so onend doesn't restart it
+    try { rec?.stop(); } catch { /* already stopped */ }
+  }, []);
+
+  // Tap-to-talk: pause mutes the session mic but keeps the session warm.
+  // Resume happens ONLY from the driver's explicit act — a tap or the wake
+  // phrase (see invariant in the header). Defined before start() so the
+  // events closure below can invoke them.
+  const resumeMic = useCallback(() => {
+    stopWakeWatch();
+    sessionRef.current?.resumeMic();
+    setMicPaused(false);
+  }, [stopWakeWatch]);
+
+  const startWakeWatch = useCallback(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR || wakeRecRef.current) return; // unsupported → tap still resumes
+    const rec: WakeRecognizer = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    rec.onresult = (e) => {
+      let text = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        text += e.results[i][0]?.transcript ?? '';
+      }
+      if (WAKE_REGEX.test(text)) resumeMic();
+    };
+    rec.onend = () => {
+      // Browser recognizers self-terminate periodically — restart while the
+      // pause (and only the pause) is still in force.
+      if (wakeRecRef.current === rec) {
+        try { rec.start(); } catch { /* already running */ }
+      }
+    };
+    wakeRecRef.current = rec;
+    try { rec.start(); } catch { /* mic busy/denied — tap still works */ }
+  }, [resumeMic]);
+
   const pauseMic = useCallback(() => {
     sessionRef.current?.pauseMic();
     setMicPaused(true);
-  }, []);
-
-  const resumeMic = useCallback(() => {
-    sessionRef.current?.resumeMic();
-    setMicPaused(false);
-  }, []);
+    startWakeWatch();
+  }, [startWakeWatch]);
 
   const start = useCallback(async () => {
     if (mode === 'classic' || sessionRef.current) return;
