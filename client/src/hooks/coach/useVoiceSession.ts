@@ -1,15 +1,27 @@
 // client/src/hooks/coach/useVoiceSession.ts
 // 2026-08-11 (todo #33): React lifecycle for the Coach voice switcher.
 // Owns the mode (persisted), the active session instance, and the state the
-// Coach tab renders (status, transcripts, error). Classic mode means "no
-// live session" — the existing STT/TTS pipeline stays untouched as the
+// Coach tab renders (status, interim transcripts, error). Classic mode means
+// "no live session" — the existing STT/TTS pipeline stays untouched as the
 // control arm and safety net.
+//
+// 2026-08-14 (unified voice thread — Melody: "voice back and forth inside the
+// normal box"): committed turns leave this hook via onVoiceTurnFinal and
+// become messages in the SAME chat thread as typed exchanges; only interim
+// (in-progress) lines live here. The hook also owns the per-session
+// conversationId shared with useCoachChat so typed + spoken exchanges thread
+// under one coach_conversations id server-side.
+//
+// TAP-TO-TALK INVARIANT (Melody, verbatim: "it won't reactivate until I call
+// on it"): this hook contains ZERO effects that call start() or resumeMic().
+// Both are reachable only from explicit user actions. Keep it that way.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { GeminiLiveSession } from '@/lib/voice/GeminiLiveSession';
 import { RealtimeSession } from '@/lib/voice/RealtimeSession';
 import { askCoachBrain, type CoachBrainParams } from '@/lib/voice/coachBrain';
+import { applyDonePayload } from '@/utils/coach/actionsResult';
 import type { VoiceMode, VoiceSession, VoiceSessionStatus } from '@/lib/voice/types';
 
 const VALID_MODES: VoiceMode[] = ['classic', 'gemini', 'openai'];
@@ -19,16 +31,29 @@ export function getStoredVoiceMode(): VoiceMode {
   return stored && VALID_MODES.includes(stored) ? stored : 'classic';
 }
 
-export type UseVoiceSessionParams = CoachBrainParams;
+export interface UseVoiceSessionParams extends CoachBrainParams {
+  /** Append a committed voice turn to the chat thread (unified thread). */
+  onVoiceTurnFinal?: (role: 'user' | 'assistant', text: string) => void;
+  /** Brain-call action side-effects — same handlers classic mode uses. */
+  onNotesSaved?: () => void;
+  onActionError?: (messages: string[]) => void;
+}
 
 export function useVoiceSession(params: UseVoiceSessionParams) {
   const [mode, setModeState] = useState<VoiceMode>(getStoredVoiceMode);
   const [status, setStatus] = useState<VoiceSessionStatus>('idle');
   const [statusDetail, setStatusDetail] = useState<string | undefined>(undefined);
-  const [userLine, setUserLine] = useState('');
-  const [modelLine, setModelLine] = useState('');
+  const [interimUser, setInterimUser] = useState('');
+  const [interimModel, setInterimModel] = useState('');
+  const [micPaused, setMicPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sessionRef = useRef<VoiceSession | null>(null);
+  // Per-session stable conversation id — consumed by useCoachChat's send()
+  // so typed messages during a live session join the same server thread.
+  const conversationIdRef = useRef<string | null>(null);
+  // Aborts in-flight brain calls when the session ends (their answers would
+  // have no session to speak through).
+  const brainAbortRef = useRef<AbortController | null>(null);
   // Latest brain params without re-creating callbacks per render
   // (useSpeechRecognition's optionsRef pattern).
   const paramsRef = useRef(params);
@@ -37,33 +62,62 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   }, [params]);
 
   const stop = useCallback(() => {
+    brainAbortRef.current?.abort();
+    brainAbortRef.current = null;
+    conversationIdRef.current = null;
     sessionRef.current?.stop();
     sessionRef.current = null;
     setStatus('idle');
     setStatusDetail(undefined);
+    setInterimUser('');
+    setInterimModel('');
+    setMicPaused(false);
   }, []);
 
   const start = useCallback(async () => {
     if (mode === 'classic' || sessionRef.current) return;
     setError(null);
-    setUserLine('');
-    setModelLine('');
+    setInterimUser('');
+    setInterimModel('');
+    setMicPaused(false);
+    conversationIdRef.current = crypto.randomUUID();
+    brainAbortRef.current = new AbortController();
 
     const events = {
       onStatus: (s: VoiceSessionStatus, detail?: string) => {
         setStatus(s);
         setStatusDetail(detail);
-        if (s === 'ended') sessionRef.current = null;
+        if (s === 'ended') {
+          sessionRef.current = null;
+          conversationIdRef.current = null;
+        }
       },
-      onUserTranscript: (text: string, final: boolean) => {
-        setUserLine((prev) => (final ? text : prev + text));
+      onUserTranscriptDelta: (text: string) => setInterimUser(text),
+      onUserTurnFinal: (text: string) => {
+        setInterimUser('');
+        paramsRef.current.onVoiceTurnFinal?.('user', text);
       },
-      onModelTranscript: (text: string, final: boolean) => {
-        setModelLine((prev) => (final ? text : prev + text));
+      onModelTranscriptDelta: (text: string) => setInterimModel(text),
+      onModelTurnFinal: (text: string) => {
+        setInterimModel('');
+        paramsRef.current.onVoiceTurnFinal?.('assistant', text);
       },
       onError: (message: string) => setError(message),
     };
-    const brain = (question: string) => askCoachBrain(paramsRef.current, question);
+    const brain = (question: string) =>
+      askCoachBrain(
+        {
+          ...paramsRef.current,
+          conversationId: conversationIdRef.current ?? undefined,
+          signal: brainAbortRef.current?.signal,
+          onActionsResult: (payload) =>
+            applyDonePayload(payload, {
+              onNotesSaved: paramsRef.current.onNotesSaved,
+              onActionError: paramsRef.current.onActionError,
+            }),
+        },
+        question
+      );
     const opts = {
       userId: params.userId,
       snapshotId: params.snapshotId,
@@ -82,8 +136,26 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       setStatus('error');
       session.stop();
       sessionRef.current = null;
+      conversationIdRef.current = null;
     }
   }, [mode, params.userId, params.snapshotId]);
+
+  // Tap-to-talk: pause mutes the mic but keeps the session warm. Resume is
+  // ONLY ever called from a user tap (see invariant in the header).
+  const pauseMic = useCallback(() => {
+    sessionRef.current?.pauseMic();
+    setMicPaused(true);
+  }, []);
+
+  const resumeMic = useCallback(() => {
+    sessionRef.current?.resumeMic();
+    setMicPaused(false);
+  }, []);
+
+  /** Speak a chat-screen answer through the live mouth (no-op when idle). */
+  const sayText = useCallback((text: string, context?: { userMessage?: string }) => {
+    sessionRef.current?.sayText(text, context);
+  }, []);
 
   const setMode = useCallback((next: VoiceMode) => {
     stop();
@@ -101,10 +173,15 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     status,
     statusDetail,
     isLive: status === 'live' || status === 'connecting',
-    userLine,
-    modelLine,
+    interimUser,
+    interimModel,
+    micPaused,
     error,
     start,
     stop,
+    pauseMic,
+    resumeMic,
+    sayText,
+    conversationIdRef,
   };
 }

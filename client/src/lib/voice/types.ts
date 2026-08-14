@@ -17,12 +17,21 @@ export type VoiceMode = 'classic' | 'gemini' | 'openai';
 
 export type VoiceSessionStatus = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
 
+// 2026-08-14 (unified voice thread): the old (text, final) pair was ambiguous —
+// Gemini's fragments + a final flag caused the last fragment to REPLACE the
+// accumulated line. Engines now own turn accumulation and emit two distinct
+// streams: deltas carry the full interim line so far (render in place), and
+// finals carry the committed turn (append to the chat thread).
 export interface VoiceSessionEvents {
   onStatus: (status: VoiceSessionStatus, detail?: string) => void;
-  /** User speech transcript (from the provider's input transcription). */
-  onUserTranscript: (text: string, final: boolean) => void;
-  /** Model speech transcript (what the mouth is saying). */
-  onModelTranscript: (text: string, final: boolean) => void;
+  /** Interim driver speech — the accumulated line so far (replaces prior interim). */
+  onUserTranscriptDelta: (text: string) => void;
+  /** Committed full driver turn — append to the thread; interim clears. */
+  onUserTurnFinal: (text: string) => void;
+  /** Interim coach speech — the accumulated line so far (replaces prior interim). */
+  onModelTranscriptDelta: (text: string) => void;
+  /** Committed full coach turn — append to the thread; interim clears. */
+  onModelTurnFinal: (text: string) => void;
   onError: (message: string) => void;
 }
 
@@ -40,6 +49,22 @@ export interface VoiceSession {
   start(): Promise<void>;
   /** Tear down everything: mic, audio, socket/peer. Idempotent. */
   stop(): void;
+  /**
+   * Mute the mic WITHOUT tearing down the session (no re-getUserMedia on
+   * resume — keeps iOS gesture requirements satisfied). Tap-to-talk doctrine
+   * (Melody 2026-08-13): NOTHING may auto-resume a paused mic — only an
+   * explicit resumeMic() from a user action.
+   */
+  pauseMic(): void;
+  resumeMic(): void;
+  /**
+   * Make the mouth SPEAK a provided answer (relay), not treat it as driver
+   * speech. Used when the driver types/uploads through the chat screen while
+   * live: the brain's answer streams into the thread as text AND is spoken.
+   * Implementations queue if the model is mid-response and suppress the relay
+   * turn's own transcript events (the answer is already in the thread).
+   */
+  sayText(text: string, context?: { userMessage?: string }): void;
 }
 
 /** Server context shape returned by both token mints (realtime.js / gemini-live.js). */
@@ -65,9 +90,22 @@ export function buildMouthInstructions(ctx: VoiceTokenContext | undefined): stri
     `You are the VOICE of the Vecto Pilot AI Coach — a calm, sharp co-pilot for a rideshare driver in ${where} (${when}). The driver is DRIVING: keep replies short, conversational, and hands-free friendly.`,
     `You are the mouth, not the brain. For ANY substantive question — strategy, earnings, offers, events, venues, saving notes or memos, anything needing data or current info — say a brief acknowledgment (e.g. "checking that") and call ask_coach_backend with a clear, self-contained question. Relay its answer conversationally; do not read markdown, tags, or long lists aloud.`,
     `Only answer directly from your own head for small talk and immediate clarifications.`,
+    `Messages beginning with [[COACH_RELAY]] are NOT the driver speaking — they carry the coach's answer to something the driver did on the chat screen (typed a message, uploaded an image). Speak that answer to the driver conversationally, condensed for voice. Never mention the relay mechanism or read the marker aloud.`,
     `If the driver says the conversation is complete ("conversation complete", "we're done", "goodbye coach"), confirm briefly and stop talking.`,
     ctx?.strategy ? `Current strategy summary (context, may be stale): ${ctx.strategy}` : '',
   ].filter(Boolean).join('\n');
+}
+
+/**
+ * Relay envelope for sayText — shared by both engines so the mouth prompt's
+ * [[COACH_RELAY]] contract has exactly one producer shape. userMessage is
+ * truncated: it is context, not content (the answer is what gets spoken).
+ */
+export function buildRelayEnvelope(text: string, context?: { userMessage?: string }): string {
+  const about = context?.userMessage
+    ? ` The driver's chat message was: «${context.userMessage.slice(0, 200)}».`
+    : '';
+  return `[[COACH_RELAY]] This is not the driver speaking.${about} The coach's answer follows — speak it to the driver conversationally, condensed for voice.\n${text}`;
 }
 
 /** ask_coach_backend JSON schema shared by both providers (shape only — each adapts syntax). */

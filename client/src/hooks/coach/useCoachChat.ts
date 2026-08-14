@@ -5,11 +5,12 @@
 // 2026-04-26: Extracted from RideshareCoach.tsx (Step 3 of COACH_PASS2_PHASE_B_PLAN).
 // Internal variable names (`fullResponse`, `isStreaming`) preserved per plan contract.
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, type RefObject } from 'react';
 import { useChatPersistence, type ChatMessage } from '@/hooks/useChatPersistence';
 import { useMemory } from '@/hooks/useMemory';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { applyDonePayload } from '@/utils/coach/actionsResult';
 
 export interface CoachAttachment {
   name: string;
@@ -84,11 +85,19 @@ export interface UseCoachChatParams {
   snapshot?: CoachSnapshotPayload;
   strategyReady?: boolean;
   /** Fired once SSE stream completes successfully with the assembled assistant response. */
-  onStreamComplete?: (fullResponse: string) => void;
+  onStreamComplete?: (fullResponse: string, meta: { userMessage: string }) => void;
   /** Fired on each SSE delta as it arrives (for streaming consumers like read-aloud chunks). */
   onStreamDelta?: (delta: string) => void;
   /** Fired when the server reports notes were saved via action tags (caller refetches). */
   onNotesSaved?: () => void;
+  /**
+   * 2026-08-14 (unified voice thread): stable conversation id shared with the
+   * voice session. Read at send() time; when set, the server threads all
+   * messages — typed AND voice-brain — under one coach_conversations id
+   * (chat.js honors clientConversationId). Null/absent → server mints per
+   * message (pre-existing behavior).
+   */
+  conversationIdRef?: RefObject<string | null>;
 }
 
 export interface UseCoachChatReturn {
@@ -125,6 +134,7 @@ export function useCoachChat({
   onStreamComplete,
   onStreamDelta,
   onNotesSaved,
+  conversationIdRef,
 }: UseCoachChatParams): UseCoachChatReturn {
   const { messages: msgs, setMessages: setMsgs, isLoaded: _isChatLoaded } = useChatPersistence(userId, snapshotId);
 
@@ -296,6 +306,10 @@ export function useCoachChat({
           threadHistory: msgs,
           snapshotId,
           strategyId,
+          // Unified voice thread (2026-08-14): reuse the live session's
+          // conversation id when one is active so typed + spoken exchanges
+          // land in one coach_conversations thread server-side.
+          conversationId: conversationIdRef?.current ?? undefined,
           attachments: filesToSend,
           snapshot: snapshot ? {
             city: snapshot.city,
@@ -378,16 +392,16 @@ export function useCoachChat({
                 return copy;
               });
             }
-            if (msg.actions_result) {
-              if (msg.actions_result.saved > 0) {
-                onNotesSaved?.();
-              }
-              if (msg.actions_result.errors?.length > 0) {
-                setValidationErrors(
-                  msg.actions_result.errors.map((e: string) => ({ field: 'action', message: e }))
-                );
-                setTimeout(() => setValidationErrors([]), 8000);
-              }
+            if (msg.actions_result || msg.persistence_error) {
+              // Shared with the voice brain path (utils/coach/actionsResult.ts)
+              // so both arms surface action side-effects identically.
+              applyDonePayload(msg, {
+                onNotesSaved,
+                onActionError: (errors) => {
+                  setValidationErrors(errors.map((e) => ({ field: 'action', message: e })));
+                  setTimeout(() => setValidationErrors([]), 8000);
+                },
+              });
             }
           } catch (_err) {
             // Ignore parse errors for partial SSE data
@@ -398,7 +412,7 @@ export function useCoachChat({
       }
 
       if (fullResponse) {
-        onStreamComplete?.(fullResponse);
+        onStreamComplete?.(fullResponse, { userMessage: messageText });
       }
     } catch (err: unknown) {
       const error = err as Error;
