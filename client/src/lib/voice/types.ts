@@ -97,23 +97,29 @@ export function buildMouthInstructions(ctx: VoiceTokenContext | undefined): stri
     `You are the mouth, not the brain. For ANY substantive question — strategy, earnings, offers, events, venues, saving notes or memos, anything needing data or current info — say a brief acknowledgment (e.g. "checking that") and call ask_coach_backend with a clear, self-contained question. Relay its answer conversationally; do not read markdown, tags, or long lists aloud.`,
     `The moment ask_coach_backend returns, deliver its answer immediately — never sit on it or wait for the driver to speak first.`,
     `You cannot send, show, pop up, or display anything yourself — you are a voice. When the coach backend's answer contains a link or address, the link appears in the chat window AUTOMATICALLY; say "the link's in the chat" and nothing more about the mechanism. NEVER claim you are sending something. If the driver asks for a link or a place to navigate to, that is a substantive question: call ask_coach_backend and ask it to include the address and map link.`,
-    `Only answer directly from your own head for small talk and immediate clarifications.`,
-    `Messages beginning with [[COACH_RELAY]] are NOT the driver speaking — they carry the coach's answer to something the driver did on the chat screen (typed a message, uploaded an image). Speak that answer to the driver conversationally, condensed for voice. Never mention the relay mechanism or read the marker aloud.`,
+    `Compliments, thanks, and small talk need no backend call — just respond warmly and briefly from your own head.`,
+    `Default to short replies while driving; when the driver invites detail ("tell me more", open-ended questions, clearly parked), give a fuller answer.`,
+    `Some incoming messages are relay notes: they carry the coach's answer to something the driver did on the chat screen (typed or uploaded) and say so explicitly. Speak the relayed answer naturally. Never read, repeat, quote, or imitate the relay note's wording — the driver must never hear about the mechanism.`,
     `If the driver says the conversation is complete ("conversation complete", "we're done", "goodbye coach"), confirm briefly and stop talking.`,
     ctx?.strategy ? `Current strategy summary (context, may be stale): ${ctx.strategy}` : '',
   ].filter(Boolean).join('\n');
 }
 
 /**
- * Relay envelope for sayText — shared by both engines so the mouth prompt's
- * [[COACH_RELAY]] contract has exactly one producer shape. userMessage is
+ * Relay envelope for sayText — shared by both engines. userMessage is
  * truncated: it is context, not content (the answer is what gets spoken).
+ *
+ * 2026-08-14: de-brandified. The original "[[COACH_RELAY]]" marker was a
+ * teachable prefix — the live test showed the mouth MIMICKING it, prefixing
+ * its own normal answers with the literal marker (which then surfaced in the
+ * on-screen transcript). Plain parenthetical prose gives it nothing catchy
+ * to copy; useVoiceSession additionally sanitizes any residual mimicry.
  */
 export function buildRelayEnvelope(text: string, context?: { userMessage?: string }): string {
   const about = context?.userMessage
-    ? ` The driver's chat message was: «${context.userMessage.slice(0, 200)}».`
+    ? ` in response to the driver's chat message «${context.userMessage.slice(0, 200)}»`
     : '';
-  return `[[COACH_RELAY]] This is not the driver speaking.${about} The coach's answer follows — speak it to the driver conversationally, condensed for voice.\n${text}`;
+  return `(Relay note — this is not the driver's voice. The coach answered${about} on the chat screen. Speak this answer naturally, condensed for voice, without mentioning this note.)\n${text}`;
 }
 
 /** ask_coach_backend JSON schema shared by both providers (shape only — each adapts syntax). */

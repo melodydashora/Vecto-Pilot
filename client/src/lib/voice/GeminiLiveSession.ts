@@ -34,6 +34,9 @@ interface MintResponse {
   ok: boolean;
   token: string;
   model: string;
+  /** Optional mouth thinking (server env knob GEMINI_LIVE_THINKING_BUDGET;
+   *  -1 = dynamic). Absent = no thinkingConfig — the low-latency default. */
+  thinkingBudget?: number;
   context?: VoiceTokenContext;
   error?: string;
 }
@@ -138,6 +141,11 @@ export class GeminiLiveSession implements VoiceSession {
         ],
         inputAudioTranscription: {},
         outputAudioTranscription: {},
+        // Registry-driven mouth-thinking experiment. The SDK errors loudly on
+        // models without thinking support — surfaced via onerror (fail loud).
+        ...(mint.thinkingBudget !== undefined && {
+          thinkingConfig: { thinkingBudget: mint.thinkingBudget },
+        }),
       },
       callbacks: {
         onopen: () => {
@@ -219,6 +227,14 @@ export class GeminiLiveSession implements VoiceSession {
     // Tool calls → the brain. Live API requires manual tool-response handling.
     const calls = message?.toolCall?.functionCalls;
     if (Array.isArray(calls)) {
+      // 2026-08-14: the ack ("checking that…") is its own turn — commit it
+      // before the tool round-trip. Without this the post-tool answer
+      // concatenated onto the ack in one transcript line (live test:
+      // "…How does that sound to start?Checking on that").
+      if (this.modelBuf.trim() && !this.suppressRelayTurn) {
+        events.onModelTurnFinal(this.modelBuf.trim());
+        this.modelBuf = '';
+      }
       for (const call of calls) {
         if (call?.name === ASK_COACH_TOOL.name) {
           void this.runBrainCall(call.id, String(call.args?.question ?? ''));

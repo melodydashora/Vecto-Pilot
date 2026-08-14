@@ -48,6 +48,18 @@ export function getStoredVoiceMode(): VoiceMode {
 const VOICE_PAUSE_REGEX = /\b(pause|hold on|stop listening|quiet)\b/i;
 const VOICE_STOP_REGEX = /\b(goodbye,?\s+coach|end (?:the )?session|conversation complete|we'?re done)\b/i;
 
+// 2026-08-14: defense-in-depth against relay-marker mimicry. The live test
+// showed the mouth prefixing its OWN answers with the relay marker it was
+// taught ("[[COACH_RELAY]] ..." appeared verbatim in coach transcript lines).
+// The envelope is now plain prose (types.ts), and this strips any residue —
+// old-style markers and copied relay-note phrasing — from mouth transcripts.
+function sanitizeMouthText(text: string): string {
+  return text
+    .replace(/\[?\[?COACH[_ ]?RELAY\]?\]?:?\s*/gi, '')
+    .replace(/\(Relay note[^)]*\)\s*/gi, '')
+    .trim();
+}
+
 // 2026-08-14: links from a voice brain answer must reach the SCREEN — the
 // mouth speaks a TTS-cleaned rendition ("link is in the chat") and the actual
 // tappable link lands in the thread. Markdown links keep their label.
@@ -152,10 +164,11 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
           pauseMic();
         }
       },
-      onModelTranscriptDelta: (text: string) => setInterimModel(text),
+      onModelTranscriptDelta: (text: string) => setInterimModel(sanitizeMouthText(text)),
       onModelTurnFinal: (text: string) => {
         setInterimModel('');
-        paramsRef.current.onVoiceTurnFinal?.('assistant', text);
+        const clean = sanitizeMouthText(text);
+        if (clean) paramsRef.current.onVoiceTurnFinal?.('assistant', clean);
       },
       onError: (message: string) => setError(message),
     };

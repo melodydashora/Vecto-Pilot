@@ -245,6 +245,13 @@ export const MODEL_ROLES = {
     temperature: 0.7,
     features: ['google_search'],
     requiresLive: true,
+    // 2026-08-14 (Melody: mouth "still a little too light"): optional thinking
+    // for the live mouth. The SDK's LiveConnectConfig.thinkingConfig errors
+    // loudly on models without thinking support — fail-loud by design. Set
+    // GEMINI_LIVE_THINKING_BUDGET (integer tokens; -1 = dynamic) to enable;
+    // unset = no thinking (low latency is the mouth's default job). The mint
+    // passes the value to the client, which applies it at live.connect().
+    thinkingBudgetEnvKey: 'GEMINI_LIVE_THINKING_BUDGET',
   },
   // 2026-08-11: role moved out of realtime.js, which read process.env.VOICE_MODEL
   // directly (registry-bypass doctrine violation). envKey stays VOICE_MODEL —
