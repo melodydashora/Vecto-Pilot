@@ -362,12 +362,26 @@ export const MODEL_ROLES = {
     envKey: 'OFFER_ANALYZER_MODEL',
     default: 'gemini-3.5-flash',
     purpose: 'Phase 1: Real-time fast analysis (visual screenshot OR parsed text) from Siri Shortcuts (ACCEPT/REJECT)',
-    // 2026-05-29: Raised 1024 → 8192. HIGH thinking consumes the output-token budget
-    // (same rationale as BRIEFING_TRAFFIC's 4096→8192 bump). At 1024 the JSON decision
-    // truncates mid-token — the exact "[HOOKS] Phase 1 JSON parse failed" symptom.
-    maxTokens: 8192,
+    // 2026-08-14: HIGH → MINIMAL + 8192 → 1024, for Melody's <3s hard latency
+    // target (todo #43). Live-benchmarked this day on gemini-3.5-flash, 3 runs
+    // per config, real Phase-1 prompts (scratchpad bench, session 2026-08-14):
+    //   text   HIGH/8192 avg 5249ms (matches prod p50 5.2s) → MINIMAL/1024 avg 3120ms
+    //   vision HIGH/8192 avg 5496ms                          → MINIMAL/1024 avg 2512ms
+    // Decision parity held at MINIMAL (same ACCEPT + identical terse reason as
+    // HIGH; vision honestly answered "No ride offer visible" on a non-offer
+    // screenshot). HIGH also parse-failed 1/3 vision runs — MINIMAL was cleaner.
+    // maxTokens 1024 is deliberate WITH the step-down: the 2026-05-29 8192 bump
+    // existed only because HIGH thinking consumed the output budget; at MINIMAL
+    // the JSON decision is ~40-150 tokens, and the low cap also truncates
+    // degenerate repetition tails (observed live at MINIMAL: a looping reason
+    // string) in ~1s instead of letting them run for 8K tokens. A truncated
+    // response parse-fails → the deterministic rules engine answers (the
+    // always-answer contract in analyze-offer.js).
+    // Deep reasoning lives in Phase 2 (OFFER_ANALYZER_DEEP, async) — exactly
+    // the step-down path the latency trade-off note above prescribes.
+    maxTokens: 1024,
     temperature: 0.1, // Near-deterministic for consistent decisions
-    thinkingLevel: 'HIGH', // 2026-05-29: per request (see latency trade-off note above)
+    thinkingLevel: 'MINIMAL',
     features: ['vision'],
   },
 

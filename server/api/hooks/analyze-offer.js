@@ -21,6 +21,7 @@ import { offer_intelligence } from '../../../shared/schema.js';
 import { callModel } from '../../lib/ai/adapters/index.js';
 import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-offer-text.js';
 import { normalizeOfferBody } from '../../lib/offers/normalize-offer-body.js';
+import { downscaleOfferImage } from '../../lib/offers/downscale-offer-image.js';
 // 2026-06-20: Unified rules engine — single source for the prompts AND the
 // deterministic fallback (replaces the inline PHASE1_PROMPTS + JS ladder below).
 // 2026-07-03 (todo #10): v3 — per-driver rules. classifyTier now comes from the
@@ -35,6 +36,7 @@ import {
   evaluateDeterministic,
   evaluateGeoRules,
   classifyTier,
+  NOTICE_LABELS,
   DEFAULT_RULESET,
 } from '../../lib/offers/rules-engine.js';
 import { resolveRuleset } from '../../lib/offers/ruleset-store.js';
@@ -269,8 +271,20 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       }
       // Remove any whitespace/newlines that break base64 decoding
       imageData = imageData.replace(/\s/g, '');
+      // 2026-08-14 (todo #43 <3s target): downscale before the model call —
+      // live payloads run 900KB-1.3MB and every byte past ~820px width is pure
+      // upload latency. Phase 2 shares this images[] closure by design: the
+      // card stays fully legible for deep extraction. Fail-open — the original
+      // proceeds on any downscale error. raw_text keeps the ORIGINAL size
+      // marker (what the device actually sent).
+      const originalKB = Math.round(imageData.length / 1024);
+      const ds = await downscaleOfferImage(Buffer.from(imageData, 'base64'), mimeType);
+      if (ds.downscaled) {
+        imageData = ds.buffer.toString('base64');
+        mimeType = ds.mimeType;
+      }
       images.push({ mimeType, data: imageData });
-      console.log(`[HOOKS] Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})`);
+      console.log(`[HOOKS] Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})${ds.downscaled ? ` — downscaled from ${originalKB}KB` : ''}`);
     }
 
     // 2026-07-03 (todo #10): the per-user ruleset bridge. Token → user + rules;
@@ -311,37 +325,12 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       });
     }
 
-    // Phase 1 AI call — OFFER_ANALYZER (Flash) for speed.
-    // 2026-07-03: wrapped in a 20s race (the Shortcut gives up at ~30s; the SDK
-    // has no built-in timeout) and made failure-proof — a model failure or
-    // timeout now falls through to the deterministic engine instead of a 500.
-    // The rules always answer; NO DATA is the honest floor when nothing parsed.
-    console.log(`[HOOKS] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash) [${tier}]${images.length ? ' [vision]' : ''}...`);
-    const PHASE1_TIMEOUT_MS = 20000;
-    let phase1Response = null;
-    try {
-      phase1Response = await Promise.race([
-        callModel('OFFER_ANALYZER', {
-          system: phase1SystemPrompt,
-          user: phase1UserMessage,
-          images,
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Phase 1 timed out after ${PHASE1_TIMEOUT_MS / 1000}s`)), PHASE1_TIMEOUT_MS)
-        ),
-      ]);
-    } catch (aiErr) {
-      console.warn(`[HOOKS] Phase 1 model call failed (${aiErr.message}) — deterministic fallback`);
-    }
-    if (phase1Response && !phase1Response.success) {
-      console.warn(`[HOOKS] Phase 1 AI analysis failed (${phase1Response.error}) — deterministic fallback`);
-    }
-
     // Tier 3 of the extraction ladder AND the answer of last resort: the
     // deterministic rule engine over the regex pre-parse. Decision-parity with
     // the legacy ladder is proven in tests/offers/rules-engine-parity.test.js.
-    const deterministicPhase1 = () => {
-      const fb = evaluateDeterministic(tier, preParsed || {}, ruleset);
+    // 2026-08-14: takes an optional precomputed verdict + log label so the
+    // fast lane below can reuse it without double-evaluating.
+    const deterministicPhase1 = (fb = evaluateDeterministic(tier, preParsed || {}, ruleset), label = 'Deterministic fallback') => {
       if (fb.decision === 'NO DATA') {
         // No usable per_mile — "no data", not "REJECT" (reserved for rule-evaluated offers).
         return { decision: 'NO DATA', reason: 'no data', confidence: 0 };
@@ -354,38 +343,94 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
         ...(fb.fallback ? { fallback: true } : {}),
         ...preParsed,
       };
-      console.log(`[HOOKS] 🔧 Deterministic fallback: ${fb.decision} — ${result.reason}`);
+      console.log(`[HOOKS] 🔧 ${label}: ${fb.decision} — ${result.reason}`);
       return result;
     };
 
-    // 2026-03-02: Robust JSON extraction — two-tier approach
-    // Tier 1: Direct parse (clean JSON from adapter)
-    // Tier 2: Extract first JSON object from prose (Gemini sometimes adds preamble)
-    let phase1Result;
-    if (!phase1Response?.success) {
-      phase1Result = deterministicPhase1();
-    } else {
+    // ═══ FAST LANE — deterministic REJECT (2026-08-14, todo #43 <3s target) ═══
+    // A confident text pre-parse that the rules engine REJECTS answers Siri in
+    // ~1ms with NO model in the sync path. REJECT-only is parity-safe under ANY
+    // ruleset: every prompt-side judgment rule (avoid zones, safety_road_types,
+    // round-trip/multi-stop, require_verified, rating) is REJECT-ONLY in a
+    // first-match ladder, so nothing the model sees can rescue an engine REJECT.
+    // Engine ACCEPTs and NO DATA still go to the model, which owns the judgment
+    // rules. parse_confidence 'full' required: as the PRIMARY decider the
+    // pre-parse must have price + both leg pairs (stricter than the fallback role).
+    let phase1Response = null;
+    let phase1Result = null;
+    if (text && preParsed?.parse_confidence === 'full' && preParsed.per_mile != null) {
+      const fastVerdict = evaluateDeterministic(tier, preParsed, ruleset);
+      if (fastVerdict.decision === 'REJECT') {
+        phase1Result = deterministicPhase1(fastVerdict, 'Fast lane (model skipped)');
+        // Driver-enabled notices, detected from the SAME text the model would
+        // read — regex beats model observation for fixed card strings.
+        // deadhead_reduction is a map visual ("…"), undetectable on the text
+        // lane for the model too, so its absence here is parity, not regression.
+        const enabledNotices = ruleset.global?.notices || {};
+        const fastNotices = [
+          ['on_the_way_filter', /\bon the way\b/i],
+          ['verified_rider', /\bverified\b/i],
+        ].filter(([key, re]) => enabledNotices[key] && re.test(text))
+          .map(([key]) => NOTICE_LABELS[key]);
+        if (fastNotices.length) phase1Result.notices = fastNotices;
+      }
+    }
+
+    // Phase 1 AI call — OFFER_ANALYZER (Flash) for speed. Skipped entirely when
+    // the fast lane above already answered.
+    // 2026-07-03: wrapped in a 20s race (the Shortcut gives up at ~30s; the SDK
+    // has no built-in timeout) and made failure-proof — a model failure or
+    // timeout now falls through to the deterministic engine instead of a 500.
+    // The rules always answer; NO DATA is the honest floor when nothing parsed.
+    if (!phase1Result) {
+      console.log(`[HOOKS] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash) [${tier}]${images.length ? ' [vision]' : ''}...`);
+      const PHASE1_TIMEOUT_MS = 20000;
       try {
-        const cleaned = phase1Response.text
-          .replace(/```json/g, '').replace(/```/g, '').trim();
-        try {
-          const raw = JSON.parse(cleaned);
-          phase1Result = raw.parsed_data || raw;
-        } catch {
-          const firstBrace = cleaned.indexOf('{');
-          const lastBrace = cleaned.lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace > firstBrace) {
-            const extracted = cleaned.slice(firstBrace, lastBrace + 1);
-            const raw = JSON.parse(extracted);
-            phase1Result = raw.parsed_data || raw;
-            console.log(`[HOOKS] Extracted JSON from preamble (${firstBrace} chars stripped)`);
-          } else {
-            throw new Error('No JSON object found in response');
-          }
-        }
-      } catch (_parseErr) {
-        console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
+        phase1Response = await Promise.race([
+          callModel('OFFER_ANALYZER', {
+            system: phase1SystemPrompt,
+            user: phase1UserMessage,
+            images,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Phase 1 timed out after ${PHASE1_TIMEOUT_MS / 1000}s`)), PHASE1_TIMEOUT_MS)
+          ),
+        ]);
+      } catch (aiErr) {
+        console.warn(`[HOOKS] Phase 1 model call failed (${aiErr.message}) — deterministic fallback`);
+      }
+      if (phase1Response && !phase1Response.success) {
+        console.warn(`[HOOKS] Phase 1 AI analysis failed (${phase1Response.error}) — deterministic fallback`);
+      }
+
+      // 2026-03-02: Robust JSON extraction — two-tier approach
+      // Tier 1: Direct parse (clean JSON from adapter)
+      // Tier 2: Extract first JSON object from prose (Gemini sometimes adds preamble)
+      if (!phase1Response?.success) {
         phase1Result = deterministicPhase1();
+      } else {
+        try {
+          const cleaned = phase1Response.text
+            .replace(/```json/g, '').replace(/```/g, '').trim();
+          try {
+            const raw = JSON.parse(cleaned);
+            phase1Result = raw.parsed_data || raw;
+          } catch {
+            const firstBrace = cleaned.indexOf('{');
+            const lastBrace = cleaned.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace > firstBrace) {
+              const extracted = cleaned.slice(firstBrace, lastBrace + 1);
+              const raw = JSON.parse(extracted);
+              phase1Result = raw.parsed_data || raw;
+              console.log(`[HOOKS] Extracted JSON from preamble (${firstBrace} chars stripped)`);
+            } else {
+              throw new Error('No JSON object found in response');
+            }
+          }
+        } catch (_parseErr) {
+          console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
+          phase1Result = deterministicPhase1();
+        }
       }
     }
 
