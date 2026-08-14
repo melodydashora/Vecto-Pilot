@@ -77,12 +77,30 @@ function sanitizeMouthText(text: string): string {
   return text
     .replace(/\[?\[?COACH[_ ]?RELAY\]?\]?:?\s*/gi, '')
     .replace(/\(Relay note[^)]*\)\s*/gi, '')
+    // 2026-08-14 live test: the mouth SPOKE its tool call ("Call
+    // ask_coach_backend with..."). Audio can't be unsaid, but the screen
+    // stays clean: drop narrated-call sentences, soften stray tool names.
+    .replace(/[^.?!]*\bcall\s+ask[_ ]?coach[_ ]?backend\b[^.?!]*[.?!]?/gi, '')
+    .replace(/\bask[_ ]?coach[_ ]?backend\b/gi, 'the coach system')
     .trim();
 }
 
 // 2026-08-14: links from a voice brain answer must reach the SCREEN — the
 // mouth speaks a TTS-cleaned rendition ("link is in the chat") and the actual
-// tappable link lands in the thread. Markdown links keep their label.
+// tappable link lands in the thread. Markdown links keep their label; bare
+// Google Maps links get a decoded destination label (live test: a naked
+// URL-encoded link left Melody asking "I don't know what it's for").
+function labelForBareUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith('google.com') && u.pathname.startsWith('/maps')) {
+      const q = u.searchParams.get('query');
+      if (q) return `Map to ${q}`;
+    }
+  } catch { /* unparseable URL — no label */ }
+  return null;
+}
+
 function extractLinksMessage(displayText: string): string | null {
   const lines: string[] = [];
   const seen = new Set<string>();
@@ -92,7 +110,11 @@ function extractLinksMessage(displayText: string): string | null {
   }
   const bare = displayText.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '').matchAll(/https?:\/\/[^\s<>"')\]]+/g);
   for (const m of bare) {
-    if (!seen.has(m[0])) { seen.add(m[0]); lines.push(`🔗 ${m[0]}`); }
+    if (!seen.has(m[0])) {
+      seen.add(m[0]);
+      const label = labelForBareUrl(m[0]);
+      lines.push(label ? `🔗 ${label}: ${m[0]}` : `🔗 ${m[0]}`);
+    }
   }
   return lines.length > 0 ? lines.join('\n') : null;
 }
@@ -117,6 +139,10 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   // Wake-phrase watcher (browser SpeechRecognition), alive only while paused.
   // Declared before every callback that captures it (React Compiler contract).
   const wakeRecRef = useRef<WakeRecognizer | null>(null);
+  // Links from a brain answer wait here until the mouth's SPOKEN answer has
+  // committed to the thread — a naked link arriving before any explanation
+  // confused the live test ("I don't know what it's for").
+  const pendingLinksRef = useRef<string | null>(null);
   // Per-session stable conversation id — consumed by useCoachChat's send()
   // so typed messages during a live session join the same server thread.
   const conversationIdRef = useRef<string | null>(null);
@@ -140,6 +166,13 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     conversationIdRef.current = null;
     sessionRef.current?.stop();
     sessionRef.current = null;
+    // Backstop: links never vanish because the session died before the
+    // spoken answer committed.
+    const links = pendingLinksRef.current;
+    if (links) {
+      pendingLinksRef.current = null;
+      paramsRef.current.onVoiceTurnFinal?.('assistant', links);
+    }
     setStatus('idle');
     setStatusDetail(undefined);
     setInterimUser('');
@@ -230,6 +263,12 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
         setInterimModel('');
         const clean = sanitizeMouthText(text);
         if (clean) paramsRef.current.onVoiceTurnFinal?.('assistant', clean);
+        // The spoken answer is on screen — now its links make sense.
+        const links = pendingLinksRef.current;
+        if (links) {
+          pendingLinksRef.current = null;
+          paramsRef.current.onVoiceTurnFinal?.('assistant', links);
+        }
       },
       onError: (message: string) => setError(message),
     };
@@ -245,10 +284,11 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
               onActionError: paramsRef.current.onActionError,
             }),
           // Links in the brain's answer surface as a tappable thread message
-          // (the mouth's spoken transcript can't carry them).
+          // (the mouth's spoken transcript can't carry them). Buffered until
+          // the spoken answer commits — see pendingLinksRef.
           onBrainAnswer: (displayText) => {
             const links = extractLinksMessage(displayText);
-            if (links) paramsRef.current.onVoiceTurnFinal?.('assistant', links);
+            if (links) pendingLinksRef.current = links;
           },
         },
         question
