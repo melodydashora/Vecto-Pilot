@@ -58,6 +58,12 @@ export interface VoiceSession {
   pauseMic(): void;
   resumeMic(): void;
   /**
+   * Best-effort audio unlock from a user gesture. Auto-started sessions (tab
+   * entry) have no gesture, and iOS keeps playback contexts suspended until
+   * one — the component calls this from a one-time pointerdown listener.
+   */
+  unlockAudio(): void;
+  /**
    * Make the mouth SPEAK a provided answer (relay), not treat it as driver
    * speech. Used when the driver types/uploads through the chat screen while
    * live: the brain's answer streams into the thread as text AND is spoken.

@@ -26,10 +26,27 @@ import type { VoiceMode, VoiceSession, VoiceSessionStatus } from '@/lib/voice/ty
 
 const VALID_MODES: VoiceMode[] = ['classic', 'gemini', 'openai'];
 
+// 2026-08-14 (Melody, A/B verdict): "not two different coaches, just Gemini
+// Live that can also pause for uploads." Gemini Live IS the Coach voice:
+// - default is 'gemini' (was 'classic')
+// - a stored 'openai' migrates to 'gemini' (the dropdown that set it is gone)
+// - 'classic' is honored ONLY as a deliberate devtools escape hatch
+//   (localStorage.setItem(COACH_VOICE_MODE, 'classic')) — no UI sets it.
 export function getStoredVoiceMode(): VoiceMode {
   const stored = localStorage.getItem(STORAGE_KEYS.COACH_VOICE_MODE) as VoiceMode | null;
-  return stored && VALID_MODES.includes(stored) ? stored : 'classic';
+  if (stored === 'openai') {
+    localStorage.setItem(STORAGE_KEYS.COACH_VOICE_MODE, 'gemini');
+    return 'gemini';
+  }
+  return stored && VALID_MODES.includes(stored) ? stored : 'gemini';
 }
+
+// 2026-08-14: verbal controls, DETERMINISTIC (client-side regex on committed
+// driver turns) — the mouth model cannot pause the mic, it can only claim to
+// (live test 2026-08-14: "Not a problem, pausing requests right now" while
+// nothing paused). Word-boundary so "pausing"/"unstoppable" don't fire.
+const VOICE_PAUSE_REGEX = /\b(pause|hold on|stop listening|quiet)\b/i;
+const VOICE_STOP_REGEX = /\b(goodbye,?\s+coach|end (?:the )?session|conversation complete|we'?re done)\b/i;
 
 export interface UseVoiceSessionParams extends CoachBrainParams {
   /** Append a committed voice turn to the chat thread (unified thread). */
@@ -74,6 +91,19 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     setMicPaused(false);
   }, []);
 
+  // Tap-to-talk: pause mutes the mic but keeps the session warm. Resume is
+  // ONLY ever called from a user tap (see invariant in the header). Defined
+  // before start() so the events closure below can invoke them.
+  const pauseMic = useCallback(() => {
+    sessionRef.current?.pauseMic();
+    setMicPaused(true);
+  }, []);
+
+  const resumeMic = useCallback(() => {
+    sessionRef.current?.resumeMic();
+    setMicPaused(false);
+  }, []);
+
   const start = useCallback(async () => {
     if (mode === 'classic' || sessionRef.current) return;
     setError(null);
@@ -96,6 +126,14 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       onUserTurnFinal: (text: string) => {
         setInterimUser('');
         paramsRef.current.onVoiceTurnFinal?.('user', text);
+        // Verbal controls — deterministic, evaluated on the committed turn.
+        // Stop wins over pause when both match. Resume after a verbal pause
+        // is PHYSICAL only (the mic is off — it cannot hear "resume").
+        if (VOICE_STOP_REGEX.test(text)) {
+          stop();
+        } else if (VOICE_PAUSE_REGEX.test(text)) {
+          pauseMic();
+        }
       },
       onModelTranscriptDelta: (text: string) => setInterimModel(text),
       onModelTurnFinal: (text: string) => {
@@ -138,18 +176,11 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       sessionRef.current = null;
       conversationIdRef.current = null;
     }
-  }, [mode, params.userId, params.snapshotId]);
+  }, [mode, params.userId, params.snapshotId, stop, pauseMic]);
 
-  // Tap-to-talk: pause mutes the mic but keeps the session warm. Resume is
-  // ONLY ever called from a user tap (see invariant in the header).
-  const pauseMic = useCallback(() => {
-    sessionRef.current?.pauseMic();
-    setMicPaused(true);
-  }, []);
-
-  const resumeMic = useCallback(() => {
-    sessionRef.current?.resumeMic();
-    setMicPaused(false);
+  /** iOS audio unlock — call from any real user gesture (see VoiceSession). */
+  const unlockAudio = useCallback(() => {
+    sessionRef.current?.unlockAudio();
   }, []);
 
   /** Speak a chat-screen answer through the live mouth (no-op when idle). */
@@ -182,6 +213,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     pauseMic,
     resumeMic,
     sayText,
+    unlockAudio,
     conversationIdRef,
   };
 }

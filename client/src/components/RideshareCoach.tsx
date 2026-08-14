@@ -11,12 +11,13 @@ import { linkifyText } from "@/utils/coach/linkify";
 import { CoachStopBar } from "@/components/coach/CoachStopBar";
 import { CameraCaptureModal } from "@/components/coach/CameraCaptureModal";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-// 2026-08-11 (todo #33): three-way voice engine switcher (Classic / Gemini
-// Live / GPT Realtime). Classic keeps the STT/TTS pipeline below untouched;
-// live modes run a bidirectional session with native barge-in, mouth-vs-brain.
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+// 2026-08-14 (Melody, A/B verdict): "not two different coaches, just Gemini
+// Live that can also pause for uploads." The three-way engine dropdown is
+// gone — Gemini Live IS the Coach voice (auto-started on tab entry).
+// Classic STT/TTS survives as a devtools escape hatch (COACH_VOICE_MODE =
+// 'classic' in localStorage); the GPT Realtime arm stays in code, unreferenced
+// by any UI.
 import { useVoiceSession, getStoredVoiceMode } from "@/hooks/coach/useVoiceSession";
-import type { VoiceMode } from "@/lib/voice/types";
 
 // 2026-04-29: TTS speed-selector tier values, used in the chip UI.
 const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
@@ -499,19 +500,16 @@ export default function RideshareCoach({
     }
   }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send, streaming]);
 
-  // 2026-08-14 (unified voice thread): mic button in live modes = tap-to-talk.
-  // No session → start one. Live + listening → PAUSE (mic muted, session
-  // warm). Paused → resume. Melody's invariant: pause/stop never self-undo —
-  // every transition here is a tap.
+  // 2026-08-14 (Melody: "take the green mic out... gemini live that can also
+  // pause for uploads"): the live-mode mic button is a PAUSE/RESUME toggle
+  // only — sessions start automatically on tab entry (green start mic gone).
+  // Pause/resume never self-undo — every transition is a tap (or a verbal
+  // "pause"/"goodbye coach", handled deterministically in useVoiceSession).
   const handleVoiceMicTap = useCallback(() => {
-    if (!voice.isLive) {
-      void voice.start();
-    } else if (voice.micPaused) {
-      voice.resumeMic();
-    } else {
-      voice.pauseMic();
-    }
-  }, [voice.isLive, voice.micPaused, voice.start, voice.resumeMic, voice.pauseMic]);
+    if (!voice.isLive) return;
+    if (voice.micPaused) voice.resumeMic();
+    else voice.pauseMic();
+  }, [voice.isLive, voice.micPaused, voice.resumeMic, voice.pauseMic]);
 
   // 2026-05-04 (COACH-V1, fix-2): hard-cancel BOTH audio paths. The bar's STOP
   // button and the verbal stop-phrase MUST kill the streaming chunk queue too,
@@ -523,20 +521,31 @@ export default function RideshareCoach({
     try { stopSpeak(); } catch { /* no-op */ }
   }, [stopSpeak, streaming]);
 
-  // 2026-08-11 (todo #33): engine switch. Leaving classic silences the whole
-  // classic pipeline (mic + TTS) so the live session has exclusive audio;
-  // setMode() itself tears down any live session when switching away.
-  const { setMode: setVoiceMode } = voice;
-  const handleVoiceModeChange = useCallback((value: string) => {
-    const next = value as VoiceMode;
-    if (next !== 'classic') {
-      manualStopRef.current = true;
-      stopMic();
-      try { streaming.abort(); } catch { /* no-op */ }
-      try { stopSpeak(); } catch { /* no-op */ }
-    }
-    setVoiceMode(next);
-  }, [setVoiceMode, stopMic, stopSpeak, streaming]);
+  // 2026-08-14 (Melody: "clicking on the coach tab didn't automatically start
+  // the discussion"): entering the Coach tab IS the start gesture — the live
+  // session auto-starts on mount. Before starting, hard-kill any classic
+  // audio still playing from a previous visit (live test 2026-08-14: classic
+  // TTS and Gemini Live talked over each other; Gemini's VAD then treated the
+  // classic voice as barge-in). Mount-only; leaving the tab tears the session
+  // down via useVoiceSession's unmount effect. After that, pause/End obey the
+  // tap-to-talk invariant — nothing here restarts a session she ended.
+  useEffect(() => {
+    if (getStoredVoiceMode() === 'classic') return;
+    manualStopRef.current = true;
+    stopMic();
+    try { streaming.abort(); } catch { /* no-op */ }
+    try { stopSpeak(); } catch { /* no-op */ }
+    void voice.start();
+  }, []); // Mount-only, intentional — tab entry is the one auto-start
+
+  // iOS keeps playback AudioContexts suspended until a REAL user gesture, and
+  // an auto-started session has none — unlock on the first tap anywhere.
+  useEffect(() => {
+    if (voice.mode === 'classic') return;
+    const unlock = () => voice.unlockAudio();
+    document.addEventListener('pointerdown', unlock, { once: true });
+    return () => document.removeEventListener('pointerdown', unlock);
+  }, [voice.mode, voice.unlockAudio]);
 
   // 2026-05-04 (COACH-V1): "stop and output" stop phrase. Fires only while listening
   // AND not speaking (suppress during TTS — Coach saying the phrase via speaker bleed
@@ -662,23 +671,8 @@ export default function RideshareCoach({
               goes stale the moment the registry swaps models. */}
           <p className="text-xs text-white/80">Your AI co-pilot</p>
         </div>
-        {/* 2026-08-11 (todo #33): voice engine selector — the A/B switch.
-            Classic = control arm; live arms show which model they run so the
-            driver always knows what they're comparing. */}
-        <Select value={voice.mode} onValueChange={handleVoiceModeChange}>
-          <SelectTrigger
-            className="h-7 w-[130px] border-white/30 bg-white/10 text-white text-xs focus:ring-white/40"
-            data-testid="select-voice-engine"
-            title="Voice engine (A/B test)"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="classic">Classic voice</SelectItem>
-            <SelectItem value="gemini">Gemini Live</SelectItem>
-            <SelectItem value="openai">GPT Realtime</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* 2026-08-14 (Melody): engine dropdown removed — one Coach, one
+            voice (Gemini Live, auto-started). See imports comment. */}
         {/* 2026-04-13: Voice Output Toggle. 2026-08-14: classic-only — these
             controls configure the classic TTS pipeline, which is suppressed
             entirely while a live engine is selected (live mouth owns audio). */}
@@ -749,12 +743,13 @@ export default function RideshareCoach({
         </Button>
       </div>
 
-      {/* 2026-08-14 (unified voice thread): the live strip is a SLIM status
-          line rendered only while a session exists (or errored) — transcripts
-          live in the chat thread now, and starting is the mic button's job.
-          Idle live mode costs zero vertical space (Melody's below-the-fold
-          phone problem). Native barge-in: talking IS the interrupt. */}
-      {voice.mode !== 'classic' && (voice.status !== 'idle' || voice.error) && (
+      {/* 2026-08-14 (Melody, one-Coach): slim standing voice strip — the
+          single voice control surface. Auto-start owns session creation on
+          tab entry; this strip shows status, End while live, and Resume when
+          a session was ended (End sticks — nothing auto-restarts it).
+          Transcripts live in the chat thread. Native barge-in: talking IS
+          the interrupt. No model names (statusDetail = debug only). */}
+      {voice.mode !== 'classic' && (
         <div className="flex items-center gap-2 px-4 py-1.5 border-b border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800/60">
           <div className={`h-2.5 w-2.5 rounded-full ${
             voice.status === 'live' ? (voice.micPaused ? 'bg-amber-500' : 'bg-green-500 animate-pulse')
@@ -762,8 +757,6 @@ export default function RideshareCoach({
             : voice.status === 'error' ? 'bg-red-500'
             : 'bg-gray-400'
           }`} />
-          {/* 2026-08-14 (Melody): no model names in the UI — statusDetail
-              carries the raw model id from the mint (debug/console only). */}
           <span className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">
             {voice.status === 'live'
               ? (voice.micPaused ? 'Paused — tap the mic to resume' : 'Live — listening')
@@ -771,10 +764,10 @@ export default function RideshareCoach({
               ? 'Connecting…'
               : voice.status === 'error'
               ? (voice.error || 'Session error')
-              : 'Session ended'}
+              : 'Voice off'}
           </span>
           <div className="flex-1" />
-          {voice.isLive && (
+          {voice.isLive ? (
             <Button
               size="sm"
               variant="destructive"
@@ -783,6 +776,15 @@ export default function RideshareCoach({
               data-testid="button-voice-end"
             >
               End
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="h-6 text-xs bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => void voice.start()}
+              data-testid="button-voice-start"
+            >
+              Resume voice
             </Button>
           )}
         </div>
@@ -1215,33 +1217,24 @@ export default function RideshareCoach({
             </Button>
           )
         ) : (
-          <Button
-            onClick={handleVoiceMicTap}
-            size="icon"
-            className={`rounded-full h-10 w-10 text-white transition-colors ${
-              !voice.isLive
-                ? 'bg-green-600 hover:bg-green-700'
-                : voice.micPaused
-                ? 'bg-amber-500 hover:bg-amber-600'
-                : 'bg-red-500 hover:bg-red-600 animate-pulse'
-            }`}
-            title={
-              !voice.isLive
-                ? 'Start live voice session'
-                : voice.micPaused
-                ? 'Resume listening'
-                : 'Pause listening'
-            }
-            data-testid="button-mic-toggle"
-          >
-            {!voice.isLive ? (
-              <Mic className="h-4 w-4" />
-            ) : voice.micPaused ? (
-              <MicOff className="h-4 w-4" />
-            ) : (
-              <Mic className="h-4 w-4" />
-            )}
-          </Button>
+          // Pause/resume only — rendered while a session is live. No green
+          // start mic (Melody 2026-08-14): sessions start on tab entry, and
+          // restart lives on the strip's Resume voice button.
+          voice.isLive && (
+            <Button
+              onClick={handleVoiceMicTap}
+              size="icon"
+              className={`rounded-full h-10 w-10 text-white transition-colors ${
+                voice.micPaused
+                  ? 'bg-amber-500 hover:bg-amber-600'
+                  : 'bg-red-500 hover:bg-red-600 animate-pulse'
+              }`}
+              title={voice.micPaused ? 'Resume listening' : 'Pause listening (for uploads or typing)'}
+              data-testid="button-mic-toggle"
+            >
+              {voice.micPaused ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+          )
         )}
 
         {/* Send Button */}

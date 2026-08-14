@@ -255,6 +255,11 @@ export class GeminiLiveSession implements VoiceSession {
     this.mic.setEnabled(true);
   }
 
+  /** iOS playback unlock from a real gesture (auto-started sessions have none). */
+  unlockAudio(): void {
+    this.player.unlock();
+  }
+
   /** Speak a chat-screen answer through the mouth (see VoiceSession.sayText). */
   sayText(text: string, context?: { userMessage?: string }): void {
     if (this.stopped || !this.session) return;

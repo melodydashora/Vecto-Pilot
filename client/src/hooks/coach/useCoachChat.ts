@@ -11,6 +11,7 @@ import { useMemory } from '@/hooks/useMemory';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { applyDonePayload } from '@/utils/coach/actionsResult';
+import { stripActionTags } from '@/utils/coach/stripActionTags';
 
 export interface CoachAttachment {
   name: string;
@@ -412,7 +413,18 @@ export function useCoachChat({
       }
 
       if (fullResponse) {
-        onStreamComplete?.(fullResponse, { userMessage: messageText });
+        // Deltas streamed raw tag JSON into the visible message — replace the
+        // displayed content with the tag-stripped text now the stream is done.
+        const displayText = stripActionTags(fullResponse);
+        if (displayText !== fullResponse) {
+          setMsgs((m) => {
+            const copy = [...m];
+            const last = copy[copy.length - 1];
+            if (last?.role === 'assistant') last.content = displayText;
+            return copy;
+          });
+        }
+        onStreamComplete?.(displayText, { userMessage: messageText });
       }
     } catch (err: unknown) {
       const error = err as Error;

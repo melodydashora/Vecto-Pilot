@@ -285,6 +285,11 @@ export class RealtimeSession implements VoiceSession {
     this.stream?.getAudioTracks().forEach((t) => { t.enabled = true; });
   }
 
+  /** iOS playback unlock from a real gesture (auto-started sessions have none). */
+  unlockAudio(): void {
+    void this.audioEl?.play().catch(() => undefined);
+  }
+
   /** Speak a chat-screen answer through the mouth (see VoiceSession.sayText). */
   sayText(text: string, context?: { userMessage?: string }): void {
     if (this.stopped || this.dc?.readyState !== 'open') return;
