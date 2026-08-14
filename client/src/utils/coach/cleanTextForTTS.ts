@@ -13,6 +13,10 @@
 export function cleanTextForTTS(text: string): string {
   return text
     .replace(/\[[\w_]+:\s*\{[\s\S]*?\}\s*\]/g, '')   // Action tags [SAVE_NOTE: {...}]
+    // 2026-08-14: URLs are unspeakable — markdown links keep their label,
+    // bare URLs become a pointer to the chat (where the link actually lives).
+    .replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '(link is in the chat)')
     .replace(/\*\*([^*]+)\*\*/g, '$1')                // Markdown bold
     .replace(/\*([^*]+)\*/g, '$1')                    // Markdown italic
     .replace(/```[\s\S]*?```/g, '')                   // Code blocks

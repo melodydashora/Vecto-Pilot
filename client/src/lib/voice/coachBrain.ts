@@ -15,6 +15,7 @@
 import { API_ROUTES } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { cleanTextForTTS } from '@/utils/coach/cleanTextForTTS';
+import { stripActionTags } from '@/utils/coach/stripActionTags';
 import type { DonePayloadMeta } from '@/utils/coach/actionsResult';
 
 export interface CoachBrainParams {
@@ -38,6 +39,13 @@ export interface CoachBrainParams {
   signal?: AbortSignal;
   /** Done-payload metadata (actions_result / persistence_error) consumer. */
   onActionsResult?: (payload: DonePayloadMeta) => void;
+  /**
+   * 2026-08-14: the brain's DISPLAY text (tags stripped, markdown + URLs
+   * intact). The mouth only ever speaks a TTS-cleaned rendition — links and
+   * rich content would otherwise never reach the driver's screen (live test:
+   * the mouth claimed "sending that link now" while nothing existed to send).
+   */
+  onBrainAnswer?: (displayText: string) => void;
 }
 
 const BRAIN_TIMEOUT_MS = 60_000;
@@ -49,7 +57,7 @@ const BRAIN_TIMEOUT_MS = 60_000;
  * session degrades loudly, never silently.
  */
 export async function askCoachBrain(
-  { userId, snapshotId, snapshot, conversationId, signal, onActionsResult }: CoachBrainParams,
+  { userId, snapshotId, snapshot, conversationId, signal, onActionsResult, onBrainAnswer }: CoachBrainParams,
   question: string
 ): Promise<string> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -120,6 +128,11 @@ export async function askCoachBrain(
     }
 
     if (streamError && !full) throw new Error(streamError);
+
+    // Display text first (links/markdown intact) — the consumer surfaces
+    // rich content (links) into the chat thread.
+    const display = stripActionTags(full);
+    if (display) onBrainAnswer?.(display);
 
     const cleaned = cleanTextForTTS(full).trim();
     if (!cleaned) throw new Error('coach backend returned an empty answer');

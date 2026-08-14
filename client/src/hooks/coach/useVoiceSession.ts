@@ -48,6 +48,23 @@ export function getStoredVoiceMode(): VoiceMode {
 const VOICE_PAUSE_REGEX = /\b(pause|hold on|stop listening|quiet)\b/i;
 const VOICE_STOP_REGEX = /\b(goodbye,?\s+coach|end (?:the )?session|conversation complete|we'?re done)\b/i;
 
+// 2026-08-14: links from a voice brain answer must reach the SCREEN — the
+// mouth speaks a TTS-cleaned rendition ("link is in the chat") and the actual
+// tappable link lands in the thread. Markdown links keep their label.
+function extractLinksMessage(displayText: string): string | null {
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  const mdLinks = displayText.matchAll(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g);
+  for (const m of mdLinks) {
+    if (!seen.has(m[2])) { seen.add(m[2]); lines.push(`🔗 ${m[1]}: ${m[2]}`); }
+  }
+  const bare = displayText.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '').matchAll(/https?:\/\/[^\s<>"')\]]+/g);
+  for (const m of bare) {
+    if (!seen.has(m[0])) { seen.add(m[0]); lines.push(`🔗 ${m[0]}`); }
+  }
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
 export interface UseVoiceSessionParams extends CoachBrainParams {
   /** Append a committed voice turn to the chat thread (unified thread). */
   onVoiceTurnFinal?: (role: 'user' | 'assistant', text: string) => void;
@@ -153,6 +170,12 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
               onNotesSaved: paramsRef.current.onNotesSaved,
               onActionError: paramsRef.current.onActionError,
             }),
+          // Links in the brain's answer surface as a tappable thread message
+          // (the mouth's spoken transcript can't carry them).
+          onBrainAnswer: (displayText) => {
+            const links = extractLinksMessage(displayText);
+            if (links) paramsRef.current.onVoiceTurnFinal?.('assistant', links);
+          },
         },
         question
       );

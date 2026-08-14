@@ -8,6 +8,7 @@ import { useCoachAudioState, type CoachPlaybackSpeed } from "@/hooks/coach/useCo
 import { useStreamingReadAloud } from "@/hooks/coach/useStreamingReadAloud";
 import { cleanTextForTTS } from "@/utils/coach/cleanTextForTTS";
 import { linkifyText } from "@/utils/coach/linkify";
+import { stripActionTags } from "@/utils/coach/stripActionTags";
 import { CoachStopBar } from "@/components/coach/CoachStopBar";
 import { CameraCaptureModal } from "@/components/coach/CameraCaptureModal";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -1022,7 +1023,9 @@ export default function RideshareCoach({
               </span>
               <span className={m.role === 'user' ? 'text-gray-800 dark:text-gray-200' : 'text-blue-900 dark:text-blue-200'}>
                 {m.content ? (
-                  linkifyText(m.content)
+                  // stripActionTags at RENDER time: also cleans tag JSON out
+                  // of messages persisted before the strip existed.
+                  linkifyText(stripActionTags(m.content))
                 ) : m.role === 'assistant' && isStreaming && i === msgs.length - 1 ? (
                   <span className="inline-flex items-center gap-1.5 text-gray-500">
                     <Loader className="h-3.5 w-3.5 animate-spin" />
