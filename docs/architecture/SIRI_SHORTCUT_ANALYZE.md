@@ -1,100 +1,126 @@
-# SIRI_SHORTCUT_ANALYZE.md — "Analyze 2" Shortcut ground truth
+# SIRI_SHORTCUT_ANALYZE.md — Offer Analyzer Shortcut ground truth
 
-> **Provenance:** Shortcut authored by Melody; anatomy decoded by Claude 2026-07-03
-> from the shared iCloud link (parsed the actual plist — not inferred).
-> **Share link (canonical, for the Setup card):**
-> https://www.icloud.com/shortcuts/cce34c892b394d3fb3e5cebd19f317c5
-> Shortcut name: **"Analyze 2"** · 11 actions · decoded plist archived in session
-> scratchpad; re-decode any time via the API:
-> `curl -s https://www.icloud.com/shortcuts/api/records/<id>` → `fields.shortcut.value.downloadURL` → binary plist.
+> **Provenance:** Shortcuts authored by Melody; anatomy decoded by Claude from
+> the shared iCloud links by parsing the actual plists — never inferred.
+> Decodes: 2026-07-03 (11-action "Analyze 2"), 2026-08-14 (9-action "Analyze 2",
+> link `icloud.com/shortcuts/6d89f1139413453d9b5e910ffc3fd8b2`).
+> Re-decode any time: `curl -s https://www.icloud.com/shortcuts/api/records/<id>`
+> → `fields.shortcut.value.downloadURL` → binary plist → `plistlib`.
+>
+> **Canonical spec (2026-08-14, joint):** TWO official shortcuts —
+> **analyze-offer-text** (fast lane) and **analyze-offer-vision** (deep lane).
+> Melody builds them exactly per the specs below; this doc is the build card.
 
-## Action graph (verbatim from plist)
+## Server contract (`POST https://vectopilot.com/api/hooks/analyze-offer`)
 
-| # | Action | Detail |
-|---|--------|--------|
-| 0 | Take Screenshot | output UUID feeds 1 & 2 |
-| 1 | Save to Camera Roll | album **"Uber rides"** |
-| 2 | Extract Text from Image | on-device OCR of the screenshot |
-| 3 | Combine Text | newline-joined OCR lines |
-| 4 | Get Current Location | accuracy **Best** |
-| 5 | Get Contents of URL | **POST** `https://vectopilot.com/api/hooks/analyze-offer`, body type **Form** (multipart) |
-| 6–8 | Get Dictionary Value | `notification`, `decision`, `voice` from response |
-| 9 | Show Notification | body = `notification` |
-| 10 | Speak Text | voice **Alex**, pitch 1.27 = `voice` |
+- Body type **Form**. Three accepted input modes: text-only, image-only,
+  text+image (`analyze-offer.js` mode comment).
+- **Identity:** header `X-Shortcut-Token: vp_…` (minted on the Offer Analyzer
+  page's Setup card). Also accepted as form field `shortcut_token`.
+  **No token → DEFAULT_RULESET + anonymous row** — the driver's sliders
+  silently don't apply. The token IS the product.
+- **Field-name tolerance (2026-08-14):** all body keys pass through the
+  deterministic alias table in `server/lib/offers/normalize-offer-body.js`
+  (case-insensitive; `lattitude`/`lat`/`lng`/`lon`/`long`/`token`/… → canonical;
+  every remap warn-logged). End users are never told to fix their spelling —
+  but new shortcuts should still use canonical keys.
+- **Response keys:** `notification` (one-line verdict for Show Notification —
+  notices like "Filter Detected" already appended), `voice` (speech-optimized
+  string for Speak Text), `decision`, plus data fields.
 
-## POST body fields (action 5)
+## analyze-offer-text (fast lane — the daily driver)
 
-| Field | Value | Server reads (analyze-offer.js) |
-|-------|-------|--------------------------------|
-| `text` | Combined OCR text | `req.body.text` ✅ |
-| `device_id` | literal `Melody's Iphone` (curly apostrophe U+2019) | `req.body.device_id` ✅ |
-| `lattitude` | Current Location.Latitude | ✅ accepted — server also reads the `lattitude` alias with a warn log (`analyze-offer.js:190–193`, landed 2026-07-03); rename the Shortcut key to `latitude` when convenient |
-| `longitude` | Current Location.Longitude | `req.body.longitude` ✅ |
-| `source` | `siri_shortcut` | `req.body.source` ✅ |
+Goal: verdict inside the offer window; OCR is on-device and near-instant, the
+payload is tiny, and the server pre-parses text deterministically in <1ms.
 
-Headers: one **empty key/value row left open by Melody** — reserved slot for
-`X-Shortcut-Token` (identity bridge, todo #10).
+| # | Action | Settings |
+|---|--------|----------|
+| 1 | Take Screenshot | |
+| 2 | *(optional)* Save to Camera Roll | album "Uber rides" (archive habit) |
+| 3 | Extract Text from Image | input: Screenshot |
+| 4 | Combine Text | separator: New Line, input: Text from step 3 |
+| 5 | Get Contents of URL | POST, body **Form** — fields below |
+| 6 | Get Dictionary Value | key `notification` |
+| 7 | Show Notification | body: Dictionary Value (step 6) |
+| 8 | Get Dictionary Value | key `voice` (input: step 5's contents) |
+| 9 | Speak Text | text: Dictionary Value (step 8) |
 
-## Findings (2026-07-03)
-
-1. **`lattitude` typo drops GPS silently.** Every request from this shortcut lands
-   with `driver_lat/driver_lng = null` in `offer_intelligence`. Fix in the shortcut
-   (rename key) AND accept the alias server-side with a warn log (fail-loud: never
-   silently null a provided coordinate). **Server-side half done 2026-07-03** — the
-   alias is accepted with a warn log (`analyze-offer.js:190–193`); the shortcut-side
-   rename is still pending.
-2. **Text-only today; vision requires one edit.** The screenshot is saved + OCR'd
-   but never uploaded. The endpoint already accepts a multipart file field named
-   `image` (multer, `analyze-offer.js:189`) → base64 → Gemini vision. Adding a form
-   field `image = Screenshot` upgrades the shortcut to Vision+OCR (Melody's Data
-   Priority rule: Vision > OCR > estimate).
-3. **`device_id` is a human label, not a device identifier.** Identity today is the
-   string "Melody's Iphone". The shortcut-token bridge (todo #10) supersedes this as
-   the identity key; `device_id` stays as a display label.
-
-## VISION-ONLY contract (Melody, 2026-07-03 — supersedes the OCR flow above)
-
-> "We won't need anything extracted … the shortcut will just send the screenshot
-> and technically the address is on the offer … with vision we don't have to
-> overthink even getting current location."
-
-The canonical Shortcut becomes **4 actions**: Take Screenshot → (optional) Save
-to "Uber rides" album → Get Contents of URL (POST) → Notification + Speak.
-**Removed:** Extract Text (OCR), Combine Text, Get Current Location — the offer
-card itself shows pickup distance/time from the driver's position, and dropping
-the Location action removes its permission stall (seconds, deadly in the
-3-second Match window).
-
-**POST body (Form/multipart) — the server contract (verified live 2026-07-03):**
+**Step 5 form fields:**
 
 | Field | Value |
 |-------|-------|
-| `image` | Screenshot (file field — raw bytes; server handles base64) |
-| `device_id` | friendly label (display only; identity is the token) |
-| `source` | `siri_vision` |
+| `text` | Combined Text (step 4) |
+| `source` | `siri_text` (literal) |
+| `device_id` | friendly label (optional — display only) |
 
-**Header:** `X-Shortcut-Token: vp_…` — from the Offer Analyzer page's Setup card
-(the empty header row Melody left open is exactly this slot). Also accepted as a
-`shortcut_token` form field. No token → default rules + anonymous row.
+**Step 5 headers:** `X-Shortcut-Token` = the `vp_…` token. Nothing else.
 
-Server tolerances kept for old installs: `lattitude` (double-t) accepted with a
-warn log; text-only and text+image requests still work (full backward compat).
+## analyze-offer-vision (deep lane)
+
+Goal: the model SEES the card — route shape, map, badges OCR can't read.
+Slower than text; the data-collection lane ("this will tell us where pings and
+patterns happen" — Melody, 2026-07-02).
+
+| # | Action | Settings |
+|---|--------|----------|
+| 1 | Take Screenshot | |
+| 2 | *(optional)* Save to Camera Roll | album "Uber rides" |
+| 3 | Get Contents of URL | POST, body **Form** — fields below |
+| 4 | Get Dictionary Value | key `notification` |
+| 5 | Show Notification | body: Dictionary Value |
+| 6 | Get Dictionary Value | key `voice` |
+| 7 | Speak Text | text: Dictionary Value (step 6) |
+
+**Step 3 form fields:**
+
+| Field | Value |
+|-------|-------|
+| `image` | Screenshot — **field type File**, not Text (raw bytes; server base64s in <1ms) |
+| `source` | `siri_vision` (literal) |
+| `device_id` | friendly label (optional) |
+
+**Step 3 headers:** `X-Shortcut-Token` = the `vp_…` token. Nothing else.
+
+**No OCR actions, no `text` field** — pure vision.
+
+## Joint decisions baked into these specs (2026-08-14)
+
+1. **No Get Current Location in either shortcut.** The location fix costs
+   seconds (deadly in the 3-second Match window) and stalls on permission.
+   Pattern data comes from Phase-2 server-side geocoding of the offer's own
+   pickup/dropoff addresses. (Extends Melody's 2026-07-03 vision-only doctrine.)
+2. **`source` exact keys:** `siri_text` / `siri_vision` (stored verbatim in
+   `offer_intelligence.source`; Android equivalents will get their own keys
+   under todo #43).
+3. **Token in the real Headers section** (proven to work in the 2026-08-14
+   decode — Melody's header slot was correct).
+
+## Findings from the 2026-08-14 decode of live "Analyze 2" (9 actions)
+
+1. **No `image` field existed** — screenshots were captured, saved, OCR'd, and
+   never uploaded. Every live verdict to date (including the Siri-vs-ours A/B
+   validation, todo #43) came from the TEXT path alone. Vision was live-unused.
+2. **Junk rows in the Headers section**: `text` (entire OCR output as an HTTP
+   header), `latitude`, `longitude` — body fields entered into the headers
+   dictionary. Harmless server-side (ignored) but fragile; removed in the
+   canonical specs.
+3. **`lattitude` typo persisted in the body** (headers section ironically
+   spelled it right). Now handled forever by the alias table; canonical specs
+   drop coordinates entirely (decision 1).
+4. **Token was present and correct** in headers — per-driver rules genuinely
+   applied to the live verdicts.
+5. Response wiring read only `notification` (spoken AND shown); canonical
+   specs use `voice` for speech (the speech-optimized string,
+   `formatPerMileForVoice`).
 
 ## Setup-card content requirements (todo #10, task 5)
 
-- iCloud install link (above) + "Add Shortcut" walkthrough (Melody will share a
-  vision-only "Analyze 3" once edited; the anatomy above is the edit guide).
-- Required permissions on first run: Screen capture, Photos (add-only, if the
-  save-to-album step is kept), network access to vectopilot.com. **No Location
-  permission needed** in the vision-only flow.
+- Install links for BOTH canonical shortcuts once Melody shares them.
+- Required permissions on first run: Screen capture, Photos (add-only, only if
+  the save-to-album step is kept), network access to vectopilot.com.
+  **No Location permission needed.**
 - **Accessibility triggers** (hands-free while driving — Melody's requirement):
-  - Settings → Accessibility → Touch → **Back Tap** → Double/Triple Tap → "Analyze 2"
-  - iPhone 15 Pro+ **Action Button** → Shortcut → "Analyze 2"
-  - **"Hey Siri, Analyze 2"** (works by shortcut name)
+  - Settings → Accessibility → Touch → **Back Tap** → Double/Triple Tap
+  - iPhone 15 Pro+ **Action Button** → Shortcut
+  - **"Hey Siri, analyze offer text"** (works by shortcut name)
   - AssistiveTouch single-tap assignment (one on-screen floating button)
-- Edit instructions (vision-only): delete the Extract Text / Combine Text /
-  Get Current Location actions; add form field `image = Screenshot` (type File);
-  put the token in the open header row as `X-Shortcut-Token`.
-- Response now also carries `notices: []` (e.g. "Verified Rider", "Filter
-  Detected", "Deadhead Reduction Pickup") when enabled in the driver's rules —
-  already appended to the notification string, no Shortcut change needed.

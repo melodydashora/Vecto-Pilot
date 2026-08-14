@@ -20,6 +20,7 @@ import { sql } from 'drizzle-orm';
 import { offer_intelligence } from '../../../shared/schema.js';
 import { callModel } from '../../lib/ai/adapters/index.js';
 import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-offer-text.js';
+import { normalizeOfferBody } from '../../lib/offers/normalize-offer-body.js';
 // 2026-06-20: Unified rules engine — single source for the prompts AND the
 // deterministic fallback (replaces the inline PHASE1_PROMPTS + JS ladder below).
 // 2026-07-03 (todo #10): v3 — per-driver rules. classifyTier now comes from the
@@ -177,6 +178,17 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     // 2026-02-17: Normalize input from either JSON body or multipart form fields
     // Multipart: req.file has the image buffer, req.body has text fields
     // JSON: req.body has everything including base64 image string
+    //
+    // 2026-08-14 (Melody: "I don't want you to have to tell end users to spell
+    // latitude correctly"): field names pass through the deterministic alias
+    // table first (normalize-offer-body.js). This SUPERSEDES the 2026-07-03
+    // one-off 'lattitude' patch that lived here — same fail-loud contract
+    // (every remap warn-logged), generalized to all enumerated variants.
+    const { body: offerBody, remapped } = normalizeOfferBody(req.body);
+    if (remapped.length) {
+      console.warn(`[HOOKS] Field aliases accepted: ${remapped.join(', ')} — update the Shortcut key names`);
+    }
+
     let text, image, image_type, device_id, latitude, longitude, source;
 
     if (req.file) {
@@ -185,31 +197,23 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       image = req.file.buffer.toString('base64');
       image_type = req.file.mimetype || 'image/jpeg';
       // Form fields come through req.body even with multer
-      text = req.body.text || null;
-      device_id = req.body.device_id;
-      latitude = req.body.latitude ? parseFloat(req.body.latitude) : undefined;
-      longitude = req.body.longitude ? parseFloat(req.body.longitude) : undefined;
-      source = req.body.source || 'siri_vision';
+      text = offerBody.text || null;
+      device_id = offerBody.device_id;
+      latitude = offerBody.latitude ? parseFloat(offerBody.latitude) : undefined;
+      longitude = offerBody.longitude ? parseFloat(offerBody.longitude) : undefined;
+      source = offerBody.source || 'siri_vision';
       const sizeKB = Math.round(req.file.size / 1024);
       console.log(`[HOOKS] Multipart upload: ${sizeKB}KB ${image_type} (server-encoded base64 in <1ms)`);
     } else {
       // JSON PATH — existing flow (base64 image or OCR text in JSON body)
-      ({ text, image, image_type, device_id, latitude, longitude, source = 'siri_shortcut' } = req.body);
-    }
-
-    // 2026-07-03: "lattitude" (double-t) alias — Melody's live Shortcut sent this
-    // misspelling and the mismatch silently dropped GPS to null for months
-    // (docs/architecture/SIRI_SHORTCUT_ANALYZE.md finding 1). Accept it loudly.
-    if (latitude == null && req.body.lattitude != null) {
-      latitude = parseFloat(req.body.lattitude);
-      console.warn('[HOOKS] Body field "lattitude" (misspelled) accepted as latitude — update the Shortcut key name');
+      ({ text, image, image_type, device_id, latitude, longitude, source = 'siri_shortcut' } = offerBody);
     }
 
     // 2026-07-03 (todo #10): identity bridge — an unguessable per-user token
     // resolves user_id + per-driver ruleset. Header preferred; form field
     // accepted (Shortcuts dictionaries are easier to edit than headers).
     // No/invalid token → DEFAULT_RULESET + null user_id (legacy behavior).
-    const shortcutToken = req.get('x-shortcut-token') || req.body.shortcut_token || null;
+    const shortcutToken = req.get('x-shortcut-token') || offerBody.shortcut_token || null;
 
     if (!text && !image) {
       return res.status(400).json({ error: 'Missing text or image payload' });

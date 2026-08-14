@@ -16,13 +16,14 @@
 // on it"): this hook contains ZERO effects that call start() or resumeMic().
 // Both are reachable only from explicit user actions. Keep it that way.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { API_ROUTES } from '@/constants/apiRoutes';
 import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { GeminiLiveSession } from '@/lib/voice/GeminiLiveSession';
 import { RealtimeSession } from '@/lib/voice/RealtimeSession';
 import { askCoachBrain, type CoachBrainParams } from '@/lib/voice/coachBrain';
 import { applyDonePayload } from '@/utils/coach/actionsResult';
-import type { VoiceMode, VoiceSession, VoiceSessionStatus } from '@/lib/voice/types';
+import type { ThreadTurn, VoiceMode, VoiceSession, VoiceSessionStatus } from '@/lib/voice/types';
 
 const VALID_MODES: VoiceMode[] = ['classic', 'gemini', 'openai'];
 
@@ -119,12 +120,25 @@ function extractLinksMessage(displayText: string): string | null {
   return lines.length > 0 ? lines.join('\n') : null;
 }
 
+// 2026-08-14 (voice-turns): debounce window for batching committed voice
+// turns into one POST /api/chat/voice-turns (server persists them verbatim
+// as 'voice_transcript' rows — the Coach learning loop's capture end).
+const VOICE_TURN_FLUSH_MS = 3_000;
+
 export interface UseVoiceSessionParams extends CoachBrainParams {
   /** Append a committed voice turn to the chat thread (unified thread). */
   onVoiceTurnFinal?: (role: 'user' | 'assistant', text: string) => void;
   /** Brain-call action side-effects — same handlers classic mode uses. */
   onNotesSaved?: () => void;
   onActionError?: (messages: string[]) => void;
+  /**
+   * 2026-08-14 (brain-hears/continuity): component-owned, render-time-fresh
+   * mirror of the committed visible thread (text turns only — no attachment
+   * or synthesized link messages). Brain calls send it as threadHistory;
+   * engines read it via getThreadTail at (re)connect. A ref, not state —
+   * RideshareCoach reassigns .current each render.
+   */
+  threadTailRef?: MutableRefObject<ThreadTurn[]>;
 }
 
 export function useVoiceSession(params: UseVoiceSessionParams) {
@@ -135,7 +149,20 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
   const [interimModel, setInterimModel] = useState('');
   const [micPaused, setMicPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 2026-08-14 (checking indicator): true while ≥1 brain call is in flight.
+  // Deterministic — set/cleared around the actual await in the brain wrapper
+  // (the one true begin/end boundary for both engines), never inferred from
+  // the mouth's speech.
+  const [checking, setChecking] = useState(false);
   const sessionRef = useRef<VoiceSession | null>(null);
+  // Concurrent brain-call counter behind `checking` — calls can overlap, so
+  // count, don't boolean-toggle. Declared before the callbacks that capture
+  // it (React Compiler contract — lessons_learned #28).
+  const checkingCountRef = useRef(0);
+  // 2026-08-14 (voice-turns): committed turns queue here between debounce
+  // flushes; the timer arms on the first queued turn and drains the batch.
+  const pendingTurnsRef = useRef<ThreadTurn[]>([]);
+  const flushTimerRef = useRef<number | null>(null);
   // Wake-phrase watcher (browser SpeechRecognition), alive only while paused.
   // Declared before every callback that captures it (React Compiler contract).
   const wakeRecRef = useRef<WakeRecognizer | null>(null);
@@ -156,6 +183,68 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     paramsRef.current = params;
   }, [params]);
 
+  // 2026-08-14 (voice-turns): drain the pending queue into one POST. Capture
+  // is BEST-EFFORT: a failed flush warns (counts only — never turn content)
+  // and DROPS the batch; no retry loop may ever disturb the live session.
+  // Always clears the debounce timer first so stop()/unmount leave nothing
+  // armed.
+  const flushPendingTurns = useCallback(() => {
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    if (pendingTurnsRef.current.length === 0) return;
+    const conversationId = conversationIdRef.current;
+    if (!conversationId) {
+      // No conversation to attach to — drop rather than leak turns into a
+      // future session's thread.
+      pendingTurnsRef.current = [];
+      return;
+    }
+    const turns = pendingTurnsRef.current;
+    pendingTurnsRef.current = [];
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    void fetch(API_ROUTES.CHAT.VOICE_TURNS, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({
+        conversationId,
+        snapshotId: paramsRef.current.snapshotId,
+        turns,
+      }),
+      // The end-of-session batch must survive unmount/tab-leave.
+      keepalive: true,
+    })
+      .then((res) => {
+        if (!res.ok) console.warn(`[useVoiceSession] voice-turns flush HTTP ${res.status} — dropped ${turns.length} turn(s)`);
+      })
+      .catch(() => {
+        console.warn(`[useVoiceSession] voice-turns flush failed — dropped ${turns.length} turn(s)`);
+      });
+  }, []);
+
+  // Queue one committed turn; arm the debounce timer on the first. Only the
+  // onUserTurnFinal / onModelTurnFinal events feed this — client-synthesized
+  // link messages and relay speech never pass through those events (relay
+  // transcripts are suppressed engine-side), so neither can land here.
+  const queueVoiceTurn = useCallback((role: 'user' | 'assistant', content: string) => {
+    if (!conversationIdRef.current) return; // no session thread to attach to
+    const trimmed = content.trim();
+    if (!trimmed) return; // server 400s empty content — would reject the batch
+    // Server contract caps a turn at 4000 chars; an over-cap turn would 400
+    // the whole batch, so cap here (visible truncation beats a dropped batch).
+    pendingTurnsRef.current.push({ role, content: trimmed.slice(0, 4000) });
+    if (flushTimerRef.current === null) {
+      flushTimerRef.current = window.setTimeout(() => {
+        flushTimerRef.current = null;
+        flushPendingTurns();
+      }, VOICE_TURN_FLUSH_MS);
+    }
+  }, [flushPendingTurns]);
+
   const stop = useCallback(() => {
     // End is FINAL: kill the wake watcher too — nothing listens after End.
     const rec = wakeRecRef.current;
@@ -163,9 +252,15 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     try { rec?.stop(); } catch { /* already stopped */ }
     brainAbortRef.current?.abort();
     brainAbortRef.current = null;
-    conversationIdRef.current = null;
+    // 2026-08-14 (voice-turns): session.stop() runs BEFORE the conversation
+    // id is nulled — engines synchronously commit any buffered final turn
+    // (queued via onModelTurnFinal) and emit 'ended', whose handler flushes
+    // while conversationIdRef is still set. The direct flush below is the
+    // backstop for the no-session path (stop() while already idle).
     sessionRef.current?.stop();
     sessionRef.current = null;
+    flushPendingTurns();
+    conversationIdRef.current = null;
     // Backstop: links never vanish because the session died before the
     // spoken answer committed.
     const links = pendingLinksRef.current;
@@ -178,7 +273,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     setInterimUser('');
     setInterimModel('');
     setMicPaused(false);
-  }, []);
+  }, [flushPendingTurns]);
 
   const stopWakeWatch = useCallback(() => {
     const rec = wakeRecRef.current;
@@ -241,6 +336,10 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
         setStatus(s);
         setStatusDetail(detail);
         if (s === 'ended') {
+          // 2026-08-14 (voice-turns): flush BEFORE nulling the conversation
+          // id (the batch body needs it) — 'ended' can also arrive from the
+          // server side (socket close) where stop() never ran.
+          flushPendingTurns();
           sessionRef.current = null;
           conversationIdRef.current = null;
         }
@@ -249,6 +348,9 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       onUserTurnFinal: (text: string) => {
         setInterimUser('');
         paramsRef.current.onVoiceTurnFinal?.('user', text);
+        // 2026-08-14 (voice-turns): queue BEFORE the control regexes — a
+        // "goodbye coach" turn belongs to the record, and stop() flushes it.
+        queueVoiceTurn('user', text);
         // Verbal controls — deterministic, evaluated on the committed turn.
         // Stop wins over pause when both match. Resume after a verbal pause
         // is PHYSICAL only (the mic is off — it cannot hear "resume").
@@ -262,7 +364,13 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       onModelTurnFinal: (text: string) => {
         setInterimModel('');
         const clean = sanitizeMouthText(text);
-        if (clean) paramsRef.current.onVoiceTurnFinal?.('assistant', clean);
+        if (clean) {
+          paramsRef.current.onVoiceTurnFinal?.('assistant', clean);
+          // 2026-08-14 (voice-turns): the sanitized on-screen turn is what
+          // persists. The 🔗 links message below stays OUT of the queue —
+          // it is client-synthesized and never passes through this event.
+          queueVoiceTurn('assistant', clean);
+        }
         // The spoken answer is on screen — now its links make sense.
         const links = pendingLinksRef.current;
         if (links) {
@@ -272,32 +380,55 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       },
       onError: (message: string) => setError(message),
     };
-    const brain = (question: string) =>
-      askCoachBrain(
-        {
-          ...paramsRef.current,
-          conversationId: conversationIdRef.current ?? undefined,
-          signal: brainAbortRef.current?.signal,
-          onActionsResult: (payload) =>
-            applyDonePayload(payload, {
-              onNotesSaved: paramsRef.current.onNotesSaved,
-              onActionError: paramsRef.current.onActionError,
-            }),
-          // Links in the brain's answer surface as a tappable thread message
-          // (the mouth's spoken transcript can't carry them). Buffered until
-          // the spoken answer commits — see pendingLinksRef.
-          onBrainAnswer: (displayText) => {
-            const links = extractLinksMessage(displayText);
-            if (links) pendingLinksRef.current = links;
+    // 2026-08-14 (checking indicator): this wrapper is the ONE true begin/end
+    // boundary of a brain call for both engines — the deterministic `checking`
+    // flag lives here (the component renders its "checking…" line off it,
+    // engine-agnostic), never inferred from what the mouth says.
+    const brain = async (question: string) => {
+      checkingCountRef.current += 1;
+      setChecking(true);
+      try {
+        return await askCoachBrain(
+          {
+            ...paramsRef.current,
+            conversationId: conversationIdRef.current ?? undefined,
+            signal: brainAbortRef.current?.signal,
+            // 2026-08-14 (brain-hears): the committed visible thread rides
+            // along so the brain answers in context. Copied — the component
+            // reassigns the ref's array each render, and the request must
+            // carry a stable snapshot of it.
+            threadHistory: paramsRef.current.threadTailRef?.current
+              ? [...paramsRef.current.threadTailRef.current]
+              : undefined,
+            onActionsResult: (payload) =>
+              applyDonePayload(payload, {
+                onNotesSaved: paramsRef.current.onNotesSaved,
+                onActionError: paramsRef.current.onActionError,
+              }),
+            // Links in the brain's answer surface as a tappable thread message
+            // (the mouth's spoken transcript can't carry them). Buffered until
+            // the spoken answer commits — see pendingLinksRef.
+            onBrainAnswer: (displayText) => {
+              const links = extractLinksMessage(displayText);
+              if (links) pendingLinksRef.current = links;
+            },
           },
-        },
-        question
-      );
+          question
+        );
+      } finally {
+        checkingCountRef.current -= 1;
+        if (checkingCountRef.current === 0) setChecking(false);
+      }
+    };
     const opts = {
       userId: params.userId,
       snapshotId: params.snapshotId,
       events,
       askCoachBrain: brain,
+      // 2026-08-14 (continuity): render-time-fresh committed-thread reader —
+      // engines call it at (re)connect to bridge recent conversation into a
+      // fresh session's instructions (formatThreadTail caps it there).
+      getThreadTail: () => paramsRef.current.threadTailRef?.current ?? [],
     };
 
     const session: VoiceSession =
@@ -313,7 +444,7 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
       sessionRef.current = null;
       conversationIdRef.current = null;
     }
-  }, [mode, params.userId, params.snapshotId, stop, pauseMic]);
+  }, [mode, params.userId, params.snapshotId, stop, pauseMic, flushPendingTurns, queueVoiceTurn]);
 
   /** iOS audio unlock — call from any real user gesture (see VoiceSession). */
   const unlockAudio = useCallback(() => {
@@ -344,6 +475,8 @@ export function useVoiceSession(params: UseVoiceSessionParams) {
     interimUser,
     interimModel,
     micPaused,
+    /** True while ≥1 brain call is in flight (deterministic, engine-agnostic). */
+    checking,
     error,
     start,
     stop,

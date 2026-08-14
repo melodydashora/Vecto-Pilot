@@ -15,6 +15,7 @@ import { dayPartLabel } from '../../lib/location/daypart.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { getRoleConfig } from '../../lib/ai/model-registry.js';
+import { buildLearnedDigest } from '../../lib/ai/mouth-digest.js';
 // Node.js 18+ has built-in fetch — no import needed
 
 const router = Router();
@@ -94,6 +95,14 @@ router.post('/token', requireAuth, async (req, res) => {
         console.warn('[COACH] [REALTIME] could not fetch snapshot context:', err.message);
       }
     }
+
+    // 2026-08-14 (feed-the-mouth): what the brain has learned about this
+    // driver — top memos + notes, assembled and capped in mouth-digest.js.
+    // Parity with gemini-live.js so context is provider-agnostic. AUTHENTICATED
+    // id only (never the body's userId). Optional data: buildLearnedDigest
+    // never throws (→ null), so the mint never fails because the digest did.
+    const learned = await buildLearnedDigest(req.auth?.userId);
+    if (learned) context.learned = learned;
 
     // Mint the ephemeral client_secret via the GA endpoint.
     // (Voice choice can be parameterized later; 'alloy' is a safe default.)

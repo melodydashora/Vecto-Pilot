@@ -12,7 +12,11 @@ import { eq, desc, sql } from 'drizzle-orm';
 import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
+import { voiceTurnsLimiter } from '../../middleware/rate-limit.js';
 import { validateAction } from '../rideshare-coach/validate.js';
+// 2026-08-14 (voice-turns): model provenance for voice_transcript rows comes
+// from the registry (COACH_VOICE_LIVE role), never a hardcoded model string.
+import { getRoleConfig } from '../../lib/ai/model-registry.js';
 // @ts-ignore
 import { getEnhancedProjectContext } from '../../agent/enhanced-context.js';
 
@@ -1319,6 +1323,11 @@ END OFFER ANALYZER RULES (read-only — propose changes via [COACH_MEMO])
         // Previous prompt claimed shell, file system, DDL, network, MCP, and autonomous
         // capabilities that this chat endpoint does NOT implement. The LLM has READ access
         // to snapshot/strategy context and can provide advice, but cannot execute commands.
+        // 2026-08-14 (honesty): "Persistent conversation history (cross-session via
+        // coach_conversations)" claim corrected — this prompt never reads
+        // coach_conversations; in-conversation continuity is the client-sent
+        // threadHistory, and cross-session learning flows through notes, memos,
+        // system notes, and offer history loaded into the context above.
       systemPrompt += `
 
 ══════════════════════════════════════════════════════════════════════════
@@ -1337,7 +1346,7 @@ You have elevated context access for deeper system insight.
 📊 Read Access:
 - Full snapshot history and strategy data for this user
 - Market intelligence, venue catalog, zone intelligence
-- Coach conversation history and system notes
+- System notes and coach memos about this driver (not raw conversation history — continuity comes from the thread the client sends)
 - Driver profile and vehicle data
 - Event data, briefings, and offer intelligence
 
@@ -1348,7 +1357,8 @@ You have elevated context access for deeper system insight.
 - Coach memos — feature requests, TODOs, bugs (docs/coach-inbox.md)
 
 Memory & Context:
-- Persistent conversation history (cross-session via coach_conversations)
+- In-conversation continuity from the thread history the client sends with each message (this prompt does not read coach_conversations)
+- Cross-session learning via your saved notes, coach memos, system notes, and offer history (loaded into your context above)
 - Google Search via Gemini tools for real-time research
 
 **When Melody sends a screenshot or image:**
@@ -1666,6 +1676,83 @@ Full transparency. Maximum insight.
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
     }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VOICE THREAD PERSISTENCE (2026-08-14 — Coach learning loop, capture end)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 2026-08-14 (voice-turns): uuid shape check for client-supplied ids — the
+// columns are uuid-typed, so a malformed id must 400 loudly here instead of
+// dying as a silent null from the non-throwing DAL insert.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// POST /api/chat/voice-turns — persist committed voice-thread turns VERBATIM.
+// These rows are what the driver actually said/heard in a live voice session
+// (content_type 'voice_transcript'). Brain-routed exchanges are stored
+// separately by the main POST handler above with the mouth's RESTATED
+// question — both records coexist intentionally, with distinct provenance.
+// SECURITY: Requires auth; snapshotId (when present) must be owned by the
+// authenticated user — mismatch is 404 (anti-enumeration, shared guard).
+router.post('/voice-turns', requireAuth, voiceTurnsLimiter, async (req, res) => {
+  const { conversationId, snapshotId, turns } = req.body;
+  const authUserId = req.auth.userId;
+
+  // Fail loud on contract violations — descriptive 400s, no silent trimming.
+  if (typeof conversationId !== 'string' || !UUID_RE.test(conversationId)) {
+    return res.status(400).json({ error: 'conversationId (uuid string) required' });
+  }
+  if (snapshotId !== undefined && snapshotId !== null
+      && (typeof snapshotId !== 'string' || !UUID_RE.test(snapshotId))) {
+    return res.status(400).json({ error: 'snapshotId must be a uuid string when provided' });
+  }
+  if (!Array.isArray(turns) || turns.length < 1 || turns.length > 50) {
+    return res.status(400).json({ error: 'turns must be an array of 1..50 items' });
+  }
+  for (let i = 0; i < turns.length; i++) {
+    const t = turns[i];
+    if (!t || (t.role !== 'user' && t.role !== 'assistant')) {
+      return res.status(400).json({ error: `turns[${i}].role must be 'user' or 'assistant'` });
+    }
+    if (typeof t.content !== 'string' || t.content.trim().length === 0) {
+      return res.status(400).json({ error: `turns[${i}].content must be a non-empty string` });
+    }
+    if (t.content.length > 4000) {
+      return res.status(400).json({ error: `turns[${i}].content exceeds 4000 chars` });
+    }
+  }
+
+  try {
+    if (snapshotId) {
+      const owned = await verifySnapshotOwnership(snapshotId, authUserId);
+      if (!owned.ok) return res.status(owned.status).json(owned.body);
+    }
+
+    const voiceModel = getRoleConfig('COACH_VOICE_LIVE').model;
+
+    // saveConversationMessage is non-throwing (null on failure) — count what
+    // actually landed and report it honestly instead of assuming all saved.
+    let saved = 0;
+    for (const turn of turns) {
+      const row = await rideshareCoachDAL.saveConversationMessage({
+        user_id: authUserId,
+        snapshot_id: snapshotId ?? null,
+        conversation_id: conversationId,
+        role: turn.role,
+        content: turn.content,
+        content_type: 'voice_transcript',
+        model_used: voiceModel,
+      });
+      if (row) saved++;
+    }
+
+    // Counts + truncated ids only — never turn content — in logs.
+    console.log(`[COACH] [VOICE-TURNS] saved ${saved}/${turns.length} for conv ${conversationId.slice(0, 8)}`);
+    res.json({ ok: true, saved });
+  } catch (error) {
+    console.error('[COACH] [VOICE-TURNS] error:', error.message);
+    res.status(500).json({ ok: false, error: error.message });
   }
 });
 

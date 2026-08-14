@@ -68,6 +68,24 @@ export const offerHookLimiter = rateLimit({
   }
 });
 
+// 2026-08-14: Voice-turns capture limiter — POST /api/chat/voice-turns writes
+// up to 50 coach_conversations rows per call (review finding: unmetered bulk
+// writes). The client flushes on a 3s debounce → ≤20 legitimate calls/min;
+// 25/min per authenticated user leaves headroom without letting one account
+// bulk-write. Keyed by user id (route runs after requireAuth), not IP — many
+// drivers share carrier NATs.
+export const voiceTurnsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 25,
+  message: {
+    ok: false,
+    error: 'Voice transcript capture rate limit exceeded.'
+  },
+  standardHeaders: true,
+  validate: { keyGeneratorIpFallback: false },
+  keyGenerator: (req) => req.auth?.userId || req.ip
+});
+
 // 2026-04-05: SECURITY — Global rate limiter for all /api routes (CodeQL: missing rate limiting)
 // Applied in server/bootstrap/middleware.js on all /api/* routes.
 // Per-route limiters (expensiveEndpointLimiter, chatLimiter) are stricter overrides.
