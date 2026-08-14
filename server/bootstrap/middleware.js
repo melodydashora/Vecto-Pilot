@@ -224,6 +224,11 @@ export async function configureMiddleware(app) {
   app.use('/api/chat', express.json({ limit: '10mb' }));
   // 2026-02-16: /api/hooks needs larger limit for base64 image payloads (Siri Vision shortcut)
   app.use('/api/hooks', express.json({ limit: '5mb' }));
+  // 2026-08-14: Shortcuts "Form" bodies with only text fields ship as
+  // application/x-www-form-urlencoded — which NOTHING parsed (root cause of
+  // Melody's analyze-offer-text 400: req.body arrived empty). Drivers build
+  // shortcuts by hand; both Form and JSON must work on the hooks surface.
+  app.use('/api/hooks', express.urlencoded({ extended: true, limit: '5mb' }));
   app.use('/api', express.json({ limit: '1mb' }));
   app.use('/agent', express.json({ limit: '1mb' }));
 

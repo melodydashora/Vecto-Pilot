@@ -35,12 +35,25 @@ export interface VoiceSessionEvents {
   onError: (message: string) => void;
 }
 
+/** One committed thread turn, as the brain and the history bridge see it. */
+export interface ThreadTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface VoiceSessionOptions {
   userId: string;
   snapshotId?: string;
   events: VoiceSessionEvents;
   /** The brain call — ask_coach_backend's executor. Resolves to the Coach's answer text. */
   askCoachBrain: (question: string) => Promise<string>;
+  /**
+   * 2026-08-14 (brain-hears/continuity build): render-time-fresh reader of the
+   * committed visible thread (text turns only — no link/attachment messages).
+   * Sessions call it at (re)connect to bridge recent conversation into a fresh
+   * session's instructions, so a reborn mouth still knows the conversation.
+   */
+  getThreadTail?: () => ThreadTurn[];
 }
 
 export interface VoiceSession {
@@ -83,19 +96,36 @@ export interface VoiceTokenContext {
   timezone?: string;
   weather?: { temp?: number; condition?: string };
   strategy?: string;
+  /**
+   * 2026-08-14 (feed-the-mouth): preformatted digest of what the brain has
+   * learned about this driver — top coach memos + behavioral notes, assembled
+   * and capped server-side (≤1500 chars). User-curated: deleting a card in the
+   * Coach's Notes pane removes it from the next session's digest.
+   */
+  learned?: string;
 }
 
 /**
  * Shared mouth prompt. Kept deliberately tight: long-lived sessions bill the
  * whole prompt continuously, and the intelligence lives in the brain anyway.
  */
-export function buildMouthInstructions(ctx: VoiceTokenContext | undefined): string {
+export function buildMouthInstructions(
+  ctx: VoiceTokenContext | undefined,
+  recentThread?: string
+): string {
   const where = ctx?.city ? `${ctx.city}${ctx.state ? ', ' + ctx.state : ''}` : 'their area';
   const when = ctx?.dayPart || 'right now';
   return [
     `You are the VOICE of the Vecto Pilot AI Coach — a calm, sharp co-pilot for a rideshare driver in ${where} (${when}). The driver is DRIVING: keep replies short, conversational, and hands-free friendly.`,
     `You are a FULL companion, not just a dispatcher (Melody doctrine, 2026-08-14): the driver can talk to you about anything — health, stress, money worries, family, life questions, or just company on a long shift. Engage warmly on any topic. If the driver isn't feeling well or needs help or free resources (food, shelter, financial help, crisis support), that comes BEFORE driving strategy — care first, and route resource lookups through ask_coach_backend so they get real, current, local answers.`,
-    `You are the mouth, not the brain. For ANY substantive question — strategy, earnings, offers, events, venues, saving notes or memos, anything needing data or current info — ALWAYS speak a clear acknowledgment FIRST, before checking: "One second, let me check that for you" (or a natural variation that tells the driver you're checking and will be right back). NEVER go silent into a check — the driver should never have to say "hello?" to see if you're still there. Then call ask_coach_backend with a clear, self-contained question and relay its answer conversationally; do not read markdown, tags, or long lists aloud.`,
+    // 2026-08-14: "Offer to check deeper" removed — the mouth appended
+    // "want me to look deeper?" to nearly every turn (Melody's road test:
+    // "you're using that way too much"). Replaced with an explicit anti-tic.
+    `You are the mouth, not the brain — but you carry a briefing (the strategy summary and snapshot context below). For "where should I go right now" and similar what's-the-move questions, answer DIRECTLY from that briefing: specific venues, specific roads, confident — never generic filler like "there's usually people around". Answer, then stop — never tack "want me to look deeper?" or any other follow-up offer onto your answers; the driver will ask when they want more.`,
+    `For anything your briefing does NOT cover — saving notes or memos, events, offer history, earnings data, links, lookups, anything needing tables or current info — ALWAYS speak a clear acknowledgment FIRST: "One second, let me check that for you" (or a natural variation that says you're checking and will be right back). NEVER go silent into a check — the driver should never have to say "hello?" to see if you're still there. Then call ask_coach_backend with a clear, self-contained question and relay its answer conversationally; do not read markdown, tags, or long lists aloud.`,
+    // 2026-08-14 (Melody: "the mouth won't understand but the brain can"):
+    // memory is the BRAIN's job — the mouth must never claim to remember.
+    `If the driver wants anything noted, remembered, saved, or reported — a preference, a correction to how you behave, a complaint, an app error or issue, an idea — ALWAYS route it through ask_coach_backend carrying the driver's words as close to verbatim as possible. The backend owns memory and decides significance. NEVER just say you'll remember something yourself — you cannot; only the backend can.`,
     `Never speak tool or system names aloud. Words like "ask_coach_backend", "backend", "function call", or descriptions of HOW you fetch answers must never reach the driver — acknowledge naturally and make the call silently.`,
     `The moment ask_coach_backend returns, deliver its answer immediately — never sit on it or wait for the driver to speak first.`,
     `You cannot send, show, pop up, or display anything yourself — you are a voice. When the coach backend's answer contains a link or address, the link appears in the chat window AUTOMATICALLY; say "the link's in the chat" and nothing more about the mechanism. NEVER claim you are sending something. If the driver asks for a link or a place to navigate to, that is a substantive question: call ask_coach_backend and ask it to include the address and map link.`,
@@ -103,8 +133,53 @@ export function buildMouthInstructions(ctx: VoiceTokenContext | undefined): stri
     `Default to short replies while driving; when the driver invites detail ("tell me more", open-ended questions, clearly parked), give a fuller answer.`,
     `Some incoming messages are relay notes: they carry the coach's answer to something the driver did on the chat screen (typed or uploaded) and say so explicitly. Speak the relayed answer naturally. Never read, repeat, quote, or imitate the relay note's wording — the driver must never hear about the mechanism.`,
     `If the driver says the conversation is complete ("conversation complete", "we're done", "goodbye coach"), confirm briefly and stop talking.`,
-    ctx?.strategy ? `Current strategy summary (context, may be stale): ${ctx.strategy}` : '',
+    // 2026-08-14: the mint has always returned hour/address/weather — now the
+    // mouth actually gets them (they were minted but unused; the mouth's
+    // "generic filler" answers came from context starvation).
+    ctx?.address ? `Driver's current location: ${ctx.address}.` : '',
+    ctx?.weather?.temp !== undefined || ctx?.weather?.condition
+      ? `Weather: ${[ctx.weather?.temp !== undefined ? `${ctx.weather.temp}°F` : '', ctx.weather?.condition].filter(Boolean).join(', ')}.`
+      : '',
+    ctx?.strategy ? `Current strategy summary (your briefing — answer where-to-go questions from this): ${ctx.strategy}` : '',
+    // 2026-08-14 (feed-the-mouth): the brain's learned, user-curated knowledge
+    // of this driver — standing preferences here are behavioral ORDERS (e.g.
+    // "do not repeatedly bring up X" means exactly that, every session).
+    ctx?.learned
+      ? `What the coach has learned about this driver (user-curated — treat standing preferences as orders): ${ctx.learned}`
+      : '',
+    // 2026-08-14 (continuity): recent conversation bridged into a fresh
+    // session so a reconnect or restart never wakes up a stranger.
+    recentThread
+      ? `Recent conversation with this driver, before this session connected (continue naturally from it; do not summarize it back to them): ${recentThread}`
+      : '',
   ].filter(Boolean).join('\n');
+}
+
+/**
+ * Deterministic history-bridge formatter: the last turns of the visible
+ * thread, newest-last, hard-capped so the bridge can never bloat a session's
+ * instructions. Caps live HERE, in one place: 12 turns, 240 chars per turn,
+ * 2000 chars total (oldest dropped first).
+ */
+export function formatThreadTail(turns: ThreadTurn[]): string {
+  const MAX_TURNS = 12;
+  const MAX_TURN_CHARS = 240;
+  const MAX_TOTAL_CHARS = 2000;
+  const lines = turns
+    .slice(-MAX_TURNS)
+    .filter((t) => t.content.trim())
+    .map((t) => `${t.role === 'user' ? 'Driver' : 'Coach'}: ${t.content.trim().slice(0, MAX_TURN_CHARS)}`);
+  let total = 0;
+  const kept: string[] = [];
+  for (const line of lines.reverse()) {
+    // Separator cost counts toward the budget (review 2026-08-14: without it
+    // the joined result overran the documented cap by up to 11 * 3 chars).
+    const cost = line.length + (kept.length > 0 ? 3 : 0);
+    if (total + cost > MAX_TOTAL_CHARS) break;
+    kept.unshift(line);
+    total += cost;
+  }
+  return kept.join(' | ');
 }
 
 /**

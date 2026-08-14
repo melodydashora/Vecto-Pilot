@@ -16,6 +16,7 @@ import { requireAuth } from '../../middleware/auth.js';
 import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { getRoleConfig } from '../../lib/ai/model-registry.js';
 import { mintGeminiLiveToken } from '../../lib/ai/adapters/gemini-live-adapter.js';
+import { buildLearnedDigest } from '../../lib/ai/mouth-digest.js';
 
 const router = Router();
 
@@ -79,13 +80,25 @@ router.post('/token', requireAuth, async (req, res) => {
             hour: fullContext.snapshot.hour,
             address: fullContext.snapshot.formatted_address,
             timezone: fullContext.snapshot.timezone,
-            strategy: fullContext.strategy?.strategy_for_now?.substring(0, 500),
+            // 2026-08-14: 500 → 1500. The mouth now answers "where should I
+            // go right now" directly from this summary (Melody: "it should be
+            // able to give where to go now based off of the snapshot") — 500
+            // chars starved it into generic answers.
+            strategy: fullContext.strategy?.strategy_for_now?.substring(0, 1500),
           };
         }
       } catch (err) {
         console.warn('[COACH] [GEMINI-LIVE] could not fetch snapshot context:', err.message);
       }
     }
+
+    // 2026-08-14 (feed-the-mouth): what the brain has learned about this
+    // driver — top memos + notes, assembled and capped in mouth-digest.js.
+    // AUTHENTICATED id only (never the body's userId — that would let a caller
+    // mint another driver's learned digest). Optional data: buildLearnedDigest
+    // never throws (→ null), so the mint never fails because the digest did.
+    const learned = await buildLearnedDigest(req.auth?.userId);
+    if (learned) context.learned = learned;
 
     const minted = await mintGeminiLiveToken({ model: roleConfig.model });
     console.log('[COACH] [GEMINI-LIVE] ephemeral token minted', {

@@ -239,3 +239,18 @@ Items are appended here automatically when the coach uses `[COACH_MEMO]` action 
 ### [FEATURE_REQUEST] Add Expandable Chat View or Onboarding for Coach UI
 - **Priority:** medium | **Date:** 2026-08-13 21:32
 - Drivers are confused by the top-bar AI interface. Consider adding a pull-down or expand button to show a traditional chat history view, or add a first-time tooltip explaining that it is a voice-first HUD meant to keep the map visible.
+
+### [BUG] Race condition in Coach context initialization
+- **Priority:** high | **Date:** 2026-08-14 04:04
+- Melody noticed the AI Coach didn't know her location on the first voice turn, but had it on the second. This indicates the voice session is likely connecting and accepting audio before the snapshot context builder (getCompleteContext) finishes injecting the current location into the system prompt. We need to ensure the context payload is fully loaded before the microphone goes live.
+  - Files: server/lib/ai/rideshare-coach-dal.js, server/api/chat/realtime.js
+
+### [FEATURE_REQUEST] Build Android client shell for Offer Analyzer
+- **Priority:** high | **Date:** 2026-08-14 04:19
+- Melody is testing offer analysis on Android and needs the automated client shell. The 3-5s window makes manual sharing impossible. We need to implement either a Tasker profile template for users or a native Android Accessibility Service to capture screen text/screenshots and POST to /api/hooks/analyze-offer.
+  - Files: docs/architecture/OFFER_ANALYZER.md
+
+### [TODO] Assist Melody with Android Offer Analyzer port
+- **Priority:** high | **Date:** 2026-08-14 04:20
+- Melody is feeding the Siri Shortcut logic into Claude to build an Android equivalent. Claude Code should review docs/architecture/OFFER_ANALYZER.md (Section 14) and docs/architecture/SIRI_SHORTCUT_ANALYZE.md to help generate a Tasker profile XML or a native Android Accessibility Service.
+  - Files: docs/architecture/OFFER_ANALYZER.md, docs/architecture/SIRI_SHORTCUT_ANALYZE.md

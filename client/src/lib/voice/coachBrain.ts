@@ -17,6 +17,7 @@ import { STORAGE_KEYS } from '@/constants/storageKeys';
 import { cleanTextForTTS } from '@/utils/coach/cleanTextForTTS';
 import { stripActionTags } from '@/utils/coach/stripActionTags';
 import type { DonePayloadMeta } from '@/utils/coach/actionsResult';
+import type { ThreadTurn } from './types';
 
 export interface CoachBrainParams {
   userId: string;
@@ -35,6 +36,13 @@ export interface CoachBrainParams {
    * single coach_conversations id server-side.
    */
   conversationId?: string;
+  /**
+   * 2026-08-14 (brain-hears): recent committed thread turns (text only), the
+   * same [{role, content}] shape typed chat sends — the server builds
+   * messageHistory from it, so the brain answers "should I take it?" knowing
+   * what "it" is. Capped to the last 20 turns at send time.
+   */
+  threadHistory?: ThreadTurn[];
   /** External abort (session teardown) — combined with the 60s timeout. */
   signal?: AbortSignal;
   /** Done-payload metadata (actions_result / persistence_error) consumer. */
@@ -57,7 +65,7 @@ const BRAIN_TIMEOUT_MS = 60_000;
  * session degrades loudly, never silently.
  */
 export async function askCoachBrain(
-  { userId, snapshotId, snapshot, conversationId, signal, onActionsResult, onBrainAnswer }: CoachBrainParams,
+  { userId, snapshotId, snapshot, conversationId, threadHistory, signal, onActionsResult, onBrainAnswer }: CoachBrainParams,
   question: string
 ): Promise<string> {
   const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -78,10 +86,13 @@ export async function askCoachBrain(
       body: JSON.stringify({
         userId,
         message: question,
-        // Stateless per question: the live session holds conversational
-        // context in the mouth model; the mouth is instructed to restate
-        // questions self-contained.
-        threadHistory: [],
+        // 2026-08-14 (brain-hears): was hard-coded [] — "stateless per
+        // question" made every brain call amnesiac ("should I take it?"
+        // arrived with no "it"). The caller now passes the committed visible
+        // thread and the server builds messageHistory from it, exactly like
+        // typed chat. Capped to the last 20 turns so long sessions can't
+        // bloat the request.
+        threadHistory: (threadHistory ?? []).slice(-20),
         snapshotId,
         snapshot,
         conversationId,

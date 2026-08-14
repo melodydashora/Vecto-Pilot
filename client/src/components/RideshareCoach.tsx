@@ -19,6 +19,9 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 // 'classic' in localStorage); the GPT Realtime arm stays in code, unreferenced
 // by any UI.
 import { useVoiceSession, getStoredVoiceMode } from "@/hooks/coach/useVoiceSession";
+import type { ThreadTurn } from "@/lib/voice/types";
+import { COACH_VOICE_OPTIONS } from "@/lib/voice/voices";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // 2026-04-29: TTS speed-selector tier values, used in the chip UI.
 const SPEED_OPTIONS: CoachPlaybackSpeed[] = [1.0, 1.25, 1.5, 2.0];
@@ -170,6 +173,13 @@ export default function RideshareCoach({
   // useCoachChat returns setMessages (same render-time ref idiom as
   // onSilenceRef) — useVoiceSession is composed before the chat hook.
   const appendVoiceTurnRef = useRef<((role: 'user' | 'assistant', text: string) => void) | undefined>(undefined);
+  // 2026-08-14 (brain-hears/continuity): render-time-fresh mirror of the
+  // committed thread for the voice stack — brain calls read it as
+  // threadHistory; engines read it at (re)connect via getThreadTail.
+  // Declared BEFORE useVoiceSession (which consumes it), reassigned each
+  // render AFTER useCoachChat returns msgs — same bridge pattern as
+  // appendVoiceTurnRef above.
+  const threadTailRef = useRef<ThreadTurn[]>([]);
 
   // 2026-01-05: Notes CRUD functions with optimistic UI — defined before useCoachChat
   // so the hook's onNotesSaved callback can reference fetchNotes directly.
@@ -207,6 +217,7 @@ export default function RideshareCoach({
       day_part_key: snapshot.day_part_key,
     } : undefined,
     onVoiceTurnFinal: (role, text) => appendVoiceTurnRef.current?.(role, text),
+    threadTailRef,
     onNotesSaved: fetchNotes,
     onActionError: (messages) => {
       setVoiceActionErrors(messages);
@@ -292,13 +303,28 @@ export default function RideshareCoach({
     _setMsgs((m) => [...m, { role, content: text, timestamp: Date.now() }]);
   };
 
+  // 2026-08-14 (brain-hears/continuity): mirror the committed thread into the
+  // voice stack each render — TEXT turns only. Excludes attachment messages
+  // (binary payloads aren't conversation text), the client-synthesized 🔗
+  // link messages from useVoiceSession's extractLinksMessage (duplicates of
+  // already-spoken content), and empty placeholders (the streaming assistant
+  // stub commits as '' until deltas arrive).
+  threadTailRef.current = msgs
+    .filter((m) =>
+      !(m.attachments && m.attachments.length > 0) &&
+      !m.content.startsWith('🔗') &&
+      m.content.trim() !== ''
+    )
+    .map((m) => ({ role: m.role, content: m.content }));
+
   // 2026-08-14 (unified voice thread): keep the growing interim transcript
-  // line in view, same as streamed message deltas.
+  // line in view, same as streamed message deltas. voice.checking joins the
+  // trigger list — the "checking…" line renders in the same slot.
   useEffect(() => {
-    if (voice.interimUser || voice.interimModel) {
+    if (voice.interimUser || voice.interimModel || voice.checking) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [voice.interimUser, voice.interimModel, messagesEndRef]);
+  }, [voice.interimUser, voice.interimModel, voice.checking, messagesEndRef]);
 
   const handleOpenCamera = useCallback(() => {
     setAttachMenuOpen(false);
@@ -501,6 +527,24 @@ export default function RideshareCoach({
     }
   }, [isListening, isSpeaking, warmUp, stopMic, clearTranscript, startMic, stopSpeak, send, streaming]);
 
+  // 2026-08-14 (Melody): Coach voice picker lives in the header — she's
+  // actively voice-shopping and Settings round-trips were too slow. Changing
+  // while live restarts the session (her tap = the authorizing act) so the
+  // new voice speaks immediately.
+  const [coachVoiceName, setCoachVoiceName] = useState<string>(
+    () => localStorage.getItem(STORAGE_KEYS.COACH_VOICE_NAME) ?? ''
+  );
+  const handleVoiceNameChange = useCallback((value: string) => {
+    const name = value === 'default' ? '' : value;
+    if (name) localStorage.setItem(STORAGE_KEYS.COACH_VOICE_NAME, name);
+    else localStorage.removeItem(STORAGE_KEYS.COACH_VOICE_NAME);
+    setCoachVoiceName(name);
+    if (voice.isLive) {
+      voice.stop();
+      void voice.start();
+    }
+  }, [voice.isLive, voice.stop, voice.start]);
+
   // 2026-08-14 (Melody: "take the green mic out... gemini live that can also
   // pause for uploads"): the live-mode mic button is a PAUSE/RESUME toggle
   // only — sessions start automatically on tab entry (green start mic gone).
@@ -524,20 +568,32 @@ export default function RideshareCoach({
 
   // 2026-08-14 (Melody: "clicking on the coach tab didn't automatically start
   // the discussion"): entering the Coach tab IS the start gesture — the live
-  // session auto-starts on mount. Before starting, hard-kill any classic
+  // session auto-starts. Before starting, hard-kill any classic
   // audio still playing from a previous visit (live test 2026-08-14: classic
   // TTS and Gemini Live talked over each other; Gemini's VAD then treated the
-  // classic voice as barge-in). Mount-only; leaving the tab tears the session
+  // classic voice as barge-in). Leaving the tab tears the session
   // down via useVoiceSession's unmount effect. After that, pause/End obey the
   // tap-to-talk invariant — nothing here restarts a session she ended.
+  //
+  // 2026-08-14 road test ("will everyone have to tell you where they are?"):
+  // auto-start now WAITS for the snapshot. Starting before it resolved minted
+  // a token with no location/strategy — a blind mouth whose first answer was
+  // "what city are you in?". The snapshot is the product's ground truth; the
+  // session starts when it exists. autoStartedRef fires the auto-start ONCE
+  // per mount: a later snapshot refresh must never resurrect an ended session
+  // (End is final). No snapshot (GPS off) → no auto-start; the strip's manual
+  // start remains the driver's explicit choice.
+  const autoStartedRef = useRef(false);
   useEffect(() => {
     if (getStoredVoiceMode() === 'classic') return;
+    if (!snapshotId || autoStartedRef.current) return;
+    autoStartedRef.current = true;
     manualStopRef.current = true;
     stopMic();
     try { streaming.abort(); } catch { /* no-op */ }
     try { stopSpeak(); } catch { /* no-op */ }
     void voice.start();
-  }, []); // Mount-only, intentional — tab entry is the one auto-start
+  }, [snapshotId]); // Fires once, when the snapshot is ready
 
   // iOS keeps playback AudioContexts suspended until a REAL user gesture, and
   // an auto-started session has none — unlock on the first tap anywhere.
@@ -672,8 +728,30 @@ export default function RideshareCoach({
               goes stale the moment the registry swaps models. */}
           <p className="text-xs text-white/80">Your AI co-pilot</p>
         </div>
-        {/* 2026-08-14 (Melody): engine dropdown removed — one Coach, one
-            voice (Gemini Live, auto-started). See imports comment. */}
+        {/* 2026-08-14 (Melody): engine dropdown removed — one Coach (Gemini
+            Live, auto-started). Its slot now holds the VOICE picker: she's
+            choosing the one voice by ear, live-restart on change. */}
+        {voice.mode !== 'classic' && (
+          <Select
+            value={coachVoiceName === '' ? 'default' : coachVoiceName}
+            onValueChange={handleVoiceNameChange}
+          >
+            <SelectTrigger
+              className="h-7 w-[130px] border-white/30 bg-white/10 text-white text-xs focus:ring-white/40"
+              data-testid="select-coach-voice"
+              title="Coach voice"
+            >
+              <SelectValue placeholder="Voice" />
+            </SelectTrigger>
+            <SelectContent>
+              {COACH_VOICE_OPTIONS.map((v) => (
+                <SelectItem key={v.value || 'default'} value={v.value === '' ? 'default' : v.value}>
+                  {v.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {/* 2026-04-13: Voice Output Toggle. 2026-08-14: classic-only — these
             controls configure the classic TTS pipeline, which is suppressed
             entirely while a live engine is selected (live mouth owns audio). */}
@@ -773,7 +851,11 @@ export default function RideshareCoach({
               size="sm"
               variant="destructive"
               className="h-6 text-xs"
-              onClick={voice.stop}
+              // Review 2026-08-14 (End-is-final, confirmed 3/3): spend the
+              // one-shot auto-start on End too — a driver who manually started
+              // pre-snapshot and tapped End must not be resurrected when the
+              // first snapshot resolves and fires the auto-start effect.
+              onClick={() => { autoStartedRef.current = true; voice.stop(); }}
               data-testid="button-voice-end"
             >
               End
@@ -782,7 +864,9 @@ export default function RideshareCoach({
             <Button
               size="sm"
               className="h-6 text-xs bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => void voice.start()}
+              // Manual start also spends the auto-start: the driver took
+              // control of the session lifecycle (same review finding).
+              onClick={() => { autoStartedRef.current = true; void voice.start(); }}
               data-testid="button-voice-start"
             >
               Resume voice
@@ -1050,6 +1134,22 @@ export default function RideshareCoach({
           <p className="text-sm leading-relaxed italic opacity-70" data-testid="interim-model">
             <span className="font-semibold text-blue-700 dark:text-blue-300">Coach: </span>
             <span className="text-blue-900 dark:text-blue-200">{voice.interimModel}</span>
+          </p>
+        )}
+        {/* 2026-08-14 (checking indicator): deterministic brain-call feedback,
+            keyed off the hook's checking flag (the shared brain wrapper), so
+            it renders for BOTH voice arms automatically. Transcript-styled
+            like the interim lines above; Tailwind's built-in animate-bounce
+            staggered inline — no custom keyframe. */}
+        {voice.checking && (
+          <p className="text-sm leading-relaxed italic opacity-70" data-testid="brain-checking">
+            <span className="font-semibold text-blue-700 dark:text-blue-300">Coach: </span>
+            <span className="text-blue-900 dark:text-blue-200">
+              checking
+              <span className="inline-block animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
+              <span className="inline-block animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
+              <span className="inline-block animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+            </span>
           </p>
         )}
         <div ref={messagesEndRef} />

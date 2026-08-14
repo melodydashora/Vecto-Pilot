@@ -1409,7 +1409,7 @@ export const coach_conversations = pgTable("coach_conversations", {
   // Message content
   role: text("role").notNull(), // 'user' | 'assistant' | 'system'
   content: text("content").notNull(), // The actual message content
-  content_type: text("content_type").default('text'), // 'text' | 'image' | 'file'
+  content_type: text("content_type").default('text'), // 'text' | 'image' | 'file' | 'voice_transcript' (2026-08-14: verbatim voice-thread turns via POST /api/chat/voice-turns)
 
   // Metadata for learning
   topic_tags: jsonb("topic_tags").default(sql`'[]'`), // AI-classified topics: ['staging', 'surge', 'earnings']

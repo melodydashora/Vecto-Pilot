@@ -153,6 +153,9 @@ export const API_ROUTES = {
   CHAT: {
     SEND: '/api/chat',
     LEGACY_SEND: '/api/chat/send',
+    // 2026-08-14 (voice-turns): batched persistence of committed live-voice
+    // turns (useVoiceSession debounce-flush → chat.js 'voice_transcript' rows).
+    VOICE_TURNS: '/api/chat/voice-turns',
   },
 
   COACH: {
