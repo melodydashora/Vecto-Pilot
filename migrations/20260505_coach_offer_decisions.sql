@@ -9,7 +9,7 @@
 -- The Coach has read+write on both tables. Ground-truth fields from this table
 -- can backfill nulls on the linked offer_intelligence row.
 --
--- Write-access ownership: the Coach's action tags (chat.js executeActions); this migration extends it.
+-- See claudeMd Rule 8 for write-access ownership; this migration extends it.
 
 CREATE TABLE IF NOT EXISTS coach_offer_decisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
