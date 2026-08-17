@@ -16,8 +16,10 @@ api/
 ├── coach/          # AI Coach schema, validation, notes CRUD
 ├── feedback/       # User feedback, actions
 ├── health/         # Health checks, diagnostics
+├── hooks/          # Public device hooks: analyze-offer (Offer Analyzer ingest), translate
 ├── intelligence/   # Market intelligence (zones, strategies)
 ├── location/       # GPS, geocoding, snapshots
+├── offer-analyzer/ # Offer Analyzer editor API (rules, shortcut token, offers+outcomes) — authed
 ├── platform/       # Platform data (Uber/Lyft intel)
 ├── research/       # Vector search, research
 ├── strategy/       # Strategy generation
@@ -124,6 +126,17 @@ GET  /api/strategy/:snapshotId   - Get strategy for snapshot
 | `venue-events.js` | `/api/venue/events/*` | Venue-specific events |
 | `closed-venue-reasoning.js` | `/api/closed-venue-reasoning` | GPT-5 venue reasoning |
 | `index.js` | - | Router barrel export |
+
+### hooks/
+| File | Route | Purpose |
+|------|-------|---------|
+| `analyze-offer.js` | `/api/hooks/analyze-offer` (+ `offer-history`, `offer-override`, `offer-cleanup`) | Offer Analyzer ingest from phone shortcuts — public, shortcut-token identity. Doc: `docs/architecture/OFFER_ANALYZER.md` |
+| `translate.js` | `/api/hooks/translate` | Siri translation hook (unrelated to offers) |
+
+### offer-analyzer/
+| File | Route | Purpose |
+|------|-------|---------|
+| `index.js` | `/api/offer-analyzer/*` | Per-driver ruleset GET/PUT, shortcut token mint/rotate/label, offers + outcomes, places search (all `requireAuth`). Doc: `docs/architecture/OFFER_ANALYZER.md` §12 |
 
 ### intelligence/
 | File | Route | Purpose |

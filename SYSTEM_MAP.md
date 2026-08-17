@@ -17,10 +17,10 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │                                                                          │
 │  ⚠️  DUAL AUTH MODEL:                                                    │
 │  • App users: JWT sign-up/sign-in (email + password)                    │
-│  • Headless clients (Siri): device_id only (NO JWT - cannot send       │
-│    Bearer tokens from iOS Shortcuts)                                     │
+│  • Headless clients (phone shortcuts): per-user shortcut token         │
+│    (X-Shortcut-Token; no JWT). device_id = telemetry, not a credential   │
 │  • user_id in offer tables has NO FK constraint (nullable)              │
-│  • device_id → user_id linking happens when driver opens app            │
+│  • user linking = the shortcut token minted on the Offer Analyzer page │
 │                                                                          │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │  iOS Siri Shortcut — THREE INPUT MODES                           │  │
@@ -53,7 +53,7 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │  • Accepts: text, base64 image, or multipart image upload         │  │
 │  │  • Pre-parser: regex extraction                                  │  │
 │  │    (server/lib/offers/parse-offer-text.js)                       │  │
-│  │  • Vision: Gemini 3 Flash extracts data from screenshots          │  │
+│  │  • Vision/text: role OFFER_ANALYZER (pinned gemini-3.5-flash)     │  │
 │  │  • AI Decision: ACCEPT/REJECT with reasoning + confidence score   │  │
 │  │  • Stores to: offer_intelligence table (30+ ML-ready columns)     │  │
 │  │  • NOTE: user_id has NO FK — allows headless inserts              │  │
@@ -77,8 +77,8 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 │  │  • Offer history + outcome recording (offer_outcomes)            │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                                                          │
-│  Additional Headless Endpoints (all device_id auth):                    │
-│  • GET  /api/hooks/offer-history?device_id=xxx&limit=20                 │
+│  Additional Headless Endpoints (shortcut-token REQUIRED, user-scoped):  │
+│  • GET  /api/hooks/offer-history?limit=20  (X-Shortcut-Token header)    │
 │  • POST /api/hooks/offer-override (driver disagrees with AI)            │
 │  • POST /api/hooks/offer-cleanup (maintenance)                          │
 │                                                                          │
@@ -87,8 +87,7 @@ This document provides a complete visual mapping of the Vecto Pilot system, show
 
 ### Why No FK Constraint on user_id?
 
-> **Future consideration:** Could require email/username instead of device_id once
-> Shortcut onboarding is mature. For now, device_id is correct for headless ingestion.
+> **Shipped 2026-07-03:** the shortcut-token identity bridge replaced device_id as the identity for headless ingestion (docs/architecture/OFFER_ANALYZER.md §7). The no-FK rationale below still holds.
 
 | Constraint Type | Problem with Headless Clients |
 |-----------------|-------------------------------|
@@ -112,20 +111,20 @@ iOS Device                      Vecto Server                    Database
     │  2b. JPEG image (Flow B/C)    │                              │
     │  ──────────────────────►      │                              │
     │  POST /api/hooks/analyze-offer│                              │
-    │  { text|image, device_id }    │  ← NO user_id required!      │
-    │                               │                              │
-    │                               │  3a. Text: regex pre-parse   │
-    │                               │  3b. Vision: Gemini Flash    │
-    │                               │      extracts from image     │
-    │                               │  ─────────────────────────►  │
-    │                               │  INSERT offer_intelligence   │
-    │                               │  (30+ structured columns)    │
-    │                               │                              │
+    │  { text|image, source }       │  ← token optional            │
+    │  + X-Shortcut-Token header    │    (no token = default rules)│
+    │                               │  3a. regex pre-parse + rules │
+    │                               │      → fast REJECT (no model)│
+    │                               │  3b. else OFFER_ANALYZER     │
+    │                               │      (text and/or vision)    │
     │  4. Immediate response        │                              │
     │  ◄──────────────────────      │                              │
-    │  { decision: "ACCEPT",        │                              │
-    │    reasoning: "Good $/mi",    │                              │
-    │    confidence: 0.92 }         │                              │
+    │  { voice, notification,       │                              │
+    │    decision, reason, notices }│                              │
+    │                               │  Phase 2 (async, after resp):│
+    │                               │  OFFER_ANALYZER_DEEP →       │
+    │                               │  INSERT offer_intelligence   │
+    │                               │  → pg_notify → SSE (per user)│
     │                               │                              │
     │  5. Siri speaks decision      │                              │
     │  ◄── (TTS in Shortcut)        │                              │
@@ -373,11 +372,11 @@ iOS Device                      Vecto Server                    Database
 │  │ • Rideshare Coach: gemini-pro-latest (streaming, vision, search)  │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Google Gemini 3.0 Flash (Offer Analysis — Vision)              │   │
-│  │ • Role: OFFER_ANALYZER (gemini-flash-latest)                 │   │
+│  │ Google Gemini 3.5 Flash (Offer Analysis — Vision)              │   │
+│  │ • Role: OFFER_ANALYZER (gemini-3.5-flash, MINIMAL thinking)      │   │
 │  │ • SDK: @google/genai (API key auth, NOT Vertex AI)              │   │
-│  │ • Extracts ride offer data from screenshots (<3s response)      │   │
-│  │ • Fallback: GPT-5.2 if Google is down                          │   │
+│  │ • Verdict from screenshot/text (<3s target; rules fast lane ms) │   │
+│  │ • Fallback: deterministic rules engine (no cross-provider hedge)│   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │ Google Gemini (Event Verification — VENUE_EVENT_VERIFIER role)  │   │
@@ -549,7 +548,7 @@ countries (ISO 3166-1 reference)
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 1 | Shortcut user onboarding flow | Needs design | Melody testing Siri Shortcuts before release |
+| 1 | Shortcut user onboarding flow | Built (OfferAnalyzerPage SetupCard + token; end-user guides SIRI_/ANDROID_SHORTCUT_ANALYZE.md); SetupCard content refresh pending (roadmap L3) | Melody device-testing the 2026-08-14 build |
 | 2 | GreetingBanner: show holiday + greeting together | UI fix needed | Currently shows one OR the other |
 | 3 | Daypart mismatch: getGreeting() (3 periods) vs classifyDayPart() (7) | Review needed | GreetingBanner vs GlobalHeader inconsistency |
 | 4 | OpenAI Realtime voice for AICoach | Integrated, disabled | Functions prefixed with `_`, needs activation |

@@ -122,7 +122,7 @@ Source: `docs/coach-inbox.md` (updated 2026-04-10)
 
 ### LLM-REQUESTS.md
 
-- [ ] Auth on offer analysis endpoint
+- [~] Auth on offer analysis endpoint — partially closed 2026-08-11 (per-user shortcut-token identity + `offerHookLimiter`; read/mutate hook routes token-required); `/analyze-offer` stays token-optional by design
 - [ ] Per-user LLM call budget
 - [ ] LLM response caching by coord_key
 - [ ] Fallback monitoring + alerts
@@ -193,7 +193,7 @@ Source: `docs/coach-inbox.md` (updated 2026-04-10)
 
 ### SECURITY.md
 
-- [ ] Auth on offer analysis
+- [~] Auth on offer analysis (partially closed 2026-08-11 — see above)
 - [ ] Dedicated auth rate limiter
 - [ ] Per-user rate limiting
 - [ ] Standard JWT migration
@@ -251,7 +251,7 @@ Source: `docs/coach-inbox.md` (updated 2026-04-10)
 
 ### P0 — Security Critical
 
-1. Auth on offer analysis endpoint
+1. Auth on offer analysis endpoint — partially closed 2026-08-11 (token identity + rate limit; ingest token-optional by design)
 2. Per-user rate limiting
 3. Standard JWT migration
 

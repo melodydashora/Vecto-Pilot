@@ -10,7 +10,21 @@
 | `/api/chat/conversations` | GET | `server/api/chat/chat.js` | List all conversations for user |
 | `/api/chat/conversations/:conversationId` | GET | `server/api/chat/chat.js` | Get messages for a conversation |
 | `/api/chat/conversations/:messageId/star` | POST | `server/api/chat/chat.js` | Star a message to mark as important |
-| `/api/hooks/analyze-offer` | POST | `server/api/hooks/analyze-offer.js` | Real-time ride offer analysis (Text/Vision/Multipart) for Siri Shortcuts with voice response & analytics |
+
+### Offer Analyzer
+
+Canonical doc: `docs/architecture/OFFER_ANALYZER.md`. Hooks are public with optional/required shortcut-token identity; `/api/offer-analyzer/*` requires Bearer auth.
+
+| Endpoint | Method | Handler | Purpose |
+|----------|--------|---------|---------|
+| `/api/hooks/analyze-offer` | POST | `server/api/hooks/analyze-offer.js` | Verdict from OCR text and/or screenshot (JSON, urlencoded, or multipart `image`) → `{ voice, notification, decision, reason, notices }`; token optional |
+| `/api/hooks/offer-history` | GET | `server/api/hooks/analyze-offer.js` | Owner's recent analyses (token required) |
+| `/api/hooks/offer-override` | POST | `server/api/hooks/analyze-offer.js` | Record override (token required) |
+| `/api/hooks/offer-cleanup` | POST | `server/api/hooks/analyze-offer.js` | Batch-delete owner's rows (token required) |
+| `/api/offer-analyzer/rules` | GET/PUT | `server/api/offer-analyzer/index.js` | Per-driver ruleset v3 (Zod-validated on PUT) |
+| `/api/offer-analyzer/shortcut-token` (+ `/regenerate`, `/label`) | GET/POST | `server/api/offer-analyzer/index.js` | Shortcut token mint / rotate / label |
+| `/api/offer-analyzer/offers` (+ `/:id/outcome`) | GET/POST | `server/api/offer-analyzer/index.js` | My offers + outcomes; record what I actually did |
+| `/api/offer-analyzer/places/search` | GET | `server/api/offer-analyzer/index.js` | Places picker for avoid-list |
 
 ### Location
 

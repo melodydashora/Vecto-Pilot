@@ -120,7 +120,7 @@ These items were reviewed and intentionally left open with documented rationale.
 | D-073 | Job metrics no auth | By design — standard for monitoring |
 | D-074 | Platform endpoints no auth | By design — public reference data |
 | D-075 | Vehicle endpoints no auth | By design — public NHTSA reference data |
-| D-076 | Hooks endpoints no auth | By design — public for Siri Shortcuts |
+| D-076 | Hooks endpoints no auth | By design — public ingest (`/analyze-offer` token-optional, `offerHookLimiter` 20/min); read/mutate hook routes shortcut-token-required since 2026-08-11 |
 
 ---
 

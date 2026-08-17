@@ -210,7 +210,7 @@
 
 | Priority | Control | Action | Effort |
 |----------|---------|--------|--------|
-| P0 | PR.AC-4 | Add auth to `/api/hooks/analyze-offer` | 2 days |
+| P0 | PR.AC-4 | Add auth to `/api/hooks/analyze-offer` — partially closed 2026-08-11 (per-user shortcut token + `offerHookLimiter`; ingest token-optional by design) | — |
 | P0 | PR.PT-1 | Create `audit_log` table, log auth events | 3 days |
 | P0 | DE.CM-8 | Add `npm audit` to CI pipeline | 1 day |
 | P1 | PR.AC-7 | Add dedicated auth rate limiter (10/min/IP) | 1 day |

@@ -6,7 +6,7 @@ landed 2026-07-03):
 ```js
 // 2026-07-03: "lattitude" (double-t) alias — Melody's live Shortcut sent this
 // misspelling and the mismatch silently dropped GPS to null for months
-// (docs/architecture/SIRI_SHORTCUT_ANALYZE.md finding 1). Accept it loudly.
+// (docs/architecture/SIRI_SHORTCUT_ANALYZE.md finding 1 — now Part 6 item 3 after the 2026-08-17 rewrite). Accept it loudly.
 if (latitude == null && req.body.lattitude != null) {
   latitude = parseFloat(req.body.lattitude);
   console.warn('[HOOKS] Body field "lattitude" (misspelled) accepted as latitude — update the Shortcut key name');

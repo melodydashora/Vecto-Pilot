@@ -214,7 +214,7 @@
 
 | Control | Action | Effort |
 |---------|--------|--------|
-| A.8.26 | Add authentication to `/api/hooks/analyze-offer` | 2 days |
+| A.8.26 | Add authentication to `/api/hooks/analyze-offer` — partially closed 2026-08-11 (per-user shortcut token + `offerHookLimiter`; ingest stays token-optional by design) | — |
 | A.8.15 | Create `audit_log` table for auth events | 3 days |
 | A.8.8 | Add `npm audit` to CI/CD | 1 day |
 | A.5.1 | Draft formal Information Security Policy | 2 days |

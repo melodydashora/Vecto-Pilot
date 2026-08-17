@@ -217,7 +217,7 @@ All standard security headers enabled via Helmet middleware.
 | Auth routes (login, register, reset) | Must be pre-auth | Low — credentials required |
 | `GET /api/intelligence/markets-dropdown` | Signup dropdown | Low — public market names |
 | `POST /api/intelligence/add-market` | Signup market creation | **Medium — write access without auth** |
-| `POST /api/hooks/analyze-offer` | Siri Shortcuts (can't send JWT) | **HIGH — zero auth, accepts images** |
+| `POST /api/hooks/analyze-offer` | Phone shortcuts (can't send JWT) | **MEDIUM — public ingest, optional per-user shortcut token, `offerHookLimiter` 20/min, accepts images**; sibling `offer-history`/`offer-override`/`offer-cleanup` are token-required |
 | Health endpoints | Monitoring | Low — minimal data |
 | Concierge `/p/:token/*` | Passenger-facing | Medium — rate-limited, token-validated |
 | Location geocode/weather/timezone | Utility | Medium — no user data, but burns API quota |
@@ -226,8 +226,8 @@ All standard security headers enabled via Helmet middleware.
 ### The Zero-Auth Siri Endpoint
 
 **Route:** `POST /api/hooks/analyze-offer`
-**Risk:** Any client with the URL can submit images for AI analysis. No authentication, no API key, no device registration.
-**Mitigation:** URL obscurity only. Rate limiting by `device_id` (easily spoofed).
+**Risk:** Any client with the URL can submit images for AI analysis (untokened calls get default rules and are not stored per-user). Identity is the per-user shortcut token minted at `/api/offer-analyzer/shortcut-token`.
+**Mitigation:** `offerHookLimiter` keyed by token/device/IP (`server/middleware/rate-limit.js`); unguessable 43-char token; deterministic fast lane and share short-circuit avoid model spend on many calls.
 
 ---
 
@@ -293,7 +293,7 @@ Runs first in middleware chain. Blocks known bot user-agents and suspicious requ
 
 ## 13. Known Gaps
 
-1. **Zero-auth offer analysis endpoint** — PUBLIC endpoint accepts images for AI analysis. No auth, no API key, trivially abusable.
+1. **Public offer analysis endpoint** — partially closed 2026-08-11 (per-user shortcut-token identity + rate limit); ingest remains token-optional by design.
 2. **No dedicated auth rate limiter** — Login/register use global 100/min. Brute-force at 99/min won't trigger account lockout.
 3. **No per-user rate limiting** — A single authenticated user can exhaust LLM quota.
 4. **Non-standard token format** — No `exp` claim, no rotation, no blacklist.
@@ -308,7 +308,7 @@ Runs first in middleware chain. Blocks known bot user-agents and suspicious requ
 
 ## 14. TODO — Hardening Work
 
-- [ ] **Add auth to offer analysis** — Device registration or API key (minimum: IP rate limit per device_id)
+- [~] **Add auth to offer analysis** — rate limit + token identity done (2026-08-11); remaining: `/analyze-offer` token-optional by design
 - [ ] **Dedicated auth rate limiter** — 10 login/min per IP, 5/min per email
 - [ ] **Per-user rate limiting** — Track LLM calls per user, enforce budget
 - [ ] **Migrate to standard JWT** — Add exp, iat, iss, aud claims
@@ -332,4 +332,4 @@ Runs first in middleware chain. Blocks known bot user-agents and suspicious requ
 | `server/middleware/validation.js` | Zod validation middleware |
 | `server/api/rideshare-coach/validate.js` | Action tag Zod schemas |
 | `server/middleware/bot-blocker.js` | Bot detection |
-| `server/api/hooks/analyze-offer.js` | Zero-auth endpoint |
+| `server/api/hooks/analyze-offer.js` | Public ingest, shortcut-token identity, rate-limited |

@@ -109,7 +109,7 @@ All endpoints follow the same pattern:
 | `GET /events/briefing` | `briefing_ready` | `briefing_ready` | `{ snapshot_id }` |
 | `GET /events/blocks` | `blocks_ready` | `blocks_ready` | `{ snapshot_id, ranking_id }` |
 | `GET /events/phase` | EventEmitter | `message` (default) | `{ snapshot_id, phase, phase_started_at, expected_duration_ms }` |
-| `GET /events/offers` | `offer_analyzed` | `offer_analyzed` | `{ device_id, decision, reason }` |
+| `GET /events/offers` | `offer_analyzed` | `offer_analyzed` | `{ device_id, user_id, offer_id, decision, reasoning, price, per_mile, platform, response_time_ms, ai_model }` — forwarded only to the owning user (`requireAuthAllowQueryToken`; anonymous rows dropped) |
 
 ### Heartbeat
 

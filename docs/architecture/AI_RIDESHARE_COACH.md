@@ -91,7 +91,7 @@
 - `getMarketIntelligence(city, state)` → market position, knowledge base
 - `getUserNotes(userId, 20)` → coach's saved notes about this driver
 - `getDriverProfile(userId)` → name, vehicle, platforms, eligibility, preferences
-- `getOfferHistory(20)` → Siri ride offer analysis log
+- `getOfferHistory(userId, 20)` → the driver's own offer analysis log (user-scoped since 2026-08-11)
 
 ### formatContextForPrompt(context)
 

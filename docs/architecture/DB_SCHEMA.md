@@ -238,7 +238,10 @@ Key fields: `user_id`, `access_token_encrypted`, `refresh_token_encrypted`, `tok
 - `market_cities` — Market → city mappings
 - `countries` — Country reference
 - `news_deactivations` — User-hidden news items
-- `offer_intelligence` — Siri offer analysis results
+- `offer_intelligence` — Offer Analyzer results (one row per analyzed offer; `user_id`, `ruleset_version`, `ruleset_hash` provenance)
+- `offer_rulesets` — per-driver Offer Analyzer ruleset (jsonb v3, versioned + hashed)
+- `offer_outcomes` — what the driver actually did + realized earnings (`total_earned` GENERATED)
+- `driver_profiles.shortcut_token / shortcut_token_created_at / shortcut_device_label` — shortcut identity bridge (see docs/architecture/OFFER_ANALYZER.md §11)
 
 ---
 

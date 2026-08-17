@@ -171,7 +171,7 @@ region_type: "Core" | "Satellite"
 
 ### Geofencing
 
-Implicit via market_cities mapping — no explicit radius-based geofencing. The offer analysis endpoint (`/api/hooks/analyze-offer`) uses hard-coded market boundaries for the "Market Exit Warning" (e.g., "Reject rides west of Fort Worth" for DFW market).
+Implicit via market_cities mapping — no explicit radius-based geofencing. The offer analysis endpoint (`/api/hooks/analyze-offer`) has no hard-coded geography: avoid-places are per-driver `avoid[]` rules keyed by Google `place_id` (rendered into the analyzer prompts and audited by geometry in Phase 2 — `server/lib/offers/rules-engine.js evaluateGeoRules`).
 
 ---
 

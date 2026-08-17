@@ -4,7 +4,7 @@ Complete reference of all API endpoints organized by domain.
 
 **Last Updated:** 2026-04-30
 
-> **Note:** This registry is known to be missing entries for several routes (memory, translate, hooks, tactical-plan, coach updates, realtime). A completeness pass is on the follow-up list.
+> **Note:** This registry is known to be missing entries for several routes (memory, translate, tactical-plan, coach updates, realtime). Offer Analyzer routes were added 2026-08-17. A completeness pass is on the follow-up list.
 
 ---
 
@@ -18,6 +18,8 @@ Complete reference of all API endpoints organized by domain.
 | Briefing | `/api/briefing/*` | Yes | Events, traffic, news |
 | Chat | `/api/chat/*` | Yes | Rideshare Coach |
 | Voice | `/api/realtime/*`, `/api/tts` | **Yes** | Voice + TTS |
+| Offer Analyzer (ingest) | `/api/hooks/analyze-offer` + `offer-history` / `offer-override` / `offer-cleanup` | Shortcut token (optional on ingest, required on the rest) | Phone-shortcut offer verdicts (`docs/architecture/OFFER_ANALYZER.md`) |
+| Offer Analyzer (editor) | `/api/offer-analyzer/*` | Yes | Per-driver rules, shortcut token, offers + outcomes |
 | Feedback | `/api/feedback/*`, `/api/actions` | Yes | User feedback |
 | Auth | `/api/auth/*` | No | Token generation |
 | Venue | `/api/venues/*` | Yes | Venue intelligence |
@@ -143,6 +145,27 @@ Response: { strategy_for_now, blocks }
 
 ---
 
+## Offer Analyzer Endpoints
+
+Canonical doc: `docs/architecture/OFFER_ANALYZER.md` §4 / §12. Public hooks are rate-limited by `offerHookLimiter` (20/min).
+
+| Method | Path | Handler | Auth | Purpose |
+|--------|------|---------|------|---------|
+| POST | `/api/hooks/analyze-offer` | `hooks/analyze-offer.js` | `X-Shortcut-Token` optional | Verdict from OCR text and/or screenshot → `{ voice, notification, decision, reason, notices }` |
+| GET | `/api/hooks/offer-history?limit=` | `hooks/analyze-offer.js` | token required | Owner's recent analyses + stats |
+| POST | `/api/hooks/offer-override` | `hooks/analyze-offer.js` | token required | Record in-the-moment override |
+| POST | `/api/hooks/offer-cleanup` | `hooks/analyze-offer.js` | token required | Batch-delete owner's rows (≤50 ids) |
+| GET | `/api/offer-analyzer/rules` | `offer-analyzer/index.js` | Bearer | My ruleset (v3) or defaults |
+| PUT | `/api/offer-analyzer/rules` | `offer-analyzer/index.js` | Bearer | Zod-validate + upsert + version bump |
+| GET | `/api/offer-analyzer/shortcut-token` | `offer-analyzer/index.js` | Bearer | Get-or-create token |
+| POST | `/api/offer-analyzer/shortcut-token/regenerate` | `offer-analyzer/index.js` | Bearer | Rotate token |
+| POST | `/api/offer-analyzer/shortcut-token/label` | `offer-analyzer/index.js` | Bearer | Device label |
+| GET | `/api/offer-analyzer/offers?limit=` | `offer-analyzer/index.js` | Bearer | My offers LEFT JOIN outcomes + stats |
+| POST | `/api/offer-analyzer/offers/:id/outcome` | `offer-analyzer/index.js` | Bearer | Upsert driver outcome + earnings |
+| GET | `/api/offer-analyzer/places/search?q=` | `offer-analyzer/index.js` | Bearer | Places picker for avoid-list (place_id + 6-dec coords) |
+
+---
+
 ## SSE (Server-Sent Events) Endpoints
 
 | Path | Handler | Events |
@@ -150,6 +173,7 @@ Response: { strategy_for_now, blocks }
 | `/events` | `events.js` | `phase_change`, `strategy_complete` |
 | `/api/strategy/events` | `strategy-events.js` | Strategy progress |
 | POST `/api/chat` | `chat.js` | Chat streaming |
+| `/events/offers` | `strategy-events.js` | `offer_analyzed` (per-user; Offer Analyzer) |
 
 ---
 

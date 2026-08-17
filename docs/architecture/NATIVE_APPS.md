@@ -128,7 +128,7 @@ The React web app communicates via REST API (`/api/*`). Native apps use the **ex
 | `POST /api/blocks-fast` | Trigger pipeline | Bearer token |
 | `GET /events/*` | SSE streams | None (stateless) |
 | `POST /api/chat` | Coach (SSE streaming) | Bearer token |
-| `POST /api/hooks/analyze-offer` | Offer analysis | device_id (no JWT) |
+| `POST /api/hooks/analyze-offer` | Offer analysis | X-Shortcut-Token (optional per-user token; no JWT) |
 | `POST /api/translate` | Translation | Bearer token |
 | `POST /api/tts` | Text-to-speech | Bearer token |
 
@@ -267,7 +267,7 @@ App launch → Check biometric availability
 2. **Apple Sign-In not implemented** — Required for App Store if Google Sign-In is offered.
 3. **No push notification infrastructure** — No APNs/FCM integration.
 4. **No offline data schema** — No SQLite/Core Data model defined.
-5. **Android offer analysis has no path** — Siri Shortcuts is iOS-only.
+5. **Android offer analysis via third-party automation apps** (HTTP Shortcuts / Tasker / MacroDroid) — the server is client-agnostic (`source: android_text|android_vision`); see `docs/architecture/ANDROID_SHORTCUT_ANALYZE.md`. A native shell (todo #37) is the endgame.
 
 ---
 
@@ -288,7 +288,7 @@ App launch → Check biometric availability
 | File | Purpose |
 |------|---------|
 | `client/src/constants/apiRoutes.ts` | Complete API contract for native clients |
-| `server/api/hooks/analyze-offer.js` | Siri endpoint (device_id auth) |
-| `server/api/hooks/README.md` | Siri Shortcuts documentation |
+| `server/api/hooks/analyze-offer.js` | Offer Analyzer ingest (shortcut-token identity) |
+| `docs/architecture/SIRI_SHORTCUT_ANALYZE.md`, `docs/architecture/ANDROID_SHORTCUT_ANALYZE.md` | Shortcut build guides |
 | `client/src/hooks/useSpeechRecognition.ts` | Web Speech API (needs native equivalent) |
 | `client/src/utils/co-pilot-helpers.ts` | SSE Manager (needs native equivalent) |

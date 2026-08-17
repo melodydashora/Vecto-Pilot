@@ -4,8 +4,21 @@
 > iPhone note/email (her working "LOGISTICAL DISPATCH AUDITOR" prompt). Preserved
 > **verbatim** below the editor's notes — do not normalize, summarize, or "fix"
 > the content without Melody. This is the source-of-truth input for making
-> offer-analyzer rules UI-editable (todo #10); the current engine's
-> `DEFAULT_RULESET` (`server/lib/offers/rules-engine.js`) covers only a subset.
+> offer-analyzer rules UI-editable (todo #10); as of 2026-07-03 the v3 engine
+> (`server/lib/offers/rules-engine.js`) makes most rule kinds below representable
+> and editable — the exceptions are listed in the 2026-08-17 note.
+>
+> **Editor's note (Claude, 2026-08-17):** implemented as ruleset schema v3 — the
+> spec→key mapping and what is (and is not yet) enforced live in
+> `docs/architecture/OFFER_ANALYZER.md` §6.7. Not yet implemented as spec'd, tracked in
+> `docs/architecture/OFFER_ANALYZER_ROADMAP.md` (L6, L7): home/deadhead logic and
+> estimated-return miles; the 4-line output format with the Status line and the Analysis
+> Source line; the exact Error Handling string; the "unless exceptional pay offsets" escapes
+> on pickup limits and north-of-US-380; the Vision-over-OCR data-priority rule (the server
+> uses both, with regex numbers preferred over model numbers). Note also that the engine's
+> `DEFAULT_RULESET` is legacy parity (standard $0.90, premium $1.10, rating 4.85) — the
+> values in this spec are applied through Melody's saved per-driver ruleset, not the
+> defaults. The verbatim spec below is unchanged.
 >
 > **Editor's notes (Claude, 2026-07-02):**
 > - The word "Screenshot" appears standalone in several places — these are

@@ -100,9 +100,9 @@
 | **Likelihood** | Possible |
 | **Impact** | Critical — any client can submit images for AI analysis, burn LLM budget |
 | **Severity** | HIGH |
-| **Current state** | `POST /api/hooks/analyze-offer` has no authentication. Rate limiting by device_id (spoofable). |
-| **Mitigation** | URL obscurity. IP-based rate limiting. |
-| **Remediation** | Add device registration. Require one-time API key provisioning. |
+| **Current state** | `POST /api/hooks/analyze-offer` is public ingest with optional per-user shortcut-token identity; `offerHookLimiter` 20/min keyed by token/device/IP (2026-08-11); read/mutate hook routes token-required. |
+| **Mitigation** | Unguessable 43-char per-user token + rate limit; untokened calls get default rules and are not stored per-user. |
+| **Remediation** | Done in the form of `GET /api/offer-analyzer/shortcut-token` (+ regenerate). Remaining gap: `/analyze-offer` token-optional by design. |
 | **Owner** | Security |
 | **Ref** | SECURITY.md §8, NIST.md PR.AC-4, ISO.md A.8.26 |
 
@@ -181,7 +181,7 @@
 | **Likelihood** | Very Likely |
 | **Impact** | High — translation feature + DFW market focus built for this event |
 | **Severity** | HIGH |
-| **Current state** | Translation supports 20 languages. DFW-specific offer analysis. Market intelligence for major US cities. |
+| **Current state** | Translation supports 20 languages. Offer analysis is market-agnostic (per-driver rules, no hardcoded geography). Market intelligence for major US cities. |
 | **Mitigation** | Core features working. Translation tested. |
 | **Remediation** | Complete mobile app (native wrapper) before World Cup. Load test for concurrent users. |
 | **Owner** | Product |
@@ -215,7 +215,7 @@
 
 ### Immediate (P0, 0–30 days)
 
-1. **S-1:** Add auth to offer analysis endpoint
+1. **S-1:** Add auth to offer analysis endpoint — partially closed 2026-08-11 (token identity + rate limit)
 2. **S-3:** Create audit_log table
 3. **T-5:** Set up CI/CD with test gates
 

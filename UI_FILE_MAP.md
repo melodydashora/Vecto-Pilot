@@ -302,10 +302,10 @@ This document provides a complete mapping of UI components to their source files
 
 | Endpoint | Method | Called By | Purpose |
 |----------|--------|-----------|---------|
-| `/api/hooks/analyze-offer` | POST | iOS Siri Shortcut | Analyze ride offer from OCR text |
-| `/api/hooks/offer-history` | GET | OfferAnalyzerPage | Recent analyzed offers |
-| `/api/hooks/offer-override` | POST | OfferAnalyzerPage | Override AI decision |
-| `/api/hooks/offer-cleanup` | POST | (maintenance) | Purge old offers |
+| `/api/hooks/analyze-offer` | POST | iPhone Shortcuts / Android automation (public, token-optional) | Analyze ride offer from OCR text and/or screenshot (multipart `image` or base64) |
+| `/api/hooks/offer-history` | GET | shortcuts only (token-required; no client caller) | Recent analyzed offers for the token owner |
+| `/api/hooks/offer-override` | POST | shortcuts only (token-required; no client caller) | Record in-the-moment override (ACCEPT/REJECT) |
+| `/api/hooks/offer-cleanup` | POST | (maintenance; token-required) | Batch-delete up to 50 of the owner's offers by id |
 
 ### Offer Analyzer APIs (authed)
 

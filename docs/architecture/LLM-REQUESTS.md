@@ -136,8 +136,8 @@ Provides cross-provider fallback:
 
 | Role | Model | Features | Purpose |
 |------|-------|----------|---------|
-| `OFFER_ANALYZER` | gemini-flash-latest | vision | Phase 1: <2s rapid decision |
-| `OFFER_ANALYZER_DEEP` | gemini-pro-latest | thinkingLevel=LOW | Phase 2: async enrichment |
+| `OFFER_ANALYZER` | gemini-3.5-flash (pinned; never `*-latest`) | vision, thinkingLevel=MINIMAL, maxTokens 1024 | Phase 1: sync verdict (<3s target; deterministic fast lane answers rejects in ms) |
+| `OFFER_ANALYZER_DEEP` | gemini-3.1-pro-preview (pinned) | vision, thinkingLevel=LOW | Phase 2: async enrichment |
 
 ### Override Env Vars
 
@@ -298,40 +298,33 @@ N/A — Concierge uses share tokens, not user JWT. Share tokens don't expire (th
 
 ---
 
-## 7. Offer Analysis (Siri Integration)
+## 7. Offer Analysis (device shortcuts → Offer Analyzer)
 
-### Phase 1: Rapid Decision (<2 seconds)
+> Canonical doc: `docs/architecture/OFFER_ANALYZER.md` (as built) — this section is a summary.
+
+### Phase 1: synchronous verdict (<3 s target)
 
 **Route:** `POST /api/hooks/analyze-offer`
-**File:** `server/api/hooks/analyze-offer.js` (line 138)
-**Auth:** **NONE** — Siri Shortcuts cannot send JWT. Public endpoint.
-**Rate Limit:** Not documented (relies on device_id tracking)
+**File:** `server/api/hooks/analyze-offer.js` (`callModel('OFFER_ANALYZER', …)` at `:390`)
+**Auth:** token-optional identity — header `X-Shortcut-Token` (per-user, unguessable) resolves the driver + their ruleset; no token → default rules, anonymous row. Read/mutate hook endpoints are token-required.
+**Rate limit:** `offerHookLimiter` 20/min per IP+token/device (`server/middleware/rate-limit.js`).
 
 ```
-Siri sends: multipart form-data { screenshot, device_id, lat, lng }
+Shortcut sends: JSON { text } and/or multipart { image (File) } + source + device_id, header X-Shortcut-Token
   │
-  ├─ 1. Parse image via multer
-  ├─ 2. callModel('OFFER_ANALYZER', { image, tier-specific prompt })
-  │     └─ Gemini 3 Flash Preview (Vision) — ULTRA FAST (<1s)
-  │
-  └─ 3. Return { price, per_mile, decision: ACCEPT|REJECT, reason }
-       └─ Must complete in <3s (Siri timeout for trip radar)
+  ├─ 1. normalize body keys (alias table) → regex pre-parse (<1 ms) → resolve per-driver ruleset (15 s cache)
+  ├─ 2. share tier → instant REJECT (no model)
+  ├─ 3. FAST LANE: text + full pre-parse + engine REJECT → answer in ~3-5 ms (no model)
+  ├─ 4. otherwise callModel('OFFER_ANALYZER', { system: prompt rendered FROM the ruleset, user, images }) — 20 s race
+  │     └─ parse JSON → else deterministic rules engine (always answers; NO DATA when nothing parsed)
+  └─ 5. Return { success, voice, notification, decision, reason, notices, response_time_ms }
 ```
 
-### Phase 2: Deep Analysis (Async)
+### Phase 2: deep analysis (async, after the response)
 
-**Triggered:** Fire-and-forget after Phase 1 returns
-**Model:** `OFFER_ANALYZER_DEEP` → Gemini 3.1 Pro Preview (thinkingLevel=LOW)
-**Purpose:** Rich reasoning — location analysis, deadhead assessment, confidence scoring
-**Storage:** `offer_intelligence` table
-
-### Mid-Request Auth Expiry
-
-N/A — No auth on this endpoint.
-
-### Security Concern
-
-This endpoint is **completely unauthenticated**. Any client with the URL can submit images for analysis. Currently relies on obscurity (not linked in UI, only Siri Shortcuts know the URL).
+**Model:** `OFFER_ANALYZER_DEEP` → gemini-3.1-pro-preview (thinkingLevel=LOW), 45 s race, same ruleset-rendered prompt
+**Purpose:** full extraction (addresses, flags), `location_analysis`, confidence; stored decision = what was spoken
+**Storage:** `offer_intelligence` (+ geocode/geo-audit UPDATE), `pg_notify('offer_analyzed')` → SSE `/events/offers` (per user)
 
 ---
 

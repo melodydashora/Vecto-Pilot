@@ -703,7 +703,7 @@ This table supports **headless clients** (iOS Shortcuts, Android automations) th
 │  Problem: Siri Shortcuts run WITHOUT an authenticated user session.      │
 │  They can't carry JWT tokens or create valid user sessions.              │
 │                                                                          │
-│  Solution: Use device_id as PRIMARY identifier, user_id as OPTIONAL.     │
+│  Solution: user_id resolved from the per-user shortcut token (still no FK); │
 │                                                                          │
 │  ❌ WITH FK: INSERT fails → "foreign key violation" → rejection loop     │
 │  ✅ NO FK:   INSERT succeeds → signals stored → user linked later        │
@@ -713,14 +713,15 @@ This table supports **headless clients** (iOS Shortcuts, Android automations) th
 
 **Files:**
 - Schema: `shared/schema.js`
-- Insert: `server/api/hooks/analyze-offer.js` (planned)
-- Query: `client/src/components/omni/SignalTerminal.tsx` via SSE/Polling
+- Insert: none today — `server/api/hooks/analyze-offer.js` writes `offer_intelligence` (this table is legacy)
+- Query: none (no SignalTerminal exists); the live consumer is `client/src/components/offer-analyzer/OffersCard.tsx` via `/api/offer-analyzer/offers` + SSE `/events/offers`
 
 **Data Flow:**
 ```
-iOS Shortcut → OCR extracts text → POST /api/hooks/analyze-offer
-    → Parse price/miles/time → AI decision → INSERT intercepted_signals
-    → SSE push to SignalTerminal UI
+Phone shortcut → OCR text and/or screenshot → POST /api/hooks/analyze-offer
+    → regex pre-parse + per-driver rules → verdict → async INSERT offer_intelligence
+    → pg_notify(offer_analyzed) → per-user SSE /events/offers → OffersCard
+    (offer_intelligence / offer_rulesets / offer_outcomes: docs/architecture/OFFER_ANALYZER.md §11)
 ```
 
 **Key Columns:**

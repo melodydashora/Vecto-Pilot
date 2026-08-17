@@ -94,7 +94,7 @@ The server API is already client-agnostic. Native apps use the **exact same REST
 | Coach | POST /api/chat (SSE streaming) | Bearer token |
 | Briefing | GET /api/briefing/* (6 endpoints) | Bearer token |
 | SSE | GET /events/* (4 endpoints) | Stateless |
-| Offers | POST /api/hooks/analyze-offer | device_id (no JWT) |
+| Offers | POST /api/hooks/analyze-offer | X-Shortcut-Token (optional per-user token; no JWT) |
 | Translation | POST /api/translate | Bearer token |
 | TTS | POST /api/tts | Bearer token |
 
@@ -259,6 +259,6 @@ Absorbs content from `docs/architecture/feature-management.md` (feature flags, A
 | File | Purpose |
 |------|---------|
 | `client/src/constants/apiRoutes.ts` | Complete API contract for native clients |
-| `server/api/hooks/analyze-offer.js` | Offer analysis (device_id auth, Siri/Android) |
-| `server/api/hooks/README.md` | Siri Shortcuts documentation |
+| `server/api/hooks/analyze-offer.js` | Offer analysis (shortcut-token identity, iPhone/Android shortcuts) |
+| `docs/architecture/SIRI_SHORTCUT_ANALYZE.md`, `docs/architecture/ANDROID_SHORTCUT_ANALYZE.md` | Shortcut build guides (iPhone / Android) |
 | `gateway-server.js` | Server config (deploy modes) |

@@ -35,7 +35,10 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [AI_MODEL_ADAPTERS.md](AI_MODEL_ADAPTERS.md) | Model adapter pattern, provider routing | Adding/changing AI providers |
 | [AI_MODEL_UPDATE_STRATEGY.md](AI_MODEL_UPDATE_STRATEGY.md) | Model versions, swap patterns, deprecation migration | Upgrading models |
 | [LLM-REQUESTS.md](LLM-REQUESTS.md) | Every LLM API call path, auth, and model used | Auditing AI costs/security |
-| [OFFER_ANALYZER.md](OFFER_ANALYZER.md) | Siri Shortcuts, ride offer analysis, Gemini Vision | Modifying offer analysis |
+| [OFFER_ANALYZER.md](OFFER_ANALYZER.md) | Offer Analyzer as built: hook contract, per-driver rules engine v3, fast lane, Phase 2, data model, editor API, page, SSE, models (**spliced into the Coach prompt** by chat.js) | Modifying offer analysis |
+| [OFFER_ANALYZER_ROADMAP.md](OFFER_ANALYZER_ROADMAP.md) | Offer Analyzer plan going forward: open gates, next levers, decisions needed | Planning analyzer work |
+| [SIRI_SHORTCUT_ANALYZE.md](SIRI_SHORTCUT_ANALYZE.md) | iPhone end-user build guide for the two analyzer shortcuts + server contract | Setting up / debugging an iPhone shortcut |
+| [ANDROID_SHORTCUT_ANALYZE.md](ANDROID_SHORTCUT_ANALYZE.md) | Android end-user guide (HTTP Shortcuts / Tasker / MacroDroid) for the analyzer | Setting up an Android phone |
 | [STRATEGY.md](STRATEGY.md) | Strategy generation, recommendation pipeline | Modifying strategy |
 | [MARKET_INTELLIGENCE.md](MARKET_INTELLIGENCE.md) | Market data sources, intelligence storage, MI API | Working with market data |
 | [AI_ROLE_MAP.md](../AI_ROLE_MAP.md) | Every AI role: model, file, function, data flow | Auditing roles or swapping models |

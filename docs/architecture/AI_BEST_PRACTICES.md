@@ -111,7 +111,7 @@ Each role has explicit `maxTokens`. No system-wide truncation or token counting.
 |------|-------|--------------------|
 | Venue classification (P/S/X) | Haiku ($0.25/1M in) | Single-letter output, no reasoning needed |
 | Translation | Flash Lite ($0.075/1M in) | Text-to-text, high volume |
-| Offer analysis Phase 1 | Flash ($0.15/1M in) | <2s decision, vision-only |
+| Offer analysis Phase 1 | Flash ($0.15/1M in), MINIMAL thinking | <3s target; text and vision; deterministic fast lane answers text REJECTs with no model at all |
 
 ### Strategy: Data Reduction
 

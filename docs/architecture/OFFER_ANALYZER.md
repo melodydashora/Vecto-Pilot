@@ -1,880 +1,915 @@
-# OFFER_ANALYZER.md — Ride Offer Analysis System End-to-End
+# OFFER_ANALYZER.md — The Offer Analyzer, exactly as built
 
-> **Canonical reference** for the ride-offer analysis feature exposed at `POST /api/hooks/analyze-offer`. Covers Siri Shortcuts integration, zero-auth endpoint contract, two-phase AI architecture, deterministic fallback, voice/TTS pipeline, database schema, coach integration, and known gaps.
+> **Canonical reference** for the real-time ride-offer analysis lane: device shortcut →
+> `POST /api/hooks/analyze-offer` → per-driver ruleset engine → spoken verdict → async
+> deep enrichment → `offer_intelligence` → live web page. **This is THE offer lane** —
+> the Coach never analyzes offers (`app_rules.coach-never-analyzes-offers`).
 >
-> **Version:** 2.0 — 2026-04-16
-> **Previous:** 2026-04-10
-> **Supersedes:** `docs/architecture/media-handling.md` (absorbed: Siri screenshots, base64 encoding, multer config)
+> **Version:** 3.1 — 2026-08-17 (rewritten end-to-end against code at commit `97cd2d3b`; 3.1 adds the same-day model bench + Phase-1 hardening, uncommitted)
+> **Previous:** 2.0 — 2026-04-16 (pre-v3 engine; two-phase Flash/Pro architecture)
+> **Supersedes and absorbs (deleted 2026-08-17, history in git):**
+> `OFFER_ANALYZER_EDITOR_PLAN.md` (2026-06-01 plan; §0 three-decision model carried
+> forward as §3 here), `OFFER_RULESET_V3_DESIGN.md` (2026-07-03 approved design; the
+> built system is documented here, Melody's decisions carried forward as Appendix B).
+> **Companions:**
+> - `docs/architecture/OFFER_ANALYZER_ROADMAP.md` — the plan going forward (open gates, next levers)
+> - `docs/architecture/SIRI_SHORTCUT_ANALYZE.md` — iPhone end-user build guide (two shortcuts)
+> - `docs/architecture/ANDROID_SHORTCUT_ANALYZE.md` — Android end-user build guide
+> - `docs/OFFER_ANALYZER_DRIVER_RULESET.md` — Melody's verbatim spec (the input the v3 ruleset implements; never edited)
+>
+> **Provenance:** Claude-authored against full-file reads (not grep excerpts) of every
+> file in §19, plus a live dev-DB schema check; Melody-authored decisions are marked as
+> such where they shaped the design. Facts cite `file:line` at the commit above.
 
 ---
 
 ## Table of Contents
 
-1. [Purpose & Overview](#1-purpose--overview)
-2. [Endpoint Contract](#2-endpoint-contract)
-3. [Tier System](#3-tier-system)
-4. [Phase 1 — Synchronous Analysis (Gemini Flash)](#4-phase-1--synchronous-analysis-gemini-flash)
-5. [Phase 2 — Asynchronous Deep Analysis (Gemini Pro)](#5-phase-2--asynchronous-deep-analysis-gemini-pro)
-6. [Pre-Parser (Regex, `parse-offer-text.js`)](#6-pre-parser-regex-parse-offer-textjs)
-7. [Deterministic Fallback Rule Engine](#7-deterministic-fallback-rule-engine)
-8. [Response Shape](#8-response-shape)
-9. [Voice / TTS Pipeline](#9-voice--tts-pipeline)
-10. [Database Schema (`offer_intelligence`)](#10-database-schema-offer_intelligence)
-11. [Siri Shortcuts Integration](#11-siri-shortcuts-integration)
-12. [Business Rules Summary](#12-business-rules-summary)
-13. [Coach and Strategy Integration](#13-coach-and-strategy-integration)
-14. [Android Considerations](#14-android-considerations)
-15. [Current State](#15-current-state)
-16. [Open Issues / Future Work](#16-open-issues--future-work)
-17. [Key Files](#17-key-files)
+1. [Purpose and boundaries](#1-purpose-and-boundaries)
+2. [System map](#2-system-map)
+3. [Three distinct decisions (never conflate)](#3-three-distinct-decisions-never-conflate)
+4. [Ingest endpoint contract — `POST /api/hooks/analyze-offer`](#4-ingest-endpoint-contract--post-apihooksanalyze-offer)
+5. [Phase 1 — synchronous verdict](#5-phase-1--synchronous-verdict)
+6. [Rules engine (`rules-engine.js`)](#6-rules-engine-rules-enginejs)
+7. [Identity bridge and ruleset store](#7-identity-bridge-and-ruleset-store)
+8. [Pre-parser (`parse-offer-text.js`)](#8-pre-parser-parse-offer-textjs)
+9. [Voice / notification builders](#9-voice--notification-builders)
+10. [Phase 2 — asynchronous enrichment](#10-phase-2--asynchronous-enrichment)
+11. [Data model](#11-data-model)
+12. [Editor API — `/api/offer-analyzer` (authed)](#12-editor-api--apioffer-analyzer-authed)
+13. [Web page — `/co-pilot/offer-analyzer`](#13-web-page--co-pilotoffer-analyzer)
+14. [Realtime — SSE `/events/offers`](#14-realtime--sse-eventsoffers)
+15. [Coach integration (read-only)](#15-coach-integration-read-only)
+16. [Models, latency, and the <3s target](#16-models-latency-and-the-3s-target)
+17. [Security posture](#17-security-posture)
+18. [Tests](#18-tests)
+19. [Key files](#19-key-files)
+20. [Known gaps (pointer)](#20-known-gaps-pointer)
+- [Appendix A — Change log](#appendix-a--change-log)
+- [Appendix B — Decisions of record (provenance-marked)](#appendix-b--decisions-of-record-provenance-marked)
 
 ---
 
-## 1. Purpose & Overview
+## 1. Purpose and boundaries
 
-Real-time AI analysis of Uber/Lyft ride offers for the driver. A Siri Shortcut captures the offer screen, POSTs it to this endpoint, and the driver hears a spoken ACCEPT/REJECT decision within Siri's tight timeout window (~3s on Trip Radar, ~9s on regular offers).
+A driver's phone captures an incoming Uber/Lyft offer (screenshot and/or on-device OCR
+text), POSTs it to Vecto Pilot, and hears **ACCEPT / REJECT / NO DATA** spoken back
+inside the offer window. Verdicts are produced by the driver's **own ruleset**
+(editable on the web page), evaluated deterministically wherever the numbers exist and
+by a vision model only where judgment is required.
 
-**Who calls it:** iOS Siri Shortcuts today; Android Automations planned (§14). Also usable directly from scripts/tests.
+Boundaries that are **rules**, not preferences:
 
-**Zero-auth:** Siri Shortcuts cannot carry JWTs, so this endpoint is **explicitly public**. Identity is tracked via `device_id`. Flagged as HIGH-risk in `SECURITY.md`.
+| Boundary | Where enforced |
+|---|---|
+| The Coach never analyzes offers (no OCR of offer cards, no verdicts in chat). Offer history is pattern context only. | `app_rules.coach-never-analyzes-offers`; `server/api/chat/chat.js` system prompt |
+| Models are called by **role** (`OFFER_ANALYZER`, `OFFER_ANALYZER_DEEP`) via `callModel`, never by vendor name in code paths/logs. | `app_rules.model-agnostic-roles`; `server/lib/ai/adapters/index.js` |
+| No hardcoded locations. Every avoid-place is user-entered and keyed by Google `place_id` with 6-decimal coords. | `app_rules.no-hardcoded-location`, `coords-six-decimals`; `rules-engine.js` `avoid[]` |
+| Timezone for stored rows comes from GPS coords (Google Timezone API) or the driver's snapshot row — never UTC, never device time. If neither resolves the row is **not stored**. | `app_rules.timezone-gps-only`, `no-fallbacks`; `analyze-offer.js:632-660` |
+| Missing required data → `NO DATA` (honest floor), never a fabricated `REJECT`; optional optimizations (image downscale, geocode) fail **open** without gating the answer. Since 2026-08-17 a model reply with no `decision`, or one describing no ride (all-zero metrics — how every vision model answers a non-offer screenshot), is handed to the rules engine (→ `NO DATA` without a pre-parse). | `analyze-offer.js` (`deterministicPhase1`, honest-floor guard), `downscale-offer-image.js` |
 
-### 1.1 Two-Phase Architecture
+---
 
-| Phase | Mode | Model | Latency | Role |
-|-------|------|-------|---------|------|
-| **Phase 1** | Synchronous (blocks response) | `OFFER_ANALYZER` → Gemini 3 Flash | <2s target | Decide ACCEPT/REJECT, respond to Siri immediately |
-| **Phase 2** | Fire-and-forget (after `res.json()`) | `OFFER_ANALYZER_DEEP` → Gemini 3.1 Pro | 45s timeout | Deep reasoning + geographic analysis; enrich DB row |
+## 2. System map
 
 ```
-iPhone: Uber/Lyft shows ride offer
-  │
-  ├─ Siri Shortcut ("Vecto Analyze" or "Vecto Vision")
-  │    ├─ Take Screenshot
-  │    ├─ Extract text (iOS OCR) OR Base64 encode image
-  │    ├─ Get Current Location (GPS)
-  │    └─ POST /api/hooks/analyze-offer   ← ZERO AUTH
-  │
-  ├─ PHASE 1 (sync, <2s)
-  │    ├─ Pre-parse text with regex (<1ms) — parseOfferText()
-  │    ├─ classifyTier() → share / standard / premium
-  │    ├─ Share → auto-REJECT (skip AI entirely)
-  │    ├─ Call Gemini 3 Flash with tier-specific prompt
-  │    ├─ Parse JSON decision; on parse failure → deterministic fallback
-  │    ├─ Build voice TTS line via buildVoiceLine()
-  │    └─ res.json({ success, voice, notification, decision, reason, response_time_ms })
-  │          └─ Siri speaks: "Accept. dollar fifty-seven per mile, 8 miles."
-  │
-  └─ PHASE 2 (async, after res.json())
-       ├─ Gemini 3.1 Pro (vision) → location_analysis + rich reasoning
-       ├─ Merge Phase 1 + Phase 2 + preParsed
-       ├─ INSERT offer_intelligence (one row per offer)
-       └─ pg_notify('offer_analyzed') → SSE broadcast to web app
+iPhone Shortcut / Android automation                    (docs: SIRI_/ANDROID_SHORTCUT_ANALYZE.md)
+  Take Screenshot → [Extract Text] → POST /api/hooks/analyze-offer
+  header X-Shortcut-Token: vp_…      body: text | image(File) | source | device_id
+        │
+        ▼  server/api/hooks/analyze-offer.js  (public, offerHookLimiter 20/min, multer 5MB)
+  normalizeOfferBody (alias table) → mode: multipart | JSON
+  parseOfferText (regex, <1ms)      → preParsed {price, pairs, per_mile, product_type, confidence}
+  resolveRuleset(token)             → { ruleset, userId, version, hash }   (15s cache; DEFAULT if none)
+  classifyTier(product, ruleset)    → share | standard | premium | comfort | xl
+        │
+        ├─ share (auto_reject) ──────────────────────────────► "Reject. Share tier."  (~ms)
+        ├─ FAST LANE: text + confidence=full + engine REJECT ► deterministic verdict  (~3-5ms)
+        └─ MODEL LANE: callModel('OFFER_ANALYZER', prompt rendered FROM the ruleset, images) 20s race
+              parse JSON (2 tiers) → else deterministic engine (always answers)
+        │
+        ▼  res.json({ success, voice, notification, decision, reason, notices, response_time_ms })
+        │                                                       Shortcut: Speak Text(voice) + Show Notification
+        ▼  PHASE 2 (async, after response)
+  callModel('OFFER_ANALYZER_DEEP', same ruleset, same images) 45s race → full extraction
+  timezone (GPS → snapshot → else DON'T STORE) → temporal cols → session bucket
+  INSERT offer_intelligence (decision = what was SPOKEN; deep dissent kept as data)
+  pg_notify('offer_analyzed') ──► SSE /events/offers (per-user) ──► OffersCard refetch
+  geocode pickup/dropoff (Geocoding API → place_id, 6-dec) → evaluateGeoRules → UPDATE row (geo audit)
+
+Web page /co-pilot/offer-analyzer  (authed, /api/offer-analyzer/*)
+  SetupCard (token mint/rotate/label) · rules cards (typed forms → PUT /rules, Zod gate)
+  OffersCard (my offers + "what I actually did" + earnings → offer_outcomes)
 ```
 
 ---
 
-## 2. Endpoint Contract
+## 3. Three distinct decisions (never conflate)
 
-**Route:** `POST /api/hooks/analyze-offer`
-**File:** `server/api/hooks/analyze-offer.js` (955 lines)
-**Auth:** None — public
-**Body limit:** 5 MB (enforced in `server/bootstrap/middleware.js`)
-**Content-Types accepted:** `application/json`, `multipart/form-data`
+Carried forward from the 2026-06-01 plan (§0) — the learning value rests on keeping these
+separate:
 
-### 2.1 Three Input Modes
+| # | Concept | Storage | Values |
+|---|---|---|---|
+| 1 | **Analyzer decision** — what the driver was told | `offer_intelligence.decision` (NOT NULL) | `ACCEPT` / `REJECT` / `NO DATA` |
+| 2 | **Driver override** — in-the-moment disagreement via hook | `offer_intelligence.user_override` | `null` / `ACCEPT` / `REJECT` |
+| 3 | **Driver actual outcome** — ground truth, recorded on the web page | `offer_outcomes.driver_decision` (+ earnings) | `Accepted` / `Rejected` / `Cancelled` / `Completed` |
 
-| Mode | Content-Type | How image arrives | Typical speed |
-|------|--------------|-------------------|---------------|
-| **Text (OCR)** | `application/json` | `text` field contains iOS-OCR output | Fastest (regex pre-parse only when AI not needed for vision) |
-| **Vision (base64)** | `application/json` | `image` field contains base64-encoded JPEG | Medium (Gemini Vision processes image) |
-| **Multipart (file)** | `multipart/form-data` | Raw image file part named `image` | Fastest for Siri — client skips base64 encoding; server encodes in <1ms |
+Also kept separate: the **Phase-2 deep model's verdict** is stored only as data
+(`parsed_data_json.deep_decision`, `deep_disagrees`, and a `[deep model dissents: X]`
+prefix on `decision_reasoning`) — it never overwrites #1 (`analyze-offer.js:597-602`).
 
-Multer memory-storage runs first (`upload.single('image')`). If a file part is present, multipart path is used. Otherwise the handler falls through to JSON body parsing.
+Stats surfaces reflect this: `/api/hooks/offer-history` reports `analyzer_accepted` /
+`analyzer_rejected` (legacy `accepted`/`rejected` keys kept for compatibility);
+`/api/offer-analyzer/offers` reports `analyzer_*`, `driver_accepted`, `disagreements`,
+`realized_total` (only rides actually taken).
 
-### 2.2 Request Fields
+---
 
-```typescript
+## 4. Ingest endpoint contract — `POST /api/hooks/analyze-offer`
+
+**File:** `server/api/hooks/analyze-offer.js` (1015 lines). Router mounted at `/api/hooks`
+(`server/bootstrap/routes.js:131`; `translate.js` shares the mount but is an unrelated
+Siri translation hook).
+
+### 4.1 Transport
+
+| Concern | Value | Source |
+|---|---|---|
+| Auth | **None required** (token-optional; see §7). Bot-blocker allow-lists `/api/hooks*`. | `bot-blocker.js:160-165` |
+| Rate limit | `offerHookLimiter`: 20 req/min keyed by `ip + (x-shortcut-token \| shortcut_token \| device_id \| 'unknown')`; 429 body `{ ok:false, error:'Offer analysis rate limit exceeded. Please wait a moment.' }` | `rate-limit.js:56-68` |
+| Body parsers | `express.json({limit:'5mb'})` **and** `express.urlencoded({extended:true, limit:'5mb'})` on `/api/hooks` (Form bodies with only text fields ship as urlencoded — mounted 2026-08-14) | `bootstrap/middleware.js:226-231` |
+| Multipart | `multer.memoryStorage()`, `fileSize` 5 MB, `upload.single('image')` | `analyze-offer.js:151-154` |
+| Content types accepted | `application/json`, `application/x-www-form-urlencoded`, `multipart/form-data` (file part named `image`) | — |
+
+### 4.2 Request fields (after alias normalization)
+
+Every incoming key first passes through `normalizeOfferBody()` (`normalize-offer-body.js`):
+case-insensitive **exact** lookup against an enumerated alias table, canonical keys win over
+aliases, unknown keys pass through untouched, every remap is warn-logged
+(`[HOOKS] Field aliases accepted: … — update the Shortcut key names`).
+
+| Canonical | Accepted aliases | Required? | Notes |
+|---|---|---|---|
+| `text` | `ocr_text`, `ocr` | one of `text` / `image` | On-device OCR output |
+| `image` | `screenshot`, `photo` (string fields only) | one of `text` / `image` | JSON/urlencoded: base64 (data-URL prefix and whitespace tolerated). Multipart: raw file bytes in a part named **exactly `image`** — multer binds that name before alias normalization runs; a file part named anything else is a MulterError → HTTP 500 from the global error handler (no `voice`/`notification`) |
+| `image_type` | `imagetype`, `mime_type`, `mimetype` | no | default `image/jpeg`; multipart uses the part's mimetype |
+| `device_id` | `deviceid`, `device` | no | Display/legacy identity only — **not** a credential; stored; `'anonymous_device'` when absent |
+| `latitude` | `lattitude`, `lat` | no | Rounded to 6 decimals; drives `driver_lat`, `coord_key`, `h3_index`, `market`, and Phase-2 timezone |
+| `longitude` | `longitude`, `longitud`, `lng`, `lon`, `long` | no | as above |
+| `source` | — | no | Stored verbatim in `offer_intelligence.source`. Defaults: `siri_vision` (multipart), `siri_shortcut` (JSON). Canonical keys for new shortcuts: `siri_text`, `siri_vision`, `android_text`, `android_vision` |
+| `shortcut_token` | `shortcuttoken`, `token` | no (but it IS the product) | Header `X-Shortcut-Token` is preferred and wins over the body field |
+
+Neither `text` nor `image` → **400** `{ "error": "Missing text or image payload" }`.
+
+**Coordinates are optional by design (2026-08-14, joint):** the canonical shortcuts send
+none — the location fix costs seconds in a 3-second window; pattern data comes from
+Phase-2 geocoding of the offer's own addresses.
+
+### 4.3 Response shapes
+
+All 200 responses share the same keys (`success, voice, notification, decision, reason,
+response_time_ms`, plus `notices` on the main path).
+
+| Path | HTTP | Body |
+|---|---|---|
+| Main (fast lane, model lane, deterministic fallback) | 200 | `{ success:true, voice, notification, decision:'ACCEPT'\|'REJECT'\|'NO DATA', reason, notices:[…], response_time_ms }` |
+| Share auto-reject (`analyze-offer.js:311-327`) | 200 | `{ success:true, voice:'Reject. Share tier.', notification:'REJECT: share', decision:'REJECT', reason:'share', response_time_ms }` (no `notices` key) |
+| No data (nothing parsed and no model answer) | 200 | `decision:'NO DATA'`, `reason:'no data'`, `notification:'NO DATA: no data'`, `voice:'No data. Decide manually.'` |
+| Validation | 400 | `{ error:'Missing text or image payload' }` |
+| Multipart file part >5 MiB or wrong part name (multer, before the handler) | 500 | `{ cid, error:'Internal server error' }` from `server/middleware/error-handler.js` — no `voice`/`notification` (JSON body >5 MB → 413 `{ cid, error:'Payload too large…', code:'payload_too_large' }`) |
+| Uncaught error (`:853-868`) | 500 | `{ success:false, voice:'Analysis failed. Decide manually.', notification:'Analysis failed — decide manually', error:<message>, reason:'analysis failed', response_time_ms }` |
+
+Field contracts:
+
+| Field | Meaning |
+|---|---|
+| `voice` | TTS-ready sentence for **Speak Text** — never contains `$`, `/`, or `mi` (§9) |
+| `notification` | Compact on-screen line: `"<DECISION or ACCEPT (FALLBACK)>: <terse reason>"`, then ` \| <notice> \| <notice>` when notices fired. Do not speak it. |
+| `decision` | Machine value: `ACCEPT` / `REJECT` / `NO DATA` (the FALLBACK label is display-only) |
+| `reason` | Terse reason, e.g. `"$1.14 8.3mi"`, `"$0.78 14.0mi low"`, `"$1.05 18.0mi floor prem"`, `"share"`, `"no data"` |
+| `notices` | Up to 4 strings ≤40 chars from `NOTICE_LABELS`: `Verified Rider`, `Filter Detected`, `Deadhead Reduction Pickup` — empty unless the driver enabled them |
+| `response_time_ms` | Wall-clock from arrival to `res.json()` |
+
+### 4.4 Companion hook endpoints (token-REQUIRED)
+
+`requireShortcutUser` (`analyze-offer.js:64-80`) reads `x-shortcut-token` header, or
+`shortcut_token` in body/query **raw** (no alias normalization on these routes — `token` /
+`shortcuttoken` work only on `/analyze-offer`); missing → 401 `shortcut_token required…`;
+unknown → 401 `invalid shortcut token`. (`resolveRuleset` never throws — it fail-opens — so
+the 500 `token_resolution_failed` branch is unreachable; a DB outage surfaces as 401.) All use
+`offerHookLimiter`. `device_id` is **not** an ownership scope (multi-user sweep 2026-08-11).
+
+| Route | Purpose | Contract |
+|---|---|---|
+| `GET /api/hooks/offer-history?limit=20` (≤100) | My recent analyses | `{ success, stats:{ total, accepted, rejected, analyzer_accepted, analyzer_rejected, no_data, avg_response_ms, avg_per_mile }, offers:[…27 columns…] }` scoped `WHERE user_id = me` |
+| `POST /api/hooks/offer-override` `{ id, user_override:'ACCEPT'\|'REJECT' }` | Record in-the-moment disagreement | 404 if not mine → `{ success, original_decision, user_override }` |
+| `POST /api/hooks/offer-cleanup` `{ ids:[…≤50] }` | Delete my test rows | `{ success, deleted, requested }` (DELETE … `AND user_id = me`) |
+
+---
+
+## 5. Phase 1 — synchronous verdict
+
+Control flow in `analyze-offer.js` (line refs at commit `97cd2d3b`):
+
+1. **Normalize + mode** (`:189-215`): multipart (file present) vs JSON. Multipart sets
+   `source` default `siri_vision`; JSON default `siri_shortcut`.
+2. **Token** (`:218`): header `x-shortcut-token`, else body `shortcut_token`.
+3. **GPS** (`:228-233`): 6-decimal round; `market = "lat.1_lng.1"` bucket.
+4. **Pre-parse** (`:237`): `parseOfferText(text)` when text present (§8).
+5. **Images** (`:260-289`): strip data-URL prefix and whitespace; **downscale** when
+   >250 KB (`downscaleOfferImage` → 820 px JPEG q80; fail-open; Phase 2 reuses the same
+   `images[]`). Log line: `[HOOKS] Vision mode: NKB base64 (mime) — downscaled from MKB`.
+6. **Ruleset** (`:294`): `resolveRuleset(token)` → `{ ruleset, userId, version, hash }` (§7).
+7. **Tier** (`:300-301`): `classifyTier(preParsed?.product_type, ruleset)`; if `share` and
+   `ruleset.share.auto_reject === false` → treated as `standard`.
+8. **Prompt** (`:306-308`): text → `buildPhase1Prompt(tier, ruleset)`; image-only →
+   `buildPhase1VisionPrompt(ruleset)` (multi-tier; the model identifies the product).
+9. **Share short-circuit** (`:311-327`): returns immediately, no model.
+10. **FAST LANE — deterministic REJECT** (`:359-378`): gate = `text` present **and**
+    `preParsed.parse_confidence === 'full'` **and** `per_mile != null`. Runs
+    `evaluateDeterministic(tier, preParsed, ruleset)`; **only a `REJECT` answers here**
+    (ACCEPT / NO DATA continue to the model). Notices are regex-detected from the same
+    text the model would read, only for notice keys the driver enabled:
+    `on_the_way_filter` ← `/\bon the way\b/i` → `Filter Detected`; `verified_rider` ←
+    `/\bverified\b/i` → `Verified Rider`. (`deadhead_reduction` is a map visual — not
+    detectable on the text lane by anyone; parity.)
+    **Parity theorem (why REJECT-only is safe under ANY ruleset):** every prompt-side
+    judgment rule (avoid zones, safety road types, multiple stops / round trip,
+    `require_verified`, rating) is REJECT-only in a first-match ladder, so nothing the
+    model could see can rescue an engine REJECT. Engine ACCEPTs still go to the model,
+    which owns the judgment rules.
+11. **MODEL LANE** (`:385-437`): `callModel('OFFER_ANALYZER', { system, user, images })`
+    inside a **20 s** `Promise.race`. User message: `PRE-PARSED: $… | …min/…mi pickup |
+    …min/…mi ride | $…/mi | product` one-liner (omitted at `minimal` confidence) +
+    `Offer text: "…"`; or `Analyze this ride offer screenshot.` for image-only.
+    JSON extraction via `parseModelJson` (`server/lib/offers/parse-model-json.js`): strip
+    fences → `JSON.parse` (unwraps `parsed_data`) → slice first `{` … last `}` → **repair a
+    missing closing brace** (live-observed on gemini-3.5-flash, 7/42 calls) → else
+    deterministic. Then the **honest-floor guard**: a parsed reply with no `decision`, or with
+    all-zero `per_mile`/`total_miles`/`price` ("no ride"), also goes to the deterministic
+    engine. Any model failure/timeout/non-success → deterministic. **The rules always answer.**
+12. **Deterministic answer-of-last-resort** (`deterministicPhase1`, `:333-350`):
+    `evaluateDeterministic(tier, preParsed || {}, ruleset)`; `NO DATA` when `per_mile`
+    is null → `{ decision:'NO DATA', reason:'no data', confidence:0 }`; else
+    `{ decision, reason: terseReason(kind, per_mile, total_miles.toFixed(1), tier),
+    confidence:80, fallback?:true, …preParsed }`.
+13. **Vision tier refinement** (`:439-444`): if image-only and the model returned
+    `product`, `effectiveTier = classifyTier(product, ruleset)` — used for the Phase-1 log
+    line, the Phase-2 `TIER:` context, and the vision arbitration below. Terse-reason tier
+    tags on the text path come from the OCR `tier`; stored `product_type` flows from
+    `preParsed?.product_type ?? dbParsedData?.product_type`.
+13b. **Vision arbitration** (image-only, 2026-08-17): code owns the arithmetic. `per_mile`
+    is recomputed from the model's `price / total_miles`, and `evaluateDeterministic` is
+    re-run on the extracted numbers (`price, total_miles, total_minutes, per_mile,
+    per_minute, pickup_*, rating` — the vision template now carries `rating`, 0 = not
+    shown). **Engine REJECT overrides a model ACCEPT** (floor / pickup / time / max-miles /
+    rating / ARP miss can never be rescued by what the model saw). **Engine ACCEPT
+    overrides a model REJECT only when the model's `judgment_reject` is empty** — a
+    non-empty value (`avoid:…`, `safety`, `verified_missing`, `stops`, `round_trip`,
+    `share`) is the model's call and stands. Engine `NO DATA` leaves the model's answer
+    alone. Why: live cards showed the model summing 1.9 + 4.2 mi as ~6.3 → $1.34 vs the
+    true $1.40 against a $1.35 floor → wrong REJECT; near-floor offers are the common case.
+14. **Normalize decision fields** (`:447-486`): `decision = phase1Result.decision || 'REJECT'`
+    (unreachable-by-design after the guard above); `reason = reason || reasoning || ''`;
+    numerics coerced via `toNum` (vision JSON may carry strings). **Code owns the
+    arithmetic:** on the vision path `per_mile` is recomputed from the model's
+    `price / total_miles` (the model's own $/mi wobbled 1.34–1.40 for one card) and the
+    terse reason's leading dollar figure is aligned to it. Fallback terse text
+    `"$X.XX Y.Ymi"` when the model gave none.
+15. **Display strings** (`:477-487`): `decisionLabel = 'ACCEPT (FALLBACK)'` when
+    `phase1Result.fallback === true`; `notices` filtered (strings ≤40, max 4);
+    `notification = "<label>: <terse>"` + `" | n1 | n2"`.
+16. **Respond** (`:495-509`): `voice = buildVoiceLine(decision, perMile, totalMi, terse)`
+    (§9). Then Phase 2 kicks off (§10).
+
+Log lines you will see: `[HOOKS] 📱 Incoming from <device> (<source>)`, `[HOOKS] 📊
+Pre-parsed: …`, `[HOOKS] Ruleset resolved: user=… v…`, `[HOOKS] 🔧 Fast lane (model
+skipped): REJECT — …`, `[HOOKS] ⚡ PHASE 1: Calling OFFER_ANALYZER (Flash) [tier]
+[vision]…`, `[HOOKS] ⚡ Phase 1 responded in Nms: DECISION $x/mi [tier]`.
+
+---
+
+## 6. Rules engine (`rules-engine.js`)
+
+**File:** `server/lib/offers/rules-engine.js` (849 lines). `RULESET_SCHEMA_VERSION = 3`.
+One config object is the single source: it **renders** the Phase-1 text prompt, the
+Phase-1 vision prompt, and the Phase-2 prompt, **and** drives the deterministic
+evaluator — the no-drift invariant. `DEFAULT_RULESET` is deep-frozen (`:152-158`) because
+it is handed out by reference to every untokened request.
+
+### 6.1 Two enforcement lanes
+
+| Lane | Rules | Where |
+|---|---|---|
+| **Deterministic** (code is the authority on arithmetic) | rating floor (when a rating is present), pickup limits, $/mi floor, $/min floor, total-time limit + pay-conjunction escape, accept ladder, acceptance-rate protection (ARP), too-far/low terminal reject | `evaluateDeterministic` `:307-421` |
+| **Vision-judgment** (rendered into prompts; model applies) | safety road types, `require_verified`, avoid-places (by label), multiple stops, round trip, commercial-staging guidance, notices | `renderRuleLines` `:432-488`, `renderGuidanceLines`, `noticesLine` |
+| **Deterministic geo audit** (Phase 2, post-geocode) | `avoid[]` re-checked by geometry; vision-vs-geometry disagreement stored as training data | `evaluateGeoRules` `:807-849` |
+
+### 6.2 `DEFAULT_RULESET` (v3; every v3 addition is inert at default → parity with legacy)
+
+```jsonc
 {
-  // One of `text` or `image` is required
-  text?: string;              // iOS-OCR output of the offer screenshot
-  image?: string;             // Base64-encoded JPEG (data URL prefix tolerated)
-  image_type?: string;        // MIME type, default 'image/jpeg'
-
-  device_id: string;          // Stable per-device identifier
-  latitude?: number;          // GPS lat (float, rounded to 6 decimals server-side)
-  longitude?: number;         // GPS lng (float, rounded to 6 decimals server-side)
-  source?: string;            // 'siri_shortcut' | 'siri_vision' | 'android_automation' | 'manual'
-  shortcut_token?: string;  // per-user token (also accepted as X-Shortcut-Token header) — resolves user_id + per-driver ruleset; no/invalid token → DEFAULT_RULESET + null user_id
-}
-```
-
-**Note:** `lattitude` (double-t) is accepted as a latitude alias with a warn log (2026-07-03).
-
-### 2.3 GPS Precision Rule
-
-Latitude and longitude are rounded to **6 decimals** (~11 cm) before storage. The coarse `market` bucket is derived as `${lat.toFixed(1)}_${lng.toFixed(1)}`.
-
-### 2.4 Companion Endpoints
-
-| Route | Purpose |
-|-------|---------|
-| `GET /api/hooks/offer-history?device_id=xxx&limit=20` | Recent analyses for a device plus aggregate stats. |
-| `POST /api/hooks/offer-override` | Driver disagreed with the AI; record `user_override`. Scoped to the same `device_id`. |
-| `POST /api/hooks/offer-cleanup` | Batch-delete test entries. Scoped to `device_id` ownership (max 50 IDs/request). |
-
----
-
-## 3. Tier System
-
-Tier drives which prompt template, rule set, and fallback thresholds apply. Determined from the OCR-parsed product name via the ruleset-aware `classifyTier(productType, ruleset)` (`server/lib/offers/rules-engine.js:200`): share/standard/premium, plus `comfort`/`xl` split-outs when the driver's ruleset enables them (DEFAULT_RULESET reduces to the legacy three).
-
-### 3.1 Tier Definitions
-
-| Tier | Products | Floor $/mi | AI called? | Rationale (from 300+ DFW samples) |
-|------|----------|-----------|------------|-----------------------------------|
-| **share** | `Share`, `Lyft Shared` | — (auto-reject) | **No** | Median $0.69/mi, 0% accept rate. Skips Gemini call entirely. |
-| **standard** | `UberX`, `UberX Exclusive`, `UberX Priority`, `Lyft`, `Uber` (bare), unknown | $0.90/mi | Yes | Core volume. Accepted avg $1.13/mi vs rejected avg $0.77/mi. |
-| **premium** | `Comfort`, `VIP`, `Black`, `UberXL`, `UberXL Exclusive`, `Lyft XL`, `Lyft Lux`, `Lyft Black` | $1.10/mi | Yes | Higher floor, relaxed time limits. |
-
-### 3.2 Tier Determination Flow
-
-1. `extractProductType(rawText)` returns canonical product name (e.g. `"UberX Priority"`) or `null`.
-2. `classifyTier(productType)` maps to tier:
-   - `null` or unknown → `"standard"` (default safety net)
-   - In `SHARE_PRODUCTS` set → `"share"`
-   - In `PREMIUM_PRODUCTS` set → `"premium"`
-   - Otherwise → `"standard"`
-3. The selected tier is used to pick `PHASE1_PROMPTS[tier]` and is injected into the Phase 2 system prompt as `TIER: <UPPER> (<productType>)`.
-
----
-
-## 4. Phase 1 — Synchronous Analysis (Gemini Flash)
-
-**Source:** `server/api/hooks/analyze-offer.js` lines 260–439
-**Model role:** `OFFER_ANALYZER` → `gemini-3.5-flash` (pinned default — NEVER a `*-latest` alias; see Memory #342)
-**Registry config:** `server/lib/ai/model-registry.js:308` — `maxTokens: 8192`, `temperature: 0.1`, `thinkingLevel: 'HIGH'`, `features: ['vision']`
-
-### 4.1 Control Flow
-
-1. Detect input mode (multipart vs JSON).
-2. Normalize GPS to 6 decimals; derive `market` bucket.
-3. `parseOfferText(text)` — <1ms regex pre-parse (text mode only).
-4. `classifyTier(preParsed.product_type)`.
-5. **Share short-circuit:** if tier is `share`, return immediately with `voice: 'Reject. Share tier.'` — no AI call.
-6. Build a compressed one-liner of pre-parsed data to prepend to the user message.
-7. Call `callModel('OFFER_ANALYZER', { system, user, images })`.
-8. Two-tier JSON extraction:
-   - Tier 1: strip ` ```json` / ` ``` ` fences, `JSON.parse`.
-   - Tier 2: slice from first `{` to last `}`, retry parse (Gemini sometimes adds preamble).
-   - Tier 3 (on total parse failure): deterministic fallback rule engine (§7).
-9. Compute `terseReason` from `phase1Result.reason || phase1Result.reasoning`, falling back to `"$X.XX Y.Ymi"` built from pre-parsed values.
-10. Compute `voice` via `buildVoiceLine(decision, perMile, totalMi, terseReason)` (§9).
-11. `res.json(...)` — driver's answer shipped.
-12. Kick off Phase 2 IIFE (§5).
-
-### 4.2 Phase 1 Prompts
-
-All prompts demand **raw JSON only** — no markdown or backticks. One prompt per tier, rendered by `buildPhase1Prompt(tier, ruleset)` in `server/lib/offers/rules-engine.js` (vision-only requests use `buildPhase1VisionPrompt(ruleset)`); the ruleset is the driver's `offer_rulesets` row resolved from the shortcut token, else `DEFAULT_RULESET` (byte-identical to the legacy prompts at defaults).
-
-**Share prompt** — auto-reject instruction; in practice never reaches AI because of the early-return at step 5:
-```
-REJECT. Share rides always rejected.
-{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"decision":"REJECT","reason":"share"}
-```
-
-**Standard prompt** — 9 rules, first-match-wins:
-| Rule | Condition | Decision |
-|------|-----------|----------|
-| 1 | Rating visible and `< 4.85` | REJECT |
-| 2 | "Verified" missing | REJECT |
-| 3 | `$/mi < 0.90` | REJECT |
-| 4 | `$/mi ≥ 0.90` and `total_min ≤ 20` | ACCEPT |
-| 5 | `$/mi ≥ 1.10` and `total_min ≤ 25` | ACCEPT |
-| 6 | `$/mi ≥ 1.75` and `total_min < 30` | ACCEPT |
-| 7 | `$/mi ≥ 2.00` and `total_min 30–40` | ACCEPT |
-| 8 | `$/mi ≥ 2.00` and `total_min > 40` | ACCEPT |
-| 9 | Default | REJECT |
-
-**Premium prompt** — 8 rules:
-| Rule | Condition | Decision |
-|------|-----------|----------|
-| 1 | Rating visible and `< 4.85` | REJECT |
-| 2 | "Verified" missing | REJECT |
-| 3 | `$/mi < 1.10` | REJECT |
-| 4 | `$/mi ≥ 1.10` and `total_min ≤ 25` | ACCEPT |
-| 5 | `$/mi ≥ 1.40` and `total_min ≤ 30` | ACCEPT |
-| 6 | `$/mi ≥ 1.75` and `total_min ≤ 40` | ACCEPT |
-| 7 | `$/mi ≥ 2.00` and `total_min > 40` | ACCEPT |
-| 8 | Default | REJECT |
-
-### 4.3 Expected AI JSON
-
-```json
-{
-  "price": 9.43,
-  "per_mile": 1.57,
-  "total_miles": 6.0,
-  "total_minutes": 18,
-  "decision": "ACCEPT",
-  "reason": "$1.57 6.0mi"
-}
-```
-
-`reason` must be terse: `"$1.14 8.3mi"` on accepts, `"$0.78 14.0mi low"` / `"…floor"` / `"…too far"` / `"…rating"` on rejects. Legacy prose from older prompts is accepted under the alias `reasoning`.
-
----
-
-## 5. Phase 2 — Asynchronous Deep Analysis (Gemini Pro)
-
-**Source:** `analyze-offer.js:481–657`
-**Model role:** `OFFER_ANALYZER_DEEP` → `gemini-3.1-pro-preview` (pinned default — NEVER a `*-latest` alias; see Memory #342)
-**Registry config:** `model-registry.js:337` — `maxTokens: 2048`, `temperature: 0.2`, `thinkingLevel: 'LOW'`, `features: ['vision']`
-**Timeout:** 45 seconds, enforced via `Promise.race` (the Gemini SDK has no built-in timeout).
-
-### 5.1 Flow
-
-1. Async IIFE runs **after** `res.json()`; the driver already has their answer.
-2. Build Phase 2 system prompt: `buildPhase2Prompt(ruleset)` (rules-engine — same ruleset as Phase 1) + `locationContext` + `tierContext` + `preParseBlock`.
-3. Call Gemini Pro with same screenshot and same text.
-4. If Phase 2 succeeds:
-   - Parse its JSON (includes `parsed_data`, `decision`, `reasoning`, `confidence`, `location_analysis`).
-   - `aiModelUsed = 'gemini-3.1-pro-preview'`.
-5. If Phase 2 fails (timeout, error, non-JSON): fall back to Phase 1 result. `aiModelUsed` = the model Phase 1 actually resolved (`phase1Response.model`), or `rules-engine-deterministic` if Phase 1 never answered.
-6. Merge `preParsed + phase2Result.parsed_data` into `mergedParsedData`.
-7. Compute geographic columns (`coord_key`, `h3_index`), temporal columns (`local_date`, `local_hour`, `day_of_week`, `day_part`, `is_weekend`).
-8. Compute offer-session bucket (30-min window): same `offer_session_id` if prior offer for this device within 1800 s, else new UUID; `offer_sequence_num` increments.
-9. INSERT row into `offer_intelligence` (§10).
-10. `pg_notify('offer_analyzed', { device_id, decision, reasoning, price, per_mile, platform, response_time_ms, ai_model })`.
-
-### 5.2 Phase 2 Output Schema
-
-```json
-{
-  "parsed_data": {
-    "price": 9.43, "miles": 6.0, "pickup_minutes": 5, "ride_minutes": 13,
-    "pickup": "Legacy Dr & Preston Rd", "dropoff": "DFW Terminal B",
-    "platform": "uber", "surge": null, "per_mile": 1.57,
-    "rider_rating": 4.92, "product_type": "UberX"
+  "schema_version": 3,
+  "basis": "full_ride",                    // 'full_ride' = total (pickup+ride) | 'active_time' = ride only
+  "global": {
+    "rating_floor": 4.85,
+    "require_verified": true,              // prompt-only gate
+    "pickup_limits": null,                 // { max_miles, max_minutes }
+    "time_limit": null,                    // { max_total_minutes, unless: { min_per_mile, min_per_minute } }
+    "acceptance_rate_protection": null,    // { min_per_total_mile }  → ACCEPT (FALLBACK)
+    "auto_reject": null,                   // { multiple_stops, round_trip }  (vision lane)
+    "safety_road_types": false,            // vision lane
+    "commercial_staging": false,           // vision guidance
+    "notices": null                        // { verified_rider, on_the_way_filter, deadhead_reduction, hourly_rate }  hourly_rate (v3.1) = show computed $/hr — telemetry, never a decider
   },
-  "decision": "ACCEPT",
-  "reasoning": "2-3 sentence rationale covering location quality, return-trip viability, economic assessment.",
-  "confidence": 87,
-  "location_analysis": {
-    "dropoff_zone": "core",           // "core" | "deadhead" | "fringe"
-    "return_difficulty": "easy",      // "easy" | "moderate" | "hard"
-    "area_demand": "high"             // "high" | "medium" | "low"
-  }
+  "share": { "auto_reject": true },
+  "tiers": {
+    "standard": { "floor_per_mile": 0.90, "floor_per_minute": null, "max_total_miles": null, "accept_ladder": [   // max_total_miles: v3.1 slider (2026-08-17) → REJECT too_far
+      { "min_per_mile": 0.90, "max_total_min": 20 },
+      { "min_per_mile": 1.10, "max_total_min": 25 },
+      { "min_per_mile": 1.75, "max_total_min_excl": 30 },
+      { "min_per_mile": 2.00, "min_total_min": 30, "max_total_min": 40 },
+      { "min_per_mile": 2.00, "min_total_min_excl": 40 } ] },
+    "premium":  { "floor_per_mile": 1.10, "floor_per_minute": null, "max_total_miles": null, "accept_ladder": [
+      { "min_per_mile": 1.10, "max_total_min": 25 },
+      { "min_per_mile": 1.40, "max_total_min": 30 },
+      { "min_per_mile": 1.75, "max_total_min": 40 },
+      { "min_per_mile": 2.00, "min_total_min_excl": 40 } ] },
+    "comfort": null,                       // optional split-out tier (same shape as standard)
+    "xl": null
+  },
+  "tier_products": null,                   // { comfort:[…], xl:[…] } overrides product routing
+  "geo": { "home_city": {enabled:false, overrides:{}}, "other_city": {…}, "airport": {…} },  // caller-scoped overrides; NOT wired by any caller today
+  "avoid": [],                             // [{ place_id, label, lat, lng, mode, radius_mi?, corridor_deg?, min_trip_mi?, enabled }]
+  "home": null                             // { deadhead_only, mention_threshold_min } — declared; not consumed by the evaluator/prompts yet
 }
 ```
 
-### 5.3 Phase 2 Failure Modes
+Rung semantics: ACCEPT when `per_mile >= min_per_mile` AND (`min_per_minute` null or
+`per_minute >=`) AND every present bound holds (`min_total_min` inclusive,
+`min_total_min_excl` exclusive, `max_total_min` inclusive, `max_total_min_excl` exclusive).
+Unknown duration counts as **999 min** (legacy parity).
 
-| Failure | Fallback behavior | `ai_model` recorded |
-|---------|-------------------|---------------------|
-| Timeout after 45 s | Phase 1 result saved to DB | the model Phase 1 actually resolved (`phase1Response.model`), or `rules-engine-deterministic` if Phase 1 never answered |
-| Gemini error (5xx, auth, quota) | Phase 1 result saved to DB | the model Phase 1 actually resolved (`phase1Response.model`), or `rules-engine-deterministic` if Phase 1 never answered |
-| Non-JSON response | Phase 1 result saved to DB | the model Phase 1 actually resolved (`phase1Response.model`), or `rules-engine-deterministic` if Phase 1 never answered |
-| Any thrown exception | Logged to console, DB insert skipped entirely (best-effort; Siri already answered) | n/a |
+Tier routing (`classifyTier` `:211-223`): base tier from `parse-offer-text.js`
+(`share` = `Share`, `Lyft Shared`; `premium` = `Comfort, VIP, Black, UberXL, UberXL
+Exclusive, Lyft XL, Lyft Lux, Lyft Black`; else `standard`, including unknown/null).
+When the ruleset enables `tiers.xl` / `tiers.comfort`, premium products route by
+`tier_products` if set, else `DEFAULT_XL_PRODUCTS = [UberXL, UberXL Exclusive, Lyft XL,
+VIP, Black, Lyft Lux, Lyft Black]`, `DEFAULT_COMFORT_PRODUCTS = [Comfort]`.
 
-Currently **Phase 2 reasoning does not surface back to Siri** — the driver hears the Phase 1 `voice` and never learns of Phase 2's richer verdict. Tracked in §16.
+`migrateRuleset(config)` (`:172-203`) upgrades any stored v1/v2/partial config to the full
+v3 shape with inert defaults; called on every read and before every write; idempotent.
+
+### 6.3 Deterministic gate order and reason kinds (`evaluateDeterministic`)
+
+```
+share (auto_reject≠false) → REJECT 'share'
+per_mile null              → NO DATA 'no_data'
+rating < rating_floor      → REJECT 'rating'          (never rescued)
+pickup_limits exceeded     → REJECT 'pickup'          (never rescued)
+[ARP disabled] per_mile < floor_per_mile      → REJECT 'floor'
+[ARP disabled] per_minute < floor_per_minute  → REJECT 'min_floor'
+time_limit exceeded && !unless-conjunction    → REJECT 'time_limit' (never rescued)
+miles > tier max_total_miles (v3.1)           → REJECT 'too_far'
+accept ladder, first match                    → ACCEPT 'accept'
+[ARP enabled] per_mile >= min_per_total_mile  → ACCEPT 'accept_fallback' (fallback:true)
+[ARP enabled] deferred floor misses           → REJECT 'floor' | 'min_floor'
+minutes > 40                                  → REJECT 'too_far'
+else                                          → REJECT 'low'
+```
+
+ARP semantics are the spec's: it rescues **profitability** failures only — floors defer
+to it when it is enabled; rating/pickup/time rejects are never rescued.
+
+`terseReason(kind, perMile, totalMiles, tier)` (`analyze-offer.js:129-150`) turns kinds
+into the wire `reason`: base `"$X.XX Y.Ymi"` + kind word (`fallback`, `floor`, `min`,
+`pickup`, `over time`, `too far`, `rating`, `low`) + tier tag (` prem` / ` comf` / ` xl`;
+`rating` carries no tag).
+
+### 6.4 Prompt renderers (all from the same ruleset)
+
+| Function | Used for | Notes |
+|---|---|---|
+| `buildPhase1Prompt(tier, ruleset)` (`:560-611`) | Text requests (tier known from OCR) | Byte-identical to legacy prompts at defaults (pinned test). Numbered first-match rules in evaluator order; math line reflects `basis`; guidance + notices lines appended when enabled; JSON template gains `pickup_*`, `fallback`, `notices` keys only when those rules are enabled |
+| `buildPhase1VisionPrompt(ruleset)` (`:621-693`) | Image-only requests | Global gates once, then each enabled tier's floors/ladder; the model fills `"product"`; premium header lists only products that still route to premium; ARP line re-appended after tiers |
+| `buildPhase2Prompt(ruleset)` (`:703-758`) | Deep async extraction | Full-extraction JSON contract (§10.2), GATES + per-tier RULES + SHARE + GENERAL guidance; explicitly "do NOT assume any specific metro" |
+
+Prompt-side rule text (rendered only when enabled): safety road types; `REJECT if rating
+visible and <X`; `REJECT if "Verified" missing`; avoid rules by mode —
+`destination_in` → "in or within ~R mi of LABEL", `north_of`/`south_of`, `heads_toward`
+→ "trip heads toward LABEL and ride_mi>=N" (default 8); multiple stops; round trip;
+pickup limits; floors (suppressed when ARP enabled — they defer); time limit with unless;
+ACCEPT rungs; `ACCEPT with "fallback":true if $/mi>=ARP`; terminal `REJECT.`
+
+`NOTICE_LABELS = { verified_rider:'Verified Rider', on_the_way_filter:'Filter Detected',
+deadhead_reduction:'Deadhead Reduction Pickup' }` (`:528-532`).
+
+### 6.5 Geo audit (`evaluateGeoRules`)
+
+Pure geometry over geocoded `pickup`/`dropoff` (`geo.js` haversine/bearing helpers):
+`destination_in` → dropoff within `radius_mi` (default 6) of anchor; `north_of`/`south_of`
+→ latitude compare; `heads_toward` → trip ≥ `min_trip_mi` (8) AND pickup→dropoff bearing
+within `corridor_deg` (30) of pickup→anchor AND dropoff closer to anchor than pickup was.
+Returns `[{ place_id, label, mode, result:'violated'|'clear'|'no_data' }]`.
+
+### 6.6 Write-time validation (`ruleset-schema.js`)
+
+Zod, `.strict()` everywhere, v3-exact (`schema_version` literal 3). Bounds: money 0–50,
+minutes 0–600 int, miles 0–500; ladder ≤12 rungs; `avoid` ≤25 places (`corridor_deg`
+5–90); `tier_products` lists ≤20; `rating_floor` 0–5. `validateRuleset(config)` →
+`{ ok, config }` or `{ ok:false, errors:['path: message', …] }` (PUT returns 422 with
+`details`). Read path never validates — it fail-opens (§7).
+
+### 6.7 Spec → v3 mapping (Melody's verbatim spec → editable keys)
+
+| Spec item (`docs/OFFER_ANALYZER_DRIVER_RULESET.md`) | v3 key / behavior |
+|---|---|
+| Rate targets (UberX $1.00/mi + $0.50/min; Comfort $1.25 + $0.70; XL $2.00 + ~$1) | `tiers.standard/comfort/xl` floors + per-rung `min_per_minute` |
+| Rider quality 4.90 | `global.rating_floor` |
+| Verified → "Verified Rider" | `global.require_verified` + `notices.verified_rider` |
+| Uber Share / Lyft Shared / Multiple Stops / Round Trip | `share.auto_reject`, `global.auto_reject.{multiple_stops, round_trip}` |
+| Heads toward Fort Worth / Denton / Garland; north of US-380 | `avoid[]` entries (user-picked places, modes `heads_toward` / `north_of`) |
+| Safety road types | `global.safety_road_types` |
+| Commercial staging | `global.commercial_staging` |
+| On-the-way filter / "…" map marker | `notices.on_the_way_filter` / `notices.deadhead_reduction` |
+| Time limits (pickup+trip > 20 unless $2/mi AND $1/min) | `global.time_limit` |
+| Pickup limits (3 mi / 8 min) | `global.pickup_limits` |
+| Acceptance Rate Protection ($1.00/total mile) | `global.acceptance_rate_protection` → `ACCEPT (FALLBACK)` |
+| Home / deadhead logic | `home` key declared; **not consumed yet** (roadmap) |
+| Decision priority order | evaluator gate order (§6.3) + prompt rule order |
+| Output format lines / analysis-source line | Not implemented as spec'd: the wire contract is `decision` + terse `reason` + `notices` (`voice`/`notification`) — see roadmap |
+| Error Handling string; "unless exceptional pay offsets" escapes (pickup limits, US-380); Estimated Return miles; Vision-over-OCR priority | Not implemented as spec'd (server uses text and image together, regex numbers preferred over model numbers) — roadmap L7 |
+
+**Important:** `DEFAULT_RULESET` is **legacy parity**, not Melody's spec values (standard
+$0.90/mi, premium $1.10/mi, rating 4.85, no per-minute floors, comfort/xl off). Her spec
+values (UberX $1.00 + $0.50/min, Comfort $1.25 + $0.70, XL $2.00 + ~$1, rating 4.90, pickup
+3 mi/8 min, time 20 min unless $2/mi AND $1/min, ARP $1.00) reach the engine only through
+her saved `offer_rulesets` row (and the `melodySpec()` fixture in
+`tests/offers/rules-engine-v3.test.js`).
 
 ---
 
-## 6. Pre-Parser (Regex, `parse-offer-text.js`)
+## 7. Identity bridge and ruleset store
 
-**File:** `server/lib/offers/parse-offer-text.js` (377 lines)
-**Entry point:** `parseOfferText(rawText)` (line 228)
-**Performance:** <1 ms, pure CPU, no I/O.
-**Security:** Inputs capped at 5000 chars to prevent ReDoS (CodeQL).
+**Token:** `driver_profiles.shortcut_token varchar(43) UNIQUE` = `"vp_"` + 40 base62
+chars (~238 bits; `ruleset-hash.js:generateShortcutToken`), plus `shortcut_token_created_at`,
+`shortcut_device_label`. Minted get-or-create by `GET /api/offer-analyzer/shortcut-token`;
+rotated by `POST …/regenerate` (old token dies immediately — cache busted). One token per
+user, shared by all their devices.
 
-### 6.1 Extraction Functions
+**Resolution (`ruleset-store.js:resolveRuleset(token)`):** `driver_profiles.shortcut_token`
+→ `user_id` LEFT JOIN `offer_rulesets` → `migrateRuleset(config)` →
+`{ ruleset, userId, version, hash }`.
 
-| Function | Returns | Example |
-|----------|---------|---------|
-| `extractPrice()` | `number \| null` — primary ride price, excluding `/active hr` hourly estimates | `9.43` |
-| `extractHourlyRate()` | `number \| null` — `$X.XX/active hr (est.)` | `23.58` |
-| `extractTimeDistancePairs()` | `Array<{minutes, miles}>` — all `"N min (X.X mi)"` matches | `[{5, 2.2}, {13, 3.8}]` |
-| `extractProductType()` | `string \| null` — **canonical** name | `"UberX Priority"`, `"Comfort"`, `"Lyft XL"` |
-| `extractSurge()` | `number \| null` — priority-pickup bonus or surge amount | `2.40` |
-| `extractAdvantage()` | `number \| null` — Uber Pro advantage percentage | `5` |
-| `detectPlatform(text, productType)` | `'uber' \| 'lyft' \| 'unknown'` | `"uber"` |
-| `classifyTier(productType)` | `'share' \| 'standard' \| 'premium'` | `"premium"` |
-| `formatPerMileForVoice(perMile)` | TTS clause (no `$` or `/`) | `"dollar fifty-seven per mile"` |
+| Situation | Result | Log |
+|---|---|---|
+| No token | `DEFAULT_RULESET`, `userId:null`, `version/hash:null` | — |
+| Unknown token | defaults (not cached — attacker input must not grow the map) | `[ruleset-store] Unknown shortcut token — applying DEFAULT_RULESET…` (warn) |
+| Known driver, no saved rules | defaults **with identity** (offer stored under `user_id`, `ruleset_hash NULL`) | — |
+| Known driver + rules | their v3 ruleset + version + `config_hash` | — |
+| DB error | defaults; fail-open LOUD | `[ruleset-store] Ruleset load failed (…) — applying DEFAULT_RULESET` (error) |
 
-### 6.2 `parseOfferText()` Output
+Cache: in-process `Map`, TTL **15 s**, max 500 entries (oldest evicted); `invalidateUser`
+after PUT/regenerate. Cloud Run multi-instance edits converge within TTL.
 
-```typescript
-{
-  price: number | null,
-  hourly_rate: number | null,
-  pickup_minutes: number | null,
-  pickup_miles: number | null,
-  ride_minutes: number | null,
-  ride_miles: number | null,
-  total_miles: number | null,       // pickup_miles + ride_miles
-  total_minutes: number | null,     // pickup_minutes + ride_minutes
-  per_mile: number | null,          // price / total_miles, rounded to 2 decimals
-  per_minute: number | null,
-  surge: number | null,
-  product_type: string | null,      // canonical
-  advantage_pct: number | null,
-  platform_hint: 'uber' | 'lyft' | 'unknown',
-  parse_confidence: 'full' | 'partial' | 'minimal'
-}
-```
-
-### 6.3 Pair Disambiguation
-
-Uber shows pickup first, ride second. If only **one** pair is extracted, context is used:
-- If `"Avg. wait time at pickup"` appears after the pair, the pair is treated as **pickup**.
-- Otherwise the pair is treated as **ride** (more useful for `$/mi`).
-
-### 6.4 Parse-Confidence Levels
-
-| Level | Trigger |
-|-------|---------|
-| `full` | `price != null` and `pairs.length >= 2` |
-| `partial` | `price != null` and `pairs.length >= 1`, OR price alone |
-| `minimal` | No price detected |
+**Provenance stamps** on every stored offer: `user_id`, `ruleset_version`, `ruleset_hash`
+(`NULL` hash = defaults applied — visible, never silent). Hash = sha256 of canonical
+sorted-key JSON (`hashRuleset`).
 
 ---
 
-## 7. Deterministic Fallback Rule Engine
+## 8. Pre-parser (`parse-offer-text.js`)
 
-**Triggered when:** the Phase-1 model call fails, times out (20 s Promise.race), or its response can't be parsed as JSON. Implemented by `evaluateDeterministic(tier, preParsed, ruleset)` in `server/lib/offers/rules-engine.js:296`, invoked from `analyze-offer.js` (`deterministicPhase1()`).
+Pure regex, <1 ms, inputs >5000 chars are refused by the pair/advantage extractors
+(ReDoS guard). `parseOfferText(rawText)` returns:
 
-**Required input:** `preParsed.per_mile !== null`. Without it, returns `decision: 'NO DATA'` with `reason: 'no data'` — never `REJECT`, because REJECT is reserved for rule-evaluated offers.
+```
+price, hourly_rate ($X/active hr), pickup_minutes, pickup_miles, ride_minutes, ride_miles,
+total_miles, total_minutes, per_mile (price/total_miles, 2dp), per_minute, surge,
+product_type (canonical), advantage_pct, platform_hint ('uber'|'lyft'|'unknown'),
+parse_confidence ('full' | 'partial' | 'minimal')
+```
 
-Returned `reason` strings are literal and drive the terse Phase-1 `reason` field (and thus the `voice` qualifier map in §9). All accepts render without a qualifier; all rejects carry one of: `floor`, `too far`, `low`, `rating`. Premium variants append a `prem` tag.
+- Pairs: `/(\d+)\s*min(?:s|utes?)?\s*\((\d+(?:\.\d+)?)\s*mi\)/gi` — first = pickup, second
+  = ride. One pair → pickup only if it precedes "Avg. wait time", else ride.
+- Confidence: `full` = price + ≥2 pairs; `partial` = price + 1 pair or price alone;
+  `minimal` = no price. **The fast lane requires `full`.**
+- Canonical products: `UberXL Exclusive`, `UberXL`, `UberX Exclusive`, `UberX Priority`,
+  `UberX`, `Uber`, `Lyft XL`, `Lyft Lux`, `Lyft Black`, `Lyft Shared`, `Lyft Priority`,
+  `Lyft`, `Comfort`, `VIP`, `Black`, `Share`.
+- Surge: `+$X included for priority…` bonus, or `* X.XX` / `$ X.XX` markers (skips
+  4.70–5.00 rating look-alikes and `/active hr`).
+- `formatPerMileForVoice(1.57)` → `"dollar fifty-seven per mile"`; `0.93` →
+  `"ninety-three cents per mile"`; `2.00` → `"two dollars per mile"`; `0` → `"zero per mile"`.
 
-### 7.1 Standard-Tier Fallback (all reasons include pre-parsed numbers)
-
-| Condition | Decision | Reason literal |
-|-----------|----------|----------------|
-| `rating != null && rating < 4.85` | REJECT | `$X.XX Y.Ymi rating` |
-| `per_mile < 0.90` | REJECT | `$X.XX Y.Ymi floor` |
-| `per_mile ≥ 0.90 && total_min ≤ 20` | ACCEPT | `$X.XX Y.Ymi` |
-| `per_mile ≥ 1.10 && total_min ≤ 25` | ACCEPT | `$X.XX Y.Ymi` |
-| `per_mile ≥ 1.75 && total_min < 30` | ACCEPT | `$X.XX Y.Ymi` |
-| `per_mile ≥ 2.00 && total_min 30–40` | ACCEPT | `$X.XX Y.Ymi` |
-| `per_mile ≥ 2.00 && total_min > 40` | ACCEPT | `$X.XX Y.Ymi` |
-| `total_min > 40` (no accept hit) | REJECT | `$X.XX Y.Ymi too far` |
-| Else | REJECT | `$X.XX Y.Ymi low` |
-
-### 7.2 Premium-Tier Fallback (reasons end with ` prem`)
-
-| Condition | Decision | Reason literal |
-|-----------|----------|----------------|
-| `rating != null && rating < 4.85` | REJECT | `$X.XX Y.Ymi rating` (no prem suffix — rating reason comes first) |
-| `per_mile < 1.10` | REJECT | `$X.XX Y.Ymi floor prem` |
-| `per_mile ≥ 1.10 && total_min ≤ 25` | ACCEPT | `$X.XX Y.Ymi prem` |
-| `per_mile ≥ 1.40 && total_min ≤ 30` | ACCEPT | `$X.XX Y.Ymi prem` |
-| `per_mile ≥ 1.75 && total_min ≤ 40` | ACCEPT | `$X.XX Y.Ymi prem` |
-| `per_mile ≥ 2.00 && total_min > 40` | ACCEPT | `$X.XX Y.Ymi prem` |
-| `total_min > 40` (no accept hit) | REJECT | `$X.XX Y.Ymi too far prem` |
-| Else | REJECT | `$X.XX Y.Ymi low prem` |
-
-### 7.3 Special Short-Circuits
-
-| Path | Decision | Reason literal | Voice literal |
-|------|----------|----------------|---------------|
-| Share tier (line 268) | REJECT | `share` | `Reject. Share tier.` |
-| No pre-parsed data at fallback | NO DATA | `no data` | (follows general `buildVoiceLine` → `"Unknown."` because `perMile == null`) |
-| Error / catch path | — | `analysis failed` | `Analysis failed. Decide manually.` |
-
-### 7.4 Source of Truth
-
-Implemented by `evaluateDeterministic(tier, preParsed, ruleset)` in `server/lib/offers/rules-engine.js:296`, invoked from `analyze-offer.js` (`deterministicPhase1()`).
+Melody's parse contract (todo #10 (d)): first address = pickup, second = destination;
+leading min/mi = driver → pickup; second = pickup → drop-off. Addresses are extracted by
+the model (Phase 2), not by regex.
 
 ---
 
-## 8. Response Shape
+## 9. Voice / notification builders
 
-All paths return JSON. Shape is stable across the four paths; fields not applicable to a path carry documented defaults rather than being omitted.
-
-### 8.1 Success — Main Phase 1 (HTTP 200)
-
-```json
-{
-  "success": true,
-  "voice": "Accept. dollar fifty-seven per mile, 6 miles.",
-  "notification": "ACCEPT: $1.57 6.0mi",
-  "decision": "ACCEPT",
-  "reason": "$1.57 6.0mi",
-  "notices": [],
-  "response_time_ms": 1823
-}
-```
-
-### 8.2 Share-Tier Auto-Reject (HTTP 200)
-
-Fires **before** any AI call when `classifyTier` returns `"share"`:
-
-```json
-{
-  "success": true,
-  "voice": "Reject. Share tier.",
-  "notification": "REJECT: share",
-  "decision": "REJECT",
-  "reason": "share",
-  "response_time_ms": 4
-}
-```
-
-### 8.3 No-Data Path (HTTP 200)
-
-Gemini JSON parse failed AND pre-parser returned no usable `per_mile`. Decision is deliberately `"NO DATA"` — never `REJECT`:
-
-```json
-{
-  "success": true,
-  "voice": "No data. Decide manually.",
-  "notification": "NO DATA",
-  "decision": "NO DATA",
-  "reason": "no data",
-  "response_time_ms": 1450
-}
-```
-
-### 8.4 Error Path (HTTP 500)
-
-Uncaught exception anywhere in the handler (multer oversized upload, Gemini 5xx that bubbled, DB down, etc.):
-
-```json
-{
-  "success": false,
-  "voice": "Analysis failed. Decide manually.",
-  "notification": "Analysis failed — decide manually",
-  "error": "<Error.message>",
-  "reason": "analysis failed",
-  "response_time_ms": 2030
-}
-```
-
-### 8.5 Field Contracts
-
-| Field | Type | Purpose |
-|-------|------|---------|
-| `success` | boolean | `true` for 200 responses, `false` only on 500. |
-| `voice` | string | TTS-ready line for Siri "Speak Text" action (§9). Never contains `$`, `/`, or `mi`. |
-| `notification` | string | Short visual line (`"ACCEPT: $1.57 6.0mi"`). Preserves compact symbols for the screen. Do **not** feed this to Speak Text — it contains `$` and `/` that TTS mispronounces. |
-| `decision` | string | `"ACCEPT" \| "REJECT" \| "NO DATA"`. Machine-actionable. |
-| `reason` | string | Terse Phase-1 reason (e.g. `"$0.78 14.0mi low"`, `"share"`, `"no data"`). Exposed separately from `notification` so Shortcuts can display it independently of the spoken decision. Added 2026-04-15 (Memory #120). |
-| `notices` | string[] | Observed notices (e.g. 'Verified Rider', 'Filter Detected'); empty unless enabled in the driver's rules. |
-| `response_time_ms` | integer | Wall-clock ms from request arrival to `res.json()`. |
-| `error` | string | Present only on 500 responses. The raw `Error.message`. |
-
-Note: `notification` may read `ACCEPT (FALLBACK): …` and appends notices after ` | ` when enabled in the driver's rules.
-
----
-
-## 9. Voice / TTS Pipeline
-
-Added 2026-04-16 (Memory #121). Converts a decision + pre-parsed numbers + terse reason into a natural, TTS-friendly sentence that Siri's "Speak Text" action renders cleanly.
-
-### 9.1 Pipeline
-
-```
-pre-parsed per_mile (float)
-   └─> formatPerMileForVoice(perMile)        → "dollar fifty-seven per mile"
-                                               (parse-offer-text.js:353)
-terse reason (string, e.g. "$1.57 6.0mi")    → qualifier lookup (§9.3)
-decision (ACCEPT | REJECT | NO DATA)         → decisionWord
-
-   ║
-   ▼
-buildVoiceLine(decision, perMile, totalMiles, reason)
-   └─> "Accept. dollar fifty-seven per mile, 6 miles."
-   └─> "Reject. seventy-eight cents per mile, 14 miles, too far."
-   └─> "Reject."     ← when per_mile or total_miles is missing
-   (analyze-offer.js:38)
-```
-
-### 9.2 `formatPerMileForVoice(perMile)`
-
-Turns a dollar value into a spoken clause. Never contains symbols.
-
-| Input | Output |
-|-------|--------|
-| `null`, `NaN` | `""` |
-| `0` | `"zero per mile"` |
-| `0.50` | `"fifty cents per mile"` |
-| `0.93` | `"ninety-three cents per mile"` |
-| `1.00` | `"one dollar per mile"` |
-| `1.57` | `"dollar fifty-seven per mile"` |
-| `2.00` | `"two dollars per mile"` |
-| `3.10` | `"three dollars ten cents per mile"` |
-
-### 9.3 `buildVoiceLine()` Qualifier Map
-
-When the terse reason includes one of these tokens, a natural-language tail is appended:
-
-| Reason token | Spoken tail | Trigger (from §7) |
-|--------------|-------------|-------------------|
-| `too far` | `, too far` | `total_min > 40` with no accept-rule hit |
-| `rating` | `, low rider rating` | Rider rating `< 4.85` |
-| `fallback` | `, fallback accept` | v3 acceptance-rate protection |
-| `pickup` | `, long pickup` | v3 pickup limits |
-| `over time` | `, too long` | v3 total-time limit |
-| `floor` | `, below floor` | Below tier $/mi hard floor |
-| `low` | `, rate too low` | General miss of every accept rule |
-
-First match wins; premium's `prem` suffix is intentionally **not** surfaced in voice.
-
-### 9.4 `buildVoiceLine()` Output Rules
+`buildVoiceLine(decision, perMile, totalMiles, reason)` (`analyze-offer.js:90-127`):
 
 | Condition | Output |
-|-----------|--------|
-| `decision == 'ACCEPT'` | `Accept. <perMileSpoken>, <N> miles[, <qualifier>].` |
-| `decision == 'REJECT'` | `Reject. <perMileSpoken>, <N> miles[, <qualifier>].` |
-| `decision == 'NO DATA'` | `No data. <perMileSpoken>, <N> miles.` → but in the NO DATA path, `per_mile == null`, so output collapses to `"No data. Decide manually."` |
-| `perMile == null OR totalMiles == null OR isNaN` | `"No data. Decide manually."` |
+|---|---|
+| `perMile` or `totalMiles` null/NaN | `"No data. Decide manually."` |
+| otherwise | `"<Accept|Reject|No data>. <perMileSpoken>, <N> mile(s)[, <qualifier>]."` |
 
-Miles are rounded to the nearest whole number with plural handling (`1 mile`, `6 miles`). Siri's TTS reads bare digits naturally (`"14 miles"` → "fourteen miles").
+Qualifier map (first match in the terse reason wins): `too far`→", too far";
+`rating`→", low rider rating"; `fallback`→", fallback accept"; `pickup`→", long pickup";
+`over time`→", too long"; `floor`→", below floor"; `low`→", rate too low". (`min` — the
+`min_floor` kind — has no spoken qualifier today.) Miles rounded to whole numbers.
 
-### 9.5 Special Literals (Bypass `buildVoiceLine`)
+Special literals: share → `"Reject. Share tier."`; 500 → `"Analysis failed. Decide manually."`.
+When `global.notices.hourly_rate` is on, a tail `, about N dollars an hour` is appended (N =
+pay ÷ total minutes × 60, computed server-side) and `$N/hr` joins the notification notices.
 
-| Path | Voice |
-|------|-------|
-| Share tier short-circuit | `"Reject. Share tier."` |
-| Error / catch | `"Analysis failed. Decide manually."` |
-
-### 9.6 Why Voice Differs from `notification`
-
-| Field | Example | Why different |
-|-------|---------|---------------|
-| `notification` | `"ACCEPT: $1.57 6.0mi"` | Compact; displayed on-screen. `$` and `/` are meaningful to the eye. |
-| `voice` | `"Accept. dollar fifty-seven per mile, 6 miles."` | Spoken; `$` becomes "dollar sign" and `/` becomes "slash" when read verbatim by iOS TTS — unusable for hearing a decision. |
+Fixed 2026-08-17: a **non-offer screenshot** (every vision model returns REJECT with all-zero
+metrics) is now routed to the rules engine by the honest-floor guard and speaks
+`"No data. Decide manually."` (verified live on the endpoint).
 
 ---
 
-## 10. Database Schema (`offer_intelligence`)
+## 10. Phase 2 — asynchronous enrichment
 
-**File:** `shared/schema.js:1666–1840`
-**Previous table:** `intercepted_signals` (JSONB blob) — replaced 2026-02-17 by this structured-column table.
-**Written to:** Once per offer, by Phase 2's async IIFE (§5). If the IIFE throws, no row is saved.
+Runs in an async IIFE after `res.json()` (`analyze-offer.js:522-851`); nothing here can
+delay the spoken answer.
 
-### 10.1 Column Groups
+### 10.1 Deep call
 
-#### Identity
+`callModel('OFFER_ANALYZER_DEEP', { system, user, images })` inside a **45 s** race.
+System prompt = `buildPhase2Prompt(ruleset)` + `Driver GPS: lat, lng (market: …)` (when
+coords) + `TIER: <EFFECTIVE> (<product>). Apply <tier> rules above.` + `PRE-PARSED DATA
+(server-verified)` block (when confidence ≠ minimal). User = `Offer text: "…"` or
+`Analyze this ride offer screenshot in detail.` Same downscaled `images[]` as Phase 1.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | uuid (PK) | Default `gen_random_uuid()` |
-| `device_id` | varchar(255) NOT NULL | Primary identifier for Siri flows |
-| `user_id` | uuid | Optional, **no FK** (headless ingestion allowed) |
+### 10.2 Deep JSON contract (rendered by `buildPhase2Prompt`)
 
-#### Offer Metrics (prefer pre-parsed over AI)
-
-| Column | Type | Source priority |
-|--------|------|-----------------|
-| `price` | double precision | `preParsed.price` → `dbParsedData.price` |
-| `per_mile` | double precision | `preParsed.per_mile` (rounded `price / total_miles`) |
-| `per_minute` | double precision | `preParsed.per_minute` |
-| `hourly_rate` | double precision | `preParsed.hourly_rate` (`$X.XX/active hr`) |
-| `surge` | double precision | `preParsed.surge` → `dbParsedData.surge` |
-| `advantage_pct` | integer | `preParsed.advantage_pct` (Uber Pro) |
-| `pickup_minutes` | integer | `preParsed.pickup_minutes` |
-| `pickup_miles` | double precision | `preParsed.pickup_miles` |
-| `ride_minutes` | integer | `preParsed.ride_minutes` |
-| `ride_miles` | double precision | `preParsed.ride_miles` |
-| `total_miles` | double precision | `preParsed.total_miles` → `dbParsedData.miles` |
-| `total_minutes` | integer | `preParsed.total_minutes` |
-| `product_type` | varchar(50) | Canonical (e.g. `"UberX Priority"`) |
-| `platform` | varchar(20) NOT NULL default `'unknown'` | `'uber'` \| `'lyft'` \| `'unknown'` |
-
-#### Addresses
-
-| Column | Type | Populated by |
-|--------|------|--------------|
-| `pickup_address` | text | Phase 2 AI output (`deepResult.parsed_data.pickup`) |
-| `dropoff_address` | text | Phase 2 AI output (`deepResult.parsed_data.dropoff`) |
-| `pickup_lat` / `pickup_lng` | double precision | Phase-2 post-INSERT geocode (`geocodeEventAddress`, 6-decimal + place_id; 2026-07-03) |
-| `dropoff_lat` / `dropoff_lng` | double precision | Phase-2 post-INSERT geocode (`geocodeEventAddress`, 6-decimal + place_id; 2026-07-03) |
-| `geocoded_at` | timestamptz | Set by that post-INSERT geocode UPDATE, which also appends the `geo_audit`/`geo_violated` result of `evaluateGeoRules` into `parsed_data_json` |
-
-#### Driver Location
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `driver_lat` / `driver_lng` | double precision | 6-decimal precision (~11 cm) |
-| `coord_key` | text | `"lat6d_lng6d"` via `coordsKey()` |
-| `h3_index` | text | H3 resolution-8 hex (`latLngToCell(lat, lng, 8)`) |
-| `market` | varchar(100) | Coarse 1-decimal bucket `"33.1_-96.8"` |
-
-#### Temporal
-
-| Column | Type | Source |
-|--------|------|--------|
-| `local_date` | text | `YYYY-MM-DD` in driver's local timezone (via `resolveTimezoneFromCoords`) |
-| `local_hour` | integer | 0-23 in driver's local timezone |
-| `day_of_week` | integer | 0=Sun … 6=Sat (local timezone) |
-| `day_part` | text | `getDayPartKey(getLocalHour(...))` via `shared/dayparts.js` |
-| `is_weekend` | boolean | Saturday or Sunday (local timezone) |
-| `timezone` | text | IANA zone from Google Timezone API (e.g., `America/Chicago`) |
-
-**No-fallback (2026-07-06, Melody):** timezone resolution order is (1) the offer's own GPS coords via Google Timezone API, (2) the tokened driver's current snapshot row. If neither resolves, the offer row is NOT stored — never NULL/UTC temporal columns (a row without real local-time context poisons time-of-day analytics; Indiana incident).
-
-#### AI Analysis
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `decision` | text NOT NULL | always the Phase-1 decision the driver heard; Phase-2 dissent is stored as `deep_decision`/`deep_disagrees` in `parsed_data_json` and prefixed into `decision_reasoning` — training signal, never the record (2026-07-03) |
-| `decision_reasoning` | text | Phase 2 prose reasoning if available, else Phase 1 terse reason |
-| `confidence_score` | integer | 0-100 |
-| `ai_model` | text | `'gemini-3.1-pro-preview'` on Phase 2 success, `'gemini-3.5-flash'` on Phase 2 fallback |
-| `response_time_ms` | integer | Phase 1 latency (the only latency the driver experienced) |
-
-#### Ruleset Provenance
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `ruleset_version` | integer | Which per-driver ruleset produced the decision |
-| `ruleset_hash` | text | NULL hash = `DEFAULT_RULESET` applied (visible, never silent) |
-
-#### Driver Feedback
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `user_override` | text | `null \| 'ACCEPT' \| 'REJECT'`. Written by `POST /api/hooks/offer-override`. |
-
-#### Sequence Tracking
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `offer_session_id` | uuid | Groups offers within a 30-min window per device |
-| `offer_sequence_num` | integer | 1, 2, 3 … within a session |
-| `seconds_since_last` | integer | Seconds between this offer and the prior one on this device |
-
-#### Parse Quality / Provenance
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `parse_confidence` | varchar(20) | `'full' \| 'partial' \| 'minimal'` from pre-parser |
-| `source` | varchar(50) NOT NULL default `'siri_shortcut'` | `'siri_shortcut' \| 'siri_vision' \| 'android_automation' \| 'manual'` |
-| `input_mode` | varchar(20) NOT NULL default `'text'` | `'text' \| 'vision'` |
-
-#### Raw Data
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `raw_text` | text | Original OCR text; for vision mode: `"[Vision: NKB image]"` placeholder |
-| `raw_ai_response` | text | Phase 2 raw text if available, else Phase 1 raw text |
-| `parsed_data_json` | jsonb | Merged `preParsed + dbParsedData + location_analysis` |
-
-#### Timestamps
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `created_at` | timestamptz NOT NULL default `now()` | Row insert time |
-| `updated_at` | timestamptz NOT NULL default `now()` | Updated on override |
-
-### 10.2 Indexes (13 total)
-
-| Index | Columns | Query pattern |
-|-------|---------|--------------|
-| `idx_oi_device_created` | `(device_id, created_at DESC)` | Device history |
-| `idx_oi_market_daypart` | `(market, day_part, platform)` where market NN | Avg $/mi by daypart |
-| `idx_oi_h3_decision` | `(h3_index, decision)` where h3_index NN | Best offer areas |
-| `idx_oi_date_platform` | `(local_date, platform, per_mile)` | Daily pricing floor |
-| `idx_oi_weekend_hour` | `(is_weekend, local_hour, platform)` | Weekend vs weekday |
-| `idx_oi_session_seq` | `(offer_session_id, offer_sequence_num)` | Sequence analysis |
-| `idx_oi_driver_location` | `(driver_lat, driver_lng)` | Spatial lookup |
-| `idx_oi_override` | `(device_id, user_override)` where override NN | Override rate |
-| `idx_oi_user_id` | `(user_id)` where user_id NN | User linkage |
-| `idx_oi_per_mile` | `(per_mile DESC)` where NN | Best-offer ranking |
-| `idx_oi_created_at` | `(created_at DESC)` | Time-series queries |
-| `idx_oi_need_geocode` | `(id)` where geocoded_at NULL and pickup_address NN | Geocoder backfill job |
-
----
-
-## 11. Siri Shortcuts Integration
-
-Detailed Shortcut scripts live in `docs/architecture/SIRI_SHORTCUT_ANALYZE.md` (the decoded Shortcut anatomy + server contract). Below is the contract this endpoint promises for those Shortcuts.
-
-### 11.1 Shortcut 1 — "Vecto Analyze" (Text Mode)
-
-1. Take Screenshot
-2. Extract Text from Image (iOS on-device OCR, ~200 ms)
-3. Get Current Location
-4. Get Contents of URL — POST to `https://vectopilot.com/api/hooks/analyze-offer`
-   ```json
-   { "text": "[Extracted Text]", "device_id": "[Device Name]",
-     "latitude": "[Latitude]", "longitude": "[Longitude]",
-     "source": "siri_shortcut" }
-   ```
-5. Get Dictionary Value — key: `voice`
-6. **Speak Text** — [voice]
-
-### 11.2 Shortcut 2 — "Vecto Vision" (Image Mode)
-
-1. Take Screenshot
-2. **Convert Image** — Format: JPEG, Quality: 0.6 (~3 MB PNG → ~300 KB JPEG — critical to stay under the 5 MB body limit after base64 adds 33% overhead)
-3. Base64 Encode
-4. Get Current Location
-5. Get Contents of URL — POST with `source: "siri_vision"`
-6. Get Dictionary Value — key: `voice`
-7. **Speak Text** — [voice]
-
-### 11.3 Recommended Shortcut Actions per Response Field
-
-| Shortcut action | Dictionary key | Use |
-|-----------------|---------------|-----|
-| **Speak Text** | `voice` | Hands-free spoken decision |
-| **Show Notification** | `notification` | Visual pop with compact `ACCEPT/REJECT: $X.XX Y.Ymi` |
-| **Get Dictionary Value** | `decision` | Branch logic (`if ACCEPT → play tone A`) |
-| **Get Dictionary Value** | `reason` | Display the rejection reason on screen separately from the spoken decision |
-
-### 11.4 Timing Constraints
-
-| Context | Window | Notes |
-|---------|--------|-------|
-| Trip Radar offers | ~3 s | Very tight. Phase 1 must return in <2 s. |
-| Regular offers | ~9 s | Comfortable. |
-| Phase 1 target | <2 s | Flash + lean prompt. |
-| Phase 2 | async | Never gates the Shortcut — runs after response. |
-
-### 11.5 Why `voice` and `notification` Are Both Present
-
-Driver wants to both **hear** and **see** the answer. `voice` strips symbols for TTS fidelity; `notification` keeps symbols for visual compactness. `reason` is exposed separately so the Shortcut can display the rejection rationale without embedding it in either formatted field.
-
----
-
-## 12. Business Rules Summary
-
-Consolidated accept/reject thresholds across tiers. These are the thresholds used by **both** Phase 1 Gemini prompts (§4.2) and the deterministic fallback (§7). Phase 2 also receives them in its system prompt for consistency.
-
-| Tier | $/mi Floor | Accept if ≤20 min | ≤25 min | ≤30 min | ≤40 min | >40 min | Always-REJECT flags |
-|------|-----------|-------------------|---------|---------|---------|---------|---------------------|
-| **share** | — | — | — | — | — | — | Entire tier |
-| **standard** | $0.90 | $0.90 | $1.10 | $1.75 (<30) | $2.00 | $2.00 | Rating <4.85; "Verified" missing |
-| **premium** | $1.10 | — | $1.10 | $1.40 | $1.75 | $2.00 | Rating <4.85; "Verified" missing |
-
-**Short rides at good $/mi always ACCEPT** — there is no city/zone gate at Phase 1. A $10 Comfort ride for 5 min in Plano clears premium rule 4 regardless of geography. Phase 2 adds geographic nuance to the stored row but does **not** override the driver's Phase 1 answer.
-
----
-
-## 13. Coach and Strategy Integration
-
-### 13.1 Rideshare Coach DAL
-
-**File:** `server/lib/ai/rideshare-coach-dal.js`
-**Load:** `getOfferHistory(20)` inside `getCompleteContext()` batch (~line 826).
-**Query:** Last 20 rows from `offer_intelligence` for the user's device (~lines 1249–1307).
-
-Computed stats:
-
-```typescript
-{ total: 20, accepted: 12, rejected: 8,
-  accept_rate_pct: 60, overrides: 2,
-  avg_per_mile: 1.42, avg_response_ms: 1823 }
+```json
+{ "parsed_data": { "price", "miles", "pickup_minutes", "pickup_miles", "ride_minutes", "ride_miles",
+                   "pickup", "dropoff", "platform", "surge", "per_mile", "rider_rating", "verified",
+                   "product_type", "multiple_stops", "round_trip", "on_the_way", "map_ellipsis", "road_flags" },
+  "decision": "ACCEPT|REJECT", "reasoning": "2-3 sentences", "confidence": 0-100,
+  "location_analysis": { "dropoff_zone": "core|deadhead|fringe", "return_difficulty": "easy|moderate|hard", "area_demand": "high|medium|low" } }
 ```
 
-System-prompt injection (~lines 1190–1216):
+### 10.3 Merge rules
 
-```
-=== RIDE OFFER ANALYSIS LOG ===
-Stats (last 20 offers):
-   Accept rate: 60% (12 accepted, 8 rejected)
-   Avg $/mile: $1.42
-   Avg response time: 1823ms
-   Driver overrides: 2 times
+- `ai_model` = the model Phase 2 **actually** ran (`phase2Response.model`), else the model
+  Phase 1 actually ran (`phase1Response.model`), else `'rules-engine-deterministic'`
+  when no model answered (honest telemetry — lessons_learned #9). Caveat: if an adapter
+  response lacks `.model`, the code falls back to the literals `'gemini-3.5-flash'` /
+  `'gemini-3.1-pro-preview'` (`:562-563`, `:582`) — literals that can drift from the
+  registry; adapters normally set `.model`.
+- `decision` stored = **what was spoken** (Phase 1). Deep dissent → `parsed_data_json.
+  deep_decision`, `deep_disagrees`, and `decision_reasoning` prefixed
+  `[deep model dissents: X] `.
+- Metrics prefer regex pre-parse → deep `parsed_data` → Phase-1 JSON (vision-only rows
+  therefore carry model-extracted metrics instead of NULLs).
+- `parsed_data_json` = `{ …preParsed, …dbParsedData, per_mile, per_minute, location_analysis,
+  deep_decision, deep_disagrees }` (+ geo audit keys after §10.6).
 
-Recent offers:
-   1. ACCEPT $9.43/4.6mi $2.05/mi (2:15 PM)
-   2. REJECT $7.82/10.1mi $0.77/mi (2:08 PM)
+### 10.4 Timezone and temporal columns (no fallbacks)
 
-Use offer patterns to advise on positioning, timing, and offer strategy.
-```
+Order: (1) offer GPS → `resolveTimezoneFromCoords` (Google Timezone API); (2) tokened
+driver's `users.current_snapshot_id → snapshots.timezone`; (3) **neither → the row is not
+stored** (`console.error … offer NOT stored`). Then `local_hour`, `day_of_week`,
+`day_part` (`getDayPartKey`), `is_weekend`, `local_date` via `shared/dayparts.js`
+(re-export shim `server/lib/location/daypart.js`).
 
-### 13.2 Strategy Integration
+> Consequence for the canonical shortcuts (no GPS): an **untokened** request with no
+> coordinates is never stored; a **tokened** driver needs a current snapshot (i.e., the
+> app has resolved their location this session) for the row to land. Roadmap item.
 
-Offer data is **not** directly injected into strategy generation today. The Coach references offer patterns when advising (via the prompt block above), but venue scoring and positioning strategies do not consume `offer_intelligence`. Listed as gap §16.
+### 10.5 Session bucketing and INSERT
 
----
+Session chain: by `user_id` when tokened; else by `device_id` where `user_id IS NULL`;
+else fresh. Same session if ≤1800 s since the previous offer; `offer_sequence_num`
+increments; `seconds_since_last` recorded.
 
-## 14. Android Considerations
+INSERT into `offer_intelligence` (§11.1) with `source` (verbatim), `input_mode`
+(`'vision'` if any image else `'text'`), `raw_text` (`text` or `"[Vision: NKB image]"`
+using the **original** size), `raw_ai_response` (Phase 2 text else Phase 1), provenance
+stamps, `response_time_ms` (Phase-1 latency). Then
+`pg_notify('offer_analyzed', { device_id, user_id, offer_id, decision, reasoning, price,
+per_mile, platform, response_time_ms, ai_model })`.
 
-**Status:** Planned. Schema (`source: 'android_automation'`) and bot-blocker allow-list already support it, but no client shell exists.
+### 10.6 Geocode + geo audit (non-fatal)
 
-| Option | How | Complexity |
-|--------|-----|------------|
-| Tasker + AutoShare | Share intent → Tasker → HTTP POST | Medium (user setup) |
-| Custom Android app | Accessibility service or notification listener → POST | High |
-| Android 12+ Shortcuts | HTTP action | Medium |
-| Share intent | "Share screenshot" → Vecto app → POST | Medium (requires app) |
-
-What is missing: native app, share-intent handler, accessibility service, notification listener, Play Store presence.
-
----
-
-## 15. Current State
-
-| Area | Status |
-|------|--------|
-| Phase 1 (Gemini Flash, <2 s) | ✅ Production |
-| Phase 2 (Gemini Pro, async 45 s) | ✅ Production |
-| Siri Shortcut: text mode (`Vecto Analyze`) | ✅ Working |
-| Siri Shortcut: vision mode (`Vecto Vision`) | ✅ Working |
-| Siri Shortcut: multipart (server-side base64) | ✅ Working — fastest |
-| Pre-parser regex (8 extractors) | ✅ Working |
-| Tier classification (share/standard/premium) | ✅ Working |
-| Share auto-reject (skip AI) | ✅ Working |
-| Deterministic fallback rule engine | ✅ Working |
-| `offer_intelligence` DB storage (52-column structured) | ✅ Working |
-| Coach integration (last 20 offers + stats) | ✅ Working |
-| SSE broadcast (`offer_analyzed`) | ✅ Working |
-| `reason` field surfaced to Siri | ✅ Added 2026-04-15 (Memory #120) |
-| Voice TTS pipeline (`buildVoiceLine`, qualifier map) | ✅ Added 2026-04-16 (Memory #121) |
-| Android support | ⬜ Infrastructure ready, client missing |
+If the deep model produced `pickup`/`dropoff` strings: `geocodeEventAddress` each (Google
+**Geocoding API** — returns `place_id` + coords, rounded to 6 decimals; returns null and the
+row stays ungeocoded when `GOOGLE_MAPS_API_KEY` is unset) → `evaluateGeoRules(ruleset, …)`
+when `avoid[]` is non-empty → `UPDATE offer_intelligence SET pickup_lat/lng, dropoff_lat/lng,
+geocoded_at = NOW(), parsed_data_json = parsed_data_json || { geo_audit, geo_violated,
+geo_disagreement (violated AND spoken ACCEPT), pickup_place_id, dropoff_place_id }`. This is
+the **pings/patterns dataset** (Melody, 2026-07-02) and the vision-vs-geometry training signal.
 
 ---
 
-## 16. Open Issues / Future Work
+## 11. Data model
 
-1. **Zero authentication** — Endpoint is public by design (Siri can't send JWTs). Tracked as HIGH in `SECURITY.md`. Mitigation: device registration + per-device rate limiting.
-2. **Phase 2 reasoning never surfaces to the driver** — Gemini Pro produces richer reasoning and `location_analysis` enums, but the driver already heard the Phase 1 `voice` and there is no push back to the device. Options: SSE → iOS Live Activity, or background Shortcut poll.
-3. **"Verified" check is AI-only** — The "Verified missing → REJECT" rule in the prompts depends on the AI seeing the badge in the screenshot/text. The deterministic fallback has no regex for it; if Gemini JSON fails and the driver's text lacks the badge, the fallback cannot enforce this rule.
-4. **DFW-specific geography** — Phase 2 system prompt hardcodes Frisco home base and DFW geography (airport, Fort Worth, Denton outskirts). Won't generalize to other markets. Fix: inject driver's market/home base from their profile.
-5. **No user-override learning** — `user_override` is stored but never feeds back into thresholds or prompts.
-6. **No offer data in strategy prompt** — Strategy generation ignores offer patterns. Venue scoring could weight areas by historic $/mi.
-7. **`vehicle_mode` not propagating** — Coach inbox bug: XL/Comfort info extracted by OCR does not reach Coach AI context.
-8. **Trip Radar timing is tight** — 3 s window; Flash at ~2.5 s burns most of it. No P95 alerting yet.
-9. ~~**Temporal columns use UTC `new Date()`**~~ — **FIXED 2026-04-16.** Temporal columns now use `resolveTimezoneFromCoords()` (Google Timezone API) to derive driver-local hour/day/date. `timezone` column is now written on every offer. Falls back to UTC only if coord-based resolution fails.
-10. **Phase 2 errors silently degrade** — If the IIFE itself throws after Phase 2, **no DB row is written** at all. Siri got its answer, but we lose the analytics record. Fix: outer try/catch that writes a Phase-1-only row.
-11. **No rate limiting per `device_id`** — Current rate limiting is IP-based only.
-12. **No vision-mode fallback** — `OFFER_ANALYZER` was removed from the hedged-fallback list because non-vision models can't process images. A Gemini Flash outage falls through to the deterministic rules engine — text mode gets a rules answer; vision-only mode (no pre-parse) returns `NO DATA` instead of a 500 (failure-proofed 2026-07-03).
-13. ~~**`NO DATA` voice line**~~ — **FIXED 2026-04-16.** `buildVoiceLine` now returns `"No data. Decide manually."` when perMile/totalMiles are missing, instead of bare `"Unknown."` that gave Siri nothing actionable to speak.
+Drizzle: `shared/schema.js`. Migrations: `migrations/20260703_offer_rulesets_outcomes.sql`
+(offer_rulesets, offer_outcomes, token + provenance columns; applied automatically at boot
+by `server/db/run-migrations.js` since 2026-08-06). Dev DB checked live 2026-08-17: 449
+offer rows (all pre-token), 2 rulesets, 2 minted tokens, 0 outcomes. Dev ≠ prod.
+
+### 11.1 `offer_intelligence` (`schema.js:1666-1836`) — one row per analyzed offer, written by Phase 2
+
+| Group | Columns |
+|---|---|
+| Identity | `id uuid PK`, `device_id varchar(255) NOT NULL`, `user_id uuid` (no FK — headless ingestion) |
+| Metrics | `price`, `per_mile`, `per_minute`, `hourly_rate`, `surge`, `advantage_pct int`, `pickup_minutes int`, `pickup_miles`, `ride_minutes int`, `ride_miles`, `total_miles`, `total_minutes int`, `product_type varchar(50)`, `platform varchar(20) NOT NULL default 'unknown'` |
+| Addresses | `pickup_address`, `dropoff_address`, `pickup_lat/lng`, `dropoff_lat/lng`, `geocoded_at` |
+| Driver location | `driver_lat/lng` (6-dec), `coord_key`, `h3_index` (res 8), `market varchar(100)` |
+| Temporal | `local_date text`, `local_hour int`, `day_of_week int (0=Sun)`, `day_part text`, `is_weekend bool`, `timezone text` |
+| Analysis | `decision text NOT NULL` (`ACCEPT`/`REJECT`/`NO DATA`; legacy rows may carry `UNKNOWN`), `decision_reasoning`, `confidence_score int`, `ai_model`, `response_time_ms int` |
+| Provenance | `ruleset_version int`, `ruleset_hash text` |
+| Feedback | `user_override text` |
+| Sequence | `offer_session_id uuid`, `offer_sequence_num int`, `seconds_since_last int` |
+| Parse quality | `parse_confidence varchar(20)`, `source varchar(50) NOT NULL default 'siri_shortcut'`, `input_mode varchar(20) NOT NULL default 'text'` |
+| Raw | `raw_text`, `raw_ai_response`, `parsed_data_json jsonb` |
+| Timestamps | `created_at`, `updated_at` (NOT NULL, default now()) |
+
+Indexes (12): `idx_oi_device_created (device_id, created_at desc)`, `idx_oi_market_daypart`,
+`idx_oi_h3_decision`, `idx_oi_date_platform`, `idx_oi_weekend_hour`, `idx_oi_session_seq`,
+`idx_oi_driver_location`, `idx_oi_override`, `idx_oi_user_id`, `idx_oi_per_mile`,
+`idx_oi_created_at`, `idx_oi_need_geocode (id) where geocoded_at is null and pickup_address is not null`.
+
+### 11.2 `offer_rulesets` (`schema.js:1935-1946`)
+
+`id uuid PK`, `user_id uuid NOT NULL UNIQUE → users(user_id) ON DELETE RESTRICT`,
+`version int NOT NULL default 1` (bumps each save), `config jsonb NOT NULL` (v3),
+`config_hash text NOT NULL`, `created_at`, `updated_at`.
+
+### 11.3 `offer_outcomes` (`schema.js:1958-1985`)
+
+`id uuid PK`, `user_id uuid NOT NULL → users ON DELETE RESTRICT`, `offer_intelligence_id
+uuid → offer_intelligence(id) ON DELETE SET NULL`, `driver_decision text` (CHECK
+`Accepted|Rejected|Cancelled|Completed` in the migration), `driver_reasoning`,
+`actual_pay`, `reimbursements`, `extras`, `other`, `total_earned` **GENERATED ALWAYS AS**
+sum **STORED**, `outcome_source text NOT NULL default 'web_app'`, timestamps.
+Indexes: `uq_outcome_offer` (unique partial on `offer_intelligence_id`),
+`idx_outcome_user_created`, `idx_outcome_decision`.
+Drizzle-vs-DB drift (live-checked): the `driver_decision` CHECK and the partial index
+`idx_dp_shortcut_token` (redundant with the UNIQUE constraint) exist in the migration and
+live DB but are not declared in `shared/schema.js`; the SQL migration is the source of
+truth for them.
+⚠️ `ON DELETE SET NULL` survives row DELETEs, **not TRUNCATE** (verified live 2026-07-03,
+lessons_learned #11) — any `offer_intelligence` reset must `DELETE`.
+
+### 11.4 `driver_profiles` additions (`schema.js:1009-1011`)
+
+`shortcut_token varchar(43) UNIQUE`, `shortcut_token_created_at timestamptz`,
+`shortcut_device_label text`.
+
+### 11.5 Not part of this pipeline
+
+`coach_offer_decisions` (`schema.js:1863`) belongs to the Coach's dormant offer-tag
+executors (todo #38) — the analyzer never writes it.
 
 ---
 
-## 17. Key Files
+## 12. Editor API — `/api/offer-analyzer` (authed)
 
-| File | Purpose |
-|------|---------|
-| `server/api/hooks/analyze-offer.js` | Main endpoint (955 lines), `buildVoiceLine` helper |
-| `docs/architecture/SIRI_SHORTCUT_ANALYZE.md` | Endpoint + Siri Shortcut scripts + decision-rule tables |
-| `server/lib/offers/parse-offer-text.js` | Regex pre-parser (377 lines), `classifyTier`, `formatPerMileForVoice` |
-| `server/lib/ai/model-registry.js` | `OFFER_ANALYZER` (Flash) and `OFFER_ANALYZER_DEEP` (Pro 3.1) role configs |
-| `server/lib/ai/adapters/gemini-adapter.js` | Vision-capable Gemini adapter |
-| `server/lib/ai/rideshare-coach-dal.js` | Coach reads offer history (`getOfferHistory(20)`) |
-| `shared/schema.js` (lines 1666–1840) | `offer_intelligence` table + 13 indexes |
-| `server/lib/location/coords-key.js` | 6-decimal `coord_key` formatter |
-| `shared/dayparts.js` | `getDayPartKey`/`getLocalHour` for temporal columns (imported via the `server/lib/location/daypart.js` re-export shim) |
-| `server/bootstrap/middleware.js` | 5 MB body limit for `/api/hooks` |
+**File:** `server/api/offer-analyzer/index.js` (326 lines); mounted at `/api/offer-analyzer`
+(`routes.js:137`); `router.use(requireAuth)` → `req.auth.userId`.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/rules` | `{ config (migrated v3), version, hash, is_default }`; defaults when no row |
+| PUT | `/rules` `{ config }` | `migrateRuleset` → Zod `validateRuleset` (422 `{ error:'Invalid ruleset', details:[…] }`) → upsert (`version = version + 1` on conflict) → `invalidateUser` → `{ success, version, hash }` |
+| GET | `/shortcut-token` | get-or-create → `{ token, created_at, device_label }` (404 if no driver profile) |
+| POST | `/shortcut-token/regenerate` | rotate → `{ token, created_at }`; old token dead immediately |
+| POST | `/shortcut-token/label` `{ label }` | ≤80 chars, display only → `{ success, device_label }` |
+| GET | `/offers?limit=25` (≤100) | my `offer_intelligence` LEFT JOIN `offer_outcomes` → `{ success, stats:{ analyzed, analyzer_accepted, analyzer_rejected, driver_accepted, disagreements, realized_total }, offers:[…] }` |
+| POST | `/offers/:id/outcome` `{ driver_decision?, driver_reasoning?, actual_pay?, reimbursements?, extras?, other? }` | 400 on bad enum / non-finite / <0 / >10000; 404 unless the offer is mine; upsert on `offer_intelligence_id` → `{ success, outcome:{ id, driver_decision, total_earned } }` |
+| GET | `/places/search?q=` (≥3 chars) | Google Places Text Search (New), 5 results, biased 50 km around `driver_profiles.home_lat/lng`; per-user 20/min (429); 503 without `GOOGLE_MAPS_API_KEY`; → `{ success, results:[{ place_id, label, formatted_address, lat, lng (6-dec), types }] }` |
 
 ---
 
-## Appendix A — Change Log
+## 13. Web page — `/co-pilot/offer-analyzer`
+
+Route `client/src/routes.tsx:196` (under `/co-pilot`, ProtectedRoute); hamburger entry
+`{ label:'Offer Analyzer', icon:Gauge }` (`HamburgerMenu.tsx:26`); API constants
+`API_ROUTES.OFFER_ANALYZER.*` (`apiRoutes.ts:225-233`); client Zod mirror
+`client/src/lib/offer-ruleset-schema.ts`. Page (`OfferAnalyzerPage.tsx`) renders, in order:
+
+| Card | Edits / does |
+|---|---|
+| `SetupCard` | iCloud install link, hands-free triggers, one-time edits, **token** (load / copy / regenerate with confirm / device label). ⚠️ Content is the **July 2026 "Analyze 2"** build (old iCloud link, `lattitude` fix, Location permission) — pre-dates the 2026-08-14 canonical two-shortcut spec. Not edited in this pass by Melody's direction; tracked in the roadmap. |
+| `RateTargetsCard` | **Sliders only (2026-08-17, Melody D4)**: per tier Floor $/mi · $/min (switch+slider) · Max trip minutes · Max total miles (switch+slider); the engine's `accept_ladder` is **derived** as one rung `{ min_per_mile: floor, max_total_min }` (`withDerivedLadder`) — legacy multi-rung ladders round-trip untouched until the tier is edited. Card-level switch **Show $/hr in results** → `global.notices.hourly_rate` (server computes pay ÷ minutes × 60; appended to notification `| $37/hr` and spoken "about 37 dollars an hour"; never a decider) |
+| `GatesCard` | `global.rating_floor`, `global.require_verified`, `share.auto_reject`, `global.auto_reject.{multiple_stops, round_trip}` |
+| `LimitsCard` | `global.pickup_limits`, `global.time_limit` (+ ARP threshold) |
+| `GeographyCard` | `avoid[]` via `GET /places/search` → place pick → mode / radius / corridor / enable |
+| `VisionRulesCard` | `global.safety_road_types`, `global.commercial_staging`, `global.notices` |
+| `OffersCard` | `GET /offers`, live refetch on SSE `offer_analyzed`, per-offer "What did you do?" select (never pre-selected; a *Followed the call* option resolves to our recommendation at click time) + earnings form (shown for Accepted/Completed; cleared when switching to Rejected/Cancelled) → `POST /offers/:id/outcome`; stats row |
+
+Rules save is an explicit sticky **Save** (react-hook-form + Zod), not autosave. Keys with
+**no UI control** today: `basis` (always `full_ride` from the client defaults),
+`tier_products`, `geo` scope overrides, `home` — the last three are inert server-side too
+(roadmap L6).
+Melody's stated direction (2026-08-14): the rules editor is to become **sliders-only**
+input (roadmap).
+
+---
+
+## 14. Realtime — SSE `/events/offers`
+
+`server/api/strategy/strategy-events.js:379-441`, mounted at `/` (`routes.js:mountSSE`).
+`GET /events/offers` (`requireAuthAllowQueryToken`) subscribes to PG channel
+`offer_analyzed` and forwards **only payloads whose `user_id` equals the connection
+owner** (anonymous rows reach no one; unparseable payloads dropped loudly). Event name
+`offer_analyzed`. Client: `subscribeOfferAnalyzed()` (`co-pilot-helpers.ts:290-295`) →
+`OffersCard` refetch.
+
+---
+
+## 15. Coach integration (read-only)
+
+- **This document is a runtime input to the Coach.** `server/api/chat/chat.js`
+  `getOfferAnalyzerRules()` (`:33-59`) reads `docs/architecture/OFFER_ANALYZER.md` and
+  the full `server/lib/ai/model-registry.js` source once per process and splices both into
+  every Coach system prompt under `OFFER ANALYZER RULES (READ-ONLY)` (`:1282-1312`) so
+  the Coach can explain *why* the analyzer recommended what it did and propose rule
+  changes via `[COACH_MEMO]`. Keep this file accurate and section-numbered; a gateway
+  restart is needed for the Coach to see edits (process cache). Size today: this doc
+  ~56 KB + registry ~37 KB per prompt — see roadmap D7.
+- `server/lib/ai/rideshare-coach-dal.js` `getOfferHistory(userId, 20)` (`:1330-1403`)
+  reads the last 20 `offer_intelligence` rows **for the requesting user** (user-scoped
+  since 2026-08-11 — lessons_learned #25 records the prior leak) and
+  `formatContextForPrompt` renders a `=== RIDE OFFER ANALYSIS LOG ===` block (stats +
+  the 5 most recent offers). The Coach does not read `offer_outcomes`.
+- Per `app_rules.coach-never-analyzes-offers` (Melody, 2026-08-13) the Coach prompt
+  states it never analyzes live offers and points drivers to the Offer Analyzer. The
+  parser/Zod/executor/DAL machinery for `LOG_OFFER_DECISION` / `UPDATE_OFFER_DECISION` /
+  `BACKFILL_OFFER_INTEL` (`chat.js:75-149, 658-728`; `coach_offer_decisions` table) is
+  **dormant** — the prompt never instructs those tags and the table has 0 rows in dev
+  (todo #38 decides delete vs keep). `BACKFILL_OFFER_INTEL` is the only Coach write path
+  into `offer_intelligence` (user-scoped).
+- No second analysis pipeline exists: the only `callModel('OFFER_ANALYZER*')` call sites in
+  `server/` are `analyze-offer.js:390` and `:567`; the only importers of `rules-engine.js`
+  are the offers modules, the editor API, and the hook. `server/api/admin/monitor.js`
+  (`/api/admin/offer-monitor`) reads fleet-wide telemetry columns for the dev terminal
+  bridge (todo #6).
+
+---
+
+## 16. Models, latency, and the <3s target
+
+Registry (`server/lib/ai/model-registry.js:361-411`) — verified live per
+`app_rules.verify-models-live`, dates recorded in the registry comments:
+
+| Role | Env override | Default (pinned, never `*-latest`) | maxTokens | temp | thinking | features |
+|---|---|---|---|---|---|---|
+| `OFFER_ANALYZER` (Phase 1, sync) | `OFFER_ANALYZER_MODEL` | `gemini-3.5-flash-lite` (since 2026-08-17; was `gemini-3.5-flash`) | 1024 | 0.1 (honored) | `MINIMAL` | vision |
+| `OFFER_ANALYZER_DEEP` (Phase 2, async) | `OFFER_ANALYZER_DEEP_MODEL` | `gemini-3.1-pro-preview` | 2048 | 0.2 | `LOW` | vision |
+
+Timeouts: Phase 1 **20 s** race, Phase 2 **45 s** race (SDK has none). Vision roles stay on
+3.5 (3.6 regressed object detection per registry note). `OFFER_ANALYZER` is excluded from
+the hedged text fallback list (non-vision models can't take images) — a Flash outage falls
+to the deterministic engine (text) or `NO DATA` (vision-only).
+
+Runtime facts that differ from a naive reading of the registry (verified 2026-08-17):
+
+- **`features: ['vision']` is documentary only.** No adapter reads a `vision` feature
+  (`model-registry.js:653-680` only checks `google_search` / `web_search` /
+  `openai_web_search`). Vision works because `analyze-offer.js` passes `images[]` and
+  `gemini-adapter.js` attaches them as `inlineData` parts.
+- **Temperature 0.1 is honored since 2026-08-17.** `callGemini` caps JSON prompts at 0.2
+  but now takes `min(configured, 0.2)` (`gemini-adapter.js`) — previously every JSON
+  prompt was forced to 0.2 regardless of the registry (Melody: "temp config to .1").
+- **503 retry is pinned since 2026-08-17.** A `gemini-3.5-flash` primary retries on
+  `gemini-3.1-pro-preview`; any other primary (incl. the lite default) retries on
+  `gemini-3.5-flash` (`adapters/index.js`). No `*-latest` alias remains on this path.
+- `.env.local.example:117` shipped `OFFER_ANALYZER_DEEP_MODEL=gemini-3.5-flash` — the
+  exact Flash downgrade the registry warns against (lessons_learned #9). Corrected to
+  the registry default 2026-08-17.
+
+**Melody's hard target (2026-08-14, todo #43): screenshot → verdict < 3 s.** Levers shipped
+2026-08-14 (commit `cd8329da`; removed HIGH-thinking config preserved in
+`docs/architecture/removals/2026-08-14-offer-analyzer-thinking-stepdown.md`):
+
+| Lever | Before → after (live-measured, dev boot) |
+|---|---|
+| Registry `thinkingLevel HIGH→MINIMAL`, `maxTokens 8192→1024` | text HIGH avg 5249 ms (≈ prod p50 5193) → MINIMAL 3120 ms; vision 5496 → 2512 ms; decision parity held |
+| Deterministic **fast REJECT lane** (§5 step 10) | text REJECT **3–5 ms** (was p50 5193 ms) incl. Melody's real ruleset + notices |
+| **Image downscale** >250 KB → 820 px JPEG q80 (`sharp`) | vision **1794 ms** with 501→276 KB (was p50 6447 ms) |
+| **2026-08-17 model bench** → `gemini-3.5-flash-lite` (MINIMAL, 0.1) | live `/v1beta/models` list; 8 candidates × 6 cards (incl. blurry + non-offer) × 3 runs on the real prompts and Melody's dev ruleset, scored vs the engine: lite **vision p50 ~700 ms / p95 ~850 ms, text 687 ms, 54/54 correct, 0 truncated**; 3.5-flash ~1.25 s and **7/42 replies missing the closing brace**; 3.1-flash-lite 860 ms; 3.6-flash 1.03 s; 3.7-flash no MINIMAL, LOW max 16 s; omni = Interactions API only; 2.5-flash-lite 3/12 |
+| Full trip on the real endpoint after the switch (dev boot, Melody's token) | **text ACCEPT lane 577–700 ms**, **vision 630–860 ms**, fast REJECT 1 ms, non-offer → NO DATA ~700 ms |
+| Remaining tail | none over 1 s in dev; on-device p95 with real screenshots is the acceptance gate (roadmap G1). Deterministic ACCEPT lane (L1) is now optional polish |
+
+Historical: p50 5324 ms / p95 6851 ms (n=448, July 2026) before these levers.
+
+---
+
+## 17. Security posture
+
+- `/api/hooks/analyze-offer` is **public by design** (Shortcuts cannot carry JWTs). Identity
+  is the unguessable per-user token; `device_id` is never a credential. Spoofing a
+  `device_id` yields only default rules and an anonymous row.
+- Read/mutate hook endpoints (`offer-history`, `offer-override`, `offer-cleanup`) are
+  **token-required** and user-scoped (multi-user sweep Phase A, 2026-08-11).
+- Rate limits: `offerHookLimiter` 20/min per ip+identity on all four hook routes; places
+  picker 20/min per user; global API limiter also applies (`middleware/rate-limit.js`).
+- Body caps: 5 MB JSON / urlencoded / multipart file. The pair and advantage extractors
+  refuse text >5000 chars (ReDoS guard); the other extractors run on any length.
+- SSE per-user filtering (2026-07-03) — no cross-driver offer leakage.
+- `DEFAULT_RULESET` deep-frozen; unknown tokens are not cached (bounded map).
+- Cost surface: one public request can bill up to two vision model calls; the fast lane
+  and share short-circuit reduce this materially. Historical audit: `docs/HooksCatalog.md`
+  (2026-05; its "no dedicated limiter" finding is **closed** — `offerHookLimiter` exists).
+
+---
+
+## 18. Tests
+
+`NODE_OPTIONS='--experimental-vm-modules' npx jest tests/offers` (or `npm run test:unit`
+for the whole tree). As of 2026-08-17: **5 suites / 66 tests pass**; full unit run 717+5
+pass with the same 7 pre-existing failing suites as baseline (todo #19 debt).
+
+| Suite | Pins |
+|---|---|
+| `tests/offers/rules-engine-parity.test.js` | `buildPhase1Prompt(tier, DEFAULT_RULESET)` **byte-identical** to the legacy prompts; deterministic decisions identical to the legacy ladder across a per_mile × minutes × rating grid. One intentional deviation is pinned: the rating gate is **active** (the legacy fallback's rating check was dead code) |
+| `tests/offers/rules-engine-v3.test.js` | v3 gates from the verbatim spec (pickup/time limits, ARP semantics, comfort/xl routing, avoid rendering, migrateRuleset, geo audit) |
+| `tests/offers/normalize-offer-body.test.js` | alias table behavior (canonical wins, case-insensitive, warn list) |
+| `tests/offers/downscale-offer-image.test.js` | threshold, fail-open, no-grow rule |
+| `tests/offers/parse-model-json.test.js` | the three parse tiers incl. the missing-closing-brace repair; `unwrap:false` envelope mode |
+| `tests/integration/test-ocr-hook.js` | manual script against a running server (not collected by jest). **Stale**: expects `data.analysis.decision`; the response has top-level `decision`/`reason` (roadmap L8) |
+
+---
+
+## 19. Key files
+
+| File | Role |
+|---|---|
+| `server/api/hooks/analyze-offer.js` | Ingest endpoint, Phase 1 + Phase 2, hook companions, `buildVoiceLine`, `terseReason` |
+| `server/lib/offers/rules-engine.js` | `DEFAULT_RULESET`, `migrateRuleset`, `classifyTier`, `evaluateDeterministic`, prompt renderers, `NOTICE_LABELS`, `evaluateGeoRules` |
+| `server/lib/offers/ruleset-schema.js` | Zod write gate |
+| `server/lib/offers/ruleset-store.js` | token → user → ruleset (15 s cache, fail-open loud), `invalidateUser` |
+| `server/lib/offers/ruleset-hash.js` | `hashRuleset`, `generateShortcutToken` (pure) |
+| `server/lib/offers/parse-offer-text.js` | regex pre-parser, canonical products, `PREMIUM_PRODUCTS`, `formatPerMileForVoice` |
+| `server/lib/offers/normalize-offer-body.js` | body-key alias table |
+| `server/lib/offers/downscale-offer-image.js` | 820 px JPEG downscale (sharp), fail-open |
+| `server/lib/offers/parse-model-json.js` | tolerant model-reply parser (3 tiers) used by Phase 1 and Phase 2 |
+| `server/api/offer-analyzer/index.js` | authed editor API |
+| `server/api/strategy/strategy-events.js` | SSE `/events/offers` |
+| `server/lib/ai/model-registry.js` | `OFFER_ANALYZER`, `OFFER_ANALYZER_DEEP` |
+| `server/lib/location/geo.js` | haversine / bearing helpers used by the geo audit |
+| `server/lib/events/pipeline/geocodeEvent.js` | `geocodeEventAddress` (place_id + coords) |
+| `server/bootstrap/routes.js`, `server/bootstrap/middleware.js` | mounts, body parsers |
+| `server/middleware/rate-limit.js`, `server/middleware/bot-blocker.js` | `offerHookLimiter`, hooks allow-list |
+| `shared/schema.js`, `migrations/20260703_offer_rulesets_outcomes.sql` | tables |
+| `client/src/pages/co-pilot/OfferAnalyzerPage.tsx`, `client/src/components/offer-analyzer/*` | page + cards |
+| `client/src/lib/offer-ruleset-schema.ts`, `client/src/constants/apiRoutes.ts` | client schema mirror, routes |
+| `docs/architecture/removals/2026-08-14-*.md`, `2026-08-17-offer-analyzer-model-bench.md`, `2026-08-11-per-user-scoping.md` | removed-comment provenance |
+
+---
+
+## 20. Known gaps (pointer)
+
+The forward plan, open gates, and every deferred item live in
+`docs/architecture/OFFER_ANALYZER_ROADMAP.md`. Headlines: Melody's on-device re-test of
+the <3s build + Android build; SetupCard content drift vs the 2026-08-14 shortcut spec;
+sliders-only rules editor; deterministic ACCEPT lane; storage of coordinate-less untokened
+offers; `home` / `geo` scope keys declared but unconsumed; non-offer-screenshot voice
+line; spec output-format lines; Phase-2 verdict never reaches the driver.
+
+---
+
+## Appendix A — Change log
 
 | Date | Version | Change |
-|------|---------|--------|
-| 2026-02-15 | — | Initial endpoint scaffolded |
-| 2026-02-16 | — | Server-side OCR pre-parser; 6-decimal GPS; vision mode |
-| 2026-02-17 | — | `intercepted_signals` JSONB → `offer_intelligence` structured |
-| 2026-02-28 | — | Two-phase split (Flash sync + Pro 3.1 async) |
-| 2026-03-29 | — | Tier-aware prompts (share/standard/premium); canonical product names |
-| 2026-04-10 | 1.0 | First comprehensive doc pass |
-| 2026-04-15 | — | `reason` field added to response (Memory #120) |
-| 2026-04-16 | 2.0 | `voice` field wired via `buildVoiceLine` + qualifier map (Memory #121); this doc rewritten end-to-end |
-| 2026-07-06 | — | Daypart logic moved to `shared/dayparts.js` (h23 midnight-safe extraction); temporal columns now `NULL` when timezone unresolved (no UTC fallback); taxonomy rename `late_morning_noon`→`early_afternoon`, `afternoon`→`late_afternoon` |
+|---|---|---|
+| 2026-02-15 … 2026-02-28 | — | Endpoint scaffolded; pre-parser; 6-dec GPS; vision mode; `offer_intelligence` structured table; two-phase split |
+| 2026-03-29 | — | Tier-aware prompts; canonical product names |
+| 2026-04-15/16 | 2.0 | `reason` + `voice` fields; doc rewritten |
+| 2026-06-20 | — | Unified rules engine (prompt + fallback from one config; parity pins) — landed in `c968989a` (2026-06-26) |
+| 2026-07-03 | — | **v3**: per-driver DB rulesets, editor API + page, shortcut-token bridge, Phase-2 same-ruleset prompt, geocode + geo audit, decision = spoken, SSE per-user (todo #10; session 2026-07-03, commit `46ad6862` landed 2026-07-06) |
+| 2026-07-06 | — | Timezone order GPS → snapshot → don't store; dayparts adapter |
+| 2026-08-11 | — | Hook read/mutate endpoints token-required + user-scoped; `offerHookLimiter`; session chain by user (commit `f005c634`) |
+| 2026-08-14 | — | Body alias table (`normalize-offer-body.js`); `express.urlencoded` on `/api/hooks`; **<3s sprint**: MINIMAL thinking + 1024 tokens, deterministic fast REJECT lane, image downscale (commit `cd8329da`) |
+| 2026-08-17 | 3.0 | This rewrite; plan/design docs merged and retired |
+| 2026-08-17 | 3.1 | Live model bench → `OFFER_ANALYZER` default `gemini-3.5-flash-lite`; temperature 0.1 honored; 503 retry pinned; `parse-model-json.js` (repair tier); honest-floor guard; **vision arbitration** (engine owns numeric rules on extracted numbers; `judgment_reject` + `rating` in the vision template); **D4 sliders-only Rate Targets** (ladder editor removed; derived single rung; per-tier `max_total_miles`; `$/hr` telemetry) |
+
+## Appendix B — Decisions of record (provenance-marked)
+
+**Melody-authored (verbatim intent, dates as recorded in `claude_memory` #354/#371/#372, todo #10/#43):**
+1. Full verbatim spec scope — `docs/OFFER_ANALYZER_DRIVER_RULESET.md` is the source of truth (2026-07-03).
+2. Per-driver rules bridged by a shortcut token; typed-forms UI (not raw JSON) (2026-07-03).
+3. Zero hardcoded locations — every place user-entered by Places search, keyed by `place_id` (2026-07-03).
+4. Vision-first shortcut: the screenshot only; "the address is on the offer"; full extraction in Phase 2 because "this will tell us where pings and patterns happen" (2026-07-02/03).
+5. Outcomes card: "if I get a reject — I can tell our system I accepted it" (2026-07-03).
+6. "<3 seconds" hard latency target; "we only need the sliders for the input"; hourly rate is telemetry, never the decider (2026-08-14). Validated: "ours is perfect" vs Apple device vision on her real offers.
+7. Coach never analyzes offers (`app_rules`, 2026-08-13).
+8. Field-name tolerance: never tell end users to spell `latitude` correctly (2026-08-14).
+
+**Joint (Melody + Claude, 2026-08-14):** two canonical shortcuts (`analyze-offer-text`,
+`analyze-offer-vision`); no Get Current Location action; `source` keys `siri_text` /
+`siri_vision` (Android: `android_text` / `android_vision`); token in the Headers section.
+
+**Claude-authored, adopted (2026-07-03):** two-lane engine; write-strict / read-fail-open
+posture with NULL-hash visibility; decision = spoken; ARP-defers-floors semantics; ON
+DELETE RESTRICT on user FKs; token format.

@@ -38,7 +38,6 @@ This document is a compiled list of all `TODO` comments extracted from the sourc
 - **`server/agent/thread-context.js`** (Line 120) — `TODO(auth-hardening Item 6): silent writer`
 - **`server/lib/ai/context/enhanced-context-base.js`** (Lines 385, 426) — `TODO(auth-hardening Item 6): silent writer/reader`
 - **`server/api/health/logs.js`** (Line 164) — `TODO(auth-hardening Item 7, preserve-as-designed): /viewer`
-- **`server/api/hooks/analyze-offer.js`** (Line 48) — `TODO(auth-hardening Item 7): treatment (B)`
 - **`server/api/hooks/translate.js`** (Line 25) — `TODO(auth-hardening Item 7): treatment (B), symmetric`
 - **`server/middleware/auth.js`** (Line 316) — `TODO (Phase 2 sunset target): replace ?token= query-param fallback`
 

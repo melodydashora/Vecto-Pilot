@@ -19,6 +19,7 @@ lib/
 ├── infrastructure/  # Logging, job queues
 ├── location/        # Location services (geocoding, holidays)
 ├── notifications/   # Alert and notification system
+├── offers/          # Offer Analyzer engine: rules-engine, ruleset store/schema/hash, pre-parser, body aliases, image downscale
 ├── strategy/        # Strategy generation pipeline
 ├── subagents/       # Specialized AI subagents
 ├── venue/           # Venue intelligence and enrichment
@@ -42,6 +43,7 @@ lib/
 | `infrastructure/` | Cross-cutting concerns | `enqueue()`, logging |
 | `location/` | Geocoding, holidays, validation | `detectHoliday()`, `validateConditions()` |
 | `notifications/` | Email alerts, notifications | `sendAlert()` |
+| `offers/` | Offer Analyzer rules engine + per-driver ruleset store (doc: `docs/architecture/OFFER_ANALYZER.md`) | `evaluateDeterministic()`, `buildPhase1Prompt()`, `resolveRuleset()`, `parseOfferText()` |
 | `strategy/` | Strategy waterfall orchestration | `generateStrategyParallel()` |
 | `subagents/` | Specialized AI subagents | `verifyEvent()` |
 | `venue/` | Venue discovery and enrichment | `generateEnhancedSmartBlocks()` |

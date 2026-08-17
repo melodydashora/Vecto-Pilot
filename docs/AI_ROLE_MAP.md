@@ -70,8 +70,8 @@ All roles follow the `{TABLE}_{FUNCTION}` naming convention defined in `model-re
 
 | Role Name | Default Model | Owning File | Entrypoint Function | Data Input | Output Field/Table |
 |-----------|--------------|-------------|--------------------|-----------|--------------------|
-| `OFFER_ANALYZER` | Google (Gemini Flash) | `server/api/hooks/analyze-offer.js:307` | Phase 1: real-time offer analysis | Screenshot image (vision) | ACCEPT/REJECT JSON → client (< 2s) |
-| `OFFER_ANALYZER_DEEP` | Google (Gemini Pro) | `server/api/hooks/analyze-offer.js:505` | Phase 2: async deep analysis | Screenshot image (vision) | `offer_intelligence` table (async) |
+| `OFFER_ANALYZER` | Google (Gemini Flash) | `server/api/hooks/analyze-offer.js:390` | Phase 1: real-time offer verdict (skipped entirely when the deterministic fast lane or share short-circuit answers) | Screenshot image (vision) and/or OCR text + per-driver ruleset prompt | `{ voice, notification, decision, reason, notices }` → shortcut (<3 s target) |
+| `OFFER_ANALYZER_DEEP` | Google (Gemini Pro) | `server/api/hooks/analyze-offer.js:567` | Phase 2: async deep extraction | Same image/text + same ruleset prompt | `offer_intelligence` row (decision = what was spoken; deep dissent stored as data) |
 
 ### 8. INTERNAL AGENTS
 
