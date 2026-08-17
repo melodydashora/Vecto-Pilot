@@ -56,13 +56,13 @@ Every table MUST have:
 **Canonical File:** `docs/DATABASE_SCHEMA.md`
 
 **Rules:**
-1. Generated automatically via `scripts/generate-schema-docs.js`
+1. Generated automatically via `scripts/generate-schema-docs.sh` (reads the LIVE database's information_schema — the DB is ground truth; the old source-regex JS generator was retired 2026-08-17)
 2. NEVER edit manually - always regenerate
 3. CI fails if generation produces git diff (prevents drift)
 
 **Regeneration Command:**
 ```bash
-node scripts/generate-schema-docs.js
+bash scripts/generate-schema-docs.sh
 ```
 
 ### 2.2 Source of Truth Hierarchy
@@ -245,7 +245,7 @@ All documentation changes flow through:
 
 | Check | Script | Failure Condition |
 |-------|--------|-------------------|
-| Schema docs drift | `scripts/generate-schema-docs.js` | Non-empty git diff |
+| Schema docs drift | `scripts/generate-schema-docs.sh` | Non-empty git diff |
 | Standards compliance | `scripts/check-standards.js` | Any violation |
 | Type checking | `npm run typecheck` | TypeScript errors |
 | Linting | `npm run lint` | ESLint errors |
@@ -309,4 +309,4 @@ All documentation changes flow through:
 - `CLAUDE.md` - Project rules and constraints
 - `docs/preflight/standards.md` - Quick reference card
 - `scripts/check-standards.js` - Automated enforcement
-- `scripts/generate-schema-docs.js` - Schema doc generator
+- `scripts/generate-schema-docs.sh` - Schema doc generator

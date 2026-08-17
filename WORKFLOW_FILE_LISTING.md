@@ -125,7 +125,7 @@ Workflow files organized by event flow order. Non-active files appear at the end
 - [scripts/ensure-claude.sh](./scripts/ensure-claude.sh) (active)
 - [scripts/export-notes.js](./scripts/export-notes.js) (active)
 - [scripts/fix-market-names.js](./scripts/fix-market-names.js) (active)
-- [scripts/generate-schema-docs.js](./scripts/generate-schema-docs.js) (active)
+- [scripts/generate-schema-docs.sh](./scripts/generate-schema-docs.sh) (active)
 - [scripts/generate-schema-docs.sh](./scripts/generate-schema-docs.sh) (active)
 - [scripts/import-market-cities.js](./scripts/import-market-cities.js) (active)
 - [scripts/import-market-intelligence.js](./scripts/import-market-intelligence.js) (active)

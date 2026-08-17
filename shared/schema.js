@@ -1095,6 +1095,9 @@ export const driver_profiles = pgTable("driver_profiles", {
   idxPhone: sql`create index if not exists idx_driver_profiles_phone on ${table} (phone)`,
   idxMarket: sql`create index if not exists idx_driver_profiles_market on ${table} (market)`,
   idxUserId: sql`create unique index if not exists idx_driver_profiles_user_id on ${table} (user_id)`,
+  // Live since migrations/20260703 (declared here 2026-08-17, todo #49). Redundant with the
+  // UNIQUE constraint's own index but present in the DB — keep Drizzle honest about it.
+  idxShortcutToken: sql`create index if not exists idx_dp_shortcut_token on ${table} (shortcut_token) where shortcut_token is not null`,
 }));
 
 // Driver vehicles: Vehicle information for each driver
@@ -1979,6 +1982,9 @@ export const offer_outcomes = pgTable("offer_outcomes", {
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
+  // Live DB has this CHECK from migrations/20260703 — declared here too so Drizzle
+  // matches reality (2026-08-17, todo #49). Name matches the auto-generated constraint.
+  driverDecisionCheck: check("offer_outcomes_driver_decision_check", sql`${table.driver_decision} IN ('Accepted', 'Rejected', 'Cancelled', 'Completed')`),
   // One outcome per analyzed offer (upsert target)
   uqOutcomeOffer: sql`create unique index if not exists uq_outcome_offer on ${table} (offer_intelligence_id) where offer_intelligence_id is not null`,
   idxOutcomeUserCreated: sql`create index if not exists idx_outcome_user_created on ${table} (user_id, created_at desc)`,
