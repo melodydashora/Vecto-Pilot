@@ -27,6 +27,12 @@
    offers to **your** account. Without it you still get an answer, but under default rules
    and nothing is saved for you. Regenerating the token invalidates the old one — update
    both shortcuts if you do.
+   **Your token belongs to one deployment.** A token copied from the dev workspace page
+   only resolves against the dev database; pointed at `https://vectopilot.com` (prod) it is
+   an unknown token → default rules and no stored row (`ruleset_hash NULL`) — silently.
+   Point the shortcut's URL at the same deployment you copied the token from, and on your
+   first run check that a rule you personally enabled shows up (e.g. turn on **Show $/hr in
+   results** — if the notification has no `| $NN/hr`, your token did not resolve there).
 2. **Set your rules** on the same page (rate floors, rating floor, pickup limits, avoid
    places, notices such as "Filter Detected"). Save. The shortcuts pick up rule changes
    within about 15 seconds.
@@ -141,7 +147,10 @@ be assigned to either shortcut):
 | **Home Screen icon** | In Shortcuts, tap the ⓘ on the shortcut → Add to Home Screen |
 
 **Test before you drive:** open a saved offer screenshot (or a live offer), run the
-shortcut. Expected results:
+shortcut. Expected results below. **Field-test protocol (G1/G3):** for the first few
+runs add one extra action after Get Contents of URL — *Get Dictionary Value* `response_time_ms`
+→ *Show Notification* — and note it next to the felt tap-to-speech time; the difference is
+pure phone overhead (OCR, radio wake, TTS spin-up), the one number the server bench can't see.
 
 | You hear / see | Meaning |
 |---|---|

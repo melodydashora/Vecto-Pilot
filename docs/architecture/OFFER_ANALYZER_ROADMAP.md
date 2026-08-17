@@ -45,7 +45,11 @@ on **synthetic** cards; real Uber screenshots (small fonts, dense UI, map noise)
 remaining unknown. Verify on the iPhone against prod once published: (a) verdicts match
 your rules on real cards (both lanes); (b) latency per lane; (c) `voice` speaks and
 `notification` shows; (d) a non-offer screenshot says "No data. Decide manually."
-Revert = set `OFFER_ANALYZER_MODEL=gemini-3.5-flash` (env) or the registry default. Note:
+Protocol: log the response's `response_time_ms` next to the felt tap-to-speech time —
+the delta is phone overhead (OCR, radio wake, TTS), invisible to the server bench (cowork,
+2026-08-17). Token gotcha: a token minted on the dev page does not resolve on prod (dev ≠
+prod DB) → default rules + unstored rows, silently; use the token from the deployment the
+shortcut points at. Revert = set `OFFER_ANALYZER_MODEL=gemini-3.5-flash` (env) or the registry default. Note:
 the prod Replit Secret `OFFER_ANALYZER_MODEL`, if set, overrides the registry — align or
 remove it at publish. *(memory #372 open (a); todo #43)*
 

@@ -472,6 +472,9 @@ user, shared by all their devices.
 
 Cache: in-process `Map`, TTL **15 s**, max 500 entries (oldest evicted); `invalidateUser`
 after PUT/regenerate. Cloud Run multi-instance edits converge within TTL.
+**Tokens are per deployment** (dev ≠ prod DB): a dev-minted token sent to prod is an unknown
+token → default rules, `ruleset_hash NULL`, and (with no GPS) no stored row — silently
+except for the `[ruleset-store] Unknown shortcut token` warn.
 
 **Provenance stamps** on every stored offer: `user_id`, `ruleset_version`, `ruleset_hash`
 (`NULL` hash = defaults applied — visible, never silent). Hash = sha256 of canonical

@@ -37,7 +37,11 @@ All three tools appear in the screenshot preview's **Share** sheet (Android 10+;
 1. **Get your token.** In Vecto Pilot: ☰ → **Offer Analyzer** → *Setup* card → **Your shortcut
    token** → Copy (`vp_` + 40 characters). This is what makes the analyzer use **your** rules
    and record offers to **your** account; without it you get default rules and nothing is
-   saved for you. Regenerating the token invalidates the old one.
+   saved for you. Regenerating the token invalidates the old one. **The token belongs to
+   one deployment** — copied from the dev workspace it only resolves against dev; against
+   `https://vectopilot.com` it is unknown → default rules and no stored row, silently. Use
+   the URL of the deployment you copied it from, and verify on run one that a rule you
+   enabled shows (e.g. **Show $/hr in results** → `| $NN/hr` in the notification).
 2. **Set your rules** on the same page. Changes reach the analyzer within ~15 s.
 3. Know how to screenshot: **Power + Volume Down** (Pixel/most phones; Samsung: Side +
    Volume Down, or palm swipe). A small preview appears bottom-left (Pixel) or a toolbar
@@ -168,6 +172,11 @@ screenshots/OCR (whether the Uber/Lyft driver apps do is **unverified**).
 ---
 
 ## Part 5 · Test, then troubleshoot
+
+**Field-test protocol (G3):** in HTTP Shortcuts' *Run on Success* script add
+`showToast('server ' + r.response_time_ms + ' ms')` for the first runs and note it next to
+the felt tap-to-speech time — the difference is phone overhead (share sheet, radio wake,
+TTS), which the server bench can't see.
 
 Same expectations as iPhone (see `SIRI_SHORTCUT_ANALYZE.md` Part 4): "Accept. dollar forty
 per mile, 6 miles." + `ACCEPT: $1.40 6.1mi`; rejects end with the reason ("too far",
