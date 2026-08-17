@@ -19,8 +19,10 @@ CREATE ROLE vecto_readonly WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWO
 GRANT CONNECT ON DATABASE <prod_db> TO vecto_readonly;
 GRANT USAGE  ON SCHEMA public TO vecto_readonly;
 -- allowlist: analytical tables only
-GRANT SELECT ON offer_intelligence, zone_intelligence, discovered_events,
-                coach_conversations, coach_memos TO vecto_readonly;
+GRANT SELECT ON offer_intelligence, offer_outcomes, offer_rulesets, zone_intelligence,
+                discovered_events, coach_conversations, coach_memos TO vecto_readonly;
+-- (offer_outcomes + offer_rulesets added 2026-08-17 so field-test questions about a
+--  driver's rules/outcomes are answerable; find <prod_db> with SELECT current_database();)
 ALTER ROLE vecto_readonly SET statement_timeout = '10000';                 -- 10s hard cap
 ALTER ROLE vecto_readonly SET default_transaction_read_only = on;          -- belt: never writes
 ALTER ROLE vecto_readonly SET idle_in_transaction_session_timeout = '15000';
