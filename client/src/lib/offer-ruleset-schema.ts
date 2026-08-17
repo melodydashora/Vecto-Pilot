@@ -183,8 +183,6 @@ export const ENABLE_SEEDS = {
   pickup_limits: { max_miles: 3, max_minutes: 8 },
   time_limit: { max_total_minutes: 20, unless: { min_per_mile: 2.0, min_per_minute: 1.0 } },
   acceptance_rate_protection: { min_per_total_mile: 1.0 },
-  auto_reject: { multiple_stops: true, round_trip: true },
-  notices: { verified_rider: true, on_the_way_filter: true, deadhead_reduction: true },
   comfort_tier: { floor_per_mile: 1.25, floor_per_minute: 0.7, max_total_miles: null, accept_ladder: [{ min_per_mile: 1.25, max_total_min: 20 }] } as TierConfig,
   xl_tier: { floor_per_mile: 2.0, floor_per_minute: 1.0, max_total_miles: null, accept_ladder: [{ min_per_mile: 2.0, max_total_min: 20 }] } as TierConfig,
 } as const;

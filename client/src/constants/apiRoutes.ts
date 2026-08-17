@@ -303,4 +303,9 @@ export const QUERY_KEYS = {
   // =========================================================================
   INTELLIGENCE_MARKETS: ['/api/intelligence/markets'] as const,
   INTELLIGENCE_MARKET: (slug: string) => ['/api/intelligence/market', slug] as const,
+
+  // =========================================================================
+  // Offer Analyzer (2026-08-17: moved here from an inline key in OffersCard)
+  // =========================================================================
+  OFFER_ANALYZER_OFFERS: (limit: number) => ['/api/offer-analyzer/offers', limit] as const,
 } as const;

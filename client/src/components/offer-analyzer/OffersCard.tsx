@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/useToast';
 import { getAuthHeader, subscribeOfferAnalyzed } from '@/utils/co-pilot-helpers';
-import { API_ROUTES } from '@/constants/apiRoutes';
+import { API_ROUTES, QUERY_KEYS } from '@/constants/apiRoutes';
 import { History, Loader2 } from 'lucide-react';
 
 const OFFERS_LIMIT = 25;
@@ -35,14 +35,11 @@ interface AnalyzedOffer {
   price?: number | null;
   per_mile?: number | null;
   total_miles?: number | null;
-  total_minutes?: number | null;
   product_type?: string | null;
-  platform?: string | null;
   created_at?: string | null;
   // LEFT JOINed outcome columns (flat, null when no outcome recorded)
   outcome_id?: string | null;
   driver_decision?: DriverDecision | null;
-  driver_reasoning?: string | null;
   actual_pay?: number | null;
   reimbursements?: number | null;
   extras?: number | null;
@@ -50,10 +47,13 @@ interface AnalyzedOffer {
   total_earned?: number | null;
 }
 
+// Mirrors GET /api/offer-analyzer/offers stats (server/api/offer-analyzer/index.js).
 interface OffersStats {
   analyzed?: number;
   analyzer_accepted?: number;
+  analyzer_rejected?: number;
   driver_accepted?: number;
+  disagreements?: number;
   realized_total?: number;
 }
 
@@ -289,7 +289,7 @@ function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
 
 export default function OffersCard() {
   const { data, isLoading, error, refetch } = useQuery<OffersResponse>({
-    queryKey: ['offer-analyzer-offers', OFFERS_LIMIT],
+    queryKey: QUERY_KEYS.OFFER_ANALYZER_OFFERS(OFFERS_LIMIT),
     // The default queryClient queryFn sends no auth header and force-logs-out on
     // 401 — always pass an explicit queryFn with getAuthHeader().
     queryFn: async () => {

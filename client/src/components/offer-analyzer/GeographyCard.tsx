@@ -53,24 +53,20 @@ const MODE_HELP: Record<AvoidMode, string> = {
 
 // Tolerant of the exact JSON casing the parallel-built endpoint returns; the
 // expected primary shape is { results: [{ place_id, label, formatted_address, lat, lng }] }.
+// GET /api/offer-analyzer/places/search returns { success, results: [{ place_id, label,
+// formatted_address, lat, lng, types }] } (server/api/offer-analyzer/index.js) — the
+// server already normalizes Google's shape; only that contract is accepted here.
 function normalizePlaces(json: unknown): PlaceResult[] {
-  const body = json as Record<string, unknown> | null;
-  const arr = (body?.results ?? body?.places ?? []) as Array<Record<string, unknown>>;
-  if (!Array.isArray(arr)) return [];
+  const body = json as { results?: unknown } | null;
+  const arr = Array.isArray(body?.results) ? (body!.results as Array<Record<string, unknown>>) : [];
   return arr
-    .map((p) => {
-      const location = p.location as Record<string, unknown> | undefined;
-      const displayName = p.displayName as Record<string, unknown> | undefined;
-      const lat = typeof p.lat === 'number' ? p.lat : (location?.latitude as number | undefined);
-      const lng = typeof p.lng === 'number' ? p.lng : (location?.longitude as number | undefined);
-      return {
-        place_id: String(p.place_id ?? p.id ?? ''),
-        label: String(p.label ?? p.name ?? displayName?.text ?? ''),
-        formatted_address: String(p.formatted_address ?? p.formattedAddress ?? p.address ?? ''),
-        lat: lat as number,
-        lng: lng as number,
-      };
-    })
+    .map((p) => ({
+      place_id: String(p.place_id ?? ''),
+      label: String(p.label ?? ''),
+      formatted_address: String(p.formatted_address ?? ''),
+      lat: p.lat as number,
+      lng: p.lng as number,
+    }))
     .filter((p) => p.place_id && p.label && Number.isFinite(p.lat) && Number.isFinite(p.lng));
 }
 
