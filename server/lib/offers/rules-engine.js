@@ -507,13 +507,21 @@ function renderAvoidRule(a) {
     case 'south_of':
       return `REJECT if destination is south of ${label}.`;
     case 'heads_toward':
-    default:
+    default: {
       // Render the evaluator's EFFECTIVE minimum (?? 8, mirroring evaluateGeoRules)
       // and name ride_mi — the trip-leg distance on the card, the closest
       // observable to the audit's pickup→dropoff distance. (Review 2026-07-03:
       // the old render dropped the default minimum and said total_mi, which
       // includes the pickup deadhead — a systematically different quantity.)
-      return `REJECT if trip heads toward ${label} and ride_mi>=${a.min_trip_mi ?? 8}.`;
+      // 2026-08-17 (verifier: corridor_deg was the ONE editor control that never
+      // reached Phase 1 — Phase-2 geo audit only): a non-default corridor is now
+      // rendered so the model's "heads toward" judgment is as wide/narrow as the
+      // driver set it; the default (30) keeps the pinned render byte-identical.
+      const corridor = a.corridor_deg != null && Number(a.corridor_deg) !== 30
+        ? ` (within about ${Number(a.corridor_deg)} degrees of the direction to it)`
+        : '';
+      return `REJECT if trip heads toward ${label}${corridor} and ride_mi>=${a.min_trip_mi ?? 8}.`;
+    }
   }
 }
 
@@ -639,8 +647,12 @@ export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {})
   // Global gates = the standard render minus tier-specific lines. The ARP
   // fallback ACCEPT is excluded here and re-appended AFTER the tier ladders —
   // first-match-wins means it must not outrank any tier's ACCEPT rungs.
+  // 2026-08-17 (verifier): `REJECT if total_miles>N` is a PER-TIER line (max_total_miles)
+  // and was leaking from the standard render into "Gates (all tiers)" — premium/comfort/xl
+  // offers were shown a cap they don't have. Each tier section renders its own.
   const globalRules = renderRuleLines('standard', eff, ruleset).filter((r) =>
     !r.startsWith('REJECT if $/mi<') && !r.startsWith('REJECT if $/min<')
+    && !r.startsWith('REJECT if total_miles>')
     && !r.startsWith('ACCEPT') && r !== 'REJECT.');
   const numberedGlobal = globalRules.map((r, i) => `${i + 1}. ${r}`).join('\n');
   const arp = eff.global?.acceptance_rate_protection?.min_per_total_mile;
@@ -729,6 +741,7 @@ export function buildPhase2Prompt(ruleset = DEFAULT_RULESET, context = {}) {
 
   const globalLines = renderRuleLines('standard', eff, ruleset)
     .filter((r) => !r.startsWith('REJECT if $/mi<') && !r.startsWith('REJECT if $/min<')
+      && !r.startsWith('REJECT if total_miles>') // per-tier line (see buildPhase1VisionPrompt)
       && !r.startsWith('ACCEPT') && r !== 'REJECT.')
     .map((r, i) => `  ${i + 1}. ${r}`);
   const arpMile = eff.global?.acceptance_rate_protection?.min_per_total_mile;

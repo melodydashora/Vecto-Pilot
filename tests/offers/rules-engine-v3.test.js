@@ -420,6 +420,21 @@ describe('v3.1 sliders: tier max_total_miles + single derived rung', () => {
     const v = buildPhase1VisionPrompt(sliders);
     expect(v).toContain('REJECT if total_miles>12.');
     expect(v).not.toContain('total_miles>null');
+    // 2026-08-17: the cap is a TIER line — it must appear only inside the STANDARD section,
+    // never in "Gates (all tiers)" (premium/comfort/xl have no cap here).
+    const gates = v.split('STANDARD (UberX, Lyft):')[0];
+    expect(gates).not.toContain('total_miles>12');
+    expect((v.match(/REJECT if total_miles>12\./g) || []).length).toBe(1);
+    const p2 = buildPhase2Prompt(sliders);
+    expect((p2.match(/REJECT if total_miles>12\./g) || []).length).toBe(1);
+  });
+
+  test('heads_toward corridor reaches the Phase-1 prompt when set off the default (2026-08-17)', () => {
+    const rs = migrateRuleset({ ...DEFAULT_RULESET, avoid: [{ place_id: 'x', label: 'Fort Worth', lat: 32.75, lng: -97.33, mode: 'heads_toward', min_trip_mi: 8, corridor_deg: 15, enabled: true }] });
+    expect(buildPhase1Prompt('standard', rs)).toContain('REJECT if trip heads toward Fort Worth (within about 15 degrees of the direction to it) and ride_mi>=8.');
+    expect(buildPhase1VisionPrompt(rs)).toContain('within about 15 degrees');
+    const def = migrateRuleset({ ...DEFAULT_RULESET, avoid: [{ place_id: 'x', label: 'Fort Worth', lat: 32.75, lng: -97.33, mode: 'heads_toward', min_trip_mi: 8, corridor_deg: 30, enabled: true }] });
+    expect(buildPhase1Prompt('standard', def)).toContain('REJECT if trip heads toward Fort Worth and ride_mi>=8.'); // default corridor keeps the pinned render
   });
 
   test('migrateRuleset carries max_total_miles and defaults it to null', () => {

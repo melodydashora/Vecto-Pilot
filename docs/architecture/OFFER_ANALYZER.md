@@ -398,13 +398,13 @@ into the wire `reason`: base `"$X.XX Y.Ymi"` + kind word (`fallback`, `floor`, `
 | Function | Used for | Notes |
 |---|---|---|
 | `buildPhase1Prompt(tier, ruleset)` (`:560-611`) | Text requests (tier known from OCR) | Byte-identical to legacy prompts at defaults (pinned test). Numbered first-match rules in evaluator order; math line reflects `basis`; guidance + notices lines appended when enabled; JSON template gains `pickup_*`, `fallback`, `notices` keys only when those rules are enabled |
-| `buildPhase1VisionPrompt(ruleset)` (`:621-693`) | Image-only requests | Global gates once, then each enabled tier's floors/ladder; the model fills `"product"`; premium header lists only products that still route to premium; ARP line re-appended after tiers |
+| `buildPhase1VisionPrompt(ruleset)` (`:621-693`) | Image-only requests | Global gates once (per-tier lines — floors, `max_total_miles` — excluded since 2026-08-17), then each enabled tier's floors/cap/ladder; the model fills `"product"`; premium header lists only products that still route to premium; ARP line re-appended after tiers |
 | `buildPhase2Prompt(ruleset)` (`:703-758`) | Deep async extraction | Full-extraction JSON contract (§10.2), GATES + per-tier RULES + SHARE + GENERAL guidance; explicitly "do NOT assume any specific metro" |
 
 Prompt-side rule text (rendered only when enabled): safety road types; `REJECT if rating
 visible and <X`; `REJECT if "Verified" missing`; avoid rules by mode —
 `destination_in` → "in or within ~R mi of LABEL", `north_of`/`south_of`, `heads_toward`
-→ "trip heads toward LABEL and ride_mi>=N" (default 8); multiple stops; round trip;
+→ "trip heads toward LABEL[ (within about D degrees of the direction to it)] and ride_mi>=N" (default 8; the corridor phrase appears only when `corridor_deg` ≠ 30 — 2026-08-17, the last editor control that had been Phase-2-only); multiple stops; round trip;
 pickup limits; floors (suppressed when ARP enabled — they defer); time limit with unless;
 ACCEPT rungs; `ACCEPT with "fallback":true if $/mi>=ARP`; terminal `REJECT.`
 
@@ -1041,6 +1041,7 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 | 2026-08-11 | — | Hook read/mutate endpoints token-required + user-scoped; `offerHookLimiter`; session chain by user (commit `f005c634`) |
 | 2026-08-14 | — | Body alias table (`normalize-offer-body.js`); `express.urlencoded` on `/api/hooks`; **<3s sprint**: MINIMAL thinking + 1024 tokens, deterministic fast REJECT lane, image downscale (commit `cd8329da`) |
 | 2026-08-17 | 3.0 | This rewrite; plan/design docs merged and retired |
+| 2026-08-17 | 3.7 | **28 of 28 editor controls reach Phase 1** (verifier wf_98681a21): `avoid[].corridor_deg` now rendered into the heads-toward line when set off the default 30; the per-tier `max_total_miles` line no longer leaks into the vision/Phase-2 "Gates (all tiers)" block. |
 | 2026-08-17 | 3.6 | **Fallback accept always spoken** — voice keyed on the `fallback` flag like the notification label (Melody drives by ear). |
 | 2026-08-17 | 3.5 | **NO DATA skips Phase 2** (no deep model / Google calls / row; vision-degraded exception) — Melody. |
 | 2026-08-17 | 3.4 | **Race/duplicate hardening** (Melody: "take the lead — we need this app really sharp"): idempotency gate + storage-level duplicate guard (§4.1/§10.5); session read + INSERT + NOTIFY in one advisory-locked transaction (§10.5); `/events/offers` `state` handshake + OffersCard focus/reconnect refetch (§13/§14); LISTEN client fresh-connect resubscribe + slow retry (§14); PUT `/rules` `expected_version` → 409 + canonical config in the response, editor keeps in-flight edits (§12/§13); shortcut-token mint race; multer before the limiter; ruleset-cache stale-repopulate guard; Google memos; form-level Enter-key guard; **`parse-model-json` tier 4** (surplus closing brace — a live Phase-2 failure mode that was dropping the deep result and card addresses). |
