@@ -1,18 +1,18 @@
 # Vecto Pilot - AI-Powered Rideshare Intelligence Platform
 
-**Last Updated:** 2026-04-14 | **Version:** 4.3.0 | **Status:** Deployed — single-instance production
+**Last Updated:** 2026-08-17 | **Version:** 4.3.0 | **Status:** Deployed (Replit → Cloud Run) — field-testing the Offer Analyzer shortcuts
 
 > **Built by AI, For AI-Assisted Drivers.**
 >
-> This application is a reference implementation of AI-assisted software engineering — architected and built collaboratively by **Anthropic Claude Opus 4.6**, **Google Gemini 3.0 Pro**, and **OpenAI GPT-5.2**, with human architect oversight from Melody Dashora.
+> This application is a reference implementation of AI-assisted software engineering — architected and built as a partnership between **Melody Dashora** (product intent, rules, field testing) and **Anthropic Claude** (Fable 5 / Opus 4.8) as engineering partner, with **Google Gemini** and **OpenAI GPT** models doing the runtime work through a model-agnostic adapter (roles, not vendors). See [`AI_PARTNERSHIP_AGREEMENT.md`](AI_PARTNERSHIP_AGREEMENT.md) and [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
 ## Overview
 
-Vecto Pilot is an AI-native rideshare intelligence platform that maximizes driver earnings through real-time, data-driven strategic briefings. Unlike traditional "hotspot" apps, Vecto Pilot uses a sophisticated **multi-model AI waterfall pipeline** (the "TRIAD") to synthesize weather, traffic, events, and news into actionable, narrative-driven strategies.
+Vecto Pilot is an AI-native rideshare intelligence platform that maximizes driver earnings through real-time, data-driven strategic briefings and instant offer verdicts. It uses a **multi-model AI waterfall** (Strategist → Briefer → Consolidator → Planner roles) to synthesize weather, traffic, events, and news into actionable, narrative-driven strategies, and a **per-driver rules engine + vision model** to answer "take this ride?" from a screenshot in under a second.
 
-It operates globally across 140+ markets, requires no hardware integration, and provides a "Co-Pilot" experience via text and voice.
+It operates globally across 140+ markets, requires no hardware integration, and provides a "Co-Pilot" experience via text and voice — plus phone shortcuts (iPhone Shortcuts, Android automation apps) that speak ACCEPT/REJECT hands-free.
 
 ### What Makes This Different
 
@@ -21,14 +21,15 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 | Show surge heatmaps | Explains **why** demand exists and **when** it will shift |
 | Static venue lists | AI-scored venues with real-time hours, pricing, and drive times |
 | Generic tips | Personalized tactical strategies updated every 60 minutes |
-| Single data source | 4 AI models + 13 external APIs synthesized into one directive |
+| Single data source | Multiple AI roles + 13 external APIs synthesized into one directive |
+| "Is this offer worth it?" guesswork | **Offer Analyzer**: your own sliders (floor $/mi, $/min, max minutes, max miles, avoid places, gates) applied to a screenshot in ~0.7 s, spoken back |
 
 ---
 
 ## Feature Set
 
 ### Strategic Intelligence
-- **TRIAD Waterfall Pipeline**: Parallel AI processing — Claude Opus 4.8 (strategy + tactical consolidation) + Gemini 3.5 Flash (briefing) + GPT-5.5 (venue planning) — consolidated into a single directive in ~35-50 seconds
+- **Waterfall Pipeline**: Parallel AI roles — Strategist (Claude Opus 4.8) + Briefer (Gemini 3.5 Flash) + Planner (GPT-5.5) — consolidated into a single directive in ~35-50 seconds
 - **Smart Blocks**: Context-aware venue cards with validated hours, pricing tiers, "last call" countdowns, and drive-time estimates
 - **Daily + Hourly Strategy**: Morning briefing covering weather/traffic/events, plus a rolling "Right Now" tactical plan for the next 60 minutes
 - **Holiday Awareness**: Gemini (BRIEFING_HOLIDAY role, search-grounded) detects local holidays in the briefing pipeline and adjusts demand forecasts
@@ -39,17 +40,24 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 - **6-Decimal GPS Precision**: ~11cm accuracy for cache keys and venue matching — coordinates always from Google APIs, never AI-generated
 - **330+ Global Markets**: Pre-stored timezone and airport data for 267 US + 71 international markets, saving ~200-300ms per request
 
+### Offer Analyzer (iPhone + Android shortcuts)
+- **Per-driver rules, sliders only**: floor $/mi, optional $/min, max trip minutes, max total miles per tier; rating floor, Verified, pickup/time limits, acceptance-rate protection; avoid-places by Google `place_id`; road-safety and notice toggles — edited on the web page, applied by the server
+- **Two lanes, one ruleset**: a deterministic engine owns every numeric rule (text rejects answer in ~1 ms with no model); the vision model (`gemini-3.5-flash-lite`, live-benchmarked 2026-08-17) reads the screenshot for what only a picture shows, and the engine re-checks its numbers — **~0.7 s verdicts, spoken back** ("Accept. dollar forty per mile, 6 miles.")
+- **Honest floor**: no fabricated verdicts — a non-offer screenshot says "No data. Decide manually."
+- **Learning dataset**: every offer stored with the driver's own outcome and earnings (`offer_intelligence` + `offer_outcomes`), geocoded pickup/drop-off, and the exact ruleset hash that decided it
+- Guides: [iPhone](docs/architecture/SIRI_SHORTCUT_ANALYZE.md) · [Android](docs/architecture/ANDROID_SHORTCUT_ANALYZE.md) · [as built](docs/architecture/OFFER_ANALYZER.md) · [roadmap](docs/architecture/OFFER_ANALYZER_ROADMAP.md)
+
 ### Rideshare Coach (Voice & Text)
-- **Conversational AI**: Gemini 3.5 Flash-powered coach with full context awareness — knows your location, strategy, events, and market intelligence
-- **Voice Mode**: Hands-free voice conversations via OpenAI Realtime API while driving
-- **Cross-Session Memory**: Coach remembers preferences, vehicle type, past strategies, and driver-contributed zone intelligence
-- **Action System**: Coach can write notes, deactivate irrelevant events/news, and contribute zone intelligence — all stored in the database
+- **One Coach, wellbeing first**: Gemini 3.6 Flash brain with full context awareness — location, strategy, events, market intelligence, your offer history — driver support is the main function, strategy serves it
+- **Voice**: Gemini Live is the Coach's voice (auto-starts on the tab, hands-free "hey coach" resume, transparent reconnect); GPT Realtime and classic TTS remain selectable. The voice model is the *mouth*; the backend brain answers the hard questions
+- **Cross-Session Memory + learning loop**: preferences, vehicle, past strategies, driver-contributed zone intelligence, and verbatim voice turns captured for learning
+- **Action System**: Coach can write notes, deactivate irrelevant events/news, and contribute zone intelligence — all stored in the database. The Coach never analyzes live offers (that's the Offer Analyzer's lane)
 
 ### Security & Authentication
 - **Multi-Provider OAuth**: Email/password + Google OAuth + Uber OAuth (in progress)
 - **Standard JWT Auth Tokens (HS256)**: 3-segment JWTs via `server/lib/jwt.js` (AUTH-003); legacy `userId.signature` HMAC accepted only during the transition window — see [SECURITY.md](docs/architecture/SECURITY.md)
 - **9 Previously Unprotected Routes Secured**: Full auth audit completed Feb 2026
-- **Public endpoint exceptions**: `/api/hooks/*` (Siri Shortcuts), `/api/platform/*` (reference data), health/monitoring — see SECURITY.md for full list
+- **Public endpoint exceptions**: `/api/hooks/analyze-offer` (phone shortcuts — identity is a per-driver shortcut token, rate-limited 20/min; the read/mutate hook routes require the token), `/api/platform/*` (reference data), health/monitoring — see SECURITY.md for full list
 - **RLS**: Planned (currently enforced at application layer via `requireAuth` middleware)
 
 ### Assisted Documentation Maintenance
@@ -75,8 +83,8 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 │                              ↓                                     │
 │  ┌──────────────────────────────────────────────────────────────┐ │
 │  │             Gateway Server (Express, Port 5000)               │ │
-│  │  30+ API Routes | SSE Real-time | Model Adapter Pattern       │ │
-│  │  23 AI Roles via model-registry.js | Hedged Router            │ │
+│  │  35+ API Routes | SSE Real-time | Model Adapter Pattern       │ │
+│  │  25 AI Roles via model-registry.js | Hedged Router            │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                              ↓                                     │
 │  ┌──────────────────────────────────────────────────────────────┐ │
@@ -88,24 +96,24 @@ It operates globally across 140+ markets, requires no hardware integration, and 
 │                    EXTERNAL AI & API SERVICES                      │
 │  • Anthropic Claude Opus 4.8  — Strategic + tactical reasoning    │
 │  • OpenAI GPT-5.5             — Venue planning/parsing            │
-│  • Google Gemini 3.5 Flash / 3.1 Pro — Briefing synthesis, coach, offer analysis │
+│  • Google Gemini 3.5 Flash-Lite / 3.5 Flash / 3.6 Flash / 3.1 Pro / Live — offer analysis, briefing, coach + voice │
 │  • Google Maps Platform       — Places, Routes, Weather, AQ       │
 │  • TomTom Traffic             — Incident prioritization            │
 │  • FAA ASWS                   — Airport delay data                 │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### AI Pipeline (TRIAD)
+### AI Pipeline (strategy waterfall)
 
 ```
-POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
+POST /api/blocks-fast → waterfall (~35-50s)
 ├── Phase 1 (Parallel): Strategist (Claude) + Briefer (Gemini) + Holiday (Gemini)
 ├── Phase 2: Immediate "Right Now" tactical strategy (Claude Opus 4.8)
 ├── Phase 3: Venue Planner (GPT-5.5) + Google Places/Routes Enrichment
 └── Phase 4: Deterministic event validation + venue event verification (Gemini Flash)
 ```
 
-### Model Registry (23 Roles)
+### Model Registry (25 Roles)
 
 All AI interactions go through the adapter pattern — never direct API calls:
 
@@ -120,10 +128,10 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 | Briefing | 7 roles (traffic, news, events, fallback, schools, airport, holiday) | Gemini 3.5 Flash |
 | Strategy | 3 roles (core, context, tactical) | Claude Opus 4.8 / Gemini Flash |
 | Venue | 4 roles (scorer, filter, traffic, event verifier) | GPT-5.5 / Claude Haiku / Gemini Flash |
-| Coach | 1 role (conversational AI) | Gemini 3.5 Flash |
+| Coach | 3 roles (brain, Gemini Live voice, GPT Realtime voice) | Gemini 3.6 Flash / Gemini 3.1 Flash Live / gpt-realtime |
 | Utilities | 3 roles (research, market parser, translation) | Mixed |
 | Concierge | 2 roles (search, chat) | Gemini 3.5 Flash |
-| Offer Analyzer | 2 roles (fast Siri path, async deep) | Gemini 3.5 Flash / Gemini 3.1 Pro |
+| Offer Analyzer | 2 roles (Phase 1 sync verdict, Phase 2 async deep extraction) | Gemini 3.5 Flash-Lite / Gemini 3.1 Pro |
 | Docs | 1 role (autonomous doc generation) | Gemini 3.5 Flash |
 
 ---
@@ -171,7 +179,7 @@ const result = await callModel('STRATEGY_CORE', { system, user });
 | `/co-pilot/policy` | PolicyPage | Privacy policy |
 | `/co-pilot/coach` | CoachPage | Dedicated AI Coach surface |
 | `/co-pilot/concierge` | ConciergePage | Driver concierge/QR management |
-| `/co-pilot/offer-analyzer` | OfferAnalyzerPage | Per-driver offer rules + Siri shortcut + offer history |
+| `/co-pilot/offer-analyzer` | OfferAnalyzerPage | Per-driver offer rules (sliders) + shortcut token + offers/outcomes |
 | `/co-pilot/translate` | TranslationPage | Real-time rider translation |
 | `/co-pilot/schedule` | SchedulePage | Driving schedule |
 | `/co-pilot/donate` | DonatePage | Donations |
@@ -229,8 +237,7 @@ UBER_CLIENT_SECRET="$UBER_CLIENT_SECRET"
 ```
 
 ```bash
-npm run db:push    # Initialize database (dev setup only — see docs/architecture/DB_SCHEMA.md for migration policy)
-npm run dev        # Start development server (port 5000)
+npm run dev        # Start development server (port 5000) — migrations/*.sql apply automatically at boot (server/db/run-migrations.js)
 ```
 
 ### Commands
@@ -239,8 +246,9 @@ npm run dev        # Start development server (port 5000)
 npm run dev              # Development server
 npm run typecheck        # TypeScript checking
 npm run lint             # ESLint
-npm run test             # All tests
+npm run test:unit        # Unit tests (jest, ESM)
 npm run lint && npm run typecheck && npm run build  # Pre-PR validation
+node scripts/offer-analyzer-smoke.mjs               # Offer Analyzer smoke against any deployment (BASE/TOKEN/IMAGE)
 ```
 
 ---
@@ -281,7 +289,8 @@ This codebase has **300+ README files** — most folders document their own purp
 
 | Document | Purpose |
 |----------|---------|
-| [CLAUDE.md](CLAUDE.md) | AI assistant rules and development process |
+| [CLAUDE.md](CLAUDE.md) | Partnership orientation — principles + the session boot sequence |
+| [AI_PARTNERSHIP_AGREEMENT.md](AI_PARTNERSHIP_AGREEMENT.md) | The constitution: authority, provenance, working rules |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture + folder index |
 | [LESSONS_LEARNED.md](LESSONS_LEARNED.md) | Historical bugs and their fixes |
 | [docs/preflight/ai-models.md](docs/preflight/ai-models.md) | AI model reference and parameter constraints |
@@ -300,6 +309,8 @@ This codebase has **300+ README files** — most folders document their own purp
 | [DB_SCHEMA.md](docs/architecture/DB_SCHEMA.md) | Working with tables or migrations |
 | [API_REFERENCE.md](docs/architecture/API_REFERENCE.md) | Adding/modifying endpoints |
 | [ai-pipeline.md](docs/architecture/ai-pipeline.md) | Modifying strategy pipeline |
+| [OFFER_ANALYZER.md](docs/architecture/OFFER_ANALYZER.md) + [ROADMAP](docs/architecture/OFFER_ANALYZER_ROADMAP.md) | Offer Analyzer as built + plan going forward |
+| [SIRI_SHORTCUT_ANALYZE.md](docs/architecture/SIRI_SHORTCUT_ANALYZE.md) / [ANDROID_SHORTCUT_ANALYZE.md](docs/architecture/ANDROID_SHORTCUT_ANALYZE.md) | Setting up a phone for offer analysis |
 | [VENUES.md](docs/architecture/VENUES.md) | Working with venues/blocks |
 | [AI_ROLE_MAP.md](docs/AI_ROLE_MAP.md) | AI model assignments per role |
 
@@ -311,8 +322,8 @@ This codebase has **300+ README files** — most folders document their own purp
 |----------|-------|
 | Server JS/TS Files | ~260 |
 | Client TSX/TS Files | ~195 |
-| AI Model Roles | 23 |
-| API Routes | 30+ |
+| AI Model Roles | 25 |
+| API Routes | 35+ |
 | Database Tables | 66 |
 | README Files | 300+ |
 | shadcn/ui Components | 47 |
@@ -330,7 +341,7 @@ This codebase has **300+ README files** — most folders document their own purp
 - RLS planned — currently enforced at application layer
 - IDOR vulnerability patched in feedback routes
 - Push protection prevents secret commits
-- Rate limiting on expensive endpoints
+- Rate limiting on expensive endpoints; public offer hook keyed by per-driver shortcut token (unguessable, revocable)
 - Zod schema validation on all inputs
 
 - [docs/architecture/SECURITY.md](docs/architecture/SECURITY.md) — internal security architecture and gap analysis
@@ -365,7 +376,7 @@ See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for can
 ## Roadmap
 
 ### Completed (v4.0 - v4.3)
-- [x] Multi-model TRIAD pipeline (Claude + Gemini + GPT-5.2)
+- [x] Multi-model waterfall pipeline (Claude + Gemini + GPT)
 - [x] 23-role model registry with hedged routing and fallback
 - [x] Smart Blocks with real-time venue enrichment
 - [x] Rideshare Coach with voice and text (Gemini 3 Pro + OpenAI Realtime)
@@ -379,13 +390,19 @@ See [docs/architecture/SCALABILITY.md](docs/architecture/SCALABILITY.md) for can
 - [x] Adapter pattern hardening — 8 direct API calls eliminated
 - [x] Change Analyzer with automated doc flagging
 - [x] Concierge chat system (public /c/:token passenger page + driver concierge management)
-- [x] Siri ride-offer analysis (Offer Analyzer: per-driver DB rulesets, Siri Shortcut token bridge, two-phase Gemini analysis)
+- [x] Offer Analyzer v3 → v3.1 (2026-07/08): per-driver DB rulesets edited with sliders, shortcut-token identity, deterministic engine + vision arbitration, ~0.7 s verdicts on `gemini-3.5-flash-lite`, honest-floor NO DATA, iPhone + Android setup guides
+- [x] One Coach voice (Gemini Live) with backend brain, wake-phrase resume, learning loop (2026-08)
+- [x] Multi-user integrity sweep — per-user scoping of offers/coach context/hooks (2026-08)
 
 ### In Progress
+- [ ] Offer Analyzer field test on real phones (iPhone Shortcuts + Android HTTP Shortcuts) — see roadmap G1–G3
+- [ ] Coach offer-pattern intelligence (daypart / day-of-week / zone / season steering from `offer_intelligence`)
 - [ ] Uber Driver API integration (OAuth connected, data sync pending)
 - [ ] Driver earnings analytics dashboard
 
 ### Planned
+- [ ] Native phone shell (background voice, one-tap offer capture) — todo #37
+- [ ] Offer Analyzer Phase-B sliders: drought fallback, budge, acceptance-rate punchcard
 - [ ] Reflection engine for AI self-improvement
 - [ ] Redis caching for multi-instance deployments
 - [ ] Push notifications for strategy alerts
@@ -400,6 +417,17 @@ This project is licensed under the **MIT License**.
 ---
 
 ## Changelog
+
+### 2026-08-17 — Offer Analyzer v3.1 + docs consolidation (unreleased tag)
+- **Offer Analyzer**: Phase-1 model → `gemini-3.5-flash-lite` after a live 8-model bench (~0.7 s vision, 0 truncated replies); temperature 0.1 honored; JSON-repair parser; honest-floor guard; vision arbitration (engine owns numeric rules on extracted numbers); sliders-only Rate Targets (D4) with per-tier max minutes/miles and a $/hr readout
+- **Docs**: `OFFER_ANALYZER.md` rewritten as-built, `OFFER_ANALYZER_ROADMAP.md`, iPhone + Android shortcut guides; plan/design docs retired; route registry completeness pass; live-DB schema doc regenerated
+- **Repo**: `CLAUDE.md` adopted the principles revision; comment-hygiene and schema-drift cleanups
+
+### 2026-08 (early) — One Coach voice + multi-user integrity
+- Gemini Live as the Coach's voice with backend brain, wake-phrase resume, learning loop; per-user scoping sweep; app_rules `coach-never-analyzes-offers`
+
+### 2026-07 — Offer Analyzer v3 + product rules table
+- Per-driver DB rulesets (v3 engine), editor page, shortcut-token bridge; `app_rules` table; GPS-only timezone doctrine; boot-time migration runner
 
 ### v4.3.0 - Security & Autonomy (Feb 15, 2026)
 - **Security**: Full auth audit — 9 unprotected routes secured, IDOR vulnerability patched
