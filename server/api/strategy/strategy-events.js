@@ -24,7 +24,7 @@ import { phaseEmitter } from '../../events/phase-emitter.js';
 // during a LISTEN reconnect window) immediately receives a wake-up signal and
 // refetches. Closes G3 from NOTIFY_LOSS_RECON_2026-04-18.md.
 import { db } from '../../db/drizzle.js';
-import { briefings, strategies, rankings } from '../../../shared/schema.js';
+import { briefings, strategies, rankings, offer_intelligence } from '../../../shared/schema.js';
 import { eq, and, isNotNull, desc, or, sql as drizzleSql } from 'drizzle-orm';
 import { requireAuthAllowQueryToken } from '../../middleware/auth.js';
 
@@ -433,6 +433,28 @@ router.get('/events/offers', requireAuthAllowQueryToken, async (req, res) => {
     // 2026-02-18: FIX - Post-subscribe cleanup for race condition
     if (cleanedUp && unsubscribe) {
       await unsubscribe();
+    }
+
+    // 2026-08-17 (race/SSE review finding #2): initial-state handshake, like the
+    // strategy/briefing/blocks streams have had since F2. The headline flow is
+    // "run the Shortcut FROM the Uber app": the Vecto tab is backgrounded, iOS drops
+    // the EventSource, offer_analyzed fires while it is down, and on return the card
+    // sat stale until a manual Refresh. Every (re)connect now tells the client the
+    // newest stored offer; the SSE manager forwards `state` to the same subscriber
+    // callback, and OffersCard refetches unless it already shows that id.
+    if (!cleanedUp && req.auth?.userId) {
+      try {
+        const [latest] = await db.select({ id: offer_intelligence.id, created_at: offer_intelligence.created_at })
+          .from(offer_intelligence)
+          .where(eq(offer_intelligence.user_id, req.auth.userId))
+          .orderBy(desc(offer_intelligence.created_at))
+          .limit(1);
+        if (!cleanedUp && latest) {
+          writeStateEvent(res, { offer_id: latest.id, created_at: latest.created_at, handshake: true });
+        }
+      } catch (stateErr) {
+        sseLog.error(1, `offers initial-state handshake failed (stream stays open)`, stateErr, OP.SSE);
+      }
     }
   } catch (err) {
     sseLog.error(1, `Offer listener failed`, err, OP.SSE);

@@ -78,6 +78,16 @@ let lastWarningTime = 0;
 pool.on('connect', (client) => {
   // Set statement timeout on each new connection
   client.query('SET statement_timeout TO 30000');
+  // 2026-08-17 (race review, verified with a protocol-faithful fake PG server): a client
+  // that is CHECKED OUT (db.transaction / pool.connect) has no 'error' listener — pg-pool
+  // removes its idle listener on acquire — so a 57P01 / socket death mid-transaction
+  // raises Node's unhandled 'error' event → uncaughtException → gateway exit(1). The
+  // pool.query path never had this exposure (pg-pool attaches client.once('error') per
+  // query). This listener stays for the client's whole life; it only logs — the query
+  // itself still rejects to the caller, who decides whether to retry.
+  client.on('error', (err) => {
+    console.warn(`[DB] Client error while checked out (${err?.code || 'no code'}): ${err?.message || err} — pool will evict it`);
+  });
 });
 
 setInterval(() => {

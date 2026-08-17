@@ -21,6 +21,16 @@ describe('parseModelJson', () => {
     expect(r.value.decision).toBe('ACCEPT'); expect(r.value.notices).toEqual(['Verified Rider', 'Filter Detected']);
   });
 
+  test('tier 4: an EXTRA closing brace after otherwise-valid JSON (live gemini-3.1-pro Phase-2 reply 2026-08-17)', () => {
+    const r = parseModelJson('{\n  "parsed_data": {"price": 9.3, "pickup": "Main St & Elm St, Frisco"},\n  "decision": "REJECT",\n  "reasoning": "closes with } inside a string",\n  "location_analysis": {"dropoff_zone": "core"}\n}\n}', { unwrap: false });
+    expect(r.ok).toBe(true); expect(r.tier).toBe(4);
+    expect(r.value.parsed_data.pickup).toBe('Main St & Elm St, Frisco'); expect(r.value.location_analysis.dropoff_zone).toBe('core');
+    // two surplus braces + epilogue text
+    expect(parseModelJson('{"decision":"ACCEPT"}}}\nDone.').value).toEqual({ decision: 'ACCEPT' });
+    // a brace inside a string never confuses the scan; an escaped quote neither
+    expect(parseModelJson('{"reason":"a } b \\" c","decision":"REJECT"}}').value).toEqual({ reason: 'a } b " c', decision: 'REJECT' });
+  });
+
   test('tier 3 tolerates a dangling comma but not deeper damage', () => {
     expect(parseModelJson('{"decision":"REJECT",').value).toEqual({ decision: 'REJECT' });
     expect(parseModelJson('{"decision":"REJECT","notices":["a"').ok).toBe(false); // unclosed array — fail loud

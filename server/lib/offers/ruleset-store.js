@@ -28,6 +28,11 @@ export { hashRuleset, generateShortcutToken } from './ruleset-hash.js';
 const CACHE_TTL_MS = 15_000;
 const CACHE_MAX = 500; // bound the map — the public path must not grow memory on attacker-minted tokens
 const cache = new Map(); // token → { value, expiresAt }
+// 2026-08-17 (race review): a read that STARTED before a save and lands after it would
+// re-populate the cache with the pre-save rules for up to 15 s (invalidateUser only
+// clears what is already there). Remember when each user was last invalidated and
+// refuse to cache a value whose read began before that instant.
+const invalidatedAt = new Map(); // userId → epoch ms
 
 /**
  * Resolve the ruleset for an incoming analyze-offer request.
@@ -43,6 +48,7 @@ export async function resolveRuleset(token) {
   const cached = cache.get(token);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
+  const readStartedAt = Date.now();
   try {
     const result = await db.execute(sql`
       SELECT dp.user_id, r.config, r.version, r.config_hash
@@ -70,6 +76,11 @@ export async function resolveRuleset(token) {
         hash: row.config_hash,
       };
     }
+    if ((invalidatedAt.get(value.userId) ?? -1) >= readStartedAt) {
+      // Saved while this read was in flight — serve it (it is what the DB said when we
+      // asked) but do not cache it; the next request reads the fresh row.
+      return value;
+    }
     if (cache.size >= CACHE_MAX) {
       // Evict the oldest entry (Map preserves insertion order) — simple and enough
       // at this scale; a full sweep would be overkill for a 500-entry bound.
@@ -90,9 +101,16 @@ export function invalidateUser(userId) {
   for (const [token, entry] of cache) {
     if (entry.value?.userId === userId) cache.delete(token);
   }
+  const now = Date.now();
+  invalidatedAt.set(userId, now);
+  // Bounded: an invalidation older than the TTL can no longer race any read.
+  for (const [uid, at] of invalidatedAt) {
+    if (now - at > CACHE_TTL_MS * 2) invalidatedAt.delete(uid);
+  }
 }
 
 /** Test hook. */
 export function _clearCache() {
   cache.clear();
+  invalidatedAt.clear();
 }

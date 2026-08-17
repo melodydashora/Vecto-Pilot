@@ -38,12 +38,18 @@ async function post(label, init) {
   }
   const wall = Date.now() - t0;
   if (!res.ok) { console.log(`${label}\n  ✗ HTTP ${res.status} ${JSON.stringify(body).slice(0, 160)}`); return; }
-  console.log(`${label}\n  ${body.decision} | ${body.voice} | ${body.notification} | server ${body.response_time_ms} ms | wall ${wall} ms`);
+  console.log(`${label}\n  ${body.decision} | ${body.voice} | ${body.notification} | server ${body.response_time_ms} ms | wall ${wall} ms${body.duplicate ? ' | DUPLICATE (replayed, Phase 1/2 skipped)' : ''}`);
 }
 
 console.log(`Offer Analyzer smoke → ${BASE}  token: ${TOKEN ? 'yes (' + TOKEN.slice(0, 5) + '…)' : 'NO (default rules, anonymous)'}`);
 for (const [label, text] of Object.entries(TEXTS)) {
   await post(label, { headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ text, source: 'smoke_text', device_id: 'smoke' }) });
+}
+// 2026-08-17: idempotency check — an identical re-send inside 60 s must come back with
+// duplicate:true (replayed answer, no second model call, no second row).
+{
+  const [label, text] = Object.entries(TEXTS)[0];
+  await post(`${label} — RE-SENT (expect DUPLICATE)`, { headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ text, source: 'smoke_text', device_id: 'smoke' }) });
 }
 if (process.env.IMAGE) {
   const p = process.env.IMAGE;

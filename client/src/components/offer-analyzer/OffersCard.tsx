@@ -6,8 +6,8 @@
 // Row shape is the FLAT offer_intelligence LEFT JOIN offer_outcomes row that
 // GET /api/offer-analyzer/offers returns (server/api/offer-analyzer/index.js).
 
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -288,8 +288,10 @@ function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
 }
 
 export default function OffersCard() {
+  const queryClient = useQueryClient();
+  const offersQueryKey = useMemo(() => QUERY_KEYS.OFFER_ANALYZER_OFFERS(OFFERS_LIMIT), []);
   const { data, isLoading, error, refetch } = useQuery<OffersResponse>({
-    queryKey: QUERY_KEYS.OFFER_ANALYZER_OFFERS(OFFERS_LIMIT),
+    queryKey: offersQueryKey,
     // The default queryClient queryFn sends no auth header and force-logs-out on
     // 401 — always pass an explicit queryFn with getAuthHeader().
     queryFn: async () => {
@@ -300,16 +302,33 @@ export default function OffersCard() {
       return res.json();
     },
     staleTime: 30 * 1000,
-    refetchOnWindowFocus: false,
+    // 2026-08-17 (race/SSE review finding #2): the headline flow runs the Shortcut
+    // FROM the Uber app — this tab is backgrounded, iOS drops the EventSource, and
+    // the offer_analyzed event fires while it is down. Coming back must refresh:
+    // window focus (when stale) + the server's `state` handshake on SSE reconnect
+    // (below). Was `false`, which left the card stale until a manual Refresh.
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
-  // Live refresh when the Shortcut sends a new offer through the analyzer.
+  // Live refresh when the Shortcut sends a new offer through the analyzer — and on
+  // every SSE (re)connect, when the server sends a `state` handshake naming the
+  // newest stored offer (skipped when the card already shows it). The handshake joins
+  // an in-flight fetch (cancelRefetch:false — mount + handshake overlap); a REAL
+  // offer_analyzed event keeps the default cancel-and-restart so the response is
+  // guaranteed to be read after the row committed.
   useEffect(() => {
-    const unsubscribe = subscribeOfferAnalyzed(() => {
+    const unsubscribe = subscribeOfferAnalyzed((event) => {
+      if (event?.handshake) {
+        const cached = queryClient.getQueryData<OffersResponse>(offersQueryKey);
+        if (event.offer_id && cached?.offers?.some((o) => o.id === event.offer_id)) return;
+        refetch({ cancelRefetch: false });
+        return;
+      }
       refetch();
     });
     return unsubscribe;
-  }, [refetch]);
+  }, [refetch, queryClient, offersQueryKey]);
 
   const offers = data?.offers ?? [];
   const stats = data?.stats;

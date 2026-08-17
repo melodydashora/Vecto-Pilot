@@ -287,9 +287,13 @@ export function subscribeBriefingReady(
  * Uses Postgres LISTEN/NOTIFY via /events/offers endpoint.
  * 2026-07-03 (todo #10): fires when the Offer Analyzer ingests + scores a new
  * offer (Siri Shortcut → analyze-offer.js) so the Offers card refetches live.
+ * 2026-08-17: the server also emits a `state` handshake on every (re)connect
+ * ({ offer_id, created_at, handshake: true } = the newest stored offer) — the
+ * manager forwards `state` to this same callback, so a stream that was down
+ * while an offer landed (backgrounded tab) refetches the moment it is back.
  */
 export function subscribeOfferAnalyzed(
-  callback: (data: { offer_id?: string }) => void
+  callback: (data: { offer_id?: string; created_at?: string; handshake?: boolean }) => void
 ): () => void {
   return subscribeSSE('/events/offers', 'offer_analyzed', callback);
 }

@@ -11,6 +11,11 @@
 //   3. slice from first "{" and close the object (drop a dangling comma) — the
 //      "missing closing brace" repair. Only a single trailing brace is added; anything
 //      deeper still fails loudly and the caller's rules engine answers.
+//   4. balanced-object scan: take the first "{" through the brace that returns depth to
+//      0 (string-aware) — the "EXTRA closing brace" repair. Live 2026-08-17:
+//      gemini-3.1-pro-preview (Phase 2) ended otherwise-valid JSON with "}\n}" on 1 of 3
+//      calls; tier 2 sliced to the LAST "}" and failed, so the deep result (and the card
+//      addresses → pickup-address timezone) was lost and the row could be refused.
 // Returns { ok, value, tier } — `value` unwraps `parsed_data` when the model nested it
 // (Phase-1 shape); pass { unwrap: false } to keep the envelope (Phase-2 shape).
 // PURE (no db/model imports) — jest-safe.
@@ -39,5 +44,35 @@ export function parseModelJson(text, { unwrap: doUnwrap = true } = {}) {
     } catch { /* fall through */ }
   }
 
+  if (first !== -1) {
+    const end = balancedObjectEnd(cleaned, first);
+    if (end !== -1 && end < cleaned.length - 1) { // only when something trails the balanced object
+      try {
+        return { ok: true, value: unwrap(JSON.parse(cleaned.slice(first, end + 1))), tier: 4 };
+      } catch { /* fall through */ }
+    }
+  }
+
   return { ok: false, value: null, tier: 0 };
+}
+
+/** Index of the "}" that closes the object opening at `start`, honoring JSON strings; -1 if unbalanced. */
+function balancedObjectEnd(str, start) {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < str.length; i++) {
+    const ch = str[i];
+    if (inString) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
 }

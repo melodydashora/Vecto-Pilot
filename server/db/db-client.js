@@ -84,11 +84,10 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
         pgClient = null;
       }
 
-      // 2026-02-17: FIX - Reset notification handler flag so new client gets handler
-      // Without this, the flag stays true from the old (dead) client, and the new
-      // client never gets a 'notification' listener attached — all SSE subscribers
-      // become orphaned (they have callbacks but receive no notifications).
-      notificationHandlerAttached = false;
+      // 2026-02-17 → 2026-08-17: the notification dispatcher is attached PER CLIENT
+      // (attachDispatcher, WeakSet-guarded, ignores a client that is no longer the
+      // current pgClient) — no module flag to reset, and an orphaned client can never
+      // double-deliver to SSE subscribers.
 
       pgClient = new pg.Client({
         connectionString,
@@ -125,28 +124,55 @@ async function reconnectWithBackoff(connectionString, maxRetries = 5) {
   throw new Error('Failed to reconnect after maximum retries');
 }
 
+// 2026-08-17 (race/SSE review finding #5): when reconnectWithBackoff exhausts its 5
+// retries (~25 s of DB unavailability — an autoscale hiccup is enough) the client was
+// dropped and NOTHING tried again: every open SSE stream (offers, strategy, briefing,
+// blocks) stayed deaf until a NEW subscriber happened to call getListenClient() —
+// and even then the fresh-connect path never re-issued LISTEN for the surviving
+// channels. Now: (a) the fresh-connect path re-LISTENs + re-attaches the dispatcher
+// (see getListenClient), and (b) after exhaustion we keep trying on a slow cadence
+// for as long as anyone is subscribed.
+const SLOW_RETRY_MS = 30_000;
+let slowRetryAnnounced = false; // one error line per outage, not one every 30 s
+function _dropClientAndScheduleSlowRetry() {
+  if (pgClient) {
+    pgClient.removeAllListeners();
+    pgClient.on('error', () => {}); // 2026-08-06: never leave a client listener-less (see reconnect cleanup)
+    pgClient = null;
+  }
+  if (keepaliveInterval) {
+    clearInterval(keepaliveInterval);
+    keepaliveInterval = null;
+  }
+  if (channelSubscribers.size === 0 || reconnectTimer) return;
+  if (!slowRetryAnnounced) {
+    dbLog.error(1, `LISTEN client gave up after max retries — ${channelSubscribers.size} channel(s) still subscribed; retrying every ${SLOW_RETRY_MS / 1000}s until it is back`, null, OP.DB);
+    slowRetryAnnounced = true;
+  }
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    if (channelSubscribers.size === 0) { slowRetryAnnounced = false; return; } // everyone left — nothing to restore
+    try {
+      await getListenClient(); // fresh connect → resubscribeChannels() re-LISTENs every surviving channel
+      slowRetryAnnounced = false;
+      dbLog.done(1, `LISTEN client restored after slow retry`, OP.DB);
+    } catch {
+      _dropClientAndScheduleSlowRetry();
+    }
+  }, SLOW_RETRY_MS);
+  reconnectTimer.unref?.();
+}
+
 function setupErrorHandlers(connectionString) {
   pgClient.on('error', async (err) => {
     if (!isReconnecting) {
-      reconnectWithBackoff(connectionString).catch(() => {
-        if (pgClient) {
-          pgClient.removeAllListeners();
-          pgClient.on('error', () => {}); // 2026-08-06: never leave a client listener-less (see reconnect cleanup)
-          pgClient = null;
-        }
-      });
+      reconnectWithBackoff(connectionString).catch(() => _dropClientAndScheduleSlowRetry());
     }
   });
 
   pgClient.on('end', async () => {
     if (!isReconnecting) {
-      reconnectWithBackoff(connectionString).catch(() => {
-        if (pgClient) {
-          pgClient.removeAllListeners();
-          pgClient.on('error', () => {}); // 2026-08-06: never leave a client listener-less (see reconnect cleanup)
-          pgClient = null;
-        }
-      });
+      reconnectWithBackoff(connectionString).catch(() => _dropClientAndScheduleSlowRetry());
     }
   });
 }
@@ -204,6 +230,12 @@ export async function getListenClient() {
     try {
       await pgClient.connect();
 
+      // 2026-08-17 (finding #5): a brand-new client has no LISTENs and no dispatcher.
+      // If subscribers survived a dropped client (reconnect exhausted → slow retry, or
+      // a closeListenClient/reopen), restore them here exactly like the reconnect path
+      // does — otherwise those SSE streams stay deaf on a healthy connection.
+      await resubscribeChannels();
+
       // Send keepalive queries every 4 minutes
       keepaliveInterval = setInterval(() => {
         if (pgClient && !isReconnecting) {
@@ -216,6 +248,7 @@ export async function getListenClient() {
     } catch (err) {
       if (pgClient) {
         pgClient.removeAllListeners();
+        pgClient.on('error', () => {}); // never leave a client listener-less
         pgClient = null;
       }
       throw err;
@@ -233,8 +266,13 @@ export async function closeListenClient() {
     clearInterval(keepaliveInterval);
     keepaliveInterval = null;
   }
+  if (reconnectTimer) { // a pending slow retry must not reopen a connection during shutdown
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   if (pgClient) {
     pgClient.removeAllListeners();
+    pgClient.on('error', () => {}); // never leave a client listener-less (see reconnect cleanup)
     await pgClient.end();
     pgClient = null;
     dbLog.info(`LISTEN client closed`, OP.DB);
@@ -252,7 +290,30 @@ export async function closeListenClient() {
 // ============================================================================
 
 const channelSubscribers = new Map(); // channel -> Set of callbacks
-let notificationHandlerAttached = false;
+// 2026-08-17: the dispatcher is attached once PER CLIENT (was a module-level boolean that
+// could go stale on a dead client — every stream deaf — or, if a reconnect loop overlapped
+// a fresh connect, let two live clients both deliver → every NOTIFY twice). The handler
+// also ignores notifications from a client that is no longer the current pgClient.
+const dispatcherAttached = new WeakSet();
+function attachDispatcher(client) {
+  if (!client || dispatcherAttached.has(client)) return false;
+  client.on('notification', (msg) => {
+    if (client !== pgClient) return; // orphaned client — the current one delivers
+    const subscribers = channelSubscribers.get(msg.channel);
+    if (subscribers && subscribers.size > 0) {
+      _emitChannel(msg.channel, `NOTIFY → ${subscribers.size} subscriber(s)`);
+      subscribers.forEach(cb => {
+        try {
+          cb(msg.payload);
+        } catch (err) {
+          console.error(`[NOTIFY] Subscriber error:`, err);
+        }
+      });
+    }
+  });
+  dispatcherAttached.add(client);
+  return true;
+}
 
 /**
  * Re-attach LISTEN commands and notification handler after reconnect.
@@ -279,22 +340,8 @@ async function resubscribeChannels() {
     }
   }
 
-  // Re-attach notification handler (notificationHandlerAttached was reset to false above)
-  if (!notificationHandlerAttached) {
-    pgClient.on('notification', (msg) => {
-      const subscribers = channelSubscribers.get(msg.channel);
-      if (subscribers && subscribers.size > 0) {
-        _emitChannel(msg.channel, `NOTIFY → ${subscribers.size} subscriber(s)`);
-        subscribers.forEach(cb => {
-          try {
-            cb(msg.payload);
-          } catch (err) {
-            console.error(`[NOTIFY] Subscriber error:`, err);
-          }
-        });
-      }
-    });
-    notificationHandlerAttached = true;
+  // Re-attach the notification dispatcher on the new client (per-client, idempotent)
+  if (attachDispatcher(pgClient)) {
     dbLog.info(`Notification dispatcher re-attached after reconnect`, OP.DB);
   }
 }
@@ -322,23 +369,8 @@ export async function subscribeToChannel(channel, callback) {
   const subscriberCount = channelSubscribers.get(channel).size;
   _emitChannel(channel, `${subscriberCount} subscriber(s)`);
 
-  // Attach single notification handler if not already attached
-  if (!notificationHandlerAttached) {
-    client.on('notification', (msg) => {
-      const subscribers = channelSubscribers.get(msg.channel);
-      if (subscribers && subscribers.size > 0) {
-        // Parse payload once, dispatch to all subscribers
-        _emitChannel(msg.channel, `NOTIFY → ${subscribers.size} subscriber(s)`);
-        subscribers.forEach(cb => {
-          try {
-            cb(msg.payload);
-          } catch (err) {
-            console.error(`[NOTIFY] Subscriber error:`, err);
-          }
-        });
-      }
-    });
-    notificationHandlerAttached = true;
+  // Attach the single per-client notification dispatcher (idempotent)
+  if (attachDispatcher(client)) {
     dbLog.info(`Notification dispatcher attached`, OP.DB);
   }
 

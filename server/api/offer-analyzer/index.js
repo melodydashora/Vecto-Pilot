@@ -52,6 +52,14 @@ router.get('/rules', async (req, res) => {
 
 // PUT /api/offer-analyzer/rules — validate strictly, upsert, bump version.
 // This is the fail-loud write gate: an invalid config NEVER persists (OFFER_ANALYZER.md §7 fail posture).
+// 2026-08-17 (race review finding #4): optimistic concurrency. The body may carry
+// `expected_version` — the version the editor loaded (null = "no saved row yet").
+// When present, the update applies ONLY if the stored version still matches;
+// otherwise 409 with the current row so the client reloads instead of silently
+// overwriting another tab's/device's save (last-write-wins was the old behavior).
+// Absent (older clients / API callers) → unconditional, exactly as before.
+// The response now returns the canonical stored config too, so the editor needs no
+// second GET (whose form.reset() could clobber a slider moved during the round-trip).
 router.put('/rules', async (req, res) => {
   try {
     const config = migrateRuleset(req.body?.config);
@@ -59,9 +67,23 @@ router.put('/rules', async (req, res) => {
     if (!validation.ok) {
       return res.status(422).json({ error: 'Invalid ruleset', details: validation.errors });
     }
+    const hasExpectation = req.body != null && Object.prototype.hasOwnProperty.call(req.body, 'expected_version');
+    const rawExpected = hasExpectation ? req.body.expected_version : undefined;
+    // Strict: a JSON number that is a non-negative int4, or null. No coercion (true → 1,
+    // "" → 0, [7] → 7 would all sneak through Number()); out-of-int4 would 500 at the cast.
+    if (hasExpectation && rawExpected !== null
+      && !(typeof rawExpected === 'number' && Number.isInteger(rawExpected) && rawExpected >= 0 && rawExpected <= 2147483647)) {
+      return res.status(400).json({ error: 'expected_version must be a non-negative integer or null' });
+    }
+    const expectedVersion = hasExpectation && rawExpected !== null ? rawExpected : null;
 
     const hash = hashRuleset(validation.config);
     const configJson = JSON.stringify(validation.config);
+    // IS NOT DISTINCT FROM: an expectation of null (client saw defaults) matches no
+    // existing row → 409 if someone saved first; a stale integer likewise.
+    const versionGuard = hasExpectation
+      ? sql`offer_rulesets.version IS NOT DISTINCT FROM ${expectedVersion}::integer`
+      : sql`TRUE`;
     const result = await db.execute(sql`
       INSERT INTO offer_rulesets (user_id, version, config, config_hash)
       VALUES (${req.auth.userId}, 1, ${configJson}::jsonb, ${hash})
@@ -70,13 +92,27 @@ router.put('/rules', async (req, res) => {
         config_hash = EXCLUDED.config_hash,
         version = offer_rulesets.version + 1,
         updated_at = NOW()
+      WHERE ${versionGuard}
       RETURNING version
     `);
+
+    if (!result.rows?.length) {
+      const current = await db.execute(sql`
+        SELECT config, version, config_hash FROM offer_rulesets WHERE user_id = ${req.auth.userId} LIMIT 1
+      `);
+      const row = current.rows?.[0];
+      console.warn(`[offer-analyzer] Rules save REJECTED (version conflict): user=${req.auth.userId} expected v${expectedVersion ?? 'none'}, stored v${row?.version ?? 'none'}`);
+      return res.status(409).json({
+        error: 'version_conflict',
+        message: 'Your rules were changed elsewhere since this page loaded. Reload and re-apply your change.',
+        current: row ? { config: migrateRuleset(row.config), version: row.version, hash: row.config_hash } : null,
+      });
+    }
 
     invalidateUser(req.auth.userId); // next Siri request on this instance sees the new rules
     const version = result.rows?.[0]?.version ?? 1;
     console.log(`[offer-analyzer] Rules saved: user=${req.auth.userId} v${version} ${hash.slice(0, 12)}`);
-    res.json({ success: true, version, hash });
+    res.json({ success: true, version, hash, config: validation.config });
   } catch (err) {
     console.error('[offer-analyzer/rules PUT]', err.message);
     res.status(500).json({ error: err.message });
@@ -103,14 +139,28 @@ router.get('/shortcut-token', async (req, res) => {
       });
     }
 
+    // 2026-08-17 (race review): first-ever GET from two tabs used to mint two tokens —
+    // the second UPDATE overwrote the first, leaving one displayed token dead. Mint
+    // only into a still-NULL slot; if another request won, return what it minted.
     const token = generateShortcutToken();
-    await db.execute(sql`
+    const minted = await db.execute(sql`
       UPDATE driver_profiles
       SET shortcut_token = ${token}, shortcut_token_created_at = NOW()
-      WHERE user_id = ${req.auth.userId}
+      WHERE user_id = ${req.auth.userId} AND shortcut_token IS NULL
+      RETURNING shortcut_token, shortcut_token_created_at
     `);
-    console.log(`[offer-analyzer] Shortcut token minted: user=${req.auth.userId}`);
-    res.json({ token, created_at: new Date().toISOString(), device_label: null });
+    if (minted.rows?.length) {
+      console.log(`[offer-analyzer] Shortcut token minted: user=${req.auth.userId}`);
+      return res.json({ token, created_at: minted.rows[0].shortcut_token_created_at, device_label: null });
+    }
+    const winner = await db.execute(sql`
+      SELECT shortcut_token, shortcut_token_created_at, shortcut_device_label
+      FROM driver_profiles WHERE user_id = ${req.auth.userId} LIMIT 1
+    `);
+    const w = winner.rows?.[0];
+    if (!w?.shortcut_token) return res.status(500).json({ error: 'token_mint_failed' });
+    console.log(`[offer-analyzer] Shortcut token mint raced — returning the token another request minted: user=${req.auth.userId}`);
+    res.json({ token: w.shortcut_token, created_at: w.shortcut_token_created_at, device_label: w.shortcut_device_label });
   } catch (err) {
     console.error('[offer-analyzer/shortcut-token GET]', err.message);
     res.status(500).json({ error: err.message });

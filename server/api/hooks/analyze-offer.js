@@ -56,6 +56,9 @@ import { latLngToCell } from 'h3-js';
 // 2026-08-17: also from the geocoded pickup address (first address on the card) — see Phase 2
 import { resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
 import { offerHookLimiter } from '../../middleware/rate-limit.js';
+// 2026-08-17 (race/duplicate review): idempotency for double fires + bounded memos for
+// the Google lookups an airport queue repeats verbatim ("Terminal B…" every offer).
+import { requestFingerprint, createRequestDedup, createTtlMemo, DEFAULT_DEDUP_TTL_MS } from '../../lib/offers/request-dedup.js';
 
 // Auth model (2026-08-11, auth-hardening Item 7 partially closed): Siri
 // Shortcuts can't send JWTs, so identity here is the per-user shortcut token
@@ -63,6 +66,43 @@ import { offerHookLimiter } from '../../middleware/rate-limit.js';
 // Shortcut still gets a decision; its offer just isn't stored per-user); the
 // read/mutate endpoints below are token-REQUIRED. All four are rate-limited.
 const router = Router();
+
+// ═══ IDEMPOTENCY (2026-08-17, race/duplicate review finding #1) ═════════════════
+// An identical request (same token/device/ip + same text or image bytes) inside
+// DUPLICATE_WINDOW replays the FIRST request's Phase-1 answer and runs neither
+// Phase 1 nor Phase 2 again — one row, one pg_notify, one set of model/Google calls.
+// Still-in-flight originals are JOINED (the phone-timed-out-and-resent case gets the
+// same answer the moment it exists). This map is per instance; the storage-level
+// guard in Phase 2 (request_hash within the same window, under the per-driver
+// session lock) covers duplicates that land on different Cloud Run instances.
+const requestDedup = createRequestDedup({ ttlMs: DEFAULT_DEDUP_TTL_MS });
+const DUPLICATE_WINDOW_SEC = Math.round(DEFAULT_DEDUP_TTL_MS / 1000);
+const DUPLICATE_JOIN_TIMEOUT_MS = 30_000; // > Phase-1 timeout (20 s); a joiner never waits forever
+// The storage-level guard compares REQUEST arrival times (parsed_data_json.request_at, epoch
+// ms) so its window is exactly DUPLICATE_WINDOW like the in-memory gate — created_at is
+// STORAGE time, which Phase 2 delays by 5-45 s (live test 2026-08-17: a re-send at 55 s was
+// stored 63 s after the first row and slipped past a created_at window). The created_at
+// bound below only keeps the lookup on the (scope, created_at) index.
+const STORAGE_LOOKBACK_SEC = DUPLICATE_WINDOW_SEC + 60;
+// Transient connection errors inside the Phase-2 transaction get ONE retry — db.transaction
+// checks out a client, so the pool-level retry in connection-manager.js does not apply.
+// Drizzle wraps driver errors (DrizzleQueryError: the SQLSTATE is on err.cause.code, and a
+// termination during ROLLBACK surfaces as a CODELESS "not queryable" cause), so classify
+// through the wrapper (same shape venue-cache.js / consolidator.js already read).
+const TRANSIENT_PG_CODES = new Set(['57P01', '57P02', '57P03', '08000', '08003', '08006', '08001', '08004', '40P01', '40001']);
+const isTransientPgError = (err) => {
+  const code = err?.cause?.code ?? err?.code;
+  if (TRANSIENT_PG_CODES.has(code)) return true;
+  const msg = `${err?.cause?.message ?? ''} ${err?.message ?? ''}`;
+  return /Connection terminated|not queryable|ECONNRESET|ECONNREFUSED|EPIPE|connection.*(closed|ended)/i.test(msg);
+};
+// Bounded memos for pure Google lookups (same string + same ~1 km anchor → same answer;
+// a tz ID never changes for a point). Only successful answers are memoized.
+const GEO_MEMO_TTL_MS = 10 * 60_000;
+const geocodeMemo = createTtlMemo({ ttlMs: GEO_MEMO_TTL_MS, maxEntries: 500 });
+const placesMemo = createTtlMemo({ ttlMs: GEO_MEMO_TTL_MS, maxEntries: 500 });
+const tzMemo = createTtlMemo({ ttlMs: 12 * 3600_000, maxEntries: 2000 });
+const memoKeyFor = (text, anchor) => `${text}|${anchor ? `${anchor.lat.toFixed(2)},${anchor.lng.toFixed(2)}` : '-'}`;
 
 // 2026-08-11: Shortcut-token auth for the offer read/mutate endpoints below.
 // The Shortcut already sends this token for /analyze-offer; the same token is
@@ -184,8 +224,13 @@ const upload = multer({
 //      (MacroDroid "Content Body: File" — the tool cannot do a named multipart part.)
 //
 // Multipart detection: multer runs first. If no file uploaded, falls through to JSON body.
-router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (req, res) => {
+// 2026-08-17: multer runs BEFORE the limiter — its keyGenerator reads req.body.device_id,
+// which for multipart only exists after multer. Untokened multipart requests used to share
+// one per-IP bucket (many drivers behind a carrier NAT = one 20/min bucket). Cost-wise this
+// is the same class as express.json, which already parses before the limiter.
+router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (req, res) => {
   const startTime = Date.now();
+  let dedupClaim = null; // { settle, fail } once this request owns its fingerprint
 
   try {
     // 2026-02-17: Normalize input from either JSON body or multipart form fields
@@ -257,6 +302,55 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       return res.status(400).json({ error: 'Missing text or image payload' });
     }
 
+    // 2026-07-03 (todo #10): the per-user ruleset bridge. Token → user + rules;
+    // no token → DEFAULT_RULESET (zero change for un-migrated devices). The
+    // store fail-opens loudly and caches 15s, so this read is hot-path safe
+    // (measured Phase-1 p50 is 5.3s; this is ~10ms once per burst).
+    // 2026-08-17: resolved BEFORE the idempotency gate — the ruleset hash is part of
+    // the fingerprint, so "same card, rules just changed" is a NEW analysis, not a replay
+    // (review: the documented test-before-you-drive loop re-sends the same card after a
+    // rules edit).
+    const { ruleset, userId, version: rulesetVersion, hash: rulesetHash } = await resolveRuleset(shortcutToken);
+    if (userId) console.log(`[HOOKS] Ruleset resolved: user=${userId} v${rulesetVersion ?? 'default'}`);
+
+    // ═══ IDEMPOTENCY GATE ═════════════════════════════════════════════════════
+    // Fingerprint = who (token > device_id > ip) + what (text and/or image bytes)
+    // + which rules (ruleset hash; 'default' when none). A hit inside
+    // DUPLICATE_WINDOW replays the first answer (or joins it while it is still in
+    // flight); nothing below runs twice. Only AUTHORITATIVE answers are settled
+    // (see phase1Authoritative) — a model timeout answered by the engine is not
+    // cached, so a re-send gets a fresh try. Fail-open: any error in the gate itself
+    // falls through to a normal analysis; payloads where neither text nor image is
+    // a string are not fingerprinted at all (nothing to compare).
+    const requestHash = (typeof text === 'string' || typeof image === 'string')
+      ? requestFingerprint({ identity: `${shortcutToken || device_id || req.ip || 'unknown'}|${rulesetHash || 'default'}`, text, image })
+      : null;
+    try {
+      let claim = requestHash ? requestDedup.claim(requestHash) : null;
+      if (claim?.hit) {
+        let joinTimer = null;
+        try {
+          const first = await Promise.race([
+            claim.promise,
+            new Promise((_, reject) => { joinTimer = setTimeout(() => reject(new Error(`original still in flight after ${DUPLICATE_JOIN_TIMEOUT_MS / 1000}s`)), DUPLICATE_JOIN_TIMEOUT_MS); }),
+          ]);
+          clearTimeout(joinTimer);
+          const responseTimeMs = Date.now() - startTime;
+          console.log(`[HOOKS] Duplicate request from ${device_id || 'anonymous'} (${source}) — identical payload ${Math.round(claim.ageMs / 1000)}s after the first; replaying its answer (${first.decision}), Phase 1/2 skipped`);
+          return res.json({ ...first, response_time_ms: responseTimeMs, duplicate: true });
+        } catch (joinErr) {
+          clearTimeout(joinTimer);
+          // The original failed or is hung — compute fresh (and own the key if it is free).
+          console.warn(`[HOOKS] Duplicate request could not replay (${joinErr.message}) — analyzing fresh`);
+          claim = requestDedup.claim(requestHash);
+        }
+      }
+      if (claim && !claim.hit) dedupClaim = claim;
+    } catch (dedupErr) {
+      console.warn(`[HOOKS] Idempotency gate error (${dedupErr.message}) — analyzing normally`);
+      dedupClaim = null;
+    }
+
     console.log(`[HOOKS] 📱 Incoming from ${device_id || 'anonymous'} (${source})`);
 
     // 2026-02-16: Use 6-decimal precision (~11cm) per codebase standard (coords-key.js)
@@ -323,13 +417,6 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       console.log(`[HOOKS] Vision mode: ${Math.round(imageData.length / 1024)}KB base64 (${mimeType})${ds.downscaled ? ` — downscaled from ${originalKB}KB` : ''}`);
     }
 
-    // 2026-07-03 (todo #10): the per-user ruleset bridge. Token → user + rules;
-    // no token → DEFAULT_RULESET (zero change for un-migrated devices). The
-    // store fail-opens loudly and caches 15s, so this read is hot-path safe
-    // (measured Phase-1 p50 is 5.3s; this is ~10ms once per burst).
-    const { ruleset, userId, version: rulesetVersion, hash: rulesetHash } = await resolveRuleset(shortcutToken);
-    if (userId) console.log(`[HOOKS] Ruleset resolved: user=${userId} v${rulesetVersion ?? 'default'}`);
-
     // 2026-03-29: Tier-aware prompt selection — share/standard/premium (+ v3 comfort/xl)
     // 2026-07-03: share.auto_reject wired — explicitly false routes share offers
     // through standard rules instead of the short-circuit (engine self-remaps too).
@@ -347,7 +434,7 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     if (tier === 'share') {
       const responseTimeMs = Date.now() - startTime;
       console.log(`[HOOKS] Share tier auto-reject (${responseTimeMs}ms)`);
-      return res.json({
+      const sharePayload = {
         success: true,
         // 2026-04-16: TTS line for Siri "Speak Text" — no per-mile data on share path.
         voice: 'Reject. Share tier.',
@@ -358,7 +445,9 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
         // Shortcuts can speak decision + display reason separately. Literal 'share'
         // because terseReason is not yet in scope on this early-return path.
         reason: 'share',
-      });
+      };
+      dedupClaim?.settle(sharePayload);
+      return res.json(sharePayload);
     }
 
     // Tier 3 of the extraction ladder AND the answer of last resort: the
@@ -394,6 +483,10 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     // pre-parse must have price + both leg pairs (stricter than the fallback role).
     let phase1Response = null;
     let phase1Result = null;
+    // false when the model was asked and did not deliver a usable verdict (timeout / failure /
+    // unparseable / no decision) and the engine answered instead — the answer is still spoken
+    // (always-answer contract) but NOT cached for replay (idempotency gate).
+    let phase1Authoritative = true;
     if (text && preParsed?.parse_confidence === 'full' && preParsed.per_mile != null) {
       const fastVerdict = evaluateDeterministic(tier, preParsed, ruleset);
       if (fastVerdict.decision === 'REJECT') {
@@ -443,6 +536,7 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       // missing closing brace (live-observed 2026-08-17). Anything worse → rules engine.
       if (!phase1Response?.success) {
         phase1Result = deterministicPhase1();
+        phase1Authoritative = false;
       } else {
         const parsed = parseModelJson(phase1Response.text);
         if (parsed.ok) {
@@ -451,6 +545,7 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
         } else {
           console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
           phase1Result = deterministicPhase1();
+          phase1Authoritative = false;
         }
       }
 
@@ -465,6 +560,9 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
         if (!phase1Result.decision || noRide) {
           console.warn(`[HOOKS] Phase 1 reply ${!phase1Result.decision ? 'has no decision' : 'describes no ride'} — deterministic engine answers`);
           phase1Result = deterministicPhase1();
+          // "describes no ride" is the model's real answer to a non-offer screenshot (authoritative:
+          // the same image will say the same thing); "no decision" is a broken reply → retry-worthy.
+          if (!noRide) phase1Authoritative = false;
         }
       }
     }
@@ -600,7 +698,7 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       voice = voice.replace(/\.$/, `, ${hourlyPhrase}.`);
     }
 
-    res.json({
+    const phase1Payload = {
       success: true,
       voice,
       notification,
@@ -613,7 +711,12 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       reason: terseReasonText || '',
       // v3: observed notices (empty unless the driver enabled them in their rules).
       notices: noticesArr,
-    });
+    };
+    // An identical re-send inside the window replays this — unless the model failed and the
+    // engine had to answer, in which case the entry is dropped so the re-send gets a fresh try.
+    if (phase1Authoritative) dedupClaim?.settle(phase1Payload);
+    else dedupClaim?.fail(new Error('Phase-1 answer was degraded (model did not deliver) — not cached for replay'));
+    res.json(phase1Payload);
 
     console.log(`[HOOKS] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi [${effectiveTier}]`);
 
@@ -802,10 +905,22 @@ PRE-PARSED DATA (server-verified):
         const GOOGLE_CALL_TIMEOUT_MS = 8000;
         const bounded = () => AbortSignal.timeout(GOOGLE_CALL_TIMEOUT_MS);
         const geoOpts = { ...(geoBias ? { bias: { lat: geoBias.lat, lng: geoBias.lng, radius_mi: 60 } } : {}) };
-        const [puGeo, drGeo] = await Promise.all([
-          pickupAddr ? geocodeEventAddress(pickupAddr, undefined, undefined, { ...geoOpts, signal: bounded() }) : null,
-          dropoffAddr ? geocodeEventAddress(dropoffAddr, undefined, undefined, { ...geoOpts, signal: bounded() }) : null,
-        ]);
+        // Memoized per (string, ~1 km anchor cell) for GEO_MEMO_TTL_MS — an airport queue sends the
+        // same "Terminal B…" string on every offer; only found results are remembered (a null may
+        // be a transient failure). A round-trip card (pickup == dropoff string) geocodes once.
+        const geocodeMemoized = async (addr) => {
+          const k = memoKeyFor(addr, geoBias);
+          const hit = geocodeMemo.get(k);
+          if (hit !== undefined) return hit;
+          const r = await geocodeEventAddress(addr, undefined, undefined, { ...geoOpts, signal: bounded() });
+          if (r) geocodeMemo.set(k, r);
+          return r;
+        };
+        const puGeoP = pickupAddr ? geocodeMemoized(pickupAddr) : Promise.resolve(null);
+        const drGeoP = !dropoffAddr ? Promise.resolve(null)
+          : dropoffAddr === pickupAddr ? puGeoP // round trip — never pay twice for one string
+          : geocodeMemoized(dropoffAddr);
+        const [puGeo, drGeo] = await Promise.all([puGeoP, drGeoP]);
 
         // Resolve BOTH card addresses to at most one trusted point each (place_id + 6-decimal
         // coords), the way venues are resolved — resolveCardPoints (offer-address.js, unit-tested
@@ -817,7 +932,14 @@ PRE-PARSED DATA (server-verified):
         // dropoff must corroborate each other (both city-confirmed, ≤60 mi apart), and Places is
         // never called. Otherwise text-only. Never a fabricated point.
         const PLACES_TRUST_RADIUS_MI = 60;
-        const searchPlaces = (blat, blng, text) => searchPlaceWithTextSearch(blat, blng, text, { radius: 50000, signal: bounded() });
+        const searchPlaces = async (blat, blng, text) => {
+          const k = memoKeyFor(text, { lat: blat, lng: blng });
+          const hit = placesMemo.get(k);
+          if (hit !== undefined) return hit;
+          const r = await searchPlaceWithTextSearch(blat, blng, text, { radius: 50000, signal: bounded() });
+          if (r) placesMemo.set(k, r);
+          return r;
+        };
         const { pickup: pickupPoint, dropoff: dropoffPoint } = await resolveCardPoints({
           pickup: { address: pickupAddr, geo: puGeo },
           dropoff: { address: dropoffAddr, geo: drGeo },
@@ -827,11 +949,23 @@ PRE-PARSED DATA (server-verified):
           nearMi: PLACES_TRUST_RADIUS_MI,
         });
 
+        // Timezone API memo (12 h, ~10 m cells — the same resolved pickup point on every offer
+        // in an airport queue): the tz ID of a point does not change; the API URL carries
+        // Date.now() so nothing upstream can cache it. Only real answers land.
+        const timezoneMemoized = async (tlat, tlng) => {
+          const k = `${tlat.toFixed(4)},${tlng.toFixed(4)}`;
+          const hit = tzMemo.get(k);
+          if (hit !== undefined) return hit;
+          const tz = await resolveTimezoneFromCoords(tlat, tlng, { signal: bounded() });
+          if (tz) tzMemo.set(k, tz);
+          return tz;
+        };
+
         let driverTimezone = null;
         let timezoneSource = null;
         if (lat && lng) {
           try {
-            driverTimezone = await resolveTimezoneFromCoords(lat, lng, { signal: bounded() });
+            driverTimezone = await timezoneMemoized(lat, lng);
             if (driverTimezone) timezoneSource = 'gps';
           } catch (tzErr) {
             console.warn(`[HOOKS] Coord timezone resolution failed (${tzErr.message}) — trying pickup address`);
@@ -839,7 +973,7 @@ PRE-PARSED DATA (server-verified):
         }
         if (!driverTimezone && pickupPoint) {
           try {
-            const puTz = await resolveTimezoneFromCoords(pickupPoint.lat, pickupPoint.lng, { signal: bounded() });
+            const puTz = await timezoneMemoized(pickupPoint.lat, pickupPoint.lng);
             if (puTz) {
               driverTimezone = puTz;
               timezoneSource = 'pickup_address';
@@ -884,35 +1018,24 @@ PRE-PARSED DATA (server-verified):
         // AND deviceless requests get a fresh session — previously they all
         // shared the literal 'anonymous_device' bucket, stitching different
         // drivers into one sequence and poisoning seconds_since_last.
+        // 2026-08-17 (race review finding #3): the read-then-insert below used to run
+        // unlocked — two Phase-2s for one driver in flight together (trip-radar bursts;
+        // Phase 2 runs 5-15 s) both read the same "last offer" and both wrote
+        // offer_sequence_num = N+1 (the index is not unique). The reads, the INSERT and
+        // the NOTIFY now run in ONE transaction under a per-driver advisory lock
+        // (pg_advisory_xact_lock — released at COMMIT, held for milliseconds; every
+        // Google/model call is already done by here). The same lock serializes the
+        // storage-level duplicate guard (finding #1, cross-instance): an identical
+        // request_hash stored inside STORAGE_DUPLICATE_WINDOW for this driver means the row
+        // already exists — no second row, no second pg_notify.
+        const sessionScope = userId ? { kind: 'user', key: userId }
+          : device_id ? { kind: 'device', key: deviceId }
+          : null;
         let offerSessionId = crypto.randomUUID();
         let offerSequenceNum = 1;
         let secondsSinceLast = null;
-
-        try {
-          const lastOfferResult = userId
-            ? await db.execute(
-                sql`SELECT offer_session_id, offer_sequence_num, created_at
-                    FROM offer_intelligence
-                    WHERE user_id = ${userId}
-                    ORDER BY created_at DESC LIMIT 1`)
-            : device_id
-              ? await db.execute(
-                  sql`SELECT offer_session_id, offer_sequence_num, created_at
-                      FROM offer_intelligence
-                      WHERE device_id = ${deviceId} AND user_id IS NULL
-                      ORDER BY created_at DESC LIMIT 1`)
-              : { rows: [] };
-          const lastOffer = lastOfferResult.rows?.[0];
-          if (lastOffer) {
-            secondsSinceLast = Math.round((Date.now() - new Date(lastOffer.created_at).getTime()) / 1000);
-            if (secondsSinceLast <= 1800 && lastOffer.offer_session_id) { // 30 min = same session
-              offerSessionId = lastOffer.offer_session_id;
-              offerSequenceNum = (lastOffer.offer_sequence_num || 0) + 1;
-            }
-          }
-        } catch (seqErr) {
-          console.warn(`[HOOKS] Session tracking failed (non-fatal): ${seqErr.message}`);
-        }
+        mergedParsedData.request_hash = requestHash; // idempotency key (who + what + rules), see the gate above
+        mergedParsedData.request_at = startTime;     // Phase-1 arrival (epoch ms) — the storage guard compares THIS, not created_at
 
         // 2026-07-03 (todo #10): the pings/patterns dataset — geography audit of the
         // resolved pickup/dropoff points against the driver's avoid rules. Vision said its
@@ -965,112 +1088,172 @@ PRE-PARSED DATA (server-verified):
 
         // 2026-02-28: INSERT with Phase 2 deep data (or Phase 1 fallback)
         // ai_model records which model actually provided the stored analysis
-        const inserted = await db.insert(offer_intelligence).values({
-          device_id: deviceId,
-          // 2026-07-03 (todo #10): identity + rules provenance. NULL user_id =
-          // un-tokened legacy device; NULL ruleset_hash = defaults were applied.
-          user_id: userId,
-          ruleset_version: rulesetVersion,
-          ruleset_hash: rulesetHash,
+        const storeOnce = () => db.transaction(async (tx) => {
+          if (sessionScope && requestHash) {
+            const scopeWhere = sessionScope.kind === 'user'
+              ? sql`user_id = ${userId}`
+              : sql`device_id = ${deviceId} AND user_id IS NULL`;
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('offer_session'), hashtext(${`${sessionScope.kind}:${sessionScope.key}`}))`);
 
-          // Offer metrics — prefer server pre-parsed (regex) over AI-parsed (LLM math).
-          // 2026-07-03: vision-only requests have NO pre-parse, so every metric now
-          // falls back to the vision extraction (Phase-2 deep, then Phase-1) —
-          // previously total_minutes/pickup_miles/ride_miles stored NULL for the
-          // exact modality that is becoming primary.
-          price: toNum(preParsed?.price ?? dbParsedData?.price),
-          per_mile: perMileValue,
-          per_minute: toNum(preParsed?.per_minute ?? dbParsedData?.per_minute ?? phase1Result?.per_minute),
-          hourly_rate: toNum(preParsed?.hourly_rate),
-          surge: toNum(preParsed?.surge ?? dbParsedData?.surge),
-          advantage_pct: toNum(preParsed?.advantage_pct),
-          pickup_minutes: toNum(preParsed?.pickup_minutes ?? dbParsedData?.pickup_minutes ?? phase1Result?.pickup_minutes),
-          pickup_miles: toNum(preParsed?.pickup_miles ?? dbParsedData?.pickup_miles ?? phase1Result?.pickup_miles),
-          ride_minutes: toNum(preParsed?.ride_minutes ?? dbParsedData?.ride_minutes),
-          ride_miles: toNum(preParsed?.ride_miles ?? dbParsedData?.ride_miles),
-          total_miles: toNum(preParsed?.total_miles ?? dbParsedData?.miles ?? phase1Result?.total_miles),
-          total_minutes: toNum(preParsed?.total_minutes ?? phase1Result?.total_minutes)
-            ?? ((toNum(dbParsedData?.pickup_minutes) != null && toNum(dbParsedData?.ride_minutes) != null)
-              ? toNum(dbParsedData.pickup_minutes) + toNum(dbParsedData.ride_minutes)
-              : null),
-          product_type: preParsed?.product_type ?? dbParsedData?.product_type ?? null,
-          platform,
+            const dupRes = await tx.execute(sql`
+              SELECT id, created_at, (parsed_data_json->>'request_at')::bigint AS request_at FROM offer_intelligence
+              WHERE ${scopeWhere}
+                AND created_at > NOW() - make_interval(secs => ${STORAGE_LOOKBACK_SEC})
+                AND parsed_data_json->>'request_hash' = ${requestHash}
+                AND (parsed_data_json->>'request_at')::bigint > ${startTime - DEFAULT_DEDUP_TTL_MS}
+              ORDER BY created_at DESC LIMIT 1`);
+            const dupRow = dupRes.rows?.[0];
+            if (dupRow) return { duplicateOf: dupRow.id, duplicateRequestAt: Number(dupRow.request_at) };
 
-          // Addresses (from AI parsing — regex doesn't extract these)
-          pickup_address: dbParsedData?.pickup ?? null,
-          dropoff_address: dbParsedData?.dropoff ?? null,
+            const lastOfferResult = await tx.execute(sql`
+              SELECT offer_session_id, offer_sequence_num, created_at
+              FROM offer_intelligence
+              WHERE ${scopeWhere}
+              ORDER BY created_at DESC LIMIT 1`);
+            const lastOffer = lastOfferResult.rows?.[0];
+            if (lastOffer) {
+              secondsSinceLast = Math.round((Date.now() - new Date(lastOffer.created_at).getTime()) / 1000);
+              if (secondsSinceLast <= 1800 && lastOffer.offer_session_id) { // 30 min = same session
+                offerSessionId = lastOffer.offer_session_id;
+                offerSequenceNum = (lastOffer.offer_sequence_num || 0) + 1;
+              }
+            }
+          }
 
-          // Driver location (6-decimal precision)
-          driver_lat: lat,
-          driver_lng: lng,
-          coord_key: coordKeyValue,
-          h3_index: h3Index,
-          market,
+          const inserted = await tx.insert(offer_intelligence).values({
+            // clock_timestamp() = NOW at statement time, i.e. AFTER the advisory lock — the
+            // default now() is transaction-BEGIN time, and a transaction that began first but
+            // acquired the lock second would carry an OLDER created_at than the row sequenced
+            // before it, so the next "last offer" read (ORDER BY created_at) could re-issue a
+            // sequence number (review 2026-08-17).
+            created_at: sql`clock_timestamp()`,
+            device_id: deviceId,
+            // 2026-07-03 (todo #10): identity + rules provenance. NULL user_id =
+            // un-tokened legacy device; NULL ruleset_hash = defaults were applied.
+            user_id: userId,
+            ruleset_version: rulesetVersion,
+            ruleset_hash: rulesetHash,
 
-          // Card addresses resolved above (trusted place_id + 6-decimal coords). 2026-08-17:
-          // written in the INSERT (was a follow-up UPDATE) — the row is complete when pg_notify fires.
-          pickup_lat: pickupPt?.lat ?? null,
-          pickup_lng: pickupPt?.lng ?? null,
-          dropoff_lat: dropPt?.lat ?? null,
-          dropoff_lng: dropPt?.lng ?? null,
-          geocoded_at: (pickupPt || dropPt) ? new Date() : null, // a TRUSTED point resolved (idx_oi_need_geocode stays true otherwise)
+            // Offer metrics — prefer server pre-parsed (regex) over AI-parsed (LLM math).
+            // 2026-07-03: vision-only requests have NO pre-parse, so every metric now
+            // falls back to the vision extraction (Phase-2 deep, then Phase-1) —
+            // previously total_minutes/pickup_miles/ride_miles stored NULL for the
+            // exact modality that is becoming primary.
+            price: toNum(preParsed?.price ?? dbParsedData?.price),
+            per_mile: perMileValue,
+            per_minute: toNum(preParsed?.per_minute ?? dbParsedData?.per_minute ?? phase1Result?.per_minute),
+            hourly_rate: toNum(preParsed?.hourly_rate),
+            surge: toNum(preParsed?.surge ?? dbParsedData?.surge),
+            advantage_pct: toNum(preParsed?.advantage_pct),
+            pickup_minutes: toNum(preParsed?.pickup_minutes ?? dbParsedData?.pickup_minutes ?? phase1Result?.pickup_minutes),
+            pickup_miles: toNum(preParsed?.pickup_miles ?? dbParsedData?.pickup_miles ?? phase1Result?.pickup_miles),
+            ride_minutes: toNum(preParsed?.ride_minutes ?? dbParsedData?.ride_minutes),
+            ride_miles: toNum(preParsed?.ride_miles ?? dbParsedData?.ride_miles),
+            total_miles: toNum(preParsed?.total_miles ?? dbParsedData?.miles ?? phase1Result?.total_miles),
+            total_minutes: toNum(preParsed?.total_minutes ?? phase1Result?.total_minutes)
+              ?? ((toNum(dbParsedData?.pickup_minutes) != null && toNum(dbParsedData?.ride_minutes) != null)
+                ? toNum(dbParsedData.pickup_minutes) + toNum(dbParsedData.ride_minutes)
+                : null),
+            product_type: preParsed?.product_type ?? dbParsedData?.product_type ?? null,
+            platform,
 
-          // Temporal — 2026-04-16: now timezone-aware (was UTC)
-          local_date: localDate,
-          local_hour: localHour,
-          day_of_week: dayOfWeek,
-          day_part: dayPart,
-          is_weekend: isWeekend,
-          timezone: driverTimezone,
+            // Addresses (from AI parsing — regex doesn't extract these)
+            pickup_address: dbParsedData?.pickup ?? null,
+            dropoff_address: dbParsedData?.dropoff ?? null,
 
-          // AI analysis — Phase 2 deep reasoning (or Phase 1 fallback)
-          decision: dbDecision,
-          decision_reasoning: dbReasoning,
-          confidence_score: dbConfidence,
-          ai_model: aiModelUsed,
-          response_time_ms: responseTimeMs,
+            // Driver location (6-decimal precision)
+            driver_lat: lat,
+            driver_lng: lng,
+            coord_key: coordKeyValue,
+            h3_index: h3Index,
+            market,
 
-          // Sequence tracking
-          offer_session_id: offerSessionId,
-          offer_sequence_num: offerSequenceNum,
-          seconds_since_last: secondsSinceLast,
+            // Card addresses resolved above (trusted place_id + 6-decimal coords). 2026-08-17:
+            // written in the INSERT (was a follow-up UPDATE) — the row is complete when pg_notify fires.
+            pickup_lat: pickupPt?.lat ?? null,
+            pickup_lng: pickupPt?.lng ?? null,
+            dropoff_lat: dropPt?.lat ?? null,
+            dropoff_lng: dropPt?.lng ?? null,
+            geocoded_at: (pickupPt || dropPt) ? new Date() : null, // a TRUSTED point resolved (idx_oi_need_geocode stays true otherwise)
 
-          // Parse quality
-          parse_confidence: preParsed?.parse_confidence ?? 'minimal',
-          source,
-          input_mode: image ? 'vision' : 'text',
+            // Temporal — 2026-04-16: now timezone-aware (was UTC)
+            local_date: localDate,
+            local_hour: localHour,
+            day_of_week: dayOfWeek,
+            day_part: dayPart,
+            is_weekend: isWeekend,
+            timezone: driverTimezone,
 
-          // Raw data preservation
-          raw_text: text || `[Vision: ${Math.round((image?.length || 0) / 1024)}KB image]`,
-          raw_ai_response: phase2RawText || phase1Response?.text || null,
-          parsed_data_json: mergedParsedData,
-        }).returning({ id: offer_intelligence.id });
-        const insertedId = inserted?.[0]?.id ?? null;
+            // AI analysis — Phase 2 deep reasoning (or Phase 1 fallback)
+            decision: dbDecision,
+            decision_reasoning: dbReasoning,
+            confidence_score: dbConfidence,
+            ai_model: aiModelUsed,
+            response_time_ms: responseTimeMs,
+
+            // Sequence tracking
+            offer_session_id: offerSessionId,
+            offer_sequence_num: offerSequenceNum,
+            seconds_since_last: secondsSinceLast,
+
+            // Parse quality
+            parse_confidence: preParsed?.parse_confidence ?? 'minimal',
+            source,
+            input_mode: image ? 'vision' : 'text',
+
+            // Raw data preservation
+            raw_text: text || `[Vision: ${Math.round((image?.length || 0) / 1024)}KB image]`,
+            raw_ai_response: phase2RawText || phase1Response?.text || null,
+            parsed_data_json: mergedParsedData,
+          }).returning({ id: offer_intelligence.id });
+          const insertedId = inserted?.[0]?.id ?? null;
+
+          // SSE broadcast for web app. Issued INSIDE the transaction: Postgres delivers
+          // NOTIFY at COMMIT, so the row is visible by the time the OffersCard refetches.
+          // reasoning is unbounded model text and NOTIFY payloads are capped at 8000 bytes —
+          // an oversize payload would now roll the INSERT back (same transaction). The card
+          // only needs offer_id to refetch; the reasoning here is a preview.
+          const notifyPayload = JSON.stringify({
+            device_id: deviceId,
+            user_id: userId,
+            offer_id: insertedId,
+            decision: dbDecision,
+            reasoning: typeof dbReasoning === 'string' && dbReasoning.length > 1000 ? `${dbReasoning.slice(0, 1000)}…` : dbReasoning,
+            price: dbParsedData?.price,
+            per_mile: perMileValue,
+            platform,
+            response_time_ms: responseTimeMs,
+            ai_model: aiModelUsed,
+          });
+          await tx.execute(sql`SELECT pg_notify('offer_analyzed', ${notifyPayload})`);
+          return { insertedId };
+        });
+        let stored;
+        try {
+          stored = await storeOnce();
+        } catch (txErr) {
+          if (!isTransientPgError(txErr)) throw txErr;
+          console.warn(`[HOOKS] Phase 2 store hit transient ${txErr?.cause?.code ?? txErr?.code ?? 'connection'} error (${txErr?.cause?.message ?? txErr.message}) — retrying once on a fresh client (${deviceId}, ${requestHash ?? 'no-hash'})`);
+          await new Promise((r) => setTimeout(r, 300));
+          stored = await storeOnce();
+        }
+
+        if (stored.duplicateOf) {
+          console.log(`[HOOKS] Duplicate at storage: identical request already stored as offer ${stored.duplicateOf} (requests ${Math.round((startTime - stored.duplicateRequestAt) / 1000)}s apart) — no second row, no second notify`);
+          return; // fire-and-forget scope
+        }
 
         console.log(`[HOOKS] Saved: ${dbDecision} (Phase1: ${responseTimeMs}ms, Phase2: ${Date.now() - phase2Start}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [ai_model: ${aiModelUsed}] [tz: ${driverTimezone} via ${timezoneSource}] [points: pickup=${pickupPoint?.via ?? 'none'} dropoff=${dropoffPoint?.via ?? 'none'}${mergedParsedData.geo_audit ? ` geo_violated=${mergedParsedData.geo_violated}` : ''}]`);
 
-        // SSE broadcast for web app
-        const notifyPayload = JSON.stringify({
-          device_id: deviceId,
-          user_id: userId,
-          offer_id: insertedId,
-          decision: dbDecision,
-          reasoning: dbReasoning,
-          price: dbParsedData?.price,
-          per_mile: perMileValue,
-          platform,
-          response_time_ms: responseTimeMs,
-          ai_model: aiModelUsed,
-        });
-        await db.execute(sql`SELECT pg_notify('offer_analyzed', ${notifyPayload})`);
       } catch (err) {
-        console.error(`[HOOKS] Phase 2 background error: ${err.message}`);
+        console.error(`[HOOKS] Phase 2 background error (${deviceId}, user=${userId ?? 'none'}, ${source}, hash=${requestHash ?? 'none'}): ${err.message}${err?.cause?.message ? ` — cause: ${err.cause.message}` : ''}`);
       }
     })();
 
   } catch (error) {
     const responseTimeMs = Date.now() - startTime;
     console.error(`[HOOKS] Error (${responseTimeMs}ms):`, error.message);
+    dedupClaim?.fail(error); // never replay a failure — the next identical request analyzes fresh
     res.status(500).json({
       success: false,
       // 2026-04-16: TTS line for Siri — em-dash in notification doesn't speak well, so use period.
