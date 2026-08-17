@@ -908,8 +908,7 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
    day-of-week / time / seasonality patterns to steer the driver toward better offers
    (Melody, 2026-08-17 clarification).
 8. Field-name tolerance (the alias table) is a safety net for hand-built shortcuts — **not**
-   a reason to stay quiet. Melody, 2026-08-17: "never tell end users to spell latitude"
-   meant *"fix me first"* — when something on her end (a shortcut's test name, a misspelled
+   a reason to stay quiet. Melody, 2026-08-17:  — when something on her end (a shortcut's test name, a misspelled
    key or `source`) is degrading the pipeline, tell her directly so she can fix it.
 
 **Joint (Melody + Claude, 2026-08-14):** two canonical shortcuts (`analyze-offer-text`,
