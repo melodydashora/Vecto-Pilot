@@ -220,7 +220,7 @@ export const API_ROUTES = {
 
   // =========================================================================
   // Offer Analyzer (per-driver rules, shortcut token, offer history)
-  // 2026-07-03 (todo #10): docs/architecture/OFFER_RULESET_V3_DESIGN.md §7
+  // 2026-07-03 (todo #10): docs/architecture/OFFER_ANALYZER.md §12
   // =========================================================================
   OFFER_ANALYZER: {
     RULES: '/api/offer-analyzer/rules',

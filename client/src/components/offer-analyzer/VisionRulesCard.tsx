@@ -44,10 +44,11 @@ export default function VisionRulesCard({ form }: Props) {
       verified_rider: notices?.verified_rider ?? false,
       on_the_way_filter: notices?.on_the_way_filter ?? false,
       deadhead_reduction: notices?.deadhead_reduction ?? false,
+      hourly_rate: notices?.hourly_rate ?? false, // owned by RateTargetsCard — preserved here
       [key]: on,
     };
     // All off → null (inert), so defaults render nothing in the vision prompt.
-    const allOff = !next.verified_rider && !next.on_the_way_filter && !next.deadhead_reduction;
+    const allOff = !next.verified_rider && !next.on_the_way_filter && !next.deadhead_reduction && !next.hourly_rate;
     form.setValue('global.notices', allOff ? null : next, { shouldDirty: true });
   };
 

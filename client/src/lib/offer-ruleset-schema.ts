@@ -1,6 +1,6 @@
 // client/src/lib/offer-ruleset-schema.ts
 // 2026-07-03 (todo #10): Zod schema for the v3 offer ruleset config
-// (docs/architecture/OFFER_RULESET_V3_DESIGN.md §3). The Offer Analyzer form
+// (docs/architecture/OFFER_ANALYZER.md §6.2 DEFAULT_RULESET). The Offer Analyzer form
 // state maps 1:1 to this JSON: GET /api/offer-analyzer/rules → form.reset(config),
 // Save = PUT { config }. Inert rules are null (never fabricated defaults).
 // Mirrors server/lib/offers/ruleset-schema.js (the write-time gate) so invalid
@@ -32,6 +32,9 @@ export type LadderRung = z.infer<typeof ladderRungSchema>;
 export const tierConfigSchema = z.object({
   floor_per_mile: money,
   floor_per_minute: money.nullish(),
+  max_total_miles: miles.nullish(), // v3.1 sliders (2026-08-17): per-tier distance cap
+  // Derived, not edited (v3.1): the sliders write ONE rung { min_per_mile: floor, max_total_min }.
+  // Legacy multi-rung ladders round-trip untouched until the tier is edited.
   accept_ladder: z.array(ladderRungSchema).max(12),
 });
 export type TierConfig = z.infer<typeof tierConfigSchema>;
@@ -89,6 +92,7 @@ export const offerRulesetSchema = z.object({
         verified_rider: z.boolean().default(false),
         on_the_way_filter: z.boolean().default(false),
         deadhead_reduction: z.boolean().default(false),
+        hourly_rate: z.boolean().default(false), // v3.1: show computed $/hr (telemetry, never a decider)
       })
       .nullable(),
   }),
@@ -139,6 +143,7 @@ export const DEFAULT_OFFER_RULESET_CONFIG: OfferRulesetConfig = {
     standard: {
       floor_per_mile: 0.9,
       floor_per_minute: null,
+      max_total_miles: null,
       accept_ladder: [
         { min_per_mile: 0.9, max_total_min: 20 },
         { min_per_mile: 1.1, max_total_min: 25 },
@@ -150,6 +155,7 @@ export const DEFAULT_OFFER_RULESET_CONFIG: OfferRulesetConfig = {
     premium: {
       floor_per_mile: 1.1,
       floor_per_minute: null,
+      max_total_miles: null,
       accept_ladder: [
         { min_per_mile: 1.1, max_total_min: 25 },
         { min_per_mile: 1.4, max_total_min: 30 },
@@ -179,9 +185,22 @@ export const ENABLE_SEEDS = {
   acceptance_rate_protection: { min_per_total_mile: 1.0 },
   auto_reject: { multiple_stops: true, round_trip: true },
   notices: { verified_rider: true, on_the_way_filter: true, deadhead_reduction: true },
-  comfort_tier: { floor_per_mile: 1.25, floor_per_minute: 0.7, accept_ladder: [] } as TierConfig,
-  xl_tier: { floor_per_mile: 2.0, floor_per_minute: 1.0, accept_ladder: [] } as TierConfig,
+  comfort_tier: { floor_per_mile: 1.25, floor_per_minute: 0.7, max_total_miles: null, accept_ladder: [{ min_per_mile: 1.25, max_total_min: 20 }] } as TierConfig,
+  xl_tier: { floor_per_mile: 2.0, floor_per_minute: 1.0, max_total_miles: null, accept_ladder: [{ min_per_mile: 2.0, max_total_min: 20 }] } as TierConfig,
 } as const;
+
+/** v3.1 sliders: the tier's ONE accept rule, derived from the sliders. */
+export const DEFAULT_MAX_TRIP_MINUTES = 20;
+export function tierMaxTripMinutes(tier: TierConfig): number {
+  const r = tier.accept_ladder[0];
+  return r?.max_total_min ?? r?.max_total_min_excl ?? DEFAULT_MAX_TRIP_MINUTES;
+}
+export function withDerivedLadder(tier: TierConfig, maxTripMinutes: number): TierConfig {
+  return {
+    ...tier,
+    accept_ladder: [{ min_per_mile: tier.floor_per_mile, max_total_min: Math.round(maxTripMinutes) }],
+  };
+}
 
 /** New avoid-place rule with the design §3 defaults for every mode's fields. */
 export function makeAvoidRule(place: {
