@@ -25,7 +25,7 @@
 |---|---|---|---|---|---|---|
 | **HTTP Shortcuts** (Waboodoo, v4.6, Play + F-Droid) | Free, no ads | **Yes** — form-data with a File parameter; accepts an image shared from the screenshot preview | No (uses the share sheet or file picker) | Yes — `speak()` in its JavaScript | Screenshot → **Share → "Send to…"**; or Quick Settings tile (opens a picker) | **Recommended** — 2 taps after the screenshot, free |
 | **Tasker** (v6.6) | $4.49 one-time | **Yes** — `image:<path>` in *File To Send* + body fields = multipart | **Yes** (Take Screenshot; needs a one-time ADB/"Tasker Permissions" grant for prompt-free capture) | Yes — *Say* | Quick Settings tile (fully hands-free) or *Received Share* | Best if you want **one tap, no share sheet** and don't mind paying/ADB |
-| **MacroDroid** (v5.65) | Free (5 macros, ads) / Pro IAP | **No** — its HTTP action can't do a named multipart file part | Yes (+ built-in ML Kit OCR) | Yes — *Speak Text* | Quick Settings tile | **Text lane only** (screenshot → OCR → JSON) |
+| **MacroDroid** (v5.65) | Free (5 macros, ads) / Pro IAP | **Yes, via raw body** (since 2026-08-17: HTTP action *Content Body: File* posts the screenshot bytes; the server accepts `image/*` raw bodies) — it still can't do a named multipart part | Yes (+ built-in ML Kit OCR) | Yes — *Speak Text* | Quick Settings tile | Text lane (fast) **or** vision lane (raw file body) |
 | Google Assistant/Gemini Routines, Samsung Modes & Routines / Bixby | — | No HTTP/file actions at all | — | — | — | Can only *launch* one of the apps above |
 
 All three tools appear in the screenshot preview's **Share** sheet (Android 10+; Direct-Share chips on 11+).
@@ -149,10 +149,13 @@ base64) → JSON `{ "image": "%b64", "image_type": "image/png", "source": "andro
 
 ---
 
-## Part 4 · MacroDroid — text lane (free tier is enough)
+## Part 4 · MacroDroid — text lane (free tier is enough) + vision variant
 
-MacroDroid's HTTP action cannot send a named multipart file, so use its on-device OCR
-(Android 11+) and the JSON text mode.
+MacroDroid's HTTP action cannot send a named multipart file. Two lanes work: the **text lane**
+(on-device OCR, Android 11+, JSON body — the one that fits the <3 s rule) and, since
+2026-08-17, the **vision lane** via *Content Body: File* — the server accepts the raw
+screenshot bytes as the whole request body (§4.1 of `OFFER_ANALYZER.md`). Build the text
+macro first; the vision variant is a duplicate with one action changed (Part 4b).
 
 | # | Step | Fields |
 |---|---|---|
@@ -168,6 +171,30 @@ MacroDroid's HTTP action cannot send a named multipart file, so use its on-devic
 Gotchas from the wiki: two accessibility services (*MacroDroid* and *MacroDroid UI
 Interaction*); battery optimisation kills macros; apps that set `FLAG_SECURE` defeat
 screenshots/OCR (whether the Uber/Lyft driver apps do is **unverified**).
+
+### Part 4b · MacroDroid — vision variant (raw file body)
+
+Duplicate the text macro, rename it `Vecto Offer Vision`, delete steps 2–5 (OCR / join /
+Set Variable / JSON Output — the file replaces them), and change only the HTTP Request:
+
+| Field | Value |
+|---|---|
+| URL | `https://vectopilot.com/api/hooks/analyze-offer?source=android_vision&device_id=<your label>` — fields ride the query string because a raw body has none |
+| Header Params | `X-Shortcut-Token` = `vp_…` (unchanged) |
+| Content type | `image/png` (or `image/jpeg`; the server sniffs the real type from the bytes, so this isn't load-bearing — even `application/octet-stream` works) |
+| Content Body | **File** → for the first test *Select file* → pick any saved offer screenshot (the file body wants a saved file, not the clipboard) |
+| Everything else | identical: Block until complete, code → `http_code`, response → `resp`, JSON Parse → If → Speak |
+
+Expect: a real screenshot → the same spoken verdict as the iPhone vision shortcut; a
+home-screen screenshot → "No data. Decide manually."; the row on `/co-pilot/offer-analyzer`
+shows `source: android_vision`, `input_mode: vision`, a non-NULL ruleset hash; the server log
+shows `[HOOKS] Raw image upload: NKB image/png (file-body mode)`. Over 5 MB → 413 and the phone
+speaks "Image too large. Decide manually."
+
+Honest latency: a full-size Samsung PNG is 2–4 MB, so on LTE the upload alone can eat the 3-s
+budget (the server downscales >250 KB before the model, but only after the upload). The text
+lane stays the driving lane; this one is the rich/fallback lane and flies on Wi-Fi. Wiring the
+file to "the screenshot I just took" is the *Screenshot Content* trigger question (Part 5).
 
 ---
 
@@ -186,7 +213,7 @@ per mile, 6 miles." + `ACCEPT: $1.40 6.1mi`; rejects end with the reason ("too f
 
 | Symptom | Fix |
 |---|---|
-| Notification `Missing text or image payload` (400), or a blank failure with nothing spoken | The file parameter **must be named exactly `image`** (a File parameter with another name is a server error, not a 400 — the aliases `screenshot`/`photo` only apply to base64 *string* fields) or the body type isn't form-data; files over 5 MB fail the same way. For the text lane the JSON key must be `text` (`ocr_text`/`ocr` accepted) |
+| Notification `Missing text or image payload` (400), or a blank failure with nothing spoken | The file parameter **must be named exactly `image`** (a File parameter with another name is a server error, not a 400 — the aliases `screenshot`/`photo` only apply to base64 *string* fields) or the body type isn't form-data (a raw `image/*` body with no field names is also fine — Part 4b). Files over 5 MB now get a **413** and the phone speaks "Image too large. Decide manually." For the text lane the JSON key must be `text` (`ocr_text`/`ocr` accepted) |
 | Rules don't apply / offers missing from the web page | Token missing or misspelled — must be the header `X-Shortcut-Token` (a body field `shortcut_token`/`token` also works). Rows need a real timezone: the server takes it from the card's pickup address (first address on the card), else from your app session — if the pickup was unreadable and you have no session, that row isn't stored (`OFFER_ANALYZER.md` §10.4) |
 | Nothing spoken | HTTP Shortcuts: `speak()` needs a TTS engine (Settings → System → Languages → Text-to-speech); Tasker: check *Say* engine; MacroDroid: *Speak Text* audio stream |
 | Times out | Raise the tool's timeout to 30 s; the server answers deterministic rejects in ms and model verdicts in ~0.6–0.9 s, but caps the model call at 20 s |
@@ -209,7 +236,7 @@ Identical to iPhone — `OFFER_ANALYZER.md` §4:
 | Response | `{ success, voice, notification, decision, reason, notices, response_time_ms }` — speak `voice`, show `notification` |
 | Aliases (case-insensitive, string fields only; the multipart file part must be exactly `image`; companion endpoints don't normalize) | `screenshot`/`photo`→`image` (base64 string); `ocr_text`/`ocr`→`text`; `token`/`shortcuttoken`→`shortcut_token`; `deviceid`/`device`→`device_id`; `lat`/`lattitude`→`latitude`; `lng`/`lon`/`long`→`longitude` |
 
-Not needed and not sent: GPS coordinates (the server geocodes the offer's own addresses in
-Phase 2). Ideas surfaced by the tool research, filed on the roadmap: a raw `image/jpeg` body
-mode would let MacroDroid do vision; HTTP Shortcuts' `getDeviceId()` is a stable
+Not needed and not sent: GPS coordinates (the server resolves the offer's own pickup address
+in Phase 2 — timezone and coordinates come from it). Raw `image/*` body mode shipped
+2026-08-17 (Part 4b). Still on the roadmap: HTTP Shortcuts' `getDeviceId()` as a stable
 `device_id` source; a hosted import zip makes setup one tap.

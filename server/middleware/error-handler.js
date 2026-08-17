@@ -36,14 +36,26 @@ export function errorTo503(err, req, res, next) {
     return res.end();
   }
 
-  // 2026-02-17: Surface payload-too-large errors clearly instead of masking as 500
-  if (err.type === 'entity.too.large') {
+  // 2026-02-17: Surface payload-too-large errors clearly instead of masking as 500.
+  // 2026-08-17: multer's LIMIT_FILE_SIZE (multipart part > 5 MB) is the same condition and
+  // used to fall through to a bare 500; and on the /api/hooks surface a phone shortcut only
+  // speaks what we send — so both carry the voice/notification/decision shape there
+  // (previously "oversize → 500 with no voice", OFFER_ANALYZER.md).
+  if (err.type === 'entity.too.large' || err.code === 'LIMIT_FILE_SIZE') {
     console.warn(`[error-handler] Payload too large: ${err.message}`);
     ndjson('http.413', { cid, error: String(err.message || err) });
+    const isHooks = String(req.originalUrl || req.url || '').startsWith('/api/hooks');
     return res.status(413).json({
       cid,
       error: 'Payload too large. Try reducing image size or removing attachments.',
-      code: 'payload_too_large'
+      code: 'payload_too_large',
+      ...(isHooks ? {
+        success: false,
+        voice: 'Image too large. Decide manually.',
+        notification: 'Image too large (limit 5 MB) — decide manually',
+        decision: 'NO DATA',
+        reason: 'image too large',
+      } : {}),
     });
   }
 

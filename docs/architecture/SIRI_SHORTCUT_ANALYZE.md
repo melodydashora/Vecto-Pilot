@@ -183,11 +183,11 @@ pure phone overhead (OCR, radio wake, TTS spin-up), the one number the server be
 | Item | Contract |
 |---|---|
 | Identity | Header `X-Shortcut-Token: vp_…` (preferred) or body field `shortcut_token`. No token → default rules and the offer is not attributed to you. Storage needs a real timezone: with no coordinates the server resolves it from the card's **pickup address** (first address on the card), else from your app session — so an offer whose pickup can't be read is stored only if you have an app session (`OFFER_ANALYZER.md` §10.4) |
-| Body types | `application/json`, `application/x-www-form-urlencoded`, `multipart/form-data` (file part must be named `image`) |
+| Body types | `application/json`, `application/x-www-form-urlencoded`, `multipart/form-data` (file part must be named `image`), or a raw `image/*` body (screenshot bytes as the whole body; `source`/`device_id` as query params — used by MacroDroid on Android; a Shortcut can use it too via *Get Contents of URL → Request Body: File*) |
 | Fields | `text` and/or `image` (one required); `source` (`siri_text` / `siri_vision`); `device_id` (optional label); `latitude`/`longitude` optional and **not sent** by the canonical shortcuts |
 | Field-name tolerance | Deterministic alias table, case-insensitive, **string fields only** (the multipart File part must be named exactly `image`): `ocr_text`/`ocr`→`text`; `screenshot`/`photo`→`image` (base64 string); `lattitude`/`lat`→`latitude`; `lng`/`lon`/`long`/`longitud`→`longitude`; `token`/`shortcuttoken`→`shortcut_token`; `deviceid`/`device`→`device_id`; `imagetype`/`mime_type`/`mimetype`→`image_type`. Remaps are warn-logged server-side |
 | Response (200) | `{ success, voice, notification, decision:'ACCEPT'\|'REJECT'\|'NO DATA', reason, notices:[], response_time_ms }` — speak `voice`, show `notification`, branch on `decision` if you add logic. (The share auto-reject reply omits `notices`.) |
-| Errors | 400 `{ error:'Missing text or image payload' }`; 429 rate limit; 500 `{ success:false, voice:'Analysis failed. Decide manually.', … }` |
+| Errors | 400 `{ error:'Missing text or image payload' }`; 413 over 5 MB `{ success:false, voice:'Image too large. Decide manually.', decision:'NO DATA', … }` (2026-08-17); 429 rate limit; 500 `{ success:false, voice:'Analysis failed. Decide manually.', … }` |
 | Limits | 5 MB body; screenshots >250 KB are downscaled server-side (no need to Convert Image on the phone) |
 | Timing | Shortcut network timeout ≈25–30 s (undocumented by Apple); server Phase-1 cap 20 s; typical: deterministic text REJECT ~1–5 ms, model verdicts ~0.6–0.9 s |
 

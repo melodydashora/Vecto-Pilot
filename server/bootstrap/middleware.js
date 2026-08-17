@@ -229,6 +229,14 @@ export async function configureMiddleware(app) {
   // Melody's analyze-offer-text 400: req.body arrived empty). Drivers build
   // shortcuts by hand; both Form and JSON must work on the hooks surface.
   app.use('/api/hooks', express.urlencoded({ extended: true, limit: '5mb' }));
+  // 2026-08-17: MacroDroid "Content Body: File" POSTs the screenshot's raw bytes with an
+  // image/* content type — which NOTHING parsed (same failure shape as the urlencoded gap
+  // above; patch authored in the Cowork session, applied + hardened here). Raw-body mode
+  // closes the roadmap item "raw image/jpeg body mode would let MacroDroid do vision".
+  // Claims image/* and application/octet-stream only (the tool's content-type dropdown
+  // is unverified — the route sniffs the real type from magic bytes); JSON, urlencoded and
+  // multipart flows are untouched.
+  app.use('/api/hooks', express.raw({ type: ['image/*', 'application/octet-stream'], limit: '5mb' }));
   app.use('/api', express.json({ limit: '1mb' }));
   app.use('/agent', express.json({ limit: '1mb' }));
 

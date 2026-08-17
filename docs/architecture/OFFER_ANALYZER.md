@@ -139,9 +139,10 @@ Siri translation hook).
 |---|---|---|
 | Auth | **None required** (token-optional; see §7). Bot-blocker allow-lists `/api/hooks*`. | `bot-blocker.js:160-165` |
 | Rate limit | `offerHookLimiter`: 20 req/min keyed by `ip + (x-shortcut-token \| shortcut_token \| device_id \| 'unknown')`; 429 body `{ ok:false, error:'Offer analysis rate limit exceeded. Please wait a moment.' }` | `rate-limit.js:56-68` |
-| Body parsers | `express.json({limit:'5mb'})` **and** `express.urlencoded({extended:true, limit:'5mb'})` on `/api/hooks` (Form bodies with only text fields ship as urlencoded — mounted 2026-08-14) | `bootstrap/middleware.js:226-231` |
-| Multipart | `multer.memoryStorage()`, `fileSize` 5 MB, `upload.single('image')` | `analyze-offer.js:151-154` |
-| Content types accepted | `application/json`, `application/x-www-form-urlencoded`, `multipart/form-data` (file part named `image`) | — |
+| Body parsers | `express.json({limit:'5mb'})`, `express.urlencoded({extended:true, limit:'5mb'})` (Form bodies with only text fields ship as urlencoded — mounted 2026-08-14) **and** `express.raw({ type: ['image/*','application/octet-stream'], limit:'5mb' })` (raw image body — mounted 2026-08-17 for MacroDroid "Content Body: File"; patch authored in the Cowork session) on `/api/hooks` | `bootstrap/middleware.js` |
+| Multipart | `multer.memoryStorage()`, `fileSize` 5 MB, `upload.single('image')` | `analyze-offer.js` |
+| Content types accepted | `application/json`, `application/x-www-form-urlencoded`, `multipart/form-data` (file part named `image`), **`image/*` or `application/octet-stream` raw body** (the body *is* the screenshot; type sniffed from magic bytes — PNG/JPEG/WebP/GIF; `source`, `device_id`, `latitude`, `longitude` ride as **query params**, token in the `X-Shortcut-Token` header or `?shortcut_token=`) | — |
+| Oversize | > 5 MB (raw body **or** multipart part) → **413** with the spoken shape `{ success:false, voice:'Image too large. Decide manually.', notification, decision:'NO DATA', reason:'image too large', code:'payload_too_large' }` (2026-08-17; multipart oversize used to be a bare 500) | `middleware/error-handler.js` |
 
 ### 4.2 Request fields (after alias normalization)
 
@@ -965,6 +966,7 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 | 2026-08-11 | — | Hook read/mutate endpoints token-required + user-scoped; `offerHookLimiter`; session chain by user (commit `f005c634`) |
 | 2026-08-14 | — | Body alias table (`normalize-offer-body.js`); `express.urlencoded` on `/api/hooks`; **<3s sprint**: MINIMAL thinking + 1024 tokens, deterministic fast REJECT lane, image downscale (commit `cd8329da`) |
 | 2026-08-17 | 3.0 | This rewrite; plan/design docs merged and retired |
+| 2026-08-17 | 3.3 | **Raw image body mode** (`image/*` / `application/octet-stream`, fields as query params — MacroDroid "Content Body: File"; Cowork-authored patch, applied + hardened: magic-byte sniff, octet-stream, spoken 413 for raw *and* multipart oversize, `?shortcut_token=` parity). Verified live: raw PNG → ACCEPT stored `source=android_vision input_mode=vision`; octet-stream sniffed; blank image → NO DATA; 6 MB → 413 with voice |
 | 2026-08-17 | 3.2 | **Timezone from the pickup address** (Melody: first address on the card; "get details like we do for venues"): GPS → pickup point → snapshot → don't store; card addresses resolved once to trusted points = geocode class **plus physical corroboration** (anchor plausibility 60 mi + 75 mph × age, else the venue Places adapter ≤ 60 mi with kind + name checks; no anchor → pickup and dropoff must corroborate each other), placeholders filtered, contradictions refused, precise-only coordinates, 8 s bounded fetches, written in the INSERT with full provenance in `parsed_data_json`. Two adversarial review passes (31 raw findings) folded in |
 | 2026-08-17 | 3.1 | Live model bench → `OFFER_ANALYZER` default `gemini-3.5-flash-lite`; temperature 0.1 honored; 503 retry pinned; `parse-model-json.js` (repair tier); honest-floor guard; **vision arbitration** (engine owns numeric rules on extracted numbers; `judgment_reject` + `rating` in the vision template); **D4 sliders-only Rate Targets** (ladder editor removed; derived single rung; per-tier `max_total_miles`; `$/hr` telemetry) |
 

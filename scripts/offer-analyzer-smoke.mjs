@@ -6,7 +6,8 @@
 // Usage:
 //   node scripts/offer-analyzer-smoke.mjs                          # text + built-in cards against http://localhost:5000
 //   BASE=https://vectopilot.com TOKEN=vp_… node scripts/offer-analyzer-smoke.mjs
-//   IMAGE=/path/to/screenshot.jpg node scripts/offer-analyzer-smoke.mjs   # add a real screenshot (vision lane)
+//   IMAGE=/path/to/screenshot.jpg node scripts/offer-analyzer-smoke.mjs   # add a real screenshot (vision lane, multipart)
+//   IMAGE=… RAW=1 node scripts/offer-analyzer-smoke.mjs                    # same screenshot as a RAW image body (MacroDroid file-body mode)
 //   TEXT="UberX\n$14.20\n…" node scripts/offer-analyzer-smoke.mjs         # custom OCR text
 //
 // Prints per request: decision | voice | notification | server response_time_ms | wall ms.
@@ -53,6 +54,14 @@ if (process.env.IMAGE) {
   fd.append('source', 'smoke_vision');
   fd.append('device_id', 'smoke');
   await post(`vision (${path.basename(p)}, ${Math.round(buf.length / 1024)} KB)`, { headers, body: fd });
+  if (process.env.RAW) {
+    // 2026-08-17: raw image body — what MacroDroid "Content Body: File" sends. Fields ride the query string.
+    const rawUrl = `${BASE}/api/hooks/analyze-offer?source=smoke_vision_raw&device_id=smoke`;
+    const t0 = Date.now();
+    const res = await fetch(rawUrl, { method: 'POST', headers: { ...headers, 'Content-Type': type }, body: buf });
+    const body = await res.json().catch(() => ({}));
+    console.log(`vision RAW body (${Math.round(buf.length / 1024)} KB ${type})\n  ${res.ok ? `${body.decision} | ${body.voice} | ${body.notification} | server ${body.response_time_ms} ms` : `✗ HTTP ${res.status} ${JSON.stringify(body).slice(0, 160)}`} | wall ${Date.now() - t0} ms`);
+  }
 } else {
   console.log('(set IMAGE=/path/to/screenshot.jpg to exercise the vision lane)');
 }

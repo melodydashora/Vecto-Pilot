@@ -174,11 +174,14 @@ const upload = multer({
 // (never passed at the call site) is gone with it.
 
 // POST /api/hooks/analyze-offer
-// Accepts THREE input modes:
+// Accepts FOUR input modes:
 //   1. JSON with text (OCR):       { text, device_id, latitude, longitude }
 //   2. JSON with base64 image:     { image, image_type, device_id, latitude, longitude }
 //   3. Multipart form-data:        image file + device_id/latitude/longitude form fields
 //      (2026-02-17: Fastest — Siri skips base64 encoding, server handles it in <1ms)
+//   4. Raw image body (2026-08-17): Content-Type image/* (or octet-stream), body = the bytes;
+//      source/device_id/latitude/longitude as query params; token in the header.
+//      (MacroDroid "Content Body: File" — the tool cannot do a named multipart part.)
 //
 // Multipart detection: multer runs first. If no file uploaded, falls through to JSON body.
 router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (req, res) => {
@@ -195,14 +198,38 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     // TELL the owner about (Melody 2026-08-17: "fix me first"). Supersedes the
     // 2026-07-03 one-off 'lattitude' patch; same fail-loud contract (every remap
     // warn-logged), generalized to all enumerated variants.
-    const { body: offerBody, remapped } = normalizeOfferBody(req.body);
+    // 2026-08-17: raw image-body mode (MacroDroid "Content Body: File"). The body IS the
+    // image — a Buffer must never reach the alias table (Cowork patch, applied here).
+    const rawImageBody = Buffer.isBuffer(req.body) && req.body.length > 0;
+    const { body: offerBody, remapped } = normalizeOfferBody(rawImageBody ? {} : req.body);
     if (remapped.length) {
       console.warn(`[HOOKS] Field aliases accepted: ${remapped.join(', ')} — update the Shortcut key names`);
     }
 
     let text, image, image_type, device_id, latitude, longitude, source;
 
-    if (req.file) {
+    if (rawImageBody) {
+      // RAW PATH — MacroDroid Content Body: File (Content-Type image/* or octet-stream). No
+      // fields exist, so source / device_id / coordinates ride query params; the token stays
+      // in the X-Shortcut-Token header (canonical; ?shortcut_token= accepted for parity).
+      // The image type is sniffed from magic bytes so the client's content-type choice is
+      // not load-bearing.
+      const b = req.body;
+      image = b.toString('base64');
+      image_type = (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) ? 'image/png'
+        : (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) ? 'image/jpeg'
+        : (b.length > 11 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') ? 'image/webp'
+        : (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) ? 'image/gif'
+        : ((req.get('content-type') || '').split(';')[0].trim().startsWith('image/')
+          ? (req.get('content-type') || '').split(';')[0].trim()
+          : 'image/jpeg');
+      text = null;
+      device_id = req.query.device_id;
+      latitude = req.query.latitude ? parseFloat(req.query.latitude) : undefined;
+      longitude = req.query.longitude ? parseFloat(req.query.longitude) : undefined;
+      source = req.query.source || 'android_vision';
+      console.log(`[HOOKS] Raw image upload: ${Math.round(b.length / 1024)}KB ${image_type} (file-body mode)`);
+    } else if (req.file) {
       // MULTIPART PATH — image came as file upload (raw bytes, no base64 from Siri)
       // Server encodes to base64 here — <1ms on server vs ~200ms on iOS
       image = req.file.buffer.toString('base64');
@@ -224,7 +251,7 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     // resolves user_id + per-driver ruleset. Header preferred; form field
     // accepted (Shortcuts dictionaries are easier to edit than headers).
     // No/invalid token → DEFAULT_RULESET + null user_id (legacy behavior).
-    const shortcutToken = req.get('x-shortcut-token') || offerBody.shortcut_token || null;
+    const shortcutToken = req.get('x-shortcut-token') || offerBody.shortcut_token || req.query?.shortcut_token || null;
 
     if (!text && !image) {
       return res.status(400).json({ error: 'Missing text or image payload' });

@@ -64,9 +64,10 @@ line, and adds an Android tab. **UI edit deferred by Melody's direction this ses
 Per `ANDROID_SHORTCUT_ANALYZE.md` (tool capabilities verified against vendor docs
 2026-08-17, nothing device-tested yet): HTTP Shortcuts (free, true multipart, built-in TTS)
 as the default via the screenshot share sheet; Tasker for one-tap fully hands-free
-(paid, ADB grant); MacroDroid text-lane only. Same endpoint, header, and fields as iPhone.
-Small server follow-ups surfaced by the research (optional): a raw `image/jpeg` body mode
-would let MacroDroid do vision; publish a hosted HTTP Shortcuts import zip
+(paid, ADB grant); MacroDroid text lane **or** vision via raw file body. Same endpoint,
+header, and fields as iPhone. Server follow-ups from the research: **raw `image/*` body mode
+— DONE 2026-08-17** (Cowork-authored patch applied + hardened; `OFFER_ANALYZER.md` §4.1,
+Android guide Part 4b); still optional: publish a hosted HTTP Shortcuts import zip
 (`https://http-shortcuts.rmy.ch/import?url=…`) for one-tap setup. *(todo #43 Android plan)*
 
 **G4 — Commit/publish discipline.** All analyzer work is on `main` as of `97cd2d3b`;
