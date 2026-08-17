@@ -86,6 +86,14 @@ router.get('/offer-monitor', monitorReadLimiter, async (req, res) => {
         per_mile: offer_intelligence.per_mile,
         total_miles: offer_intelligence.total_miles,
         product_type: offer_intelligence.product_type,
+        // 2026-08-17: field-test visibility — which lane the phone used and whether the
+        // per-driver token resolved (NULL hash = default rules). No PII: booleans + enums.
+        source: offer_intelligence.source,
+        ruleset_version: offer_intelligence.ruleset_version,
+        tokened: sql`(${offer_intelligence.ruleset_hash} IS NOT NULL)`.as('tokened'),
+        user_linked: sql`(${offer_intelligence.user_id} IS NOT NULL)`.as('user_linked'),
+        local_date: offer_intelligence.local_date,
+        day_part: offer_intelligence.day_part,
       })
       .from(offer_intelligence)
       .orderBy(sql`created_at DESC`)
@@ -93,13 +101,18 @@ router.get('/offer-monitor', monitorReadLimiter, async (req, res) => {
 
     const byModel = {};
     const byDecision = {};
+    const bySource = {};
+    let tokened = 0;
     let latencySum = 0;
     let latencyN = 0;
     for (const r of rows) {
       const m = r.ai_model || 'unknown';
       const d = r.decision || 'unknown';
+      const src = r.source || 'unknown';
       byModel[m] = (byModel[m] || 0) + 1;
       byDecision[d] = (byDecision[d] || 0) + 1;
+      bySource[src] = (bySource[src] || 0) + 1;
+      if (r.tokened) tokened += 1;
       if (typeof r.response_time_ms === 'number') {
         latencySum += r.response_time_ms;
         latencyN += 1;
@@ -112,6 +125,8 @@ router.get('/offer-monitor', monitorReadLimiter, async (req, res) => {
       stats: {
         by_model: byModel,
         by_decision: byDecision,
+        by_source: bySource,
+        tokened_rows: tokened,
         avg_p1_latency_ms: latencyN ? Math.round(latencySum / latencyN) : null,
       },
       offers: rows,

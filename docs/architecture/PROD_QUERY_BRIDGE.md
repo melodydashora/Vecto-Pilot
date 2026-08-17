@@ -5,7 +5,7 @@
 ## Security model — capability, not validation
 
 - **Auth:** every route requires an agent/bridge token (`x-claude-bridge-token` → `CLAUDE_BRIDGE_TOKEN`, or `x-vecto-agent-secret` → `VECTO_AGENT_SECRET`), constant-time compared (`requireAgentOnly` in `server/middleware/auth.js`). No end-user session can reach these routes.
-- **Structured** `GET /api/admin/offer-monitor`: fixed Drizzle `SELECT`s only → **zero user-SQL surface**. Runs on the app pool. Safe by construction.
+- **Structured** `GET /api/admin/offer-monitor`: fixed Drizzle `SELECT`s only → **zero user-SQL surface**. Runs on the app pool. Safe by construction. Since 2026-08-17 it also returns `source`, `tokened` (ruleset hash present = the driver's own rules applied), `user_linked`, `ruleset_version`, `local_date`, `day_part`, and `stats.by_source` / `stats.tokened_rows` — enough to answer "are my offers coming through under my rules?" without the raw lane.
 - **Raw** `POST /api/admin/query`: arbitrary `SELECT`, but executed under a **dedicated read-only role** (`VECTO_READONLY_DATABASE_URL`) that *physically* cannot write or read non-allowlisted tables. Plus per-transaction `SET TRANSACTION READ ONLY`, `statement_timeout`, a single-statement / `SELECT`|`WITH`-prefix check, and a 1000-row cap. If the read-only role is **not** configured, raw query is **disabled (503)** — it never falls back to the app's full-privilege pool.
 
 The role — not a regex — is the guarantee. The string checks are defense-in-depth.
