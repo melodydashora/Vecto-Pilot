@@ -383,3 +383,47 @@ describe('DEFAULT_RULESET immutability', () => {
     expect(() => { DEFAULT_RULESET.tiers.standard.floor_per_mile = 0; }).toThrow(TypeError);
   });
 });
+
+// ── v3.1 sliders (2026-08-17, Melody D4): per-tier max_total_miles + derived single rung ──
+describe('v3.1 sliders: tier max_total_miles + single derived rung', () => {
+  const sliders = migrateRuleset({
+    tiers: {
+      standard: { floor_per_mile: 1.35, floor_per_minute: null, max_total_miles: 12, accept_ladder: [{ min_per_mile: 1.35, max_total_min: 20 }] },
+      premium: { floor_per_mile: 1.5, floor_per_minute: null, max_total_miles: null, accept_ladder: [{ min_per_mile: 1.5, max_total_min: 25 }] },
+    },
+  });
+
+  test('accepts inside the box: rate ≥ floor, minutes ≤ max, miles ≤ max', () => {
+    const r = evaluateDeterministic('standard', { price: 12, total_miles: 8, total_minutes: 15, per_mile: 1.5, per_minute: 0.8 }, sliders);
+    expect(r.decision).toBe('ACCEPT'); expect(r.reasonKind).toBe('accept');
+  });
+
+  test('rejects too_far when total miles exceed the tier cap even at a great rate', () => {
+    const r = evaluateDeterministic('standard', { price: 40, total_miles: 14, total_minutes: 15, per_mile: 2.86, per_minute: 2.67 }, sliders);
+    expect(r.decision).toBe('REJECT'); expect(r.reasonKind).toBe('too_far');
+  });
+
+  test('rejects low when minutes exceed the single rung (no ARP)', () => {
+    const r = evaluateDeterministic('standard', { price: 20, total_miles: 10, total_minutes: 26, per_mile: 2.0, per_minute: 0.77 }, sliders);
+    expect(r.decision).toBe('REJECT'); expect(['low', 'too_far']).toContain(r.reasonKind);
+  });
+
+  test('null cap is inert (premium has no max miles) — legacy parity preserved', () => {
+    const r = evaluateDeterministic('premium', { price: 60, total_miles: 30, total_minutes: 24, per_mile: 2.0, per_minute: 2.5 }, sliders);
+    expect(r.decision).toBe('ACCEPT');
+  });
+
+  test('prompt renders the miles cap as a tier rule and the single rung', () => {
+    const p = buildPhase1Prompt('standard', sliders);
+    expect(p).toContain('REJECT if total_miles>12.');
+    expect(p).toContain('ACCEPT if $/mi>=1.35, total_min<=20.');
+    const v = buildPhase1VisionPrompt(sliders);
+    expect(v).toContain('REJECT if total_miles>12.');
+    expect(v).not.toContain('total_miles>null');
+  });
+
+  test('migrateRuleset carries max_total_miles and defaults it to null', () => {
+    expect(sliders.tiers.standard.max_total_miles).toBe(12);
+    expect(migrateRuleset({}).tiers.standard.max_total_miles).toBeNull();
+  });
+});

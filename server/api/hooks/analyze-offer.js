@@ -22,6 +22,7 @@ import { callModel } from '../../lib/ai/adapters/index.js';
 import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-offer-text.js';
 import { normalizeOfferBody } from '../../lib/offers/normalize-offer-body.js';
 import { downscaleOfferImage } from '../../lib/offers/downscale-offer-image.js';
+import { parseModelJson } from '../../lib/offers/parse-model-json.js';
 // 2026-06-20: Unified rules engine — single source for the prompts AND the
 // deterministic fallback (replaces the inline PHASE1_PROMPTS + JS ladder below).
 // 2026-07-03 (todo #10): v3 — per-driver rules. classifyTier now comes from the
@@ -403,32 +404,31 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
         console.warn(`[HOOKS] Phase 1 AI analysis failed (${phase1Response.error}) — deterministic fallback`);
       }
 
-      // 2026-03-02: Robust JSON extraction — two-tier approach
-      // Tier 1: Direct parse (clean JSON from adapter)
-      // Tier 2: Extract first JSON object from prose (Gemini sometimes adds preamble)
+      // Tolerant JSON extraction (parse-model-json.js): clean → brace-slice → repair a
+      // missing closing brace (live-observed 2026-08-17). Anything worse → rules engine.
       if (!phase1Response?.success) {
         phase1Result = deterministicPhase1();
       } else {
-        try {
-          const cleaned = phase1Response.text
-            .replace(/```json/g, '').replace(/```/g, '').trim();
-          try {
-            const raw = JSON.parse(cleaned);
-            phase1Result = raw.parsed_data || raw;
-          } catch {
-            const firstBrace = cleaned.indexOf('{');
-            const lastBrace = cleaned.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace > firstBrace) {
-              const extracted = cleaned.slice(firstBrace, lastBrace + 1);
-              const raw = JSON.parse(extracted);
-              phase1Result = raw.parsed_data || raw;
-              console.log(`[HOOKS] Extracted JSON from preamble (${firstBrace} chars stripped)`);
-            } else {
-              throw new Error('No JSON object found in response');
-            }
-          }
-        } catch (_parseErr) {
+        const parsed = parseModelJson(phase1Response.text);
+        if (parsed.ok) {
+          phase1Result = parsed.value;
+          if (parsed.tier > 1) console.log(`[HOOKS] Phase 1 JSON recovered (tier ${parsed.tier})`);
+        } else {
           console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
+          phase1Result = deterministicPhase1();
+        }
+      }
+
+      // Honest floor (2026-08-17): a reply that parsed but carries no decision, or that
+      // describes no ride at all (every metric zero — every vision model answers a
+      // non-offer screenshot this way), is NOT a verdict. Hand it to the rules engine,
+      // which answers from the pre-parse when there is one and NO DATA otherwise —
+      // never a fabricated REJECT ("Reject. zero per mile, 0 miles.").
+      if (phase1Result && phase1Response?.success) {
+        const z = (v) => v == null || Number(v) === 0;
+        const noRide = z(phase1Result.per_mile) && z(phase1Result.total_miles) && z(phase1Result.price);
+        if (!phase1Result.decision || noRide) {
+          console.warn(`[HOOKS] Phase 1 reply ${!phase1Result.decision ? 'has no decision' : 'describes no ride'} — deterministic engine answers`);
           phase1Result = deterministicPhase1();
         }
       }
@@ -443,10 +443,59 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
       ? classifyTier(phase1Result.product_type, ruleset)
       : tier;
 
+    // ═══ VISION ARBITRATION (2026-08-17, Melody: "get vision working") ═══════
+    // Code owns the arithmetic. The vision model both extracts and decides in one
+    // call, and live cards showed its own $/mi wobbling across the driver's floor
+    // (1.9 + 4.2 mi summed as ~6.3 → $1.34 vs the true $1.40 against a $1.35 floor
+    // → wrong REJECT). So on the image-only path we recompute per_mile from the
+    // extracted price/miles and re-run the deterministic engine on the extracted
+    // numbers. Engine REJECT (floor / pickup / time / max-miles / ARP miss) can never
+    // be rescued by anything the model saw — it wins. Engine ACCEPT beats a model
+    // REJECT ONLY when the model did not name a judgment rule (judgment_reject in
+    // the vision template: avoid area, road safety, Verified missing, stops, round
+    // trip, share) — those are the model's to make. NO DATA from the engine (no
+    // usable numbers) leaves the model's answer alone.
+    if (!text && phase1Response?.success && phase1Result) {
+      const n = (v) => { const x = typeof v === 'string' ? parseFloat(v) : v; return Number.isFinite(x) ? x : null; };
+      const mPrice = n(phase1Result.price);
+      const mMiles = n(phase1Result.total_miles);
+      const mMinutes = n(phase1Result.total_minutes);
+      if (mPrice > 0 && mMiles > 0) phase1Result.per_mile = Math.round((mPrice / mMiles) * 100) / 100;
+      const extracted = {
+        price: mPrice,
+        total_miles: mMiles,
+        total_minutes: mMinutes,
+        per_mile: n(phase1Result.per_mile),
+        per_minute: (mPrice > 0 && mMinutes > 0) ? Math.round((mPrice / mMinutes) * 100) / 100 : null,
+        pickup_miles: n(phase1Result.pickup_miles),
+        pickup_minutes: n(phase1Result.pickup_minutes),
+        rating: (() => { const r = n(phase1Result.rating ?? phase1Result.rider_rating); return r > 0 ? r : null; })(), // 0 = not shown
+      };
+      const judgment = typeof phase1Result.judgment_reject === 'string' ? phase1Result.judgment_reject.trim() : '';
+      // Only arbitrate when the model actually extracted price + miles (else NO DATA territory).
+      const engine = (mPrice > 0 && mMiles > 0)
+        ? evaluateDeterministic(effectiveTier, extracted, ruleset)
+        : { decision: 'NO DATA', reasonKind: 'no_data' };
+      const modelDecision = phase1Result.decision;
+      if (engine.decision === 'REJECT' && modelDecision === 'ACCEPT') {
+        console.warn(`[HOOKS] Vision arbitration: engine REJECT (${engine.reasonKind}) overrides model ACCEPT`);
+        phase1Result.decision = 'REJECT';
+        phase1Result.reason = terseReason(engine.reasonKind, extracted.per_mile, mMiles.toFixed(1), effectiveTier);
+        delete phase1Result.fallback;
+      } else if (engine.decision === 'ACCEPT' && modelDecision === 'REJECT' && !judgment) {
+        console.warn(`[HOOKS] Vision arbitration: engine ACCEPT (${engine.reasonKind}) overrides model REJECT with no judgment reason (model reason: ${phase1Result.reason || '-'})`);
+        phase1Result.decision = 'ACCEPT';
+        phase1Result.reason = terseReason(engine.reasonKind, extracted.per_mile, mMiles.toFixed(1), effectiveTier);
+        if (engine.fallback) phase1Result.fallback = true; else delete phase1Result.fallback;
+      } else if (engine.decision === 'ACCEPT' && modelDecision === 'ACCEPT' && engine.fallback && !phase1Result.fallback) {
+        phase1Result.fallback = true; // ARP accept — label it honestly
+      }
+    }
+
     // Extract decision fields from normalized result
     const decision = phase1Result.decision || 'REJECT';
     // 2026-03-29: Accept both "reason" (new terse) and "reasoning" (legacy) field names
-    const reason = phase1Result.reason || phase1Result.reasoning || '';
+    let reason = phase1Result.reason || phase1Result.reasoning || '';
     const confidence = phase1Result.confidence || 0;
 
     const responseTimeMs = Date.now() - startTime;
@@ -463,6 +512,11 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     };
     const perMileValue = toNum(preParsed?.per_mile ?? phase1Result.per_mile);
     const totalMi = toNum(preParsed?.total_miles ?? phase1Result.total_miles);
+    // Keep the model-authored terse reason ("$1.34 6.1mi …") consistent with the recomputed
+    // figure so voice and notification never disagree on the $/mi.
+    if (!preParsed?.per_mile && perMileValue != null && typeof reason === 'string') {
+      reason = reason.replace(/^\$\d+(?:\.\d{1,2})?(?=\s|\/|$)/, `$${perMileValue.toFixed(2)}`);
+    }
     // 2026-07-03: renamed from `terseReason` — that const shadowed the module-level
     // terseReason() FUNCTION across this whole handler scope (temporal dead zone),
     // so the deterministic fallback crashed with a ReferenceError → 500 to Siri
@@ -479,6 +533,20 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     const noticesArr = Array.isArray(phase1Result.notices)
       ? phase1Result.notices.filter((n) => typeof n === 'string' && n.length <= 40).slice(0, 4)
       : [];
+    // v3.1 (2026-08-17, Melody D4): optional $/hr readout — pay ÷ total minutes × 60,
+    // computed here from the numbers we already trust (never asked of the model, never a
+    // decider — hourly is telemetry per the 2026-08-11/14 doctrine). Rendered on the
+    // notification and spoken as a short tail when the driver enabled it.
+    let hourlyPhrase = null;
+    if (ruleset.global?.notices?.hourly_rate) {
+      const hrPrice = toNum(preParsed?.price ?? phase1Result.price);
+      const hrMinutes = toNum(preParsed?.total_minutes ?? phase1Result.total_minutes);
+      if (hrPrice > 0 && hrMinutes > 0 && decision !== 'NO DATA') {
+        const perHour = Math.round((hrPrice / hrMinutes) * 60);
+        noticesArr.push(`$${perHour}/hr`);
+        hourlyPhrase = `about ${perHour} dollars an hour`;
+      }
+    }
     const notificationBase = terseReasonText
       ? `${decisionLabel}: ${terseReasonText}`
       : decisionLabel;
@@ -492,7 +560,10 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     // 2026-04-16: TTS line for Siri "Speak Text" — composes decision + spoken $/mi
     // + miles + optional reason qualifier. Uses formatPerMileForVoice() for the dollar
     // amount and falls back to a bare decision word when pre-parse data is unavailable.
-    const voice = buildVoiceLine(decision, perMileValue, totalMi, terseReasonText);
+    let voice = buildVoiceLine(decision, perMileValue, totalMi, terseReasonText);
+    if (hourlyPhrase && perMileValue != null && totalMi != null) {
+      voice = voice.replace(/\.$/, `, ${hourlyPhrase}.`);
+    }
 
     res.json({
       success: true,
@@ -576,9 +647,9 @@ PRE-PARSED DATA (server-verified):
 
           if (phase2Response.success) {
             phase2RawText = phase2Response.text;
-            const cleaned = phase2Response.text
-              .replace(/```json/g, '').replace(/```/g, '').trim();
-            deepResult = JSON.parse(cleaned);
+            const parsedDeep = parseModelJson(phase2Response.text, { unwrap: false }); // keep the envelope
+            if (!parsedDeep.ok) throw new Error('Phase 2 reply was not JSON');
+            deepResult = parsedDeep.value;
             aiModelUsed = phase2Response.model || 'gemini-3.1-pro-preview'; // 2026-06-11: the model Phase 2 ACTUALLY ran (a 503 fallback correctly reports flash here)
             console.log(`[HOOKS] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
           } else {
@@ -912,7 +983,7 @@ router.get('/offer-history', offerHookLimiter, requireShortcutUser, async (req, 
 
     // 2026-02-15: Compute aggregate stats for algorithm learning.
     // 2026-07-03: `accepted`/`rejected` count the ANALYZER's decisions, not the
-    // driver's actions (the §0 conflation bug in the editor plan doc). The keys
+    // driver's actions (the three-decisions rule, OFFER_ANALYZER.md §3). The keys
     // stay for backward compatibility; analyzer_* aliases make the meaning
     // explicit, and driver-actual outcomes live in /api/offer-analyzer/offers.
     const stats = {

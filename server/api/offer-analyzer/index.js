@@ -1,7 +1,7 @@
 // server/api/offer-analyzer/index.js
 // 2026-07-03 (todo #10): Offer Analyzer editor API — per-driver rules, shortcut
 // token (identity bridge), offers-with-outcomes, and the avoid-places picker.
-// Design: docs/architecture/OFFER_RULESET_V3_DESIGN.md §7.
+// Doc: docs/architecture/OFFER_ANALYZER.md §12 (route contracts).
 //
 // All routes require Bearer auth (requireAuth → req.auth.userId). The PUBLIC
 // ingest path stays in server/api/hooks/analyze-offer.js — nothing here widens
@@ -51,7 +51,7 @@ router.get('/rules', async (req, res) => {
 });
 
 // PUT /api/offer-analyzer/rules — validate strictly, upsert, bump version.
-// This is the fail-loud write gate: an invalid config NEVER persists (design §6).
+// This is the fail-loud write gate: an invalid config NEVER persists (OFFER_ANALYZER.md §7 fail posture).
 router.put('/rules', async (req, res) => {
   try {
     const config = migrateRuleset(req.body?.config);
@@ -156,8 +156,8 @@ router.post('/shortcut-token/label', async (req, res) => {
 // ── Offers + outcomes ────────────────────────────────────────────────────────
 
 // GET /api/offer-analyzer/offers?limit= — my analyzed offers joined with my
-// actual outcomes, plus stats that keep analyzer-vs-driver SEPARATE (the §0
-// conflation fix: "accepted" no longer pretends the analyzer's ACCEPTs were taken).
+// actual outcomes, plus stats that keep analyzer-vs-driver SEPARATE (the three-
+// decisions rule, OFFER_ANALYZER.md §3: "accepted" never pretends the analyzer's ACCEPTs were taken).
 router.get('/offers', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit, 10) || 25, 100);

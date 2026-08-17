@@ -1927,7 +1927,7 @@ export const coach_offer_decisions = pgTable("coach_offer_decisions", {
  * prompts AND drives the deterministic evaluator — the no-drift invariant.
  * Validated by Zod at write time (server/api/offer-analyzer/index.js); the analyze
  * hot path fail-opens to DEFAULT_RULESET with a loud log + NULL provenance stamp.
- * Design: docs/architecture/OFFER_RULESET_V3_DESIGN.md §5.
+ * Doc: docs/architecture/OFFER_ANALYZER.md §11 (data model).
  *
  * FK is RESTRICT (mirrors driver_profiles): users rows are session-scoped but never
  * deleted, and rules must not vanish out from under a driver.

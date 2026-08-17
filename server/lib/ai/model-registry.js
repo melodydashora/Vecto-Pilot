@@ -329,60 +329,52 @@ export const MODEL_ROLES = {
   // ==========================
   // 9. SIRI HOOKS (offer_intelligence)
   // ==========================
-  // 2026-02-15: Dedicated role for real-time ride offer analysis via Siri Shortcuts.
-  // 2026-02-26: Reverted Pro → Flash. Pro with thinking timed out Siri Shortcuts (~30s limit).
-  // Flash is purpose-built for fast vision extraction: <2s for screenshot → JSON decision.
-  // No thinking needed — this is OCR + math + rule application, not reasoning.
-  // 2026-05-29: Pinned to gemini-3.5-flash + HIGH thinking per Melody's request.
-  // gemini-3.5-flash is the stable GA model (released 2026-05-19) that replaces the
-  // gemini-3-flash-preview identifier. Verified live via ai.google.dev/gemini-api/docs:
-  //   - multimodal (vision OK for offer screenshots)
-  //   - thinkingLevel supports minimal/low/medium/high (default medium); HIGH is valid
-  //   - JS field is thinkingConfig.thinkingLevel (lowercase value) — emitted by gemini-adapter.js
-  // ⚠️ LATENCY TRADE-OFF: Phase 1 is the SYNCHRONOUS, Siri-bound path (<2s target,
-  //    ~30s Shortcut hard timeout). HIGH thinking adds latency — the 2026-02-26 note below
-  //    records that Pro+thinking previously timed out Shortcuts. Monitor response_time_ms;
-  //    if Siri times out, step down to 'LOW'/'MINIMAL' or move deep reasoning to Phase 2
-  //    (OFFER_ANALYZER_DEEP, which is async and not latency-sensitive).
-  // ── HARDENED 2026-06-11 (determinism doctrine — do NOT regress) ──────────────
-  //  ROLE: Phase 1 is the SINGLE fast analyzer for BOTH offer modalities —
-  //    • VISUAL path: Siri Vision shortcut sends a screenshot (analyze-offer.js:275 → images[])
-  //    • TEXT path:   Siri text shortcut → parseOfferText() regex pre-parse → same model
-  //  MODEL gemini-3.5-flash — verified live (/v1beta/models) + web-benchmarked (I/O 2026):
-  //    Flash 3.5 LEADS multimodal/vision (84.2% CharXiv) AND runs ~4× throughput / 2.6× faster
-  //    than 3.1 Pro. It is simultaneously the most-accurate-vision and the fastest model — exactly
-  //    what the eyes-on-road, Siri-bound decision needs. Do NOT "upgrade" Phase 1 to a Pro model:
-  //    Pro is slower, weaker on multimodal, and would blow the ~30s Shortcut timeout.
-  //  ⚠️ PINNED, NOT FLOATING: never gemini-flash-latest or any *-latest alias. Memory #342: a
-  //    floating alias resolved server-side to an internal Google build and 404'd in production.
-  //  2026-08-11: re-verified against gemini-3.6-flash (GA 2026-07-21) — do NOT move this
-  //    role to 3.6: it regresses vision object detection (56.0% mAP@50, bottom half of
-  //    Roboflow's Aug-2026 evals) while 3.5-flash stays the vision+speed leader.
+  // OFFER_ANALYZER = Phase 1, the SYNCHRONOUS phone-bound verdict for BOTH modalities
+  // (screenshot → vision; OCR text → same model). Melody's hard target (todo #43,
+  // 2026-08-14): screenshot → spoken verdict in < 3 s full trip. Deep reasoning lives
+  // in Phase 2 (OFFER_ANALYZER_DEEP, async) — never put a Pro/thinking model here.
+  //
+  // ⚠️ PINNED, NOT FLOATING: never gemini-flash-latest / *-latest (memory #342: a floating
+  //    alias resolved to an internal build and 404'd in production).
+  //
+  // 2026-08-17 LIVE BENCHMARK (verify-models-live; Melody: "curl and analyze the fastest
+  // vision model that can handle the end user rules"). /v1beta/models listed live; each
+  // candidate run against the REAL buildPhase1VisionPrompt/buildPhase1Prompt rendered
+  // from Melody's dev ruleset, 6 offer cards (UberX Priority + On-the-way, low-rating
+  // REJECT, Share, Comfort ACCEPT, blurry 480px JPEG, NON-offer screenshot), 3 runs each,
+  // temp 0.1, thinking MINIMAL, maxTokens 1024, JSON mime — scored against the
+  // deterministic engine's own verdict + extraction accuracy + notices:
+  //   gemini-3.5-flash-lite  vision p50  ~700ms p95  ~850ms  text p50  687ms  54/54  0 truncated
+  //   gemini-3.1-flash-lite  vision p50   860ms p95  1005ms  text p50  657ms  24/24  0 truncated
+  //   gemini-3.6-flash       vision p50  1027ms p95  1226ms  text p50  947ms  24/24  0 truncated
+  //   gemini-3.5-flash       vision p50 ~1250ms p95 ~1400ms  text p50 1111ms  41/42  7/42 JSON
+  //                          responses returned WITHOUT the closing brace (finishReason STOP)
+  //                          → parse-fail → deterministic fallback in prod (NO DATA on vision)
+  //   gemini-3.7-flash       MINIMAL unsupported; LOW p50 1568ms, max 16 s — no
+  //   gemini-omni-flash-preview  Interactions API only — no;  gemini-2.5-flash-lite 3/12 — no
+  // → default moved gemini-3.5-flash → gemini-3.5-flash-lite (GA id, listed live): the
+  //   fastest model that applied the per-driver rules correctly on every card, and the
+  //   only one of the top two with zero truncation. Caveat recorded honestly: cards were
+  //   synthetic (clean); Melody's on-device re-test with real Uber screenshots is the
+  //   acceptance gate (roadmap G1). Revert = one env var (OFFER_ANALYZER_MODEL) or this line.
+  //   Superseded 2026-08-11 note ("vision roles stay on 3.5 — 3.6 regresses object
+  //   detection") measured Roboflow object-detection mAP, not offer-card reading; on this
+  //   task 3.6-flash was correct 24/24 but slower than lite.
+  // maxTokens 1024: the JSON verdict is ~40-150 tokens; the low cap ends degenerate
+  //   repetition tails in ~1 s (a truncated response parse-fails → the rules engine answers).
+  // temperature 0.1: honored since 2026-08-17 — gemini-adapter.js no longer forces 0.2 on
+  //   JSON prompts when a lower value is configured (Melody: "temp config to .1").
+  // History (HIGH-thinking era, 8192 cap, 2026-05-29 → 2026-08-14 step-down):
+  //   docs/architecture/removals/2026-08-14-offer-analyzer-thinking-stepdown.md and
+  //   docs/architecture/removals/2026-08-17-offer-analyzer-model-bench.md.
   OFFER_ANALYZER: {
     envKey: 'OFFER_ANALYZER_MODEL',
-    default: 'gemini-3.5-flash',
-    purpose: 'Phase 1: Real-time fast analysis (visual screenshot OR parsed text) from Siri Shortcuts (ACCEPT/REJECT)',
-    // 2026-08-14: HIGH → MINIMAL + 8192 → 1024, for Melody's <3s hard latency
-    // target (todo #43). Live-benchmarked this day on gemini-3.5-flash, 3 runs
-    // per config, real Phase-1 prompts (scratchpad bench, session 2026-08-14):
-    //   text   HIGH/8192 avg 5249ms (matches prod p50 5.2s) → MINIMAL/1024 avg 3120ms
-    //   vision HIGH/8192 avg 5496ms                          → MINIMAL/1024 avg 2512ms
-    // Decision parity held at MINIMAL (same ACCEPT + identical terse reason as
-    // HIGH; vision honestly answered "No ride offer visible" on a non-offer
-    // screenshot). HIGH also parse-failed 1/3 vision runs — MINIMAL was cleaner.
-    // maxTokens 1024 is deliberate WITH the step-down: the 2026-05-29 8192 bump
-    // existed only because HIGH thinking consumed the output budget; at MINIMAL
-    // the JSON decision is ~40-150 tokens, and the low cap also truncates
-    // degenerate repetition tails (observed live at MINIMAL: a looping reason
-    // string) in ~1s instead of letting them run for 8K tokens. A truncated
-    // response parse-fails → the deterministic rules engine answers (the
-    // always-answer contract in analyze-offer.js).
-    // Deep reasoning lives in Phase 2 (OFFER_ANALYZER_DEEP, async) — exactly
-    // the step-down path the latency trade-off note above prescribes.
+    default: 'gemini-3.5-flash-lite',
+    purpose: 'Phase 1: Real-time fast analysis (visual screenshot OR parsed text) from phone shortcuts (ACCEPT/REJECT)',
     maxTokens: 1024,
-    temperature: 0.1, // Near-deterministic for consistent decisions
+    temperature: 0.1, // near-deterministic; honored by gemini-adapter (min with the JSON cap)
     thinkingLevel: 'MINIMAL',
-    features: ['vision'],
+    features: ['vision'], // documentary — no adapter reads this; vision works via images[] inlineData
   },
 
   // 2026-02-28: Phase 2 deep analysis — runs async AFTER Siri gets its fast response.

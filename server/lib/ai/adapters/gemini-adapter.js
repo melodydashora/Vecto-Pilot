@@ -94,10 +94,14 @@ export async function callGemini({
 
     _aiDebug(`[AI] calling ${model} with max_tokens=${maxTokens}`);
 
-    // Use lower temperature for JSON responses
+    // JSON responses are capped at 0.2 for parse stability; a role that configures a
+    // LOWER temperature (OFFER_ANALYZER 0.1, model-registry.js) is honored — 2026-08-17,
+    // Melody: "temp config to .1". Roles at/above 0.2 keep the previous 0.2 behavior.
     const expectsJson = user.toLowerCase().includes('json') ||
                         (system && system.toLowerCase().includes('json'));
-    const finalTemperature = expectsJson ? 0.2 : (temperature || 0.7);
+    const finalTemperature = expectsJson
+      ? Math.min(temperature ?? 0.2, 0.2)
+      : (temperature ?? 0.7);
 
     // Build config object for new SDK
     const config = {

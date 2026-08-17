@@ -6,7 +6,7 @@
 //     → driver_profiles.shortcut_token → user_id
 //     → offer_rulesets.config → migrateRuleset() → { ruleset, userId, version, hash }
 //
-// FAIL POSTURE (named conflict, resolved in design §6): validation is STRICT at
+// FAIL POSTURE (named conflict, resolved 2026-07-03; OFFER_ANALYZER.md §7): validation is STRICT at
 // write time (ruleset-schema.js — invalid configs cannot persist), and the READ
 // path fail-opens to DEFAULT_RULESET with a console.error. The Siri path must
 // always answer inside the decision window; ruleset_hash=NULL on the stored row

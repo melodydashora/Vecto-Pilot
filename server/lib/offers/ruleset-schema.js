@@ -5,7 +5,7 @@
 // anything that doesn't parse, so a malformed config can never persist. The read
 // path (ruleset-store.js) still fail-opens to DEFAULT_RULESET with a loud log —
 // that branch should be unreachable precisely because this gate exists.
-// Design: docs/architecture/OFFER_RULESET_V3_DESIGN.md §6.
+// Doc: docs/architecture/OFFER_ANALYZER.md §6.6 (write-time validation) and §7 (read posture).
 
 import { z } from 'zod';
 import { RULESET_SCHEMA_VERSION } from './rules-engine.js';
@@ -26,6 +26,7 @@ const ladderRung = z.object({
 const tier = z.object({
   floor_per_mile: money,
   floor_per_minute: money.nullish(),
+  max_total_miles: miles.nullish(),   // v3.1 sliders (2026-08-17)
   accept_ladder: z.array(ladderRung).max(12),
 }).strict();
 
@@ -80,6 +81,7 @@ export const rulesetSchema = z.object({
       verified_rider: z.boolean().default(false),
       on_the_way_filter: z.boolean().default(false),
       deadhead_reduction: z.boolean().default(false),
+      hourly_rate: z.boolean().default(false),   // v3.1: show computed $/hr — telemetry, never a decider
     }).strict().nullable(),
   }).strict(),
   share: z.object({ auto_reject: z.boolean() }).strict(),

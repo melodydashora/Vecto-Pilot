@@ -1,12 +1,12 @@
 // server/lib/offers/rules-engine.js
 // 2026-06-20: Single source of truth for Offer Analyzer decision rules.
 // 2026-07-03: SCHEMA v3 (todo #10) — per-driver DB-backed rules covering Melody's
-// full verbatim spec (docs/OFFER_ANALYZER_DRIVER_RULESET.md). Design:
-// docs/architecture/OFFER_RULESET_V3_DESIGN.md.
+// full verbatim spec (docs/OFFER_ANALYZER_DRIVER_RULESET.md). As-built doc:
+// docs/architecture/OFFER_ANALYZER.md §6 (the v3 design doc was merged into it 2026-08-17).
 //
 // WHY THIS EXISTS
-// Before 2026-06-20 the rules lived in TWO places that drifted (see
-// docs/architecture/OFFER_ANALYZER_EDITOR_PLAN.md §1.1):
+// Before 2026-06-20 the rules lived in TWO places that drifted (history:
+// docs/architecture/OFFER_ANALYZER.md Appendix A, 2026-06-20 entry):
 //   1. the English Phase-1 prompt (PHASE1_PROMPTS in analyze-offer.js), and
 //   2. the deterministic JS fallback ladder (analyze-offer.js).
 // This module makes ONE config object the source: it RENDERS the prompts AND
@@ -92,6 +92,7 @@ export const DEFAULT_RULESET = {
     standard: {
       floor_per_mile: 0.90,
       floor_per_minute: null,
+      max_total_miles: null,    // v3.1 (2026-08-17, Melody D4): REJECT 'too_far' above this many total miles
       accept_ladder: [
         { min_per_mile: 0.90, max_total_min: 20 },
         { min_per_mile: 1.10, max_total_min: 25 },
@@ -103,6 +104,7 @@ export const DEFAULT_RULESET = {
     premium: {
       floor_per_mile: 1.10,
       floor_per_minute: null,
+      max_total_miles: null,
       accept_ladder: [
         { min_per_mile: 1.10, max_total_min: 25 },
         { min_per_mile: 1.40, max_total_min: 30 },
@@ -262,6 +264,7 @@ function cloneTier(tier) {
   return {
     floor_per_mile: tier.floor_per_mile,
     floor_per_minute: tier.floor_per_minute ?? null,
+    max_total_miles: tier.max_total_miles ?? null,
     accept_ladder: (tier.accept_ladder || []).map((r) => ({ ...r })),
   };
 }
@@ -288,7 +291,7 @@ export function deriveEffectiveMetrics(raw, basis = 'full_ride') {
     ? raw.per_minute
     : (raw.price != null && minutes > 0 ? round2(raw.price / minutes) : null);
 
-  return { perMile, perMinute, totalMin: minutes };
+  return { perMile, perMinute, totalMin: minutes, miles };
 }
 
 /**
@@ -298,7 +301,7 @@ export function deriveEffectiveMetrics(raw, basis = 'full_ride') {
  * v3 gate order (spec's Decision Priority, deterministic lane only — vision-lane
  * gates like safety/geography live in the prompt and the Phase-2 audit):
  *   rating → pickup limits → per-mile floor → per-minute floor → time limit →
- *   accept ladder → acceptance-rate protection → too_far/low.
+ *   tier max miles (v3.1) → accept ladder → acceptance-rate protection → too_far/low.
  * All v3 gates are null at defaults → decisions identical to the legacy ladder.
  *
  * @returns {{ decision:'ACCEPT'|'REJECT'|'NO DATA', reasonKind:string, fallback?:boolean,
@@ -316,7 +319,7 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
   }
 
   const eff = resolveScopedRuleset(ruleset, context);
-  const { perMile, perMinute, totalMin } = deriveEffectiveMetrics(raw, eff.basis);
+  const { perMile, perMinute, totalMin, miles } = deriveEffectiveMetrics(raw, eff.basis);
   const rating = raw.rating ?? raw.rider_rating ?? null;
 
   // No usable rate → caller decides NO DATA vs upstream handling.
@@ -380,6 +383,12 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
     if (!meetsUnless) {
       return { decision: 'REJECT', reasonKind: 'time_limit', perMile, perMinute, totalMin };
     }
+  }
+
+  // v3.1 (2026-08-17, Melody D4 sliders): per-tier distance cap — the driver's
+  // "max miles" slider. Missing miles pass silently (prompt lane carries it).
+  if (t.max_total_miles != null && miles != null && miles > t.max_total_miles) {
+    return { decision: 'REJECT', reasonKind: 'too_far', perMile, perMinute, totalMin };
   }
 
   // Accept ladder — first match wins (uses minForRules so unknown duration
@@ -463,6 +472,7 @@ function renderRuleLines(tierName, eff, ruleset, { tierRulesOnly = false } = {})
     rules.push(`REJECT if $/mi<${fmt(t.floor_per_mile)}.`);
     if (t.floor_per_minute != null) rules.push(`REJECT if $/min<${fmt(t.floor_per_minute)}.`);
   }
+  if (t.max_total_miles != null) rules.push(`REJECT if total_miles>${Number(t.max_total_miles)}.`);
 
   if (!tierRulesOnly && g.time_limit?.max_total_minutes != null) {
     const u = g.time_limit.unless;
@@ -667,7 +677,11 @@ export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {})
   const extraSections = [...guidance, ...(notices ? [notices] : [])];
   const extraBlock = extraSections.length ? `\n${extraSections.join('\n')}\n` : '';
 
-  const jsonTemplate = `{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"product":""${templateExtras(eff)},"decision":"REJECT","reason":"$0.00 0.0mi"}`;
+  // v3.1 (2026-08-17): the server re-runs the NUMERIC rules on the numbers the model
+  // extracts (arithmetic authority — the model's own $/mi wobbled across the floor on
+  // live cards). judgment_reject lets the server tell a judgment REJECT (avoid area,
+  // road safety, missing Verified, stops, round trip) from an arithmetic one.
+  const jsonTemplate = `{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"product":"","rating":0${templateExtras(eff)},"judgment_reject":"","decision":"REJECT","reason":"$0.00 0.0mi"}`;
 
   const shareLine = ruleset.share?.auto_reject !== false
     ? 'Share/pool rides (Uber Share, Lyft Shared): REJECT always.'
@@ -687,6 +701,8 @@ ${tierSections}
 
 ${arpLine}No tier rule matched: REJECT.
 ${extraBlock}
+rating: the rider rating if shown, else 0.
+judgment_reject: if you REJECT for a non-numeric reason (avoid area, road safety, Verified missing, multiple stops, round trip, share), name it (e.g. "avoid:Denton", "safety", "verified_missing", "stops", "round_trip", "share"); otherwise "".
 reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.
 
 ${jsonTemplate}`;
