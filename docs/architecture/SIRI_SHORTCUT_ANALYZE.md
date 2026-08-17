@@ -182,7 +182,7 @@ pure phone overhead (OCR, radio wake, TTS spin-up), the one number the server be
 
 | Item | Contract |
 |---|---|
-| Identity | Header `X-Shortcut-Token: vp_…` (preferred) or body field `shortcut_token`. No token → default rules; and because the canonical shortcuts send no coordinates, an untokened offer is answered but **not stored** (no timezone source — `OFFER_ANALYZER.md` §10.4) |
+| Identity | Header `X-Shortcut-Token: vp_…` (preferred) or body field `shortcut_token`. No token → default rules and the offer is not attributed to you. Storage needs a real timezone: with no coordinates the server resolves it from the card's **pickup address** (first address on the card), else from your app session — so an offer whose pickup can't be read is stored only if you have an app session (`OFFER_ANALYZER.md` §10.4) |
 | Body types | `application/json`, `application/x-www-form-urlencoded`, `multipart/form-data` (file part must be named `image`) |
 | Fields | `text` and/or `image` (one required); `source` (`siri_text` / `siri_vision`); `device_id` (optional label); `latitude`/`longitude` optional and **not sent** by the canonical shortcuts |
 | Field-name tolerance | Deterministic alias table, case-insensitive, **string fields only** (the multipart File part must be named exactly `image`): `ocr_text`/`ocr`→`text`; `screenshot`/`photo`→`image` (base64 string); `lattitude`/`lat`→`latitude`; `lng`/`lon`/`long`/`longitud`→`longitude`; `token`/`shortcuttoken`→`shortcut_token`; `deviceid`/`device`→`device_id`; `imagetype`/`mime_type`/`mimetype`→`image_type`. Remaps are warn-logged server-side |

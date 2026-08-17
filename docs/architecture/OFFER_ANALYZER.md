@@ -65,7 +65,7 @@ Boundaries that are **rules**, not preferences:
 | The Coach never analyzes offers (no OCR of offer cards, no verdicts in chat). Offer history is pattern context only. | `app_rules.coach-never-analyzes-offers`; `server/api/chat/chat.js` system prompt |
 | Models are called by **role** (`OFFER_ANALYZER`, `OFFER_ANALYZER_DEEP`) via `callModel`, never by vendor name in code paths/logs. | `app_rules.model-agnostic-roles`; `server/lib/ai/adapters/index.js` |
 | No hardcoded locations. Every avoid-place is user-entered and keyed by Google `place_id` with 6-decimal coords. | `app_rules.no-hardcoded-location`, `coords-six-decimals`; `rules-engine.js` `avoid[]` |
-| Timezone for stored rows comes from GPS coords (Google Timezone API) or the driver's snapshot row — never UTC, never device time. If neither resolves the row is **not stored**. | `app_rules.timezone-gps-only`, `no-fallbacks`; `analyze-offer.js:632-660` |
+| Timezone for stored rows always comes from **coordinates → Google Timezone API**: the offer's GPS, else the card's **pickup address** (first address on the card) resolved to a trusted point, else the driver's snapshot row — never UTC, never device time, never a guessed geocode. If nothing real resolves the row is **not stored**. | `app_rules.timezone-gps-only`, `no-fallbacks`; `analyze-offer.js` Phase 2 (§10.4) |
 | Missing required data → `NO DATA` (honest floor), never a fabricated `REJECT`; optional optimizations (image downscale, geocode) fail **open** without gating the answer. Since 2026-08-17 a model reply with no `decision`, or one describing no ride (all-zero metrics — how every vision model answers a non-offer screenshot), is handed to the rules engine (→ `NO DATA` without a pre-parse). | `analyze-offer.js` (`deterministicPhase1`, honest-floor guard), `downscale-offer-image.js` |
 
 ---
@@ -92,10 +92,11 @@ iPhone Shortcut / Android automation                    (docs: SIRI_/ANDROID_SHO
         │                                                       Shortcut: Speak Text(voice) + Show Notification
         ▼  PHASE 2 (async, after response)
   callModel('OFFER_ANALYZER_DEEP', same ruleset, same images) 45s race → full extraction
-  timezone (GPS → snapshot → else DON'T STORE) → temporal cols → session bucket
+  resolve card addresses (Geocoding, biased → trust rule → else Places, distance-gated)
+  timezone (GPS → pickup address point → snapshot → else DON'T STORE) → temporal cols → session bucket
   INSERT offer_intelligence (decision = what was SPOKEN; deep dissent kept as data)
   pg_notify('offer_analyzed') ──► SSE /events/offers (per-user) ──► OffersCard refetch
-  geocode pickup/dropoff (Geocoding API → place_id, 6-dec) → evaluateGeoRules → UPDATE row (geo audit)
+  (addresses resolved BEFORE the INSERT since 2026-08-17: trusted place_id + 6-dec coords → evaluateGeoRules → written in the INSERT)
 
 Web page /co-pilot/offer-analyzer  (authed, /api/offer-analyzer/*)
   SetupCard (token mint/rotate/label) · rules cards (typed forms → PUT /rules, Zod gate)
@@ -573,19 +574,38 @@ coords) + `TIER: <EFFECTIVE> (<product>). Apply <tier> rules above.` + `PRE-PARS
 - Metrics prefer regex pre-parse → deep `parsed_data` → Phase-1 JSON (vision-only rows
   therefore carry model-extracted metrics instead of NULLs).
 - `parsed_data_json` = `{ …preParsed, …dbParsedData, per_mile, per_minute, location_analysis,
-  deep_decision, deep_disagrees }` (+ geo audit keys after §10.6).
+  deep_decision, deep_disagrees, timezone_source }` + the resolution/audit keys of §10.6.
 
 ### 10.4 Timezone and temporal columns (no fallbacks)
 
-Order: (1) offer GPS → `resolveTimezoneFromCoords` (Google Timezone API); (2) tokened
-driver's `users.current_snapshot_id → snapshots.timezone`; (3) **neither → the row is not
-stored** (`console.error … offer NOT stored`). Then `local_hour`, `day_of_week`,
-`day_part` (`getDayPartKey`), `is_weekend`, `local_date` via `shared/dayparts.js`
-(re-export shim `server/lib/location/daypart.js`).
+Every path is **coordinates → `resolveTimezoneFromCoords` (Google Timezone API)** — never a
+blanket/market/device timezone (`app_rules.timezone-gps-only`). Order (2026-08-17, Melody:
+*"resolve the timezone from the offer's address — the first address on the screen"*):
 
-> Consequence for the canonical shortcuts (no GPS): an **untokened** request with no
-> coordinates is never stored; a **tokened** driver needs a current snapshot (i.e., the
-> app has resolved their location this session) for the row to land. Roadmap item.
+1. **Offer GPS** (`latitude`/`longitude` in the request) → Timezone API. `timezone_source='gps'`.
+2. **Pickup address** — the first address on the card (parse contract,
+   `docs/OFFER_ANALYZER_DRIVER_RULESET.md`) resolved to a **trusted point** by §10.6 → Timezone
+   API. `timezone_source='pickup_address'`. If the driver's snapshot timezone differs, a
+   `console.warn` audit line records it (a trusted pickup in another zone = the driver moved
+   since the app was last opened; the offer-scoped value is stored).
+3. **Tokened driver's snapshot** — `users.current_snapshot_id → snapshots.timezone` (GPS-resolved
+   when the app was opened). `timezone_source='snapshot'`.
+4. **Nothing real → the row is not stored** (`console.error … offer NOT stored`, listing what
+   was tried: coords absent/failed, pickup absent/unresolvable, tokened-without-snapshot).
+
+Then `local_hour`, `day_of_week`, `day_part` (`getDayPartKey`), `is_weekend`, `local_date`
+via `shared/dayparts.js` (re-export shim `server/lib/location/daypart.js`).
+
+> Why step 2 exists: the canonical shortcuts send **no GPS** (prod audit 2026-08-17: 0 of 69
+> recent rows), so before this every stored row's timezone rode on the driver's last app
+> snapshot — session-scoped, stale the moment they work away from where they last opened the
+> app — and an untokened request (or a tokened driver with no session) was never stored at
+> all (the 07:30 CT field-test offer). The pickup address is offer-scoped truth printed on
+> every card. Consequence: a tokened driver with a fresh app snapshot (≤ 12 h) gets the
+> pickup resolved against that anchor; a driver with **no** session (or an untokened request)
+> is stored when the card's pickup **and** dropoff corroborate each other (both city-confirmed,
+> within a ride length — the common two-address Uber card). Nothing is ever stored on a
+> guessed geocode (§10.6).
 
 ### 10.5 Session bucketing and INSERT
 
@@ -600,15 +620,58 @@ stamps, `response_time_ms` (Phase-1 latency). Then
 `pg_notify('offer_analyzed', { device_id, user_id, offer_id, decision, reasoning, price,
 per_mile, platform, response_time_ms, ai_model })`.
 
-### 10.6 Geocode + geo audit (non-fatal)
+### 10.6 Card-address resolution + geo audit (before the INSERT since 2026-08-17)
 
-If the deep model produced `pickup`/`dropoff` strings: `geocodeEventAddress` each (Google
-**Geocoding API** — returns `place_id` + coords, rounded to 6 decimals; returns null and the
-row stays ungeocoded when `GOOGLE_MAPS_API_KEY` is unset) → `evaluateGeoRules(ruleset, …)`
-when `avoid[]` is non-empty → `UPDATE offer_intelligence SET pickup_lat/lng, dropoff_lat/lng,
-geocoded_at = NOW(), parsed_data_json = parsed_data_json || { geo_audit, geo_violated,
-geo_disagreement (violated AND spoken ACCEPT), pickup_place_id, dropoff_place_id }`. This is
-the **pings/patterns dataset** (Melody, 2026-07-02) and the vision-vs-geometry training signal.
+The deep model's `pickup`/`dropoff` strings are resolved **once**, to at most one **trusted
+point** each (`place_id` + 6-decimal coords), the way venues are resolved — then the pickup
+point feeds the timezone ladder, and **precise** points feed the `pickup_lat/lng` /
+`dropoff_lat/lng` / `geocoded_at` columns and the geo audit, all written **in the INSERT** (the
+former post-INSERT `UPDATE` is gone; the row is complete when `pg_notify` fires). Deterministic;
+calibrated on live prod pickup strings and hardened by two adversarial review passes the same
+day (2026-08-17). Helpers in `server/lib/offers/offer-address.js` — pure except
+`resolveCardPoints`, whose I/O is injected so every branch is unit-tested with fakes
+(`tests/offers/offer-address.test.js`).
+
+**Principle (from the second review):** a geocode *class* is never trust by itself. Google's
+bias does not always win — with a fresh Frisco anchor it still returned `Terminal E, Arrivals`
+→ Boston (*exact*), `Main St, Gainesville` → Florida, `Main St, Reno` → Nevada; unbiased,
+`Main St, Lancaster` → England. Trust = class **plus physical corroboration**.
+
+**Anchor** = the driver's last known position *and its age*: GPS when sent (age 0); else the
+tokened driver's current snapshot **if ≤ 12 h old** (`SNAPSHOT_ANCHOR_MAX_HOURS`; a stale
+snapshot is still timezone source #3 but says nothing about where the driver is *now*).
+Untokened + no GPS = **no anchor**.
+
+| Step | What | Verdict |
+|---|---|---|
+| 0 | `usableOfferAddress` — placeholders never reach Google: exact tokens (`Unknown`, `N/A`, `none`) **and** phrasings with or without a digit (`Not visible in screenshot`, `Unknown location 1`, `No pickup shown`, wrapped/zero-width variants); a string that names a place survives (`Unknown Rd, Plano`, `Hidden Hills Country Club, Frisco`). Live: Places returns *"Parts Unknown, Fort Worth"* for `Unknown` and *"Rye Not Corned Beef"* for `Not visible in image 1` | — |
+| 1 | `geocodeEventAddress(addr, …, { bias, signal })` — Geocoding API with a `bounds` **viewport bias** (60 mi box around the anchor; bias never restricts) → `classifyGeocode`: **`exact`** = whole-string match *and* the card-named city appears in the result (state/province on the card, if any, agrees — `Las Vegas NV` ≠ NM; PR via country; `, City, ST`, `City ST 75034`, `New York, NY`, `Toronto ON M5B 2H1` parsed; `Arrivals`/`Gate A`/`Downtown` are not cities); **`card_city`** = partial match inside the card-named city (`The Star Blvd & Winning Dr, Frisco` → `Winning Dr, Frisco, TX`); **`whole`** = whole-string match of a city-less string; **null** = partial of a city-less string, or a result that **contradicts** the card's city (`Main St, Allen` → Frisco — refused, then Places finds `E Main St, Allen`) | class only |
+| 2a | **Anchor present:** a classified geocode is trusted only within `plausibleRadiusMi` = 60 mi + 75 mph × anchor age (`Terminal E, Arrivals` → Boston is 1,559 mi from a fresh Frisco anchor → refused although *exact*; an 11-h anchor still admits a Denver pickup at 641 mi). `whole` becomes **`exact_near`** | `exact` / `card_city` / `exact_near`, corroboration `anchor` |
+| 2b | **Anchor present, geocode refused/none:** `searchPlaceWithTextSearch` (the venue **Places Text Search** adapter, 50 km circle bias) — `Terminal B, Departures: Zone 14` → *DFW Airport Terminal B*; `Main St, Gainesville` → *W Main St, Gainesville TX* — accepted only ≤ 60 mi from the anchor **and** of a kind that matches the string (a corner needs an address-type place — never the *One Main Place* office tower) **and** sharing an identifying token (placeholder words don't count) | **`places_near`**, corroboration `anchor` |
+| 2c | **No anchor:** the pickup and dropoff are trusted only when **both** are `exact`/`card_city` **and ≤ 60 mi apart** — the two card addresses corroborate each other (`…, Frisco` + `…, Frisco`, 3 mi). One city-confirmed address alone is not enough (`Main St, Lancaster` → England); `whole` never counts; **Places is never called** without an anchor | `exact` / `card_city`, corroboration `other_address` |
+| 3 | Nothing trusted → the address stays **text only**: no coords, no audit input, not a timezone source. `geocoded_at` stays NULL (`idx_oi_need_geocode` keeps it eligible for a later pass) | — |
+
+**Precision.** Every point carries `precise` (false for an `APPROXIMATE` locality/route
+centroid): a trusted pickup of any precision sources the **timezone**; only precise points
+become `pickup_lat/lng` / `dropoff_lat/lng` or enter `evaluateGeoRules`.
+
+Then `evaluateGeoRules(ruleset, { pickup, dropoff })` when `avoid[]` is non-empty and at
+least one precise point exists. Written into `parsed_data_json`: `geo_audit`, `geo_violated`,
+`geo_disagreement` (violated AND spoken ACCEPT), `pickup_place_id`, `dropoff_place_id`,
+`pickup_geo_via` / `dropoff_geo_via` (`'geocode'` | `'places'`), `pickup_geo_trust` /
+`dropoff_geo_trust` (`'exact'` | `'exact_near'` | `'card_city'` | `'places_near'`),
+`*_geo_corroboration` (`'anchor'` | `'other_address'`), `*_geo_precise`,
+`*_anchor_distance_mi`, `anchor_source` (`'gps'` | `'snapshot'`), `anchor_age_hours`,
+`pickup_partial_match` / `dropoff_partial_match` and `*_location_type` (raw Geocoding flags),
+`timezone_source`. This is the **pings/patterns dataset** (Melody, 2026-07-02) and the
+vision-vs-geometry training signal — now with provenance on every point. Google calls per
+stored offer, worst case: 2 Geocoding + 2 Places + 1–2 Timezone, all in the fire-and-forget
+phase (never on the Siri path), each bounded by an 8 s `AbortSignal.timeout` (a hung Google
+request delays the row, never stalls it — the fire-and-forget block has no outer timeout); the
+geocoder warns on HTTP/status errors instead of returning a silent null. Cost note for Melody:
+an **untokened, GPS-less** request now spends up to 2 Geocoding + 1 Timezone call and can be
+stored anonymously when its two card addresses corroborate each other — roadmap L5 option (b)
+("the token is the product") would gate that on `userId || GPS`; not applied without her word.
 
 ---
 
@@ -902,6 +965,7 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 | 2026-08-11 | — | Hook read/mutate endpoints token-required + user-scoped; `offerHookLimiter`; session chain by user (commit `f005c634`) |
 | 2026-08-14 | — | Body alias table (`normalize-offer-body.js`); `express.urlencoded` on `/api/hooks`; **<3s sprint**: MINIMAL thinking + 1024 tokens, deterministic fast REJECT lane, image downscale (commit `cd8329da`) |
 | 2026-08-17 | 3.0 | This rewrite; plan/design docs merged and retired |
+| 2026-08-17 | 3.2 | **Timezone from the pickup address** (Melody: first address on the card; "get details like we do for venues"): GPS → pickup point → snapshot → don't store; card addresses resolved once to trusted points = geocode class **plus physical corroboration** (anchor plausibility 60 mi + 75 mph × age, else the venue Places adapter ≤ 60 mi with kind + name checks; no anchor → pickup and dropoff must corroborate each other), placeholders filtered, contradictions refused, precise-only coordinates, 8 s bounded fetches, written in the INSERT with full provenance in `parsed_data_json`. Two adversarial review passes (31 raw findings) folded in |
 | 2026-08-17 | 3.1 | Live model bench → `OFFER_ANALYZER` default `gemini-3.5-flash-lite`; temperature 0.1 honored; 503 retry pinned; `parse-model-json.js` (repair tier); honest-floor guard; **vision arbitration** (engine owns numeric rules on extracted numbers; `judgment_reject` + `rating` in the vision template); **D4 sliders-only Rate Targets** (ladder editor removed; derived single rung; per-tier `max_total_miles`; `$/hr` telemetry) |
 
 ## Appendix B — Decisions of record (provenance-marked)

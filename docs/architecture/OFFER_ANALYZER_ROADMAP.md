@@ -122,18 +122,23 @@ with all-zero metrics, to the deterministic engine (→ NO DATA on vision). Veri
 non-offer screenshot → "No data. Decide manually." Also shipped: `parse-model-json.js`
 repair tier (3.5-flash's missing-closing-brace replies no longer fall back).
 
-### L5 — Storage of coordinate-less offers (decision needed)
-The canonical shortcuts send no GPS. Phase 2 resolves timezone from GPS → else the tokened
-driver's current snapshot row → else **the row is not stored** (`app_rules.timezone-gps-only`,
-`no-fallbacks`). Consequences today: an **untokened** request with no coordinates is
-answered but never stored; a **tokened** driver is stored only while they have a current
-app snapshot. **Prod evidence (Melody, 2026-08-17): her tokened offers are stored and
-showing correctly on the Offer Analyzer page** — so the tokened path works as designed;
-the gap is only untokened + no-GPS requests. Options: (a) accept as-is and say so in the
-guides ("open the app once per shift so your offers are recorded"); (b) require the token
-for storage explicitly (the token *is* the product); (c) have the shortcut send coordinates
-again (rejected 2026-08-14 for latency). **Recommendation (Claude): (a) now, revisit under
-the native shell.**
+### L5 — Storage of coordinate-less offers — **built 2026-08-17 (option d)**
+The canonical shortcuts send no GPS. Melody's direction (2026-08-17, after the 07:30 CT
+field-test offer was refused for "tokened but no session snapshot"): *resolve the timezone
+from the offer's address — the first address on the screen*, and *get details like we do for
+venues* when the address is only partial. Shipped: Phase 2 resolves the card addresses to
+trusted points — geocode class **plus physical corroboration** (anchor plausibility when the
+driver's GPS or a ≤12-h snapshot is known, else the venue Places adapter around that anchor;
+with no anchor the pickup and dropoff must corroborate each other) — and takes the timezone
+from the pickup: ladder GPS → pickup point → snapshot → don't store (`OFFER_ANALYZER.md`
+§10.4/§10.6; two adversarial review passes folded in). Consequences: a tokened driver no
+longer needs a *fresh* app session; an untokened / no-session request is stored when its two
+card addresses corroborate each other; nothing is stored on a guessed geocode. Remaining gap
+(accepted): pickup unreadable/placeholder, or a city-less pickup with no anchor and no
+corroborating dropoff → not stored. Options (a)–(c) below are superseded; kept for history:
+(a) accept + document; (b) require the token — **still open as a cost/policy choice** (an
+untokened GPS-less request now spends up to 3 Google calls); (c) send coordinates again
+(rejected 2026-08-14 for latency).
 
 ### L6 — Declared-but-unconsumed ruleset keys
 `home` (`{deadhead_only, mention_threshold_min}`) and `geo` scope overrides
