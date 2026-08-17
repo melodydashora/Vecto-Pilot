@@ -182,8 +182,10 @@ a Shortcut that polls `/api/hooks/offer-history` after N seconds. Low priority w
 Phase-1 verdict is validated as correct.
 
 ### L10 — Learning loop items (from the retired plan §8)
-- User-override / outcome disagreement → candidate rule tuning (nothing consumes
-  `user_override` or `offer_outcomes` yet beyond stats).
+- **DONE 2026-08-17:** the Coach now reads per-user offer patterns (time of day / weekday
+  / pickup area / product / month, with outcomes) — `getOfferPatterns` + `offer-patterns.js`.
+- User-override / outcome disagreement → candidate rule tuning (still nothing tunes rules
+  automatically).
 - OfferMap (decision-colored pins, outcome overlay) — deferred until geocoded Phase-2
   rows accumulate under real tokens; the `pickup_lat/lng`, `dropoff_lat/lng`, `h3_index`
   columns are the substrate.

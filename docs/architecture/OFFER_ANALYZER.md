@@ -740,11 +740,18 @@ owner** (anonymous rows reach no one; unparseable payloads dropped loudly). Even
   changes via `[COACH_MEMO]`. Keep this file accurate and section-numbered; a gateway
   restart is needed for the Coach to see edits (process cache). Size today: this doc
   ~56 KB + registry ~37 KB per prompt — see roadmap D7.
-- `server/lib/ai/rideshare-coach-dal.js` `getOfferHistory(userId, 20)` (`:1330-1403`)
-  reads the last 20 `offer_intelligence` rows **for the requesting user** (user-scoped
-  since 2026-08-11 — lessons_learned #25 records the prior leak) and
-  `formatContextForPrompt` renders a `=== RIDE OFFER ANALYSIS LOG ===` block (stats +
-  the 5 most recent offers). The Coach does not read `offer_outcomes`.
+- `server/lib/ai/rideshare-coach-dal.js` `getOfferHistory(userId, 20)` reads the last 20
+  `offer_intelligence` rows **for the requesting user** (user-scoped since 2026-08-11 —
+  lessons_learned #25 records the prior leak) and `formatContextForPrompt` renders a
+  `=== RIDE OFFER ANALYSIS LOG ===` block (stats + the 5 most recent offers).
+- **Offer patterns (2026-08-17, Melody: the Coach should mine the offer table for
+  location/daypart/dow/time/seasonality steering):** `getOfferPatterns(userId, 180)`
+  aggregates `offer_intelligence ⟕ offer_outcomes` per user by time of day, weekday,
+  pickup area (last comma segment of `pickup_address`), product, and month — count,
+  analyzer accept %, avg $/mi, rides the driver actually took + avg earned — and
+  `server/lib/offers/offer-patterns.js` renders `=== OFFER PATTERNS … ===` (best/weakest
+  time and area headlines when ≥3 offers per cell). Read-only, fail-soft, and explicitly
+  not a live-verdict path.
 - Per `app_rules.coach-never-analyzes-offers` (Melody, 2026-08-13) the Coach prompt
   states it never analyzes live offers and points drivers to the Offer Analyzer. The
   parser/Zod/executor/DAL machinery for `LOG_OFFER_DECISION` / `UPDATE_OFFER_DECISION` /

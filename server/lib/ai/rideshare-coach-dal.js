@@ -33,6 +33,9 @@ import crypto from 'crypto';
 import { VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
 // 2026-07-06: daypart adapter — normalize legacy keys, human labels for prompts
 import { normalizeDayPartKey, dayPartLabel } from '../location/daypart.js';
+// 2026-08-17 (Melody): the Coach mines the offer table for longitudinal patterns
+// (time of day / weekday / pickup area / product / month) — never live verdicts.
+import { formatOfferPatterns } from '../offers/offer-patterns.js';
 
 /**
  * CoachDAL - Full schema read access for AI Coach
@@ -797,6 +800,7 @@ export class RideshareCoachDAL {
       // 2026-05-05: Hoisted alongside offerData for the same reason — outer-scope visibility
       // for the return assembly below regardless of which branch populates it.
       let coachOfferDecisions = { decisions: [], stats: null };
+      let offerPatterns = null; // 2026-08-17: { rows, total, windowDays } or null
       // 2026-05-26: Coach self-context — its own prior memos and system notes about this driver
       let coachMemos = [];
       let coachSystemNotes = [];
@@ -806,7 +810,7 @@ export class RideshareCoachDAL {
         const effectiveUserId = authenticatedUserId || snapshot.user_id;
         console.log(`[COACH] getCompleteContext: Snapshot user_id = ${snapshot.user_id || 'NULL'}, authenticated = ${authenticatedUserId || 'NULL'}, effective = ${effectiveUserId || 'NULL'}, city = ${snapshot.city}`);
 
-        const [intel, notes, driver, offers, coachDecisions, memos, sysNotes] = await Promise.all([
+        const [intel, notes, driver, offers, coachDecisions, memos, sysNotes, patterns] = await Promise.all([
           this.getMarketIntelligence(snapshot.city, snapshot.state),
           effectiveUserId ? this.getUserNotes(effectiveUserId) : Promise.resolve([]),
           effectiveUserId ? this.getDriverProfile(effectiveUserId) : Promise.resolve({ profile: null, vehicle: null }),
@@ -817,7 +821,10 @@ export class RideshareCoachDAL {
           // 2026-05-26: Coach self-context — read its own prior memos and system notes
           effectiveUserId ? this.getCoachMemosForContext(effectiveUserId) : Promise.resolve([]),
           effectiveUserId ? this.getCoachSystemNotesForContext(effectiveUserId) : Promise.resolve([]),
+          // 2026-08-17: longitudinal offer patterns (per user, 180-day window)
+          effectiveUserId ? this.getOfferPatterns(effectiveUserId) : Promise.resolve(null),
         ]);
+        offerPatterns = patterns;
         marketIntelligence = intel;
         userNotes = notes;
         driverData = driver;
@@ -840,6 +847,7 @@ export class RideshareCoachDAL {
         driverProfile: driverData.profile,
         driverVehicle: driverData.vehicle,
         offerHistory: offerData,  // 2026-02-16: Offer log for coach
+        offerPatterns,            // 2026-08-17: per-user offer patterns (time/day/area/product/month)
         coachOfferDecisions,      // 2026-05-05: Coach-driven decision intel
         coachMemos,               // 2026-05-26: Coach's own prior memos about this driver
         coachSystemNotes,         // 2026-05-26: Coach's system-level observations for this driver
@@ -1261,6 +1269,16 @@ export class RideshareCoachDAL {
       prompt += `\n\n   Use offer patterns to advise on positioning, timing, and offer strategy.`;
     }
 
+    // ========== OFFER PATTERNS (2026-08-17) ==========
+    // Longitudinal, per-user aggregation over offer_intelligence ⟕ offer_outcomes —
+    // "location/daypart/dow/time/seasonality awareness for better steering" (Melody).
+    if (context.offerPatterns?.rows?.length) {
+      prompt += formatOfferPatterns(context.offerPatterns.rows, {
+        total: context.offerPatterns.total,
+        windowDays: context.offerPatterns.windowDays,
+      });
+    }
+
     // ========== COACH-LOGGED DECISIONS (2026-05-05) ==========
     // The disagreement-learning loop: where the Coach's call differs from
     // Melody's actual decision. This is the "personal why" intelligence —
@@ -1412,6 +1430,88 @@ export class RideshareCoachDAL {
    * Get the driver's recent decision history (with optional Coach-disagreement stats).
    * Used by getCompleteContext to inject the learning signal into the system prompt.
    */
+  /**
+   * 2026-08-17: Per-user offer PATTERNS for the Coach — aggregation over the driver's
+   * offer_intelligence rows (⟕ offer_outcomes) in the last 180 days by time of day,
+   * weekday, pickup area, product, and month. Rows: { dim, key, n, accept_pct, avg_pm,
+   * taken, avg_earned }. Rendered by server/lib/offers/offer-patterns.js. Read-only.
+   * Fail-soft: any error → null (the Coach simply has no pattern block).
+   */
+  async getOfferPatterns(userId, windowDays = 180) {
+    if (!userId) return null;
+    try {
+      const result = await db.execute(sql`
+        WITH mine AS (
+          SELECT oi.decision, oi.per_mile, oi.day_part, oi.day_of_week, oi.product_type,
+                 oi.pickup_address, oi.local_date,
+                 oo.driver_decision, oo.total_earned
+          FROM offer_intelligence oi
+          LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id
+          WHERE oi.user_id = ${userId}
+            AND oi.decision IN ('ACCEPT', 'REJECT')
+            AND oi.created_at > NOW() - (${windowDays} || ' days')::interval
+        ),
+        agg AS (
+          SELECT 'day_part' AS dim, day_part::text AS key, count(*)::int AS n,
+                 round(100.0 * avg((decision = 'ACCEPT')::int))::int AS accept_pct,
+                 round(avg(per_mile)::numeric, 2) AS avg_pm,
+                 count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int AS taken,
+                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2) AS avg_earned
+          FROM mine WHERE day_part IS NOT NULL GROUP BY day_part
+          UNION ALL
+          SELECT 'dow', day_of_week::text, count(*)::int,
+                 round(100.0 * avg((decision = 'ACCEPT')::int))::int,
+                 round(avg(per_mile)::numeric, 2),
+                 count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int,
+                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2)
+          FROM mine WHERE day_of_week IS NOT NULL GROUP BY day_of_week
+          UNION ALL
+          SELECT 'city', trim(split_part(pickup_address, ',', -1)), count(*)::int,
+                 round(100.0 * avg((decision = 'ACCEPT')::int))::int,
+                 round(avg(per_mile)::numeric, 2),
+                 count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int,
+                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2)
+          FROM mine WHERE pickup_address IS NOT NULL AND pickup_address <> '' GROUP BY 2
+          UNION ALL
+          SELECT 'product', product_type, count(*)::int,
+                 round(100.0 * avg((decision = 'ACCEPT')::int))::int,
+                 round(avg(per_mile)::numeric, 2),
+                 count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int,
+                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2)
+          FROM mine WHERE product_type IS NOT NULL GROUP BY product_type
+          UNION ALL
+          SELECT 'month', substr(local_date, 1, 7), count(*)::int,
+                 round(100.0 * avg((decision = 'ACCEPT')::int))::int,
+                 round(avg(per_mile)::numeric, 2),
+                 count(*) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::int,
+                 round(avg(total_earned) FILTER (WHERE driver_decision IN ('Accepted', 'Completed'))::numeric, 2)
+          FROM mine WHERE local_date IS NOT NULL GROUP BY 2
+        )
+        SELECT dim, key, n, accept_pct, avg_pm, taken, avg_earned,
+               (SELECT count(*)::int FROM mine) AS total
+        FROM agg WHERE key IS NOT NULL AND key <> ''
+        ORDER BY dim, n DESC
+      `);
+      const rows = result.rows || [];
+      if (!rows.length) return null;
+      const total = Number(rows[0].total) || 0;
+      return {
+        rows: rows.map((r) => ({
+          dim: r.dim, key: r.key, n: Number(r.n),
+          accept_pct: r.accept_pct == null ? null : Number(r.accept_pct),
+          avg_pm: r.avg_pm == null ? null : Number(r.avg_pm),
+          taken: Number(r.taken) || 0,
+          avg_earned: r.avg_earned == null ? null : Number(r.avg_earned),
+        })),
+        total,
+        windowDays,
+      };
+    } catch (err) {
+      console.warn(`[COACH] getOfferPatterns failed (${err.message}) — no pattern block`);
+      return null;
+    }
+  }
+
   async getCoachOfferDecisions(userId, limit = 20) {
     if (!userId) return { decisions: [], stats: null };
 
