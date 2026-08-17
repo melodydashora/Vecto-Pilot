@@ -1,7 +1,7 @@
 # RISKS.md — Risk Register and Mitigation Plan
 
 > **Canonical reference** for technical, business, operational, and security risks with severity matrix and mitigation strategies.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ---
 

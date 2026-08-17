@@ -1,7 +1,7 @@
 # FUTURE.md — Future Roadmap and Planned Features
 
 > **Canonical reference** for planned features, TODOs consolidated from all architecture docs, and strategic direction.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ## Supersedes
 - `docs/architecture/feature-management.md` — Feature flags and A/B testing (absorbed into CONVERSION.md §4)

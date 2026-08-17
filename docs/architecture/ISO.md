@@ -1,7 +1,7 @@
 # ISO.md — ISO 27001 Annex A Compliance Mapping
 
 > **Canonical reference** mapping Vecto Pilot's security controls against ISO 27001:2022 Annex A controls.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ---
 

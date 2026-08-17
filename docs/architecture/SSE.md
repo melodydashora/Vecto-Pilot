@@ -1,7 +1,7 @@
 # SSE.md — Server-Sent Events Architecture
 
 > **Canonical reference** for the SSE Manager, connection lifecycle, event types, and how auth-drop affects SSE.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ## Supersedes
 - `docs/architecture/realtime.md` — Real-time architecture overview (SSE + WebSocket, absorbed here and in SCALABILITY.md)

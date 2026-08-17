@@ -1,7 +1,7 @@
 # LLM-REQUESTS.md — Every AI/LLM API Call Path
 
 > **Canonical reference** for every path in the codebase that results in an LLM/AI API call. For each: auth middleware, mid-request auth expiry behavior, API key location, and model used.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ---
 

@@ -1,7 +1,7 @@
 # DB_SCHEMA.md — Database Schema Documentation
 
 > **Canonical reference** for every table, the Drizzle ORM setup, connection management, and query patterns.
-> Last updated: 2026-04-14
+> Last updated: 2026-04-14 · offer tables refreshed 2026-08-17
 >
 > **Schema rollout exceptions** are tracked in [section 13](#13-migrations). Always check that section before assuming the documented schema matches prod.
 

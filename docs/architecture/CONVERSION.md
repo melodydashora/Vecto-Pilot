@@ -1,7 +1,7 @@
 # CONVERSION.md — Platform Conversion and Migration Planning
 
 > **Canonical reference** for React web to native migration paths, shared API layer, feature flags, and conversion timeline.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ---
 

@@ -1,7 +1,7 @@
 # MAP.md — Map and Location Features
 
 > **Canonical reference** for GPS tracking, map rendering, markers/overlays, districts/zones, and how location feeds into strategy and venues.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ## Supersedes
 - `docs/architecture/Location.md` — Location system overview (merged here)

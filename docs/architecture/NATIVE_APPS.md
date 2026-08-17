@@ -1,7 +1,7 @@
 # NATIVE_APPS.md — Swift (iOS) and Android Conversion Strategy
 
 > **Canonical reference** for native mobile app planning: PWA limitations, Swift/Kotlin paths, shared API layer, and deployment.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ---
 

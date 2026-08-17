@@ -1,7 +1,7 @@
 # NIST.md — NIST Cybersecurity Framework Compliance Mapping
 
 > **Canonical reference** mapping Vecto Pilot's security posture against the NIST Cybersecurity Framework (CSF) categories.
-> Last updated: 2026-04-10
+> Last updated: 2026-04-10 · offer-analyzer sections refreshed 2026-08-17 (see docs/architecture/OFFER_ANALYZER.md for that feature's canonical state)
 
 ---
 

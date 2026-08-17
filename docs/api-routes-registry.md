@@ -2,9 +2,9 @@
 
 Complete reference of all API endpoints organized by domain.
 
-**Last Updated:** 2026-04-30
+**Last Updated:** 2026-08-17
 
-> **Note:** This registry is known to be missing entries for several routes (memory, translate, tactical-plan, coach updates, realtime). Offer Analyzer routes were added 2026-08-17. A completeness pass is on the follow-up list.
+> **Completeness pass 2026-08-17:** memory, translate (API + Siri hook), tactical-plan, coach (`/api/coach/*`), chat sub-routes, voice (Realtime + Gemini Live), traffic, admin bridge, welcome-ai, and Offer Analyzer added from `server/bootstrap/routes.js` + each router (auth per route file). `**Last Updated:** 2026-08-17`.
 
 ---
 
@@ -101,7 +101,22 @@ Response: { strategy_for_now, blocks }
 | Method | Path | Handler | Auth | Purpose |
 |--------|------|---------|------|---------|
 | POST | `/api/chat` | `chat.js` | Yes | Rideshare Coach (SSE streaming) |
+| GET | `/api/chat/context/:snapshotId` | `chat.js` | Yes + snapshot ownership | Full coach context for a snapshot |
+| POST/GET | `/api/chat/notes` | `chat.js` | Yes | Coach notes about the user |
+| POST | `/api/chat/voice-turns` | `chat.js` | Yes (25/min) | Persist verbatim voice turns (learning loop) |
+| GET | `/api/chat/conversations`, `/conversations/:conversationId`, `/history`, `/snapshot-history` | `chat.js` | Yes | Conversation + history reads |
+| POST | `/api/chat/conversations/:messageId/star` | `chat.js` | Yes | Star a message |
+| GET | `/api/chat/system-notes`, `/deactivated-news` | `chat.js` | Yes | Coach system notes / deactivated news |
+| POST | `/api/chat/deactivate-news`, `/deactivate-event` | `chat.js` | Yes | Coach-driven deactivations |
 | GET | `/api/chat/context` | `chat-context.js` | No | Read-only chat context |
+
+## Coach API (`/api/coach/*`, Auth Required)
+
+| Method | Path | Handler | Purpose |
+|--------|------|---------|---------|
+| GET | `/api/coach/schema`, `/schema/tables`, `/schema/prompt` | `rideshare-coach/schema.js` | Schema awareness for the Coach |
+| POST | `/api/coach/validate`, `/validate/batch`; GET `/validate/schemas` | `rideshare-coach/validate.js` | Action-tag validation |
+| GET/POST/PUT/DELETE | `/api/coach/notes` (+ `/:id`, `/:id/pin`, `/:id/restore`, `/stats/summary`) | `rideshare-coach/notes.js` | User notes CRUD |
 
 ---
 
@@ -109,8 +124,23 @@ Response: { strategy_for_now, blocks }
 
 | Method | Path | Handler | Auth | Purpose |
 |--------|------|---------|------|---------|
-| POST | `/api/realtime/token` | `realtime.js` | **Yes** | OpenAI Realtime token |
-| POST | `/api/tts` | `tts.js` | **Yes** | Text-to-speech |
+| POST | `/api/realtime/token` | `chat/realtime.js` | **Yes** | OpenAI Realtime token mint |
+| POST | `/api/gemini-live/token` | `chat/gemini-live.js` | **Yes** | Gemini Live token mint (the Coach's voice) |
+| POST | `/api/tts` | `chat/tts.js` | **Yes** | Text-to-speech |
+
+---
+
+## Translation, Memory, Traffic, Admin, Welcome
+
+| Method | Path | Handler | Auth | Purpose |
+|--------|------|---------|------|---------|
+| POST | `/api/translate`; GET `/api/translate/languages` | `translate/index.js` | Yes (+ limiter) | Translation API |
+| POST | `/api/hooks/translate` | `hooks/translate.js` | No (device-based + limiter) | Siri translation hook |
+| POST | `/api/strategy/tactical-plan` | `strategy/tactical-plan.js` | Yes | Tactical plan |
+| GET | `/api/memory` (+ `/stats`, `/rules`, `/session/:sessionId`); POST `/api/memory`; PATCH `/api/memory/:id` | `memory/index.js` | Yes (whole router) | Claude memory table API |
+| GET | `/api/traffic/incidents` | `traffic/index.js` | Yes | discovered_traffic cache read |
+| GET | `/api/admin/offer-monitor`; POST `/api/admin/query` | `admin/monitor.js` | Agent bridge token only | Read-only prod monitor / query bridge |
+| POST | `/api/welcome-ai/icebreaker`, `/ask` | `welcome-ai/welcome-ai.js` | No (public limiter) | Welcome AI co-pilot |
 
 **Why Auth Required:** These endpoints mint OpenAI tokens or call paid APIs. Auth prevents unauthenticated cost abuse.
 
