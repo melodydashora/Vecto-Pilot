@@ -720,6 +720,20 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
 
     console.log(`[HOOKS] ⚡ Phase 1 responded in ${responseTimeMs}ms: ${decision} $${perMileValue || '?'}/mi [${effectiveTier}]`);
 
+    // ═══ NO DATA → no Phase 2 (2026-08-17, Melody: "if the quick one says no offer, we
+    // should just not parse it — no reason to send it to the big model") ═══════════
+    // A NO DATA verdict used to run the whole Phase 2 anyway: the deep model, the
+    // geocode / Places / Timezone calls, and a stored NO DATA row that only cluttered the
+    // Offers card and the stats. The driver already heard "No data. Decide manually."
+    // ONE exception: on the VISION lane when the fast model did not deliver
+    // (phase1Authoritative=false — timeout / unparseable), the screenshot may still be a
+    // real offer the deep model can read, so Phase 2 runs and that row is real data.
+    // When the fast model looked and said "no ride" (home screen, map, chat), stop here.
+    if (decision === 'NO DATA' && !(images.length && !phase1Authoritative)) {
+      console.log(`[HOOKS] NO DATA${phase1Authoritative ? '' : ' (model did not deliver, text lane)'} — Phase 2 skipped: no deep model, no Google calls, no row`);
+      return;
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // PHASE 2 — ASYNC: Deep Pro 3.1 analysis for DB enrichment
     // 2026-02-28: Fire-and-forget after res.json(). Images stay in closure scope.

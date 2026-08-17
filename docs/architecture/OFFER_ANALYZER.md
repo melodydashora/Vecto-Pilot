@@ -544,8 +544,15 @@ metrics) is now routed to the rules engine by the honest-floor guard and speaks
 
 ## 10. Phase 2 — asynchronous enrichment
 
-Runs in an async IIFE after `res.json()` (`analyze-offer.js:522-851`); nothing here can
-delay the spoken answer.
+Runs in an async IIFE after `res.json()`; nothing here can delay the spoken answer.
+
+**Not run for `NO DATA` (2026-08-17, Melody: "if the quick one says no offer, we should just
+not parse it — no reason to send it to the big model").** A `NO DATA` verdict stops after
+Phase 1: no deep model, no geocode / Places / Timezone calls, **no row** (log line
+`NO DATA — Phase 2 skipped`). One exception: on the **vision** lane when the fast model did
+not deliver (`phase1Authoritative=false` — timeout / unparseable reply) the screenshot may
+still be a real offer, so Phase 2 runs and the deep model gets to read it. Share
+auto-rejects already returned before Phase 2 (todo #55).
 
 ### 10.1 Deep call
 
@@ -1027,6 +1034,7 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 | 2026-08-11 | — | Hook read/mutate endpoints token-required + user-scoped; `offerHookLimiter`; session chain by user (commit `f005c634`) |
 | 2026-08-14 | — | Body alias table (`normalize-offer-body.js`); `express.urlencoded` on `/api/hooks`; **<3s sprint**: MINIMAL thinking + 1024 tokens, deterministic fast REJECT lane, image downscale (commit `cd8329da`) |
 | 2026-08-17 | 3.0 | This rewrite; plan/design docs merged and retired |
+| 2026-08-17 | 3.5 | **NO DATA skips Phase 2** (no deep model / Google calls / row; vision-degraded exception) — Melody. |
 | 2026-08-17 | 3.4 | **Race/duplicate hardening** (Melody: "take the lead — we need this app really sharp"): idempotency gate + storage-level duplicate guard (§4.1/§10.5); session read + INSERT + NOTIFY in one advisory-locked transaction (§10.5); `/events/offers` `state` handshake + OffersCard focus/reconnect refetch (§13/§14); LISTEN client fresh-connect resubscribe + slow retry (§14); PUT `/rules` `expected_version` → 409 + canonical config in the response, editor keeps in-flight edits (§12/§13); shortcut-token mint race; multer before the limiter; ruleset-cache stale-repopulate guard; Google memos; form-level Enter-key guard; **`parse-model-json` tier 4** (surplus closing brace — a live Phase-2 failure mode that was dropping the deep result and card addresses). |
 | 2026-08-17 | 3.3 | **Raw image body mode** (`image/*` / `application/octet-stream`, fields as query params — MacroDroid "Content Body: File"; Cowork-authored patch, applied + hardened: magic-byte sniff, octet-stream, spoken 413 for raw *and* multipart oversize, `?shortcut_token=` parity). Verified live: raw PNG → ACCEPT stored `source=android_vision input_mode=vision`; octet-stream sniffed; blank image → NO DATA; 6 MB → 413 with voice |
 | 2026-08-17 | 3.2 | **Timezone from the pickup address** (Melody: first address on the card; "get details like we do for venues"): GPS → pickup point → snapshot → don't store; card addresses resolved once to trusted points = geocode class **plus physical corroboration** (anchor plausibility 60 mi + 75 mph × age, else the venue Places adapter ≤ 60 mi with kind + name checks; no anchor → pickup and dropoff must corroborate each other), placeholders filtered, contradictions refused, precise-only coordinates, 8 s bounded fetches, written in the INSERT with full provenance in `parsed_data_json`. Two adversarial review passes (31 raw findings) folded in |
