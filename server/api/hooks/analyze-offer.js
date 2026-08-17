@@ -694,6 +694,14 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // + miles + optional reason qualifier. Uses formatPerMileForVoice() for the dollar
     // amount and falls back to a bare decision word when pre-parse data is unavailable.
     let voice = buildVoiceLine(decision, perMileValue, totalMi, terseReasonText);
+    // 2026-08-17 (Melody: "as long as ARP is in the voice, it tells me to take it and I do"):
+    // the notification label keys on the `fallback` FLAG, but the spoken tail was sniffed
+    // from the reason TEXT — the engine's reason says "fallback", a model-marked fallback
+    // accept usually does not, so the phone would show ACCEPT (FALLBACK) but SPEAK a plain
+    // "Accept". Key the voice on the same flag as the label.
+    if (isFallbackAccept && perMileValue != null && totalMi != null && !/fallback accept/i.test(voice)) {
+      voice = voice.replace(/\.$/, ', fallback accept.');
+    }
     if (hourlyPhrase && perMileValue != null && totalMi != null) {
       voice = voice.replace(/\.$/, `, ${hourlyPhrase}.`);
     }

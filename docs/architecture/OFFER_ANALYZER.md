@@ -532,6 +532,13 @@ Qualifier map (first match in the terse reason wins): `too far`→", too far";
 `over time`→", too long"; `floor`→", below floor"; `low`→", rate too low". (`min` — the
 `min_floor` kind — has no spoken qualifier today.) Miles rounded to whole numbers.
 
+**ARP is always spoken (2026-08-17, Melody: "as long as ARP is in the voice, it tells me to
+take it and I do"):** the notification label `ACCEPT (FALLBACK)` keys on the `fallback` flag
+(engine `accept_fallback`, or a model-marked fallback, or vision arbitration), and the voice
+now keys on the same flag — `, fallback accept` is appended whenever the flag is set, even
+when the model's reason text doesn't contain the word (before: engine path spoke it, model
+path could show FALLBACK but speak a plain "Accept").
+
 Special literals: share → `"Reject. Share tier."`; 500 → `"Analysis failed. Decide manually."`.
 When `global.notices.hourly_rate` is on, a tail `, about N dollars an hour` is appended (N =
 pay ÷ total minutes × 60, computed server-side) and `$N/hr` joins the notification notices.
@@ -1034,6 +1041,7 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 | 2026-08-11 | — | Hook read/mutate endpoints token-required + user-scoped; `offerHookLimiter`; session chain by user (commit `f005c634`) |
 | 2026-08-14 | — | Body alias table (`normalize-offer-body.js`); `express.urlencoded` on `/api/hooks`; **<3s sprint**: MINIMAL thinking + 1024 tokens, deterministic fast REJECT lane, image downscale (commit `cd8329da`) |
 | 2026-08-17 | 3.0 | This rewrite; plan/design docs merged and retired |
+| 2026-08-17 | 3.6 | **Fallback accept always spoken** — voice keyed on the `fallback` flag like the notification label (Melody drives by ear). |
 | 2026-08-17 | 3.5 | **NO DATA skips Phase 2** (no deep model / Google calls / row; vision-degraded exception) — Melody. |
 | 2026-08-17 | 3.4 | **Race/duplicate hardening** (Melody: "take the lead — we need this app really sharp"): idempotency gate + storage-level duplicate guard (§4.1/§10.5); session read + INSERT + NOTIFY in one advisory-locked transaction (§10.5); `/events/offers` `state` handshake + OffersCard focus/reconnect refetch (§13/§14); LISTEN client fresh-connect resubscribe + slow retry (§14); PUT `/rules` `expected_version` → 409 + canonical config in the response, editor keeps in-flight edits (§12/§13); shortcut-token mint race; multer before the limiter; ruleset-cache stale-repopulate guard; Google memos; form-level Enter-key guard; **`parse-model-json` tier 4** (surplus closing brace — a live Phase-2 failure mode that was dropping the deep result and card addresses). |
 | 2026-08-17 | 3.3 | **Raw image body mode** (`image/*` / `application/octet-stream`, fields as query params — MacroDroid "Content Body: File"; Cowork-authored patch, applied + hardened: magic-byte sniff, octet-stream, spoken 413 for raw *and* multipart oversize, `?shortcut_token=` parity). Verified live: raw PNG → ACCEPT stored `source=android_vision input_mode=vision`; octet-stream sniffed; blank image → NO DATA; 6 MB → 413 with voice |
