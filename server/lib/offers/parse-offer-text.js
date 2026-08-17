@@ -18,15 +18,25 @@
  * @returns {number|null}
  */
 export function extractPrice(text) {
-  // Match all dollar amounts: $X.XX or $ X.XX (OCR sometimes adds space)
-  const allPrices = [...text.matchAll(/\$\s?(\d+\.?\d{0,2})/g)];
-  for (const match of allPrices) {
-    const value = parseFloat(match[1]);
-    // Skip if this is part of "/active hr" (hourly rate estimate)
-    const afterMatch = text.substring(match.index + match[0].length, match.index + match[0].length + 15);
-    if (/\/active\s*hr/i.test(afterMatch)) continue;
-    // Skip tiny values that are likely ratings or surge markers (under $2 with no decimal context)
-    // But $3.63 is a valid short-ride price, so only skip if clearly not a price
+  // 2026-08-17: a live prod screenshot's OCR began with the phone's notification shade —
+  // our OWN previous verdict banner ("ACCEPT $0.5/minute…") — and the first "$" won,
+  // turning a $6.07 offer into a "$0.06/mi" fast-lane REJECT. Strip our own banner
+  // lines first, then skip any dollar figure that is a RATE ("$X/…") or is followed by a
+  // miles figure (our notification's "$1.40 6.1mi" shape); prefer 2-decimal amounts
+  // (platform prices are always cents-precise) over 1-decimal OCR fragments.
+  const cleaned = text.replace(/^.*\b(?:ACCEPT|REJECT|NO DATA)(?: \(FALLBACK\))?:.*$/gim, '');
+  const candidates = [...cleaned.matchAll(/\$\s?(\d+(?:\.\d{1,2})?)/g)];
+  const isRateOrBanner = (m) => {
+    const after = cleaned.substring(m.index + m[0].length, m.index + m[0].length + 15);
+    return /^\s*\//.test(after)                       // "$17.34/active hr", "$0.5/minute", "$1.40/mi"
+      || /^\s*\d+(?:\.\d+)?\s*mi\b/i.test(after)      // "$1.40 6.1mi" (our own notification)
+      || /^\s*per\b/i.test(after);                     // "$1.40 per mile"
+  };
+  const twoDecimal = candidates.filter((m) => /\.\d{2}$/.test(m[1]) && !isRateOrBanner(m) && parseFloat(m[1]) > 0);
+  if (twoDecimal.length) return parseFloat(twoDecimal[0][1]);
+  for (const m of candidates) {
+    if (isRateOrBanner(m)) continue;
+    const value = parseFloat(m[1]);
     if (value > 0) return value;
   }
   return null;
