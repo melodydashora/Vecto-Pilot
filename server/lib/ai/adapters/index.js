@@ -4,7 +4,7 @@
 // NAMING CONVENTION: {TABLE}_{FUNCTION}
 // See model-registry.js for all available roles
 //
-// Last updated: 2026-02-10 (Hedged Router Integration)
+// Change history lives in git; per-fix notes are inline where they matter.
 
 import { callOpenAI, callOpenAIWithWebSearch } from "./openai-adapter.js";
 import { callAnthropic, callAnthropicWithWebSearch } from "./anthropic-adapter.js";

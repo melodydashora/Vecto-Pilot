@@ -4,7 +4,8 @@
 // Proves evaluateDeterministic(tier, raw, DEFAULT_RULESET) reproduces the legacy
 // analyze-offer.js decision ladder across a dense grid of per_mile × minutes ×
 // rating. The `legacyOracle` below is an INDEPENDENT transcription of the legacy
-// if/else fallback (analyze-offer.js:367-414) — NOT derived from the engine — so
+// if/else fallback (the pre-2026-06-20 ladder that lived in analyze-offer.js; the
+// engine replaced it) — NOT derived from the engine — so
 // any off-by-one in a floor, rung, or boundary surfaces here.
 //
 // One intentional deviation from the literal legacy fallback: the rating gate.
@@ -141,7 +142,7 @@ describe('active-time basis flips the denominator', () => {
   });
 });
 
-// Exact current Phase-1 prompt strings (analyze-offer.js:99-139). The default
+// Exact legacy Phase-1 prompt strings (pre-2026-06-20 PHASE1_PROMPTS, now only here). The default
 // ruleset must render byte-identically so the live Siri path is unchanged.
 const LEGACY_STANDARD = `Raw JSON only. No markdown/backticks.
 

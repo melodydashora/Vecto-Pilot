@@ -1745,10 +1745,10 @@ export const offer_intelligence = pgTable("offer_intelligence", {
   // AI ANALYSIS — decision, reasoning, model metadata
   // ═══════════════════════════════════════════════════════════════════
 
-  decision: text("decision").notNull(),                // 'ACCEPT' | 'REJECT' | 'NO DATA' (write path: analyze-offer.js:340)
+  decision: text("decision").notNull(),                // 'ACCEPT' | 'REJECT' | 'NO DATA' — the SPOKEN Phase-1 verdict (analyze-offer.js dbDecision); legacy rows may hold 'UNKNOWN'
   decision_reasoning: text("decision_reasoning"),
   confidence_score: integer("confidence_score"),       // 0-100
-  ai_model: text("ai_model"),                         // e.g., "gemini-3-flash"
+  ai_model: text("ai_model"),                         // the model that ACTUALLY answered (Phase 2 → Phase 1 → 'rules-engine-deterministic'); never a registry literal
   response_time_ms: integer("response_time_ms"),
 
   // 2026-07-03 (todo #10): which ruleset produced this decision.

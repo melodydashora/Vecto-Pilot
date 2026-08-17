@@ -404,7 +404,7 @@ export const MODEL_ROLES = {
   },
 
   // ==========================
-  // 9. INTERNAL AGENTS
+  // 10. INTERNAL AGENTS
   // ==========================
   DOCS_GENERATOR: {
     envKey: 'DOCS_GENERATOR_MODEL',
@@ -691,8 +691,10 @@ export function getRolesByTable() {
     STRATEGY: [],
     VENUE: [],
     COACH: [],
+    AI: [],       // AI_COACH
     UTIL: [],
     CONCIERGE: [],
+    OFFER: [],    // OFFER_ANALYZER, OFFER_ANALYZER_DEEP
     DOCS: [],
   };
 
@@ -708,7 +710,8 @@ export function getRolesByTable() {
 
 /**
  * Model-specific quirks and limitations
- * 2026-02-15: Added Pro-specific quirks (F-002). Enforced by gemini-adapter.js validateThinkingLevel().
+ * 2026-02-15: Added Pro-specific quirks (F-002). NOTE (2026-08-17): documentary — gemini-adapter.js
+ * validateThinkingLevel() uses its own flash/pro string checks and does not read MODEL_QUIRKS.
  *
  * Prefix matching: hasQuirk() checks model.startsWith(prefix) || model.includes(prefix).
  * More specific prefixes (e.g. 'gemini-3-pro') are checked alongside broader ones ('gemini-').
@@ -742,7 +745,7 @@ export const MODEL_QUIRKS = {
     safetySettingsRequired: true,
   },
   // 2026-02-15: F-002 — Pro models only support LOW and HIGH thinking levels.
-  // MEDIUM is Flash-only. Enforced at runtime by gemini-adapter.js validateThinkingLevel().
+  // MEDIUM is Flash-only (validateThinkingLevel() enforces this independently of this table).
   // 2026-05-08: Added 'gemini-pro' alias prefix to cover gemini-pro-latest (Google's
   // server-resolved alias to current Pro model). Legacy 'gemini-3-pro' / 'gemini-3.1-pro'
   // kept so env overrides pinning to specific versions still pick up the same quirks.

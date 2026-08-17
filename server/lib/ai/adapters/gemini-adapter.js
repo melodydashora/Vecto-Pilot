@@ -1,4 +1,4 @@
-// server/lib/adapters/gemini-adapter.js
+// server/lib/ai/adapters/gemini-adapter.js
 // Generic Gemini adapter - returns { ok, output } shape
 // Updated 2026-01-05: Migrated to @google/genai SDK for Gemini 3 thinkingLevel support
 // Updated 2026-01-06: Added streaming support via callGeminiStream()
@@ -68,7 +68,7 @@ export async function callGemini({
   topP,
   topK,
   useSearch = false,
-  thinkingLevel = null, // Gemini 3: "low", "medium" (Flash only), "high" - null = disabled
+  thinkingLevel = null, // Gemini 3.x: "minimal"/"low"/"medium"/"high" on Flash (minimal added for 3.5), "low"/"high" on Pro — validated in validateThinkingLevel(); null = disabled
   skipJsonExtraction = false
 }) {
   try {

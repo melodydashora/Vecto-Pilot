@@ -119,3 +119,18 @@ tier + a "$/hr in results" switch; the ladder is derived (`withDerivedLadder`) a
 vision model; sliders with preset ranges keep values valid by construction. Engine gained
 `tiers.*.max_total_miles` (REJECT `too_far`) and the vision path an arbitration step so the
 engine, not the model, decides the numeric rules on extracted numbers.
+
+
+## 7. Comment-hygiene sweep (todo #47, auto-mode)
+
+| File | Was | Now / reason |
+|---|---|---|
+| `server/lib/ai/adapters/gemini-adapter.js:1` | `// server/lib/adapters/gemini-adapter.js` | correct path `server/lib/ai/adapters/…` |
+| `gemini-adapter.js:71` | thinkingLevel doc `"low", "medium" (Flash only), "high"` | adds `minimal` (3.5 Flash) and points at `validateThinkingLevel()` |
+| `server/lib/ai/adapters/index.js:7` | `// Last updated: 2026-02-10 (Hedged Router Integration)` | removed — a "last updated" that stopped being updated is a lie; git holds history |
+| `server/lib/ai/model-registry.js` | two sections numbered `9.` | `10. INTERNAL AGENTS` |
+| `model-registry.js:711,745` | "Enforced by gemini-adapter.js validateThinkingLevel()" for MODEL_QUIRKS | marked documentary — the validator uses its own flash/pro checks and never reads MODEL_QUIRKS |
+| `model-registry.js getRolesByTable()` | no `AI`/`OFFER` groups (roles silently dropped) | groups added |
+| `tests/offers/rules-engine-parity.test.js:7,144` | cites `analyze-offer.js:367-414` / `:99-139` (pre-extraction anchors) | describes them as the pre-2026-06-20 legacy ladder/prompts, now only in the test |
+| `migrations/20260505_coach_offer_decisions.sql:12` | "See claudeMd Rule 8" (no such rule since the boot-sequence rewrite) | names the actual owner (Coach action tags) |
+| `shared/schema.js:1748,1751` | decision comment omitted legacy `UNKNOWN`; ai_model example `"gemini-3-flash"` | decision = spoken verdict, legacy UNKNOWN noted; ai_model = model that actually answered |
