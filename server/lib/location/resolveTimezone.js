@@ -24,7 +24,8 @@
 // Consumers:
 //   - location.js — market identity for snapshots (tz comes from Google)
 //   - venue-cache.js — venue tz from coords; market for slug only
-//   - analyze-offer.js — driver tz from offer coords
+//   - analyze-offer.js — offer tz from GPS coords, else from the geocoded pickup
+//     address (first address on the card; 2026-08-17), else the snapshot row
 //   - backfill-timezone.js — one-time migration script
 // ============================================================================
 
@@ -133,10 +134,11 @@ export async function resolveTimezoneFromMarket(city, state, country) {
  *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
+ * @param {{signal?: AbortSignal}} [opts] - optional abort (2026-08-17; forwarded)
  * @returns {Promise<string | null>} IANA timezone string (e.g., "America/Chicago")
  */
-export async function resolveTimezoneFromCoords(lat, lng) {
-  return getTimezoneForCoords(lat, lng);
+export async function resolveTimezoneFromCoords(lat, lng, opts = {}) {
+  return getTimezoneForCoords(lat, lng, opts);
 }
 
 // 2026-08-11: deleted the market-first resolveTimezone() combinator (market tz

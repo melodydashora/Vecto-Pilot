@@ -173,6 +173,7 @@ export async function resolveVenueAddress(lat, lng, venueName = null, options = 
  * @param {string} textQuery - Venue name to search
  * @param {Object} [options] - Search options
  * @param {number} [options.radius=50] - Location bias radius in meters.
+ * @param {AbortSignal} [options.signal] - 2026-08-17: optional abort (e.g. AbortSignal.timeout) — the Offer Analyzer bounds this call.
  *   Use 50 (default) for precise venue-coordinate lookups where you already have the venue's location.
  *   Use 50000 (50km) for metro-wide event discovery where lat/lng is the driver's snapshot location.
  * @returns {Promise<Object|null>} - Place result: { placeId, displayName, formattedAddress, lat, lng, types, parsed: { city, state, zip, country } }
@@ -186,6 +187,7 @@ export async function searchPlaceWithTextSearch(lat, lng, textQuery, options = {
   try {
     const response = await fetch(PLACES_TEXT_SEARCH_URL, {
       method: 'POST',
+      ...(options.signal ? { signal: options.signal } : {}),
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,

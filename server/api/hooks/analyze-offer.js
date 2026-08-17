@@ -42,11 +42,18 @@ import {
 } from '../../lib/offers/rules-engine.js';
 import { resolveRuleset } from '../../lib/offers/ruleset-store.js';
 import { geocodeEventAddress } from '../../lib/events/pipeline/geocodeEvent.js';
+// 2026-08-17: card-address hygiene (placeholders like "Unknown" never reach the geocoder)
+import { usableOfferAddress, resolveCardPoints } from '../../lib/offers/offer-address.js';
+// 2026-08-17 (Melody: "get details like we do for venues"): the venue Places adapter is the
+// fallback resolver for partial card addresses ("Terminal B, Departures: Zone 14").
+import { searchPlaceWithTextSearch } from '../../lib/venue/venue-address-resolver.js';
+import { haversineDistanceMiles } from '../../lib/location/geo.js';
 // 2026-02-17: Shared utilities for structured analytics columns
 import { getDayPartKey, getLocalHour, getLocalDow, getLocalDateString } from '../../lib/location/daypart.js';
 import { coordsKey } from '../../lib/location/coords-key.js';
 import { latLngToCell } from 'h3-js';
 // 2026-04-16: FIX — resolve driver timezone from coords so temporal columns are local, not UTC
+// 2026-08-17: also from the geocoded pickup address (first address on the card) — see Phase 2
 import { resolveTimezoneFromCoords } from '../../lib/location/resolveTimezone.js';
 import { offerHookLimiter } from '../../middleware/rate-limit.js';
 
@@ -649,7 +656,7 @@ PRE-PARSED DATA (server-verified):
           if (phase2Response.success) {
             phase2RawText = phase2Response.text;
             const parsedDeep = parseModelJson(phase2Response.text, { unwrap: false }); // keep the envelope
-            if (!parsedDeep.ok) throw new Error('Phase 2 reply was not JSON');
+            if (!parsedDeep.ok) throw new Error(`Phase 2 reply was not JSON (raw: ${JSON.stringify(String(phase2Response.text ?? '').slice(0, 240))})`); // 2026-08-17: snippet — Phase 1 already logs its raw text on parse-fail
             deepResult = parsedDeep.value;
             aiModelUsed = phase2Response.model || 'gemini-3.1-pro-preview'; // 2026-06-11: the model Phase 2 ACTUALLY ran (a 503 fallback correctly reports flash here)
             console.log(`[HOOKS] 🔬 PHASE 2 DONE (${Date.now() - phase2Start}ms): ai_model=${aiModelUsed}, decision=${deepResult.decision}`);
@@ -691,45 +698,151 @@ PRE-PARSED DATA (server-verified):
         const coordKeyValue = (lat && lng) ? coordsKey(lat, lng) : null;
         const h3Index = (lat && lng) ? latLngToCell(lat, lng, 8) : null;
 
+        // ═══ TIMEZONE + CARD-ADDRESS GEOCODE ═════════════════════════════════════
         // 2026-04-16: FIX — temporal columns must reflect driver's local time, not UTC.
-        // 2026-07-06 (Melody): timezone resolution order, NO NULLS, NO FALLBACKS:
-        //   1. Offer's own GPS coords → Google Timezone API (freshest truth)
-        //   2. The driver's current SNAPSHOT row — the canonical GPS-resolved
-        //      session context that rides the waterfall ("once it is done, the
-        //      snapshot row is sent with all calls after in the waterfall")
-        // If neither source exists the row is NOT stored (we're post-response
-        // here, fire-and-forget) — an offer_intelligence row with absent/wrong
-        // time data poisons time-of-day analytics (Indiana incident).
-        // All derivation goes through the shared/dayparts.js adapter (h23-safe).
-        let driverTimezone = null;
-        if (lat && lng) {
+        // 2026-07-06 (Melody): NO NULLS, NO FALLBACKS — a row without real local-time
+        // context poisons time-of-day analytics (Indiana incident). If nothing real
+        // resolves, the row is NOT stored (we're post-response, fire-and-forget).
+        // 2026-08-17 (Melody: "resolve the timezone from the offer['s] address — that is
+        // the first address on the screen"): the canonical shortcuts send NO GPS (prod
+        // audit 2026-08-17: 0 of 69 recent rows), so every stored row's timezone rode on
+        // the driver's LAST APP SNAPSHOT — session-scoped, stale the moment they work
+        // away from where they last opened the app. The pickup address (first address on
+        // the card — parse contract, docs/OFFER_ANALYZER_DRIVER_RULESET.md) is
+        // offer-scoped truth printed on every card. Ladder, freshest REAL evidence first:
+        //   1. Offer's own GPS coords            → Google Timezone API
+        //   2. Pickup address → Google Geocoding → Google Timezone API   [2026-08-17]
+        //   3. Tokened driver's current SNAPSHOT row (GPS-resolved when the app was opened)
+        //   4. Nothing real → the row is NOT stored.
+        // Every path is coords → Google Timezone API (app_rules timezone-gps-only);
+        // provenance lands in parsed_data_json.timezone_source ('gps' | 'pickup_address'
+        // | 'snapshot'). All derivation goes through the shared/dayparts.js adapter (h23-safe).
+
+        // Tokened driver's current app snapshot: (a) timezone source #3, (b) the ANCHOR
+        // (geocode bias + Places distance gate) — but only while fresh: a snapshot older
+        // than SNAPSHOT_ANCHOR_MAX_HOURS says nothing about where the driver is NOW, and
+        // anchoring city-less card strings to it would fabricate coordinates near a place
+        // they left (review finding 2026-08-17). Its timezone still serves as source #3
+        // (Melody's 2026-07-06 ladder), just not as an anchor.
+        const SNAPSHOT_ANCHOR_MAX_HOURS = 12;
+        let snapshot = null; // { timezone, lat, lng, ageHours, fresh }
+        if (userId) {
           try {
-            driverTimezone = await resolveTimezoneFromCoords(lat, lng);
-          } catch (tzErr) {
-            console.warn(`[HOOKS] Coord timezone resolution failed (${tzErr.message}) — trying snapshot row`);
+            const snapRes = await db.execute(sql`
+              SELECT s.timezone, s.lat, s.lng, s.created_at
+              FROM users u
+              JOIN snapshots s ON s.snapshot_id = u.current_snapshot_id
+              WHERE u.user_id = ${userId}
+              LIMIT 1`);
+            const row = snapRes.rows?.[0];
+            if (row) {
+              // created_at is the phone's clock (snapshot.js) — a device a minute ahead yields a
+              // negative age; that is a FRESH snapshot, not a stale one (review 2026-08-17).
+              const rawAge = row.created_at ? (Date.now() - new Date(row.created_at).getTime()) / 3600000 : null;
+              const ageHours = Number.isFinite(rawAge) ? Math.max(0, rawAge) : null;
+              snapshot = {
+                timezone: row.timezone || null,
+                lat: Number(row.lat), lng: Number(row.lng),
+                ageHours,
+                fresh: ageHours != null && ageHours <= SNAPSHOT_ANCHOR_MAX_HOURS,
+              };
+              if (!snapshot.fresh) console.log(`[HOOKS] Snapshot is ${ageHours == null ? 'undated' : `${ageHours.toFixed(1)}h old`} — timezone source only, not a geocode anchor`);
+            }
+          } catch (snapErr) {
+            console.warn(`[HOOKS] Snapshot lookup failed (${snapErr.message}) — no snapshot timezone / geocode anchor`);
           }
         }
-        if (!driverTimezone && userId) {
-          const snapTz = await db.execute(sql`
-            SELECT s.timezone
-            FROM users u
-            JOIN snapshots s ON s.snapshot_id = u.current_snapshot_id
-            WHERE u.user_id = ${userId}
-            LIMIT 1`);
-          const tz = snapTz.rows?.[0]?.timezone;
-          if (tz) {
-            driverTimezone = tz;
-            console.log('[HOOKS] Timezone from current snapshot row');
+
+        // Geocode the card addresses ONCE: pickup coords feed timezone step 2, and both
+        // feed the pickup/dropoff columns + geography audit in the INSERT below.
+        // Placeholders ("Unknown", "not visible") never reach Google (usableOfferAddress) —
+        // Places would happily return "Parts Unknown, Fort Worth" for "Unknown".
+        // Bias toward the driver's GPS when sent, else their last snapshot: ~15% of live
+        // pickup strings are city-less ("Terminal B, Departures: Zone 14") and Google's
+        // `bounds` is a BIAS, never a restriction — "…, Denver" still resolves to Denver.
+        const pickupAddr = usableOfferAddress(dbParsedData?.pickup);
+        const dropoffAddr = usableOfferAddress(dbParsedData?.dropoff);
+        if ((dbParsedData?.pickup && !pickupAddr) || (dbParsedData?.dropoff && !dropoffAddr)) {
+          console.warn(`[HOOKS] Card address placeholder(s) skipped for geocoding (pickup="${dbParsedData?.pickup ?? ''}", dropoff="${dbParsedData?.dropoff ?? ''}")`);
+        }
+        // ANCHOR = the driver's last known position + how old that knowledge is: GPS (age 0)
+        // else a fresh snapshot. It biases the geocoder and bounds what is physically plausible.
+        const geoBias = (lat && lng) ? { lat, lng, ageHours: 0 }
+          : (snapshot?.fresh && Number.isFinite(snapshot.lat) && Number.isFinite(snapshot.lng)) ? { lat: snapshot.lat, lng: snapshot.lng, ageHours: snapshot.ageHours }
+          : null;
+        // Every Google call on this path is bounded (review 2026-08-17): a hung request must
+        // delay, never stall, the row — the fire-and-forget block has no outer timeout.
+        const GOOGLE_CALL_TIMEOUT_MS = 8000;
+        const bounded = () => AbortSignal.timeout(GOOGLE_CALL_TIMEOUT_MS);
+        const geoOpts = { ...(geoBias ? { bias: { lat: geoBias.lat, lng: geoBias.lng, radius_mi: 60 } } : {}) };
+        const [puGeo, drGeo] = await Promise.all([
+          pickupAddr ? geocodeEventAddress(pickupAddr, undefined, undefined, { ...geoOpts, signal: bounded() }) : null,
+          dropoffAddr ? geocodeEventAddress(dropoffAddr, undefined, undefined, { ...geoOpts, signal: bounded() }) : null,
+        ]);
+
+        // Resolve BOTH card addresses to at most one trusted point each (place_id + 6-decimal
+        // coords), the way venues are resolved — resolveCardPoints (offer-address.js, unit-tested
+        // with fakes; rules in OFFER_ANALYZER.md §10.6). A trust CLASS (whole-string match /
+        // partial-inside-card-city) is never enough by itself: with an anchor every point must be
+        // physically plausible (60 mi + 75 mph × anchor age — "Terminal E, Arrivals" → Boston is
+        // refused even though Google called it exact), else the venue Places adapter around the
+        // anchor (≤60 mi, kind + name must match the string); with NO anchor the pickup and
+        // dropoff must corroborate each other (both city-confirmed, ≤60 mi apart), and Places is
+        // never called. Otherwise text-only. Never a fabricated point.
+        const PLACES_TRUST_RADIUS_MI = 60;
+        const searchPlaces = (blat, blng, text) => searchPlaceWithTextSearch(blat, blng, text, { radius: 50000, signal: bounded() });
+        const { pickup: pickupPoint, dropoff: dropoffPoint } = await resolveCardPoints({
+          pickup: { address: pickupAddr, geo: puGeo },
+          dropoff: { address: dropoffAddr, geo: drGeo },
+          anchor: geoBias,
+          searchPlaces,
+          distanceMi: haversineDistanceMiles,
+          nearMi: PLACES_TRUST_RADIUS_MI,
+        });
+
+        let driverTimezone = null;
+        let timezoneSource = null;
+        if (lat && lng) {
+          try {
+            driverTimezone = await resolveTimezoneFromCoords(lat, lng, { signal: bounded() });
+            if (driverTimezone) timezoneSource = 'gps';
+          } catch (tzErr) {
+            console.warn(`[HOOKS] Coord timezone resolution failed (${tzErr.message}) — trying pickup address`);
           }
+        }
+        if (!driverTimezone && pickupPoint) {
+          try {
+            const puTz = await resolveTimezoneFromCoords(pickupPoint.lat, pickupPoint.lng, { signal: bounded() });
+            if (puTz) {
+              driverTimezone = puTz;
+              timezoneSource = 'pickup_address';
+              console.log(`[HOOKS] Timezone ${puTz} from pickup address ("${pickupAddr}" → ${pickupPoint.formatted_address}; via ${pickupPoint.via}, trust=${pickupPoint.trust}, corroborated by ${pickupPoint.corroboration}${pickupPoint.distance_mi != null ? ` at ${pickupPoint.distance_mi} mi` : ''})`);
+              // Audit line, NOT a switch: the snapshot is GPS-truth for where the app was
+              // LAST OPENED; the pickup is where THIS offer is. A trusted pickup in another
+              // zone means the driver moved since (road trip) — visible here, not silent.
+              if (snapshot?.timezone && snapshot.timezone !== puTz) {
+                console.warn(`[HOOKS] Pickup-address timezone ${puTz} ≠ snapshot timezone ${snapshot.timezone} — storing the offer-scoped (pickup) value`);
+              }
+            }
+          } catch (tzErr) {
+            console.warn(`[HOOKS] Pickup-address timezone resolution failed (${tzErr.message}) — trying snapshot row`);
+          }
+        }
+        if (!driverTimezone && snapshot?.timezone) {
+          driverTimezone = snapshot.timezone;
+          timezoneSource = 'snapshot';
+          console.log('[HOOKS] Timezone from current snapshot row');
         }
         if (!driverTimezone) {
           console.error(
             `[HOOKS] ❌ No timezone derivable (coords: ${lat && lng ? 'present but API failed' : 'absent'}, ` +
+            `pickup address: ${pickupAddr ? (pickupPoint ? 'resolved but Timezone API failed' : 'unresolvable (no trusted geocode/place)') : 'absent'}, ` +
             `user: ${userId ? 'tokened but no session snapshot' : 'un-tokened device'}) — offer NOT stored. ` +
             'No fallbacks: a row without real local-time context is bad waterfall data.'
           );
           return; // fire-and-forget scope — refuse the INSERT; the decision was already delivered
         }
+        mergedParsedData.timezone_source = timezoneSource;
 
         const now = new Date();
         const localHour = getLocalHour(now, driverTimezone);
@@ -773,6 +886,55 @@ PRE-PARSED DATA (server-verified):
         } catch (seqErr) {
           console.warn(`[HOOKS] Session tracking failed (non-fatal): ${seqErr.message}`);
         }
+
+        // 2026-07-03 (todo #10): the pings/patterns dataset — geography audit of the
+        // resolved pickup/dropoff points against the driver's avoid rules. Vision said its
+        // piece in Phase 1; geometry gets the audit row. Disagreements between the two
+        // are exactly the training signal. Only TRUSTED, PRECISE points enter (resolveCardPoints):
+        // live case 2026-08-17, an untrusted "Main St & 1st Ave" → West Haven, CT would
+        // otherwise have produced a spurious geo_violated=true.
+        // Only PRECISE points become coordinates / audit inputs (a locality centroid may source
+        // the timezone above but is not a doorstep).
+        const round6 = (n) => Math.round(n * 1000000) / 1000000;
+        const pickupPt = pickupPoint?.precise ? { lat: round6(pickupPoint.lat), lng: round6(pickupPoint.lng) } : null;
+        const dropPt = dropoffPoint?.precise ? { lat: round6(dropoffPoint.lat), lng: round6(dropoffPoint.lng) } : null;
+        if ((pickupPoint && !pickupPt) || (dropoffPoint && !dropPt)) {
+          console.log(`[HOOKS] Area-level point(s) kept out of coords/audit: ${[pickupPoint && !pickupPt ? `pickup → ${pickupPoint.formatted_address}` : null, dropoffPoint && !dropPt ? `dropoff → ${dropoffPoint.formatted_address}` : null].filter(Boolean).join('; ')}`);
+        }
+        if (pickupPt || dropPt) {
+          const geoAudit = (ruleset.avoid || []).length
+            ? evaluateGeoRules(ruleset, { pickup: pickupPt, dropoff: dropPt })
+            : null;
+          const geoViolated = geoAudit?.some((r) => r.result === 'violated') ?? false;
+          Object.assign(mergedParsedData, {
+            geo_audit: geoAudit,
+            geo_violated: geoViolated,
+            geo_disagreement: geoAudit ? (geoViolated && dbDecision === 'ACCEPT') : null,
+          });
+        } else if (pickupAddr || dropoffAddr) {
+          console.warn(`[HOOKS] No trusted point for either card address (pickup="${pickupAddr || ''}", dropoff="${dropoffAddr || ''}") — stored as text only`);
+        }
+        // Resolution provenance for every stored row (audit + analytics filters).
+        Object.assign(mergedParsedData, {
+          pickup_place_id: pickupPoint?.place_id ?? null,
+          dropoff_place_id: dropoffPoint?.place_id ?? null,
+          pickup_geo_via: pickupPoint?.via ?? null,       // 'geocode' | 'places' | null
+          pickup_geo_trust: pickupPoint?.trust ?? null,   // 'exact' | 'exact_near' | 'card_city' | 'places_near' | null
+          pickup_geo_corroboration: pickupPoint?.corroboration ?? null, // 'anchor' | 'other_address'
+          pickup_geo_precise: pickupPoint ? pickupPoint.precise : null,
+          pickup_anchor_distance_mi: pickupPoint?.distance_mi ?? null,
+          dropoff_geo_via: dropoffPoint?.via ?? null,
+          dropoff_geo_trust: dropoffPoint?.trust ?? null,
+          dropoff_geo_corroboration: dropoffPoint?.corroboration ?? null,
+          dropoff_geo_precise: dropoffPoint ? dropoffPoint.precise : null,
+          dropoff_anchor_distance_mi: dropoffPoint?.distance_mi ?? null,
+          anchor_source: geoBias ? ((lat && lng) ? 'gps' : 'snapshot') : null,
+          anchor_age_hours: geoBias ? Math.round((geoBias.ageHours ?? 0) * 10) / 10 : null,
+          pickup_partial_match: puGeo ? puGeo.partial_match : null,   // raw Geocoding flags
+          dropoff_partial_match: drGeo ? drGeo.partial_match : null,
+          pickup_location_type: puGeo?.location_type ?? null,          // ROOFTOP … APPROXIMATE (a route/locality centroid is not a doorstep)
+          dropoff_location_type: drGeo?.location_type ?? null,
+        });
 
         // 2026-02-28: INSERT with Phase 2 deep data (or Phase 1 fallback)
         // ai_model records which model actually provided the stored analysis
@@ -818,6 +980,14 @@ PRE-PARSED DATA (server-verified):
           h3_index: h3Index,
           market,
 
+          // Card addresses resolved above (trusted place_id + 6-decimal coords). 2026-08-17:
+          // written in the INSERT (was a follow-up UPDATE) — the row is complete when pg_notify fires.
+          pickup_lat: pickupPt?.lat ?? null,
+          pickup_lng: pickupPt?.lng ?? null,
+          dropoff_lat: dropPt?.lat ?? null,
+          dropoff_lng: dropPt?.lng ?? null,
+          geocoded_at: (pickupPt || dropPt) ? new Date() : null, // a TRUSTED point resolved (idx_oi_need_geocode stays true otherwise)
+
           // Temporal — 2026-04-16: now timezone-aware (was UTC)
           local_date: localDate,
           local_hour: localHour,
@@ -850,7 +1020,7 @@ PRE-PARSED DATA (server-verified):
         }).returning({ id: offer_intelligence.id });
         const insertedId = inserted?.[0]?.id ?? null;
 
-        console.log(`[HOOKS] Saved: ${dbDecision} (Phase1: ${responseTimeMs}ms, Phase2: ${Date.now() - phase2Start}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [ai_model: ${aiModelUsed}]`);
+        console.log(`[HOOKS] Saved: ${dbDecision} (Phase1: ${responseTimeMs}ms, Phase2: ${Date.now() - phase2Start}ms) — $${mergedParsedData?.price || '?'} / ${mergedParsedData?.total_miles || mergedParsedData?.miles || '?'}mi = $${perMileValue || '?'}/mi [ai_model: ${aiModelUsed}] [tz: ${driverTimezone} via ${timezoneSource}] [points: pickup=${pickupPoint?.via ?? 'none'} dropoff=${dropoffPoint?.via ?? 'none'}${mergedParsedData.geo_audit ? ` geo_violated=${mergedParsedData.geo_violated}` : ''}]`);
 
         // SSE broadcast for web app
         const notifyPayload = JSON.stringify({
@@ -866,57 +1036,6 @@ PRE-PARSED DATA (server-verified):
           ai_model: aiModelUsed,
         });
         await db.execute(sql`SELECT pg_notify('offer_analyzed', ${notifyPayload})`);
-
-        // 2026-07-03 (todo #10): the pings/patterns dataset. Geocode the extracted
-        // pickup/dropoff addresses (place_id + 6-decimal coords — the columns and
-        // idx_oi_need_geocode index have waited for this since 2026-02), then run
-        // the deterministic geography audit against the driver's avoid rules.
-        // Non-fatal by design: the offer row is already saved; a geocode failure
-        // must never delete data (fail loud in the log, not in the pipeline).
-        if (insertedId && (dbParsedData?.pickup || dbParsedData?.dropoff)) {
-          try {
-            const round6 = (n) => Math.round(n * 1000000) / 1000000;
-            const [puGeo, drGeo] = await Promise.all([
-              dbParsedData?.pickup ? geocodeEventAddress(dbParsedData.pickup) : null,
-              dbParsedData?.dropoff ? geocodeEventAddress(dbParsedData.dropoff) : null,
-            ]);
-            if (puGeo || drGeo) {
-              const pickupPt = puGeo ? { lat: round6(puGeo.lat), lng: round6(puGeo.lng) } : null;
-              const dropPt = drGeo ? { lat: round6(drGeo.lat), lng: round6(drGeo.lng) } : null;
-
-              // Vision said its piece in Phase 1; geometry gets the audit row.
-              // Disagreements between the two are exactly the training signal.
-              const geoAudit = (ruleset.avoid || []).length
-                ? evaluateGeoRules(ruleset, { pickup: pickupPt, dropoff: dropPt })
-                : null;
-              const geoViolated = geoAudit?.some((r) => r.result === 'violated') ?? false;
-              const auditJson = JSON.stringify({
-                geo_audit: geoAudit,
-                geo_violated: geoViolated,
-                geo_disagreement: geoAudit ? (geoViolated && dbDecision === 'ACCEPT') : null,
-                pickup_place_id: puGeo?.place_id ?? null,
-                dropoff_place_id: drGeo?.place_id ?? null,
-              });
-
-              await db.execute(sql`
-                UPDATE offer_intelligence SET
-                  pickup_lat = ${pickupPt?.lat ?? null},
-                  pickup_lng = ${pickupPt?.lng ?? null},
-                  dropoff_lat = ${dropPt?.lat ?? null},
-                  dropoff_lng = ${dropPt?.lng ?? null},
-                  geocoded_at = NOW(),
-                  parsed_data_json = COALESCE(parsed_data_json, '{}'::jsonb) || ${auditJson}::jsonb,
-                  updated_at = NOW()
-                WHERE id = ${insertedId}
-              `);
-              console.log(`[HOOKS] 📍 Geocoded offer ${insertedId}: pickup=${!!puGeo} dropoff=${!!drGeo}${geoAudit ? ` geo_violated=${geoViolated}` : ''}`);
-            } else {
-              console.warn(`[HOOKS] Geocoding returned nothing for offer ${insertedId} (pickup="${dbParsedData?.pickup || ''}", dropoff="${dbParsedData?.dropoff || ''}")`);
-            }
-          } catch (geoErr) {
-            console.error(`[HOOKS] Offer geocode/audit failed (non-fatal): ${geoErr.message}`);
-          }
-        }
       } catch (err) {
         console.error(`[HOOKS] Phase 2 background error: ${err.message}`);
       }

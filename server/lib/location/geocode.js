@@ -81,9 +81,10 @@ export async function geocodeAddress(address) {
  * Get timezone for coordinates using Google Time Zone API
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
+ * @param {{signal?: AbortSignal}} [opts]
  * @returns {Promise<string | null>} IANA timezone string
  */
-export async function getTimezoneForCoords(lat, lng) {
+export async function getTimezoneForCoords(lat, lng, opts = {}) {
   if (!GOOGLE_MAPS_API_KEY) {
     return null;
   }
@@ -92,8 +93,10 @@ export async function getTimezoneForCoords(lat, lng) {
     const timestamp = Math.floor(Date.now() / 1000);
     const url = `https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${timestamp}&key=${GOOGLE_MAPS_API_KEY}`;
 
-    const response = await fetch(url);
+    // 2026-08-17: optional AbortSignal (e.g. AbortSignal.timeout) — the Offer Analyzer bounds this call.
+    const response = await fetch(url, opts?.signal ? { signal: opts.signal } : undefined);
     if (!response.ok) {
+      console.warn(`[LOCATION] [GEOCODE] Timezone API HTTP ${response.status} for ${lat},${lng}`);
       return null;
     }
 
