@@ -138,7 +138,8 @@ Siri translation hook).
 | Concern | Value | Source |
 |---|---|---|
 | Auth | **None required** (token-optional; see §7). Bot-blocker allow-lists `/api/hooks*`. | `bot-blocker.js:160-165` |
-| Rate limit | `offerHookLimiter`: 20 req/min keyed by `ip + (x-shortcut-token \| shortcut_token \| device_id \| 'unknown')`; 429 body `{ ok:false, error:'Offer analysis rate limit exceeded. Please wait a moment.' }` | `rate-limit.js:56-68` |
+| Rate limit | `offerHookLimiter`: 20 req/min keyed by `ip + (x-shortcut-token \| shortcut_token \| device_id \| 'unknown')`; 429 body `{ ok:false, error:'Offer analysis rate limit exceeded. Please wait a moment.' }`. Since 2026-08-17 multer runs **before** the limiter so a multipart `device_id` keys its own bucket (untokened multipart used to share one per-IP bucket behind carrier NATs); a multipart that multer rejects (oversize → 413, bad part) therefore never reaches this bucket — only the global per-IP limiter counts it, the same class as `express.json`, which has always parsed before this limiter. | `rate-limit.js:56-68`, `analyze-offer.js` route |
+| **Idempotency** (2026-08-17) | Fingerprint = sha256(**who**: token › `device_id` › ip, **+ which rules**: ruleset hash or `default`, **+ what**: whitespace-normalized text and/or the image base64 as sent) — coordinates and `source` excluded. An identical request inside **60 s** replays the first Phase-1 JSON (`duplicate:true` added; Phase 1 **and** Phase 2 skipped — one row, one notify, one set of model/Google calls) or **joins** an in-flight original (≤30 s) and gets the same answer the moment it exists. Only **authoritative** answers are cached: when the model timed out / failed / replied unusably and the engine answered, the entry is dropped so a re-send gets a fresh try; a 500 is never replayed. A rules edit changes the hash → the same card is a **new** analysis (the test-before-you-drive loop). **Honest scope:** this recognizes *byte-identical* re-sends — a network-level retry, MacroDroid's saved file, a share-sheet re-run of the same image, the smoke script; a Shortcut **re-run** takes a **new** screenshot (new bytes) and the text lane's OCR can differ across a status-bar minute, so a double Back Tap is usually two distinct payloads. Per instance; the **storage-level guard** (`parsed_data_json.request_hash` + `request_at`, same driver, request-to-request ≤ 60 s, under the session lock, §10.5) covers duplicates that land on different Cloud Run instances. | `server/lib/offers/request-dedup.js`, `analyze-offer.js` "IDEMPOTENCY GATE" |
 | Body parsers | `express.json({limit:'5mb'})`, `express.urlencoded({extended:true, limit:'5mb'})` (Form bodies with only text fields ship as urlencoded — mounted 2026-08-14) **and** `express.raw({ type: ['image/*','application/octet-stream'], limit:'5mb' })` (raw image body — mounted 2026-08-17 for MacroDroid "Content Body: File"; patch authored in the Cowork session) on `/api/hooks` | `bootstrap/middleware.js` |
 | Multipart | `multer.memoryStorage()`, `fileSize` 5 MB, `upload.single('image')` | `analyze-offer.js` |
 | Content types accepted | `application/json`, `application/x-www-form-urlencoded`, `multipart/form-data` (file part named `image`), **`image/*` or `application/octet-stream` raw body** (the body *is* the screenshot; type sniffed from magic bytes — PNG/JPEG/WebP/GIF; `source`, `device_id`, `latitude`, `longitude` ride as **query params**, token in the `X-Shortcut-Token` header or `?shortcut_token=`) | — |
@@ -191,7 +192,8 @@ Field contracts:
 | `decision` | Machine value: `ACCEPT` / `REJECT` / `NO DATA` (the FALLBACK label is display-only) |
 | `reason` | Terse reason, e.g. `"$1.14 8.3mi"`, `"$0.78 14.0mi low"`, `"$1.05 18.0mi floor prem"`, `"share"`, `"no data"` |
 | `notices` | Up to 4 strings ≤40 chars from `NOTICE_LABELS`: `Verified Rider`, `Filter Detected`, `Deadhead Reduction Pickup` — empty unless the driver enabled them |
-| `response_time_ms` | Wall-clock from arrival to `res.json()` |
+| `response_time_ms` | Wall-clock from arrival to `res.json()` (on a replay: this request's own wall-clock, typically 0-3 ms) |
+| `duplicate` | `true` only on a replayed/joined answer (§4.1 idempotency) — the payload is otherwise the first request's Phase-1 JSON verbatim. Absent on a fresh analysis. |
 
 ### 4.4 Companion hook endpoints (token-REQUIRED)
 
@@ -247,8 +249,10 @@ Control flow in `analyze-offer.js` (line refs at commit `97cd2d3b`):
     `Offer text: "…"`; or `Analyze this ride offer screenshot.` for image-only.
     JSON extraction via `parseModelJson` (`server/lib/offers/parse-model-json.js`): strip
     fences → `JSON.parse` (unwraps `parsed_data`) → slice first `{` … last `}` → **repair a
-    missing closing brace** (live-observed on gemini-3.5-flash, 7/42 calls) → else
-    deterministic. Then the **honest-floor guard**: a parsed reply with no `decision`, or with
+    missing closing brace** (live-observed on gemini-3.5-flash, 7/42 calls) → **trim a
+    surplus closing brace** (string-aware balanced scan; live-observed on gemini-3.1-pro
+    Phase 2, 1/3 calls, 2026-08-17 — before this tier the deep result and the card
+    addresses were lost) → else deterministic. Then the **honest-floor guard**: a parsed reply with no `decision`, or with
     all-zero `per_mile`/`total_miles`/`price` ("no ride"), also goes to the deterministic
     engine. Any model failure/timeout/non-success → deterministic. **The rules always answer.**
 12. **Deterministic answer-of-last-resort** (`deterministicPhase1`, `:333-350`):
@@ -608,18 +612,52 @@ via `shared/dayparts.js` (re-export shim `server/lib/location/daypart.js`).
 > within a ride length — the common two-address Uber card). Nothing is ever stored on a
 > guessed geocode (§10.6).
 
-### 10.5 Session bucketing and INSERT
+### 10.5 Session bucketing and INSERT (one locked transaction since 2026-08-17)
 
 Session chain: by `user_id` when tokened; else by `device_id` where `user_id IS NULL`;
 else fresh. Same session if ≤1800 s since the previous offer; `offer_sequence_num`
 increments; `seconds_since_last` recorded.
 
+Since 2026-08-17 (race review finding #3) the last-offer read, the INSERT and the NOTIFY run
+in **one `db.transaction`** under a per-driver advisory lock
+`pg_advisory_xact_lock(hashtext('offer_session'), hashtext('user:<id>' | 'device:<id>'))`
+— held for milliseconds (every model/Google call is finished by then), released at COMMIT.
+Two Phase-2s for one driver in flight together used to read the same "last offer" and both
+write `offer_sequence_num = N+1` (the index is not unique; the Coach's pattern mining reads
+this field). Inside the same lock, the **storage-level duplicate guard**: a row for this
+scope with the same `parsed_data_json.request_hash` whose `parsed_data_json.request_at`
+(Phase-1 arrival, epoch ms) is within 60 s of this request's arrival → `Duplicate at
+storage … no second row, no second notify` (the cross-instance half of §4.1 idempotency).
+It compares **request** times, not `created_at` — Phase 2 delays storage by 5-45 s (live
+test: a re-send at 55 s was stored 63 s after the first row and slipped past a
+`created_at` window); a 120 s `created_at` bound keeps the lookup on the index. Rows are
+inserted with `created_at = clock_timestamp()` (statement time, i.e. **after** the lock —
+the default `now()` is transaction-begin time, and a transaction that began first but locked
+second would carry an older timestamp than the row sequenced before it, letting the next
+"last offer" read re-issue a sequence number). A transient connection error inside the
+transaction is retried once on a fresh client — classified through Drizzle's wrapper
+(`err.cause.code`, or a codeless "not queryable / Connection terminated" cause, which is
+what a mid-transaction 57P01 actually surfaces as; `db.transaction` bypasses the pool-level
+retry). `connection-manager.js` now attaches an `'error'` listener to every pool client on
+connect: a checked-out client had none, so a 57P01 mid-transaction was an unhandled
+`'error'` → `uncaughtException` → process exit (verified live with `pg_terminate_backend`
+on our own backend: logged, retried, process alive). Untokened **and** deviceless requests have no scope: fresh session, no storage guard
+(the in-memory gate still applies).
+
 INSERT into `offer_intelligence` (§11.1) with `source` (verbatim), `input_mode`
 (`'vision'` if any image else `'text'`), `raw_text` (`text` or `"[Vision: NKB image]"`
 using the **original** size), `raw_ai_response` (Phase 2 text else Phase 1), provenance
-stamps, `response_time_ms` (Phase-1 latency). Then
+stamps (incl. `parsed_data_json.request_hash`), `response_time_ms` (Phase-1 latency). Then
 `pg_notify('offer_analyzed', { device_id, user_id, offer_id, decision, reasoning, price,
-per_mile, platform, response_time_ms, ai_model })`.
+per_mile, platform, response_time_ms, ai_model })` — issued inside the transaction, so
+Postgres delivers it at COMMIT and the row is visible when the OffersCard refetches
+(`reasoning` is truncated to 1000 chars in the payload: NOTIFY caps at 8000 bytes and an
+oversize payload would roll the INSERT back).
+
+**Google memos (2026-08-17, cost):** Phase 2 memoizes successful geocode results (10 min,
+keyed by string + 2-decimal anchor cell), Places results (same) and Timezone-API answers
+(12 h, 4-decimal ≈10 m cells) in bounded in-process maps; a round-trip card (pickup == dropoff
+string) geocodes once. Only real answers are remembered — a null may be a transient failure.
 
 ### 10.6 Card-address resolution + geo audit (before the INSERT since 2026-08-17)
 
@@ -747,8 +785,8 @@ executors (todo #38) — the analyzer never writes it.
 | Method | Route | Behavior |
 |---|---|---|
 | GET | `/rules` | `{ config (migrated v3), version, hash, is_default }`; defaults when no row |
-| PUT | `/rules` `{ config }` | `migrateRuleset` → Zod `validateRuleset` (422 `{ error:'Invalid ruleset', details:[…] }`) → upsert (`version = version + 1` on conflict) → `invalidateUser` → `{ success, version, hash }` |
-| GET | `/shortcut-token` | get-or-create → `{ token, created_at, device_label }` (404 if no driver profile) |
+| PUT | `/rules` `{ config, expected_version? }` | `migrateRuleset` → Zod `validateRuleset` (422 `{ error:'Invalid ruleset', details:[…] }`) → upsert (`version = version + 1` on conflict) → `invalidateUser` → `{ success, version, hash, config }` (canonical stored config). **Optimistic concurrency (2026-08-17):** when `expected_version` is present (the version the editor loaded; `null` = "no saved row yet") the update applies only if the stored version still matches (`IS NOT DISTINCT FROM`), else **409** `{ error:'version_conflict', message, current:{ config, version, hash } }` — never last-write-wins across tabs/devices. Absent → unconditional (older clients). Anything but a JSON non-negative int4 or `null` → 400 (no coercion). |
+| GET | `/shortcut-token` | get-or-create → `{ token, created_at, device_label }` (404 if no driver profile). Mint writes only into a still-NULL slot (`… AND shortcut_token IS NULL RETURNING`); a raced second request returns the winner's token instead of overwriting it (2026-08-17). |
 | POST | `/shortcut-token/regenerate` | rotate → `{ token, created_at }`; old token dead immediately |
 | POST | `/shortcut-token/label` `{ label }` | ≤80 chars, display only → `{ success, device_label }` |
 | GET | `/offers?limit=25` (≤100) | my `offer_intelligence` LEFT JOIN `offer_outcomes` → `{ success, stats:{ analyzed, analyzer_accepted, analyzer_rejected, driver_accepted, disagreements, realized_total }, offers:[…] }` |
@@ -772,9 +810,16 @@ Route `client/src/routes.tsx:196` (under `/co-pilot`, ProtectedRoute); hamburger
 | `LimitsCard` | `global.pickup_limits`, `global.time_limit` (+ ARP threshold) |
 | `GeographyCard` | `avoid[]` via `GET /places/search` → place pick → mode / radius / corridor / enable |
 | `VisionRulesCard` | `global.safety_road_types`, `global.commercial_staging`, `global.notices` |
-| `OffersCard` | `GET /offers`, live refetch on SSE `offer_analyzed`, per-offer "What did you do?" select (never pre-selected; a *Followed the call* option resolves to our recommendation at click time) + earnings form (shown for Accepted/Completed; cleared when switching to Rejected/Cancelled) → `POST /offers/:id/outcome`; stats row |
+| `OffersCard` | `GET /offers`, live refetch on SSE `offer_analyzed` **and** on the server's `state` handshake at every SSE (re)connect (skipped when the newest id is already shown; `refetch({ cancelRefetch:false })` joins an in-flight fetch), `refetchOnWindowFocus:true` (was `false` — the tab is backgrounded while the Shortcut runs from the Uber app), per-offer "What did you do?" select (never pre-selected; a *Followed the call* option resolves to our recommendation at click time) + earnings form (shown for Accepted/Completed; cleared when switching to Rejected/Cancelled) → `POST /offers/:id/outcome`; stats row |
 
-Rules save is an explicit sticky **Save** (react-hook-form + Zod), not autosave. Keys with
+Rules save is an explicit sticky **Save** (react-hook-form + Zod), not autosave. The PUT
+carries `expected_version` (what the page loaded); a **409** loads the stored rules from
+the 409 body's `current` and tells the driver to re-apply (their local edits are dropped,
+never silently written over another tab's save); on success the editor takes the PUT's
+canonical `config`/`version` directly (no second GET) — `form.reset(config)`, or
+`reset(config, { keepValues:true })` if anything was edited while the save was in flight
+(toast says to Save again). Enter inside any single-line input no longer submits the form
+(form-level guard). Keys with
 **no UI control** today: `basis` (always `full_ride` from the client defaults),
 `tier_products`, `geo` scope overrides, `home` — the last three are inert server-side too
 (roadmap L6).
@@ -789,8 +834,23 @@ input (roadmap).
 `GET /events/offers` (`requireAuthAllowQueryToken`) subscribes to PG channel
 `offer_analyzed` and forwards **only payloads whose `user_id` equals the connection
 owner** (anonymous rows reach no one; unparseable payloads dropped loudly). Event name
-`offer_analyzed`. Client: `subscribeOfferAnalyzed()` (`co-pilot-helpers.ts:290-295`) →
+`offer_analyzed`. Client: `subscribeOfferAnalyzed()` (`co-pilot-helpers.ts`) →
 `OffersCard` refetch.
+
+**Initial-state handshake (2026-08-17, like the strategy/briefing/blocks streams since F2):**
+right after subscribing, the route emits `event: state` with
+`{ offer_id, created_at, handshake:true }` = the owner's newest stored offer (nothing when
+they have none). The client SSE manager forwards `state` to the same subscriber callback,
+so a stream that was down while an offer landed (backgrounded tab → iOS drops the
+`EventSource` → browser auto-reconnect) refetches immediately on return.
+
+**LISTEN client (`server/db/db-client.js`, 2026-08-17):** the fresh-connect path now
+re-LISTENs every surviving channel and re-attaches the dispatcher (before: after a dropped
+client, *every* SSE stream — offers, strategy, briefing, blocks — stayed deaf, including brand-new
+subscribers, until a process restart), and after `reconnectWithBackoff` exhausts its 5 retries
+a 30 s slow retry keeps trying while anyone is subscribed (one log line per outage). The
+dispatcher is attached **per client** (WeakSet) and ignores a client that is no longer the
+current one — a reconnect overlapping a fresh connect can never deliver a NOTIFY twice.
 
 ---
 
@@ -910,7 +970,8 @@ pass with the same 7 pre-existing failing suites as baseline (todo #19 debt).
 | `tests/offers/rules-engine-v3.test.js` | v3 gates from the verbatim spec (pickup/time limits, ARP semantics, comfort/xl routing, avoid rendering, migrateRuleset, geo audit) |
 | `tests/offers/normalize-offer-body.test.js` | alias table behavior (canonical wins, case-insensitive, warn list) |
 | `tests/offers/downscale-offer-image.test.js` | threshold, fail-open, no-grow rule |
-| `tests/offers/parse-model-json.test.js` | the three parse tiers incl. the missing-closing-brace repair; `unwrap:false` envelope mode |
+| `tests/offers/parse-model-json.test.js` | the four parse tiers incl. the missing- and surplus-closing-brace repairs; `unwrap:false` envelope mode |
+| `tests/offers/request-dedup.test.js` | idempotency primitives: fingerprint (whitespace-insensitive text, image bytes, identity), claim/join/replay, TTL expiry, failures never replayed, bounded map, TTL memo |
 | `scripts/offer-analyzer-smoke.mjs` | manual smoke against any deployment: `BASE=… TOKEN=vp_… IMAGE=… node scripts/offer-analyzer-smoke.mjs` — prints decision / voice / notification / server ms / wall ms for text + vision (replaced the stale `tests/integration/test-ocr-hook.js` 2026-08-17) |
 
 ---
@@ -927,7 +988,7 @@ pass with the same 7 pre-existing failing suites as baseline (todo #19 debt).
 | `server/lib/offers/parse-offer-text.js` | regex pre-parser, canonical products, `PREMIUM_PRODUCTS`, `formatPerMileForVoice` |
 | `server/lib/offers/normalize-offer-body.js` | body-key alias table |
 | `server/lib/offers/downscale-offer-image.js` | 820 px JPEG downscale (sharp), fail-open |
-| `server/lib/offers/parse-model-json.js` | tolerant model-reply parser (3 tiers) used by Phase 1 and Phase 2 |
+| `server/lib/offers/parse-model-json.js` | tolerant model-reply parser (4 tiers) used by Phase 1 and Phase 2 |
 | `server/api/offer-analyzer/index.js` | authed editor API |
 | `server/api/strategy/strategy-events.js` | SSE `/events/offers` |
 | `server/lib/ai/model-registry.js` | `OFFER_ANALYZER`, `OFFER_ANALYZER_DEEP` |
@@ -966,6 +1027,7 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 | 2026-08-11 | — | Hook read/mutate endpoints token-required + user-scoped; `offerHookLimiter`; session chain by user (commit `f005c634`) |
 | 2026-08-14 | — | Body alias table (`normalize-offer-body.js`); `express.urlencoded` on `/api/hooks`; **<3s sprint**: MINIMAL thinking + 1024 tokens, deterministic fast REJECT lane, image downscale (commit `cd8329da`) |
 | 2026-08-17 | 3.0 | This rewrite; plan/design docs merged and retired |
+| 2026-08-17 | 3.4 | **Race/duplicate hardening** (Melody: "take the lead — we need this app really sharp"): idempotency gate + storage-level duplicate guard (§4.1/§10.5); session read + INSERT + NOTIFY in one advisory-locked transaction (§10.5); `/events/offers` `state` handshake + OffersCard focus/reconnect refetch (§13/§14); LISTEN client fresh-connect resubscribe + slow retry (§14); PUT `/rules` `expected_version` → 409 + canonical config in the response, editor keeps in-flight edits (§12/§13); shortcut-token mint race; multer before the limiter; ruleset-cache stale-repopulate guard; Google memos; form-level Enter-key guard; **`parse-model-json` tier 4** (surplus closing brace — a live Phase-2 failure mode that was dropping the deep result and card addresses). |
 | 2026-08-17 | 3.3 | **Raw image body mode** (`image/*` / `application/octet-stream`, fields as query params — MacroDroid "Content Body: File"; Cowork-authored patch, applied + hardened: magic-byte sniff, octet-stream, spoken 413 for raw *and* multipart oversize, `?shortcut_token=` parity). Verified live: raw PNG → ACCEPT stored `source=android_vision input_mode=vision`; octet-stream sniffed; blank image → NO DATA; 6 MB → 413 with voice |
 | 2026-08-17 | 3.2 | **Timezone from the pickup address** (Melody: first address on the card; "get details like we do for venues"): GPS → pickup point → snapshot → don't store; card addresses resolved once to trusted points = geocode class **plus physical corroboration** (anchor plausibility 60 mi + 75 mph × age, else the venue Places adapter ≤ 60 mi with kind + name checks; no anchor → pickup and dropoff must corroborate each other), placeholders filtered, contradictions refused, precise-only coordinates, 8 s bounded fetches, written in the INSERT with full provenance in `parsed_data_json`. Two adversarial review passes (31 raw findings) folded in |
 | 2026-08-17 | 3.1 | Live model bench → `OFFER_ANALYZER` default `gemini-3.5-flash-lite`; temperature 0.1 honored; 503 retry pinned; `parse-model-json.js` (repair tier); honest-floor guard; **vision arbitration** (engine owns numeric rules on extracted numbers; `judgment_reject` + `rating` in the vision template); **D4 sliders-only Rate Targets** (ladder editor removed; derived single rung; per-tier `max_total_miles`; `$/hr` telemetry) |
@@ -994,3 +1056,9 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 **Claude-authored, adopted (2026-07-03):** two-lane engine; write-strict / read-fail-open
 posture with NULL-hash visibility; decision = spoken; ARP-defers-floors semantics; ON
 DELETE RESTRICT on user FKs; token format.
+
+**Claude-authored, adopted (2026-08-17, Melody: "take the lead"):** an identical request
+inside 60 s (105 s at storage) is ONE offer — replayed, never re-analyzed or re-stored;
+per-driver session sequencing is serialized by an advisory lock; rules saves are
+optimistic-concurrency (409 on a stale `expected_version`), never last-write-wins across
+devices; a 409 drops the local edits and reloads (honest, re-apply) rather than merging.

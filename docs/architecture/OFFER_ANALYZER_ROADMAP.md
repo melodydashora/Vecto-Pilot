@@ -181,6 +181,21 @@ longer optional `voice_long`. Decision: Melody (does the 3-second window want mo
   (`cce34c…`) ≠ the 2026-08-14 decoded shortcut (`6d89f1…`); "Location (While Using)"
   and "Hey Siri, Analyze 2" wording predate the canonical spec.
 
+### L8b — Race / duplicate hardening — **DONE 2026-08-17** (Melody: "take the lead — we need this app really sharp")
+Six-reader adversarial review of the shortcut + Offer Analyzer surfaces (32 raw findings)
+→ five confirmed concerns, all fixed the same day and live-verified on a disposable boot
+(OFFER_ANALYZER.md §4.1 idempotency, §10.5 locked transaction, §12 PUT versioning, §13/§14
+handshake + LISTEN client). What is **left open** from that review, by design (todo #56):
+- Phase-1/2 timeouts abandon the model call instead of cancelling it (`callModel` has no
+  AbortSignal on the non-stream path; still billed; a 503 retry can start after we gave up).
+- `POST /offers/:id/outcome` is a full-column upsert from the last-fetched row — a second
+  tab can revert earnings (needs partial-update semantics client + server).
+- Duplicates on different Cloud Run instances are caught only at storage (the in-memory
+  gate is per instance): both instances still pay Phase 1 + Phase 2 model calls.
+- Design choice recorded: an identical request from the same driver inside 60 s (105 s at
+  storage) is treated as ONE offer — if Uber ever re-offers a byte-identical card that fast,
+  it is stored once.
+
 ### L9 — Phase-2 verdict never reaches the driver
 Long-standing (since 2026-02). The deep model's dissent is stored, and the web page shows
 the row, but nothing pushes back to the phone. Realistic path: the native shell (§3) or
