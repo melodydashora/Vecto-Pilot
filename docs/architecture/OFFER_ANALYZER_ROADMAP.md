@@ -159,8 +159,8 @@ longer optional `voice_long`. Decision: Melody (does the 3-second window want mo
   the registry; make it enforced only if a non-vision env override ever bites.
 - `min_floor` reason kind (`"… min"`) has no spoken qualifier in `buildVoiceLine`.
 - `deadhead_reduction` notice is undetectable on the text lane (map visual) — expected.
-- `tests/integration/test-ocr-hook.js` expects `data.analysis.decision` — the response has
-  top-level `decision`/`reason`; not collected by jest. Update or delete.
+- ~~`tests/integration/test-ocr-hook.js` stale~~ **DONE 2026-08-17** — replaced by
+  `scripts/offer-analyzer-smoke.mjs` (text + vision against any BASE/TOKEN).
 - Stale comments (comment-hygiene, todo #36 — ride along with the next code touch):
   `model-registry.js:336-349` still narrates HIGH thinking + old `analyze-offer.js` line
   anchors; `gemini-adapter.js:71` thinking-level list omits `minimal`;

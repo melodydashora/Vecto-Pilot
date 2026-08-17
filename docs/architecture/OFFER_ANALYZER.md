@@ -840,7 +840,7 @@ pass with the same 7 pre-existing failing suites as baseline (todo #19 debt).
 | `tests/offers/normalize-offer-body.test.js` | alias table behavior (canonical wins, case-insensitive, warn list) |
 | `tests/offers/downscale-offer-image.test.js` | threshold, fail-open, no-grow rule |
 | `tests/offers/parse-model-json.test.js` | the three parse tiers incl. the missing-closing-brace repair; `unwrap:false` envelope mode |
-| `tests/integration/test-ocr-hook.js` | manual script against a running server (not collected by jest). **Stale**: expects `data.analysis.decision`; the response has top-level `decision`/`reason` (roadmap L8) |
+| `scripts/offer-analyzer-smoke.mjs` | manual smoke against any deployment: `BASE=… TOKEN=vp_… IMAGE=… node scripts/offer-analyzer-smoke.mjs` — prints decision / voice / notification / server ms / wall ms for text + vision (replaced the stale `tests/integration/test-ocr-hook.js` 2026-08-17) |
 
 ---
 
