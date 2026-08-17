@@ -182,11 +182,12 @@ router.post('/analyze-offer', offerHookLimiter, upload.single('image'), async (r
     // Multipart: req.file has the image buffer, req.body has text fields
     // JSON: req.body has everything including base64 image string
     //
-    // 2026-08-14 (Melody: "I don't want you to have to tell end users to spell
-    // latitude correctly"): field names pass through the deterministic alias
-    // table first (normalize-offer-body.js). This SUPERSEDES the 2026-07-03
-    // one-off 'lattitude' patch that lived here — same fail-loud contract
-    // (every remap warn-logged), generalized to all enumerated variants.
+    // 2026-08-14: field names pass through the deterministic alias table
+    // (normalize-offer-body.js) so a hand-built shortcut still gets an answer.
+    // A safety net, not silence — a wrong key on a known shortcut is something to
+    // TELL the owner about (Melody 2026-08-17: "fix me first"). Supersedes the
+    // 2026-07-03 one-off 'lattitude' patch; same fail-loud contract (every remap
+    // warn-logged), generalized to all enumerated variants.
     const { body: offerBody, remapped } = normalizeOfferBody(req.body);
     if (remapped.length) {
       console.warn(`[HOOKS] Field aliases accepted: ${remapped.join(', ')} — update the Shortcut key names`);

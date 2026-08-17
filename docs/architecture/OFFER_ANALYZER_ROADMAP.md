@@ -230,6 +230,16 @@ wish, not a maybe** (preset slider ranges so drivers never type bad data — L2)
 
 ---
 
+## 4b · Things on Melody's end (she asked to be told — "fix me first")
+
+| # | Item | Why it matters |
+|---|---|---|
+| M1 | Prod Replit Secret `OFFER_ANALYZER_MODEL` — set to `gemini-3.5-flash-lite` or remove it | An env pin overrides the registry default; otherwise prod stays on 3.5-flash |
+| M2 | Rebuild the iPhone shortcuts per `SIRI_SHORTCUT_ANALYZE.md` under their real names (**Analyze Offer Text** / **Analyze Offer Vision**), with `source` = `siri_text` / `siri_vision` and the token in Headers; then share the two iCloud links | The live shortcut was still the test-named "Analyze 2" (text-only, `lattitude` in body); the SetupCard refresh (L3) needs the links |
+| M3 | Open the Rate Targets card once and set the four sliders per tier (first slider touch collapses the legacy 5-rung ladder to one rule) | Your saved config still carries the July ladder + floor $1.35 |
+| M4 | Field-test with real Uber screenshots (both lanes) — the model switch was benchmarked on synthetic cards | Acceptance gate G1; revert = `OFFER_ANALYZER_MODEL=gemini-3.5-flash` |
+| M5 | Android device test per `ANDROID_SHORTCUT_ANALYZE.md` (HTTP Shortcuts) | G3 |
+
 ## 5 · Cross-references
 
 - `todo` #43 (shortcuts + <3s + sliders), #10 (in_progress: editor; docs item now done),

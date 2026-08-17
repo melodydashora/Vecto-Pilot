@@ -1,11 +1,12 @@
 // server/lib/offers/normalize-offer-body.js — forgiving-but-deterministic
 // field-name normalization for the analyze-offer hook.
 //
-// 2026-08-14 (Melody: "I don't want you to have to tell end users to spell
-// latitude correctly"): Shortcuts are hand-built by drivers — key names WILL
-// arrive misspelled, re-cased, or abbreviated. The July fix accepted exactly
-// one typo ('lattitude', which silently nulled GPS for months); this
-// generalizes it into an explicit alias table. Deterministic by construction:
+// 2026-08-14: Shortcuts are hand-built by drivers — key names WILL arrive
+// misspelled, re-cased, or abbreviated, and the server must still answer. This
+// is a SAFETY NET, not a reason to stay quiet: when a specific shortcut is
+// sending wrong keys, say so (Melody, 2026-08-17: "fix me first"). The July fix
+// accepted exactly one typo ('lattitude', which silently nulled GPS for months);
+// this generalizes it into an explicit alias table. Deterministic by construction:
 // exact lookup only (case-insensitive), never fuzzy/distance matching — every
 // accepted variant is enumerated below, and every remap is warn-logged so
 // drift stays visible. Canonical keys always win over aliases.
