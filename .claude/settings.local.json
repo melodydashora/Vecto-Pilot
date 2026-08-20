@@ -399,7 +399,5 @@
     "serena@claude-plugins-official": false
   },
   "outputStyle": "Explanatory",
-  "remote": {
-    "defaultEnvironmentId": "env_0183PaPZYk7rkuRnEww1pM3S"
-  }
+  "remote": {}
 }
