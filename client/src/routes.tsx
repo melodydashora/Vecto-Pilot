@@ -35,6 +35,10 @@ import {
 // landing page; the server handler 302s directly to the post-OAuth destination.
 import { GoogleCallbackPage } from '@/pages/auth/google/Callback';
 import AuthRedirect from '@/components/auth/AuthRedirect';
+// 2026-08-21: Route-level error boundary — without an errorElement, a throw under
+// any route match (e.g. a Google Maps marker constructor inside a StrategyMap
+// effect) fell through to react-router's unbranded default error screen.
+import RouteErrorBoundary from '@/components/RouteErrorBoundary';
 import ConciergePage from '@/pages/co-pilot/ConciergePage';
 import PublicConciergePage from '@/pages/concierge/PublicConciergePage';
 import LandingPage from '@/pages/landing/LandingPage';
@@ -149,6 +153,9 @@ export const router = createBrowserRouter([
         <CoPilotLayout />
       </ProtectedRoute>
     ),
+    // Catches throws from ProtectedRoute/CoPilotLayout and any child without its
+    // own errorElement. Replaces the whole layout, but stays branded + recoverable.
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         index: true,
@@ -157,6 +164,9 @@ export const router = createBrowserRouter([
       {
         path: 'strategy',
         element: <StrategyPage />,
+        // Child-level boundary renders inside CoPilotLayout's <Outlet />, so a
+        // Strategy-page crash keeps the bottom nav alive instead of white-screening.
+        errorElement: <RouteErrorBoundary />,
       },
       {
         path: 'bars',

@@ -1,23 +1,32 @@
 ---
-name: Initial Setup
-description: Memory system creation details — table structure, API routes, initial seed data
-type: project
+name: initial-setup
+description: claude_memory table origins plus the corrections that have accumulated since — auth, category drift, sibling tables
+metadata:
+  type: project
 ---
 
-## Memory System Created: 2026-04-14
+## Memory system created 2026-04-14
 
-- Table: `claude_memory` (PostgreSQL, 14 columns, 3 indexes)
-- API: `/api/memory` (GET list, POST create, PATCH update, GET /stats, GET /rules, GET /session/:id)
-- Agent: `.claude/agents/memory-keeper.md`
-- Schema: `shared/schema.js` → `export const claudeMemory`
+- Table: `claude_memory` (PostgreSQL) — schema at `shared/schema.js` → `export const claudeMemory`
 - Route: `server/api/memory/index.js`, mounted in `server/bootstrap/routes.js`
-- No auth middleware (internal Claude Code use only)
+- Agent definition: `.claude/agents/memory-keeper.md`
 
-### Categories
-rule, action, insight, decision, context, feedback
+## Corrections to the original note (verify before trusting either)
 
-### Priority Levels
-critical, high, normal, low
+**Auth (changed 2026-05-12):** the original note said "no auth middleware, internal use
+only." That was wrong even then, per the security comment at the top of
+`server/api/memory/index.js` — the router IS mounted publicly, and `requireAuth` now gates
+every route. See [[write-path]] for what actually works.
 
-### Status Values
-active, superseded, archived, disputed
+**Category vocabulary has drifted hard.** The agent definition documents six categories
+(rule, action, insight, decision, context, feedback). The live table holds 50+ distinct
+values — `audit`, `engineering-pattern`, `fix`, `session-checkpoint`, `reference`,
+`doctrine-candidate` and more. Query the live distribution and match existing convention
+rather than forcing a row into the documented six.
+
+**Status values in real use:** `active`, `resolved`, `superseded`, `archived`, `pending`,
+`done`, `disputed`. CLAUDE.md §6 asks for `resolved` when work lands and `superseded` when
+replaced.
+
+**`claude_memory` is one of four continuity tables**, not the only destination. Routing
+rules live in CLAUDE.md §6 — see [[write-path]].

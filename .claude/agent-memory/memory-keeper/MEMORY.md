@@ -1,6 +1,10 @@
 # Memory Keeper — Agent Memory Index
 
-This file tracks meta-information about the memory system itself.
+Meta-information about the continuity/memory system itself.
 
-## System Info
-- [Initial Setup](initial-setup.md) — Memory system created 2026-04-14, table structure, API endpoints
+## Writing to the tables
+- [Write path](write-path.md) — the curl cheat sheet is dead (requireAuth); use psql over DATABASE_URL, route across four tables
+- [Verify before recording](verify-before-recording.md) — re-check file:line claims against the tree; keep provenance verbatim
+
+## System info
+- [Initial setup](initial-setup.md) — claude_memory origins plus corrections: auth, category drift, sibling tables
