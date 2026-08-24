@@ -1,9 +1,13 @@
 // client/src/components/offer-analyzer/OffersCard.tsx
 // 2026-07-03 (todo #10): Live offer history + outcome capture (design §7-§8).
-// Shows the analyzer's recommendation per offer ("our call") and lets the driver
-// record what actually happened ("your call") — the disagreements feed the coach.
-// Refetches on the offer_analyzed SSE event; earnings unlock on Accepted/Completed.
-// Row shape is the FLAT offer_intelligence LEFT JOIN offer_outcomes row that
+// 2026-08-24: Upfront-fare validation (Earnings Log Module). Accepted offers
+// settle through a panel that assumes the payout equals the accepted upfront
+// fare (fare pre-filled and locked); tips/tolls/extras go on top, and "Paid
+// different than what I accepted" unlocks the fare and records a mismatch —
+// the per-offer test that the platform honors its upfront fares. Saving stamps
+// settled_at and the offer leaves the queue (Show settled reveals history).
+// Refetches on the offer_analyzed SSE event. Row shape is the FLAT
+// offer_intelligence LEFT JOIN offer_outcomes row that
 // GET /api/offer-analyzer/offers returns (server/api/offer-analyzer/index.js).
 
 import { useEffect, useMemo, useState } from 'react';
@@ -45,6 +49,13 @@ interface AnalyzedOffer {
   extras?: number | null;
   other?: number | null;
   total_earned?: number | null;
+  // Upfront-fare validation (2026-08-24)
+  tips?: number | null;
+  tolls?: number | null;
+  upfront_price?: number | null;
+  fare_matched_upfront?: boolean | null;
+  settled_at?: string | null;
+  total_realized?: number | null; // total_earned + tips + tolls (computed server-side)
 }
 
 // Mirrors GET /api/offer-analyzer/offers stats (server/api/offer-analyzer/index.js).
@@ -55,6 +66,8 @@ interface OffersStats {
   driver_accepted?: number;
   disagreements?: number;
   realized_total?: number;
+  fares_validated?: number;
+  fare_mismatches?: number;
 }
 
 interface OffersResponse {
@@ -89,10 +102,8 @@ function decisionBadgeClass(decision: string): string {
 }
 
 // 2026-07-03 review fix: "Followed the call" used to store NULL, which conflated
-// "unrecorded" with "followed", blocked earnings capture for followed ACCEPTs,
-// and excluded the most common outcome from every stat. It now resolves to the
-// concrete decision implied by our recommendation (ACCEPT→Accepted, REJECT→Rejected);
-// unrecorded offers show a placeholder instead of a pre-selected answer.
+// "unrecorded" with "followed" — it now resolves to the concrete decision implied
+// by our recommendation (ACCEPT→Accepted, REJECT→Rejected).
 const DECISION_OPTIONS = [
   { value: 'followed', label: 'Followed the call' },
   { value: 'Accepted', label: 'Accepted' },
@@ -101,24 +112,35 @@ const DECISION_OPTIONS = [
   { value: 'Completed', label: 'Completed' },
 ] as const;
 
-const EARNINGS_FIELDS = [
-  { key: 'actual_pay', label: 'Actual pay' },
-  { key: 'reimbursements', label: 'Reimbursements' },
+// Earnings Log Module fields (product spec §3, Offer Analyzer tab): baseline
+// fare + tips + toll reimbursements + extras. Fare is handled separately (it is
+// the upfront-price validation target); these three stack on top of it.
+const ADDON_FIELDS = [
+  { key: 'tips', label: 'Tips' },
+  { key: 'tolls', label: 'Tolls' },
   { key: 'extras', label: 'Extras' },
-  { key: 'other', label: 'Other' },
 ] as const;
 
-type EarningsKey = (typeof EARNINGS_FIELDS)[number]['key'];
-type EarningsDraft = Record<EarningsKey, string>;
+type AddonKey = (typeof ADDON_FIELDS)[number]['key'];
 
-function draftFromOffer(offer: AnalyzedOffer): EarningsDraft {
+interface SettleDraft extends Record<AddonKey, string> {
+  fare: string;
+}
+
+function draftFromOffer(offer: AnalyzedOffer): SettleDraft {
   const s = (v: number | null | undefined) => (v != null ? String(v) : '');
+  // Default assumption: the payout equals the accepted upfront fare.
+  const fare = toNum(offer.actual_pay) ?? toNum(offer.price);
   return {
-    actual_pay: s(toNum(offer.actual_pay)),
-    reimbursements: s(toNum(offer.reimbursements)),
+    fare: s(fare),
+    tips: s(toNum(offer.tips)),
+    tolls: s(toNum(offer.tolls)),
     extras: s(toNum(offer.extras)),
-    other: s(toNum(offer.other)),
   };
+}
+
+function fmtMoney(v: number | null | undefined): string {
+  return v != null ? `$${v.toFixed(2)}` : '—';
 }
 
 interface OfferRowProps {
@@ -129,18 +151,23 @@ interface OfferRowProps {
 function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
   const { toast } = useToast();
   const [isPosting, setIsPosting] = useState(false);
-  const [draft, setDraft] = useState<EarningsDraft>(() => draftFromOffer(offer));
+  const [draft, setDraft] = useState<SettleDraft>(() => draftFromOffer(offer));
+  const [fareDiffers, setFareDiffers] = useState(offer.fare_matched_upfront === false);
 
   const driverDecision = offer.driver_decision ?? null;
   // No outcome recorded → placeholder, never a pre-selected answer.
   const selectValue = driverDecision ?? '';
-  const showEarnings = driverDecision === 'Accepted' || driverDecision === 'Completed';
+  const isTaken = driverDecision === 'Accepted' || driverDecision === 'Completed';
+  const isSettled = offer.settled_at != null;
+  const upfrontPrice = toNum(offer.price);
+  const showSettlePanel = isTaken && !isSettled;
 
-  // Re-sync the earnings draft when a refetch brings back the saved outcome.
+  // Re-sync the draft when a refetch brings back the saved outcome.
   useEffect(() => {
-    // Keyed to the joined outcome values, not the whole row object identity.
     setDraft(draftFromOffer(offer));
-  }, [offer.outcome_id, offer.actual_pay, offer.reimbursements, offer.extras, offer.other]);
+    setFareDiffers(offer.fare_matched_upfront === false);
+    // Keyed to the joined outcome values, not the whole row object identity.
+  }, [offer.outcome_id, offer.actual_pay, offer.tips, offer.tolls, offer.extras, offer.fare_matched_upfront, offer.settled_at]);
 
   const postOutcome = async (body: Record<string, unknown>, successTitle: string) => {
     setIsPosting(true);
@@ -170,49 +197,62 @@ function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
     const resolved = value === 'followed'
       ? (offer.decision === 'ACCEPT' ? 'Accepted' : 'Rejected')
       : value;
-    // The upsert overwrites every column. Earnings carry over only between the
-    // taken states (Accepted ↔ Completed); switching to Rejected/Cancelled
-    // clears them — otherwise the realized total stays inflated with dollars
-    // from a ride that didn't happen, with no UI path to remove them.
-    const keepEarnings = resolved === 'Accepted' || resolved === 'Completed';
+    const taken = resolved === 'Accepted' || resolved === 'Completed';
+    // Rejected/Cancelled have nothing to validate — they settle (and leave the
+    // queue) immediately, with earnings cleared so no phantom dollars linger.
+    // Accepted/Completed stay OPEN: the fare-validation panel must be saved
+    // before the offer settles, so picking a decision never skips the fare test.
     postOutcome(
       {
         driver_decision: resolved,
-        actual_pay: keepEarnings ? toNum(offer.actual_pay) : null,
-        reimbursements: keepEarnings ? toNum(offer.reimbursements) : null,
-        extras: keepEarnings ? toNum(offer.extras) : null,
-        other: keepEarnings ? toNum(offer.other) : null,
+        actual_pay: taken ? toNum(offer.actual_pay) : null,
+        tips: taken ? toNum(offer.tips) : null,
+        tolls: taken ? toNum(offer.tolls) : null,
+        extras: taken ? toNum(offer.extras) : null,
+        reimbursements: taken ? toNum(offer.reimbursements) : null,
+        other: taken ? toNum(offer.other) : null,
+        upfront_price: taken ? toNum(offer.upfront_price) : null,
+        fare_matched_upfront: taken ? offer.fare_matched_upfront ?? null : null,
+        settled: !taken,
       },
-      'Outcome recorded'
+      taken ? 'Marked as taken — confirm the fare below' : 'Outcome recorded'
     );
   };
 
-  const draftTotal = EARNINGS_FIELDS.reduce((sum, f) => {
-    const n = Number(draft[f.key]);
-    return sum + (draft[f.key] !== '' && Number.isFinite(n) ? n : 0);
-  }, 0);
+  const numeric = (v: string): number | null => {
+    if (v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
 
-  const saveEarnings = () => {
-    const numeric = (v: string): number | null => {
-      if (v === '') return null;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
-    };
+  const fareValue = fareDiffers || upfrontPrice == null ? numeric(draft.fare) : upfrontPrice;
+  const draftTotal = (fareValue ?? 0)
+    + ADDON_FIELDS.reduce((sum, f) => sum + (numeric(draft[f.key]) ?? 0), 0);
+
+  const saveSettlement = () => {
+    // The whole point of the upfront test: unless the driver flags a difference,
+    // the fare saved IS the accepted upfront price — copied exactly, never typed.
     postOutcome(
       {
         driver_decision: driverDecision,
-        actual_pay: numeric(draft.actual_pay),
-        reimbursements: numeric(draft.reimbursements),
+        actual_pay: fareValue,
+        tips: numeric(draft.tips),
+        tolls: numeric(draft.tolls),
         extras: numeric(draft.extras),
-        other: numeric(draft.other),
+        reimbursements: toNum(offer.reimbursements),
+        other: toNum(offer.other),
+        upfront_price: upfrontPrice,
+        fare_matched_upfront: upfrontPrice != null ? !fareDiffers : null,
+        settled: true,
       },
-      'Earnings saved'
+      'Offer settled'
     );
   };
 
   const perMile = toNum(offer.per_mile);
   const totalMiles = toNum(offer.total_miles);
   const price = toNum(offer.price);
+  const totalRealized = toNum(offer.total_realized) ?? toNum(offer.total_earned);
 
   return (
     <div className="rounded-lg border border-gray-200 p-3 space-y-3">
@@ -252,11 +292,48 @@ function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
         </Select>
       </div>
 
-      {showEarnings && (
+      {showSettlePanel && (
         <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 space-y-2">
-          <span className="text-xs font-medium text-gray-600">What did it pay?</span>
-          <div className="grid grid-cols-2 gap-2">
-            {EARNINGS_FIELDS.map((f) => (
+          <span className="text-xs font-medium text-gray-600">
+            {upfrontPrice != null ? 'Confirm what it paid' : 'What did it pay?'}
+          </span>
+
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500">
+              {upfrontPrice != null ? 'Fare — as accepted' : 'Fare'}
+            </label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+              value={fareDiffers || upfrontPrice == null ? draft.fare : String(upfrontPrice)}
+              disabled={upfrontPrice != null && !fareDiffers}
+              onChange={(e) => setDraft({ ...draft, fare: e.target.value })}
+              className="bg-white border-gray-300 text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
+            />
+          </div>
+
+          {upfrontPrice != null && (
+            <label className="flex items-center gap-2 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={fareDiffers}
+                onChange={(e) => {
+                  setFareDiffers(e.target.checked);
+                  // Unchecking snaps the fare back to the accepted upfront price.
+                  setDraft({ ...draft, fare: String(upfrontPrice) });
+                }}
+                className="h-4 w-4 rounded border-gray-300"
+                disabled={isPosting}
+              />
+              Paid different than what I accepted
+            </label>
+          )}
+
+          <div className="grid grid-cols-3 gap-2">
+            {ADDON_FIELDS.map((f) => (
               <div key={f.key} className="space-y-1">
                 <label className="text-xs text-gray-500">{f.label}</label>
                 <Input
@@ -272,15 +349,34 @@ function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
               </div>
             ))}
           </div>
+
           <div className="flex items-center justify-between pt-1">
             <span className="text-sm text-gray-600">
               Total: <span className="font-semibold text-gray-900 tabular-nums">${draftTotal.toFixed(2)}</span>
             </span>
-            <Button type="button" size="sm" onClick={saveEarnings} disabled={isPosting}>
+            <Button type="button" size="sm" onClick={saveSettlement} disabled={isPosting}>
               {isPosting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save
             </Button>
           </div>
+        </div>
+      )}
+
+      {isSettled && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {isTaken && (
+            <span className="text-gray-600">
+              Earned <span className="font-semibold text-gray-900 tabular-nums">{fmtMoney(totalRealized)}</span>
+            </span>
+          )}
+          {offer.fare_matched_upfront === true && (
+            <Badge className="bg-emerald-100 text-emerald-800 border-transparent">Fare matched</Badge>
+          )}
+          {offer.fare_matched_upfront === false && (
+            <Badge className="bg-amber-100 text-amber-800 border-transparent">
+              Paid {fmtMoney(toNum(offer.actual_pay))} vs {fmtMoney(toNum(offer.upfront_price))} accepted
+            </Badge>
+          )}
         </div>
       )}
     </div>
@@ -289,6 +385,7 @@ function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
 
 export default function OffersCard() {
   const queryClient = useQueryClient();
+  const [showSettled, setShowSettled] = useState(false);
   const offersQueryKey = useMemo(() => QUERY_KEYS.OFFER_ANALYZER_OFFERS(OFFERS_LIMIT), []);
   const { data, isLoading, error, refetch } = useQuery<OffersResponse>({
     queryKey: offersQueryKey,
@@ -333,6 +430,12 @@ export default function OffersCard() {
   const offers = data?.offers ?? [];
   const stats = data?.stats;
 
+  // The queue: settled offers leave the list ("once the user saves the offer
+  // goes away" — Melody). Show settled reveals the history for recovery.
+  const pendingOffers = offers.filter((o) => o.settled_at == null);
+  const settledOffers = offers.filter((o) => o.settled_at != null);
+  const visibleOffers = showSettled ? offers : pendingOffers;
+
   const tiles = [
     {
       label: 'Analyzed',
@@ -357,11 +460,17 @@ export default function OffersCard() {
     },
     {
       label: 'Realized',
-      value: `$${(stats?.realized_total ?? offers.reduce((s, o) => s + (toNum(o.total_earned) ?? 0), 0)).toFixed(2)}`,
+      value: `$${(
+        stats?.realized_total ??
+        offers.reduce((s, o) => s + (toNum(o.total_realized) ?? toNum(o.total_earned) ?? 0), 0)
+      ).toFixed(2)}`,
       caption: 'Your call',
       captionClass: 'text-emerald-600',
     },
   ];
+
+  const faresValidated = stats?.fares_validated ?? 0;
+  const fareMismatches = stats?.fare_mismatches ?? 0;
 
   return (
     <Card className="bg-white border-gray-200 shadow-sm">
@@ -400,16 +509,46 @@ export default function OffersCard() {
               ))}
             </div>
 
+            {faresValidated > 0 && (
+              <p className="text-xs text-gray-500">
+                Upfront fares checked: <span className="font-semibold text-gray-700">{faresValidated}</span>
+                {' · '}mismatches:{' '}
+                <span className={`font-semibold ${fareMismatches > 0 ? 'text-amber-600' : 'text-gray-700'}`}>
+                  {fareMismatches}
+                </span>
+              </p>
+            )}
+
             {offers.length === 0 ? (
               <p className="text-sm text-gray-400 italic">
                 No offers yet — run the Shortcut on your next ping and it will show up here.
               </p>
             ) : (
-              <div className="space-y-3">
-                {offers.map((offer) => (
-                  <OfferRow key={offer.id} offer={offer} onOutcomeSaved={() => refetch()} />
-                ))}
-              </div>
+              <>
+                {visibleOffers.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic">
+                    All caught up — settled offers are under Show settled.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {visibleOffers.map((offer) => (
+                      <OfferRow key={offer.id} offer={offer} onOutcomeSaved={() => refetch()} />
+                    ))}
+                  </div>
+                )}
+
+                {settledOffers.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500"
+                    onClick={() => setShowSettled((v) => !v)}
+                  >
+                    {showSettled ? 'Hide settled' : `Show settled (${settledOffers.length})`}
+                  </Button>
+                )}
+              </>
             )}
           </>
         )}
