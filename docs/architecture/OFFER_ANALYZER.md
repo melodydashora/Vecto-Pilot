@@ -382,10 +382,23 @@ pickup_limits exceeded     → REJECT 'pickup'          (never rescued)
 time_limit exceeded && !unless-conjunction    → REJECT 'time_limit' (never rescued)
 miles > tier max_total_miles (v3.1)           → REJECT 'too_far'
 accept ladder, first match                    → ACCEPT 'accept'
-[ARP enabled] per_mile >= min_per_total_mile  → ACCEPT 'accept_fallback' (fallback:true)
+[ARP enabled] per_mile >= min_per_total_mile
+              && is_exclusive !== false       → ACCEPT 'accept_fallback' (fallback:true)
 [ARP enabled] deferred floor misses           → REJECT 'floor' | 'min_floor'
 minutes > 40                                  → REJECT 'too_far'
 else                                          → REJECT 'low'
+
+ARP × exclusivity (2026-08-25, Melody): the fallback exists only to protect
+acceptance rate, and only declining an EXCLUSIVE offer hurts AR — a Trip Radar
+offer ("Match" button, no Exclusive badge) costs nothing to decline. `is_exclusive`
+is a first-class flag: text lane = `/\bexclusive\b/i` over the raw text
+(parse-offer-text.js — the chip renders separately from the product on
+Comfort/Priority cards, where extractProductType drops it); vision lane = model
+boolean (`"is_exclusive"` joins the JSON template whenever ARP is enabled), with
+"Exclusive" in the product string as positive-evidence fallback. Positively
+non-exclusive (false) blocks the rescue → deferred floor rejects fire; unknown
+(null — legacy rows) preserves it. Rendered into all three prompts + gated in
+`evaluateDeterministic`; pinned in tests/offers/rules-engine-v3.test.js.
 ```
 
 ARP semantics are the spec's: it rescues **profitability** failures only — floors defer
