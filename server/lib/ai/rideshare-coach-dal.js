@@ -1444,7 +1444,10 @@ export class RideshareCoachDAL {
         WITH mine AS (
           SELECT oi.decision, oi.per_mile, oi.day_part, oi.day_of_week, oi.product_type,
                  oi.pickup_address, oi.local_date,
-                 oo.driver_decision, oo.total_earned
+                 oo.driver_decision,
+                 -- Grand total: tips/tolls (2026-08-24 fare validation) sit outside
+                 -- the generated total_earned column by design.
+                 (COALESCE(oo.total_earned,0) + COALESCE(oo.tips,0) + COALESCE(oo.tolls,0)) AS total_earned
           FROM offer_intelligence oi
           LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id
           WHERE oi.user_id = ${userId}

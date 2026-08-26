@@ -100,7 +100,10 @@ iPhone Shortcut / Android automation                    (docs: SIRI_/ANDROID_SHO
 
 Web page /co-pilot/offer-analyzer  (authed, /api/offer-analyzer/*)
   SetupCard (token mint/rotate/label) · rules cards (typed forms → PUT /rules, Zod gate)
-  OffersCard (my offers + "what I actually did" + earnings → offer_outcomes)
+  OffersCard (my offers + "what I actually did" + Earnings Log settlement:
+              fare locked to the accepted upfront price + tips/tolls/extras;
+              "Paid different than what I accepted" records a fare mismatch;
+              Save stamps settled_at and the offer leaves the queue → offer_outcomes)
 ```
 
 ---
@@ -379,10 +382,23 @@ pickup_limits exceeded     → REJECT 'pickup'          (never rescued)
 time_limit exceeded && !unless-conjunction    → REJECT 'time_limit' (never rescued)
 miles > tier max_total_miles (v3.1)           → REJECT 'too_far'
 accept ladder, first match                    → ACCEPT 'accept'
-[ARP enabled] per_mile >= min_per_total_mile  → ACCEPT 'accept_fallback' (fallback:true)
+[ARP enabled] per_mile >= min_per_total_mile
+              && is_exclusive !== false       → ACCEPT 'accept_fallback' (fallback:true)
 [ARP enabled] deferred floor misses           → REJECT 'floor' | 'min_floor'
 minutes > 40                                  → REJECT 'too_far'
 else                                          → REJECT 'low'
+
+ARP × exclusivity (2026-08-25, Melody): the fallback exists only to protect
+acceptance rate, and only declining an EXCLUSIVE offer hurts AR — a Trip Radar
+offer ("Match" button, no Exclusive badge) costs nothing to decline. `is_exclusive`
+is a first-class flag: text lane = `/\bexclusive\b/i` over the raw text
+(parse-offer-text.js — the chip renders separately from the product on
+Comfort/Priority cards, where extractProductType drops it); vision lane = model
+boolean (`"is_exclusive"` joins the JSON template whenever ARP is enabled), with
+"Exclusive" in the product string as positive-evidence fallback. Positively
+non-exclusive (false) blocks the rescue → deferred floor rejects fire; unknown
+(null — legacy rows) preserves it. Rendered into all three prompts + gated in
+`evaluateDeterministic`; pinned in tests/offers/rules-engine-v3.test.js.
 ```
 
 ARP semantics are the spec's: it rescues **profitability** failures only — floors defer
@@ -770,6 +786,14 @@ uuid → offer_intelligence(id) ON DELETE SET NULL`, `driver_decision text` (CHE
 `Accepted|Rejected|Cancelled|Completed` in the migration), `driver_reasoning`,
 `actual_pay`, `reimbursements`, `extras`, `other`, `total_earned` **GENERATED ALWAYS AS**
 sum **STORED**, `outcome_source text NOT NULL default 'web_app'`, timestamps.
+Fare validation (2026-08-24, `migrations/20260824_offer_outcomes_fare_validation.sql`):
+`tips`, `tolls`, `upfront_price` (snapshot of `offer_intelligence.price` at validation —
+survives the SET NULL FK), `fare_matched_upfront boolean` (NULL until validated; TRUE =
+payout matched the accepted upfront fare; FALSE = differed, actual in `actual_pay`),
+`settled_at timestamptz` (NULL = still open in the Recent Offers queue). `tips`/`tolls`
+sit **outside** the generated `total_earned` (altering a generated column isn't additive);
+readers compute the grand total as `COALESCE(total_earned,0)+COALESCE(tips,0)+COALESCE(tolls,0)`
+(GET /offers `total_realized`; `getOfferPatterns` in `rideshare-coach-dal.js`).
 Indexes: `uq_outcome_offer` (unique partial on `offer_intelligence_id`),
 `idx_outcome_user_created`, `idx_outcome_decision`.
 Drizzle-vs-DB drift (live-checked): the `driver_decision` CHECK and the partial index
@@ -803,8 +827,8 @@ executors (todo #38) — the analyzer never writes it.
 | GET | `/shortcut-token` | get-or-create → `{ token, created_at, device_label }` (404 if no driver profile). Mint writes only into a still-NULL slot (`… AND shortcut_token IS NULL RETURNING`); a raced second request returns the winner's token instead of overwriting it (2026-08-17). |
 | POST | `/shortcut-token/regenerate` | rotate → `{ token, created_at }`; old token dead immediately |
 | POST | `/shortcut-token/label` `{ label }` | ≤80 chars, display only → `{ success, device_label }` |
-| GET | `/offers?limit=25` (≤100) | my `offer_intelligence` LEFT JOIN `offer_outcomes` → `{ success, stats:{ analyzed, analyzer_accepted, analyzer_rejected, driver_accepted, disagreements, realized_total }, offers:[…] }` |
-| POST | `/offers/:id/outcome` `{ driver_decision?, driver_reasoning?, actual_pay?, reimbursements?, extras?, other? }` | 400 on bad enum / non-finite / <0 / >10000; 404 unless the offer is mine; upsert on `offer_intelligence_id` → `{ success, outcome:{ id, driver_decision, total_earned } }` |
+| GET | `/offers?limit=25` (≤100) | my `offer_intelligence` LEFT JOIN `offer_outcomes` → `{ success, stats:{ analyzed, analyzer_accepted, analyzer_rejected, driver_accepted, disagreements, realized_total, fares_validated, fare_mismatches }, offers:[…] }`; rows include `tips, tolls, upfront_price, fare_matched_upfront, settled_at` and computed `total_realized` (= `total_earned`+`tips`+`tolls`); `realized_total` sums `total_realized` over taken rows |
+| POST | `/offers/:id/outcome` `{ driver_decision?, driver_reasoning?, actual_pay?, reimbursements?, extras?, other?, tips?, tolls?, upfront_price?, fare_matched_upfront?, settled? }` | 400 on bad enum / non-finite / <0 / >10000 / non-boolean `fare_matched_upfront`/`settled`; 404 unless the offer is mine; upsert on `offer_intelligence_id` (`settled:true` → `settled_at=NOW()`, else NULL) → `{ success, outcome:{ id, driver_decision, total_earned, tips, tolls, fare_matched_upfront, settled_at } }` |
 | GET | `/places/search?q=` (≥3 chars) | Google Places Text Search (New), 5 results, biased 50 km around `driver_profiles.home_lat/lng`; per-user 20/min (429); 503 without `GOOGLE_MAPS_API_KEY`; → `{ success, results:[{ place_id, label, formatted_address, lat, lng (6-dec), types }] }` |
 
 ---
@@ -824,7 +848,7 @@ Route `client/src/routes.tsx:196` (under `/co-pilot`, ProtectedRoute); hamburger
 | `LimitsCard` | `global.pickup_limits`, `global.time_limit` (+ ARP threshold) |
 | `GeographyCard` | `avoid[]` via `GET /places/search` → place pick → mode / radius / corridor / enable |
 | `VisionRulesCard` | `global.safety_road_types`, `global.commercial_staging`, `global.notices` |
-| `OffersCard` | `GET /offers`, live refetch on SSE `offer_analyzed` **and** on the server's `state` handshake at every SSE (re)connect (skipped when the newest id is already shown; `refetch({ cancelRefetch:false })` joins an in-flight fetch), `refetchOnWindowFocus:true` (was `false` — the tab is backgrounded while the Shortcut runs from the Uber app), per-offer "What did you do?" select (never pre-selected; a *Followed the call* option resolves to our recommendation at click time) + earnings form (shown for Accepted/Completed; cleared when switching to Rejected/Cancelled) → `POST /offers/:id/outcome`; stats row |
+| `OffersCard` | `GET /offers`, live refetch on SSE `offer_analyzed` **and** on the server's `state` handshake at every SSE (re)connect (skipped when the newest id is already shown; `refetch({ cancelRefetch:false })` joins an in-flight fetch), `refetchOnWindowFocus:true` (was `false` — the tab is backgrounded while the Shortcut runs from the Uber app), per-offer "What did you do?" select (never pre-selected; a *Followed the call* option resolves to our recommendation at click time). **Settlement flow (2026-08-24)**: Rejected/Cancelled settle on selection (`settled:true`, earnings cleared); Accepted/Completed open the Earnings Log panel — fare pre-filled with the accepted upfront `price` and **locked**, *"Paid different than what I accepted"* unlocks it (→ `fare_matched_upfront:false`), plus Tips/Tolls/Extras; Save posts `settled:true` and the row leaves the default list (queue = unsettled rows; *Show settled* reveals history with a Fare-matched / Paid-$X-vs-$Y badge; changing a settled row's decision to a taken state re-opens it). Legacy `reimbursements`/`other` inputs removed from the UI; columns remain and still count in totals → `POST /offers/:id/outcome`; stats tiles + "Upfront fares checked · mismatches" line |
 
 Rules save is an explicit sticky **Save** (react-hook-form + Zod), not autosave. The PUT
 carries `expected_version` (what the page loaded); a **409** loads the stored rules from

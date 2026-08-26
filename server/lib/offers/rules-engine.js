@@ -409,7 +409,14 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
   // v3: Acceptance Rate Protection — the ladder (and possibly the floors)
   // failed, but total pay-per-mile clears the ARP line and no un-rescuable
   // gate fired above (spec: ACCEPT (FALLBACK)).
-  if (arp != null && perMile >= arp) {
+  // 2026-08-25 (Melody): ARP exists only to protect acceptance rate, and only
+  // declining an EXCLUSIVE offer hurts AR — a Trip Radar offer ("Match" button,
+  // no Exclusive badge) costs nothing to decline, so rescuing one buys a
+  // below-floor ride for zero AR benefit. Positively-detected non-exclusive
+  // (is_exclusive === false) blocks the rescue and falls through to the
+  // deferred floor rejects below; unknown (null/absent — legacy rows, field
+  // not extracted) preserves the rescue.
+  if (arp != null && perMile >= arp && raw.is_exclusive !== false) {
     return { decision: 'ACCEPT', reasonKind: 'accept_fallback', fallback: true, perMile, perMinute, totalMin };
   }
 
@@ -490,7 +497,8 @@ function renderRuleLines(tierName, eff, ruleset, { tierRulesOnly = false } = {})
   }
 
   if (!tierRulesOnly && g.acceptance_rate_protection?.min_per_total_mile != null) {
-    rules.push(`ACCEPT with "fallback":true if $/mi>=${fmt(g.acceptance_rate_protection.min_per_total_mile)}.`);
+    // 2026-08-25 (Melody): fallback only where declining costs AR — Exclusive offers.
+    rules.push(`ACCEPT with "fallback":true if $/mi>=${fmt(g.acceptance_rate_protection.min_per_total_mile)} and "Exclusive" badge shown (Trip Radar / "Match" offers: never fallback).`);
   }
 
   rules.push('REJECT.');
@@ -553,7 +561,8 @@ function templateExtras(eff) {
   const g = eff.global || {};
   let extras = '';
   if (g.pickup_limits) extras += ',"pickup_miles":0,"pickup_minutes":0';
-  if (g.acceptance_rate_protection?.min_per_total_mile != null) extras += ',"fallback":false';
+  // is_exclusive rides with ARP: it is what gates the fallback (2026-08-25).
+  if (g.acceptance_rate_protection?.min_per_total_mile != null) extras += ',"fallback":false,"is_exclusive":false';
   if (g.notices && Object.values(g.notices).some(Boolean)) extras += ',"notices":[]';
   return extras;
 }
@@ -657,7 +666,7 @@ export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {})
   const numberedGlobal = globalRules.map((r, i) => `${i + 1}. ${r}`).join('\n');
   const arp = eff.global?.acceptance_rate_protection?.min_per_total_mile;
   const arpLine = arp != null
-    ? `No tier rule matched but $/mi>=${fmt(arp)}: ACCEPT with "fallback":true.\n`
+    ? `No tier rule matched but $/mi>=${fmt(arp)} and "Exclusive" badge shown: ACCEPT with "fallback":true. Trip Radar ("Match" button, no Exclusive badge): never fallback.\n`
     : '';
 
   // Headers reflect ACTUAL routing under this ruleset: enabling comfort/xl pulls
@@ -714,7 +723,7 @@ ${tierSections}
 ${arpLine}No tier rule matched: REJECT.
 ${extraBlock}
 rating: the rider rating if shown, else 0.
-judgment_reject: if you REJECT for a non-numeric reason (avoid area, road safety, Verified missing, multiple stops, round trip, share), name it (e.g. "avoid:Denton", "safety", "verified_missing", "stops", "round_trip", "share"); otherwise "".
+${arp != null ? 'is_exclusive: true if the "Exclusive" badge is shown, false if not (a Trip Radar offer shows "Match" and no badge).\n' : ''}judgment_reject: if you REJECT for a non-numeric reason (avoid area, road safety, Verified missing, multiple stops, round trip, share), name it (e.g. "avoid:Denton", "safety", "verified_missing", "stops", "round_trip", "share"); otherwise "".
 reason: terse. "$1.14 8.3mi" or "$0.78 14.0mi low". No sentences.
 
 ${jsonTemplate}`;
@@ -746,7 +755,7 @@ export function buildPhase2Prompt(ruleset = DEFAULT_RULESET, context = {}) {
     .map((r, i) => `  ${i + 1}. ${r}`);
   const arpMile = eff.global?.acceptance_rate_protection?.min_per_total_mile;
   const arpGeneral = arpMile != null
-    ? `\n  - No tier rule matched but $/mi>=${fmt(arpMile)} and no other gate fired: ACCEPT (mark "fallback").`
+    ? `\n  - No tier rule matched but $/mi>=${fmt(arpMile)}, no other gate fired, and the offer is Exclusive (badge shown): ACCEPT (mark "fallback"). Trip Radar ("Match", no Exclusive badge): never fallback.`
     : '';
 
   const guidance = renderGuidanceLines(eff);

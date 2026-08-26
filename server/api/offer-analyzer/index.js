@@ -218,7 +218,9 @@ router.get('/offers', async (req, res) => {
              oi.confidence_score, oi.input_mode, oi.user_override, oi.response_time_ms,
              oi.ruleset_version, oi.ruleset_hash, oi.created_at,
              oo.id AS outcome_id, oo.driver_decision, oo.driver_reasoning,
-             oo.actual_pay, oo.reimbursements, oo.extras, oo.other, oo.total_earned
+             oo.actual_pay, oo.reimbursements, oo.extras, oo.other, oo.total_earned,
+             oo.tips, oo.tolls, oo.upfront_price, oo.fare_matched_upfront, oo.settled_at,
+             (COALESCE(oo.total_earned,0) + COALESCE(oo.tips,0) + COALESCE(oo.tolls,0)) AS total_realized
       FROM offer_intelligence oi
       LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id
       WHERE oi.user_id = ${req.auth.userId}
@@ -239,7 +241,11 @@ router.get('/offers', async (req, res) => {
       // Realized dollars count only rides actually taken — earnings that linger
       // on a Rejected/Cancelled outcome row must not inflate the total.
       realized_total: Math.round(offers.reduce((sum, o) =>
-        sum + (['Accepted', 'Completed'].includes(o.driver_decision) ? (Number(o.total_earned) || 0) : 0), 0) * 100) / 100,
+        sum + (['Accepted', 'Completed'].includes(o.driver_decision) ? (Number(o.total_realized) || 0) : 0), 0) * 100) / 100,
+      // Upfront-fare honesty test (2026-08-24): how many settled fares were
+      // validated against the accepted upfront price, and how many differed.
+      fares_validated: offers.filter((o) => o.fare_matched_upfront != null).length,
+      fare_mismatches: offers.filter((o) => o.fare_matched_upfront === false).length,
     };
 
     res.json({ success: true, stats, offers });
@@ -254,16 +260,25 @@ router.get('/offers', async (req, res) => {
 router.post('/offers/:id/outcome', async (req, res) => {
   try {
     const offerId = req.params.id;
-    const { driver_decision, driver_reasoning, actual_pay, reimbursements, extras, other } = req.body || {};
+    const {
+      driver_decision, driver_reasoning, actual_pay, reimbursements, extras, other,
+      tips, tolls, upfront_price, fare_matched_upfront, settled,
+    } = req.body || {};
 
     if (driver_decision != null && !OUTCOME_VALUES.includes(driver_decision)) {
       return res.status(400).json({ error: `driver_decision must be one of ${OUTCOME_VALUES.join(', ')} or null` });
     }
     const num = (v) => (v == null || v === '' ? null : Number(v));
-    for (const [k, v] of Object.entries({ actual_pay, reimbursements, extras, other })) {
+    for (const [k, v] of Object.entries({ actual_pay, reimbursements, extras, other, tips, tolls, upfront_price })) {
       if (num(v) != null && (!Number.isFinite(num(v)) || num(v) < 0 || num(v) > 10000)) {
         return res.status(400).json({ error: `${k} must be a number between 0 and 10000` });
       }
+    }
+    if (fare_matched_upfront != null && typeof fare_matched_upfront !== 'boolean') {
+      return res.status(400).json({ error: 'fare_matched_upfront must be a boolean or null' });
+    }
+    if (settled != null && typeof settled !== 'boolean') {
+      return res.status(400).json({ error: 'settled must be a boolean or null' });
     }
 
     // Ownership: the offer must be mine (user_id was stamped at ingest).
@@ -276,10 +291,13 @@ router.post('/offers/:id/outcome', async (req, res) => {
     const result = await db.execute(sql`
       INSERT INTO offer_outcomes
         (user_id, offer_intelligence_id, driver_decision, driver_reasoning,
-         actual_pay, reimbursements, extras, other, outcome_source)
+         actual_pay, reimbursements, extras, other,
+         tips, tolls, upfront_price, fare_matched_upfront, settled_at, outcome_source)
       VALUES
         (${req.auth.userId}, ${offerId}, ${driver_decision ?? null}, ${driver_reasoning ?? null},
-         ${num(actual_pay)}, ${num(reimbursements)}, ${num(extras)}, ${num(other)}, 'web_app')
+         ${num(actual_pay)}, ${num(reimbursements)}, ${num(extras)}, ${num(other)},
+         ${num(tips)}, ${num(tolls)}, ${num(upfront_price)}, ${fare_matched_upfront ?? null},
+         ${settled ? sql`NOW()` : null}, 'web_app')
       ON CONFLICT (offer_intelligence_id) WHERE offer_intelligence_id IS NOT NULL
       DO UPDATE SET
         driver_decision = EXCLUDED.driver_decision,
@@ -288,12 +306,18 @@ router.post('/offers/:id/outcome', async (req, res) => {
         reimbursements = EXCLUDED.reimbursements,
         extras = EXCLUDED.extras,
         other = EXCLUDED.other,
+        tips = EXCLUDED.tips,
+        tolls = EXCLUDED.tolls,
+        upfront_price = EXCLUDED.upfront_price,
+        fare_matched_upfront = EXCLUDED.fare_matched_upfront,
+        settled_at = EXCLUDED.settled_at,
         updated_at = NOW()
-      RETURNING id, driver_decision, total_earned
+      RETURNING id, driver_decision, total_earned, tips, tolls, fare_matched_upfront, settled_at
     `);
 
     const row = result.rows?.[0];
-    console.log(`[offer-analyzer] Outcome: offer=${offerId} → ${row?.driver_decision ?? '(cleared)'} $${row?.total_earned ?? 0}`);
+    const totalRealized = (Number(row?.total_earned) || 0) + (Number(row?.tips) || 0) + (Number(row?.tolls) || 0);
+    console.log(`[offer-analyzer] Outcome: offer=${offerId} → ${row?.driver_decision ?? '(cleared)'} $${totalRealized}${row?.settled_at ? ' (settled)' : ''}${row?.fare_matched_upfront === false ? ' FARE MISMATCH' : ''}`);
     res.json({ success: true, outcome: row });
   } catch (err) {
     console.error('[offer-analyzer/outcome POST]', err.message);
