@@ -22,9 +22,20 @@ import {
   normalizeVenueName,
   parseAddressComponents
 } from './venue-utils.js';
+import { createResolutionCoalescer } from './resolution-coalescer.js';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
+
+// 2026-08-26 (Melody's #2): stampede control — concurrent/repeated resolutions
+// of the same (coords, name) share one piece of work, successes are held long
+// enough to bridge poll intervals (the geocoding-fallback path never upserts
+// into venue_catalog, so it had NO cache at all), and a total-failure throw is
+// replayed for a short window instead of re-hitting Google on every poll.
+// Side effect, deliberate: venue_catalog access_count now ticks once per
+// coalescer window per instance, not once per poll — it is an analytics
+// counter, not ground truth.
+const resolutionCoalescer = createResolutionCoalescer();
 
 /**
  * Resolve venue coordinates to a formatted address
@@ -39,11 +50,19 @@ const PLACES_TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchTe
  * @param {number} lng - Longitude
  * @param {string} venueName - Venue name (used for Places search)
  * @param {Object} options - Optional configuration
- * @param {boolean} options.skipCache - Skip cache lookup (force fresh API call)
+ * @param {boolean} options.skipCache - Skip cache lookup (force fresh API call; also bypasses the coalescer)
  * @param {boolean} options.upsertCache - Whether to upsert result into venue_catalog (default: true)
  * @returns {Promise<Object|null>} - Venue object with address fields or null
  */
 export async function resolveVenueAddress(lat, lng, venueName = null, options = {}) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  // skipCache means "force fresh work" — it must not read OR seed shared state.
+  if (options.skipCache) return resolveVenueAddressDirect(lat, lng, venueName, options);
+  const key = `${generateCoordKey(lat, lng)}|${normalizeVenueName(venueName) || ''}`;
+  return resolutionCoalescer.run(key, () => resolveVenueAddressDirect(lat, lng, venueName, options));
+}
+
+async function resolveVenueAddressDirect(lat, lng, venueName = null, options = {}) {
   const { skipCache = false, upsertCache = true } = options;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -371,6 +390,10 @@ async function upsertVenueCatalog(venue) {
 
 /**
  * Batch resolve addresses for multiple venues (optimized for performance)
+ *
+ * 2026-08-26: duplicate (coords, name) pairs — inside one batch or across
+ * concurrent batches (two polls of the same ready snapshot) — share a single
+ * resolution via the coalescer in resolveVenueAddress; no dedup needed here.
  *
  * @param {Array} venues - Array of {lat, lng, name}
  * @returns {Promise<Object>} - Map of venue key → address result
