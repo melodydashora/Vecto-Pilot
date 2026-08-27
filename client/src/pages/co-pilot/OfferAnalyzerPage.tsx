@@ -26,6 +26,7 @@ import {
 } from '@/lib/offer-ruleset-schema';
 import SetupCard from '@/components/offer-analyzer/SetupCard';
 import RateTargetsCard from '@/components/offer-analyzer/RateTargetsCard';
+import DeliveryCard from '@/components/offer-analyzer/DeliveryCard';
 import GatesCard from '@/components/offer-analyzer/GatesCard';
 import LimitsCard from '@/components/offer-analyzer/LimitsCard';
 import GeographyCard from '@/components/offer-analyzer/GeographyCard';
@@ -223,6 +224,7 @@ export default function OfferAnalyzerPage() {
             className="space-y-6"
           >
             <RateTargetsCard form={form} />
+            <DeliveryCard form={form} />
             <GatesCard form={form} />
             <LimitsCard form={form} />
             <GeographyCard form={form} />

@@ -85,6 +85,24 @@ export const rulesetSchema = z.object({
     }).strict().nullable(),
   }).strict(),
   share: z.object({ auto_reject: z.boolean() }).strict(),
+  // v3.2 (2026-08-26): delivery lane — two floors + a distance cap (rules-engine evaluateDelivery).
+  delivery: z.object({
+    enabled: z.boolean(),
+    min_per_mile: money.nullish(),
+    min_per_hour: z.number().min(0).max(500).nullish(),
+    max_total_miles: miles.nullish(),
+  }).strict(),
+  // v3.2 (2026-08-26): implausible-parse ceilings (rules-engine checkSanity). Wide bounds on
+  // purpose — these are "impossible", not "unattractive" (the tiers hold the taste).
+  sanity: z.object({
+    max_price: z.number().min(0).max(100000).nullish(),
+    max_per_mile: z.number().min(0).max(1000).nullish(),
+    max_per_hour: z.number().min(0).max(100000).nullish(),
+    min_price: z.number().min(0).max(1000).nullish(),
+    // the decimal-drop detector (a platform price is always cents-precise)
+    max_per_mile_no_cents: z.number().min(0).max(1000).nullish(),
+    max_per_hour_no_cents: z.number().min(0).max(100000).nullish(),
+  }).strict(),
   tiers: z.object({
     standard: tier,
     premium: tier,

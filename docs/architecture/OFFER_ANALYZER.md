@@ -5,7 +5,7 @@
 > deep enrichment → `offer_intelligence` → live web page. **This is THE offer lane** —
 > the Coach never analyzes offers (`app_rules.coach-never-analyzes-offers`).
 >
-> **Version:** 3.1 — 2026-08-17 (rewritten end-to-end against code at commit `97cd2d3b`; 3.1 adds the same-day model bench + Phase-1 hardening, uncommitted)
+> **Version:** 3.8 — 2026-08-26 (v3.2 ruleset: implausible-parse tripwire + delivery lane + client signature; see Appendix A). 3.1 — 2026-08-17 (rewritten end-to-end against code at commit `97cd2d3b`)
 > **Previous:** 2.0 — 2026-04-16 (pre-v3 engine; two-phase Flash/Pro architecture)
 > **Supersedes and absorbs (deleted 2026-08-17, history in git):**
 > `OFFER_ANALYZER_EDITOR_PLAN.md` (2026-06-01 plan; §0 three-decision model carried
@@ -162,6 +162,7 @@ aliases, unknown keys pass through untouched, every remap is warn-logged
 | `longitude` | `longitude`, `longitud`, `lng`, `lon`, `long` | no | as above |
 | `source` | — | no | Stored verbatim in `offer_intelligence.source`. Defaults: `siri_vision` (multipart), `siri_shortcut` (JSON). Canonical keys for new shortcuts: `siri_text`, `siri_vision`, `android_text`, `android_vision` |
 | `shortcut_token` | `shortcuttoken`, `token` | no (but it IS the product) | Header `X-Shortcut-Token` is preferred and wins over the body field |
+| `shortcut_system` | `shortcutsystem`, `client`, `automation`, `client_app`; header `X-Shortcut-System`; query param on the raw-body path | no | **v3.2 (Melody 2026-08-24): self-reported automation client** (`macrodroid/5.65`, `http_shortcuts/3.x`, `tasker/6.6`, `ios_shortcuts`). Normalized on ingest (lowercase, `[a-z0-9._/ -]`, ≤ 40 chars), logged on the `[HOOKS] 📱 Incoming` line, stored in `parsed_data_json.shortcut_system`, shown as a tag on Offers rows. **Provenance only — never identity** (the token is). Absent → null; old shortcuts keep working. |
 
 Neither `text` nor `image` → **400** `{ "error": "Missing text or image payload" }`.
 
@@ -230,6 +231,17 @@ Control flow in `analyze-offer.js` (line refs at commit `97cd2d3b`):
 8. **Prompt** (`:306-308`): text → `buildPhase1Prompt(tier, ruleset)`; image-only →
    `buildPhase1VisionPrompt(ruleset)` (multi-tier; the model identifies the product).
 9. **Share short-circuit** (`:311-327`): returns immediately, no model.
+9b. **SANITY TRIPWIRE — text lane, seat (2)** (v3.2, 2026-08-26): when the pre-parse
+    carries a price, `checkSanity(preParsed, ruleset)` (§6.3) runs **before any model
+    call**. A breach answers `NO DATA` with `reason "$163.04/mi implausible — decide
+    manually"`, `reason_kind 'implausible_parse'`, voice `"No data. Numbers look wrong.
+    Decide manually."` — deterministic, so it is settled for replay. Why here: on
+    2026-08-24 the model was handed `PRE-PARSED: $750 … $163.04/mi` and echoed ACCEPT;
+    asking it is pointless once the numbers are impossible.
+9c. **DELIVERY LANE — text** (v3.2): `tier === 'delivery'` (product `Delivery…`, §8) is
+    decided entirely by `evaluateDelivery` — no model call; no judgment rule exists for a
+    delivery (no rating, no Verified, no pickup split). `delivery.enabled:false` → `NO
+    DATA` `reason 'delivery off'`, voice `"No data. Delivery offers are off in your rules."`.
 10. **FAST LANE — deterministic REJECT** (`:359-378`): gate = `text` present **and**
     `preParsed.parse_confidence === 'full'` **and** `per_mile != null`. Runs
     `evaluateDeterministic(tier, preParsed, ruleset)`; **only a `REJECT` answers here**
@@ -276,6 +288,24 @@ Control flow in `analyze-offer.js` (line refs at commit `97cd2d3b`):
     `share`) is the model's call and stands. Engine `NO DATA` leaves the model's answer
     alone. Why: live cards showed the model summing 1.9 + 4.2 mi as ~6.3 → $1.34 vs the
     true $1.40 against a $1.35 floor → wrong REJECT; near-floor offers are the common case.
+    **v3.2 additions:** (a) money strings are coerced currency-tolerantly (`"$750"`,
+    `"1,234.50"`) — an uncoercible field used to become `null`, and a null money field is
+    invisible to every gate, so the model's ACCEPT could stand on numbers nothing checked
+    (review 2026-08-26); (b) engine `NO DATA 'implausible_parse'` on the extracted numbers
+    **overrides any model decision** (seat 3a — the model read impossible numbers; nobody
+    ACCEPTs on them); (c) `effectiveTier === 'delivery'` (model `product` `"Delivery…"`,
+    matched case-insensitively — the model writes that string itself) → **the engine owns
+    the verdict, including its `NO DATA`**: `evaluateDelivery` runs on the model's
+    `price / total_miles / total_minutes`, and when the numbers its floors need are missing
+    the answer is NO DATA, not the model's guess (an unreadable delivery could otherwise be
+    spoken as ACCEPT with no hourly check). The vision template carries `tip_included` for
+    the call-out.
+13c. **SANITY TRIPWIRE — final gate, seat (3b)** (v3.2): after arbitration and before the
+    decision fields are read, `checkSanity` runs once more on exactly the numbers the
+    notification will render (`preParsed ?? phase1Result` for price / miles / minutes /
+    per_mile, plus `price_format`). Covers the text-lane **model** answer when the
+    pre-parse had no price. A breach replaces whatever was decided with the
+    `implausible_parse` NO DATA. Fail loud, never fake.
 14. **Normalize decision fields** (`:447-486`): `decision = phase1Result.decision || 'REJECT'`
     (unreachable-by-design after the guard above); `reason = reason || reasoning || ''`;
     numerics coerced via `toNum` (vision JSON may carry strings). **Code owns the
@@ -286,8 +316,17 @@ Control flow in `analyze-offer.js` (line refs at commit `97cd2d3b`):
 15. **Display strings** (`:477-487`): `decisionLabel = 'ACCEPT (FALLBACK)'` when
     `phase1Result.fallback === true`; `notices` filtered (strings ≤40, max 4);
     `notification = "<label>: <terse>"` + `" | n1 | n2"`.
+15b. **Verdict/voice consistency** (v3.2, review 2026-08-26): `buildVoiceLine` falls back to
+    "No data. Decide manually." whenever the rate or the miles cannot be rendered. If that
+    happens while the decision still claims ACCEPT/REJECT, the phone would *say* one thing
+    and *show* another, on numbers we could not print — so the verdict becomes the one the
+    driver already heard: `NO DATA`, logged with the reason it replaced, never cached for replay.
 16. **Respond** (`:495-509`): `voice = buildVoiceLine(decision, perMile, totalMi, terse)`
-    (§9). Then Phase 2 kicks off (§10).
+    (§9). Then Phase 2 kicks off (§10). **v3.2:** a delivery verdict always carries
+    `| $N/hr` (the hourly IS the delivery decider) and `| tip incl.` when the card said
+    "Includes expected tip"; an `implausible_parse` NO DATA **does** run Phase 2 and store
+    (it is a real offer we could not judge — amber on the Offers card, forensics one click
+    away), unlike a plain NO DATA which still skips everything (Melody 2026-08-17).
 
 Log lines you will see: `[HOOKS] 📱 Incoming from <device> (<source>)`, `[HOOKS] 📊
 Pre-parsed: …`, `[HOOKS] Ruleset resolved: user=… v…`, `[HOOKS] 🔧 Fast lane (model
@@ -330,6 +369,8 @@ it is handed out by reference to every untokened request.
     "notices": null                        // { verified_rider, on_the_way_filter, deadhead_reduction, hourly_rate }  hourly_rate (v3.1) = show computed $/hr — telemetry, never a decider
   },
   "share": { "auto_reject": true },
+  "delivery": { "enabled": true, "min_per_mile": 1.50, "min_per_hour": 25, "max_total_miles": 12 },  // v3.2 (2026-08-26) — delivery lane; $/hr IS a decider here. Placeholders from the 2026-08-24 brief — Melody to set
+  "sanity":   { "max_price": 500, "max_per_mile": 30, "max_per_hour": 300, "min_price": 1 },        // v3.2 — implausible-parse ceilings (checkSanity); breach → NO DATA, never a guess. Wide on purpose: ×100 decimal drops trip every one; legit surge hops trip none
   "tiers": {
     "standard": { "floor_per_mile": 0.90, "floor_per_minute": null, "max_total_miles": null, "accept_ladder": [   // max_total_miles: v3.1 slider (2026-08-17) → REJECT too_far
       { "min_per_mile": 0.90, "max_total_min": 20 },
@@ -359,18 +400,23 @@ Unknown duration counts as **999 min** (legacy parity).
 
 Tier routing (`classifyTier` `:211-223`): base tier from `parse-offer-text.js`
 (`share` = `Share`, `Lyft Shared`; `premium` = `Comfort, VIP, Black, UberXL, UberXL
-Exclusive, Lyft XL, Lyft Lux, Lyft Black`; else `standard`, including unknown/null).
+Exclusive, Lyft XL, Lyft Lux, Lyft Black`; **`delivery` = product `Delivery` /
+`Delivery Exclusive` (v3.2)**; else `standard`, including unknown/null).
 When the ruleset enables `tiers.xl` / `tiers.comfort`, premium products route by
 `tier_products` if set, else `DEFAULT_XL_PRODUCTS = [UberXL, UberXL Exclusive, Lyft XL,
 VIP, Black, Lyft Lux, Lyft Black]`, `DEFAULT_COMFORT_PRODUCTS = [Comfort]`.
 
 `migrateRuleset(config)` (`:172-203`) upgrades any stored v1/v2/partial config to the full
 v3 shape with inert defaults; called on every read and before every write; idempotent.
+v3.2 keys (`delivery`, `sanity`) are filled the same way — `schema_version` stays `3`
+(additive keys; stale clients strip what they don't know and the server re-fills defaults).
 
 ### 6.3 Deterministic gate order and reason kinds (`evaluateDeterministic`)
 
 ```
 share (auto_reject≠false) → REJECT 'share'
+SANITY breach (v3.2)       → NO DATA 'implausible_parse'   (problems[] names every signal; never rescued, never repaired)
+tier delivery (v3.2)       → evaluateDelivery: enabled:false → NO DATA 'delivery_off' · per_mile null (or minutes null with an hourly floor) → NO DATA 'no_data' · miles > max_total_miles → REJECT 'delivery_too_far' · $/mi < min_per_mile → REJECT 'delivery_low_mi' · $/hr < min_per_hour → REJECT 'delivery_low_hr' · else ACCEPT 'delivery_accept' (tipThin when tip_included and a floor is cleared by < 15 %)
 per_mile null              → NO DATA 'no_data'
 rating < rating_floor      → REJECT 'rating'          (never rescued)
 pickup_limits exceeded     → REJECT 'pickup'          (never rescued)
@@ -391,7 +437,37 @@ to it when it is enabled; rating/pickup/time rejects are never rescued.
 `terseReason(kind, perMile, totalMiles, tier)` (`analyze-offer.js:129-150`) turns kinds
 into the wire `reason`: base `"$X.XX Y.Ymi"` + kind word (`fallback`, `floor`, `min`,
 `pickup`, `over time`, `too far`, `rating`, `low`) + tier tag (` prem` / ` comf` / ` xl`;
-`rating` carries no tag).
+`rating` carries no tag). v3.2 delivery kinds: `delivery` (accept), `delivery too far`,
+`delivery low`, `delivery low hourly`; `delivery off`. The implausible reason is built by
+`implausibleResult()`: `"$X.XX/mi implausible — decide manually"`.
+
+**`checkSanity(raw, ruleset)` (v3.2) — the implausible-parse tripwire.** Pure arithmetic
+over whatever money fields exist:
+
+| Signal | Rule |
+|---|---|
+| Absurd total | `price > sanity.max_price` (500) · `price < sanity.min_price` (1). `price = 0` is "not read", never a breach |
+| Negative | any negative `price` / `total_miles` / `total_minutes` — a broken extraction, not a missing one |
+| Absurd rate | `$/mi > max_per_mile` (40) · `$/hr > max_per_hour` (500) — **only when the denominator is meaningful** (≥ 1 mi, ≥ 5 min): a $30 minimum-fare hop over 0.4 mi is a real offer, and the first draft turned those into "No data" (review 2026-08-26) |
+| **Decimal drop** | a price written **with no cents** (`price_format:'integer'`) is the OCR signature — platform prices are always cents-precise. Trips at `price ≥ 100`, **or** at `$/mi > max_per_mile_no_cents` (10) / `$/hr > max_per_hour_no_cents` (200). This closes the one-glyph variants (`$750`→`$75O`, `$7.50`→`$75`) that the magnitude rule alone missed |
+
+Applied at three seats (§5 9b, 13b, 13c). Ceilings are per-driver, but a stored `null` is
+re-filled with the default by `migrateRuleset` — the tripwire is a safety floor, not a taste
+knob. Origin: live incident 2026-08-24 — the phone's OCR sent `$750` for `$7.50`; the driver
+heard "Accept. 163 dollars four per mile… about 2368 dollars an hour". Fixtures:
+`tests/offers/fixtures/README.md` D2.
+
+**Accepted limits (⚖️ Melody; adversarial review 2026-08-26):**
+- **A ×10 *miles* misread is not caught** — `4.6 mi` read as `46 mi` gives `$0.16/mi` and a
+  spoken REJECT built on wrong numbers. No lower bound separates it from a genuinely bad
+  long offer without refusing real ones, and the direction is safe (a REJECT, never a wrong
+  ACCEPT). Documented rather than guarded.
+- **This IS a behavior change for rides at defaults** — a card whose numbers breach the
+  table above now answers NO DATA where it previously answered ACCEPT/REJECT. That is the
+  point; the ceilings sit where only impossible numbers reach them.
+- A driver on `basis: 'active_time'` now sees the reason/notification `$/mi` the **engine
+  decided with** (the active-time figure) instead of the full-ride pre-parse figure — the
+  two used to disagree.
 
 ### 6.4 Prompt renderers (all from the same ruleset)
 
@@ -497,20 +573,39 @@ Pure regex, <1 ms, inputs >5000 chars are refused by the pair/advantage extracto
 price, hourly_rate ($X/active hr), pickup_minutes, pickup_miles, ride_minutes, ride_miles,
 total_miles, total_minutes, per_mile (price/total_miles, 2dp), per_minute, surge,
 product_type (canonical), advantage_pct, platform_hint ('uber'|'lyft'|'unknown'),
-parse_confidence ('full' | 'partial' | 'minimal')
+parse_confidence ('full' | 'partial' | 'minimal'),
+price_format ('cents' | 'integer' | null), offer_kind ('ride' | 'delivery'), tip_included   // v3.2
 ```
 
 - Pairs: `/(\d+)\s*min(?:s|utes?)?\s*\((\d+(?:\.\d+)?)\s*mi\)/gi` — first = pickup, second
   = ride. One pair → pickup only if it precedes "Avg. wait time", else ride.
 - Confidence: `full` = price + ≥2 pairs; `partial` = price + 1 pair or price alone;
-  `minimal` = no price. **The fast lane requires `full`.**
+  `minimal` = no price. **The fast lane requires `full`.** Delivery: `full` = price + the
+  one `total` line.
+- **Delivery cards (v3.2):** the **shape decides**, never the word. `deliveryProduct()`
+  finds a `Delivery` / `Delivery Exclusive` chip (tolerant of leading OCR glyph junk — the
+  live card read "YP Delivery Exclusive"), but it becomes `product_type` only when
+  `isDeliveryCard()` agrees: **two time-distance pairs is always a RIDE**, and otherwise the
+  card needs a `N min (X mi) total` line (`extractTotalPair`), an "Includes expected tip"
+  line, or at most one pair. A real UberX/Comfort ride whose card contains "1200 Delivery
+  Dr", a restaurant name, or on-screen chrome therefore keeps its own brand and its own
+  rules — the first implementation let `extractProductType` claim the word before the ride
+  brands, and four independent review lenses caught rides being judged by delivery floors
+  with the rating / Verified / pickup gates skipped (2026-08-26). `analyze-offer.js` routes
+  on `preParsed.offer_kind`, not on the product string. For a delivery the single pair is
+  the **total** (store leg + drop leg): `total_*` set, `pickup_*` / `ride_*` null, no
+  pickup-vs-trip logic.
+- `price_format`: `'cents'` when the winning `$` candidate had a decimal point,
+  `'integer'` otherwise (`extractPriceDetailed`). Feeds the sanity gate (§6.3).
 - Canonical products: `UberXL Exclusive`, `UberXL`, `UberX Exclusive`, `UberX Priority`,
   `UberX`, `Uber`, `Lyft XL`, `Lyft Lux`, `Lyft Black`, `Lyft Shared`, `Lyft Priority`,
   `Lyft`, `Comfort`, `VIP`, `Black`, `Share`.
 - Surge: `+$X included for priority…` bonus, or `* X.XX` / `$ X.XX` markers (skips
   4.70–5.00 rating look-alikes and `/active hr`).
 - `formatPerMileForVoice(1.57)` → `"dollar fifty-seven per mile"`; `0.93` →
-  `"ninety-three cents per mile"`; `2.00` → `"two dollars per mile"`; `0` → `"zero per mile"`.
+  `"ninety-three cents per mile"`; `2.00` → `"two dollars per mile"`; `0` → `"zero per mile"`;
+  ≥ $100 → `"163 dollars four cents per mile"` (v3.2 hardening — unreachable once the
+  sanity gate answers, but never "163 dollars four" again).
 
 Melody's parse contract (todo #10 (d)): first address = pickup, second = destination;
 leading min/mi = driver → pickup; second = pickup → drop-off. Addresses are extracted by
@@ -524,13 +619,17 @@ the model (Phase 2), not by regex.
 
 | Condition | Output |
 |---|---|
+| `NO DATA` with an `implausible` reason (v3.2) | `"No data. Numbers look wrong. Decide manually."` |
+| `NO DATA` with reason `delivery off` (v3.2) | `"No data. Delivery offers are off in your rules."` |
 | `perMile` or `totalMiles` null/NaN | `"No data. Decide manually."` |
+| delivery (v3.2) | `"<Accept|Reject>. <perMileSpoken>, <X.X> miles total, delivery[, <qualifier>][, about N dollars an hour][ — expected tip included, actual can run lower if the customer trims it]."` — hourly spoken on a `low hourly` reject or when the $/hr switch is on; the tip call-out only on an ACCEPT that clears a floor by < 15 % with the tip counted in (never silently discounts the fare) |
 | otherwise | `"<Accept|Reject|No data>. <perMileSpoken>, <N> mile(s)[, <qualifier>]."` |
 
 Qualifier map (first match in the terse reason wins): `too far`→", too far";
 `rating`→", low rider rating"; `fallback`→", fallback accept"; `pickup`→", long pickup";
-`over time`→", too long"; `floor`→", below floor"; `low`→", rate too low". (`min` — the
-`min_floor` kind — has no spoken qualifier today.) Miles rounded to whole numbers.
+`over time`→", too long"; `floor`→", below floor"; `low hourly`→", below your hourly floor"
+(v3.2, delivery); `low`→", rate too low". (`min` — the `min_floor` kind — has no spoken
+qualifier today.) Miles rounded to whole numbers (deliveries: to the tenth, "total").
 
 **ARP is always spoken (2026-08-17, Melody: "as long as ARP is in the voice, it tells me to
 take it and I do"):** the notification label `ACCEPT (FALLBACK)` keys on the `fallback` flag
@@ -730,6 +829,15 @@ stored anonymously when its two card addresses corroborate each other — roadma
 
 ## 11. Data model
 
+> **v3.2 (2026-08-26):** a row stored for an `implausible_parse` carries **NULL money
+> columns** (`price`, `per_mile`, `per_minute`, `hourly_rate`, `surge`, `advantage_pct`,
+> `pickup_*`, `ride_*`, `total_*`). The numbers are known-wrong, and every consumer that
+> aggregates them (`/offer-history` `avg_per_mile`, the Coach's offer patterns) would
+> inherit the poison. The full extraction survives in `parsed_data_json` + `raw_text` for
+> forensics, and `parsed_data_json.implausible_problems` names every signal that fired.
+> Such a row is stored **only for a tokened driver** (nobody can see an anonymous one).
+> `avg_per_mile` now averages over rows that *have* a rate instead of counting NULLs as $0.
+
 Drizzle: `shared/schema.js`. Migrations: `migrations/20260703_offer_rulesets_outcomes.sql`
 (offer_rulesets, offer_outcomes, token + provenance columns; applied automatically at boot
 by `server/db/run-migrations.js` since 2026-08-06). Dev DB checked live 2026-08-17: 449
@@ -820,11 +928,12 @@ Route `client/src/routes.tsx:196` (under `/co-pilot`, ProtectedRoute); hamburger
 |---|---|
 | `SetupCard` | iCloud install link, hands-free triggers, one-time edits, **token** (load / copy / regenerate with confirm / device label). ⚠️ Content is the **July 2026 "Analyze 2"** build (old iCloud link, `lattitude` fix, Location permission) — pre-dates the 2026-08-14 canonical two-shortcut spec. Not edited in this pass by Melody's direction; tracked in the roadmap. |
 | `RateTargetsCard` | **Sliders only (2026-08-17, Melody D4)**: per tier Floor $/mi · $/min (switch+slider) · Max trip minutes · Max total miles (switch+slider); the engine's `accept_ladder` is **derived** as one rung `{ min_per_mile: floor, max_total_min }` (`withDerivedLadder`) — legacy multi-rung ladders round-trip untouched until the tier is edited. Card-level switch **Show $/hr in results** → `global.notices.hourly_rate` (server computes pay ÷ minutes × 60; appended to notification `| $37/hr` and spoken "about 37 dollars an hour"; never a decider) |
+| `DeliveryCard` (v3.2, 2026-08-26) | `delivery.enabled` switch · Floor $/mi · Floor $/hr · Max total miles (switch+slider). Same PUT/409 flow. `sanity.*` has **no editor** (DB-editable; round-trips untouched) |
 | `GatesCard` | `global.rating_floor`, `global.require_verified`, `share.auto_reject`, `global.auto_reject.{multiple_stops, round_trip}` |
 | `LimitsCard` | `global.pickup_limits`, `global.time_limit` (+ ARP threshold) |
 | `GeographyCard` | `avoid[]` via `GET /places/search` → place pick → mode / radius / corridor / enable |
 | `VisionRulesCard` | `global.safety_road_types`, `global.commercial_staging`, `global.notices` |
-| `OffersCard` | `GET /offers`, live refetch on SSE `offer_analyzed` **and** on the server's `state` handshake at every SSE (re)connect (skipped when the newest id is already shown; `refetch({ cancelRefetch:false })` joins an in-flight fetch), `refetchOnWindowFocus:true` (was `false` — the tab is backgrounded while the Shortcut runs from the Uber app), per-offer "What did you do?" select (never pre-selected; a *Followed the call* option resolves to our recommendation at click time) + earnings form (shown for Accepted/Completed; cleared when switching to Rejected/Cancelled) → `POST /offers/:id/outcome`; stats row |
+| `OffersCard` | `GET /offers`, live refetch on SSE `offer_analyzed` **and** on the server's `state` handshake at every SSE (re)connect (skipped when the newest id is already shown; `refetch({ cancelRefetch:false })` joins an in-flight fetch), `refetchOnWindowFocus:true` (was `false` — the tab is backgrounded while the Shortcut runs from the Uber app), per-offer "What did you do?" select (never pre-selected; a *Followed the call* option resolves to our recommendation at click time) + earnings form (shown for Accepted/Completed; cleared when switching to Rejected/Cancelled) → `POST /offers/:id/outcome`; stats row. **v3.2 rows:** `reason_kind:'implausible_parse'` → amber **PARSE ERROR — decide manually** badge (struck-through $/mi; never the green ACCEPT); delivery rows → violet `Delivery` / `Delivery · Exclusive` chip, `X.X mi total`, `$N/hr`, `tip incl.`; a small mono `shortcut_system` tag when the phone reported one. `GET /offers` adds `offer_kind`, `tip_included`, `reason_kind`, `shortcut_system` from `parsed_data_json` (no new columns) |
 
 Rules save is an explicit sticky **Save** (react-hook-form + Zod), not autosave. The PUT
 carries `expected_version` (what the page loaded); a **409** loads the stored rules from
@@ -975,8 +1084,9 @@ Historical: p50 5324 ms / p95 6851 ms (n=448, July 2026) before these levers.
 ## 18. Tests
 
 `NODE_OPTIONS='--experimental-vm-modules' npx jest tests/offers` (or `npm run test:unit`
-for the whole tree). As of 2026-08-17: **5 suites / 66 tests pass**; full unit run 717+5
-pass with the same 7 pre-existing failing suites as baseline (todo #19 debt).
+for the whole tree). As of 2026-08-26: **10 suites / 142 tests pass** (9/114 at intake; the
+"5/66" figure in earlier versions of this line was already stale). Full `tests/`: 792 pass
+with the same 7 pre-existing failing suites as the todo #19 baseline.
 
 | Suite | Pins |
 |---|---|
@@ -986,6 +1096,7 @@ pass with the same 7 pre-existing failing suites as baseline (todo #19 debt).
 | `tests/offers/downscale-offer-image.test.js` | threshold, fail-open, no-grow rule |
 | `tests/offers/parse-model-json.test.js` | the four parse tiers incl. the missing- and surplus-closing-brace repairs; `unwrap:false` envelope mode |
 | `tests/offers/request-dedup.test.js` | idempotency primitives: fingerprint (whitespace-insensitive text, image bytes, identity), claim/join/replay, TTL expiry, failures never replayed, bounded map, TTL memo |
+| `tests/offers/delivery-and-sanity.test.js` (v3.2) | the **verbatim 2026-08-24 `$750` payload → NO DATA implausible_parse, never ACCEPT** (on the delivery tier AND under the old standard routing); integer-price signature; legit surge hops do not trip; delivery parse (kind, tip, total line, glyph junk); two-pair ride containing "Delivery" stays a ride; `evaluateDelivery` gate order + tip call-out + `delivery_off`; Comfort/UberX regressions unchanged; prompts carry the DELIVERY section without the pinned-forbidden words; v3.2 migration round-trip + strict validation; `shortcut_system` aliases/normalization. Real cards catalogued in `tests/offers/fixtures/README.md` |
 | `scripts/offer-analyzer-smoke.mjs` | manual smoke against any deployment: `BASE=… TOKEN=vp_… IMAGE=… node scripts/offer-analyzer-smoke.mjs` — prints decision / voice / notification / server ms / wall ms for text + vision (replaced the stale `tests/integration/test-ocr-hook.js` 2026-08-17) |
 
 ---
@@ -1041,6 +1152,8 @@ line; spec output-format lines; Phase-2 verdict never reaches the driver.
 | 2026-08-11 | — | Hook read/mutate endpoints token-required + user-scoped; `offerHookLimiter`; session chain by user (commit `f005c634`) |
 | 2026-08-14 | — | Body alias table (`normalize-offer-body.js`); `express.urlencoded` on `/api/hooks`; **<3s sprint**: MINIMAL thinking + 1024 tokens, deterministic fast REJECT lane, image downscale (commit `cd8329da`) |
 | 2026-08-17 | 3.0 | This rewrite; plan/design docs merged and retired |
+| 2026-08-26 | 3.9 | **Adversarial review of the 3.8 diff (6 lenses / 29 agents, 17 findings confirmed, 6 refuted) — fixes:** the delivery lane is entered by card **shape**, not by the word "Delivery" (four lenses found real rides being judged by delivery floors); the decimal-drop detector gained rate-based ceilings so the one-glyph variants (`$75O`, `$75`) trip too; rate ceilings gained denominator guards (≥ 1 mi / ≥ 5 min) so real minimum-fare and surge hops stop tripping, with `max_per_mile` 30→40 and `max_per_hour` 300→500; money strings are coerced currency-tolerantly (`"$750"` no longer becomes an invisible `null`); the vision model's server-owned keys are stripped from its reply; the engine owns delivery **including its NO DATA**; `delivery.enabled:false` still teaches the model to label the card; `migrateRuleset` refuses a null sanity ceiling; implausible rows store **NULL money columns** (no aggregation poison) and only for a tokened driver; `avg_per_mile` ignores rate-less rows; verdict and spoken line can no longer contradict each other; DeliveryCard shows a null floor as OFF; tolerant `tip_included` read. Accepted limits documented in §6.3. |
+| 2026-08-26 | 3.8 | **v3.2 ruleset — implausible-parse tripwire + delivery lane + client signature** (intake `docs/review-queue/PLAN_intake-2026-08-26-offer-analyzer-handoffs.md`). Live incident 2026-08-24: OCR sent `$750` for `$7.50` → spoken ACCEPT at $163.04/mi, $2368/hr; the deep model dissented and was overridden. Fix A: `sanity` block + `checkSanity` at three seats (engine; text lane before the model; final gate after vision arbitration); integer-price signature (`price_format`); `implausible_parse` rows store + show amber. Fix B: `delivery` block + `evaluateDelivery` (two floors + cap; $/hr decides), parser `offer_kind` / `tip_included` / `Delivery…` products / `total` line, vision + Phase-2 DELIVERY sections, engine-owned vision arbitration for deliveries, text lane deterministic; tip honesty call-out. `shortcut_system` (Melody 2026-08-24) ingest → log → `parsed_data_json` → Offers tag. Client: `DeliveryCard`, Offers-row chips/badges, zod mirror. Voice ≥ $100 hardened. 22 new tests; fixture corpus started. |
 | 2026-08-17 | 3.7 | **28 of 28 editor controls reach Phase 1** (verifier wf_98681a21): `avoid[].corridor_deg` now rendered into the heads-toward line when set off the default 30; the per-tier `max_total_miles` line no longer leaks into the vision/Phase-2 "Gates (all tiers)" block. |
 | 2026-08-17 | 3.6 | **Fallback accept always spoken** — voice keyed on the `fallback` flag like the notification label (Melody drives by ear). |
 | 2026-08-17 | 3.5 | **NO DATA skips Phase 2** (no deep model / Google calls / row; vision-degraded exception) — Melody. |

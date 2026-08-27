@@ -389,7 +389,9 @@
       "Bash(mkdir -p /tmp/claude-1000/-home-runner-workspace/680e7593-a61d-4c5d-bd07-386028ec68e4/scratchpad)",
       "Bash(npx jest *)",
       "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/events/consolidator-date-gate.test.js --verbose)",
-      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/events/consolidator-date-gate.test.js --verbose --forceExit)"
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/events/consolidator-date-gate.test.js --verbose --forceExit)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' npx jest tests/offers/)",
+      "Bash(NODE_OPTIONS='--experimental-vm-modules' timeout 280 npx jest tests/offers)"
     ],
     "deny": [],
     "ask": []

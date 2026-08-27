@@ -217,6 +217,11 @@ router.get('/offers', async (req, res) => {
              oi.product_type, oi.platform, oi.surge, oi.decision, oi.decision_reasoning,
              oi.confidence_score, oi.input_mode, oi.user_override, oi.response_time_ms,
              oi.ruleset_version, oi.ruleset_hash, oi.created_at,
+             -- v3.2 (2026-08-26): lane + provenance facts the Offers card renders (jsonb, no new columns)
+             oi.parsed_data_json->>'offer_kind'      AS offer_kind,
+             (oi.parsed_data_json->>'tip_included') IN ('true','t','1') AS tip_included,  -- tolerant: a legacy row could hold any json type
+             oi.parsed_data_json->>'reason_kind'     AS reason_kind,
+             oi.parsed_data_json->>'shortcut_system' AS shortcut_system,
              oo.id AS outcome_id, oo.driver_decision, oo.driver_reasoning,
              oo.actual_pay, oo.reimbursements, oo.extras, oo.other, oo.total_earned
       FROM offer_intelligence oi

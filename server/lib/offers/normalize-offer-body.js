@@ -23,7 +23,25 @@ export const BODY_FIELD_ALIASES = {
   longitude: ['longitude', 'longitud', 'lng', 'lon', 'long'],
   source: [],
   shortcut_token: ['shortcuttoken', 'token'],
+  // 2026-08-26 (Melody 2026-08-24): the automation system that sent the payload —
+  // diagnostics/provenance only (the 2026-08-24 "$750" forensics would have named the OCR
+  // client instantly). NOT identity: X-Shortcut-Token remains the only identity bridge.
+  shortcut_system: ['shortcutsystem', 'client', 'automation', 'client_app'],
 };
+
+/**
+ * Normalize the self-reported client signature ("macrodroid/5.65", "http_shortcuts/3.x",
+ * "tasker/6.6", "ios_shortcuts"). Lowercased, whitespace → single space, restricted to
+ * [a-z0-9._/ -], capped at 40 chars. Anything empty/non-string → null (absent field is
+ * simply null — old shortcuts keep working).
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+export function normalizeShortcutSystem(value) {
+  if (typeof value !== 'string') return null;
+  const cleaned = value.trim().toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9._/ -]/g, '').slice(0, 40).trim();
+  return cleaned.length ? cleaned : null;
+}
 
 // variant (lowercased) -> canonical, built once.
 const CANONICAL_BY_VARIANT = new Map();

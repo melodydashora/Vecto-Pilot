@@ -20,7 +20,7 @@ import { sql } from 'drizzle-orm';
 import { offer_intelligence } from '../../../shared/schema.js';
 import { callModel } from '../../lib/ai/adapters/index.js';
 import { parseOfferText, formatPerMileForVoice } from '../../lib/offers/parse-offer-text.js';
-import { normalizeOfferBody } from '../../lib/offers/normalize-offer-body.js';
+import { normalizeOfferBody, normalizeShortcutSystem } from '../../lib/offers/normalize-offer-body.js';
 import { downscaleOfferImage } from '../../lib/offers/downscale-offer-image.js';
 import { parseModelJson } from '../../lib/offers/parse-model-json.js';
 // 2026-06-20: Unified rules engine — single source for the prompts AND the
@@ -37,6 +37,7 @@ import {
   evaluateDeterministic,
   evaluateGeoRules,
   classifyTier,
+  checkSanity,
   NOTICE_LABELS,
   DEFAULT_RULESET,
 } from '../../lib/offers/rules-engine.js';
@@ -127,6 +128,67 @@ async function requireShortcutUser(req, res, next) {
   }
 }
 
+// Coerce model-sourced numerics — vision JSON can carry numbers as strings ("1.14"),
+// and .toFixed on a string threw a TypeError → 500 (adversarial review 2026-07-03).
+// 2026-08-26 (review): a model that answers "$750" or "1,234.50" used to coerce to null,
+// and a null money field is INVISIBLE to every gate — the sanity tripwire saw nothing to
+// check and the model's ACCEPT stood with the garbage rendered straight into the
+// notification. Strip the currency dressing so the number reaches the gates; anything
+// still unparseable stays null (a missing number, honestly missing).
+const toNum = (v) => {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'string' ? parseFloat(v.replace(/[$\s,]/g, '')) : v;
+  return Number.isFinite(n) ? n : null;
+};
+
+// ═══ IMPLAUSIBLE-PARSE TRIPWIRE (2026-08-26; live incident 2026-08-24) ═════════
+// The phone's OCR dropped the decimal in "$7.50" → "$750"; the parser accepted it, the
+// text-lane model echoed the pre-parse, and the driver heard "Accept. 163 dollars four per
+// mile… about 2368 dollars an hour". No money field had a plausibility bound anywhere
+// between the OCR and the spoken verdict. rules-engine checkSanity() is the one
+// arithmetic authority; it is applied at THREE seats in this file — (1) inside
+// evaluateDeterministic, (2) on the text lane BEFORE any model call (no model spend on
+// garbage; the answer is deterministic so it is cached for replay), (3) as a FINAL gate
+// after vision arbitration so nothing downstream can promote an implausible number to
+// ACCEPT. Fail loud, never fake: the only honest verdict is NO DATA — decide manually.
+// Keys the SERVER decides. A model reply carrying them is data smuggling, not extraction.
+const SERVER_OWNED_KEYS = ['implausible', 'implausible_problems', 'reason_kind', 'tip_thin', 'offer_kind'];
+function stripServerOwnedKeys(value) {
+  if (!value || typeof value !== 'object') return value;
+  for (const k of SERVER_OWNED_KEYS) delete value[k];
+  return value;
+}
+
+// The one honest answer when a verdict cannot be rendered: say so, cache nothing that
+// claims more than we know, and skip Phase 2 (there is nothing to enrich).
+function respondNoData(res, startTime, dedupClaim, priorReason) {
+  const payload = {
+    success: true,
+    voice: 'No data. Decide manually.',
+    notification: 'NO DATA: no data',
+    decision: 'NO DATA',
+    response_time_ms: Date.now() - startTime,
+    reason: 'no data',
+    notices: [],
+  };
+  dedupClaim?.fail(new Error(`unrenderable verdict (${priorReason || 'no reason'}) — not cached for replay`));
+  res.json(payload);
+  return payload;
+}
+
+function implausibleResult(sane, src = {}) {
+  const perMileText = sane.perMile != null ? `$${sane.perMile.toFixed(2)}/mi` : (sane.price != null ? `$${sane.price}` : 'numbers');
+  return {
+    ...src,
+    decision: 'NO DATA',
+    reason: `${perMileText} implausible — decide manually`,
+    reason_kind: 'implausible_parse',
+    implausible: true,
+    implausible_problems: sane.problems,
+    confidence: 0,
+  };
+}
+
 // 2026-04-16: Build TTS-friendly voice line for Siri Shortcuts "Speak Text" action.
 // Composes: "<Decision>. <perMileSpoken>, <N> mile(s)[, <qualifier>]."
 // Examples:
@@ -135,10 +197,19 @@ async function requireShortcutUser(req, res, next) {
 //   NO DATA                         → "No data. Decide manually."
 // Qualifier is sniffed from the terse Phase-1 reason ("low"/"floor"/"too far"/"rating") and
 // rendered as a natural-language tail. Siri's TTS handles bare digits ("14 miles") as words.
-function buildVoiceLine(decision, perMile, totalMiles, reason) {
+function buildVoiceLine(decision, perMile, totalMiles, reason, { delivery = false } = {}) {
   const decisionWord = decision === 'ACCEPT' ? 'Accept'
     : decision === 'REJECT' ? 'Reject'
     : String(decision || '').toLowerCase().replace(/^./, c => c.toUpperCase());
+
+  // 2026-08-26: the tripwire's NO DATA is a different message from "nothing parsed" — the
+  // driver must know the numbers were READ but cannot be trusted.
+  if (decision === 'NO DATA' && /implausible/i.test(reason || '')) {
+    return 'No data. Numbers look wrong. Decide manually.';
+  }
+  if (decision === 'NO DATA' && /^delivery off$/i.test(reason || '')) {
+    return 'No data. Delivery offers are off in your rules.';
+  }
 
   // 2026-04-16: FIX — produce an actionable message when offer data couldn't be parsed,
   // instead of bare "Unknown." which gives Siri nothing useful to speak.
@@ -148,10 +219,14 @@ function buildVoiceLine(decision, perMile, totalMiles, reason) {
 
   const perMileSpoken = formatPerMileForVoice(perMile);
   const milesRounded = Math.round(totalMiles);
-  const milesPhrase = `${milesRounded} mile${milesRounded === 1 ? '' : 's'}`;
+  // Delivery: the card's one line is the TOTAL (restaurant + drop) — say so, to the tenth.
+  const milesPhrase = delivery
+    ? `${Number(totalMiles).toFixed(1)} miles total, delivery`
+    : `${milesRounded} mile${milesRounded === 1 ? '' : 's'}`;
 
   // Map terse Phase-1 reason tokens → spoken qualifier phrases.
-  // Order matters (first match wins): 'too far' before 'time', 'fallback' before 'low'.
+  // Order matters (first match wins): 'too far' before 'time', 'fallback' before 'low',
+  // 'low hourly' (delivery) before 'low'.
   const qualifierMap = [
     ['too far', 'too far'],
     ['rating', 'low rider rating'],
@@ -159,6 +234,7 @@ function buildVoiceLine(decision, perMile, totalMiles, reason) {
     ['pickup', 'long pickup'],
     ['over time', 'too long'],
     ['floor', 'below floor'],
+    ['low hourly', 'below your hourly floor'],
     ['low', 'rate too low'],
   ];
   let qualifier = '';
@@ -189,6 +265,14 @@ function terseReason(reasonKind, perMile, totalMiles, tier) {
     case 'time_limit':      return `${base} over time${tag}`;  // v3 total-time limit
     case 'too_far':         return `${base} too far${tag}`;
     case 'rating':          return `${base} rating`;
+    // v3.2 delivery lane (2026-08-26) — "delivery" is the tag; the hourly floor is the one
+    // delivery-specific reject (rides never decide on $/hr).
+    case 'delivery_accept':  return `${base} delivery`;
+    case 'delivery_too_far': return `${base} delivery too far`;
+    case 'delivery_low_mi':  return `${base} delivery low`;
+    case 'delivery_low_hr':  return `${base} delivery low hourly`;
+    case 'delivery_off':     return 'delivery off';
+    case 'no_data':          return 'no data';   // never render money for an unread card (review 2026-08-26)
     case 'low':
     default:                return `${base} low${tag}`;
   }
@@ -297,6 +381,11 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // accepted (Shortcuts dictionaries are easier to edit than headers).
     // No/invalid token → DEFAULT_RULESET + null user_id (legacy behavior).
     const shortcutToken = req.get('x-shortcut-token') || offerBody.shortcut_token || req.query?.shortcut_token || null;
+    // 2026-08-26 (Melody 2026-08-24): self-reported client signature — provenance for
+    // forensics ("which OCR client sent this?"), never identity. Header, field or query.
+    const shortcutSystem = normalizeShortcutSystem(
+      req.get('x-shortcut-system') ?? offerBody.shortcut_system ?? req.query?.shortcut_system,
+    );
 
     if (!text && !image) {
       return res.status(400).json({ error: 'Missing text or image payload' });
@@ -351,7 +440,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       dedupClaim = null;
     }
 
-    console.log(`[HOOKS] 📱 Incoming from ${device_id || 'anonymous'} (${source})`);
+    console.log(`[HOOKS] 📱 Incoming from ${device_id || 'anonymous'} (${source}${shortcutSystem ? ` via ${shortcutSystem}` : ''})`);
 
     // 2026-02-16: Use 6-decimal precision (~11cm) per codebase standard (coords-key.js)
     // Previous 3-decimal (~110m) was too imprecise for algorithm learning
@@ -420,7 +509,10 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // 2026-03-29: Tier-aware prompt selection — share/standard/premium (+ v3 comfort/xl)
     // 2026-07-03: share.auto_reject wired — explicitly false routes share offers
     // through standard rules instead of the short-circuit (engine self-remaps too).
-    let tier = classifyTier(preParsed?.product_type, ruleset);
+    // 2026-08-26 (review): offer_kind is the authority for the delivery lane — the parser
+    // only names a delivery product once the card SHAPE agrees, and a ride card that merely
+    // contains the word "Delivery" (a street name, a restaurant) must stay a ride.
+    let tier = preParsed?.offer_kind === 'delivery' ? 'delivery' : classifyTier(preParsed?.product_type, ruleset);
     if (tier === 'share' && ruleset.share?.auto_reject === false) tier = 'standard';
     // Vision-only requests can't classify tier before the model looks at the
     // screenshot, so they get the multi-tier vision prompt (the model identifies
@@ -463,9 +555,11 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       const totalMi = preParsed.total_miles?.toFixed(1) ?? '?';
       const result = {
         decision: fb.decision,
-        reason: terseReason(fb.reasonKind, preParsed.per_mile, totalMi, tier),
+        reason: terseReason(fb.reasonKind, fb.perMile ?? preParsed.per_mile, totalMi, tier),
+        reason_kind: fb.reasonKind,
         confidence: 80,
         ...(fb.fallback ? { fallback: true } : {}),
+        ...(fb.delivery ? { per_hour: fb.perHour ?? null, tip_thin: fb.tipThin === true } : {}),
         ...preParsed,
       };
       console.log(`[HOOKS] 🔧 ${label}: ${fb.decision} — ${result.reason}`);
@@ -487,7 +581,32 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // unparseable / no decision) and the engine answered instead — the answer is still spoken
     // (always-answer contract) but NOT cached for replay (idempotency gate).
     let phase1Authoritative = true;
-    if (text && preParsed?.parse_confidence === 'full' && preParsed.per_mile != null) {
+
+    // ═══ SANITY TRIPWIRE — text lane, seat (2): before any model spend ═════════
+    // A pre-parse that fails checkSanity is answered NO DATA right here. The model would
+    // only echo the poisoned PRE-PARSED line (that is exactly what happened on
+    // 2026-08-24), and a deterministic answer is safe to cache for replay.
+    if (text && preParsed?.price != null) {
+      const sane = checkSanity(preParsed, ruleset);
+      if (!sane.ok) {
+        phase1Result = implausibleResult(sane, preParsed);
+        console.warn(`[HOOKS] 🚧 Implausible parse (text lane, model skipped): ${sane.problems.join('; ')} — NO DATA`);
+      }
+    }
+
+    // ═══ DELIVERY LANE — text (2026-08-26, v3.2) ═══════════════════════════════
+    // No judgment rule applies to a delivery (no rating, no Verified, no pickup split),
+    // so the engine's two-floor block IS the whole decision — no model call. Vision-lane
+    // deliveries go through the model (it must read the card) and are arbitrated below.
+    if (!phase1Result && text && tier === 'delivery') {
+      const v = evaluateDeterministic('delivery', preParsed, ruleset);
+      phase1Result = deterministicPhase1(v, 'Delivery lane (deterministic)');
+      if (v.decision === 'NO DATA' && v.reasonKind === 'delivery_off') {
+        phase1Result = { decision: 'NO DATA', reason: 'delivery off', reason_kind: 'delivery_off', confidence: 0, ...preParsed };
+      }
+    }
+
+    if (!phase1Result && text && preParsed?.parse_confidence === 'full' && preParsed.per_mile != null) {
       const fastVerdict = evaluateDeterministic(tier, preParsed, ruleset);
       if (fastVerdict.decision === 'REJECT') {
         phase1Result = deterministicPhase1(fastVerdict, 'Fast lane (model skipped)');
@@ -540,7 +659,10 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       } else {
         const parsed = parseModelJson(phase1Response.text);
         if (parsed.ok) {
-          phase1Result = parsed.value;
+          // 2026-08-26 (review): the reply is model-authored text that becomes phase1Result.
+          // Server-owned verdict flags must never arrive from it — a card whose OCR text
+          // says "implausible: true" would otherwise skip our own final sanity gate.
+          phase1Result = stripServerOwnedKeys(parsed.value);
           if (parsed.tier > 1) console.log(`[HOOKS] Phase 1 JSON recovered (tier ${parsed.tier})`);
         } else {
           console.warn('[HOOKS] Phase 1 JSON parse failed, raw:', phase1Response.text?.substring(0, 200));
@@ -589,7 +711,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // trip, share) — those are the model's to make. NO DATA from the engine (no
     // usable numbers) leaves the model's answer alone.
     if (!text && phase1Response?.success && phase1Result) {
-      const n = (v) => { const x = typeof v === 'string' ? parseFloat(v) : v; return Number.isFinite(x) ? x : null; };
+      const n = toNum; // same currency-tolerant coercion as everywhere else (review 2026-08-26)
       const mPrice = n(phase1Result.price);
       const mMiles = n(phase1Result.total_miles);
       const mMinutes = n(phase1Result.total_minutes);
@@ -606,11 +728,40 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       };
       const judgment = typeof phase1Result.judgment_reject === 'string' ? phase1Result.judgment_reject.trim() : '';
       // Only arbitrate when the model actually extracted price + miles (else NO DATA territory).
+      extracted.tip_included = phase1Result.tip_included === true; // delivery call-out input
       const engine = (mPrice > 0 && mMiles > 0)
         ? evaluateDeterministic(effectiveTier, extracted, ruleset)
         : { decision: 'NO DATA', reasonKind: 'no_data' };
       const modelDecision = phase1Result.decision;
-      if (engine.decision === 'REJECT' && modelDecision === 'ACCEPT') {
+      if (engine.decision === 'NO DATA' && engine.reasonKind === 'implausible_parse') {
+        // Seat (3a): the numbers the model READ are impossible — nobody gets to ACCEPT on them.
+        console.warn(`[HOOKS] 🚧 Vision arbitration: engine implausible_parse (${(engine.problems || []).join('; ')}) overrides model ${modelDecision} — NO DATA`);
+        phase1Result = implausibleResult(checkSanity(extracted, ruleset), { ...phase1Result, ...extracted });
+      } else if (effectiveTier === 'delivery') {
+        // v3.2: the engine OWNS delivery (no judgment rule exists for it); the model only reads the card.
+        if (engine.decision !== 'NO DATA') {
+          if (engine.decision !== modelDecision) console.warn(`[HOOKS] Vision arbitration (delivery): engine ${engine.decision} (${engine.reasonKind}) overrides model ${modelDecision}`);
+          phase1Result.decision = engine.decision;
+          phase1Result.reason = terseReason(engine.reasonKind, engine.perMile, mMiles.toFixed(1), 'delivery');
+          phase1Result.reason_kind = engine.reasonKind;
+          phase1Result.per_hour = engine.perHour ?? null;
+          phase1Result.tip_thin = engine.tipThin === true;
+          delete phase1Result.fallback;
+        } else {
+          // Engine NO DATA on a delivery = the numbers needed for ITS floors are missing
+          // (no usable miles, or no minutes while an hourly floor is set). The model does
+          // not get to decide instead — that is how an unreadable delivery became a spoken
+          // ACCEPT with no hourly check (review 2026-08-26).
+          const offReason = engine.reasonKind === 'delivery_off';
+          console.warn(`[HOOKS] Vision arbitration (delivery): engine NO DATA (${engine.reasonKind}) — the model's ${modelDecision} does not stand`);
+          phase1Result = {
+            ...phase1Result,
+            decision: 'NO DATA',
+            reason: offReason ? 'delivery off' : 'no data',
+            reason_kind: engine.reasonKind,
+          };
+        }
+      } else if (engine.decision === 'REJECT' && modelDecision === 'ACCEPT') {
         console.warn(`[HOOKS] Vision arbitration: engine REJECT (${engine.reasonKind}) overrides model ACCEPT`);
         phase1Result.decision = 'REJECT';
         phase1Result.reason = terseReason(engine.reasonKind, extracted.per_mile, mMiles.toFixed(1), effectiveTier);
@@ -625,6 +776,25 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
       }
     }
 
+    // ═══ SANITY TRIPWIRE — seat (3b): final gate on the numbers we are about to speak ══
+    // Covers the text-lane MODEL answer (pre-parse had no price → the model extracted one)
+    // and any path that reached here with numbers nobody checked. Runs on exactly the
+    // values the notification below would render.
+    if (!phase1Result?.implausible && phase1Result?.decision !== 'NO DATA') {
+      const finalNums = {
+        price: toNum(preParsed?.price ?? phase1Result.price),
+        total_miles: toNum(preParsed?.total_miles ?? phase1Result.total_miles),
+        total_minutes: toNum(preParsed?.total_minutes ?? phase1Result.total_minutes),
+        per_mile: toNum(preParsed?.per_mile ?? phase1Result.per_mile),
+        price_format: preParsed?.price_format ?? null,
+      };
+      const sane = checkSanity(finalNums, ruleset);
+      if (!sane.ok) {
+        console.warn(`[HOOKS] 🚧 Implausible numbers at the final gate (${sane.problems.join('; ')}) — overriding ${phase1Result.decision} with NO DATA`);
+        phase1Result = implausibleResult(sane, { ...phase1Result, ...finalNums });
+      }
+    }
+
     // Extract decision fields from normalized result
     const decision = phase1Result.decision || 'REJECT';
     // 2026-03-29: Accept both "reason" (new terse) and "reasoning" (legacy) field names
@@ -636,13 +806,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // 2026-03-29: Terse notification for 3s trip radar / 9s regular offers.
     // Format: "ACCEPT: $1.14 8.2mi core" or "REJECT: $0.78 14.0mi too far"
     // Server builds from pre-parsed data when AI reason is missing/verbose.
-    // 2026-07-03: coerce model-sourced numerics — vision JSON can carry numbers
-    // as strings ("1.14"), and .toFixed on a string threw a TypeError → 500,
-    // violating the always-answer contract (adversarial review finding).
-    const toNum = (v) => {
-      const n = typeof v === 'string' ? parseFloat(v) : v;
-      return Number.isFinite(n) ? n : null;
-    };
+    // (toNum is module-level since 2026-08-26 — the final sanity gate above needs it too.)
     const perMileValue = toNum(preParsed?.per_mile ?? phase1Result.per_mile);
     const totalMi = toNum(preParsed?.total_miles ?? phase1Result.total_miles);
     // Keep the model-authored terse reason ("$1.34 6.1mi …") consistent with the recomputed
@@ -680,6 +844,21 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
         hourlyPhrase = `about ${perHour} dollars an hour`;
       }
     }
+    // v3.2 delivery (2026-08-26): $/hr IS the delivery decider, so it is always shown for a
+    // delivery verdict (independent of the ride-side "$/hr" telemetry switch), and the tip
+    // line is always disclosed — the driver must know the fare counts an EXPECTED tip.
+    const isDelivery = effectiveTier === 'delivery' || phase1Result.offer_kind === 'delivery';
+    let deliveryHourlyPhrase = null;
+    if (isDelivery && decision !== 'NO DATA') {
+      const dPrice = toNum(preParsed?.price ?? phase1Result.price);
+      const dMinutes = toNum(preParsed?.total_minutes ?? phase1Result.total_minutes);
+      const dPerHour = toNum(phase1Result.per_hour) ?? ((dPrice > 0 && dMinutes > 0) ? Math.round((dPrice / dMinutes) * 60) : null);
+      if (dPerHour != null && !noticesArr.some((n) => /\/hr$/.test(n))) {
+        noticesArr.push(`$${dPerHour}/hr`);
+        if (!hourlyPhrase) deliveryHourlyPhrase = `about ${dPerHour} dollars an hour`;
+      }
+      if (preParsed?.tip_included || phase1Result.tip_included === true) noticesArr.push('tip incl.');
+    }
     const notificationBase = terseReasonText
       ? `${decisionLabel}: ${terseReasonText}`
       : decisionLabel;
@@ -693,7 +872,7 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // 2026-04-16: TTS line for Siri "Speak Text" — composes decision + spoken $/mi
     // + miles + optional reason qualifier. Uses formatPerMileForVoice() for the dollar
     // amount and falls back to a bare decision word when pre-parse data is unavailable.
-    let voice = buildVoiceLine(decision, perMileValue, totalMi, terseReasonText);
+    let voice = buildVoiceLine(decision, perMileValue, totalMi, terseReasonText, { delivery: isDelivery });
     // 2026-08-17 (Melody: "as long as ARP is in the voice, it tells me to take it and I do"):
     // the notification label keys on the `fallback` FLAG, but the spoken tail was sniffed
     // from the reason TEXT — the engine's reason says "fallback", a model-marked fallback
@@ -704,6 +883,26 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     }
     if (hourlyPhrase && perMileValue != null && totalMi != null) {
       voice = voice.replace(/\.$/, `, ${hourlyPhrase}.`);
+    }
+    // Delivery: speak the hourly when it decided (low_hr reject) or when the driver asked
+    // for it; and the tip call-out when the accept clears a floor by < 15 % with the tip in.
+    if (isDelivery && perMileValue != null && totalMi != null) {
+      if (deliveryHourlyPhrase && (decision === 'REJECT' && /low hourly/.test(terseReasonText) || ruleset.global?.notices?.hourly_rate)) {
+        voice = voice.replace(/\.$/, `, ${deliveryHourlyPhrase}.`);
+      }
+      if (decision === 'ACCEPT' && phase1Result.tip_thin === true) {
+        voice = voice.replace(/\.$/, ' — expected tip included, actual can run lower if the customer trims it.');
+      }
+    }
+
+    // 2026-08-26 (review): the spoken line and the decision must agree. buildVoiceLine falls
+    // back to "No data. Decide manually." whenever the rate or the miles cannot be rendered
+    // — if that happens while the decision still claims ACCEPT/REJECT, the phone SAYS one
+    // thing and SHOWS another, and the claim rests on numbers we could not print. The
+    // honest resolution is the one the driver already heard.
+    if (decision !== 'NO DATA' && /^No data\./.test(voice)) {
+      console.warn(`[HOOKS] Decision ${decision} has no renderable numbers (per_mile=${perMileValue}, miles=${totalMi}) — the spoken line is "no data", so the verdict is NO DATA (reason was: ${terseReasonText || '-'})`);
+      return respondNoData(res, startTime, dedupClaim, terseReasonText);
     }
 
     const phase1Payload = {
@@ -737,7 +936,14 @@ router.post('/analyze-offer', upload.single('image'), offerHookLimiter, async (r
     // (phase1Authoritative=false — timeout / unparseable), the screenshot may still be a
     // real offer the deep model can read, so Phase 2 runs and that row is real data.
     // When the fast model looked and said "no ride" (home screen, map, chat), stop here.
-    if (decision === 'NO DATA' && !(images.length && !phase1Authoritative)) {
+    // 2026-08-26: an implausible_parse is NOT a "no offer on screen" — it is a real offer we
+    // could not judge, so it runs Phase 2 and stores a row (amber on the Offers card,
+    // forensics one click away; the deep model's extraction is kept as data, the spoken
+    // NO DATA stays the record). Only for a TOKENED driver: nobody can see an anonymous
+    // row, so spending the deep model + Google calls on it would be pure cost (review
+    // 2026-08-26). A plain NO DATA (home screen, unreadable) still skips everything.
+    const storeImplausible = phase1Result.implausible === true && Boolean(userId);
+    if (decision === 'NO DATA' && !storeImplausible && !(images.length && !phase1Authoritative)) {
       console.log(`[HOOKS] NO DATA${phase1Authoritative ? '' : ' (model did not deliver, text lane)'} — Phase 2 skipped: no deep model, no Google calls, no row`);
       return;
     }
@@ -844,6 +1050,13 @@ PRE-PARSED DATA (server-verified):
           // Phase-2's independent verdict — training signal, never the record.
           deep_decision: deepResult?.decision ?? null,
           deep_disagrees: deepDisagrees,
+          // v3.2 (2026-08-26): provenance + lane facts the Offers card renders.
+          reason_kind: phase1Result.reason_kind ?? null,          // 'implausible_parse' | 'delivery_*' | engine kinds | null (model-authored)
+          implausible: phase1Result.implausible === true,
+          implausible_problems: phase1Result.implausible_problems ?? null,
+          offer_kind: preParsed?.offer_kind ?? (effectiveTier === 'delivery' ? 'delivery' : (deepResult?.parsed_data?.offer_kind ?? 'ride')),
+          tip_included: preParsed?.tip_included ?? (phase1Result.tip_included === true),
+          shortcut_system: shortcutSystem,                          // self-reported client (never identity)
         };
 
         // 2026-02-17: Compute geographic columns
@@ -1156,6 +1369,16 @@ PRE-PARSED DATA (server-verified):
             ruleset_version: rulesetVersion,
             ruleset_hash: rulesetHash,
 
+            // 2026-08-26 (review): an implausible parse stores NO money columns. The
+            // numbers are known-wrong, and every consumer that aggregates them (the hook's
+            // avg_per_mile, the Coach's offer patterns) would inherit the poison. The full
+            // extraction survives in parsed_data_json + raw_text for forensics; the columns
+            // stay NULL so nothing can average a $163/mi that never existed.
+            ...(phase1Result.implausible === true ? {
+              price: null, per_mile: null, per_minute: null, hourly_rate: null, surge: null,
+              advantage_pct: null, pickup_minutes: null, pickup_miles: null,
+              ride_minutes: null, ride_miles: null, total_miles: null, total_minutes: null,
+            } : {
             // Offer metrics — prefer server pre-parsed (regex) over AI-parsed (LLM math).
             // 2026-07-03: vision-only requests have NO pre-parse, so every metric now
             // falls back to the vision extraction (Phase-2 deep, then Phase-1) —
@@ -1176,6 +1399,7 @@ PRE-PARSED DATA (server-verified):
               ?? ((toNum(dbParsedData?.pickup_minutes) != null && toNum(dbParsedData?.ride_minutes) != null)
                 ? toNum(dbParsedData.pickup_minutes) + toNum(dbParsedData.ride_minutes)
                 : null),
+            }),
             product_type: preParsed?.product_type ?? dbParsedData?.product_type ?? null,
             platform,
 
@@ -1348,9 +1572,13 @@ router.get('/offer-history', offerHookLimiter, requireShortcutUser, async (req, 
       avg_response_ms: history.length > 0
         ? Math.round(history.reduce((sum, h) => sum + (h.response_time_ms || 0), 0) / history.length)
         : 0,
-      avg_per_mile: history.length > 0
-        ? Math.round(history.reduce((sum, h) => sum + (h.per_mile || 0), 0) / history.length * 100) / 100
-        : 0,
+      // 2026-08-26 (review): average only over rows that HAVE a rate. NO DATA rows (and
+      // implausible parses, whose money columns are deliberately NULL) used to count as
+      // $0.00/mi in the denominator and drag the average down.
+      avg_per_mile: (() => {
+        const rated = history.filter((h) => h.per_mile != null && Number.isFinite(Number(h.per_mile)));
+        return rated.length ? Math.round(rated.reduce((sum, h) => sum + Number(h.per_mile), 0) / rated.length * 100) / 100 : 0;
+      })(),
     };
 
     res.json({

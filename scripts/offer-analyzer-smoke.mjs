@@ -25,6 +25,13 @@ const TEXTS = process.env.TEXT ? { custom: process.env.TEXT.replace(/\\n/g, '\n'
   'text A (UberX Priority, on the way, $1.40/mi)': 'On the way\nUberX Priority\n$8.54\n★ 4.92 ✓ Verified\n4 min (1.9 mi) away\nThe Star Blvd & Winning Dr, Frisco\n10 min (4.2 mi) trip\nBasilica Ln & Santa Bella Dr, Frisco\nMatch',
   'text B (fast REJECT: low pay + long pickup)': 'UberX\n$6.20\n★ 4.95 ✓ Verified\n7 min (3.4 mi) away\nMain St, Frisco\n12 min (5.1 mi) trip\nEldorado Pkwy, Frisco\nAccept',
   'text C (share)': 'Share\n$5.62\n6 min (2.4 mi) away\n11 min (4.8 mi) trip\nAccept',
+  // 2026-08-26 — the three real cards from the 2026-08-24 delivery brief (tests/offers/fixtures/README.md):
+  'text D (delivery, clean OCR: $1.63/mi, $24/hr → REJECT delivery low hourly at defaults)':
+    '[1]: YP Delivery Exclusive\n[2]: $7.50\n[3]: Includes expected tip\n[4]: O 19 min (4.6 mi) total\n[6]: Casa Del Bro Mexican Grill and\nCreamery\n[7]: Accept\n[9]: o Adelaide & Kennoway,\nThe Colony',
+  'text E (delivery, LIVE decimal-dropped OCR "$750" → must be NO DATA, never ACCEPT)':
+    '[0]: 12:55 J Baby (feat.\n[1]: YP Delivery Exclusive\n[2]: $750\n[3]: Includes expected tip\n[4]: O 19 min (4.6 mi) total\n[5]: *0 5G.ll 66\n[6]: Casa Del Bro Mexican Grill and\nCreamery\n[7]: Accept\n[8]: LEBANON F\n[9]: o Adelaide & Kennoway,\nThe Colony\n[10]: X',
+  'text F (Comfort ride regression: $13.25, "$33.13/active hr" excluded, 9.3 mi)':
+    'Comfort\n$13.25\n$33.13/active hr\n5.00 ★ Verified\n13 min (5.5 mi) away\nMain St\n10 mins (3.8 mi) trip\nElm St',
 };
 
 async function post(label, init) {

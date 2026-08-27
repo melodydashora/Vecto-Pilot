@@ -88,6 +88,42 @@ export const DEFAULT_RULESET = {
 
   share: { auto_reject: true },
 
+  // v3.2 (2026-08-26, Melody 2026-08-24: delivery is a lane of its own — VISION by
+  // default). Food/package cards carry ONE "N min (X mi) total" line, no rating, no
+  // Verified badge; ride-only rules (rating, Verified, pickup limits, share, ladders) do
+  // not apply. $/hr = price / total_minutes × 60 IS a decider here (unlike rides, where
+  // hourly is telemetry only). Defaults are Melody's placeholders from the brief —
+  // per-driver editable (Delivery card). enabled:false → NO DATA "delivery off".
+  delivery: {
+    enabled: true,
+    min_per_mile: 1.50,
+    min_per_hour: 25,
+    max_total_miles: 12,
+  },
+
+  // v3.2 (2026-08-26): implausible-parse tripwire. Live incident 2026-08-24: on-device OCR
+  // dropped the decimal in "$7.50" → "$750" → the driver was told ACCEPT at $163/mi and
+  // "$2368/hr". A decimal drop is always a ×100 error, so any ceiling catches the class;
+  // these are set high enough that legitimate short surge hops ($20 for a 7-minute hop =
+  // $171/hr; a $30 1.2-mile surge = $25/mi) never trip. A breach is NO DATA — decide
+  // manually — never a guess and never an ACCEPT. Applies to every lane (checkSanity).
+  // Ceilings are "impossible", not "unattractive" — the tiers hold the taste. The rate
+  // ceilings are only applied when the denominator is meaningful (>= MIN_RATE_MILES /
+  // MIN_RATE_MINUTES): a $30 minimum-fare hop over 0.4 mi is a real offer, not a parse bug
+  // (adversarial review 2026-08-26 — the first draft turned those into NO DATA).
+  // The *_no_cents pair is the decimal-drop detector: a platform price is ALWAYS
+  // cents-precise, so an integer price means the OCR lost the point. "$7.50"→"$750" is
+  // caught by max_price; the one-glyph variants ("$75O"→75, "$7.50"→"$75") are caught here,
+  // because a cents-less price whose $/mi or $/hr is also high is not a real card.
+  sanity: {
+    max_price: 500,
+    max_per_mile: 40,
+    max_per_hour: 500,
+    min_price: 1,
+    max_per_mile_no_cents: 10,
+    max_per_hour_no_cents: 200,
+  },
+
   tiers: {
     standard: {
       floor_per_mile: 0.90,
@@ -181,6 +217,10 @@ export function migrateRuleset(config) {
     basis: config.basis === 'active_time' ? 'active_time' : 'full_ride',
     global: { ...d.global, ...(config.global || {}) },
     share: { ...d.share, ...(config.share || {}) },
+    delivery: { ...d.delivery, ...(config.delivery || {}) },   // v3.2 — absent keys get the defaults (idempotent)
+    // v3.2: sanity ceilings are a safety floor, not a taste knob — a stored null (or a
+    // client that drops the key) must not silently disable the tripwire (review 2026-08-26).
+    sanity: Object.fromEntries(Object.keys(d.sanity).map((k) => [k, config.sanity?.[k] ?? d.sanity[k]])),
     tiers: {
       standard: cloneTier(config.tiers?.standard) || cloneTier(d.tiers.standard),
       premium: cloneTier(config.tiers?.premium) || cloneTier(d.tiers.premium),
@@ -208,9 +248,14 @@ export function migrateRuleset(config) {
  * v3: ruleset-aware — when the ruleset enables comfort/xl tiers, premium products
  * route to them (tier_products override, else the DEFAULT_*_PRODUCTS split).
  * With a default ruleset this reduces exactly to the legacy share/standard/premium.
- * @returns {"share"|"standard"|"premium"|"comfort"|"xl"}
+ * 2026-08-26: 'delivery' (product "Delivery…") passes straight through — it is not a
+ * ride tier and has its own block (ruleset.delivery), evaluated by evaluateDelivery().
+ * @returns {"share"|"standard"|"premium"|"comfort"|"xl"|"delivery"}
  */
 export function classifyTier(productType, ruleset = DEFAULT_RULESET) {
+  // The vision model writes this string itself ("delivery", "Delivery Exclusive") — match
+  // it case-insensitively here, unlike the parser's own canonical output (review 2026-08-26).
+  if (typeof productType === 'string' && /^\s*delivery\b/i.test(productType)) return 'delivery';
   const base = classifyTierByProduct(productType);
   if (base !== 'premium') return base;
 
@@ -294,15 +339,113 @@ export function deriveEffectiveMetrics(raw, basis = 'full_ride') {
   return { perMile, perMinute, totalMin: minutes, miles };
 }
 
+// A rate needs a real denominator before it means anything (review 2026-08-26).
+const MIN_RATE_MILES = 1;
+const MIN_RATE_MINUTES = 5;
+
+const toFiniteNumber = (v) => {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Implausible-parse tripwire (v3.2, 2026-08-26). Pure arithmetic over whatever money
+ * fields are present — lane-agnostic (regex pre-parse, vision extraction, model echo).
+ * Fail loud, never fake: a breach means the numbers cannot be trusted, so the ONLY
+ * honest verdict is NO DATA ("decide manually"). Never a repair, never a guess.
+ *
+ * Signals:
+ *   price      > sanity.max_price / < sanity.min_price (0 is "not read", not a breach)
+ *   $/mi       > sanity.max_per_mile  (price / total_miles)
+ *   $/hr       > sanity.max_per_hour  (price / total_minutes × 60)
+ *   price written with no cents AND >= $100 (platform prices are always cents-precise;
+ *              this is the decimal-drop signature even when the rates land in band)
+ *
+ * @param {object} raw - { price, total_miles, total_minutes, per_mile?, price_format? }
+ * @returns {{ ok:boolean, problems:string[], price:number|null, perMile:number|null, perHour:number|null }}
+ */
+export function checkSanity(raw, ruleset = DEFAULT_RULESET) {
+  const s = { ...DEFAULT_RULESET.sanity, ...(ruleset?.sanity || {}) };
+  const price = toFiniteNumber(raw?.price);
+  const miles = toFiniteNumber(raw?.total_miles);
+  const minutes = toFiniteNumber(raw?.total_minutes);
+  const perMile = toFiniteNumber(raw?.per_mile) ?? (price != null && miles > 0 ? round2(price / miles) : null);
+  const perHour = (price != null && minutes > 0) ? Math.round((price / minutes) * 60) : null;
+  const noCents = raw?.price_format === 'integer';
+  const problems = [];
+
+  // A negative money field is never "not read" — it is a broken extraction.
+  for (const [label, v] of [['price', price], ['miles', miles], ['minutes', minutes]]) {
+    if (v != null && v < 0) problems.push(`${label} ${v} is negative`);
+  }
+
+  if (price != null && price > 0) {
+    if (s.max_price != null && price > s.max_price) problems.push(`price $${price} above $${s.max_price}`);
+    if (s.min_price != null && price < s.min_price) problems.push(`price $${price} below $${s.min_price}`);
+    if (noCents && price >= 100) problems.push(`price $${price} has no cents`);
+  }
+  // Rate ceilings need a meaningful denominator (see the sanity comment above).
+  const milesOk = miles != null && miles >= MIN_RATE_MILES;
+  const minutesOk = minutes != null && minutes >= MIN_RATE_MINUTES;
+  if (perMile != null && milesOk) {
+    if (s.max_per_mile != null && perMile > s.max_per_mile) problems.push(`$${perMile.toFixed(2)}/mi above $${s.max_per_mile}/mi`);
+    else if (noCents && s.max_per_mile_no_cents != null && perMile > s.max_per_mile_no_cents) {
+      problems.push(`$${perMile.toFixed(2)}/mi from a cents-less price $${price}`);
+    }
+  }
+  if (perHour != null && minutesOk) {
+    if (s.max_per_hour != null && perHour > s.max_per_hour) problems.push(`$${perHour}/hr above $${s.max_per_hour}/hr`);
+    else if (noCents && s.max_per_hour_no_cents != null && perHour > s.max_per_hour_no_cents) {
+      problems.push(`$${perHour}/hr from a cents-less price $${price}`);
+    }
+  }
+  return { ok: problems.length === 0, problems, price, perMile, perHour };
+}
+
+/**
+ * Delivery lane (v3.2). Two floors + a distance cap; nothing else applies.
+ * per_mile = price / total_miles, per_hour = price / total_minutes × 60 (the card's one
+ * "total" line). Missing minutes with an hourly floor set is NOT silently passed — the
+ * floor cannot be evaluated, so the honest answer is NO DATA (no fallbacks).
+ * `tipThin` marks an ACCEPT that clears a floor by < 15 % with the tip counted in — the
+ * caller speaks the "expected tip included" call-out (never silently discounts the fare).
+ */
+export function evaluateDelivery(raw, ruleset = DEFAULT_RULESET) {
+  const d = { ...DEFAULT_RULESET.delivery, ...(ruleset?.delivery || {}) };
+  const price = toFiniteNumber(raw?.price);
+  const miles = toFiniteNumber(raw?.total_miles);
+  const minutes = toFiniteNumber(raw?.total_minutes);
+  const perMile = (price != null && miles > 0) ? round2(price / miles) : null;
+  const perMinute = (price != null && minutes > 0) ? round2(price / minutes) : null;
+  const perHour = (price != null && minutes > 0) ? Math.round((price / minutes) * 60) : null;
+  const base = { perMile, perMinute, totalMin: minutes, perHour, delivery: true };
+
+  if (d.enabled === false) return { decision: 'NO DATA', reasonKind: 'delivery_off', ...base };
+  if (perMile == null) return { decision: 'NO DATA', reasonKind: 'no_data', ...base };
+  if (d.min_per_hour != null && perHour == null) return { decision: 'NO DATA', reasonKind: 'no_data', ...base };
+
+  if (d.max_total_miles != null && miles > d.max_total_miles) return { decision: 'REJECT', reasonKind: 'delivery_too_far', ...base };
+  if (d.min_per_mile != null && perMile < d.min_per_mile) return { decision: 'REJECT', reasonKind: 'delivery_low_mi', ...base };
+  if (d.min_per_hour != null && perHour < d.min_per_hour) return { decision: 'REJECT', reasonKind: 'delivery_low_hr', ...base };
+
+  const tipIncluded = raw?.tip_included === true;
+  const thinMile = d.min_per_mile != null && perMile < d.min_per_mile * 1.15;
+  const thinHour = d.min_per_hour != null && perHour != null && perHour < d.min_per_hour * 1.15;
+  return { decision: 'ACCEPT', reasonKind: 'delivery_accept', tipThin: tipIncluded && (thinMile || thinHour), ...base };
+}
+
 /**
  * Deterministic decision — the ground truth for arithmetic. Returns a decision
  * plus a `reasonKind` the caller turns into the terse spoken/notification string.
  *
  * v3 gate order (spec's Decision Priority, deterministic lane only — vision-lane
  * gates like safety/geography live in the prompt and the Phase-2 audit):
- *   rating → pickup limits → per-mile floor → per-minute floor → time limit →
- *   tier max miles (v3.1) → accept ladder → acceptance-rate protection → too_far/low.
- * All v3 gates are null at defaults → decisions identical to the legacy ladder.
+ *   share → SANITY (v3.2) → [delivery block, v3.2] → rating → pickup limits →
+ *   per-mile floor → per-minute floor → time limit → tier max miles (v3.1) →
+ *   accept ladder → acceptance-rate protection → too_far/low.
+ * All v3 gates are null at defaults → decisions identical to the legacy ladder; the
+ * sanity ceilings sit far above every legacy grid value (parity suite unchanged).
  *
  * @returns {{ decision:'ACCEPT'|'REJECT'|'NO DATA', reasonKind:string, fallback?:boolean,
  *             perMile:number|null, perMinute:number|null, totalMin:number|null }}
@@ -317,6 +460,20 @@ export function evaluateDeterministic(tier, raw, ruleset = DEFAULT_RULESET, cont
     }
     tier = 'standard';
   }
+
+  // v3.2 sanity tripwire — AFTER the share identity-reject (a share is a share whatever
+  // its numbers say) and BEFORE every arithmetic gate: an implausible parse must never
+  // reach a floor, a ladder, or ARP. NO DATA here means "decide manually", nothing else.
+  const sane = checkSanity(raw, ruleset);
+  if (!sane.ok) {
+    return {
+      decision: 'NO DATA', reasonKind: 'implausible_parse', problems: sane.problems,
+      perMile: sane.perMile, perMinute: null, totalMin: toFiniteNumber(raw?.total_minutes), perHour: sane.perHour,
+    };
+  }
+
+  // v3.2 delivery lane — its own two-floor block; ride gates below do not apply.
+  if (tier === 'delivery') return evaluateDelivery(raw, ruleset);
 
   const eff = resolveScopedRuleset(ruleset, context);
   const { perMile, perMinute, totalMin, miles } = deriveEffectiveMetrics(raw, eff.basis);
@@ -497,6 +654,30 @@ function renderRuleLines(tierName, eff, ruleset, { tierRulesOnly = false } = {})
   return rules;
 }
 
+/**
+ * Delivery rules block for the prompts (v3.2). Rendered only when delivery is enabled.
+ * Uses the same numbers the evaluator applies (evaluateDelivery) — no drift.
+ */
+function renderDeliveryLines(ruleset) {
+  const d = { ...DEFAULT_RULESET.delivery, ...(ruleset?.delivery || {}) };
+  // Disabled still needs a rule: without one the model has no word for a delivery card and
+  // silently judges it by ride rules (review 2026-08-26). Label it, then refuse it.
+  if (d.enabled === false) {
+    return [
+      'product "Delivery" (or "Delivery Exclusive"); total_miles and total_minutes = the single "N min (X mi) total" line.',
+      'This driver has delivery offers turned OFF: answer decision "NO DATA", reason "delivery off". Never judge a delivery by the ride rules above.',
+    ];
+  }
+  const lines = [
+    'product "Delivery" (or "Delivery Exclusive"); total_miles and total_minutes = the single "N min (X mi) total" line; pickup fields 0; tip_included true if "Includes expected tip" is shown.',
+  ];
+  if (d.max_total_miles != null) lines.push(`REJECT if total_miles>${Number(d.max_total_miles)} (delivery cap).`);
+  if (d.min_per_mile != null) lines.push(`REJECT if $/mi<${fmt(d.min_per_mile)}.`);
+  if (d.min_per_hour != null) lines.push(`REJECT if $/hr<${Number(d.min_per_hour)} ($/hr=price/total_min*60).`);
+  lines.push('ACCEPT otherwise. Rating, Verified, pickup and share rules do not apply to deliveries.');
+  return lines;
+}
+
 function renderAvoidRule(a) {
   const label = a.label || 'the avoid area';
   switch (a.mode) {
@@ -576,6 +757,23 @@ function noticesLine(eff) {
  * @param {"share"|"standard"|"premium"|"comfort"|"xl"} tier
  */
 export function buildPhase1Prompt(tier, ruleset = DEFAULT_RULESET, context = {}) {
+  if (tier === 'delivery') {
+    // v3.2: the text lane decides deliveries deterministically (no judgment rule applies),
+    // so this render is defensive — it must never fall through to ride rules.
+    const lines = renderDeliveryLines(ruleset);
+    const numbered = (lines.length ? lines : ['REJECT. Delivery offers are off in this driver\'s rules.'])
+      .map((r, i) => `${i + 1}. ${r}`).join('\n');
+    return `Raw JSON only. No markdown/backticks.
+
+Math: per_mile=price/total_miles. per_hour=price/total_minutes*60. One "total" line = total_miles and total_minutes.
+
+DELIVERY card. Rules (first match wins):
+${numbered}
+
+reason: terse. "$1.63 4.6mi delivery". No sentences.
+
+{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"tip_included":false,"decision":"REJECT","reason":"$0.00 0.0mi delivery"}`;
+  }
   if (tier === 'share') {
     // Mirrors evaluateDeterministic: auto_reject false → standard rules apply.
     if (ruleset.share?.auto_reject !== false) {
@@ -689,11 +887,20 @@ export function buildPhase1VisionPrompt(ruleset = DEFAULT_RULESET, context = {})
   const extraSections = [...guidance, ...(notices ? [notices] : [])];
   const extraBlock = extraSections.length ? `\n${extraSections.join('\n')}\n` : '';
 
+  // v3.2 (2026-08-26): delivery cards get their own section (Melody: delivery is the
+  // VISION lane). The server re-runs evaluateDelivery on the extracted numbers, through
+  // the same sanity tripwire as rides.
+  const deliveryLines = renderDeliveryLines(ruleset);
+  const deliverySection = deliveryLines.length
+    ? `\nDELIVERY (food/package card: "Delivery" chip, one "N min (X mi) total" line, "Includes expected tip"):\n${deliveryLines.map((r) => `- ${r}`).join('\n')}\n`
+    : '';
+  const deliveryTemplate = deliveryLines.length ? ',"tip_included":false' : '';
+
   // v3.1 (2026-08-17): the server re-runs the NUMERIC rules on the numbers the model
   // extracts (arithmetic authority — the model's own $/mi wobbled across the floor on
   // live cards). judgment_reject lets the server tell a judgment REJECT (avoid area,
   // road safety, missing Verified, stops, round trip) from an arithmetic one.
-  const jsonTemplate = `{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"product":"","rating":0${templateExtras(eff)},"judgment_reject":"","decision":"REJECT","reason":"$0.00 0.0mi"}`;
+  const jsonTemplate = `{"price":0,"per_mile":0,"total_miles":0,"total_minutes":0,"product":"","rating":0${templateExtras(eff)}${deliveryTemplate},"judgment_reject":"","decision":"REJECT","reason":"$0.00 0.0mi"}`;
 
   const shareLine = ruleset.share?.auto_reject !== false
     ? 'Share/pool rides (Uber Share, Lyft Shared): REJECT always.'
@@ -710,7 +917,7 @@ Gates (all tiers):
 ${numberedGlobal}
 
 ${tierSections}
-
+${deliverySection}
 ${arpLine}No tier rule matched: REJECT.
 ${extraBlock}
 rating: the rider rating if shown, else 0.
@@ -750,6 +957,10 @@ export function buildPhase2Prompt(ruleset = DEFAULT_RULESET, context = {}) {
     : '';
 
   const guidance = renderGuidanceLines(eff);
+  const deliveryLines = renderDeliveryLines(ruleset);
+  const deliveryBlock = deliveryLines.length
+    ? `DELIVERY (offer_kind "delivery" — food/package cards; ride gates do not apply):\n${deliveryLines.map((r, i) => `  ${i + 1}. ${r}`).join('\n')}\n`
+    : 'DELIVERY: off in this driver\'s rules — decision NO DATA.\n';
 
   return `You are a rideshare offer analyst. The driver's GPS may be provided below.
 Provide DEEP analysis with FULL extraction of everything visible. Return ONLY valid JSON.
@@ -763,7 +974,8 @@ Provide DEEP analysis with FULL extraction of everything visible. Return ONLY va
     "rider_rating": number|null, "verified": boolean|null, "product_type": string|null,
     "multiple_stops": boolean|null, "round_trip": boolean|null,
     "on_the_way": boolean|null, "map_ellipsis": boolean|null,
-    "road_flags": string[]|null
+    "road_flags": string[]|null,
+    "offer_kind": "ride"|"delivery", "tip_included": boolean|null
   },
   "decision": "ACCEPT"|"REJECT",
   "reasoning": "2-3 sentences: location quality, return-trip viability, economic assessment",
@@ -781,7 +993,7 @@ ${globalLines.join('\n')}
 RULES (tier-aware — check TIER tag below):
 ${tierBlocks}
 SHARE: ${ruleset.share?.auto_reject !== false ? 'Always REJECT.' : 'Apply STANDARD rules.'}
-GENERAL:
+${deliveryBlock}GENERAL:
   - Rides to rural outskirts or areas with difficult return trips need high $/mi.
     Use the driver's GPS (when provided) to judge deadhead/rural RELATIVE to the
     driver's actual location — do NOT assume any specific metro.

@@ -35,8 +35,14 @@ interface AnalyzedOffer {
   price?: number | null;
   per_mile?: number | null;
   total_miles?: number | null;
+  total_minutes?: number | null;
   product_type?: string | null;
   created_at?: string | null;
+  // v3.2 (2026-08-26): lane + provenance facts from parsed_data_json (server GET /offers)
+  offer_kind?: 'ride' | 'delivery' | null;
+  tip_included?: boolean | null;
+  reason_kind?: string | null; // 'implausible_parse' | 'delivery_*' | engine kinds | null
+  shortcut_system?: string | null; // self-reported client ("macrodroid/5.65"), never identity
   // LEFT JOINed outcome columns (flat, null when no outcome recorded)
   outcome_id?: string | null;
   driver_decision?: DriverDecision | null;
@@ -86,6 +92,15 @@ function decisionBadgeClass(decision: string): string {
   if (decision === 'ACCEPT') return 'bg-green-100 text-green-800 border-transparent';
   if (decision === 'REJECT') return 'bg-red-100 text-red-800 border-transparent';
   return 'bg-gray-100 text-gray-600 border-transparent'; // NO DATA
+}
+
+// 2026-08-26: an implausible parse (the OCR read "$7.50" as "$750" — live 2026-08-24) is
+// stored as NO DATA with reason_kind 'implausible_parse'. It must never wear the green
+// ACCEPT treatment; amber says "we read numbers we could not trust — decide manually".
+const PARSE_ERROR_BADGE_CLASS = 'bg-amber-100 text-amber-900 border-transparent';
+
+function isDeliveryOffer(offer: AnalyzedOffer): boolean {
+  return offer.offer_kind === 'delivery' || /^Delivery\b/.test(offer.product_type ?? '');
 }
 
 // 2026-07-03 review fix: "Followed the call" used to store NULL, which conflated
@@ -212,20 +227,52 @@ function OfferRow({ offer, onOutcomeSaved }: OfferRowProps) {
 
   const perMile = toNum(offer.per_mile);
   const totalMiles = toNum(offer.total_miles);
+  const totalMinutes = toNum(offer.total_minutes);
   const price = toNum(offer.price);
+  const isParseError = offer.reason_kind === 'implausible_parse';
+  const isDelivery = isDeliveryOffer(offer);
+  const perHour = price != null && totalMinutes != null && totalMinutes > 0 ? Math.round((price / totalMinutes) * 60) : null;
 
   return (
     <div className="rounded-lg border border-gray-200 p-3 space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <Badge className={decisionBadgeClass(offer.decision)}>{offer.decision}</Badge>
+        <div className="flex items-center gap-2 flex-wrap">
+          {isParseError ? (
+            <Badge className={PARSE_ERROR_BADGE_CLASS}>PARSE ERROR — decide manually</Badge>
+          ) : (
+            <Badge className={decisionBadgeClass(offer.decision)}>{offer.decision}</Badge>
+          )}
+          {isDelivery && (
+            <Badge className="bg-violet-100 text-violet-800 border-transparent">
+              {/^Delivery Exclusive/.test(offer.product_type ?? '') ? 'Delivery · Exclusive' : 'Delivery'}
+            </Badge>
+          )}
+          {isDelivery && offer.tip_included && (
+            <span className="text-[10px] uppercase tracking-wide text-violet-700">tip incl.</span>
+          )}
+        </div>
         <span className="text-xs text-gray-400">{timeAgo(offer.created_at)}</span>
       </div>
 
-      <div className="flex items-baseline gap-2 text-sm text-gray-800">
-        {perMile != null && <span className="font-semibold tabular-nums">${perMile.toFixed(2)}/mi</span>}
-        {totalMiles != null && <span className="text-gray-500 tabular-nums">{totalMiles.toFixed(1)} mi</span>}
+      <div className="flex items-baseline gap-2 flex-wrap text-sm text-gray-800">
+        {perMile != null && (
+          <span className={`font-semibold tabular-nums ${isParseError ? 'line-through text-amber-800' : ''}`}>
+            ${perMile.toFixed(2)}/mi
+          </span>
+        )}
+        {totalMiles != null && (
+          <span className="text-gray-500 tabular-nums">{totalMiles.toFixed(1)} mi{isDelivery ? ' total' : ''}</span>
+        )}
         {price != null && <span className="text-gray-500 tabular-nums">${price.toFixed(2)}</span>}
-        {offer.product_type && <span className="text-xs text-gray-400">{offer.product_type}</span>}
+        {isDelivery && perHour != null && !isParseError && (
+          <span className="text-gray-500 tabular-nums">${perHour}/hr</span>
+        )}
+        {!isDelivery && offer.product_type && <span className="text-xs text-gray-400">{offer.product_type}</span>}
+        {offer.shortcut_system && (
+          <span className="ml-auto text-[10px] font-mono text-gray-400" title="Automation client that sent this offer">
+            {offer.shortcut_system}
+          </span>
+        )}
       </div>
 
       {offer.decision_reasoning && <p className="text-xs text-gray-500">{offer.decision_reasoning}</p>}

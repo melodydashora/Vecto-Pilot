@@ -18,6 +18,22 @@
  * @returns {number|null}
  */
 export function extractPrice(text) {
+  return extractPriceDetailed(text).value;
+}
+
+/**
+ * Same extraction, plus HOW the winning candidate was written.
+ * 2026-08-26 (live incident 2026-08-24, memory/todo intake): the phone's OCR dropped the
+ * decimal in "$7.50" and sent "$750"; the parser accepted it and the driver was told
+ * ACCEPT at $163/mi. Platform prices are always cents-precise, so a winning candidate
+ * with NO cents is evidence in its own right — the rules engine's sanity gate
+ * (checkSanity) treats an integer price >= $100 as implausible even when the derived
+ * rates happen to land in band.
+ *
+ * @param {string} text
+ * @returns {{ value: number|null, format: 'cents'|'integer'|null }}
+ */
+export function extractPriceDetailed(text) {
   // 2026-08-17: a live prod screenshot's OCR began with the phone's notification shade —
   // our OWN previous verdict banner ("ACCEPT $0.5/minute…") — and the first "$" won,
   // turning a $6.07 offer into a "$0.06/mi" fast-lane REJECT. Strip our own banner
@@ -33,13 +49,13 @@ export function extractPrice(text) {
       || /^\s*per\b/i.test(after);                     // "$1.40 per mile"
   };
   const twoDecimal = candidates.filter((m) => /\.\d{2}$/.test(m[1]) && !isRateOrBanner(m) && parseFloat(m[1]) > 0);
-  if (twoDecimal.length) return parseFloat(twoDecimal[0][1]);
+  if (twoDecimal.length) return { value: parseFloat(twoDecimal[0][1]), format: 'cents' };
   for (const m of candidates) {
     if (isRateOrBanner(m)) continue;
     const value = parseFloat(m[1]);
-    if (value > 0) return value;
+    if (value > 0) return { value, format: m[1].includes('.') ? 'cents' : 'integer' };
   }
-  return null;
+  return { value: null, format: null };
 }
 
 /**
@@ -93,8 +109,15 @@ export function extractTimeDistancePairs(text) {
  * @returns {string|null}
  */
 export function extractProductType(text) {
+  // 2026-08-26 (adversarial review): the delivery product is NOT decided here. The word
+  // "Delivery" appears in ordinary ride cards (street names — "1200 Delivery Dr" —
+  // restaurants, on-screen chrome), and claiming it here routed real UberX/Comfort rides
+  // down the delivery lane, skipping the driver's rating/Verified/pickup gates. Delivery
+  // is a SHAPE (one "N min (X mi) total" line / a tip line / at most one pair), decided in
+  // parseOfferText via isDeliveryCard(); deliveryProduct() names it once the shape agrees.
   // Normalize newlines for multi-line product names like "UberX\nExclusive"
   const normalized = text.replace(/\n/g, ' ');
+
 
   // Uber products — match raw, then canonicalize
   const uberMatch = normalized.match(/Uber\s*X{0,2}\s*L?\s*(?:Priority|Exclusive)?/i);
@@ -153,10 +176,11 @@ const SHARE_PRODUCTS = new Set(['Share', 'Lyft Shared']);
  *   "premium"  — Comfort/VIP/Black/XL: floor $1.10, relaxed time limits
  *
  * @param {string|null} productType - Canonical product type from extractProductType()
- * @returns {"share"|"standard"|"premium"}
+ * @returns {"share"|"standard"|"premium"|"delivery"}
  */
 export function classifyTier(productType) {
   if (!productType) return 'standard';
+  if (/^Delivery\b/.test(productType)) return 'delivery'; // 2026-08-26: delivery lane (rules-engine `delivery` block)
   if (SHARE_PRODUCTS.has(productType)) return 'share';
   if (PREMIUM_PRODUCTS.has(productType)) return 'premium';
   return 'standard';
@@ -247,10 +271,11 @@ export function parseOfferText(rawText) {
       per_mile: null, per_minute: null,
       surge: null, product_type: null, advantage_pct: null,
       platform_hint: null, parse_confidence: 'minimal',
+      price_format: null, offer_kind: 'ride', tip_included: false,
     };
   }
 
-  const price = extractPrice(rawText);
+  const { value: price, format: priceFormat } = extractPriceDetailed(rawText);
   const hourlyRate = extractHourlyRate(rawText);
   const pairs = extractTimeDistancePairs(rawText);
   const productType = extractProductType(rawText);
@@ -258,12 +283,28 @@ export function parseOfferText(rawText) {
   const advantagePct = extractAdvantage(rawText);
   const platformHint = detectPlatform(rawText, productType);
 
+  // 2026-08-26: delivery cards carry ONE "N min (X mi) total" line (restaurant leg +
+  // drop leg combined) and no pickup/ride split — see isDeliveryCard(). Their pair is the
+  // TOTAL; pickup_* / ride_* stay null and the pickup-vs-trip logic below is skipped.
+  const totalPair = extractTotalPair(rawText);
+  const tipIncluded = /\bincludes?\s+expected\s+tip\b/i.test(rawText);
+  const deliveryLabel = deliveryProduct(rawText);
+  const isDelivery = isDeliveryCard(deliveryLabel, pairs, totalPair, tipIncluded);
+  // The delivery product name replaces the ride brand ONLY on a confirmed delivery card;
+  // a ride card that merely contains the word keeps its own product (or null).
+  const effectiveProduct = isDelivery ? deliveryLabel : productType;
+
   // Disambiguate pickup vs ride from the two time/distance pairs
   // Uber shows pickup first, ride second. If only one pair found, it's ambiguous.
   let pickupMinutes = null, pickupMiles = null;
   let rideMinutes = null, rideMiles = null;
+  let deliveryMinutes = null, deliveryMiles = null;
 
-  if (pairs.length >= 2) {
+  if (isDelivery) {
+    const pair = totalPair || pairs[0] || null;
+    deliveryMinutes = pair ? pair.minutes : null;
+    deliveryMiles = pair ? pair.miles : null;
+  } else if (pairs.length >= 2) {
     // First pair = pickup, second pair = ride
     pickupMinutes = pairs[0].minutes;
     pickupMiles = pairs[0].miles;
@@ -286,8 +327,8 @@ export function parseOfferText(rawText) {
     }
   }
 
-  const totalMiles = (pickupMiles || 0) + (rideMiles || 0) || null;
-  const totalMinutes = (pickupMinutes || 0) + (rideMinutes || 0) || null;
+  const totalMiles = isDelivery ? deliveryMiles : ((pickupMiles || 0) + (rideMiles || 0) || null);
+  const totalMinutes = isDelivery ? deliveryMinutes : ((pickupMinutes || 0) + (rideMinutes || 0) || null);
 
   // Server-side calculations — deterministic, no LLM math needed
   const perMile = (price && totalMiles && totalMiles > 0)
@@ -299,7 +340,9 @@ export function parseOfferText(rawText) {
 
   // Confidence assessment
   let parseConfidence = 'minimal';
-  if (price !== null && pairs.length >= 2) {
+  if (price !== null && isDelivery && deliveryMiles != null && deliveryMinutes != null) {
+    parseConfidence = 'full'; // delivery: price + the single total line IS the complete card
+  } else if (price !== null && pairs.length >= 2) {
     parseConfidence = 'full';
   } else if (price !== null && pairs.length >= 1) {
     parseConfidence = 'partial';
@@ -319,11 +362,47 @@ export function parseOfferText(rawText) {
     per_mile: perMile,
     per_minute: perMinute,
     surge,
-    product_type: productType,
+    product_type: effectiveProduct,
     advantage_pct: advantagePct,
     platform_hint: platformHint,
     parse_confidence: parseConfidence,
+    // 2026-08-26 (sanity tripwire + delivery lane)
+    price_format: priceFormat,           // 'cents' | 'integer' | null — see extractPriceDetailed
+    offer_kind: isDelivery ? 'delivery' : 'ride',
+    tip_included: tipIncluded,
   };
+}
+
+/**
+ * The delivery product string, IF the card carries one. Tolerant of leading OCR glyph junk
+ * (the live 2026-08-24 card read "YP Delivery Exclusive" — the fork icon became "YP").
+ * Only meaningful together with isDeliveryCard(); never call it as a tier decider.
+ * @returns {'Delivery'|'Delivery Exclusive'|null}
+ */
+export function deliveryProduct(text) {
+  const m = String(text ?? '').replace(/\n/g, ' ').match(/\bDelivery\b(\s+Exclusive\b)?/i);
+  return m ? (m[1] ? 'Delivery Exclusive' : 'Delivery') : null;
+}
+
+/**
+ * The delivery card's single "N min (X mi) total" line (restaurant leg + drop leg).
+ * @returns {{minutes:number, miles:number}|null}
+ */
+export function extractTotalPair(text) {
+  if (!text || text.length > 5000) return null;
+  const m = text.match(/(\d+)\s*min(?:s|utes?)?\s*\((\d+(?:\.\d+)?)\s*mi\)\s*total\b/i);
+  return m ? { minutes: parseInt(m[1], 10), miles: parseFloat(m[2]) } : null;
+}
+
+/**
+ * Delivery card = the "Delivery" chip plus the delivery SHAPE (one total line, or a tip
+ * line, or at most one pair). A two-pair ride card that merely contains the word
+ * "Delivery" (an address) is NOT a delivery — that shape has pickup + trip legs.
+ */
+export function isDeliveryCard(deliveryLabel, pairs, totalPair, tipIncluded) {
+  if (!deliveryLabel) return false;                 // no "Delivery" chip at all
+  if (pairs.length >= 2) return false;              // pickup + trip legs = a RIDE card, always
+  return Boolean(totalPair) || tipIncluded || pairs.length <= 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -371,6 +450,14 @@ export function formatPerMileForVoice(perMile) {
   if (dollars === 0 && cents === 0) return 'zero per mile';
 
   let spoken = '';
+
+  // 2026-08-26: ≥ $100/mi only ever comes from a broken parse (the sanity gate answers
+  // NO DATA before this is spoken) — but never let TTS read "163 dollars four".
+  if (dollars > 99) {
+    return cents > 0
+      ? `${dollars} dollars ${numberToWords(cents)} cents per mile`
+      : `${dollars} dollars per mile`;
+  }
 
   if (dollars > 0 && cents > 0) {
     if (dollars === 1) {
