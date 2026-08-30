@@ -1,0 +1,15 @@
+{
+  "name": "calc-coach",
+  "version": "1.0.0",
+  "description": "Adaptive, mastery-gated AP Calculus BC tutor. Zero dependencies.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/engine.test.mjs",
+    "validate": "node scripts/validate-content.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "title": "Calc Coach",
+  "subtitle": "AP Calculus BC, one mastered skill at a time",
+  "masteryThreshold": 80,
+  "practiceSetSize": 6,
+  "reviewAfterDays": 3,
+  "units": [
+    {
+      "id": "unit-01",
+      "number": 1,
+      "title": "Limits and Continuity",
+      "file": "unit-01.json",
+      "bcOnly": false,
+      "examWeight": "4–7% of the BC exam",
+      "blurb": "What it means for a function to approach a value, how to compute limits, and what continuity guarantees."
+    },
+    {
+      "id": "unit-02",
+      "number": 2,
+      "title": "Differentiation: Definition and Fundamental Properties",
+      "file": "unit-02.json",
+      "bcOnly": false,
+      "examWeight": "4–7% of the BC exam",
+      "blurb": "The derivative as a limit, derivative rules for sums, products, quotients, and the basic function library."
+    },
+    {
+      "id": "unit-03",
+      "number": 3,
+      "title": "Differentiation: Composite, Implicit, and Inverse Functions",
+      "file": "unit-03.json",
+      "bcOnly": false,
+      "examWeight": "4–7% of the BC exam",
+      "blurb": "The chain rule, implicit differentiation, and derivatives of inverse functions including inverse trig."
+    },
+    {
+      "id": "unit-04",
+      "number": 4,
+      "title": "Contextual Applications of Differentiation",
+      "file": "unit-04.json",
+      "bcOnly": false,
+      "examWeight": "6–9% of the BC exam",
+      "blurb": "Rates of change in context, related rates, linear approximation, and L'Hôpital's rule."
+    },
+    {
+      "id": "unit-05",
+      "number": 5,
+      "title": "Analytical Applications of Differentiation",
+      "file": "unit-05.json",
+      "bcOnly": false,
+      "examWeight": "8–11% of the BC exam",
+      "blurb": "Mean Value Theorem, extrema, concavity, curve sketching, and optimization."
+    },
+    {
+      "id": "unit-06",
+      "number": 6,
+      "title": "Integration and Accumulation of Change",
+      "file": "unit-06.json",
+      "bcOnly": false,
+      "examWeight": "17–20% of the BC exam",
+      "blurb": "Riemann sums, the Fundamental Theorem of Calculus, antiderivatives, u-substitution, integration by parts, and partial fractions."
+    },
+    {
+      "id": "unit-07",
+      "number": 7,
+      "title": "Differential Equations",
+      "file": "unit-07.json",
+      "bcOnly": false,
+      "examWeight": "6–9% of the BC exam",
+      "blurb": "Slope fields, Euler's method, separation of variables, exponential growth, and the logistic model."
+    },
+    {
+      "id": "unit-08",
+      "number": 8,
+      "title": "Applications of Integration",
+      "file": "unit-08.json",
+      "bcOnly": false,
+      "examWeight": "6–9% of the BC exam",
+      "blurb": "Average value, motion, area between curves, volumes by slicing and revolution, and arc length."
+    },
+    {
+      "id": "unit-09",
+      "number": 9,
+      "title": "Parametric Equations, Polar Coordinates, and Vector-Valued Functions",
+      "file": "unit-09.json",
+      "bcOnly": true,
+      "examWeight": "11–12% of the BC exam",
+      "blurb": "Calculus on parametric curves, vector-valued motion, and polar coordinates including polar area."
+    },
+    {
+      "id": "unit-10",
+      "number": 10,
+      "title": "Infinite Sequences and Series",
+      "file": "unit-10.json",
+      "bcOnly": true,
+      "examWeight": "17–18% of the BC exam",
+      "blurb": "Convergence tests, error bounds, power series, and Taylor and Maclaurin series."
+    }
+  ]
+}
