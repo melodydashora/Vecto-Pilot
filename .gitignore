@@ -223,3 +223,7 @@ gha-creds-*.json
 # Git worktrees (local workspace isolation per superpowers:using-git-worktrees)
 .worktrees/
 uber-env.txt
+
+# Calc Coach moved to its own repository (melodydashora/DevDashCalc).
+# The directory remains locally as an untracked build workspace only.
+calculus-coach/
