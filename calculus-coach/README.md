@@ -128,8 +128,9 @@ calculus-coach/
   balance) — and `validate-content.mjs` enforces the structural contract
   (including per-skill question minimums and math-delimiter balance) on every
   change.
-- **Math rendering** is KaTeX from a CDN. If the CDN is unreachable the app
-  still works — math shows as raw LaTeX rather than breaking.
+- **Math rendering** is KaTeX, vendored locally under `public/vendor/katex/`
+  (JS, CSS, and woff2 fonts, ~600 KB) so math renders with or without
+  internet access — no CDN dependency at runtime.
 
 ## Adding or editing content
 

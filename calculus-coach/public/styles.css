@@ -113,6 +113,9 @@ button.secondary, .btn.secondary {
 button.quiet, .btn.quiet {
   background: transparent; color: var(--muted); border-color: var(--border);
 }
+button.secondary:disabled, button.quiet:disabled {
+  background: var(--surface); color: var(--locked); border-color: var(--locked); cursor: not-allowed;
+}
 .btn-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; align-items: center; }
 
 /* Unit map */
@@ -155,7 +158,9 @@ button.quiet, .btn.quiet {
 .choice[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .choice.reveal-correct { border-color: var(--good); background: var(--good-soft); }
 .choice.reveal-chosen { border-color: var(--notyet); background: var(--notyet-soft); }
-.choice:disabled { cursor: default; filter: none; }
+.choice:disabled { cursor: default; filter: none; background: var(--surface); border-color: var(--border); color: var(--text); opacity: 0.75; }
+.choice:disabled.reveal-correct { background: var(--good-soft); border-color: var(--good); opacity: 1; }
+.choice:disabled.reveal-chosen { background: var(--notyet-soft); border-color: var(--notyet); opacity: 1; }
 .choice-key { display: inline-block; min-width: 1.5em; font-weight: 700; color: var(--muted); }
 
 .numeric-row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin: 0.8rem 0; }

@@ -191,6 +191,7 @@ function mountQuestion(container, unit, q, opts, done) {
       <div class="feedback-area"></div>
     </div>`;
 
+  renderMath(container);
   const submitBtn = $('.submit-btn', container);
   const hintArea = $('.hint-area', container);
   const fbArea = $('.feedback-area', container);
