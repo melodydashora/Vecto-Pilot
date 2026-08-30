@@ -209,6 +209,29 @@ table.simple { border-collapse: collapse; width: 100%; margin: 0.6rem 0; }
 table.simple th, table.simple td { border: 1px solid var(--border); padding: 0.4rem 0.7rem; text-align: left; }
 table.simple th { background: var(--surface-2); }
 
+/* Interactive explorers — user-driven canvases, calm chrome */
+.viz-box-outer { border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem 1rem; margin: 0.8rem 0; background: var(--surface); }
+.viz-title { margin: 0 0 0.6rem; font-size: 1em; }
+.viz-graph canvas { max-width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); display: block; }
+.viz-controls { margin: 0.7rem 0 0.3rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.viz-slider { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.viz-slider-label { flex: 0 0 14rem; font-size: 0.92em; }
+.viz-slider input[type="range"] { flex: 1; min-width: 10rem; accent-color: var(--accent); }
+.viz-slider-out { flex: 0 0 4.5rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
+.viz-btn-group { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.viz-mode-btn { background: var(--surface); color: var(--text); border: 2px solid var(--border); border-radius: 6px; padding: 0.3rem 0.8rem; font-size: 0.9em; }
+.viz-mode-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.viz-readout { font-size: 0.92em; }
+.viz-readout td { font-variant-numeric: tabular-nums; }
+.viz-note { color: var(--muted); font-size: 0.92em; margin: 0.4rem 0 0; }
+.viz-pipeline { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; font-size: 0.85em; margin-bottom: 0.6rem; color: var(--muted); }
+.viz-pipeline .viz-box { border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); border-radius: 6px; padding: 0.15rem 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.explorer-details { border: 1px solid var(--border); border-radius: 8px; margin: 0.5rem 0; background: var(--surface-2); }
+.explorer-details summary { cursor: pointer; padding: 0.55rem 0.9rem; font-weight: 600; }
+.explorer-details summary:hover { background: var(--accent-soft); border-radius: 8px; }
+.explorer-details .explorer-body { padding: 0 0.6rem 0.6rem; }
+.feedback .viz-slot { margin-top: 0.8rem; }
+
 .katex { font-size: 1.06em; }
 .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.2rem 0; }
 

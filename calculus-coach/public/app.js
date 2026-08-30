@@ -3,6 +3,7 @@
 // data loading, routing, rendering, and persistence.
 
 import * as E from '/engine.js';
+import { explorersFor, mountExplorer, explorerTitle } from '/viz.js';
 
 // ---------------------------------------------------------------- data & state
 const CONTENT = { manifest: null, units: new Map(), byNumber: new Map(), failed: [] };
@@ -269,9 +270,18 @@ function mountQuestion(container, unit, q, opts, done) {
           ${grade.misconception ? `<p><strong>About this choice:</strong> ${grade.misconception}</p>` : ''}
           <p><strong>Here is the complete solution:</strong></p>
           ${solutionHtml}
+          <div class="viz-slot"></div>
           <div class="btn-row"><button type="button" class="next-btn">Continue</button></div>
         </div>`;
-        announce('Not yet correct. The full solution is shown.');
+        // The remediation moment: mount the matching interactive explorer so
+        // the idea can be *seen and driven*, not just re-read.
+        const vizIds = explorersFor(unit, q.skillId);
+        const vizSlot = $('.viz-slot', fbArea);
+        if (vizIds.length && vizSlot) {
+          vizSlot.innerHTML = `<p><strong>See it, then drive it:</strong> the picture below responds only to your slider — drag it and watch the same idea this question tested.</p>`;
+          mountExplorer(vizSlot, vizIds[0]);
+        }
+        announce('Not yet correct. The full solution and an interactive explorer are shown.');
       }
     }
     renderMath(fbArea);
@@ -362,6 +372,11 @@ function viewUnit(unitId) {
     <div class="card">${skillBars(unit)}
       <p class="session-progress">Mastery is earned by answering correctly without hints, including at difficulty 2 or higher. Wrong answers lower the score — that is expected and recoverable.</p>
     </div>
+    <h2>Interactive explorers</h2>
+    <div class="card">
+      <p>Each explorer is a picture you drive with a slider — nothing moves unless you move it. Open one, drag, and watch the numbers and the graph tell the same story.</p>
+      <div id="explorer-slots"></div>
+    </div>
     <h2>Lessons</h2>
     ${lessonRows}
     <h2>Practice</h2>
@@ -385,6 +400,23 @@ function viewUnit(unitId) {
         : `<p><strong>Not open yet.</strong> These core skills are below ${E.MASTERY_THRESHOLD} / 100: ${notMastered.map((sk) => `${esc(sk.name)} (${E.masteryScore(S, sk.id)})`).join(', ')}.</p>`}
     </div>
   `, { breadcrumb: ['Home', `Unit ${unit.number}: ${unit.title}`], nav: 'home' });
+
+  // Mount this unit's explorers lazily: each sits in a <details> and builds
+  // its canvas on first open, so the page stays fast and calm.
+  const slots = $('#explorer-slots');
+  for (const vid of explorersFor(unit)) {
+    const details = document.createElement('details');
+    details.className = 'explorer-details';
+    details.innerHTML = `<summary>${explorerTitle(vid)}</summary><div class="explorer-body"></div>`;
+    details.addEventListener('toggle', () => {
+      const body = details.querySelector('.explorer-body');
+      if (details.open && !body.dataset.mounted) {
+        body.dataset.mounted = '1';
+        mountExplorer(body, vid);
+      }
+    });
+    slots.appendChild(details);
+  }
   S.lastLocation = `#/unit/${unitId}`; save();
 }
 
@@ -475,6 +507,10 @@ function viewPractice(unitId) {
     slot.innerHTML = '';
     mountQuestion(slot, unit, q, { hintsAllowed: true, index: results.length + 1, total: setSize }, (r) => {
       results.push({ q, ...r });
+      let streak = 0;
+      for (let i = results.length - 1; i >= 0 && results[i].correct; i--) streak += 1;
+      const sp = $('#set-progress', v);
+      if (sp) sp.textContent = `${results.filter((x) => x.correct).length} of ${results.length} correct so far${streak >= 2 ? ` · ${streak} in a row` : ''}.`;
       askNext();
     });
   };

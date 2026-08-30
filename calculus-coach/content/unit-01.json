@@ -1,0 +1,853 @@
+{
+  "id": "unit-01",
+  "number": 1,
+  "title": "Limits and Continuity",
+  "overview": "This unit builds the limit: the value a function's outputs approach as its inputs approach a chosen point. You will compute limits from graphs, tables, and algebra, use limits to define continuity precisely, classify the ways continuity can fail, and describe end behavior with asymptotes. The unit closes with the Intermediate Value Theorem, the first major theorem whose hypotheses you must check explicitly. Every later unit depends on limits, because the derivative and the integral are both defined as limits.",
+  "skills": [
+    { "id": "u1-limit-concept", "name": "Limit notation, estimation from graphs and tables, and one-sided limits", "core": true },
+    { "id": "u1-limit-computation", "name": "Evaluating limits with limit laws and algebraic manipulation", "core": true },
+    { "id": "u1-squeeze-theorem", "name": "The squeeze theorem and standard trigonometric limits", "core": true },
+    { "id": "u1-continuity", "name": "Continuity and classifying discontinuities", "core": true },
+    { "id": "u1-asymptotes", "name": "Infinite limits, limits at infinity, and asymptotes", "core": true },
+    { "id": "u1-ivt", "name": "The Intermediate Value Theorem", "core": true }
+  ],
+  "lessons": [
+    {
+      "id": "u1-l1",
+      "title": "The limit concept and one-sided limits",
+      "skillIds": ["u1-limit-concept"],
+      "estMinutes": 15,
+      "sections": [
+        { "type": "concept", "html": "<p>A <strong>limit</strong> describes where a function's outputs are heading, not where they arrive. The notation $\\lim_{x \\to a} f(x) = L$ makes a specific claim: the outputs $f(x)$ can be made as close to the number $L$ as desired by taking inputs $x$ close enough to $a$, with $x \\neq a$.</p><p>Two consequences follow directly from the condition $x \\neq a$.</p><ul><li>The value $f(a)$ plays no role in the limit. The function may be undefined at $a$, or defined with a value different from $L$, and the limit is unaffected.</li><li>A limit is a statement about every input sufficiently near $a$, on both sides of $a$, not about any single input.</li></ul><p>A limit can fail to exist. The three standard failure modes are: the outputs approach different values from the two sides, the outputs grow without bound, or the outputs oscillate without settling. Each mode appears later in this unit.</p>" },
+        { "type": "concept", "html": "<p>When a formula is unavailable, you estimate a limit from a table or a graph. From a table, read the output values as the inputs step toward $a$ from below and from above; the estimate is the single value both output lists approach. From a graph, trace the curve toward $x = a$ from the left and from the right; the limit is the $y$-value both traces head toward, regardless of any plotted point at $x = a$ itself.</p><p>A <strong>one-sided limit</strong> restricts the approach to one direction. The left-hand limit $\\lim_{x \\to a^-} f(x)$ uses only inputs with $x \\lt a$, and the right-hand limit $\\lim_{x \\to a^+} f(x)$ uses only inputs with $x > a$.</p><p>The existence criterion connects the three limits: $\\lim_{x \\to a} f(x)$ exists and equals $L$ exactly when both one-sided limits exist and both equal $L$. This criterion is the standard tool for piecewise functions, where different formulas govern the two sides of a point.</p>" },
+        { "type": "checkpoint", "questionIds": ["u1-q001", "u1-q002"] },
+        { "type": "coder-note", "html": "<p>A limit formalizes a numeric probing loop. Imagine evaluating <code>f(a - eps)</code> and <code>f(a + eps)</code> for <code>eps = 0.1, 0.01, 0.001</code>, and so on. If both output streams converge toward one value $L$, that value is behaving like the limit.</p><p>Where the analogy holds: the loop never calls <code>f(a)</code>, and the limit likewise ignores $f(a)$ entirely; the loop also probes both sides, matching the requirement that the left-hand and right-hand limits agree.</p><p>Where the analogy breaks: floating-point rounding makes probed values wobble near machine epsilon even when the mathematical limit is exact, and any loop samples finitely many points, while a limit is a claim about all inputs sufficiently close to $a$. A probe can suggest a limit; it cannot prove one.</p>" },
+        { "type": "worked-example", "title": "Evaluate a two-sided limit of a piecewise function", "steps": [
+          { "text": "The function is defined in two pieces. To evaluate $\\lim_{x \\to 3} f(x)$, compute the two one-sided limits separately.", "math": "f(x) = \\begin{cases} 2x - 1 & x < 3 \\\\ x^2 - 4 & x \\geq 3 \\end{cases}" },
+          { "text": "Left-hand limit: inputs below $3$ use the branch $2x - 1$.", "math": "\\lim_{x \\to 3^-} f(x) = 2(3) - 1 = 5" },
+          { "text": "Right-hand limit: inputs above $3$ use the branch $x^2 - 4$.", "math": "\\lim_{x \\to 3^+} f(x) = 3^2 - 4 = 5" },
+          { "text": "The one-sided limits agree, so the two-sided limit exists and equals the common value.", "math": "\\lim_{x \\to 3} f(x) = 5" }
+        ] },
+        { "type": "checkpoint", "questionIds": ["u1-q003", "u1-q004", "u1-q005"] }
+      ]
+    },
+    {
+      "id": "u1-l2",
+      "title": "Computing limits with algebra",
+      "skillIds": ["u1-limit-computation"],
+      "estMinutes": 18,
+      "sections": [
+        { "type": "concept", "html": "<p>The <strong>limit laws</strong> let you evaluate limits of combined functions from the limits of their parts. Suppose $\\lim_{x \\to a} f(x) = L$ and $\\lim_{x \\to a} g(x) = M$, where $L$ and $M$ are real numbers. Then:</p><ul><li>Sum and difference: $\\lim_{x \\to a} [f(x) \\pm g(x)] = L \\pm M$.</li><li>Constant multiple: $\\lim_{x \\to a} [c \\cdot f(x)] = cL$.</li><li>Product: $\\lim_{x \\to a} [f(x) \\cdot g(x)] = LM$.</li><li>Quotient: $\\lim_{x \\to a} \\frac{f(x)}{g(x)} = \\frac{L}{M}$, provided $M \\neq 0$.</li><li>Power: $\\lim_{x \\to a} [f(x)]^n = L^n$, and similarly for roots where the root is defined.</li></ul><p>These laws justify <strong>direct substitution</strong>: for a polynomial, the limit at any point $a$ equals the value at $a$. The same holds for a rational function at any point where its denominator is nonzero, and for $\\sin x$, $\\cos x$, $e^x$, and $\\sqrt{x}$ on their domains. Direct substitution is always the first step to attempt.</p>" },
+        { "type": "checkpoint", "questionIds": ["u1-q006", "u1-q007"] },
+        { "type": "concept", "html": "<p>When direct substitution produces $\\frac{0}{0}$, the result is called an <strong>indeterminate form</strong>. Indeterminate means the form itself carries no answer: some $\\frac{0}{0}$ limits equal $5$, some equal $0$, some fail to exist. The quotient law does not apply because the denominator's limit is $0$, so the expression must be rewritten before substituting again.</p><p>Three algebraic rewrites cover most AP problems.</p><ul><li><strong>Factor and cancel.</strong> If the numerator and denominator are polynomials that both vanish at $x = a$, each contains a factor of $(x - a)$. Factor, cancel that common factor, and substitute again.</li><li><strong>Multiply by the conjugate.</strong> If a square root appears, multiply the numerator and denominator by the conjugate expression to clear the root, then cancel.</li><li><strong>Combine fractions.</strong> If the expression contains fractions inside fractions, combine them over a common denominator, then cancel.</li></ul><p>The cancellation step is legitimate for a specific reason: the limit only examines inputs with $x \\neq a$, and for those inputs the cancelled factor is nonzero.</p>" },
+        { "type": "coder-note", "html": "<p>Simplifying $\\frac{x^2 - 4}{x - 2}$ to $x + 2$ is a refactor with one edge case. The original implementation divides by zero at $x = 2$; the refactored implementation returns $4$ there. On every other input the two agree exactly.</p><p>Where the analogy holds: a limit at $2$ reads only inputs with $x \\neq 2$, which are precisely the inputs where the two implementations agree, so the refactor is safe for computing the limit. This is the formal justification for cancelling a factor of $x - 2$.</p><p>Where the analogy breaks: the two expressions are not the same function, because their domains differ at one point, the same way two implementations that differ on one input are not interchangeable in general. The limit tolerates the difference; equality of functions does not.</p>" },
+        { "type": "worked-example", "title": "Evaluate $\\lim_{x \\to 2} \\frac{x^2 + x - 6}{x - 2}$ by factoring", "steps": [
+          { "text": "Attempt direct substitution: the numerator gives $4 + 2 - 6 = 0$ and the denominator gives $0$. The form is $\\frac{0}{0}$, so rewrite the expression algebraically." },
+          { "text": "Factor the numerator. Because the numerator vanishes at $x = 2$, the factor $x - 2$ must appear.", "math": "x^2 + x - 6 = (x + 3)(x - 2)" },
+          { "text": "Cancel the common factor, which is valid because the limit examines only $x \\neq 2$.", "math": "\\frac{(x + 3)(x - 2)}{x - 2} = x + 3 \\quad (x \\neq 2)" },
+          { "text": "Substitute $x = 2$ into the simplified expression.", "math": "\\lim_{x \\to 2} \\frac{x^2 + x - 6}{x - 2} = 2 + 3 = 5" }
+        ] },
+        { "type": "worked-example", "title": "Evaluate $\\lim_{x \\to 0} \\frac{\\sqrt{x + 4} - 2}{x}$ by rationalizing", "steps": [
+          { "text": "Direct substitution gives $\\frac{\\sqrt{4} - 2}{0} = \\frac{0}{0}$, an indeterminate form." },
+          { "text": "Multiply the numerator and denominator by the conjugate $\\sqrt{x + 4} + 2$.", "math": "\\frac{\\sqrt{x + 4} - 2}{x} \\cdot \\frac{\\sqrt{x + 4} + 2}{\\sqrt{x + 4} + 2} = \\frac{(x + 4) - 4}{x(\\sqrt{x + 4} + 2)}" },
+          { "text": "Simplify the numerator to $x$ and cancel with the factor of $x$ in the denominator.", "math": "\\frac{x}{x(\\sqrt{x + 4} + 2)} = \\frac{1}{\\sqrt{x + 4} + 2}" },
+          { "text": "Substitute $x = 0$.", "math": "\\frac{1}{\\sqrt{4} + 2} = \\frac{1}{4}" }
+        ] },
+        { "type": "checkpoint", "questionIds": ["u1-q008", "u1-q009", "u1-q010"] }
+      ]
+    },
+    {
+      "id": "u1-l3",
+      "title": "The squeeze theorem",
+      "skillIds": ["u1-squeeze-theorem"],
+      "estMinutes": 12,
+      "sections": [
+        { "type": "concept", "html": "<p>The <strong>squeeze theorem</strong> states: if $h(x) \\leq g(x) \\leq k(x)$ for all $x$ near $a$ (except possibly at $a$ itself), and the two outer functions share a limit, $\\lim_{x \\to a} h(x) = \\lim_{x \\to a} k(x) = L$, then $\\lim_{x \\to a} g(x) = L$.</p><p>The theorem is the standard tool for functions containing a bounded oscillating factor, such as $\\sin\\left(\\frac{1}{x}\\right)$, and it is the basis for two limits to memorize. Both require $x$ measured in radians.</p><p>$$\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1 \\qquad \\lim_{x \\to 0} \\frac{1 - \\cos x}{x} = 0$$</p><p>A frequent variant replaces $x$ with a multiple: $\\lim_{x \\to 0} \\frac{\\sin(kx)}{mx} = \\frac{k}{m}$. The mechanism is rewriting so the sine's argument matches the denominator exactly: $\\frac{\\sin(kx)}{mx} = \\frac{k}{m} \\cdot \\frac{\\sin(kx)}{kx}$, and the second factor approaches $1$ because $kx \\to 0$.</p>" },
+        { "type": "checkpoint", "questionIds": ["u1-q013", "u1-q014"] },
+        { "type": "coder-note", "html": "<p>The squeeze theorem works like certifying a value through bounds, as in interval arithmetic. If you can prove <code>lower(x) &lt;= g(x) &lt;= upper(x)</code> for every $x$ near $a$, and both bound functions converge to the same number $L$, then $g$ has no freedom left: its limit must be $L$.</p><p>Where the analogy holds: it is nearly exact, and the theorem's two preconditions match preconditions you would assert in code. The inequality must hold on an entire neighborhood of $a$ (except possibly at $a$ itself), not merely at sampled points, and both bounds must converge to the same value.</p><p>Where the analogy breaks: if the two bounds converge to different numbers, interval arithmetic still returns a useful enclosure, such as $[3.9, 4.1]$, but the squeeze theorem concludes nothing in that case. Its conclusion applies only when the enclosure narrows to a single point.</p>" },
+        { "type": "worked-example", "title": "Evaluate $\\lim_{x \\to 0} x^2 \\cos\\left(\\frac{1}{x}\\right)$ with the squeeze theorem", "steps": [
+          { "text": "As $x \\to 0$, the argument $\\frac{1}{x}$ grows without bound, and $\\cos\\left(\\frac{1}{x}\\right)$ oscillates between $-1$ and $1$ without settling. Direct substitution and the product law both fail here, but the oscillating factor is bounded.", "math": "-1 \\leq \\cos\\left(\\frac{1}{x}\\right) \\leq 1 \\quad (x \\neq 0)" },
+          { "text": "Multiply all three parts by $x^2$. Because $x^2 \\geq 0$, the inequality directions are preserved.", "math": "-x^2 \\leq x^2 \\cos\\left(\\frac{1}{x}\\right) \\leq x^2" },
+          { "text": "Evaluate the limits of the two bounds.", "math": "\\lim_{x \\to 0} (-x^2) = 0 \\qquad \\lim_{x \\to 0} x^2 = 0" },
+          { "text": "The bounds share the limit $0$, so the squeeze theorem forces the middle function to the same limit.", "math": "\\lim_{x \\to 0} x^2 \\cos\\left(\\frac{1}{x}\\right) = 0" }
+        ] },
+        { "type": "checkpoint", "questionIds": ["u1-q015", "u1-q016"] }
+      ]
+    },
+    {
+      "id": "u1-l4",
+      "title": "Continuity and discontinuities",
+      "skillIds": ["u1-continuity"],
+      "estMinutes": 16,
+      "sections": [
+        { "type": "concept", "html": "<p>A function $f$ is <strong>continuous at a point</strong> $x = a$ when three conditions all hold:</p><ol><li>$f(a)$ is defined;</li><li>$\\lim_{x \\to a} f(x)$ exists;</li><li>$\\lim_{x \\to a} f(x) = f(a)$.</li></ol><p>Condition 3 presumes the first two, so in practice you check them in order and stop at the first failure. A function is <strong>continuous on an open interval</strong> when it is continuous at every point of that interval. On a closed interval $[a, b]$, continuity at the endpoints uses one-sided limits: $\\lim_{x \\to a^+} f(x) = f(a)$ and $\\lim_{x \\to b^-} f(x) = f(b)$.</p><p>Large families of functions are continuous everywhere on their domains: polynomials, rational functions, $\\sin x$, $\\cos x$, $e^x$, $\\ln x$, and root functions. Sums, products, quotients (where the denominator is nonzero), and compositions of continuous functions are continuous. For these families, evaluating a limit reduces to substitution, which is why continuity matters computationally.</p>" },
+        { "type": "concept", "html": "<p>Each way the three-condition test can fail has a name.</p><ul><li><strong>Removable discontinuity:</strong> $\\lim_{x \\to a} f(x)$ exists as a finite number, but $f(a)$ is undefined or defined as a different number. The graph has a single-point hole.</li><li><strong>Jump discontinuity:</strong> both one-sided limits exist as finite numbers but are unequal, so condition 2 fails. The graph has a vertical gap between two branches.</li><li><strong>Infinite discontinuity:</strong> the outputs grow without bound near $x = a$, so condition 2 fails with no finite one-sided limit on at least one side. The graph has a vertical asymptote.</li></ul><p><strong>Removing</strong> a removable discontinuity means defining or redefining the single value $f(a)$ to equal $\\lim_{x \\to a} f(x)$. This repairs condition 1 or condition 3 and produces a continuous function. Jump and infinite discontinuities cannot be repaired this way, because the failure lies in the limit itself, not in the stored value.</p>" },
+        { "type": "checkpoint", "questionIds": ["u1-q017", "u1-q018"] },
+        { "type": "coder-note", "html": "<p>Continuity at $x = a$ is a three-check validation chain, in this order: (1) the value exists, meaning $f(a)$ is defined; (2) the neighbors agree on a target, meaning $\\lim_{x \\to a} f(x)$ exists; (3) the stored value equals the target. The first failing check classifies the discontinuity, the way a validation error carries an error code.</p><p>Removing a removable discontinuity is patching one entry: the surrounding data determines the correct value (the limit), and you overwrite or insert the single entry at key $a$ to match it.</p><p>Where the analogy breaks: a map has discrete, enumerable keys, so a test can check them all. Continuity quantifies over every real number near $a$, which is uncountably many inputs, so it is never verified by testing; it is proved from the function's structure, using the closure rules for sums, products, quotients, and compositions of continuous functions.</p>" },
+        { "type": "worked-example", "title": "Classify and repair the discontinuity of $f$ at $x = 4$", "steps": [
+          { "text": "The function under study is defined piecewise.", "math": "f(x) = \\begin{cases} \\dfrac{x^2 - 16}{x - 4} & x \\neq 4 \\\\ 9 & x = 4 \\end{cases}" },
+          { "text": "Condition 1: $f(4) = 9$ is defined. Condition 2: compute the limit by factoring and cancelling.", "math": "\\lim_{x \\to 4} \\frac{(x - 4)(x + 4)}{x - 4} = \\lim_{x \\to 4} (x + 4) = 8" },
+          { "text": "Condition 3 fails: the limit is $8$ but $f(4) = 9$. Because the limit exists as a finite number, the discontinuity is removable." },
+          { "text": "Repair it by redefining the single stored value to match the limit: setting $f(4) = 8$ makes all three conditions hold, so the repaired function is continuous at $x = 4$." }
+        ] },
+        { "type": "checkpoint", "questionIds": ["u1-q019", "u1-q020", "u1-q021"] }
+      ]
+    },
+    {
+      "id": "u1-l5",
+      "title": "Asymptotes and end behavior",
+      "skillIds": ["u1-asymptotes"],
+      "estMinutes": 16,
+      "sections": [
+        { "type": "concept", "html": "<p>The statement $\\lim_{x \\to a^+} f(x) = \\infty$ means the outputs grow without bound as the inputs approach $a$ from the right. The symbol $\\infty$ is not a real number, and a limit of $\\infty$ is a specific way for a limit to not exist as a number; the notation records the behavior. The line $x = a$ is a <strong>vertical asymptote</strong> of the graph when at least one one-sided limit at $a$ is $\\infty$ or $-\\infty$.</p><p>For a quotient, a vertical asymptote occurs where the denominator approaches $0$ while the numerator approaches a nonzero number. To evaluate a one-sided infinite limit, use sign analysis: determine the sign of the numerator and the sign of the small denominator on the relevant side, then combine them. A quantity near a positive number divided by a small positive quantity is large and positive; adjust signs for the other cases.</p><p>A caution for rational functions: a zero of the denominator is not automatically an asymptote. If the factor cancels with the numerator, the point is a removable hole instead. Factor and cancel first, then classify what remains.</p>" },
+        { "type": "checkpoint", "questionIds": ["u1-q024", "u1-q025"] },
+        { "type": "concept", "html": "<p>A <strong>limit at infinity</strong>, written $\\lim_{x \\to \\infty} f(x)$ or $\\lim_{x \\to -\\infty} f(x)$, asks what value the outputs approach as the inputs grow without bound in one direction. When such a limit equals a finite number $L$, the line $y = L$ is a <strong>horizontal asymptote</strong>. A graph has at most two horizontal asymptotes, one for each direction, and a graph may cross a horizontal asymptote; the asymptote constrains only end behavior.</p><p>For a rational function, compare the degrees of the numerator and denominator.</p><ul><li>Numerator degree smaller: the limit is $0$.</li><li>Degrees equal: the limit is the ratio of the leading coefficients.</li><li>Numerator degree larger: the outputs are unbounded, so there is no horizontal asymptote in that direction.</li></ul><p>The mechanism behind all three cases is dividing every term by the highest power of $x$ in the denominator. With square roots, one extra fact controls the sign: $\\sqrt{x^2} = |x|$, which equals $x$ for $x > 0$ but $-x$ for $x < 0$. Every limit toward $-\\infty$ involving a square root of a quadratic must account for this sign.</p>" },
+        { "type": "coder-note", "html": "<p>End behavior is asymptotic analysis. In $\\frac{3x^2 + 5x}{6x^2 - x + 2}$, the terms $5x$, $-x$, and $2$ are lower-order costs: for large inputs they are negligible next to the $x^2$ terms, so the ratio behaves like $\\frac{3x^2}{6x^2}$. Deciding a limit at infinity by comparing dominant terms is the same skill as comparing the growth rates of two runtimes.</p><p>Where the analogy breaks, in two places. First, big-O notation deliberately discards constant factors, so $O(3n^2)$ and $O(6n^2)$ are the same class, while limits keep them: the limit above is exactly $\\frac{1}{2}$, and the constant is the entire answer. Second, runtime analysis considers only large positive $n$, while limits also run $x \\to -\\infty$, where signs matter: $\\sqrt{x^2} = |x| = -x$ for negative $x$, and dropping that sign is a common end-behavior error on the exam.</p>" },
+        { "type": "worked-example", "title": "Evaluate $\\lim_{x \\to -\\infty} \\frac{\\sqrt{9x^2 + 2}}{3x - 1}$", "steps": [
+          { "text": "The inputs are large negative numbers. Factor $x^2$ out of the radicand and use $\\sqrt{x^2} = |x| = -x$ for $x < 0$.", "math": "\\sqrt{9x^2 + 2} = |x|\\sqrt{9 + \\frac{2}{x^2}} = -x\\sqrt{9 + \\frac{2}{x^2}}" },
+          { "text": "Divide the numerator and denominator by $x$.", "math": "\\frac{\\sqrt{9x^2 + 2}}{3x - 1} = \\frac{-x\\sqrt{9 + 2/x^2}}{3x - 1} = \\frac{-\\sqrt{9 + 2/x^2}}{3 - 1/x}" },
+          { "text": "As $x \\to -\\infty$, the terms $\\frac{2}{x^2}$ and $\\frac{1}{x}$ approach $0$.", "math": "\\frac{-\\sqrt{9}}{3} = \\frac{-3}{3} = -1" },
+          { "text": "The limit is finite, so $y = -1$ is a horizontal asymptote of the graph in the negative direction. The same computation toward $+\\infty$, where $|x| = x$, gives $+1$, a second and different horizontal asymptote." }
+        ] },
+        { "type": "checkpoint", "questionIds": ["u1-q023", "u1-q026", "u1-q027"] }
+      ]
+    },
+    {
+      "id": "u1-l6",
+      "title": "The Intermediate Value Theorem",
+      "skillIds": ["u1-ivt"],
+      "estMinutes": 10,
+      "sections": [
+        { "type": "concept", "html": "<p>The <strong>Intermediate Value Theorem</strong> (IVT) states: if $f$ is continuous on the closed interval $[a, b]$, and $N$ is any number strictly between $f(a)$ and $f(b)$, then there exists at least one number $c$ in the open interval $(a, b)$ with $f(c) = N$. Informally, a continuous function cannot pass from one output to another without passing through every output in between.</p><p>Both hypotheses are required. Continuity on the whole closed interval rules out jumps that skip over $N$. The target $N$ must lie between the endpoint outputs; the theorem promises nothing about other output values.</p><p>The theorem also has firm boundaries on what it concludes. It guarantees existence only: at least one $c$, with no claim of uniqueness, no formula for locating $c$, and no statement about $f$ increasing or decreasing. The most common AP application: if $f$ is continuous on $[a, b]$ and $f(a)$ and $f(b)$ have opposite signs, then $f(x) = 0$ has at least one solution in $(a, b)$. In table problems, apply this test to each pair of consecutive entries.</p>" },
+        { "type": "coder-note", "html": "<p>The Intermediate Value Theorem is the loop invariant behind bisection root-finding. Bisection maintains an interval <code>[lo, hi]</code> where <code>f(lo)</code> and <code>f(hi)</code> have opposite signs, and halves it each iteration. The reason a root must lie inside the interval is exactly the IVT: continuous on the interval, endpoint outputs straddle zero, therefore some interior point maps to zero. Each halving step preserves the invariant by keeping the half whose endpoints still straddle zero.</p><p>Where the analogy holds: binary search over a sorted array has the same halving shape, and sortedness plays the role continuity plays here, as the structural guarantee that makes discarding half the search space sound.</p><p>Where the analogy breaks: sortedness can be verified in one linear pass, but continuity cannot be verified by evaluation; you must know it from the function's form. Bisection also terminates at a tolerance with a floating-point approximation, while the theorem asserts that an exact real number $c$ exists, a consequence of the completeness of the real numbers rather than of any finite process.</p>" },
+        { "type": "worked-example", "title": "Show that $x^3 + x - 5 = 0$ has a solution between $1$ and $2$", "steps": [
+          { "text": "Define $f(x) = x^3 + x - 5$. As a polynomial, $f$ is continuous on every interval, including $[1, 2]$, so the continuity hypothesis holds." },
+          { "text": "Evaluate the endpoints.", "math": "f(1) = 1 + 1 - 5 = -3 \\qquad f(2) = 8 + 2 - 5 = 5" },
+          { "text": "The target value $0$ lies strictly between $f(1) = -3$ and $f(2) = 5$, so the second hypothesis holds." },
+          { "text": "By the Intermediate Value Theorem, there exists at least one $c$ in $(1, 2)$ with $f(c) = 0$; that $c$ is a solution of the equation. The theorem does not locate $c$ and does not count the solutions; it guarantees existence only." }
+        ] },
+        { "type": "checkpoint", "questionIds": ["u1-q029", "u1-q030", "u1-q031"] }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "u1-q001",
+      "skillId": "u1-limit-concept",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>The table shows values of $f(x)$ for inputs near $x = 5$.</p><table><thead><tr><th>$x$</th><th>$4.9$</th><th>$4.99$</th><th>$4.999$</th><th>$5.001$</th><th>$5.01$</th><th>$5.1$</th></tr></thead><tbody><tr><td>$f(x)$</td><td>$6.7$</td><td>$6.97$</td><td>$6.997$</td><td>$7.003$</td><td>$7.03$</td><td>$7.3$</td></tr></tbody></table><p>Based on the table, what is the best estimate of $\\lim_{x \\to 5} f(x)$?</p>",
+      "choices": ["$5$", "$7$", "$6.997$", "The limit does not exist"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This is the input value that $x$ approaches. The limit is the value that the outputs $f(x)$ approach, which is a different number here.",
+        null,
+        "This is the closest listed output, taken from $x = 4.999$. A limit is the value the outputs are trending toward, not the last table entry before the target.",
+        "This choice comes from expecting the two sides to disagree. Both output lists trend toward the same value, so the two-sided limit exists."
+      ],
+      "hints": [
+        "The limit estimate is about where the outputs are heading, not about any single row of the table.",
+        "Compare the outputs as $x$ increases toward $5$ and as $x$ decreases toward $5$. Both lists approach one common value."
+      ],
+      "solution": [
+        { "text": "A table estimate reads the trend of the outputs as the inputs approach the target from both sides." },
+        { "text": "From the left, $f(x)$ moves through $6.7$, $6.97$, $6.997$, approaching $7$. From the right, $f(x)$ moves through $7.3$, $7.03$, $7.003$, also approaching $7$." },
+        { "text": "Both one-sided trends agree, so the best estimate is $7$.", "math": "\\lim_{x \\to 5} f(x) \\approx 7" }
+      ]
+    },
+    {
+      "id": "u1-q002",
+      "skillId": "u1-limit-concept",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Let $$f(x) = \\begin{cases} x + 3 & x < 1 \\\\ 2 & x = 1 \\\\ 6 - 2x & x > 1 \\end{cases}$$ Evaluate $\\lim_{x \\to 1} f(x)$.</p>",
+      "choices": ["$2$", "$4$", "$6$", "The limit does not exist"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This is $f(1)$, the defined value at $x = 1$. The limit describes the approach values and ignores $f(1)$ itself.",
+        null,
+        "This is the constant term of the branch $6 - 2x$. The limit from the right evaluates the entire expression, $6 - 2(1)$, not the constant alone.",
+        "This choice comes from requiring $f(1)$ to match the approach value. The two one-sided limits agree with each other, which is the only requirement for the limit to exist."
+      ],
+      "hints": [
+        "The defined value $f(1) = 2$ does not participate in the limit. Only the branches for $x < 1$ and $x > 1$ matter.",
+        "Compute the left-hand limit from $x + 3$ and the right-hand limit from $6 - 2x$, then compare the two results."
+      ],
+      "solution": [
+        { "text": "The limit as $x \\to 1$ depends only on inputs near $1$, not on the value $f(1) = 2$." },
+        { "text": "The left-hand limit uses the branch for $x < 1$.", "math": "\\lim_{x \\to 1^-} f(x) = 1 + 3 = 4" },
+        { "text": "The right-hand limit uses the branch for $x > 1$.", "math": "\\lim_{x \\to 1^+} f(x) = 6 - 2(1) = 4" },
+        { "text": "The one-sided limits agree, so the limit exists and equals their common value, $4$." }
+      ]
+    },
+    {
+      "id": "u1-q003",
+      "skillId": "u1-limit-concept",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Evaluate the one-sided limit $\\lim_{x \\to 3^-} \\frac{x - 3}{|x - 3|}$.</p>",
+      "choices": ["$-1$", "$1$", "$0$", "The limit does not exist"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from replacing $|x - 3|$ with $x - 3$. That replacement is valid only when $x > 3$; from the left, $|x - 3| = -(x - 3)$.",
+        "This choice comes from substituting $x = 3$ into the numerator and stopping. The denominator also approaches $0$, so the form is $\\frac{0}{0}$ and requires analysis, not substitution.",
+        "The two-sided limit at $x = 3$ does not exist, but this question asks only for the left-hand limit, which settles on a single value."
+      ],
+      "hints": [
+        "The superscript minus sign means $x$ approaches $3$ through values less than $3$ only.",
+        "For $x < 3$, the quantity $x - 3$ is negative. Rewrite $|x - 3|$ without absolute value bars before simplifying."
+      ],
+      "solution": [
+        { "text": "For $x < 3$, the quantity $x - 3$ is negative, so $|x - 3| = -(x - 3)$." },
+        { "text": "Substitute this into the expression and simplify for $x < 3$.", "math": "\\frac{x - 3}{|x - 3|} = \\frac{x - 3}{-(x - 3)} = -1" },
+        { "text": "The expression is constantly $-1$ to the left of $3$, so the left-hand limit is $-1$.", "math": "\\lim_{x \\to 3^-} \\frac{x - 3}{|x - 3|} = -1" }
+      ]
+    },
+    {
+      "id": "u1-q004",
+      "skillId": "u1-limit-concept",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Let $$f(x) = \\begin{cases} x^2 + 1 & x < 2 \\\\ 3x + 1 & x \\geq 2 \\end{cases}$$ Evaluate $\\lim_{x \\to 2^-} f(x) + \\lim_{x \\to 2^+} f(x)$. Enter an integer.</p>",
+      "answer": 12,
+      "hints": [
+        "Each one-sided limit comes from exactly one branch: $x^2 + 1$ governs inputs below $2$, and $3x + 1$ governs inputs at or above $2$.",
+        "Evaluate each branch at $x = 2$, then add the two results."
+      ],
+      "solution": [
+        { "text": "The left-hand limit uses the branch defined for $x < 2$.", "math": "\\lim_{x \\to 2^-} f(x) = 2^2 + 1 = 5" },
+        { "text": "The right-hand limit uses the branch defined for $x \\geq 2$.", "math": "\\lim_{x \\to 2^+} f(x) = 3(2) + 1 = 7" },
+        { "text": "Add the two one-sided limits.", "math": "5 + 7 = 12" }
+      ]
+    },
+    {
+      "id": "u1-q005",
+      "skillId": "u1-limit-concept",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Suppose $\\lim_{x \\to a} f(x)$ exists. Consider the following statements.</p><ol><li>$f(a)$ is defined.</li><li>$\\lim_{x \\to a^-} f(x) = \\lim_{x \\to a^+} f(x)$.</li><li>$\\lim_{x \\to a} f(x) = f(a)$.</li></ol><p>Which of the statements must be true?</p>",
+      "choices": ["Statement 1 only", "Statement 2 only", "Statements 1 and 2 only", "Statements 1, 2, and 3"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This choice comes from treating limit existence as requiring a function value at $a$. The limit is computed entirely from inputs near $a$, so $f(a)$ may be undefined.",
+        null,
+        "Statement 2 is forced, but statement 1 is not: a function can have a limit at $a$ while $f(a)$ is undefined, as with $\\frac{x^2 - 1}{x - 1}$ at $x = 1$.",
+        "Statements 1 and 3 together describe continuity at $a$, which is a strictly stronger condition than the existence of the limit."
+      ],
+      "hints": [
+        "Recall the existence criterion: a two-sided limit exists exactly when the two one-sided limits exist and agree.",
+        "Test statements 1 and 3 against a function with a hole, such as $\\frac{x^2 - 1}{x - 1}$ at $x = 1$, where the limit exists but the function value does not."
+      ],
+      "solution": [
+        { "text": "The two-sided limit exists exactly when both one-sided limits exist and are equal, so statement 2 must be true." },
+        { "text": "Statement 1 can fail: $f(x) = \\frac{x^2 - 1}{x - 1}$ has limit $2$ at $x = 1$ even though $f(1)$ is undefined." },
+        { "text": "Statement 3 is the definition of continuity at $a$, a stronger condition; it fails whenever $f(a)$ is undefined or is defined as a different number. Only statement 2 is forced." }
+      ]
+    },
+    {
+      "id": "u1-q006",
+      "skillId": "u1-limit-computation",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Suppose $\\lim_{x \\to a} f(x) = 3$ and $\\lim_{x \\to a} g(x) = -2$. Evaluate $$\\lim_{x \\to a} \\left[ 2f(x) - \\left( g(x) \\right)^2 \\right]$$</p>",
+      "choices": ["$2$", "$8$", "$10$", "$64$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This is the value of $2f(x) - g(x)$, which equals $6 + 2 = 8$. The square on $g(x)$ still applies before subtracting.",
+        "This choice comes from evaluating $(-2)^2$ as $-4$. Squaring a negative number gives a positive result, so $(g(x))^2 \\to 4$.",
+        "This is $(2f(x) - g(x))^2 = 8^2$. Only $g(x)$ is squared, not the entire expression."
+      ],
+      "hints": [
+        "The limit laws let you push the limit inside constant multiples, differences, and powers.",
+        "Substitute the two given values into the expression. Watch the square: $(-2)^2$ is positive."
+      ],
+      "solution": [
+        { "text": "Apply the limit laws term by term: constant multiple, difference, and power.", "math": "\\lim_{x \\to a} \\left[ 2f(x) - (g(x))^2 \\right] = 2 \\lim_{x \\to a} f(x) - \\left( \\lim_{x \\to a} g(x) \\right)^2" },
+        { "text": "Substitute the given values.", "math": "2(3) - (-2)^2 = 6 - 4" },
+        { "text": "Evaluate.", "math": "6 - 4 = 2" }
+      ]
+    },
+    {
+      "id": "u1-q007",
+      "skillId": "u1-limit-computation",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to -1} \\frac{x^2 - 3x + 2}{x - 2}$.</p>",
+      "choices": ["$-2$", "$2$", "$6$", "The limit does not exist"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from evaluating the denominator as $3$. At $x = -1$, the denominator is $-1 - 2 = -3$, so the quotient is negative.",
+        "This is the limit of the numerator alone. The quotient law divides it by the limit of the denominator, which is $-3$.",
+        "The denominator approaches $-3$, not $0$, so direct substitution applies and the limit is a finite number."
+      ],
+      "hints": [
+        "First check whether the denominator is zero at $x = -1$. If it is not, direct substitution is valid.",
+        "Substitute $x = -1$ into the numerator and denominator separately, tracking signs: $(-1)^2 = 1$ and $-3(-1) = 3$."
+      ],
+      "solution": [
+        { "text": "Check the denominator at $x = -1$: it equals $-1 - 2 = -3$, which is not zero, so the quotient law applies and substitution is valid." },
+        { "text": "Substitute $x = -1$.", "math": "\\frac{(-1)^2 - 3(-1) + 2}{-1 - 2} = \\frac{1 + 3 + 2}{-3}" },
+        { "text": "Evaluate.", "math": "\\frac{6}{-3} = -2" }
+      ]
+    },
+    {
+      "id": "u1-q008",
+      "skillId": "u1-limit-computation",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to 3} \\frac{x^2 - 9}{x^2 - 5x + 6}$.</p>",
+      "choices": ["$6$", "$0$", "$1$", "The limit does not exist"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This is the value of the numerator at $x = 3$. The denominator is also $0$ there, so the form is $\\frac{0}{0}$; factor and cancel before substituting.",
+        "This is the ratio of the leading coefficients, a rule that applies to limits as $x \\to \\infty$, not to limits at a finite point.",
+        "The form $\\frac{0}{0}$ is indeterminate; it does not by itself mean the limit fails to exist. After cancelling the common factor $x - 3$, substitution gives a finite value."
+      ],
+      "hints": [
+        "Substitute $x = 3$ first. Both parts are $0$, which signals an algebraic simplification, not a nonexistent limit.",
+        "Factor $x^2 - 9$ as a difference of squares and factor the quadratic in the denominator, then cancel the shared factor.",
+        "After cancelling, substitute $x = 3$ into what remains."
+      ],
+      "solution": [
+        { "text": "Substituting $x = 3$ gives $\\frac{0}{0}$, an indeterminate form, so simplify first." },
+        { "text": "Factor the numerator and denominator.", "math": "\\frac{x^2 - 9}{x^2 - 5x + 6} = \\frac{(x - 3)(x + 3)}{(x - 3)(x - 2)}" },
+        { "text": "Cancel the common factor $x - 3$, valid because $x \\to 3$ means $x \\neq 3$.", "math": "\\frac{x + 3}{x - 2}" },
+        { "text": "Substitute $x = 3$.", "math": "\\frac{3 + 3}{3 - 2} = 6" }
+      ]
+    },
+    {
+      "id": "u1-q009",
+      "skillId": "u1-limit-computation",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Evaluate $\\lim_{x \\to 4} \\frac{\\sqrt{x} - 2}{x - 4}$. Enter your answer as a decimal.</p>",
+      "answer": 0.25,
+      "tolerance": 0.001,
+      "hints": [
+        "Substituting $x = 4$ gives $\\frac{0}{0}$, so the expression needs rewriting before substitution.",
+        "Multiply the numerator and denominator by the conjugate $\\sqrt{x} + 2$; the numerator becomes $x - 4$.",
+        "After cancelling $x - 4$, substitute $x = 4$ into the remaining expression."
+      ],
+      "solution": [
+        { "text": "Substituting $x = 4$ gives $\\frac{0}{0}$. Multiply the numerator and denominator by the conjugate $\\sqrt{x} + 2$.", "math": "\\frac{\\sqrt{x} - 2}{x - 4} \\cdot \\frac{\\sqrt{x} + 2}{\\sqrt{x} + 2} = \\frac{x - 4}{(x - 4)(\\sqrt{x} + 2)}" },
+        { "text": "Cancel the factor $x - 4$.", "math": "\\frac{1}{\\sqrt{x} + 2}" },
+        { "text": "Substitute $x = 4$.", "math": "\\frac{1}{\\sqrt{4} + 2} = \\frac{1}{4} = 0.25" }
+      ]
+    },
+    {
+      "id": "u1-q010",
+      "skillId": "u1-limit-computation",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Evaluate $$\\lim_{x \\to 0} \\frac{\\dfrac{1}{x + 2} - \\dfrac{1}{2}}{x}$$</p>",
+      "choices": ["$-\\frac{1}{4}$", "$\\frac{1}{4}$", "$0$", "The limit does not exist"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from a sign slip when combining the fractions: $2 - (x + 2) = -x$, not $x$.",
+        "This choice comes from substituting $x = 0$ into the numerator alone, getting $\\frac{1}{2} - \\frac{1}{2} = 0$, and stopping. The outer division by $x$ makes the form $\\frac{0}{0}$, which requires simplification.",
+        "The form is $\\frac{0}{0}$, which is indeterminate rather than nonexistent. Combining the fractions and cancelling $x$ produces a finite value."
+      ],
+      "hints": [
+        "Substitution gives $\\frac{0}{0}$. Combine the two fractions in the numerator into a single fraction first.",
+        "The common denominator is $2(x + 2)$. Simplify $2 - (x + 2)$ carefully, distributing the subtraction across both terms.",
+        "After the numerator simplifies to a multiple of $x$, cancel with the outer division by $x$ and substitute $x = 0$."
+      ],
+      "solution": [
+        { "text": "Combine the two fractions in the numerator over the common denominator $2(x + 2)$.", "math": "\\frac{1}{x + 2} - \\frac{1}{2} = \\frac{2 - (x + 2)}{2(x + 2)} = \\frac{-x}{2(x + 2)}" },
+        { "text": "Divide by $x$ and cancel the factor of $x$, valid because $x \\neq 0$ in the limit.", "math": "\\frac{-x}{2(x + 2)} \\cdot \\frac{1}{x} = \\frac{-1}{2(x + 2)}" },
+        { "text": "Substitute $x = 0$.", "math": "\\frac{-1}{2(0 + 2)} = -\\frac{1}{4}" }
+      ]
+    },
+    {
+      "id": "u1-q011",
+      "skillId": "u1-limit-computation",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Evaluate $$\\lim_{x \\to 1} \\left( \\frac{1}{x - 1} - \\frac{2}{x^2 - 1} \\right)$$</p>",
+      "choices": ["$\\frac{1}{2}$", "$-\\frac{1}{2}$", "$0$", "The limit does not exist"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from a sign slip in the combined numerator: $(x + 1) - 2 = x - 1$, not $-(x - 1)$.",
+        "This choice comes from treating the difference of two unbounded terms as $0$. The form $\\infty - \\infty$ is indeterminate; combine over a common denominator first.",
+        "Each term alone is unbounded near $x = 1$, but the difference simplifies to $\\frac{1}{x + 1}$, which has a finite limit."
+      ],
+      "hints": [
+        "Each term alone is unbounded near $x = 1$, so this is an $\\infty - \\infty$ form. Combine the fractions before concluding anything.",
+        "Factor $x^2 - 1 = (x - 1)(x + 1)$ and rewrite the first fraction with that common denominator.",
+        "Simplify the combined numerator; a common factor of $x - 1$ appears and cancels."
+      ],
+      "solution": [
+        { "text": "Factor $x^2 - 1 = (x - 1)(x + 1)$ and combine over the common denominator $(x - 1)(x + 1)$.", "math": "\\frac{1}{x - 1} - \\frac{2}{x^2 - 1} = \\frac{(x + 1) - 2}{(x - 1)(x + 1)}" },
+        { "text": "Simplify the numerator.", "math": "\\frac{x - 1}{(x - 1)(x + 1)}" },
+        { "text": "Cancel the factor $x - 1$, valid because $x \\neq 1$ in the limit.", "math": "\\frac{1}{x + 1}" },
+        { "text": "Substitute $x = 1$.", "math": "\\frac{1}{1 + 1} = \\frac{1}{2}" }
+      ]
+    },
+    {
+      "id": "u1-q012",
+      "skillId": "u1-limit-computation",
+      "difficulty": 3,
+      "type": "numeric",
+      "prompt": "<p>Evaluate $$\\lim_{x \\to 0} \\frac{1}{x} \\left( \\frac{1}{2 + x} - \\frac{1}{2 - x} \\right)$$ Enter your answer as a decimal.</p>",
+      "answer": -0.5,
+      "tolerance": 0.001,
+      "hints": [
+        "Combine the two inner fractions over the common denominator $(2 + x)(2 - x)$.",
+        "When subtracting, distribute the minus sign: $(2 - x) - (2 + x)$ collapses to a single term containing $x$.",
+        "Cancel the outer factor $\\frac{1}{x}$ against the $x$ in the numerator, then substitute $x = 0$."
+      ],
+      "solution": [
+        { "text": "Combine the inner fractions over the common denominator $(2 + x)(2 - x) = 4 - x^2$.", "math": "\\frac{1}{2 + x} - \\frac{1}{2 - x} = \\frac{(2 - x) - (2 + x)}{4 - x^2} = \\frac{-2x}{4 - x^2}" },
+        { "text": "Multiply by $\\frac{1}{x}$ and cancel the factor of $x$, valid because $x \\neq 0$ in the limit.", "math": "\\frac{1}{x} \\cdot \\frac{-2x}{4 - x^2} = \\frac{-2}{4 - x^2}" },
+        { "text": "Substitute $x = 0$.", "math": "\\frac{-2}{4 - 0} = -\\frac{1}{2} = -0.5" }
+      ]
+    },
+    {
+      "id": "u1-q013",
+      "skillId": "u1-squeeze-theorem",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to 0} \\frac{\\sin x}{x}$, where $x$ is measured in radians.</p>",
+      "choices": ["$1$", "$0$", "$\\infty$", "The limit does not exist"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from substituting $x = 0$ into the numerator only. The denominator also approaches $0$, giving the indeterminate form $\\frac{0}{0}$.",
+        "This choice comes from focusing on the shrinking denominator. The numerator shrinks at the same rate, and the squeeze theorem shows the ratio approaches a finite value.",
+        "The ratio approaches one specific value from both sides; this is a standard limit established with the squeeze theorem."
+      ],
+      "hints": [
+        "Substituting $0$ gives $\\frac{0}{0}$, so the answer is not found by direct substitution.",
+        "This is a standard limit proved with the squeeze theorem, using the bounds $\\cos x \\leq \\frac{\\sin x}{x} \\leq 1$ near $0$."
+      ],
+      "solution": [
+        { "text": "Substitution gives $\\frac{0}{0}$, so this limit requires an argument. The standard proof uses the squeeze theorem with the bounds $\\cos x \\leq \\frac{\\sin x}{x} \\leq 1$ for $x$ near $0$, in radians." },
+        { "text": "Both bounds approach $1$ as $x \\to 0$, so the squeeze theorem forces the ratio to the same value.", "math": "\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1" }
+      ]
+    },
+    {
+      "id": "u1-q014",
+      "skillId": "u1-squeeze-theorem",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to 0} \\frac{\\sin(5x)}{2x}$.</p>",
+      "choices": ["$\\frac{5}{2}$", "$1$", "$5$", "$\\frac{2}{5}$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from applying $\\lim_{u \\to 0} \\frac{\\sin u}{u} = 1$ without matching the sine's argument to the denominator. Here the argument is $5x$ but the denominator is $2x$.",
+        "This accounts for the factor of $5$ from the sine's argument but not for the factor of $2$ in the denominator.",
+        "This choice comes from placing the coefficients upside down; rewriting gives $\\frac{\\sin(5x)}{2x} = \\frac{5}{2} \\cdot \\frac{\\sin(5x)}{5x}$."
+      ],
+      "hints": [
+        "The standard limit $\\frac{\\sin u}{u} \\to 1$ requires the same expression in the sine's argument and in the denominator.",
+        "Multiply and divide to convert the denominator $2x$ into $5x$, tracking the constant factor this introduces."
+      ],
+      "solution": [
+        { "text": "Rewrite so the sine's argument matches its denominator.", "math": "\\frac{\\sin(5x)}{2x} = \\frac{5}{2} \\cdot \\frac{\\sin(5x)}{5x}" },
+        { "text": "As $x \\to 0$, the quantity $5x \\to 0$, so the standard limit applies with $u = 5x$.", "math": "\\lim_{x \\to 0} \\frac{\\sin(5x)}{5x} = 1" },
+        { "text": "Multiply.", "math": "\\frac{5}{2} \\cdot 1 = \\frac{5}{2}" }
+      ]
+    },
+    {
+      "id": "u1-q015",
+      "skillId": "u1-squeeze-theorem",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>A function $g$ satisfies $4 - x^2 \\leq g(x) \\leq 4 + x^2$ for every $x \\neq 0$. Evaluate $\\lim_{x \\to 0} g(x)$. Enter an integer.</p>",
+      "answer": 4,
+      "hints": [
+        "The squeeze theorem applies when both bounding functions approach the same value.",
+        "Evaluate $\\lim_{x \\to 0} (4 - x^2)$ and $\\lim_{x \\to 0} (4 + x^2)$ and compare them."
+      ],
+      "solution": [
+        { "text": "Evaluate the limit of the lower bound.", "math": "\\lim_{x \\to 0} (4 - x^2) = 4" },
+        { "text": "Evaluate the limit of the upper bound.", "math": "\\lim_{x \\to 0} (4 + x^2) = 4" },
+        { "text": "Both bounds approach $4$, so the squeeze theorem gives $\\lim_{x \\to 0} g(x) = 4$." }
+      ]
+    },
+    {
+      "id": "u1-q016",
+      "skillId": "u1-squeeze-theorem",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to 0} x^2 \\sin\\left(\\frac{1}{x}\\right)$.</p>",
+      "choices": ["$0$", "$1$", "The limit does not exist", "The limit cannot be determined from the information given"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from matching the pattern $\\frac{\\sin u}{u} \\to 1$. That pattern requires the sine's argument to approach $0$; here the argument $\\frac{1}{x}$ grows without bound.",
+        "The factor $\\sin\\left(\\frac{1}{x}\\right)$ oscillates without settling, but it stays between $-1$ and $1$, and the factor $x^2$ forces the product toward a single value.",
+        "The bounds $-x^2 \\leq x^2 \\sin\\left(\\frac{1}{x}\\right) \\leq x^2$ hold for all $x \\neq 0$, and both bounds approach the same number, so the squeeze theorem determines the limit exactly."
+      ],
+      "hints": [
+        "The factor $\\sin\\left(\\frac{1}{x}\\right)$ never settles, but it is trapped between fixed bounds for every $x \\neq 0$.",
+        "Multiply the bounds $-1 \\leq \\sin\\left(\\frac{1}{x}\\right) \\leq 1$ by $x^2$ and apply the squeeze theorem."
+      ],
+      "solution": [
+        { "text": "For every $x \\neq 0$, the sine factor satisfies $-1 \\leq \\sin\\left(\\frac{1}{x}\\right) \\leq 1$." },
+        { "text": "Multiply through by $x^2$, which is nonnegative, so the inequality directions are preserved.", "math": "-x^2 \\leq x^2 \\sin\\left(\\frac{1}{x}\\right) \\leq x^2" },
+        { "text": "Both bounds approach $0$ as $x \\to 0$, so the squeeze theorem applies.", "math": "\\lim_{x \\to 0} x^2 \\sin\\left(\\frac{1}{x}\\right) = 0" }
+      ]
+    },
+    {
+      "id": "u1-q017",
+      "skillId": "u1-continuity",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = \\frac{x^2 - 1}{x - 1}$ for $x \\neq 1$; the value $f(1)$ is not defined. Which statement describes $f$ at $x = 1$?</p>",
+      "choices": ["$f$ has a removable discontinuity at $x = 1$", "$f$ has a jump discontinuity at $x = 1$", "$f$ has an infinite discontinuity at $x = 1$", "$f$ is continuous at $x = 1$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "A jump requires the two one-sided limits to exist and differ. Here $f(x) = x + 1$ for $x \\neq 1$, so both one-sided limits equal $2$.",
+        "An infinite discontinuity requires unbounded outputs near the point. The common factor $x - 1$ cancels, so the outputs stay near $2$.",
+        "Continuity at $x = 1$ requires $f(1)$ to be defined. It is not, so the first condition of the definition fails even though the limit exists."
+      ],
+      "hints": [
+        "Test the three continuity conditions in order: whether $f(1)$ is defined, whether the limit exists, and whether the two agree.",
+        "Factor the numerator to compute the limit as $x \\to 1$. A finite limit at a point where the function is undefined matches one specific discontinuity type."
+      ],
+      "solution": [
+        { "text": "Compute the limit at $x = 1$ by factoring.", "math": "\\frac{x^2 - 1}{x - 1} = \\frac{(x - 1)(x + 1)}{x - 1} = x + 1 \\quad (x \\neq 1)" },
+        { "text": "The limit exists and is finite.", "math": "\\lim_{x \\to 1} f(x) = 2" },
+        { "text": "Continuity fails only because $f(1)$ is undefined. A finite limit with a missing or mismatched value is the removable type: defining $f(1) = 2$ would repair it." }
+      ]
+    },
+    {
+      "id": "u1-q018",
+      "skillId": "u1-continuity",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Let $g(x) = \\frac{x + 2}{x - 4}$. Which statement describes $g$ at $x = 4$?</p>",
+      "choices": ["$g$ has an infinite discontinuity at $x = 4$", "$g$ has a removable discontinuity at $x = 4$", "$g$ has a jump discontinuity at $x = 4$", "$g$ is continuous at $x = 4$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "A removable discontinuity requires the limit to exist as a finite number. Near $x = 4$ the outputs grow without bound, so no single value can repair the gap.",
+        "A jump requires two finite one-sided limits that differ. Here both one-sided behaviors are unbounded, which is the infinite type.",
+        "The function is not defined at $x = 4$, and the outputs near $x = 4$ are unbounded, so continuity fails there."
+      ],
+      "hints": [
+        "Check the numerator and the denominator separately as $x \\to 4$.",
+        "When the denominator approaches $0$ but the numerator approaches a nonzero number, the outputs cannot stay bounded."
+      ],
+      "solution": [
+        { "text": "Check the pieces at $x = 4$: the numerator approaches $4 + 2 = 6$, which is not zero, and the denominator approaches $0$." },
+        { "text": "A quantity near a nonzero number divided by a quantity approaching $0$ produces outputs that are unbounded near $x = 4$, so the graph has a vertical asymptote there." },
+        { "text": "Unbounded behavior near the point is the definition of an infinite discontinuity." }
+      ]
+    },
+    {
+      "id": "u1-q019",
+      "skillId": "u1-continuity",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Let $$f(x) = \\begin{cases} kx - 3 & x < 2 \\\\ x^2 + 1 & x \\geq 2 \\end{cases}$$ Find the value of $k$ that makes $f$ continuous at $x = 2$. Enter an integer.</p>",
+      "answer": 4,
+      "hints": [
+        "Continuity at $x = 2$ requires the two branches to agree there: the left-hand limit equals the right-hand limit equals $f(2)$.",
+        "Set the value of $kx - 3$ at $x = 2$ equal to the value of $x^2 + 1$ at $x = 2$, then solve for $k$."
+      ],
+      "solution": [
+        { "text": "For continuity at $x = 2$, the left-hand limit, the right-hand limit, and $f(2)$ must all be equal." },
+        { "text": "The left-hand limit uses the branch $kx - 3$, giving $2k - 3$. The right-hand limit and the value $f(2)$ both use the branch $x^2 + 1$, giving $2^2 + 1 = 5$." },
+        { "text": "Set the two equal and solve.", "math": "2k - 3 = 5 \\implies k = 4" }
+      ]
+    },
+    {
+      "id": "u1-q020",
+      "skillId": "u1-continuity",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = \\frac{x^2 - 5x + 6}{x - 3}$ for $x \\neq 3$. Which value should be assigned to $f(3)$ so that $f$ becomes continuous at $x = 3$?</p>",
+      "choices": ["$1$", "$0$", "$3$", "No value of $f(3)$ makes $f$ continuous at $x = 3$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This is the value of the numerator at $x = 3$. Both the numerator and denominator are $0$ there; cancel the common factor $x - 3$ first, then substitute.",
+        "This is the location of the discontinuity, the input value. The repaired value must equal the limit of the outputs.",
+        "The limit $\\lim_{x \\to 3} f(x)$ exists as a finite number, which is exactly the condition that makes the discontinuity removable."
+      ],
+      "hints": [
+        "A removable discontinuity is repaired by defining the function value to equal the limit at that point.",
+        "Substituting $x = 3$ gives $\\frac{0}{0}$; factor the quadratic and cancel before taking the limit."
+      ],
+      "solution": [
+        { "text": "The repaired value must equal the limit of $f(x)$ as $x \\to 3$." },
+        { "text": "Factor and cancel.", "math": "\\frac{x^2 - 5x + 6}{x - 3} = \\frac{(x - 2)(x - 3)}{x - 3} = x - 2 \\quad (x \\neq 3)" },
+        { "text": "Take the limit.", "math": "\\lim_{x \\to 3} f(x) = 3 - 2 = 1" },
+        { "text": "Defining $f(3) = 1$ makes all three continuity conditions hold." }
+      ]
+    },
+    {
+      "id": "u1-q021",
+      "skillId": "u1-continuity",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = \\frac{x - 1}{x^2 - 1}$. Which statement correctly classifies the discontinuities of $f$?</p>",
+      "choices": ["$f$ has a removable discontinuity at $x = 1$ and an infinite discontinuity at $x = -1$", "$f$ has infinite discontinuities at both $x = 1$ and $x = -1$", "$f$ has removable discontinuities at both $x = 1$ and $x = -1$", "$f$ has a jump discontinuity at $x = 1$ and an infinite discontinuity at $x = -1$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from treating every zero of the denominator as a vertical asymptote. The factor $x - 1$ cancels with the numerator, so the outputs stay bounded near $x = 1$.",
+        "Near $x = -1$ the simplified form $\\frac{1}{x + 1}$ has outputs that grow without bound, so that discontinuity cannot be removed by defining a single value.",
+        "A jump requires differing one-sided limits. Both one-sided limits at $x = 1$ equal $\\frac{1}{2}$."
+      ],
+      "hints": [
+        "Factor the denominator first; one of its factors also appears in the numerator.",
+        "A cancelled factor leaves a finite limit at that input, which is the removable type; a factor remaining in the denominator produces unbounded outputs, which is the infinite type.",
+        "Classify $x = 1$ and $x = -1$ separately using the simplified form $\\frac{1}{x + 1}$."
+      ],
+      "solution": [
+        { "text": "Factor the denominator and simplify.", "math": "\\frac{x - 1}{x^2 - 1} = \\frac{x - 1}{(x - 1)(x + 1)} = \\frac{1}{x + 1} \\quad (x \\neq 1, \\ x \\neq -1)" },
+        { "text": "At $x = 1$: the limit is $\\frac{1}{1 + 1} = \\frac{1}{2}$, a finite number, and $f(1)$ is undefined, so the discontinuity is removable." },
+        { "text": "At $x = -1$: the simplified form $\\frac{1}{x + 1}$ is unbounded as $x \\to -1$, so the discontinuity is infinite and the graph has a vertical asymptote there." }
+      ]
+    },
+    {
+      "id": "u1-q022",
+      "skillId": "u1-continuity",
+      "difficulty": 3,
+      "type": "numeric",
+      "prompt": "<p>Let $$f(x) = \\begin{cases} \\dfrac{x^2 - 9}{x - 3} & x < 3 \\\\ x^2 - c & x \\geq 3 \\end{cases}$$ Find the value of $c$ that makes $f$ continuous at $x = 3$. Enter an integer.</p>",
+      "answer": 3,
+      "hints": [
+        "Continuity at $x = 3$ requires the left-hand limit to equal $f(3)$, which comes from the branch for $x \\geq 3$.",
+        "The left branch gives $\\frac{0}{0}$ at $x = 3$; factor $x^2 - 9$ and cancel to evaluate its limit.",
+        "Set that left-hand limit equal to $9 - c$ and solve."
+      ],
+      "solution": [
+        { "text": "The left-hand limit at $3$ uses the branch for $x < 3$; factor and cancel.", "math": "\\lim_{x \\to 3^-} \\frac{x^2 - 9}{x - 3} = \\lim_{x \\to 3^-} (x + 3) = 6" },
+        { "text": "The right-hand limit and the value at $3$ use the branch for $x \\geq 3$.", "math": "\\lim_{x \\to 3^+} f(x) = f(3) = 9 - c" },
+        { "text": "Continuity requires the two results to match.", "math": "9 - c = 6 \\implies c = 3" }
+      ]
+    },
+    {
+      "id": "u1-q023",
+      "skillId": "u1-asymptotes",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to \\infty} \\frac{3x^2 + 5x}{6x^2 - x + 2}$.</p>",
+      "choices": ["$\\frac{1}{2}$", "$3$", "$0$", "The limit does not exist because the numerator and denominator are both unbounded"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This is the numerator's leading coefficient alone. When the degrees match, the limit is the ratio of both leading coefficients, $\\frac{3}{6}$.",
+        "A limit of $0$ occurs when the denominator's degree is larger. Here the degrees are equal, so the limit is the ratio of the leading coefficients.",
+        "Both parts are unbounded, but their ratio settles: dividing every term by $x^2$ leaves $\\frac{3 + 5/x}{6 - 1/x + 2/x^2}$, which approaches a finite value."
+      ],
+      "hints": [
+        "Compare the degrees of the numerator and the denominator first.",
+        "When the degrees are equal, divide every term by the highest power of $x$; every term that keeps an $x$ in its denominator vanishes in the limit."
+      ],
+      "solution": [
+        { "text": "The numerator and denominator have the same degree, $2$. Divide every term by $x^2$.", "math": "\\frac{3x^2 + 5x}{6x^2 - x + 2} = \\frac{3 + 5/x}{6 - 1/x + 2/x^2}" },
+        { "text": "As $x \\to \\infty$, every term with $x$ in its denominator approaches $0$.", "math": "\\frac{3 + 0}{6 - 0 + 0} = \\frac{3}{6} = \\frac{1}{2}" }
+      ]
+    },
+    {
+      "id": "u1-q024",
+      "skillId": "u1-asymptotes",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Find all vertical asymptotes of the graph of $f(x) = \\frac{x + 1}{x^2 - x - 6}$.</p>",
+      "choices": ["$x = 3$ and $x = -2$", "$x = -3$ and $x = 2$", "$x = -1$ only", "$x = 3$, $x = -2$, and $x = -1$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from flipping the signs of the factor roots. The denominator factors as $(x - 3)(x + 2)$, which is zero at $x = 3$ and $x = -2$.",
+        "$x = -1$ is a zero of the numerator, which gives an $x$-intercept. Vertical asymptotes come from zeros of the denominator that do not cancel.",
+        "$x = -1$ makes the numerator zero, not the denominator, so the function is defined and finite there."
+      ],
+      "hints": [
+        "Vertical asymptotes come from inputs where the denominator is zero and the numerator is not.",
+        "Factor $x^2 - x - 6$ and check whether the numerator $x + 1$ shares a factor with it."
+      ],
+      "solution": [
+        { "text": "Factor the denominator.", "math": "x^2 - x - 6 = (x - 3)(x + 2)" },
+        { "text": "The denominator is zero at $x = 3$ and $x = -2$. The numerator $x + 1$ is nonzero at both points, so neither factor cancels." },
+        { "text": "A zero of the denominator with a nonzero numerator produces unbounded outputs, so the vertical asymptotes are $x = 3$ and $x = -2$. The numerator's zero at $x = -1$ gives an $x$-intercept, not an asymptote." }
+      ]
+    },
+    {
+      "id": "u1-q025",
+      "skillId": "u1-asymptotes",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to 2^+} \\frac{x + 3}{x - 2}$.</p>",
+      "choices": ["$\\infty$", "$-\\infty$", "$0$", "$5$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from a sign misread. For $x$ slightly greater than $2$, the factor $x - 2$ is a small positive number and the numerator is near $5$, so the quotient is large and positive.",
+        "This choice comes from treating division by a number near zero as producing a small result. Dividing a number near $5$ by a tiny positive number produces a very large result.",
+        "This is the limit of the numerator. The denominator approaches $0$, so the quotient does not settle at the numerator's value."
+      ],
+      "hints": [
+        "Determine the sign of each part for $x$ slightly greater than $2$, for example $x = 2.01$.",
+        "The numerator stays near $5$ while the denominator is positive and shrinking toward $0$; decide what happens to the quotient's size and sign."
+      ],
+      "solution": [
+        { "text": "As $x \\to 2^+$, the numerator approaches $2 + 3 = 5$, a positive number." },
+        { "text": "For $x$ slightly greater than $2$, the denominator $x - 2$ is a small positive number." },
+        { "text": "A quantity near $5$ divided by a small positive quantity is large and positive, and it grows without bound as the denominator shrinks.", "math": "\\lim_{x \\to 2^+} \\frac{x + 3}{x - 2} = \\infty" }
+      ]
+    },
+    {
+      "id": "u1-q026",
+      "skillId": "u1-asymptotes",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Evaluate $\\lim_{x \\to \\infty} \\frac{\\sqrt{9x^2 + 4}}{2x + 1}$. Enter your answer as a decimal.</p>",
+      "answer": 1.5,
+      "tolerance": 0.001,
+      "hints": [
+        "Inside the square root, the term $9x^2$ dominates for large $x$. Factor $x^2$ out of the radicand.",
+        "For $x > 0$, $\\sqrt{x^2} = x$, so $\\sqrt{9x^2 + 4} = x\\sqrt{9 + 4/x^2}$. Then divide the numerator and denominator by $x$."
+      ],
+      "solution": [
+        { "text": "For $x > 0$, factor $x^2$ out of the radicand, using $\\sqrt{x^2} = x$ when $x > 0$.", "math": "\\sqrt{9x^2 + 4} = x\\sqrt{9 + \\frac{4}{x^2}}" },
+        { "text": "Divide the numerator and denominator by $x$.", "math": "\\frac{\\sqrt{9x^2 + 4}}{2x + 1} = \\frac{\\sqrt{9 + 4/x^2}}{2 + 1/x}" },
+        { "text": "As $x \\to \\infty$, the terms $\\frac{4}{x^2}$ and $\\frac{1}{x}$ approach $0$.", "math": "\\frac{\\sqrt{9}}{2} = \\frac{3}{2} = 1.5" }
+      ]
+    },
+    {
+      "id": "u1-q027",
+      "skillId": "u1-asymptotes",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to -\\infty} \\frac{\\sqrt{4x^2 + x}}{x}$.</p>",
+      "choices": ["$-2$", "$2$", "$0$", "The limit does not exist"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This choice comes from simplifying $\\sqrt{4x^2 + x}$ to $2x\\sqrt{1 + 1/(4x)}$ with a positive lead factor. For negative $x$, $\\sqrt{x^2} = |x| = -x$, so the lead factor is $-x$, not $x$.",
+        "This choice comes from comparing degrees as if the numerator grew more slowly. The square root of a degree-2 expression grows like degree 1, matching the denominator.",
+        "As $x \\to -\\infty$ the ratio settles on a single finite value, so the limit exists."
+      ],
+      "hints": [
+        "The approach is toward $-\\infty$, so every $x$ in play is negative. Recall $\\sqrt{x^2} = |x|$, and decide what $|x|$ equals for negative $x$.",
+        "Write $\\sqrt{4x^2 + x} = -x\\sqrt{4 + 1/x}$ for $x < 0$, then divide the numerator and denominator by $x$."
+      ],
+      "solution": [
+        { "text": "For $x < 0$, $\\sqrt{x^2} = |x| = -x$, so factor the radicand carefully.", "math": "\\sqrt{4x^2 + x} = |x|\\sqrt{4 + \\frac{1}{x}} = -x\\sqrt{4 + \\frac{1}{x}}" },
+        { "text": "Divide the numerator and denominator by $x$.", "math": "\\frac{-x\\sqrt{4 + 1/x}}{x} = -\\sqrt{4 + \\frac{1}{x}}" },
+        { "text": "As $x \\to -\\infty$, the term $\\frac{1}{x}$ approaches $0$.", "math": "-\\sqrt{4 + 0} = -2" }
+      ]
+    },
+    {
+      "id": "u1-q028",
+      "skillId": "u1-asymptotes",
+      "difficulty": 3,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = \\frac{3x}{\\sqrt{x^2 + 1}}$. How many distinct horizontal asymptotes does the graph of $f$ have? Enter the count as an integer.</p>",
+      "answer": 2,
+      "hints": [
+        "A horizontal asymptote comes from a finite limit as $x \\to \\infty$ or as $x \\to -\\infty$. Check the two directions separately.",
+        "For $x < 0$, $\\sqrt{x^2 + 1} = -x\\sqrt{1 + 1/x^2}$; the sign of the result differs from the $x \\to \\infty$ case."
+      ],
+      "solution": [
+        { "text": "Check the limit as $x \\to \\infty$: for $x > 0$, $\\sqrt{x^2 + 1} = x\\sqrt{1 + 1/x^2}$.", "math": "\\lim_{x \\to \\infty} \\frac{3x}{x\\sqrt{1 + 1/x^2}} = \\frac{3}{\\sqrt{1}} = 3" },
+        { "text": "Check the limit as $x \\to -\\infty$: for $x < 0$, $\\sqrt{x^2 + 1} = -x\\sqrt{1 + 1/x^2}$.", "math": "\\lim_{x \\to -\\infty} \\frac{3x}{-x\\sqrt{1 + 1/x^2}} = -3" },
+        { "text": "The two end-behavior limits are different finite numbers, so the graph has two horizontal asymptotes, $y = 3$ and $y = -3$. The count is $2$." }
+      ]
+    },
+    {
+      "id": "u1-q029",
+      "skillId": "u1-ivt",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>The function $f$ is continuous on the closed interval $[1, 4]$, with $f(1) = -3$ and $f(4) = 5$. Which of the following statements must be true?</p>",
+      "choices": ["There is a number $c$ in $(1, 4)$ with $f(c) = 0$", "There is a number $c$ in $(1, 4)$ with $f(c) = 6$", "$f$ is increasing on $[1, 4]$", "$f(2) > 0$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "The theorem guarantees only output values strictly between $f(1) = -3$ and $f(4) = 5$. The value $6$ lies outside that range, so it is not guaranteed.",
+        "The theorem concludes nothing about the direction of change. A continuous function can rise and fall many times while still passing through every intermediate value.",
+        "The theorem does not locate outputs at specific inputs. It guarantees some $c$ with $f(c) = 0$, but it says nothing about the value at $x = 2$."
+      ],
+      "hints": [
+        "List what the Intermediate Value Theorem requires and what it concludes: continuity on a closed interval, a target output between the endpoint outputs, and the existence of an input achieving that target.",
+        "Check which choices claim more than the theorem concludes, such as monotonicity or a value at one specific input."
+      ],
+      "solution": [
+        { "text": "Check the hypotheses: $f$ is continuous on the closed interval $[1, 4]$, and $0$ lies strictly between $f(1) = -3$ and $f(4) = 5$." },
+        { "text": "The Intermediate Value Theorem then guarantees a number $c$ in $(1, 4)$ with $f(c) = 0$." },
+        { "text": "The theorem guarantees nothing about values outside the interval between $f(1)$ and $f(4)$, nothing about monotonicity, and nothing about outputs at specific inputs such as $x = 2$." }
+      ]
+    },
+    {
+      "id": "u1-q030",
+      "skillId": "u1-ivt",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>The function $f$ is continuous on $[0, 6]$. Selected values are shown.</p><table><thead><tr><th>$x$</th><th>$0$</th><th>$2$</th><th>$4$</th><th>$6$</th></tr></thead><tbody><tr><td>$f(x)$</td><td>$5$</td><td>$1$</td><td>$-2$</td><td>$3$</td></tr></tbody></table><p>On which of the following open intervals does the Intermediate Value Theorem guarantee at least one solution of $f(x) = 0$?</p>",
+      "choices": ["$(2, 4)$ only", "$(4, 6)$ only", "Both $(2, 4)$ and $(4, 6)$", "$(0, 2)$ only"],
+      "answerIndex": 2,
+      "misconceptions": [
+        "This interval does contain a guaranteed zero, but it is not the only one: $f$ also changes sign between $x = 4$ and $x = 6$, from $-2$ to $3$.",
+        "This interval does contain a guaranteed zero, but $f$ also changes sign between $x = 2$ and $x = 4$, from $1$ to $-2$.",
+        null,
+        "On $(0, 2)$ the recorded values $5$ and $1$ have the same sign, so the theorem guarantees no zero there."
+      ],
+      "hints": [
+        "Apply the theorem to each consecutive pair of table entries separately.",
+        "A zero is guaranteed on a subinterval exactly when the two recorded outputs at its endpoints have opposite signs."
+      ],
+      "solution": [
+        { "text": "The Intermediate Value Theorem guarantees a zero on a subinterval whenever $f$ is continuous there and the recorded outputs at the endpoints have opposite signs." },
+        { "text": "Check each consecutive pair: $f(0) = 5$ to $f(2) = 1$ has no sign change; $f(2) = 1$ to $f(4) = -2$ has a sign change; $f(4) = -2$ to $f(6) = 3$ has a sign change." },
+        { "text": "Zeros are therefore guaranteed on both $(2, 4)$ and $(4, 6)$." }
+      ]
+    },
+    {
+      "id": "u1-q031",
+      "skillId": "u1-ivt",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = x^3 - 4x - 2$, which is continuous for all real $x$. There is exactly one integer $a$ with $0 \\leq a \\leq 3$ such that the Intermediate Value Theorem, applied on $[a, a + 1]$, guarantees a solution of $f(x) = 0$ in $(a, a + 1)$. Enter the value of $a$.</p>",
+      "answer": 2,
+      "hints": [
+        "Evaluate $f$ at $x = 0, 1, 2, 3, 4$ and record the sign of each output.",
+        "The Intermediate Value Theorem guarantees a zero between consecutive integers whose outputs have opposite signs."
+      ],
+      "solution": [
+        { "text": "Evaluate $f$ at the integers.", "math": "f(0) = -2, \\quad f(1) = -5, \\quad f(2) = -2, \\quad f(3) = 13" },
+        { "text": "Look for a sign change between consecutive integers: the only one is from $f(2) = -2$ to $f(3) = 13$." },
+        { "text": "Since $f$ is continuous, the Intermediate Value Theorem guarantees a solution in $(2, 3)$, so $a = 2$." }
+      ]
+    },
+    {
+      "id": "u1-q032",
+      "skillId": "u1-ivt",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>A function $g$ is defined on $[0, 5]$ with $g(0) = 2$ and $g(5) = -1$. Which of the following additional conditions guarantees that $g(c) = 0$ for some $c$ in $(0, 5)$?</p>",
+      "choices": ["$g$ is continuous on $[0, 5]$", "$g$ is defined at every point of $[0, 5]$", "$g$ is decreasing on $[0, 5]$", "$g$ takes both positive and negative values on $[0, 5]$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "Being defined everywhere does not prevent jumps. A function defined at every point can still skip output values; continuity is the condition that forbids skipping.",
+        "A decreasing function can still have a jump discontinuity that passes over $0$ without touching it, for example dropping directly from $1$ to $-1$.",
+        "The endpoint values already have opposite signs. Without continuity, the outputs can pass from positive to negative without ever equaling $0$."
+      ],
+      "hints": [
+        "The theorem's conclusion needs two hypotheses; the endpoint outputs straddling $0$ is one, and it is already given.",
+        "Consider a function that drops from $2$ to $-1$ with a jump that skips $0$; decide which listed condition rules that behavior out."
+      ],
+      "solution": [
+        { "text": "The Intermediate Value Theorem has two hypotheses: continuity on the closed interval, and a target value between the endpoint outputs. The endpoint condition is already satisfied because $0$ lies between $2$ and $-1$." },
+        { "text": "The missing hypothesis is continuity on $[0, 5]$. With it, the theorem guarantees some $c$ in $(0, 5)$ with $g(c) = 0$." },
+        { "text": "Without continuity, none of the other conditions is enough: a function can be defined everywhere, decreasing, and take both signs, yet jump from a positive output to a negative output without ever equaling $0$." }
+      ]
+    }
+  ],
+  "masteryCheck": { "questionCount": 8, "passCount": 7 }
+}

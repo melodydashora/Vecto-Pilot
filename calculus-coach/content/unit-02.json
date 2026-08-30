@@ -1,0 +1,1034 @@
+{
+  "id": "unit-02",
+  "number": 2,
+  "title": "Differentiation: Definition and Fundamental Properties",
+  "overview": "This unit defines the derivative and builds the toolkit for computing it. You will start with average and instantaneous rates of change, define the derivative as a limit, and learn exactly when a derivative fails to exist. You will then learn the power rule, the derivatives of the basic function library, and the product and quotient rules. Every later unit depends on the rules established here.",
+  "skills": [
+    { "id": "u2-rate-of-change", "name": "Average vs. instantaneous rate of change; estimating derivatives from tables and graphs", "core": true },
+    { "id": "u2-derivative-limit-definition", "name": "The derivative as a limit (both difference-quotient forms)", "core": true },
+    { "id": "u2-differentiability-continuity", "name": "Differentiability and continuity; corners, cusps, and vertical tangents", "core": true },
+    { "id": "u2-basic-rules", "name": "Power rule (including negative and fractional exponents); sum, difference, and constant-multiple rules", "core": true },
+    { "id": "u2-standard-derivatives", "name": "Derivatives of sin x, cos x, e^x, and ln x", "core": true },
+    { "id": "u2-product-quotient", "name": "Product rule, quotient rule, and the remaining trigonometric derivatives", "core": true }
+  ],
+  "lessons": [
+    {
+      "id": "u2-l1",
+      "title": "Average and instantaneous rates of change",
+      "skillIds": ["u2-rate-of-change"],
+      "estMinutes": 14,
+      "sections": [
+        {
+          "type": "concept",
+          "html": "<p>The <strong>average rate of change</strong> of a function $f$ over the interval $[a, b]$ is the change in output divided by the change in input:</p><p>$$\\frac{f(b) - f(a)}{b - a}$$</p><p>Geometrically, this number is the slope of the <strong>secant line</strong>, the straight line through the two points $(a, f(a))$ and $(b, f(b))$. It carries units: output units per input unit. If $s(t)$ is position in meters and $t$ is time in seconds, the average rate of change of $s$ over a time interval is the average velocity in meters per second.</p>"
+        },
+        {
+          "type": "concept",
+          "html": "<p>The <strong>instantaneous rate of change</strong> of $f$ at a single input $x = a$ is the limit of average rates of change over intervals that shrink down to $a$. This limit is called the derivative of $f$ at $a$, written $f'(a)$. On a graph, $f'(a)$ is the slope of the tangent line at the point $(a, f(a))$.</p><p>When you only have a table of values, you cannot take a limit. The standard estimate for $f'(a)$ is the average rate of change over the smallest available interval that contains $a$. Using one data point on each side of $a$ (a symmetric interval) usually gives the best estimate. On a graph, you estimate $f'(a)$ by sketching the tangent line at $(a, f(a))$ and computing its slope from two convenient points on that line.</p>"
+        },
+        {
+          "type": "coder-note",
+          "html": "<p>An average rate of change is the slope between two samples, like computing throughput from two log entries: <code>(bytesAt(t2) - bytesAt(t1)) / (t2 - t1)</code>. An instantaneous rate is what that computation approaches as the two samples move closer together.</p><p>The analogy holds exactly for the arithmetic: same subtraction, same division, same units. It breaks at the limit step. In code you cannot push <code>t2 - t1</code> to zero, because below some interval size floating-point cancellation destroys the result. The mathematical limit has no such floor; it is defined by the exact value the quotients approach, not by any single evaluation.</p>"
+        },
+        {
+          "type": "worked-example",
+          "title": "Average rate of change, then a table estimate",
+          "steps": [
+            { "text": "Compute the average rate of change of $f(x) = x^2 + 1$ on $[1, 3]$. First evaluate the endpoints.", "math": "f(1) = 2, \\qquad f(3) = 10" },
+            { "text": "Divide the change in output by the change in input.", "math": "\\frac{f(3) - f(1)}{3 - 1} = \\frac{10 - 2}{2} = 4" },
+            { "text": "Now estimate the instantaneous rate at $x = 2$ from a table with rows $x = 1.5,\\ 2.0,\\ 2.5$ and $f(x) = 3.25,\\ 5,\\ 7.25$. Use the symmetric interval $[1.5, 2.5]$, the smallest interval in the table that surrounds $x = 2$.", "math": "f'(2) \\approx \\frac{7.25 - 3.25}{2.5 - 1.5} = 4" },
+            { "text": "For this quadratic the symmetric estimate happens to equal the exact derivative. In general the estimate is an approximation, and the exam only asks for the estimate the data supports." }
+          ]
+        },
+        {
+          "type": "checkpoint",
+          "questionIds": ["u2-q001", "u2-q002", "u2-q004"]
+        }
+      ]
+    },
+    {
+      "id": "u2-l2",
+      "title": "The derivative as a limit",
+      "skillIds": ["u2-derivative-limit-definition"],
+      "estMinutes": 18,
+      "sections": [
+        {
+          "type": "concept",
+          "html": "<p>The <strong>derivative</strong> of $f$ at $x = a$ is defined as a limit of difference quotients. There are two equivalent forms:</p><p>$$f'(a) = \\lim_{h \\to 0} \\frac{f(a+h) - f(a)}{h} \\qquad \\text{and} \\qquad f'(a) = \\lim_{x \\to a} \\frac{f(x) - f(a)}{x - a}$$</p><p>In the first form, $h$ is the signed distance from $a$ to the second point. In the second form, the second point is named $x$ directly. Both quotients are average rates of change; the limit turns them into the instantaneous rate. If the limit exists as a finite number, $f$ is called <strong>differentiable</strong> at $a$, and $f'(a)$ is the slope of the tangent line at $(a, f(a))$.</p><p>Notation: $f'(x)$, $\\frac{dy}{dx}$, and $\\frac{d}{dx} f(x)$ all name the same object, and the AP exam uses all three. You should also recognize the definition in reverse: a limit shaped like either form above is a derivative in disguise, and identifying the function and the point is often faster than computing the limit directly.</p>"
+        },
+        {
+          "type": "coder-note",
+          "html": "<p>The difference quotient is code you have already written: <code>slope = (f(x + h) - f(x)) / h</code> with a small fixed <code>h</code> such as <code>1e-6</code>. That is numerical differentiation, and it returns an approximation whose error depends on <code>h</code>.</p><p>The definition of the derivative is the exact version of that snippet. Instead of picking one small <code>h</code>, you simplify the expression algebraically until the division by $h$ cancels, then let $h \\to 0$. The analogy holds for the formula itself. It breaks on error behavior: numerical differentiation gets worse again when <code>h</code> is too small because of cancellation error, while the algebraic limit is exact and has no tuning parameter.</p>"
+        },
+        {
+          "type": "worked-example",
+          "title": "Compute $f'(3)$ for $f(x) = x^2$ from the definition",
+          "steps": [
+            { "text": "Write the $h$-form of the definition at $a = 3$.", "math": "f'(3) = \\lim_{h \\to 0} \\frac{(3+h)^2 - 9}{h}" },
+            { "text": "Expand the numerator and combine like terms.", "math": "(3+h)^2 - 9 = 9 + 6h + h^2 - 9 = 6h + h^2" },
+            { "text": "Factor out $h$ and cancel. The cancellation is valid because $h \\neq 0$ inside the limit.", "math": "\\frac{6h + h^2}{h} = 6 + h" },
+            { "text": "Let $h \\to 0$.", "math": "f'(3) = \\lim_{h \\to 0} (6 + h) = 6" }
+          ]
+        },
+        {
+          "type": "worked-example",
+          "title": "Compute $f'(4)$ for $f(x) = \\sqrt{x}$ using the $x \\to a$ form",
+          "steps": [
+            { "text": "Write the second form of the definition at $a = 4$, using $f(4) = 2$.", "math": "f'(4) = \\lim_{x \\to 4} \\frac{\\sqrt{x} - 2}{x - 4}" },
+            { "text": "Factor the denominator as a difference of squares: $x - 4 = (\\sqrt{x} - 2)(\\sqrt{x} + 2)$, then cancel the common factor.", "math": "\\frac{\\sqrt{x} - 2}{(\\sqrt{x} - 2)(\\sqrt{x} + 2)} = \\frac{1}{\\sqrt{x} + 2}" },
+            { "text": "Let $x \\to 4$.", "math": "f'(4) = \\frac{1}{\\sqrt{4} + 2} = \\frac{1}{4}" }
+          ]
+        },
+        {
+          "type": "checkpoint",
+          "questionIds": ["u2-q006", "u2-q007", "u2-q008"]
+        }
+      ]
+    },
+    {
+      "id": "u2-l3",
+      "title": "Differentiability and continuity",
+      "skillIds": ["u2-differentiability-continuity"],
+      "estMinutes": 12,
+      "sections": [
+        {
+          "type": "concept",
+          "html": "<p>Differentiability is a stronger condition than continuity. The precise relationship has two parts.</p><ul><li>If $f$ is differentiable at $x = a$, then $f$ is continuous at $x = a$. Equivalently, by the contrapositive: if $f$ is not continuous at $a$, then $f$ is not differentiable at $a$.</li><li>The converse is false. A function can be continuous at $a$ and still fail to be differentiable there.</li></ul><p>In summary: continuity is necessary for differentiability, but it is not sufficient.</p>"
+        },
+        {
+          "type": "concept",
+          "html": "<p>A continuous function can fail to be differentiable at $x = a$ in three standard ways.</p><ul><li><strong>Corner:</strong> the one-sided slopes both exist but are different finite numbers. Example: $f(x) = |x|$ at $x = 0$, where the slope is $-1$ from the left and $1$ from the right.</li><li><strong>Cusp:</strong> the one-sided slopes become unbounded with opposite signs. Example: $f(x) = x^{2/3}$ at $x = 0$, where the slope approaches $-\\infty$ from the left and $+\\infty$ from the right.</li><li><strong>Vertical tangent:</strong> the slope becomes unbounded with the same sign on both sides. Example: $f(x) = x^{1/3}$ at $x = 0$, where the difference quotient equals $h^{-2/3}$ and grows to $+\\infty$ from both sides.</li></ul><p>At the definition level the failure is the same in every case: the limit of the difference quotient does not exist as a finite number.</p>"
+        },
+        {
+          "type": "coder-note",
+          "html": "<p>Model continuity and differentiability as interfaces, where <code>Differentiable</code> extends <code>Continuous</code>. Every object implementing <code>Differentiable</code> automatically satisfies the <code>Continuous</code> contract, but an object can implement <code>Continuous</code> alone. The function $|x|$ at $x = 0$ is such an object; asking for $f'(0)$ there is like calling a method the object does not provide.</p><p>The analogy holds for the one-way implication and for the habit of verifying the weaker contract first. It breaks on how membership is established: code declares an interface once for the whole type, while in mathematics differentiability is proved point by point, and one function can be differentiable everywhere except a single point.</p>"
+        },
+        {
+          "type": "worked-example",
+          "title": "Show that $f(x) = |x - 2|$ is not differentiable at $x = 2$",
+          "steps": [
+            { "text": "Write the difference quotient at $a = 2$, using $f(2) = 0$.", "math": "\\frac{f(2+h) - f(2)}{h} = \\frac{|h|}{h}" },
+            { "text": "Evaluate the one-sided limits. For $h > 0$ the quotient equals $1$; for $h < 0$ it equals $-1$.", "math": "\\lim_{h \\to 0^+} \\frac{|h|}{h} = 1, \\qquad \\lim_{h \\to 0^-} \\frac{|h|}{h} = -1" },
+            { "text": "The one-sided limits disagree, so the two-sided limit does not exist and $f'(2)$ is undefined. The function is still continuous at $x = 2$, so this point is a corner." }
+          ]
+        },
+        {
+          "type": "checkpoint",
+          "questionIds": ["u2-q012", "u2-q013", "u2-q014"]
+        }
+      ]
+    },
+    {
+      "id": "u2-l4",
+      "title": "The power rule and the basic function library",
+      "skillIds": ["u2-basic-rules", "u2-standard-derivatives"],
+      "estMinutes": 20,
+      "sections": [
+        {
+          "type": "concept",
+          "html": "<p>The <strong>power rule</strong>: for any real constant $n$,</p><p>$$\\frac{d}{dx} x^n = n x^{n-1}$$</p><p>This includes negative and fractional exponents. Before differentiating, rewrite radicals and reciprocals as powers: $\\sqrt{x} = x^{1/2}$, $\\frac{1}{x^3} = x^{-3}$, and $\\frac{1}{\\sqrt{x}} = x^{-1/2}$.</p><p>Three structural rules let you differentiate any sum of terms one term at a time. If $f$ and $g$ are differentiable and $c$ is a constant:</p><ul><li>Sum rule: $(f + g)' = f' + g'$</li><li>Difference rule: $(f - g)' = f' - g'$</li><li>Constant-multiple rule: $(c\\,f)' = c\\,f'$</li></ul><p>The derivative of a constant by itself is $0$, and $\\frac{d}{dx}(cx) = c$.</p>"
+        },
+        {
+          "type": "worked-example",
+          "title": "Differentiate $g(x) = 4\\sqrt{x} + \\frac{2}{x} - 5x^3$",
+          "steps": [
+            { "text": "Rewrite every term as a power of $x$.", "math": "g(x) = 4x^{1/2} + 2x^{-1} - 5x^3" },
+            { "text": "Apply the power rule term by term, carrying each constant multiple through.", "math": "g'(x) = 4 \\cdot \\tfrac{1}{2} x^{-1/2} + 2 \\cdot (-1) x^{-2} - 5 \\cdot 3 x^{2}" },
+            { "text": "Simplify and rewrite in radical and fraction form.", "math": "g'(x) = \\frac{2}{\\sqrt{x}} - \\frac{2}{x^2} - 15x^2" }
+          ]
+        },
+        {
+          "type": "checkpoint",
+          "questionIds": ["u2-q017", "u2-q018"]
+        },
+        {
+          "type": "concept",
+          "html": "<p>Four derivatives to memorize exactly:</p><ul><li>$\\frac{d}{dx} \\sin x = \\cos x$</li><li>$\\frac{d}{dx} \\cos x = -\\sin x$</li><li>$\\frac{d}{dx} e^x = e^x$</li><li>$\\frac{d}{dx} \\ln x = \\frac{1}{x}$</li></ul><p>Two cautions. First, the power rule does not apply to $e^x$. In $x^n$ the base is the variable and the exponent is constant; in $e^x$ the arrangement is reversed, so the power rule pattern does not match. Second, the sign in $\\frac{d}{dx}\\cos x = -\\sin x$ is the one to check: differentiating $\\cos$ introduces a negative sign, and differentiating $\\sin$ does not.</p>"
+        },
+        {
+          "type": "coder-note",
+          "html": "<p>These rules form a small recursive evaluator over expression trees. A symbolic differentiator dispatches on node type: a <code>Sum</code> node maps differentiation over its children, a <code>ConstMultiple</code> node hoists the constant and recurses, a <code>Power</code> node with a constant exponent returns <code>n * x^(n-1)</code>, and leaf functions like <code>sin</code>, <code>cos</code>, <code>exp</code>, and <code>log</code> hit a lookup table. Differentiating $5x^3 - 2\\sin x$ is one <code>Sum</code> dispatch, one <code>Power</code> case, and one table lookup.</p><p>This is close to an exact description; computer algebra systems really are built this way. The current rule set breaks on composite nodes such as $\\sin(x^2)$, where a function's argument is itself an expression. That case requires the chain rule, which is Unit 3.</p>"
+        },
+        {
+          "type": "worked-example",
+          "title": "Tangent line to $y = x^2 - 4x + 1$ at $x = 3$",
+          "steps": [
+            { "text": "A tangent line needs a point and a slope. Find the point by evaluating the function at $x = 3$.", "math": "f(3) = 9 - 12 + 1 = -2" },
+            { "text": "Find the slope by evaluating the derivative at $x = 3$.", "math": "f'(x) = 2x - 4, \\qquad f'(3) = 2" },
+            { "text": "Write point-slope form and simplify.", "math": "y = -2 + 2(x - 3) = 2x - 8" }
+          ]
+        },
+        {
+          "type": "checkpoint",
+          "questionIds": ["u2-q023", "u2-q024", "u2-q026"]
+        }
+      ]
+    },
+    {
+      "id": "u2-l5",
+      "title": "The product and quotient rules",
+      "skillIds": ["u2-product-quotient"],
+      "estMinutes": 18,
+      "sections": [
+        {
+          "type": "concept",
+          "html": "<p>The <strong>product rule</strong>: if $f$ and $g$ are differentiable, then</p><p>$$\\frac{d}{dx}\\left[ f(x)\\,g(x) \\right] = f'(x)\\,g(x) + f(x)\\,g'(x)$$</p><p>The derivative of a product is not the product of the derivatives. A one-line check: with $f(x) = g(x) = x$, the product is $x^2$ with derivative $2x$, while the product of the derivatives is $1 \\cdot 1 = 1$. The two-term structure is required: one term differentiates the first factor, the other differentiates the second.</p>"
+        },
+        {
+          "type": "coder-note",
+          "html": "<p>Forward-mode automatic differentiation implements the product rule literally. A dual number carries a value and a derivative, $(a, a')$, and its multiplication is defined by $(a, a') \\times (b, b') = (ab,\\ a'b + ab')$. The derivative slot of the output is exactly the product rule. The reason is the expansion $(f + \\Delta f)(g + \\Delta g) = fg + g\\,\\Delta f + f\\,\\Delta g + \\Delta f\\,\\Delta g$: the two middle terms are first-order and survive, while the $\\Delta f\\,\\Delta g$ term is second-order and vanishes in the limit, the way an $O(h^2)$ term drops out of a first-order error budget.</p><p>This is an implementation, not just an analogy, so it holds wherever dual numbers are used. The gap is scope: autodiff computes derivative values at one input at a time, while the product rule also hands you the symbolic derivative as a reusable formula.</p>"
+        },
+        {
+          "type": "worked-example",
+          "title": "Differentiate $y = x^3 e^x$",
+          "steps": [
+            { "text": "Identify the factors and their derivatives: $f(x) = x^3$ with $f'(x) = 3x^2$, and $g(x) = e^x$ with $g'(x) = e^x$." },
+            { "text": "Apply the product rule $f'g + fg'$.", "math": "y' = 3x^2 e^x + x^3 e^x" },
+            { "text": "Factor when a simpler form is useful.", "math": "y' = x^2 e^x (3 + x)" }
+          ]
+        },
+        {
+          "type": "checkpoint",
+          "questionIds": ["u2-q028", "u2-q030"]
+        },
+        {
+          "type": "concept",
+          "html": "<p>The <strong>quotient rule</strong>: if $g(x) \\neq 0$, then</p><p>$$\\frac{d}{dx}\\left[ \\frac{f(x)}{g(x)} \\right] = \\frac{f'(x)\\,g(x) - f(x)\\,g'(x)}{[g(x)]^2}$$</p><p>Because of the minus sign, the numerator order matters: the term containing $f'$ comes first. Applying the quotient rule to $\\tan x = \\frac{\\sin x}{\\cos x}$ and its companions produces the remaining four trigonometric derivatives:</p><ul><li>$\\frac{d}{dx} \\tan x = \\sec^2 x$</li><li>$\\frac{d}{dx} \\cot x = -\\csc^2 x$</li><li>$\\frac{d}{dx} \\sec x = \\sec x \\tan x$</li><li>$\\frac{d}{dx} \\csc x = -\\csc x \\cot x$</li></ul><p>Sign pattern: each function whose name starts with the letters co ($\\cos$, $\\cot$, $\\csc$) has a derivative with a leading negative sign.</p>"
+        },
+        {
+          "type": "worked-example",
+          "title": "Derive $\\frac{d}{dx} \\tan x$ from the quotient rule",
+          "steps": [
+            { "text": "Write $\\tan x$ as a quotient.", "math": "\\tan x = \\frac{\\sin x}{\\cos x}" },
+            { "text": "Apply the quotient rule with $f = \\sin x$ and $g = \\cos x$.", "math": "\\frac{d}{dx} \\tan x = \\frac{\\cos x \\cdot \\cos x - \\sin x \\cdot (-\\sin x)}{\\cos^2 x}" },
+            { "text": "Simplify the numerator using $\\cos^2 x + \\sin^2 x = 1$.", "math": "\\frac{\\cos^2 x + \\sin^2 x}{\\cos^2 x} = \\frac{1}{\\cos^2 x} = \\sec^2 x" }
+          ]
+        },
+        {
+          "type": "checkpoint",
+          "questionIds": ["u2-q029", "u2-q031", "u2-q035"]
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "u2-q001",
+      "skillId": "u2-rate-of-change",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = x^2 + 1$. What is the average rate of change of $f$ on the interval $[1, 3]$?</p>",
+      "choices": ["$2$", "$4$", "$6$", "$8$"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This value comes from dividing by $3 + 1$ instead of $3 - 1$; the denominator is the length of the interval, $b - a$.",
+        null,
+        "This is the average of the two output values, $\\frac{f(1) + f(3)}{2}$; the average rate of change is a slope, not an average of outputs.",
+        "This is the total change $f(3) - f(1)$ without dividing by the interval length $3 - 1$."
+      ],
+      "hints": [
+        "The average rate of change on $[a, b]$ is the slope of the secant line through the endpoints.",
+        "Compute $f(1)$ and $f(3)$ first, then form $\\frac{f(3) - f(1)}{3 - 1}$."
+      ],
+      "solution": [
+        { "text": "Evaluate the endpoints.", "math": "f(1) = 1^2 + 1 = 2, \\qquad f(3) = 3^2 + 1 = 10" },
+        { "text": "Divide the change in output by the change in input.", "math": "\\frac{f(3) - f(1)}{3 - 1} = \\frac{10 - 2}{2} = 4" }
+      ]
+    },
+    {
+      "id": "u2-q002",
+      "skillId": "u2-rate-of-change",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Selected values of a differentiable function $f$ are given in the table.</p><table><thead><tr><th>$x$</th><th>$2.5$</th><th>$3.0$</th><th>$3.5$</th></tr></thead><tbody><tr><td>$f(x)$</td><td>$11$</td><td>$15$</td><td>$20$</td></tr></tbody></table><p>Using the interval from $x = 2.5$ to $x = 3.5$, which value best approximates $f'(3)$?</p>",
+      "choices": ["$8$", "$9$", "$10$", "$15$"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This is the average rate of change over $[2.5, 3]$ only; the requested interval runs from $2.5$ to $3.5$.",
+        null,
+        "This is the average rate of change over $[3, 3.5]$ only; the requested interval runs from $2.5$ to $3.5$.",
+        "This is the function value $f(3)$, not a rate of change; a derivative estimate must compare two outputs."
+      ],
+      "hints": [
+        "An estimate for $f'(3)$ from a table is an average rate of change over an interval containing $x = 3$.",
+        "Use the two endpoints named in the prompt: form $\\frac{f(3.5) - f(2.5)}{3.5 - 2.5}$."
+      ],
+      "solution": [
+        { "text": "Form the average rate of change over the stated interval.", "math": "f'(3) \\approx \\frac{f(3.5) - f(2.5)}{3.5 - 2.5}" },
+        { "text": "Substitute the table values and evaluate.", "math": "\\frac{20 - 11}{1} = 9" }
+      ]
+    },
+    {
+      "id": "u2-q003",
+      "skillId": "u2-rate-of-change",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = x^3 - 2x$. Compute the average rate of change of $f$ on the interval $[0, 2]$. Enter an exact integer.</p>",
+      "answer": 2,
+      "hints": [
+        "The average rate of change is $\\frac{f(2) - f(0)}{2 - 0}$; it does not require any derivative rules.",
+        "Evaluate $f(2) = 2^3 - 2 \\cdot 2$ and $f(0) = 0$ first, then divide the difference by $2$."
+      ],
+      "solution": [
+        { "text": "Evaluate the endpoints.", "math": "f(2) = 8 - 4 = 4, \\qquad f(0) = 0" },
+        { "text": "Divide the change in output by the change in input.", "math": "\\frac{4 - 0}{2 - 0} = 2" }
+      ]
+    },
+    {
+      "id": "u2-q004",
+      "skillId": "u2-rate-of-change",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>A particle moves along a line with position $s(t) = t^2 - 4t + 3$ meters at time $t$ seconds. What is the average velocity of the particle over the interval $1 \\le t \\le 4$?</p>",
+      "choices": ["$-2$ m/s", "$1$ m/s", "$3$ m/s", "$4$ m/s"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This is $s'(1)$, the instantaneous velocity at $t = 1$; average velocity uses the positions at both endpoints.",
+        null,
+        "This is the total displacement $s(4) - s(1)$ without dividing by the elapsed time $4 - 1$.",
+        "This is $s'(4)$, the instantaneous velocity at $t = 4$; average velocity uses the positions at both endpoints."
+      ],
+      "hints": [
+        "Average velocity is a difference of positions divided by elapsed time, not a derivative evaluated at one instant.",
+        "Compute $s(1)$ and $s(4)$, then form $\\frac{s(4) - s(1)}{4 - 1}$."
+      ],
+      "solution": [
+        { "text": "Evaluate the position at each endpoint.", "math": "s(1) = 1 - 4 + 3 = 0, \\qquad s(4) = 16 - 16 + 3 = 3" },
+        { "text": "Divide displacement by elapsed time.", "math": "\\frac{s(4) - s(1)}{4 - 1} = \\frac{3 - 0}{3} = 1 \\text{ m/s}" }
+      ]
+    },
+    {
+      "id": "u2-q005",
+      "skillId": "u2-rate-of-change",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = x^2 - 3x$. For what value of $c$ in the interval $(0, 4)$ does the instantaneous rate of change of $f$ at $x = c$ equal the average rate of change of $f$ on $[0, 4]$?</p>",
+      "choices": ["$1$", "$\\frac{3}{2}$", "$2$", "$\\frac{7}{2}$"],
+      "answerIndex": 2,
+      "misconceptions": [
+        "This is the average rate of change itself, $\\frac{f(4) - f(0)}{4}$; the question asks for the input $c$ where $f'(c)$ equals that value.",
+        "This comes from solving $f'(c) = 0$, which locates a horizontal tangent; the target slope here is the average rate of change, not $0$.",
+        null,
+        "This comes from setting $f'(c)$ equal to the total change $f(4) - f(0) = 4$ without dividing by the interval length $4$."
+      ],
+      "hints": [
+        "Work in two stages: first compute the average rate of change on $[0, 4]$ as a number.",
+        "Then find $f'(x)$ with the power rule and set $f'(c)$ equal to the number from the first stage.",
+        "The equation to solve is linear in $c$."
+      ],
+      "solution": [
+        { "text": "Compute the average rate of change on $[0, 4]$.", "math": "\\frac{f(4) - f(0)}{4 - 0} = \\frac{(16 - 12) - 0}{4} = 1" },
+        { "text": "Differentiate.", "math": "f'(x) = 2x - 3" },
+        { "text": "Set the instantaneous rate equal to the average rate and solve.", "math": "2c - 3 = 1 \\implies c = 2" }
+      ]
+    },
+    {
+      "id": "u2-q006",
+      "skillId": "u2-derivative-limit-definition",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{h \\to 0} \\dfrac{(3+h)^2 - 9}{h}$.</p>",
+      "choices": ["$0$", "$6$", "$9$", "The limit does not exist"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This choice treats only the numerator, which approaches $0$; the denominator also approaches $0$, so the quotient must be simplified before taking the limit.",
+        null,
+        "This is $f(3) = 3^2$, the function value; the limit computes the slope $f'(3)$, not the value of the function.",
+        "Substituting $h = 0$ gives the indeterminate form $\\frac{0}{0}$, but an indeterminate form means more work is needed, not that the limit fails to exist."
+      ],
+      "hints": [
+        "This limit matches the definition of a derivative: $\\lim_{h \\to 0} \\frac{f(a+h) - f(a)}{h}$ with $f(x) = x^2$ and $a = 3$.",
+        "Expand $(3+h)^2$, subtract $9$, and factor $h$ out of what remains."
+      ],
+      "solution": [
+        { "text": "Expand the numerator.", "math": "(3+h)^2 - 9 = 6h + h^2" },
+        { "text": "Cancel the factor of $h$ ($h \\neq 0$ inside the limit).", "math": "\\frac{6h + h^2}{h} = 6 + h" },
+        { "text": "Let $h \\to 0$.", "math": "\\lim_{h \\to 0}(6 + h) = 6" }
+      ]
+    },
+    {
+      "id": "u2-q007",
+      "skillId": "u2-derivative-limit-definition",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Which of the following expressions equals $f'(a)$ for a differentiable function $f$?</p>",
+      "choices": [
+        "$\\lim_{h \\to 0} \\dfrac{f(a+h) - f(a)}{a}$",
+        "$\\dfrac{f(a+h) - f(a)}{h}$",
+        "$\\lim_{h \\to 0} \\dfrac{f(a+h) - f(a)}{h}$",
+        "$\\lim_{x \\to a} \\dfrac{f(x) - f(a)}{x}$"
+      ],
+      "answerIndex": 2,
+      "misconceptions": [
+        "This expression divides by the fixed number $a$ instead of the step size $h$; the denominator must be the distance between the two input values.",
+        "Without the limit, this is a difference quotient: an average rate of change over $[a, a+h]$, not the instantaneous rate at $a$.",
+        null,
+        "This expression divides by $x$ instead of $x - a$; in the second form of the definition the denominator is the distance $x - a$."
+      ],
+      "hints": [
+        "The derivative is a limit of average rates of change, so the correct expression must contain a limit.",
+        "In every correct form, the denominator equals the distance between the two input values whose outputs are subtracted in the numerator."
+      ],
+      "solution": [
+        { "text": "The two correct forms of the definition are the following.", "math": "f'(a) = \\lim_{h \\to 0} \\frac{f(a+h) - f(a)}{h} = \\lim_{x \\to a} \\frac{f(x) - f(a)}{x - a}" },
+        { "text": "Only one listed choice matches either form exactly: the $h$-form with a limit and with $h$ in the denominator. The others either drop the limit or divide by the wrong quantity." }
+      ]
+    },
+    {
+      "id": "u2-q008",
+      "skillId": "u2-derivative-limit-definition",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = x^2 - 3x$. Using the limit definition of the derivative, compute $f'(2)$. Enter an exact integer.</p>",
+      "answer": 1,
+      "hints": [
+        "Set up $\\lim_{h \\to 0} \\frac{f(2+h) - f(2)}{h}$ with $f(2) = -2$.",
+        "Expand $(2+h)^2 - 3(2+h)$ completely; the constant terms cancel with $-f(2)$, leaving terms that all contain $h$."
+      ],
+      "solution": [
+        { "text": "Compute $f(2)$ and set up the difference quotient.", "math": "f(2) = 4 - 6 = -2, \\qquad \\frac{(2+h)^2 - 3(2+h) - (-2)}{h}" },
+        { "text": "Expand the numerator.", "math": "4 + 4h + h^2 - 6 - 3h + 2 = h^2 + h" },
+        { "text": "Cancel $h$ and take the limit.", "math": "\\lim_{h \\to 0} (h + 1) = 1" }
+      ]
+    },
+    {
+      "id": "u2-q009",
+      "skillId": "u2-derivative-limit-definition",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{x \\to 4} \\dfrac{\\sqrt{x} - 2}{x - 4}$.</p>",
+      "choices": ["$0$", "$\\frac{1}{4}$", "$\\frac{1}{2}$", "$4$"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This choice tracks only the numerator, which approaches $0$; the denominator also approaches $0$, so the expression must be simplified first.",
+        null,
+        "This value results from using $\\frac{1}{\\sqrt{x}}$ as the derivative of $\\sqrt{x}$; the correct derivative is $\\frac{1}{2\\sqrt{x}}$, which halves the result.",
+        "This is the reciprocal of the correct slope; it comes from inverting the difference quotient, dividing $x - 4$ by $\\sqrt{x} - 2$."
+      ],
+      "hints": [
+        "This limit is $f'(4)$ in disguise, where $f(x) = \\sqrt{x}$; you can either recognize that or simplify algebraically.",
+        "For the algebraic route, factor $x - 4$ as $(\\sqrt{x} - 2)(\\sqrt{x} + 2)$ and cancel."
+      ],
+      "solution": [
+        { "text": "Factor the denominator as a difference of squares and cancel the common factor.", "math": "\\frac{\\sqrt{x} - 2}{(\\sqrt{x} - 2)(\\sqrt{x} + 2)} = \\frac{1}{\\sqrt{x} + 2}" },
+        { "text": "Let $x \\to 4$.", "math": "\\frac{1}{\\sqrt{4} + 2} = \\frac{1}{4}" },
+        { "text": "As a check, the limit equals $f'(4)$ for $f(x) = \\sqrt{x}$, and $f'(x) = \\frac{1}{2\\sqrt{x}}$ gives the same value.", "math": "f'(4) = \\frac{1}{2\\sqrt{4}} = \\frac{1}{4}" }
+      ]
+    },
+    {
+      "id": "u2-q010",
+      "skillId": "u2-derivative-limit-definition",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Evaluate $\\lim_{h \\to 0} \\dfrac{\\cos\\left(\\frac{\\pi}{3} + h\\right) - \\cos\\left(\\frac{\\pi}{3}\\right)}{h}$.</p>",
+      "choices": ["$-\\frac{\\sqrt{3}}{2}$", "$-\\frac{1}{2}$", "$\\frac{1}{2}$", "$\\frac{\\sqrt{3}}{2}$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This is $-\\cos\\left(\\frac{\\pi}{3}\\right)$; it comes from evaluating $-\\cos$ at the point instead of the derivative $-\\sin$.",
+        "This is the function value $\\cos\\left(\\frac{\\pi}{3}\\right)$, not the derivative; the limit computes a slope.",
+        "This value uses $\\sin$ as the derivative of $\\cos$; the derivative of $\\cos x$ is $-\\sin x$, so the sign is reversed."
+      ],
+      "hints": [
+        "Compare the expression to the definition $f'(a) = \\lim_{h \\to 0} \\frac{f(a+h) - f(a)}{h}$; identify $f$ and $a$.",
+        "Here $f(x) = \\cos x$ and $a = \\frac{\\pi}{3}$, so the limit equals $f'\\left(\\frac{\\pi}{3}\\right)$.",
+        "Recall $\\frac{d}{dx} \\cos x = -\\sin x$, then evaluate at $\\frac{\\pi}{3}$."
+      ],
+      "solution": [
+        { "text": "The limit matches the definition of the derivative with $f(x) = \\cos x$ at $a = \\frac{\\pi}{3}$.", "math": "\\lim_{h \\to 0} \\frac{\\cos(\\tfrac{\\pi}{3} + h) - \\cos(\\tfrac{\\pi}{3})}{h} = f'\\!\\left(\\tfrac{\\pi}{3}\\right)" },
+        { "text": "Differentiate cosine.", "math": "f'(x) = -\\sin x" },
+        { "text": "Evaluate at $\\frac{\\pi}{3}$.", "math": "-\\sin\\left(\\tfrac{\\pi}{3}\\right) = -\\frac{\\sqrt{3}}{2}" }
+      ]
+    },
+    {
+      "id": "u2-q011",
+      "skillId": "u2-derivative-limit-definition",
+      "difficulty": 3,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = \\dfrac{1}{x}$. Using the limit definition of the derivative, compute $f'(2)$. Enter your answer as a decimal.</p>",
+      "answer": -0.25,
+      "hints": [
+        "Set up $\\lim_{h \\to 0} \\frac{\\frac{1}{2+h} - \\frac{1}{2}}{h}$ and combine the two fractions in the numerator over a common denominator.",
+        "After combining, the numerator of the compound fraction is $\\frac{-h}{2(2+h)}$; the factor $h$ then cancels with the outer division by $h$.",
+        "Expect a negative answer, since $\\frac{1}{x}$ is decreasing at $x = 2$."
+      ],
+      "solution": [
+        { "text": "Combine the fractions in the numerator.", "math": "\\frac{1}{2+h} - \\frac{1}{2} = \\frac{2 - (2+h)}{2(2+h)} = \\frac{-h}{2(2+h)}" },
+        { "text": "Divide by $h$ and cancel.", "math": "\\frac{1}{h} \\cdot \\frac{-h}{2(2+h)} = \\frac{-1}{2(2+h)}" },
+        { "text": "Let $h \\to 0$.", "math": "f'(2) = \\frac{-1}{2 \\cdot 2} = -\\frac{1}{4} = -0.25" }
+      ]
+    },
+    {
+      "id": "u2-q012",
+      "skillId": "u2-differentiability-continuity",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Which of the following statements is true for every function $f$ and every real number $a$?</p>",
+      "choices": [
+        "If $f$ is continuous at $x = a$, then $f$ is differentiable at $x = a$.",
+        "If $f$ is differentiable at $x = a$, then $f$ is continuous at $x = a$.",
+        "If $f$ is not differentiable at $x = a$, then $f$ is not continuous at $x = a$.",
+        "Differentiability at $x = a$ gives no information about continuity at $x = a$."
+      ],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This is the converse of the true statement, and it fails: $f(x) = |x|$ is continuous at $0$ but not differentiable there.",
+        null,
+        "This reverses the implication incorrectly; a corner such as $|x|$ at $x = 0$ is not differentiable yet is continuous.",
+        "The two properties are linked in one direction: differentiability at a point forces continuity at that point."
+      ],
+      "hints": [
+        "One implication between the two properties always holds, and the other direction has a standard counterexample.",
+        "Consider $f(x) = |x|$ at $x = 0$: continuous, but the one-sided slopes disagree."
+      ],
+      "solution": [
+        { "text": "Differentiability at $a$ implies continuity at $a$; this is a theorem that holds for every function.", "math": "f \\text{ differentiable at } a \\implies f \\text{ continuous at } a" },
+        { "text": "The converse fails: $f(x) = |x|$ is continuous at $0$, but the left slope is $-1$ and the right slope is $1$, so $f'(0)$ does not exist." }
+      ]
+    },
+    {
+      "id": "u2-q013",
+      "skillId": "u2-differentiability-continuity",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = |x - 2|$. Which statement correctly describes $f$ at $x = 2$?</p>",
+      "choices": [
+        "$f$ is continuous and differentiable at $x = 2$.",
+        "$f$ is continuous but not differentiable at $x = 2$.",
+        "$f$ is differentiable but not continuous at $x = 2$.",
+        "$f$ is neither continuous nor differentiable at $x = 2$."
+      ],
+      "answerIndex": 1,
+      "misconceptions": [
+        "The one-sided slopes at $x = 2$ are $-1$ and $1$; because they disagree, the derivative does not exist even though the graph is unbroken.",
+        null,
+        "This combination is impossible for any function at any point: differentiability at a point always implies continuity there.",
+        "The function is continuous at $x = 2$: the left limit, right limit, and value all equal $0$; only differentiability fails."
+      ],
+      "hints": [
+        "Check continuity first: do the left limit, right limit, and function value at $x = 2$ agree?",
+        "Then examine the slope on each side of $x = 2$; a corner has two different one-sided slopes."
+      ],
+      "solution": [
+        { "text": "Continuity holds: as $x \\to 2$ from either side, $|x - 2| \\to 0 = f(2)$." },
+        { "text": "Differentiability fails: the difference quotient is $\\frac{|h|}{h}$, which approaches $1$ from the right and $-1$ from the left, so the limit does not exist.", "math": "\\lim_{h \\to 0^+} \\frac{|h|}{h} = 1 \\neq -1 = \\lim_{h \\to 0^-} \\frac{|h|}{h}" }
+      ]
+    },
+    {
+      "id": "u2-q014",
+      "skillId": "u2-differentiability-continuity",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = x^{1/3}$. Which statement correctly explains why $f$ is not differentiable at $x = 0$?</p>",
+      "choices": [
+        "$f$ is not continuous at $x = 0$.",
+        "The graph has a corner at $x = 0$: the one-sided slopes are finite but unequal.",
+        "The graph has a cusp at $x = 0$: the slopes approach $+\\infty$ on one side and $-\\infty$ on the other.",
+        "The graph has a vertical tangent at $x = 0$: the difference quotient grows without bound with the same sign on both sides."
+      ],
+      "answerIndex": 3,
+      "misconceptions": [
+        "The function is continuous everywhere, including $x = 0$; the cube root of a number near $0$ is near $0$.",
+        "A corner requires two finite one-sided slopes; here the difference quotient $h^{-2/3}$ is unbounded, not finite.",
+        "This describes $x^{2/3}$, whose slopes have opposite signs on the two sides; for $x^{1/3}$ the quotient $h^{-2/3}$ is positive on both sides.",
+        null
+      ],
+      "hints": [
+        "Write the difference quotient at $0$: $\\frac{f(0+h) - f(0)}{h} = \\frac{h^{1/3}}{h}$, and simplify the power of $h$.",
+        "The simplified quotient is $h^{-2/3}$; determine its sign and behavior as $h \\to 0$ from each side."
+      ],
+      "solution": [
+        { "text": "Form the difference quotient at $x = 0$.", "math": "\\frac{h^{1/3} - 0}{h} = h^{-2/3}" },
+        { "text": "Because the exponent $-\\frac{2}{3}$ has an even numerator over an odd denominator, $h^{-2/3} = (h^{1/3})^{-2}$ is positive for every $h \\neq 0$, and it grows without bound as $h \\to 0$ from both sides.", "math": "\\lim_{h \\to 0} h^{-2/3} = +\\infty" },
+        { "text": "An unbounded difference quotient with the same sign on both sides is a vertical tangent. The function remains continuous at $0$; only the derivative fails to exist." }
+      ]
+    },
+    {
+      "id": "u2-q015",
+      "skillId": "u2-differentiability-continuity",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = \\begin{cases} x^2 & x \\le 1 \\\\ ax + b & x > 1 \\end{cases}$ where $a$ and $b$ are constants. For which values of $a$ and $b$ is $f$ differentiable at every real number?</p>",
+      "choices": [
+        "$a = 2$ and $b = -1$",
+        "$a = 2$ and $b = 1$",
+        "$a = 1$ and $b = 0$",
+        "$a = 2$ and $b = 0$"
+      ],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This comes from a sign slip when solving $a + b = 1$ with $a = 2$; substituting gives $b = 1 - 2 = -1$, not $+1$.",
+        "This choice makes the two pieces agree in value at $x = 1$ but leaves slopes $2$ and $1$, producing a corner; differentiability needs both value and slope to match.",
+        "This choice matches the slopes but not the values: the left piece gives $f(1) = 1$ while the right piece approaches $2 \\cdot 1 + 0 = 2$, so $f$ is not even continuous at $x = 1$."
+      ],
+      "hints": [
+        "Two conditions must hold at $x = 1$: the pieces must agree in value (continuity) and agree in slope.",
+        "Slope condition: the derivative of $x^2$ at $x = 1$ must equal $a$.",
+        "Value condition: $1^2$ must equal $a \\cdot 1 + b$; solve the two conditions together."
+      ],
+      "solution": [
+        { "text": "Match slopes at $x = 1$: the left piece has derivative $2x$, so its slope there is $2$, and the right piece has constant slope $a$.", "math": "a = 2" },
+        { "text": "Match values at $x = 1$ for continuity: $1^2 = a(1) + b$.", "math": "1 = 2 + b \\implies b = -1" },
+        { "text": "With $a = 2$ and $b = -1$, both pieces meet at $(1, 1)$ with slope $2$, so $f$ is differentiable everywhere." }
+      ]
+    },
+    {
+      "id": "u2-q016",
+      "skillId": "u2-differentiability-continuity",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>A function $g$ is continuous on $[-3, 3]$. Its graph has a sharp corner at $x = -1$ and a vertical tangent at $x = 1$, and the graph is smooth at every other point of $(-3, 3)$. At how many points of $(-3, 3)$ does $g$ fail to be differentiable?</p>",
+      "choices": ["$0$", "$1$", "$2$", "$3$"],
+      "answerIndex": 2,
+      "misconceptions": [
+        "This choice assumes continuity guarantees differentiability; continuity is necessary but not sufficient, and both listed features break differentiability.",
+        "This choice counts only the corner; a vertical tangent also breaks differentiability, because the slope limit is unbounded rather than finite.",
+        null,
+        "Only the two listed features break differentiability; at smooth points of a continuous function the derivative exists."
+      ],
+      "hints": [
+        "List the ways a continuous function can fail to be differentiable, then match each listed feature against that list.",
+        "A corner fails because one-sided slopes disagree; decide whether an unbounded slope at a vertical tangent counts as a derivative."
+      ],
+      "solution": [
+        { "text": "At the corner $x = -1$, the one-sided slopes exist but differ, so the derivative does not exist there." },
+        { "text": "At the vertical tangent $x = 1$, the difference quotient grows without bound, so the derivative does not exist there either. That gives exactly $2$ points of non-differentiability." }
+      ]
+    },
+    {
+      "id": "u2-q017",
+      "skillId": "u2-basic-rules",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( 3x^4 - 5x + 7 \\right)$.</p>",
+      "choices": ["$3x^3 - 5$", "$12x^3$", "$12x^3 - 5$", "$12x^3 - 5x + 7$"],
+      "answerIndex": 2,
+      "misconceptions": [
+        "In the first term the exponent was lowered without multiplying by it; the power rule gives $3 \\cdot 4 x^3 = 12x^3$.",
+        "This drops the derivative of $-5x$, which is $-5$; only the constant term $7$ has derivative $0$.",
+        null,
+        "Only the first term was differentiated; the rules apply to every term, giving $-5$ from $-5x$ and $0$ from $7$."
+      ],
+      "hints": [
+        "Differentiate term by term: the power rule handles $3x^4$, and the last two terms are linear and constant.",
+        "Power rule on the first term: multiply by the exponent $4$, then reduce the exponent by one."
+      ],
+      "solution": [
+        { "text": "Apply the power rule to each term.", "math": "\\frac{d}{dx}(3x^4) = 12x^3, \\qquad \\frac{d}{dx}(-5x) = -5, \\qquad \\frac{d}{dx}(7) = 0" },
+        { "text": "Add the results.", "math": "12x^3 - 5" }
+      ]
+    },
+    {
+      "id": "u2-q018",
+      "skillId": "u2-basic-rules",
+      "difficulty": 1,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = x^3 + 2x$. Compute $f'(2)$. Enter an exact integer.</p>",
+      "answer": 14,
+      "hints": [
+        "Differentiate first with the power rule, then substitute $x = 2$ into the derivative, not into $f$.",
+        "The derivative is $3x^2 + 2$."
+      ],
+      "solution": [
+        { "text": "Differentiate term by term.", "math": "f'(x) = 3x^2 + 2" },
+        { "text": "Evaluate at $x = 2$.", "math": "f'(2) = 3(4) + 2 = 14" }
+      ]
+    },
+    {
+      "id": "u2-q019",
+      "skillId": "u2-basic-rules",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( 4\\sqrt{x} + \\dfrac{2}{x} \\right)$.</p>",
+      "choices": [
+        "$\\dfrac{2}{\\sqrt{x}} + \\dfrac{2}{x^2}$",
+        "$\\dfrac{2}{\\sqrt{x}} - \\dfrac{2}{x^2}$",
+        "$2\\sqrt{x} - \\dfrac{2}{x^2}$",
+        "$\\dfrac{1}{2\\sqrt{x}} - \\dfrac{2}{x^2}$"
+      ],
+      "answerIndex": 1,
+      "misconceptions": [
+        "The sign of the second term comes from the exponent: $\\frac{d}{dx}(2x^{-1}) = -2x^{-2}$, so that term is negative.",
+        null,
+        "In the first term the exponent was not reduced: $\\frac{d}{dx}(4x^{1/2}) = 2x^{-1/2}$, and $x^{-1/2}$ is $\\frac{1}{\\sqrt{x}}$, not $\\sqrt{x}$.",
+        "The constant multiple $4$ was not carried through the first term; $4 \\cdot \\frac{1}{2\\sqrt{x}} = \\frac{2}{\\sqrt{x}}$."
+      ],
+      "hints": [
+        "Rewrite both terms as powers first: $4x^{1/2} + 2x^{-1}$.",
+        "Apply the power rule to each: multiply by the exponent, then subtract one from the exponent, keeping the signs of the new exponents."
+      ],
+      "solution": [
+        { "text": "Rewrite as powers of $x$.", "math": "4x^{1/2} + 2x^{-1}" },
+        { "text": "Apply the power rule to each term.", "math": "4 \\cdot \\tfrac{1}{2}x^{-1/2} + 2 \\cdot (-1)x^{-2} = 2x^{-1/2} - 2x^{-2}" },
+        { "text": "Rewrite in radical and fraction form.", "math": "\\frac{2}{\\sqrt{x}} - \\frac{2}{x^2}" }
+      ]
+    },
+    {
+      "id": "u2-q020",
+      "skillId": "u2-basic-rules",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = \\dfrac{2}{x^2}$. Compute $f'(1)$. Enter an exact integer.</p>",
+      "answer": -4,
+      "hints": [
+        "Rewrite the function as a power of $x$ with a negative exponent before differentiating.",
+        "With $f(x) = 2x^{-2}$, the power rule multiplies by $-2$ and reduces the exponent to $-3$."
+      ],
+      "solution": [
+        { "text": "Rewrite as a power.", "math": "f(x) = 2x^{-2}" },
+        { "text": "Differentiate with the power rule.", "math": "f'(x) = 2 \\cdot (-2) x^{-3} = -4x^{-3}" },
+        { "text": "Evaluate at $x = 1$.", "math": "f'(1) = -4 \\cdot 1 = -4" }
+      ]
+    },
+    {
+      "id": "u2-q021",
+      "skillId": "u2-basic-rules",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Which of the following is an equation of the line tangent to the graph of $y = x^3 - 3x$ at the point where $x = 2$?</p>",
+      "choices": ["$y = 2x - 2$", "$y = 9x - 16$", "$y = 9x + 2$", "$y = 12x - 22$"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This line uses the function value $f(2) = 2$ as the slope; the slope of a tangent line is the derivative value $f'(2)$, not $f(2)$.",
+        null,
+        "This line uses the correct slope $9$ but places $f(2) = 2$ as the $y$-intercept; the point $(2, 2)$ lies on the line, so point-slope form is needed.",
+        "This slope comes from differentiating only the $x^3$ term; the $-3x$ term contributes $-3$, making the slope $3(2)^2 - 3 = 9$."
+      ],
+      "hints": [
+        "A tangent line requires two ingredients computed separately: the point $(2, f(2))$ and the slope $f'(2)$.",
+        "Differentiate to get $3x^2 - 3$ before substituting $x = 2$.",
+        "Assemble with point-slope form: $y = f(2) + f'(2)(x - 2)$."
+      ],
+      "solution": [
+        { "text": "Find the point of tangency.", "math": "f(2) = 8 - 6 = 2" },
+        { "text": "Find the slope from the derivative.", "math": "f'(x) = 3x^2 - 3, \\qquad f'(2) = 12 - 3 = 9" },
+        { "text": "Write point-slope form and simplify.", "math": "y = 2 + 9(x - 2) = 9x - 16" }
+      ]
+    },
+    {
+      "id": "u2-q022",
+      "skillId": "u2-basic-rules",
+      "difficulty": 3,
+      "type": "numeric",
+      "prompt": "<p>The line tangent to the graph of $y = x^2$ at the point $(3, 9)$ crosses the $x$-axis at one point. Find the $x$-coordinate of that point. Enter your answer as a decimal.</p>",
+      "answer": 1.5,
+      "hints": [
+        "First build the tangent line: its slope is the derivative of $x^2$ evaluated at $x = 3$, and it passes through $(3, 9)$.",
+        "The tangent line is $y = 9 + 6(x - 3)$; simplify it to slope-intercept form.",
+        "The $x$-axis crossing is where the line's $y$-value equals $0$."
+      ],
+      "solution": [
+        { "text": "Compute the slope of the tangent line.", "math": "y' = 2x, \\qquad y'(3) = 6" },
+        { "text": "Write the tangent line through $(3, 9)$.", "math": "y = 9 + 6(x - 3) = 6x - 9" },
+        { "text": "Set $y = 0$ and solve.", "math": "6x - 9 = 0 \\implies x = \\frac{3}{2} = 1.5" }
+      ]
+    },
+    {
+      "id": "u2-q023",
+      "skillId": "u2-standard-derivatives",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( 3\\sin x - \\cos x \\right)$.</p>",
+      "choices": ["$3\\cos x - \\sin x$", "$3\\cos x + \\sin x$", "$-3\\cos x + \\sin x$", "$-3\\cos x - \\sin x$"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This treats the derivative of $-\\cos x$ as $-\\sin x$; differentiating $\\cos x$ gives $-\\sin x$, so the derivative of $-\\cos x$ is $+\\sin x$.",
+        null,
+        "This uses $-\\cos x$ as the derivative of $\\sin x$; the derivative of $\\sin x$ is $+\\cos x$, with no sign change.",
+        "This reverses both signs: $\\sin$ differentiates to $+\\cos$, and $-\\cos$ differentiates to $+\\sin$."
+      ],
+      "hints": [
+        "Differentiate each term separately: $\\frac{d}{dx}\\sin x = \\cos x$ and $\\frac{d}{dx}\\cos x = -\\sin x$.",
+        "Track the sign of the second term carefully: the original term is $-\\cos x$, and differentiating $\\cos$ introduces another negative."
+      ],
+      "solution": [
+        { "text": "Differentiate the first term.", "math": "\\frac{d}{dx}(3\\sin x) = 3\\cos x" },
+        { "text": "Differentiate the second term; two negatives combine.", "math": "\\frac{d}{dx}(-\\cos x) = -(-\\sin x) = \\sin x" },
+        { "text": "Add the results.", "math": "3\\cos x + \\sin x" }
+      ]
+    },
+    {
+      "id": "u2-q024",
+      "skillId": "u2-standard-derivatives",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( 5e^x - 2\\ln x \\right)$.</p>",
+      "choices": [
+        "$5e^x - \\dfrac{2}{x}$",
+        "$5xe^{x-1} - \\dfrac{2}{x}$",
+        "$5e^x - \\dfrac{1}{x}$",
+        "$5e^x - \\dfrac{2}{\\ln x}$"
+      ],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This applies the power rule to $e^x$; the power rule requires a variable base with a constant exponent, and $e^x$ is its own derivative.",
+        "The constant multiple $2$ was not carried through the logarithm term; $\\frac{d}{dx}(2\\ln x) = \\frac{2}{x}$.",
+        "This treats the derivative of $\\ln x$ as $\\frac{1}{\\ln x}$; the derivative of $\\ln x$ is $\\frac{1}{x}$."
+      ],
+      "hints": [
+        "Use the library facts $\\frac{d}{dx}e^x = e^x$ and $\\frac{d}{dx}\\ln x = \\frac{1}{x}$, keeping each constant multiplier.",
+        "The power rule does not apply to $e^x$, because in $e^x$ the exponent is the variable."
+      ],
+      "solution": [
+        { "text": "Differentiate each term with the library rules and the constant-multiple rule.", "math": "\\frac{d}{dx}(5e^x) = 5e^x, \\qquad \\frac{d}{dx}(2\\ln x) = \\frac{2}{x}" },
+        { "text": "Combine with the difference rule.", "math": "5e^x - \\frac{2}{x}" }
+      ]
+    },
+    {
+      "id": "u2-q025",
+      "skillId": "u2-standard-derivatives",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = x^2 + 4\\ln x$. Compute $f'(2)$. Enter an exact integer.</p>",
+      "answer": 6,
+      "hints": [
+        "Differentiate the two terms separately: the power rule for $x^2$ and the library rule for $\\ln x$.",
+        "The derivative is $2x + \\frac{4}{x}$; substitute $x = 2$."
+      ],
+      "solution": [
+        { "text": "Differentiate term by term.", "math": "f'(x) = 2x + \\frac{4}{x}" },
+        { "text": "Evaluate at $x = 2$.", "math": "f'(2) = 4 + 2 = 6" }
+      ]
+    },
+    {
+      "id": "u2-q026",
+      "skillId": "u2-standard-derivatives",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Which of the following is an equation of the line tangent to the graph of $y = e^x$ at $x = 0$?</p>",
+      "choices": ["$y = 1$", "$y = x$", "$y = x + 1$", "$y = ex + 1$"],
+      "answerIndex": 2,
+      "misconceptions": [
+        "This horizontal line uses slope $0$; the slope of $y = e^x$ at $x = 0$ is $e^0 = 1$, not $0$.",
+        "This line has the correct slope but passes through the origin; the point of tangency is $(0, e^0) = (0, 1)$.",
+        null,
+        "This uses $e$ as the slope; the slope at $x = 0$ is $e^0 = 1$, while $e$ is the slope at $x = 1$."
+      ],
+      "hints": [
+        "Find the point of tangency by evaluating $e^x$ at $x = 0$, and the slope by evaluating the derivative there.",
+        "Since $\\frac{d}{dx}e^x = e^x$, the slope at $x = 0$ equals the function value at $x = 0$."
+      ],
+      "solution": [
+        { "text": "Point of tangency: $(0, e^0) = (0, 1)$. Slope: the derivative of $e^x$ is $e^x$, so the slope is $e^0 = 1$." },
+        { "text": "Write the line through $(0, 1)$ with slope $1$.", "math": "y = 1 + 1 \\cdot (x - 0) = x + 1" }
+      ]
+    },
+    {
+      "id": "u2-q027",
+      "skillId": "u2-standard-derivatives",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Let $f(x) = 2\\sin x + \\cos x$. What is the value of $f'\\left( \\dfrac{\\pi}{6} \\right)$?</p>",
+      "choices": [
+        "$\\frac{1}{2} - \\sqrt{3}$",
+        "$\\sqrt{3} - \\frac{1}{2}$",
+        "$\\sqrt{3} + \\frac{1}{2}$",
+        "$1 + \\frac{\\sqrt{3}}{2}$"
+      ],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This value comes from reversing both derivative rules, using $\\frac{d}{dx}\\sin x = -\\cos x$ and $\\frac{d}{dx}\\cos x = \\sin x$; both signs are backwards.",
+        null,
+        "This uses $+\\sin x$ as the derivative of $\\cos x$; the derivative of $\\cos x$ is $-\\sin x$, so the second term is subtracted.",
+        "This is $f\\left(\\frac{\\pi}{6}\\right)$, the function value; the question asks for the derivative value."
+      ],
+      "hints": [
+        "Differentiate first: the derivative of $2\\sin x + \\cos x$ uses both library rules.",
+        "The derivative is $2\\cos x - \\sin x$; then substitute $x = \\frac{\\pi}{6}$.",
+        "Recall $\\cos\\left(\\frac{\\pi}{6}\\right) = \\frac{\\sqrt{3}}{2}$ and $\\sin\\left(\\frac{\\pi}{6}\\right) = \\frac{1}{2}$."
+      ],
+      "solution": [
+        { "text": "Differentiate.", "math": "f'(x) = 2\\cos x - \\sin x" },
+        { "text": "Substitute the exact trigonometric values at $\\frac{\\pi}{6}$.", "math": "f'\\left(\\tfrac{\\pi}{6}\\right) = 2 \\cdot \\frac{\\sqrt{3}}{2} - \\frac{1}{2}" },
+        { "text": "Simplify.", "math": "\\sqrt{3} - \\frac{1}{2}" }
+      ]
+    },
+    {
+      "id": "u2-q028",
+      "skillId": "u2-product-quotient",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( x^2 \\sin x \\right)$.</p>",
+      "choices": [
+        "$2x\\sin x + x^2\\cos x$",
+        "$2x\\cos x$",
+        "$x^2\\cos x$",
+        "$2x\\sin x$"
+      ],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This is the product of the two derivatives; the product rule is $f'g + fg'$, not $f'g'$.",
+        "This differentiates only $\\sin x$; the term $f'(x)g(x) = 2x\\sin x$ is missing from the sum.",
+        "This differentiates only $x^2$; the term $f(x)g'(x) = x^2\\cos x$ is missing from the sum."
+      ],
+      "hints": [
+        "This is a product of two functions of $x$, so the product rule applies: differentiate one factor at a time.",
+        "With $f(x) = x^2$ and $g(x) = \\sin x$, form $f'(x)g(x) + f(x)g'(x)$."
+      ],
+      "solution": [
+        { "text": "Identify the factors and their derivatives.", "math": "f = x^2,\\ f' = 2x, \\qquad g = \\sin x,\\ g' = \\cos x" },
+        { "text": "Apply the product rule.", "math": "f'g + fg' = 2x\\sin x + x^2\\cos x" }
+      ]
+    },
+    {
+      "id": "u2-q029",
+      "skillId": "u2-product-quotient",
+      "difficulty": 1,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( \\tan x \\right)$.</p>",
+      "choices": ["$\\sec x \\tan x$", "$\\sec^2 x$", "$-\\csc^2 x$", "$\\cot x$"],
+      "answerIndex": 1,
+      "misconceptions": [
+        "This is the derivative of $\\sec x$, not of $\\tan x$.",
+        null,
+        "This is the derivative of $\\cot x$; the negative sign belongs to the co-functions.",
+        "This is the reciprocal of $\\tan x$, not its derivative."
+      ],
+      "hints": [
+        "If the memorized rule is not available, derive it: write $\\tan x = \\frac{\\sin x}{\\cos x}$ and apply the quotient rule.",
+        "The quotient rule numerator becomes $\\cos^2 x + \\sin^2 x$, which simplifies by the Pythagorean identity."
+      ],
+      "solution": [
+        { "text": "Apply the quotient rule to $\\frac{\\sin x}{\\cos x}$.", "math": "\\frac{\\cos x \\cdot \\cos x - \\sin x \\cdot(-\\sin x)}{\\cos^2 x} = \\frac{\\cos^2 x + \\sin^2 x}{\\cos^2 x}" },
+        { "text": "Simplify with $\\cos^2 x + \\sin^2 x = 1$.", "math": "\\frac{1}{\\cos^2 x} = \\sec^2 x" }
+      ]
+    },
+    {
+      "id": "u2-q030",
+      "skillId": "u2-product-quotient",
+      "difficulty": 2,
+      "type": "numeric",
+      "prompt": "<p>Let $f(x) = x e^x$. Compute $f'(0)$. Enter an exact integer.</p>",
+      "answer": 1,
+      "hints": [
+        "This is a product, so use the product rule before substituting $x = 0$.",
+        "The derivative is $e^x + x e^x$; evaluate each term at $x = 0$."
+      ],
+      "solution": [
+        { "text": "Apply the product rule with $f = x$ and $g = e^x$.", "math": "f'(x) = 1 \\cdot e^x + x \\cdot e^x = e^x(1 + x)" },
+        { "text": "Evaluate at $x = 0$.", "math": "f'(0) = e^0 (1 + 0) = 1" }
+      ]
+    },
+    {
+      "id": "u2-q031",
+      "skillId": "u2-product-quotient",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( \\dfrac{2x+1}{x-3} \\right)$.</p>",
+      "choices": [
+        "$\\dfrac{-7}{x-3}$",
+        "$\\dfrac{-7}{(x-3)^2}$",
+        "$2$",
+        "$\\dfrac{7}{(x-3)^2}$"
+      ],
+      "answerIndex": 1,
+      "misconceptions": [
+        "The denominator of the quotient rule is the square of the original denominator, $(x-3)^2$, not $(x-3)$.",
+        null,
+        "This is the ratio of the two derivatives, $\\frac{2}{1}$; the quotient rule has a two-term numerator over a squared denominator.",
+        "This sign comes from writing the numerator as $fg' - f'g$; the quotient rule numerator is $f'g - fg'$, with the derivative of the top function first."
+      ],
+      "hints": [
+        "Use the quotient rule with $f(x) = 2x + 1$ and $g(x) = x - 3$; write down $f'$ and $g'$ first.",
+        "The numerator is $f'(x)g(x) - f(x)g'(x)$; expand it carefully and watch the distributed signs."
+      ],
+      "solution": [
+        { "text": "Set up the quotient rule.", "math": "\\frac{2(x-3) - (2x+1)(1)}{(x-3)^2}" },
+        { "text": "Expand and simplify the numerator.", "math": "2x - 6 - 2x - 1 = -7" },
+        { "text": "State the result.", "math": "\\frac{-7}{(x-3)^2}" }
+      ]
+    },
+    {
+      "id": "u2-q032",
+      "skillId": "u2-product-quotient",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( \\sec x \\right)$.</p>",
+      "choices": ["$-\\csc x \\cot x$", "$-\\sec x \\tan x$", "$\\sec x \\tan x$", "$\\sec^2 x$"],
+      "answerIndex": 2,
+      "misconceptions": [
+        "This is the derivative of $\\csc x$; the two reciprocal derivatives are easy to swap, and the negative sign belongs with the co-function.",
+        "The sign is reversed; $\\sec x$ is not a co-function, so its derivative has no leading negative.",
+        null,
+        "This is the derivative of $\\tan x$, not of $\\sec x$."
+      ],
+      "hints": [
+        "If the memorized rule is not available, write $\\sec x = \\frac{1}{\\cos x}$ and apply the quotient rule.",
+        "The quotient rule gives $\\frac{\\sin x}{\\cos^2 x}$; split this into a product of $\\frac{1}{\\cos x}$ and $\\frac{\\sin x}{\\cos x}$."
+      ],
+      "solution": [
+        { "text": "Apply the quotient rule to $\\frac{1}{\\cos x}$.", "math": "\\frac{0 \\cdot \\cos x - 1 \\cdot (-\\sin x)}{\\cos^2 x} = \\frac{\\sin x}{\\cos^2 x}" },
+        { "text": "Rewrite as a product of standard functions.", "math": "\\frac{1}{\\cos x} \\cdot \\frac{\\sin x}{\\cos x} = \\sec x \\tan x" }
+      ]
+    },
+    {
+      "id": "u2-q033",
+      "skillId": "u2-product-quotient",
+      "difficulty": 3,
+      "type": "numeric",
+      "prompt": "<p>The table gives values of the differentiable functions $f$ and $g$ and their derivatives at $x = 2$.</p><table><thead><tr><th></th><th>$f(2)$</th><th>$f'(2)$</th><th>$g(2)$</th><th>$g'(2)$</th></tr></thead><tbody><tr><td>value</td><td>$3$</td><td>$-1$</td><td>$4$</td><td>$2$</td></tr></tbody></table><p>If $h(x) = f(x)\\,g(x)$, compute $h'(2)$. Enter an exact integer.</p>",
+      "answer": 2,
+      "hints": [
+        "No formulas for $f$ and $g$ are needed; the product rule uses only the four table values.",
+        "Write $h'(2) = f'(2)g(2) + f(2)g'(2)$ and substitute.",
+        "Watch the sign of $f'(2)$ when combining the two terms."
+      ],
+      "solution": [
+        { "text": "Apply the product rule at $x = 2$.", "math": "h'(2) = f'(2)\\,g(2) + f(2)\\,g'(2)" },
+        { "text": "Substitute the table values.", "math": "(-1)(4) + (3)(2) = -4 + 6 = 2" }
+      ]
+    },
+    {
+      "id": "u2-q034",
+      "skillId": "u2-product-quotient",
+      "difficulty": 3,
+      "type": "mc",
+      "prompt": "<p>Differentiable functions $f$ and $g$ satisfy $f(1) = 6$, $f'(1) = 2$, $g(1) = 3$, and $g'(1) = -4$. If $h(x) = \\dfrac{f(x)}{g(x)}$, what is $h'(1)$?</p>",
+      "choices": ["$-\\frac{10}{3}$", "$-\\frac{1}{2}$", "$\\frac{10}{3}$", "$10$"],
+      "answerIndex": 2,
+      "misconceptions": [
+        "This results from writing the numerator as $f(1)g'(1) - f'(1)g(1)$; the quotient rule puts the $f'g$ term first, which flips the sign.",
+        "This is the ratio of the derivatives, $\\frac{f'(1)}{g'(1)}$; the quotient rule combines all four values, not just the two derivatives.",
+        null,
+        "This divides by $g(1) = 3$ instead of $[g(1)]^2 = 9$; the quotient rule denominator is squared."
+      ],
+      "hints": [
+        "Write the quotient rule symbolically before substituting any numbers: $h' = \\frac{f'g - fg'}{g^2}$.",
+        "Substitute all four values at $x = 1$, keeping the order $f'(1)g(1) - f(1)g'(1)$ in the numerator.",
+        "Note that $g'(1)$ is negative, so subtracting $f(1)g'(1)$ adds a positive quantity."
+      ],
+      "solution": [
+        { "text": "Apply the quotient rule at $x = 1$.", "math": "h'(1) = \\frac{f'(1)\\,g(1) - f(1)\\,g'(1)}{[g(1)]^2}" },
+        { "text": "Substitute the given values.", "math": "\\frac{(2)(3) - (6)(-4)}{3^2} = \\frac{6 + 24}{9}" },
+        { "text": "Simplify.", "math": "\\frac{30}{9} = \\frac{10}{3}" }
+      ]
+    },
+    {
+      "id": "u2-q035",
+      "skillId": "u2-product-quotient",
+      "difficulty": 2,
+      "type": "mc",
+      "prompt": "<p>Find $\\dfrac{d}{dx}\\left( \\cot x \\right)$.</p>",
+      "choices": ["$-\\csc^2 x$", "$-\\csc x \\cot x$", "$\\csc^2 x$", "$\\sec^2 x$"],
+      "answerIndex": 0,
+      "misconceptions": [
+        null,
+        "This is the derivative of $\\csc x$, not of $\\cot x$.",
+        "The negative sign is missing; every trigonometric function whose name starts with co has a derivative with a leading negative sign.",
+        "This is the derivative of $\\tan x$; the derivative of $\\cot x$ has both a different squared function and a negative sign."
+      ],
+      "hints": [
+        "If the memorized rule is not available, write $\\cot x = \\frac{\\cos x}{\\sin x}$ and apply the quotient rule.",
+        "The numerator becomes $-\\sin^2 x - \\cos^2 x$; use the Pythagorean identity to collapse it."
+      ],
+      "solution": [
+        { "text": "Apply the quotient rule to $\\frac{\\cos x}{\\sin x}$.", "math": "\\frac{(-\\sin x)(\\sin x) - (\\cos x)(\\cos x)}{\\sin^2 x} = \\frac{-(\\sin^2 x + \\cos^2 x)}{\\sin^2 x}" },
+        { "text": "Simplify with $\\sin^2 x + \\cos^2 x = 1$.", "math": "\\frac{-1}{\\sin^2 x} = -\\csc^2 x" }
+      ]
+    }
+  ],
+  "masteryCheck": { "questionCount": 8, "passCount": 7 }
+}
