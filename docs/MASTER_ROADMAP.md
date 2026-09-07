@@ -1,5 +1,7 @@
 # Vecto Pilot - Master Roadmap & Backlog
 
+**September 7, 2026 owner priorities:** [Release-readiness backlog](plans/2026-09-07-release-readiness.md) records OAuth/account identity, data verification, the nested waterfall, naming/contracts, monitoring, security, scalability and unfinished-feature acceptance. Its 19 VP items remain open under development todo #75 / continuity #386. [Bounded runtime checks](memory/sessions/2026-09-07-auth-data-runtime-check.md) distinguish verified populated tables from inaccessible tables; older claims below still require current verification.
+
 *This document serves as the "Single Pane of Glass" for all pending work across the Vecto Pilot ecosystem. It aggregates and categorizes the 1,200+ pending items from `DOC_DISCREPANCIES.md`, `coach-inbox.md`, `UBER_INTEGRATION_TODO.md`, and inline codebase TODOs.*
 
 ---
