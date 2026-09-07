@@ -4,6 +4,8 @@
 **Date:** 2026-05-08
 **Author:** Claude Code (Opus 4.7)
 
+> **Not the MCP server.** The Model Context Protocol server (`mcp-server.js`, [mcp-server.md](mcp-server.md), 2026-09-03) is a separate process, port (`MCP_PORT`) and token (`MCP_TOKEN`). It is neither mounted under `/agent` nor proxied by this bridge — Melody, 2026-09-03: "The MCP needs to be seperate than the bridge."
+
 ---
 
 ## Objective

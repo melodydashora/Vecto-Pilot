@@ -65,6 +65,7 @@ This folder contains focused, readable technical documentation for Vecto Pilot's
 | [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) | Backup & recovery procedures | Handling outages |
 | [SECURITY.md](SECURITY.md) | Security posture and hardening plan | Security review |
 | [TESTING.md](TESTING.md) | Test pyramid, catalog, CI/CD, coverage targets | Writing tests |
+| [mcp-server.md](mcp-server.md) | **Standalone MCP server** — continuity tables + read-only repo tools for MCP clients; separate from the agent bridge | Connecting Claude Code / Claude Desktop / a connector to the repo |
 
 ### Domain Features
 
@@ -134,8 +135,9 @@ POST /api/blocks-fast → TRIAD Pipeline (~35-50s)
 | **Local Dev** | `npm run dev` | No (uses process env) | Local development (`NODE_ENV=development`) |
 | **Deployment** | `.replit [deployment]` → `npm ci && npm run build:client` then `node gateway-server.js` | No | Replit cloud deployment (`NODE_ENV=production`) |
 | **npm start** | `NODE_ENV=production node gateway-server.js` | No | Manual production start |
+| **MCP server** | `npm run mcp` (Streamable HTTP on `MCP_PORT`, default 5055) or `npm run mcp:stdio` | No (source `.env.local` first) | Separate process for MCP clients — not part of the gateway; see [mcp-server.md](mcp-server.md) |
 
-All paths ultimately run `gateway-server.js`. The Replit Run path adds `.env.local` sourcing and `scripts/start-replit.js` (health gate + PORT binding). The deployment path builds the client first and uses Replit-injected env vars.
+All app paths ultimately run `gateway-server.js`; the MCP server (and `agent-server.js`) are separate processes. The Replit Run path adds `.env.local` sourcing and `scripts/start-replit.js` (health gate + PORT binding). The deployment path builds the client first and uses Replit-injected env vars.
 
 ### Node.js Version Matrix
 
