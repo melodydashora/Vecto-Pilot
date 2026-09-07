@@ -6,6 +6,7 @@ This directory contains formal implementation plans for significant changes to t
 
 | Plan | Status | Priority | Created |
 |------|--------|----------|---------|
+| [2026-09-07-release-readiness.md](./2026-09-07-release-readiness.md) | OPEN BACKLOG; development todo #75 | P0/P1/P2 | 2026-09-07 |
 | [AUDIT_REMEDIATION_PLAN.md](./AUDIT_REMEDIATION_PLAN.md) | AWAITING APPROVAL | P0/P1/P2 | 2026-01-06 |
 
 ## Plan Lifecycle
