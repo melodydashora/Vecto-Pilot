@@ -81,7 +81,7 @@ export default tseslint.config(
   // to the structural defense (catching the thinkingLevel = high / reqId
   // ReferenceError class).
   {
-    files: ['server/**/*.{js,mjs}', 'gateway-server.js', 'agent-server.js'],
+    files: ['server/**/*.{js,mjs}', 'gateway-server.js', 'agent-server.js', 'mcp-server.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
