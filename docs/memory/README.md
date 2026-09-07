@@ -19,7 +19,7 @@ The memory layer uses **4 PostgreSQL tables** to store context for different AI 
 
 ## Memory API Endpoints
 
-The MCP server was removed. Memory is now accessed via REST API at `/agent/*`:
+The 2025-12 custom "MCP" HTTP tools API was removed on 2025-12-28. A real Model Context Protocol server now exists (`mcp-server.js`, added 2026-09-03 — see [docs/architecture/mcp-server.md](../architecture/mcp-server.md)), but it serves the **continuity tables** (`claude_memory`, `todo`, `lessons_learned`, `definitions`, `app_rules`), not the four tables above. The four memory tables above are accessed via REST API at `/agent/*`:
 
 | Endpoint | Method | Purpose | TTL |
 |----------|--------|---------|-----|

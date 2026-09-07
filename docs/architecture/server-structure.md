@@ -13,7 +13,6 @@ server/
 │   ├── feedback/           # User feedback, action logging
 │   ├── health/             # Health checks, diagnostics
 │   ├── location/           # GPS resolution, snapshots
-│   ├── mcp/                # MCP protocol for Claude Desktop
 │   ├── research/           # Vector search
 │   ├── strategy/           # Strategy generation, SSE
 │   ├── utils/              # HTTP helpers, timing
@@ -29,6 +28,7 @@ server/
 │   ├── strategy/           # Strategy pipeline, providers
 │   └── venue/              # Venue intelligence, enrichment, places
 ├── agent/                  # Workspace agent (file ops, shell, SQL)
+├── mcp/                    # Standalone MCP server modules (entry: mcp-server.js at repo root)
 ├── assistant/              # Assistant proxy layer
 ├── bootstrap/              # Server startup, route mounting
 ├── config/                 # Configuration files
@@ -58,6 +58,7 @@ Every folder has a README.md explaining its purpose.
 | `server/api/` | [README](../../server/api/README.md) | API routes index |
 | `server/lib/` | [README](../../server/lib/README.md) | Business logic index |
 | `server/agent/` | [README](../../server/agent/README.md) | Workspace agent |
+| `server/mcp/` | [README](../../server/mcp/README.md) | Standalone MCP server modules (separate from the agent bridge) |
 | `server/assistant/` | [README](../../server/assistant/README.md) | Assistant proxy |
 | `server/bootstrap/` | [README](../../server/bootstrap/README.md) | Server startup |
 | `server/config/` | [README](../../server/config/README.md) | Configuration |
@@ -82,7 +83,6 @@ Every folder has a README.md explaining its purpose.
 | `api/feedback/` | [README](../../server/api/feedback/README.md) | `/api/feedback/*`, `/api/actions` | User feedback, action logging |
 | `api/health/` | [README](../../server/api/health/README.md) | `/api/health`, `/api/diagnostics` | Health checks, monitoring |
 | `api/location/` | [README](../../server/api/location/README.md) | `/api/location/*`, `/api/snapshot` | GPS resolution, snapshots |
-| `api/mcp/` | [README](../../server/api/mcp/README.md) | `/mcp/*` | MCP protocol for Claude Desktop |
 | `api/research/` | [README](../../server/api/research/README.md) | `/api/research`, `/api/vector-search` | Vector search, research |
 | `api/strategy/` | [README](../../server/api/strategy/README.md) | `/api/blocks-fast`, `/api/strategy` | Strategy generation, venues |
 | `api/utils/` | [README](../../server/api/utils/README.md) | (internal) | HTTP helpers, timing |
@@ -114,6 +114,7 @@ Every folder has a README.md explaining its purpose.
 | File | Purpose |
 |------|---------|
 | `gateway-server.js` | Main Express server entry |
+| `mcp-server.js` | Standalone MCP server entry (HTTP or `--stdio`); see [mcp-server.md](mcp-server.md) |
 | `strategy-generator.js` | Background strategy worker |
 | `sdk-embed.js` | SDK router factory |
 | `server/bootstrap/routes.js` | Route mounting order |
