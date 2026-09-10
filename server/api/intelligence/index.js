@@ -33,6 +33,7 @@ import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
 // 2026-02-12: Added requireAuth - intelligence routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
 import { requireOperator } from '../../middleware/require-operator.js';
+import { ensureMarket } from '../../lib/markets/ensure-market.js';
 
 const router = express.Router();
 
@@ -265,76 +266,29 @@ router.get('/markets', async (_req, res) => {
  *   state       - User's state (optional)
  */
 router.post('/add-market', async (req, res) => {
+  // 2026-09-10: shared helper (server/lib/markets/ensure-market.js). This authenticated route
+  // now serves SettingsPage only; registration creates its own market inside POST /api/auth/register
+  // (Astra product finding #16 — the signup page could never reach this route pre-registration).
   try {
-    const { market_name, city, state, state_abbr } = req.body;
-
-    if (!market_name || market_name.trim().length < 2) {
-      return res.status(400).json({ error: 'Market name is required (min 2 characters)' });
-    }
-
-    const trimmedMarket = market_name.trim();
-
-    // Check if market already exists
-    const existing = await db
-      .select()
-      .from(market_cities)
-      .where(ilike(market_cities.market_name, trimmedMarket))
-      .limit(1);
-
-    if (existing.length > 0) {
-      return res.json({
-        success: true,
-        message: 'Market already exists',
-        market_name: existing[0].market_name,
-        already_existed: true
-      });
-    }
-
-    // 2026-02-17: Create both markets + market_cities entries (FK integrity)
-    const cityName = city?.trim() || trimmedMarket;
-    const stateName = state?.trim() || 'Unknown';
-    const stateAbbr = state_abbr?.trim() || null;
-
-    // Generate slug: "Dallas-Fort Worth" + "TX" → "dallas-fort-worth-tx"
-    const slug = (trimmedMarket.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-      + (stateAbbr ? `-${stateAbbr.toLowerCase()}` : ''));
-
-    // Create the market definition first (source of truth)
-    await db.insert(markets).values({
-      market_slug: slug,
-      market_name: trimmedMarket,
-      primary_city: cityName,
-      state: stateName,
-      state_abbr: stateAbbr,
-      country_code: 'US',
-      timezone: 'America/Chicago', // Placeholder — will be resolved on first snapshot
-      has_uber: true,
-      has_lyft: true,
-      is_active: true,
-    }).onConflictDoNothing();
-
-    // Then create the city → market mapping with FK
-    await db.insert(market_cities).values({
-      market_slug: slug,
-      market_name: trimmedMarket,
-      city: cityName,
-      state: stateName,
-      state_abbr: stateAbbr,
-      country_code: 'US',
-      region_type: 'Core',
-      source_ref: 'user_signup'
-    });
-
-    res.json({
+    const { market_name, city, state, state_abbr } = req.body || {};
+    const result = await ensureMarket({ market_name, city, state, state_abbr, source_ref: 'user_settings' });
+    return res.json({
       success: true,
-      message: 'New market added',
-      market_name: trimmedMarket,
-      market_slug: slug,
-      already_existed: false
+      message: result.already_existed ? 'Market already exists' : 'New market added',
+      market_name: result.market_name,
+      market_slug: result.market_slug,
+      already_existed: result.already_existed,
     });
   } catch (error) {
+    if (error.code === 'MARKET_NAME_INVALID' || error.code === 'MARKET_STATE_REQUIRED') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.code === 'MARKET_TIMEZONE_UNRESOLVED') {
+      console.error('[INTEL] add-market:', error.message);
+      return res.status(502).json({ error: 'market_timezone_unresolved', message: error.message });
+    }
     console.error('Error adding new market:', error);
-    res.status(500).json({ error: 'Failed to add market' });
+    return res.status(500).json({ error: 'Failed to add market' });
   }
 });
 
