@@ -23,6 +23,14 @@ describe('AUTH-003 jwt-helpers: round-trip', () => {
     expect(result.verified).toBe(true);
   });
 
+  it('carries an optional session id (sid) and returns it on verify (2026-09-10, finding [9])', async () => {
+    const bound = await signJWT({ sub: 'user-12345678', sid: 'session-abcdef123' });
+    expect((await verifyJWT(bound)).sessionId).toBe('session-abcdef123');
+    const unbound = await signJWT({ sub: 'user-12345678' });
+    expect((await verifyJWT(unbound)).sessionId).toBeNull();
+    await expect(signJWT({ sub: 'user-12345678', sid: 'short' })).rejects.toThrow(/sid/);
+  });
+
   it('produces a 3-segment JWT (header.payload.signature)', async () => {
     const token = await signJWT({ sub: TEST_USER_ID });
     expect(token.split('.').length).toBe(3);
