@@ -37,6 +37,17 @@ Offer Analyzer status against that bar:
 
 ---
 
+## 0b · 2026-08-26 intake (Melody's handoff pack → verified / fixed / logged)
+
+`docs/review-queue/PLAN_intake-2026-08-26-offer-analyzer-handoffs.md` is the record. Shipped
+as v3.2: the **implausible-parse tripwire** (live 2026-08-24 `$750` wrong-ACCEPT class is
+closed on every lane), the **delivery lane** (vision by default, deterministic on text),
+the **`shortcut_system`** client signature, the Delivery editor card and Offers-row
+chips/badges. Android text lane is **field-verified live** (G3 text: passed on Melody's
+Samsung); the raw image-body mode is **published**. ⚖️ Decisions left for Melody are listed
+in that document §2.5 (sanity ceilings, delivery floors, sanity editor, decimal-repair
+opt-in, `shortcut_system` as a column).
+
 ## 1 · Immediate gates (blocking "a working Offer Analyzer")
 
 **G1 — Device re-test (Melody) — now also the acceptance gate for the model switch.**
@@ -60,9 +71,10 @@ Follow `SIRI_SHORTCUT_ANALYZE.md` exactly (token in Headers, `source` = `siri_te
 line, and adds an Android tab. **UI edit deferred by Melody's direction this session
 ("we don't need to edit the UI code just yet").** *(old plan §7 Phase 6 "Setup cards content")*
 
-**G3 — Android interim build + device test (Melody + Claude).**
-Per `ANDROID_SHORTCUT_ANALYZE.md` (tool capabilities verified against vendor docs
-2026-08-17, nothing device-tested yet): HTTP Shortcuts (free, true multipart, built-in TTS)
+**G3 — Android interim build + device test (Melody + Claude).** **Text lane PASSED
+2026-08-17/18 on Melody's Samsung Ultra (MacroDroid)**; vision-lane macro build + the
+scrubbed distributable's import certification are Melody's next phone steps (todo rows).
+Per `ANDROID_SHORTCUT_ANALYZE.md` (Part 4 rewritten 2026-08-26 from the field-verified build): HTTP Shortcuts (free, true multipart, built-in TTS)
 as the default via the screenshot share sheet; Tasker for one-tap fully hands-free
 (paid, ADB grant); MacroDroid text lane **or** vision via raw file body. Same endpoint,
 header, and fields as iPhone. Server follow-ups from the research: **raw `image/*` body mode

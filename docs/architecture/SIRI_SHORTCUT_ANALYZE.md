@@ -134,7 +134,7 @@ permission prompt.
 `vectopilot.com` — allow both ("Always Allow" for the URL keeps it silent). If you added the
 Save to Photo Album step it will ask for Photos access.
 
-**Triggers that work while the Uber/Lyft app is on screen** (pick one or more; each can
+**Triggers that work while the third-party driver app is on screen** (pick one or more; each can
 be assigned to either shortcut):
 
 | Trigger | Where to set it |
@@ -158,7 +158,7 @@ pure phone overhead (OCR, radio wake, TTS spin-up), the one number the server be
 | "Reject. seventy-eight cents per mile, 14 miles, too far." + `REJECT: $0.78 14.0mi too far` | Rejected. Spoken tail: `too far` / `below floor` / `long pickup` / `too long` / `low rider rating` / `rate too low` / `fallback accept`. Notification tail uses the terse literals: `too far`, `floor`, `pickup`, `over time`, `rating`, `low`, `min`, `fallback` (+ ` prem`/` comf`/` xl` for premium tiers) |
 | "Accept. … fallback accept." + `ACCEPT (FALLBACK): …` | Accepted only because your Acceptance-Rate-Protection floor cleared |
 | Notification ends with `\| Filter Detected` / `\| Verified Rider` | A notice you enabled was seen on the card |
-| "Reject. Share tier." | Uber Share / Lyft Shared auto-reject |
+| "Reject. Share tier." | Shared/pool rides auto-reject |
 | "No data. Decide manually." | Nothing usable could be read from the text/screenshot — try the Vision shortcut or retake |
 | "Analysis failed. Decide manually." | Server error; the app is still up, try again |
 

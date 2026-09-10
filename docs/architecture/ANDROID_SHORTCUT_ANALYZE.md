@@ -151,50 +151,74 @@ base64) → JSON `{ "image": "%b64", "image_type": "image/png", "source": "andro
 
 ## Part 4 · MacroDroid — text lane (free tier is enough) + vision variant
 
-MacroDroid's HTTP action cannot send a named multipart file. Two lanes work: the **text lane**
-(on-device OCR, Android 11+, JSON body — the one that fits the <3 s rule) and, since
-2026-08-17, the **vision lane** via *Content Body: File* — the server accepts the raw
-screenshot bytes as the whole request body (§4.1 of `OFFER_ANALYZER.md`). Build the text
-macro first; the vision variant is a duplicate with one action changed (Part 4b).
+> **Field-verified 2026-08-17/18 on a Samsung Galaxy Ultra** (Melody + Cowork session):
+> the text lane below judged real offers the same press — pickup-limit reject in 516 ms,
+> rating reject, share auto-reject "the second I touched the button", and an honest
+> "No data. Decide manually." on non-offer screens. What follows is that working build.
+> **2026-08-24 (Melody):** delivery offers are analyzed on the **vision** lane (Part 4b) —
+> send the screenshot for those.
 
-| # | Step | Fields |
+MacroDroid's HTTP action cannot send a named multipart file, but two lanes work: the
+**text lane** (on-device OCR, Android 11+, JSON body — the fast one) and the **vision lane**
+via *Content Body: File* (the server accepts the raw screenshot bytes as the whole request
+body — `OFFER_ANALYZER.md` §4.1). Build the text macro first; the vision variant is a
+duplicate with one action changed.
+
+**Before you start (both lanes):** Settings → the screen-capture consent must be granted
+for the **Entire screen** — "A single app" gives blank OCR forever (a reboot clears a wrong
+grant). Add MacroDroid to the battery exceptions per **dontkillmyapp.com/samsung** (Samsung
+sleep/battery settings silently kill macros — this is Step 5, not optional). Enable both
+accessibility services when prompted (*MacroDroid* and *MacroDroid UI Interaction*).
+Apps that set `FLAG_SECURE` defeat screen capture/OCR — **field-verified 2026-08-17: *Read
+Screenshot Contents* reads the live offer screen on Melody's Samsung**, so the driver app
+she tested does not set it. On another platform, run just the OCR action over its live
+offer screen first: an empty array means that app blocks capture and only the share-sheet
+vision route (Part 2) works.
+
+**Text macro — action order is load-bearing** (a variable set *after* the HTTP request
+sends the **previous** offer; that bug shipped a 4:07 card at 4:09 during the field test):
+
+| # | Action | Fields |
 |---|---|---|
-| 1 | Add Macro `Vecto Offer` · Trigger **Quick Settings Tile** (Tile 1, button press) | Settings → Quick Settings Tiles → label it; add the tile in the shade |
-| 2 | Action **Read Screenshot Contents** | → local array `ocr` · Latin · capture text only (enable the MacroDroid accessibility service when prompted) |
-| 3 | Action **JavaScript Code** (or an Iterate loop) | join the array into one string `ocr_text` with newlines |
-| 4 | Action **Set Variable** (local dictionary `req`) | `text` = `{lv=ocr_text}` · `source` = `android_text` · `device_id` = your label |
-| 5 | Action **JSON Output** | `req` → `body_json` |
-| 6 | Action **HTTP Request** | POST `https://vectopilot.com/api/hooks/analyze-offer` · Header Params `X-Shortcut-Token` = `vp_…` · Content Body type `application/json` = `{lv=body_json}` · Block until complete · save code → `http_code` · save response → `resp` |
-| 7 | Action **JSON Parse** | `resp` → dictionary `r` |
-| 8 | If `http_code` = 200: **Speak Text** `{lv=r[voice]}` + **Display Notification** `Vecto Pilot` / `{lv=r[notification]}` · else **Speak Text** "Offer check failed" | |
+| 1 | Trigger: **Floating Button** (or Quick Settings Tile) | one press on the offer screen |
+| 2 | **Pause** 2 s | lets the card finish rendering; experiment down to 0.5 s / 0 s and stop at the last accurate setting |
+| 3 | **Read Screenshot Contents** → local array `ocr_arr` | Latin · text only. *Do not add a "Take Screenshot" action — this action captures the screen itself (Take Screenshot is broken on some Samsung builds anyway).* **No join step:** the server parses MacroDroid's `[0]: … [1]: …` array rendering as-is (verified 2026-08-26) |
+| 4 | **Set Variable** local dictionary `req` → key `text` = `{lv=ocr_arr}` | **Runtime Set Variable, not a dictionary template:** dictionary values do NOT resolve magic text at output time. Pick the value with the magic-text picker in **Standard Format** (the "JSON Format" option emits `[lvjson=…]` and TTS would read the escapes). Add keys `source` = `android_text`, `device_id` = your label, `shortcut_system` = `macrodroid/<version>` (helps us diagnose OCR issues; optional) |
+| 5 | **JSON Output** `req` → `body_json` | must come **after** step 4 |
+| 6 | **HTTP Request** POST `https://vectopilot.com/api/hooks/analyze-offer` | Header `X-Shortcut-Token` = `vp_…` · Content type `application/json` · body `{lv=body_json}` · **Block until complete** ✓ · response code → `code` (int) · response → `resp` (string) |
+| 7 | **JSON Parse** `resp` → dictionary `r` | |
+| 8 | If `code` = 200 → **Display Notification** `VP` / `{lv=r[notification]}` **and** **Speak Text** `{lv=r[voice]}` (wait ✓) · Else → Speak Text "Offer check failed. Decide manually." | |
 
-Gotchas from the wiki: two accessibility services (*MacroDroid* and *MacroDroid UI
-Interaction*); battery optimisation kills macros; apps that set `FLAG_SECURE` defeat
-screenshots/OCR (whether the Uber/Lyft driver apps do is **unverified**).
+**Sharing the macro:** never export your personal macro for someone else — the export
+carries **your token** in plain text (it leaked twice during the field session; regenerate
+it on the Offer Analyzer page if that ever happens). A scrubbed distributable
+(`PASTE_YOUR_TOKEN_HERE`, generic device label, no run data) is the only thing to share.
 
 ### Part 4b · MacroDroid — vision variant (raw file body)
 
-Duplicate the text macro, rename it `Vecto Offer Vision`, delete steps 2–5 (OCR / join /
-Set Variable / JSON Output — the file replaces them), and change only the HTTP Request:
+Duplicate the text macro, rename it `Vecto Offer Vision`, delete steps 3–5 (OCR / Set
+Variable / JSON Output — the file replaces them), and change only the HTTP Request:
 
 | Field | Value |
 |---|---|
-| URL | `https://vectopilot.com/api/hooks/analyze-offer?source=android_vision&device_id=<your label>` — fields ride the query string because a raw body has none |
+| URL | `https://vectopilot.com/api/hooks/analyze-offer?source=android_vision&device_id=<your label>&shortcut_system=macrodroid/<version>` — fields ride the query string because a raw body has none |
 | Header Params | `X-Shortcut-Token` = `vp_…` (unchanged) |
 | Content type | `image/png` (or `image/jpeg`; the server sniffs the real type from the bytes, so this isn't load-bearing — even `application/octet-stream` works) |
-| Content Body | **File** → for the first test *Select file* → pick any saved offer screenshot (the file body wants a saved file, not the clipboard) |
-| Everything else | identical: Block until complete, code → `http_code`, response → `resp`, JSON Parse → If → Speak |
+| Content Body | **File** → for the first test *Select file* → pick any saved offer screenshot (the file body wants a saved file, not the clipboard). Wiring it to "the screenshot I just took" is the *Screenshot Content* trigger — capture what it offers on your device (its path token is the dynamic filename; *Local File URI* is the fallback) |
+| Everything else | identical: Block until complete, code → `code`, response → `resp`, JSON Parse → If → Speak |
 
-Expect: a real screenshot → the same spoken verdict as the iPhone vision shortcut; a
-home-screen screenshot → "No data. Decide manually."; the row on `/co-pilot/offer-analyzer`
-shows `source: android_vision`, `input_mode: vision`, a non-NULL ruleset hash; the server log
-shows `[HOOKS] Raw image upload: NKB image/png (file-body mode)`. Over 5 MB → 413 and the phone
-speaks "Image too large. Decide manually."
+**Test ladder:** a real offer screenshot opened from the Gallery + the native side-key
+screenshot → expect its verdict; the home screen → "No data. Decide manually."; a
+**delivery** card → a `delivery` verdict with `| $N/hr` and `| tip incl.` when the card
+said "Includes expected tip"; then check the row on `/co-pilot/offer-analyzer` shows
+`source: android_vision`, `input_mode: vision`, a non-NULL ruleset hash, and your
+`shortcut_system` tag; the server log shows `[HOOKS] Raw image upload: NKB image/png
+(file-body mode)`. Over 5 MB → 413 and the phone speaks "Image too large. Decide manually."
 
-Honest latency: a full-size Samsung PNG is 2–4 MB, so on LTE the upload alone can eat the 3-s
-budget (the server downscales >250 KB before the model, but only after the upload). The text
-lane stays the driving lane; this one is the rich/fallback lane and flies on Wi-Fi. Wiring the
-file to "the screenshot I just took" is the *Screenshot Content* trigger question (Part 5).
+Honest latency: a full-size Samsung PNG is 2–4 MB, so on LTE the upload alone can eat the
+3-s budget (the server downscales >250 KB before the model, but only after the upload). The
+text lane stays the driving lane for rides; vision is the thorough lane — and the
+**delivery** lane — and flies on Wi-Fi.
 
 ---
 
@@ -218,6 +242,11 @@ per mile, 6 miles." + `ACCEPT: $1.40 6.1mi`; rejects end with the reason ("too f
 | Nothing spoken | HTTP Shortcuts: `speak()` needs a TTS engine (Settings → System → Languages → Text-to-speech); Tasker: check *Say* engine; MacroDroid: *Speak Text* audio stream |
 | Times out | Raise the tool's timeout to 30 s; the server answers deterministic rejects in ms and model verdicts in ~0.6–0.9 s, but caps the model call at 20 s. Re-sending is safe: an identical payload (same saved file / same text, same rules) within 60 s is recognized and the first answer is replayed (`duplicate:true`) — no second analysis, no second row (2026-08-17); a fresh screenshot is a new payload |
 | Nothing spoken/shown after several rapid runs | Probably the rate limit (429) — 20 analyses/min per phone; the 429 body has no `voice`/`notification` keys, so the *Run on Failure* script speaks the failure line; wait a moment |
+| "No data. Numbers look wrong. Decide manually." + `NO DATA: $163.04/mi implausible` | The phone's OCR misread a money figure (a dropped decimal turns `$7.50` into `$750`). The server refuses to judge impossible numbers — read the card yourself. The row shows an amber **PARSE ERROR** badge; if it keeps happening, retake with the vision lane and tell us which automation app you use (`shortcut_system`) |
+| The verdict describes the **previous** offer | MacroDroid: the Set Variable action sits after the HTTP Request — move it before JSON Output (Part 4 order) |
+| Blank OCR every time | Screen-capture consent was granted for "A single app" — re-grant for the **Entire screen** (reboot clears the wrong grant) |
+| Macro stops firing after a while | Samsung battery/sleep killed it — dontkillmyapp.com/samsung steps, then re-test |
+| "No data. Delivery offers are off in your rules." | A delivery card reached the analyzer while **Delivery** is switched off on the rules page — turn it on and set the two floors |
 | Shortcut won't run from tile/home screen (HTTP Shortcuts) | App menu → Troubleshooting → *Allow drawing over other apps*; exclude from Battery/Data Saver |
 
 ---
@@ -233,6 +262,7 @@ Identical to iPhone — `OFFER_ANALYZER.md` §4:
 | Vision | multipart part named `image` (raw file), or JSON `image` (base64; data-URL prefix and whitespace tolerated), `image_type` optional; screenshots >250 KB are downscaled server-side |
 | Text | JSON/urlencoded field `text` |
 | `source` | `android_vision` / `android_text` (stored verbatim; iPhone uses `siri_vision` / `siri_text`) |
+| `shortcut_system` (optional) | which automation app sent it — `macrodroid/5.65`, `http_shortcuts/3.x`, `tasker/6.6`. JSON/form field, `X-Shortcut-System` header, or query param on the raw-body path. Diagnostics only — the token is the identity |
 | Response | `{ success, voice, notification, decision, reason, notices, response_time_ms }` — speak `voice`, show `notification` |
 | Aliases (case-insensitive, string fields only; the multipart file part must be exactly `image`; companion endpoints don't normalize) | `screenshot`/`photo`→`image` (base64 string); `ocr_text`/`ocr`→`text`; `token`/`shortcuttoken`→`shortcut_token`; `deviceid`/`device`→`device_id`; `lat`/`lattitude`→`latitude`; `lng`/`lon`/`long`→`longitude` |
 

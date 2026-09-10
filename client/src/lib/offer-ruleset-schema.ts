@@ -97,6 +97,30 @@ export const offerRulesetSchema = z.object({
       .nullable(),
   }),
   share: z.object({ auto_reject: z.boolean() }),
+  // v3.2 (2026-08-26): delivery lane — two floors + a distance cap (server evaluateDelivery).
+  // .default() (not required): during a deploy skew a server instance still on the previous
+  // image answers GET /rules without these keys, and a hard requirement would fail the whole
+  // editor with "Rules payload did not match the expected v3 shape" (review 2026-08-26).
+  delivery: z
+    .object({
+      enabled: z.boolean(),
+      min_per_mile: money.nullish(),
+      min_per_hour: z.number().min(0).max(500).nullish(),
+      max_total_miles: miles.nullish(),
+    })
+    .default({ enabled: true, min_per_mile: 1.5, min_per_hour: 25, max_total_miles: 12 }),
+  // v3.2 (2026-08-26): implausible-parse ceilings (server checkSanity). No editor — they
+  // round-trip untouched; the server re-fills any missing/null value with its default.
+  sanity: z
+    .object({
+      max_price: z.number().min(0).max(100000).nullish(),
+      max_per_mile: z.number().min(0).max(1000).nullish(),
+      max_per_hour: z.number().min(0).max(100000).nullish(),
+      min_price: z.number().min(0).max(1000).nullish(),
+      max_per_mile_no_cents: z.number().min(0).max(1000).nullish(),
+      max_per_hour_no_cents: z.number().min(0).max(100000).nullish(),
+    })
+    .default({ max_price: 500, max_per_mile: 40, max_per_hour: 500, min_price: 1, max_per_mile_no_cents: 10, max_per_hour_no_cents: 200 }),
   tiers: z.object({
     standard: tierConfigSchema,
     premium: tierConfigSchema,
@@ -121,6 +145,7 @@ export const offerRulesetSchema = z.object({
     .nullable(),
 });
 export type OfferRulesetConfig = z.infer<typeof offerRulesetSchema>;
+export type DeliveryConfig = OfferRulesetConfig['delivery'];
 
 // Pre-load form defaults. Mirrors the server DEFAULT_RULESET (rules-engine.js)
 // plus the v3 inert keys — only shown until GET /rules resolves and resets the form.
@@ -139,6 +164,8 @@ export const DEFAULT_OFFER_RULESET_CONFIG: OfferRulesetConfig = {
     notices: null,
   },
   share: { auto_reject: true },
+  delivery: { enabled: true, min_per_mile: 1.5, min_per_hour: 25, max_total_miles: 12 },
+  sanity: { max_price: 500, max_per_mile: 40, max_per_hour: 500, min_price: 1, max_per_mile_no_cents: 10, max_per_hour_no_cents: 200 },
   tiers: {
     standard: {
       floor_per_mile: 0.9,
@@ -183,6 +210,7 @@ export const ENABLE_SEEDS = {
   pickup_limits: { max_miles: 3, max_minutes: 8 },
   time_limit: { max_total_minutes: 20, unless: { min_per_mile: 2.0, min_per_minute: 1.0 } },
   acceptance_rate_protection: { min_per_total_mile: 1.0 },
+  delivery: { enabled: true, min_per_mile: 1.5, min_per_hour: 25, max_total_miles: 12 },
   comfort_tier: { floor_per_mile: 1.25, floor_per_minute: 0.7, max_total_miles: null, accept_ladder: [{ min_per_mile: 1.25, max_total_min: 20 }] } as TierConfig,
   xl_tier: { floor_per_mile: 2.0, floor_per_minute: 1.0, max_total_miles: null, accept_ladder: [{ min_per_mile: 2.0, max_total_min: 20 }] } as TierConfig,
 } as const;
