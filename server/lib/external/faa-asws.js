@@ -156,7 +156,7 @@ async function fetchStatusAPI(specificAirport = null) {
     // 2026-07-06: US majors from the airports table (Google-seeded), not a
     // hardcoded list. Dynamic import avoids a module cycle at load time.
     const { db } = await import('../../db/drizzle.js');
-    const { airports: airportsTable } = await import('../../../../shared/schema.js');
+    const { airports: airportsTable } = await import('../../../shared/schema.js');
     const { eq } = await import('drizzle-orm');
     const usAirports = await db
       .select({ code: airportsTable.iata })
