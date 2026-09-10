@@ -223,7 +223,10 @@ router.get('/offers', async (req, res) => {
              oi.parsed_data_json->>'reason_kind'     AS reason_kind,
              oi.parsed_data_json->>'shortcut_system' AS shortcut_system,
              oo.id AS outcome_id, oo.driver_decision, oo.driver_reasoning,
-             oo.actual_pay, oo.reimbursements, oo.extras, oo.other, oo.total_earned
+             oo.actual_pay, oo.reimbursements, oo.extras, oo.other, oo.total_earned,
+             -- 2026-09-10 (VP-009): the outcome row's version, echoed back by the client as
+             -- expected_outcome_updated_at so a stale tab cannot overwrite newer earnings.
+             oo.updated_at AS outcome_updated_at
       FROM offer_intelligence oi
       LEFT JOIN offer_outcomes oo ON oo.offer_intelligence_id = oi.id
       WHERE oi.user_id = ${req.auth.userId}
@@ -259,10 +262,24 @@ router.get('/offers', async (req, res) => {
 router.post('/offers/:id/outcome', async (req, res) => {
   try {
     const offerId = req.params.id;
-    const { driver_decision, driver_reasoning, actual_pay, reimbursements, extras, other } = req.body || {};
+    const { driver_decision, driver_reasoning, actual_pay, reimbursements, extras, other, expected_outcome_updated_at } = req.body || {};
 
     if (driver_decision != null && !OUTCOME_VALUES.includes(driver_decision)) {
       return res.status(400).json({ error: `driver_decision must be one of ${OUTCOME_VALUES.join(', ')} or null` });
+    }
+    // 2026-09-10 (VP-009 / Astra R2a+R2b, verified + skeptic-confirmed): optimistic
+    // concurrency. The client echoes the outcome_updated_at it last read (null = "no
+    // outcome row existed"). If the row has moved on, the upsert is refused with 409 and
+    // the current row, instead of silently reverting someone else's newer earnings.
+    // A body without the field keeps the pre-2026-09-10 unconditional behavior so an
+    // older client bundle still works; the client is expected to always send it.
+    const hasExpected = Object.prototype.hasOwnProperty.call(req.body || {}, 'expected_outcome_updated_at');
+    let expectedUpdatedAt = null;
+    if (hasExpected && expected_outcome_updated_at != null) {
+      if (typeof expected_outcome_updated_at !== 'string' || Number.isNaN(Date.parse(expected_outcome_updated_at))) {
+        return res.status(400).json({ error: 'expected_outcome_updated_at must be an ISO timestamp or null' });
+      }
+      expectedUpdatedAt = new Date(expected_outcome_updated_at);
     }
     const num = (v) => (v == null || v === '' ? null : Number(v));
     for (const [k, v] of Object.entries({ actual_pay, reimbursements, extras, other })) {
@@ -294,10 +311,21 @@ router.post('/offers/:id/outcome', async (req, res) => {
         extras = EXCLUDED.extras,
         other = EXCLUDED.other,
         updated_at = NOW()
-      RETURNING id, driver_decision, total_earned
+      ${hasExpected ? sql`WHERE offer_outcomes.updated_at IS NOT DISTINCT FROM ${expectedUpdatedAt}::timestamptz` : sql``}
+      RETURNING id, driver_decision, total_earned, updated_at
     `);
 
     const row = result.rows?.[0];
+    if (!row && hasExpected) {
+      // The DO UPDATE's WHERE did not match: someone saved a newer version (or the row was
+      // created after this client last read). Hand back the current row so the UI can reload.
+      const current = await db.execute(sql`
+        SELECT id, driver_decision, driver_reasoning, actual_pay, reimbursements, extras, other,
+               total_earned, updated_at
+        FROM offer_outcomes WHERE offer_intelligence_id = ${offerId} LIMIT 1
+      `);
+      return res.status(409).json({ error: 'outcome_conflict', outcome: current.rows?.[0] ?? null });
+    }
     console.log(`[offer-analyzer] Outcome: offer=${offerId} → ${row?.driver_decision ?? '(cleared)'} $${row?.total_earned ?? 0}`);
     res.json({ success: true, outcome: row });
   } catch (err) {

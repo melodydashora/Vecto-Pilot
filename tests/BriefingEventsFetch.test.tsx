@@ -1,3 +1,4 @@
+import { describe, test, expect, beforeAll, afterAll, jest } from '@jest/globals';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -10,7 +11,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock child components to isolate tests, except BriefingTab which we want to test
 jest.mock('../client/src/components/BriefingTab', () => {
-  return jest.requireActual('../client/src/components/BriefingTab');
+  return jest.requireActual<typeof import('../client/src/components/BriefingTab')>('../client/src/components/BriefingTab');
 });
 
 // Mock GlobalHeader (used by CoPilotLayout which isn't here, but good practice)
@@ -35,9 +36,9 @@ jest.mock('../client/src/utils/co-pilot-helpers', () => ({
   subscribeBlocksReady: () => () => {},
   subscribeBriefingReady: () => () => {},
   subscribePhaseChange: () => () => {},
-  filterValidEvents: jest.requireActual('../client/src/utils/co-pilot-helpers').filterValidEvents,
-  isEventToday: jest.requireActual('../client/src/utils/co-pilot-helpers').isEventToday,
-  hasValidEventTime: jest.requireActual('../client/src/utils/co-pilot-helpers').hasValidEventTime,
+  filterValidEvents: jest.requireActual<typeof import('../client/src/utils/co-pilot-helpers')>('../client/src/utils/co-pilot-helpers').filterValidEvents,
+  isEventToday: jest.requireActual<typeof import('../client/src/utils/co-pilot-helpers')>('../client/src/utils/co-pilot-helpers').isEventToday,
+  hasValidEventTime: jest.requireActual<typeof import('../client/src/utils/co-pilot-helpers')>('../client/src/utils/co-pilot-helpers').hasValidEventTime,
   formatEventDate: (d: any) => d,
   formatEventTime: (t: any) => t,
   formatEventTimeRange: (s: any, e: any) => `${s} - ${e}`,
@@ -61,7 +62,7 @@ describe('BriefingPage Integration - Events Fetch', () => {
     jest.setSystemTime(new Date(`${MOCK_TODAY}T12:00:00`)); // Noon local time
 
     // Mock global fetch
-    global.fetch = jest.fn((url) => {
+    (global as any).fetch = jest.fn((url) => {
       // Mock Snapshot fetch
       if (url.toString().includes('/api/snapshot/')) {
         return Promise.resolve({
