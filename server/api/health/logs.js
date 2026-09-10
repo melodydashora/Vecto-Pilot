@@ -6,6 +6,8 @@
 // without needing to copy/paste from the Replit terminal.
 //
 // Endpoints:
+// 2026-09-10 (security finding [2]): the tail carries every driver's activity; the three data
+// routes now require an operator (AGENT_ADMIN_USERS) or a service account, not just any driver.
 //   GET  /api/logs                 - JSON {lines: [...]} of last N (default 500)
 //   GET  /api/logs/raw             - text/plain of last N lines (curl-friendly)
 //   GET  /api/logs/stream          - SSE live tail (1s poll interval)
@@ -19,6 +21,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../../middleware/auth.js';
+import { requireOperator } from '../../middleware/require-operator.js';
 import { getLogFilePaths } from '../../logger/file-tee.js';
 // 2026-04-28: chainLog used by the production-refusal log line in
 // requireAuthFromQueryOrHeader below.
@@ -79,14 +82,14 @@ async function readLastLines(n) {
 }
 
 // ----- /api/logs (JSON) -----
-router.get('/', logsRateLimiter, requireAuth, async (req, res) => {
+router.get('/', logsRateLimiter, requireAuth, requireOperator, async (req, res) => {
   const last = Math.min(parseInt(req.query.last, 10) || 500, 5000);
   const lines = await readLastLines(last);
   res.json({ count: lines.length, file: LOG_FILE, lines });
 });
 
 // ----- /api/logs/raw (plain text) -----
-router.get('/raw', logsRateLimiter, requireAuth, async (req, res) => {
+router.get('/raw', logsRateLimiter, requireAuth, requireOperator, async (req, res) => {
   const last = Math.min(parseInt(req.query.last, 10) || 500, 5000);
   const lines = await readLastLines(last);
   res.type('text/plain').send(lines.join('\n'));
@@ -94,7 +97,7 @@ router.get('/raw', logsRateLimiter, requireAuth, async (req, res) => {
 
 // ----- /api/logs/stream (SSE live tail) -----
 // Uses query-param auth fallback because EventSource can't send headers.
-router.get('/stream', logsRateLimiter, requireAuthFromQueryOrHeader, async (req, res) => {
+router.get('/stream', logsRateLimiter, requireAuthFromQueryOrHeader, requireOperator, async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');

@@ -15,6 +15,7 @@ import { validateBody } from '../../middleware/validate.js';
 import { strategyRequestSchema } from '../../validation/schemas.js';
 // 2026-02-12: Added requireAuth - all strategy routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
+import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 
 const router = Router();
 
@@ -70,8 +71,12 @@ router.get('/history', async (req, res) => {
   }
 });
 
+// 2026-09-10 (security finding [3], verified): every per-snapshot route below now proves the
+// caller owns the snapshot (central policy, 404 on mismatch/NULL-owned). Before this, any
+// driver could read another driver's strategy/briefing, fire paid providers for it (/run),
+// or clone their snapshot under THEIR identity (/retry).
 /** GET /api/strategy/:snapshotId */
-router.get('/:snapshotId', async (req, res) => {
+router.get('/:snapshotId', requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
@@ -130,6 +135,10 @@ router.post('/seed', validateBody(strategyRequestSchema), async (req, res) => {
   }
 
   try {
+    // 2026-09-10 (security finding [3]): body-supplied snapshot id — prove ownership before
+    // creating a strategy row for it (same policy as the param routes above).
+    const owned = await verifySnapshotOwnership(snapshot_id, req.auth?.userId);
+    if (!owned.ok) return res.status(owned.status).json(owned.body);
     await ensureStrategyRow(snapshot_id);
     res.json({ ok: true, snapshot_id });
   } catch (error) {
@@ -139,7 +148,7 @@ router.post('/seed', validateBody(strategyRequestSchema), async (req, res) => {
 });
 
 /** POST /api/strategy/run/:snapshotId  (fire-and-forget providers) */
-router.post('/run/:snapshotId', async (req, res) => {
+router.post('/run/:snapshotId', requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
 
   try {
@@ -159,7 +168,7 @@ router.post('/run/:snapshotId', async (req, res) => {
 });
 
 /** GET /api/strategy/briefing/:snapshotId - Fetch briefing data from briefings table */
-router.get('/briefing/:snapshotId', async (req, res) => {
+router.get('/briefing/:snapshotId', requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
@@ -201,7 +210,7 @@ router.get('/briefing/:snapshotId', async (req, res) => {
 });
 
 /** POST /api/strategy/:snapshotId/retry - Retry strategy generation with same location context */
-router.post('/:snapshotId/retry', async (req, res) => {
+router.post('/:snapshotId/retry', requireSnapshotOwnership, async (req, res) => {
   const { snapshotId } = req.params;
   
   try {
