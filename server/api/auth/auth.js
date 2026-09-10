@@ -33,6 +33,7 @@ import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeEmail, isEmai
 import { sendPasswordResetSMS, isSmsConfigured, validatePhoneNumber } from '../../lib/auth/sms.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { isUniqueViolation, resolveGoogleIdentity } from '../../lib/auth/identity-policy.js';
+import { ensureMarket } from '../../lib/markets/ensure-market.js';
 import { matrixLog } from '../../logger/workflow.js';
 import { geocodeAddress } from '../../lib/location/geocode.js';
 import { validateAddress } from '../../lib/location/address-validation.js';
@@ -94,6 +95,10 @@ router.post('/register', async (req, res) => {
       zipCode,
       country = 'US',
       market,
+      // 2026-09-10 (Astra product finding #16): "Other" market declared at signup —
+      // { market_name, state, state_abbr } — created HERE after the account exists, instead of
+      // the client calling the authenticated /api/intelligence/add-market before registering.
+      customMarket = null,
       // Vehicle - accept both nested and flat formats
       vehicle,
       vehicleYear,  // Flat format from client
@@ -515,6 +520,30 @@ router.post('/register', async (req, res) => {
       location: 'auth.js:register',
     }, `Auth credentials created for user ${newUser.user_id.substring(0, 8)} (creds id: ${createdCreds?.id?.substring(0, 8) || 'none'})`);
 
+    // Driver-declared market (optional): the market row is optional data for the profile, so a
+    // failure here is logged and reported, never a failed registration.
+    let customMarketResult = null;
+    if (customMarket && typeof customMarket === 'object') {
+      try {
+        customMarketResult = await ensureMarket({
+          market_name: customMarket.market_name,
+          city: finalAddress.city,
+          state: customMarket.state || finalAddress.state,
+          state_abbr: customMarket.state_abbr,
+          country_code: finalAddress.country || 'US',
+          lat: geocodeResult?.lat,
+          lng: geocodeResult?.lng,
+          source_ref: 'user_signup',
+        });
+        matrixLog.info({ category: 'AUTH', action: 'MARKET_DECLARED', location: 'auth.js:register' },
+          `Custom market ${customMarketResult.already_existed ? 'already existed' : 'created'}: ${customMarketResult.market_slug}`);
+      } catch (marketErr) {
+        matrixLog.warn({ category: 'AUTH', action: 'MARKET_DECLARE_FAIL', location: 'auth.js:register' },
+          `Custom market not created (${marketErr.code || 'error'}): ${marketErr.message}`);
+        customMarketResult = { already_existed: false, market_name: null, market_slug: null, error: marketErr.code || 'error' };
+      }
+    }
+
     // Generate auth token
     const token = await generateAuthToken(newUser.user_id, email, newSessionId);
 
@@ -545,6 +574,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({
       ok: true,
       token,
+      customMarket: customMarketResult, // 2026-09-10: null unless the body declared one
       user: {
         userId: newUser.user_id,
         email: profile.email
