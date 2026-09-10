@@ -121,13 +121,29 @@ hydrate the modern continuity tables. Reuse it when that legacy surface is
 relevant; do not treat successful summary output as proof of reading all shared
 memory.
 
-Live continuity was unavailable to the Windows inspection in this pass. Replit
-shell access and availability of the injected database setting were subsequently
-verified, but the connected MCP boot remains a next step. No new database read
-or memory hydration is claimed here. The Replit Codex session is a separate
-session that can recover written context, not the same live Desktop conversation.
-Record which live tools/records it actually reads and continue useful independent
-work if a particular connection is unavailable.
+Live continuity was unavailable to the initial Windows inspection. Setup then
+completed in Replit: `codex login status` reported `Logged in using ChatGPT`, and
+the launcher started Codex CLI 0.154.0 in `/home/runner/workspace`. Its first turn
+read the partnership documents, handoff, actual checkout, and coordination note.
+Read-only MCP SDK calls identified `vecto-pilot@4.3.0` and successfully read
+`boot_context` and relevant memory/task/lesson/definition/app-rule records. The
+coordinator also invoked `/mcp` in that same Codex terminal; its inventory reported
+`vecto-pilot: connected (18 tools)`. The initial model-visible catalog did not
+expose those tools, so the successful reads used a separate SDK client. Do not
+conflate those two observations or claim a native model tool call was verified.
+
+The three setup files were transferred additively from published setup commit
+`03631b527098a6c972ea60f5d6017839263e3abc` on
+`codex/vectopilot-cli-handoff-20260910`; Replit remained on its existing main/HEAD
+with these files untracked. The public branch contains the setup; no live main
+history was reset, pushed, or merged. The coordinator read Claude's actual
+`Boot up sequence with Astra` Remote Control session, which reported a running
+backlog verification workflow. That report is not a reply acknowledgment. Keep
+Claude's reported ownership and Melody/Claude's shortcut work intact.
+
+The Replit Codex session is separate from the Desktop conversation. Record which
+live tools/records each subsequent session actually reads and continue useful
+independent work if a particular connection is unavailable.
 
 This public Git handoff contains source references and task context only. Keep
 credentials, supplied test identities, private records, and chat transcripts in
