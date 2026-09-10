@@ -61,8 +61,10 @@ if (!process.env.JWT_SECRET && !process.env.REPLIT_DEVSERVER_INTERNAL_ID) {
  * @param {string} _email - User email (no longer used; kept for call-site signature stability)
  * @returns {Promise<string>} JWT
  */
-async function generateAuthToken(userId, _email = '') {
-  const token = await signJWT({ sub: userId });
+// 2026-09-10 (security finding [9]): sessionId binds the token to the users.session_id
+// created for this login; see signJWT/requireAuth.
+async function generateAuthToken(userId, _email = '', sessionId = null) {
+  const token = await signJWT({ sub: userId, sid: sessionId });
   matrixLog.info({
     category: 'AUTH',
     action: 'TOKEN_ISSUE',
@@ -514,7 +516,7 @@ router.post('/register', async (req, res) => {
     }, `Auth credentials created for user ${newUser.user_id.substring(0, 8)} (creds id: ${createdCreds?.id?.substring(0, 8) || 'none'})`);
 
     // Generate auth token
-    const token = await generateAuthToken(newUser.user_id, email);
+    const token = await generateAuthToken(newUser.user_id, email, newSessionId);
 
     // Send welcome email (non-blocking)
     sendWelcomeEmail(email, firstName).catch(err => {
@@ -791,7 +793,7 @@ router.post('/login', async (req, res) => {
     }, `Session created for user ${profile.user_id.substring(0, 8)} (session ${newSessionId.substring(0, 8)})`);
 
     // Generate token
-    const token = await generateAuthToken(profile.user_id, email);
+    const token = await generateAuthToken(profile.user_id, email, newSessionId);
 
     // Fetch vehicle
     const vehicle = await db.query.driver_vehicles.findFirst({
@@ -1804,7 +1806,7 @@ router.post('/google/exchange', async (req, res) => {
     }
 
     // 7. Generate app token
-    const token = await generateAuthToken(activeProfile.user_id, activeProfile.email);
+    const token = await generateAuthToken(activeProfile.user_id, activeProfile.email, newSessionId);
 
     // 8. Fetch vehicle for response (may be null for new Google users)
     const vehicle = await db.query.driver_vehicles.findFirst({
@@ -1936,7 +1938,9 @@ router.post('/token', async (req, res) => {
     return res.status(400).json({ error: 'user_id required' });
   }
 
-  const token = await generateAuthToken(user_id, 'dev-token');
+  // Bind the dev token to the user's current session when one exists (same rule as real logins).
+  const [devSession] = await db.select({ session_id: users.session_id }).from(users).where(eq(users.user_id, user_id)).limit(1);
+  const token = await generateAuthToken(user_id, 'dev-token', devSession?.session_id || null);
 
   res.json({
     token,

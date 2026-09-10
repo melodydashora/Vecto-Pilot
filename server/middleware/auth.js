@@ -197,6 +197,15 @@ export async function requireAuth(req, res, next) {
         return res.status(401).json({ error: 'session_expired', message: 'Session ended. Please log in again.' });
       }
 
+      // 2026-09-10 (security finding [9], verified): tokens carry the session they were issued
+      // under (jwt.js sid). A token from a previous session keeps its 2 h JWT lifetime but must
+      // not survive a new login elsewhere, a logout, or a password reset. Tokens without sid
+      // (issued before this change, or legacy HMAC) fall back to the session-liveness checks only.
+      if (payload.sessionId && payload.sessionId !== session.session_id) {
+        authLog.warn(1, `Token session superseded for user ${userId.substring(0, 8)} - requires re-login`);
+        return res.status(401).json({ error: 'session_expired', message: 'Session superseded by a newer login. Please log in again.' });
+      }
+
       const lastActiveAt = session.last_active_at ? new Date(session.last_active_at).getTime() : 0;
       const sessionStartAt = session.session_start_at ? new Date(session.session_start_at).getTime() : 0;
 

@@ -20,12 +20,22 @@ function getSecretKey() {
   return new TextEncoder().encode(secret);
 }
 
-export async function signJWT({ sub }) {
+/**
+ * @param {{ sub: string, sid?: string|null }} claims
+ *   sid — 2026-09-10 (security finding [9]): the users.session_id this token was issued
+ *   under. requireAuth rejects a token whose sid no longer matches the live session, so
+ *   logout, a new login elsewhere, and a password reset invalidate earlier tokens.
+ *   Optional so tokens minted before this change keep working until they expire.
+ */
+export async function signJWT({ sub, sid = null }) {
   if (!sub || typeof sub !== 'string' || sub.length < 8) {
     throw new Error('signJWT: sub (userId) is required and must be a string of length >= 8');
   }
+  if (sid !== null && (typeof sid !== 'string' || sid.length < 8)) {
+    throw new Error('signJWT: sid (sessionId), when given, must be a string of length >= 8');
+  }
   const key = getSecretKey();
-  return await new SignJWT({})
+  return await new SignJWT(sid ? { sid } : {})
     .setProtectedHeader({ alg: JWT_ALG })
     .setSubject(sub)
     .setIssuedAt()
@@ -45,7 +55,7 @@ export async function verifyJWT(token) {
   if (!payload.sub) {
     throw new Error('verifyJWT: token missing sub claim');
   }
-  return { userId: payload.sub, verified: true };
+  return { userId: payload.sub, sessionId: typeof payload.sid === 'string' ? payload.sid : null, verified: true };
 }
 
 export const JWT_CONFIG = Object.freeze({
