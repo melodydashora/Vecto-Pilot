@@ -23,13 +23,12 @@
 
 import express from 'express';
 import { callModel } from '../../lib/ai/adapters/index.js';
-import { db } from '../../db/drizzle.js';
 import { snapshots } from '../../../shared/schema.js';
-import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 // 2026-02-12: Added requireAuth - tactical plan requires authentication
 import { requireAuth } from '../../middleware/auth.js';
+import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 
 const router = express.Router();
 
@@ -141,23 +140,20 @@ router.post('/', requireAuth, async (req, res) => {
 
     console.log(`[TACTICAL] Starting analysis for ${mission.type}: ${mission.name}`);
 
-    // Get snapshot context for location info
-    const [snapshot] = await db
-      .select({
-        city: snapshots.city,
-        state: snapshots.state,
-        timezone: snapshots.timezone,
-      })
-      .from(snapshots)
-      .where(eq(snapshots.snapshot_id, snapshotId))
-      .limit(1);
-
-    if (!snapshot) {
-      return res.status(404).json({
-        success: false,
-        error: 'Snapshot not found',
-      });
+    // 2026-09-10 (VP-007 / Astra P5a, verified): this route authenticated but read the
+    // snapshot by id with no ownership predicate, so any signed-in account could spend a
+    // paid STRATEGY_CONTEXT call against another driver's snapshot. Use the ONE ownership
+    // policy (require-snapshot-ownership.js): NULL-owned or foreign snapshots → 404, same
+    // as every other snapshot route, before any model call.
+    const ownership = await verifySnapshotOwnership(snapshotId, req.auth?.userId);
+    if (!ownership.ok) {
+      return res.status(ownership.status).json({ success: false, error: ownership.body.error });
     }
+    const snapshot = {
+      city: ownership.snapshot.city,
+      state: ownership.snapshot.state,
+      timezone: ownership.snapshot.timezone,
+    };
 
     // Build prompt
     const systemPrompt = buildSystemPrompt(snapshot, mission, trafficContext);

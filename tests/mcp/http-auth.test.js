@@ -37,8 +37,23 @@ describe('auth helpers (pure)', () => {
   it('parseBearer is case-insensitive on the scheme and trims', () => {
     expect(parseBearer('Bearer  xyz ')).toBe('xyz');
     expect(parseBearer('bearer xyz')).toBe('xyz');
+    expect(parseBearer('BEARER\txyz')).toBe('xyz');
     expect(parseBearer('Basic xyz')).toBeNull();
     expect(parseBearer(undefined)).toBeNull();
+  });
+  it('parseBearer keeps the old contract on edge inputs (2026-09-10 rewrite)', () => {
+    expect(parseBearer('Bearer')).toBeNull();          // no separator, no token
+    expect(parseBearer('Bearer   ')).toBeNull();       // separator only
+    expect(parseBearer('Bearerxyz')).toBeNull();       // scheme glued to token
+    expect(parseBearer('')).toBeNull();
+    expect(parseBearer('Bearer a b')).toBe('a b');     // internal space was accepted before
+    expect(parseBearer('Bearer x\ny')).toBeNull();     // `.` never matched a newline
+  });
+  it('parseBearer is linear on adversarial whitespace (VP-010 / CodeQL polynomial-redos)', () => {
+    const hostile = 'Bearer' + ' '.repeat(30000) + 'x\ny';
+    const started = Date.now();
+    expect(parseBearer(hostile)).toBeNull();
+    expect(Date.now() - started).toBeLessThan(500);
   });
   it('refuses to build a guard without a usable token (fail loud at boot)', () => {
     expect(() => assertUsableToken(undefined)).toThrow(/MCP_TOKEN is not set/);

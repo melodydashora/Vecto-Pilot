@@ -173,7 +173,10 @@ router.post("/", requireAuth, async (req, res) => {
 
     // Insert to DB
     await db.insert(snapshots).values(dbSnapshot);
-    console.log('[SNAPSHOT] SAVED TO DB:', { snapshot_id, lat, lng, city, state, formatted_address, timezone, coord_key: coordKey });
+    // 2026-09-10 (VP-007 / Astra P5b): precise lat/lng, the full address and the 6-decimal
+    // coord_key no longer go to the normal log — agreement §15.8 (location payloads
+    // become purpose clauses, not raw output). The row itself keeps the precision.
+    console.log('[SNAPSHOT] SAVED TO DB:', { snapshot_id, city, state, timezone });
 
     // REMOVED: Placeholder strategy creation - strategy-generator-parallel.js creates the SINGLE strategy row
     // This prevents race conditions and ensures model_name attribution is preserved
@@ -181,26 +184,14 @@ router.post("/", requireAuth, async (req, res) => {
     // Generate briefing data BEFORE responding (so data is ready when frontend queries)
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       console.log(`[BRIEFING] starting`, { snapshot_id, city, state });
-      // Pass the full DB record (not individual fields) so all snapshot context is available
-      // fullSnapshot uses already-validated timezone (validated above)
-      const fullSnapshot = {
-        snapshot_id,
-        lat,
-        lng,
-        city: city || null,
-        state: state || null,
-        country: country || null,
-        formatted_address: formatted_address || null,
-        timezone: timezone,  // NO FALLBACK - validated above
-        date: today,
-        hour: hour || null,
-        dow: dow || null,
-        day_part_key: day_part_key || null,
-        local_iso: local_iso || null
-      };
+      // Pass the validated DB record itself (2026-09-10, VP-013 / Astra P1): the
+      // former hand-built `fullSnapshot` literal used `hour || null` / `dow || null`,
+      // which turned a stored midnight (hour 0) and Sunday (dow 0) into null on the
+      // briefing handoff while the row kept the real value. One representation now —
+      // the same object that passed validateSnapshotFields() and was inserted.
       await generateAndStoreBriefing({
         snapshotId: snapshot_id,
-        snapshot: fullSnapshot
+        snapshot: dbSnapshot
       }).catch(err => {
         // 2026-02-13: Upgraded from console.warn → console.error (briefing failure cascades to strategy)
         console.error(`[BRIEFING] generation.failed`, { snapshot_id, err: String(err) });

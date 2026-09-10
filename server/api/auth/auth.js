@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { db } from '../../db/drizzle.js';
-import { eq, and, gt, or } from 'drizzle-orm';
+import { eq, and, gt } from 'drizzle-orm';
 import {
   users,
   driver_profiles,
@@ -32,6 +32,7 @@ import {
 import { sendPasswordResetEmail, sendEmailVerification, sendWelcomeEmail, isEmailConfigured } from '../../lib/auth/email.js';
 import { sendPasswordResetSMS, isSmsConfigured, validatePhoneNumber } from '../../lib/auth/sms.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { isUniqueViolation, resolveGoogleIdentity } from '../../lib/auth/identity-policy.js';
 import { matrixLog } from '../../logger/workflow.js';
 import { geocodeAddress } from '../../lib/location/geocode.js';
 import { validateAddress } from '../../lib/location/address-validation.js';
@@ -411,89 +412,98 @@ router.post('/register', async (req, res) => {
     const newSessionId = crypto.randomUUID();
     const now = new Date();
 
-    const [newUser] = await db.insert(users).values({
-      user_id: newUserId,
-      session_id: newSessionId,
-      current_snapshot_id: null, // Set when first snapshot created
-      session_start_at: now,
-      last_active_at: now,
-      created_at: now,
-      updated_at: now
-    }).returning();
+    // 2026-09-10 (VP-003 / Astra A3a, verified + skeptic-confirmed): the four account rows
+    // are written in ONE transaction. Before this, a failure after the users insert left
+    // an orphan users row (one exists in the dev DB today), and a profile without
+    // credentials could neither log in nor reset — while a retry hit EMAIL_EXISTS.
+    // Hashing, address validation, geocoding and the market lookup stay outside the
+    // transaction on purpose (external calls; no DB writes).
+    const { newUser, profile, createdCreds } = await db.transaction(async (tx) => {
+      const [newUser] = await tx.insert(users).values({
+        user_id: newUserId,
+        session_id: newSessionId,
+        current_snapshot_id: null, // Set when first snapshot created
+        session_start_at: now,
+        last_active_at: now,
+        created_at: now,
+        updated_at: now
+      }).returning();
 
-    // Create driver profile with validated/geocoded home coordinates
-    // 2026-01-05: Using finalAddress from Address Validation API (corrected/standardized)
-    const [profile] = await db.insert(driver_profiles).values({
-      user_id: newUser.user_id,
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      email: email.toLowerCase().trim(),
-      phone: phoneCheck.formatted,
-      // Use validated/standardized address (or original if validation skipped)
-      address_1: finalAddress.address1,
-      address_2: finalAddress.address2,
-      city: finalAddress.city,
-      state_territory: finalAddress.state,
-      zip_code: finalAddress.zipCode,
-      country: finalAddress.country,
-      // Store geocoded home coordinates (from validation or geocoding fallback)
-      home_lat: geocodeResult?.lat ?? null,
-      home_lng: geocodeResult?.lng ?? null,
-      home_formatted_address: geocodeResult?.formattedAddress || null,
-      home_timezone: geocodeResult?.timezone || null,
-      market: resolvedMarket, // Looked up from platform_data based on city
-      driver_nickname: nickname?.trim() || firstName.trim(), // Custom greeting name, defaults to first name
-      rideshare_platforms: ridesharePlatforms,
+      // Create driver profile with validated/geocoded home coordinates
+      // 2026-01-05: Using finalAddress from Address Validation API (corrected/standardized)
+      const [profile] = await tx.insert(driver_profiles).values({
+        user_id: newUser.user_id,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.toLowerCase().trim(),
+        phone: phoneCheck.formatted,
+        // Use validated/standardized address (or original if validation skipped)
+        address_1: finalAddress.address1,
+        address_2: finalAddress.address2,
+        city: finalAddress.city,
+        state_territory: finalAddress.state,
+        zip_code: finalAddress.zipCode,
+        country: finalAddress.country,
+        // Store geocoded home coordinates (from validation or geocoding fallback)
+        home_lat: geocodeResult?.lat ?? null,
+        home_lng: geocodeResult?.lng ?? null,
+        home_formatted_address: geocodeResult?.formattedAddress || null,
+        home_timezone: geocodeResult?.timezone || null,
+        market: resolvedMarket, // Looked up from platform_data based on city
+        driver_nickname: nickname?.trim() || firstName.trim(), // Custom greeting name, defaults to first name
+        rideshare_platforms: ridesharePlatforms,
 
-      // New eligibility fields
-      elig_economy: normalizedEligibility.economy,
-      elig_xl: normalizedEligibility.xl,
-      elig_xxl: normalizedEligibility.xxl,
-      elig_comfort: normalizedEligibility.comfort,
-      elig_luxury_sedan: normalizedEligibility.luxurySedan,
-      elig_luxury_suv: normalizedEligibility.luxurySuv,
+        // New eligibility fields
+        elig_economy: normalizedEligibility.economy,
+        elig_xl: normalizedEligibility.xl,
+        elig_xxl: normalizedEligibility.xxl,
+        elig_comfort: normalizedEligibility.comfort,
+        elig_luxury_sedan: normalizedEligibility.luxurySedan,
+        elig_luxury_suv: normalizedEligibility.luxurySuv,
 
-      attr_electric: normalizedAttributes.electric,
-      attr_green: normalizedAttributes.green,
-      attr_wav: normalizedAttributes.wav,
-      attr_ski: normalizedAttributes.ski,
-      attr_car_seat: normalizedAttributes.carSeat,
+        attr_electric: normalizedAttributes.electric,
+        attr_green: normalizedAttributes.green,
+        attr_wav: normalizedAttributes.wav,
+        attr_ski: normalizedAttributes.ski,
+        attr_car_seat: normalizedAttributes.carSeat,
 
-      pref_pet_friendly: normalizedPreferences.petFriendly,
-      pref_teen: normalizedPreferences.teen,
-      pref_assist: normalizedPreferences.assist,
-      pref_shared: normalizedPreferences.shared,
+        pref_pet_friendly: normalizedPreferences.petFriendly,
+        pref_teen: normalizedPreferences.teen,
+        pref_assist: normalizedPreferences.assist,
+        pref_shared: normalizedPreferences.shared,
 
-      // Legacy columns (backward compatibility)
-      uber_black: normalizedTiers.black,
-      uber_xxl: normalizedTiers.xl,
-      uber_comfort: normalizedTiers.comfort,
-      uber_x: normalizedTiers.standard,
-      uber_x_share: normalizedTiers.share,
+        // Legacy columns (backward compatibility)
+        uber_black: normalizedTiers.black,
+        uber_xxl: normalizedTiers.xl,
+        uber_comfort: normalizedTiers.comfort,
+        uber_x: normalizedTiers.standard,
+        uber_x_share: normalizedTiers.share,
 
-      marketing_opt_in: marketingOptIn,
-      terms_accepted: true, // Boolean flag - must be true to complete registration
-      terms_accepted_at: new Date(),
-      terms_version: '1.0',
-      profile_complete: true
-    }).returning();
+        marketing_opt_in: marketingOptIn,
+        terms_accepted: true, // Boolean flag - must be true to complete registration
+        terms_accepted_at: new Date(),
+        terms_version: '1.0',
+        profile_complete: true
+      }).returning();
 
-    // Create driver vehicle
-    await db.insert(driver_vehicles).values({
-      driver_profile_id: profile.id,
-      year: normalizedVehicle.year,
-      make: normalizedVehicle.make.trim(),
-      model: normalizedVehicle.model.trim(),
-      color: normalizedVehicle.color?.trim() || null,
-      seatbelts: normalizedVehicle.seatbelts || 4,
-      is_primary: true
+      // Create driver vehicle
+      await tx.insert(driver_vehicles).values({
+        driver_profile_id: profile.id,
+        year: normalizedVehicle.year,
+        make: normalizedVehicle.make.trim(),
+        model: normalizedVehicle.model.trim(),
+        color: normalizedVehicle.color?.trim() || null,
+        seatbelts: normalizedVehicle.seatbelts || 4,
+        is_primary: true
+      });
+
+      // Create auth credentials
+      const [createdCreds] = await tx.insert(auth_credentials).values({
+        user_id: newUser.user_id,
+        password_hash: passwordHash
+      }).returning();
+      return { newUser, profile, createdCreds };
     });
-
-    // Create auth credentials
-    const [createdCreds] = await db.insert(auth_credentials).values({
-      user_id: newUser.user_id,
-      password_hash: passwordHash
-    }).returning();
 
     matrixLog.info({
       category: 'AUTH',
@@ -598,7 +608,13 @@ router.post('/register', async (req, res) => {
       action: 'REGISTER_FAIL',
       location: 'auth.js:register',
     }, 'Registration failed', err);
-    res.status(500).json({ error: 'REGISTRATION_FAILED', message: err.message });
+    // 2026-09-10 (VP-003 / Astra A3b, verified): the loser of a same-email race hits the
+    // unique index (SQLSTATE 23505) — that is EMAIL_EXISTS, not a server fault. Raw
+    // err.message (constraint names, SQL fragments) never leaves the process.
+    if (isUniqueViolation(err)) {
+      return res.status(409).json({ error: 'EMAIL_EXISTS', message: 'An account with this email already exists' });
+    }
+    res.status(500).json({ error: 'REGISTRATION_FAILED', message: 'Registration failed. Please try again.' });
   }
 });
 
@@ -1552,31 +1568,30 @@ router.post('/google/exchange', async (req, res) => {
       });
     }
 
-    // 1. Validate CSRF state (must exist, not expired, one-time use)
+    // 1. Validate AND consume the CSRF state in ONE statement (2026-09-10, VP-005 / Astra
+    //    A5a, verified): the former select-then-delete let two concurrent exchanges both
+    //    pass the SELECT before either DELETE. DELETE … RETURNING is atomic — exactly one
+    //    request can ever own a given state row.
     const [storedState] = await db
-      .select()
-      .from(oauth_states)
+      .delete(oauth_states)
       .where(and(
         eq(oauth_states.state, state),
         eq(oauth_states.provider, 'google'),
         gt(oauth_states.expires_at, new Date())
       ))
-      .limit(1);
+      .returning();
 
     if (!storedState) {
       matrixLog.warn({
         category: 'AUTH',
         action: 'OAUTH_STATE_INVALID',
         location: 'auth.js:googleOAuthCallback',
-      }, 'Google OAuth: invalid or expired state parameter');
+      }, 'Google OAuth: invalid, expired, or already-consumed state parameter');
       return res.status(400).json({
         error: 'INVALID_STATE',
         message: 'Invalid or expired OAuth state. Please try again.'
       });
     }
-
-    // Delete used state (one-time use prevents replay attacks)
-    await db.delete(oauth_states).where(eq(oauth_states.id, storedState.id));
 
     // 2. Exchange authorization code for tokens
     // 2026-02-13: baseUrl must match exactly what was used in the auth URL
@@ -1607,18 +1622,47 @@ router.post('/google/exchange', async (req, res) => {
       location: 'auth.js:googleOAuthCallback',
     }, `Google OAuth: verified user (sub: ${googleUser.sub.substring(0, 8)})`);
 
-    // 4. Find existing user by google_id OR email
-    const profile = await db.query.driver_profiles.findFirst({
-      where: or(
-        eq(driver_profiles.google_id, googleUser.sub),
-        eq(driver_profiles.email, googleUser.email.toLowerCase())
-      )
+    // 4. Resolve identity — SUBJECT FIRST, then verified email (2026-09-10, VP-004 /
+    //    Astra A4a–A4c, each verified and skeptic-confirmed). The decision itself is pure
+    //    and unit-tested (server/lib/auth/identity-policy.js); this route only performs
+    //    the lookups and applies the verdict. The old single `google_id = sub OR email =`
+    //    query had no priority rule and authenticated an email-matched profile even when
+    //    it was bound to a DIFFERENT Google subject.
+    const googleEmail = googleUser.email.toLowerCase().trim();
+    const bySubject = await db.query.driver_profiles.findFirst({
+      where: eq(driver_profiles.google_id, googleUser.sub)
     });
+    const byEmail = bySubject ? null : await db.query.driver_profiles.findFirst({
+      where: eq(driver_profiles.email, googleEmail)
+    });
+    let byEmailHasPassword = false;
+    if (byEmail) {
+      const [creds] = await db
+        .select({ password_hash: auth_credentials.password_hash })
+        .from(auth_credentials)
+        .where(eq(auth_credentials.user_id, byEmail.user_id))
+        .limit(1);
+      byEmailHasPassword = Boolean(creds?.password_hash);
+    }
+    const verdict = resolveGoogleIdentity({ bySubject, byEmail, sub: googleUser.sub, byEmailHasPassword });
 
-    // 2026-02-13: Google OAuth supports both login AND sign-up
+    if (verdict.kind === 'conflict') {
+      matrixLog.warn({
+        category: 'AUTH',
+        action: 'OAUTH_IDENTITY_CONFLICT',
+        location: 'auth.js:googleOAuthCallback',
+      }, `Google OAuth: email matches profile ${verdict.profile.user_id.substring(0, 8)} bound to a different Google subject — refused`);
+      return res.status(409).json({
+        error: 'ACCOUNT_CONFLICT',
+        message: 'This email is already linked to a different Google account. Sign in with that Google account, or use your password.'
+      });
+    }
+
+    const profile = verdict.profile; // null when this is a brand-new account
     let activeProfile = profile;
+    let passwordRevoked = false;
 
-    if (!profile) {
+    if (verdict.kind === 'new') {
       // ═══════════════════════════════════════════════════════════════════
       // NEW ACCOUNT — Create minimal profile from Google data
       // profile_complete: false → user can complete address/vehicle later
@@ -1633,45 +1677,46 @@ router.post('/google/exchange', async (req, res) => {
       const newSessionId = crypto.randomUUID();
       const now = new Date();
 
-      // Create users row (session)
-      await db.insert(users).values({
-        user_id: newUserId,
-        session_id: newSessionId,
-        current_snapshot_id: null,
-        session_start_at: now,
-        last_active_at: now,
-        created_at: now,
-        updated_at: now
-      });
-
-      // Create driver_profiles row (identity) with Google-provided data
-      const [newProfile] = await db.insert(driver_profiles).values({
-        user_id: newUserId,
-        first_name: googleUser.given_name || googleUser.name.split(' ')[0] || 'Driver',
-        last_name: googleUser.family_name || googleUser.name.split(' ').slice(1).join(' ') || '',
-        driver_nickname: googleUser.given_name || googleUser.name.split(' ')[0] || null,
-        email: googleUser.email.toLowerCase(),
-        google_id: googleUser.sub,
-        // Fields user must complete later (nullable since 2026-02-13)
-        phone: null,
-        address_1: null,
-        city: null,
-        state_territory: null,
-        market: null,
-        // Email is verified by Google
-        email_verified: true,
-        profile_complete: false,
-        // 2026-02-13: Do NOT auto-accept terms — user must explicitly accept
-        terms_accepted: false,
-        terms_accepted_at: null,
-        terms_version: null,
-      }).returning();
-
-      // Create auth_credentials row WITHOUT password (Google-only user)
-      await db.insert(auth_credentials).values({
-        user_id: newUserId,
-        password_hash: null, // OAuth-only: no password
-        last_login_at: now,
+      // 2026-09-10 (VP-003 / Astra A3c): users + driver_profiles + auth_credentials in ONE
+      // transaction — a mid-sequence failure no longer strands an orphan users row or a
+      // profile that can never reset a password.
+      const newProfile = await db.transaction(async (tx) => {
+        await tx.insert(users).values({
+          user_id: newUserId,
+          session_id: newSessionId,
+          current_snapshot_id: null,
+          session_start_at: now,
+          last_active_at: now,
+          created_at: now,
+          updated_at: now
+        });
+        const [newProfile] = await tx.insert(driver_profiles).values({
+          user_id: newUserId,
+          first_name: googleUser.given_name || googleUser.name.split(' ')[0] || 'Driver',
+          last_name: googleUser.family_name || googleUser.name.split(' ').slice(1).join(' ') || '',
+          driver_nickname: googleUser.given_name || googleUser.name.split(' ')[0] || null,
+          email: googleEmail,
+          google_id: googleUser.sub,
+          // Fields user must complete later (nullable since 2026-02-13)
+          phone: null,
+          address_1: null,
+          city: null,
+          state_territory: null,
+          market: null,
+          // Email is verified by Google
+          email_verified: true,
+          profile_complete: false,
+          // 2026-02-13: Do NOT auto-accept terms — user must explicitly accept
+          terms_accepted: false,
+          terms_accepted_at: null,
+          terms_version: null,
+        }).returning();
+        await tx.insert(auth_credentials).values({
+          user_id: newUserId,
+          password_hash: null, // OAuth-only: no password
+          last_login_at: now,
+        });
+        return newProfile;
       });
 
       activeProfile = newProfile;
@@ -1682,28 +1727,38 @@ router.post('/google/exchange', async (req, res) => {
         tableName: 'DRIVER_PROFILES',
         location: 'auth.js:googleOAuthCallback',
       }, `Google OAuth: new account created for user ${newUserId.substring(0, 8)} (profile_complete: false)`);
-    } else {
+    } else if (verdict.kind === 'link') {
       // ═══════════════════════════════════════════════════════════════════
-      // EXISTING ACCOUNT — Link Google ID if needed, update session
+      // EXISTING email/password account — link the verified Google subject.
+      // Google proved the email, so email_verified becomes true. If the account's
+      // password was never proven (email_verified was false), it is revoked in the
+      // same transaction (pre-hijack mitigation, identity-policy.js); the address
+      // owner can set a new one through the email reset flow.
       // ═══════════════════════════════════════════════════════════════════
-
-      // 5. Link Google ID if not already set (first Google login for email/password user)
-      if (!activeProfile.google_id) {
-        await db.update(driver_profiles)
+      await db.transaction(async (tx) => {
+        await tx.update(driver_profiles)
           .set({
             google_id: googleUser.sub,
+            email_verified: true,
             updated_at: new Date()
           })
           .where(eq(driver_profiles.id, activeProfile.id));
-        matrixLog.info({
-          category: 'AUTH',
-          connection: 'DB',
-          action: 'OAUTH_LINK',
-          tableName: 'DRIVER_PROFILES',
-          location: 'auth.js:googleOAuthCallback',
-        }, `Google OAuth: linked Google ID to existing user ${activeProfile.user_id.substring(0, 8)}`);
-      }
+        if (verdict.revokePassword) {
+          await tx.update(auth_credentials)
+            .set({ password_hash: null })
+            .where(eq(auth_credentials.user_id, activeProfile.user_id));
+        }
+      });
+      passwordRevoked = verdict.revokePassword;
+      matrixLog.info({
+        category: 'AUTH',
+        connection: 'DB',
+        action: 'OAUTH_LINK',
+        tableName: 'DRIVER_PROFILES',
+        location: 'auth.js:googleOAuthCallback',
+      }, `Google OAuth: linked Google ID to existing user ${activeProfile.user_id.substring(0, 8)} (${verdict.reason})`);
     }
+    // verdict.kind === 'subject': already linked — nothing to write.
 
     // 6. Create/update session (same upsert pattern as login endpoint)
     const newSessionId = crypto.randomUUID();
@@ -1757,6 +1812,7 @@ router.post('/google/exchange', async (req, res) => {
       ok: true,
       token,
       isNewUser: !profile, // Let client know this is a new sign-up
+      passwordRevoked, // 2026-09-10: true when an unproven password was revoked on Google link
       user: {
         userId: activeProfile.user_id,
         email: activeProfile.email
@@ -1819,9 +1875,14 @@ router.post('/google/exchange', async (req, res) => {
       action: 'OAUTH_EXCHANGE_FAIL',
       location: 'auth.js:googleOAuthCallback',
     }, 'Google OAuth exchange failed', err);
+    // 2026-09-10 (VP-003 / Astra A3c): a unique-index loser in the new-account race is an
+    // existing account, and Google's raw token-exchange body is never relayed to the browser.
+    if (isUniqueViolation(err)) {
+      return res.status(409).json({ error: 'ACCOUNT_EXISTS', message: 'An account for this Google identity already exists. Please sign in again.' });
+    }
     res.status(500).json({
       error: 'GOOGLE_AUTH_FAILED',
-      message: err.message || 'Google authentication failed'
+      message: 'Google authentication failed. Please try again.'
     });
   }
 });
