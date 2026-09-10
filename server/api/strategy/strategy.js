@@ -25,16 +25,19 @@ router.use(requireAuth);
 // 2026-04-25 (P2-9): /history MUST be declared BEFORE /:snapshotId or Express
 // matches the param route first and "history" is treated as a snapshotId.
 
-/** GET /api/strategy/history?user_id=X - Get all strategy attempts for a user */
+/** GET /api/strategy/history - Get the CALLER's strategy attempts */
 router.get('/history', async (req, res) => {
-  const { user_id } = req.query;
+  // 2026-09-10 (IDOR found while verifying VP-007): this route filtered by the query-string
+  // `user_id`, so any signed-in account could list any other driver's strategy history.
+  // Identity comes from the bearer token only; a query-string user_id is ignored.
+  const user_id = req.auth?.userId;
 
-  if (!user_id) {
-    return res.status(400).json({ error: 'user_id_required' });
+  if (typeof user_id !== 'string' || !user_id) {
+    return res.status(401).json({ error: 'unauthorized' });
   }
 
   try {
-    console.log(`[STRATEGY] GET /api/strategy/history?user_id=${user_id}`);
+    console.log(`[STRATEGY] GET /api/strategy/history user=${user_id.slice(0, 8)}`);
 
     const attempts = await db.select({
       snapshot_id: strategies.snapshot_id,

@@ -39,66 +39,63 @@ import { discoverEvents, fetchEventsForBriefing } from './pipelines/events.js';
 const inFlightBriefings = new Map();
 
 export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
-  // Dedup 1: Check if already in flight in this process (concurrent calls)
+  // Dedup 1: concurrent calls in THIS process share one promise. The Map entry is
+  // registered synchronously below (before any await), so two callers arriving in the
+  // same tick cannot both miss it (2026-09-10, VP-014 / Astra P3a).
   if (inFlightBriefings.has(snapshotId)) {
     briefingLog.info(`Already in flight for ${snapshotId.slice(0, 8)} - waiting`, OP.CACHE);
     return inFlightBriefings.get(snapshotId);
   }
 
-  // 2026-04-04: FIX H-4 — Use advisory lock to prevent race conditions across processes.
-  // Previously, between checking existing row and inserting/clearing placeholder, another
-  // process could insert, causing the "clear fields" UPDATE to wipe data being written
-  // by the other process. Advisory lock serializes the check-then-write sequence.
-  // NOTE: db.execute() returns { rows: [...] }, NOT an array — use .rows[0] (matches blocks-fast.js pattern)
-  const lockQueryResult = await db.execute(
-    sql`SELECT pg_try_advisory_lock(hashtext(${snapshotId})) as acquired`
-  );
-  const lockAcquired = lockQueryResult.rows?.[0]?.acquired === true;
+  const briefingPromise = (async () => {
+    // Dedup 2 (cross-process): the check-then-placeholder sequence runs under a
+    // TRANSACTION-scoped advisory lock (2026-09-10, VP-014 / Astra P3a, verified and
+    // skeptic-confirmed). The former pg_try_advisory_lock / pg_advisory_unlock pair ran as
+    // two separate pooled db.execute() calls, so the unlock could land on a different
+    // session than the lock (leaking a SESSION lock on a pooled connection), and two
+    // callers that drew the same pooled client both "acquired" the re-entrant session
+    // lock. pg_try_advisory_xact_lock is held by exactly one transaction and releases
+    // itself at commit/rollback — the same pattern blocks-fast.js uses for venue claims.
+    const gate = await db.transaction(async (tx) => {
+      const lockQueryResult = await tx.execute(
+        sql`SELECT pg_try_advisory_xact_lock(hashtext(${snapshotId})) as acquired`
+      );
+      if (lockQueryResult.rows?.[0]?.acquired !== true) return { acquired: false, dedup: null };
 
-  if (!lockAcquired) {
-    // Another process holds the lock — briefing generation is in progress elsewhere.
-    // Wait briefly then return whatever exists.
-    briefingLog.info(`Advisory lock not acquired for ${snapshotId.slice(0, 8)} - generation in progress elsewhere`, OP.CACHE);
-    const existing = await getBriefingBySnapshotId(snapshotId);
-    if (existing) {
-      return { success: true, briefing: existing, deduplicated: true };
-    }
-    // No row yet — the other process hasn't inserted placeholder. Return pending.
-    return { success: true, briefing: null, deduplicated: true, pending: true };
-  }
+      // If a briefing exists with ALL populated fields, skip regeneration. NULL fields =
+      // generation in progress or needs refresh; error-marked fields (_generationFailed)
+      // don't count as populated (2026-04-05).
+      const [existing] = await tx.select().from(briefings)
+        .where(eq(briefings.snapshot_id, snapshotId)).limit(1);
+      if (existing) {
+        const hasTraffic = existing.traffic_conditions !== null && !existing.traffic_conditions?._generationFailed;
+        const hasEvents = existing.events !== null && !existing.events?._generationFailed && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
+        const hasNews = existing.news !== null && !existing.news?._generationFailed;
+        const hasClosures = existing.school_closures !== null && !existing.school_closures?._generationFailed;
 
-  try {
-    // Dedup 2: Check database state - if briefing exists with ALL populated fields, skip regeneration
-    // NULL fields = generation in progress or needs refresh
-    // Populated fields = data ready, don't regenerate
-    // 2026-04-05: Error-marked fields (_generationFailed) don't count as "populated" — must regenerate
-    const existing = await getBriefingBySnapshotId(snapshotId);
-    if (existing) {
-      const hasTraffic = existing.traffic_conditions !== null && !existing.traffic_conditions?._generationFailed;
-      const hasEvents = existing.events !== null && !existing.events?._generationFailed && (Array.isArray(existing.events) ? existing.events.length > 0 : existing.events?.items?.length > 0 || existing.events?.reason);
-      const hasNews = existing.news !== null && !existing.news?._generationFailed;
-      const hasClosures = existing.school_closures !== null && !existing.school_closures?._generationFailed;
-
-      // ALL fields must be populated for concurrent request deduplication to apply
-      if (hasTraffic && hasEvents && hasNews && hasClosures) {
-        // 2026-01-10: Fixed misleading terminology - this is DEDUP not CACHE
-        // Prevents duplicate concurrent requests, not traditional caching
-        // Only skip if briefing was generated < 60 seconds ago (in-flight or just completed)
-        const ageMs = Date.now() - new Date(existing.updated_at).getTime();
-        if (ageMs < 60000) {
-          briefingLog.info(`Recent briefing (${Math.round(ageMs/1000)}s old) - skipping duplicate generation`, OP.CACHE);
-          return { success: true, briefing: existing, deduplicated: true };
+        // ALL fields must be populated for concurrent-request deduplication to apply.
+        // This is DEDUP, not caching: only skip if generated < 60 s ago (in-flight or just done).
+        if (hasTraffic && hasEvents && hasNews && hasClosures) {
+          const ageMs = Date.now() - new Date(existing.updated_at).getTime();
+          if (ageMs < 60000) {
+            briefingLog.info(`Recent briefing (${Math.round(ageMs/1000)}s old) - skipping duplicate generation`, OP.CACHE);
+            return { acquired: true, dedup: { success: true, briefing: existing, deduplicated: true } };
+          }
+        } else if (hasTraffic || hasEvents) {
+          briefingLog.info(`Partial data - regenerating`, OP.CACHE);
         }
-      } else if (hasTraffic || hasEvents) {
-        briefingLog.info(`Partial data - regenerating`, OP.CACHE);
-      }
-    }
-
-    // Create placeholder row with NULL fields to signal "generation in progress"
-    // This prevents other callers from starting duplicate generation
-    if (!existing) {
-      try {
-        await db.insert(briefings).values({
+        // Clear fields to signal "refreshing in progress"
+        await tx.update(briefings)
+          .set({
+            traffic_conditions: null,
+            events: null,
+            airport_conditions: null,
+            updated_at: new Date()
+          })
+          .where(eq(briefings.snapshot_id, snapshotId));
+      } else {
+        // Placeholder row with NULL fields signals "generation in progress" to other callers.
+        await tx.insert(briefings).values({
           snapshot_id: snapshotId,
           news: null,
           weather_current: null,
@@ -109,34 +106,28 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
           airport_conditions: null,
           created_at: new Date(),
           updated_at: new Date()
-        });
-      } catch (insertErr) {
-        // Row might already exist from concurrent call - that's OK
-        if (!insertErr.message?.includes('duplicate') && !insertErr.message?.includes('unique')) {
-          briefingLog.warn(1, `Placeholder insert warning: ${insertErr.message}`, OP.DB);
-        }
+        }).onConflictDoNothing();
       }
-    } else {
-      // Clear fields to signal "refreshing in progress"
-      await db.update(briefings)
-        .set({
-          traffic_conditions: null,
-          events: null,
-          airport_conditions: null,
-          updated_at: new Date()
-        })
-        .where(eq(briefings.snapshot_id, snapshotId));
-    }
-  } finally {
-    // Release advisory lock — the placeholder is set, actual generation runs without lock
-    await db.execute(sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`);
-  }
+      return { acquired: true, dedup: null };
+    });
 
-  // 2026-04-05: Wrap in error handler to mark placeholder row as permanently failed
-  // on throw. Without this, a thrown error leaves NULL fields in the DB forever,
-  // and GET endpoints return success:false indefinitely → client infinite retry loop.
-  const briefingPromise = generateBriefingInternal({ snapshotId, snapshot })
-    .catch(async (err) => {
+    if (!gate.acquired) {
+      // Another process holds the lock — generation is in progress elsewhere.
+      briefingLog.info(`Advisory lock not acquired for ${snapshotId.slice(0, 8)} - generation in progress elsewhere`, OP.CACHE);
+      const existing = await getBriefingBySnapshotId(snapshotId);
+      if (existing) {
+        return { success: true, briefing: existing, deduplicated: true };
+      }
+      // No row yet — the other process hasn't inserted its placeholder. Return pending.
+      return { success: true, briefing: null, deduplicated: true, pending: true };
+    }
+    if (gate.dedup) return gate.dedup;
+
+    // 2026-04-05: on throw, mark the placeholder row as permanently failed. Without this a
+    // thrown error leaves NULL fields forever and GET endpoints return success:false
+    // indefinitely → client infinite retry loop.
+    return generateBriefingInternal({ snapshotId, snapshot })
+      .catch(async (err) => {
       console.error(`[BRIEFING] Generation failed for ${snapshotId.slice(0, 8)}: ${err.message}`);
       // Mark the placeholder row with error sentinel so endpoints return _generationFailed
       // instead of "not yet available" (which causes clients to keep polling)
@@ -160,12 +151,12 @@ export async function generateAndStoreBriefing({ snapshotId, snapshot }) {
       }
       return { success: false, error: err.message, _generationFailed: true };
     });
+  })();
 
   inFlightBriefings.set(snapshotId, briefingPromise);
-
-  briefingPromise.finally(() => {
-    inFlightBriefings.delete(snapshotId);
-  });
+  // The caller still receives the rejection through `return briefingPromise`; this chained
+  // handler only exists to clear the Map without creating an unhandled rejection.
+  briefingPromise.finally(() => { inFlightBriefings.delete(snapshotId); }).catch(() => {});
 
   return briefingPromise;
 }

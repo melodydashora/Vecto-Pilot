@@ -851,7 +851,11 @@ router.get('/context/:snapshotId', requireAuth, requireSnapshotOwnership, async 
 // POST /api/chat - AI Coach with Full Schema Access & Thread Context & File Support
 // SECURITY: requireAuth enforces user must be signed in
 router.post('/', requireAuth, async (req, res) => {
-  const { userId, message, threadHistory = [], snapshotId, strategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = req.body;
+  const { userId, message, threadHistory = [], snapshotId: rawSnapshotId, strategyId: rawStrategyId, strategy, blocks, attachments = [], conversationId: clientConversationId, snapshot: clientSnapshot } = req.body;
+  // 2026-09-10 (CodeQL type-confusion class): these reach `.slice()` before the try block
+  // below; a non-string body value ({}/number) threw synchronously and hung the request.
+  const snapshotId = typeof rawSnapshotId === 'string' && rawSnapshotId ? rawSnapshotId : null;
+  const strategyId = typeof rawStrategyId === 'string' && rawStrategyId ? rawStrategyId : null;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'message required' });

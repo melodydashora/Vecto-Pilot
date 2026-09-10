@@ -271,16 +271,20 @@ export async function requireAuth(req, res, next) {
 export async function optionalAuth(req, res, next) {
   try {
     // Check for Agent/Service Account auth first
-    const agentUserId = validateAgentAuth(req);
-    if (agentUserId) {
+    // 2026-09-10: validateAgentAuth has returned { userId, tokenSource } since 2026-05-08;
+    // this branch still treated it as a string (req.auth.userId became an object and
+    // `.slice` threw). Mirror requireAuth.
+    const agent = validateAgentAuth(req);
+    if (agent?.userId) {
       req.auth = {
-        userId: agentUserId,
+        userId: agent.userId,
+        tokenSource: agent.tokenSource,
         isAgent: true,
         sessionId: null,
         currentSnapshotId: null,
         phantom: false
       };
-      console.log(`[AUTH] Agent authenticated as ${agentUserId.slice(0, 8)}`);
+      console.log(`[AUTH] Agent authenticated as ${agent.userId.slice(0, 8)}`);
       return next();
     }
 
