@@ -14,10 +14,14 @@ import { db } from '../../db/drizzle.js';
 import { claudeMemory } from '../../../shared/schema.js';
 import { eq, desc, and, ilike, sql } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
+import { requireOperator } from '../../middleware/require-operator.js';
 
 const router = Router();
 
-router.use(requireAuth);
+// 2026-09-10 (security finding [1]): requireAuth proves "a driver"; this is Claude's private
+// continuity store (Melody's context rows included) and POST/PATCH take raw req.body.
+// Operators and service accounts only — see require-operator.js.
+router.use(requireAuth, requireOperator);
 
 // ============================================================================
 // GET /api/memory — List memories with optional filters

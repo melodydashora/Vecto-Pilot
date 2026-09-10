@@ -10,11 +10,12 @@ import { ensureStrategyRow } from '../../lib/strategy/strategy-utils.js';
 import { runBriefing } from '../../lib/ai/providers/briefing.js';
 import { runImmediateStrategy } from '../../lib/ai/providers/consolidator.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { requireOperator } from '../../middleware/require-operator.js';
 
 export const router = Router();
 
 /** POST /api/diagnostics/test-immediate/:snapshotId - Test GPT-5.2 immediate strategy */
-router.post('/test-immediate/:snapshotId', requireAuth, async (req, res) => {
+router.post('/test-immediate/:snapshotId', requireAuth, requireOperator, async (req, res) => {
   const { snapshotId } = req.params;
 
   try {
@@ -48,7 +49,7 @@ router.post('/test-immediate/:snapshotId', requireAuth, async (req, res) => {
 });
 
 /** POST /api/diagnostics/test-briefing/:snapshotId */
-router.post('/test-briefing/:snapshotId', requireAuth, async (req, res) => {
+router.post('/test-briefing/:snapshotId', requireAuth, requireOperator, async (req, res) => {
   const { snapshotId } = req.params;
 
   try {
@@ -78,7 +79,7 @@ router.post('/test-briefing/:snapshotId', requireAuth, async (req, res) => {
 });
 
 /** GET /api/diagnostics/strategy-status/:snapshotId */
-router.get('/strategy-status/:snapshotId', requireAuth, async (req, res) => {
+router.get('/strategy-status/:snapshotId', requireAuth, requireOperator, async (req, res) => {
   const { snapshotId } = req.params;
 
   try {
