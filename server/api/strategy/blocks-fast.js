@@ -401,7 +401,9 @@ router.get('/', expensiveEndpointLimiter, requireAuth, async (req, res) => {
 
     // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
     // User can only access blocks for their own snapshots
-    if (snapshot.user_id && snapshot.user_id !== authUserId) {
+    // 2026-09-10: NULL-owned snapshots are orphan data and are rejected everywhere else
+    // (require-snapshot-ownership.js); this inline check let them through to the paid pipeline.
+    if (!snapshot.user_id || snapshot.user_id !== authUserId) {
       venuesLog.warn(`Ownership mismatch: auth=${authUserId?.slice(0, 8)} vs snapshot=${snapshot.user_id?.slice(0, 8)}`);
       return res.status(404).json({ error: 'snapshot_not_found' });
     }
@@ -540,7 +542,9 @@ router.post('/', requireAuth, expensiveEndpointLimiter, async (req, res) => {
 
     // 2026-01-09: P0-3 FIX - Enforce snapshot ownership
     // User can only generate blocks for their own snapshots
-    if (snapshot.user_id && snapshot.user_id !== authUserId) {
+    // 2026-09-10: NULL-owned snapshots are orphan data and are rejected everywhere else
+    // (require-snapshot-ownership.js); this inline check let them through to the paid pipeline.
+    if (!snapshot.user_id || snapshot.user_id !== authUserId) {
       matrixLog.warn({
         category: 'STRATEGY',
         action: 'AUTH_MISMATCH',

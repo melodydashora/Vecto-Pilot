@@ -19,8 +19,10 @@ This directory contains formal implementation plans for significant changes to t
 
 ## Creating a New Plan
 
-Per CLAUDE.md Rule 1:
-> **BEFORE making any code changes**, create a plan document in the same directory as the relevant README.md
+Plans are for architectural, naming, source-of-truth, destructive, or outward-facing work —
+the cases CLAUDE.md §2 says to pause on. Safe, reversible, in-scope leaf work does not need a
+plan document (CLAUDE.md §2 "Act on what you can safely do"; the numbered "Rule 1"
+plan-then-approve gate this section used to cite was retired with claudeRev1 on 2026-08-17).
 
 Plans must include:
 - Objectives
@@ -30,6 +32,6 @@ Plans must include:
 
 ## Approval Process
 
-Implementation requires **formal testing approval from Melody**:
-- Melody confirms: "All tests passed"
-- Only then proceed with implementation
+For the plan-worthy cases above, Melody approves the plan (joint decision per
+AI_PARTNERSHIP_AGREEMENT.md §2.3 / §12). Verification is the implementer's job: run the real
+checks (`npm run lint`, `npm run typecheck`, the relevant jest suites) and report their output.
