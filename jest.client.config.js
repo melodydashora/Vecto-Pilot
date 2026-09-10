@@ -22,7 +22,9 @@ export default {
   },
   moduleDirectories: ['node_modules', 'client/src'],
   testMatch: [
-    '**/tests/**/*.test.tsx'
+    '**/tests/**/*.test.tsx',
+    // 2026-09-10: tests/snapshot-ownership-event.test.ts was matched by NEITHER config.
+    '**/tests/**/*.test.ts',
   ],
   // 2026-09-10: mirror jest.config.js — stale worktree copies under .worktrees/
   // were being selected as duplicate suites (VP-016 verification).
