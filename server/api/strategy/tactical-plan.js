@@ -230,7 +230,7 @@ router.post('/', requireAuth, async (req, res) => {
       avoidZones,
       strategy: tacticalSummary,
       metadata: {
-        model: 'gemini-3.5-flash',
+        role: 'STRATEGY_CONTEXT', // 2026-09-10: was a hardcoded model name (model-agnostic-roles rule)
         latencyMs,
         generatedAt: new Date().toISOString(),
         searchGrounded: true,

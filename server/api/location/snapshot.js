@@ -133,6 +133,9 @@ router.post("/", requireAuth, async (req, res) => {
 
     const dbSnapshot = {
       snapshot_id,
+      // 2026-09-10 (found while verifying VP-007): this authenticated route wrote NULL-owned
+      // rows, which the central ownership policy then rejects for everyone (orphans).
+      user_id: req.auth.userId,
       created_at: createdAtDate,
       date: today,
       session_id: snap.session_id || uuid(),

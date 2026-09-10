@@ -133,6 +133,17 @@ router.get('/events/strategy', requireAuthAllowQueryToken, async (req, res) => {
     // Use shared notification dispatcher - ONE handler, many subscribers
     unsubscribe = await subscribeToChannel('strategy_ready', (payload) => {
       if (cleanedUp) return; // Don't write to closed connection
+      // 2026-09-10 (found while verifying VP-007): the raw NOTIFY payload carries every
+      // driver's snapshot_id + user_id (trg_strategy_ready_v2) and was fanned out to every
+      // connected listener. Forward only the connection owner's rows; rows with no user_id
+      // reach no one; unparseable payloads are dropped loudly — same policy as offer_analyzed.
+      try {
+        const parsed = JSON.parse(payload);
+        if (!parsed.user_id || parsed.user_id !== req.auth?.userId) return;
+      } catch (parseErr) {
+        sseLog.error(1, `strategy_ready payload unparseable — dropped`, parseErr, OP.SSE);
+        return;
+      }
       res.write(`event: strategy_ready\n`);
       res.write(`data: ${payload}\n\n`);
     });
