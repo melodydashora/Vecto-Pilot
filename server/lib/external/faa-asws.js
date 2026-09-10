@@ -2,13 +2,19 @@
 import { parseStringPromise } from 'xml2js';
 
 const PUBLIC_API_URL = 'https://nasstatus.faa.gov/api/airport-status-information';
-const AUTH_API_BASE = 'https://external-api.faa.gov/asws';
+const STATUS_API_BASE = 'https://external-api.faa.gov/asws';
+const REQUEST_TIMEOUT_MS = 15000;
 
-export async function fetchFAADelayData(airportCode = null) {
+// 2026-09-10 (Melody): Briefing must surface failed providers, not infer normal
+// operations from missing data. Legacy snapshot callers retain the nullable API.
+export async function fetchFAADelayData(airportCode = null, { strict = false } = {}) {
   try {
+    if (airportCode !== null && !/^[A-Z]{3}$/i.test(airportCode)) {
+      throw new Error('FAA airport code must be a three-letter IATA code');
+    }
     const [publicData, authData] = await Promise.all([
       fetchPublicAPI(),
-      fetchAuthenticatedAPI(airportCode)
+      fetchStatusAPI(airportCode?.toUpperCase() ?? null)
     ]);
 
     if (airportCode) {
@@ -17,6 +23,7 @@ export async function fetchFAADelayData(airportCode = null) {
 
     return mergeAllAirportData(publicData, authData);
   } catch (error) {
+    if (strict) throw error;
     console.error('[FAA Hybrid] Fetch error:', error.message);
     return null;
   }
@@ -25,22 +32,24 @@ export async function fetchFAADelayData(airportCode = null) {
 async function fetchPublicAPI() {
   try {
     const response = await fetch(PUBLIC_API_URL, {
-      headers: { 'Accept': 'application/xml' }
+      headers: { 'Accept': 'application/xml' },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) throw new Error(`FAA disruption feed returned HTTP ${response.status}`);
 
     const xmlData = await response.text();
-    const parsedData = await parseStringPromise(xmlData, { 
+    const parsedData = await parseStringPromise(xmlData, {
       explicitArray: false,
-      mergeAttrs: true 
+      mergeAttrs: true
     });
 
     const airportData = [];
     const root = parsedData.AIRPORT_STATUS_INFORMATION;
-    
+    if (!root || !root.Update_Time) throw new Error('FAA disruption feed is missing its root or update time');
+
     const delayTypes = Array.isArray(root.Delay_type) ? root.Delay_type : [root.Delay_type];
-    
+
     delayTypes.forEach(delayType => {
       if (delayType?.Arrival_Departure_Delay_List?.Delay) {
         const delays = Array.isArray(delayType.Arrival_Departure_Delay_List.Delay)
@@ -116,61 +125,46 @@ async function fetchPublicAPI() {
       if (entry.closure_end) existing.closure_end = entry.closure_end;
     }
 
-    return Array.from(byCode.values());
+    return { airports: Array.from(byCode.values()), source_updated_at: root.Update_Time };
   } catch (error) {
-    console.error('[FAA Public API] Error:', error.message);
-    return null;
+    throw new Error(`FAA disruption feed unavailable: ${error.message}`);
   }
 }
 
-async function fetchAuthenticatedAPI(specificAirport = null) {
+async function fetchStatusAPI(specificAirport = null) {
   try {
-    const clientId = process.env.FAA_ASWS_CLIENT_ID;
-    const clientSecret = process.env.FAA_ASWS_CLIENT_SECRET;
-    
-    if (!clientId || !clientSecret) {
-      console.warn('[FAA Auth API] Credentials not found, skipping weather data');
-      return null;
-    }
-
-    const authHeader = 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    
-    if (specificAirport) {
-      const response = await fetch(`${AUTH_API_BASE}/api/airport/status/${specificAirport}`, {
-        headers: {
-          'Authorization': authHeader,
-          'Accept': 'application/json'
-        }
+    // FAA ASWS per-airport endpoint verified anonymously on 2026-09-10.
+    // Do not send unrelated/legacy Basic credentials to a public data endpoint.
+    const fetchAirport = async (code) => {
+      const response = await fetch(`${STATUS_API_BASE}/api/airport/status/${code}`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
       });
-      
-      if (!response.ok) return null;
+      if (!response.ok) throw new Error(`FAA status for ${code} returned HTTP ${response.status}`);
       const data = await response.json();
-      return [parseAuthAirportData(data)];
+      if (data?.IATA !== code || typeof data.SupportedAirport !== 'boolean' ||
+          (data.SupportedAirport && typeof data.Delay !== 'boolean')) {
+        throw new Error(`FAA status for ${code} has an invalid or mismatched payload`);
+      }
+      return parseStatusAirportData(data);
+    };
+
+    if (specificAirport) {
+      return [await fetchAirport(specificAirport)];
     }
 
     // 2026-07-06: US majors from the airports table (Google-seeded), not a
     // hardcoded list. Dynamic import avoids a module cycle at load time.
     const { db } = await import('../../db/drizzle.js');
-    const { airports: airportsTable } = await import('../../../shared/schema.js');
+    const { airports: airportsTable } = await import('../../../../shared/schema.js');
     const { eq } = await import('drizzle-orm');
     const usAirports = await db
       .select({ code: airportsTable.iata })
       .from(airportsTable)
       .where(eq(airportsTable.country, 'US'));
-    const requests = usAirports.map(airport =>
-      fetch(`${AUTH_API_BASE}/api/airport/status/${airport.code}`, {
-        headers: {
-          'Authorization': authHeader,
-          'Accept': 'application/json'
-        }
-      }).then(r => r.ok ? r.json() : null).catch(() => null)
-    );
-
-    const results = await Promise.all(requests);
-    return results.filter(r => r !== null).map(parseAuthAirportData);
+    return await Promise.all(usAirports.map(airport => fetchAirport(airport.code)));
   } catch (error) {
-    console.error('[FAA Auth API] Error:', error.message);
-    return null;
+    throw new Error(`FAA airport status unavailable: ${error.message}`);
   }
 }
 
@@ -180,7 +174,7 @@ function parseDelayData(delay) {
   const maxMatch = ad?.Max?.match(/(\d+)/);
   const minDelay = minMatch ? parseInt(minMatch[1]) : 0;
   const maxDelay = maxMatch ? parseInt(maxMatch[1]) : 0;
-  
+
   return {
     airport_code: delay.ARPT,
     delay_minutes: maxDelay,
@@ -248,13 +242,13 @@ function parseGroundDelayData(gd) {
   };
 }
 
-function parseAuthAirportData(data) {
+function parseStatusAirportData(data) {
   if (!data) return null;
-  
+
   const weather = data.Weather ? {
     temperature: data.Weather.Temp?.[0] ?? null,
     conditions: data.Weather.Weather?.[0]?.Temp?.[0] || null,
-    visibility: data.Weather.Visibility?.[0] || null,
+    visibility: data.Weather.Visibility?.[0] ?? null,
     wind: data.Weather.Wind?.[0] || null,
     last_updated: data.Weather.Meta?.[0]?.Updated || null
   } : null;
@@ -264,13 +258,18 @@ function parseAuthAirportData(data) {
     airport_name: data.Name,
     city: data.City,
     state: data.State,
+    supported: data.SupportedAirport,
+    has_delays: data.SupportedAirport ? data.Delay : null,
+    status_reason: Array.isArray(data.Status)
+      ? data.Status.map(item => item.Reason).filter(Boolean).join('; ') || null
+      : null,
     weather
   };
 }
 
 function mergeAirportData(airportCode, publicData, authData) {
   const code = airportCode.toUpperCase();
-  const publicInfo = publicData?.find(a => a.airport_code === code);
+  const publicInfo = publicData.airports.find(a => a.airport_code === code);
   const authInfo = authData?.find(a => a.airport_code === code);
 
   if (!publicInfo && !authInfo) return null;
@@ -280,66 +279,29 @@ function mergeAirportData(airportCode, publicData, authData) {
     airport_name: authInfo?.airport_name || code,
     city: authInfo?.city || null,
     state: authInfo?.state || null,
-    delay_minutes: publicInfo?.delay_minutes || 0,
+    // ASWS can report a delay before the aggregate feed contains its minutes.
+    delay_minutes: publicInfo?.delay_minutes ?? (authInfo?.has_delays === false ? 0 : null),
+    has_delays: publicInfo && (publicInfo.delay_minutes > 0 || publicInfo.ground_stops?.length > 0)
+      ? true : authInfo?.has_delays ?? null,
+    supported: authInfo?.supported ?? null,
     ground_stops: publicInfo?.ground_stops || [],
     ground_delay_programs: publicInfo?.ground_delay_programs || [],
-    closure_status: publicInfo?.closure_status || 'open',
-    delay_reason: publicInfo?.delay_reason || null,
+    closure_status: publicInfo?.closure_status || (authInfo?.has_delays === false ? 'open' : 'unknown'),
+    delay_reason: publicInfo?.delay_reason || authInfo?.status_reason || (authInfo?.supported === false ? 'FAA ASWS does not cover this airport' : null),
     closure_start: publicInfo?.closure_start || null,
     closure_end: publicInfo?.closure_end || null,
     weather: authInfo?.weather || null,
-    last_updated: new Date().toISOString()
+    source_updated_at: publicData.source_updated_at,
+    last_updated: publicData.source_updated_at,
+    fetched_at: new Date().toISOString()
   };
 }
 
+// 2026-09-10: Replace weather-only zero-delay defaults with the same observed
+// status merge used for individual airports. Previous implementation is in Git.
 function mergeAllAirportData(publicData, authData) {
-  const mergedMap = new Map();
-
-  publicData?.forEach(airport => {
-    mergedMap.set(airport.airport_code, {
-      airport_code: airport.airport_code,
-      delay_minutes: airport.delay_minutes,
-      ground_stops: airport.ground_stops || [],
-      ground_delay_programs: airport.ground_delay_programs,
-      closure_status: airport.closure_status,
-      delay_reason: airport.delay_reason,
-      closure_start: airport.closure_start,
-      closure_end: airport.closure_end
-    });
-  });
-
-  authData?.forEach(airport => {
-    if (airport) {
-      const existing = mergedMap.get(airport.airport_code);
-      if (existing) {
-        existing.airport_name = airport.airport_name;
-        existing.city = airport.city;
-        existing.state = airport.state;
-        existing.weather = airport.weather;
-      } else {
-        mergedMap.set(airport.airport_code, {
-          airport_code: airport.airport_code,
-          airport_name: airport.airport_name,
-          city: airport.city,
-          state: airport.state,
-          delay_minutes: 0,
-          ground_stops: [],
-          ground_delay_programs: [],
-          closure_status: 'open',
-          delay_reason: null,
-          weather: airport.weather
-        });
-      }
-    }
-  });
-
-  const result = Array.from(mergedMap.values()).map(airport => ({
-    ...airport,
-    ground_stops: airport.ground_stops || [],
-    last_updated: new Date().toISOString()
-  }));
-
-  return result;
+  const codes = new Set([...publicData.airports.map(a => a.airport_code), ...authData.map(a => a.airport_code)]);
+  return [...codes].map(code => mergeAirportData(code, publicData, authData));
 }
 
 // 2026-07-06 (todo #22): getMajorUSAirports + getNearestMajorAirport DELETED.
