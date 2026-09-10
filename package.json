@@ -21,6 +21,7 @@
     "mcp:stdio": "node mcp-server.js --stdio",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' jest tests/ --verbose",
+    "test:client": "NODE_OPTIONS='--experimental-vm-modules' jest -c jest.client.config.js",
     "test:e2e": "playwright test tests/e2e/copilot.spec.ts",
     "test:seed": "node scripts/seed-dev.js && npm run test:unit",
     "guard": "npm-run-all -s guard:json guard:deps guard:js",

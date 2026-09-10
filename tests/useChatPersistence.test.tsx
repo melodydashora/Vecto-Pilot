@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach } from '@jest/globals';
 import { renderHook, act } from '@testing-library/react';
 import { useChatPersistence, ChatMessage } from '../client/src/hooks/useChatPersistence';
 

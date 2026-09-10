@@ -1,3 +1,4 @@
+import { describe, test, expect, beforeAll, afterAll, jest } from '@jest/globals';
 import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -17,9 +18,9 @@ jest.mock('../client/src/utils/co-pilot-helpers', () => ({
   getAuthHeader: jest.fn(() => ({})),
   formatEventDate: (date: string) => date,
   formatEventTimeRange: (start: string, end: string) => `${start} - ${end}`,
-  filterValidEvents: jest.requireActual('../client/src/utils/co-pilot-helpers').filterValidEvents,
-  isEventToday: jest.requireActual('../client/src/utils/co-pilot-helpers').isEventToday,
-  hasValidEventTime: jest.requireActual('../client/src/utils/co-pilot-helpers').hasValidEventTime,
+  filterValidEvents: jest.requireActual<typeof import('../client/src/utils/co-pilot-helpers')>('../client/src/utils/co-pilot-helpers').filterValidEvents,
+  isEventToday: jest.requireActual<typeof import('../client/src/utils/co-pilot-helpers')>('../client/src/utils/co-pilot-helpers').isEventToday,
+  hasValidEventTime: jest.requireActual<typeof import('../client/src/utils/co-pilot-helpers')>('../client/src/utils/co-pilot-helpers').hasValidEventTime,
 }));
 
 // Mock EventsComponent to simplify testing - we want to test BriefingTab's filtering
