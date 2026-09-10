@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { latLngToCell } from 'h3-js';
 import { db } from '../../db/drizzle.js';
 import { snapshots, strategies, users, coords_cache, markets, driver_profiles } from '../../../shared/schema.js';
-import { sql, eq, or, ilike } from 'drizzle-orm';
+import { sql, eq, or, ilike, and } from 'drizzle-orm';
 import { matrixLog } from '../../logger/workflow.js';
 // 2026-01-10: Use canonical coords-key module (consolidated from 4 duplicates)
 import { makeCoordsKey } from '../../lib/location/coords-key.js';
@@ -150,10 +150,12 @@ function pickBestGeocodeResult(results) {
   // Fall back to first result if no street address found
   const best = streetAddress || results[0];
 
+  // 2026-09-10: the driver's street address is not log content (agreement §15.8; the log
+  // tail is readable by operators, and was readable by every driver — security finding [2]).
   if (streetAddress) {
-    console.log(`[LOCATION] Selected street address: ${best.formatted_address}`);
+    console.log(`[LOCATION] Selected street-address result (place_id=${best.place_id || 'n/a'})`);
   } else {
-    console.log(`[LOCATION] Using fallback result (no street address found): ${best.formatted_address}`);
+    console.log(`[LOCATION] Using fallback geocode result (no street address found; types=${(best.types || []).join('|') || 'n/a'})`);
   }
 
   return best;
@@ -890,8 +892,11 @@ router.get('/resolve', async (req, res) => {
         if (!forceRefresh && existingUser?.current_snapshot_id) {
           // Query the snapshot to check its age AND city before reusing
           // 2026-01-31: FIX - Also check if city changed (user moved to different city)
+          // 2026-09-10 (security finding [12], verified): a pointer at another user's snapshot
+          // must not be reused — bind the read to the caller; a foreign pointer falls through
+          // to the "not found — creating fresh" branch, which also self-heals it.
           const existingSnapshot = await db.query.snapshots.findFirst({
-            where: eq(snapshots.snapshot_id, existingUser.current_snapshot_id),
+            where: and(eq(snapshots.snapshot_id, existingUser.current_snapshot_id), eq(snapshots.user_id, userId)),
             columns: { snapshot_id: true, created_at: true, city: true, state: true }
           }).catch(() => null);
 
@@ -1642,7 +1647,6 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       
       // Log what we're about to save
       console.log('[SNAPSHOT] Full mode - client sent resolved location:', {
-        formattedAddress: snapshotV1.resolved?.formattedAddress,
         city: snapshotV1.resolved?.city,
         state: snapshotV1.resolved?.state,
         country: snapshotV1.resolved?.country,
@@ -1859,11 +1863,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     }
 
     console.log('[SNAPSHOT] Self-contained validation passed:', {
-      lat: dbSnapshot.lat,
-      lng: dbSnapshot.lng,
       city: dbSnapshot.city,
       state: dbSnapshot.state,
-      formatted_address: dbSnapshot.formatted_address?.substring(0, 30) + '...',
       timezone: dbSnapshot.timezone,
       hour: dbSnapshot.hour,
       dow: dbSnapshot.dow,
@@ -1874,8 +1875,8 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
     // Uses DATABASE_URL automatically injected by Replit for both dev and production
     console.log('[Snapshot DB] Writing SELF-CONTAINED snapshot to database:');
     console.log('  → snapshot_id:', dbSnapshot.snapshot_id);
-    console.log('  → LOCATION: lat=%s lng=%s city=%s state=%s timezone=%s', 
-      dbSnapshot.lat, dbSnapshot.lng, dbSnapshot.city, dbSnapshot.state, dbSnapshot.timezone);
+    console.log('  → LOCATION: city=%s state=%s timezone=%s (coords redacted)',
+      dbSnapshot.city, dbSnapshot.state, dbSnapshot.timezone);
     console.log('  → TIME: date=%s hour=%s dow=%s day_part=%s', dbSnapshot.date, dbSnapshot.hour, dbSnapshot.dow, dbSnapshot.day_part_key);
     console.log('  → weather:', dbSnapshot.weather);
     console.log('  → air:', dbSnapshot.air);
@@ -1893,7 +1894,10 @@ router.post('/snapshot', validateBody(snapshotMinimalSchema), async (req, res) =
       // 2026-04-14 (Memory #108): Multi-source user_id resolution + FAIL-LOUD fallback.
       // Previously only checked snapshotV1.userId (camelCase) which never matched the
       // client's user_id (snake_case). Now tries all known sources and logs loudly if none resolve.
-      const snapshotUserId = snapshotV1.userId || snapshotV1.user_id || dbSnapshot.user_id || req.auth?.userId;
+      // 2026-09-10 (security finding [12], verified): the client-supplied userId/user_id were
+      // consulted FIRST, so a body value could move another user's current_snapshot_id (and bump
+      // their sliding-window clock). The token is the only identity source.
+      const snapshotUserId = req.auth?.userId;
       if (snapshotUserId) {
         try {
           const updateResult = await db.update(users)

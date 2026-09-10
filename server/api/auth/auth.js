@@ -1092,6 +1092,11 @@ router.post('/reset-password', async (req, res) => {
         updated_at: new Date()
       })
       .where(eq(auth_credentials.user_id, userId));
+    // 2026-09-10 (security finding [9], verified): a password reset left the existing session
+    // (and any token issued for it) valid for up to 2 h. Same UPDATE logout uses.
+    await db.update(users)
+      .set({ session_id: null, current_snapshot_id: null, updated_at: new Date() })
+      .where(eq(users.user_id, userId));
 
     matrixLog.info({
       category: 'AUTH',
@@ -1747,6 +1752,14 @@ router.post('/google/exchange', async (req, res) => {
           await tx.update(auth_credentials)
             .set({ password_hash: null })
             .where(eq(auth_credentials.user_id, activeProfile.user_id));
+          // The same unproven registrant chose the phone (SMS reset target) and may hold a
+          // live session — neither survives the address owner's verified Google login.
+          await tx.update(driver_profiles)
+            .set({ phone: null, phone_verified: false })
+            .where(eq(driver_profiles.id, activeProfile.id));
+          await tx.update(users)
+            .set({ session_id: null, current_snapshot_id: null, updated_at: new Date() })
+            .where(eq(users.user_id, activeProfile.user_id));
         }
       });
       passwordRevoked = verdict.revokePassword;

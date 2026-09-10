@@ -423,7 +423,9 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       source: 'db',
     }));
   } catch (err) {
-    console.error('[CONCIERGE] Events DB query error:', err.message);
+    // 2026-09-10: still degrade to "no DB events" for the rider (optional data), but the
+    // failure is logged with its cause instead of looking like an empty city.
+    console.error('[CONCIERGE] Events DB query FAILED (returning no DB events):', err.message);
     return [];
   }
 }

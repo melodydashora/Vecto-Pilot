@@ -16,7 +16,7 @@
  */
 
 import { getRouteWithTraffic, getRouteMatrix } from "../external/routes-api.js";
-import { getStreetViewUrl, checkStreetViewAvailability } from "../external/streetview-api.js";
+// 2026-09-10: streetview-api import removed — the URL carried the server Maps key (finding [4]).
 import { venuesLog, OP } from "../../logger/workflow.js";
 // 2026-01-14: Import batch address resolver to replace per-venue geocoding
 import { resolveVenueAddressesBatch } from "./venue-address-resolver.js";
@@ -155,11 +155,11 @@ export async function enrichVenues(venues, driverLocation, snapshot = null) {
           return null; // Filter this venue out
         }
 
-        // 4. Generate Street View URL (no API call - just URL construction)
-        const streetViewUrl = getStreetViewUrl(
-          { lat: venue.lat, lng: venue.lng },
-          { width: 400, height: 300 }
-        );
+        // 4. Street View URL — 2026-09-10 (security finding [4], verified): the URL embedded
+        // the server GOOGLE_MAPS_API_KEY and was returned to drivers and persisted in
+        // ranking_candidates.features. No client component renders it (dead field), so it is
+        // null until a key-less server proxy exists.
+        const streetViewUrl = null;
 
         const enrichedVenue = {
           ...venue,

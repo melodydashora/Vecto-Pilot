@@ -10,6 +10,7 @@ import { db } from '../../db/drizzle.js';
 import { snapshots, discovered_events, news_deactivations, briefings, market_cities, venue_catalog } from '../../../shared/schema.js';
 import { eq, desc, and, gte, lte, ilike, not, or, sql } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth.js';
+import { isOperator } from '../../middleware/require-operator.js';
 import { expensiveEndpointLimiter } from '../../middleware/rate-limit.js';
 import { requireSnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { filterFreshEvents, filterFreshNews } from '../../lib/strategy/strategy-utils.js';
@@ -1367,6 +1368,11 @@ router.patch('/event/:eventId/deactivate', requireAuth, async (req, res) => {
       .orderBy(desc(snapshots.created_at))
       .limit(1);
 
+    // 2026-09-10 (security finding [11], verified): a caller with NO snapshot used to skip the
+    // market check entirely. Fail closed — only operators/service accounts moderate without one.
+    if (!userSnapshot && !isOperator(req.auth)) {
+      return res.status(403).json({ error: 'A current snapshot in the event market is required to moderate events' });
+    }
     if (userSnapshot && event.city && userSnapshot.city?.toLowerCase() !== event.city?.toLowerCase()) {
       return res.status(403).json({ error: 'You can only deactivate events in your market area' });
     }
@@ -1433,6 +1439,11 @@ router.patch('/event/:eventId/reactivate', requireAuth, async (req, res) => {
       .orderBy(desc(snapshots.created_at))
       .limit(1);
 
+    // 2026-09-10 (security finding [11], verified): a caller with NO snapshot used to skip the
+    // market check entirely. Fail closed — only operators/service accounts moderate without one.
+    if (!userSnapshot && !isOperator(req.auth)) {
+      return res.status(403).json({ error: 'A current snapshot in the event market is required to moderate events' });
+    }
     if (userSnapshot && event.city && userSnapshot.city?.toLowerCase() !== event.city?.toLowerCase()) {
       return res.status(403).json({ error: 'You can only reactivate events in your market area' });
     }

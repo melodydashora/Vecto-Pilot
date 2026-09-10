@@ -214,11 +214,9 @@ export function toApiBlock(dbBlock) {
   }
 
   // 5. Resolve Street View URL (snake/camel tolerant)
-  const streetViewUrl = dbBlock.streetViewUrl ??
-                        dbBlock.street_view_url ??
-                        dbBlock.features?.streetViewUrl ??
-                        dbBlock.features?.street_view_url ??
-                        null;
+  // 2026-09-10 (security finding [4]): legacy rows persisted a Street View URL carrying the
+  // server Maps key; never let it leave the server again. The client copies but never renders it.
+  const streetViewUrl = null;
 
   // 6. Resolve Closed Venue Reasoning (multiple legacy column names)
   const closedVenueReasoning = dbBlock.closedVenueReasoning ??

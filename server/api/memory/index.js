@@ -3,7 +3,7 @@
 // 2026-04-14: Created for memory-keeper agent and internal tooling
 //
 // 2026-05-12 SECURITY (Item 3 of auth-hardening): this router IS mounted
-// publicly under /api (see server/bootstrap/routes.js:117). The prior comment
+// publicly under /api (see server/bootstrap/routes.js, the '/api/memory' entry). The prior comment
 // claimed it was internal-only — that was wrong. requireAuth is now applied
 // at the top to gate every route below. Authenticated callers (bearer JWT or
 // x-vecto-agent-secret / x-claude-bridge-token service-account headers) are
@@ -18,6 +18,14 @@ import { requireOperator } from '../../middleware/require-operator.js';
 
 const router = Router();
 
+// Columns a caller may set. Everything else (id, created_at, updated_at) is server-owned.
+const WRITABLE_FIELDS = ['session_id', 'category', 'title', 'content', 'source', 'priority', 'status', 'tags', 'related_files', 'parent_id', 'metadata'];
+function pickWritable(body) {
+  const out = {};
+  for (const k of WRITABLE_FIELDS) if (body && Object.prototype.hasOwnProperty.call(body, k)) out[k] = body[k];
+  return out;
+}
+
 // 2026-09-10 (security finding [1]): requireAuth proves "a driver"; this is Claude's private
 // continuity store (Melody's context rows included) and POST/PATCH take raw req.body.
 // Operators and service accounts only — see require-operator.js.
@@ -29,6 +37,9 @@ router.use(requireAuth, requireOperator);
 router.get('/', async (req, res) => {
   try {
     const { category, status, search, limit = 50 } = req.query;
+    // 2026-09-10: caller-controlled limit was uncapped (one request dumped the table); same
+    // clamp as server/mcp/continuity-store.js.
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
     const conditions = [];
 
     if (category) conditions.push(eq(claudeMemory.category, category));
@@ -40,12 +51,12 @@ router.get('/', async (req, res) => {
 
     const results = await query
       .orderBy(desc(claudeMemory.created_at))
-      .limit(Number(limit));
+      .limit(safeLimit);
 
     res.json(results);
   } catch (err) {
     console.error('[MEMORY] GET / error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'memory_request_failed' });
   }
 });
 
@@ -64,7 +75,7 @@ router.get('/stats', async (req, res) => {
     res.json(stats);
   } catch (err) {
     console.error('[MEMORY] GET /stats error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'memory_request_failed' });
   }
 });
 
@@ -83,7 +94,7 @@ router.get('/rules', async (req, res) => {
     res.json(rules);
   } catch (err) {
     console.error('[MEMORY] GET /rules error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'memory_request_failed' });
   }
 });
 
@@ -99,7 +110,7 @@ router.get('/session/:sessionId', async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error('[MEMORY] GET /session error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'memory_request_failed' });
   }
 });
 
@@ -113,11 +124,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields: session_id, category, title, content' });
     }
 
-    const entry = await db.insert(claudeMemory).values(req.body).returning();
+    // 2026-09-10: never pass req.body straight to the ORM — `id`, `created_at`, `updated_at`
+    // were assignable (mass assignment). Only these columns may be set by a caller.
+    const entry = await db.insert(claudeMemory).values(pickWritable(req.body)).returning();
     res.json(entry[0]);
   } catch (err) {
     console.error('[MEMORY] POST / error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'memory_request_failed' });
   }
 });
 
@@ -126,8 +139,12 @@ router.post('/', async (req, res) => {
 // ============================================================================
 router.patch('/:id', async (req, res) => {
   try {
+    const patch = pickWritable(req.body);
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'No writable fields in body' });
+    }
     const entry = await db.update(claudeMemory)
-      .set({ ...req.body, updated_at: new Date() })
+      .set({ ...patch, updated_at: new Date() })
       .where(eq(claudeMemory.id, Number(req.params.id)))
       .returning();
 
@@ -137,7 +154,7 @@ router.patch('/:id', async (req, res) => {
     res.json(entry[0]);
   } catch (err) {
     console.error('[MEMORY] PATCH /:id error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'memory_request_failed' });
   }
 });
 
