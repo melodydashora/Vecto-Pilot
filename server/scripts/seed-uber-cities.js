@@ -338,7 +338,16 @@ const uberCitiesData = {
   }
 };
 
+const SEED_UBER_CITIES_DISABLED = true; // 2026-09-10: see the throw below
+
 async function seedUberCities() {
+  // 2026-09-10 (Astra product finding #15b, verified): this script deleted every Uber
+  // platform_data row OUTSIDE a transaction and then inserted the dropped `state_province`
+  // column (schema uses `region`), i.e. it would wipe the table and fail. The live loader is
+  // scripts/import-platform-data.js. Fail loud until this script is rewritten or archived.
+  if (SEED_UBER_CITIES_DISABLED) {
+    throw new Error('seed-uber-cities.js is disabled: it references the dropped state_province column and deletes platform_data outside a transaction. Use scripts/import-platform-data.js.');
+  }
   const client = await pool.connect();
 
   try {

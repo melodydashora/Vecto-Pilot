@@ -56,6 +56,13 @@ async function execute(sql, params = [], description = '') {
       .replace(/^DELETE FROM/i, 'SELECT COUNT(*) as count FROM')
       .replace(/^UPDATE\s+(\S+)\s+SET[^WHERE]+WHERE/i, 'SELECT COUNT(*) as count FROM $1 WHERE');
 
+    // 2026-09-10 (Astra product finding #15, verified): `[^WHERE]` is a character class, not
+    // the word, so the UPDATE rewrite failed for any SET clause containing w/h/e/r and the
+    // dry run sent the real UPDATE. A dry run that still holds a mutation must refuse, never query.
+    if (/^\s*(UPDATE|DELETE|INSERT|TRUNCATE|ALTER|DROP)\b/i.test(countSql)) {
+      throw new Error(`[DRY RUN] refusing to execute a mutation in dry-run mode (${description}): rewrite failed — add an explicit COUNT query for this phase`);
+    }
+
     try {
       const result = await pool.query(countSql, params);
       const count = result.rows[0]?.count || 0;

@@ -1096,7 +1096,7 @@ PRE-PARSED DATA (server-verified):
             const snapRes = await db.execute(sql`
               SELECT s.timezone, s.lat, s.lng, s.created_at
               FROM users u
-              JOIN snapshots s ON s.snapshot_id = u.current_snapshot_id
+              JOIN snapshots s ON s.snapshot_id = u.current_snapshot_id AND s.user_id = u.user_id
               WHERE u.user_id = ${userId}
               LIMIT 1`);
             const row = snapRes.rows?.[0];
@@ -1212,7 +1212,7 @@ PRE-PARSED DATA (server-verified):
             if (puTz) {
               driverTimezone = puTz;
               timezoneSource = 'pickup_address';
-              console.log(`[HOOKS] Timezone ${puTz} from pickup address ("${pickupAddr}" → ${pickupPoint.formatted_address}; via ${pickupPoint.via}, trust=${pickupPoint.trust}, corroborated by ${pickupPoint.corroboration}${pickupPoint.distance_mi != null ? ` at ${pickupPoint.distance_mi} mi` : ''})`);
+              console.log(`[HOOKS] Timezone ${puTz} from pickup address (via ${pickupPoint.via}, trust=${pickupPoint.trust}, corroborated by ${pickupPoint.corroboration}${pickupPoint.distance_mi != null ? ` at ${pickupPoint.distance_mi} mi` : ''}; address redacted from logs 2026-09-10)`);
               // Audit line, NOT a switch: the snapshot is GPS-truth for where the app was
               // LAST OPENED; the pickup is where THIS offer is. A trusted pickup in another
               // zone means the driver moved since (road trip) — visible here, not silent.
@@ -1284,7 +1284,7 @@ PRE-PARSED DATA (server-verified):
         const pickupPt = pickupPoint?.precise ? { lat: round6(pickupPoint.lat), lng: round6(pickupPoint.lng) } : null;
         const dropPt = dropoffPoint?.precise ? { lat: round6(dropoffPoint.lat), lng: round6(dropoffPoint.lng) } : null;
         if ((pickupPoint && !pickupPt) || (dropoffPoint && !dropPt)) {
-          console.log(`[HOOKS] Area-level point(s) kept out of coords/audit: ${[pickupPoint && !pickupPt ? `pickup → ${pickupPoint.formatted_address}` : null, dropoffPoint && !dropPt ? `dropoff → ${dropoffPoint.formatted_address}` : null].filter(Boolean).join('; ')}`);
+          console.log(`[HOOKS] Area-level point(s) kept out of coords/audit: ${[pickupPoint && !pickupPt ? `pickup (${pickupPoint.trust})` : null, dropoffPoint && !dropPt ? `dropoff (${dropoffPoint.trust})` : null].filter(Boolean).join('; ')}`);
         }
         if (pickupPt || dropPt) {
           const geoAudit = (ruleset.avoid || []).length

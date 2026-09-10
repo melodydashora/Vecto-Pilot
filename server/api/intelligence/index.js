@@ -32,6 +32,7 @@ import { market_intelligence, platform_data, ranking_candidates, market_cities, 
 import { eq, and, or, ilike, sql, desc, asc, isNotNull } from 'drizzle-orm';
 // 2026-02-12: Added requireAuth - intelligence routes require authentication
 import { requireAuth } from '../../middleware/auth.js';
+import { requireOperator } from '../../middleware/require-operator.js';
 
 const router = express.Router();
 
@@ -679,7 +680,10 @@ router.get('/:id', async (req, res) => {
  * Create a new intelligence item
  * Used by AI Coach and admin to add new intelligence
  */
-router.post('/', async (req, res) => {
+// 2026-09-10 (security finding [5], verified): shared research intelligence (not per-user) —
+// any driver could overwrite entries, soft-delete them, or forge is_verified. Operators only;
+// drivers contribute through the Coach / feedback paths.
+router.post('/', requireOperator, async (req, res) => {
   try {
     const {
       market,
@@ -764,7 +768,7 @@ router.post('/', async (req, res) => {
  * PUT /api/intelligence/:id
  * Update an intelligence item
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireOperator, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -815,7 +819,7 @@ router.put('/:id', async (req, res) => {
  * DELETE /api/intelligence/:id
  * Soft delete an intelligence item (set is_active to false)
  */
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireOperator, async (req, res) => {
   try {
     const { id } = req.params;
 

@@ -73,6 +73,24 @@ describe('repo tools over MCP', () => {
     expect(names).not.toContain('.git');
   });
 
+  it('never lists or returns hits from secrets-shaped or gitignored files (2026-09-10, security finding [6])', async () => {
+    // .env / .env.local exist in the workspace (gitignored, secrets-shaped); .env.local.example is tracked.
+    const listing = await client.callTool({ name: 'repo_list_dir', arguments: {} });
+    const names = listing.structuredContent.entries.map(e => e.name);
+    expect(names).not.toContain('.env');
+    expect(names).not.toContain('.env.local');
+    expect(names).toContain('.env.local.example');
+
+    // DATABASE_URL appears in the real env files AND in the tracked example; only the example may surface.
+    const res = await client.callTool({ name: 'repo_search', arguments: { pattern: '^DATABASE_URL=', path: '.' } });
+    expect(res.isError).toBeFalsy();
+    const files = res.structuredContent.rows.map(r => r.file);
+    expect(files.some(f => f === '.env' || f === '.env.local')).toBe(false);
+    expect(res.structuredContent.total_matches).toBe(res.structuredContent.rows.length);
+    // every surviving env-shaped hit must be a tracked *.example placeholder, never a real env file
+    for (const f of files) expect(!/(^|\/)\.env(\.|$)/.test(f) || /\.example$/.test(f)).toBe(true);
+  });
+
   it('greps with fixed args and returns file:line rows', async () => {
     const res = await client.callTool({ name: 'repo_search', arguments: { pattern: 'export function createVectoMcpServer', path: 'server/mcp', glob: '*.js' } });
     expect(res.isError).toBeFalsy();

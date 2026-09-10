@@ -359,11 +359,15 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
     const latDelta = RADIUS_MILES / 69.0;
     const lngDelta = RADIUS_MILES / (69.0 * Math.cos(lat * Math.PI / 180));
 
+    // 2026-09-10 (Astra product finding #4, verified): discovered_events.lat/lng were dropped
+    // (shared/schema.js — venue_catalog is the coordinate source); the old predicate compiled
+    // to `BETWEEN $1 AND $2` on an undefined column, the catch swallowed it and the concierge
+    // silently showed no DB events. Coordinates now come from the linked venue.
     let conditions = [
       eq(discovered_events.is_active, true),
       sql`${discovered_events.event_start_date} = ${todayDate}`,
-      sql`${discovered_events.lat} BETWEEN ${lat - latDelta} AND ${lat + latDelta}`,
-      sql`${discovered_events.lng} BETWEEN ${lng - lngDelta} AND ${lng + lngDelta}`,
+      sql`${venue_catalog.lat} BETWEEN ${lat - latDelta} AND ${lat + latDelta}`,
+      sql`${venue_catalog.lng} BETWEEN ${lng - lngDelta} AND ${lng + lngDelta}`,
     ];
 
     // If filter specifies event categories, restrict
@@ -380,8 +384,8 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       address: discovered_events.address,
       city: discovered_events.city,
       state: discovered_events.state,
-      lat: discovered_events.lat,
-      lng: discovered_events.lng,
+      lat: venue_catalog.lat,
+      lng: venue_catalog.lng,
       event_start_date: discovered_events.event_start_date,
       event_start_time: discovered_events.event_start_time,
       event_end_time: discovered_events.event_end_time,
@@ -389,6 +393,7 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       expected_attendance: discovered_events.expected_attendance,
     })
       .from(discovered_events)
+      .innerJoin(venue_catalog, eq(discovered_events.venue_id, venue_catalog.venue_id))
       .where(and(...conditions))
       .limit(200);
 
@@ -418,7 +423,9 @@ async function queryNearbyEvents({ lat, lng, filter, todayDate }) {
       source: 'db',
     }));
   } catch (err) {
-    console.error('[CONCIERGE] Events DB query error:', err.message);
+    // 2026-09-10: still degrade to "no DB events" for the rider (optional data), but the
+    // failure is logged with its cause instead of looking like an empty city.
+    console.error('[CONCIERGE] Events DB query FAILED (returning no DB events):', err.message);
     return [];
   }
 }

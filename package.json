@@ -9,7 +9,7 @@
     "start": "node gateway-server.js",
     "dev": "APP_RUNTIME=workspace node gateway-server.js",
     "db:push": "drizzle-kit generate && drizzle-kit push",
-    "db:migrate": "for f in migrations/*.sql; do echo \"Running $f...\"; psql $DATABASE_URL -f \"$f\"; done",
+    "db:migrate": "node -e \"import('./server/db/run-migrations.js').then(m => m.runMigrations()).then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); })\"",
     "pull-coach-memos": "node scripts/pull-coach-memos.mjs",
     "build": "vite build",
     "dev:client": "vite dev",

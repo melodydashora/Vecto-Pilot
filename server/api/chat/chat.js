@@ -11,6 +11,7 @@ import { snapshots, strategies, driver_profiles } from '../../../shared/schema.j
 import { eq, desc, sql } from 'drizzle-orm';
 import { rideshareCoachDAL } from '../../lib/ai/rideshare-coach-dal.js';
 import { requireAuth } from '../../middleware/auth.js';
+import { isOperator } from '../../middleware/require-operator.js';
 import { requireSnapshotOwnership, verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { voiceTurnsLimiter } from '../../middleware/rate-limit.js';
 import { validateAction } from '../rideshare-coach/validate.js';
@@ -1802,7 +1803,7 @@ router.post('/conversations/:messageId/star', requireAuth, async (req, res) => {
   const { starred } = req.body;
 
   try {
-    const result = await rideshareCoachDAL.toggleMessageStar(messageId, starred !== false);
+    const result = await rideshareCoachDAL.toggleMessageStar(messageId, req.auth.userId, starred !== false);
     if (result) {
       res.json({ success: true, message_id: messageId, starred: result.is_starred });
     } else {
@@ -1908,12 +1909,25 @@ router.post('/deactivate-event', requireAuth, async (req, res) => {
   }
 
   try {
+    // 2026-09-10 (verification extra finding, not in Astra's report): this was a second
+    // deactivation surface with NO market check — the DAL matched the title against the
+    // 100 newest active events nationwide. Same rule as /api/briefing/event/:id/deactivate:
+    // the caller needs a current snapshot, and only events in that city can match.
+    const [userSnapshot] = await db.select({ city: snapshots.city })
+      .from(snapshots)
+      .where(eq(snapshots.user_id, userId))
+      .orderBy(desc(snapshots.created_at))
+      .limit(1);
+    if (!userSnapshot?.city && !isOperator(req.auth)) {
+      return res.status(403).json({ error: 'A current snapshot in the event market is required to deactivate events' });
+    }
     const result = await rideshareCoachDAL.deactivateEvent({
       user_id: userId,
       event_title,
       reason: reason || 'User requested removal',
       notes: notes || null,
-      deactivated_by: 'user'
+      deactivated_by: 'user',
+      restrict_city: isOperator(req.auth) ? null : userSnapshot.city
     });
 
     if (result) {

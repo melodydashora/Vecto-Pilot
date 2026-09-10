@@ -14,6 +14,7 @@
 //   Fix: Post-subscribe cleanup check + 30s heartbeat on all endpoints
 
 import express from 'express';
+import { verifySnapshotOwnership } from '../../middleware/require-snapshot-ownership.js';
 import { subscribeToChannel } from '../../db/db-client.js';
 import { sseLog, chainLog, OP } from '../../logger/workflow.js';
 // Phase events use EventEmitter (high-frequency, ephemeral - no DB needed)
@@ -72,6 +73,30 @@ function startHeartbeat(res) {
   }, HEARTBEAT_INTERVAL_MS);
 }
 
+
+// 2026-09-10 (security finding [3] / verification extras): the ?snapshot_id= handshakes read
+// any snapshot's state, and the briefing/blocks broadcasts forwarded every driver's NOTIFYs
+// to every listener. Each connection now proves ownership of its handshake snapshot and only
+// receives events for THAT snapshot; a connection without a verified snapshot receives none.
+async function verifiedHandshakeSnapshotId(req) {
+  const raw = typeof req.query.snapshot_id === 'string' ? req.query.snapshot_id : null;
+  if (!raw) return null;
+  const owned = await verifySnapshotOwnership(raw, req.auth?.userId);
+  if (!owned.ok) {
+    sseLog.warn(1, `Handshake snapshot rejected (${owned.status} ${owned.body?.error})`, OP.SSE);
+    return null;
+  }
+  return owned.snapshot.snapshot_id;
+}
+function payloadSnapshotId(payload) {
+  try {
+    const parsed = JSON.parse(payload);
+    return parsed?.snapshot_id ?? parsed?.snapshotId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 router.get('/events/strategy', requireAuthAllowQueryToken, async (req, res) => {
   strategyConnections++;
   chainLog({ parent: 'STRATEGY', callTypes: ['SSE'] }, `connected (${strategyConnections} active) - /events/strategy`);
@@ -105,7 +130,7 @@ router.get('/events/strategy', requireAuthAllowQueryToken, async (req, res) => {
   // 2026-04-18 (F2): Initial-state handshake. If client passed ?snapshot_id=,
   // query strategies for current readiness and emit a `state` event so a client
   // that missed the original strategy_ready NOTIFY catches up immediately.
-  const handshakeSnapshotId = typeof req.query.snapshot_id === 'string' ? req.query.snapshot_id : null;
+  const handshakeSnapshotId = await verifiedHandshakeSnapshotId(req);
   if (handshakeSnapshotId) {
     try {
       const [row] = await db.select({
@@ -191,7 +216,7 @@ router.get('/events/briefing', requireAuthAllowQueryToken, async (req, res) => {
   // that missed the original briefing_ready NOTIFY catches up immediately. This
   // is the primary fix for the "infinite spinner after LISTEN reconnect window"
   // symptom documented in NOTIFY_LOSS_RECON_2026-04-18.md.
-  const handshakeBriefingSnapshotId = typeof req.query.snapshot_id === 'string' ? req.query.snapshot_id : null;
+  const handshakeBriefingSnapshotId = await verifiedHandshakeSnapshotId(req);
   if (handshakeBriefingSnapshotId) {
     try {
       const [row] = await db.select({
@@ -245,6 +270,7 @@ router.get('/events/briefing', requireAuthAllowQueryToken, async (req, res) => {
     // signal. Downstream consumers (strategist pipeline, tests) still key off it.
     unsubscribers.push(await subscribeToChannel('briefing_ready', (payload) => {
       if (cleanedUp) return;
+      if (!handshakeBriefingSnapshotId || payloadSnapshotId(payload) !== handshakeBriefingSnapshotId) return;
       res.write(`event: briefing_ready\n`);
       res.write(`data: ${payload}\n\n`);
     }));
@@ -255,6 +281,7 @@ router.get('/events/briefing', requireAuthAllowQueryToken, async (req, res) => {
     for (const channel of perSectionChannels) {
       unsubscribers.push(await subscribeToChannel(channel, (payload) => {
         if (cleanedUp) return;
+        if (!handshakeBriefingSnapshotId || payloadSnapshotId(payload) !== handshakeBriefingSnapshotId) return;
         res.write(`event: briefing_ready\n`);
         res.write(`data: ${payload}\n\n`);
       }));
@@ -308,7 +335,7 @@ router.get('/events/blocks', requireAuthAllowQueryToken, async (req, res) => {
   // 2026-04-18 (F2): Initial-state handshake — query rankings for the latest
   // ranking_id linked to this snapshot and emit a `state` event so a client
   // that missed blocks_ready catches up immediately.
-  const handshakeBlocksSnapshotId = typeof req.query.snapshot_id === 'string' ? req.query.snapshot_id : null;
+  const handshakeBlocksSnapshotId = await verifiedHandshakeSnapshotId(req);
   if (handshakeBlocksSnapshotId) {
     try {
       const [row] = await db.select({
@@ -334,6 +361,7 @@ router.get('/events/blocks', requireAuthAllowQueryToken, async (req, res) => {
   try {
     unsubscribe = await subscribeToChannel('blocks_ready', (payload) => {
       if (cleanedUp) return;
+      if (!handshakeBlocksSnapshotId || payloadSnapshotId(payload) !== handshakeBlocksSnapshotId) return;
       res.write(`event: blocks_ready\n`);
       res.write(`data: ${payload}\n\n`);
     });

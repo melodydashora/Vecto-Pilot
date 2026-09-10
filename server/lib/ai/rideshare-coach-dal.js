@@ -27,7 +27,7 @@ import {
   coach_offer_decisions, // 2026-05-05: Driver-decision intel logged from Coach chat
   coach_memos           // 2026-05-12: Coach → Claude Code memo queue, DB-backed for Cloud Run survivability
 } from '../../../shared/schema.js';
-import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte } from 'drizzle-orm';
+import { eq, desc, and, or, sql, isNull, gte, inArray, asc, lte, ilike } from 'drizzle-orm';
 import crypto from 'crypto';
 // Path: from server/lib/ai/ → ../events/ resolves to server/lib/events/
 import { VALIDATION_SCHEMA_VERSION } from '../events/pipeline/validateEvent.js';
@@ -1847,16 +1847,18 @@ export class RideshareCoachDAL {
    * @param {string} messageId - Message ID
    * @param {boolean} starred - Whether to star or unstar
    */
-  async toggleMessageStar(messageId, starred) {
-    try {
-      await db
-        .update(coach_conversations)
-        .set({ is_starred: starred, updated_at: new Date() })
-        .where(eq(coach_conversations.id, messageId));
-      console.log(`[COACH] Message ${messageId} ${starred ? 'starred' : 'unstarred'}`);
-    } catch (error) {
-      console.error('[COACH] toggleMessageStar error:', error);
-    }
+  async toggleMessageStar(messageId, userId, starred) {
+    // 2026-09-10 (security finding [10], verified): the update was keyed by message id only
+    // (any driver could star/unstar anyone's message) and returned nothing, so the route's
+    // "found" branch was dead. Scope to the owner and return the row; DB errors propagate.
+    if (typeof messageId !== 'string' || !messageId || typeof userId !== 'string' || !userId) return null;
+    const [row] = await db
+      .update(coach_conversations)
+      .set({ is_starred: starred, updated_at: new Date() })
+      .where(and(eq(coach_conversations.id, messageId), eq(coach_conversations.user_id, userId)))
+      .returning({ id: coach_conversations.id, is_starred: coach_conversations.is_starred });
+    if (row) console.log(`[COACH] Message ${messageId.slice(0, 8)} ${starred ? 'starred' : 'unstarred'}`);
+    return row ?? null;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2214,7 +2216,8 @@ export class RideshareCoachDAL {
         reason,
         notes,
         deactivated_by = 'ai_coach',
-        snapshot_id // Optional: for real-time UI update
+        snapshot_id, // Optional: for real-time UI update
+        restrict_city = null // 2026-09-10: when set, only events in this city may match (driver-initiated)
       } = deactivationData;
 
       if (!reason) {
@@ -2232,7 +2235,10 @@ export class RideshareCoachDAL {
         const matchingEvents = await db
           .select({ id: discovered_events.id, title: discovered_events.title })
           .from(discovered_events)
-          .where(eq(discovered_events.is_active, true))
+          .where(and(
+            eq(discovered_events.is_active, true),
+            restrict_city ? ilike(discovered_events.city, restrict_city) : undefined
+          ))
           .orderBy(desc(discovered_events.discovered_at))
           .limit(100); // Check recent events
 

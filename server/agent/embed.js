@@ -1,4 +1,5 @@
 import express from 'express';
+import { hasDotSegments } from './path-guard.js';
 import { WebSocketServer } from 'ws';
 import agentRoutes from './routes.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -17,7 +18,14 @@ function checkAgentAllowlist(req, res, next) {
   // 2026-02-17: Memory routes are safe (read/write conversations, preferences, session state).
   // They don't need IP restriction — requireAuth middleware handles authentication.
   // This fixes 403 errors when browser clients call /agent/memory/* endpoints.
-  if (req.path.startsWith('/memory/') || req.path.startsWith('/memory')) {
+  // 2026-09-10 (security finding [7], verified): the exemption matched by raw prefix, so
+  // `/memory/../shell` skipped the IP allowlist and the bridge's upstream URL normalized the
+  // dot segments into /agent/shell. Reject dot segments (raw or encoded) outright and exempt
+  // only real /memory paths.
+  if (hasDotSegments(req.url)) {
+    return res.status(400).json({ error: 'AGENT_BAD_PATH', message: 'Dot segments are not allowed in agent paths' });
+  }
+  if (req.path === '/memory' || req.path.startsWith('/memory/')) {
     return next();
   }
 
