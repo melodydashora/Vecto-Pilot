@@ -129,8 +129,12 @@ Read-only MCP SDK calls identified `vecto-pilot@4.3.0` and successfully read
 `boot_context` and relevant memory/task/lesson/definition/app-rule records. The
 coordinator also invoked `/mcp` in that same Codex terminal; its inventory reported
 `vecto-pilot: connected (18 tools)`. The initial model-visible catalog did not
-expose those tools, so the successful reads used a separate SDK client. Do not
-conflate those two observations or claim a native model tool call was verified.
+expose those tools, so the first reads used a separate SDK client. Subsequent
+native discovery exposed the tools, and Codex called `vecto-pilot.boot_context`
+successfully with `isError: false`. This verifies the configured connection and
+a native model tool call. No persistent configuration edit was needed: the
+launcher supplies session overrides, so the connection need not appear in the
+user's saved config file.
 
 The three setup files were transferred additively from published setup commit
 `03631b527098a6c972ea60f5d6017839263e3abc` on
