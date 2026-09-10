@@ -6,6 +6,9 @@ import { db } from '../db/drizzle.js';
 import { snapshots } from '../../shared/schema.js';
 import { eq } from 'drizzle-orm';
 
+// snapshots.snapshot_id is a uuid column; anything else can never match and is not worth a query.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Middleware to verify authenticated user owns the snapshot
  * Attaches snapshot to req.snapshot if valid
@@ -27,11 +30,18 @@ import { eq } from 'drizzle-orm';
  * @returns {Promise<{ok: true, snapshot: Object} | {ok: false, status: number, body: Object}>}
  */
 export async function verifySnapshotOwnership(snapshotId, userId) {
-  if (!snapshotId) {
+  // 2026-09-10 (CodeQL js/type-confusion-through-parameter-tampering, VP-007): callers pass
+  // req.body / req.query values, which Express can deliver as arrays or objects
+  // (?snapshotId[]=x). A non-string here is a malformed request, not a lookup.
+  if (typeof snapshotId !== 'string' || snapshotId.length === 0) {
     console.log(`[SNAPSHOT] No snapshotId provided`);
     return { ok: false, status: 400, body: { error: 'snapshotId is required' } };
   }
-  if (!userId) {
+  if (!UUID_RE.test(snapshotId)) {
+    console.log(`[SNAPSHOT] Malformed snapshotId rejected`);
+    return { ok: false, status: 400, body: { error: 'snapshotId must be a UUID' } };
+  }
+  if (typeof userId !== 'string' || userId.length === 0) {
     console.log(`[SNAPSHOT] No auth for snapshot ${snapshotId.slice(0, 8)}`);
     return { ok: false, status: 401, body: { error: 'unauthorized' } };
   }

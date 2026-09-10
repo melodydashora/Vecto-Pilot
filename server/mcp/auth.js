@@ -27,12 +27,27 @@ export function constantTimeEqual(a, b) {
 
 /**
  * Extract a bearer token from an Authorization header value.
+ *
+ * 2026-09-10 (VP-010, CodeQL js/polynomial-redos on PR #55): the original
+ * `/^Bearer\s+(.+)$/i` backtracks quadratically on inputs shaped like
+ * "Bearer" + N spaces + "x\ny" (every split between `\s+` and `(.+)` is
+ * retried before the anchored `$` fails). Rewritten as linear scans with the
+ * SAME accept/reject contract: case-insensitive scheme, at least one
+ * whitespace separator, token = remainder trimmed, and a token spanning a
+ * line terminator is rejected exactly as `.` used to reject it.
  * @returns {string|null}
  */
 export function parseBearer(headerValue) {
   if (typeof headerValue !== 'string') return null;
-  const m = /^Bearer\s+(.+)$/i.exec(headerValue.trim());
-  return m ? m[1].trim() : null;
+  const value = headerValue.trim();
+  if (value.length < 7 || value.slice(0, 6).toLowerCase() !== 'bearer') return null;
+  const rest = value.slice(6);
+  if (!/^\s/.test(rest)) return null; // "Bearerxyz" is not a bearer credential
+  const token = rest.trim();
+  if (!token) return null;
+  // `.` in the old regex never matched \n \r \u2028 \u2029, so such input had no match.
+  if (/[\n\r\u2028\u2029]/.test(token)) return null;
+  return token;
 }
 
 /**

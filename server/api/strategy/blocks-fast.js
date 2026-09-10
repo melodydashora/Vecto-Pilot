@@ -80,47 +80,9 @@ const router = Router();
 //   - If phase 2 fails, status remains 'running' (can be retried/cleaned)
 //   - See: .serena/memories/strategy-pipeline-audit-2026-01-10.md
 
-/**
- * Try to acquire a transaction-scoped advisory lock for a snapshot.
- * Must be called inside a db.transaction() block.
- * Lock auto-releases when transaction commits or rollbacks.
- *
- * 2026-01-10: S-002 FIX - Changed from session-level to transaction-scoped
- *
- * @param {string} snapshotId - Snapshot UUID to lock
- * @returns {Promise<boolean>} true if lock acquired, false if already held
- */
-async function tryAcquireXactLock(snapshotId) {
-  const result = await db.execute(
-    sql`SELECT pg_try_advisory_xact_lock(hashtext(${snapshotId})) as acquired`
-  );
-  return result.rows[0]?.acquired === true;
-}
-
-/**
- * Check if a generation lock is currently held (for status checking only).
- * This is a non-blocking check that doesn't acquire the lock.
- *
- * @param {string} snapshotId - Snapshot UUID to check
- * @returns {Promise<boolean>} true if lock is NOT held (available), false if held
- */
-async function isLockAvailable(snapshotId) {
-  // pg_try_advisory_lock returns true if we got it - if so, release immediately
-  const result = await db.execute(
-    sql`SELECT pg_try_advisory_lock(hashtext(${snapshotId})) as acquired`
-  );
-  const acquired = result.rows[0]?.acquired === true;
-  if (acquired) {
-    // Release immediately - we just wanted to check
-    await db.execute(sql`SELECT pg_advisory_unlock(hashtext(${snapshotId}))`);
-  }
-  return acquired; // If we got it (and released), it was available
-}
-
-// DEPRECATED: Session-level locks - kept for reference only
-// async function tryAcquireGenerationLock(snapshotId) { ... }
-// async function waitForGenerationLock(snapshotId) { ... }
-// async function releaseGenerationLock(snapshotId) { ... }
+// 2026-09-10: removed two unreferenced helpers (tryAcquireXactLock, isLockAvailable) and
+// the deprecated session-lock stubs — the ONLY lock pattern in this file is the
+// transaction-scoped pg_try_advisory_xact_lock inside ensureSmartBlocksExist.
 
 // ============================================================================
 // SHARED HELPERS - DRY principle: single source of truth for blocks logic

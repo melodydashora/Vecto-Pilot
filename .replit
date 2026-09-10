@@ -59,7 +59,7 @@ args = "sh -c \"set -a && . ./.env.local && set +a && npm run lint\""
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "sh -c \"set -a && . ./.env.local && set +a && npx tsc --noEmit\""
+args = "sh -c \"set -a && . ./.env.local && set +a && npm run typecheck\""
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"

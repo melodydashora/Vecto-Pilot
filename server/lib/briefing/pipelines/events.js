@@ -429,7 +429,9 @@ async function fetchEventsWithGemini3ProPreview({ snapshot }) {
     briefingLog.warn(2, `Invalid or missing snapshot coords (lat=${snapshot.lat}, lng=${snapshot.lng}) — skipping event discovery`, OP.AI);
     return { items: [], reason: 'Location coordinates unavailable for event discovery' };
   }
-  const hour = snapshot?.hour ?? new Date().getHours();
+  // 2026-09-10: removed `const hour = snapshot?.hour ?? new Date().getHours()` — the value
+  // was never read, and the fallback substituted the SERVER's clock for the driver's hour
+  // (no-server-timezone rule). If an hour is ever needed here, take snapshot.hour and fail loud.
   const timezone = snapshot.timezone;  // NO FALLBACK - timezone is required
 
   // Use local_iso if available, otherwise compute local date from timezone
