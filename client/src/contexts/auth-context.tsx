@@ -1,7 +1,7 @@
 // client/src/contexts/auth-context.tsx
 // Authentication context for user login, registration, and session management
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type {
   DriverProfile,
   AuthState,
@@ -13,12 +13,13 @@ import type {
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 // 2026-01-15: Centralized API routes
 import { API_ROUTES } from '@/constants/apiRoutes';
-// 2026-02-13: Cancel active queries on logout to prevent 401 race condition
-import { queryClient } from '@/lib/queryClient';
+// 2026-09-10: Clear the client actually provided by App (VP-006).
+import { useQueryClient } from '@tanstack/react-query';
 // 2026-04-10: Close SSE connections on logout to prevent orphaned EventSource connections
 import { closeAllSSE } from '@/utils/co-pilot-helpers';
 
 interface AuthContextValue extends AuthState {
+  completeLogin: (data: AuthApiResponse) => void;
   login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -37,6 +38,9 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+  // Invalidates late profile/login responses after an auth transition.
+  const authGeneration = useRef(0);
   const [state, setState] = useState<AuthState>({
     user: null,
     profile: null,
@@ -46,68 +50,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
-  // Load token from localStorage on mount
-  useEffect(() => {
+  const clearSessionData = useCallback(() => {
+    // Cancellation takes effect synchronously, even for queries ignoring AbortSignal.
+    void queryClient.cancelQueries();
+    queryClient.clear();
+    closeAllSSE();
+    sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
+    localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+    localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+  }, [queryClient]);
+
+  const clearAuth = useCallback(() => {
+    authGeneration.current += 1;
+    clearSessionData();
+    localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+    setState({ user: null, profile: null, vehicle: null, token: null,
+      isAuthenticated: false, isLoading: false });
+  }, [clearSessionData]);
+
+  // 2026-09-10: Password and Google auth publish the same mounted provider state.
+  const completeLogin = useCallback((data: AuthApiResponse) => {
+    if (!data.token) throw new Error('Login succeeded but no token was returned');
+    authGeneration.current += 1;
+    clearSessionData();
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
+    setState({ user: data.user || null, profile: data.profile || null,
+      vehicle: data.vehicle || null, token: data.token,
+      isAuthenticated: true, isLoading: false });
+  }, [clearSessionData]);
+
+  const logout = useCallback(async () => {
     const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    if (token) {
-      setState(prev => ({ ...prev, token }));
-      // Fetch user profile
-      fetchProfile(token);
-    } else {
-      setState(prev => ({ ...prev, isLoading: false }));
-    }
-  }, []);
-
-  // 2026-01-06: Listen for auth errors from API calls and force logout
-  // This handles cases where server returns 401 (no_token, session_expired, etc.)
-  // Dispatched by useBriefingQueries and other hooks when API returns 401
-  useEffect(() => {
-    const handleAuthError = async (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const error = customEvent.detail?.error || 'unknown';
-      console.warn(`[auth] 🔐 Auth error received: ${error} - forcing logout`);
-
-      // 2026-02-17: FIX - Call server to release snapshot on TTL-triggered logout
-      // Without this, current_snapshot_id stays set and stale snapshot persists on next login
-      try {
-        const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-        if (token) {
-          await fetch(API_ROUTES.AUTH.LOGOUT, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        }
-      } catch {
-        // Best-effort — server may already have invalidated the session
-      }
-
-      // Cancel active queries to prevent 401 cascade
-      queryClient.cancelQueries();
-      queryClient.clear();
-      // 2026-04-10: Kill all SSE connections on forced logout (Window 2 race fix)
-      closeAllSSE();
-
-      // Clear local auth state
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
-      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-      sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
-
-      setState({
-        user: null,
-        profile: null,
-        vehicle: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
+    // Local teardown must not wait for the server or erase a subsequent login.
+    clearAuth();
+    try {
+      if (token) await fetch(API_ROUTES.AUTH.LOGOUT, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
       });
-    };
+    } catch (error) {
+      console.error('[auth] Logout error:', error);
+    }
+  }, [clearAuth]);
 
+  useEffect(() => {
+    const handleAuthError = () => { void logout(); };
     window.addEventListener('vecto-auth-error', handleAuthError);
     return () => window.removeEventListener('vecto-auth-error', handleAuthError);
-  }, []);
+  }, [logout]);
 
-  const fetchProfile = async (token: string) => {
+  const fetchProfile = useCallback(async (token: string) => {
+    const generation = authGeneration.current;
+    const isCurrent = () => generation === authGeneration.current &&
+      localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) === token;
+    if (!isCurrent()) return;
     try {
       const response = await fetch(API_ROUTES.AUTH.ME, {
         headers: {
@@ -117,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         const data: AuthApiResponse = await response.json();
+        if (!isCurrent()) return;
         setState({
           user: data.user || null,
           profile: data.profile || null,
@@ -126,24 +122,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           isLoading: false,
         });
       } else {
-        // Token invalid, clear it
-        localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-        setState({
-          user: null,
-          profile: null,
-          vehicle: null,
-          token: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
+        if (isCurrent()) clearAuth();
       }
     } catch (error) {
       console.error('[auth] Failed to fetch profile:', error);
+      if (isCurrent()) setState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [clearAuth]);
+
+  useEffect(() => {
+    const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    if (token) {
+      setState(prev => ({ ...prev, token }));
+      void fetchProfile(token);
+    } else {
       setState(prev => ({ ...prev, isLoading: false }));
     }
-  };
+    return () => { authGeneration.current += 1; };
+  }, [fetchProfile]);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
+    const generation = ++authGeneration.current;
     try {
       const response = await fetch(API_ROUTES.AUTH.LOGIN, {
         method: 'POST',
@@ -153,45 +152,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const data: AuthApiResponse = await response.json();
 
+      if (generation !== authGeneration.current) {
+        return { success: false, error: 'Sign-in was superseded. Please try again.' };
+      }
       if (!response.ok) {
         return { success: false, error: data.message || data.error || 'Login failed' };
       }
 
-      // 2026-05-13 FAIL-LOUD (silent-fallthrough hardening, Item 2 followup):
-      // If the server ever returns 200 OK without a token in the body, treat
-      // it as an explicit error rather than silently returning success and
-      // letting the next authenticated request 401 with no_token. Currently
-      // unreachable after commit 7e7d875b (which fixed an upstream regression
-      // that could mask this fragility), but the invariant is preserved
-      // defensively so any future server-side breakage of the success response
-      // shape surfaces here instead of as a phantom auth state.
-      if (!data.token) {
-        return { success: false, error: 'Login succeeded but no token was returned' };
-      }
-
-      // 2026-02-17: FIX - Clear stale snapshot from previous session on login
-      // Without this, sessionStorage restore in location-context serves the OLD snapshot
-      // from before logout, bypassing the server entirely (never creates a new one)
-      sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
-      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
-      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-      setState({
-        user: data.user || null,
-        profile: data.profile || null,
-        vehicle: data.vehicle || null,
-        token: data.token,
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      if (!data.token) return { success: false, error: 'Login succeeded but no token was returned' };
+      completeLogin(data);
 
       return { success: true };
     } catch (error) {
       console.error('[auth] Login error:', error);
       return { success: false, error: 'Network error. Please try again.' };
     }
-  }, []);
+  }, [completeLogin]);
 
   const register = useCallback(async (data: RegisterData) => {
     try {
@@ -216,53 +192,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const logout = useCallback(async () => {
-    // 2026-02-13: Cancel all active queries FIRST to prevent 401 race condition.
-    // Without this, in-flight queries get 401 after token is cleared,
-    // which triggers setCriticalError (red FAIL HARD screen) during logout.
-    queryClient.cancelQueries();
-    queryClient.clear();
-    // 2026-04-10: Kill all SSE connections on logout (Window 2 race fix)
-    closeAllSSE();
-
-    try {
-      // 2026-02-17: FIX - Read token from localStorage instead of state.token closure.
-      // state.token can be stale after login→logout→login cycle due to useCallback closure.
-      // localStorage is the source of truth, set synchronously by login() before setState.
-      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      if (token) {
-        await fetch(API_ROUTES.AUTH.LOGOUT, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      }
-    } catch (error) {
-      console.error('[auth] Logout error:', error);
-    } finally {
-      // Clear all session data on logout
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
-      localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-      sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
-
-      setState({
-        user: null,
-        profile: null,
-        vehicle: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-    }
-  }, []);
-
   const refreshProfile = useCallback(async () => {
     if (state.token) {
       await fetchProfile(state.token);
     }
-  }, [state.token]);
+  }, [state.token, fetchProfile]);
 
   const updateProfile = useCallback(async (data: Partial<DriverProfile>) => {
     if (!state.token) {
@@ -292,7 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('[auth] Update profile error:', error);
       return { success: false, error: 'Network error. Please try again.' };
     }
-  }, [state.token]);
+  }, [state.token, fetchProfile]);
 
   // 2026-01-06: CRITICAL FIX - Memoize context value to prevent infinite re-render loops
   // Without useMemo, every render creates a new object → all consumers re-render → cascade
@@ -300,11 +234,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextValue = useMemo(() => ({
     ...state,
     login,
+    completeLogin,
     register,
     logout,
     refreshProfile,
     updateProfile,
-  }), [state, login, register, logout, refreshProfile, updateProfile]);
+  }), [state, login, completeLogin, register, logout, refreshProfile, updateProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -9,22 +9,30 @@
 // 2026-02-13: New users must accept Terms & Conditions before proceeding.
 // The server sets terms_accepted: false for new Google sign-ups.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
 import { API_ROUTES } from '@/constants/apiRoutes';
+import { useAuth } from '@/contexts/auth-context';
+import type { AuthApiResponse } from '@/types/auth';
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
+
+type GoogleAuthResponse = AuthApiResponse & { isNewUser?: boolean; passwordRevoked?: boolean };
 
 export const GoogleCallbackPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { completeLogin } = useAuth();
   const [status, setStatus] = useState<'processing' | 'terms' | 'success' | 'error'>('processing');
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [pendingAuth, setPendingAuth] = useState<GoogleAuthResponse | null>(null);
+  const [passwordRevoked, setPasswordRevoked] = useState(false);
+  // Reuse a one-time exchange during StrictMode effect replay; never retry conflicts.
+  const exchangeRef = useRef<{ key: string; promise: Promise<GoogleAuthResponse> } | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
 
   useEffect(() => {
@@ -49,67 +57,67 @@ export const GoogleCallbackPage: React.FC = () => {
       return;
     }
 
-    const handleExchange = async () => {
-      try {
+    let active = true;
+    const key = JSON.stringify([code, state]);
+    if (exchangeRef.current?.key !== key) {
+      exchangeRef.current = { key, promise: (async () => {
         const response = await fetch(API_ROUTES.AUTH.GOOGLE_CALLBACK, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, state }),
         });
-
-        const data = await response.json();
-
+        const data: GoogleAuthResponse = await response.json();
         if (!response.ok) {
-          // Handle specific error cases
-          if (data.error === 'NO_ACCOUNT') {
-            setStatus('error');
-            setErrorMsg(data.message || 'No account found. Please sign up first.');
-            return;
+          if (response.status === 409 && data.error === 'ACCOUNT_CONFLICT') {
+            throw new Error('This email is linked to a different Google account. Use that account to sign in.');
           }
-          throw new Error(data.message || 'Google authentication failed');
-        }
-
-        if (data.token) {
-          // Store token for later use
-          setAuthToken(data.token);
-
-          // 2026-02-17: FIX - Clear stale snapshot from previous session on login
-          sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
-          localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
-          localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
-
-          // 2026-02-13: New users must accept terms before proceeding
-          if (data.isNewUser) {
-            localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-            setStatus('terms');
-          } else {
-            // Existing user — store token and redirect
-            localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
-            setStatus('success');
-            setTimeout(() => navigate('/co-pilot/strategy'), 1500);
+          if (response.status === 409 && data.error === 'ACCOUNT_EXISTS') {
+            throw new Error('An account was just created with this email. Return to sign in and try again.');
           }
-        } else {
-          throw new Error('No token received from server');
+          throw new Error(data.message || 'Google authentication failed. Please try again.');
         }
-      } catch (err) {
-        setStatus('error');
-        setErrorMsg(
-          err instanceof Error
-            ? err.message
-            : 'Failed to complete Google sign-in. Please try again.'
-        );
-        console.error('[google-auth] Exchange error:', err);
+        if (!data.token) throw new Error('No token received from server');
+        return data;
+      })() };
+    }
+    exchangeRef.current.promise.then(data => {
+      if (!active) return;
+      setPasswordRevoked(data.passwordRevoked === true);
+      if (data.isNewUser) {
+        // Preserve the existing token-before-terms contract. Publish authenticated
+        // React state only after the terms request succeeds.
+        sessionStorage.removeItem(SESSION_KEYS.SNAPSHOT);
+        localStorage.removeItem(STORAGE_KEYS.PERSISTENT_STRATEGY);
+        localStorage.removeItem(STORAGE_KEYS.STRATEGY_SNAPSHOT_ID);
+        localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token!);
+        setPendingAuth(data);
+        setStatus('terms');
+      } else {
+        completeLogin(data);
+        setStatus('success');
       }
-    };
+    }).catch(err => {
+      if (!active) return;
+      setStatus('error');
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to complete Google sign-in. Please try again.');
+    });
+    return () => { active = false; };
+  }, [searchParams, completeLogin]);
 
-    handleExchange();
-  }, [searchParams, navigate]);
+  useEffect(() => {
+    // Let drivers read a password revocation notice before continuing.
+    if (status !== 'success' || passwordRevoked) return;
+    const timer = setTimeout(() => navigate('/co-pilot/strategy'), 1500);
+    return () => clearTimeout(timer);
+  }, [status, passwordRevoked, navigate]);
 
   // 2026-02-13: Handle terms acceptance for new Google users
   const handleAcceptTerms = async () => {
-    if (!termsAccepted || !authToken) return;
+    if (!termsAccepted || !pendingAuth?.token || isAccepting) return;
+    const authToken = pendingAuth.token;
 
     setIsAccepting(true);
+    setErrorMsg('');
     try {
       const response = await fetch(API_ROUTES.AUTH.PROFILE, {
         method: 'PUT',
@@ -124,12 +132,16 @@ export const GoogleCallbackPage: React.FC = () => {
         throw new Error('Failed to save terms acceptance');
       }
 
+      if (localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN) !== authToken) {
+        throw new Error('Sign-in session changed');
+      }
+      completeLogin({ ...pendingAuth, profile: pendingAuth.profile
+        ? { ...pendingAuth.profile, termsAccepted: true } : undefined });
       setStatus('success');
-      setTimeout(() => navigate('/co-pilot/strategy'), 1500);
     } catch (err) {
       console.error('[google-auth] Terms acceptance error:', err);
       setErrorMsg('Failed to save terms acceptance. Please try again.');
-      setStatus('error');
+      // Keep the checkbox and retry action available; do not authenticate on failure.
     } finally {
       setIsAccepting(false);
     }
@@ -185,6 +197,7 @@ export const GoogleCallbackPage: React.FC = () => {
                   </label>
                 </div>
 
+                {errorMsg && <p role="alert" className="text-sm text-red-600">{errorMsg}</p>}
                 <Button
                   onClick={handleAcceptTerms}
                   disabled={!termsAccepted || isAccepting}
@@ -208,7 +221,14 @@ export const GoogleCallbackPage: React.FC = () => {
               <CheckCircle2 className="w-12 h-12 text-green-500" />
               <div className="text-center">
                 <p className="font-medium text-lg">Signed In Successfully!</p>
-                <p className="text-sm text-gray-500">Redirecting...</p>
+                {passwordRevoked ? (
+                  <>
+                    <p role="status" className="text-sm text-gray-700 mt-2">
+                      Your old password was disabled. Use Google to sign in, or reset your password.
+                    </p>
+                    <Button className="mt-4" onClick={() => navigate('/co-pilot/strategy')}>Continue</Button>
+                  </>
+                ) : <p className="text-sm text-gray-500">Redirecting...</p>}
               </div>
             </>
           )}
@@ -218,7 +238,7 @@ export const GoogleCallbackPage: React.FC = () => {
               <AlertCircle className="w-12 h-12 text-red-500" />
               <div className="text-center">
                 <p className="font-medium text-lg text-red-600">Sign-In Failed</p>
-                <p className="text-sm text-gray-500 mt-2">{errorMsg}</p>
+                <p role="alert" className="text-sm text-gray-500 mt-2">{errorMsg}</p>
                 <button
                   onClick={() => navigate('/auth/sign-in')}
                   className="mt-4 px-4 py-2 text-sm text-blue-600 hover:underline"

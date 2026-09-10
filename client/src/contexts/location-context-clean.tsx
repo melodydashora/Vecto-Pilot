@@ -3,8 +3,8 @@ import React, { createContext, useState, useEffect, useCallback, useRef, useMemo
 import { useAuth } from './auth-context';
 import { STORAGE_KEYS, SESSION_KEYS } from '@/constants/storageKeys';
 import { API_ROUTES } from '@/constants/apiRoutes';
-// 2026-02-17: Import queryClient for full cache reset on manual refresh (matches logout behavior)
-import { queryClient } from '@/lib/queryClient';
+// 2026-09-10: Refresh clears the provided client, preserving its defaults (VP-006).
+import { useQueryClient } from '@tanstack/react-query';
 // 2026-07-06: shared daypart adapter — GPS-resolved timezone required, no device-tz math
 import { classifyDayPart, getLocalDow, getLocalIso } from '@/lib/daypart';
 
@@ -166,6 +166,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Get auth state to link snapshots to logged-in user
   // Also get profile for home location fallback when GPS fails
   const { token, user, profile, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
   const [currentCoords, setCurrentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [currentLocationString, setCurrentLocationString] = useState('Getting location...');
@@ -719,7 +720,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
 
-      queryClient.cancelQueries();
+      void queryClient.cancelQueries();
       queryClient.clear();
 
       // 2026-03-18: Null snapshot so enrichment dedup sees "no active snapshot" → always proceeds
@@ -756,7 +757,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } finally {
       setIsUpdating(false);
     }
-  }, [enrichLocation, profile?.homeLat, profile?.homeLng]);
+  }, [enrichLocation, profile?.homeLat, profile?.homeLng, queryClient]);
 
   // 2026-01-07: Keep ref in sync with latest refreshGPS
   // This allows the GPS effect to always call the latest version
